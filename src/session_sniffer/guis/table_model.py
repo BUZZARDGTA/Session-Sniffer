@@ -143,6 +143,183 @@ class _ColumnIndices:
     pps: int | None
 
 
+def sort_table_rows(
+    rows_with_colors: list[tuple[list[str], list[CellColor]]],
+    column_name: str,
+    order: Qt.SortOrder,
+    headers: list[str],
+) -> list[tuple[list[str], list[CellColor]]]:
+    """Sort table rows and compiled colors by column name and sort order.
+
+    Args:
+        rows_with_colors: List of (row_cells, cell_colors) tuples.
+        column_name: Name of the header column to sort by.
+        order: Sort order (AscendingOrder or DescendingOrder).
+        headers: List of column header names.
+
+    Returns:
+        The sorted list of (row_cells, cell_colors) tuples.
+    """
+    if not rows_with_colors:
+        return rows_with_colors
+
+    resolved_column_name = column_name
+    if resolved_column_name not in headers:
+        if 'Last Rejoin' in headers:
+            resolved_column_name = 'Last Rejoin'
+        elif 'Last Seen' in headers:
+            resolved_column_name = 'Last Seen'
+        elif headers:
+            resolved_column_name = headers[0]
+        else:
+            return rows_with_colors
+
+    column_index = headers.index(resolved_column_name)
+    ip_column_index = headers.index('IP Address') if 'IP Address' in headers else -1
+
+    def _extract_ip(row_cells: list[str]) -> str:
+        if 0 <= ip_column_index < len(row_cells):
+            return row_cells[ip_column_index]
+        return ''
+
+    sort_order_bool = order == Qt.SortOrder.DescendingOrder
+    sorted_rows = list(rows_with_colors)
+
+    if resolved_column_name == 'Usernames':
+        sorted_rows.sort(
+            key=lambda row: row[0][column_index].casefold(),
+            reverse=sort_order_bool,
+        )
+    elif resolved_column_name in {'First Seen', 'Last Rejoin', 'Last Seen'}:
+        datetime_attr = {'First Seen': 'first_seen', 'Last Rejoin': 'last_rejoin', 'Last Seen': 'last_seen'}[resolved_column_name]
+        default_datetime = datetime.min.replace(tzinfo=UTC)
+        ip_datetime_map: dict[str, datetime] = {
+            _extract_ip(row): (
+                getattr(matched_player.datetime, datetime_attr) if (matched_player := PlayersRegistry.get_player_by_ip(_extract_ip(row))) is not None else default_datetime
+            )
+            for row, _ in sorted_rows
+        }
+        sorted_rows.sort(
+            key=lambda row: ip_datetime_map[_extract_ip(row[0])],
+            reverse=not sort_order_bool,
+        )
+    elif resolved_column_name == 'T. Session Time':
+        ip_total_session_time_map: dict[str, timedelta] = {
+            _extract_ip(row): (
+                matched_player.datetime.get_total_session_time() if (matched_player := PlayersRegistry.get_player_by_ip(_extract_ip(row))) is not None else _ZERO_TD
+            )
+            for row, _ in sorted_rows
+        }
+        sorted_rows.sort(
+            key=lambda row: ip_total_session_time_map[_extract_ip(row[0])],
+            reverse=sort_order_bool,
+        )
+    elif resolved_column_name == 'Session Time':
+        ip_session_time_map: dict[str, timedelta] = {
+            _extract_ip(row): (matched_player.datetime.get_session_time() if (matched_player := PlayersRegistry.get_player_by_ip(_extract_ip(row))) is not None else _ZERO_TD)
+            for row, _ in sorted_rows
+        }
+
+        def _session_time_sort_key(row: tuple[list[str], list[CellColor]]) -> tuple[timedelta, ipaddress.IPv4Address | ipaddress.IPv6Address | int]:
+            player_ip = _extract_ip(row[0])
+            session_duration = ip_session_time_map[player_ip]
+            try:
+                parsed_ip: ipaddress.IPv4Address | ipaddress.IPv6Address | int = ipaddress.ip_address(player_ip)
+            except ValueError:
+                parsed_ip = 0
+            return session_duration, parsed_ip
+
+        sorted_rows.sort(
+            key=_session_time_sort_key,
+            reverse=sort_order_bool,
+        )
+    elif resolved_column_name in {
+        'Rejoins',
+        *PACKET_STAT_COLUMNS,
+        'PPS',
+        'PPM',
+        'Last Port',
+        'First Port',
+    }:
+
+        def _stat_to_float(row: tuple[list[str], list[CellColor]]) -> float:
+            try:
+                return float(row[0][column_index])
+            except ValueError:
+                return float('-inf')
+
+        sorted_rows.sort(
+            key=_stat_to_float,
+            reverse=sort_order_bool,
+        )
+    elif resolved_column_name in BANDWIDTH_RATE_STAT_COLUMNS:
+        bandwidth_attr_map = {
+            **BANDWIDTH_BASE_COLUMN_ATTRS,
+            'BPS': 'bandwidth.bps.calculated_rate',
+            'BPM': 'bandwidth.bpm.calculated_rate',
+        }
+        bandwidth_attribute = bandwidth_attr_map[resolved_column_name]
+        ip_bandwidth_map: dict[str, int] = {
+            _extract_ip(row): (attrgetter(bandwidth_attribute)(matched_player) if (matched_player := PlayersRegistry.get_player_by_ip(_extract_ip(row))) is not None else 0)
+            for row, _ in sorted_rows
+        }
+        sorted_rows.sort(
+            key=lambda row: ip_bandwidth_map[_extract_ip(row[0])],
+            reverse=sort_order_bool,
+        )
+    elif resolved_column_name == 'Ports':
+        sorted_rows.sort(
+            key=lambda row: tuple(int(port) for port in row[0][column_index].split(', ') if port.isdigit()),
+            reverse=sort_order_bool,
+        )
+    elif resolved_column_name == 'Middle Ports':
+        sorted_rows.sort(
+            key=lambda row: len(row[0][column_index]),
+            reverse=sort_order_bool,
+        )
+    elif resolved_column_name in {'Lat', 'Lon', 'Offset'}:
+
+        def _geo_to_float(row: tuple[list[str], list[CellColor]]) -> float:
+            value = row[0][column_index]
+            if value == '...':
+                return float('-inf')
+            try:
+                return float(value)
+            except ValueError:
+                return float('-inf')
+
+        sorted_rows.sort(
+            key=_geo_to_float,
+            reverse=sort_order_bool,
+        )
+    elif resolved_column_name == 'IP Address':
+
+        def _to_ip_address(row: tuple[list[str], list[CellColor]]) -> ipaddress.IPv4Address | ipaddress.IPv6Address | int:
+            try:
+                return ipaddress.ip_address(_extract_ip(row[0]))
+            except ValueError:
+                return 0
+
+        sorted_rows.sort(
+            key=_to_ip_address,
+            reverse=sort_order_bool,
+        )
+    elif resolved_column_name in {
+        'Hostname',
+        *LOCATION_COLUMNS,
+        *ORGANIZATION_COLUMNS,
+        *STATUS_COLUMNS,
+    }:
+        sorted_rows.sort(
+            key=lambda row: row[0][column_index].casefold(),
+            reverse=sort_order_bool,
+        )
+    else:
+        raise UnsupportedSortColumnError(resolved_column_name)
+
+    return sorted_rows
+
+
 class SessionTableModel(QAbstractTableModel):  # pylint: disable=too-many-public-methods
     """Provide a Qt table model for rendering connected/disconnected sessions."""
 
@@ -364,135 +541,15 @@ class SessionTableModel(QAbstractTableModel):  # pylint: disable=too-many-public
         combined = list(zip(self._data, self._compiled_colors, strict=True))
         if not combined:
             raise TableDataConsistencyError(case='empty_combined')
-        sort_order_bool = order == Qt.SortOrder.DescendingOrder
-
-        if sorted_column_name == 'Usernames':
-            combined.sort(
-                key=lambda row: ', '.join(row[0][column]).casefold(),
-                reverse=sort_order_bool,
-            )
-        elif sorted_column_name in {'First Seen', 'Last Rejoin', 'Last Seen'}:
-            # Precompute datetime values once to avoid O(n log n) registry lookups in the sort key
-            _datetime_attr = {'First Seen': 'first_seen', 'Last Rejoin': 'last_rejoin', 'Last Seen': 'last_seen'}[sorted_column_name]
-            _default_datetime = datetime.min.replace(tzinfo=UTC)
-            _ip_datetime_map: dict[str, datetime] = {
-                self.get_ip_from_data_safely(row): (
-                    getattr(matched_player.datetime, _datetime_attr)
-                    if (matched_player := PlayersRegistry.get_player_by_ip(self.get_ip_from_data_safely(row))) is not None
-                    else _default_datetime
-                )
-                for row, _ in combined
-            }
-
-            combined.sort(
-                key=lambda row: _ip_datetime_map[self.get_ip_from_data_safely(row[0])],
-                reverse=not sort_order_bool,
-            )
-        elif sorted_column_name == 'T. Session Time':
-            # Precompute total session time values once to avoid O(n log n) registry lookups in the sort key
-            _ip_total_session_time_map: dict[str, timedelta] = {
-                self.get_ip_from_data_safely(row): (
-                    matched_player.datetime.get_total_session_time()
-                    if (matched_player := PlayersRegistry.get_player_by_ip(self.get_ip_from_data_safely(row))) is not None
-                    else _ZERO_TD
-                )
-                for row, _ in combined
-            }
-
-            combined.sort(
-                key=lambda row: _ip_total_session_time_map[self.get_ip_from_data_safely(row[0])],
-                reverse=sort_order_bool,
-            )
-        elif sorted_column_name == 'Session Time':
-            # Precompute session time values once to avoid O(n log n) registry lookups in the sort key
-            _ip_session_time_map: dict[str, timedelta] = {
-                self.get_ip_from_data_safely(row): (
-                    matched_player.datetime.get_session_time()
-                    if (matched_player := PlayersRegistry.get_player_by_ip(self.get_ip_from_data_safely(row))) is not None
-                    else _ZERO_TD
-                )
-                for row, _ in combined
-            }
-
-            combined.sort(
-                key=lambda row: (
-                    _ip_session_time_map[self.get_ip_from_data_safely(row[0])],
-                    ipaddress.ip_address(self.get_ip_from_data_safely(row[0])),
-                ),
-                reverse=sort_order_bool,
-            )
-        elif sorted_column_name in {
-            'Rejoins',
-            *PACKET_STAT_COLUMNS,
-            'PPS',
-            'PPM',
-            'Last Port',
-            'First Port',
-        }:
-            # Sort by integer/float value of the column value
-            combined.sort(
-                key=lambda row: float(row[0][column]),
-                reverse=sort_order_bool,
-            )
-        elif sorted_column_name in BANDWIDTH_RATE_STAT_COLUMNS:
-            # Precompute bandwidth values once to avoid O(n log n) registry lookups in the sort key
-            _bandwidth_attr_map = {
-                **BANDWIDTH_BASE_COLUMN_ATTRS,
-                'BPS': 'bandwidth.bps.calculated_rate',
-                'BPM': 'bandwidth.bpm.calculated_rate',
-            }
-            _bw_attr = _bandwidth_attr_map[sorted_column_name]
-            _ip_bandwidth_map: dict[str, int] = {
-                self.get_ip_from_data_safely(row): (
-                    attrgetter(_bw_attr)(matched_player) if (matched_player := PlayersRegistry.get_player_by_ip(self.get_ip_from_data_safely(row))) is not None else 0
-                )
-                for row, _ in combined
-            }
-
-            combined.sort(
-                key=lambda row: _ip_bandwidth_map[self.get_ip_from_data_safely(row[0])],
-                reverse=sort_order_bool,
-            )
-        elif sorted_column_name == 'Ports':
-            # Sort by tuple of integer port values in discovery order
-            combined.sort(
-                key=lambda row: tuple(int(port) for port in row[0][column].split(', ') if port.isdigit()),
-                reverse=sort_order_bool,
-            )
-        elif sorted_column_name == 'Middle Ports':
-            # Sort by the number of ports in the list (length)
-            combined.sort(
-                key=lambda row: len(row[0][column]),
-                reverse=sort_order_bool,
-            )
-        elif sorted_column_name in {'Lat', 'Lon', 'Offset'}:
-            # Sort by integer/float value of the column value but keep "..." at the end
-            combined.sort(
-                key=lambda row: float(row[0][column]) if row[0][column] != '...' else float('-inf'),
-                reverse=sort_order_bool,
-            )
-        elif sorted_column_name == 'IP Address':
-            # Sort by numeric IP address value
-            combined.sort(
-                key=lambda row: ipaddress.ip_address(self.get_ip_from_data_safely(row[0])),
-                reverse=sort_order_bool,
-            )
-        elif sorted_column_name in {
-            'Hostname',
-            *LOCATION_COLUMNS,
-            *ORGANIZATION_COLUMNS,
-            *STATUS_COLUMNS,
-        }:
-            # Sort by string representation of the column value
-            combined.sort(
-                key=lambda row: row[0][column].casefold(),
-                reverse=sort_order_bool,
-            )
-        else:
-            raise UnsupportedSortColumnError(sorted_column_name)
+        sorted_rows = sort_table_rows(
+            rows_with_colors=combined,
+            column_name=sorted_column_name,
+            order=order,
+            headers=self._headers,
+        )
 
         # Unpack the sorted data
-        self._data, self._compiled_colors = map(list, zip(*combined, strict=True))
+        self._data, self._compiled_colors = map(list, zip(*sorted_rows, strict=True))
         self._rebuild_ip_index()
 
         self.layoutChanged.emit()

@@ -29,6 +29,7 @@ from session_sniffer.guis.table_model import GUI_COLUMN_HEADERS_TOOLTIPS, Sessio
 from session_sniffer.guis.tables_context_menu_mixin import TableContextMenuMixin
 from session_sniffer.guis.utils import HEADER_SORT_PADDING, ElidedTextTooltipDelegate, PersistentMenu, setup_static_table_column_resizing
 from session_sniffer.player.registry import PlayersRegistry
+from session_sniffer.rendering_core.types import PaginationState, SortState
 from session_sniffer.settings.defaults import SETTING_DEFAULTS
 from session_sniffer.settings.settings import Settings
 
@@ -142,6 +143,7 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
         self.setSortingEnabled(False)
         horizontal_header.setSortIndicator(sort_column, sort_order)
         horizontal_header.setSortIndicatorShown(True)
+        self._push_sort_state(reset_page=False)
 
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.customContextMenuRequested.connect(self.show_context_menu)
@@ -365,6 +367,7 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
         horizontal_header.setSortIndicator(column_index, order)
         self._previous_sort_section_index = column_index
         self.sort_current_column()
+        self._push_sort_state(reset_page=False)
 
     def sort_current_column(self) -> None:
         """Sort the table by the currently indicated header column and order, preserving scroll position."""
@@ -393,6 +396,18 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
             raise TypeError(format_type_error(sorted_column_name, str))
 
         return sorted_column_name, sort_order
+
+    def _push_sort_state(self, *, reset_page: bool = False) -> None:
+        """Write current sort column and order to the shared SortState."""
+        column_name, sort_order = self._get_sorted_column()
+        if self.is_connected_table:
+            if reset_page:
+                PaginationState.set_connected_page(1)
+            SortState.set_connected(column_name=column_name, order=sort_order)
+        else:
+            if reset_page:
+                PaginationState.set_disconnected_page(1)
+            SortState.set_disconnected(column_name=column_name, order=sort_order)
 
     def capture_selection(self) -> None:
         """Save the current cell selection by player IP and scroll positions for later restoration."""
@@ -454,6 +469,7 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
         # Sort the model
         model.sort(section_index, horizontal_header.sortIndicatorOrder())
         self._previous_sort_section_index = section_index
+        self._push_sort_state(reset_page=True)
         self.horizontalScrollBar().setValue(h_scroll)
         self.verticalScrollBar().setValue(v_scroll)
 

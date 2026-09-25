@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from threading import Condition, Lock
 from typing import TYPE_CHECKING, ClassVar, NamedTuple
 
+from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
 
 from session_sniffer.networking.interface import INTERFACE_TYPE_BRIDGED, INTERFACE_TYPE_SHARING
@@ -31,6 +32,7 @@ class PaginationState:
     _disconnected_rows_per_page: ClassVar[int] = 0
     _connected_page: ClassVar[int] = 1
     _disconnected_page: ClassVar[int] = 1
+    _version: ClassVar[int] = 0
 
     @classmethod
     def set_connected(cls, *, rows_per_page: int, page: int) -> None:
@@ -38,6 +40,8 @@ class PaginationState:
         with cls._lock:
             cls._connected_rows_per_page = rows_per_page
             cls._connected_page = page
+            cls._version += 1
+        GUIRenderingState.wake()
 
     @classmethod
     def set_disconnected(cls, *, rows_per_page: int, page: int) -> None:
@@ -45,28 +49,35 @@ class PaginationState:
         with cls._lock:
             cls._disconnected_rows_per_page = rows_per_page
             cls._disconnected_page = page
+            cls._version += 1
+        GUIRenderingState.wake()
 
     @classmethod
     def set_connected_page(cls, page: int) -> None:
         """Set only the connected-table current page."""
         with cls._lock:
             cls._connected_page = page
+            cls._version += 1
+        GUIRenderingState.wake()
 
     @classmethod
     def set_disconnected_page(cls, page: int) -> None:
         """Set only the disconnected-table current page."""
         with cls._lock:
             cls._disconnected_page = page
+            cls._version += 1
+        GUIRenderingState.wake()
 
     @classmethod
-    def get(cls) -> tuple[int, int, int, int]:
-        """Return (connected_rows_per_page, connected_page, disconnected_rows_per_page, disconnected_page)."""
+    def get(cls) -> tuple[int, int, int, int, int]:
+        """Return (connected_rows_per_page, connected_page, disconnected_rows_per_page, disconnected_page, version)."""
         with cls._lock:
             return (
                 cls._connected_rows_per_page,
                 cls._connected_page,
                 cls._disconnected_rows_per_page,
                 cls._disconnected_page,
+                cls._version,
             )
 
 
@@ -87,6 +98,7 @@ class SearchState:
             cls._connected_text = text
             cls._connected_column = column
             cls._version += 1
+        GUIRenderingState.wake()
 
     @classmethod
     def set_disconnected(cls, text: str, column: int) -> None:
@@ -95,12 +107,48 @@ class SearchState:
             cls._disconnected_text = text
             cls._disconnected_column = column
             cls._version += 1
+        GUIRenderingState.wake()
 
     @classmethod
     def get(cls) -> tuple[str, int, str, int, int]:
         """Return (connected_text, connected_column, disconnected_text, disconnected_column, version)."""
         with cls._lock:
             return cls._connected_text, cls._connected_column, cls._disconnected_text, cls._disconnected_column, cls._version
+
+
+class SortState:
+    """Thread-safe table sort configuration shared between the GUI and the worker thread."""
+
+    _lock: ClassVar[Lock] = Lock()
+    _connected_column_name: ClassVar[str] = Settings.gui_connected_table_sort_column
+    _connected_order: ClassVar[Qt.SortOrder] = Qt.SortOrder.AscendingOrder if Settings.gui_connected_table_sort_order == 'Ascending' else Qt.SortOrder.DescendingOrder
+    _disconnected_column_name: ClassVar[str] = Settings.gui_disconnected_table_sort_column
+    _disconnected_order: ClassVar[Qt.SortOrder] = Qt.SortOrder.AscendingOrder if Settings.gui_disconnected_table_sort_order == 'Ascending' else Qt.SortOrder.DescendingOrder
+    _version: ClassVar[int] = 0
+
+    @classmethod
+    def set_connected(cls, *, column_name: str, order: Qt.SortOrder) -> None:
+        """Update connected-table sort configuration, then bump the version."""
+        with cls._lock:
+            cls._connected_column_name = column_name
+            cls._connected_order = order
+            cls._version += 1
+        GUIRenderingState.wake()
+
+    @classmethod
+    def set_disconnected(cls, *, column_name: str, order: Qt.SortOrder) -> None:
+        """Update disconnected-table sort configuration, then bump the version."""
+        with cls._lock:
+            cls._disconnected_column_name = column_name
+            cls._disconnected_order = order
+            cls._version += 1
+        GUIRenderingState.wake()
+
+    @classmethod
+    def get(cls) -> tuple[str, Qt.SortOrder, str, Qt.SortOrder, int]:
+        """Return (connected_column_name, connected_order, disconnected_column_name, disconnected_order, version)."""
+        with cls._lock:
+            return cls._connected_column_name, cls._connected_order, cls._disconnected_column_name, cls._disconnected_order, cls._version
 
 
 class CaptureState:
@@ -334,6 +382,14 @@ class GUIRenderingState:
     _condition: ClassVar[Condition] = Condition(_lock)
     _current: ClassVar[GUIRenderingSnapshot | None] = None
     _version: ClassVar[int] = 0  # Incremented each time a new snapshot is published
+    _wake_requested: ClassVar[bool] = False
+
+    @classmethod
+    def wake(cls) -> None:
+        """Wake waiting consumers immediately without a new snapshot."""
+        with cls._condition:
+            cls._wake_requested = True
+            cls._condition.notify_all()
 
     @classmethod
     def publish_rendering_snapshot(cls, snapshot: GUIRenderingSnapshot) -> None:
@@ -353,19 +409,20 @@ class GUIRenderingState:
         timeout: float | None = None,
         last_seen_version: int = 0,
     ) -> tuple[GUIRenderingSnapshot | None, int]:
-        """Wait for a new snapshot if it's newer than last_seen_version.
+        """Wait for a new snapshot if it's newer than last_seen_version, or wake on external requests.
 
         Returns:
-            Tuple of (snapshot, version). Snapshot is None if timeout occurs.
+            Tuple of (snapshot, version). Snapshot is None if timeout occurs or wake was requested.
         """
         with cls._condition:
             if not cls._condition.wait_for(
-                lambda: cls._version != last_seen_version,
+                lambda: cls._version != last_seen_version or cls._wake_requested,
                 timeout=timeout,
             ):
                 return None, last_seen_version
 
-            return cls._current, cls._version
+            cls._wake_requested = False
+            return (cls._current if cls._version != last_seen_version else None), cls._version
 
     @classmethod
     def get_version(cls) -> int:

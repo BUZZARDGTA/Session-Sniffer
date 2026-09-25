@@ -6,7 +6,16 @@ from PySide6.QtCore import Signal
 
 from session_sniffer.background.events import gui_closed__event
 from session_sniffer.guis._crashing_qthread import CrashingQThread
-from session_sniffer.rendering_core.types import CellColor, GUIRenderingSnapshot, GUIRenderingState, GUIUpdatePayload, PaginationState, SearchState
+from session_sniffer.guis.table_model import sort_table_rows
+from session_sniffer.rendering_core.types import (
+    CellColor,
+    GUIRenderingSnapshot,
+    GUIRenderingState,
+    GUIUpdatePayload,
+    PaginationState,
+    SearchState,
+    SortState,
+)
 
 
 def _search_filter(
@@ -55,6 +64,8 @@ class GUIWorkerThread(CrashingQThread):
         last_seen_version = 0
         last_snapshot: GUIRenderingSnapshot | None = None
         last_search_version: int = -1
+        last_pagination_version: int = -1
+        last_sort_version: int = -1
 
         while not gui_closed__event.is_set():
             snapshot, last_seen_version = GUIRenderingState.wait_rendering_snapshot(
@@ -63,13 +74,17 @@ class GUIWorkerThread(CrashingQThread):
             )
 
             connected_search_text, connected_column, disconnected_search_text, disconnected_column, search_version = SearchState.get()
+            connected_rows_per_page, connected_page, disconnected_rows_per_page, disconnected_page, pagination_version = PaginationState.get()
+            connected_sort_col, connected_sort_order, disconnected_sort_col, disconnected_sort_order, sort_version = SortState.get()
 
             if snapshot is not None:
                 last_snapshot = snapshot
-            elif search_version == last_search_version or last_snapshot is None:
+            elif (search_version == last_search_version and pagination_version == last_pagination_version and sort_version == last_sort_version) or last_snapshot is None:
                 continue
 
             last_search_version = search_version
+            last_pagination_version = pagination_version
+            last_sort_version = sort_version
             connected_count = last_snapshot.connected.row_count
             disconnected_count = last_snapshot.disconnected.row_count
 
@@ -81,7 +96,7 @@ class GUIWorkerThread(CrashingQThread):
                 (list(row), list(colors)) for row, colors in zip(last_snapshot.disconnected.rows, last_snapshot.disconnected.colors, strict=True)
             ]
 
-            # Apply search filter (before pagination so counts and pages stay accurate)
+            # Apply search filter (before sorting and pagination so counts and pages stay accurate)
             if connected_search_text:
                 connected_rows_with_colors = _search_filter(connected_rows_with_colors, connected_search_text, connected_column)
                 connected_count = len(connected_rows_with_colors)
@@ -89,9 +104,23 @@ class GUIWorkerThread(CrashingQThread):
                 disconnected_rows_with_colors = _search_filter(disconnected_rows_with_colors, disconnected_search_text, disconnected_column)
                 disconnected_count = len(disconnected_rows_with_colors)
 
-            # Apply pagination
-            connected_rows_per_page, connected_page, disconnected_rows_per_page, disconnected_page = PaginationState.get()
+            # Apply sorting (before pagination so each page contains the correct slice of sorted data)
+            if connected_rows_with_colors:
+                connected_rows_with_colors = sort_table_rows(
+                    connected_rows_with_colors,
+                    connected_sort_col,
+                    connected_sort_order,
+                    last_snapshot.column_config.connected_column_names,
+                )
+            if disconnected_rows_with_colors:
+                disconnected_rows_with_colors = sort_table_rows(
+                    disconnected_rows_with_colors,
+                    disconnected_sort_col,
+                    disconnected_sort_order,
+                    last_snapshot.column_config.disconnected_column_names,
+                )
 
+            # Apply pagination
             connected_rows_with_colors, connected_page, connected_total_pages = _paginate(
                 connected_rows_with_colors,
                 connected_count,
