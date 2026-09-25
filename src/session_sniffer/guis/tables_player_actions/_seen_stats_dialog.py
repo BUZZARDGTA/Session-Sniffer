@@ -11,7 +11,14 @@ from PySide6.QtWidgets import (
 from session_sniffer.constants.local import SESSIONS_LOGGING_DIR_PATH
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.guis.tables_player_actions._player_info_dialog_mixin import PlayerInfoDialogMixin
-from session_sniffer.guis.utils import format_player_display, get_screen_size, resize_window_for_screen, scale_by_ui, set_dialog_window_flags
+from session_sniffer.guis.utils import (
+    activate_window,
+    format_player_display,
+    get_screen_size,
+    resize_window_for_screen,
+    scale_by_ui,
+    set_dialog_window_flags,
+)
 from session_sniffer.player.seen_stats import SEEN_STATS_LABELS, SeenStats, analyze_sessions_logging
 
 if TYPE_CHECKING:
@@ -61,8 +68,19 @@ class SeenStatsDialog(PlayerInfoDialogMixin):
         parent_layout.addWidget(group)
 
 
-def show_seen_stats(_parent: QWidget | None, player: Player) -> None:
-    """Open the Seen Stats dialog for *player*."""
-    dialog = SeenStatsDialog(None, player)
+_active_seen_stats_dialogs: dict[str, SeenStatsDialog] = {}
+
+
+def show_seen_stats(parent: QWidget | None, player: Player) -> None:
+    """Open or focus the Seen Stats dialog for *player*."""
+    existing_dialog = _active_seen_stats_dialogs.get(player.ip)
+    if existing_dialog is not None:
+        activate_window(existing_dialog)
+        return
+
+    dialog = SeenStatsDialog(parent, player)
     dialog.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
-    dialog.show()
+    _active_seen_stats_dialogs[player.ip] = dialog
+    dialog.destroyed.connect(lambda: _active_seen_stats_dialogs.pop(player.ip, None))
+    activate_window(dialog)
+
