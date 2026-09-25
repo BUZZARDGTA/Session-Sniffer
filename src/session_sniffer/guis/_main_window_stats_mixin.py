@@ -17,6 +17,7 @@ from session_sniffer.guis.session_duration import SessionDurationWindow
 from session_sniffer.guis.session_pps_graph import SessionPpsGraphWindow
 from session_sniffer.guis.session_rate_graph import SessionRateGraphWindow
 from session_sniffer.guis.session_timeline import SessionTimelineWindow
+from session_sniffer.guis.utils import activate_window
 from session_sniffer.player.registry import PlayersRegistry, SessionHost
 from session_sniffer.rdr2.suspend_manager import RDR2SuspendManager
 from session_sniffer.rendering_core.types import CaptureStats
@@ -128,9 +129,7 @@ class StatsMixin(QMainWindow):
     def _open_player_leaderboard(self) -> None:
         """Open the Most Seen Players leaderboard, or focus the existing one."""
         if self._leaderboard_window is not None:
-            self._leaderboard_window.show()
-            self._leaderboard_window.raise_()
-            self._leaderboard_window.activateWindow()
+            activate_window(self._leaderboard_window)
             return
         window = PlayerLeaderboardWindow()
         window.destroyed.connect(lambda: setattr(self, '_leaderboard_window', None) if self._leaderboard_window is window else None)
@@ -153,9 +152,7 @@ class StatsMixin(QMainWindow):
     def _open_session_rate_graph(self) -> None:
         """Open or focus the session-wide rate graph window."""
         if self._session_rate_graph_window is not None:
-            self._session_rate_graph_window.show()
-            self._session_rate_graph_window.raise_()
-            self._session_rate_graph_window.activateWindow()
+            activate_window(self._session_rate_graph_window)
             return
 
         window = SessionRateGraphWindow()
@@ -201,9 +198,7 @@ class StatsMixin(QMainWindow):
     def _open_session_pps_graph(self) -> None:
         """Open or focus the session-wide PPS graph window."""
         if self._session_pps_graph_window is not None:
-            self._session_pps_graph_window.show()
-            self._session_pps_graph_window.raise_()
-            self._session_pps_graph_window.activateWindow()
+            activate_window(self._session_pps_graph_window)
             return
 
         window = SessionPpsGraphWindow()
@@ -214,9 +209,7 @@ class StatsMixin(QMainWindow):
     def _open_session_bps_graph(self) -> None:
         """Open or focus the session-wide BPS graph window."""
         if self._session_bps_graph_window is not None:
-            self._session_bps_graph_window.show()
-            self._session_bps_graph_window.raise_()
-            self._session_bps_graph_window.activateWindow()
+            activate_window(self._session_bps_graph_window)
             return
 
         window = SessionBpsGraphWindow()
@@ -227,9 +220,7 @@ class StatsMixin(QMainWindow):
     def _open_packets_latency_graph(self) -> None:
         """Open or focus the packets latency graph window."""
         if self._packets_latency_graph_window is not None:
-            self._packets_latency_graph_window.show()
-            self._packets_latency_graph_window.raise_()
-            self._packets_latency_graph_window.activateWindow()
+            activate_window(self._packets_latency_graph_window)
             return
 
         window = PacketsLatencyGraphWindow()
@@ -240,9 +231,7 @@ class StatsMixin(QMainWindow):
     def _open_country_breakdown(self) -> None:
         """Open or focus the country breakdown window."""
         if self._country_breakdown_window is not None:
-            self._country_breakdown_window.show()
-            self._country_breakdown_window.raise_()
-            self._country_breakdown_window.activateWindow()
+            activate_window(self._country_breakdown_window)
             return
 
         window = CountryBreakdownWindow(always_on_top=True)
@@ -253,9 +242,7 @@ class StatsMixin(QMainWindow):
     def _open_reconnect_frequency(self) -> None:
         """Open or focus the reconnect frequency window."""
         if self._reconnect_frequency_window is not None:
-            self._reconnect_frequency_window.show()
-            self._reconnect_frequency_window.raise_()
-            self._reconnect_frequency_window.activateWindow()
+            activate_window(self._reconnect_frequency_window)
             return
 
         window = ReconnectFrequencyWindow(always_on_top=True)
@@ -266,9 +253,7 @@ class StatsMixin(QMainWindow):
     def _open_session_timeline(self) -> None:
         """Open or focus the session timeline window."""
         if self._session_timeline_window is not None:
-            self._session_timeline_window.show()
-            self._session_timeline_window.raise_()
-            self._session_timeline_window.activateWindow()
+            activate_window(self._session_timeline_window)
             return
 
         window = SessionTimelineWindow(always_on_top=True)
@@ -279,9 +264,7 @@ class StatsMixin(QMainWindow):
     def _open_port_heatmap(self) -> None:
         """Open or focus the port heatmap window."""
         if self._port_heatmap_window is not None:
-            self._port_heatmap_window.show()
-            self._port_heatmap_window.raise_()
-            self._port_heatmap_window.activateWindow()
+            activate_window(self._port_heatmap_window)
             return
 
         window = PortHeatmapWindow(always_on_top=True)
@@ -292,9 +275,7 @@ class StatsMixin(QMainWindow):
     def _open_session_duration(self) -> None:
         """Open or focus the session duration window."""
         if self._session_duration_window is not None:
-            self._session_duration_window.show()
-            self._session_duration_window.raise_()
-            self._session_duration_window.activateWindow()
+            activate_window(self._session_duration_window)
             return
 
         window = SessionDurationWindow(always_on_top=True)
@@ -305,9 +286,7 @@ class StatsMixin(QMainWindow):
     def _open_capture_health(self) -> None:
         """Open or focus the capture statistics window."""
         if self._capture_statistics_window is not None:
-            self._capture_statistics_window.show()
-            self._capture_statistics_window.raise_()
-            self._capture_statistics_window.activateWindow()
+            activate_window(self._capture_statistics_window)
             return
 
         window = CaptureStatisticsWindow()

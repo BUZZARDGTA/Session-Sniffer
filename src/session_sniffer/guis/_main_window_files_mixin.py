@@ -63,9 +63,8 @@ class FilesMixin(QMainWindow):
 
     def _open_detections_manager(self) -> None:
         """Open the Detections Manager window, or focus the existing one."""
-        if self._detections_manager_window is not None and self._detections_manager_window.isVisible():
-            self._detections_manager_window.raise_()
-            self._detections_manager_window.activateWindow()
+        if self._detections_manager_window is not None:
+            activate_window(self._detections_manager_window)
             return
         window = DetectionsManagerDialog(None)
         window.destroyed.connect(lambda: setattr(self, '_detections_manager_window', None) if self._detections_manager_window is window else None)
