@@ -118,6 +118,7 @@ RESIZE_TO_CONTENTS_COLUMNS: frozenset[str] = frozenset(
         'Lon',
         'Offset',
         'Currency',
+        'Time Zone',
     },
 )
 
@@ -127,10 +128,33 @@ FLEXIBLE_STRETCH_COLUMNS: tuple[str, ...] = (
     'Usernames',
     'Username',
     'Hostname',
+    'Country',
+    'Region',
+    'City',
+    'District',
+    'Continent',
     'Organization',
     'ISP',
     'ASN / ISP',
+    'AS',
+    'ASN',
 )
+
+# Maximum column widths (in unscaled logical pixels) for bounded flexible stretch columns.
+FLEXIBLE_COLUMN_MAX_WIDTHS: dict[str, int] = {
+    'Usernames': 220,
+    'Username': 220,
+    'Country': 160,
+    'Region': 160,
+    'City': 160,
+    'District': 160,
+    'Continent': 160,
+    'Organization': 280,
+    'ISP': 280,
+    'ASN / ISP': 280,
+    'AS': 280,
+    'ASN': 280,
+}
 
 
 # Columns omitted from chooser drop-downs because they are either fixed or not useful to search directly.

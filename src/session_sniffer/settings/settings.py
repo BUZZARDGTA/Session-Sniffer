@@ -61,6 +61,7 @@ class Settings:
     capture_filter_block_classicstun: bool = SETTING_DEFAULTS['capture_filter_block_classicstun']
     capture_filter_block_llmnr: bool = SETTING_DEFAULTS['capture_filter_block_llmnr']
     gui_always_on_top: bool = SETTING_DEFAULTS['gui_always_on_top']
+    gui_remember_window_layout: bool = SETTING_DEFAULTS['gui_remember_window_layout']
     gui_servers_color_enabled: bool = SETTING_DEFAULTS['gui_servers_color_enabled']
     gui_servers_color: str = SETTING_DEFAULTS['gui_servers_color']
     gui_interface_selection_auto_connect: bool = SETTING_DEFAULTS['gui_interface_selection_auto_connect']
@@ -152,6 +153,7 @@ class Settings:
         'CAPTURE_PREPEND_CUSTOM_CAPTURE_FILTER',
         *CAPTURE_FILTER_BLOCK_SETTINGS,
         'GUI_ALWAYS_ON_TOP',
+        'GUI_REMEMBER_WINDOW_LAYOUT',
         'GUI_SERVERS_COLOR_ENABLED',
         'GUI_SERVERS_COLOR',
         'GUI_INTERFACE_SELECTION_AUTO_CONNECT',

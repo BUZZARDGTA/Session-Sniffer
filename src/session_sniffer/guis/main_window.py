@@ -39,6 +39,7 @@ from session_sniffer.guis.tables_player_actions.looky_system._looky_lookup_dialo
 from session_sniffer.guis.userip_manager import UserIPDatabasesManager
 from session_sniffer.guis.utils import apply_always_on_top, resize_window_for_screen, scale_by_ui, show_detailed_message
 from session_sniffer.guis.worker_thread import GUIWorkerThread
+from session_sniffer.models import GUIState
 from session_sniffer.player.registry import PlayersRegistry, SessionHost
 from session_sniffer.rdr2.suspend_manager import RDR2SuspendManager
 from session_sniffer.rendering_core.status_bar_renderer import build_gui_status_text
@@ -499,6 +500,23 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
 
         self._connected.section_toggled.connect(self._update_splitter_visibility)
         self._disconnected.section_toggled.connect(self._update_splitter_visibility)
+
+        if Settings.gui_remember_window_layout:
+            gui_state = GUIState.load()
+            if (
+                gui_state.main_window_splitter_sizes
+                and len(gui_state.main_window_splitter_sizes) == self._tables_splitter.count()
+                and all(size > 0 for size in gui_state.main_window_splitter_sizes)
+            ):
+                self._saved_splitter_sizes = list(gui_state.main_window_splitter_sizes)
+                self._tables_splitter.setSizes(self._saved_splitter_sizes)
+
+            if gui_state.connected_table_column_widths:
+                self._connected.table_view.apply_column_widths(gui_state.connected_table_column_widths)
+
+            if gui_state.disconnected_table_column_widths:
+                self._disconnected.table_view.apply_column_widths(gui_state.disconnected_table_column_widths)
+
         self._update_splitter_visibility()
 
         self.raise_()
@@ -588,6 +606,27 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
     @override
     def closeEvent(self, a0: QCloseEvent | None) -> None:
         """Handle the main window close event and terminate background work."""
+        if Settings.gui_remember_window_layout:
+            gui_state = GUIState.load()
+            if self._connected.is_expanded and self._disconnected.is_expanded:
+                current_sizes = self._tables_splitter.sizes()
+                if sum(current_sizes) > 0:
+                    gui_state.main_window_splitter_sizes = current_sizes
+            elif self._saved_splitter_sizes:
+                gui_state.main_window_splitter_sizes = self._saved_splitter_sizes
+
+            if self._connected.table_view.has_custom_column_widths:
+                gui_state.connected_table_column_widths = self._connected.table_view.get_column_widths()
+            else:
+                gui_state.connected_table_column_widths = None
+
+            if self._disconnected.table_view.has_custom_column_widths:
+                gui_state.disconnected_table_column_widths = self._disconnected.table_view.get_column_widths()
+            else:
+                gui_state.disconnected_table_column_widths = None
+
+            gui_state.save()
+
         gui_closed__event.set()
         wake_all_player_cores()
         self._player_resolver_window.close()

@@ -8,7 +8,6 @@ from ipaddress import IPv4Address
 from pathlib import Path
 from typing import ClassVar, override
 
-from pydantic import ValidationError
 from PySide6.QtCore import QByteArray, QFileSystemWatcher, QItemSelectionModel, QModelIndex, Qt, QTimer, QUrl
 from PySide6.QtGui import (
     QBrush,
@@ -82,21 +81,15 @@ from session_sniffer.guis.utils import (
 )
 from session_sniffer.models import GUIState
 from session_sniffer.networking.ip_range import is_valid_ip_range_entry
+from session_sniffer.settings.settings import Settings
 from session_sniffer.text_utils import pluralize
 
 logger = logging.getLogger(__name__)
 
 
-def _load_userip_manager_state() -> tuple[QByteArray | None, bool, QByteArray | None]:
-    """Load saved window geometry, maximized state, and splitter state from local app data."""
-    if not GUI_STATE_PATH.is_file():
-        return None, False, None
-    try:
-        gui_state = GUIState.model_validate_json(GUI_STATE_PATH.read_text(encoding='utf-8'))
-    except (ValidationError, OSError) as e:
-        logger.warning('Failed to load UserIP Manager state from %s: %s', GUI_STATE_PATH, e)
-        return None, False, None
-
+def _load_userip_manager_state() -> tuple[QByteArray | None, bool, QByteArray | None, dict[str, int] | None]:
+    """Load saved window geometry, maximized state, splitter state, and table column widths from local app data."""
+    gui_state = GUIState.load()
     geometry: QByteArray | None = (
         QByteArray.fromHex(gui_state.userip_manager_geometry.encode('ascii')) if gui_state.userip_manager_geometry else None
     )
@@ -104,28 +97,23 @@ def _load_userip_manager_state() -> tuple[QByteArray | None, bool, QByteArray | 
     splitter: QByteArray | None = (
         QByteArray.fromHex(gui_state.userip_manager_splitter.encode('ascii')) if gui_state.userip_manager_splitter else None
     )
-    return geometry, maximized, splitter
+    return geometry, maximized, splitter, gui_state.userip_manager_table_column_widths
 
 
-def _save_userip_manager_state(geometry: QByteArray, splitter: QByteArray, *, maximized: bool) -> None:
-    """Save window geometry, maximized state, and splitter state to local app data."""
-    gui_state = GUIState()
-    if GUI_STATE_PATH.is_file():
-        try:
-            gui_state = GUIState.model_validate_json(GUI_STATE_PATH.read_text(encoding='utf-8'))
-        except (ValidationError, OSError) as e:
-            logger.warning('Failed to load UserIP Manager state from %s: %s', GUI_STATE_PATH, e)
-            gui_state = GUIState()
-
+def _save_userip_manager_state(
+    geometry: QByteArray,
+    splitter: QByteArray,
+    *,
+    maximized: bool,
+    table_column_widths: dict[str, int] | None = None,
+) -> None:
+    """Save window geometry, maximized state, splitter state, and table column widths to local app data."""
+    gui_state = GUIState.load()
     gui_state.userip_manager_geometry = geometry.toHex().toStdString()
     gui_state.userip_manager_maximized = maximized
     gui_state.userip_manager_splitter = splitter.toHex().toStdString()
-
-    try:
-        GUI_STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
-        GUI_STATE_PATH.write_text(gui_state.model_dump_json(indent=2), encoding='utf-8')
-    except OSError:
-        logger.exception('Failed to save UserIP Manager state to %s', GUI_STATE_PATH)
+    gui_state.userip_manager_table_column_widths = table_column_widths
+    gui_state.save()
 
 
 class UserIPDatabasesManager(EntriesContextMenuMixin, FileSyncMixin, SettingsPanelMixin, TreeOperationsMixin, UnsavedChangesMixin, QDialog):
@@ -134,6 +122,7 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, FileSyncMixin, SettingsPan
     _cached_geometry: ClassVar[QByteArray | None] = None
     _cached_maximized: ClassVar[bool] = False
     _cached_splitter: ClassVar[QByteArray | None] = None
+    _cached_column_widths: ClassVar[dict[str, int] | None] = None
 
     def __init__(self, parent: QWidget | None = None) -> None:
         """Build the UserIP Databases Manager dialog."""
@@ -141,13 +130,22 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, FileSyncMixin, SettingsPan
         self.setWindowTitle(f'UserIP Databases Manager - {TITLE}')
         set_dialog_window_flags(self)
         self.setMinimumSize(scale_by_ui(1000), scale_by_ui(600))
+        self._custom_column_widths: dict[str, int] | None = None
+        self._is_programmatic_resizing: bool = False
 
-        if UserIPDatabasesManager._cached_geometry is None and GUI_STATE_PATH.is_file():
-            (
-                UserIPDatabasesManager._cached_geometry,
-                UserIPDatabasesManager._cached_maximized,
-                UserIPDatabasesManager._cached_splitter,
-            ) = _load_userip_manager_state()
+        if Settings.gui_remember_window_layout:
+            if UserIPDatabasesManager._cached_geometry is None and GUI_STATE_PATH.is_file():
+                (
+                    UserIPDatabasesManager._cached_geometry,
+                    UserIPDatabasesManager._cached_maximized,
+                    UserIPDatabasesManager._cached_splitter,
+                    UserIPDatabasesManager._cached_column_widths,
+                ) = _load_userip_manager_state()
+        else:
+            UserIPDatabasesManager._cached_geometry = None
+            UserIPDatabasesManager._cached_maximized = False
+            UserIPDatabasesManager._cached_splitter = None
+            UserIPDatabasesManager._cached_column_widths = None
 
         if UserIPDatabasesManager._cached_geometry is not None:
             self.restoreGeometry(UserIPDatabasesManager._cached_geometry)
@@ -392,6 +390,10 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, FileSyncMixin, SettingsPan
         self._entries_table.setColumnHidden(DATABASE_COLUMN, True)  # noqa: FBT003
         self._reset_column_sizes()
         setup_table_header_context_menu(self._entries_table, on_reset=self._reset_column_sizes)
+        if header:
+            header.sectionResized.connect(self._on_section_resized)
+        if UserIPDatabasesManager._cached_column_widths:
+            self._apply_column_widths(UserIPDatabasesManager._cached_column_widths)
 
         self._entries_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self._entries_table.customContextMenuRequested.connect(self.show_entries_context_menu)
@@ -1239,16 +1241,22 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, FileSyncMixin, SettingsPan
 
     @override
     def closeEvent(self, event: QCloseEvent) -> None:
-        """Save window geometry and splitter state on close if closing is accepted."""
+        """Save window geometry, splitter state, and table column widths on close if closing is accepted."""
         super().closeEvent(event)
-        if event.isAccepted():
+        if event.isAccepted() and Settings.gui_remember_window_layout:
             geometry = self.saveGeometry()
             maximized = self.isMaximized()
             splitter_state = self._splitter.saveState()
             UserIPDatabasesManager._cached_geometry = geometry
             UserIPDatabasesManager._cached_maximized = maximized
             UserIPDatabasesManager._cached_splitter = splitter_state
-            _save_userip_manager_state(geometry, splitter_state, maximized=maximized)
+            UserIPDatabasesManager._cached_column_widths = self._custom_column_widths
+            _save_userip_manager_state(
+                geometry,
+                splitter_state,
+                maximized=maximized,
+                table_column_widths=self._custom_column_widths,
+            )
 
     @override
     def showEvent(self, a0: QShowEvent) -> None:
@@ -1265,8 +1273,45 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, FileSyncMixin, SettingsPan
         super().resizeEvent(a0)
         self._adjust_username_column_width()
 
+    def _on_section_resized(self, logical_index: int, _old_size: int, new_size: int) -> None:
+        """Track user-driven column resizing in the entries table."""
+        if self._is_programmatic_resizing:
+            return
+        header_label = str(self._model.headerData(logical_index, Qt.Orientation.Horizontal) or '')
+        if header_label:
+            if self._custom_column_widths is None:
+                self._custom_column_widths = self._get_column_widths()
+            self._custom_column_widths[header_label] = new_size
+
+    def _get_column_widths(self) -> dict[str, int]:
+        """Return a mapping of column header names to their current section widths."""
+        widths: dict[str, int] = {}
+        for column in range(self._model.columnCount()):
+            header_label = str(self._model.headerData(column, Qt.Orientation.Horizontal) or '')
+            if header_label:
+                widths[header_label] = self._entries_table.columnWidth(column)
+        return widths
+
+    def _apply_column_widths(self, widths: dict[str, int]) -> None:
+        """Apply saved column widths to matching entries table header sections."""
+        header = self._entries_table.header()
+        if not header:
+            return
+        self._is_programmatic_resizing = True
+        try:
+            for column in range(self._model.columnCount()):
+                header_label = str(self._model.headerData(column, Qt.Orientation.Horizontal) or '')
+                if header_label in widths and widths[header_label] > 0:
+                    header.setSectionResizeMode(column, QHeaderView.ResizeMode.Interactive)
+                    self._entries_table.setColumnWidth(column, widths[header_label])
+            self._custom_column_widths = dict(widths)
+        finally:
+            self._is_programmatic_resizing = False
+
     def _adjust_username_column_width(self) -> None:
         """Adjust the Username column width so all entries columns fit the viewport without trailing blank space."""
+        if self._custom_column_widths is not None:
+            return
         viewport = self._entries_table.viewport()
         available_width = viewport.width() if viewport and viewport.width() > 0 else self._entries_table.width()
         other_widths = sum(
@@ -1279,15 +1324,26 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, FileSyncMixin, SettingsPan
     @override
     def _reset_column_sizes(self) -> None:
         """Reset column widths back to their initial default layout."""
-        header = self._entries_table.header()
-        if not header:
-            return
-        header.setStretchLastSection(False)
-        for column in range(self._model.columnCount()):
-            header.setSectionResizeMode(column, QHeaderView.ResizeMode.Interactive)
+        self._custom_column_widths = None
+        UserIPDatabasesManager._cached_column_widths = None
+        self._is_programmatic_resizing = True
+        try:
+            header = self._entries_table.header()
+            if not header:
+                return
+            header.setStretchLastSection(False)
+            for column in range(self._model.columnCount()):
+                header.setSectionResizeMode(column, QHeaderView.ResizeMode.Interactive)
 
-        self._entries_table.setColumnWidth(INDEX_COLUMN, 50)
-        self._entries_table.setColumnWidth(IP_COLUMN, 125)
-        self._entries_table.setColumnWidth(RANGE_COLUMN, 210)
-        self._entries_table.setColumnWidth(DATABASE_COLUMN, 180)
-        self._adjust_username_column_width()
+            self._entries_table.setColumnWidth(INDEX_COLUMN, 50)
+            self._entries_table.setColumnWidth(IP_COLUMN, 125)
+            self._entries_table.setColumnWidth(RANGE_COLUMN, 210)
+            self._entries_table.setColumnWidth(DATABASE_COLUMN, 180)
+            self._adjust_username_column_width()
+        finally:
+            self._is_programmatic_resizing = False
+
+        if Settings.gui_remember_window_layout:
+            gui_state = GUIState.load()
+            gui_state.userip_manager_table_column_widths = None
+            gui_state.save()

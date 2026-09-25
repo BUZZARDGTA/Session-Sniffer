@@ -92,6 +92,7 @@ class SettingsIniModel(BaseModel):
 
     # GUI settings
     GUI_ALWAYS_ON_TOP: bool
+    GUI_REMEMBER_WINDOW_LAYOUT: bool
     GUI_SERVERS_COLOR_ENABLED: bool
     GUI_SERVERS_COLOR: str
     GUI_INTERFACE_SELECTION_AUTO_CONNECT: bool
@@ -181,6 +182,7 @@ class SettingsIniModel(BaseModel):
             'DISCORD_WEBHOOK_INCLUDE_DISCONNECTED',
             'WEBSERVER_ENABLED',
             'GUI_ALWAYS_ON_TOP',
+            'GUI_REMEMBER_WINDOW_LAYOUT',
             'GUI_SERVERS_COLOR_ENABLED',
             'GUI_COLUMNS_DATETIME_SHOW_DATE',
             'GUI_COLUMNS_DATETIME_SHOW_ELAPSED_TIME',

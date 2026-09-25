@@ -53,7 +53,7 @@ from PySide6.QtWidgets import (
 )
 
 from session_sniffer.constants.local import IMAGES_DIR_PATH, RESOURCES_DIR_PATH
-from session_sniffer.constants.standalone import FLEXIBLE_STRETCH_COLUMNS, TITLE
+from session_sniffer.constants.standalone import FLEXIBLE_COLUMN_MAX_WIDTHS, FLEXIBLE_STRETCH_COLUMNS, TITLE
 from session_sniffer.settings.settings import Settings
 
 from .app import app
@@ -717,6 +717,63 @@ def setup_table_view_headers(table: QTableView) -> QHeaderView:
     return h_header
 
 
+def _distribute_flexible_column_widths(
+    visible_flexible_columns: list[tuple[int, str, int]],
+    extra_space: int,
+) -> dict[int, int]:
+    """Distribute extra viewport space across flexible columns, respecting per-column maximum bounds."""
+    flexible_final_widths = {col: base for col, _, base in visible_flexible_columns}
+    if extra_space <= 0 or not visible_flexible_columns:
+        return flexible_final_widths
+
+    max_widths_map = {
+        col: scale_by_ui(FLEXIBLE_COLUMN_MAX_WIDTHS[header])
+        for col, header, _ in visible_flexible_columns
+        if header in FLEXIBLE_COLUMN_MAX_WIDTHS
+    }
+    remaining_space = extra_space
+    active_cols = list(visible_flexible_columns)
+
+    while remaining_space > 0 and active_cols:
+        per_col = remaining_space // len(active_cols)
+        remainder = remaining_space % len(active_cols)
+        if not per_col:
+            for i in range(remainder):
+                col, _, _ = active_cols[i]
+                max_w = max_widths_map.get(col, float('inf'))
+                if flexible_final_widths[col] < max_w:
+                    flexible_final_widths[col] += 1
+                    remaining_space -= 1
+            break
+
+        allocated = 0
+        still_active: list[tuple[int, str, int]] = []
+        for i, (col, header, base) in enumerate(active_cols):
+            add = per_col + (1 if i < remainder else 0)
+            max_w = max_widths_map.get(col, float('inf'))
+            current_width = flexible_final_widths[col]
+            target = current_width + add
+            if target >= max_w:
+                actual_add = max(0, int(max_w - current_width))
+                flexible_final_widths[col] = int(max_w)
+                allocated += actual_add
+            else:
+                flexible_final_widths[col] = target
+                allocated += add
+                still_active.append((col, header, base))
+
+        remaining_space -= allocated
+        if len(still_active) == len(active_cols) and not allocated:
+            break
+        active_cols = still_active
+
+    if remaining_space > 0:
+        target_col = next((c[0] for c in visible_flexible_columns if c[1] == 'Hostname'), visible_flexible_columns[-1][0])
+        flexible_final_widths[target_col] += remaining_space
+
+    return flexible_final_widths
+
+
 def setup_static_table_column_resizing(
     table: QTableView | QTreeView,
     compute_base_width: Callable[[QFontMetrics, str], int] | None = None,
@@ -738,7 +795,8 @@ def setup_static_table_column_resizing(
     target_flexible_columns = flexible_columns if flexible_columns is not None else FLEXIBLE_STRETCH_COLUMNS
 
     total_base_width = 0
-    flex_count = 0
+    visible_flexible_columns: list[tuple[int, str, int]] = []
+    base_widths: dict[int, int] = {}
     last_visible_column: int | None = None
 
     for column in range(table_model.columnCount()):
@@ -746,32 +804,34 @@ def setup_static_table_column_resizing(
             continue
         last_visible_column = column
         header_label = str(table_model.headerData(column, Qt.Orientation.Horizontal) or '')
-        base_width = compute_base_width(font_metrics, header_label) if compute_base_width is not None else font_metrics.horizontalAdvance(header_label) + HEADER_SORT_PADDING
+        base_width = (
+            compute_base_width(font_metrics, header_label)
+            if compute_base_width is not None
+            else font_metrics.horizontalAdvance(header_label) + HEADER_SORT_PADDING
+        )
+        base_widths[column] = base_width
         total_base_width += base_width
         if header_label in target_flexible_columns:
-            flex_count += 1
+            visible_flexible_columns.append((column, header_label, base_width))
 
     extra_space = max(0, viewport_width - total_base_width)
-    extra_per_flex = extra_space // flex_count if flex_count > 0 else 0
-    remainder = extra_space % flex_count if flex_count > 0 else 0
+    flexible_final_widths = (
+        _distribute_flexible_column_widths(visible_flexible_columns, extra_space)
+        if visible_flexible_columns
+        else {}
+    )
 
-    current_flex_index = 0
     for column in range(table_model.columnCount()):
         if horizontal_header.isSectionHidden(column):
             continue
-        header_label = str(table_model.headerData(column, Qt.Orientation.Horizontal) or '')
         horizontal_header.setSectionResizeMode(column, QHeaderView.ResizeMode.Interactive)
 
-        base_width = compute_base_width(font_metrics, header_label) if compute_base_width is not None else font_metrics.horizontalAdvance(header_label) + HEADER_SORT_PADDING
-
-        if header_label in target_flexible_columns:
-            current_flex_index += 1
-            add_pixels = extra_per_flex + (remainder if current_flex_index == flex_count else 0)
-            final_width = base_width + add_pixels
-        elif not flex_count and column == last_visible_column:
-            final_width = base_width + extra_space
+        if column in flexible_final_widths:
+            final_width = flexible_final_widths[column]
+        elif not visible_flexible_columns and column == last_visible_column:
+            final_width = base_widths[column] + extra_space
         else:
-            final_width = base_width
+            final_width = base_widths[column]
 
         if horizontal_header.sectionSize(column) != final_width:
             horizontal_header.resizeSection(column, final_width)

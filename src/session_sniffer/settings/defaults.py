@@ -497,6 +497,17 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         setting_type=SettingType.BOOLEAN,
         tooltip='Keep the main application window above all other windows.',
     ),
+    'gui_remember_window_layout': SettingMeta(
+        category='Session',
+        group='Application Window',
+        display_label='Remember Window & Tables Layout',
+        setting_type=SettingType.BOOLEAN,
+        tooltip=(
+            'Save and restore the main window tables layout (connected/disconnected splitter\n'
+            'and column widths) and the UserIP Manager window geometry and splitter across\n'
+            'application launches.'
+        ),
+    ),
     'gui_servers_color_enabled': SettingMeta(
         category='Session',
         group='Detected Servers',
@@ -935,6 +946,7 @@ class SettingDefaults(TypedDict):
     capture_filter_block_classicstun: bool
     capture_filter_block_llmnr: bool
     gui_always_on_top: bool
+    gui_remember_window_layout: bool
     gui_servers_color_enabled: bool
     gui_servers_color: str
     gui_interface_selection_auto_connect: bool
@@ -1029,6 +1041,7 @@ SETTING_DEFAULTS: SettingDefaults = {
     'capture_filter_block_classicstun': True,
     'capture_filter_block_llmnr': True,
     'gui_always_on_top': False,
+    'gui_remember_window_layout': False,
     'gui_servers_color_enabled': True,
     'gui_servers_color': DEFAULT_DETECTED_SERVER_COLOR,
     'gui_interface_selection_auto_connect': False,

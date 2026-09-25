@@ -28,6 +28,7 @@ from session_sniffer.guis.table_column_resizing import add_column_sizing_actions
 from session_sniffer.guis.table_model import GUI_COLUMN_HEADERS_TOOLTIPS, SessionTableModel
 from session_sniffer.guis.tables_context_menu_mixin import TableContextMenuMixin
 from session_sniffer.guis.utils import HEADER_SORT_PADDING, ElidedTextTooltipDelegate, PersistentMenu, setup_static_table_column_resizing
+from session_sniffer.models import GUIState
 from session_sniffer.player.registry import PlayersRegistry
 from session_sniffer.rendering_core.types import PaginationState, SortState
 from session_sniffer.settings.defaults import SETTING_DEFAULTS
@@ -76,7 +77,6 @@ _COLUMN_CATEGORY_GROUPS: tuple[tuple[str, frozenset[str]], ...] = (
 )
 
 
-
 class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=too-many-public-methods
     """Render a session table view with custom selection and tooltips."""
 
@@ -108,6 +108,8 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
         self._saved_v_scroll: int | None = None
         self._max_ip_icons: int = 0
         self._has_multiple_ports: bool = False
+        self._custom_column_widths: dict[str, int] | None = None
+        self._is_programmatic_resizing: bool = False
 
         self.setModel(model)
         self.setMouseTracking(True)  # Track mouse without clicks
@@ -128,6 +130,7 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
         horizontal_header = self.horizontalHeader()
         horizontal_header.setSectionsClickable(True)
         horizontal_header.sectionClicked.connect(self._on_section_clicked)
+        horizontal_header.sectionResized.connect(self._on_section_resized)
         horizontal_header.setSectionsMovable(True)
         horizontal_header.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         horizontal_header.customContextMenuRequested.connect(self._show_header_context_menu)
@@ -295,23 +298,74 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
             return base_width
         if header_label == 'Ports' and self.model().has_multiple_ports():
             return max(base_width, font_metrics.horizontalAdvance('65535, 65535') + HEADER_SORT_PADDING)
+        if header_label == 'Country':
+            return base_width + 22
         if header_label == 'Time Zone':
             sample_time_zone = (
-                'America/Indiana/Indianapolis · 00:00'
-                if Settings.gui_columns_timezone_display == 'Both'
-                else 'America/Indiana/Indianapolis'
+                'Europe/London · 00:00'
+                if Settings.gui_columns_timezone_display == 'Timezone + Local Time'
+                else 'Europe/London'
                 if Settings.gui_columns_timezone_display == 'Timezone'
                 else '00:00'
             )
-            return max(base_width, font_metrics.horizontalAdvance(sample_time_zone) + HEADER_SORT_PADDING)
+            return max(base_width, font_metrics.horizontalAdvance(sample_time_zone) + 16)
         return base_width
+
+    @property
+    def has_custom_column_widths(self) -> bool:
+        """Return True if the user has manually resized columns or custom widths were applied."""
+        return self._custom_column_widths is not None
+
+    def _on_section_resized(self, logical_index: int, _old_size: int, new_size: int) -> None:
+        """Track user-driven column resizing."""
+        if self._is_programmatic_resizing:
+            return
+        model = self.model()
+        header_text = str(model.headerData(logical_index, Qt.Orientation.Horizontal) or '')
+        if header_text:
+            if self._custom_column_widths is None:
+                self._custom_column_widths = self.get_column_widths()
+            self._custom_column_widths[header_text] = new_size
+
+    def get_column_widths(self) -> dict[str, int]:
+        """Return a mapping of column header names to their current section widths."""
+        model = self.model()
+        header = self.horizontalHeader()
+        widths: dict[str, int] = {}
+        for column in range(model.columnCount()):
+            header_label = str(model.headerData(column, Qt.Orientation.Horizontal) or '')
+            if header_label:
+                widths[header_label] = header.sectionSize(column)
+        return widths
+
+    def apply_column_widths(self, widths: dict[str, int]) -> None:
+        """Apply saved column widths to matching header sections."""
+        self._is_programmatic_resizing = True
+        try:
+            model = self.model()
+            header = self.horizontalHeader()
+            for column in range(model.columnCount()):
+                header_label = str(model.headerData(column, Qt.Orientation.Horizontal) or '')
+                if header_label in widths and widths[header_label] > 0:
+                    header.setSectionResizeMode(column, QHeaderView.ResizeMode.Interactive)
+                    header.resizeSection(column, widths[header_label])
+            self._custom_column_widths = dict(widths)
+        finally:
+            self._is_programmatic_resizing = False
 
     def setup_static_column_resizing(self) -> None:
         """Set up initial column resizing for the table, fitting columns and distributing extra space to flexible columns."""
-        model = self.model()
-        self._max_ip_icons = model.max_ip_icons()
-        self._has_multiple_ports = model.has_multiple_ports()
-        setup_static_table_column_resizing(self, compute_base_width=self._compute_column_base_width)
+        if self._custom_column_widths is not None:
+            self.apply_column_widths(self._custom_column_widths)
+            return
+        self._is_programmatic_resizing = True
+        try:
+            model = self.model()
+            self._max_ip_icons = model.max_ip_icons()
+            self._has_multiple_ports = model.has_multiple_ports()
+            setup_static_table_column_resizing(self, compute_base_width=self._compute_column_base_width)
+        finally:
+            self._is_programmatic_resizing = False
 
     def adjust_username_column_width(self) -> None:
         """Ensure the 'Usernames' column section mode remains Interactive."""
@@ -628,8 +682,16 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
     @override
     def _reset_column_sizes(self) -> None:
         """Restore the default column sizing rules (Stretch / ResizeToContents)."""
+        self._custom_column_widths = None
         self.setup_static_column_resizing()
         self.adjust_username_column_width()
+        if Settings.gui_remember_window_layout:
+            gui_state = GUIState.load()
+            if self.is_connected_table:
+                gui_state.connected_table_column_widths = None
+            else:
+                gui_state.disconnected_table_column_widths = None
+            gui_state.save()
 
     def _toggle_column_visibility(self, column_name: str, *, checked: bool) -> None:
         """Toggle a column's visibility and persist the change to settings."""
