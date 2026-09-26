@@ -2,7 +2,9 @@
 
 import logging
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, ValidationError
+
+from session_sniffer.constants.local import GUI_STATE_PATH
 
 logger = logging.getLogger(__name__)
 
@@ -23,20 +25,16 @@ class GUIState(BaseModel):
     @classmethod
     def load(cls) -> GUIState:
         """Load persistent GUI state from local app data."""
-        from session_sniffer.constants.local import GUI_STATE_PATH  # noqa: PLC0415
-
         if not GUI_STATE_PATH.is_file():
             return cls()
         try:
             return cls.model_validate_json(GUI_STATE_PATH.read_text(encoding='utf-8'))
-        except Exception as e:  # noqa: BLE001
+        except (OSError, ValidationError) as e:
             logger.warning('Failed to load GUI state from %s: %s', GUI_STATE_PATH, e)
             return cls()
 
     def save(self) -> None:
         """Save persistent GUI state to local app data."""
-        from session_sniffer.constants.local import GUI_STATE_PATH  # noqa: PLC0415
-
         try:
             GUI_STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
             GUI_STATE_PATH.write_text(self.model_dump_json(indent=2), encoding='utf-8')
