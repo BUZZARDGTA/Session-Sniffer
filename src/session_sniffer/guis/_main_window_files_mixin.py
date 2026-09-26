@@ -46,6 +46,8 @@ from session_sniffer.constants.standalone import (
 )
 from session_sniffer.guis.detections_manager import DetectionsManagerDialog
 from session_sniffer.guis.interface_selection_dialog import InterfaceSelectionDialog
+from session_sniffer.guis.logs_manager import LogsManager
+from session_sniffer.guis.userip_manager import UserIPDatabasesManager
 from session_sniffer.guis.utils import activate_window, set_clipboard_text, show_or_focus_window
 from session_sniffer.settings import Settings
 from session_sniffer.updater import UpdateCheckOutcome, check_for_updates
@@ -59,7 +61,29 @@ class FilesMixin(QMainWindow):
     """File, folder, and URL open helpers mixin for `MainWindow`."""
 
     _detections_manager_window: DetectionsManagerDialog | None
+    _logs_manager_window: LogsManager | None
+    _userip_manager_window: UserIPDatabasesManager | None
     _on_open_hotspot: Callable[[], None]
+
+    def _open_userip_manager(self) -> UserIPDatabasesManager:
+        """Open the UserIP Databases Manager window, or focus the existing one."""
+        return show_or_focus_window(self, '_userip_manager_window', lambda: UserIPDatabasesManager(None))
+
+    def open_userip_manager_and_search(self, text: str) -> None:
+        """Open the UserIP Databases Manager, activate global search, and populate the search field with `text`."""
+        self._open_userip_manager().search_global(text)
+
+    def _open_logs_manager(self) -> LogsManager:
+        """Open the Logs Manager window, or focus the existing one."""
+        return show_or_focus_window(self, '_logs_manager_window', lambda: LogsManager(None))
+
+    def open_logs_manager_and_search_userip(self, text: str) -> None:
+        """Open the Logs Manager on the UserIP Logging tab and filter by `text`."""
+        self._open_logs_manager().search_in_userip_logging(text)
+
+    def open_logs_manager_and_search_sessions(self, text: str) -> None:
+        """Open the Logs Manager on the Sessions Logging tab and start a global search for `text`."""
+        self._open_logs_manager().search_in_sessions_logging(text)
 
     def _open_detections_manager(self) -> None:
         """Open the Detections Manager window, or focus the existing one."""

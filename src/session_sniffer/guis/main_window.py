@@ -28,7 +28,6 @@ from session_sniffer.guis._main_window_stats_mixin import StatsMixin
 from session_sniffer.guis._session_table_section import SessionStatusBar, SessionTableSection
 from session_sniffer.guis.discord_intro import DiscordIntro
 from session_sniffer.guis.html_templates import generate_gui_header_html
-from session_sniffer.guis.logs_manager import LogsManager
 from session_sniffer.guis.ping_window import PingWindow
 from session_sniffer.guis.player_resolver import PlayerResolverWindow
 from session_sniffer.guis.port_scanner_window import PortScannerWindow
@@ -36,7 +35,6 @@ from session_sniffer.guis.settings_dialog import SettingsDialog
 from session_sniffer.guis.stylesheets import MENU_BAR_STYLESHEET
 from session_sniffer.guis.tables_player_actions.looky_system._looky_crawler_request_dialog import close_all_crawler_dialogs
 from session_sniffer.guis.tables_player_actions.looky_system._looky_lookup_dialog import close_all_lookup_dialogs
-from session_sniffer.guis.userip_manager import UserIPDatabasesManager
 from session_sniffer.guis.utils import (
     apply_always_on_top,
     resize_window_for_screen,
@@ -58,6 +56,7 @@ if TYPE_CHECKING:
     from session_sniffer.capture.packet_capture import CaptureHolder
     from session_sniffer.guis.detections_manager import DetectionsManagerDialog
     from session_sniffer.guis.table_model import SessionTableModel
+    from session_sniffer.guis.userip_manager import UserIPDatabasesManager
 
 
 @dataclass(frozen=True, slots=True)
@@ -86,6 +85,8 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
     _tables_splitter: QSplitter
     _saved_splitter_sizes: list[int]
     _discord_intro_window: DiscordIntro | None
+    _detections_manager_window: DetectionsManagerDialog | None
+    _userip_manager_window: UserIPDatabasesManager | None
 
     def _on_splitter_moved(self, _position: int, _index: int) -> None:
         if self._connected.is_expanded and self._disconnected.is_expanded:
@@ -147,10 +148,10 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
         self._on_change_interface = on_change_interface
         self._on_open_hotspot = on_open_hotspot
         self._player_resolver_window = PlayerResolverWindow(self._select_connected_ips, self._deselect_connected_ips)
-        self._detections_manager_window: DetectionsManagerDialog | None = None
-        self._logs_manager_window: LogsManager | None = None
+        self._detections_manager_window = None
+        self._logs_manager_window = None
         self._settings_dialog_window: SettingsDialog | None = None
-        self._userip_manager_window: UserIPDatabasesManager | None = None
+        self._userip_manager_window = None
         self._discord_intro_window: DiscordIntro | None = None
         self._leaderboard_window = None
         self._session_rate_graph_window = None
@@ -862,26 +863,6 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
             return window
 
         show_or_focus_window(self, '_settings_dialog_window', _factory)
-
-    def _open_userip_manager(self) -> UserIPDatabasesManager:
-        """Open the UserIP Databases Manager window, or focus the existing one."""
-        return show_or_focus_window(self, '_userip_manager_window', lambda: UserIPDatabasesManager(None))
-
-    def open_userip_manager_and_search(self, text: str) -> None:
-        """Open the UserIP Databases Manager, activate global search, and populate the search field with `text`."""
-        self._open_userip_manager().search_global(text)
-
-    def _open_logs_manager(self) -> LogsManager:
-        """Open the Logs Manager window, or focus the existing one."""
-        return show_or_focus_window(self, '_logs_manager_window', lambda: LogsManager(None))
-
-    def open_logs_manager_and_search_userip(self, text: str) -> None:
-        """Open the Logs Manager on the UserIP Logging tab and filter by `text`."""
-        self._open_logs_manager().search_in_userip_logging(text)
-
-    def open_logs_manager_and_search_sessions(self, text: str) -> None:
-        """Open the Logs Manager on the Sessions Logging tab and start a global search for `text`."""
-        self._open_logs_manager().search_in_sessions_logging(text)
 
     @override
     def _open_player_resolver(self) -> None:
