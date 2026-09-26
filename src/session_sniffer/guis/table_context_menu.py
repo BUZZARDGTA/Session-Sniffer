@@ -8,8 +8,9 @@ from PySide6.QtGui import QAction, QIcon, QKeySequence, QResizeEvent, QShortcut,
 from PySide6.QtWidgets import QBoxLayout, QMenu, QTableWidget, QWidget
 
 from session_sniffer.constants.local import RESOURCES_DIR_PATH
+from session_sniffer.constants.standalone import DEFAULT_MIN_COLUMN_WIDTH
 from session_sniffer.guis.stylesheets import SVG_ICON_CONTEXT_MENU_STYLESHEET
-from session_sniffer.guis.table_column_resizing import setup_table_header_context_menu
+from session_sniffer.guis.table_column_resizing import TableColumnResizeController, setup_table_header_context_menu
 from session_sniffer.guis.tables_player_actions import (
     create_multi_tcp_ping_menu,
     create_multi_udp_ping_menu,
@@ -24,6 +25,7 @@ from session_sniffer.guis.utils import (
     ToggleAlwaysOnTopMixin,
     copy_table_widget_selection,
     popup_menu_at_table_widget,
+    scale_by_ui,
     set_clipboard_text,
 )
 
@@ -235,25 +237,43 @@ class StatTableWindowMixin(ToggleAlwaysOnTopMixin):
     """Mixin for statistic table windows providing resizing, context menu, and always-on-top setup."""
 
     _table: QTableWidget
+    _column_resizer: TableColumnResizeController
     _context_menu_manager: TableContextMenuManager
 
+    @property
+    def _custom_column_widths(self) -> dict[str, int] | None:
+        return self._column_resizer.custom_widths
+
+    @_custom_column_widths.setter
+    def _custom_column_widths(self, value: dict[str, int] | None) -> None:
+        self._column_resizer.custom_widths = value
+
     def setup_stat_table_controls(self, layout: QBoxLayout, *, always_on_top: bool) -> None:
-        """Initialize the context menu manager and add the always-on-top checkbox."""
-        self._context_menu_manager = TableContextMenuManager(self._table, self, on_reset_column_sizes=self._reset_column_sizes)
+        """Initialize the context menu manager, column resizing hooks, and add the always-on-top checkbox."""
+        self._column_resizer = TableColumnResizeController(self._table)
+        header = self._table.horizontalHeader()
+        header.setStretchLastSection(False)
+        header.setMinimumSectionSize(scale_by_ui(DEFAULT_MIN_COLUMN_WIDTH))
+        header.sectionResized.connect(self._column_resizer.on_section_resized)
+        self._context_menu_manager = TableContextMenuManager(self._table, self, on_reset_column_sizes=self._column_resizer.reset_column_sizes)
         self.add_always_on_top_checkbox(layout, always_on_top=always_on_top)
+
+    def _setup_column_resizing(self) -> None:
+        """Apply smart column resizing to the statistics table."""
+        self._column_resizer.setup_column_resizing()
+
+    def _reset_column_sizes(self) -> None:
+        """Reset column widths back to their initial default layout."""
+        self._column_resizer.reset_column_sizes()
 
     @override
     def showEvent(self, event: QShowEvent) -> None:
         """Adjust column widths when the window is shown."""
         super().showEvent(event)
-        self._reset_column_sizes()
+        self._setup_column_resizing()
 
     @override
     def resizeEvent(self, event: QResizeEvent) -> None:
         """Adjust column widths when the window is resized."""
         super().resizeEvent(event)
-        self._reset_column_sizes()
-
-    def _reset_column_sizes(self) -> None:
-        """Reset column widths back to their initial default layout."""
-        raise NotImplementedError
+        self._setup_column_resizing()

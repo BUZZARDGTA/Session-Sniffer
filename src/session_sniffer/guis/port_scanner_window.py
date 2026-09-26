@@ -9,14 +9,13 @@ from threading import Event
 from typing import Final, override
 
 from PySide6.QtCore import QPoint, Qt, Signal
-from PySide6.QtGui import QCloseEvent, QFont, QIcon
+from PySide6.QtGui import QCloseEvent, QFont, QIcon, QResizeEvent, QShowEvent
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QFileDialog,
     QGroupBox,
     QHBoxLayout,
-    QHeaderView,
     QInputDialog,
     QLabel,
     QLineEdit,
@@ -33,7 +32,10 @@ from PySide6.QtWidgets import (
 )
 
 from session_sniffer.constants.local import RESOURCES_DIR_PATH
-from session_sniffer.constants.standalone import TITLE
+from session_sniffer.constants.standalone import (
+    DEFAULT_MIN_COLUMN_WIDTH,
+    TITLE,
+)
 from session_sniffer.error_messages import ensure_instance
 from session_sniffer.guis._crashing_qthread import CrashingQThread
 from session_sniffer.guis.ping_window import PingWindow
@@ -43,6 +45,7 @@ from session_sniffer.guis.stylesheets import (
     DIALOG_PRIMARY_BUTTON_STYLESHEET,
     SVG_ICON_CONTEXT_MENU_STYLESHEET,
 )
+from session_sniffer.guis.table_column_resizing import TableColumnResizeController, setup_table_header_context_menu
 from session_sniffer.guis.utils import scale_by_ui, set_clipboard_text
 from session_sniffer.networking.ping import PingMode
 from session_sniffer.networking.port_scanner import (
@@ -193,14 +196,16 @@ class PortScannerTabWidget(QWidget):
 
         # --- Results Table ---
         self._results_table = QTableWidget(0, _TOTAL_COLUMNS)
-        self._results_table.setHorizontalHeaderLabels([
-            'Port',
-            'Protocol',
-            'State',
-            'Service',
-            'Latency (ms)',
-            'Banner / Details',
-        ])
+        self._results_table.setHorizontalHeaderLabels(
+            [
+                'Port',
+                'Protocol',
+                'State',
+                'Service',
+                'Latency (ms)',
+                'Banner / Details',
+            ]
+        )
         self._results_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self._results_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self._results_table.setAlternatingRowColors(True)
@@ -208,13 +213,13 @@ class PortScannerTabWidget(QWidget):
         self._results_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self._results_table.customContextMenuRequested.connect(self._show_table_context_menu)
 
+        self._column_resizer: TableColumnResizeController = TableColumnResizeController(self._results_table)
         header = self._results_table.horizontalHeader()
-        header.setSectionResizeMode(_COLUMN_PORT, QHeaderView.ResizeMode.ResizeToContents)
-        header.setSectionResizeMode(_COLUMN_PROTOCOL, QHeaderView.ResizeMode.ResizeToContents)
-        header.setSectionResizeMode(_COLUMN_STATE, QHeaderView.ResizeMode.ResizeToContents)
-        header.setSectionResizeMode(_COLUMN_SERVICE, QHeaderView.ResizeMode.ResizeToContents)
-        header.setSectionResizeMode(_COLUMN_LATENCY, QHeaderView.ResizeMode.ResizeToContents)
-        header.setSectionResizeMode(_COLUMN_BANNER, QHeaderView.ResizeMode.Stretch)
+        header.setStretchLastSection(False)
+        header.setMinimumSectionSize(scale_by_ui(DEFAULT_MIN_COLUMN_WIDTH))
+        header.sectionResized.connect(self._column_resizer.on_section_resized)
+        setup_table_header_context_menu(self._results_table, on_reset=self._reset_column_sizes)
+        self._reset_column_sizes()
 
         table_font = QFont('Consolas', 9)
         table_font.setStyleHint(QFont.StyleHint.Monospace)
@@ -456,6 +461,8 @@ class PortScannerTabWidget(QWidget):
         self._threads_spinbox.setEnabled(True)
         self._timeout_spinbox.setEnabled(True)
         self._banner_checkbox.setEnabled(True)
+        if self._column_resizer.custom_widths is None:
+            self._setup_column_resizing()
 
     def _on_progress_updated(
         self,
@@ -532,6 +539,8 @@ class PortScannerTabWidget(QWidget):
             if show_open_only and result.state != PortScanState.OPEN:
                 continue
             self._add_row_for_result(result)
+        if self._column_resizer.custom_widths is None:
+            self._setup_column_resizing()
 
     def _copy_selected_rows(self) -> None:
         """Copy selected table rows to the clipboard as tab-separated values."""
@@ -575,14 +584,16 @@ class PortScannerTabWidget(QWidget):
                     writer = csv.writer(file)
                     writer.writerow(['Port', 'Protocol', 'State', 'Service', 'Latency (ms)', 'Banner'])
                     for result in self._results:
-                        writer.writerow([
-                            result.port,
-                            result.protocol,
-                            result.state.value,
-                            result.service_name,
-                            f'{result.latency_ms:.1f}' if result.latency_ms is not None else '',
-                            result.banner or '',
-                        ])
+                        writer.writerow(
+                            [
+                                result.port,
+                                result.protocol,
+                                result.state.value,
+                                result.service_name,
+                                f'{result.latency_ms:.1f}' if result.latency_ms is not None else '',
+                                result.banner or '',
+                            ]
+                        )
                 else:
                     file.write(f'Port Scan Results for {self.target}\n')
                     file.write('=' * 60 + '\n')
@@ -598,6 +609,26 @@ class PortScannerTabWidget(QWidget):
         """Clear all stored scan results and empty the table."""
         self._results.clear()
         self._results_table.setRowCount(0)
+
+    @override
+    def resizeEvent(self, a0: QResizeEvent) -> None:
+        """Adjust column widths when the tab widget is resized."""
+        super().resizeEvent(a0)
+        self._setup_column_resizing()
+
+    @override
+    def showEvent(self, a0: QShowEvent) -> None:
+        """Adjust column widths when the tab widget is shown."""
+        super().showEvent(a0)
+        self._setup_column_resizing()
+
+    def _setup_column_resizing(self) -> None:
+        """Apply smart column resizing to the results table."""
+        self._column_resizer.setup_column_resizing()
+
+    def _reset_column_sizes(self) -> None:
+        """Reset column widths back to their initial default layout."""
+        self._column_resizer.reset_column_sizes()
         self._progress_bar.setValue(0)
         self._metrics_label.setText('Results cleared.')
 

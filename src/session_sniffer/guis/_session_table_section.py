@@ -583,6 +583,7 @@ class SessionTableSection(QWidget):
         self.table_model.reset_columns()
         self._selected_count = 0
         self._update_header_label()
+        self.table_view.reset_initial_data_sizing()
         self.table_view.setup_static_column_resizing()
 
     def update_columns(self, column_names: list[str]) -> None:
@@ -782,7 +783,8 @@ class SessionTableSection(QWidget):
             rows_per_page=self._rows_per_page,
             requested_page=page,
         )
-        self._push_pagination_state()
+        if self._current_page != page:
+            self._push_pagination_state()
 
         if not self._rows_keyboard_editing:
             self._page_spinbox.setSuffix(f' / {self._total_pages}')

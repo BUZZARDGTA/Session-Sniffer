@@ -1,7 +1,5 @@
 """Session duration statistics window."""
 
-from typing import override
-
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QTableWidget, QTableWidgetItem
 
@@ -28,18 +26,8 @@ class SessionDurationWindow(StatTableWindowMixin):
         self._table = QTableWidget(0, 3)
         self._table.setHorizontalHeaderLabels(['Duration', 'IP', 'Usernames'])
         setup_stat_table(self._table, layout)
-        self._reset_column_sizes()
-
         self.setup_stat_table_controls(layout, always_on_top=always_on_top)
-
-    @override
-    def _reset_column_sizes(self) -> None:
-        """Reset column widths back to their initial default layout."""
-        self._table.setColumnWidth(0, 90)
-        self._table.setColumnWidth(1, 130)
-        available_width = self._table.viewport().width() if self._table.viewport() else self._table.width()
-        remaining_width = max(150, available_width - 220)
-        self._table.setColumnWidth(2, remaining_width)
+        self._reset_column_sizes()
 
     @skip_if_menu_open
     def refresh(self) -> None:
@@ -68,3 +56,5 @@ class SessionDurationWindow(StatTableWindowMixin):
             self._table.setItem(row, 2, usernames_item)
         self._table.setSortingEnabled(True)
         self._table.sortByColumn(0, Qt.SortOrder.DescendingOrder)
+        if self._custom_column_widths is None:
+            self._setup_column_resizing()

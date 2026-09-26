@@ -4,17 +4,19 @@ from typing import TYPE_CHECKING
 
 from PySide6.QtCore import QPoint, Qt
 from PySide6.QtGui import QAction, QIcon
-from PySide6.QtWidgets import QHeaderView, QMenu, QTableView, QTreeView
+from PySide6.QtWidgets import QHeaderView, QMenu, QTableView, QTableWidget, QTreeView
 
 from session_sniffer.constants.local import RESOURCES_DIR_PATH
+from session_sniffer.constants.standalone import DEFAULT_MIN_COLUMN_WIDTH, MIN_COLUMN_WIDTHS
 from session_sniffer.guis.stylesheets import SVG_ICON_CONTEXT_MENU_STYLESHEET
+from session_sniffer.guis.utils import scale_by_ui, setup_static_table_column_resizing
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
 
-def _get_horizontal_header(table: QTableView | QTreeView) -> QHeaderView | None:
-    """Return the horizontal header for a QTableView or QTreeView."""
+def _get_horizontal_header(table: QTableView | QTreeView | QTableWidget) -> QHeaderView | None:
+    """Return the horizontal header for a QTableView, QTableWidget, or QTreeView."""
     if isinstance(table, QTableView):
         return table.horizontalHeader()
     return table.header()
@@ -127,3 +129,70 @@ def setup_table_header_context_menu(
 
     horizontal_header.customContextMenuRequested.connect(_on_header_context_menu_requested)
     return horizontal_header
+
+
+class TableColumnResizeController:
+    """Manages custom column widths, user interactive resizing constraints, and smart layout."""
+
+    def __init__(self, table: QTableView) -> None:
+        """Initialize the column resize controller for *table*."""
+        self._table = table
+        self.custom_widths: dict[str, int] | None = None
+        self.is_programmatic_resizing: bool = False
+
+    def on_section_resized(self, logical_index: int, _old_size: int, new_size: int) -> None:
+        """Track user column resize interactions while respecting minimum column width limits."""
+        if self.is_programmatic_resizing:
+            return
+
+        header = _get_horizontal_header(self._table)
+        if not header:
+            return
+
+        header_model = header.model()
+        column_name = str(header_model.headerData(logical_index, Qt.Orientation.Horizontal, Qt.ItemDataRole.DisplayRole)) if header_model else ''
+        if not column_name:
+            return
+
+        if self.custom_widths is None:
+            self.custom_widths = self.get_column_widths()
+
+        min_width = scale_by_ui(MIN_COLUMN_WIDTHS.get(column_name, DEFAULT_MIN_COLUMN_WIDTH))
+
+        if new_size < min_width:
+            self.is_programmatic_resizing = True
+            try:
+                header.resizeSection(logical_index, min_width)
+            finally:
+                self.is_programmatic_resizing = False
+            effective_size = min_width
+        else:
+            effective_size = new_size
+
+        self.custom_widths[column_name] = effective_size
+
+    def get_column_widths(self) -> dict[str, int]:
+        """Return the current column widths as a dictionary mapping header label to pixel width."""
+        model = self._table.model()
+        header = _get_horizontal_header(self._table)
+        if not model or not header:
+            return {}
+        widths: dict[str, int] = {}
+        for column in range(model.columnCount()):
+            label = str(model.headerData(column, Qt.Orientation.Horizontal) or '')
+            if label:
+                widths[label] = header.sectionSize(column)
+        return widths
+
+    def setup_column_resizing(self) -> None:
+        """Apply smart column resizing to the table."""
+        self.is_programmatic_resizing = True
+        try:
+            setup_static_table_column_resizing(self._table, custom_widths=self.custom_widths)
+        finally:
+            self.is_programmatic_resizing = False
+
+    def reset_column_sizes(self) -> None:
+        """Reset column widths back to their initial default layout."""
+        self.custom_widths = None
+        self.setup_column_resizing()

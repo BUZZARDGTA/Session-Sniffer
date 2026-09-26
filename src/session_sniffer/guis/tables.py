@@ -3,7 +3,7 @@
 from typing import TYPE_CHECKING, cast, override
 
 from PySide6.QtCore import QAbstractItemModel, QEvent, QItemSelection, QItemSelectionModel, QModelIndex, QObject, QPoint, QRect, QSize, Qt
-from PySide6.QtGui import QAction, QClipboard, QFontMetrics, QHoverEvent, QIcon, QKeyEvent, QMouseEvent, QResizeEvent
+from PySide6.QtGui import QAction, QClipboard, QHoverEvent, QIcon, QKeyEvent, QMouseEvent, QResizeEvent
 from PySide6.QtWidgets import (
     QHeaderView,
     QMenu,
@@ -16,7 +16,9 @@ from PySide6.QtWidgets import (
 from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.constants.standalone import (
     BANDWIDTH_RATE_STAT_COLUMNS,
+    DEFAULT_MIN_COLUMN_WIDTH,
     LOCATION_COLUMNS,
+    MIN_COLUMN_WIDTHS,
     PACKET_STAT_COLUMNS,
     PORT_COLUMNS,
     STATUS_COLUMNS,
@@ -27,7 +29,7 @@ from session_sniffer.guis.stylesheets import CATEGORY_SUBMENU_CHECKBOX_STYLESHEE
 from session_sniffer.guis.table_column_resizing import add_column_sizing_actions, size_all_columns_to_fit, size_column_to_fit
 from session_sniffer.guis.table_model import GUI_COLUMN_HEADERS_TOOLTIPS, SessionTableModel
 from session_sniffer.guis.tables_context_menu_mixin import TableContextMenuMixin
-from session_sniffer.guis.utils import HEADER_SORT_PADDING, ElidedTextTooltipDelegate, PersistentMenu, setup_static_table_column_resizing
+from session_sniffer.guis.utils import ElidedTextTooltipDelegate, PersistentMenu, scale_by_ui, setup_static_table_column_resizing
 from session_sniffer.models import GUIState
 from session_sniffer.player.registry import PlayersRegistry
 from session_sniffer.rendering_core.types import PaginationState, SortState
@@ -106,10 +108,9 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
         self._saved_selection: list[tuple[str, int]] = []  # (ip, column) pairs for selection preservation
         self._saved_h_scroll: int | None = None
         self._saved_v_scroll: int | None = None
-        self._max_ip_icons: int = 0
-        self._has_multiple_ports: bool = False
         self._custom_column_widths: dict[str, int] | None = None
         self._is_programmatic_resizing: bool = False
+        self._has_auto_sized_with_data: bool = False
 
         self.setModel(model)
         self.setMouseTracking(True)  # Track mouse without clicks
@@ -128,6 +129,7 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
         self.viewport().setObjectName('TableViewport')
 
         horizontal_header = self.horizontalHeader()
+        horizontal_header.setMinimumSectionSize(scale_by_ui(DEFAULT_MIN_COLUMN_WIDTH))
         horizontal_header.setSectionsClickable(True)
         horizontal_header.sectionClicked.connect(self._on_section_clicked)
         horizontal_header.sectionResized.connect(self._on_section_resized)
@@ -279,37 +281,13 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
 
     @override
     def resizeEvent(self, event: QResizeEvent) -> None:
-        """Re-calculate flexible column widths when the table viewport width changes."""
+        """Handle table viewport resize."""
         super().resizeEvent(event)
-        if event.oldSize().width() > 0 and event.size().width() != event.oldSize().width():
-            self.setup_static_column_resizing()
+        self.setup_static_column_resizing()
 
     # --------------------------------------------------------------------------
     # Custom / internal management methods
     # --------------------------------------------------------------------------
-
-    def _compute_column_base_width(self, font_metrics: QFontMetrics, header_label: str) -> int:
-        base_width = font_metrics.horizontalAdvance(header_label) + HEADER_SORT_PADDING
-        if header_label == 'IP Address':
-            model = self.model()
-            max_icons = model.max_ip_icons()
-            if max_icons > 0:
-                return base_width + (18 * max_icons + 6)
-            return base_width
-        if header_label == 'Ports' and self.model().has_multiple_ports():
-            return max(base_width, font_metrics.horizontalAdvance('65535, 65535') + HEADER_SORT_PADDING)
-        if header_label == 'Country':
-            return base_width + 22
-        if header_label == 'Time Zone':
-            sample_time_zone = (
-                'Europe/London · 00:00'
-                if Settings.gui_columns_timezone_display == 'Timezone + Local Time'
-                else 'Europe/London'
-                if Settings.gui_columns_timezone_display == 'Timezone'
-                else '00:00'
-            )
-            return max(base_width, font_metrics.horizontalAdvance(sample_time_zone) + 16)
-        return base_width
 
     @property
     def has_custom_column_widths(self) -> bool:
@@ -321,10 +299,18 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
         if self._is_programmatic_resizing:
             return
         model = self.model()
-        header_text = str(model.headerData(logical_index, Qt.Orientation.Horizontal) or '')
+        header_text = model.headerData(logical_index, Qt.Orientation.Horizontal)
         if header_text:
             if self._custom_column_widths is None:
                 self._custom_column_widths = self.get_column_widths()
+            min_width = scale_by_ui(MIN_COLUMN_WIDTHS.get(header_text, DEFAULT_MIN_COLUMN_WIDTH))
+            if new_size < min_width:
+                self._is_programmatic_resizing = True
+                try:
+                    self.horizontalHeader().resizeSection(logical_index, min_width)
+                finally:
+                    self._is_programmatic_resizing = False
+                new_size = min_width
             self._custom_column_widths[header_text] = new_size
 
     def get_column_widths(self) -> dict[str, int]:
@@ -333,7 +319,7 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
         header = self.horizontalHeader()
         widths: dict[str, int] = {}
         for column in range(model.columnCount()):
-            header_label = str(model.headerData(column, Qt.Orientation.Horizontal) or '')
+            header_label = model.headerData(column, Qt.Orientation.Horizontal)
             if header_label:
                 widths[header_label] = header.sectionSize(column)
         return widths
@@ -345,65 +331,36 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
             model = self.model()
             header = self.horizontalHeader()
             for column in range(model.columnCount()):
-                header_label = str(model.headerData(column, Qt.Orientation.Horizontal) or '')
+                header_label = model.headerData(column, Qt.Orientation.Horizontal)
                 if header_label in widths and widths[header_label] > 0:
+                    min_width = scale_by_ui(MIN_COLUMN_WIDTHS.get(header_label, DEFAULT_MIN_COLUMN_WIDTH))
+                    width = max(min_width, widths[header_label])
                     header.setSectionResizeMode(column, QHeaderView.ResizeMode.Interactive)
-                    header.resizeSection(column, widths[header_label])
+                    header.resizeSection(column, width)
             self._custom_column_widths = dict(widths)
         finally:
             self._is_programmatic_resizing = False
 
     def setup_static_column_resizing(self) -> None:
-        """Set up initial column resizing for the table, fitting columns and distributing extra space to flexible columns."""
-        if self._custom_column_widths is not None:
-            self.apply_column_widths(self._custom_column_widths)
-            return
+        """Set up column sizing for the table, fitting columns and distributing extra space to flexible columns."""
         self._is_programmatic_resizing = True
         try:
-            model = self.model()
-            self._max_ip_icons = model.max_ip_icons()
-            self._has_multiple_ports = model.has_multiple_ports()
-            setup_static_table_column_resizing(self, compute_base_width=self._compute_column_base_width)
+            setup_static_table_column_resizing(self, custom_widths=self._custom_column_widths)
         finally:
             self._is_programmatic_resizing = False
 
-    def adjust_username_column_width(self) -> None:
-        """Ensure the 'Usernames' column section mode remains Interactive."""
-        model = self.model()
-        if 0 <= model.username_column_index < model.columnCount():
-            self.horizontalHeader().setSectionResizeMode(model.username_column_index, QHeaderView.ResizeMode.Interactive)
+    def check_initial_data_column_sizing(self) -> None:
+        """Perform initial content-aware column sizing once when row data is first populated."""
+        if not self._has_auto_sized_with_data and self.model().rowCount() > 0:
+            self._has_auto_sized_with_data = True
+            if self._custom_column_widths is None:
+                self.setup_static_column_resizing()
+        elif self._has_auto_sized_with_data and not self.model().rowCount():
+            self._has_auto_sized_with_data = False
 
-    def adjust_ip_column_width(self) -> None:
-        """Adjust the 'IP Address' column width when icon count in IP Address changes."""
-        model = self.model()
-        ip_column_index = model.ip_column_index
-        if ip_column_index < 0 or ip_column_index >= model.columnCount():
-            return
-        if self.horizontalHeader().isSectionHidden(ip_column_index):
-            return
-
-        max_icons = model.max_ip_icons()
-        if max_icons == self._max_ip_icons:
-            return
-
-        self._max_ip_icons = max_icons
-        self.setup_static_column_resizing()
-
-    def adjust_ports_column_width(self) -> None:
-        """Adjust the 'Ports' column width when multiple ports presence changes."""
-        model = self.model()
-        ports_column_index = model.ports_column_index
-        if ports_column_index is None or ports_column_index < 0 or ports_column_index >= model.columnCount():
-            return
-        if self.horizontalHeader().isSectionHidden(ports_column_index):
-            return
-
-        has_multiple_ports = model.has_multiple_ports()
-        if has_multiple_ports == self._has_multiple_ports:
-            return
-
-        self._has_multiple_ports = has_multiple_ports
-        self.setup_static_column_resizing()
+    def reset_initial_data_sizing(self) -> None:
+        """Reset the flag tracking whether the table has auto-sized its columns with row data."""
+        self._has_auto_sized_with_data = False
 
     def apply_sort(self, column_name: str, order: Qt.SortOrder) -> None:
         """Sort the table by column name and sort order."""
@@ -683,8 +640,8 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
     def _reset_column_sizes(self) -> None:
         """Restore the default column sizing rules (Stretch / ResizeToContents)."""
         self._custom_column_widths = None
+        self._has_auto_sized_with_data = False
         self.setup_static_column_resizing()
-        self.adjust_username_column_width()
         if Settings.gui_remember_window_layout:
             gui_state = GUIState.load()
             if self.is_connected_table:
@@ -714,7 +671,6 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
 
         Settings.rewrite_settings_file()
         self.setup_static_column_resizing()
-        self.adjust_username_column_width()
 
     def _reset_to_default_columns(self) -> None:
         """Restore the default column visibility and persist the change to settings."""
@@ -724,7 +680,6 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
             Settings.gui_columns_disconnected_shown = SETTING_DEFAULTS['gui_columns_disconnected_shown']
         Settings.rewrite_settings_file()
         self.setup_static_column_resizing()
-        self.adjust_username_column_width()
 
     def _select_all_columns(self) -> None:
         """Show all toggleable columns and persist the change to settings."""
@@ -734,7 +689,6 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
             Settings.gui_columns_disconnected_shown = Settings.GUI_TOGGLEABLE_DISCONNECTED_COLUMNS
         Settings.rewrite_settings_file()
         self.setup_static_column_resizing()
-        self.adjust_username_column_width()
 
     def _deselect_all_columns(self) -> None:
         """Hide all toggleable columns and persist the change to settings."""
@@ -744,7 +698,6 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
             Settings.gui_columns_disconnected_shown = ()
         Settings.rewrite_settings_file()
         self.setup_static_column_resizing()
-        self.adjust_username_column_width()
 
     def _select_category_columns(self, columns: list[str]) -> None:
         """Show a specific subset of columns and persist the change to settings."""
@@ -761,7 +714,6 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
             Settings.gui_columns_disconnected_shown = new_shown
         Settings.rewrite_settings_file()
         self.setup_static_column_resizing()
-        self.adjust_username_column_width()
 
     def _deselect_category_columns(self, columns: list[str]) -> None:
         """Hide a specific subset of columns and persist the change to settings."""
@@ -778,7 +730,6 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
             Settings.gui_columns_disconnected_shown = new_shown
         Settings.rewrite_settings_file()
         self.setup_static_column_resizing()
-        self.adjust_username_column_width()
 
     def _show_flag_tooltip(self, event: QHoverEvent, index: QModelIndex, player: Player) -> None:
         """Show tooltip only if hovering exactly over the flag."""

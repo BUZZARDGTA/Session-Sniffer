@@ -1,11 +1,10 @@
 """Session timeline window — sortable table view of per-player presence."""
 
 from datetime import datetime
-from typing import override
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
-from PySide6.QtWidgets import QHeaderView, QTableWidget, QTableWidgetItem
+from PySide6.QtWidgets import QTableWidget, QTableWidgetItem
 
 from session_sniffer.exceptions import PlayerDateTimeCorruptionError
 from session_sniffer.guis.table_context_menu import StatTableWindowMixin, skip_if_menu_open
@@ -47,31 +46,9 @@ class SessionTimelineWindow(StatTableWindowMixin):
         self._table.setHorizontalHeaderLabels(_HEADERS)
         setup_stat_table(self._table, layout, sorting=True)
 
-        h_header = self._table.horizontalHeader()
-        if not h_header:
-            message = 'Failed to get horizontal header'
-            raise RuntimeError(message)
-        # Use Interactive so column widths are not recalculated on every cell update;
-        # _reset_column_sizes() is called once after a full repopulate instead.
-        for column in range(len(_HEADERS)):
-            h_header.setSectionResizeMode(column, QHeaderView.ResizeMode.Interactive)
-        h_header.setStretchLastSection(False)
-        self._reset_column_sizes()
-
-        self._table.sortByColumn(_COLUMN_FIRST_SEEN, Qt.SortOrder.AscendingOrder)
-
         self.setup_stat_table_controls(layout, always_on_top=always_on_top)
-
-    @override
-    def _reset_column_sizes(self) -> None:
-        """Reset column widths back to their initial default layout."""
-        for column in (_COLUMN_STATUS, _COLUMN_FIRST_SEEN, _COLUMN_LAST_REJOIN, _COLUMN_LAST_SEEN, _COLUMN_SESSION_TIME, _COLUMN_TOTAL_TIME, _COLUMN_REJOINS):
-            self._table.resizeColumnToContents(column)
-        other_widths = sum(self._table.columnWidth(column) for column in range(1, len(_HEADERS)))
-        viewport = self._table.viewport()
-        available_width = viewport.width() if viewport and viewport.width() > 0 else self._table.width()
-        player_width = max(180, available_width - other_widths)
-        self._table.setColumnWidth(_COLUMN_PLAYER, player_width)
+        self._reset_column_sizes()
+        self._table.sortByColumn(_COLUMN_FIRST_SEEN, Qt.SortOrder.AscendingOrder)
 
     @skip_if_menu_open
     def refresh(self) -> None:
@@ -143,7 +120,8 @@ class SessionTimelineWindow(StatTableWindowMixin):
                     item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
                     self._table.setItem(row, column, item)
 
-            self._reset_column_sizes()
+            if self._custom_column_widths is None:
+                self._setup_column_resizing()
             # Re-enable sorting once — triggers a single sort, acceptable after a structural change.
             self._table.setSortingEnabled(True)
 

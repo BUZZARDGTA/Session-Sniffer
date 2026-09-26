@@ -33,6 +33,7 @@ from shiboken6 import isValid
 from session_sniffer.capture.interface_setup import refresh_available_interfaces
 from session_sniffer.capture.utils.arp_refresh import refresh_arp_table
 from session_sniffer.constants.local import RESOURCES_DIR_PATH
+from session_sniffer.constants.standalone import DEFAULT_MIN_COLUMN_WIDTH
 from session_sniffer.error_messages import ensure_instance
 from session_sniffer.guis.hotspot_manager import HotspotManagerWidget
 from session_sniffer.guis.stylesheets import (
@@ -50,13 +51,14 @@ from session_sniffer.guis.stylesheets import (
     interface_tab_container_stylesheet,
     interface_table_stylesheet,
 )
-from session_sniffer.guis.table_column_resizing import setup_table_header_context_menu
+from session_sniffer.guis.table_column_resizing import TableColumnResizeController, setup_table_header_context_menu
 from session_sniffer.guis.utils import (
     ElidedTextTooltipDelegate,
     compute_ui_scale,
     make_padded_icon,
     render_svg_pixmap_from_resource,
     resize_window_for_screen,
+    scale_by_ui,
 )
 from session_sniffer.networking.interface import INTERFACE_TYPE_BRIDGED, INTERFACE_TYPE_NEIGHBOUR, INTERFACE_TYPE_SHARED, Interface, SelectedInterfaceRow
 from session_sniffer.settings import Settings
@@ -322,6 +324,7 @@ class InterfaceSelectionDialog(QDialog):
         # Table widget for displaying interfaces
         self.table: SafeQTableWidget = SafeQTableWidget(0, 9)
         self.table.setHorizontalHeaderLabels(['Name', 'Description', 'Type', 'Packets Sent', 'Packets Received', 'Gateway IP', 'IP Address', 'MAC Address', 'Vendor Name'])
+        self._column_resizer: TableColumnResizeController = TableColumnResizeController(self.table)
 
         self.table.setItemDelegate(ElidedTextTooltipDelegate(self.table))
         self.table.setWordWrap(False)
@@ -339,10 +342,12 @@ class InterfaceSelectionDialog(QDialog):
         header_font.setPixelSize(scale(14))
         header_font.setBold(True)
         horizontal_header.setFont(header_font)
+        horizontal_header.setMinimumSectionSize(scale_by_ui(DEFAULT_MIN_COLUMN_WIDTH))
+        horizontal_header.sectionResized.connect(self._column_resizer.on_section_resized)
         for column_index in range(9):
             horizontal_header.setSectionResizeMode(column_index, QHeaderView.ResizeMode.Interactive)
         horizontal_header.setStretchLastSection(False)
-        setup_table_header_context_menu(self.table, on_reset=self._reset_column_sizes)
+        setup_table_header_context_menu(self.table, on_reset=self._column_resizer.reset_column_sizes)
 
         vertical_header = self.table.verticalHeader()
         vertical_header.setVisible(False)
@@ -533,7 +538,7 @@ class InterfaceSelectionDialog(QDialog):
 
         # Populate the table with initial filtered data (after button is created)
         self.apply_filters()
-        self._reset_column_sizes()
+        self._column_resizer.reset_column_sizes()
 
         # Connect double-click signal to select interface (simulates Start button)
         self.table.cellDoubleClicked.connect(self.on_cell_double_clicked)
@@ -564,26 +569,7 @@ class InterfaceSelectionDialog(QDialog):
         """Adjust column widths when the interface selection dialog is resized."""
         super().resizeEvent(event)
         if not self._stacked_widget.currentIndex():
-            self._reset_column_sizes()
-
-    def _reset_column_sizes(self) -> None:
-        """Reset column widths back to their initial default layout."""
-        horizontal_header = self.table.horizontalHeader()
-        for column_index in (0, 2, 3, 4, 5, 6, 7):
-            horizontal_header.setSectionResizeMode(column_index, QHeaderView.ResizeMode.Interactive)
-            self.table.resizeColumnToContents(column_index)
-
-        horizontal_header.setSectionResizeMode(1, QHeaderView.ResizeMode.Interactive)
-        horizontal_header.setSectionResizeMode(8, QHeaderView.ResizeMode.Interactive)
-
-        compact_widths = sum(self.table.columnWidth(column_index) for column_index in (0, 2, 3, 4, 5, 6, 7))
-        viewport = self.table.viewport()
-        available_width = viewport.width() if viewport and viewport.width() > 0 else self.table.width()
-        remaining = max(300, available_width - compact_widths)
-        description_width = max(180, int(remaining * 0.55))
-        vendor_width = max(120, remaining - description_width)
-        self.table.setColumnWidth(1, description_width)
-        self.table.setColumnWidth(8, vendor_width)
+            self._column_resizer.setup_column_resizing()
 
     # Custom Methods:
     _REFRESH_ARP_PROGRESS_TIMER_MS = 80
@@ -873,6 +859,8 @@ class InterfaceSelectionDialog(QDialog):
 
         # Reset selection state
         self.update_select_button_state()
+        if self._column_resizer.custom_widths is None:
+            self._column_resizer.setup_column_resizing()
 
     def update_select_button_state(self) -> None:
         """Enable the Select button only when a row is selected."""
@@ -909,7 +897,7 @@ class InterfaceSelectionDialog(QDialog):
         """Handle switching between Network Interfaces and Hotspot & Sharing pages."""
         if checked:
             self._stacked_widget.setCurrentIndex(0)
-            self._reset_column_sizes()
+            self._column_resizer.setup_column_resizing()
         else:
             self._stacked_widget.setCurrentIndex(1)
             self._hotspot_widget.start_refresh()
@@ -992,4 +980,4 @@ class InterfaceSelectionDialog(QDialog):
             self.setProperty('_should_maximize_on_show', False)  # noqa: FBT003
             self.showMaximized()
         if not self._stacked_widget.currentIndex():
-            self._reset_column_sizes()
+            self._column_resizer.setup_column_resizing()

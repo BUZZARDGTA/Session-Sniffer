@@ -21,7 +21,6 @@ from PySide6.QtGui import (
     QCloseEvent,
     QColor,
     QFocusEvent,
-    QFontMetrics,
     QIcon,
     QKeyEvent,
     QKeySequence,
@@ -74,7 +73,6 @@ from session_sniffer.guis.tables_player_actions import (
     web_ping,
 )
 from session_sniffer.guis.utils import (
-    HEADER_SORT_PADDING,
     ElidedTextTooltipDelegate,
     SearchHighlightDelegate,
     ToggleAlwaysOnTopMixin,
@@ -184,13 +182,6 @@ _LIVE_REFRESH_INTERVAL_MS = 1000
 # throttled to this rate so constant live-session writes can't spin the disk walk.
 _SESSIONS_SCAN_COOLDOWN_MS = 3000
 
-_COLUMN_SAMPLE_TEXTS: dict[str, str] = {
-    'Status': 'Disconnected',
-    'First Seen': '3 days ago',
-    'Last Seen': '3 days ago',
-    'IP Address': '255.255.255.255',
-}
-
 
 def _get_flag_icon(country_code: str) -> QIcon | None:
     """Return a cached QIcon for the given ISO country code, or None if unavailable."""
@@ -261,14 +252,16 @@ class _LeaderboardTableModel(QAbstractTableModel):
         _SCOPE_ALL_TIME: 'sessions_total',
     }
 
-    _CENTER_COLUMNS: ClassVar[frozenset[int]] = frozenset({
-        _COLUMN_RANK,
-        _COLUMN_STATUS,
-        _COLUMN_SESSIONS,
-        _COLUMN_MOBILE,
-        _COLUMN_VPN,
-        _COLUMN_HOSTING,
-    })
+    _CENTER_COLUMNS: ClassVar[frozenset[int]] = frozenset(
+        {
+            _COLUMN_RANK,
+            _COLUMN_STATUS,
+            _COLUMN_SESSIONS,
+            _COLUMN_MOBILE,
+            _COLUMN_VPN,
+            _COLUMN_HOSTING,
+        }
+    )
 
     def __init__(self) -> None:
         super().__init__()
@@ -731,7 +724,6 @@ class _LeaderboardTableView(QTableView):
         super().__init__(parent)
         self.setVerticalScrollMode(QTableView.ScrollMode.ScrollPerPixel)
         self.setHorizontalScrollMode(QTableView.ScrollMode.ScrollPerPixel)
-        self._is_resizing_columns = False
 
     @override
     def focusInEvent(self, event: QFocusEvent) -> None:
@@ -760,27 +752,13 @@ class _LeaderboardTableView(QTableView):
 
     @override
     def resizeEvent(self, event: QResizeEvent) -> None:
-        """Re-calculate flexible column widths when the table viewport width changes."""
+        """Handle leaderboard table viewport resize."""
         super().resizeEvent(event)
-        if event.oldSize().width() > 0 and event.size().width() != event.oldSize().width():
-            self.setup_static_column_resizing()
-
-    def _compute_column_base_width(self, font_metrics: QFontMetrics, header_label: str) -> int:
-        header_width = font_metrics.horizontalAdvance(header_label)
-        sample_text = _COLUMN_SAMPLE_TEXTS.get(header_label, '')
-        cell_width = font_metrics.horizontalAdvance(sample_text) + 8 if sample_text else 0
-        padding = 24 if header_label in ('First Seen', 'Last Seen') else HEADER_SORT_PADDING
-        return max(header_width, cell_width) + padding
+        self.setup_static_column_resizing()
 
     def setup_static_column_resizing(self) -> None:
-        """Set up initial column resizing for the table, fitting columns and distributing extra space to flexible columns."""
-        if self._is_resizing_columns:
-            return
-        self._is_resizing_columns = True
-        try:
-            setup_static_table_column_resizing(self, compute_base_width=self._compute_column_base_width)
-        finally:
-            self._is_resizing_columns = False
+        """Set up initial column resizing for the table."""
+        setup_static_table_column_resizing(self)
 
 
 class PlayerLeaderboardWindow(ToggleAlwaysOnTopMixin):

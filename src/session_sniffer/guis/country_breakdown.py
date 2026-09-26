@@ -1,7 +1,5 @@
 """Country breakdown statistics window."""
 
-from typing import override
-
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QTableWidget, QTableWidgetItem
 
@@ -24,18 +22,8 @@ class CountryBreakdownWindow(StatTableWindowMixin):
         self._table = QTableWidget(0, 2)
         self._table.setHorizontalHeaderLabels(['Country', 'Players'])
         setup_stat_table(self._table, layout, sorting=False)
-        self._reset_column_sizes()
-
         self.setup_stat_table_controls(layout, always_on_top=always_on_top)
-
-    @override
-    def _reset_column_sizes(self) -> None:
-        """Reset column widths back to their initial default layout."""
-        available_width = self._table.viewport().width() if self._table.viewport() else self._table.width()
-        players_width = 80
-        country_width = max(120, available_width - players_width)
-        self._table.setColumnWidth(0, country_width)
-        self._table.setColumnWidth(1, players_width)
+        self._reset_column_sizes()
 
     @skip_if_menu_open
     def refresh(self) -> None:
@@ -64,3 +52,5 @@ class CountryBreakdownWindow(StatTableWindowMixin):
             self._table.setItem(row, 1, count_item)
         self._table.setSortingEnabled(True)
         self._table.sortByColumn(1, Qt.SortOrder.DescendingOrder)
+        if self._custom_column_widths is None:
+            self._setup_column_resizing()

@@ -47,13 +47,18 @@ from PySide6.QtWidgets import (
     QTableWidget,
     QTableWidgetItem,
     QToolTip,
-    QTreeView,
     QVBoxLayout,
     QWidget,
 )
 
 from session_sniffer.constants.local import IMAGES_DIR_PATH, RESOURCES_DIR_PATH
-from session_sniffer.constants.standalone import FLEXIBLE_COLUMN_MAX_WIDTHS, FLEXIBLE_STRETCH_COLUMNS, TITLE
+from session_sniffer.constants.standalone import (
+    DEFAULT_MIN_COLUMN_WIDTH,
+    FLEXIBLE_COLUMN_WEIGHTS,
+    FLEXIBLE_STRETCH_COLUMNS,
+    MIN_COLUMN_WIDTHS,
+    TITLE,
+)
 from session_sniffer.settings.settings import Settings
 
 from .app import app
@@ -87,7 +92,6 @@ _TARGET_HD_HEIGHT = 620
 _FALLBACK_MARGIN = 80
 
 MINIMUM_VIEWPORT_WIDTH_THRESHOLD: int = 100
-HEADER_SORT_PADDING: int = 40
 
 
 # ---------------------------------------------------------------------------
@@ -801,124 +805,132 @@ def setup_table_view_headers(table: QTableView) -> QHeaderView:
     return h_header
 
 
-def _distribute_flexible_column_widths(
-    visible_flexible_columns: list[tuple[int, str, int]],
-    extra_space: int,
-) -> dict[int, int]:
-    """Distribute extra viewport space across flexible columns, respecting per-column maximum bounds."""
-    flexible_final_widths = {col: base for col, _, base in visible_flexible_columns}
-    if extra_space <= 0 or not visible_flexible_columns:
-        return flexible_final_widths
-
-    max_widths_map = {
-        col: scale_by_ui(FLEXIBLE_COLUMN_MAX_WIDTHS[header])
-        for col, header, _ in visible_flexible_columns
-        if header in FLEXIBLE_COLUMN_MAX_WIDTHS
-    }
-    remaining_space = extra_space
-    active_cols = list(visible_flexible_columns)
-
-    while remaining_space > 0 and active_cols:
-        per_col = remaining_space // len(active_cols)
-        remainder = remaining_space % len(active_cols)
-        if not per_col:
-            for i in range(remainder):
-                col, _, _ = active_cols[i]
-                max_w = max_widths_map.get(col, float('inf'))
-                if flexible_final_widths[col] < max_w:
-                    flexible_final_widths[col] += 1
-                    remaining_space -= 1
-            break
-
-        allocated = 0
-        still_active: list[tuple[int, str, int]] = []
-        for i, (col, header, base) in enumerate(active_cols):
-            add = per_col + (1 if i < remainder else 0)
-            max_w = max_widths_map.get(col, float('inf'))
-            current_width = flexible_final_widths[col]
-            target = current_width + add
-            if target >= max_w:
-                actual_add = max(0, int(max_w - current_width))
-                flexible_final_widths[col] = int(max_w)
-                allocated += actual_add
-            else:
-                flexible_final_widths[col] = target
-                allocated += add
-                still_active.append((col, header, base))
-
-        remaining_space -= allocated
-        if len(still_active) == len(active_cols) and not allocated:
-            break
-        active_cols = still_active
-
-    if remaining_space > 0:
-        target_col = next((c[0] for c in visible_flexible_columns if c[1] == 'Hostname'), visible_flexible_columns[-1][0])
-        flexible_final_widths[target_col] += remaining_space
-
-    return flexible_final_widths
-
-
 def setup_static_table_column_resizing(
-    table: QTableView | QTreeView,
-    compute_base_width: Callable[[QFontMetrics, str], int] | None = None,
-    flexible_columns: tuple[str, ...] | None = None,
+    table: QTableView,
+    *,
+    custom_widths: dict[str, int] | None = None,
 ) -> None:
-    """Set up initial column resizing for a QTableView or QTreeView, fitting columns and distributing extra space to flexible columns."""
+    """Set up column sizing for a table, fitting columns and distributing extra space to flexible columns."""
     table_model = table.model()
     if not table_model:
         return
 
-    horizontal_header = table.horizontalHeader() if isinstance(table, QTableView) else table.header()
+    horizontal_header = table.horizontalHeader()
     if not horizontal_header:
         return
 
-    font_metrics = horizontal_header.fontMetrics()
     viewport = table.viewport()
     viewport_width = viewport.width() if viewport and viewport.width() > MINIMUM_VIEWPORT_WIDTH_THRESHOLD else table.width()
+    if viewport_width <= 0:
+        return
 
-    target_flexible_columns = flexible_columns if flexible_columns is not None else FLEXIBLE_STRETCH_COLUMNS
+    font_metrics = table.fontMetrics()
+    header_font_metrics = horizontal_header.fontMetrics()
+    header_sort_padding = scale_by_ui(28)
+    cell_padding = scale_by_ui(32)
+    row_count = table_model.rowCount()
 
-    total_base_width = 0
-    visible_flexible_columns: list[tuple[int, str, int]] = []
-    base_widths: dict[int, int] = {}
-    last_visible_column: int | None = None
-
+    visible_columns: list[tuple[int, str, int, int]] = []
     for column in range(table_model.columnCount()):
         if horizontal_header.isSectionHidden(column):
             continue
-        last_visible_column = column
         header_label = str(table_model.headerData(column, Qt.Orientation.Horizontal) or '')
-        base_width = (
-            compute_base_width(font_metrics, header_label)
-            if compute_base_width is not None
-            else font_metrics.horizontalAdvance(header_label) + HEADER_SORT_PADDING
-        )
-        base_widths[column] = base_width
-        total_base_width += base_width
-        if header_label in target_flexible_columns:
-            visible_flexible_columns.append((column, header_label, base_width))
+        min_width = scale_by_ui(MIN_COLUMN_WIDTHS.get(header_label, DEFAULT_MIN_COLUMN_WIDTH))
+        custom_width = custom_widths.get(header_label) if custom_widths is not None else None
+        floor_width = max(min_width, custom_width) if custom_width is not None else min_width
 
-    extra_space = max(0, viewport_width - total_base_width)
-    flexible_final_widths = (
-        _distribute_flexible_column_widths(visible_flexible_columns, extra_space)
-        if visible_flexible_columns
-        else {}
-    )
+        needed_width = min_width
+        header_needed = header_font_metrics.horizontalAdvance(header_label) + header_sort_padding
+        needed_width = max(needed_width, header_needed)
 
-    for column in range(table_model.columnCount()):
-        if horizontal_header.isSectionHidden(column):
-            continue
-        horizontal_header.setSectionResizeMode(column, QHeaderView.ResizeMode.Interactive)
+        sample_rows = min(row_count, 100)
+        for row in range(sample_rows):
+            index = table_model.index(row, column)
+            text = table_model.data(index, Qt.ItemDataRole.DisplayRole)
+            text_str = str(text) if text is not None and not isinstance(text, bool) else ''
+            text_width = font_metrics.horizontalAdvance(text_str) if text_str else 0
+            icon = table_model.data(index, Qt.ItemDataRole.DecorationRole)
+            icon_offset = 0
+            if isinstance(icon, QIcon):
+                icon_width = icon.actualSize(QSize(100, _STANDARD_ICON_SIZE)).width()
+                icon_offset = icon_width + scale_by_ui(6)
+            elif icon is not None:
+                icon_offset = scale_by_ui(22)
+            cell_needed = text_width + icon_offset + cell_padding
+            needed_width = max(needed_width, cell_needed)
 
-        if column in flexible_final_widths:
-            final_width = flexible_final_widths[column]
-        elif not visible_flexible_columns and column == last_visible_column:
-            final_width = base_widths[column] + extra_space
+        visible_columns.append((column, header_label, floor_width, needed_width))
+
+    if not visible_columns:
+        return
+
+    final_widths: dict[int, int] = {col: floor for col, _, floor, _ in visible_columns}
+    total_allocated = sum(final_widths.values())
+    surplus = viewport_width - total_allocated
+
+    # Detect truncated columns: columns whose needed content width exceeds currently allocated floor width
+    truncated_columns: dict[int, int] = {}
+    for col, _, floor, needed in visible_columns:
+        if needed > floor:
+            truncated_columns[col] = needed - floor
+
+    total_deficit = sum(truncated_columns.values())
+
+    # If there is a deficit and surplus is insufficient, reclaim excess width from columns sitting above their needed width
+    if total_deficit > surplus:
+        for col, _, _, needed in visible_columns:
+            header_text = str(table_model.headerData(col, Qt.Orientation.Horizontal) or '')
+            min_bound = scale_by_ui(MIN_COLUMN_WIDTHS.get(header_text, DEFAULT_MIN_COLUMN_WIDTH))
+            reclaim_limit = max(min_bound, needed)
+            if final_widths[col] > reclaim_limit:
+                reclaimed = final_widths[col] - reclaim_limit
+                final_widths[col] -= reclaimed
+                surplus += reclaimed
+
+    # Allocate surplus to truncated columns to eliminate or reduce text clipping
+    if surplus > 0 and total_deficit > 0:
+        if surplus >= total_deficit:
+            for col, deficit in truncated_columns.items():
+                final_widths[col] += deficit
+            surplus -= total_deficit
         else:
-            final_width = base_widths[column]
+            allocated = 0
+            for col, deficit in truncated_columns.items():
+                share = (surplus * deficit) // total_deficit
+                final_widths[col] += share
+                allocated += share
+            remainder = surplus - allocated
+            if remainder > 0:
+                top_col = max(truncated_columns, key=lambda c: truncated_columns[c])
+                final_widths[top_col] += remainder
+            surplus = 0
 
-        if horizontal_header.sectionSize(column) != final_width:
-            horizontal_header.resizeSection(column, final_width)
+    # Distribute any remaining surplus across flexible stretch columns to fill the table to the right edge
+    if surplus > 0:
+        flexible_columns = [(col, label) for col, label, _, _ in visible_columns if label in FLEXIBLE_STRETCH_COLUMNS]
+        if not flexible_columns:
+            flexible_columns = [(visible_columns[-1][0], visible_columns[-1][1])]
+
+        total_weight = sum(FLEXIBLE_COLUMN_WEIGHTS.get(label, 1) for _, label in flexible_columns)
+        if total_weight <= 0:
+            total_weight = len(flexible_columns)
+
+        allocated = 0
+        for col, label in flexible_columns:
+            weight = FLEXIBLE_COLUMN_WEIGHTS.get(label, 1)
+            share = (surplus * weight) // total_weight
+            final_widths[col] += share
+            allocated += share
+
+        remainder = surplus - allocated
+        if remainder > 0:
+            top_col = max(flexible_columns, key=lambda item: FLEXIBLE_COLUMN_WEIGHTS.get(item[1], 1))[0]
+            final_widths[top_col] += remainder
+
+    for column, width in final_widths.items():
+        horizontal_header.setSectionResizeMode(column, QHeaderView.ResizeMode.Interactive)
+        if horizontal_header.sectionSize(column) != width:
+            horizontal_header.resizeSection(column, width)
 
 
 def find_main_window() -> QMainWindow | None:

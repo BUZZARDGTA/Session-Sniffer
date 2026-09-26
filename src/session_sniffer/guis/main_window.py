@@ -1,4 +1,3 @@
-# pylint: disable=too-many-lines
 """Main window implementation for Session Sniffer."""
 
 import sys
@@ -717,9 +716,7 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
 
         if self._connected.table_view.isVisible():
             self._connected.table_view.sort_current_column()
-            self._connected.table_view.adjust_username_column_width()
-            self._connected.table_view.adjust_ip_column_width()
-            self._connected.table_view.adjust_ports_column_width()
+            self._connected.table_view.check_initial_data_column_sizing()
 
         if disconnected_count_changed:
             self._disconnected.update_current_count(payload.disconnected_count)
@@ -743,9 +740,7 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
 
         if self._disconnected.table_view.isVisible():
             self._disconnected.table_view.sort_current_column()
-            self._disconnected.table_view.adjust_username_column_width()
-            self._disconnected.table_view.adjust_ip_column_width()
-            self._disconnected.table_view.adjust_ports_column_width()
+            self._disconnected.table_view.check_initial_data_column_sizing()
 
         self._connected.table_view.restore_selection()
         self._disconnected.table_view.restore_selection()
@@ -847,13 +842,12 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
             self._player_resolver_window.high_rate_monitor.start_monitoring()
         elif not self._player_resolver_window.isVisible():
             self._player_resolver_window.high_rate_monitor.stop_monitoring()
-        self._connected.table_view.adjust_ip_column_width()
-        self._disconnected.table_view.adjust_ip_column_width()
         self._connected.table_view.viewport().update()
         self._disconnected.table_view.viewport().update()
 
     def _open_settings_dialog(self) -> None:
         """Open the Settings window, or focus the existing one."""
+
         def _factory() -> SettingsDialog:
             window = SettingsDialog(None, self.capture.get(), self._on_change_interface)
             for callback in (

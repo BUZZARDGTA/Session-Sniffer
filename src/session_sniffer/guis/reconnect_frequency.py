@@ -1,7 +1,5 @@
 """Reconnect frequency statistics window."""
 
-from typing import override
-
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QTableWidget, QTableWidgetItem
 
@@ -24,18 +22,8 @@ class ReconnectFrequencyWindow(StatTableWindowMixin):
         self._table = QTableWidget(0, 3)
         self._table.setHorizontalHeaderLabels(['Rejoins', 'IP', 'Usernames'])
         setup_stat_table(self._table, layout)
-        self._reset_column_sizes()
-
         self.setup_stat_table_controls(layout, always_on_top=always_on_top)
-
-    @override
-    def _reset_column_sizes(self) -> None:
-        """Reset column widths back to their initial default layout."""
-        self._table.setColumnWidth(0, 100)
-        self._table.setColumnWidth(1, 130)
-        available_width = self._table.viewport().width() if self._table.viewport() else self._table.width()
-        remaining_width = max(150, available_width - 230)
-        self._table.setColumnWidth(2, remaining_width)
+        self._reset_column_sizes()
 
     @skip_if_menu_open
     def refresh(self) -> None:
@@ -53,9 +41,9 @@ class ReconnectFrequencyWindow(StatTableWindowMixin):
             rejoins_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             ip_item = QTableWidgetItem(ip)
             ip_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            usernames_item = QTableWidgetItem(usernames)
-            self._table.setItem(row, 0, rejoins_item)
-            self._table.setItem(row, 1, ip_item)
-            self._table.setItem(row, 2, usernames_item)
+            for column_index, item in enumerate((rejoins_item, ip_item, QTableWidgetItem(usernames))):
+                self._table.setItem(row, column_index, item)
         self._table.setSortingEnabled(True)
         self._table.sortByColumn(0, Qt.SortOrder.DescendingOrder)
+        if self._custom_column_widths is None:
+            self._setup_column_resizing()

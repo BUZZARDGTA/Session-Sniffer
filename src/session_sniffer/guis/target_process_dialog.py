@@ -10,7 +10,6 @@ from PySide6.QtWidgets import (
     QDialog,
     QFileIconProvider,
     QHBoxLayout,
-    QHeaderView,
     QLabel,
     QLineEdit,
     QMenu,
@@ -25,9 +24,12 @@ from PySide6.QtWidgets import (
 from session_sniffer.capture.process import get_running_applications
 from session_sniffer.capture.process_monitor import ensure_process_monitor_running
 from session_sniffer.constants.local import RESOURCES_DIR_PATH
-from session_sniffer.constants.standalone import TITLE
+from session_sniffer.constants.standalone import (
+    DEFAULT_MIN_COLUMN_WIDTH,
+    TITLE,
+)
 from session_sniffer.guis.stylesheets import SVG_ICON_CONTEXT_MENU_STYLESHEET
-from session_sniffer.guis.table_column_resizing import setup_table_header_context_menu
+from session_sniffer.guis.table_column_resizing import TableColumnResizeController, setup_table_header_context_menu
 from session_sniffer.guis.utils import (
     SearchHighlightDelegate,
     apply_search_icon,
@@ -98,7 +100,12 @@ class TargetProcessDialog(QDialog):
         self._table.setHorizontalScrollMode(QTableWidget.ScrollMode.ScrollPerPixel)
         self._table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self._table.customContextMenuRequested.connect(self._show_table_context_menu)
-        setup_table_header_context_menu(self._table, on_reset=self._reset_column_sizes)
+        self._column_resizer: TableColumnResizeController = TableColumnResizeController(self._table)
+        setup_table_header_context_menu(self._table, on_reset=self._column_resizer.reset_column_sizes)
+        header = self._table.horizontalHeader()
+        header.setStretchLastSection(False)
+        header.setMinimumSectionSize(scale_by_ui(DEFAULT_MIN_COLUMN_WIDTH))
+        header.sectionResized.connect(self._column_resizer.on_section_resized)
         QShortcut(QKeySequence('Ctrl+C'), self._table).activated.connect(self._copy_selected_row)
         self._table.itemDoubleClicked.connect(self._on_table_row_double_clicked)
         self._table.itemSelectionChanged.connect(self._on_table_selection_changed)
@@ -223,7 +230,7 @@ class TargetProcessDialog(QDialog):
         user_apps_only = self._user_apps_only_checkbox.isChecked()
         self._cached_processes = get_running_applications(user_apps_only=user_apps_only)
         self._filter_process_list(self._search_input.text())
-        self._reset_column_sizes()
+        self._column_resizer.setup_column_resizing()
 
     def _filter_process_list(self, filter_text: str) -> None:
         """Filter and sort table rows according to the search query."""
@@ -372,37 +379,16 @@ class TargetProcessDialog(QDialog):
         self._update_status_label()
 
     @override
-    def showEvent(self, a0: QShowEvent) -> None:
-        """Adjust column widths when the dialog is shown."""
-        super().showEvent(a0)
-        self._reset_column_sizes()
-
-    @override
     def resizeEvent(self, a0: QResizeEvent) -> None:
         """Adjust column widths when the dialog is resized."""
         super().resizeEvent(a0)
-        viewport = self._table.viewport()
-        available_width = viewport.width() if viewport and viewport.width() > 0 else self._table.width()
-        used_width = self._table.columnWidth(0) + self._table.columnWidth(1)
-        self._table.setColumnWidth(2, max(scale_by_ui(250), available_width - used_width))
+        self._column_resizer.setup_column_resizing()
 
-    def _reset_column_sizes(self) -> None:
-        """Reset column widths back to their initial default layout."""
-        header = self._table.horizontalHeader()
-        if not header:
-            return
-        header.setStretchLastSection(False)
-        for column_index in range(3):
-            header.setSectionResizeMode(column_index, QHeaderView.ResizeMode.Interactive)
-
-        self._table.resizeColumnToContents(0)
-        self._table.resizeColumnToContents(1)
-
-        viewport = self._table.viewport()
-        available_width = viewport.width() if viewport and viewport.width() > 0 else self._table.width()
-        used_width = self._table.columnWidth(0) + self._table.columnWidth(1)
-        remaining_width = max(scale_by_ui(250), available_width - used_width)
-        self._table.setColumnWidth(2, remaining_width)
+    @override
+    def showEvent(self, a0: QShowEvent) -> None:
+        """Handle dialog show event to ensure column widths adapt to actual layout size."""
+        super().showEvent(a0)
+        self._column_resizer.setup_column_resizing()
 
     def _copy_selected_row(self) -> None:
         """Copy selected process row details to clipboard as tab-separated values."""
