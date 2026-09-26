@@ -51,6 +51,7 @@ from session_sniffer.guis.tables_userip_mixin import (
 from session_sniffer.guis.userip_manager_helpers import populate_userip_databases_menu
 from session_sniffer.networking.ip_range import check_ip_against_ranges
 from session_sniffer.networking.isp_filter import get_player_primary_isp, is_player_isp_filtered
+from session_sniffer.networking.looky_system import get_looky_user_url
 from session_sniffer.networking.third_party_servers import is_third_party_server_ip
 from session_sniffer.player.registry import PlayersRegistry, SessionHost
 from session_sniffer.player.userip import UserIPDatabases
@@ -484,6 +485,65 @@ class TableContextMenuMixin(QTableView):
                 )
                 _apply_looky_gating(lookup_action, players=players[0])
                 if players[0].looky_system.rockstarids:
+                    rockstar_ids = players[0].looky_system.rockstarids
+                    usernames = players[0].looky_system.usernames
+                    if len(rockstar_ids) == 1:
+                        target_rockstar_id = rockstar_ids[0]
+                        target_name = usernames[0] if usernames else str(target_rockstar_id)
+                        profile_url = get_looky_user_url(target_rockstar_id)
+
+                        def _open_single_profile() -> None:
+                            QDesktopServices.openUrl(QUrl(profile_url))
+
+                        add_action(
+                            looky_menu,
+                            'View on Website',
+                            tooltip=f"Open {target_name}'s profile on the Looky System website ({profile_url}).",
+                            handler=_open_single_profile,
+                            icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'website.svg')),
+                        )
+                    else:
+                        view_website_menu = add_menu(
+                            looky_menu,
+                            'View on Website',
+                            "Open this player's profile on the Looky System website.",
+                            icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'website.svg')),
+                        )
+
+                        def _make_profile_opener(url: str) -> Callable[[], None]:
+                            def _open() -> None:
+                                QDesktopServices.openUrl(QUrl(url))
+
+                            return _open
+
+                        all_profile_urls: list[str] = []
+                        for i, target_rockstar_id in enumerate(rockstar_ids):
+                            user_name = usernames[i] if i < len(usernames) else ''
+                            label = f'{user_name} ({target_rockstar_id})' if user_name else str(target_rockstar_id)
+                            target_name = user_name or str(target_rockstar_id)
+                            profile_url = get_looky_user_url(target_rockstar_id)
+                            all_profile_urls.append(profile_url)
+                            add_action(
+                                view_website_menu,
+                                label,
+                                tooltip=f"Open {target_name}'s profile on the Looky System website ({profile_url}).",
+                                handler=_make_profile_opener(profile_url),
+                                icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'website.svg')),
+                            )
+                        view_website_menu.addSeparator()
+
+                        def _open_all_player_profiles() -> None:
+                            for profile_url in all_profile_urls:
+                                QDesktopServices.openUrl(QUrl(profile_url))
+
+                        add_action(
+                            view_website_menu,
+                            f'Open All ({len(rockstar_ids)})',
+                            tooltip=f'Open all {len(rockstar_ids)} player profiles on the Looky System website.',
+                            handler=_open_all_player_profiles,
+                            icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'website.svg')),
+                        )
+
                     crawler_action = add_action(
                         looky_menu,
                         'Request Crawler',
@@ -508,6 +568,27 @@ class TableContextMenuMixin(QTableView):
                 icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'search.svg')),
             )
             _apply_looky_gating(lookup_all_action, players=players)
+
+            all_selected_rockstar_ids: list[int] = []
+            for player in players:
+                for rockstar_id in player.looky_system.rockstarids:
+                    if rockstar_id not in all_selected_rockstar_ids:
+                        all_selected_rockstar_ids.append(rockstar_id)
+
+            if all_selected_rockstar_ids:
+
+                def _open_all_selected_profiles() -> None:
+                    for rockstar_id in all_selected_rockstar_ids:
+                        QDesktopServices.openUrl(QUrl(get_looky_user_url(rockstar_id)))
+
+                profile_count = len(all_selected_rockstar_ids)
+                add_action(
+                    looky_menu,
+                    'View on Website (All Selected)',
+                    tooltip=f'Open {profile_count} player profile{pluralize(profile_count)} on the Looky System website.',
+                    handler=_open_all_selected_profiles,
+                    icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'website.svg')),
+                )
 
         def add_ping_menu(ip_addresses: list[str]) -> None:
             if not ip_addresses:

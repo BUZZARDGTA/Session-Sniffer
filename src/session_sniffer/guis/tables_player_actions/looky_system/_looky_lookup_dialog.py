@@ -8,15 +8,19 @@ from typing import TYPE_CHECKING, override
 
 import requests
 from pydantic import ValidationError
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Qt, QUrl, Signal
+from PySide6.QtGui import QDesktopServices, QIcon
 from PySide6.QtWidgets import (
     QDialogButtonBox,
+    QHBoxLayout,
     QMessageBox,
+    QPushButton,
     QVBoxLayout,
     QWidget,
 )
 from shiboken6 import isValid
 
+from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.guis._crashing_qthread import CrashingQThread
 from session_sniffer.guis.looky_text import LOOKY_TITLE
 from session_sniffer.guis.stylesheets import (
@@ -29,12 +33,15 @@ from session_sniffer.guis.utils import ActiveDialogRegistry, set_dialog_window_f
 from session_sniffer.networking.looky_system import (
     extract_rate_limit_message,
     extract_rate_limit_wait_seconds,
+    get_looky_user_url,
     lookup_ip,
 )
 from session_sniffer.settings.settings import Settings
 from session_sniffer.text_utils import pluralize
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from session_sniffer.models.looky_system import LookyPlayer
     from session_sniffer.models.player import Player
 
@@ -109,6 +116,12 @@ class LookyLookupDialog(PlayerInfoDialogMixin):
 
         scroll_layout = self._init_scroll_area(outer_layout)
 
+        def _make_open_profile_slot(url: str) -> Callable[[], None]:
+            def _open_profile() -> None:
+                QDesktopServices.openUrl(QUrl(url))
+
+            return _open_profile
+
         for entry in results:
             title = entry.name or f'Rockstar ID: {entry.rockstarid}'
             group, form = self._make_group(title, accent='#4c1d95')
@@ -121,6 +134,22 @@ class LookyLookupDialog(PlayerInfoDialogMixin):
             self._add_row(form, 'Enhanced', 'Yes' if entry.isEnhanced else 'No')
             self._add_row(form, 'Legacy', 'Yes' if entry.isLegacy else 'No')
             self._add_row(form, 'VPN', 'Yes' if entry.isVpn else 'No')
+
+            buttons_layout = QHBoxLayout()
+            buttons_layout.setContentsMargins(0, 4, 0, 0)
+            buttons_layout.setSpacing(10)
+
+            profile_url = get_looky_user_url(entry.rockstarid)
+            target_name = entry.name or str(entry.rockstarid)
+            view_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'website.svg')), ' View on Website')
+            view_button.setCursor(Qt.CursorShape.PointingHandCursor)
+            view_button.setStyleSheet(LOOKY_ACTION_BUTTON_STYLESHEET)
+            view_button.setToolTip(f"Open {target_name}'s profile on the Looky System website ({profile_url}).")
+            view_button.clicked.connect(_make_open_profile_slot(profile_url))
+            buttons_layout.addWidget(view_button)
+            buttons_layout.addStretch()
+
+            form.addRow('', buttons_layout)
             scroll_layout.addWidget(group)
 
         scroll_layout.addStretch(1)

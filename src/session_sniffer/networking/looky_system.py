@@ -35,6 +35,13 @@ LOOKY_INSTRUCTION_URL = f'{LOOKY_BASE_HOST}/api/instruction'
 LOOKY_INSTRUCTION_STATUS_INITIAL_URL = f'{LOOKY_BASE_HOST}/api/instruction-status-initial'
 LOOKY_CRAWLME_URL = f'{LOOKY_BASE_HOST}/api/instruction/crawlme'
 LOOKY_INSTRUCTION_STATUS_URL = f'{LOOKY_BASE_HOST}/api/sse/instruction-status'
+LOOKY_USER_URL = f'{LOOKY_BASE_HOST}/user'
+
+
+def get_looky_user_url(rid: int) -> str:
+    """Return the Looky System website user profile URL for `rid`."""
+    return f'{LOOKY_USER_URL}/{rid}'
+
 
 _RESPONSE_ADAPTER: TypeAdapter[list[LookyPlayer]] = TypeAdapter(list[LookyPlayer])
 _BATCH_RESPONSE_ADAPTER: TypeAdapter[list[LookyIpBatchResult]] = TypeAdapter(list[LookyIpBatchResult])
@@ -287,7 +294,7 @@ def send_crawler_instruction(rid: int, api_key: str, version: str) -> str:
         KeyError: If the response JSON does not contain a `'trackingId'` field.
     """
     headers = _json_auth_headers(api_key)
-    headers['Referer'] = f'https://looky-gta.cc/user/{rid}'
+    headers['Referer'] = get_looky_user_url(rid)
     try:
         response = session.post(
             LOOKY_INSTRUCTION_URL,
@@ -350,7 +357,7 @@ def watch_instruction_status(
     try:
         check_cancel()
 
-        referer = f'https://looky-gta.cc/user/{context.rid}' if context.rid is not None else 'https://looky-gta.cc/'
+        referer = get_looky_user_url(context.rid) if context.rid is not None else f'{LOOKY_BASE_HOST}/'
         headers = _auth_headers(context.api_key)
         headers['Referer'] = referer
 
