@@ -16,14 +16,12 @@ from PySide6.QtWidgets import (
 from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.constants.tables import (
     BANDWIDTH_RATE_STAT_COLUMNS,
-    CONNECTED_TABLE_MAX_COLUMN_WIDTHS,
-    CONNECTED_TABLE_MIN_COLUMN_WIDTHS,
     DEFAULT_MIN_COLUMN_WIDTH,
-    DISCONNECTED_TABLE_MAX_COLUMN_WIDTHS,
-    DISCONNECTED_TABLE_MIN_COLUMN_WIDTHS,
     LOCATION_COLUMNS,
     PACKET_STAT_COLUMNS,
     PORT_COLUMNS,
+    SESSION_TABLE_MAX_COLUMN_WIDTHS,
+    SESSION_TABLE_MIN_COLUMN_WIDTHS,
     STATUS_COLUMNS,
 )
 from session_sniffer.error_messages import ensure_instance, format_type_error
@@ -113,8 +111,8 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
         super().__init__()
 
         self.is_connected_table = is_connected_table  # Store which table type this is
-        self.min_column_widths: dict[str, int] = CONNECTED_TABLE_MIN_COLUMN_WIDTHS if is_connected_table else DISCONNECTED_TABLE_MIN_COLUMN_WIDTHS
-        self.max_column_widths: dict[str, int] = CONNECTED_TABLE_MAX_COLUMN_WIDTHS if is_connected_table else DISCONNECTED_TABLE_MAX_COLUMN_WIDTHS
+        self.min_column_widths: dict[str, int] = SESSION_TABLE_MIN_COLUMN_WIDTHS
+        self.max_column_widths: dict[str, int] = SESSION_TABLE_MAX_COLUMN_WIDTHS
         self.open_rate_graph_callback: Callable[[str], None] | None = None  # Optional callback to open a rate graph for an IP
         self._drag_selecting: bool = False  # Track if the mouse is being dragged with Ctrl key
         self._previous_cell: QModelIndex | None = None  # Track the previously selected cell

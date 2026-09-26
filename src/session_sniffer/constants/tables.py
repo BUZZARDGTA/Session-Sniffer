@@ -83,10 +83,11 @@ STATUS_COLUMNS: tuple[str, ...] = (
 BANDWIDTH_RATE_STAT_COLUMNS: tuple[str, ...] = (*BANDWIDTH_STAT_COLUMNS, 'BPS', 'BPM')
 
 # Hardcoded minimum column widths (in unscaled logical pixels) per table.
-CONNECTED_TABLE_MIN_COLUMN_WIDTHS: dict[str, int] = {
+SESSION_TABLE_MIN_COLUMN_WIDTHS: dict[str, int] = {
     'Usernames': 118,
     'First Seen': 111,
     'Last Rejoin': 119,
+    'Last Seen': 109,
     'T. Session Time': 147,
     'Session Time': 132,
     'Rejoins': 96,
@@ -141,69 +142,8 @@ CONNECTED_TABLE_MIN_COLUMN_WIDTHS: dict[str, int] = {
     'Pinging': 99,
 }
 
-DISCONNECTED_TABLE_MIN_COLUMN_WIDTHS: dict[str, int] = {
-    'Usernames': 118,
-    'First Seen': 111,
-    'Last Rejoin': 119,
-    'Last Seen': 109,
-    'T. Session Time': 147,
-    'Session Time': 132,
-    'Rejoins': 96,
-    'T. Packets': 112,
-    'Packets': 97,
-    'T. Packets Received': 170,
-    'Packets Received': 155,
-    'T. Packets Sent': 143,
-    'Packets Sent': 128,
-    'T. Min Packet Length': 181,
-    'Min Packet Length': 166,
-    'T. Avg Packet Length': 181,
-    'Avg Packet Length': 166,
-    'T. Max Packet Length': 183,
-    'Max Packet Length': 168,
-    'T. Bandwidth': 132,
-    'Bandwidth': 117,
-    'T. Download': 129,
-    'Download': 114,
-    'T. Upload': 110,
-    'Upload': 95,
-    'IP Address': 135,
-    'Hostname': 140,
-    'Ports': 83,
-    'Last Port': 106,
-    'Middle Ports': 130,
-    'First Port': 108,
-    'Continent': 112,
-    'Country': 102,
-    'Region': 94,
-    'R. Code': 98,
-    'City': 76,
-    'District': 96,
-    'ZIP Code': 106,
-    'Lat': 70,
-    'Lon': 74,
-    'Time Zone': 117,
-    'Offset': 89,
-    'Currency': 106,
-    'Organization': 131,
-    'ISP': 70,
-    'ASN / ISP': 110,
-    'AS': 67,
-    'ASN': 77,
-    'Mobile': 94,
-    'VPN': 78,
-    'Hosting': 100,
-    'Pinging': 99,
-}
-
 # Hardcoded maximum column widths for auto-sizing (in unscaled logical pixels) per table.
-CONNECTED_TABLE_MAX_COLUMN_WIDTHS: dict[str, int] = {
-    'Usernames': 240,
-    'Ports': 140,
-    'Middle Ports': 140,
-}
-
-DISCONNECTED_TABLE_MAX_COLUMN_WIDTHS: dict[str, int] = {
+SESSION_TABLE_MAX_COLUMN_WIDTHS: dict[str, int] = {
     'Usernames': 240,
     'Ports': 140,
     'Middle Ports': 140,
