@@ -411,7 +411,7 @@ def handle_detection_notification(
                     with DETECTION_LOGGING_PATH.open('a', newline='', encoding='utf-8') as file:
                         writer = csv.writer(file)
                         if write_csv_header:
-                            writer.writerow(['Detection', 'Username', 'IP', 'Date', 'Time', 'Country'])
+                            writer.writerow(['Detection', 'Usernames', 'IP', 'Date', 'Time', 'Country'])
                         writer.writerow(
                             [
                                 config['title'],
@@ -469,7 +469,7 @@ def handle_detection_notification(
                         with PROTECTION_LOGGING_PATH.open('a', newline='', encoding='utf-8') as file:
                             writer = csv.writer(file)
                             if write_header:
-                                writer.writerow(['Detection', 'Username', 'IP', 'Date', 'Time', 'Country'])
+                                writer.writerow(['Detection', 'Usernames', 'IP', 'Date', 'Time', 'Country'])
                             writer.writerow(
                                 [
                                     f'COMBO RULE MATCHED: {rule.name}',
@@ -558,7 +558,7 @@ def process_userip_task(
                     with USERIP_LOGGING_PATH.open('a', newline='', encoding='utf-8') as file:
                         writer = csv.writer(file)
                         if write_csv_header:
-                            writer.writerow(['Database', 'Username', 'IP', 'Date', 'Time', 'Country'])
+                            writer.writerow(['Database', 'Usernames', 'IP', 'Date', 'Time', 'Country'])
                         date_part, time_part = player.userip_detection.date_time.split('_', maxsplit=1)
                         writer.writerow(
                             [
@@ -650,7 +650,7 @@ def monitor_gta5_relay_task(player: Player) -> None:
             with PROTECTION_LOGGING_PATH.open('a', newline='', encoding='utf-8') as file:
                 writer = csv.writer(file)
                 if write_csv_header:
-                    writer.writerow(['Detection', 'Username', 'IP', 'Date', 'Time', 'Country'])
+                    writer.writerow(['Detection', 'Usernames', 'IP', 'Date', 'Time', 'Country'])
                 writer.writerow(
                     [
                         'GTA5 RELAY DETECTED!',
@@ -721,7 +721,7 @@ def check_global_detections(player: Player) -> None:
                 with PROTECTION_LOGGING_PATH.open('a', newline='', encoding='utf-8') as file:
                     writer = csv.writer(file)
                     if write_csv_header:
-                        writer.writerow(['Detection', 'Username', 'IP', 'Date', 'Time', 'Country'])
+                        writer.writerow(['Detection', 'Usernames', 'IP', 'Date', 'Time', 'Country'])
                     writer.writerow(
                         [
                             detection_title,

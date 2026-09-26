@@ -55,7 +55,7 @@ class LogsManager(QDialog):
         self._userip_tab = CsvLogTab(
             CsvLogTabConfig(
                 file_path=USERIP_LOGGING_PATH,
-                expected_headers=('Database', 'Username', 'IP', 'Date', 'Time', 'Country'),
+                expected_headers=('Database', 'Usernames', 'IP', 'Date', 'Time', 'Country'),
                 default_sort_columns=('Date', 'Time'),
                 stretch_column=1,
                 column_min_widths={5: 160},
@@ -66,7 +66,7 @@ class LogsManager(QDialog):
         self._detection_tab = CsvLogTab(
             CsvLogTabConfig(
                 file_path=DETECTION_LOGGING_PATH,
-                expected_headers=('Detection', 'Username', 'IP', 'Date', 'Time', 'Country'),
+                expected_headers=('Detection', 'Usernames', 'IP', 'Date', 'Time', 'Country'),
                 default_sort_columns=('Date', 'Time'),
                 stretch_column=1,
                 column_min_widths={0: 220, 5: 160},
@@ -76,7 +76,7 @@ class LogsManager(QDialog):
         self._protection_tab = CsvLogTab(
             CsvLogTabConfig(
                 file_path=PROTECTION_LOGGING_PATH,
-                expected_headers=('Detection', 'Username', 'IP', 'Date', 'Time', 'Country'),
+                expected_headers=('Detection', 'Usernames', 'IP', 'Date', 'Time', 'Country'),
                 default_sort_columns=('Date', 'Time'),
                 stretch_column=1,
                 column_min_widths={0: 220, 5: 160},

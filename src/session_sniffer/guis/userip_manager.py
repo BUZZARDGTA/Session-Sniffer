@@ -356,7 +356,7 @@ class UserIPDatabasesManager(EntriesContextMenuMixin, FileSyncMixin, SettingsPan
 
         # Entries table
         self._model = QStandardItemModel(0, 5)
-        self._model.setHorizontalHeaderLabels(['#', 'Username', 'IP', 'Range', 'Database'])
+        self._model.setHorizontalHeaderLabels(['#', 'Usernames', 'IP', 'Range', 'Database'])
         self._model.dataChanged.connect(self._on_data_changed)
 
         self._proxy = EntriesSortProxy()

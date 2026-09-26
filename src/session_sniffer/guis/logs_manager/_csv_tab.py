@@ -72,7 +72,7 @@ if TYPE_CHECKING:
 _DEFAULT_HEADER_BASE_WIDTHS: dict[str, int] = {
     'Database': 120,
     'Detection': 220,
-    'Username': 180,
+    'Usernames': 180,
     'IP': 125,
     'Date': 95,
     'Time': 85,

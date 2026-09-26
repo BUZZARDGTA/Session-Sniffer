@@ -104,7 +104,6 @@ MIN_COLUMN_WIDTHS: dict[str, int] = {
     'Rank': 45,
     'Status': 65,
     'Usernames': 110,
-    'Username': 100,
     'First Seen': 75,
     'Last Rejoin': 75,
     'Last Seen': 75,
@@ -203,7 +202,6 @@ MAX_COLUMN_WIDTHS: dict[str, int] = {
 # Flexible columns that absorb remaining table viewport space to eliminate empty right-hand space.
 FLEXIBLE_STRETCH_COLUMNS: tuple[str, ...] = (
     'Usernames',
-    'Username',
     'Hostname',
     'Country',
     'Region',
@@ -230,7 +228,6 @@ FLEXIBLE_STRETCH_COLUMNS: tuple[str, ...] = (
 # Relative distribution weights for flexible stretch columns when allocating extra viewport width.
 FLEXIBLE_COLUMN_WEIGHTS: dict[str, int] = {
     'Usernames': 3,
-    'Username': 3,
     'Hostname': 3,
     'Description': 3,
     'Vendor Name': 2,
