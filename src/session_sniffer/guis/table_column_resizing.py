@@ -157,7 +157,10 @@ class TableColumnResizeController:
         if self.custom_widths is None:
             self.custom_widths = self.get_column_widths()
 
-        min_width = scale_by_ui(MIN_COLUMN_WIDTHS.get(column_name, DEFAULT_MIN_COLUMN_WIDTH))
+        min_width = max(
+            scale_by_ui(MIN_COLUMN_WIDTHS.get(column_name, DEFAULT_MIN_COLUMN_WIDTH)),
+            header.sectionSizeFromContents(logical_index).width(),
+        )
 
         if new_size < min_width:
             self.is_programmatic_resizing = True

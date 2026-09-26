@@ -319,7 +319,10 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
         if header_text:
             if self._custom_column_widths is None:
                 self._custom_column_widths = self.get_column_widths()
-            min_width = scale_by_ui(MIN_COLUMN_WIDTHS.get(header_text, DEFAULT_MIN_COLUMN_WIDTH))
+            min_width = max(
+                scale_by_ui(MIN_COLUMN_WIDTHS.get(header_text, DEFAULT_MIN_COLUMN_WIDTH)),
+                self.horizontalHeader().sectionSizeFromContents(logical_index).width(),
+            )
             if new_size < min_width:
                 self._is_programmatic_resizing = True
                 try:
@@ -349,7 +352,10 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
             for column in range(model.columnCount()):
                 header_label = model.headerData(column, Qt.Orientation.Horizontal)
                 if header_label in widths and widths[header_label] > 0:
-                    min_width = scale_by_ui(MIN_COLUMN_WIDTHS.get(header_label, DEFAULT_MIN_COLUMN_WIDTH))
+                    min_width = max(
+                        scale_by_ui(MIN_COLUMN_WIDTHS.get(header_label, DEFAULT_MIN_COLUMN_WIDTH)),
+                        header.sectionSizeFromContents(column).width(),
+                    )
                     width = max(min_width, widths[header_label])
                     header.setSectionResizeMode(column, QHeaderView.ResizeMode.Interactive)
                     header.resizeSection(column, width)

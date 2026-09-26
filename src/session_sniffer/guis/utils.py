@@ -836,13 +836,15 @@ def setup_static_table_column_resizing(
         if horizontal_header.isSectionHidden(column):
             continue
         header_label = str(table_model.headerData(column, Qt.Orientation.Horizontal) or '')
-        min_width = scale_by_ui(MIN_COLUMN_WIDTHS.get(header_label, DEFAULT_MIN_COLUMN_WIDTH))
+        header_needed = max(
+            header_font_metrics.horizontalAdvance(header_label) + header_sort_padding,
+            horizontal_header.sectionSizeFromContents(column).width(),
+        )
+        min_width = max(scale_by_ui(MIN_COLUMN_WIDTHS.get(header_label, DEFAULT_MIN_COLUMN_WIDTH)), header_needed)
         custom_width = custom_widths.get(header_label) if custom_widths is not None else None
         floor_width = max(min_width, custom_width) if custom_width is not None else min_width
 
         needed_width = min_width
-        header_needed = header_font_metrics.horizontalAdvance(header_label) + header_sort_padding
-        needed_width = max(needed_width, header_needed)
 
         sample_rows = min(row_count, 100)
         for row in range(sample_rows):
@@ -885,7 +887,10 @@ def setup_static_table_column_resizing(
     if total_deficit > surplus:
         for col, _, _, needed in visible_columns:
             header_text = str(table_model.headerData(col, Qt.Orientation.Horizontal) or '')
-            min_bound = scale_by_ui(MIN_COLUMN_WIDTHS.get(header_text, DEFAULT_MIN_COLUMN_WIDTH))
+            min_bound = max(
+                scale_by_ui(MIN_COLUMN_WIDTHS.get(header_text, DEFAULT_MIN_COLUMN_WIDTH)),
+                horizontal_header.sectionSizeFromContents(col).width(),
+            )
             reclaim_limit = max(min_bound, needed)
             if final_widths[col] > reclaim_limit:
                 reclaimed = final_widths[col] - reclaim_limit
