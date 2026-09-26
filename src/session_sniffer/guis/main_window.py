@@ -825,15 +825,15 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
         """Apply the always-on-top setting to the main window."""
         apply_always_on_top(self, Settings.gui_always_on_top)
 
-    def _apply_table_sort_from_settings(self) -> None:
-        """Apply configured table sort column and order to connected and disconnected tables."""
+    def _apply_table_settings(self) -> None:
+        """Apply configured table sort, pagination, and column settings to connected and disconnected tables."""
+        changed = self._settings_dialog_window.changed_settings if self._settings_dialog_window is not None else None
         self._connected.apply_sort_from_settings()
         self._disconnected.apply_sort_from_settings()
-
-    def _apply_table_pagination_from_settings(self) -> None:
-        """Apply configured table pagination rows per page to connected and disconnected tables."""
         self._connected.apply_pagination_from_settings()
         self._disconnected.apply_pagination_from_settings()
+        self._connected.apply_columns_from_settings(changed)
+        self._disconnected.apply_columns_from_settings(changed)
 
     def _sync_player_resolver_settings(self) -> None:
         """Synchronize Player Resolver background monitoring and refresh session table icons."""
@@ -855,8 +855,7 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
                 self._update_game_toolbar_visibility,
                 self._apply_always_on_top,
                 self._update_splitter_visibility,
-                self._apply_table_sort_from_settings,
-                self._apply_table_pagination_from_settings,
+                self._apply_table_settings,
                 self._sync_player_resolver_settings,
             ):
                 window.accepted.connect(callback)

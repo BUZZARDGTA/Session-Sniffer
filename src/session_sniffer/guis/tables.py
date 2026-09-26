@@ -3,7 +3,7 @@
 from typing import TYPE_CHECKING, cast, override
 
 from PySide6.QtCore import QAbstractItemModel, QEvent, QItemSelection, QItemSelectionModel, QModelIndex, QObject, QPoint, QRect, QSize, Qt
-from PySide6.QtGui import QAction, QClipboard, QHoverEvent, QIcon, QKeyEvent, QMouseEvent, QResizeEvent
+from PySide6.QtGui import QAction, QClipboard, QHoverEvent, QIcon, QKeyEvent, QMouseEvent, QResizeEvent, QShowEvent
 from PySide6.QtWidgets import (
     QHeaderView,
     QMenu,
@@ -78,6 +78,15 @@ _COLUMN_CATEGORY_GROUPS: tuple[tuple[str, frozenset[str]], ...] = (
     ('Organization', frozenset({'Organization', 'ISP', 'ASN / ISP', 'AS', 'ASN'})),
 )
 
+COLUMN_FORMAT_SETTING_TO_COLUMNS: dict[str, tuple[str, ...]] = {
+    'gui_columns_timezone_display': ('Time Zone',),
+    'gui_columns_datetime_show_date': ('First Seen', 'Last Rejoin', 'Last Seen'),
+    'gui_columns_datetime_show_time': ('First Seen', 'Last Rejoin', 'Last Seen'),
+    'gui_columns_datetime_show_elapsed_time': ('First Seen', 'Last Rejoin', 'Last Seen'),
+    'gui_columns_geo_country_append_alpha2': ('Country',),
+    'gui_columns_geo_continent_append_alpha2': ('Continent',),
+}
+
 
 class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=too-many-public-methods
     """Render a session table view with custom selection and tooltips."""
@@ -111,6 +120,7 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
         self._custom_column_widths: dict[str, int] | None = None
         self._is_programmatic_resizing: bool = False
         self._has_auto_sized_with_data: bool = False
+        self._recalculation_payloads_remaining: int = 0
 
         self.setModel(model)
         self.setMouseTracking(True)  # Track mouse without clicks
@@ -285,6 +295,12 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
         super().resizeEvent(event)
         self.setup_static_column_resizing()
 
+    @override
+    def showEvent(self, event: QShowEvent) -> None:
+        """Handle table view becoming visible."""
+        super().showEvent(event)
+        self.check_initial_data_column_sizing()
+
     # --------------------------------------------------------------------------
     # Custom / internal management methods
     # --------------------------------------------------------------------------
@@ -341,6 +357,34 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
         finally:
             self._is_programmatic_resizing = False
 
+    def request_column_recalculation(self, *, payload_count: int = 2) -> None:
+        """Flag that columns should be recalculated and resized on subsequent data updates."""
+        self._recalculation_payloads_remaining = max(self._recalculation_payloads_remaining, payload_count)
+
+    def clear_custom_column_widths(self, column_names: set[str] | list[str] | tuple[str, ...]) -> None:
+        """Remove custom widths for specific columns so they can be recalculated from content."""
+        if self._custom_column_widths is not None:
+            for column_name in column_names:
+                self._custom_column_widths.pop(column_name, None)
+            if not self._custom_column_widths:
+                self._custom_column_widths = None
+        if Settings.gui_remember_window_layout:
+            gui_state = GUIState.load()
+            widths = gui_state.connected_table_column_widths if self.is_connected_table else gui_state.disconnected_table_column_widths
+            if widths is not None:
+                changed = False
+                for column_name in column_names:
+                    if column_name in widths:
+                        del widths[column_name]
+                        changed = True
+                if changed:
+                    if not widths:
+                        if self.is_connected_table:
+                            gui_state.connected_table_column_widths = None
+                        else:
+                            gui_state.disconnected_table_column_widths = None
+                    gui_state.save()
+
     def setup_static_column_resizing(self) -> None:
         """Set up column sizing for the table, fitting columns and distributing extra space to flexible columns."""
         self._is_programmatic_resizing = True
@@ -350,17 +394,22 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
             self._is_programmatic_resizing = False
 
     def check_initial_data_column_sizing(self) -> None:
-        """Perform initial content-aware column sizing once when row data is first populated."""
-        if not self._has_auto_sized_with_data and self.model().rowCount() > 0:
+        """Perform initial or requested content-aware column sizing when row data is populated."""
+        if self._recalculation_payloads_remaining > 0 and self.model().rowCount() > 0:
+            self._recalculation_payloads_remaining -= 1
+            self._has_auto_sized_with_data = True
+            self.setup_static_column_resizing()
+        elif not self._has_auto_sized_with_data and self.model().rowCount() > 0:
             self._has_auto_sized_with_data = True
             if self._custom_column_widths is None:
                 self.setup_static_column_resizing()
-        elif self._has_auto_sized_with_data and not self.model().rowCount():
+        elif not self.model().rowCount():
             self._has_auto_sized_with_data = False
 
     def reset_initial_data_sizing(self) -> None:
         """Reset the flag tracking whether the table has auto-sized its columns with row data."""
         self._has_auto_sized_with_data = False
+        self._recalculation_payloads_remaining = 0
 
     def apply_sort(self, column_name: str, order: Qt.SortOrder) -> None:
         """Sort the table by column name and sort order."""

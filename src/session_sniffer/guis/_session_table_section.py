@@ -35,7 +35,7 @@ from session_sniffer.guis.stylesheets import (
     section_bar_qss,
 )
 from session_sniffer.guis.table_model import SessionTableModel
-from session_sniffer.guis.tables import SessionTableView
+from session_sniffer.guis.tables import COLUMN_FORMAT_SETTING_TO_COLUMNS, SessionTableView
 from session_sniffer.guis.utils import SearchHighlightDelegate, apply_search_icon, make_padded_icon, scale_by_ui
 from session_sniffer.rendering_core.types import PaginationState, SearchState
 from session_sniffer.settings import Settings
@@ -557,6 +557,7 @@ class SessionTableSection(QWidget):
         self.expand_button.setVisible(False)
         self.setVisible(True)
         self.table_model.refresh_view()
+        self.table_view.check_initial_data_column_sizing()
         self.section_toggled.emit()
 
     def minimize(self) -> None:
@@ -606,9 +607,16 @@ class SessionTableSection(QWidget):
         else:
             sort_column_name = None
 
+        old_columns = set(self.table_model.column_names)
+        new_columns = set(column_names)
+        added_columns = new_columns - old_columns
+        if added_columns:
+            self.table_view.clear_custom_column_widths(added_columns)
+
         self.table_model.reset_columns(column_names)
         if sort_column_name is not None:
             self.table_view.apply_sort(sort_column_name, sort_order)
+        self.table_view.request_column_recalculation()
         self.table_view.setup_static_column_resizing()
 
         # Refresh search combo to match new column set, preserving current selection
@@ -712,6 +720,21 @@ class SessionTableSection(QWidget):
         )
         self._push_pagination_state()
         self._update_header_label()
+
+    def apply_columns_from_settings(self, changed: set[str] | None = None) -> None:
+        """Handle column formatting and visibility settings changes saved from SettingsDialog."""
+        shown_setting = 'gui_columns_connected_shown' if self._is_connected else 'gui_columns_disconnected_shown'
+        affected_columns: set[str] = {
+            column_name
+            for setting_key, column_names in COLUMN_FORMAT_SETTING_TO_COLUMNS.items()
+            if changed is None or setting_key in changed
+            for column_name in column_names
+        }
+        if affected_columns:
+            self.table_view.clear_custom_column_widths(affected_columns)
+            self.table_view.request_column_recalculation()
+        if changed is None or shown_setting in changed:
+            self.table_view.request_column_recalculation()
 
     def _handle_page_changed(self, value: int) -> None:
         self._current_page = max(value, 1)

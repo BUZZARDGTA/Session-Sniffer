@@ -124,6 +124,8 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
         self._widgets: dict[str, QWidget] = {}
         self._labels: dict[str, QLabel] = {}
         self._old_values: dict[str, SettingValue] = {key: getattr(Settings, key) for key in SETTING_METADATA}
+        self._initial_values: dict[str, SettingValue] = dict(self._old_values)
+        self._changed_settings: set[str] = set()
         self._saved: bool = False
         self._loading_settings: bool = False
         self._last_verified_key: str = Settings.looky_api_key or '' if LookyState.user_data is not None else ''
@@ -701,8 +703,14 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
 
         prompt_to_disable_gta5_relay_if_filtered(self, context='settings')
 
+        self._changed_settings = {key for key, value in new_values.items() if value != self._initial_values.get(key)}
         self._saved = True
         self.accept()
+
+    @property
+    def changed_settings(self) -> set[str]:
+        """Return the set of setting keys that were changed during this dialog session."""
+        return self._changed_settings
 
     def _reset_tab_to_defaults(self, category: str) -> None:
         """Populate widgets belonging to *category* with default values without saving."""
