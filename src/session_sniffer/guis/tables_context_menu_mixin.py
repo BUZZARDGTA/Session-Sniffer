@@ -130,6 +130,9 @@ class TableContextMenuMixin(QTableView):
     if TYPE_CHECKING:
         is_connected_table: bool
         open_rate_graph_callback: Callable[[str], None] | None
+        blacklist_high_rate_callback: Callable[[list[str]], None] | None
+        unblacklist_high_rate_callback: Callable[[list[str]], None] | None
+        is_high_rate_blacklisted_callback: Callable[[str], bool] | None
 
         def handle_menu_hovered(self, action: QAction) -> None:
             """Stub."""
@@ -422,6 +425,88 @@ class TableContextMenuMixin(QTableView):
                 handler=_open_multi_graphs,
                 icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'chart.svg')),
             )
+
+        def add_high_rate_blacklist_action(ip_addresses: list[str]) -> None:
+            if (
+                not ip_addresses
+                or self.blacklist_high_rate_callback is None
+                or self.unblacklist_high_rate_callback is None
+                or self.is_high_rate_blacklisted_callback is None
+            ):
+                return
+
+            blacklist_callback = self.blacklist_high_rate_callback
+            unblacklist_callback = self.unblacklist_high_rate_callback
+            is_blacklisted = self.is_high_rate_blacklisted_callback
+
+            blacklisted_ip_addresses = [ip_address for ip_address in ip_addresses if is_blacklisted(ip_address)]
+            unblacklisted_ip_addresses = [ip_address for ip_address in ip_addresses if not is_blacklisted(ip_address)]
+
+            icon = QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'speedometer.svg'))
+
+            def _blacklist_handler(target_ip_addresses: list[str]) -> None:
+                blacklist_callback(target_ip_addresses)
+                self.viewport().update()
+
+            def _unblacklist_handler(target_ip_addresses: list[str]) -> None:
+                unblacklist_callback(target_ip_addresses)
+                self.viewport().update()
+
+            if len(ip_addresses) == 1:
+                single_ip = ip_addresses[0]
+                if is_blacklisted(single_ip):
+                    add_action(
+                        context_menu,
+                        'Unblacklist from High Rate Monitor',
+                        tooltip='Allow this IP to be tracked by the High Rate Monitor again.',
+                        handler=lambda: _unblacklist_handler([single_ip]),
+                        icon=icon,
+                    )
+                else:
+                    add_action(
+                        context_menu,
+                        'Blacklist in High Rate Monitor',
+                        tooltip='Exclude this IP from High Rate Monitor tracking.',
+                        handler=lambda: _blacklist_handler([single_ip]),
+                        icon=icon,
+                    )
+                return
+
+            if not blacklisted_ip_addresses:
+                count = len(unblacklisted_ip_addresses)
+                add_action(
+                    context_menu,
+                    'Blacklist in High Rate Monitor',
+                    tooltip=f'Exclude {count} selected IP{pluralize(count)} from High Rate Monitor tracking.',
+                    handler=lambda: _blacklist_handler(unblacklisted_ip_addresses),
+                    icon=icon,
+                )
+            elif not unblacklisted_ip_addresses:
+                count = len(blacklisted_ip_addresses)
+                add_action(
+                    context_menu,
+                    'Unblacklist from High Rate Monitor',
+                    tooltip=f'Allow {count} selected IP{pluralize(count)} to be tracked by the High Rate Monitor again.',
+                    handler=lambda: _unblacklist_handler(blacklisted_ip_addresses),
+                    icon=icon,
+                )
+            else:
+                blacklist_count = len(unblacklisted_ip_addresses)
+                unblacklist_count = len(blacklisted_ip_addresses)
+                add_action(
+                    context_menu,
+                    f'Blacklist in High Rate Monitor ({blacklist_count})',
+                    tooltip=f'Exclude {blacklist_count} unblacklisted IP{pluralize(blacklist_count)} from High Rate Monitor tracking.',
+                    handler=lambda: _blacklist_handler(unblacklisted_ip_addresses),
+                    icon=icon,
+                )
+                add_action(
+                    context_menu,
+                    f'Unblacklist from High Rate Monitor ({unblacklist_count})',
+                    tooltip=f'Allow {unblacklist_count} blacklisted IP{pluralize(unblacklist_count)} to be tracked by the High Rate Monitor again.',
+                    handler=lambda: _unblacklist_handler(blacklisted_ip_addresses),
+                    icon=icon,
+                )
 
         def add_seen_stats_action(players: list[Player]) -> None:
             if not players:
@@ -1009,6 +1094,7 @@ class TableContextMenuMixin(QTableView):
             add_filter_isp_action(players)
             add_ip_lookup_action(players)
             add_rate_graph_action(ip_addresses)
+            add_high_rate_blacklist_action(ip_addresses)
             add_seen_stats_action(players)
             context_menu.addSeparator()
             add_looky_system_menu(context_menu, players)

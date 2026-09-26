@@ -468,6 +468,9 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
             parent=self,
         )
         self._connected.table_view.open_rate_graph_callback = self._player_resolver_window.high_rate_monitor.open_graph
+        self._connected.table_view.blacklist_high_rate_callback = self._player_resolver_window.high_rate_monitor.blacklist_ips
+        self._connected.table_view.unblacklist_high_rate_callback = self._player_resolver_window.high_rate_monitor.unblacklist_ips
+        self._connected.table_view.is_high_rate_blacklisted_callback = self._player_resolver_window.high_rate_monitor.is_ip_blacklisted
 
         self._saved_splitter_sizes = []
 
@@ -480,6 +483,9 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
             clear_slot=self._clear_disconnected_players,
             parent=self,
         )
+        self._disconnected.table_view.blacklist_high_rate_callback = self._player_resolver_window.high_rate_monitor.blacklist_ips
+        self._disconnected.table_view.unblacklist_high_rate_callback = self._player_resolver_window.high_rate_monitor.unblacklist_ips
+        self._disconnected.table_view.is_high_rate_blacklisted_callback = self._player_resolver_window.high_rate_monitor.is_ip_blacklisted
 
         self._tables_splitter = QSplitter(Qt.Orientation.Vertical, self)
         self._tables_splitter.setChildrenCollapsible(False)

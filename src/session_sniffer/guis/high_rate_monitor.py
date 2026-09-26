@@ -31,7 +31,8 @@ if TYPE_CHECKING:
 _UPDATE_INTERVAL_MS = 1_000
 _KBS_TO_BYTES = 1024
 _SMART_MIN_PPS_FLOOR = 20
-_SMART_PPS_MULTIPLIER = 1.25
+_SMART_PPS_MULTIPLIER = 1.20
+_SMART_MIN_PPS_DELTA = 3
 
 
 def _make_rate_history() -> deque[int]:
@@ -243,7 +244,11 @@ class HighRateMonitorWidget(QWidget):
         if self.mode == 'Smart':
             pps_values = [player.packets.pps.calculated_rate for player in players]
             self._current_avg_pps = sum(pps_values) / len(pps_values) if pps_values else 0.0
-            self._current_smart_threshold = max(_SMART_MIN_PPS_FLOOR, round(self._current_avg_pps * _SMART_PPS_MULTIPLIER))
+            self._current_smart_threshold = max(
+                _SMART_MIN_PPS_FLOOR,
+                round(self._current_avg_pps * _SMART_PPS_MULTIPLIER),
+                round(self._current_avg_pps + _SMART_MIN_PPS_DELTA),
+            )
             active_pps_threshold = self._current_smart_threshold
         else:
             active_pps_threshold = self.pps_threshold
@@ -419,11 +424,41 @@ class HighRateMonitorWidget(QWidget):
 
     def _clear_blacklist(self) -> None:
         self._blacklisted_ips.clear()
+        if self._timer.isActive():
+            self._scan_players()
 
-    def blacklist_ip(self, ip: str) -> None:
+    def blacklist_ips(self, ip_addresses: list[str]) -> None:
+        """Add multiple IPs to the blacklist to exclude them from high-rate detection."""
+        if not ip_addresses:
+            return
+        for ip_address in ip_addresses:
+            self._blacklisted_ips.add(ip_address)
+            self._tracked.pop(ip_address, None)
+        if HighRateTracker.flagged_ips.intersection(ip_addresses):
+            HighRateTracker.set_flagged_ips(HighRateTracker.flagged_ips - set(ip_addresses))
+        if self._timer.isActive():
+            self._scan_players()
+
+    def blacklist_ip(self, ip_address: str) -> None:
         """Add an IP to the blacklist to exclude it from high-rate detection."""
-        self._blacklisted_ips.add(ip)
-        self._tracked.pop(ip, None)
+        self.blacklist_ips([ip_address])
+
+    def unblacklist_ips(self, ip_addresses: list[str]) -> None:
+        """Remove multiple IPs from the blacklist to include them in high-rate detection again."""
+        if not ip_addresses:
+            return
+        for ip_address in ip_addresses:
+            self._blacklisted_ips.discard(ip_address)
+        if self._timer.isActive():
+            self._scan_players()
+
+    def unblacklist_ip(self, ip_address: str) -> None:
+        """Remove an IP from the blacklist to include it in high-rate detection again."""
+        self.unblacklist_ips([ip_address])
+
+    def is_ip_blacklisted(self, ip_address: str) -> bool:
+        """Return whether the given IP is currently blacklisted from high-rate detection."""
+        return ip_address in self._blacklisted_ips
 
     def start_monitoring(self) -> None:
         """Start periodic rate monitoring if not already active."""
