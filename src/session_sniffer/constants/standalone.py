@@ -192,6 +192,14 @@ MIN_COLUMN_WIDTHS: dict[str, int] = {
 
 DEFAULT_MIN_COLUMN_WIDTH: int = 50
 
+# Hardcoded maximum column widths for auto-sizing (in unscaled logical pixels).
+MAX_COLUMN_WIDTHS: dict[str, int] = {
+    'Usernames': 240,
+    'Ports': 140,
+    'Middle Ports': 140,
+}
+
+
 # Flexible columns that absorb remaining table viewport space to eliminate empty right-hand space.
 FLEXIBLE_STRETCH_COLUMNS: tuple[str, ...] = (
     'Usernames',

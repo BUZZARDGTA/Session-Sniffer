@@ -56,6 +56,7 @@ from session_sniffer.constants.standalone import (
     DEFAULT_MIN_COLUMN_WIDTH,
     FLEXIBLE_COLUMN_WEIGHTS,
     FLEXIBLE_STRETCH_COLUMNS,
+    MAX_COLUMN_WIDTHS,
     MIN_COLUMN_WIDTHS,
     TITLE,
 )
@@ -858,6 +859,10 @@ def setup_static_table_column_resizing(
                 icon_offset = scale_by_ui(22)
             cell_needed = text_width + icon_offset + cell_padding
             needed_width = max(needed_width, cell_needed)
+
+        max_bound = scale_by_ui(MAX_COLUMN_WIDTHS[header_label]) if header_label in MAX_COLUMN_WIDTHS else None
+        if max_bound is not None:
+            needed_width = min(needed_width, max(floor_width, max_bound))
 
         visible_columns.append((column, header_label, floor_width, needed_width))
 
