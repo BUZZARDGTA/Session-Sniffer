@@ -30,6 +30,8 @@ if TYPE_CHECKING:
 
 _UPDATE_INTERVAL_MS = 1_000
 _KBS_TO_BYTES = 1024
+_SMART_MIN_PPS_FLOOR = 20
+_SMART_PPS_MULTIPLIER = 1.25
 
 
 def _make_rate_history() -> deque[int]:
@@ -138,6 +140,9 @@ class HighRateMonitorWidget(QWidget):
         self._blacklisted_ips: set[str] = set()
         self._graph_windows: dict[str, PlayerRateGraphWindow] = {}
         self._currently_selected_ips: set[str] = set()
+        self.mode: str = Settings.high_rate_monitor_mode
+        self._current_avg_pps: float = 0.0
+        self._current_smart_threshold: int = _SMART_MIN_PPS_FLOOR
         self._auto_select: bool = Settings.high_rate_monitor_auto_select
 
         self.pps_threshold = Settings.high_rate_monitor_pps_threshold
@@ -188,8 +193,7 @@ class HighRateMonitorWidget(QWidget):
 
         open_all_graphs = QPushButton('Open Graphs for Flagged Players')
         open_all_graphs.setToolTip(
-            'Opens a live PPS/BPS rate graph window for every player currently\n'
-            'exceeding both thresholds.\n\n'
+            'Opens a live PPS/BPS rate graph window for every player currently flagged as high-rate traffic.\n\n'
             'Each graph updates in real time so you can visually compare traffic patterns.',
         )
         open_all_graphs.setFixedWidth(240)
@@ -224,12 +228,25 @@ class HighRateMonitorWidget(QWidget):
 
     # Scanning ---------------------------------------------------------------
 
+    def _get_flagged_players(self) -> list[_PlayerRateData]:
+        if self.mode == 'Smart':
+            return [player for player in self._tracked.values() if player.is_high_pps]
+        return [player for player in self._tracked.values() if player.is_high_pps and player.is_high_bps]
+
     def _scan_players(self) -> None:
         players = [
             player
             for player in PlayersRegistry.get_connected_players()
             if player.ip not in self._blacklisted_ips and not is_third_party_server_ip(player.ip)
         ]
+
+        if self.mode == 'Smart':
+            pps_values = [player.packets.pps.calculated_rate for player in players]
+            self._current_avg_pps = sum(pps_values) / len(pps_values) if pps_values else 0.0
+            self._current_smart_threshold = max(_SMART_MIN_PPS_FLOOR, round(self._current_avg_pps * _SMART_PPS_MULTIPLIER))
+            active_pps_threshold = self._current_smart_threshold
+        else:
+            active_pps_threshold = self.pps_threshold
 
         now = datetime.now(tz=LOCAL_TZ)
         connected_ips: set[str] = set()
@@ -245,7 +262,7 @@ class HighRateMonitorWidget(QWidget):
             self._tracked[player.ip].update_pps_stats(
                 now=now,
                 pps=player.packets.pps.calculated_rate,
-                threshold=self.pps_threshold,
+                threshold=active_pps_threshold,
                 required_duration=self.required_duration,
             )
             self._tracked[player.ip].update_bps_stats(
@@ -258,7 +275,7 @@ class HighRateMonitorWidget(QWidget):
         for ip in self._tracked.keys() - connected_ips:
             del self._tracked[ip]
 
-        flagged_players = [player for player in self._tracked.values() if player.is_high_pps and player.is_high_bps]
+        flagged_players = self._get_flagged_players()
         flagged_ips = {player.ip for player in flagged_players}
         HighRateTracker.set_flagged_ips(flagged_ips)
 
@@ -276,6 +293,7 @@ class HighRateMonitorWidget(QWidget):
 
         for ip, graph in list(self._graph_windows.items()):
             data = self._tracked.get(ip)
+            graph.set_pps_threshold(active_pps_threshold)
             graph.update_rates(
                 pps=data.pps if data else 0,
                 bps=data.bps if data else 0,
@@ -287,16 +305,23 @@ class HighRateMonitorWidget(QWidget):
 
     def _update_status_display(self, flagged_players: list[_PlayerRateData]) -> None:
         num_flagged = len(flagged_players)
+        num_connected = len(self._tracked)
+        if self.mode == 'Smart':
+            mode_info = f'Smart mode (avg: {self._current_avg_pps:.1f} PPS · threshold: {self._current_smart_threshold} PPS)'
+        else:
+            formatted_bps_thresh = PlayerBandwidth.format_bytes(self.bps_threshold)
+            mode_info = f'Manual mode (thresholds: {self.pps_threshold} PPS · {formatted_bps_thresh})'
+
         if not num_flagged:
-            num_connected = len(self._tracked)
             self._status_label.setText(
                 f'<b>No high-rate players detected.</b><br>'
-                f'<small>Monitoring {num_connected} connected IP{pluralize(num_connected)}.</small>',
+                f'<small>Monitoring {num_connected} connected IP{pluralize(num_connected)} · {mode_info}.</small>',
             )
             return
 
+        threshold_text = f'threshold{pluralize(2)}' if self.mode == 'Manual' else 'threshold'
         lines: list[str] = [
-            f'<b style="color:#e74c3c;">{num_flagged} player{pluralize(num_flagged)} currently exceeding thresholds:</b>',
+            f'<b style="color:#e74c3c;">{num_flagged} player{pluralize(num_flagged)} currently exceeding {threshold_text}:</b> <small>({mode_info})</small>',
         ]
         for player in flagged_players:
             name_part = f' ({", ".join(player.usernames)})' if player.usernames else ''
@@ -309,13 +334,17 @@ class HighRateMonitorWidget(QWidget):
 
     def apply_settings(self) -> None:
         """Apply updated threshold and auto-select settings from `Settings`."""
+        self.mode = Settings.high_rate_monitor_mode
         self.pps_threshold = Settings.high_rate_monitor_pps_threshold
         self.bps_threshold = Settings.high_rate_monitor_bps_threshold * _KBS_TO_BYTES
         self.required_duration = Settings.high_rate_monitor_duration_threshold
+        active_pps_threshold = self._current_smart_threshold if self.mode == 'Smart' else self.pps_threshold
         for graph in self._graph_windows.values():
-            graph.set_pps_threshold(self.pps_threshold)
+            graph.set_pps_threshold(active_pps_threshold)
             graph.set_bps_threshold(self.bps_threshold)
         self._auto_select_checkbox.setChecked(Settings.high_rate_monitor_auto_select)
+        if self._tracked:
+            self._scan_players()
 
     # Graphs -----------------------------------------------------------------
 
@@ -328,9 +357,10 @@ class HighRateMonitorWidget(QWidget):
             existing.activateWindow()
             return
 
+        active_pps_threshold = self._current_smart_threshold if self.mode == 'Smart' else self.pps_threshold
         graph = PlayerRateGraphWindow(
             ip=ip,
-            initial_pps_threshold=self.pps_threshold,
+            initial_pps_threshold=active_pps_threshold,
             initial_bps_threshold=self.bps_threshold,
         )
         data = self._tracked.get(ip)
@@ -344,9 +374,8 @@ class HighRateMonitorWidget(QWidget):
         self._graph_windows[ip] = graph
 
     def _open_all_graphs(self) -> None:
-        for player in self._tracked.values():
-            if player.is_high_pps and player.is_high_bps:
-                self.open_graph(player.ip)
+        for player in self._get_flagged_players():
+            self.open_graph(player.ip)
 
     # Actions ----------------------------------------------------------------
 
@@ -355,7 +384,7 @@ class HighRateMonitorWidget(QWidget):
         self._select_button.setEnabled(not checked)
         self._deselect_button.setEnabled(not checked)
         if checked:
-            flagged_ips = [p.ip for p in self._tracked.values() if p.is_high_pps and p.is_high_bps]
+            flagged_ips = [player.ip for player in self._get_flagged_players()]
             if flagged_ips and self._select_ips is not None:
                 self._select_ips(flagged_ips)
                 self._currently_selected_ips = set(flagged_ips)
@@ -365,14 +394,14 @@ class HighRateMonitorWidget(QWidget):
 
     def _select_flagged(self) -> None:
         if self._select_ips is not None:
-            flagged_ips = [p.ip for p in self._tracked.values() if p.is_high_pps and p.is_high_bps]
+            flagged_ips = [player.ip for player in self._get_flagged_players()]
             if flagged_ips:
                 self._select_ips(flagged_ips)
                 self._currently_selected_ips = set(flagged_ips)
 
     def _deselect_flagged(self) -> None:
         if self._deselect_ips is not None:
-            flagged_ips = {p.ip for p in self._tracked.values() if p.is_high_pps and p.is_high_bps}
+            flagged_ips = {player.ip for player in self._get_flagged_players()}
             ips_to_deselect = list(self._currently_selected_ips | flagged_ips)
             self._deselect_ips(ips_to_deselect or None)
             self._currently_selected_ips.clear()
@@ -383,6 +412,8 @@ class HighRateMonitorWidget(QWidget):
             self._deselect_ips(list(self._currently_selected_ips))
         self._currently_selected_ips.clear()
         self._tracked.clear()
+        self._current_avg_pps = 0.0
+        self._current_smart_threshold = _SMART_MIN_PPS_FLOOR
         HighRateTracker.set_flagged_ips(set())
         self._status_label.setText('<b>Status:</b> Scan reset. Collecting data…')
 
@@ -415,7 +446,7 @@ class HighRateMonitorWidget(QWidget):
         """Select flagged high-rate players if auto-selection is enabled upon showing the monitor."""
         super().showEvent(event)
         if self._auto_select:
-            flagged_ips = [player.ip for player in self._tracked.values() if player.is_high_pps and player.is_high_bps]
+            flagged_ips = [player.ip for player in self._get_flagged_players()]
             if flagged_ips and self._select_ips is not None:
                 self._select_ips(flagged_ips)
                 self._currently_selected_ips = set(flagged_ips)

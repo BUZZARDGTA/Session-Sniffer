@@ -119,6 +119,7 @@ class Settings:
     looky_exclusive_gta5_process: bool = SETTING_DEFAULTS['looky_exclusive_gta5_process']
     looky_game_version: str = SETTING_DEFAULTS['looky_game_version']
     looky_api_key: str | None = SETTING_DEFAULTS['looky_api_key']
+    high_rate_monitor_mode: str = SETTING_DEFAULTS['high_rate_monitor_mode']
     high_rate_monitor_icon: bool = SETTING_DEFAULTS['high_rate_monitor_icon']
     high_rate_monitor_run_in_background: bool = SETTING_DEFAULTS['high_rate_monitor_run_in_background']
     high_rate_monitor_auto_select: bool = SETTING_DEFAULTS['high_rate_monitor_auto_select']
@@ -211,6 +212,7 @@ class Settings:
         'LOOKY_GAME_VERSION',
         'LOOKY_API_KEY',
         'PINGER_LOCAL',
+        'HIGH_RATE_MONITOR_MODE',
         'HIGH_RATE_MONITOR_ICON',
         'HIGH_RATE_MONITOR_RUN_IN_BACKGROUND',
         'HIGH_RATE_MONITOR_AUTO_SELECT',

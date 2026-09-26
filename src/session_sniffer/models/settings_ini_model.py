@@ -153,6 +153,7 @@ class SettingsIniModel(BaseModel):
     LOOKY_API_KEY: str | None
     PINGER_LOCAL: bool
     SOLO_SESSION_DURATION: int
+    HIGH_RATE_MONITOR_MODE: str
     HIGH_RATE_MONITOR_ICON: bool
     HIGH_RATE_MONITOR_RUN_IN_BACKGROUND: bool
     HIGH_RATE_MONITOR_AUTO_SELECT: bool
@@ -714,6 +715,21 @@ class SettingsIniModel(BaseModel):
             cls._set_flag(info, 'should_rewrite', value=True)
             return max_val
         return parsed
+
+    @field_validator('HIGH_RATE_MONITOR_MODE', mode='before')
+    @classmethod
+    def _parse_high_rate_monitor_mode(cls, value: object, info: ValidationInfo) -> str:
+        if isinstance(value, str):
+            try:
+                case_match, normalized = check_case_insensitive_and_exact_match(value, ('Smart', 'Manual'))
+            except NoMatchFoundError:
+                cls._set_flag(info, 'should_rewrite', value=True)
+                return cast('str', cls._get_default_for_field(info))
+            if not case_match:
+                cls._record_rewrite(info, normalized)
+            return normalized
+        cls._set_flag(info, 'should_rewrite', value=True)
+        return cast('str', cls._get_default_for_field(info))
 
     @field_validator('HIGH_RATE_MONITOR_PPS_THRESHOLD', mode='before')
     @classmethod

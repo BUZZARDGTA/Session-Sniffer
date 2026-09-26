@@ -779,6 +779,18 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         max_value=60,
         step=1,
     ),
+    'high_rate_monitor_mode': SettingMeta(
+        category='GTA V',
+        group='High Rate Monitor',
+        display_label='High Rate Monitor Mode',
+        setting_type=SettingType.ENUM,
+        tooltip=(
+            'Detection mode for flagging high packet-rate players.\n\n'
+            'Smart: Dynamically calculates the average PPS of connected players and flags players exceeding the session average with a margin and minimum floor.\n'
+            'Manual: Flags players exceeding fixed PPS and BPS thresholds.'
+        ),
+        allowed_values=('Smart', 'Manual'),
+    ),
     'high_rate_monitor_icon': SettingMeta(
         category='GTA V',
         group='High Rate Monitor',
@@ -1002,6 +1014,7 @@ class SettingDefaults(TypedDict):
     looky_exclusive_gta5_process: bool
     looky_game_version: str
     looky_api_key: str | None
+    high_rate_monitor_mode: str
     high_rate_monitor_icon: bool
     high_rate_monitor_run_in_background: bool
     high_rate_monitor_auto_select: bool
@@ -1141,6 +1154,7 @@ SETTING_DEFAULTS: SettingDefaults = {
     'looky_exclusive_gta5_process': True,
     'looky_game_version': 'Both',
     'looky_api_key': None,
+    'high_rate_monitor_mode': 'Smart',
     'high_rate_monitor_icon': True,
     'high_rate_monitor_run_in_background': True,
     'high_rate_monitor_auto_select': True,
