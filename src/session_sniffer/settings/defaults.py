@@ -69,7 +69,7 @@ class SettingMeta:
 
 
 SETTING_CATEGORIES_ORDER: tuple[str, ...] = (
-    'Launcher',
+    'General',
     'Capture',
     'Session',
     'Columns',
@@ -80,6 +80,75 @@ SETTING_CATEGORIES_ORDER: tuple[str, ...] = (
 
 
 SETTING_METADATA: dict[str, SettingMeta] = {
+    'gui_always_on_top': SettingMeta(
+        category='General',
+        group='Application Window',
+        display_label='Always on Top',
+        setting_type=SettingType.BOOLEAN,
+        tooltip='Keep the main application window above all other windows.',
+    ),
+    'gui_remember_window_layout': SettingMeta(
+        category='General',
+        group='Application Window',
+        display_label='Remember Window & Tables Layout',
+        setting_type=SettingType.BOOLEAN,
+        tooltip=(
+            'Save and restore the main window tables layout (connected/disconnected splitter\n'
+            'and column widths) and the UserIP Manager window geometry and splitter across\n'
+            'application launches.'
+        ),
+    ),
+    'gui_interface_selection_auto_connect': SettingMeta(
+        category='General',
+        group='Interface Selection',
+        display_label='Auto Connect',
+        setting_type=SettingType.BOOLEAN,
+        tooltip='Automatically connect to the last used interface on startup.',
+    ),
+    'gui_interface_selection_hide_inactive': SettingMeta(
+        category='General',
+        group='Interface Selection',
+        display_label='Hide Inactive',
+        setting_type=SettingType.BOOLEAN,
+        tooltip='Hide network interfaces with no active traffic.',
+    ),
+    'gui_interface_selection_hide_neighbours': SettingMeta(
+        category='General',
+        group='Interface Selection',
+        display_label='Hide Neighbours',
+        setting_type=SettingType.BOOLEAN,
+        tooltip='Hide neighbour entries (devices discovered via ARP on the local network).',
+    ),
+    'voice_notifications_enabled': SettingMeta(
+        category='General',
+        group='Voice Notifications',
+        display_label='Enabled',
+        setting_type=SettingType.BOOLEAN,
+        tooltip='Enable or disable all voice notifications globally across the application.',
+    ),
+    'gui_ignore_screen_resolution_warning': SettingMeta(
+        category='General',
+        group='Application Popups',
+        display_label='Ignore Screen Resolution Warning',
+        setting_type=SettingType.BOOLEAN,
+        tooltip='Ignore the warning when screen resolution is below 1024x768.',
+        hidden=True,
+    ),
+    'show_discord_popup': SettingMeta(
+        category='General',
+        group='Application Popups',
+        display_label='Show Discord Intro Popup',
+        setting_type=SettingType.BOOLEAN,
+        tooltip='Show the Discord intro popup on application startup.',
+    ),
+    'updater_channel': SettingMeta(
+        category='General',
+        group='Updater',
+        display_label='Update Channel',
+        setting_type=SettingType.ENUM,
+        tooltip='Release channel to check for updates.',
+        allowed_values=('Stable', 'Pre-release'),
+    ),
     'capture_interface_name': SettingMeta(
         category='Capture',
         group='Interface',
@@ -291,27 +360,6 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         ),
         requires_capture_restart=True,
     ),
-    'gui_interface_selection_auto_connect': SettingMeta(
-        category='Launcher',
-        group='Interface Selection',
-        display_label='Auto Connect',
-        setting_type=SettingType.BOOLEAN,
-        tooltip='Automatically connect to the last used interface on startup.',
-    ),
-    'gui_interface_selection_hide_inactive': SettingMeta(
-        category='Launcher',
-        group='Interface Selection',
-        display_label='Hide Inactive',
-        setting_type=SettingType.BOOLEAN,
-        tooltip='Hide network interfaces with no active traffic.',
-    ),
-    'gui_interface_selection_hide_neighbours': SettingMeta(
-        category='Launcher',
-        group='Interface Selection',
-        display_label='Hide Neighbours',
-        setting_type=SettingType.BOOLEAN,
-        tooltip='Hide neighbour entries (devices discovered via ARP on the local network).',
-    ),
     'gui_sessions_logging': SettingMeta(
         category='Session',
         group='Sessions Logging',
@@ -490,24 +538,6 @@ SETTING_METADATA: dict[str, SettingMeta] = {
             'hide your IP, but may be slower and subject to server rate limits or downtime.'
         ),
     ),
-    'gui_always_on_top': SettingMeta(
-        category='Session',
-        group='Application Window',
-        display_label='Always on Top',
-        setting_type=SettingType.BOOLEAN,
-        tooltip='Keep the main application window above all other windows.',
-    ),
-    'gui_remember_window_layout': SettingMeta(
-        category='Session',
-        group='Application Window',
-        display_label='Remember Window & Tables Layout',
-        setting_type=SettingType.BOOLEAN,
-        tooltip=(
-            'Save and restore the main window tables layout (connected/disconnected splitter\n'
-            'and column widths) and the UserIP Manager window geometry and splitter across\n'
-            'application launches.'
-        ),
-    ),
     'gui_servers_color_enabled': SettingMeta(
         category='Session',
         group='Detected Servers',
@@ -521,21 +551,6 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         display_label='Color',
         setting_type=SettingType.COLOR,
         tooltip='Background color used to highlight detected game servers in the player tables.',
-    ),
-    'voice_notifications_enabled': SettingMeta(
-        category='Session',
-        group='Voice Notifications',
-        display_label='Enabled',
-        setting_type=SettingType.BOOLEAN,
-        tooltip='Enable or disable all voice notifications globally across the application.',
-    ),
-    'gui_ignore_screen_resolution_warning': SettingMeta(
-        category='Launcher',
-        group='Application Popups',
-        display_label='Ignore Screen Resolution Warning',
-        setting_type=SettingType.BOOLEAN,
-        tooltip='Ignore the warning when screen resolution is below 1024x768.',
-        hidden=True,
     ),
     # ------------------------------------------------------------------
     'discord_presence': SettingMeta(
@@ -551,13 +566,6 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         display_label='Presence Title',
         setting_type=SettingType.STRING,
         tooltip='Custom title text displayed in your Discord Rich Presence status (leave empty to disable, or use 2+ characters).',
-    ),
-    'show_discord_popup': SettingMeta(
-        category='Launcher',
-        group='Application Popups',
-        display_label='Show Discord Intro Popup',
-        setting_type=SettingType.BOOLEAN,
-        tooltip='Show the Discord intro popup on application startup.',
     ),
     'discord_webhook_enabled': SettingMeta(
         category='Discord',
@@ -700,14 +708,6 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         setting_type=SettingType.STRING,
         tooltip='Optional HTTP Basic Auth password. Authentication is enabled only when both username and password are set.',
         secret=True,
-    ),
-    'updater_channel': SettingMeta(
-        category='Launcher',
-        group='Updater',
-        display_label='Update Channel',
-        setting_type=SettingType.ENUM,
-        tooltip='Release channel to check for updates.',
-        allowed_values=('Stable', 'Pre-release'),
     ),
     'looky_enabled': SettingMeta(
         category='GTA V',
