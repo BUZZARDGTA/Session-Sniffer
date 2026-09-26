@@ -29,6 +29,11 @@ globs: **/*.py
 * Single-letter variables are reserved for `i` and `j` as loop indices, and `e` for exception handling.
 * Access attributes and functions directly; only use local aliases when necessary to preserve a value across changing state.
 
+## Pluralization
+
+* Never use parenthesized plural patterns such as `username(s)`, `IP(s)`, or `file(s)` in user-facing strings, messages, dialogs, action labels, or tooltips whenever a count is available or can be determined.
+* Always use `pluralize(count)` from `session_sniffer.text_utils` (e.g. `f'username{pluralize(count)}'`, `f'IP{pluralize(count)}'`) to dynamically format singular and plural forms.
+
 ## Documentation Style
 
 * In comments and docstrings, use single backticks for inline code.

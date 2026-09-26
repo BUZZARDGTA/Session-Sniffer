@@ -131,7 +131,7 @@ _HEADERS = (
 _HEADER_TOOLTIPS = (
     'Leaderboard position (row number) for the current sort order, time period and count mode.',
     'Current session connection status (Connected, Disconnected, or not in the active session).',
-    'In-game username(s) seen for this player across all recorded sessions.',
+    'In-game usernames seen for this player across all recorded sessions.',
     "The player's IP address.",
     'How often this player was seen within the selected time period.',
     'The earliest time this player was ever recorded across all session logs.',
@@ -1285,7 +1285,7 @@ class PlayerLeaderboardWindow(ToggleAlwaysOnTopMixin):
 
             usernames_text = ', '.join(entry.usernames)
             copy_usernames_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), f'Copy Username{pluralize(len(entry.usernames))}', self)
-            copy_usernames_action.setToolTip('Copy the username(s) for this player to the clipboard.')
+            copy_usernames_action.setToolTip(f'Copy the username{pluralize(len(entry.usernames))} for this player to the clipboard.')
             copy_usernames_action.setEnabled(bool(entry.usernames))
             copy_usernames_action.triggered.connect(lambda: set_clipboard_text(usernames_text))
             menu.addAction(copy_usernames_action)

@@ -33,7 +33,7 @@ class UsernameSelectionConfig:
     """Configuration options for SelectUsernamesDialog."""
 
     title: str = 'Select Usernames'
-    instructions: str = 'Select username(s):'
+    instructions: str | None = None
     action_button_text: str = 'Add'
     multiple: bool = True
     allow_custom: bool = False
@@ -79,7 +79,8 @@ class SelectUsernamesDialog(QDialog):
         if dialog_config.current_username is not None:
             layout.addWidget(QLabel(f'Current:  <b>{dialog_config.current_username}</b>'))
 
-        layout.addWidget(QLabel(dialog_config.instructions))
+        instructions = dialog_config.instructions if dialog_config.instructions is not None else f'Select username{pluralize(len(usernames))}:'
+        layout.addWidget(QLabel(instructions))
 
         self._search = QLineEdit()
         self._search.setPlaceholderText('Filter usernames…')
@@ -173,7 +174,7 @@ class SelectUsernamesDialog(QDialog):
         """Create a dialog configured for picking username(s) to add to UserIP."""
         config = UsernameSelectionConfig(
             title='Select Usernames',
-            instructions='Multiple usernames found. Select the username(s) to add:',
+            instructions=f'Multiple usernames found. Select the username{pluralize(len(usernames))} to add:',
             action_button_text='Add',
             multiple=True,
             allow_custom=True,
@@ -215,7 +216,7 @@ class SelectUsernamesDialog(QDialog):
         """Create a dialog configured for picking which username(s) to remove."""
         config = UsernameSelectionConfig(
             title='Remove Username',
-            instructions='Select usernames to remove:',
+            instructions=f'Select username{pluralize(len(usernames))} to remove:',
             action_button_text='Remove',
             multiple=True,
             allow_custom=False,

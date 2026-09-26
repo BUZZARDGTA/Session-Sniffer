@@ -136,14 +136,18 @@ def _prompt_usernames_to_add(
             return selected
 
         # User clicked 'Custom…' in the selection dialog
-        initial_text = ''
+        selected_candidates = dialog.selected_usernames()
+        initial_text = ', '.join(selected_candidates)
+        usernames_count = len(selected_candidates) or 1
     elif len(candidates) == 1:
         initial_text = candidates[0]
+        usernames_count = 1
     else:
         initial_text = ''
+        usernames_count = 1
 
     if prompt_message is None:
-        prompt_message = f'Please enter the username to associate with the selected IP{pluralize(len(selected_ips))}:'
+        prompt_message = f'Please enter the username{pluralize(usernames_count)} to associate with the selected IP{pluralize(len(selected_ips))}:'
 
     entered_username, success = QInputDialog.getText(
         parent,
@@ -156,12 +160,12 @@ def _prompt_usernames_to_add(
     if not success:
         return None
 
-    entered_username = entered_username.strip()
-    if not entered_username:
+    entered_usernames = [name.strip() for name in dedup_preserve_order(entered_username.split(',')) if name.strip()]
+    if not entered_usernames:
         QMessageBox.warning(parent, TITLE, 'ERROR:\nNo username was provided.')
         return None
 
-    return [entered_username]
+    return entered_usernames
 
 
 def userip_add(
