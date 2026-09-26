@@ -4,6 +4,7 @@ This module contains a variety of helper functions and custom exceptions used ac
 """
 
 import ctypes
+import json
 import logging
 import os
 import shutil
@@ -15,12 +16,9 @@ from datetime import UTC, datetime, tzinfo
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 
-from pydantic import ValidationError
-
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.constants.standard import CMD_EXE
 from session_sniffer.error_messages import format_type_error
-from session_sniffer.models import SessionLogFile
 from session_sniffer.utils_exceptions import (
     InvalidBooleanValueError,
     InvalidFileError,
@@ -555,12 +553,15 @@ def is_session_file_empty(file_path: Path) -> bool:
         True if the file has no players (empty 'connected' and 'disconnected' sections) or is unreadable.
     """
     try:
-        session_log = SessionLogFile.model_validate_json(file_path.read_text(encoding='utf-8', errors='replace'))
-    except (OSError, ValidationError) as e:
+        data = json.loads(file_path.read_text(encoding='utf-8', errors='replace'))
+    except (OSError, json.JSONDecodeError) as e:
         logger.warning('Failed to read or parse session log file %s: %s', file_path, e)
         return True
 
-    return not (session_log.connected or session_log.disconnected)
+    if not isinstance(data, dict):
+        return True
+
+    return not (data.get('connected') or data.get('disconnected'))
 
 
 def cleanup_session_logs(
