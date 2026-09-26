@@ -541,11 +541,17 @@ def process_userip_task(
             _voice_notification_queue.put(str(tts_candidate_path))
 
         if connection_type == 'connected':
-            wait_for_player_data_ready(player, data_fields=('userip.usernames', 'iplookup.geolite2'), timeout=10.0)
+            if userip.settings.notifications:
+                def _show_userip_dialog() -> None:
+                    show_userip_detected_dialog(find_main_window(), player)
 
-            relative_database_path = userip.db_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix('')
+                gui_dispatcher.invoke(_show_userip_dialog)
 
             if userip.settings.log:
+                wait_for_player_data_ready(player, data_fields=('userip.usernames', 'iplookup.geolite2'), timeout=10.0)
+
+                relative_database_path = userip.db_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix('')
+
                 with _userip_logging_file_write_lock:
                     USERIP_LOGGING_PATH.parent.mkdir(parents=True, exist_ok=True)
                     write_csv_header = not USERIP_LOGGING_PATH.exists() or not USERIP_LOGGING_PATH.stat().st_size
@@ -564,14 +570,6 @@ def process_userip_task(
                                 player.iplookup.geolite2.country,
                             ],
                         )
-
-            if userip.settings.notifications:
-                wait_for_player_data_ready(player, data_fields=('userip.usernames', 'reverse_dns.hostname', 'iplookup.geolite2', 'iplookup.ipapi'), timeout=10.0)
-
-                def _show_userip_dialog() -> None:
-                    show_userip_detected_dialog(find_main_window(), player)
-
-                gui_dispatcher.invoke(_show_userip_dialog)
     finally:
         with _active_userip_tasks_lock:
             _active_userip_tasks.discard(task_key)
