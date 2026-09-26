@@ -38,6 +38,8 @@ class PaginationState:
     def set_connected(cls, *, rows_per_page: int, page: int) -> None:
         """Set connected-table pagination state."""
         with cls._lock:
+            if cls._connected_rows_per_page == rows_per_page and cls._connected_page == page:
+                return
             cls._connected_rows_per_page = rows_per_page
             cls._connected_page = page
             cls._version += 1
@@ -47,6 +49,8 @@ class PaginationState:
     def set_disconnected(cls, *, rows_per_page: int, page: int) -> None:
         """Set disconnected-table pagination state."""
         with cls._lock:
+            if cls._disconnected_rows_per_page == rows_per_page and cls._disconnected_page == page:
+                return
             cls._disconnected_rows_per_page = rows_per_page
             cls._disconnected_page = page
             cls._version += 1
@@ -56,6 +60,8 @@ class PaginationState:
     def set_connected_page(cls, page: int) -> None:
         """Set only the connected-table current page."""
         with cls._lock:
+            if cls._connected_page == page:
+                return
             cls._connected_page = page
             cls._version += 1
         GUIRenderingState.wake()
@@ -64,6 +70,8 @@ class PaginationState:
     def set_disconnected_page(cls, page: int) -> None:
         """Set only the disconnected-table current page."""
         with cls._lock:
+            if cls._disconnected_page == page:
+                return
             cls._disconnected_page = page
             cls._version += 1
         GUIRenderingState.wake()
@@ -95,6 +103,8 @@ class SearchState:
     def set_connected(cls, text: str, column: int) -> None:
         """Update the connected-table search text and column, then bump the version."""
         with cls._lock:
+            if cls._connected_text == text and cls._connected_column == column:
+                return
             cls._connected_text = text
             cls._connected_column = column
             cls._version += 1
@@ -104,6 +114,8 @@ class SearchState:
     def set_disconnected(cls, text: str, column: int) -> None:
         """Update the disconnected-table search text and column, then bump the version."""
         with cls._lock:
+            if cls._disconnected_text == text and cls._disconnected_column == column:
+                return
             cls._disconnected_text = text
             cls._disconnected_column = column
             cls._version += 1
@@ -130,6 +142,8 @@ class SortState:
     def set_connected(cls, *, column_name: str, order: Qt.SortOrder) -> None:
         """Update connected-table sort configuration, then bump the version."""
         with cls._lock:
+            if cls._connected_column_name == column_name and cls._connected_order == order:
+                return
             cls._connected_column_name = column_name
             cls._connected_order = order
             cls._version += 1
@@ -139,6 +153,8 @@ class SortState:
     def set_disconnected(cls, *, column_name: str, order: Qt.SortOrder) -> None:
         """Update disconnected-table sort configuration, then bump the version."""
         with cls._lock:
+            if cls._disconnected_column_name == column_name and cls._disconnected_order == order:
+                return
             cls._disconnected_column_name = column_name
             cls._disconnected_order = order
             cls._version += 1
