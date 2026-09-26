@@ -31,7 +31,8 @@ from PySide6.QtWidgets import (
 )
 
 from session_sniffer.constants.local import RESOURCES_DIR_PATH
-from session_sniffer.constants.standalone import DATETIME_TRACKING_COLUMNS, SEARCHABLE_COLUMN_EXCLUSIONS, TITLE
+from session_sniffer.constants.standalone import TITLE
+from session_sniffer.constants.tables import DATETIME_TRACKING_COLUMNS, SEARCHABLE_COLUMN_EXCLUSIONS
 from session_sniffer.guis.file_watch import DebouncedFileWatcher
 from session_sniffer.guis.logs_manager._helpers import (
     copy_viewer_text_to_clipboard,

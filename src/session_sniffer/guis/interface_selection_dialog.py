@@ -33,7 +33,7 @@ from shiboken6 import isValid
 from session_sniffer.capture.interface_setup import refresh_available_interfaces
 from session_sniffer.capture.utils.arp_refresh import refresh_arp_table
 from session_sniffer.constants.local import RESOURCES_DIR_PATH
-from session_sniffer.constants.standalone import DEFAULT_MIN_COLUMN_WIDTH
+from session_sniffer.constants.tables import DEFAULT_MIN_COLUMN_WIDTH, INTERFACE_SELECTION_TABLE_MIN_COLUMN_WIDTHS
 from session_sniffer.error_messages import ensure_instance
 from session_sniffer.guis.hotspot_manager import HotspotManagerWidget
 from session_sniffer.guis.stylesheets import (
@@ -324,7 +324,10 @@ class InterfaceSelectionDialog(QDialog):
         # Table widget for displaying interfaces
         self.table: SafeQTableWidget = SafeQTableWidget(0, 9)
         self.table.setHorizontalHeaderLabels(['Name', 'Description', 'Type', 'Packets Sent', 'Packets Received', 'Gateway IP', 'IP Address', 'MAC Address', 'Vendor Name'])
-        self._column_resizer: TableColumnResizeController = TableColumnResizeController(self.table)
+        self._column_resizer: TableColumnResizeController = TableColumnResizeController(
+            self.table,
+            min_column_widths=INTERFACE_SELECTION_TABLE_MIN_COLUMN_WIDTHS,
+        )
 
         self.table.setItemDelegate(ElidedTextTooltipDelegate(self.table))
         self.table.setWordWrap(False)

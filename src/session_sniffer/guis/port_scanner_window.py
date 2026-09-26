@@ -32,9 +32,10 @@ from PySide6.QtWidgets import (
 )
 
 from session_sniffer.constants.local import RESOURCES_DIR_PATH
-from session_sniffer.constants.standalone import (
+from session_sniffer.constants.standalone import TITLE
+from session_sniffer.constants.tables import (
     DEFAULT_MIN_COLUMN_WIDTH,
-    TITLE,
+    PORT_SCANNER_TABLE_MIN_COLUMN_WIDTHS,
 )
 from session_sniffer.error_messages import ensure_instance
 from session_sniffer.guis._crashing_qthread import CrashingQThread
@@ -213,7 +214,10 @@ class PortScannerTabWidget(QWidget):
         self._results_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self._results_table.customContextMenuRequested.connect(self._show_table_context_menu)
 
-        self._column_resizer: TableColumnResizeController = TableColumnResizeController(self._results_table)
+        self._column_resizer: TableColumnResizeController = TableColumnResizeController(
+            self._results_table,
+            min_column_widths=PORT_SCANNER_TABLE_MIN_COLUMN_WIDTHS,
+        )
         header = self._results_table.horizontalHeader()
         header.setStretchLastSection(False)
         header.setMinimumSectionSize(scale_by_ui(DEFAULT_MIN_COLUMN_WIDTH))

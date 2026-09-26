@@ -8,7 +8,7 @@ from PySide6.QtGui import QAction, QIcon, QKeySequence, QResizeEvent, QShortcut,
 from PySide6.QtWidgets import QBoxLayout, QMenu, QTableWidget, QWidget
 
 from session_sniffer.constants.local import RESOURCES_DIR_PATH
-from session_sniffer.constants.standalone import DEFAULT_MIN_COLUMN_WIDTH
+from session_sniffer.constants.tables import DEFAULT_MIN_COLUMN_WIDTH
 from session_sniffer.guis.stylesheets import SVG_ICON_CONTEXT_MENU_STYLESHEET
 from session_sniffer.guis.table_column_resizing import TableColumnResizeController, setup_table_header_context_menu
 from session_sniffer.guis.tables_player_actions import (
@@ -248,9 +248,20 @@ class StatTableWindowMixin(ToggleAlwaysOnTopMixin):
     def _custom_column_widths(self, value: dict[str, int] | None) -> None:
         self._column_resizer.custom_widths = value
 
-    def setup_stat_table_controls(self, layout: QBoxLayout, *, always_on_top: bool) -> None:
+    def setup_stat_table_controls(
+        self,
+        layout: QBoxLayout,
+        *,
+        always_on_top: bool,
+        min_column_widths: dict[str, int] | None = None,
+        max_column_widths: dict[str, int] | None = None,
+    ) -> None:
         """Initialize the context menu manager, column resizing hooks, and add the always-on-top checkbox."""
-        self._column_resizer = TableColumnResizeController(self._table)
+        self._column_resizer = TableColumnResizeController(
+            self._table,
+            min_column_widths=min_column_widths,
+            max_column_widths=max_column_widths,
+        )
         header = self._table.horizontalHeader()
         header.setStretchLastSection(False)
         header.setMinimumSectionSize(scale_by_ui(DEFAULT_MIN_COLUMN_WIDTH))

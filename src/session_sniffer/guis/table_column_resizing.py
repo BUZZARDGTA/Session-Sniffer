@@ -7,7 +7,7 @@ from PySide6.QtGui import QAction, QIcon
 from PySide6.QtWidgets import QHeaderView, QMenu, QTableView, QTableWidget, QTreeView
 
 from session_sniffer.constants.local import RESOURCES_DIR_PATH
-from session_sniffer.constants.standalone import DEFAULT_MIN_COLUMN_WIDTH, MIN_COLUMN_WIDTHS
+from session_sniffer.constants.tables import DEFAULT_MIN_COLUMN_WIDTH
 from session_sniffer.guis.stylesheets import SVG_ICON_CONTEXT_MENU_STYLESHEET
 from session_sniffer.guis.utils import scale_by_ui, setup_static_table_column_resizing
 
@@ -134,9 +134,17 @@ def setup_table_header_context_menu(
 class TableColumnResizeController:
     """Manages custom column widths, user interactive resizing constraints, and smart layout."""
 
-    def __init__(self, table: QTableView) -> None:
+    def __init__(
+        self,
+        table: QTableView,
+        *,
+        min_column_widths: dict[str, int] | None = None,
+        max_column_widths: dict[str, int] | None = None,
+    ) -> None:
         """Initialize the column resize controller for *table*."""
         self._table = table
+        self.min_column_widths: dict[str, int] | None = min_column_widths
+        self.max_column_widths: dict[str, int] | None = max_column_widths
         self.custom_widths: dict[str, int] | None = None
         self.is_programmatic_resizing: bool = False
 
@@ -157,8 +165,9 @@ class TableColumnResizeController:
         if self.custom_widths is None:
             self.custom_widths = self.get_column_widths()
 
+        widths_map = self.min_column_widths or {}
         min_width = max(
-            scale_by_ui(MIN_COLUMN_WIDTHS.get(column_name, DEFAULT_MIN_COLUMN_WIDTH)),
+            scale_by_ui(widths_map.get(column_name, DEFAULT_MIN_COLUMN_WIDTH)),
             header.sectionSizeFromContents(logical_index).width(),
         )
 
@@ -191,7 +200,12 @@ class TableColumnResizeController:
         """Apply smart column resizing to the table."""
         self.is_programmatic_resizing = True
         try:
-            setup_static_table_column_resizing(self._table, custom_widths=self.custom_widths)
+            setup_static_table_column_resizing(
+                self._table,
+                custom_widths=self.custom_widths,
+                min_column_widths=self.min_column_widths,
+                max_column_widths=self.max_column_widths,
+            )
         finally:
             self.is_programmatic_resizing = False
 

@@ -52,13 +52,11 @@ from PySide6.QtWidgets import (
 )
 
 from session_sniffer.constants.local import IMAGES_DIR_PATH, RESOURCES_DIR_PATH
-from session_sniffer.constants.standalone import (
+from session_sniffer.constants.standalone import TITLE
+from session_sniffer.constants.tables import (
     DEFAULT_MIN_COLUMN_WIDTH,
     FLEXIBLE_COLUMN_WEIGHTS,
     FLEXIBLE_STRETCH_COLUMNS,
-    MAX_COLUMN_WIDTHS,
-    MIN_COLUMN_WIDTHS,
-    TITLE,
 )
 from session_sniffer.settings.settings import Settings
 
@@ -810,6 +808,8 @@ def setup_static_table_column_resizing(
     table: QTableView,
     *,
     custom_widths: dict[str, int] | None = None,
+    min_column_widths: dict[str, int] | None = None,
+    max_column_widths: dict[str, int] | None = None,
 ) -> None:
     """Set up column sizing for a table, fitting columns and distributing extra space to flexible columns."""
     table_model = table.model()
@@ -830,6 +830,8 @@ def setup_static_table_column_resizing(
     header_sort_padding = scale_by_ui(28)
     cell_padding = scale_by_ui(32)
     row_count = table_model.rowCount()
+    widths_map = min_column_widths or {}
+    max_bounds_map = max_column_widths or {}
 
     visible_columns: list[tuple[int, str, int, int]] = []
     for column in range(table_model.columnCount()):
@@ -840,7 +842,7 @@ def setup_static_table_column_resizing(
             header_font_metrics.horizontalAdvance(header_label) + header_sort_padding,
             horizontal_header.sectionSizeFromContents(column).width(),
         )
-        min_width = max(scale_by_ui(MIN_COLUMN_WIDTHS.get(header_label, DEFAULT_MIN_COLUMN_WIDTH)), header_needed)
+        min_width = max(scale_by_ui(widths_map.get(header_label, DEFAULT_MIN_COLUMN_WIDTH)), header_needed)
         custom_width = custom_widths.get(header_label) if custom_widths is not None else None
         floor_width = max(min_width, custom_width) if custom_width is not None else min_width
 
@@ -862,7 +864,7 @@ def setup_static_table_column_resizing(
             cell_needed = text_width + icon_offset + cell_padding
             needed_width = max(needed_width, cell_needed)
 
-        max_bound = scale_by_ui(MAX_COLUMN_WIDTHS[header_label]) if header_label in MAX_COLUMN_WIDTHS else None
+        max_bound = scale_by_ui(max_bounds_map[header_label]) if header_label in max_bounds_map else None
         if max_bound is not None:
             needed_width = min(needed_width, max(floor_width, max_bound))
 
@@ -888,7 +890,7 @@ def setup_static_table_column_resizing(
         for col, _, _, needed in visible_columns:
             header_text = str(table_model.headerData(col, Qt.Orientation.Horizontal) or '')
             min_bound = max(
-                scale_by_ui(MIN_COLUMN_WIDTHS.get(header_text, DEFAULT_MIN_COLUMN_WIDTH)),
+                scale_by_ui(widths_map.get(header_text, DEFAULT_MIN_COLUMN_WIDTH)),
                 horizontal_header.sectionSizeFromContents(col).width(),
             )
             reclaim_limit = max(min_bound, needed)

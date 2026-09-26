@@ -50,6 +50,10 @@ from PySide6.QtWidgets import (
 
 from session_sniffer.constants.local import RESOURCES_DIR_PATH, SESSIONS_LOGGING_DIR_PATH
 from session_sniffer.constants.standard import LOCAL_TZ
+from session_sniffer.constants.tables import (
+    LEADERBOARD_SEEN_STATS_TABLE_MIN_COLUMN_WIDTHS,
+    PLAYER_LEADERBOARD_TABLE_MIN_COLUMN_WIDTHS,
+)
 from session_sniffer.guis._player_leaderboard_loading_widget import LeaderboardLoadingWidget
 from session_sniffer.guis._player_leaderboard_workers import (
     LeaderboardBaselineWorker,
@@ -691,12 +695,15 @@ class _SeenStatsDialog(QDialog):
 
     def _reset_column_sizes(self) -> None:
         """Reset column widths back to their initial default layout, stretching Period."""
-        self._table.setColumnWidth(1, 110)
-        self._table.setColumnWidth(2, 110)
+        days_width = scale_by_ui(LEADERBOARD_SEEN_STATS_TABLE_MIN_COLUMN_WIDTHS['Unique Days'])
+        sessions_width = scale_by_ui(LEADERBOARD_SEEN_STATS_TABLE_MIN_COLUMN_WIDTHS['Sessions'])
+        self._table.setColumnWidth(1, days_width)
+        self._table.setColumnWidth(2, sessions_width)
         viewport = self._table.viewport()
         available_width = viewport.width() if viewport and viewport.width() > 0 else self._table.width()
         used_width = self._table.columnWidth(1) + self._table.columnWidth(2)
-        remaining_width = max(100, available_width - used_width)
+        min_period_width = scale_by_ui(LEADERBOARD_SEEN_STATS_TABLE_MIN_COLUMN_WIDTHS['Period'])
+        remaining_width = max(min_period_width, available_width - used_width)
         self._table.setColumnWidth(0, remaining_width)
 
     @override
@@ -758,7 +765,7 @@ class _LeaderboardTableView(QTableView):
 
     def setup_static_column_resizing(self) -> None:
         """Set up initial column resizing for the table."""
-        setup_static_table_column_resizing(self)
+        setup_static_table_column_resizing(self, min_column_widths=PLAYER_LEADERBOARD_TABLE_MIN_COLUMN_WIDTHS)
 
 
 class PlayerLeaderboardWindow(ToggleAlwaysOnTopMixin):

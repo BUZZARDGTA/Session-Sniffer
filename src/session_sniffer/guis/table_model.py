@@ -19,7 +19,7 @@ from PySide6.QtWidgets import (
 )
 
 from session_sniffer.constants.local import RESOURCES_DIR_PATH
-from session_sniffer.constants.standalone import (
+from session_sniffer.constants.tables import (
     BANDWIDTH_BASE_COLUMN_ATTRS,
     BANDWIDTH_RATE_STAT_COLUMNS,
     LOCATION_COLUMNS,

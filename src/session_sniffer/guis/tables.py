@@ -14,11 +14,14 @@ from PySide6.QtWidgets import (
 )
 
 from session_sniffer.constants.local import RESOURCES_DIR_PATH
-from session_sniffer.constants.standalone import (
+from session_sniffer.constants.tables import (
     BANDWIDTH_RATE_STAT_COLUMNS,
+    CONNECTED_TABLE_MAX_COLUMN_WIDTHS,
+    CONNECTED_TABLE_MIN_COLUMN_WIDTHS,
     DEFAULT_MIN_COLUMN_WIDTH,
+    DISCONNECTED_TABLE_MAX_COLUMN_WIDTHS,
+    DISCONNECTED_TABLE_MIN_COLUMN_WIDTHS,
     LOCATION_COLUMNS,
-    MIN_COLUMN_WIDTHS,
     PACKET_STAT_COLUMNS,
     PORT_COLUMNS,
     STATUS_COLUMNS,
@@ -110,6 +113,8 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
         super().__init__()
 
         self.is_connected_table = is_connected_table  # Store which table type this is
+        self.min_column_widths: dict[str, int] = CONNECTED_TABLE_MIN_COLUMN_WIDTHS if is_connected_table else DISCONNECTED_TABLE_MIN_COLUMN_WIDTHS
+        self.max_column_widths: dict[str, int] = CONNECTED_TABLE_MAX_COLUMN_WIDTHS if is_connected_table else DISCONNECTED_TABLE_MAX_COLUMN_WIDTHS
         self.open_rate_graph_callback: Callable[[str], None] | None = None  # Optional callback to open a rate graph for an IP
         self._drag_selecting: bool = False  # Track if the mouse is being dragged with Ctrl key
         self._previous_cell: QModelIndex | None = None  # Track the previously selected cell
@@ -320,7 +325,7 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
             if self._custom_column_widths is None:
                 self._custom_column_widths = self.get_column_widths()
             min_width = max(
-                scale_by_ui(MIN_COLUMN_WIDTHS.get(header_text, DEFAULT_MIN_COLUMN_WIDTH)),
+                scale_by_ui(self.min_column_widths.get(header_text, DEFAULT_MIN_COLUMN_WIDTH)),
                 self.horizontalHeader().sectionSizeFromContents(logical_index).width(),
             )
             if new_size < min_width:
@@ -353,7 +358,7 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
                 header_label = model.headerData(column, Qt.Orientation.Horizontal)
                 if header_label in widths and widths[header_label] > 0:
                     min_width = max(
-                        scale_by_ui(MIN_COLUMN_WIDTHS.get(header_label, DEFAULT_MIN_COLUMN_WIDTH)),
+                        scale_by_ui(self.min_column_widths.get(header_label, DEFAULT_MIN_COLUMN_WIDTH)),
                         header.sectionSizeFromContents(column).width(),
                     )
                     width = max(min_width, widths[header_label])
@@ -395,7 +400,12 @@ class SessionTableView(TableContextMenuMixin, QTableView):  # pylint: disable=to
         """Set up column sizing for the table, fitting columns and distributing extra space to flexible columns."""
         self._is_programmatic_resizing = True
         try:
-            setup_static_table_column_resizing(self, custom_widths=self._custom_column_widths)
+            setup_static_table_column_resizing(
+                self,
+                custom_widths=self._custom_column_widths,
+                min_column_widths=self.min_column_widths,
+                max_column_widths=self.max_column_widths,
+            )
         finally:
             self._is_programmatic_resizing = False
 

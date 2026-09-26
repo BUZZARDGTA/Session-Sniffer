@@ -3,6 +3,7 @@
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QTableWidget, QTableWidgetItem
 
+from session_sniffer.constants.tables import COUNTRY_BREAKDOWN_TABLE_MIN_COLUMN_WIDTHS
 from session_sniffer.guis.table_context_menu import StatTableWindowMixin, skip_if_menu_open
 from session_sniffer.guis.utils import NumericTableWidgetItem, setup_stat_table
 from session_sniffer.player.registry import PlayersRegistry
@@ -22,7 +23,7 @@ class CountryBreakdownWindow(StatTableWindowMixin):
         self._table = QTableWidget(0, 2)
         self._table.setHorizontalHeaderLabels(['Country', 'Players'])
         setup_stat_table(self._table, layout, sorting=False)
-        self.setup_stat_table_controls(layout, always_on_top=always_on_top)
+        self.setup_stat_table_controls(layout, always_on_top=always_on_top, min_column_widths=COUNTRY_BREAKDOWN_TABLE_MIN_COLUMN_WIDTHS)
         self._reset_column_sizes()
 
     @skip_if_menu_open

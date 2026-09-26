@@ -6,6 +6,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import QTableWidget, QTableWidgetItem
 
+from session_sniffer.constants.tables import SESSION_TIMELINE_TABLE_MIN_COLUMN_WIDTHS
 from session_sniffer.exceptions import PlayerDateTimeCorruptionError
 from session_sniffer.guis.table_context_menu import StatTableWindowMixin, skip_if_menu_open
 from session_sniffer.guis.utils import (
@@ -46,7 +47,7 @@ class SessionTimelineWindow(StatTableWindowMixin):
         self._table.setHorizontalHeaderLabels(_HEADERS)
         setup_stat_table(self._table, layout, sorting=True)
 
-        self.setup_stat_table_controls(layout, always_on_top=always_on_top)
+        self.setup_stat_table_controls(layout, always_on_top=always_on_top, min_column_widths=SESSION_TIMELINE_TABLE_MIN_COLUMN_WIDTHS)
         self._reset_column_sizes()
         self._table.sortByColumn(_COLUMN_FIRST_SEEN, Qt.SortOrder.AscendingOrder)
 

@@ -7,8 +7,11 @@ from typing import TYPE_CHECKING, Any, ClassVar
 from session_sniffer import msgbox
 from session_sniffer.constants.local import SETTINGS_PATH
 from session_sniffer.constants.standalone import (
-    BANDWIDTH_STAT_COLUMNS,
     CAPTURE_FILTER_BLOCK_SETTINGS,
+    TITLE,
+)
+from session_sniffer.constants.tables import (
+    BANDWIDTH_STAT_COLUMNS,
     CONNECTED_RATE_STAT_COLUMNS,
     DATETIME_TRACKING_COLUMNS,
     LOCATION_COLUMNS,
@@ -17,7 +20,6 @@ from session_sniffer.constants.standalone import (
     PORT_COLUMNS,
     SESSION_TRACKING_COLUMNS,
     STATUS_COLUMNS,
-    TITLE,
 )
 from session_sniffer.error_messages import ensure_instance, format_invalid_datetime_columns_settings_message
 from session_sniffer.logging_setup import clear_secret_cache

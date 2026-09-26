@@ -21,7 +21,7 @@ from PySide6.QtWidgets import (
 )
 
 from session_sniffer.constants.local import RESOURCES_DIR_PATH
-from session_sniffer.constants.standalone import SEARCHABLE_COLUMN_EXCLUSIONS
+from session_sniffer.constants.tables import SEARCHABLE_COLUMN_EXCLUSIONS
 from session_sniffer.guis.stylesheets import (
     CONNECTED_EXPAND_BUTTON_STYLESHEET,
     DISCONNECTED_EXPAND_BUTTON_STYLESHEET,

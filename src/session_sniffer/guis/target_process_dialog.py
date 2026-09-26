@@ -24,9 +24,10 @@ from PySide6.QtWidgets import (
 from session_sniffer.capture.process import get_running_applications
 from session_sniffer.capture.process_monitor import ensure_process_monitor_running
 from session_sniffer.constants.local import RESOURCES_DIR_PATH
-from session_sniffer.constants.standalone import (
+from session_sniffer.constants.standalone import TITLE
+from session_sniffer.constants.tables import (
     DEFAULT_MIN_COLUMN_WIDTH,
-    TITLE,
+    TARGET_PROCESS_TABLE_MIN_COLUMN_WIDTHS,
 )
 from session_sniffer.guis.stylesheets import SVG_ICON_CONTEXT_MENU_STYLESHEET
 from session_sniffer.guis.table_column_resizing import TableColumnResizeController, setup_table_header_context_menu
@@ -100,7 +101,10 @@ class TargetProcessDialog(QDialog):
         self._table.setHorizontalScrollMode(QTableWidget.ScrollMode.ScrollPerPixel)
         self._table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self._table.customContextMenuRequested.connect(self._show_table_context_menu)
-        self._column_resizer: TableColumnResizeController = TableColumnResizeController(self._table)
+        self._column_resizer: TableColumnResizeController = TableColumnResizeController(
+            self._table,
+            min_column_widths=TARGET_PROCESS_TABLE_MIN_COLUMN_WIDTHS,
+        )
         setup_table_header_context_menu(self._table, on_reset=self._column_resizer.reset_column_sizes)
         header = self._table.horizontalHeader()
         header.setStretchLastSection(False)
