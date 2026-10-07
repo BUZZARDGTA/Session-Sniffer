@@ -2,13 +2,15 @@
 
 import time
 from concurrent.futures import ThreadPoolExecutor
-from typing import TYPE_CHECKING, ParamSpec, TypeVar, override
+from typing import TYPE_CHECKING, ClassVar, ParamSpec, TypeVar, override
 
 from PySide6.QtCore import Qt, QTimer, Signal
-from PySide6.QtGui import QCloseEvent, QFont, QTextCursor
+from PySide6.QtGui import QCloseEvent, QFont, QHideEvent, QTextCursor
 from PySide6.QtWidgets import QApplication, QLabel, QTextEdit, QVBoxLayout, QWidget
+from shiboken6 import isValid
 
 from session_sniffer.constants.standalone import TITLE
+from session_sniffer.core.control import ScriptControl
 from session_sniffer.guis.stylesheets import (
     SPLASH_LOG_AREA_STYLESHEET,
     SPLASH_SCREEN_STYLESHEET,
@@ -35,10 +37,13 @@ class SplashScreen(QWidget):
     """Frameless dark splash window that accumulates startup status messages."""
 
     progress_signal: Signal = Signal(str, object)
+    _active_instance: ClassVar[SplashScreen | None] = None
 
     def __init__(self) -> None:
         """Initialize the startup splash screen."""
         super().__init__()
+        SplashScreen._active_instance = self
+        ScriptControl.register_termination_hook(self.stop_spinner)
         self.setWindowTitle(TITLE)
         self.setWindowFlags(
             Qt.WindowType.FramelessWindowHint,
@@ -97,7 +102,7 @@ class SplashScreen(QWidget):
 
     def _replace_last_line(self, html: str) -> None:
         """Replace the last line in the log area with new HTML content."""
-        if not self.isVisible():
+        if not isValid(self) or not self.isVisible() or not isValid(self._log_area):
             return
         cursor = self._log_area.textCursor()
         cursor.movePosition(QTextCursor.MoveOperation.End)
@@ -121,7 +126,7 @@ class SplashScreen(QWidget):
 
     def _animate_spinner(self) -> None:
         """Advance the spinner animation on the current line."""
-        if self._current_message is None or not self.isVisible():
+        if not isValid(self) or self._current_message is None or not self.isVisible() or not isValid(self._log_area):
             return
         self._spinner_index = (self._spinner_index + 1) % len(SPINNER_FRAMES)
         self._render_current_line()
@@ -186,18 +191,33 @@ class SplashScreen(QWidget):
             scrollbar.setValue(scrollbar.maximum())
         QApplication.processEvents()
 
+    def stop_spinner(self) -> None:
+        """Stop the background spinner timer if valid."""
+        if isValid(self):
+            self._spinner_timer.stop()
+
     def close_splash(self) -> None:
         """Close the splash screen."""
-        self._spinner_timer.stop()
+        self.stop_spinner()
         self._executor.shutdown(wait=False)
+        if SplashScreen._active_instance is self:
+            SplashScreen._active_instance = None
         self.close()
 
     @override
     def closeEvent(self, a0: QCloseEvent) -> None:
         """Stop animation and executor on close."""
-        self._spinner_timer.stop()
+        self.stop_spinner()
         self._executor.shutdown(wait=False)
+        if SplashScreen._active_instance is self:
+            SplashScreen._active_instance = None
         super().closeEvent(a0)
+
+    @override
+    def hideEvent(self, a0: QHideEvent) -> None:
+        """Stop spinner when hidden."""
+        self._spinner_timer.stop()
+        super().hideEvent(a0)
 
     def lower_to_back(self) -> None:
         """Ensure the splash is not marked always-on-top before continuing startup."""

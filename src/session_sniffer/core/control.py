@@ -16,6 +16,7 @@ from session_sniffer.gta5.suspend_manager import GTASuspendManager
 from session_sniffer.utils import terminate_process_tree
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
     from types import FrameType
 
 logger = logging.getLogger(__name__)
@@ -34,6 +35,22 @@ class ScriptControl:
 
     _lock: ClassVar[Lock] = Lock()
     _crashed: ClassVar[bool] = False
+    _termination_hooks: ClassVar[list[Callable[[], None]]] = []
+
+    @classmethod
+    def register_termination_hook(cls, hook: Callable[[], None]) -> None:
+        """Register a callback to run synchronously during process termination."""
+        with cls._lock:
+            if hook not in cls._termination_hooks:
+                cls._termination_hooks.append(hook)
+
+    @classmethod
+    def run_termination_hooks(cls) -> None:
+        """Execute all registered termination hooks."""
+        with cls._lock:
+            hooks = list(cls._termination_hooks)
+        for hook in hooks:
+            hook()
 
     @classmethod
     def set_crashed(cls) -> None:
@@ -70,6 +87,7 @@ def terminate_script(
     logger.debug('Active threads at terminate_script (%d): %s', len(active_thread_names), active_thread_names)
 
     GTASuspendManager.shutdown()
+    ScriptControl.run_termination_hooks()
 
     ScriptControl.set_crashed()
 
