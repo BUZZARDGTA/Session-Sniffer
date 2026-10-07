@@ -489,7 +489,6 @@ def _renamed_line(
         return None
     username_raw = match.group('username')
     ip_raw = match.group('ip')
-    comment = match.group('comment')
     if username_raw is None or ip_raw is None:
         return None
     username, ip = username_raw.strip(), ip_raw.strip()
@@ -499,13 +498,12 @@ def _renamed_line(
         return None
     replaced_usernames = [new_username if name in matched_names else name for name in line_usernames]
     resulting_names = dedup_preserve_order(replaced_usernames)
-    comment_suffix = f' ; {comment.strip()}' if comment and comment.strip() else ''
-    entry_key = f'{", ".join(resulting_names)}={ip}{comment_suffix}'
+    entry_key = f'{", ".join(resulting_names)}={ip}'
     if entry_key in seen:
         return ''  # duplicate — drop
     seen.add(entry_key)
     ending = raw_line[len(raw_line.rstrip()) :]
-    return f'{", ".join(resulting_names)}={ip}{comment_suffix}{ending}'
+    return f'{", ".join(resulting_names)}={ip}{ending}'
 
 
 def _rewrite_db_for_rename(db_path: Path, pairs: list[tuple[str, str]], new_username: str) -> int:
@@ -650,7 +648,6 @@ def userip_rename(parent: QWidget, ip_address: str, player: Player) -> None:
 
         username_raw = match.group('username')
         ip_raw = match.group('ip')
-        comment = match.group('comment')
         if username_raw is None or ip_raw is None or not _entry_ip_matches_any(ip_raw.strip(), [ip_address]):
             new_lines.append(raw_line)
             continue
@@ -662,9 +659,8 @@ def userip_rename(parent: QWidget, ip_address: str, player: Player) -> None:
 
         replaced_usernames = [new_username if name == old_username else name for name in line_usernames]
         resulting_names = dedup_preserve_order(replaced_usernames)
-        comment_suffix = f' ; {comment.strip()}' if comment and comment.strip() else ''
         ending = raw_line[len(raw_line.rstrip()) :]
-        new_lines.append(f'{", ".join(resulting_names)}={ip_raw.strip()}{comment_suffix}{ending}')
+        new_lines.append(f'{", ".join(resulting_names)}={ip_raw.strip()}{ending}')
         renamed_count += 1
 
     if not renamed_count:
@@ -885,7 +881,6 @@ def _rewrite_database_removing_usernames(
 
         username_raw = match.group('username')
         ip_raw = match.group('ip')
-        comment = match.group('comment')
         if username_raw is None or ip_raw is None or not _entry_ip_matches_any(ip_raw.strip(), [ip_address]):
             new_lines.append(raw_line)
             continue
@@ -899,9 +894,8 @@ def _rewrite_database_removing_usernames(
 
         removed_count += removed_from_line
         if remaining_usernames:
-            comment_suffix = f' ; {comment.strip()}' if comment and comment.strip() else ''
             ending = raw_line[len(raw_line.rstrip()) :]
-            new_lines.append(f'{", ".join(remaining_usernames)}={ip_raw.strip()}{comment_suffix}{ending}')
+            new_lines.append(f'{", ".join(remaining_usernames)}={ip_raw.strip()}{ending}')
 
     if not removed_count:
         QMessageBox.information(parent, TITLE, f'No matching entries found for IP {ip_address} in the database.')

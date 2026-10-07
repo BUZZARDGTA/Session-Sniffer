@@ -722,12 +722,20 @@ class UserIPDatabasesManager(
     # Edit tracking
     # ------------------------------------------------------------------
 
-    def _on_data_changed(self, _top_left: QModelIndex, _bottom_right: QModelIndex, _roles: list[int]) -> None:
+    def _on_data_changed(self, top_left: QModelIndex, bottom_right: QModelIndex, roles: list[int]) -> None:
         """Mark the current database as having unsaved changes."""
         if self._global_search_active or self._current_path is None or self._saving:
             return
-        if _roles and Qt.ItemDataRole.EditRole not in _roles and Qt.ItemDataRole.DisplayRole not in _roles:
+        if roles and Qt.ItemDataRole.EditRole not in roles and Qt.ItemDataRole.DisplayRole not in roles:
             return
+        if top_left.column() <= USERNAME_COLUMN <= bottom_right.column():
+            for row in range(top_left.row(), bottom_right.row() + 1):
+                item = self._model.item(row, USERNAME_COLUMN)
+                if item and item.data(Qt.ItemDataRole.UserRole):
+                    item.setData(False, Qt.ItemDataRole.UserRole)  # noqa: FBT003
+                    item.setIcon(QIcon())
+                    item.setForeground(QBrush())
+                    item.setToolTip('')
         self._mark_entries_dirty()
         self._highlight_duplicates()
 
