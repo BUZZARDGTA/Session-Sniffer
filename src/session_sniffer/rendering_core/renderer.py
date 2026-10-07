@@ -507,18 +507,28 @@ def rendering_core(
         all_modmenu_usernames = ModMenuLogsParser.get_all_ip_to_usernames_map()
         for player in chain(session_connected, session_disconnected):
             has_geo = player.country_flag is not None or player.iplookup.ipapi.is_initialized
-            looky_complete = (
-                not (Settings.looky_enabled and player.looky_system.is_initialized and player.looky_system.usernames)
-                or all(name in player.usernames for name in player.looky_system.usernames)
-            )
+            with player.looky_system.lock:
+                looky_usernames = list(player.looky_system.usernames)
+                looky_initialized = player.looky_system.is_initialized
+
+            looky_complete = not (Settings.looky_enabled and looky_initialized and looky_usernames) or all(name in player.usernames for name in looky_usernames)
             if player.left_event.is_set() and not _userip_db_rebuilt and player.iplookup.geolite2.is_initialized and has_geo and looky_complete:
                 continue
 
-            if _userip_db_rebuilt and (player.userip is not None or player.userip_detection is not None) and not UserIPDatabases.is_known_ip(player.ip):
-                player.userip = None
-                player.userip_detection = None
-                _userip_not_found.discard(player.ip)
-            if player.userip is None and player.ip not in _userip_not_found:
+            if _userip_db_rebuilt:
+                if not UserIPDatabases.is_known_ip(player.ip):
+                    player.userip = None
+                    player.userip_detection = None
+                    _userip_not_found.discard(player.ip)
+                else:
+                    resolved = UserIPDatabases.resolve_userip(player.ip)
+                    if resolved is not None:
+                        player.userip = resolved
+                        _userip_not_found.discard(player.ip)
+                    else:
+                        player.userip = None
+                        _userip_not_found.add(player.ip)
+            elif player.userip is None and player.ip not in _userip_not_found:
                 resolved = UserIPDatabases.resolve_userip(player.ip)
                 if resolved is None:
                     _userip_not_found.add(player.ip)
@@ -540,7 +550,7 @@ def rendering_core(
                 player.ps3_username
                 or (player.userip is not None and player.userip.usernames)
                 or (player.mod_menus is not None and player.mod_menus.usernames)
-                or (player.looky_system.is_initialized and player.looky_system.usernames)
+                or (looky_initialized and looky_usernames)
             )
             if not has_usernames:
                 if player.usernames:
@@ -550,7 +560,7 @@ def rendering_core(
                     (player.ps3_username,) if player.ps3_username else (),
                     player.userip.usernames if player.userip is not None else (),
                     player.mod_menus.usernames if player.mod_menus is not None else (),
-                    player.looky_system.usernames if player.looky_system.is_initialized else (),
+                    looky_usernames if looky_initialized else (),
                 )
 
             if not player.iplookup.geolite2.is_initialized:
@@ -595,10 +605,7 @@ def rendering_core(
                     _relay_host_logged_ip = None
                 p2p_session_connected = [player for player in session_connected if not player.is_third_party_server]
                 current_session_host = SessionHost.get_player()
-                is_relay_host = (
-                    current_session_host is not None
-                    and SessionHost.is_relay_host_candidate(current_session_host)
-                )
+                is_relay_host = current_session_host is not None and SessionHost.is_relay_host_candidate(current_session_host)
                 if current_session_host is not None and current_session_host.left_event.is_set():
                     if is_relay_host and _relay_host_logged_ip != current_session_host.ip:
                         logger.debug(
@@ -612,9 +619,7 @@ def rendering_core(
                         logger.debug('[SessionHost] Current host %s left_event is set, clearing host', current_session_host.ip)
                         _relay_host_logged_ip = None
                         SessionHost.set_player(None)
-                        SessionHost.search_player = any(
-                            player.packets.pps.calculated_rate for player in p2p_session_connected if player.ip != current_session_host.ip
-                        )
+                        SessionHost.search_player = any(player.packets.pps.calculated_rate for player in p2p_session_connected if player.ip != current_session_host.ip)
                         SessionHost.search_start_time = None
                 # Trigger search once every pending player has completed disconnection
                 if SessionHost.players_pending_for_disconnection and all(player.left_event.is_set() for player in SessionHost.players_pending_for_disconnection):
@@ -631,9 +636,7 @@ def rendering_core(
                     SessionHost.players_pending_for_disconnection.clear()
                 elif SessionHost.players_pending_for_disconnection:
                     recovered_players = [
-                        player
-                        for player in SessionHost.players_pending_for_disconnection
-                        if not player.left_event.is_set() and player.packets.pps.calculated_rate
+                        player for player in SessionHost.players_pending_for_disconnection if not player.left_event.is_set() and player.packets.pps.calculated_rate
                     ]
                     if recovered_players:
                         logger.debug(
@@ -641,16 +644,10 @@ def rendering_core(
                             len(recovered_players),
                             pluralize(len(recovered_players)),
                         )
-                        SessionHost.players_pending_for_disconnection = [
-                            player for player in SessionHost.players_pending_for_disconnection if player not in recovered_players
-                        ]
+                        SessionHost.players_pending_for_disconnection = [player for player in SessionHost.players_pending_for_disconnection if player not in recovered_players]
 
                     new_active_players = (
-                        [
-                            player
-                            for player in p2p_session_connected
-                            if player not in SessionHost.players_pending_for_disconnection and player.packets.pps.calculated_rate
-                        ]
+                        [player for player in p2p_session_connected if player not in SessionHost.players_pending_for_disconnection and player.packets.pps.calculated_rate]
                         if SessionHost.players_pending_for_disconnection
                         else []
                     )

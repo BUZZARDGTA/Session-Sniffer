@@ -33,7 +33,6 @@ from session_sniffer.guis.exceptions import TableDataConsistencyError, Unsupport
 from session_sniffer.guis.high_rate_monitor import HighRateTracker
 from session_sniffer.guis.player_identifier import PlayerIdentifierTracker
 from session_sniffer.player.registry import PlayersRegistry, SessionHost
-from session_sniffer.player.userip import UserIPDatabases
 from session_sniffer.settings import Settings
 from session_sniffer.text_utils import strip_username_notes
 
@@ -232,14 +231,17 @@ def sort_table_rows[T: Sequence[str], C: Sequence[CellColor]](
             ip_index = ip_column_index
 
             if resolved_column_name == 'First Seen':
+
                 def _datetime_sort_key(row: tuple[T, C]) -> datetime:
                     matched_player = players_map.get(row[0][ip_index])
                     return matched_player.datetime.first_seen if matched_player is not None else default_datetime
             elif resolved_column_name == 'Last Rejoin':
+
                 def _datetime_sort_key(row: tuple[T, C]) -> datetime:
                     matched_player = players_map.get(row[0][ip_index])
                     return matched_player.datetime.last_rejoin if matched_player is not None else default_datetime
             else:
+
                 def _datetime_sort_key(row: tuple[T, C]) -> datetime:
                     matched_player = players_map.get(row[0][ip_index])
                     return matched_player.datetime.last_seen if matched_player is not None else default_datetime
@@ -420,13 +422,16 @@ class SessionTableModel(QAbstractTableModel):  # pylint: disable=too-many-public
         """Return True if *player* has been resolved with data by the Looky System."""
         if not Settings.looky_enabled or not Settings.is_gta5_feature_set():
             return False
-        return player.looky_system.is_initialized and bool(player.looky_system.usernames or player.looky_system.rockstarids)
+        with player.looky_system.lock:
+            return player.looky_system.is_initialized and bool(player.looky_system.usernames or player.looky_system.rockstarids)
 
     @staticmethod
     def _get_unregistered_looky_usernames(player: Player) -> set[str]:
         """Return the set of Looky usernames for *player* that are not present in their local UserIP database."""
-        if not player.looky_system.is_initialized or not player.looky_system.usernames:
-            return set()
+        with player.looky_system.lock:
+            if not player.looky_system.is_initialized or not player.looky_system.usernames:
+                return set()
+            looky_names = list(player.looky_system.usernames)
         userip_names: set[str] = set()
         if player.userip and player.userip.usernames:
             for name in player.userip.usernames:
@@ -437,15 +442,13 @@ class SessionTableModel(QAbstractTableModel):  # pylint: disable=too-many-public
                     if base:
                         userip_names.add(base.casefold())
         unregistered: set[str] = set()
-        for name in player.looky_system.usernames:
+        for name in looky_names:
             cleaned = name.strip()
             if not cleaned:
                 continue
             cleaned_cf = cleaned.casefold()
             base_cf = strip_username_notes(cleaned).casefold()
             if cleaned_cf in userip_names or (base_cf and base_cf in userip_names):
-                continue
-            if UserIPDatabases.is_known_username(cleaned):
                 continue
             unregistered.add(cleaned)
         return unregistered
