@@ -27,7 +27,7 @@ if TYPE_CHECKING:
 
     from session_sniffer.models.player import Player
 
-RE_USERIP_INI_PARSER_PATTERN = re.compile(r'^(?![;#])(?P<username>[^=]+)=(?P<ip>[^;#]+)')
+RE_USERIP_INI_PARSER_PATTERN = re.compile(r'^(?![;#])(?P<username>[^=]+)=(?P<ip>[^;#]+)(?:[;#]\s*(?P<comment>.*))?')
 
 
 def ensure_searchlist_database() -> Path:
@@ -116,9 +116,7 @@ def _prompt_usernames_to_add(
     Returns a non-empty list of chosen usernames, or None if cancelled/empty.
     """
     candidates = (
-        [name.strip() for name in dedup_preserve_order(candidate_usernames) if name.strip()]
-        if candidate_usernames is not None
-        else resolve_usernames_for_ips(selected_ips)
+        [name.strip() for name in dedup_preserve_order(candidate_usernames) if name.strip()] if candidate_usernames is not None else resolve_usernames_for_ips(selected_ips)
     )
     if Settings.userip_sync_known_alts:
         candidates = UserIPDatabases.expand_with_known_alts(candidates)
@@ -491,6 +489,7 @@ def _renamed_line(
         return None
     username_raw = match.group('username')
     ip_raw = match.group('ip')
+    comment = match.group('comment')
     if username_raw is None or ip_raw is None:
         return None
     username, ip = username_raw.strip(), ip_raw.strip()
@@ -500,12 +499,13 @@ def _renamed_line(
         return None
     replaced_usernames = [new_username if name in matched_names else name for name in line_usernames]
     resulting_names = dedup_preserve_order(replaced_usernames)
-    entry_key = f'{", ".join(resulting_names)}={ip}'
+    comment_suffix = f' ; {comment.strip()}' if comment and comment.strip() else ''
+    entry_key = f'{", ".join(resulting_names)}={ip}{comment_suffix}'
     if entry_key in seen:
         return ''  # duplicate — drop
     seen.add(entry_key)
     ending = raw_line[len(raw_line.rstrip()) :]
-    return f'{", ".join(resulting_names)}={ip}{ending}'
+    return f'{", ".join(resulting_names)}={ip}{comment_suffix}{ending}'
 
 
 def _rewrite_db_for_rename(db_path: Path, pairs: list[tuple[str, str]], new_username: str) -> int:
@@ -650,6 +650,7 @@ def userip_rename(parent: QWidget, ip_address: str, player: Player) -> None:
 
         username_raw = match.group('username')
         ip_raw = match.group('ip')
+        comment = match.group('comment')
         if username_raw is None or ip_raw is None or not _entry_ip_matches_any(ip_raw.strip(), [ip_address]):
             new_lines.append(raw_line)
             continue
@@ -661,8 +662,9 @@ def userip_rename(parent: QWidget, ip_address: str, player: Player) -> None:
 
         replaced_usernames = [new_username if name == old_username else name for name in line_usernames]
         resulting_names = dedup_preserve_order(replaced_usernames)
+        comment_suffix = f' ; {comment.strip()}' if comment and comment.strip() else ''
         ending = raw_line[len(raw_line.rstrip()) :]
-        new_lines.append(f'{", ".join(resulting_names)}={ip_raw.strip()}{ending}')
+        new_lines.append(f'{", ".join(resulting_names)}={ip_raw.strip()}{comment_suffix}{ending}')
         renamed_count += 1
 
     if not renamed_count:
@@ -883,6 +885,7 @@ def _rewrite_database_removing_usernames(
 
         username_raw = match.group('username')
         ip_raw = match.group('ip')
+        comment = match.group('comment')
         if username_raw is None or ip_raw is None or not _entry_ip_matches_any(ip_raw.strip(), [ip_address]):
             new_lines.append(raw_line)
             continue
@@ -896,8 +899,9 @@ def _rewrite_database_removing_usernames(
 
         removed_count += removed_from_line
         if remaining_usernames:
+            comment_suffix = f' ; {comment.strip()}' if comment and comment.strip() else ''
             ending = raw_line[len(raw_line.rstrip()) :]
-            new_lines.append(f'{", ".join(remaining_usernames)}={ip_raw.strip()}{ending}')
+            new_lines.append(f'{", ".join(remaining_usernames)}={ip_raw.strip()}{comment_suffix}{ending}')
 
     if not removed_count:
         QMessageBox.information(parent, TITLE, f'No matching entries found for IP {ip_address} in the database.')
