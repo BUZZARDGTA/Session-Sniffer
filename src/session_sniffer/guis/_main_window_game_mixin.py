@@ -42,10 +42,7 @@ def format_game_solo_action_text() -> str:
 
 def format_game_solo_tooltip(game_label: str) -> str:
     """Return the tooltip text for the solo public session action."""
-    return (
-        f'Suspend {game_label} for {Settings.solo_session_duration} seconds then auto-resume.\n'
-        'This forces the game to spawn you alone in a public session.'
-    )
+    return f'Suspend {game_label} for {Settings.solo_session_duration} seconds then auto-resume.\nThis forces the game to spawn you alone in a public session.'
 
 
 class GameMixin(QMainWindow):
@@ -197,7 +194,12 @@ class GameMixin(QMainWindow):
         self._game_menu_process_separator = game_menu.addSeparator()
 
         # Shared: Game Process submenu
-        game_process_submenu = game_menu.addMenu(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'controller.svg')), 'GTA5 Process')
+        self._icon_controller = QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'controller.svg'))
+        self._icon_user = QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'user.svg'))
+        self._icon_pause = QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'pause.svg'))
+        self._icon_play = QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'play.svg'))
+
+        game_process_submenu = game_menu.addMenu(self._icon_controller, 'GTA5 Process')
         if not game_process_submenu:
             message = 'Failed to create Game Process submenu'
             raise RuntimeError(message)
@@ -205,14 +207,14 @@ class GameMixin(QMainWindow):
         game_process_submenu.menuAction().setToolTip('Game process controls — suspend/resume for solo and public session manipulation')
         self._game_process_submenu = game_process_submenu
 
-        game_solo_menu_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'user.svg')), format_game_solo_action_text(), self)
+        game_solo_menu_action = QAction(self._icon_user, format_game_solo_action_text(), self)
         game_solo_menu_action.setToolTip(format_game_solo_tooltip(self._active_game_process_name()))
         game_solo_menu_action.triggered.connect(self.game_solo_session)
         game_process_submenu.addAction(game_solo_menu_action)
 
         game_process_submenu.addSeparator()
 
-        game_suspend_resume_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'pause.svg')), 'Suspend Process', self)
+        game_suspend_resume_action = QAction(self._icon_pause, 'Suspend Process', self)
         game_suspend_resume_action.setToolTip('Manually suspend the game process — stays suspended until you click it again to resume')
         game_suspend_resume_action.triggered.connect(self.toggle_manual_game_suspend)
         game_process_submenu.addAction(game_suspend_resume_action)
@@ -315,6 +317,19 @@ class GameMixin(QMainWindow):
         process_menu_title = f'{game_label} Process'
 
         can_act = self._game_has_any_process_path() and CaptureState.is_local_capture()
+        status_key = (
+            can_act,
+            self._manual_game_suspend_active,
+            self._game_solo_active,
+            self._game_process_suspended,
+            self._game_externally_suspended,
+            self._game_process_detected,
+            game_label,
+        )
+        if status_key == self._last_game_status_key:
+            return
+        self._last_game_status_key = status_key
+
         self._game_process_submenu.setEnabled(can_act)
         if not can_act:
             if self._manual_game_suspend_active:
@@ -326,9 +341,9 @@ class GameMixin(QMainWindow):
             self._game_process_suspended = False
             self._game_externally_suspended = False
             self._game_process_submenu.setTitle(process_menu_title)
-            self._game_process_submenu.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'controller.svg')))
+            self._game_process_submenu.setIcon(self._icon_controller)
             self._game_suspend_resume_action.setText('Suspend Process')
-            self._game_suspend_resume_action.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'pause.svg')))
+            self._game_suspend_resume_action.setIcon(self._icon_pause)
             self._game_suspend_resume_action.setEnabled(False)
             self._game_solo_menu_action.setEnabled(False)
             self._game_suspend_resume_action.setToolTip(
@@ -338,24 +353,24 @@ class GameMixin(QMainWindow):
             )
         elif self._manual_game_suspend_active:
             self._game_process_submenu.setTitle(f'{process_menu_title} (Suspended)')
-            self._game_process_submenu.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'pause.svg')))
+            self._game_process_submenu.setIcon(self._icon_pause)
             self._game_suspend_resume_action.setText('Resume Process')
-            self._game_suspend_resume_action.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'play.svg')))
+            self._game_suspend_resume_action.setIcon(self._icon_play)
             self._game_suspend_resume_action.setToolTip(f'Remove the manual suspend hold from the {game_label} process')
             self._game_suspend_resume_action.setEnabled(True)
             self._game_solo_menu_action.setEnabled(False)
         elif self._game_solo_active:
             self._game_process_submenu.setTitle(f'{process_menu_title} (Going Solo...)')
-            self._game_process_submenu.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'user.svg')))
+            self._game_process_submenu.setIcon(self._icon_user)
             self._game_suspend_resume_action.setText('Suspend Process')
-            self._game_suspend_resume_action.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'pause.svg')))
+            self._game_suspend_resume_action.setIcon(self._icon_pause)
             self._game_suspend_resume_action.setEnabled(False)
             self._game_solo_menu_action.setEnabled(False)
         elif self._game_process_suspended:
             self._game_process_submenu.setTitle(f'{process_menu_title} (Suspended)')
-            self._game_process_submenu.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'pause.svg')))
+            self._game_process_submenu.setIcon(self._icon_pause)
             self._game_suspend_resume_action.setText('Resume Process')
-            self._game_suspend_resume_action.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'play.svg')))
+            self._game_suspend_resume_action.setIcon(self._icon_play)
             self._game_suspend_resume_action.setEnabled(False)
             self._game_solo_menu_action.setEnabled(False)
             self._game_suspend_resume_action.setToolTip(
@@ -364,18 +379,18 @@ class GameMixin(QMainWindow):
             self._game_solo_menu_action.setToolTip('Process is already suspended')
         elif self._game_externally_suspended:
             self._game_process_submenu.setTitle(f'{process_menu_title} (Suspended)')
-            self._game_process_submenu.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'pause.svg')))
+            self._game_process_submenu.setIcon(self._icon_pause)
             self._game_suspend_resume_action.setText('Resume Process')
-            self._game_suspend_resume_action.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'play.svg')))
+            self._game_suspend_resume_action.setIcon(self._icon_play)
             self._game_suspend_resume_action.setEnabled(True)
             self._game_solo_menu_action.setEnabled(False)
             self._game_suspend_resume_action.setToolTip(f'{game_label} was left suspended outside this app — click to resume it')
             self._game_solo_menu_action.setToolTip('Process is currently suspended — resume it first')
         else:
             self._game_process_submenu.setTitle(process_menu_title)
-            self._game_process_submenu.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'controller.svg')))
+            self._game_process_submenu.setIcon(self._icon_controller)
             self._game_suspend_resume_action.setText('Suspend Process')
-            self._game_suspend_resume_action.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'pause.svg')))
+            self._game_suspend_resume_action.setIcon(self._icon_pause)
             if self._game_process_detected:
                 self._game_suspend_resume_action.setEnabled(True)
                 self._game_solo_menu_action.setEnabled(True)
@@ -414,8 +429,10 @@ class GameMixin(QMainWindow):
             if suspended:
                 visible_text = f'{version_text} (Suspended)'
                 self._game_status_label.setText(f'<span style="color: #ff9800;">●</span> {visible_text}')
-                self._game_status_label.setToolTip(f'{path_tooltip}\
-Process is currently suspended')
+                self._game_status_label.setToolTip(
+                    f'{path_tooltip}\
+Process is currently suspended'
+                )
             else:
                 visible_text = version_text
                 self._game_status_label.setText(f'<span style="color: #4caf50;">●</span> {visible_text}')
@@ -478,9 +495,7 @@ Process is currently suspended')
 
         game_label = self._active_game_label()
         self._game_menu.setTitle(game_label)
-        self._game_process_submenu.menuAction().setToolTip(
-            f'{self._active_game_process_name()} process controls — suspend/resume for solo and public session manipulation'
-        )
+        self._game_process_submenu.menuAction().setToolTip(f'{self._active_game_process_name()} process controls — suspend/resume for solo and public session manipulation')
         self._player_resolver_action.setToolTip(f'Find the exact IP of a player in your current {game_label} session.')
 
         local_only = CaptureState.is_local_capture()
