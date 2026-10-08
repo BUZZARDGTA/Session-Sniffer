@@ -138,22 +138,6 @@ class DetailedMessageDialog(QDialog):
             dialog_layout.activate()
 
 
-def show_detailed_message(
-    parent: QWidget | None,
-    title: str,
-    text: str,
-    detailed_text: str | None = None,
-    *,
-    icon: QMessageBox.Icon = QMessageBox.Icon.Information,
-) -> DetailedMessageDialog:
-    """Display a non-modal dialog with an expandable Show More details section."""
-    dialog = DetailedMessageDialog(parent, title, text, detailed_text=detailed_text, icon=icon)
-    dialog.show()
-    dialog.raise_()
-    dialog.activateWindow()
-    return dialog
-
-
 _active_ipapi_dialogs: ActiveDialogRegistry[str, DetailedMessageDialog] = ActiveDialogRegistry()
 
 

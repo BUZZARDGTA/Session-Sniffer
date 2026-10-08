@@ -16,7 +16,7 @@ from session_sniffer.error_messages import (
     format_game_solo_session_suspend_failed_message,
 )
 from session_sniffer.gta5.suspend_manager import GTASuspendManager
-from session_sniffer.guis.dialogs import show_detailed_message
+from session_sniffer.guis.session_host_diagnostics_dialog import show_session_host_diagnostics_dialog
 from session_sniffer.guis.session_host_history_window import setup_session_host_actions
 from session_sniffer.guis.stylesheets import GTA5_STATUS_LABEL_STYLESHEET
 from session_sniffer.player.registry import PlayersRegistry, SessionHost
@@ -31,6 +31,7 @@ if TYPE_CHECKING:
     from session_sniffer.guis.detections_manager import DetectionsManagerDialog
     from session_sniffer.guis.player_resolver import PlayerResolverWindow
     from session_sniffer.guis.userip_manager import UserIPDatabasesManager
+    from session_sniffer.player.registry import HostDiagnosticsSnapshot
 
 logger = logging.getLogger(__name__)
 
@@ -533,47 +534,38 @@ Process is currently suspended'
 
     def _show_session_host_diagnostics(self) -> None:
         """Display detailed diagnostic information from the last session host detection attempt."""
-        if SessionHost.last_debug_details is None:
+        if SessionHost.last_diagnostics is None:
             QMessageBox.information(self, TITLE, 'No session host detection diagnostics are available yet.')
             return
 
-        if SessionHost.last_detection_success and SessionHost.last_detected_host_ip is not None:
-            text = f'Session host detected:\n\n{SessionHost.last_detected_host_ip}'
-            icon = QMessageBox.Icon.Information
-        elif SessionHost.has_player():
-            host_player = SessionHost.get_player()
-            host_ip = host_player.ip if host_player is not None else 'Unknown'
-            text = f'Session host detected:\n\n{host_ip}'
-            icon = QMessageBox.Icon.Information
-        else:
-            reason = SessionHost.last_rejection_reason or 'No player currently matches the session host criteria.'
-            text = f'Could not resolve session host:\n\n{reason}'
-            icon = QMessageBox.Icon.Warning
+        show_session_host_diagnostics_dialog(
+            self,
+            SessionHost.last_diagnostics,
+            redetect_callback=self._redetect_host_from_diagnostics,
+        )
 
-        show_detailed_message(self, TITLE, text, detailed_text=SessionHost.last_debug_details, icon=icon)
-
-    def _redetect_session_host(self) -> None:
-        """Clear the current session host and immediately re-evaluate host detection with notification on failure."""
+    def _redetect_host_from_diagnostics(self) -> HostDiagnosticsSnapshot | None:
+        """Re-evaluate session host detection in-place for the diagnostics window."""
         if not Settings.is_session_host_feature_set():
             QMessageBox.warning(self, TITLE, 'Session Host Detection is not supported for the current game feature set.')
-            return
+            return None
 
         if not Settings.gui_session_host_detection:
             QMessageBox.warning(self, TITLE, 'Session Host Detection is disabled in Settings.\n\nPlease enable it in Settings to detect the session host.')
-            return
+            return None
 
         if CaptureState.is_local_capture():
             if Settings.is_gta5_feature_set() and not CaptureState.gta5_is_running:
                 QMessageBox.warning(self, TITLE, 'Grand Theft Auto V is not currently running.')
-                return
+                return None
             if Settings.is_rdr2_feature_set() and not CaptureState.rdr2_is_running:
                 QMessageBox.warning(self, TITLE, 'Red Dead Redemption 2 is not currently running.')
-                return
+                return None
 
         connected_players = PlayersRegistry.get_connected_players()
         if not connected_players:
             QMessageBox.information(self, TITLE, 'No connected players were found in the current session.')
-            return
+            return None
 
         SessionHost.clear_session_host_data()
         SessionHost.manual_redetect = True
@@ -583,4 +575,10 @@ Process is currently suspended'
         SessionHost.search_player = False
         SessionHost.search_start_time = None
 
-        self._show_session_host_diagnostics()
+        return SessionHost.last_diagnostics
+
+    def _redetect_session_host(self) -> None:
+        """Clear the current session host and immediately re-evaluate host detection with notification on failure."""
+        snapshot = self._redetect_host_from_diagnostics()
+        if snapshot is not None:
+            self._show_session_host_diagnostics()

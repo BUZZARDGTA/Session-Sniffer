@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, ClassVar
 from session_sniffer.constants.standard import LOCAL_TZ
 from session_sniffer.exceptions import PlayerAlreadyExistsError, PlayerNotFoundInRegistryError, UnexpectedPlayerCountError
 from session_sniffer.settings import Settings
-from session_sniffer.text_utils import format_elapsed_time
+from session_sniffer.text_utils import format_elapsed_time, pluralize
 
 if TYPE_CHECKING:
     from session_sniffer.models.player import Player
@@ -321,17 +321,127 @@ class PlayersRegistry:
         return player
 
 
-def _format_host_debug_details(
+@dataclass(slots=True)
+class HostCandidateDiagnostic:
+    """Diagnostic details for a candidate evaluated during session host detection."""
+
+    ip: str
+    usernames: list[str]
+    country_code: str
+    last_rejoin: datetime
+    packets_sent: int
+    packets_received: int
+    packets_exchanged: int
+    packet_status: str
+    is_host: bool
+    is_pending_disconnection: bool
+    is_relayed: bool
+    is_disconnected: bool
+
+
+@dataclass(slots=True)
+class HostDiagnosticsSnapshot:
+    """Comprehensive diagnostic snapshot from a session host detection evaluation."""
+
+    timestamp: datetime
+    success: bool
+    outcome: str
+    rejection_reason: str | None
+    detected_host_ip: str | None
+    detected_host_usernames: list[str]
+    detected_host_country_code: str
+    total_evaluated_players: int
+    direct_p2p_players: int
+    filtered_server_ips: int
+    timing_gap_seconds: float | None
+    timing_resolution: str | None
+    candidates: list[HostCandidateDiagnostic]
+    filtered_servers: list[tuple[str, int]]
+    raw_details: str
+
+
+@dataclass(slots=True)
+class _DetectionEvaluationResult:
+    """Internal evaluation outcome and details for session host detection."""
+
+    outcome: str
+    rejection_reason: str | None = None
+    detected_host: Player | None = None
+    timing_gap: float | None = None
+
+
+def _build_host_diagnostics_snapshot(
     session_players: list[Player],
-    p2p_players: list[Player],
     candidates: list[Player],
-    outcome: str,
-    timing_gap: float | None = None,
-) -> str:
-    """Format structured diagnostic details for session host detection."""
+    result: _DetectionEvaluationResult,
+) -> HostDiagnosticsSnapshot:
+    """Build a structured diagnostic snapshot and raw formatted details for session host detection."""
+    now = datetime.now(tz=LOCAL_TZ)
+    p2p_players = [player for player in session_players if not player.is_third_party_server]
+
+    candidate_diagnostics: list[HostCandidateDiagnostic] = []
+    for player in candidates:
+        if player.packets.sent < MINIMUM_PACKETS_FOR_RELAY_SESSION_HOST:
+            packets_status = 'Not enough sent'
+        elif player.packets.exchanged > SESSION_HOST_MAX_PACKETS_FOR_DETECTION:
+            packets_status = 'Exceeds maximum exchanged'
+        else:
+            packets_status = 'Eligible'
+
+        country = (
+            player.iplookup.geolite2.country_code
+            if player.iplookup.geolite2.country_code not in {'...', 'N/A'}
+            else player.iplookup.ipapi.country_code
+        )
+
+        candidate_diagnostics.append(
+            HostCandidateDiagnostic(
+                ip=player.ip,
+                usernames=list(player.usernames),
+                country_code=country,
+                last_rejoin=player.datetime.last_rejoin,
+                packets_sent=player.packets.sent,
+                packets_received=player.packets.received,
+                packets_exchanged=player.packets.exchanged,
+                packet_status=packets_status,
+                is_host=bool(result.detected_host is not None and player.ip == result.detected_host.ip),
+                is_pending_disconnection=player in SessionHost.players_pending_for_disconnection,
+                is_relayed=not bool(player.packets.received),
+                is_disconnected=player.left_event.is_set(),
+            )
+        )
+
+    filtered_servers = [
+        (player.ip, player.packets.exchanged)
+        for player in session_players
+        if player.is_third_party_server
+    ]
+
+    timing_resolution: str | None = None
+    if result.timing_gap is not None:
+        gap_milliseconds = result.timing_gap * 1000
+        time_difference_text = f'{result.timing_gap:.3f}s ({gap_milliseconds:.1f}ms)' if result.timing_gap >= 1.0 else f'{gap_milliseconds:.1f}ms'
+        if SESSION_HOST_AMBIGUITY_MIN_THRESHOLD_MS <= gap_milliseconds <= SESSION_HOST_AMBIGUITY_MAX_THRESHOLD_MS:
+            timing_resolution = (
+                f'2 candidates were evaluated, and candidate #1 joined earlier within the valid timing window '
+                f'({SESSION_HOST_AMBIGUITY_MIN_THRESHOLD_MS}ms - {SESSION_HOST_AMBIGUITY_MAX_THRESHOLD_MS}ms).'
+            )
+        elif gap_milliseconds < SESSION_HOST_AMBIGUITY_MIN_THRESHOLD_MS:
+            timing_resolution = (
+                f'Rejected — {gap_milliseconds:.1f}ms gap is below the {SESSION_HOST_AMBIGUITY_MIN_THRESHOLD_MS}ms '
+                'minimum threshold (players connected almost simultaneously, timing is ambiguous).'
+            )
+        else:
+            timing_resolution = (
+                f'Rejected — {time_difference_text} gap exceeds the {SESSION_HOST_AMBIGUITY_MAX_THRESHOLD_MS}ms '
+                'maximum threshold (candidate #1 joined too far ahead of candidate #2).'
+            )
+    elif len(candidates) == 1:
+        timing_resolution = 'Only 1 non-server player was present, so timing comparison was skipped.'
+
     lines: list[str] = [
         '=== Session Host Detection Diagnostics ===',
-        f'Outcome: {outcome}',
+        f'Outcome: {result.outcome}',
         '',
         '--- Session Overview ---',
         f'- Total Evaluated Players: {len(session_players)}',
@@ -343,61 +453,43 @@ def _format_host_debug_details(
         f'- Minimum Sent Packets Required: {MINIMUM_PACKETS_FOR_RELAY_SESSION_HOST}',
         f'- Maximum Exchanged Packets Limit: {SESSION_HOST_MAX_PACKETS_FOR_DETECTION}',
     ]
-    if timing_gap is not None:
-        gap_milliseconds = timing_gap * 1000
-        time_difference_text = f'{timing_gap:.3f}s ({gap_milliseconds:.1f}ms)' if timing_gap >= 1.0 else f'{gap_milliseconds:.1f}ms'
-        timing_lines = [
+
+    if result.timing_gap is not None:
+        gap_milliseconds = result.timing_gap * 1000
+        time_difference_text = f'{result.timing_gap:.3f}s ({gap_milliseconds:.1f}ms)' if result.timing_gap >= 1.0 else f'{gap_milliseconds:.1f}ms'
+        lines.extend([
             '',
             '--- Timing Analysis ---',
             f'- Time Difference: {time_difference_text}',
-        ]
-        if SESSION_HOST_AMBIGUITY_MIN_THRESHOLD_MS <= gap_milliseconds <= SESSION_HOST_AMBIGUITY_MAX_THRESHOLD_MS:
-            timing_lines.append(
-                f'- Timing Gap Resolution: 2 candidates were evaluated, and candidate #1 joined earlier within the valid timing window '
-                f'({SESSION_HOST_AMBIGUITY_MIN_THRESHOLD_MS}ms - {SESSION_HOST_AMBIGUITY_MAX_THRESHOLD_MS}ms).'
-            )
-        elif gap_milliseconds < SESSION_HOST_AMBIGUITY_MIN_THRESHOLD_MS:
-            timing_lines.append(
-                f'- Timing Gap Resolution: Rejected — {gap_milliseconds:.1f}ms gap is below the {SESSION_HOST_AMBIGUITY_MIN_THRESHOLD_MS}ms '
-                'minimum threshold (players connected almost simultaneously, timing is ambiguous).'
-            )
-        else:
-            timing_lines.append(
-                f'- Timing Gap Resolution: Rejected — {time_difference_text} gap exceeds the {SESSION_HOST_AMBIGUITY_MAX_THRESHOLD_MS}ms '
-                'maximum threshold (candidate #1 joined too far ahead of candidate #2).'
-            )
-        lines.extend(timing_lines)
+            f'- Timing Gap Resolution: {timing_resolution}',
+        ])
     elif len(candidates) == 1:
-        lines.extend(
-            [
-                '',
-                '--- Timing Analysis ---',
-                '- Sole P2P Player: Only 1 non-server player was present, so timing comparison was skipped.',
-            ]
-        )
+        lines.extend([
+            '',
+            '--- Timing Analysis ---',
+            f'- Sole P2P Player: {timing_resolution}',
+        ])
 
     if candidates:
-        lines.extend(
-            [
-                '',
-                '--- Evaluated Candidates ---',
-            ]
-        )
+        lines.extend([
+            '',
+            '--- Evaluated Candidates ---',
+        ])
         for index, player in enumerate(candidates, start=1):
             rejoin_time = player.datetime.last_rejoin.strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
-            rejoin_ago = format_elapsed_time(datetime.now(tz=LOCAL_TZ) - player.datetime.last_rejoin)
+            rejoin_ago = format_elapsed_time(now - player.datetime.last_rejoin)
             if player.packets.sent < MINIMUM_PACKETS_FOR_RELAY_SESSION_HOST:
-                packets_status = 'Not enough sent'
+                packets_status_text = 'Not enough sent'
             elif player.packets.exchanged > SESSION_HOST_MAX_PACKETS_FOR_DETECTION:
-                packets_status = 'Exceeds maximum exchanged'
+                packets_status_text = 'Exceeds maximum exchanged'
             else:
-                packets_status = 'Enough'
+                packets_status_text = 'Enough'
             username_suffix = f' ({", ".join(player.usernames)})' if player.usernames else ''
             candidate_lines = [
                 f'Candidate #{index}:',
                 f'  IP Address: {player.ip}{username_suffix}',
                 f'  Last Rejoin: {rejoin_time} ({rejoin_ago} ago)',
-                f'  Packets Sent: {player.packets.sent} ({packets_status})',
+                f'  Packets Sent: {player.packets.sent} ({packets_status_text})',
                 f'  Packets Received: {player.packets.received}',
                 f'  Packets Exchanged: {player.packets.exchanged}',
             ]
@@ -409,7 +501,41 @@ def _format_host_debug_details(
                 candidate_lines.append('  Note: Disconnected')
             lines.extend(candidate_lines)
 
-    return '\n'.join(lines)
+    if filtered_servers:
+        lines.extend([
+            '',
+            '--- Filtered Server List ---',
+            *(f'  - {server_ip} ({exchanged} packets)' for server_ip, exchanged in filtered_servers),
+        ])
+
+    detected_host = result.detected_host
+    host_ip = detected_host.ip if detected_host is not None else None
+    host_usernames = list(detected_host.usernames) if detected_host is not None else []
+    host_country = (
+        (detected_host.iplookup.geolite2.country_code
+         if detected_host.iplookup.geolite2.country_code not in {'...', 'N/A'}
+         else detected_host.iplookup.ipapi.country_code)
+        if detected_host is not None
+        else ''
+    )
+
+    return HostDiagnosticsSnapshot(
+        timestamp=now,
+        success=bool(detected_host is not None),
+        outcome=result.outcome,
+        rejection_reason=result.rejection_reason,
+        detected_host_ip=host_ip,
+        detected_host_usernames=host_usernames,
+        detected_host_country_code=host_country,
+        total_evaluated_players=len(session_players),
+        direct_p2p_players=len(p2p_players),
+        filtered_server_ips=len(session_players) - len(p2p_players),
+        timing_gap_seconds=result.timing_gap,
+        timing_resolution=timing_resolution,
+        candidates=candidate_diagnostics,
+        filtered_servers=filtered_servers,
+        raw_details='\n'.join(lines),
+    )
 
 
 class SessionHost:
@@ -422,7 +548,7 @@ class SessionHost:
     players_pending_for_disconnection: ClassVar[list[Player]] = []
     last_timing_gap_candidate: ClassVar[tuple[str, str] | None] = None
     last_rejection_reason: ClassVar[str | None] = None
-    last_debug_details: ClassVar[str | None] = None
+    last_diagnostics: ClassVar[HostDiagnosticsSnapshot | None] = None
     last_detection_success: ClassVar[bool] = False
     last_detected_host_ip: ClassVar[str | None] = None
     _history: ClassVar[list[HostHistoryEntry]] = []
@@ -493,13 +619,13 @@ class SessionHost:
         if not session_connected:
             cls.last_detection_success = False
             cls.last_rejection_reason = 'No other players are currently connected in your session.'
-            cls.last_debug_details = (
-                '=== Session Host Detection Diagnostics ===\n'
-                'Outcome: No connected players found in current session.\n\n'
-                '--- Session Overview ---\n'
-                '- Total Evaluated Players: 0\n'
-                '- Direct P2P Players: 0\n'
-                '- Filtered Server IPs: 0'
+            cls.last_diagnostics = _build_host_diagnostics_snapshot(
+                session_players=[],
+                candidates=[],
+                result=_DetectionEvaluationResult(
+                    outcome='No connected players found in current session.',
+                    rejection_reason=cls.last_rejection_reason,
+                ),
             )
             return None
 
@@ -518,16 +644,14 @@ class SessionHost:
         p2p_players = [player for player in candidates if not player.is_third_party_server]
         if not p2p_players:
             cls.last_detection_success = False
-            cls.last_rejection_reason = f'All {len(candidates)} connected IP(s) are game or relay servers, not direct peer-to-peer players.'
-            server_list = '\n'.join(f'  - {player.ip} ({player.packets.exchanged} packets)' for player in candidates)
-            cls.last_debug_details = (
-                '=== Session Host Detection Diagnostics ===\n'
-                'Outcome: All connected IPs matched known server ranges.\n\n'
-                '--- Session Overview ---\n'
-                f'- Total Evaluated Players: {len(candidates)}\n'
-                '- Direct P2P Players: 0\n'
-                f'- Filtered Server IPs: {len(candidates)}\n\n'
-                f'--- Filtered Server List ---\n{server_list}'
+            cls.last_rejection_reason = f'All {len(candidates)} connected IP{pluralize(len(candidates))} are game or relay servers, not direct peer-to-peer players.'
+            cls.last_diagnostics = _build_host_diagnostics_snapshot(
+                session_players=candidates,
+                candidates=[],
+                result=_DetectionEvaluationResult(
+                    outcome='All connected IPs matched known server ranges.',
+                    rejection_reason=cls.last_rejection_reason,
+                ),
             )
         active_p2p_players = [
             player
@@ -537,12 +661,14 @@ class SessionHost:
         ]
         if not active_p2p_players:
             cls.last_detection_success = False
-            cls.last_rejection_reason = 'All connected peer-to-peer player(s) are disconnecting, so the session host cannot be determined.'
-            cls.last_debug_details = _format_host_debug_details(
-                candidates,
-                p2p_players,
+            cls.last_rejection_reason = f'All connected peer-to-peer player{pluralize(len(p2p_players))} are disconnecting, so the session host cannot be determined.'
+            cls.last_diagnostics = _build_host_diagnostics_snapshot(
+                session_players=candidates,
                 candidates=[],
-                outcome='All connected P2P player(s) are pending disconnection.',
+                result=_DetectionEvaluationResult(
+                    outcome=f'All connected P2P player{pluralize(len(p2p_players))} are pending disconnection.',
+                    rejection_reason=cls.last_rejection_reason,
+                ),
             )
             cls.search_player = False
             cls.search_start_time = None
@@ -566,15 +692,17 @@ class SessionHost:
                     f'The connection time gap between the first two players is too large ({gap_seconds:.1f}s gap).\n\n'
                     'Host detection requires players to connect together during session creation.'
                 )
-                cls.last_debug_details = _format_host_debug_details(
-                    candidates,
-                    p2p_players,
-                    connected_players,
-                    outcome=(
-                        f'Connection time gap is too large: {gap_seconds:.1f}s gap exceeds maximum threshold '
-                        f'({SESSION_HOST_AMBIGUITY_MAX_THRESHOLD_MS}ms); players did not connect together.'
+                cls.last_diagnostics = _build_host_diagnostics_snapshot(
+                    session_players=candidates,
+                    candidates=connected_players,
+                    result=_DetectionEvaluationResult(
+                        outcome=(
+                            f'Connection time gap is too large: {gap_seconds:.1f}s gap exceeds maximum threshold '
+                            f'({SESSION_HOST_AMBIGUITY_MAX_THRESHOLD_MS}ms); players did not connect together.'
+                        ),
+                        rejection_reason=cls.last_rejection_reason,
+                        timing_gap=gap_seconds,
                     ),
-                    timing_gap=gap_seconds,
                 )
                 return None
             if time_difference >= _SESSION_HOST_AMBIGUITY_MIN_TD:
@@ -585,15 +713,17 @@ class SessionHost:
                     f'The first two players connected almost at the exact same moment ({gap_milliseconds:.1f}ms apart).\n\n'
                     'Their connection times are too close to determine who hosted the session.'
                 )
-                cls.last_debug_details = _format_host_debug_details(
-                    candidates,
-                    p2p_players,
-                    connected_players,
-                    outcome=(
-                        f'Connection times are too close to determine host: first two players connected almost simultaneously '
-                        f'({gap_milliseconds:.1f}ms apart; minimum separation is {SESSION_HOST_AMBIGUITY_MIN_THRESHOLD_MS}ms).'
+                cls.last_diagnostics = _build_host_diagnostics_snapshot(
+                    session_players=candidates,
+                    candidates=connected_players,
+                    result=_DetectionEvaluationResult(
+                        outcome=(
+                            f'Connection times are too close to determine host: first two players connected almost simultaneously '
+                            f'({gap_milliseconds:.1f}ms apart; minimum separation is {SESSION_HOST_AMBIGUITY_MIN_THRESHOLD_MS}ms).'
+                        ),
+                        rejection_reason=cls.last_rejection_reason,
+                        timing_gap=gap_seconds,
                     ),
-                    timing_gap=gap_seconds,
                 )
                 cls.search_player = False
                 cls.search_start_time = None
@@ -625,20 +755,25 @@ class SessionHost:
             cls.last_detection_success = False
             if not potential_session_host_player:
                 cls.last_rejection_reason = 'No potential host candidate could be selected.'
-                cls.last_debug_details = _format_host_debug_details(
-                    candidates,
-                    p2p_players,
-                    connected_players,
-                    outcome='No potential host candidate could be selected.',
+                cls.last_diagnostics = _build_host_diagnostics_snapshot(
+                    session_players=candidates,
+                    candidates=connected_players,
+                    result=_DetectionEvaluationResult(
+                        outcome='No potential host candidate could be selected.',
+                        rejection_reason=cls.last_rejection_reason,
+                        timing_gap=gap_seconds,
+                    ),
                 )
             elif potential_session_host_player in cls.players_pending_for_disconnection:
                 cls.last_rejection_reason = f'Candidate player {potential_session_host_player.ip} is currently disconnecting or leaving the session.'
-                cls.last_debug_details = _format_host_debug_details(
-                    candidates,
-                    p2p_players,
-                    connected_players,
-                    outcome=f'Candidate player {potential_session_host_player.ip} is currently disconnecting or leaving the session.',
-                    timing_gap=gap_seconds,
+                cls.last_diagnostics = _build_host_diagnostics_snapshot(
+                    session_players=candidates,
+                    candidates=connected_players,
+                    result=_DetectionEvaluationResult(
+                        outcome=f'Candidate player {potential_session_host_player.ip} is currently disconnecting or leaving the session.',
+                        rejection_reason=cls.last_rejection_reason,
+                        timing_gap=gap_seconds,
+                    ),
                 )
             elif potential_session_host_player.packets.exchanged > SESSION_HOST_MAX_PACKETS_FOR_DETECTION:
                 cls.search_player = False
@@ -646,15 +781,17 @@ class SessionHost:
                 cls.last_rejection_reason = (
                     f'Candidate player {potential_session_host_player.ip} has already exchanged too many packets to determine if they originally hosted the session.'
                 )
-                cls.last_debug_details = _format_host_debug_details(
-                    candidates,
-                    p2p_players,
-                    connected_players,
-                    outcome=(
-                        f'Candidate {potential_session_host_player.ip} packet count ({potential_session_host_player.packets.exchanged}) '
-                        f'exceeds maximum allowed threshold ({SESSION_HOST_MAX_PACKETS_FOR_DETECTION}).'
+                cls.last_diagnostics = _build_host_diagnostics_snapshot(
+                    session_players=candidates,
+                    candidates=connected_players,
+                    result=_DetectionEvaluationResult(
+                        outcome=(
+                            f'Candidate {potential_session_host_player.ip} packet count ({potential_session_host_player.packets.exchanged}) '
+                            f'exceeds maximum allowed threshold ({SESSION_HOST_MAX_PACKETS_FOR_DETECTION}).'
+                        ),
+                        rejection_reason=cls.last_rejection_reason,
+                        timing_gap=gap_seconds,
                     ),
-                    timing_gap=gap_seconds,
                 )
             elif is_sole_p2p_candidate:
                 cls.last_rejection_reason = (
@@ -662,13 +799,16 @@ class SessionHost:
                     f'({potential_session_host_player.packets.sent} / {MINIMUM_PACKETS_FOR_RELAY_SESSION_HOST} sent packets).\n\n'
                     'Please wait a few moments for packets to be sent and try again.'
                 )
-                cls.last_debug_details = _format_host_debug_details(
-                    candidates,
-                    p2p_players,
-                    connected_players,
-                    outcome=(
-                        f'Candidate {potential_session_host_player.ip} has only sent {potential_session_host_player.packets.sent} '
-                        f'packets (minimum sent required: {MINIMUM_PACKETS_FOR_RELAY_SESSION_HOST}).'
+                cls.last_diagnostics = _build_host_diagnostics_snapshot(
+                    session_players=candidates,
+                    candidates=connected_players,
+                    result=_DetectionEvaluationResult(
+                        outcome=(
+                            f'Candidate {potential_session_host_player.ip} has only sent {potential_session_host_player.packets.sent} '
+                            f'packets (minimum sent required: {MINIMUM_PACKETS_FOR_RELAY_SESSION_HOST}).'
+                        ),
+                        rejection_reason=cls.last_rejection_reason,
+                        timing_gap=gap_seconds,
                     ),
                 )
             else:
@@ -680,15 +820,17 @@ class SessionHost:
                     f'({potential_session_host_player.packets.sent} / {MINIMUM_PACKETS_FOR_RELAY_SESSION_HOST} sent packets).\n\n'
                     'Please wait a few moments for packets to be sent and try again.'
                 )
-                cls.last_debug_details = _format_host_debug_details(
-                    candidates,
-                    p2p_players,
-                    connected_players,
-                    outcome=(
-                        f'Candidate {potential_session_host_player.ip} has only sent {potential_session_host_player.packets.sent} '
-                        f'packets (minimum sent required: {MINIMUM_PACKETS_FOR_RELAY_SESSION_HOST}).'
+                cls.last_diagnostics = _build_host_diagnostics_snapshot(
+                    session_players=candidates,
+                    candidates=connected_players,
+                    result=_DetectionEvaluationResult(
+                        outcome=(
+                            f'Candidate {potential_session_host_player.ip} has only sent {potential_session_host_player.packets.sent} '
+                            f'packets (minimum sent required: {MINIMUM_PACKETS_FOR_RELAY_SESSION_HOST}).'
+                        ),
+                        rejection_reason=cls.last_rejection_reason,
+                        timing_gap=gap_seconds,
                     ),
-                    timing_gap=gap_seconds,
                 )
             return None
 
@@ -700,11 +842,14 @@ class SessionHost:
         cls.manual_redetect = False
         cls.search_start_time = None
         cls.last_rejection_reason = None
-        cls.last_debug_details = _format_host_debug_details(
-            candidates,
-            p2p_players,
-            connected_players,
-            outcome=f'Session host detected: {potential_session_host_player.ip}',
-            timing_gap=gap_seconds,
+        cls.last_diagnostics = _build_host_diagnostics_snapshot(
+            session_players=candidates,
+            candidates=connected_players,
+            result=_DetectionEvaluationResult(
+                outcome=f'Session host detected: {potential_session_host_player.ip}',
+                rejection_reason=None,
+                detected_host=potential_session_host_player,
+                timing_gap=gap_seconds,
+            ),
         )
         return potential_session_host_player
