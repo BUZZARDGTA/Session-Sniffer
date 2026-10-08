@@ -259,7 +259,7 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
                 continue
             if meta.hidden:
                 continue
-            if meta.group:
+            if meta.group is not None and meta.group:
                 grouped.setdefault(meta.group, []).append((key, meta))
             else:
                 ungrouped.append((key, meta))
@@ -290,10 +290,10 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
                 continue
 
             group_box = QGroupBox(group_name.replace('&', '&&'))
-            direct_items = [(setting_key, setting_meta) for setting_key, setting_meta in items if not setting_meta.subgroup]
+            direct_items = [(setting_key, setting_meta) for setting_key, setting_meta in items if setting_meta.subgroup is None or not setting_meta.subgroup]
             subgrouped: dict[str, list[tuple[str, SettingMeta]]] = {}
             for setting_key, setting_meta in items:
-                if setting_meta.subgroup:
+                if setting_meta.subgroup is not None and setting_meta.subgroup:
                     subgrouped.setdefault(setting_meta.subgroup, []).append((setting_key, setting_meta))
 
             if subgrouped:
@@ -658,7 +658,7 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
             elif key == 'discord_presence_title' and isinstance(value, str) and 0 < len(value) < _DISCORD_PRESENCE_TITLE_MIN_LEN:
                 errors.append('Presence Title must be either empty (to disable) or at least 2 characters long.')
 
-        if values.get('discord_webhook_enabled'):
+        if bool(values.get('discord_webhook_enabled')):
             url_value = values.get('discord_webhook_url')
             if not isinstance(url_value, str) or not is_valid_webhook_url(url_value):
                 errors.append(

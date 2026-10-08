@@ -62,7 +62,7 @@ def _mac_bytes_to_string(mac_bytes: bytes) -> str:
 def _resolve_mac_address_linux(ip_address: str) -> str:
     """Resolve an IPv4 address to its MAC address on Linux."""
     for _interface_index, cached_ip, cached_mac in iterate_ipv4_neighbors():
-        if cached_ip == ip_address and cached_mac and cached_mac.upper() not in {'00:00:00:00:00:00', 'FF:FF:FF:FF:FF:FF'}:
+        if cached_ip == ip_address and cached_mac is not None and cached_mac and cached_mac.upper() not in {'00:00:00:00:00:00', 'FF:FF:FF:FF:FF:FF'}:
             return cached_mac.lower()
 
     try:
@@ -76,7 +76,7 @@ def _resolve_mac_address_linux(ip_address: str) -> str:
     time.sleep(0.1)
 
     for _interface_index, cached_ip, cached_mac in iterate_ipv4_neighbors():
-        if cached_ip == ip_address and cached_mac and cached_mac.upper() not in {'00:00:00:00:00:00', 'FF:FF:FF:FF:FF:FF'}:
+        if cached_ip == ip_address and cached_mac is not None and cached_mac and cached_mac.upper() not in {'00:00:00:00:00:00', 'FF:FF:FF:FF:FF:FF'}:
             return cached_mac.lower()
 
     raise ArpResolutionError(ip_address, 'Host not found in Linux ARP table')
@@ -143,7 +143,7 @@ def resolve_mac_address(ip_address: str, source_ip: str | None = None) -> str:
 
     # Fallback to local ARP cache if SendARP was unable to resolve
     for _interface_index, cached_ip, cached_mac in iterate_ipv4_neighbors():
-        if cached_ip == ip_address and cached_mac and cached_mac.upper() not in {'00:00:00:00:00:00', 'FF:FF:FF:FF:FF:FF'}:
+        if cached_ip == ip_address and cached_mac is not None and cached_mac and cached_mac.upper() not in {'00:00:00:00:00:00', 'FF:FF:FF:FF:FF:FF'}:
             logger.debug('Found %s in Windows neighbor cache: %s', ip_address, cached_mac)
             return cached_mac.lower()
 

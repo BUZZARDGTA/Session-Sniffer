@@ -363,7 +363,7 @@ class SessionTableView(TableHeaderMenuMixin, TableContextMenuMixin, QTableView):
             return
         model = self.model()
         header_text = model.headerData(logical_index, Qt.Orientation.Horizontal)
-        if header_text:
+        if header_text is not None and header_text:
             if self._custom_column_widths is None:
                 self._custom_column_widths = self.get_column_widths()
             min_width = max(
@@ -386,7 +386,7 @@ class SessionTableView(TableHeaderMenuMixin, TableContextMenuMixin, QTableView):
         widths: dict[str, int] = {}
         for column in range(model.columnCount()):
             header_label = model.headerData(column, Qt.Orientation.Horizontal)
-            if header_label:
+            if header_label is not None and header_label:
                 widths[header_label] = header.sectionSize(column)
         return widths
 
@@ -653,7 +653,7 @@ class SessionTableView(TableHeaderMenuMixin, TableContextMenuMixin, QTableView):
                 country_name = player.iplookup.geolite2.country
             elif player.iplookup.ipapi and player.iplookup.ipapi.country:
                 country_name = player.iplookup.ipapi.country
-            if country_name:
+            if country_name is not None and country_name:
                 QToolTip.showText(event.globalPosition().toPoint(), country_name, self)
             else:
                 QToolTip.hideText()

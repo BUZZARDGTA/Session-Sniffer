@@ -79,7 +79,7 @@ class DetailedMessageDialog(QDialog):
         self._details_edit: QPlainTextEdit | None = None
         self._toggle_button: QPushButton | None = None
 
-        if detailed_text:
+        if bool(detailed_text):
             self._details_edit = QPlainTextEdit(detailed_text)
             self._details_edit.setReadOnly(True)
             self._details_edit.setFont(QFont('Consolas', 9))

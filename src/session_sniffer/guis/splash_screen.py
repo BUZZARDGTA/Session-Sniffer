@@ -96,7 +96,7 @@ class SplashScreen(QWidget):
     def _build_line_html(icon: str, icon_color: str, text: str, detail: str | None = None) -> str:
         """Build an HTML line with a colored icon prefix and optional second detail line."""
         html = f'<span style="color:{icon_color}; font-weight:bold;">{icon}</span>&nbsp;&nbsp;<span style="color:{_TEXT_COLOR};">{text}</span>'
-        if detail:
+        if bool(detail):
             html = f'{html}<br>&nbsp;&nbsp;&nbsp;<span style="color:{_DETAIL_COLOR};">{detail}</span>'
         return html
 

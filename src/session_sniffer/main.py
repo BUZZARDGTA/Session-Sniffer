@@ -349,7 +349,7 @@ def main() -> None:
         if (
             matched_player.ps3_username is None
             and packet.payload is not None
-            and (resolved_ps3_username := extract_ps3_username(packet.payload, sent_by_local_host=sent_by_local_host))
+            and bool(resolved_ps3_username := extract_ps3_username(packet.payload, sent_by_local_host=sent_by_local_host))
         ):
             matched_player.ps3_username = resolved_ps3_username
 
@@ -757,7 +757,7 @@ def main() -> None:
                 if matching_adapter.identity.friendly_name:
                     current_selected.interface.identity.name = matching_adapter.identity.friendly_name
                     Settings.capture_interface_name = matching_adapter.identity.friendly_name
-                if matching_adapter.identity.mac_address:
+                if bool(matching_adapter.identity.mac_address):
                     current_selected.interface.identity.mac_address = matching_adapter.identity.mac_address
                     Settings.capture_mac_address = matching_adapter.identity.mac_address
 

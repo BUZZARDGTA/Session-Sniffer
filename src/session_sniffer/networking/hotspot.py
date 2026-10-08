@@ -473,7 +473,7 @@ def get_ics_status() -> tuple[bool, str | None, str | None]:
 
     for interface in AllInterfaces.iterate():
         guid = interface.identity.adapter_guid
-        if not guid:
+        if guid is None or not guid:
             continue
         classification = classifications.get(guid)
         if classification == 'sharing':

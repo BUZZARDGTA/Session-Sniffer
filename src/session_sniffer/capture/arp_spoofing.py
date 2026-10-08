@@ -132,7 +132,7 @@ def arp_spoofing_task(
     ) -> None:
         """Log, notify, and terminate the ARP spoofing task on failure."""
         logger.error('%s.', stage.capitalize())
-        if error_details:
+        if bool(error_details):
             logger.error('Error: %s', error_details)
 
         message = format_arp_spoofing_failed_message(
@@ -218,7 +218,7 @@ def arp_spoofing_task(
             logger.info(
                 'Started spoofing on interface %s%s',
                 selected_interface.ip_address,
-                f' (gateway: {gateway_ip})' if gateway_ip else '',
+                f' (gateway: {gateway_ip})' if bool(gateway_ip) else '',
             )
 
             host_mac_bytes: bytes | None = None

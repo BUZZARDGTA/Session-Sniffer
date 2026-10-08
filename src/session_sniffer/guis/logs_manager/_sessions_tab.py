@@ -724,7 +724,7 @@ class SessionsLogTab(QWidget):
                     header_cells = self._column_headers_for_row_length(row_length)
                     if header_cells is not None:
                         schema_label = self._schema_label_for_row_length(row_length)
-                        if schema_label:
+                        if bool(schema_label):
                             rendered_lines.append(f'  {" " * line_number_width}  ── {schema_label} ──')
                         active_column_widths = self._build_effective_column_widths(active_column_widths, header_cells)
                         header_row = self._format_table_row(header_cells, active_column_widths)

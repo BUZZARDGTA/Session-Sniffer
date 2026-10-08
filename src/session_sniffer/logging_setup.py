@@ -229,7 +229,7 @@ def _get_secret_values() -> tuple[str, ...]:
                 secret = provider()
             except Exception:  # pylint: disable=broad-exception-caught  # noqa: BLE001
                 secret = None
-            if secret:
+            if secret is not None and secret:
                 secrets.add(secret)
 
         _cached_secrets = tuple(sorted(secrets, key=len, reverse=True))
@@ -281,11 +281,11 @@ class _SecretRedactFilter(logging.Filter):  # pylint: disable=too-few-public-met
             return True
 
         record.msg = _redact_value(record.msg, secrets)
-        if record.args:
+        if record.args is not None and record.args:
             record.args = _redact_args(record.args, secrets)
-        if record.exc_text:
+        if record.exc_text is not None and record.exc_text:
             record.exc_text = _redact_text(record.exc_text, secrets)
-        if record.stack_info:
+        if record.stack_info is not None and record.stack_info:
             record.stack_info = _redact_text(record.stack_info, secrets)
         record.secrets_redacted = True
         return True
@@ -513,7 +513,7 @@ _LEVEL_COLORS: dict[int, str] = {
 
 def _should_use_colors() -> bool:
     """Return True when standard output is attached to a terminal and color is not disabled."""
-    if os.getenv('NO_COLOR'):
+    if bool(os.getenv('NO_COLOR')):
         return False
     return bool(hasattr(sys.stdout, 'isatty') and sys.stdout.isatty())
 

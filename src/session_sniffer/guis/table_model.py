@@ -597,7 +597,7 @@ class SessionTableModel(QAbstractTableModel):  # pylint: disable=too-many-public
             if self.ip_column_index >= 0 and self.ip_column_index == column_index:
                 ip = self.get_ip_from_data_safely(self._data[row_index])
                 tooltips: list[str] = []
-                if output:
+                if bool(output):
                     tooltips.append(str(output))
                 if Settings.gui_session_host_icon and SessionHost.is_host(ip):
                     tooltips.append('Session Host')

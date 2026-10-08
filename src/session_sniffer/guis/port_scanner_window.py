@@ -615,7 +615,7 @@ class PortScannerTabWidget(QWidget):
                     file.write('=' * 60 + '\n')
                     for result in self._results:
                         latency_str = f' ({result.latency_ms:.1f}ms)' if result.latency_ms is not None else ''
-                        banner_str = f' - {result.banner}' if result.banner else ''
+                        banner_str = f' - {result.banner}' if bool(result.banner) else ''
                         file.write(f'{result.port}/{result.protocol}: {result.state.value} [{result.service_name}]{latency_str}{banner_str}\n')
             QMessageBox.information(self, 'Export Complete', f'Saved {len(self._results)} port scan records to:\n{file_path}')
         except OSError as error:

@@ -842,7 +842,7 @@ def check_global_detections(player: Player) -> None:
                 matched_isp = block_entry
                 break
 
-        if matched_isp:
+        if matched_isp is not None:
             if GUIDetectionSettings.isp_suspend_enabled:
                 execute_suspension_action(
                     'Auto',
@@ -877,10 +877,10 @@ def check_global_detections(player: Player) -> None:
                     if asn.upper() == normalized_asn:
                         matched_asn = asn
                         break
-                if matched_asn:
+                if matched_asn is not None:
                     break
 
-            if matched_asn:
+            if matched_asn is not None:
                 if GUIDetectionSettings.asn_suspend_enabled:
                     execute_suspension_action(
                         'Auto',

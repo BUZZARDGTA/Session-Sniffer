@@ -203,7 +203,7 @@ class _CrawlerWatchWorker(CrashingQThread):
             return
         if is_terminal_failure_instruction_status(last_status):
             logger.debug('Looky instruction %s ended with failure status=%r result=%r', self._tracking_id, last_status, last_result)
-            error_message = f'Instruction ended: {last_result}' if last_result else f'Instruction ended with status: {last_status}'
+            error_message = f'Instruction ended: {last_result}' if bool(last_result) else f'Instruction ended with status: {last_status}'
             if self._rid is None and last_result == 'Unable to join target':
                 error_message += (
                     '<br><br><b>Tip:</b> Since you used "Crawl Current Session", ensure you are actively '

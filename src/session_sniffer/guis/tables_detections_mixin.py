@@ -52,7 +52,7 @@ def build_detections_menu(
     asn_geolite2 = _safe_str(player.iplookup.geolite2.asn)
 
     # --- Country ---
-    if country_name:
+    if country_name is not None:
         country_in_list = country_name in GUIDetectionSettings.country_detection_list
         if country_in_list:
             add_action(
@@ -72,7 +72,7 @@ def build_detections_menu(
             )
 
     # --- ISP ---
-    if isp:
+    if isp is not None:
         isp_in_list = isp in GUIDetectionSettings.isp_detection_list
         if isp_in_list:
             add_action(
@@ -92,8 +92,8 @@ def build_detections_menu(
             )
 
     # --- ASN ---
-    asn_value = as_name or asn_geolite2
-    if asn_value:
+    asn_value = as_name if as_name is not None else asn_geolite2
+    if asn_value is not None:
         asn_in_list = asn_value in GUIDetectionSettings.asn_detection_list
         if asn_in_list:
             add_action(
@@ -129,10 +129,16 @@ def build_detections_menu_multi(
     parent: QWidget,
 ) -> None:
     """Build a Detections submenu for multiple selected players."""
-    # Collect unique values from all players
-    countries: list[str] = sorted({country for player in players if (country := _safe_str(player.iplookup.geolite2.country))})
-    isps: list[str] = sorted({isp for player in players if (isp := _safe_str(player.iplookup.ipapi.isp))})
-    asns: list[str] = sorted({asn for player in players if (asn := _safe_str(player.iplookup.ipapi.as_name) or _safe_str(player.iplookup.geolite2.asn))})
+    countries: list[str] = sorted({country for player in players if (country := _safe_str(player.iplookup.geolite2.country)) is not None})
+    isps: list[str] = sorted({isp for player in players if (isp := _safe_str(player.iplookup.ipapi.isp)) is not None})
+    asns_set: set[str] = set()
+    for player in players:
+        asn = _safe_str(player.iplookup.ipapi.as_name)
+        if asn is None:
+            asn = _safe_str(player.iplookup.geolite2.asn)
+        if asn is not None:
+            asns_set.add(asn)
+    asns: list[str] = sorted(asns_set)
 
     has_items = False
 

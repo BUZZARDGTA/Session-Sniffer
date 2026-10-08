@@ -22,8 +22,8 @@ _PROCESS_MONITOR_THREAD_NAME = 'ProcessMonitor'
 
 def _log_process_status_transition(previous: TargetProcessStatus, current: TargetProcessStatus) -> None:
     """Log meaningful target process state changes (detect/exit/PID change at INFO, port updates at DEBUG)."""
-    process_identifier = f'{current.name} (PID: {current.pid})' if current.name else f'PID {current.pid}'
-    previous_identifier = f'{previous.name} (PID: {previous.pid})' if previous.name else f'PID {previous.pid}'
+    process_identifier = f'{current.name} (PID: {current.pid})' if bool(current.name) else f'PID {current.pid}'
+    previous_identifier = f'{previous.name} (PID: {previous.pid})' if bool(previous.name) else f'PID {previous.pid}'
 
     if current.is_running != previous.is_running:
         if current.is_running:

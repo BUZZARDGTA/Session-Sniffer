@@ -365,7 +365,7 @@ class PacketCapture:
 
     def _capture_and_process(self) -> None:
         """Run one packet capture session until stopped, restarted, or crashed."""
-        if not self.config.interface.device_name:
+        if self.config.interface.device_name is None or not self.config.interface.device_name:
             message = f'Interface "{self.config.interface.name}" has no device name; cannot open pcap handle'
             raise CaptureError(message)
 
@@ -376,7 +376,7 @@ class PacketCapture:
                 promiscuous=True,
                 timeout_milliseconds=100,
             )
-            if self.config.capture_filter:
+            if self.config.capture_filter is not None and self.config.capture_filter:
                 pcap_handle.set_filter(self.config.capture_filter)
         except PcapError as e:
             raise CaptureExitError(e) from e

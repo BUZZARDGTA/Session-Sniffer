@@ -297,17 +297,18 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
         if Settings.gui_remember_window_layout:
             gui_state = GUIState.load()
             if (
-                gui_state.main_window_splitter_sizes
+                gui_state.main_window_splitter_sizes is not None
+                and gui_state.main_window_splitter_sizes
                 and len(gui_state.main_window_splitter_sizes) == self._tables_splitter.count()
                 and all(size > 0 for size in gui_state.main_window_splitter_sizes)
             ):
                 self._saved_splitter_sizes = list(gui_state.main_window_splitter_sizes)
                 self._tables_splitter.setSizes(self._saved_splitter_sizes)
 
-            if gui_state.connected_table_column_widths:
+            if gui_state.connected_table_column_widths is not None and gui_state.connected_table_column_widths:
                 self._connected.table_view.apply_column_widths(gui_state.connected_table_column_widths)
 
-            if gui_state.disconnected_table_column_widths:
+            if gui_state.disconnected_table_column_widths is not None and gui_state.disconnected_table_column_widths:
                 self._disconnected.table_view.apply_column_widths(gui_state.disconnected_table_column_widths)
 
         self._update_splitter_visibility()

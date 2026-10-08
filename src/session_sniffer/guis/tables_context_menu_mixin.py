@@ -111,7 +111,7 @@ class TableContextMenuMixin(QTableView):
                 seen_rows.add(selected_index.row())
                 ip_index = selected_model.index(selected_index.row(), selected_model.ip_column_index)
                 displayed_ip = selected_model.get_display_text(ip_index)
-                if displayed_ip and displayed_ip not in ip_addresses:
+                if displayed_ip is not None and displayed_ip and displayed_ip not in ip_addresses:
                     ip_addresses.append(displayed_ip)
             return ip_addresses
 
@@ -671,7 +671,7 @@ class TableContextMenuMixin(QTableView):
 
         def add_search_in_menu() -> None:
             cell_text = selected_model.get_display_text(index)
-            if not cell_text:
+            if cell_text is None or not cell_text:
                 return
 
             def _resolve_search_text() -> str | None:
@@ -682,7 +682,7 @@ class TableContextMenuMixin(QTableView):
                 # from the matched player (UserIP, Looky System, PS3, etc.) without string splitting.
                 row_ip_index = selected_model.index(index.row(), selected_model.ip_column_index)
                 row_ip = selected_model.get_display_text(row_ip_index)
-                player = PlayersRegistry.get_player_by_ip(row_ip) if row_ip else None
+                player = PlayersRegistry.get_player_by_ip(row_ip) if row_ip is not None and row_ip else None
 
                 usernames: list[str] = resolve_usernames_for_player(player) if player else []
 
@@ -716,17 +716,17 @@ class TableContextMenuMixin(QTableView):
 
             def _search_userip_all_databases() -> None:
                 search_query = _resolve_search_text()
-                if search_query:
+                if search_query is not None and search_query:
                     main_window.open_userip_manager_and_search(search_query)
 
             def _search_userip_logging() -> None:
                 search_query = _resolve_search_text()
-                if search_query:
+                if search_query is not None and search_query:
                     main_window.open_logs_manager_and_search_userip(search_query)
 
             def _search_sessions_logging() -> None:
                 search_query = _resolve_search_text()
-                if search_query:
+                if search_query is not None and search_query:
                     main_window.open_logs_manager_and_search_sessions(search_query)
 
             search_menu = add_menu(

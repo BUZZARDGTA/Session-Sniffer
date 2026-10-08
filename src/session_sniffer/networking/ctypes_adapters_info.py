@@ -253,7 +253,7 @@ def _sockaddr_to_ipv4(sockaddr_ptr: int | None) -> str | None:
     Returns:
         The IPv4 address as a string, or `None` if the sockaddr is not IPv4.
     """
-    if not sockaddr_ptr:
+    if sockaddr_ptr is None or not sockaddr_ptr:
         return None
 
     # Explicitly cast sockaddr_ptr to a ctypes pointer of SOCKADDR_IN
@@ -512,7 +512,7 @@ def get_adapters_info() -> Iterator[AdapterData]:
         uni = addr.FirstUnicastAddress
         while uni:
             ip = _sockaddr_to_ipv4(uni.contents.Address.lpSockaddr)
-            if ip:
+            if ip is not None and ip:
                 ipv4_list.append(ip)
             uni = uni.contents.Next
 
@@ -521,7 +521,7 @@ def get_adapters_info() -> Iterator[AdapterData]:
         gw = addr.FirstGatewayAddress
         while gw:
             gw_ip = _sockaddr_to_ipv4(gw.contents.Address.lpSockaddr)
-            if gw_ip:
+            if gw_ip is not None and gw_ip:
                 gateway_list.append(gw_ip)
             gw = gw.contents.Next
 

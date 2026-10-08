@@ -85,7 +85,7 @@ class ProcessSelectorWidget(QWidget):
         self._refresh_button.clicked.connect(self.refresh_process_list)
         layout.addWidget(self._refresh_button)
 
-        if self._setting_tooltip:
+        if self._setting_tooltip is not None:
             self.setToolTip(self._setting_tooltip)
 
         if not CaptureState.is_local_capture():
@@ -106,7 +106,7 @@ class ProcessSelectorWidget(QWidget):
         tooltip_parts: list[str] = []
         if isinstance(item_tooltip, str) and item_tooltip:
             tooltip_parts.append(item_tooltip)
-        if self._setting_tooltip:
+        if self._setting_tooltip is not None and self._setting_tooltip:
             tooltip_parts.append(self._setting_tooltip)
 
         self._combo.setToolTip('\n\n'.join(tooltip_parts))

@@ -170,7 +170,7 @@ def _resolve_standalone_lookup(lookup: StandaloneIPLookup) -> None:
             lookup.ping.is_initialized = True
 
     # 6. Looky System
-    if not lookup.looky_system.is_initialized and Settings.looky_enabled and Settings.looky_api_key and Settings.is_gta5_feature_set():
+    if not lookup.looky_system.is_initialized and Settings.looky_enabled and Settings.looky_api_key is not None and Settings.looky_api_key and Settings.is_gta5_feature_set():
         try:
             looky_players = lookup_ip(lookup.ip, Settings.looky_api_key, Settings.looky_game_version.lower())
             unique_results: list[LookyPlayer] = []

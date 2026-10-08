@@ -173,7 +173,7 @@ def reverse_dns_lookup(target_ip: str) -> str:
     if ip_object is not None and not ip_object.is_private and not ip_object.is_loopback and _resolver_state.is_public_dns_reachable():
         for public_server in PUBLIC_DNS_SERVERS:
             resolved_hostname = _query_udp_dns(public_server, ip_object.reverse_pointer, timeout_seconds=0.5)
-            if resolved_hostname:
+            if resolved_hostname is not None and resolved_hostname:
                 cleaned_hostname = resolved_hostname.rstrip('.')
                 if cleaned_hostname:
                     return cleaned_hostname

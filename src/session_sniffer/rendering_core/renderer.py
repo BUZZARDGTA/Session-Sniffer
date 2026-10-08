@@ -536,7 +536,7 @@ def rendering_core(
                     player.userip = resolved
 
             modmenu_usernames_for_player = all_modmenu_usernames.get(player.ip)
-            if modmenu_usernames_for_player:
+            if modmenu_usernames_for_player is not None and modmenu_usernames_for_player:
                 if player.mod_menus is None:
                     player.mod_menus = PlayerModMenus(
                         usernames=modmenu_usernames_for_player,
@@ -546,8 +546,9 @@ def rendering_core(
             else:
                 player.mod_menus = None
 
+            ps3_username = player.ps3_username
             has_usernames = bool(
-                player.ps3_username
+                ps3_username
                 or (player.userip is not None and player.userip.usernames)
                 or (player.mod_menus is not None and player.mod_menus.usernames)
                 or (looky_initialized and looky_usernames)
@@ -557,7 +558,7 @@ def rendering_core(
                     player.usernames = []
             else:
                 player.usernames = dedup_preserve_order(
-                    (player.ps3_username,) if player.ps3_username else (),
+                    (ps3_username,) if ps3_username is not None and ps3_username else (),
                     player.userip.usernames if player.userip is not None else (),
                     player.mod_menus.usernames if player.mod_menus is not None else (),
                     looky_usernames if looky_initialized else (),

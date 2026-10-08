@@ -37,7 +37,7 @@ def populate_network_interfaces_info() -> None:
     classification = get_adapter_classification()
 
     for adapter in adapters:
-        classification_value = classification.get(adapter.identity.adapter_guid) if adapter.identity.adapter_guid else None
+        classification_value = classification.get(adapter.identity.adapter_guid) if adapter.identity.adapter_guid is not None else None
         if classification_value == 'bridged':
             interface_type = INTERFACE_TYPE_BRIDGED
         elif classification_value == 'shared':
@@ -55,7 +55,7 @@ def populate_network_interfaces_info() -> None:
                     description=adapter.identity.description,
                     mac_address=adapter.identity.mac_address,
                     device_name=None,
-                    vendor_name=MacLookup.get_vendor_name(adapter.identity.mac_address) if adapter.identity.mac_address else None,
+                    vendor_name=MacLookup.get_vendor_name(adapter.identity.mac_address) if adapter.identity.mac_address is not None else None,
                     adapter_guid=adapter.identity.adapter_guid,
                 ),
                 traffic=InterfaceTraffic(
@@ -74,12 +74,11 @@ def populate_network_interfaces_info() -> None:
         )
 
         for neighbor_ip, neighbor_mac in adapter.neighbors:
-            if (
-                not neighbor_ip
-                or not neighbor_mac
-                or neighbor_mac.upper() in {'00:00:00:00:00:00', 'FF:FF:FF:FF:FF:FF'}  # Filter placeholder/broadcast MACs
-                or not is_valid_private_ipv4(neighbor_ip)
-            ):
+            if neighbor_ip is None or neighbor_mac is None:
+                continue
+            if not neighbor_ip or not neighbor_mac:
+                continue
+            if neighbor_mac.upper() in {'00:00:00:00:00:00', 'FF:FF:FF:FF:FF:FF'} or not is_valid_private_ipv4(neighbor_ip):
                 continue
 
             vendor_name = MacLookup.get_vendor_name(neighbor_mac)

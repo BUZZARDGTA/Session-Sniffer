@@ -133,7 +133,7 @@ def format_single_border_table(
 
     total_inner_width = sum(width + 2 for width in column_widths) + (len(column_widths) - 1)
 
-    if title:
+    if title is not None and title:
         min_inner_width = len(title) + 2
         if min_inner_width > total_inner_width:
             extra_content_width = min_inner_width - total_inner_width
@@ -146,7 +146,7 @@ def format_single_border_table(
             total_inner_width = sum(width + 2 for width in column_widths) + (len(column_widths) - 1)
 
     lines: list[str] = []
-    if title:
+    if title is not None and title:
         lines.append(f'┌{"─" * total_inner_width}┐')
         lines.append(f'│{title.center(total_inner_width)}│')
         lines.append(f'├{"┬".join("─" * (width + 2) for width in column_widths)}┤')

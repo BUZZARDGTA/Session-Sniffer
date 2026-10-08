@@ -159,7 +159,7 @@ def validate_file(file_path: Path) -> Path:
 
 def format_project_version(version: Version) -> str:
     """Format the project version for display."""
-    if version.local:
+    if version.local is not None:
         date_time = datetime.strptime(version.local, '%Y%m%d.%H%M').replace(tzinfo=UTC).strftime('%Y/%m/%d (%H:%M)')
         return f'v{version.public} - {date_time}'
 

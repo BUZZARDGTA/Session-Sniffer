@@ -36,7 +36,7 @@ class RateGraphWidget(QWidget):
         self.line_color = QColor(theme.line_color)
         self.fill_color = QColor(theme.fill_color)
         self.avg_color = QColor(theme.avg_color)
-        self.threshold_color = QColor(theme.threshold_color) if theme.threshold_color else None
+        self.threshold_color = QColor(theme.threshold_color) if bool(theme.threshold_color) else None
         self.visible_window = visible_window
 
         self._data: list[float] = []

@@ -94,11 +94,11 @@ class TableHeaderMenuMixin(QTableView):
 
         menu.addSeparator()
 
-        hide_label = f"Hide Column '{clicked_column_name}'" if clicked_column_name else 'Hide Column'
+        hide_label = f"Hide Column '{clicked_column_name}'" if bool(clicked_column_name) else 'Hide Column'
         hide_column_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'eye_hide.svg')), hide_label, menu)
         hide_column_action.setEnabled(clicked_column_name is not None and clicked_column_name in toggleable_columns)
         hide_column_action.setToolTip(
-            f"Hide the '{clicked_column_name}' column from the table." if clicked_column_name else 'Hide the selected column from the table.',
+            f"Hide the '{clicked_column_name}' column from the table." if bool(clicked_column_name) else 'Hide the selected column from the table.',
         )
         if clicked_column_name is not None:
             hide_column_action.triggered.connect(

@@ -348,7 +348,7 @@ def overlay_live_session(
         live_text = None
 
     session_log: SessionLogFile | None = None
-    if live_text:
+    if live_text is not None and live_text:
         try:
             session_log = SessionLogFile.model_validate_json(live_text)
         except ValidationError as e:
@@ -361,7 +361,7 @@ def overlay_live_session(
         live_ips = set(all_players.keys())
         _accumulate_session(entries, seen_dates, session_log, now)
 
-    if preserve_ips:
+    if preserve_ips is not None and preserve_ips:
         live_ips.update(preserve_ips)
         for ip in preserve_ips:
             if ip not in entries:

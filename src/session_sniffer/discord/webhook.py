@@ -183,7 +183,7 @@ def _build_message_content(
     unix_ts = int(timestamp.timestamp())
     header = f'**{title}** — updated <t:{unix_ts}:R>'
 
-    if not table_text:
+    if table_text is None or not table_text:
         return f'{header}\n_{empty_label}_'
 
     truncated, removed = _truncate_table(table_text, max_rows)
@@ -223,7 +223,7 @@ def _build_multi_embed_payload(
             'timestamp': style.timestamp.isoformat(),
         }
 
-    if not table_text:
+    if table_text is None or not table_text:
         return [_make_embed(title, f'_{empty_label}_')]
 
     # Split the mobile-format text into per-player blocks.
@@ -349,7 +349,7 @@ def send_test_message(url: str) -> tuple[bool, str]:
 def _load_message_ids() -> dict[str, str]:
     """Return persisted {connected, disconnected} message IDs (or empty dict)."""
     raw = Settings.discord_webhook_message_ids
-    if not raw:
+    if raw is None or not raw:
         return {}
     try:
         return _MESSAGE_IDS_ADAPTER.validate_json(raw)
@@ -569,7 +569,7 @@ class DiscordWebhookSender:
 
     def _post_or_patch(self, url: str, existing_id: str | None, body: bytes) -> str | None:
         """Post a new message or patch *existing_id*. Return the message id on success."""
-        if existing_id:
+        if existing_id is not None and existing_id:
             patch_url = f'{url.rstrip("/")}/messages/{urllib.parse.quote(existing_id)}'
             status, _headers, response_body = self._send(patch_url, method='PATCH', body=body)
             if status in (http.HTTPStatus.OK, http.HTTPStatus.NO_CONTENT):
@@ -621,7 +621,7 @@ class DiscordWebhookSender:
         """Sleep for the duration Discord requested via Retry-After."""
         retry_after = headers.get('retry-after') or headers.get('x-ratelimit-reset-after')
         delay: float = 2.0
-        if retry_after:
+        if retry_after is not None and retry_after:
             try:
                 delay = float(retry_after)
             except ValueError:

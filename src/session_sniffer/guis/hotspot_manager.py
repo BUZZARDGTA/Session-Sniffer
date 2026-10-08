@@ -596,7 +596,7 @@ class HotspotManagerWidget(QWidget):
             self._enable_sharing_button.setEnabled(True)
             self._reset_sharing_button.setEnabled(False)
 
-        if public_adapter:
+        if bool(public_adapter):
             idx = self._public_combo.findData(public_adapter)
             if idx >= 0:
                 self._public_combo.setCurrentIndex(idx)

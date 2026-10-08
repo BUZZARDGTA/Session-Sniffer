@@ -562,7 +562,7 @@ class ComboRuleEditorDialog(QDialog):
                     conditions[key] = selected
             elif key == 'country':
                 country = self._read_country_value(value_stack)
-                if country:
+                if country is not None and country:
                     conditions[key] = country
             else:
                 line_edit_widget: QLineEdit | None = value_stack.findChild(QLineEdit)

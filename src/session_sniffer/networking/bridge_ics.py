@@ -197,7 +197,7 @@ def _classify_connection(
 
         try:
             guid_value = _extract_bstr_guid(props_ptr, oleaut32)
-            if guid_value:
+            if guid_value is not None and guid_value:
                 guid_normalized = _normalize_guid(guid_value)
                 role: AdapterClassification | None = None
                 if sharing_type.value == _ICSSHARINGTYPE_PUBLIC:
@@ -280,7 +280,7 @@ def _enumerate_ics_connections(
         while not next_enum(enum_variant_ptr, 1, ctypes.byref(variant_buffer), ctypes.byref(fetched_count)) and fetched_count.value == 1:
             try:
                 connection_val = (ctypes.c_void_p.from_buffer(variant_buffer, 8)).value
-                if not connection_val:
+                if not bool(connection_val):
                     continue
                 connection_ptr = wintypes.LPVOID(connection_val)
                 try:

@@ -134,7 +134,7 @@ def format_looky_usernames(looky: PlayerLooky) -> str:
     with looky.lock:
         if looky.usernames:
             return ', '.join(looky.usernames)
-        if not Settings.is_gta5_feature_set() or not Settings.looky_enabled or not Settings.looky_api_key:
+        if not Settings.is_gta5_feature_set() or not Settings.looky_enabled or not bool(Settings.looky_api_key):
             return 'N/A'
         if not looky.is_initialized:
             return '...'
@@ -146,7 +146,7 @@ def format_looky_rockstarids(looky: PlayerLooky) -> str:
     with looky.lock:
         if looky.rockstarids:
             return ', '.join(map(str, looky.rockstarids))
-        if not Settings.is_gta5_feature_set() or not Settings.looky_enabled or not Settings.looky_api_key:
+        if not Settings.is_gta5_feature_set() or not Settings.looky_enabled or not bool(Settings.looky_api_key):
             return 'N/A'
         if not looky.is_initialized:
             return '...'
@@ -157,7 +157,7 @@ def format_looky_last_seens(looky: PlayerLooky) -> str:
     """Format Looky System last seen timestamps for display."""
     with looky.lock:
         if not looky.last_seens:
-            if not Settings.is_gta5_feature_set() or not Settings.looky_enabled or not Settings.looky_api_key:
+            if not Settings.is_gta5_feature_set() or not Settings.looky_enabled or not bool(Settings.looky_api_key):
                 return 'N/A'
             if not looky.is_initialized:
                 return '...'

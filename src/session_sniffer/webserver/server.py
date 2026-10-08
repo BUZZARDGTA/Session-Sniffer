@@ -99,7 +99,7 @@ class WebServer:
             return True
 
         authorization_header_value = request.headers.get('Authorization')
-        if not authorization_header_value:
+        if authorization_header_value is None or not authorization_header_value:
             logger.debug('Authorization rejected for %s: missing Authorization header.', request.path)
             return False
 

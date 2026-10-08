@@ -110,7 +110,7 @@ def format_player_gui_datetime(player_datetime: datetime, now: datetime | None =
         show_time=Settings.gui_columns_datetime_show_time,
     )
 
-    if formatted_elapsed_time:
+    if bool(formatted_elapsed_time):
         return f'{formatted_datetime} ({formatted_elapsed_time})'
 
     return formatted_datetime

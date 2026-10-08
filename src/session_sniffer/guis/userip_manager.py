@@ -81,12 +81,14 @@ logger = logging.getLogger(__name__)
 def _load_userip_manager_state() -> tuple[QByteArray | None, bool, QByteArray | None, dict[str, int] | None]:
     """Load saved window geometry, maximized state, splitter state, and table column widths from local app data."""
     gui_state = GUIState.load()
+    userip_manager_geometry = gui_state.userip_manager_geometry
     geometry: QByteArray | None = (
-        QByteArray.fromHex(gui_state.userip_manager_geometry.encode('ascii')) if gui_state.userip_manager_geometry else None
+        QByteArray.fromHex(userip_manager_geometry.encode('ascii')) if userip_manager_geometry is not None and userip_manager_geometry else None
     )
     maximized: bool = gui_state.userip_manager_maximized
+    userip_manager_splitter = gui_state.userip_manager_splitter
     splitter: QByteArray | None = (
-        QByteArray.fromHex(gui_state.userip_manager_splitter.encode('ascii')) if gui_state.userip_manager_splitter else None
+        QByteArray.fromHex(userip_manager_splitter.encode('ascii')) if userip_manager_splitter is not None and userip_manager_splitter else None
     )
     return geometry, maximized, splitter, gui_state.userip_manager_table_column_widths
 
@@ -399,8 +401,9 @@ class UserIPDatabasesManager(
         setup_table_header_context_menu(self._entries_table, on_reset=self._reset_column_sizes)
         if header:
             header.sectionResized.connect(self._on_section_resized)
-        if UserIPDatabasesManager._cached_column_widths:
-            self._apply_column_widths(UserIPDatabasesManager._cached_column_widths)
+        cached_column_widths = UserIPDatabasesManager._cached_column_widths
+        if cached_column_widths is not None and cached_column_widths:
+            self._apply_column_widths(cached_column_widths)
 
         self._entries_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self._entries_table.customContextMenuRequested.connect(self.show_entries_context_menu)

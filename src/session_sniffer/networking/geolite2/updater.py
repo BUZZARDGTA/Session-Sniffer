@@ -191,7 +191,9 @@ def _write_geolite2_version_file(geolite2_version_file_path: Path, geolite2_data
     asn_version = geolite2_databases['GeoLite2-ASN.mmdb'].current_version
     city_version = geolite2_databases['GeoLite2-City.mmdb'].current_version
     country_version = geolite2_databases['GeoLite2-Country.mmdb'].current_version
-    if not (asn_version and city_version and country_version):
+    if asn_version is None or city_version is None or country_version is None:
+        return
+    if not asn_version or not city_version or not country_version:
         return
 
     version_file = GeoLite2VersionFile(
@@ -275,7 +277,7 @@ def update_geolite2_databases(*, progress_callback: Callable[[str], None] | None
     databases_to_download: list[GeoLite2DatabaseKey] = [
         database_name
         for database_name, database_info in geolite2_databases.items()
-        if database_info.last_version and database_info.current_version != database_info.last_version and database_info.download_url
+        if bool(database_info.last_version) and database_info.current_version != database_info.last_version and bool(database_info.download_url)
     ]
     total_databases = len(databases_to_download)
     current_database_index = 0
@@ -284,14 +286,16 @@ def update_geolite2_databases(*, progress_callback: Callable[[str], None] | None
     first_download_error: GeoLite2UpdateResult | None = None
 
     for database_name, database_info in geolite2_databases.items():
-        if not database_info.last_version:
+        last_version = database_info.last_version
+        if last_version is None or not last_version:
             failed_fetching_flag_list.append(database_name)
             continue
 
-        if database_info.current_version == database_info.last_version:
+        if database_info.current_version == last_version:
             continue
 
-        if database_info.download_url is None:
+        download_url = database_info.download_url
+        if download_url is None or not download_url:
             failed_fetching_flag_list.append(database_name)
             continue
 
@@ -309,7 +313,7 @@ def update_geolite2_databases(*, progress_callback: Callable[[str], None] | None
             else:
                 progress_callback(f'{prefix}: {downloaded_formatted}')
 
-        download_error, file_bytes = _download_geolite2_asset_bytes(database_info.download_url, on_progress=_handle_chunk_progress)
+        download_error, file_bytes = _download_geolite2_asset_bytes(download_url, on_progress=_handle_chunk_progress)
         if download_error is not None or file_bytes is None:
             if first_download_error is None:
                 first_download_error = download_error if download_error is not None else GeoLite2UpdateResult()
@@ -319,7 +323,7 @@ def update_geolite2_databases(*, progress_callback: Callable[[str], None] | None
         database_info.current_version = _persist_geolite2_database_bytes(
             database_name=database_name,
             file_bytes=file_bytes,
-            desired_version=database_info.last_version,
+            desired_version=last_version,
             current_version=database_info.current_version,
         )
 

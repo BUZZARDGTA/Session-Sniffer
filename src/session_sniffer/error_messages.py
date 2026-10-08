@@ -272,7 +272,7 @@ def format_arp_spoofing_failed_message(
         A formatted error message string ready for display.
     """
     interface_vendor_name = 'N/A' if selected_interface.vendor_name is None else selected_interface.vendor_name
-    error_details_output = f'\n{error_details}' if error_details else ''
+    error_details_output = f'\n{error_details}' if bool(error_details) else ''
 
     return (
         f'ARP Spoofing failed to start.\n\n'

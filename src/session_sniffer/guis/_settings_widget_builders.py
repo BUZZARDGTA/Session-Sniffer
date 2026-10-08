@@ -72,7 +72,7 @@ def create_setting_label(meta: SettingMeta) -> QLabel:
     """Create a standard form label for a setting with an optional tooltip."""
     label = QLabel(f'{meta.display_label}:')
     tooltip = format_setting_tooltip(meta)
-    if tooltip:
+    if tooltip is not None and tooltip:
         label.setToolTip(tooltip)
     return label
 
@@ -81,7 +81,7 @@ def create_boolean_widget(meta: SettingMeta) -> QCheckBox:
     """Create a checkbox widget for a boolean setting."""
     checkbox = QCheckBox()
     tooltip = format_setting_tooltip(meta)
-    if tooltip:
+    if tooltip is not None and tooltip:
         checkbox.setToolTip(tooltip)
     return checkbox
 
@@ -90,7 +90,7 @@ def create_color_widget(meta: SettingMeta) -> ColorPickerButton:
     """Create a color picker button widget for a color setting."""
     button = ColorPickerButton()
     tooltip = format_setting_tooltip(meta)
-    if tooltip:
+    if tooltip is not None and tooltip:
         button.setToolTip(tooltip)
     return button
 
@@ -147,7 +147,7 @@ def create_text_widget(meta: SettingMeta) -> QLineEdit:
 
         le.textEdited.connect(_filter_chars)
     tooltip = format_setting_tooltip(meta)
-    if tooltip:
+    if tooltip is not None and tooltip:
         le.setToolTip(tooltip)
     if meta.min_width is not None:
         le.setMinimumWidth(meta.min_width)
@@ -187,7 +187,7 @@ def create_float_widget(meta: SettingMeta) -> QDoubleSpinBox:
     spin.setMinimum(meta.min_value if meta.min_value is not None else 0.0)
     spin.setMaximum(meta.max_value if meta.max_value is not None else 99999.0)
     tooltip = format_setting_tooltip(meta)
-    if tooltip:
+    if tooltip is not None and tooltip:
         spin.setToolTip(tooltip)
     return spin
 
@@ -200,7 +200,7 @@ def create_integer_widget(meta: SettingMeta) -> QSpinBox:
     spin.setMinimum(int(meta.min_value) if meta.min_value is not None else 0)
     spin.setMaximum(int(meta.max_value) if meta.max_value is not None else 99999)
     tooltip = format_setting_tooltip(meta)
-    if tooltip:
+    if tooltip is not None and tooltip:
         spin.setToolTip(tooltip)
     return spin
 
@@ -214,7 +214,7 @@ def create_integer_or_all_widget(meta: SettingMeta) -> QSpinBox:
     spin.setMaximum(int(meta.max_value) if meta.max_value is not None else 99999)
     spin.setSpecialValueText(meta.special_value_text)
     tooltip = format_setting_tooltip(meta)
-    if tooltip:
+    if tooltip is not None and tooltip:
         spin.setToolTip(tooltip)
     return spin
 
@@ -225,7 +225,7 @@ def create_enum_widget(meta: SettingMeta) -> QComboBox:
     combo.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
     if meta.allowed_values:
         combo.addItems(meta.allowed_values)
-    elif meta.allowed_columns_attr:
+    elif meta.allowed_columns_attr is not None and meta.allowed_columns_attr:
         if meta.allowed_columns_attr == 'GUI_ALL_CONNECTED_COLUMNS':
             combo.addItems([col for col in Settings.GUI_ALL_CONNECTED_COLUMNS if col in set(Settings.gui_columns_connected_shown) or col in Settings.GUI_FORCED_COLUMNS])
         elif meta.allowed_columns_attr == 'GUI_ALL_DISCONNECTED_COLUMNS':
@@ -233,7 +233,7 @@ def create_enum_widget(meta: SettingMeta) -> QComboBox:
         else:
             combo.addItems(cast('tuple[str, ...]', getattr(Settings, meta.allowed_columns_attr, ())))
     tooltip = format_setting_tooltip(meta)
-    if tooltip:
+    if tooltip is not None and tooltip:
         combo.setToolTip(tooltip)
     return combo
 
@@ -246,7 +246,7 @@ def create_bool_or_enum_widget(meta: SettingMeta) -> QComboBox:
         items.extend(meta.allowed_values)
     combo.addItems(items)
     tooltip = format_setting_tooltip(meta)
-    if tooltip:
+    if tooltip is not None and tooltip:
         combo.setToolTip(tooltip)
     return combo
 
@@ -259,7 +259,7 @@ def create_column_tuple_widget(key: str, meta: SettingMeta) -> QGroupBox:
 
     group = QGroupBox(meta.display_label.replace('&', '&&'))
     tooltip = format_setting_tooltip(meta)
-    if tooltip:
+    if tooltip is not None and tooltip:
         group.setToolTip(tooltip)
 
     inner = QWidget()
@@ -269,7 +269,7 @@ def create_column_tuple_widget(key: str, meta: SettingMeta) -> QGroupBox:
 
     column_count = 3
     for i, column_name in enumerate(allowed_columns):
-        display_text = meta.display_labels.get(column_name, column_name) if meta.display_labels else column_name
+        display_text = meta.display_labels.get(column_name, column_name) if meta.display_labels is not None and meta.display_labels else column_name
         checkbox = QCheckBox(display_text)
         checkbox.setObjectName(column_name)
         grid.addWidget(checkbox, i // column_count, i % column_count)
@@ -412,7 +412,7 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
     # Checklist container
     checklist_group = QGroupBox(meta.display_label.replace('&', '&&'))
     tooltip = format_setting_tooltip(meta)
-    if tooltip:
+    if tooltip is not None and tooltip:
         checklist_group.setToolTip(tooltip)
 
     grid_container = QWidget()
@@ -798,7 +798,7 @@ def create_ip_range_tuple_widget(meta: SettingMeta, parent: QWidget) -> QGroupBo
     """Create an add/remove list widget for managing a tuple of IP addresses and ranges."""
     group = QGroupBox(meta.display_label.replace('&', '&&'))
     tooltip = format_setting_tooltip(meta)
-    if tooltip:
+    if tooltip is not None and tooltip:
         group.setToolTip(tooltip)
 
     list_widget = _AutoFitListWidget()
@@ -867,7 +867,7 @@ def create_string_tuple_widget(
     """Create an add/remove list widget for managing a tuple of strings."""
     group = QGroupBox(meta.display_label.replace('&', '&&'))
     tooltip = format_setting_tooltip(meta)
-    if tooltip:
+    if tooltip is not None and tooltip:
         group.setToolTip(tooltip)
 
     list_widget = _AutoFitListWidget()

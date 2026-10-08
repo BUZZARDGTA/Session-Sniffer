@@ -656,14 +656,15 @@ def open_combo_rule_editor_for_player(parent: QWidget, player: Player) -> None:
         return value if isinstance(value, str) and value and value != _placeholder else None
 
     conditions: dict[str, str | bool | list[str]] = {}
-    if country := _safe(player.iplookup.geolite2.country):
+    if (country := _safe(player.iplookup.geolite2.country)) is not None:
         conditions['country'] = country
-    if isp := _safe(player.iplookup.ipapi.isp):
+    if (isp := _safe(player.iplookup.ipapi.isp)) is not None:
         conditions['isp'] = isp
     as_name = _safe(player.iplookup.ipapi.as_name)
     asn_geo = _safe(player.iplookup.geolite2.asn)
-    if asn_val := (as_name or asn_geo):
-        conditions['as_name' if as_name else 'asn'] = asn_val
+    asn_val = as_name if as_name is not None else asn_geo
+    if asn_val is not None:
+        conditions['as_name' if as_name is not None else 'asn'] = asn_val
     if isinstance(player.iplookup.ipapi.mobile, bool):
         conditions['mobile'] = player.iplookup.ipapi.mobile
     if isinstance(player.iplookup.ipapi.proxy, bool):

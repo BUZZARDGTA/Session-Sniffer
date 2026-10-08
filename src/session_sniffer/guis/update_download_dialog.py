@@ -381,7 +381,7 @@ class UpdateDownloadDialog(DraggableDialogMixin, QDialog):
     @staticmethod
     def _format_sha_display(sha_hash: str | None) -> str:
         """Format a SHA hash split onto multiple lines if long, or return fallback."""
-        if not sha_hash:
+        if sha_hash is None or not sha_hash:
             return 'Dev Build'
         if len(sha_hash) > _SHA_SPLIT_THRESHOLD:
             mid = len(sha_hash) // 2
@@ -580,8 +580,9 @@ class UpdateDownloadDialog(DraggableDialogMixin, QDialog):
 
     def _on_start_update(self) -> None:
         """Handle the user confirming the update action."""
-        if not is_pyinstaller_compiled() and self._candidate.release_url:
-            webbrowser.open(self._candidate.release_url)
+        release_url = self._candidate.release_url
+        if not is_pyinstaller_compiled() and release_url is not None and release_url:
+            webbrowser.open(release_url)
             self.accept()
             return
 

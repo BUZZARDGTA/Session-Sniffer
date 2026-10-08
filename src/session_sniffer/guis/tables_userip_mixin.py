@@ -77,7 +77,7 @@ def _entry_ip_matches_any(entry_ip: str, selected_ips: list[str]) -> bool:
 def resolve_usernames_for_player(player: Player) -> list[str]:
     """Return deduplicated usernames associated with the given player from all sources."""
     player_names = dedup_preserve_order(
-        [player.ps3_username] if player.ps3_username else [],
+        [player.ps3_username] if player.ps3_username is not None and player.ps3_username else [],
         player.userip.usernames if player.userip else [],
         player.mod_menus.usernames if player.mod_menus else [],
         player.looky_system.usernames if player.looky_system.is_initialized else [],
@@ -193,7 +193,7 @@ def userip_add(
         selected_database,
         candidate_usernames=candidates,
     )
-    if not chosen_usernames:
+    if chosen_usernames is None or not chosen_usernames:
         return
 
     if Settings.userip_sync_known_alts:
@@ -241,7 +241,7 @@ def userip_add_as_range(
         candidate_usernames=candidates,
         prompt_message=prompt_message,
     )
-    if not chosen_usernames:
+    if chosen_usernames is None or not chosen_usernames:
         return
 
     if Settings.userip_sync_known_alts:
@@ -608,7 +608,7 @@ def userip_rename(parent: QWidget, ip_address: str, player: Player) -> None:
             ip_address=ip_address,
         )
         old_username = dialog.selected_username() if dialog.exec() == SelectUsernamesDialog.DialogCode.Accepted else None
-        if not old_username:
+        if old_username is None or not old_username:
             return
 
     # Step 2: Prompt for the new username

@@ -86,7 +86,7 @@ class StatsMixin(QMainWindow):
 
     def _deselect_connected_ips(self, ip_addresses: list[str] | None = None) -> None:
         """Deselect player rows by IP in the connected table, or clear selection if None or empty."""
-        if not ip_addresses:
+        if ip_addresses is None or not ip_addresses:
             self._connected.table_view.selectionModel().clearSelection()
             return
         selection = QItemSelection()

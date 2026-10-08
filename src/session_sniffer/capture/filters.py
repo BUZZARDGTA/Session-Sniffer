@@ -92,7 +92,7 @@ def _build_display_filter_fn(
     if 'dtls' in excluded_protocols:
         checks.append(lambda pkt: not _is_dtls(pkt))
 
-    if blocked_tps_obj_ranges:
+    if blocked_tps_obj_ranges is not None and blocked_tps_obj_ranges:
 
         def check_tps(pkt: Packet) -> bool:
             try:
@@ -183,7 +183,7 @@ def build_capture_filters(
         if blocked_bpf:
             capture_filter.append(f'not ({" or ".join(blocked_bpf)})')
 
-    if Settings.capture_prepend_custom_capture_filter:
+    if bool(Settings.capture_prepend_custom_capture_filter):
         capture_filter.insert(0, f'({Settings.capture_prepend_custom_capture_filter})')
 
     capture_filter_str = ' and '.join(capture_filter) if capture_filter else None

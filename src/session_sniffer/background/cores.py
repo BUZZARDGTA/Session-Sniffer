@@ -581,7 +581,7 @@ def looky_core() -> None:
         if ScriptControl.has_crashed():
             return
 
-        if not Settings.looky_api_key or not Settings.looky_enabled or not Settings.is_gta5_feature_set():
+        if Settings.looky_api_key is None or not Settings.looky_api_key or not Settings.looky_enabled or not Settings.is_gta5_feature_set():
             if _verified_api_key is not None:
                 _verified_api_key = None
                 LookyState.reset()

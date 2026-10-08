@@ -608,7 +608,7 @@ class CheckHostPingEngine:  # pylint: disable=too-few-public-methods
             request_id = request_data.get('request_id')
             nodes = cast('dict[str, list[str]] | None', request_data.get('nodes'))
 
-            if not isinstance(request_id, str) or not nodes:
+            if not isinstance(request_id, str) or nodes is None or not nodes:
                 results.append(
                     PingProbeResult(
                         sequence=sequence,

@@ -96,5 +96,5 @@ class InterfaceAlreadyExistsError(Exception):
             index: Interface index.
             name: Optional interface name.
         """
-        details = f'index={index}' + (f', name="{name}"' if name else '')
+        details = f'index={index}' + (f', name="{name}"' if bool(name) else '')
         super().__init__(f'Interface already exists in registry ({details})')

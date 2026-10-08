@@ -77,7 +77,7 @@ def add_column_sizing_actions(
 
     size_column_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'fit_width.svg')), 'Size Column to Fit', menu)
     size_column_action.setEnabled(is_valid_clicked_column)
-    if clicked_column_name:
+    if bool(clicked_column_name):
         size_column_action.setToolTip(f"Resize the '{clicked_column_name}' column so all text is fully visible without truncation or ellipses.")
     else:
         size_column_action.setToolTip('Resize the selected column so all text is fully visible without truncation or ellipses.')

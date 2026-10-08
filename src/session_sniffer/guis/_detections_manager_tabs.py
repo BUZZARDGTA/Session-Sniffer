@@ -709,7 +709,7 @@ class DetectionsManagerTabsMixin(QDialog):
         dialog = CountrySelectionDialog(self, existing_countries)
         if dialog.exec() == QDialog.DialogCode.Accepted:
             country = dialog.selected_country()
-            if country:
+            if country is not None and country:
                 self._add_country_item(country)
 
     def _add_country_item(self, country_name: str) -> None:
@@ -717,7 +717,7 @@ class DetectionsManagerTabsMixin(QDialog):
         item = QListWidgetItem(country_name)
         item.setData(Qt.ItemDataRole.UserRole, country_name)
         flag_code = get_country_flag_code(country_name)
-        if flag_code:
+        if flag_code is not None and flag_code:
             flag_icon = load_country_flag_icon(flag_code)
             if flag_icon is not None:
                 item.setIcon(flag_icon)

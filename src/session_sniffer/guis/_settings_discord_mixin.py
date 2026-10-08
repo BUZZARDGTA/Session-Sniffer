@@ -71,7 +71,7 @@ class SettingsDialogDiscordMixin(QDialog):
             self._widgets['discord_webhook_enabled'] = enabled_widget
             enabled_label = QLabel(enabled_meta.display_label + ':')
             enabled_tooltip = format_setting_tooltip(enabled_meta)
-            if enabled_tooltip:
+            if enabled_tooltip is not None and enabled_tooltip:
                 enabled_label.setToolTip(enabled_tooltip)
             top_form.addRow(enabled_label, enabled_widget)
 

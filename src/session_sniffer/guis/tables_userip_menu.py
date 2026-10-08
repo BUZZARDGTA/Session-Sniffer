@@ -52,7 +52,7 @@ def add_action(
 ) -> QAction:
     """Helper to create and configure a QAction."""
     action = ensure_instance(menu.addAction(icon, label), QAction) if icon is not None else ensure_instance(menu.addAction(label), QAction)
-    if tooltip:
+    if tooltip is not None and tooltip:
         action.setToolTip(tooltip)
     if handler:
         action.triggered.connect(handler)
@@ -68,7 +68,7 @@ def add_menu(
     """Helper to create and configure a QMenu."""
     menu = ensure_instance(parent_menu.addMenu(icon, label), QMenu) if icon is not None else ensure_instance(parent_menu.addMenu(label), QMenu)
     menu.setToolTipsVisible(True)
-    if tooltip:
+    if tooltip is not None and tooltip:
         menu.setToolTip(tooltip)
         menu_action = menu.menuAction()
         if menu_action:
@@ -261,7 +261,7 @@ def build_userip_menu_multi(
         add_userip_menu = add_menu(userip_menu, 'Add Selected', icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'add.svg')))
         all_usernames = dedup_preserve_order(
             *(
-                ([player.ps3_username] if player.ps3_username else [])
+                ([player.ps3_username] if player.ps3_username is not None and player.ps3_username else [])
                 + (list(player.userip.usernames) if player.userip else [])
                 + (player.mod_menus.usernames if player.mod_menus else [])
                 + (player.looky_system.usernames if player.looky_system.is_initialized else [])

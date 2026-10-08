@@ -146,7 +146,7 @@ def extract_rate_limit_wait_seconds(exc: requests.HTTPError) -> int | None:
     if exc.response is None:
         return None
     retry_after_header = exc.response.headers.get('Retry-After')
-    if retry_after_header:
+    if retry_after_header is not None and retry_after_header:
         try:
             return max(1, int(float(retry_after_header)))
         except ValueError:

@@ -99,7 +99,7 @@ def check_looky_prerequisites(parent: QWidget, player: Player | None = None) -> 
     Returns the API key string when all prerequisites are met, or None after
     displaying a warning for the first unmet prerequisite.
     """
-    if not Settings.looky_api_key:
+    if not bool(Settings.looky_api_key):
         QMessageBox.warning(parent, LOOKY_TITLE, LOOKY_WARNING_API_KEY_MISSING)
         return None
 

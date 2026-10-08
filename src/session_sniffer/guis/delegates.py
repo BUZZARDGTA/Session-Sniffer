@@ -180,7 +180,7 @@ class SearchHighlightDelegate(ElidedTextTooltipDelegate):
 
         has_search_match = bool(search_column_matches and search_query and isinstance(text, str) and search_query.lower() in text.lower())
 
-        if not isinstance(text, str) or (not has_search_match and not unregistered_looky_names):
+        if not isinstance(text, str) or (not has_search_match and not bool(unregistered_looky_names)):
             super().paint(painter, option, index)
             return
 
@@ -266,7 +266,12 @@ class SearchHighlightDelegate(ElidedTextTooltipDelegate):
             base_format.format = base_char_format
             formats.append(base_format)
 
-            if unregistered_looky_names and not isinstance(background_brush, (QColor, QBrush)) and text_color in _DEFAULT_FOREGROUND_COLORS:
+            if (
+                unregistered_looky_names is not None
+                and unregistered_looky_names
+                and not isinstance(background_brush, (QColor, QBrush))
+                and text_color in _DEFAULT_FOREGROUND_COLORS
+            ):
                 unregistered_looky_casefolded = {name.casefold() for name in unregistered_looky_names}
                 looky_format = QTextCharFormat()
                 is_disconnected = False

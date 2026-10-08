@@ -312,7 +312,7 @@ class SelectUsernamesDialog(QDialog):
 
     def selected_usernames(self) -> list[str]:
         """Return the list of selected or checked usernames."""
-        if self._double_clicked_username:
+        if self._double_clicked_username is not None and self._double_clicked_username:
             return [self._double_clicked_username]
         if self._multiple:
             checked = self._get_checked_usernames()

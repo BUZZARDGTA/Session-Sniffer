@@ -232,7 +232,7 @@ def fetch_and_parse_ping(ip: str) -> PingResult:
             cooldown = DEFAULT_RETRY_COOLDOWN
             if e.response is not None:
                 retry_after = e.response.headers.get('Retry-After')
-                if retry_after:
+                if retry_after is not None and retry_after:
                     cooldown = float(retry_after)
 
             with _endpoints_lock:
