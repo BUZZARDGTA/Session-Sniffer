@@ -36,6 +36,9 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
 _STANDARD_ICON_SIZE = 16
+_CONNECTED_TEXT_COLOR = QColor(TableColors.CONNECTED_TEXT)
+_DISCONNECTED_TEXT_COLOR = QColor(TableColors.DISCONNECTED_TEXT)
+_DEFAULT_FOREGROUND_COLORS = (_CONNECTED_TEXT_COLOR, _DISCONNECTED_TEXT_COLOR)
 
 
 class ElidedTextTooltipDelegate(QStyledItemDelegate):
@@ -173,6 +176,7 @@ class SearchHighlightDelegate(ElidedTextTooltipDelegate):
         text = index.data(Qt.ItemDataRole.DisplayRole)
         user_role_data = index.data(Qt.ItemDataRole.UserRole)
         unregistered_looky_names: set[str] | None = cast('set[str]', user_role_data) if isinstance(user_role_data, set) and user_role_data else None
+        background_brush = index.data(Qt.ItemDataRole.BackgroundRole)
 
         has_search_match = bool(search_column_matches and search_query and isinstance(text, str) and search_query.lower() in text.lower())
 
@@ -200,12 +204,10 @@ class SearchHighlightDelegate(ElidedTextTooltipDelegate):
                 painter.save()
                 painter.fillRect(cell_rectangle, option.palette.highlight())
                 painter.restore()
-            else:
-                background_brush = index.data(Qt.ItemDataRole.BackgroundRole)
-                if isinstance(background_brush, (QColor, QBrush)):
-                    painter.save()
-                    painter.fillRect(cell_rectangle, background_brush)
-                    painter.restore()
+            elif isinstance(background_brush, (QColor, QBrush)):
+                painter.save()
+                painter.fillRect(cell_rectangle, background_brush)
+                painter.restore()
 
         style_option = QStyleOptionViewItem(option)
         self.initStyleOption(style_option, index)
@@ -264,7 +266,7 @@ class SearchHighlightDelegate(ElidedTextTooltipDelegate):
             base_format.format = base_char_format
             formats.append(base_format)
 
-            if unregistered_looky_names:
+            if unregistered_looky_names and not isinstance(background_brush, (QColor, QBrush)) and text_color in _DEFAULT_FOREGROUND_COLORS:
                 unregistered_looky_casefolded = {name.casefold() for name in unregistered_looky_names}
                 looky_format = QTextCharFormat()
                 is_disconnected = False

@@ -356,10 +356,8 @@ def build_session_table_snapshot(
         if Settings.capture_filtered_isps and is_player_isp_filtered(player, Settings.capture_filtered_isps):
             continue
 
-        if player.userip and player.userip.usernames:
-            disconnected_row_colors = (
-                CellColor(foreground=_DISCONNECTED_USERIP_TEXT_COLOR, background=player.userip.settings.color),
-            ) * context.disconnected_num_columns
+        if player.userip:
+            disconnected_row_colors = (CellColor(foreground=_DISCONNECTED_USERIP_TEXT_COLOR, background=player.userip.settings.color),) * context.disconnected_num_columns
         elif Settings.gui_servers_color_enabled and player.is_third_party_server:
             disconnected_row_colors = _server_disconnected_row_colors
         else:
