@@ -211,7 +211,7 @@ class RateLimitClient:  # pylint: disable=too-few-public-methods
                     time_to_live_str = response.headers.get('X-Ttl')
 
                     try:
-                        time_to_live = int(time_to_live_str) if time_to_live_str else 60
+                        time_to_live = int(time_to_live_str) if bool(time_to_live_str) else 60
                     except ValueError:
                         time_to_live = 60
 
@@ -278,7 +278,7 @@ class GeoLite2Client:
             try:
                 record = self.reader.asn(ip)
                 organization = record.autonomous_system_organization or ''
-                autonomous_system_number = f'AS{record.autonomous_system_number}' if record.autonomous_system_number else ''
+                autonomous_system_number = f'AS{record.autonomous_system_number}' if bool(record.autonomous_system_number) else ''
                 lookup_result.update(
                     {
                         'status': 'success',
@@ -600,7 +600,7 @@ def scan_network_geolite2(
             if not isinstance(database_network, ipaddress.IPv4Network):
                 database_network = ipaddress.IPv4Network(f'{current_ip}/24', strict=False)
 
-            asn = f'AS{record.autonomous_system_number}' if record.autonomous_system_number else ''
+            asn = f'AS{record.autonomous_system_number}' if bool(record.autonomous_system_number) else ''
             data = {'isp': organization, 'org': organization, 'asname': organization, 'as': asn}
             if not organization:
                 # Not Found/empty organization - treat as neutral (skip) to avoid false positive suggestions
@@ -1199,14 +1199,14 @@ def check_range(  # noqa: PLR0913  # pylint: disable=too-many-arguments
         renderables.append(Rule('[bold white]Fix Suggestion[/bold white]'))
         renderables.append(Panel('\n'.join(mismatch_lines), title='[red]Base Check Mismatches[/red]', border_style='red', box=box.ROUNDED))
         fix_renderable, fix_raw = suggest_fix(active_client, owner, network, results, status)
-        if fix_renderable:
+        if fix_renderable is not None:
             renderables.append(fix_renderable)
 
     expansion_raw = ''
     if expansion_found:
         context = RangeContext(network, owner_networks)
         expansion_renderable, expansion_raw = suggest_expansion(active_client, owner, context, expandable_ip_addresses, status)
-        if expansion_renderable:
+        if expansion_renderable is not None:
             renderables.append(Text(''))
             renderables.append(Rule('[bold white]Expansion Available[/bold white]'))
             renderables.append(expansion_renderable)
@@ -1227,7 +1227,7 @@ def check_range(  # noqa: PLR0913  # pylint: disable=too-many-arguments
             f'[dim]{network.network_address} → {network.broadcast_address}[/dim]  •  '
             f'[bold white]{network.num_addresses:,} IPs[/bold white]'
         )
-        if file_path and line_number:
+        if file_path and line_number is not None:
             relative_path = os.path.relpath(file_path).replace('\\', '/')
             title += f'  •  [blue]{relative_path}:{line_number}[/blue]'
 

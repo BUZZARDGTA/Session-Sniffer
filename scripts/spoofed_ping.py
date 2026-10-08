@@ -400,7 +400,7 @@ def ping_loop(target_ip: str, session: requests.Session) -> None:
     while True:
         request_id, nodes = send_ping_request(target_ip)
 
-        if not request_id or not nodes:
+        if request_id is None or not request_id or nodes is None or not nodes:
             print_line(f'{Colors.RED}Failed to send ping request to {Colors.RED_LIGHT}{target_ip}{Colors.RED}.{Colors.RESET}')
 
             for i in range(100, 0, -1):

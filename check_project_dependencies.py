@@ -129,7 +129,7 @@ def check_pip_version() -> None:
     except (subprocess.CalledProcessError, IndexError, FileNotFoundError):
         print(f'{YELLOW}Warning: Failed to probe pip version.{RESET}')
 
-    if current_pip_version:
+    if current_pip_version is not None:
         pypi_data: object = fetch_json('https://pypi.org/pypi/pip/json')
         latest_pip_version: str | None = None
         if isinstance(pypi_data, dict):
@@ -141,7 +141,7 @@ def check_pip_version() -> None:
                 if isinstance(version_value, str):
                     latest_pip_version = version_value
 
-        if latest_pip_version:
+        if latest_pip_version is not None:
             if current_pip_version != latest_pip_version:
                 print(f'{CYAN}pip: {current_pip_version} -> {latest_pip_version}{RESET}')
                 print(f'{DARK_YELLOW}To upgrade pip, run: `python -m pip install --upgrade pip` (not performed by this script){RESET}')
@@ -236,7 +236,7 @@ def check_workflow_action_pins(repo_root: Path) -> None:
             cache[repository_key] = get_latest_github_tag(owner, repository_name)
 
         latest_tag = cache[repository_key]
-        if not latest_tag:
+        if latest_tag is None or not latest_tag:
             print(f'{DARK_YELLOW}  - {repository_key}@{current_ref} -> unable to resolve latest tag (API/rate/network).{RESET}')
             continue
 
