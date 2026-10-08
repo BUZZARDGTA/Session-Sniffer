@@ -404,7 +404,7 @@ def _build_host_diagnostics_snapshot(
                 packets_received=player.packets.received,
                 packets_exchanged=player.packets.exchanged,
                 packet_status=packets_status,
-                is_host=bool(result.detected_host is not None and player.ip == result.detected_host.ip),
+                is_host=result.detected_host is not None and player.ip == result.detected_host.ip,
                 is_pending_disconnection=player in SessionHost.players_pending_for_disconnection,
                 is_relayed=not bool(player.packets.received),
                 is_disconnected=player.left_event.is_set(),
@@ -521,7 +521,7 @@ def _build_host_diagnostics_snapshot(
 
     return HostDiagnosticsSnapshot(
         timestamp=now,
-        success=bool(detected_host is not None),
+        success=detected_host is not None,
         outcome=result.outcome,
         rejection_reason=result.rejection_reason,
         detected_host_ip=host_ip,
