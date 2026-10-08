@@ -22,6 +22,7 @@ from PySide6.QtGui import (
 )
 from PySide6.QtWidgets import (
     QAbstractItemView,
+    QApplication,
     QStyle,
     QStyledItemDelegate,
     QStyleOptionViewItem,
@@ -227,34 +228,34 @@ class SearchHighlightDelegate(ElidedTextTooltipDelegate):
             painter.save()
             painter.setFont(font)
 
-            icon_offset = 0
+            view = self.parent()
+            widget = view if isinstance(view, QWidget) else None
+            style = widget.style() if widget is not None else QApplication.style()
+
+            decoration_rectangle = style.subElementRect(QStyle.SubElement.SE_ItemViewItemDecoration, style_option, widget)
+            text_rectangle = style.subElementRect(QStyle.SubElement.SE_ItemViewItemText, style_option, widget)
+            text_margin = style.pixelMetric(QStyle.PixelMetric.PM_FocusFrameHMargin, style_option, widget) + 1
+
             icon_data = index.data(Qt.ItemDataRole.DecorationRole)
             if isinstance(icon_data, (QIcon, QPixmap)) and not (isinstance(icon_data, QIcon) and icon_data.isNull()):
-                view = self.parent()
-                icon_size = view.iconSize() if isinstance(view, QAbstractItemView) else None
-                if icon_size is None or not icon_size.isValid():
-                    icon_size = option.decorationSize if option.decorationSize.isValid() else None
-                if icon_size is None or not icon_size.isValid():
-                    icon_size = QSize(16, 16)
                 icon_rectangle = QRect(
-                    cell_rectangle.left() + 6,
-                    cell_rectangle.top() + (cell_rectangle.height() - icon_size.height()) // 2,
-                    icon_size.width(),
-                    icon_size.height(),
+                    decoration_rectangle.left(),
+                    cell_rectangle.top() + (cell_rectangle.height() - style_option.decorationSize.height()) // 2,
+                    style_option.decorationSize.width(),
+                    style_option.decorationSize.height(),
                 )
                 if isinstance(icon_data, QIcon):
                     icon_data.paint(painter, icon_rectangle, Qt.AlignmentFlag.AlignCenter)
                 else:
                     painter.drawPixmap(icon_rectangle, icon_data)
-                icon_offset = icon_size.width() + 6
 
-            text_rectangle = cell_rectangle.adjusted(6 + icon_offset, 0, -6, 0)
             painter.setClipRect(cell_rectangle)
 
             font_metrics = QFontMetrics(font)
             display_text = text
-            if font_metrics.horizontalAdvance(text) > text_rectangle.width():
-                display_text = font_metrics.elidedText(text, Qt.TextElideMode.ElideRight, text_rectangle.width())
+            usable_text_width = max(0, text_rectangle.width() - text_margin * 2)
+            if font_metrics.horizontalAdvance(text) > usable_text_width:
+                display_text = font_metrics.elidedText(text, Qt.TextElideMode.ElideRight, usable_text_width)
 
             formats: list[QTextLayout.FormatRange] = []
 
@@ -342,19 +343,19 @@ class SearchHighlightDelegate(ElidedTextTooltipDelegate):
             layout.beginLayout()
             line = layout.createLine()
             if line.isValid():
-                line.setLineWidth(text_rectangle.width())
+                line.setLineWidth(usable_text_width)
             layout.endLayout()
 
-            vertical_offset = text_rectangle.top() + max(0, round((text_rectangle.height() - line.height()) / 2))
+            vertical_offset = cell_rectangle.top() + max(0, round((cell_rectangle.height() - line.height()) / 2))
 
             alignment_data = index.data(Qt.ItemDataRole.TextAlignmentRole)
             alignment = Qt.AlignmentFlag(alignment_data) if isinstance(alignment_data, int) else Qt.AlignmentFlag.AlignLeft
             if bool(alignment & Qt.AlignmentFlag.AlignRight):
-                horizontal_offset = text_rectangle.right() - line.naturalTextWidth()
+                horizontal_offset = text_rectangle.right() - line.naturalTextWidth() - text_margin
             elif bool(alignment & Qt.AlignmentFlag.AlignHCenter):
                 horizontal_offset = text_rectangle.left() + max(0.0, (text_rectangle.width() - line.naturalTextWidth()) / 2)
             else:
-                horizontal_offset = float(text_rectangle.left())
+                horizontal_offset = float(text_rectangle.left() + text_margin)
 
             layout.draw(painter, QPointF(horizontal_offset, float(vertical_offset)))
             painter.restore()
