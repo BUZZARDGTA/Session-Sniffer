@@ -65,6 +65,8 @@ class _DetectionChecklistItem:
     title: str
     passed: bool
     detail: str
+    badge_text: str | None = None
+    badge_stylesheet: str | None = None
 
 
 class SessionHostDiagnosticsDialog(QDialog):
@@ -146,11 +148,7 @@ class SessionHostDiagnosticsDialog(QDialog):
         checklist_widget = self._build_checklist_section()
         self._content_layout.addWidget(checklist_widget)
 
-        # 4. Timing analysis
-        timing_widget = self._build_timing_section()
-        self._content_layout.addWidget(timing_widget)
-
-        # 5. Candidates section
+        # 4. Candidates section
         candidates_widget = self._build_candidates_section()
         self._content_layout.addWidget(candidates_widget)
 
@@ -236,8 +234,7 @@ class SessionHostDiagnosticsDialog(QDialog):
         layout.addLayout(info_layout, stretch=1)
 
         if is_success and self._snapshot.detected_host_ip:
-            actions_container = QWidget()
-            actions_layout = QVBoxLayout(actions_container)
+            actions_layout = QVBoxLayout()
             actions_layout.setContentsMargins(0, 0, 0, 0)
             actions_layout.setSpacing(6)
 
@@ -260,7 +257,7 @@ class SessionHostDiagnosticsDialog(QDialog):
                 )
                 actions_layout.addWidget(copy_host_usernames_button)
 
-            layout.addWidget(actions_container, alignment=Qt.AlignmentFlag.AlignVCenter)
+            layout.addLayout(actions_layout)
 
         return hero_frame
 
@@ -354,10 +351,13 @@ class SessionHostDiagnosticsDialog(QDialog):
             status_badge.setStyleSheet(HOST_BADGE_SUCCESS_STYLESHEET if item.passed else HOST_BADGE_DANGER_STYLESHEET)
             status_badge.setFixedWidth(scale_by_ui(44))
             status_badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            row_layout.addWidget(status_badge)
+            row_layout.addWidget(status_badge, alignment=Qt.AlignmentFlag.AlignTop)
 
             text_layout = QVBoxLayout()
-            text_layout.setSpacing(2)
+            text_layout.setSpacing(3)
+
+            title_row = QHBoxLayout()
+            title_row.setSpacing(8)
 
             title_label = QLabel(item.title)
             title_font = QFont()
@@ -365,7 +365,17 @@ class SessionHostDiagnosticsDialog(QDialog):
             title_font.setPointSize(9)
             title_label.setFont(title_font)
             title_label.setStyleSheet('color: #e2e8f0;' if item.passed else 'color: #fca5a5;')
-            text_layout.addWidget(title_label)
+            title_row.addWidget(title_label)
+
+            title_row.addStretch(1)
+
+            if item.badge_text is not None and item.badge_stylesheet is not None:
+                metric_badge = QLabel(item.badge_text)
+                metric_badge.setStyleSheet(item.badge_stylesheet)
+                metric_badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                title_row.addWidget(metric_badge)
+
+            text_layout.addLayout(title_row)
 
             detail_label = QLabel(item.detail)
             detail_label.setStyleSheet('color: #94a3b8; font-size: 8.5pt;')
@@ -395,11 +405,17 @@ class SessionHostDiagnosticsDialog(QDialog):
         else:
             candidates_detail = f'{p2p_count} direct P2P candidate{pluralize(p2p_count)} identified in session'
 
+        p2p_passed = p2p_count > 0
+        p2p_badge = f'{p2p_count} Direct P2P' if p2p_passed else '0 Direct P2P'
+        p2p_badge_style = HOST_BADGE_SUCCESS_STYLESHEET if p2p_passed else HOST_BADGE_DANGER_STYLESHEET
+
         items.append(
             _DetectionChecklistItem(
                 title='Direct P2P Candidates',
-                passed=p2p_count > 0,
+                passed=p2p_passed,
                 detail=candidates_detail,
+                badge_text=p2p_badge,
+                badge_stylesheet=p2p_badge_style,
             )
         )
 
@@ -407,6 +423,8 @@ class SessionHostDiagnosticsDialog(QDialog):
         if self._snapshot.success:
             activity_passed = True
             activity_detail = 'Candidate is active and connected'
+            activity_badge = 'Active & Connected'
+            activity_badge_style = HOST_BADGE_SUCCESS_STYLESHEET
         elif self._snapshot.candidates:
             active_candidates = [
                 candidate
@@ -415,59 +433,84 @@ class SessionHostDiagnosticsDialog(QDialog):
             ]
             activity_passed = bool(active_candidates)
             active_count = len(active_candidates)
-            activity_detail = (
-                f'{active_count} candidate{pluralize(active_count)} active and connected'
-                if activity_passed
-                else 'All candidates are disconnected or pending disconnection'
-            )
+            if activity_passed:
+                activity_detail = f'{active_count} candidate{pluralize(active_count)} active and connected'
+                activity_badge = f'{active_count} Active'
+                activity_badge_style = HOST_BADGE_SUCCESS_STYLESHEET
+            else:
+                activity_detail = 'All candidates are disconnected or pending disconnection'
+                activity_badge = 'Disconnected'
+                activity_badge_style = HOST_BADGE_DANGER_STYLESHEET
         else:
             activity_passed = False
             activity_detail = 'No candidates available to evaluate activity'
+            activity_badge = 'No Candidates'
+            activity_badge_style = HOST_BADGE_MUTED_STYLESHEET
 
         items.append(
             _DetectionChecklistItem(
                 title='Candidate Activity',
                 passed=activity_passed,
                 detail=activity_detail,
+                badge_text=activity_badge,
+                badge_stylesheet=activity_badge_style,
             )
         )
 
-        # 4. Connection Timing Window
+        # 3. Connection Timing Window
+        timing_badge: str
+        timing_badge_style: str
         if self._snapshot.success:
             timing_passed = True
             if self._snapshot.timing_gap_seconds is not None:
                 gap_ms = self._snapshot.timing_gap_seconds * 1000
-                timing_detail = f'Join separation ({gap_ms:.1f}ms) within valid window (50ms - 1,600ms)'
+                timing_badge = f'✓ Within Window ({gap_ms:.1f}ms)'
+                timing_badge_style = HOST_BADGE_SUCCESS_STYLESHEET
+                timing_detail = self._snapshot.timing_resolution or f'Join separation ({gap_ms:.1f}ms) within valid window (50ms - 1,600ms)'
             else:
-                timing_detail = 'Single candidate in session (timing comparison not required)'
+                timing_badge = 'Single Candidate'
+                timing_badge_style = HOST_BADGE_INFO_STYLESHEET
+                timing_detail = self._snapshot.timing_resolution or 'Single candidate in session (timing comparison not required)'
         elif self._snapshot.timing_gap_seconds is not None:
             gap_ms = self._snapshot.timing_gap_seconds * 1000
+            gap_text = f'{self._snapshot.timing_gap_seconds:.3f}s' if self._snapshot.timing_gap_seconds >= 1.0 else f'{gap_ms:.1f}ms'
             if _SESSION_HOST_AMBIGUITY_MIN_THRESHOLD_MS <= gap_ms <= _SESSION_HOST_AMBIGUITY_MAX_THRESHOLD_MS:
                 timing_passed = True
-                timing_detail = f'Join separation ({gap_ms:.1f}ms) within valid window (50ms - 1,600ms)'
+                timing_badge = f'✓ Within Window ({gap_ms:.1f}ms)'
+                timing_badge_style = HOST_BADGE_SUCCESS_STYLESHEET
+                timing_detail = self._snapshot.timing_resolution or f'Join separation ({gap_ms:.1f}ms) within valid window (50ms - 1,600ms)'
             elif gap_ms < _SESSION_HOST_AMBIGUITY_MIN_THRESHOLD_MS:
                 timing_passed = False
-                timing_detail = f'Ambiguous ({gap_ms:.1f}ms < 50ms): players connected simultaneously'
+                timing_badge = f'✕ Too Close ({gap_ms:.1f}ms < 50ms)'
+                timing_badge_style = HOST_BADGE_WARNING_STYLESHEET
+                timing_detail = self._snapshot.timing_resolution or f'Ambiguous ({gap_ms:.1f}ms < 50ms): players connected simultaneously'
             else:
                 timing_passed = False
-                gap_text = f'{self._snapshot.timing_gap_seconds:.3f}s' if self._snapshot.timing_gap_seconds >= 1.0 else f'{gap_ms:.1f}ms'
-                timing_detail = f'Gap too large ({gap_text} > 1,600ms): candidates did not join together'
+                timing_badge = f'✕ Exceeds Window ({gap_text} > 1600ms)'
+                timing_badge_style = HOST_BADGE_DANGER_STYLESHEET
+                timing_detail = self._snapshot.timing_resolution or f'Gap too large ({gap_text} > 1,600ms): candidates did not join together'
         elif len(self._snapshot.candidates) == 1:
             timing_passed = True
-            timing_detail = 'Single candidate in session (timing comparison not required)'
+            timing_badge = 'Single Candidate'
+            timing_badge_style = HOST_BADGE_INFO_STYLESHEET
+            timing_detail = self._snapshot.timing_resolution or 'Single candidate in session (timing comparison not required)'
         else:
             timing_passed = False
-            timing_detail = 'No candidates available for timing comparison'
+            timing_badge = 'N/A'
+            timing_badge_style = HOST_BADGE_MUTED_STYLESHEET
+            timing_detail = self._snapshot.timing_resolution or 'No candidates available for timing comparison'
 
         items.append(
             _DetectionChecklistItem(
                 title='Connection Timing Window',
                 passed=timing_passed,
                 detail=timing_detail,
+                badge_text=timing_badge,
+                badge_stylesheet=timing_badge_style,
             )
         )
 
-        # 5. Packet Threshold Criteria
+        # 4. Packet Threshold Criteria
         if self._snapshot.success:
             packet_passed = True
             host_candidate = next(
@@ -481,6 +524,8 @@ class SessionHostDiagnosticsDialog(QDialog):
                 )
             else:
                 packet_detail = 'Candidate packet counts within valid bounds (>= 9 sent, <= 1,000 exchanged)'
+            packet_badge = 'Eligible Packets'
+            packet_badge_style = HOST_BADGE_SUCCESS_STYLESHEET
         elif self._snapshot.candidates:
             has_under_sent = any(
                 candidate.packet_status == 'Not enough sent' or candidate.packets_sent < _MINIMUM_PACKETS_FOR_RELAY_SESSION_HOST
@@ -493,93 +538,38 @@ class SessionHostDiagnosticsDialog(QDialog):
             if has_under_sent:
                 packet_passed = False
                 packet_detail = f'Candidate has not sent enough packets (>= {_MINIMUM_PACKETS_FOR_RELAY_SESSION_HOST} required to rule out transient probes)'
+                packet_badge = f'✕ < {_MINIMUM_PACKETS_FOR_RELAY_SESSION_HOST} Sent'
+                packet_badge_style = HOST_BADGE_WARNING_STYLESHEET
             elif has_over_exchanged:
                 packet_passed = False
                 packet_detail = f'Candidate exchanged > {_SESSION_HOST_MAX_PACKETS_FOR_DETECTION:,} packets (session already in progress)'
+                packet_badge = f'✕ > {_SESSION_HOST_MAX_PACKETS_FOR_DETECTION:,} Exchanged'
+                packet_badge_style = HOST_BADGE_DANGER_STYLESHEET
             else:
                 packet_passed = True
                 packet_detail = (
                     f'Candidate packet counts within valid bounds (>= {_MINIMUM_PACKETS_FOR_RELAY_SESSION_HOST} sent, '
                     f'<= {_SESSION_HOST_MAX_PACKETS_FOR_DETECTION:,} exchanged)'
                 )
+                packet_badge = 'Eligible Packets'
+                packet_badge_style = HOST_BADGE_SUCCESS_STYLESHEET
         else:
             packet_passed = False
             packet_detail = 'No candidates to evaluate packet thresholds'
+            packet_badge = 'No Candidates'
+            packet_badge_style = HOST_BADGE_MUTED_STYLESHEET
 
         items.append(
             _DetectionChecklistItem(
                 title='Packet Threshold Criteria',
                 passed=packet_passed,
                 detail=packet_detail,
+                badge_text=packet_badge,
+                badge_stylesheet=packet_badge_style,
             )
         )
 
         return items
-
-    def _build_timing_section(self) -> QWidget:
-        card = QFrame()
-        card.setObjectName('hostSectionCard')
-        card.setStyleSheet(HOST_DIAGNOSTICS_SECTION_CARD_STYLESHEET)
-
-        layout = QVBoxLayout(card)
-        layout.setContentsMargins(12, 10, 12, 10)
-        layout.setSpacing(8)
-
-        # Header
-        header_layout = QHBoxLayout()
-        header_layout.setSpacing(8)
-
-        icon_label = QLabel()
-        icon_path = RESOURCES_DIR_PATH / 'icons' / 'timer.svg'
-        if icon_path.exists():
-            icon_label.setPixmap(QIcon(str(icon_path)).pixmap(scale_by_ui(16), scale_by_ui(16)))
-        header_layout.addWidget(icon_label)
-
-        title = QLabel('Timing Analysis')
-        title.setStyleSheet('color: #f1f5f9; font-weight: bold; font-size: 9.5pt;')
-        header_layout.addWidget(title)
-
-        header_layout.addStretch(1)
-
-        # Timing status pill badge
-        badge = QLabel()
-        if self._snapshot.timing_gap_seconds is not None:
-            gap_ms = self._snapshot.timing_gap_seconds * 1000
-            if _SESSION_HOST_AMBIGUITY_MIN_THRESHOLD_MS <= gap_ms <= _SESSION_HOST_AMBIGUITY_MAX_THRESHOLD_MS:
-                badge.setText(f'✓ Within Window ({gap_ms:.1f}ms)')
-                badge.setStyleSheet(HOST_BADGE_SUCCESS_STYLESHEET)
-            elif gap_ms < _SESSION_HOST_AMBIGUITY_MIN_THRESHOLD_MS:
-                badge.setText(f'✕ Too Close ({gap_ms:.1f}ms < 50ms)')
-                badge.setStyleSheet(HOST_BADGE_WARNING_STYLESHEET)
-            else:
-                badge.setText(f'✕ Exceeds Window ({gap_ms:.1f}ms > 1600ms)')
-                badge.setStyleSheet(HOST_BADGE_DANGER_STYLESHEET)
-        elif len(self._snapshot.candidates) == 1:
-            badge.setText('Single Candidate')
-            badge.setStyleSheet(HOST_BADGE_INFO_STYLESHEET)
-        else:
-            badge.setText('N/A')
-            badge.setStyleSheet(HOST_BADGE_MUTED_STYLESHEET)
-
-        header_layout.addWidget(badge)
-        layout.addLayout(header_layout)
-
-        # Criteria & Resolution text
-        criteria_label = QLabel(
-            f'Window Criterion: {_SESSION_HOST_AMBIGUITY_MIN_THRESHOLD_MS:.0f}ms - {_SESSION_HOST_AMBIGUITY_MAX_THRESHOLD_MS:.0f}ms '
-            f'between Candidate #1 and #2 connection times.'
-        )
-        criteria_label.setStyleSheet('color: #64748b; font-size: 8pt;')
-        layout.addWidget(criteria_label)
-
-        resolution_text = self._snapshot.timing_resolution or 'Timing comparison was not required.'
-        desc = QLabel(resolution_text)
-        desc.setWordWrap(True)
-        desc.setStyleSheet('color: #cbd5e1; font-size: 8.5pt;')
-        desc.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-        layout.addWidget(desc)
-
-        return card
 
     def _build_candidates_section(self) -> QWidget:
         container = QWidget()
