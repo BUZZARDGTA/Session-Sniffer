@@ -31,6 +31,7 @@ if SOURCE_PATH not in sys.path:
 
 from session_sniffer.guis.utils import format_duration  # pylint: disable=wrong-import-position  # noqa: E402
 from session_sniffer.networking.http_session import HEADERS  # pylint: disable=wrong-import-position  # noqa: E402
+from session_sniffer.text_utils import pluralize  # pylint: disable=wrong-import-position  # noqa: E402
 
 # Dedicated session for ip-api.com with NO automatic retries.
 # The shared `session` from http_session.py has urllib3 Retry(total=3) which silently
@@ -71,6 +72,27 @@ SUBNET_BLOCK_SIZE = 256  # /24 boundary alignment
 MAX_DISPLAYED_OWNERS = 3
 STALE_CONNECTION_THRESHOLD = 10  # seconds; close pooled connections after sleeps longer than this
 MAX_ERROR_BACKOFF = 120
+MAX_IP_API_SUBNET_PREFIX = 12  # Skip ranges <= /12 (>= 1M IPs) when using IP-API
+
+# Owners skipped unconditionally across all verification engines (GeoLite2 and IP-API).
+# Reasons:
+#   - BattlEye: Hosted across diverse third-party server providers without dedicated ASN.
+#   - Tellas Greece: Merged ISP (WIND Hellas / Nova) lacking distinct ASN.
+#   - Google LLC: 100+ ranges with widespread Anycast / YouTube / Cloud re-allocations.
+ALWAYS_SKIPPED_OWNERS: set[str] = {
+    'BattlEye',
+    'Tellas Greece',
+    'Google LLC',
+}
+
+# Owners skipped specifically when using IP-API due to rate-limit exhaustion (14 req/min),
+# enormous range volume, or noisy transit detections across customer sub-allocations.
+# (These owners are fully verified offline via GeoLite2 in seconds).
+IP_API_SKIPPED_OWNERS: set[str] = {
+    'Amazon.com, Inc.',  # 958 ranges; exhausts API token bucket (~25 minutes to query)
+    'Microsoft Corporation',  # 61 ranges; extensive Azure cloud IP allocations
+    'Level 3 Parent, LLC',  # 187 ranges; tier 1 transit provider with noisy customer expansion false positives
+}
 
 
 class RateLimitClient:  # pylint: disable=too-few-public-methods
@@ -447,6 +469,9 @@ KNOWN_ALIASES: dict[str, list[str]] = {
     'i3D.net B.V': [
         'i3d.net',
         'i3d',
+    ],
+    'Zenlayer Inc': [
+        'zen',
     ],
 }
 
@@ -837,6 +862,10 @@ def suggest_expansion(
     status: Status,
 ) -> tuple[RenderableType | None, str]:
     """Binary-search outward from expandable adjacent blocks to find the full owner boundary."""
+    if isinstance(client, RateLimitClient):
+        raw_text = f'Expandable adjacent IP{pluralize(len(expandable_ip_addresses))}: {", ".join(expandable_ip_addresses)}'
+        return Text(f'[EXPAND SUGGESTION] {raw_text}', style='magenta'), raw_text
+
     start_block = int(context.network.network_address) // SUBNET_BLOCK_SIZE
     end_block = int(context.network.broadcast_address) // SUBNET_BLOCK_SIZE
 
@@ -1039,11 +1068,14 @@ def check_range(  # noqa: PLR0913  # pylint: disable=too-many-arguments
                         mismatches_raw.append(f'✗ {cidr_range} ({start_ip} - {end_ip}) → {actual_owner}')
             elif not matching_networks:
                 if fallback_client:
-                    status.update(
-                        f'{progress_prefix}[bold cyan]Scanning [/bold cyan][bold white]{owner}[/bold white] '
-                        f'[bold cyan]([/bold cyan][bold magenta]{network.with_prefixlen}[/bold magenta]'
-                        f'[bold cyan])... [yellow]Fallback to IP-API[/yellow][/bold cyan]'
-                    )
+                    if owner in IP_API_SKIPPED_OWNERS or network.prefixlen <= MAX_IP_API_SUBNET_PREFIX:
+                        pass
+                    else:
+                        status.update(
+                            f'{progress_prefix}[bold cyan]Scanning [/bold cyan][bold white]{owner}[/bold white] '
+                            f'[bold cyan]([/bold cyan][bold magenta]{network.with_prefixlen}[/bold magenta]'
+                            f'[bold cyan])... [yellow]Fallback to IP-API[/yellow][/bold cyan]'
+                        )
                     fallback_results = lookup_ips_batch(fallback_client, all_ip_addresses)
                     results.update(fallback_results)
                     active_client = fallback_client
@@ -1330,16 +1362,26 @@ def run_preflight_checks(
     )
 
 
-def should_skip(owner: str, *, use_geolite2: bool) -> bool:
-    """Return True if range verification should be skipped for this owner."""
-    del use_geolite2
-    return owner in {
-        'BattlEye',
-        'Tellas Greece',
-        'Google LLC',
-        # 'Amazon.com, Inc.',
-        # 'Microsoft Corporation',
-    }
+def should_skip(
+    owner: str,
+    cidr_range: str = '',
+    *,
+    use_geolite2: bool,
+) -> bool:
+    """Return True if range verification should be skipped for this owner or range."""
+    if owner in ALWAYS_SKIPPED_OWNERS:
+        return True
+
+    if not use_geolite2:
+        if owner in IP_API_SKIPPED_OWNERS:
+            return True
+        if cidr_range:
+            with contextlib.suppress(ValueError, TypeError):
+                network = ipaddress.ip_network(cidr_range)
+                if isinstance(network, ipaddress.IPv4Network) and network.prefixlen <= MAX_IP_API_SUBNET_PREFIX:
+                    return True
+
+    return False
 
 
 def main() -> None:
@@ -1397,7 +1439,7 @@ def main() -> None:
     # Collect all IPs to pre-fetch for non-skipped ranges
     ip_to_owners: dict[str, set[str]] = {}
     for owner, cidr_range, _ in ranges:
-        if not should_skip(owner, use_geolite2=parsed_arguments.geolite2):
+        if not should_skip(owner, cidr_range, use_geolite2=parsed_arguments.geolite2):
             with contextlib.suppress(ValueError, TypeError):
                 network = ipaddress.ip_network(cidr_range)
                 if isinstance(network, ipaddress.IPv4Network):
@@ -1459,7 +1501,7 @@ def main() -> None:
         console.print()  # Add a newline for visual separation before skipping/checking ranges
 
     # Count total non-skipped ranges first
-    total_count = sum(1 for owner, _, _ in ranges if not should_skip(owner, use_geolite2=parsed_arguments.geolite2))
+    total_count = sum(1 for owner, cidr_range, _ in ranges if not should_skip(owner, cidr_range, use_geolite2=parsed_arguments.geolite2))
 
     detections: list[str] = []
     current_index = 0
@@ -1501,7 +1543,7 @@ def main() -> None:
             fallback_client.sleep_callback = verification_sleep_callback
 
         for owner, cidr_range, line_number in ranges:
-            if should_skip(owner, use_geolite2=parsed_arguments.geolite2):
+            if should_skip(owner, cidr_range, use_geolite2=parsed_arguments.geolite2):
                 if not parsed_arguments.only_detections:
                     clean_relative_path = os.path.relpath(str(parsed_arguments.ranges_file)).replace('\\', '/')
                     link_suffix = f'  •  [blue]{clean_relative_path}:{line_number}[/blue]' if clean_relative_path else ''
@@ -1544,7 +1586,7 @@ def main() -> None:
 
     console.print(f'  [green]✓ Successfully verified [bold]{total_count}[/bold] ranges in [bold]{time_str}[/bold].[/green]')
     if skipped_count > 0:
-        console.print(f'  [dim]ℹ Skipped [bold]{skipped_count}[/bold] ranges (ignored owners).[/dim]')  # noqa: RUF001
+        console.print(f'  [dim]ℹ Skipped [bold]{skipped_count}[/bold] ranges (ignored owners / huge ranges).[/dim]')  # noqa: RUF001
 
     if parsed_arguments.export:
         export_path = Path(parsed_arguments.export)
