@@ -1,5 +1,6 @@
 """Dedicated dialog for inspecting Session Host detection diagnostics."""
 
+from dataclasses import dataclass
 from datetime import datetime
 from typing import TYPE_CHECKING
 
@@ -11,6 +12,7 @@ from PySide6.QtWidgets import (
     QGridLayout,
     QHBoxLayout,
     QLabel,
+    QLayout,
     QPlainTextEdit,
     QPushButton,
     QScrollArea,
@@ -30,6 +32,7 @@ from session_sniffer.guis.stylesheets import (
     HOST_BADGE_WARNING_STYLESHEET,
     HOST_DIAGNOSTICS_CANDIDATE_CARD_STYLESHEET,
     HOST_DIAGNOSTICS_CANDIDATE_HOST_STYLESHEET,
+    HOST_DIAGNOSTICS_CHECKLIST_ROW_STYLESHEET,
     HOST_DIAGNOSTICS_HERO_FAILURE_STYLESHEET,
     HOST_DIAGNOSTICS_HERO_SUCCESS_STYLESHEET,
     HOST_DIAGNOSTICS_SECTION_CARD_STYLESHEET,
@@ -53,6 +56,17 @@ if TYPE_CHECKING:
 
 _SESSION_HOST_AMBIGUITY_MIN_THRESHOLD_MS: float = 50.0
 _SESSION_HOST_AMBIGUITY_MAX_THRESHOLD_MS: float = 1600.0
+_MINIMUM_PACKETS_FOR_RELAY_SESSION_HOST: int = 9
+_SESSION_HOST_MAX_PACKETS_FOR_DETECTION: int = 1000
+
+
+@dataclass(slots=True)
+class _DetectionChecklistItem:
+    """Internal model for a single evaluation checklist row."""
+
+    title: str
+    passed: bool
+    detail: str
 
 
 class SessionHostDiagnosticsDialog(QDialog):
@@ -107,7 +121,7 @@ class SessionHostDiagnosticsDialog(QDialog):
         self._snapshot = snapshot
         self._rebuild_content()
 
-    def _clear_layout(self, layout: QVBoxLayout) -> None:
+    def _clear_layout(self, layout: QLayout) -> None:
         while layout.count():
             item = layout.takeAt(0)
             if item is None:
@@ -117,7 +131,7 @@ class SessionHostDiagnosticsDialog(QDialog):
                 widget.deleteLater()
             sub_layout = item.layout()
             if sub_layout is not None:
-                self._clear_layout(sub_layout)  # type: ignore[arg-type]
+                self._clear_layout(sub_layout)
 
     def _rebuild_content(self) -> None:
         self._clear_layout(self._content_layout)
@@ -130,11 +144,15 @@ class SessionHostDiagnosticsDialog(QDialog):
         stats_widget = self._build_stats_section()
         self._content_layout.addWidget(stats_widget)
 
-        # 3. Timing analysis
+        # 3. Detection criteria checklist
+        checklist_widget = self._build_checklist_section()
+        self._content_layout.addWidget(checklist_widget)
+
+        # 4. Timing analysis
         timing_widget = self._build_timing_section()
         self._content_layout.addWidget(timing_widget)
 
-        # 4. Candidates section
+        # 5. Candidates section
         candidates_widget = self._build_candidates_section()
         self._content_layout.addWidget(candidates_widget)
 
@@ -224,11 +242,31 @@ class SessionHostDiagnosticsDialog(QDialog):
         layout.addLayout(info_layout, stretch=1)
 
         if is_success and self._snapshot.detected_host_ip:
+            actions_container = QWidget()
+            actions_layout = QVBoxLayout(actions_container)
+            actions_layout.setContentsMargins(0, 0, 0, 0)
+            actions_layout.setSpacing(6)
+
             copy_host_ip_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), ' Copy Host IP')
             copy_host_ip_button.setStyleSheet(COMPACT_BUTTON_STYLESHEET)
             detected_ip = self._snapshot.detected_host_ip
-            copy_host_ip_button.clicked.connect(lambda: self._copy_ip(copy_host_ip_button, detected_ip))
-            layout.addWidget(copy_host_ip_button, alignment=Qt.AlignmentFlag.AlignVCenter)
+            copy_host_ip_button.clicked.connect(lambda: self._copy_text(copy_host_ip_button, detected_ip))
+            actions_layout.addWidget(copy_host_ip_button)
+
+            if self._snapshot.detected_host_usernames:
+                usernames_count = len(self._snapshot.detected_host_usernames)
+                copy_host_usernames_button = QPushButton(
+                    QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')),
+                    f' Copy Host Username{pluralize(usernames_count)}',
+                )
+                copy_host_usernames_button.setStyleSheet(COMPACT_BUTTON_STYLESHEET)
+                detected_usernames = ', '.join(self._snapshot.detected_host_usernames)
+                copy_host_usernames_button.clicked.connect(
+                    lambda: self._copy_text(copy_host_usernames_button, detected_usernames)
+                )
+                actions_layout.addWidget(copy_host_usernames_button)
+
+            layout.addWidget(actions_container, alignment=Qt.AlignmentFlag.AlignVCenter)
 
         return hero_frame
 
@@ -267,6 +305,222 @@ class SessionHostDiagnosticsDialog(QDialog):
             layout.addWidget(box)
 
         return container
+
+    def _build_checklist_section(self) -> QWidget:
+        card = QFrame()
+        card.setObjectName('hostSectionCard')
+        card.setStyleSheet(HOST_DIAGNOSTICS_SECTION_CARD_STYLESHEET)
+
+        layout = QVBoxLayout(card)
+        layout.setContentsMargins(12, 10, 12, 10)
+        layout.setSpacing(6)
+
+        # Header
+        header_layout = QHBoxLayout()
+        header_layout.setSpacing(8)
+
+        icon_label = QLabel()
+        icon_path = RESOURCES_DIR_PATH / 'icons' / 'check.svg'
+        if icon_path.exists():
+            icon_label.setPixmap(QIcon(str(icon_path)).pixmap(scale_by_ui(16), scale_by_ui(16)))
+        header_layout.addWidget(icon_label)
+
+        title = QLabel('Detection Criteria Checklist')
+        title.setStyleSheet('color: #f1f5f9; font-weight: bold; font-size: 9.5pt;')
+        header_layout.addWidget(title)
+
+        header_layout.addStretch(1)
+
+        items = self._compute_checklist_items()
+        passed_count = sum(1 for item in items if item.passed)
+        total_count = len(items)
+
+        summary_badge = QLabel(f'{passed_count}/{total_count} Passed')
+        if passed_count == total_count:
+            summary_badge.setStyleSheet(HOST_BADGE_SUCCESS_STYLESHEET)
+        elif passed_count > 0:
+            summary_badge.setStyleSheet(HOST_BADGE_WARNING_STYLESHEET)
+        else:
+            summary_badge.setStyleSheet(HOST_BADGE_DANGER_STYLESHEET)
+        header_layout.addWidget(summary_badge)
+
+        layout.addLayout(header_layout)
+
+        # Rows
+        for item in items:
+            row = QFrame()
+            row.setObjectName('hostChecklistRow')
+            row.setStyleSheet(HOST_DIAGNOSTICS_CHECKLIST_ROW_STYLESHEET)
+
+            row_layout = QHBoxLayout(row)
+            row_layout.setContentsMargins(8, 6, 8, 6)
+            row_layout.setSpacing(10)
+
+            status_badge = QLabel('PASS' if item.passed else 'FAIL')
+            status_badge.setStyleSheet(HOST_BADGE_SUCCESS_STYLESHEET if item.passed else HOST_BADGE_DANGER_STYLESHEET)
+            status_badge.setFixedWidth(scale_by_ui(44))
+            status_badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            row_layout.addWidget(status_badge)
+
+            text_layout = QVBoxLayout()
+            text_layout.setSpacing(2)
+
+            title_label = QLabel(item.title)
+            title_font = QFont()
+            title_font.setBold(True)
+            title_font.setPointSize(9)
+            title_label.setFont(title_font)
+            title_label.setStyleSheet('color: #e2e8f0;' if item.passed else 'color: #fca5a5;')
+            text_layout.addWidget(title_label)
+
+            detail_label = QLabel(item.detail)
+            detail_label.setStyleSheet('color: #94a3b8; font-size: 8.5pt;')
+            detail_label.setWordWrap(True)
+            text_layout.addWidget(detail_label)
+
+            row_layout.addLayout(text_layout, stretch=1)
+            layout.addWidget(row)
+
+        return card
+
+    def _compute_checklist_items(self) -> list[_DetectionChecklistItem]:
+        """Compute the evaluation status and explanation for each detection criterion."""
+        items: list[_DetectionChecklistItem] = []
+
+        # 1. Direct P2P Candidates
+        p2p_count = self._snapshot.direct_p2p_players
+        evaluated_count = self._snapshot.total_evaluated_players
+        filtered_count = self._snapshot.filtered_server_ips
+
+        if not evaluated_count:
+            candidates_detail = 'No players found in session'
+        elif not p2p_count:
+            candidates_detail = f'All {evaluated_count} connected endpoint{pluralize(evaluated_count)} are game or relay servers'
+        elif filtered_count > 0:
+            candidates_detail = f'{p2p_count} direct P2P candidate{pluralize(p2p_count)} identified ({filtered_count} server{pluralize(filtered_count)} filtered)'
+        else:
+            candidates_detail = f'{p2p_count} direct P2P candidate{pluralize(p2p_count)} identified in session'
+
+        items.append(
+            _DetectionChecklistItem(
+                title='Direct P2P Candidates',
+                passed=p2p_count > 0,
+                detail=candidates_detail,
+            )
+        )
+
+        # 2. Candidate Activity
+        if self._snapshot.success:
+            activity_passed = True
+            activity_detail = 'Candidate is active and connected'
+        elif self._snapshot.candidates:
+            active_candidates = [
+                candidate
+                for candidate in self._snapshot.candidates
+                if not candidate.is_pending_disconnection and not candidate.is_disconnected
+            ]
+            activity_passed = bool(active_candidates)
+            active_count = len(active_candidates)
+            activity_detail = (
+                f'{active_count} candidate{pluralize(active_count)} active and connected'
+                if activity_passed
+                else 'All candidates are disconnected or pending disconnection'
+            )
+        else:
+            activity_passed = False
+            activity_detail = 'No candidates available to evaluate activity'
+
+        items.append(
+            _DetectionChecklistItem(
+                title='Candidate Activity',
+                passed=activity_passed,
+                detail=activity_detail,
+            )
+        )
+
+        # 4. Connection Timing Window
+        if self._snapshot.success:
+            timing_passed = True
+            if self._snapshot.timing_gap_seconds is not None:
+                gap_ms = self._snapshot.timing_gap_seconds * 1000
+                timing_detail = f'Join separation ({gap_ms:.1f}ms) within valid window (50ms - 1,600ms)'
+            else:
+                timing_detail = 'Single candidate in session (timing comparison not required)'
+        elif self._snapshot.timing_gap_seconds is not None:
+            gap_ms = self._snapshot.timing_gap_seconds * 1000
+            if _SESSION_HOST_AMBIGUITY_MIN_THRESHOLD_MS <= gap_ms <= _SESSION_HOST_AMBIGUITY_MAX_THRESHOLD_MS:
+                timing_passed = True
+                timing_detail = f'Join separation ({gap_ms:.1f}ms) within valid window (50ms - 1,600ms)'
+            elif gap_ms < _SESSION_HOST_AMBIGUITY_MIN_THRESHOLD_MS:
+                timing_passed = False
+                timing_detail = f'Ambiguous ({gap_ms:.1f}ms < 50ms): players connected simultaneously'
+            else:
+                timing_passed = False
+                gap_text = f'{self._snapshot.timing_gap_seconds:.3f}s' if self._snapshot.timing_gap_seconds >= 1.0 else f'{gap_ms:.1f}ms'
+                timing_detail = f'Gap too large ({gap_text} > 1,600ms): candidates did not join together'
+        elif len(self._snapshot.candidates) == 1:
+            timing_passed = True
+            timing_detail = 'Single candidate in session (timing comparison not required)'
+        else:
+            timing_passed = False
+            timing_detail = 'No candidates available for timing comparison'
+
+        items.append(
+            _DetectionChecklistItem(
+                title='Connection Timing Window',
+                passed=timing_passed,
+                detail=timing_detail,
+            )
+        )
+
+        # 5. Packet Threshold Criteria
+        if self._snapshot.success:
+            packet_passed = True
+            host_candidate = next(
+                (candidate for candidate in self._snapshot.candidates if candidate.is_host),
+                self._snapshot.candidates[0] if self._snapshot.candidates else None,
+            )
+            if host_candidate is not None:
+                packet_detail = (
+                    f'Candidate sent >= 9 packets ({host_candidate.packets_sent}) '
+                    f'and exchanged <= 1,000 ({host_candidate.packets_exchanged})'
+                )
+            else:
+                packet_detail = 'Candidate packet counts within valid bounds (>= 9 sent, <= 1,000 exchanged)'
+        elif self._snapshot.candidates:
+            has_under_sent = any(
+                candidate.packet_status == 'Not enough sent' or candidate.packets_sent < _MINIMUM_PACKETS_FOR_RELAY_SESSION_HOST
+                for candidate in self._snapshot.candidates
+            )
+            has_over_exchanged = any(
+                candidate.packet_status == 'Exceeds maximum exchanged' or candidate.packets_exchanged > _SESSION_HOST_MAX_PACKETS_FOR_DETECTION
+                for candidate in self._snapshot.candidates
+            )
+            if has_under_sent:
+                packet_passed = False
+                packet_detail = f'Candidate has not sent enough packets (>= {_MINIMUM_PACKETS_FOR_RELAY_SESSION_HOST} required to rule out transient probes)'
+            elif has_over_exchanged:
+                packet_passed = False
+                packet_detail = f'Candidate exchanged > {_SESSION_HOST_MAX_PACKETS_FOR_DETECTION:,} packets (session already in progress)'
+            else:
+                packet_passed = True
+                packet_detail = (
+                    f'Candidate packet counts within valid bounds (>= {_MINIMUM_PACKETS_FOR_RELAY_SESSION_HOST} sent, '
+                    f'<= {_SESSION_HOST_MAX_PACKETS_FOR_DETECTION:,} exchanged)'
+                )
+        else:
+            packet_passed = False
+            packet_detail = 'No candidates to evaluate packet thresholds'
+
+        items.append(
+            _DetectionChecklistItem(
+                title='Packet Threshold Criteria',
+                passed=packet_passed,
+                detail=packet_detail,
+            )
+        )
+
+        return items
 
     def _build_timing_section(self) -> QWidget:
         card = QFrame()
@@ -418,7 +672,7 @@ class SessionHostDiagnosticsDialog(QDialog):
         copy_btn = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), ' Copy')
         copy_btn.setStyleSheet(COMPACT_BUTTON_STYLESHEET)
         cand_ip = candidate.ip
-        copy_btn.clicked.connect(lambda: self._copy_ip(copy_btn, cand_ip))
+        copy_btn.clicked.connect(lambda: self._copy_text(copy_btn, cand_ip))
         header.addWidget(copy_btn)
 
         layout.addLayout(header)
@@ -558,13 +812,12 @@ class SessionHostDiagnosticsDialog(QDialog):
 
         return footer
 
-    def _copy_ip(self, button: QPushButton, ip: str) -> None:
-        set_clipboard_text(ip)
-        animate_button_feedback(button, feedback_text=' Copied!', duration_milliseconds=1500)
+    def _copy_text(self, button: QPushButton, text: str, *, feedback_text: str = ' Copied!') -> None:
+        set_clipboard_text(text)
+        animate_button_feedback(button, feedback_text=feedback_text, duration_milliseconds=1500)
 
     def _copy_report(self, button: QPushButton) -> None:
-        set_clipboard_text(self._snapshot.raw_details)
-        animate_button_feedback(button, feedback_text=' Copied Report!', duration_milliseconds=1500)
+        self._copy_text(button, self._snapshot.raw_details, feedback_text=' Copied Report!')
 
     def _on_redetect_clicked(self) -> None:
         if self._redetect_callback is not None:

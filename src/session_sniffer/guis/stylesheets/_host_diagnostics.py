@@ -31,6 +31,15 @@ QFrame#hostSectionCard {
 }
 """.strip()
 
+HOST_DIAGNOSTICS_CHECKLIST_ROW_STYLESHEET = """
+QFrame#hostChecklistRow {
+    background-color: rgba(255, 255, 255, 0.025);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 6px;
+    padding: 6px 10px;
+}
+""".strip()
+
 HOST_DIAGNOSTICS_STAT_BOX_STYLESHEET = """
 QFrame#hostStatBox {
     background-color: rgba(255, 255, 255, 0.035);
