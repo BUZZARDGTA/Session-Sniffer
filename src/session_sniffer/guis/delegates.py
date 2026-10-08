@@ -41,6 +41,22 @@ _CONNECTED_TEXT_COLOR = QColor(TableColors.CONNECTED_TEXT)
 _DISCONNECTED_TEXT_COLOR = QColor(TableColors.DISCONNECTED_TEXT)
 _DEFAULT_FOREGROUND_COLORS = (_CONNECTED_TEXT_COLOR, _DISCONNECTED_TEXT_COLOR)
 
+_COLOR_WHITE = QColor('#ffffff')
+_COLOR_CONNECTED_SEL_TOP = QColor(42, 110, 85, 160)
+_COLOR_CONNECTED_SEL_BOTTOM = QColor(28, 75, 58, 160)
+_COLOR_CONNECTED_UNSEL_TOP = QColor(42, 110, 85, 100)
+_COLOR_CONNECTED_UNSEL_BOTTOM = QColor(28, 75, 58, 100)
+_COLOR_DISCONNECTED_SEL_TOP = QColor(130, 45, 45, 160)
+_COLOR_DISCONNECTED_SEL_BOTTOM = QColor(85, 28, 28, 160)
+_COLOR_DISCONNECTED_UNSEL_TOP = QColor(130, 45, 45, 100)
+_COLOR_DISCONNECTED_UNSEL_BOTTOM = QColor(85, 28, 28, 100)
+_COLOR_DEFAULT_SEL = QColor('#2f4f64')
+_COLOR_DEFAULT_UNSEL = QColor('#2d2d30')
+_LOOKY_TEXT_COLOR = QColor(TableColors.LOOKY_TEXT)
+_DISCONNECTED_LOOKY_TEXT_COLOR = QColor(TableColors.DISCONNECTED_LOOKY_TEXT)
+_SEARCH_HIGHLIGHT_BG_COLOR = QColor('#e3b341')
+_SEARCH_HIGHLIGHT_FG_COLOR = QColor('#000000')
+
 
 class ElidedTextTooltipDelegate(QStyledItemDelegate):
     """Custom delegate that reliably shows a tooltip only if the text is horizontally truncated."""
@@ -103,27 +119,27 @@ class ElidedTextTooltipDelegate(QStyledItemDelegate):
                 if is_connected is True:
                     grad = QLinearGradient(rect.topLeft(), rect.bottomLeft())
                     if is_selected:
-                        grad.setColorAt(0, QColor(42, 110, 85, 160))
-                        grad.setColorAt(1, QColor(28, 75, 58, 160))
+                        grad.setColorAt(0, _COLOR_CONNECTED_SEL_TOP)
+                        grad.setColorAt(1, _COLOR_CONNECTED_SEL_BOTTOM)
                     else:
-                        grad.setColorAt(0, QColor(42, 110, 85, 100))
-                        grad.setColorAt(1, QColor(28, 75, 58, 100))
+                        grad.setColorAt(0, _COLOR_CONNECTED_UNSEL_TOP)
+                        grad.setColorAt(1, _COLOR_CONNECTED_UNSEL_BOTTOM)
                 elif is_connected is False:
                     grad = QLinearGradient(rect.topLeft(), rect.bottomLeft())
                     if is_selected:
-                        grad.setColorAt(0, QColor(130, 45, 45, 160))
-                        grad.setColorAt(1, QColor(85, 28, 28, 160))
+                        grad.setColorAt(0, _COLOR_DISCONNECTED_SEL_TOP)
+                        grad.setColorAt(1, _COLOR_DISCONNECTED_SEL_BOTTOM)
                     else:
-                        grad.setColorAt(0, QColor(130, 45, 45, 100))
-                        grad.setColorAt(1, QColor(85, 28, 28, 100))
+                        grad.setColorAt(0, _COLOR_DISCONNECTED_UNSEL_TOP)
+                        grad.setColorAt(1, _COLOR_DISCONNECTED_UNSEL_BOTTOM)
                 else:
                     grad = QLinearGradient(rect.topLeft(), rect.bottomLeft())
                     if is_selected:
-                        grad.setColorAt(0, QColor('#2f4f64'))
-                        grad.setColorAt(1, QColor('#2f4f64'))
+                        grad.setColorAt(0, _COLOR_DEFAULT_SEL)
+                        grad.setColorAt(1, _COLOR_DEFAULT_SEL)
                     else:
-                        grad.setColorAt(0, QColor('#2d2d30'))
-                        grad.setColorAt(1, QColor('#2d2d30'))
+                        grad.setColorAt(0, _COLOR_DEFAULT_UNSEL)
+                        grad.setColorAt(1, _COLOR_DEFAULT_UNSEL)
 
                 painter.fillRect(rect, grad)
                 painter.restore()
@@ -144,8 +160,8 @@ class ElidedTextTooltipDelegate(QStyledItemDelegate):
                 opt.palette.setBrush(QPalette.ColorRole.Text, foreground_brush)
                 opt.palette.setBrush(QPalette.ColorRole.WindowText, foreground_brush)
         else:
-            opt.palette.setColor(QPalette.ColorRole.Text, QColor('#ffffff'))
-            opt.palette.setColor(QPalette.ColorRole.HighlightedText, QColor('#ffffff'))
+            opt.palette.setColor(QPalette.ColorRole.Text, _COLOR_WHITE)
+            opt.palette.setColor(QPalette.ColorRole.HighlightedText, _COLOR_WHITE)
 
         super().paint(painter, opt, index)
 
@@ -194,11 +210,11 @@ class SearchHighlightDelegate(ElidedTextTooltipDelegate):
                 painter.save()
                 gradient = QLinearGradient(cell_rectangle.topLeft(), cell_rectangle.bottomLeft())
                 if is_selected:
-                    gradient.setColorAt(0, QColor('#2f4f64'))
-                    gradient.setColorAt(1, QColor('#2f4f64'))
+                    gradient.setColorAt(0, _COLOR_DEFAULT_SEL)
+                    gradient.setColorAt(1, _COLOR_DEFAULT_SEL)
                 else:
-                    gradient.setColorAt(0, QColor('#2d2d30'))
-                    gradient.setColorAt(1, QColor('#2d2d30'))
+                    gradient.setColorAt(0, _COLOR_DEFAULT_UNSEL)
+                    gradient.setColorAt(1, _COLOR_DEFAULT_UNSEL)
                 painter.fillRect(cell_rectangle, gradient)
                 painter.restore()
             elif is_selected:
@@ -214,7 +230,7 @@ class SearchHighlightDelegate(ElidedTextTooltipDelegate):
         self.initStyleOption(style_option, index)
         style_option.state &= ~QStyle.StateFlag.State_HasFocus
 
-        text_color = QColor('#ffffff')
+        text_color = _COLOR_WHITE
         if not bool(style_option.state & QStyle.StateFlag.State_Selected):
             foreground_brush = index.data(Qt.ItemDataRole.ForegroundRole)
             if isinstance(foreground_brush, QColor):
@@ -286,9 +302,9 @@ class SearchHighlightDelegate(ElidedTextTooltipDelegate):
                     resolved_foreground_color = (
                         foreground_brush if isinstance(foreground_brush, QColor) else (foreground_brush.color() if isinstance(foreground_brush, QBrush) else None)
                     )
-                    if resolved_foreground_color is not None and resolved_foreground_color == QColor(TableColors.DISCONNECTED_TEXT):
+                    if resolved_foreground_color is not None and resolved_foreground_color == _DISCONNECTED_TEXT_COLOR:
                         is_disconnected = True
-                looky_color = QColor(TableColors.DISCONNECTED_LOOKY_TEXT) if is_disconnected else QColor(TableColors.LOOKY_TEXT)
+                looky_color = _DISCONNECTED_LOOKY_TEXT_COLOR if is_disconnected else _LOOKY_TEXT_COLOR
                 looky_format.setForeground(looky_color)
 
                 tokens = split_usernames(text)
@@ -319,8 +335,8 @@ class SearchHighlightDelegate(ElidedTextTooltipDelegate):
                 search_position = 0
 
                 highlight_format = QTextCharFormat()
-                highlight_format.setBackground(QColor('#e3b341'))
-                highlight_format.setForeground(QColor('#000000'))
+                highlight_format.setBackground(_SEARCH_HIGHLIGHT_BG_COLOR)
+                highlight_format.setForeground(_SEARCH_HIGHLIGHT_FG_COLOR)
 
                 while True:
                     match_index = lower_display_text.find(lower_query, search_position)

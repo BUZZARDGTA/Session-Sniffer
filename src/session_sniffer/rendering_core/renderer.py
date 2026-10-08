@@ -9,12 +9,9 @@ from operator import attrgetter
 from threading import Thread
 from typing import TYPE_CHECKING
 
-from PySide6.QtGui import QImage
-
 from session_sniffer.background.events import gui_closed__event
 from session_sniffer.background.tasks import handle_detection_notification, process_userip_task
-from session_sniffer.constants.local import IMAGES_DIR_PATH, SESSIONS_LOGGING_DIR_PATH, USERIP_DATABASES_DIR_PATH
-from session_sniffer.constants.standalone import GITHUB_WIKI_USERIP_CONFIG_URL, TITLE
+from session_sniffer.constants.local import SESSIONS_LOGGING_DIR_PATH
 from session_sniffer.constants.standard import LOCAL_TZ
 from session_sniffer.core import ScriptControl
 from session_sniffer.discord.rpc import DiscordRPC
@@ -22,7 +19,7 @@ from session_sniffer.discord.webhook import DiscordWebhookPayload, DiscordWebhoo
 from session_sniffer.gta5.suspend_manager import GTASuspendManager
 from session_sniffer.guis.html_templates import generate_gui_header_html
 from session_sniffer.models import SessionLogFile
-from session_sniffer.models.player import Player, PlayerBandwidth, PlayerCountryFlag, PlayerModMenus
+from session_sniffer.models.player import Player, PlayerBandwidth, PlayerModMenus
 from session_sniffer.networking.geolite2 import extract_asn_info, extract_city_info, extract_country_info
 from session_sniffer.networking.port_scanner import get_active_port_scan_threads
 from session_sniffer.player.registry import (
@@ -35,8 +32,10 @@ from session_sniffer.player.registry import (
     PlayersRegistry,
     SessionHost,
 )
-from session_sniffer.player.userip import UserIPDatabases, UserIPSettings
+from session_sniffer.player.userip import UserIPDatabases
+from session_sniffer.player.userip_loader import update_userip_databases
 from session_sniffer.rdr2.suspend_manager import RDR2SuspendManager
+from session_sniffer.rendering_core.country_flags import get_country_flag
 from session_sniffer.rendering_core.modmenu_logs_parser import ModMenuLogsParser
 from session_sniffer.rendering_core.session_table_renderer import (
     SessionTableRenderContext,
@@ -57,16 +56,12 @@ from session_sniffer.rendering_core.types import (
     GUITableData,
     SessionTableSnapshot,
 )
-from session_sniffer.rendering_core.userip_ini_parser import parse_userip_ini_file
 from session_sniffer.rendering_core.webhook_text_renderer import build_webhook_mobile_text, build_webhook_table_text
 from session_sniffer.settings import Settings
-from session_sniffer.text_templates import DEFAULT_USERIP_FILES_SETTINGS_INI, USERIP_DEFAULT_DB_FOOTER_TEMPLATE, USERIP_DEFAULT_DB_HEADER_TEMPLATE
-from session_sniffer.text_utils import format_elapsed_time, format_triple_quoted_text, pluralize
+from session_sniffer.text_utils import format_elapsed_time, pluralize
 from session_sniffer.utils import cleanup_session_logs, dedup_preserve_order, get_session_log_path
 
 if TYPE_CHECKING:
-    from pathlib import Path
-
     from session_sniffer.capture.packet_capture import CaptureHolder
 
 logger = logging.getLogger(__name__)
@@ -75,7 +70,6 @@ _THREAD_COUNT_WARN_THRESHOLD = 150
 
 
 DISCORD_APPLICATION_ID = 1313304495958261781
-COUNTRY_FLAGS_DIR_PATH = IMAGES_DIR_PATH / 'country_flags'
 SESSIONS_LOGGING_PATH = get_session_log_path(SESSIONS_LOGGING_DIR_PATH, LOCAL_TZ)
 DISCORD_PRESENCE_UPDATE_INTERVAL_SECONDS = 3.0
 DISCORD_WEBHOOK_UPDATE_INTERVAL_SECONDS = 1.0
@@ -86,70 +80,6 @@ def rendering_core(
     geoip2_readers: GeoIP2Readers,
 ) -> None:
     """Compile GUI payloads from runtime state and emit updates."""
-
-    def _snapshot_userip_database_mod_times() -> dict[Path, float]:
-        """Return current modification times of all existing UserIP database INIs."""
-        return {path: path.stat().st_mtime for path in USERIP_DATABASES_DIR_PATH.rglob('*.ini') if path.is_file()}
-
-    def _collect_userip_ini_files() -> tuple[list[Path], dict[Path, float]]:
-        """Return discovered INI paths and their mod-times in a single `rglob` pass."""
-        files: list[Path] = []
-        mod_times: dict[Path, float] = {}
-
-        for path in USERIP_DATABASES_DIR_PATH.rglob('*.ini'):
-            if path.is_file():
-                files.append(path)
-                mod_times[path] = path.stat().st_mtime
-
-        return files, mod_times
-
-    last_known_userip_db_mod_times: dict[Path, float] = {}
-
-    default_userip_file_header = format_triple_quoted_text(
-        USERIP_DEFAULT_DB_HEADER_TEMPLATE.format(
-            title=TITLE,
-            configuration_guide_url=GITHUB_WIKI_USERIP_CONFIG_URL,
-        ),
-    )
-
-    default_userip_files_settings = {USERIP_DATABASES_DIR_PATH / ini_name: settings for ini_name, settings in DEFAULT_USERIP_FILES_SETTINGS_INI.items()}
-
-    default_userip_file_footer = format_triple_quoted_text(
-        USERIP_DEFAULT_DB_FOOTER_TEMPLATE,
-        add_trailing_newline=True,
-    )
-
-    def update_userip_databases() -> tuple[float, bool]:
-        nonlocal last_known_userip_db_mod_times
-
-        USERIP_DATABASES_DIR_PATH.mkdir(parents=True, exist_ok=True)
-
-        for userip_path, settings in default_userip_files_settings.items():
-            if not userip_path.is_file():
-                file_content = f'{default_userip_file_header}\n\n{settings}\n\n{default_userip_file_footer}'
-                userip_path.write_text(file_content, encoding='utf-8')
-
-        current_ini_files, current_userip_db_mod_times = _collect_userip_ini_files()
-        if current_userip_db_mod_times == last_known_userip_db_mod_times:
-            return time.monotonic(), False
-        if last_known_userip_db_mod_times:
-            logger.debug('Detected changes in UserIP databases, re-parsing...')
-
-        new_databases: list[tuple[Path, UserIPSettings, dict[str, list[str]]]] = []
-
-        for userip_path in current_ini_files:
-            parsed_settings, parsed_data = parse_userip_ini_file(userip_path)
-            if parsed_settings is None or parsed_data is None:
-                continue
-            new_databases.append((userip_path, parsed_settings, parsed_data))
-
-        UserIPDatabases.populate(new_databases)
-        UserIPDatabases.build()
-
-        # INI parsing may have rewritten files; re-snapshot so we don't immediately re-parse next tick.
-        last_known_userip_db_mod_times = _snapshot_userip_database_mod_times()
-
-        return time.monotonic(), True
 
     def get_country_info(ip_address: str) -> tuple[str, str]:
         reader = geoip2_readers.country_reader if geoip2_readers.enabled else None
@@ -387,33 +317,6 @@ def rendering_core(
     disconnected_num_columns = 0
     connected_column_mapping: dict[str, int] = {}
     _userip_not_found: set[str] = set()
-    _country_flag_cache: dict[str, PlayerCountryFlag] = {}
-    _missing_country_flag_codes: set[str] = set()
-
-    def get_country_flag(country_code: str) -> PlayerCountryFlag | None:
-        country_code = country_code.strip().upper()
-
-        if not country_code:
-            return None
-
-        if country_code in _country_flag_cache:
-            return _country_flag_cache[country_code]
-
-        if country_code in _missing_country_flag_codes:
-            return None
-
-        flag_path = COUNTRY_FLAGS_DIR_PATH / f'{country_code}.png'
-        if not flag_path.exists():
-            logger.warning('Missing country flag image for country code: %s', country_code)
-            _missing_country_flag_codes.add(country_code)
-            return None
-
-        image = QImage()
-        image.loadFromData(flag_path.read_bytes())
-
-        country_flag = PlayerCountryFlag(image)
-        _country_flag_cache[country_code] = country_flag
-        return country_flag
 
     def _process_player_disconnections(connected: list[Player], disconnected: list[Player]) -> list[int]:
         if not Settings.gui_disconnected_players_enabled:

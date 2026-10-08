@@ -54,6 +54,7 @@ from session_sniffer.guis.relay_conflict import prompt_to_disable_gta5_relay_if_
 from session_sniffer.guis.splash_screen import SplashScreen
 from session_sniffer.guis.theme import get_stylesheet
 from session_sniffer.guis.utils import compute_ui_scale, get_screen_size, initialize_ui_scale
+from session_sniffer.launcher.cache_preloader import preload_application_caches
 from session_sniffer.launcher.package_checker import check_packages_version, get_dependencies_from_pyproject
 from session_sniffer.logging_setup import register_secret_provider, setup_logging
 from session_sniffer.models.player import PacketInfo, Player, PlayerUserIPDetection
@@ -130,7 +131,7 @@ def main() -> None:
     # Own splash msgboxes so they appear above it without being globally topmost
     msgbox.set_owner_hwnd(splash.winId())
 
-    preload_executor = ThreadPoolExecutor(max_workers=5, thread_name_prefix='Preload')
+    preload_executor = ThreadPoolExecutor(max_workers=6, thread_name_prefix='Preload')
     update_check_future = preload_executor.submit(check_for_updates, updater_channel=Settings.updater_channel)
     npcap_future = preload_executor.submit(ensure_npcap_installed)
     geolite2_future = preload_executor.submit(
@@ -138,6 +139,10 @@ def main() -> None:
         progress_callback=functools.partial(splash.update_progress, target_message='Initializing GeoLite2 databases'),
     )
     mac_lookup_future = preload_executor.submit(MacLookup.load)
+    cache_future = preload_executor.submit(
+        preload_application_caches,
+        progress_callback=functools.partial(splash.update_progress, target_message='Initializing caches'),
+    )
 
     def _populate_interfaces_after_mac() -> None:
         mac_lookup_future.result()  # Vendor name lookups require MacLookup to be loaded first.
@@ -189,6 +194,9 @@ def main() -> None:
 
     splash.update_status('Initializing MAC lookup')
     splash.run_with_spinner(mac_lookup_future.result)
+
+    splash.update_status('Initializing caches')
+    splash.run_with_spinner(cache_future.result)
     preload_executor.shutdown(wait=False)
 
     splash.update_status('Network interface selection')

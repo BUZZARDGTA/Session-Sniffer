@@ -169,6 +169,16 @@ class SessionTableRenderContext:
     connected_column_mapping: dict[str, int]
 
 
+@lru_cache(maxsize=16)
+def get_server_background_color(color_str: str, *, enabled: bool) -> QColor:
+    """Return the cached QColor for detected third-party server rows."""
+    if enabled:
+        color = QColor(color_str)
+        if color.isValid():
+            return color
+    return _SERVER_BACKGROUND_COLOR
+
+
 def build_session_table_snapshot(
     context: SessionTableRenderContext,
 ) -> SessionTableSnapshot:
@@ -177,11 +187,7 @@ def build_session_table_snapshot(
     session_disconnected_rows_with_colors: list[tuple[tuple[str, ...], tuple[CellColor, ...]]] = []
     now = datetime.now(tz=LOCAL_TZ)
 
-    server_bg_color = (
-        QColor(Settings.gui_servers_color)
-        if Settings.gui_servers_color_enabled and QColor(Settings.gui_servers_color).isValid()
-        else _SERVER_BACKGROUND_COLOR
-    )
+    server_bg_color = get_server_background_color(Settings.gui_servers_color, enabled=Settings.gui_servers_color_enabled)
 
     _base_connected_cell = CellColor(foreground=_CONNECTED_TEXT_COLOR, background=HARDCODED_DEFAULT_TABLE_BACKGROUND_CELL_COLOR)
     _base_connected_row_colors = [_base_connected_cell] * context.connected_num_columns
