@@ -97,15 +97,3 @@ HOST_BADGE_MUTED_STYLESHEET = (
     'border: 1px solid rgba(148, 163, 184, 0.3); border-radius: 4px; '
     'padding: 2px 7px; font-size: 8.5pt;'
 )
-
-HOST_RAW_LOG_STYLESHEET = """
-QPlainTextEdit {
-    background-color: #0d1117;
-    color: #c9d1d9;
-    border: 1px solid #30363d;
-    border-radius: 6px;
-    padding: 8px;
-    font-family: Consolas, monospace;
-    font-size: 8.5pt;
-}
-""".strip()

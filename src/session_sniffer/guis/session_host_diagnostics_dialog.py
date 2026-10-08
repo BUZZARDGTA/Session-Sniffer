@@ -13,7 +13,6 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLayout,
-    QPlainTextEdit,
     QPushButton,
     QScrollArea,
     QVBoxLayout,
@@ -37,7 +36,6 @@ from session_sniffer.guis.stylesheets import (
     HOST_DIAGNOSTICS_HERO_SUCCESS_STYLESHEET,
     HOST_DIAGNOSTICS_SECTION_CARD_STYLESHEET,
     HOST_DIAGNOSTICS_STAT_BOX_STYLESHEET,
-    HOST_RAW_LOG_STYLESHEET,
 )
 from session_sniffer.guis.utils import (
     ActiveDialogRegistry,
@@ -160,10 +158,6 @@ class SessionHostDiagnosticsDialog(QDialog):
         if self._snapshot.filtered_servers:
             servers_widget = self._build_servers_section()
             self._content_layout.addWidget(servers_widget)
-
-        # 6. Raw diagnostics (collapsible)
-        raw_log_widget = self._build_raw_log_section()
-        self._content_layout.addWidget(raw_log_widget)
 
         self._content_layout.addStretch(1)
 
@@ -755,45 +749,17 @@ class SessionHostDiagnosticsDialog(QDialog):
 
         return card
 
-    def _build_raw_log_section(self) -> QWidget:
-        container = QWidget()
-        layout = QVBoxLayout(container)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(6)
-
-        toggle_btn = QPushButton('Show Raw Diagnostics ▾')
-        toggle_btn.setStyleSheet(COMPACT_BUTTON_STYLESHEET)
-        layout.addWidget(toggle_btn, alignment=Qt.AlignmentFlag.AlignLeft)
-
-        raw_edit = QPlainTextEdit(self._snapshot.raw_details)
-        raw_edit.setReadOnly(True)
-        raw_font = QFont('Consolas')
-        raw_font.setPointSizeF(8.5)
-        raw_edit.setFont(raw_font)
-        raw_edit.setStyleSheet(HOST_RAW_LOG_STYLESHEET)
-        raw_edit.setMinimumHeight(scale_by_ui(200))
-        raw_edit.hide()
-        layout.addWidget(raw_edit)
-
-        def _toggle() -> None:
-            is_visible = raw_edit.isVisible()
-            raw_edit.setVisible(not is_visible)
-            toggle_btn.setText('Hide Raw Diagnostics ▴' if not is_visible else 'Show Raw Diagnostics ▾')
-
-        toggle_btn.clicked.connect(_toggle)
-        return container
-
     def _build_footer(self) -> QWidget:
         footer = QWidget()
         layout = QHBoxLayout(footer)
         layout.setContentsMargins(4, 6, 4, 4)
         layout.setSpacing(10)
 
-        # Copy full report button
-        copy_report_btn = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), ' Copy Report')
-        copy_report_btn.setStyleSheet(COMPACT_BUTTON_STYLESHEET)
-        copy_report_btn.clicked.connect(lambda: self._copy_report(copy_report_btn))
-        layout.addWidget(copy_report_btn)
+        # Copy full host details button
+        copy_details_btn = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), ' Copy Host Details')
+        copy_details_btn.setStyleSheet(COMPACT_BUTTON_STYLESHEET)
+        copy_details_btn.clicked.connect(lambda: self._copy_details(copy_details_btn))
+        layout.addWidget(copy_details_btn)
 
         # In-place re-detect host button
         if self._redetect_callback is not None:
@@ -816,8 +782,8 @@ class SessionHostDiagnosticsDialog(QDialog):
         set_clipboard_text(text)
         animate_button_feedback(button, feedback_text=feedback_text, duration_milliseconds=1500)
 
-    def _copy_report(self, button: QPushButton) -> None:
-        self._copy_text(button, self._snapshot.raw_details, feedback_text=' Copied Report!')
+    def _copy_details(self, button: QPushButton) -> None:
+        self._copy_text(button, self._snapshot.raw_details, feedback_text=' Copied Host Details!')
 
     def _on_redetect_clicked(self) -> None:
         if self._redetect_callback is not None:
