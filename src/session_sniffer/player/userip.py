@@ -17,7 +17,7 @@ from session_sniffer.guis.utils import find_main_window
 from session_sniffer.networking.ip_range import IPRange, parse_ip_range
 from session_sniffer.player.registry import PlayersRegistry
 from session_sniffer.settings import Settings
-from session_sniffer.text_utils import format_triple_quoted_text, strip_username_notes
+from session_sniffer.text_utils import format_triple_quoted_text
 from session_sniffer.utils import dedup_preserve_order
 
 if TYPE_CHECKING:
@@ -369,13 +369,6 @@ class UserIPDatabases:
                     canonical_names[cf] = name
                 if cf not in unique_cfs:
                     unique_cfs.append(cf)
-                base_name = strip_username_notes(name)
-                if base_name:
-                    base_cf = base_name.casefold()
-                    if base_cf not in canonical_names:
-                        canonical_names[base_cf] = base_name
-                    if base_cf not in unique_cfs:
-                        unique_cfs.append(base_cf)
             if len(unique_cfs) > 1:
                 first_cf = unique_cfs[0]
                 for other_cf in unique_cfs[1:]:
@@ -468,10 +461,7 @@ class UserIPDatabases:
         if not stripped:
             return False
         with cls._update_userip_database_lock:
-            if stripped.casefold() in cls._known_usernames:
-                return True
-            base = strip_username_notes(stripped)
-            return bool(base and base.casefold() in cls._known_usernames)
+            return stripped.casefold() in cls._known_usernames
 
     @classmethod
     def resolve_userip(cls, ip: str) -> UserIP | None:

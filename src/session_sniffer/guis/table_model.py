@@ -33,8 +33,8 @@ from session_sniffer.guis.exceptions import TableDataConsistencyError, Unsupport
 from session_sniffer.guis.high_rate_monitor import HighRateTracker
 from session_sniffer.guis.player_identifier import PlayerIdentifierTracker
 from session_sniffer.player.registry import PlayersRegistry, SessionHost
+from session_sniffer.player.userip import UserIPDatabases
 from session_sniffer.settings import Settings
-from session_sniffer.text_utils import strip_username_notes
 
 if TYPE_CHECKING:
     from session_sniffer.models.player import Player
@@ -428,27 +428,18 @@ class SessionTableModel(QAbstractTableModel):  # pylint: disable=too-many-public
     @staticmethod
     def _get_unregistered_looky_usernames(player: Player) -> set[str]:
         """Return the set of Looky usernames for *player* that are not present in their local UserIP database."""
+        if player.userip:
+            return set()
         with player.looky_system.lock:
             if not player.looky_system.is_initialized or not player.looky_system.usernames:
                 return set()
             looky_names = list(player.looky_system.usernames)
-        userip_names: set[str] = set()
-        if player.userip and player.userip.usernames:
-            for name in player.userip.usernames:
-                stripped = name.strip()
-                if stripped:
-                    userip_names.add(stripped.casefold())
-                    base = strip_username_notes(stripped)
-                    if base:
-                        userip_names.add(base.casefold())
         unregistered: set[str] = set()
         for name in looky_names:
             cleaned = name.strip()
             if not cleaned:
                 continue
-            cleaned_cf = cleaned.casefold()
-            base_cf = strip_username_notes(cleaned).casefold()
-            if cleaned_cf in userip_names or (base_cf and base_cf in userip_names):
+            if UserIPDatabases.is_known_username(cleaned):
                 continue
             unregistered.add(cleaned)
         return unregistered

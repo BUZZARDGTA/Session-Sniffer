@@ -3,7 +3,6 @@
 Keep this module dependency-free and safe to import from anywhere.
 """
 
-import re
 import textwrap
 from datetime import timedelta
 from typing import TYPE_CHECKING, Literal
@@ -212,25 +211,6 @@ def split_usernames(text: str) -> list[str]:
         tokens.append(cleaned)
 
     return tokens
-
-
-_RE_USERNAME_NOTES = re.compile(r'\([^)]*\)|\[[^\]]*\]')
-
-
-def strip_username_notes(username: str) -> str:
-    """Return the username with notes in parentheses or brackets removed.
-
-    Args:
-        username: The username string potentially containing notes or tags.
-
-    Returns:
-        The cleaned username with notes removed and whitespace stripped.
-    """
-    if not username:
-        return ''
-
-    cleaned = _RE_USERNAME_NOTES.sub('', username).strip()
-    return cleaned or username.strip()
 
 
 def has_unclosed_parentheses(text: str) -> bool:
