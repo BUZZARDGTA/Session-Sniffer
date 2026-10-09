@@ -68,6 +68,13 @@ Pay particular attention to:
 * connected/disconnected table behavior,
 * visibility-dependent work.
 
+## Input Widgets and Mouse Wheel Scrolling
+
+* To prevent accidental value changes when scrolling through views, dialogs, or forms with the mouse wheel, the central `QApplication` installs `_DisableScrollValueChangeFilter` in `src/session_sniffer/guis/app.py`.
+* The filter intercepts `QEvent.Type.Wheel` on interactive input widgets (`QComboBox`, `QAbstractSpinBox`, `QSlider`, `QDial`) and their children, ignores the event on the widget so its value never changes unintentionally, and forwards the wheel event to ancestor `QAbstractScrollArea` viewports so the view scrolls smoothly.
+* Interactive input widgets should also use `setFocusPolicy(Qt.FocusPolicy.StrongFocus)` to ensure they do not acquire focus or selection from wheel scrolling.
+* Combobox popup views (`target.view().isVisible()`) are permitted to scroll their item lists normally.
+
 ## Styling
 
 Follow the project's existing styling and stylesheet architecture.
