@@ -2,6 +2,7 @@
 
 import atexit
 import functools
+import gc
 import logging
 import os
 import sys
@@ -44,7 +45,7 @@ from session_sniffer.ctypes_console import hide_console_window
 from session_sniffer.error_messages import format_capture_interrupted_message, format_outdated_packages_message
 from session_sniffer.exceptions import UnsupportedPlatformError
 from session_sniffer.guis._crashing_qthread import CrashingQThread
-from session_sniffer.guis.app import app
+from session_sniffer.guis.app import app, sanitize_native_event_filters
 from session_sniffer.guis.exceptions import UnsupportedScreenResolutionError
 from session_sniffer.guis.interface_selection import select_interface
 from session_sniffer.guis.interface_selection_dialog import InterfaceSelectionDialog
@@ -878,6 +879,7 @@ def main() -> None:
             WebServer.stop_server()
         logger.debug('Stopping all active CrashingQThreads during aboutToQuit')
         CrashingQThread.stop_all_active_threads()
+        gc.collect()
         logger.debug('_on_app_about_to_quit completed')
 
     def _on_last_window_closed() -> None:
@@ -886,6 +888,7 @@ def main() -> None:
     app.lastWindowClosed.connect(_on_last_window_closed)
     app.aboutToQuit.connect(_on_app_about_to_quit)
 
+    sanitize_native_event_filters()
     logger.debug('Entering Qt application event loop (app.exec())')
     exit_code = app.exec()
     logger.debug('Qt application event loop exited with code: %d', exit_code)

@@ -3,12 +3,25 @@
 This module ensures there's only one QApplication instance throughout the application.
 """
 
+import ctypes
+import gc
 import logging
 import os
 import sys
-from typing import override
+from typing import Final, cast, override
 
-from PySide6.QtCore import QCoreApplication, QEvent, QMessageLogContext, QObject, Qt, QtMsgType, qInstallMessageHandler
+from PySide6.QtCore import (
+    QAbstractEventDispatcher,
+    QCoreApplication,
+    QEvent,
+    QFileSystemWatcher,
+    QMessageLogContext,
+    QObject,
+    Qt,
+    QTimer,
+    QtMsgType,
+    qInstallMessageHandler,
+)
 from PySide6.QtGui import QIcon, QWheelEvent
 from PySide6.QtWidgets import (
     QAbstractScrollArea,
@@ -19,13 +32,94 @@ from PySide6.QtWidgets import (
     QSlider,
     QWidget,
 )
-from shiboken6 import isValid
+from shiboken6 import getCppPointer, isValid
 
 from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.guis.theme import get_dark_palette
 from session_sniffer.logging_setup import dump_crash_diagnostics, flush_all_loggers
 
 logger = logging.getLogger(__name__)
+
+if sys.platform == 'win32':
+    _kernel32 = ctypes.windll.kernel32  # pyright: ignore[reportAttributeAccessIssue]
+    _kernel32.IsBadReadPtr.argtypes = [ctypes.c_void_p, ctypes.c_size_t]
+    _kernel32.IsBadReadPtr.restype = ctypes.c_bool
+
+
+def _get_purecall_target() -> int | None:
+    if sys.platform != 'win32':
+        return None
+    try:
+        vcruntime = ctypes.CDLL('vcruntime140.dll')
+        purecall_func = vcruntime['_purecall']
+        return ctypes.cast(purecall_func, ctypes.c_void_p).value
+    except (AttributeError, KeyError, OSError, ValueError):
+        return None
+
+
+_PURECALL_TARGET: Final[int | None] = _get_purecall_target()
+_X64_JMP_OPCODE_0: Final[int] = 0xFF
+_X64_JMP_OPCODE_1: Final[int] = 0x25
+
+
+def _resolves_to_purecall(function_pointer: int) -> bool:
+    """Check whether a function pointer points to or jumps to the MSVC CRT _purecall handler."""
+    if _PURECALL_TARGET is not None and function_pointer == _PURECALL_TARGET:
+        return True
+    if sys.platform != 'win32':
+        return False
+    if _kernel32.IsBadReadPtr(function_pointer, 6):
+        return True
+    try:
+        opcode_0 = ctypes.c_uint8.from_address(function_pointer).value
+        opcode_1 = ctypes.c_uint8.from_address(function_pointer + 1).value
+        if opcode_0 == _X64_JMP_OPCODE_0 and opcode_1 == _X64_JMP_OPCODE_1:  # jmp qword ptr [rip + displacement]
+            displacement = ctypes.c_int32.from_address(function_pointer + 2).value
+            iat_entry = function_pointer + 6 + displacement
+            if not _kernel32.IsBadReadPtr(iat_entry, 8):
+                resolved_target = ctypes.c_uint64.from_address(iat_entry).value
+                return _PURECALL_TARGET is not None and resolved_target == _PURECALL_TARGET
+    except (OSError, ValueError):
+        return False
+    return False
+
+
+def sanitize_native_event_filters() -> None:
+    """Sanitize QAbstractEventDispatcher native event filters to eliminate dangling purecall filters."""
+    if sys.platform != 'win32':
+        return
+    dispatcher = cast('QAbstractEventDispatcher | None', QAbstractEventDispatcher.instance())
+    if dispatcher is None:
+        return
+    cpp_pointers = getCppPointer(dispatcher)
+    if not cpp_pointers or not cpp_pointers[0]:
+        return
+    try:
+        d_pointer = ctypes.c_uint64.from_address(cpp_pointers[0] + 8).value
+        if not d_pointer or _kernel32.IsBadReadPtr(d_pointer + 0x80, 16):
+            return
+        filter_count = ctypes.c_uint64.from_address(d_pointer + 0x88).value
+        filters_array = ctypes.c_uint64.from_address(d_pointer + 0x80).value
+        if not filters_array or not filter_count or _kernel32.IsBadReadPtr(filters_array, filter_count * 8):
+            return
+        for index in range(filter_count):
+            slot_address = filters_array + index * 8
+            object_pointer = ctypes.c_uint64.from_address(slot_address).value
+            if not object_pointer:
+                continue
+            if _kernel32.IsBadReadPtr(object_pointer, 8):
+                ctypes.c_uint64.from_address(slot_address).value = 0
+                continue
+            vtable = ctypes.c_uint64.from_address(object_pointer).value
+            if not vtable or _kernel32.IsBadReadPtr(vtable + 8, 8):
+                ctypes.c_uint64.from_address(slot_address).value = 0
+                continue
+            slot1 = ctypes.c_uint64.from_address(vtable + 8).value
+            if _resolves_to_purecall(slot1):
+                logger.debug('Zeroed out dead native event filter at slot index %d', index)
+                ctypes.c_uint64.from_address(slot_address).value = 0
+    except (OSError, ValueError) as e:
+        logger.debug('Native event filter sanitization skipped: %s', e)
 
 
 def _qt_message_handler(message_type: QtMsgType, context: QMessageLogContext, message: str) -> None:
@@ -129,3 +223,25 @@ app.setWindowIcon(QIcon(str(_icon_path)))
 
 _wheel_filter = _DisableScrollValueChangeFilter(app)
 app.installEventFilter(_wheel_filter)
+
+# Permanent file watcher keeps the Windows removable drive listener alive for the
+# application lifetime, preventing internal Qt drive notification filter churn.
+_permanent_file_watcher: QFileSystemWatcher | None = QFileSystemWatcher(app) if sys.platform == 'win32' else None
+
+# In multi-threaded PySide applications with high-frequency worker threads allocating memory,
+# automatic cyclic GC running on worker threads causes C++ Qt objects to be destructed on non-GUI
+# threads, leading to race conditions and CRT pure virtual function call crashes.
+# Disabling multi-threaded automatic GC and running cyclic collection periodically on the GUI thread
+# ensures all Qt object destructions occur safely on the thread to which they belong.
+gc.disable()
+
+
+def _perform_gui_maintenance() -> None:
+    gc.collect()
+    sanitize_native_event_filters()
+
+
+_gui_maintenance_timer = QTimer(app)
+_gui_maintenance_timer.setInterval(5000)
+_gui_maintenance_timer.timeout.connect(_perform_gui_maintenance)
+_gui_maintenance_timer.start()
