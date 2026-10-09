@@ -168,7 +168,7 @@ class GameMixin(QMainWindow):
         self._game_menu_gta5_separator = game_menu.addSeparator()
 
         # Shared: Sessions submenu
-        sessions_submenu = game_menu.addMenu(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'devices.svg')), 'Sessions')
+        sessions_submenu = game_menu.addMenu(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'network.svg')), 'Sessions')
         if not sessions_submenu:
             message = 'Failed to create Sessions submenu'
             raise RuntimeError(message)
@@ -517,7 +517,7 @@ Process is currently suspended'
         """Rebuild the dynamic Sessions tree with all recorded sessions, host controls, and history."""
         self._sessions_submenu.clear()
 
-        all_sessions_action = self._sessions_submenu.addAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'devices.svg')), 'All Sessions')
+        all_sessions_action = self._sessions_submenu.addAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'layers.svg')), 'All Sessions')
         all_sessions_action.setCheckable(True)
         all_sessions_action.setChecked(SessionFilterState.get_selected_session() == SessionFilterState.FILTER_ALL)
         all_sessions_action.setToolTip('Show disconnected players from all recorded sessions')
@@ -538,7 +538,7 @@ Process is currently suspended'
             is_current = session_id == current_session_id
             display_name = SessionTracker.get_session_display_name(session_id)
             session_label = f'{display_name} (Current)' if is_current else display_name
-            session_icon = QIcon(str(RESOURCES_DIR_PATH / 'icons' / ('devices.svg' if is_current else 'history.svg')))
+            session_icon = QIcon(str(RESOURCES_DIR_PATH / 'icons' / ('radio.svg' if is_current else 'history.svg')))
             session_menu = self._sessions_submenu.addMenu(session_icon, session_label)
             if not session_menu:
                 continue
@@ -610,7 +610,7 @@ Process is currently suspended'
             session_menu.addAction(filter_action)
 
         self._sessions_submenu.addSeparator()
-        history_menu = self._sessions_submenu.addMenu(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'history.svg')), 'Host History')
+        history_menu = self._sessions_submenu.addMenu(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'host_history.svg')), 'Host History')
         if history_menu:
             history_menu.setToolTipsVisible(True)
             history_menu.aboutToShow.connect(
