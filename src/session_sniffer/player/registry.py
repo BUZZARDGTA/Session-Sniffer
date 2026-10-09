@@ -15,6 +15,8 @@ from session_sniffer.settings import Settings
 from session_sniffer.text_utils import format_elapsed_time, pluralize
 
 if TYPE_CHECKING:
+    from collections.abc import Iterable
+
     from session_sniffer.models.player import Player
 
 logger = logging.getLogger(__name__)
@@ -359,6 +361,7 @@ class HostHistoryEntry:
     detected_at: datetime
     country_code: str
     diagnostics: HostDiagnosticsSnapshot | None = None
+    session_id: int | None = None
 
     @property
     def dialog_key(self) -> str:
@@ -599,25 +602,35 @@ class SessionHost:
         cls.last_timing_gap_candidate = None
 
     @classmethod
-    def record_host(cls, player: Player, diagnostics: HostDiagnosticsSnapshot | None = None) -> None:
+    def record_host(
+        cls,
+        player: Player,
+        diagnostics: HostDiagnosticsSnapshot | None = None,
+        session_id: int | None = None,
+    ) -> None:
         """Snapshot the given player as a detected session host and append to history."""
         country_code = (
             player.iplookup.geolite2.country_code
             if player.iplookup.geolite2.country_code not in {'...', 'N/A'}
             else player.iplookup.ipapi.country_code
         )
+        if session_id is None:
+            session_id = SessionTracker.get_current_session_id()
         cls._history.append(
             HostHistoryEntry(
                 ip=player.ip,
                 detected_at=datetime.now(tz=LOCAL_TZ),
                 country_code=country_code,
                 diagnostics=diagnostics,
+                session_id=session_id,
             ),
         )
 
     @classmethod
-    def get_history(cls) -> list[HostHistoryEntry]:
-        """Return a snapshot list of the in-memory session host history."""
+    def get_history(cls, session_id: int | None = None) -> list[HostHistoryEntry]:
+        """Return a snapshot list of the in-memory session host history, optionally filtered by session."""
+        if session_id is not None:
+            return [entry for entry in cls._history if entry.session_id == session_id]
         return list(cls._history)
 
     @classmethod
@@ -865,3 +878,109 @@ class SessionHost:
             ),
         )
         return potential_session_host_player
+
+
+class SessionTracker:
+    """Track the current session identifier and session transitions."""
+
+    _lock: ClassVar[RLock] = RLock()
+    _current_session_id: ClassVar[int] = 1
+    _current_host_ip: ClassVar[str | None] = None
+    _known_sessions: ClassVar[set[int]] = {1}
+
+    _session_names: ClassVar[dict[int, str]] = {}
+    _session_snapshots: ClassVar[dict[int, list[Player]]] = {}
+
+    @classmethod
+    def get_session_snapshots(cls, session_id: int) -> list[Player]:
+        """Return the snapshot list of players for a past session."""
+        with cls._lock:
+            return list(cls._session_snapshots.get(session_id, []))
+
+    @classmethod
+    def get_current_session_id(cls) -> int:
+        """Return the current session sequence number."""
+        with cls._lock:
+            return cls._current_session_id
+
+    @classmethod
+    def get_current_session_host_ip(cls) -> str | None:
+        """Return the detected host IP for the current session."""
+        with cls._lock:
+            return cls._current_host_ip
+
+    @classmethod
+    def get_all_session_ids(cls) -> list[int]:
+        """Return a sorted list of all known session sequence numbers."""
+        with cls._lock:
+            return sorted(cls._known_sessions)
+
+    @classmethod
+    def set_session_name(cls, session_id: int, name: str) -> None:
+        """Set a custom name for a session sequence number, or remove it if empty."""
+        with cls._lock:
+            cleaned_name = name.strip()
+            if cleaned_name:
+                cls._session_names[session_id] = cleaned_name
+            else:
+                cls._session_names.pop(session_id, None)
+
+    @classmethod
+    def get_session_name(cls, session_id: int) -> str | None:
+        """Return the custom name for a session, or None if not set."""
+        with cls._lock:
+            return cls._session_names.get(session_id)
+
+    @classmethod
+    def get_session_display_name(cls, session_id: int) -> str:
+        """Return the display name for a session (custom name if set, otherwise '#<id>')."""
+        with cls._lock:
+            custom_name = cls._session_names.get(session_id)
+            if custom_name is not None:
+                return custom_name
+            return f'#{session_id}'
+
+    @classmethod
+    def get_all_session_names(cls) -> dict[int, str]:
+        """Return a copy of the mapping of session IDs to custom names."""
+        with cls._lock:
+            return dict(cls._session_names)
+
+    @classmethod
+    def advance_session(cls, *, host_ip: str | None = None, players: Iterable[Player] | None = None) -> int:
+        """Advance to the next session identifier and optionally record its host IP and update player session IDs."""
+        with cls._lock:
+            old_session_id = cls._current_session_id
+            cls._current_session_id += 1
+            cls._known_sessions.add(cls._current_session_id)
+            cls._current_host_ip = host_ip
+            new_session_id = cls._current_session_id
+            if old_session_id not in cls._session_snapshots:
+                session_players = [player.snapshot(session_id=old_session_id) for player in PlayersRegistry.get_connected_players()]
+                session_players.extend(
+                    player.snapshot(session_id=old_session_id)
+                    for player in PlayersRegistry.get_disconnected_players()
+                    if player.session_id == old_session_id
+                )
+                cls._session_snapshots[old_session_id] = session_players
+            logger.debug('[SessionTracker] Advanced to session %d (host: %s)', cls._current_session_id, host_ip or 'None')
+        if players is not None:
+            for player in players:
+                player.session_id = new_session_id
+        return new_session_id
+
+    @classmethod
+    def record_session_host(cls, host_ip: str) -> None:
+        """Record the host IP for the current session."""
+        with cls._lock:
+            cls._current_host_ip = host_ip
+
+    @classmethod
+    def reset(cls) -> None:
+        """Reset session tracking state to the initial session."""
+        with cls._lock:
+            cls._current_session_id = 1
+            cls._current_host_ip = None
+            cls._known_sessions = {1}
+            cls._session_names.clear()
+            cls._session_snapshots.clear()

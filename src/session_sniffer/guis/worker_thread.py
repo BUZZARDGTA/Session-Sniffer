@@ -9,6 +9,7 @@ from PySide6.QtCore import Signal
 from session_sniffer.background.events import gui_closed__event
 from session_sniffer.guis._crashing_qthread import CrashingQThread
 from session_sniffer.guis.table_model import sort_table_rows
+from session_sniffer.player.registry import PlayersRegistry, SessionTracker
 from session_sniffer.rendering_core.types import (
     CellColor,
     GUIRenderingSnapshot,
@@ -16,6 +17,7 @@ from session_sniffer.rendering_core.types import (
     GUIUpdatePayload,
     PaginationState,
     SearchState,
+    SessionFilterState,
     SortState,
 )
 
@@ -85,6 +87,8 @@ class GUIWorkerThread(CrashingQThread):
         last_search_version: int = -1
         last_pagination_version: int = -1
         last_sort_version: int = -1
+        last_session_filter_version: int = -1
+        last_session_id: int = -1
 
         cached_connected_zipped: list[tuple[tuple[str, ...], tuple[CellColor, ...]]] = []
         cached_disconnected_zipped: list[tuple[tuple[str, ...], tuple[CellColor, ...]]] = []
@@ -106,29 +110,62 @@ class GUIWorkerThread(CrashingQThread):
             search_text, search_column_name, search_version = SearchState.get()
             connected_rows_per_page, connected_page, disconnected_rows_per_page, disconnected_page, pagination_version = PaginationState.get()
             connected_sort_col, connected_sort_order, disconnected_sort_col, disconnected_sort_order, sort_version = SortState.get()
+            selected_session, session_filter_version = SessionFilterState.get()
+            current_session_id = SessionTracker.get_current_session_id()
+
+            current_session_changed = (
+                selected_session == SessionFilterState.FILTER_CURRENT
+                and current_session_id != last_session_id
+            )
+            needs_filter_and_sort = (
+                snapshot is not None
+                or search_version != last_search_version
+                or sort_version != last_sort_version
+                or session_filter_version != last_session_filter_version
+                or current_session_changed
+            )
+            pagination_changed = pagination_version != last_pagination_version
 
             if snapshot is not None:
                 last_snapshot = snapshot
                 cached_connected_zipped = list(snapshot.connected.rows_with_colors)
                 cached_disconnected_zipped = list(snapshot.disconnected.rows_with_colors)
-            elif (
-                search_version == last_search_version
-                and pagination_version == last_pagination_version
-                and sort_version == last_sort_version
-            ) or last_snapshot is None:
+            elif last_snapshot is None or not (needs_filter_and_sort or pagination_changed):
                 continue
-
-            needs_filter_and_sort = (
-                snapshot is not None
-                or search_version != last_search_version
-                or sort_version != last_sort_version
-            )
 
             last_search_version = search_version
             last_pagination_version = pagination_version
             last_sort_version = sort_version
+            last_session_filter_version = session_filter_version
+            last_session_id = current_session_id
 
             if needs_filter_and_sort:
+                source_connected: list[tuple[tuple[str, ...], tuple[CellColor, ...]]]
+                source_disconnected: list[tuple[tuple[str, ...], tuple[CellColor, ...]]]
+                if 0 < selected_session < current_session_id:
+                    source_connected = []
+                    past_data = last_snapshot.past_sessions.get(selected_session)
+                    source_disconnected = list(past_data.rows_with_colors) if past_data is not None else []
+                elif selected_session == SessionFilterState.FILTER_CURRENT:
+                    source_connected = cached_connected_zipped
+                    try:
+                        disconnected_ip_col = last_snapshot.column_config.disconnected_column_names.index('IP Address')
+                    except ValueError:
+                        disconnected_ip_col = _COLUMN_NOT_FOUND
+
+                    if disconnected_ip_col != _COLUMN_NOT_FOUND:
+                        players_map = PlayersRegistry.get_players_map()
+                        source_disconnected = [
+                            entry
+                            for entry in cached_disconnected_zipped
+                            if (player := players_map.get(entry[0][disconnected_ip_col])) is not None and player.session_id == current_session_id
+                        ]
+                    else:
+                        source_disconnected = cached_disconnected_zipped
+                else:
+                    source_connected = cached_connected_zipped
+                    source_disconnected = cached_disconnected_zipped
+
                 # Apply search filter (before sorting and pagination so counts and pages stay accurate)
                 if search_text:
                     if search_column_name and search_column_name != 'All Columns':
@@ -146,22 +183,22 @@ class GUIWorkerThread(CrashingQThread):
 
                     filtered_connected = (
                         []
-                        if connected_col == _COLUMN_NOT_FOUND
-                        else _search_filter(cached_connected_zipped, search_text, connected_col)
+                        if connected_col == _COLUMN_NOT_FOUND or not source_connected
+                        else _search_filter(source_connected, search_text, connected_col)
                     )
                     cached_connected_count = len(filtered_connected)
 
                     filtered_disconnected = (
                         []
                         if disconnected_col == _COLUMN_NOT_FOUND
-                        else _search_filter(cached_disconnected_zipped, search_text, disconnected_col)
+                        else _search_filter(source_disconnected, search_text, disconnected_col)
                     )
                     cached_disconnected_count = len(filtered_disconnected)
                 else:
-                    filtered_connected = cached_connected_zipped
-                    cached_connected_count = last_snapshot.connected.row_count
-                    filtered_disconnected = cached_disconnected_zipped
-                    cached_disconnected_count = last_snapshot.disconnected.row_count
+                    filtered_connected = source_connected
+                    cached_connected_count = len(source_connected)
+                    filtered_disconnected = source_disconnected
+                    cached_disconnected_count = len(source_disconnected)
 
                 # Apply sorting (before pagination so each page contains the correct slice of sorted data)
                 cached_connected_sorted = (

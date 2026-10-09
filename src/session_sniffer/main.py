@@ -68,7 +68,7 @@ from session_sniffer.networking.ps3_resolver import extract_ps3_username
 from session_sniffer.networking.reverse_dns import reset_resolver_cache
 from session_sniffer.player.combo_rules import ComboRulesManager
 from session_sniffer.player.detections import GUIDetectionSettings
-from session_sniffer.player.registry import PlayersRegistry
+from session_sniffer.player.registry import PlayersRegistry, SessionTracker
 from session_sniffer.player.userip import UserIPDatabases
 from session_sniffer.player.userip_backup import run_userip_backup_async
 from session_sniffer.rendering_core.events import wake_rendering_core
@@ -327,6 +327,7 @@ def main() -> None:
                         port=target_port,
                         sent_by_local_host=sent_by_local_host,
                     ),
+                    session_id=SessionTracker.get_current_session_id(),
                 ),
             )
             wake_rendering_core()
@@ -340,6 +341,7 @@ def main() -> None:
                 packet_datetime=packet.datetime,
                 packet_length=packet.length,
                 sent_by_local_host=sent_by_local_host,
+                session_id=SessionTracker.get_current_session_id(),
             )
             PlayersRegistry.move_player_to_connected(matched_player)
             wake_rendering_core()

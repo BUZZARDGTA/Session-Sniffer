@@ -57,12 +57,13 @@ def section_bar_qss(accent: str) -> str:
     }}
     QComboBox {{
         min-height: 28px;
-        padding: 0 24px 0 8px;
+        padding: 0 16px 0 6px;
         color: #f1f5f9;
         background: rgba(0, 0, 0, 0.35);
         border: 1px solid rgba(255, 255, 255, 0.12);
         border-radius: 6px;
-        min-width: 105px;
+        min-width: 55px;
+        max-width: 90px;
         font-size: 8.5pt;
     }}
     QComboBox:hover {{
@@ -75,7 +76,7 @@ def section_bar_qss(accent: str) -> str:
     QComboBox::drop-down {{
         subcontrol-origin: padding;
         subcontrol-position: top right;
-        width: 20px;
+        width: 16px;
         border: none;
         border-left: 1px solid rgba(255, 255, 255, 0.10);
     }}
@@ -149,8 +150,20 @@ def section_bar_qss(accent: str) -> str:
         background-color: #1e1e24;
         color: #e0e0e0;
         border: 1px solid #333642;
+        border-radius: 6px;
+        padding: 2px;
         selection-background-color: #2b2e3a;
         outline: 0;
+    }}
+    QComboBox QAbstractItemView::item {{
+        min-height: 20px;
+        padding: 2px 6px;
+        border-radius: 4px;
+        border: none;
+    }}
+    QComboBox QAbstractItemView::item:selected, QComboBox QAbstractItemView::item:hover {{
+        background-color: #2b2e3a;
+        color: #ffffff;
     }}
     """.strip()
 

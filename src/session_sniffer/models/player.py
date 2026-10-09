@@ -1,9 +1,10 @@
 """Player data models for tracking remote players and their session metadata."""
 
+import copy
 import dataclasses
 from dataclasses import dataclass
 from threading import Event
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Self
 
 from session_sniffer.models.player_lookup import (
     PlayerCountryFlag,
@@ -64,6 +65,7 @@ class _PlayerLifecycleState:
 
     left_event: Event = dataclasses.field(default_factory=Event)
     rejoins: int = 0
+    session_id: int = 1
     detection_checked: bool = False
     relay_monitor_started: bool = False
     usernames: list[str] = dataclasses.field(default_factory=_empty_usernames)
@@ -109,16 +111,18 @@ class _PlayerOptionalState:
 class Player:  # pylint: disable=too-many-public-methods
     """Represent a remote player identified by IP and derived session metadata."""
 
-    def __init__(self, *, ip: str, packet: PacketInfo) -> None:
+    def __init__(self, *, ip: str, packet: PacketInfo, session_id: int = 1) -> None:
         """Initialize a `Player` from the first observed packet.
 
         Args:
             ip: The player's IP address.
             packet: The first observed packet's metadata.
+            session_id: The session sequence number during which this player joined.
         """
         self._ip = ip
         self._lifecycle = _PlayerLifecycleState(
             is_third_party_server=is_third_party_server_ip(ip),
+            session_id=session_id,
         )
         initial_join = PlayerJoin(
             join_index=1,
@@ -149,6 +153,15 @@ class Player:  # pylint: disable=too-many-public-methods
     def left_event(self) -> Event:
         """Disconnect event for this player."""
         return self._lifecycle.left_event
+
+    @property
+    def session_id(self) -> int:
+        """The session sequence number during which this player last joined."""
+        return self._lifecycle.session_id
+
+    @session_id.setter
+    def session_id(self, value: int) -> None:
+        self._lifecycle.session_id = value
 
     @property
     def usernames(self) -> list[str]:
@@ -367,10 +380,19 @@ class Player:  # pylint: disable=too-many-public-methods
                 sent_by_local_host=sent_by_local_host,
             )
 
-    def mark_as_rejoined(self, *, packet_datetime: datetime_type, packet_length: int, port: int, sent_by_local_host: bool) -> None:
+    def mark_as_rejoined(
+        self,
+        *,
+        packet_datetime: datetime_type,
+        packet_length: int,
+        port: int,
+        sent_by_local_host: bool,
+        session_id: int,
+    ) -> None:
         """Handle a player rejoin by resetting current-session counters."""
         self.left_event.clear()
         self.rejoins += 1
+        self.session_id = session_id
         self.detection_checked = False
         self.relay_monitor_started = False
 
@@ -412,3 +434,31 @@ class Player:  # pylint: disable=too-many-public-methods
             self._traffic.joins[-1].mark_as_left()
 
         PlayersRegistry.move_player_to_disconnected(self)
+
+    def snapshot(self, *, session_id: int | None = None) -> Self:
+        """Create an immutable snapshot clone of this player for a given session."""
+        clone = copy.copy(self)
+        frozen_lifecycle = _PlayerLifecycleState(
+            left_event=Event(),
+            rejoins=self._lifecycle.rejoins,
+            session_id=session_id if session_id is not None else self._lifecycle.session_id,
+            detection_checked=self._lifecycle.detection_checked,
+            relay_monitor_started=self._lifecycle.relay_monitor_started,
+            usernames=list(self._lifecycle.usernames),
+            userip_check_version=self._lifecycle.userip_check_version,
+            userip_check_positive=self._lifecycle.userip_check_positive,
+            is_gta5_process=self._lifecycle.is_gta5_process,
+            is_rdr2_process=self._lifecycle.is_rdr2_process,
+            is_third_party_server=self._lifecycle.is_third_party_server,
+        )
+        frozen_lifecycle.left_event.set()
+        frozen_traffic = _PlayerTrafficState(
+            datetime=self._traffic.datetime.snapshot(),
+            packets=self._traffic.packets.snapshot(),
+            bandwidth=self._traffic.bandwidth.snapshot(),
+            ports=self._traffic.ports.snapshot(),
+            joins=list(self._traffic.joins),
+        )
+        object.__setattr__(clone, '_lifecycle', frozen_lifecycle)
+        object.__setattr__(clone, '_traffic', frozen_traffic)
+        return clone

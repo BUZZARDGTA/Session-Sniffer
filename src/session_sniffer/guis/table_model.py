@@ -33,7 +33,7 @@ from session_sniffer.guis.exceptions import TableDataConsistencyError, Unsupport
 from session_sniffer.guis.high_rate_monitor import HighRateTracker
 from session_sniffer.guis.player_identifier import PlayerIdentifierTracker
 from session_sniffer.guis.table_icons import get_ip_column_composite_icon
-from session_sniffer.player.registry import PlayersRegistry, SessionHost
+from session_sniffer.player.registry import PlayersRegistry, SessionHost, SessionTracker
 from session_sniffer.player.userip import UserIPDatabases
 from session_sniffer.settings import Settings
 
@@ -564,6 +564,19 @@ class SessionTableModel(QAbstractTableModel):  # pylint: disable=too-many-public
                 tooltips: list[str] = []
                 if bool(output):
                     tooltips.append(str(output))
+                if not self.view.is_connected_table:
+                    matched_player = PlayersRegistry.get_player_by_ip(ip)
+                    if matched_player is not None:
+                        session_name = SessionTracker.get_session_name(matched_player.session_id)
+                        session_label = (
+                            f'Session #{matched_player.session_id} ({session_name})'
+                            if session_name is not None
+                            else f'Session #{matched_player.session_id}'
+                        )
+                        if matched_player.session_id == SessionTracker.get_current_session_id():
+                            tooltips.append(f'Current Session ({session_label})')
+                        else:
+                            tooltips.append(f'Past Session ({session_label})')
                 if Settings.gui_session_host_icon and SessionHost.is_host(ip):
                     tooltips.append('Session Host')
                 if Settings.high_rate_monitor_icon and HighRateTracker.is_high_rate(ip):

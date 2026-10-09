@@ -129,6 +129,52 @@ class SearchState:
             return cls._column_name
 
 
+class SessionFilterState:
+    """Thread-safe session filter state for the disconnected players table."""
+
+    FILTER_ALL: ClassVar[int] = -1
+    FILTER_CURRENT: ClassVar[int] = 0
+
+    _lock: ClassVar[Lock] = Lock()
+    _selected_session: ClassVar[int] = -1
+    _version: ClassVar[int] = 0
+
+    @classmethod
+    def set_selected_session(cls, *, session_id: int) -> None:
+        """Update which session to filter by, then bump the version and wake renderer."""
+        with cls._lock:
+            if cls._selected_session == session_id:
+                return
+            cls._selected_session = session_id
+            cls._version += 1
+        GUIRenderingState.wake()
+
+    @classmethod
+    def get(cls) -> tuple[int, int]:
+        """Return (selected_session, version)."""
+        with cls._lock:
+            return cls._selected_session, cls._version
+
+    @classmethod
+    def get_selected_session(cls) -> int:
+        """Return the currently filtered session identifier (-1 = All, 0 = Current, >0 = Specific)."""
+        with cls._lock:
+            return cls._selected_session
+
+    @classmethod
+    def get_version(cls) -> int:
+        """Return the current version counter."""
+        with cls._lock:
+            return cls._version
+
+    @classmethod
+    def bump_version(cls) -> None:
+        """Increment the session filter version to trigger a UI refresh."""
+        with cls._lock:
+            cls._version += 1
+        GUIRenderingState.wake()
+
+
 class SortState:
     """Thread-safe table sort configuration shared between the GUI and the worker thread."""
 
@@ -322,6 +368,7 @@ class SessionTableSnapshot(NamedTuple):
     connected_rows_with_colors: tuple[tuple[tuple[str, ...], tuple[CellColor, ...]], ...]
     disconnected_count: int
     disconnected_rows_with_colors: tuple[tuple[tuple[str, ...], tuple[CellColor, ...]], ...]
+    past_sessions_with_colors: dict[int, tuple[tuple[tuple[str, ...], tuple[CellColor, ...]], ...]]
 
 
 class GUIUpdatePayload(NamedTuple):
@@ -387,6 +434,7 @@ class GUIRenderingSnapshot:
     status: GUIStatusTexts
     connected: GUITableData
     disconnected: GUITableData
+    past_sessions: dict[int, GUITableData]
 
 
 class GUIRenderingState:

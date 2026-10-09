@@ -1,6 +1,7 @@
 """Game process-control, session-host, and player-resolver mixin for `MainWindow`."""
 
 import logging
+from functools import partial
 from threading import Event
 from typing import TYPE_CHECKING
 
@@ -17,17 +18,24 @@ from session_sniffer.error_messages import (
 )
 from session_sniffer.gta5.suspend_manager import GTASuspendManager
 from session_sniffer.guis.session_host_diagnostics_dialog import show_session_host_diagnostics_dialog
-from session_sniffer.guis.session_host_history_window import SessionHostActionCallbacks, setup_session_host_actions
+from session_sniffer.guis.session_host_history_window import (
+    SessionHostActionCallbacks,
+    populate_host_history_submenu,
+    setup_session_host_actions,
+)
 from session_sniffer.guis.stylesheets import GTA5_STATUS_LABEL_STYLESHEET
-from session_sniffer.player.registry import PlayersRegistry, SessionHost
+from session_sniffer.guis.tables_player_actions import prompt_rename_session
+from session_sniffer.guis.utils import load_country_flag_icon
+from session_sniffer.player.registry import PlayersRegistry, SessionHost, SessionTracker
 from session_sniffer.rdr2.suspend_manager import RDR2SuspendManager
-from session_sniffer.rendering_core.types import CaptureState
+from session_sniffer.rendering_core.types import CaptureState, SessionFilterState
 from session_sniffer.settings import Settings
 
 if TYPE_CHECKING:
     from collections.abc import Callable
     from pathlib import Path
 
+    from session_sniffer.guis._session_table_section import SessionTableSection
     from session_sniffer.guis.detections_manager import DetectionsManagerDialog
     from session_sniffer.guis.player_resolver import PlayerResolverWindow
     from session_sniffer.guis.userip_manager import UserIPDatabasesManager
@@ -56,8 +64,7 @@ class GameMixin(QMainWindow):
     _player_resolver_action: QAction
     _looky_submenu: QMenu
     _game_menu_gta5_separator: QAction
-    _session_host_submenu: QMenu
-    _host_status_action: QAction
+    _sessions_submenu: QMenu
     _game_menu_process_separator: QAction
     _game_process_submenu: QMenu
     _game_suspend_resume_action: QAction
@@ -77,6 +84,7 @@ class GameMixin(QMainWindow):
         _select_ips: Callable[[list[str]], None]
         _detections_manager_window: DetectionsManagerDialog | None
         _userip_manager_window: UserIPDatabasesManager | None
+        _disconnected: SessionTableSection
 
     def _active_game_label(self) -> str:
         """Return the user-facing game label for the active preset."""
@@ -159,41 +167,15 @@ class GameMixin(QMainWindow):
         self._build_looky_submenu(game_menu)
         self._game_menu_gta5_separator = game_menu.addSeparator()
 
-        # Shared: Session Host submenu
-        session_host_submenu = game_menu.addMenu(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'crown.svg')), 'Session Host')
-        if not session_host_submenu:
-            message = 'Failed to create Session Host submenu'
+        # Shared: Sessions submenu
+        sessions_submenu = game_menu.addMenu(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'devices.svg')), 'Sessions')
+        if not sessions_submenu:
+            message = 'Failed to create Sessions submenu'
             raise RuntimeError(message)
-        session_host_submenu.setToolTipsVisible(True)
-        session_host_submenu.menuAction().setToolTip('Session host detection controls for the current lobby')
-        self._session_host_submenu = session_host_submenu
-
-        host_status_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'info.svg')), 'No host', self)
-        host_status_action.setEnabled(False)
-        host_status_action.setToolTip('Current session host detection state')
-        session_host_submenu.addAction(host_status_action)
-        self._host_status_action = host_status_action
-
-        def _update_host_status_label() -> None:
-            current_session_host = SessionHost.get_player()
-            if current_session_host is not None:
-                self._host_status_action.setText(f'Detected: {current_session_host.ip}')
-            elif SessionHost.search_player:
-                self._host_status_action.setText('Searching…')
-            else:
-                self._host_status_action.setText('No host')
-
-        session_host_submenu.aboutToShow.connect(_update_host_status_label)
-        setup_session_host_actions(
-            session_host_submenu,
-            SessionHostActionCallbacks(
-                clear_host=self._clear_session_host,
-                redetect_host=self._redetect_session_host,
-                show_diagnostics=self._show_session_host_diagnostics,
-                select_ips=self._select_ips,
-                open_history_diagnostics=self._open_host_history_diagnostics,
-            ),
-        )
+        sessions_submenu.setToolTipsVisible(True)
+        sessions_submenu.menuAction().setToolTip('Sessions tree, host controls, and history')
+        sessions_submenu.aboutToShow.connect(self._update_sessions_menu)
+        self._sessions_submenu = sessions_submenu
 
         self._game_menu_process_separator = game_menu.addSeparator()
 
@@ -472,7 +454,7 @@ Process is currently suspended'
         if status_key != self._last_game_status_key:
             self._update_game_status_label()
             can_interact = self._game_has_any_process_path() or not CaptureState.is_local_capture()
-            self._session_host_submenu.setEnabled(can_interact)
+            self._sessions_submenu.setEnabled(can_interact)
             self._player_resolver_action.setEnabled(can_interact)
             self._sync_game_process_button()
 
@@ -517,7 +499,7 @@ Process is currently suspended'
         self._game_menu_gta5_separator.setVisible(is_gta5 and local_only)
 
         can_interact = self._game_has_any_process_path() or not CaptureState.is_local_capture()
-        self._session_host_submenu.setEnabled(can_interact)
+        self._sessions_submenu.setEnabled(can_interact)
         self._player_resolver_action.setEnabled(can_interact)
 
         if is_gta5:
@@ -530,6 +512,135 @@ Process is currently suspended'
     def _open_player_resolver(self) -> None:
         """Open the Player Resolver window, or focus the existing one."""
         self._player_resolver_window.show_and_focus()
+
+    def _update_sessions_menu(self) -> None:
+        """Rebuild the dynamic Sessions tree with all recorded sessions, host controls, and history."""
+        self._sessions_submenu.clear()
+
+        all_sessions_action = self._sessions_submenu.addAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'devices.svg')), 'All Sessions')
+        all_sessions_action.setCheckable(True)
+        all_sessions_action.setChecked(SessionFilterState.get_selected_session() == SessionFilterState.FILTER_ALL)
+        all_sessions_action.setToolTip('Show disconnected players from all recorded sessions')
+        all_sessions_action.triggered.connect(partial(self._apply_session_filter, SessionFilterState.FILTER_ALL))
+
+        self._sessions_submenu.addSeparator()
+
+        current_session_id = SessionTracker.get_current_session_id()
+        all_session_ids = SessionTracker.get_all_session_ids()
+
+        host_callbacks = SessionHostActionCallbacks(
+            clear_host=self._clear_session_host,
+            redetect_host=self._redetect_session_host,
+            show_diagnostics=self._show_session_host_diagnostics,
+        )
+
+        for session_id in reversed(all_session_ids):
+            is_current = session_id == current_session_id
+            display_name = SessionTracker.get_session_display_name(session_id)
+            session_label = f'{display_name} (Current)' if is_current else display_name
+            session_icon = QIcon(str(RESOURCES_DIR_PATH / 'icons' / ('devices.svg' if is_current else 'history.svg')))
+            session_menu = self._sessions_submenu.addMenu(session_icon, session_label)
+            if not session_menu:
+                continue
+            session_menu.setToolTipsVisible(True)
+
+            if is_current:
+                current_session_host = SessionHost.get_player()
+                if current_session_host is not None:
+                    matched_player = PlayersRegistry.get_player_by_ip(current_session_host.ip)
+                    usernames = ', '.join(matched_player.usernames) if matched_player is not None and matched_player.usernames else ''
+                    host_text = f'Host: Detected: {current_session_host.ip}' + (f'  |  {usernames}' if usernames else '')
+                    country_code = (
+                        current_session_host.iplookup.geolite2.country_code
+                        if current_session_host.iplookup.geolite2.country_code not in {'...', 'N/A'}
+                        else current_session_host.iplookup.ipapi.country_code
+                    )
+                    flag_icon = load_country_flag_icon(country_code) or QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'crown.svg'))
+                    host_action = QAction(flag_icon, host_text, session_menu)
+                    host_action.setToolTip('Select this host player in the table and open host diagnostics')
+                    host_action.triggered.connect(partial(self._select_and_show_current_host_diagnostics, current_session_host.ip))
+                    session_menu.addAction(host_action)
+                elif SessionHost.search_player:
+                    searching_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'crown.svg')), 'Host: Searching…', session_menu)
+                    searching_action.setEnabled(False)
+                    session_menu.addAction(searching_action)
+                else:
+                    no_host_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'crown.svg')), 'Host: No host', session_menu)
+                    no_host_action.setEnabled(False)
+                    session_menu.addAction(no_host_action)
+
+                setup_session_host_actions(session_menu, host_callbacks)
+            else:
+                session_history = SessionHost.get_history(session_id=session_id)
+                if session_history:
+                    last_host = session_history[-1]
+                    matched_player = PlayersRegistry.get_player_by_ip(last_host.ip)
+                    usernames = ', '.join(matched_player.usernames) if matched_player is not None and matched_player.usernames else ''
+                    host_label = f'Host: {last_host.ip}' + (f'  |  {usernames}' if usernames else '')
+                    flag_icon = load_country_flag_icon(last_host.country_code) or QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'crown.svg'))
+                    host_action = QAction(flag_icon, host_label, session_menu)
+                    host_action.setToolTip('Select this host player in the table and open host diagnostics')
+                    host_action.triggered.connect(self._create_past_host_action_handler(last_host))
+                    session_menu.addAction(host_action)
+
+                    diagnostics_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'bug.svg')), 'Host Diagnostics…', session_menu)
+                    diagnostics_action.setToolTip('Show diagnostics recorded for this host detection')
+                    diagnostics_action.triggered.connect(partial(self._open_host_history_diagnostics, last_host))
+                    session_menu.addAction(diagnostics_action)
+                else:
+                    no_host_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'crown.svg')), 'Host: None recorded', session_menu)
+                    no_host_action.setEnabled(False)
+                    session_menu.addAction(no_host_action)
+
+            session_menu.addSeparator()
+
+            rename_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'edit.svg')), f"Rename Session '{display_name}'…", session_menu)
+            rename_action.setToolTip(f"Rename Session '{display_name}'")
+            rename_action.triggered.connect(partial(self._prompt_rename_session, session_id))
+            session_menu.addAction(rename_action)
+
+            filter_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'search.svg')), 'Filter to this Session', session_menu)
+            filter_action.setCheckable(True)
+            filter_action.setToolTip('Filter to only show players from this session')
+            current_filter = SessionFilterState.get_selected_session()
+            is_filter_active = current_filter in (SessionFilterState.FILTER_CURRENT, session_id) if is_current else current_filter == session_id
+            filter_action.setChecked(is_filter_active)
+            target_filter = SessionFilterState.FILTER_CURRENT if is_current else session_id
+            filter_action.triggered.connect(partial(self._apply_session_filter, target_filter))
+            session_menu.addAction(filter_action)
+
+        self._sessions_submenu.addSeparator()
+        history_menu = self._sessions_submenu.addMenu(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'history.svg')), 'Host History')
+        if history_menu:
+            history_menu.setToolTipsVisible(True)
+            history_menu.aboutToShow.connect(
+                partial(
+                    populate_host_history_submenu,
+                    history_menu,
+                    self._select_ips,
+                    self._open_host_history_diagnostics,
+                )
+            )
+
+    def _create_past_host_action_handler(self, target_entry: HostHistoryEntry) -> Callable[[], None]:
+        def _handler() -> None:
+            self._select_ips([target_entry.ip])
+            self._open_host_history_diagnostics(target_entry)
+
+        return _handler
+
+    def _select_and_show_current_host_diagnostics(self, target_ip: str) -> None:
+        self._select_ips([target_ip])
+        self._show_session_host_diagnostics()
+
+    def _prompt_rename_session(self, session_id: int) -> None:
+        """Prompt user to rename the specified session and synchronize the session filter."""
+        if prompt_rename_session(self, session_id) and SessionFilterState.get_selected_session() == session_id:
+            self._disconnected.set_selected_session_filter(session_id)
+
+    def _apply_session_filter(self, session_id: int) -> None:
+        """Apply a session filter and synchronize table controls."""
+        self._disconnected.set_selected_session_filter(session_id)
 
     def _clear_session_host(self) -> None:
         """Manually clear the current session host and reset host detection state."""

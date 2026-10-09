@@ -221,6 +221,34 @@ class PlayerPackets:
         self.total_max_len = max(self.total_max_len, packet_length)
         self.total_sum_len += packet_length
 
+    def snapshot(self) -> Self:
+        """Create a frozen snapshot copy of this packet tracking state."""
+        return self.__class__(
+            exchanged=self.exchanged,
+            total_received=self.total_received,
+            received=self.received,
+            total_sent=self.total_sent,
+            sent=self.sent,
+            pps=self.PPS(
+                is_first_calculation=self.pps.is_first_calculation,
+                last_update_time=self.pps.last_update_time,
+                accumulated_packets=self.pps.accumulated_packets,
+                calculated_rate=self.pps.calculated_rate,
+            ),
+            ppm=self.PPM(
+                is_first_calculation=self.ppm.is_first_calculation,
+                last_update_time=self.ppm.last_update_time,
+                accumulated_packets=self.ppm.accumulated_packets,
+                calculated_rate=self.ppm.calculated_rate,
+            ),
+            min_len=self.min_len,
+            max_len=self.max_len,
+            session_sum_len=self.session_sum_len,
+            total_min_len=self.total_min_len,
+            total_max_len=self.total_max_len,
+            total_sum_len=self.total_sum_len,
+        )
+
 
 @dataclass(kw_only=True, slots=True)
 class PlayerBandwidth:
@@ -385,6 +413,28 @@ class PlayerBandwidth:
         self.bpm.reset()
         self.bpm.accumulated_bytes = packet_length
 
+    def snapshot(self) -> Self:
+        """Create a frozen snapshot copy of this bandwidth tracking state."""
+        return self.__class__(
+            exchanged=self.exchanged,
+            total_download=self.total_download,
+            download=self.download,
+            total_upload=self.total_upload,
+            upload=self.upload,
+            bps=self.BPS(
+                is_first_calculation=self.bps.is_first_calculation,
+                last_update_time=self.bps.last_update_time,
+                accumulated_bytes=self.bps.accumulated_bytes,
+                calculated_rate=self.bps.calculated_rate,
+            ),
+            bpm=self.BPM(
+                is_first_calculation=self.bpm.is_first_calculation,
+                last_update_time=self.bpm.last_update_time,
+                accumulated_bytes=self.bpm.accumulated_bytes,
+                calculated_rate=self.bpm.calculated_rate,
+            ),
+        )
+
     @staticmethod
     def format_bytes(total_bytes: int) -> str:
         """Format bytes to human-readable string."""
@@ -456,6 +506,17 @@ class PlayerPorts:
             self.middle.append(self.last)
 
         self.last = port
+
+    def snapshot(self) -> Self:
+        """Create a frozen snapshot copy of this ports tracking state."""
+        return self.__class__(
+            all=list(self.all),
+            first=self.first,
+            middle=list(self.middle),
+            last=self.last,
+            _all_set=set(self._all_set),
+            _middle_set=set(self._middle_set),
+        )
 
 
 @dataclass(kw_only=True, slots=True)
@@ -553,6 +614,18 @@ class PlayerDateTime:
         if self.session_time is None:
             return self.total_session_time + (self.last_seen - self.last_rejoin)
         return self.total_session_time + self.session_time
+
+    def snapshot(self) -> Self:
+        """Create a frozen snapshot copy of this datetime tracking state."""
+        return self.__class__(
+            first_seen=self.first_seen,
+            last_rejoin=self.last_rejoin,
+            last_seen=self.last_seen,
+            total_session_time=self.total_session_time,
+            session_time=self.get_session_time(),
+            biggest_session_time=self.biggest_session_time,
+            lowest_session_time=self.lowest_session_time,
+        )
 
     @classmethod
     def from_packet_datetime(cls, packet_datetime: datetime_type) -> Self:

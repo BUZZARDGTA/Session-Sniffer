@@ -48,7 +48,7 @@ from session_sniffer.guis.utils import (
 )
 from session_sniffer.guis.worker_thread import GUIWorkerThread
 from session_sniffer.models import GUIState
-from session_sniffer.player.registry import PlayersRegistry, SessionHost
+from session_sniffer.player.registry import PlayersRegistry, SessionHost, SessionTracker
 from session_sniffer.player.userip import UserIPDatabases
 from session_sniffer.rdr2.suspend_manager import RDR2SuspendManager
 from session_sniffer.rendering_core.status_bar_renderer import build_gui_status_text
@@ -57,6 +57,7 @@ from session_sniffer.rendering_core.types import (
     GUIUpdatePayload,
     PaginationState,
     SearchState,
+    SessionFilterState,
 )
 from session_sniffer.settings import Settings
 
@@ -128,8 +129,13 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
     _userip_manager_window: UserIPDatabasesManager | None
 
     def _on_splitter_moved(self, _position: int, _index: int) -> None:
-        if self._connected.is_expanded and self._disconnected.is_expanded:
+        selected_session = SessionFilterState.get_selected_session()
+        is_past_session = 0 < selected_session < SessionTracker.get_current_session_id()
+        if not is_past_session and self._connected.is_expanded and self._disconnected.is_expanded:
             self._saved_splitter_sizes = self._tables_splitter.sizes()
+
+    def _on_session_filter_changed(self, _session_id: int) -> None:
+        self._update_splitter_visibility()
 
     def _update_splitter_visibility(self) -> None:
         self._connected.update_disconnected_players_state()
@@ -143,7 +149,22 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
             self._placeholder.setVisible(False)
             return
 
+        selected_session = SessionFilterState.get_selected_session()
+        is_past_session = 0 < selected_session < SessionTracker.get_current_session_id()
+        if is_past_session:
+            self._connected.setVisible(False)
+            self._connected.expand_button.setVisible(False)
+            self._connected.collapse_button.setVisible(False)
+            self._disconnected.collapse_button.setVisible(False)
+            self._disconnected.expand_button.setVisible(False)
+            self._disconnected.setVisible(True)
+            self._tables_splitter.setVisible(True)
+            self._placeholder.setVisible(False)
+            self._tables_splitter.setSizes([0, 10000])
+            return
+
         self._connected.collapse_button.setVisible(True)
+        self._disconnected.collapse_button.setVisible(True)
         connected_expanded = self._connected.is_expanded
         disconnected_expanded = self._disconnected.is_expanded
         self._connected.setVisible(connected_expanded)
@@ -293,6 +314,7 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
 
         self._connected.section_toggled.connect(self._update_splitter_visibility)
         self._disconnected.section_toggled.connect(self._update_splitter_visibility)
+        self._disconnected.session_filter_changed.connect(self._on_session_filter_changed)
 
         if Settings.gui_remember_window_layout:
             gui_state = GUIState.load()
@@ -506,7 +528,9 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
         self._stats_timer.stop()
         if Settings.gui_remember_window_layout:
             gui_state = GUIState.load()
-            if self._connected.is_expanded and self._disconnected.is_expanded:
+            selected_session = SessionFilterState.get_selected_session()
+            is_past_session = 0 < selected_session < SessionTracker.get_current_session_id()
+            if not is_past_session and self._connected.is_expanded and self._disconnected.is_expanded:
                 current_sizes = self._tables_splitter.sizes()
                 if sum(current_sizes) > 0:
                     gui_state.main_window_splitter_sizes = current_sizes

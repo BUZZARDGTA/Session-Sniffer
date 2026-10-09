@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, cast, override
 from PySide6.QtCore import QEvent, QObject, QSize, Qt, Signal
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (
+    QComboBox,
     QFrame,
     QHBoxLayout,
     QHeaderView,
@@ -35,8 +36,10 @@ from session_sniffer.guis.stylesheets import (
 from session_sniffer.guis.table_model import SessionTableModel
 from session_sniffer.guis.tables import SessionTableView
 from session_sniffer.guis.utils import make_padded_icon, render_svg_pixmap_from_resource, scale_by_ui
-from session_sniffer.rendering_core.types import PaginationState, SearchState
+from session_sniffer.player.registry import SessionTracker
+from session_sniffer.rendering_core.types import PaginationState, SearchState, SessionFilterState
 from session_sniffer.settings import Settings
+from session_sniffer.text_utils import pluralize
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -86,11 +89,13 @@ class SessionTableSection(QWidget):
     """Self-contained collapsible widget containing a session table with header controls."""
 
     section_toggled = Signal()
+    session_filter_changed = Signal(int)
     table_model: SessionTableModel
     table_view: SessionTableView
     expand_button: QPushButton
     collapse_button: QToolButton
     _clear_button: QPushButton
+    _session_filter_combo: QComboBox | None
     _is_expanded: bool
 
     def __init__(
@@ -111,6 +116,7 @@ class SessionTableSection(QWidget):
 
         self._is_connected = is_connected
         self._rows_keyboard_editing = False
+        self._session_filter_combo = None
 
         if is_connected:
             accent = '#22c55e'
@@ -251,6 +257,28 @@ class SessionTableSection(QWidget):
             PaginationState.set_connected(rows_per_page=initial_rpp, page=1)
         else:
             PaginationState.set_disconnected(rows_per_page=initial_rpp, page=1)
+
+        if not is_connected:
+            session_label = QLabel('Session:')
+            session_label.setToolTip('Filter disconnected players by session (All vs Current).')
+
+            session_filter_combo = QComboBox()
+            session_filter_combo.setObjectName('sectionSessionFilterCombo')
+            session_filter_combo.setToolTip('Filter disconnected players by session (All vs Current).')
+            session_filter_combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
+            session_filter_combo.addItem('All', SessionFilterState.FILTER_ALL)
+            session_filter_combo.addItem('Current', SessionFilterState.FILTER_CURRENT)
+            session_filter_combo.currentIndexChanged.connect(self._handle_session_filter_changed)
+            self._session_filter_combo = session_filter_combo
+
+            session_pair = QHBoxLayout()
+            session_pair.setSpacing(3)
+            session_pair.setContentsMargins(0, 0, 0, 0)
+            session_pair.addWidget(session_label)
+            session_pair.addWidget(session_filter_combo)
+            header_layout.addLayout(session_pair)
+        else:
+            self._session_filter_combo = None
 
         header_layout.addWidget(clear_button)
         header_layout.addWidget(collapse_button)
@@ -599,10 +627,18 @@ class SessionTableSection(QWidget):
         return 'disconnected players'
 
     def _header_label_text(self) -> str:
-        intro = ('Connected Players' if Settings.gui_disconnected_players_enabled else 'Players') if self._section_name == 'Connected' else 'Disconnected Players'
+        selected_session = SessionFilterState.get_selected_session()
+        if not self._is_connected and 0 < selected_session < SessionTracker.get_current_session_id():
+            display_name = SessionTracker.get_session_display_name(selected_session)
+            intro = f"Session '{display_name}' Players"
+        elif self._is_connected:
+            intro = 'Connected Players' if Settings.gui_disconnected_players_enabled else 'Players'
+        else:
+            intro = 'Disconnected Players'
+
         base = f'{intro} ({max(0, self.last_count)})'
         if self._selected_count > 0:
-            noun = 'player' if self._selected_count == 1 else 'players'
+            noun = f'player{pluralize(self._selected_count)}'
             return f'{base} ({self._selected_count} {noun} selected)'
         return base
 
@@ -666,6 +702,42 @@ class SessionTableSection(QWidget):
     def _finalize_rows_edit(self) -> None:
         self._handle_rows_per_page_changed(self._rows_per_page_spinbox.value())
         self._rows_per_page_spinbox.clearFocus()
+
+    def set_selected_session_filter(self, session_id: int) -> None:
+        """Set the active session filter and synchronize the combobox."""
+        if self._session_filter_combo is not None:
+            self._session_filter_combo.blockSignals(True)  # noqa: FBT003
+            if session_id == SessionFilterState.FILTER_ALL:
+                self._session_filter_combo.setPlaceholderText('')
+                self._session_filter_combo.setCurrentIndex(0)
+            elif session_id == SessionFilterState.FILTER_CURRENT:
+                self._session_filter_combo.setPlaceholderText('')
+                self._session_filter_combo.setCurrentIndex(1)
+            elif 0 < session_id < SessionTracker.get_current_session_id():
+                self._session_filter_combo.setPlaceholderText(SessionTracker.get_session_display_name(session_id))
+                self._session_filter_combo.setCurrentIndex(-1)
+            self._session_filter_combo.blockSignals(False)  # noqa: FBT003
+
+        self._current_page = 1
+        PaginationState.set_disconnected_page(1)
+        SessionFilterState.set_selected_session(session_id=session_id)
+        self._update_header_label()
+        self.session_filter_changed.emit(session_id)
+
+    def _handle_session_filter_changed(self, index: int) -> None:
+        """Handle session filter combobox selection changes."""
+        if self._session_filter_combo is None or index < 0:
+            return
+        self._session_filter_combo.setPlaceholderText('')
+        selected_session = self._session_filter_combo.itemData(index)
+        if selected_session is None:
+            selected_session = SessionFilterState.FILTER_ALL
+
+        self._current_page = 1
+        PaginationState.set_disconnected_page(1)
+        SessionFilterState.set_selected_session(session_id=selected_session)
+        self._update_header_label()
+        self.session_filter_changed.emit(selected_session)
 
     def _push_pagination_state(self) -> None:
         """Write current pagination state to the shared PaginationState."""

@@ -6,6 +6,7 @@ from PySide6.QtGui import QAction, QClipboard, QIcon
 from PySide6.QtWidgets import (
     QDialog,
     QInputDialog,
+    QLineEdit,
     QMenu,
     QMessageBox,
     QWidget,
@@ -27,6 +28,8 @@ from session_sniffer.guis.tables_player_actions._format import (
 )
 from session_sniffer.guis.userip_manager_helpers import IPRangeBuilderDialog
 from session_sniffer.networking.ping import PingMode
+from session_sniffer.player.registry import SessionTracker
+from session_sniffer.rendering_core.types import SessionFilterState
 from session_sniffer.settings.settings import Settings
 from session_sniffer.text_utils import pluralize
 
@@ -405,3 +408,21 @@ def filter_player_isp(parent: QWidget, isp_name: str) -> str | None:
         Settings.rewrite_settings_file()
 
     return entry
+
+
+def prompt_rename_session(parent: QWidget, session_id: int) -> bool:
+    """Prompt the user with an input dialog to set a custom name for a session sequence number."""
+    current_name = SessionTracker.get_session_name(session_id)
+    new_name, success = QInputDialog.getText(
+        parent,
+        'Rename Session',
+        f'Enter a custom name for Session #{session_id} (leave empty to reset):',
+        QLineEdit.EchoMode.Normal,
+        current_name if current_name is not None else '',
+    )
+    if not success:
+        return False
+
+    SessionTracker.set_session_name(session_id, new_name)
+    SessionFilterState.bump_version()
+    return True

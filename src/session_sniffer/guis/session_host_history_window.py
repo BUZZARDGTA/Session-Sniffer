@@ -9,7 +9,7 @@ from PySide6.QtGui import QAction, QIcon
 from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.constants.standard import LOCAL_TZ
 from session_sniffer.guis.utils import load_country_flag_icon
-from session_sniffer.player.registry import HostHistoryEntry, PlayersRegistry, SessionHost
+from session_sniffer.player.registry import HostHistoryEntry, PlayersRegistry, SessionHost, SessionTracker
 from session_sniffer.text_utils import format_elapsed_time
 
 if TYPE_CHECKING:
@@ -20,13 +20,11 @@ if TYPE_CHECKING:
 
 @dataclass(slots=True)
 class SessionHostActionCallbacks:
-    """Callback bundle for configuring session host actions and history."""
+    """Callback bundle for configuring session host control actions."""
 
     clear_host: Callable[[], None]
     redetect_host: Callable[[], None]
     show_diagnostics: Callable[[], None]
-    select_ips: Callable[[list[str]], None]
-    open_history_diagnostics: Callable[[HostHistoryEntry], None]
 
 
 def populate_host_history_submenu(
@@ -55,7 +53,10 @@ def populate_host_history_submenu(
         matched_player = PlayersRegistry.get_player_by_ip(entry.ip)
         usernames = ', '.join(matched_player.usernames) if matched_player is not None and matched_player.usernames else '—'
         elapsed_time_string = format_elapsed_time(now - entry.detected_at)
-        action_label = f'{entry.ip}  |  {usernames}  |  {entry.detected_at.strftime("%H:%M:%S")} ({elapsed_time_string} ago)'
+        session_prefix = ''
+        if entry.session_id is not None:
+            session_prefix = f'[{SessionTracker.get_session_display_name(entry.session_id)}] '
+        action_label = f'{session_prefix}{entry.ip}  |  {usernames}  |  {entry.detected_at.strftime("%H:%M:%S")} ({elapsed_time_string} ago)'
         action = QAction(action_label, menu)
         action.setToolTip('Select this player in the table and open their host detection diagnostics.')
         action.triggered.connect(_create_entry_triggered_handler(entry))
@@ -69,7 +70,7 @@ def setup_session_host_actions(
     session_host_submenu: QMenu,
     callbacks: SessionHostActionCallbacks,
 ) -> None:
-    """Populate common session host control actions and the Host History submenu."""
+    """Populate common session host control actions."""
     session_host_submenu.addSeparator()
 
     clear_host_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'close.svg')), 'Clear Session Host', session_host_submenu)
@@ -86,17 +87,3 @@ def setup_session_host_actions(
     diagnostics_action.setToolTip('Show detailed diagnostics and debug information from the last session host detection')
     diagnostics_action.triggered.connect(callbacks.show_diagnostics)
     session_host_submenu.addAction(diagnostics_action)
-
-    session_host_submenu.addSeparator()
-    host_history_submenu = session_host_submenu.addMenu(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'history.svg')), 'Host History')
-    if not host_history_submenu:
-        message = 'Failed to create Host History submenu'
-        raise RuntimeError(message)
-    host_history_submenu.setToolTipsVisible(True)
-    host_history_submenu.aboutToShow.connect(
-        lambda: populate_host_history_submenu(
-            host_history_submenu,
-            callbacks.select_ips,
-            callbacks.open_history_diagnostics,
-        ),
-    )

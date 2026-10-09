@@ -31,6 +31,7 @@ from session_sniffer.player.registry import (
     SESSION_HOST_STARTUP_WINDOW_SECONDS,
     PlayersRegistry,
     SessionHost,
+    SessionTracker,
 )
 from session_sniffer.player.userip import UserIPDatabases
 from session_sniffer.player.userip_loader import update_userip_databases
@@ -306,6 +307,7 @@ def rendering_core(
     _sniffer_just_started: bool = True
     _sniffer_start_time: float = time.monotonic()
     _session_host_was_active: bool = False
+    _session_ended: bool = False
     last_webhook_submit_time: float | None = None
     discord_rpc_manager: DiscordRPC | None = None
     discord_webhook_sender: DiscordWebhookSender | None = None
@@ -492,6 +494,8 @@ def rendering_core(
                 if country_code_value is not None:
                     player.country_flag = get_country_flag(country_code_value)
 
+        p2p_session_connected = [player for player in session_connected if not player.is_third_party_server]
+
         if Settings.is_session_host_feature_set():
             if Settings.is_gta5_feature_set():
                 game_is_running = CaptureState.gta5_is_running or not CaptureState.is_local_capture()
@@ -514,8 +518,8 @@ def rendering_core(
                     _sniffer_just_started = True
                     _sniffer_start_time = time.monotonic()
                     _session_host_was_active = False
+                    _session_ended = False
                     _relay_host_logged_ip = None
-                p2p_session_connected = [player for player in session_connected if not player.is_third_party_server]
                 current_session_host = SessionHost.get_player()
                 is_relay_host = current_session_host is not None and SessionHost.is_relay_host_candidate(current_session_host)
                 if current_session_host is not None and current_session_host.left_event.is_set():
@@ -575,6 +579,8 @@ def rendering_core(
                         SessionHost.set_player(None)
                         SessionHost.search_player = True
                         SessionHost.search_start_time = None
+                        SessionTracker.advance_session(players=new_active_players)
+                        _session_ended = False
 
                 # Sniffer startup: wait the full window before deciding.
                 # Players seen before the window expires suppress the search; once the window
@@ -595,12 +601,17 @@ def rendering_core(
                     elif p2p_session_connected:
                         SessionHost.search_player = False
 
+                if p2p_session_connected and _session_ended:
+                    SessionTracker.advance_session(players=p2p_session_connected)
+                    _session_ended = False
                 if p2p_session_connected:
                     _session_host_was_active = True
 
                 if not p2p_session_connected:
                     if _session_host_was_active and (SessionHost.has_player() or not SessionHost.search_player):
                         logger.debug('[SessionHost] No connected P2P players, resetting host and triggering search')
+                    if _session_host_was_active:
+                        _session_ended = True
                     _session_host_was_active = False
                     _relay_host_logged_ip = None
                     SessionHost.clear_session_host_data()
@@ -670,7 +681,17 @@ def rendering_core(
 
         current_session_host = SessionHost.get_player()
         if current_session_host is not None and current_session_host.ip != _last_recorded_host_ip:
-            SessionHost.record_host(current_session_host, diagnostics=SessionHost.last_diagnostics)
+            previous_host = SessionTracker.get_current_session_host_ip()
+            if previous_host is not None and previous_host != current_session_host.ip:
+                active_session_id = SessionTracker.advance_session(host_ip=current_session_host.ip, players=p2p_session_connected)
+            else:
+                active_session_id = SessionTracker.get_current_session_id()
+                SessionTracker.record_session_host(current_session_host.ip)
+            SessionHost.record_host(
+                current_session_host,
+                diagnostics=SessionHost.last_diagnostics,
+                session_id=active_session_id,
+            )
             _last_recorded_host_ip = current_session_host.ip
         elif current_session_host is None and _last_recorded_host_ip is not None:
             _last_recorded_host_ip = None
@@ -795,6 +816,14 @@ def rendering_core(
                     row_count=session_table_snapshot.disconnected_count,
                     rows_with_colors=session_table_snapshot.disconnected_rows_with_colors,
                 ),
+                past_sessions={
+                    session_id: GUITableData(
+                        column_count=disconnected_num_columns,
+                        row_count=len(rows),
+                        rows_with_colors=rows,
+                    )
+                    for session_id, rows in session_table_snapshot.past_sessions_with_colors.items()
+                },
             ),
         )
 
