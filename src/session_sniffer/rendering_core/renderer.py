@@ -308,6 +308,7 @@ def rendering_core(
     _sniffer_start_time: float = time.monotonic()
     _session_host_was_active: bool = False
     _session_ended: bool = False
+    _session_transitioned_for_pending_disconnections: bool = False
     last_webhook_submit_time: float | None = None
     discord_rpc_manager: DiscordRPC | None = None
     discord_webhook_sender: DiscordWebhookSender | None = None
@@ -497,14 +498,16 @@ def rendering_core(
         p2p_session_connected = [player for player in session_connected if not player.is_third_party_server]
 
         if Settings.is_session_host_feature_set():
-            if Settings.is_gta5_feature_set():
-                game_is_running = CaptureState.gta5_is_running or not CaptureState.is_local_capture()
-            else:
-                game_is_running = CaptureState.rdr2_is_running or not CaptureState.is_local_capture()
+            game_is_running = (
+                CaptureState.is_scanning_gta5_process()
+                if Settings.is_gta5_feature_set()
+                else (CaptureState.rdr2_is_running or not CaptureState.is_local_capture())
+            )
 
             if not game_is_running or not Settings.gui_session_host_detection:
                 if SessionHost.has_player() or SessionHost.players_pending_for_disconnection or SessionHost.search_player or SessionHost.last_timing_gap_candidate is not None:
                     SessionHost.clear_session_host_data()
+                    _session_transitioned_for_pending_disconnections = False
             else:
                 game_just_started = False
                 if Settings.is_gta5_feature_set() and CaptureState.gta5_just_started:
@@ -519,6 +522,7 @@ def rendering_core(
                     _sniffer_start_time = time.monotonic()
                     _session_host_was_active = False
                     _session_ended = False
+                    _session_transitioned_for_pending_disconnections = False
                     _relay_host_logged_ip = None
                 current_session_host = SessionHost.get_player()
                 is_relay_host = current_session_host is not None and SessionHost.is_relay_host_candidate(current_session_host)
@@ -549,7 +553,10 @@ def rendering_core(
                         SessionHost.set_player(None)
                         SessionHost.search_player = True
                         SessionHost.search_start_time = None
+                    if not _session_transitioned_for_pending_disconnections and p2p_session_connected:
+                        SessionTracker.advance_session(players=p2p_session_connected)
                     SessionHost.players_pending_for_disconnection.clear()
+                    _session_transitioned_for_pending_disconnections = False
                 elif SessionHost.players_pending_for_disconnection:
                     recovered_players = [
                         player for player in SessionHost.players_pending_for_disconnection if not player.left_event.is_set() and player.packets.pps.calculated_rate
@@ -567,7 +574,7 @@ def rendering_core(
                         if SessionHost.players_pending_for_disconnection
                         else []
                     )
-                    if new_active_players and (SessionHost.has_player() or not SessionHost.search_player):
+                    if new_active_players and not _session_transitioned_for_pending_disconnections:
                         logger.debug(
                             '[SessionHost] %d new active player%s detected while %d player%s pending disconnection, resetting host and triggering search',
                             len(new_active_players),
@@ -575,11 +582,15 @@ def rendering_core(
                             len(SessionHost.players_pending_for_disconnection),
                             pluralize(len(SessionHost.players_pending_for_disconnection)),
                         )
+                        new_session_connected = [
+                            player for player in p2p_session_connected if player not in SessionHost.players_pending_for_disconnection
+                        ]
+                        _session_transitioned_for_pending_disconnections = True
                         _relay_host_logged_ip = None
                         SessionHost.set_player(None)
                         SessionHost.search_player = True
                         SessionHost.search_start_time = None
-                        SessionTracker.advance_session(players=new_active_players)
+                        SessionTracker.advance_session(players=new_session_connected)
                         _session_ended = False
 
                 # Sniffer startup: wait the full window before deciding.
@@ -615,6 +626,7 @@ def rendering_core(
                     _session_host_was_active = False
                     _relay_host_logged_ip = None
                     SessionHost.clear_session_host_data()
+                    _session_transitioned_for_pending_disconnections = False
                     SessionHost.search_player = True
                 elif all(not player.packets.pps.is_first_calculation and not player.packets.pps.calculated_rate for player in p2p_session_connected):
                     if not SessionHost.players_pending_for_disconnection:
@@ -624,6 +636,7 @@ def rendering_core(
                             pluralize(len(p2p_session_connected)),
                         )
                         SessionHost.players_pending_for_disconnection = list(p2p_session_connected)
+                        _session_transitioned_for_pending_disconnections = False
                 elif (
                     current_session_host is not None
                     and not is_relay_host
@@ -640,6 +653,7 @@ def rendering_core(
                             pluralize(len(idle_players)),
                         )
                         SessionHost.players_pending_for_disconnection = idle_players
+                        _session_transitioned_for_pending_disconnections = False
                 elif SessionHost.search_player:
                     if SessionHost.search_start_time is None:
                         SessionHost.search_start_time = time.monotonic()
@@ -650,6 +664,7 @@ def rendering_core(
                             len(SessionHost.players_pending_for_disconnection),
                         )
                         SessionHost.clear_session_host_data()
+                        _session_transitioned_for_pending_disconnections = False
                     elif len(p2p_session_connected) != 1 or p2p_session_connected[0].packets.sent >= MINIMUM_PACKETS_FOR_RELAY_SESSION_HOST:
                         SessionHost.get_host_player(p2p_session_connected)
                 elif not SessionHost.has_player() and SessionHost.last_timing_gap_candidate is not None and len(p2p_session_connected) >= SESSION_HOST_CANDIDATE_PLAYERS_COUNT:
@@ -681,12 +696,8 @@ def rendering_core(
 
         current_session_host = SessionHost.get_player()
         if current_session_host is not None and current_session_host.ip != _last_recorded_host_ip:
-            previous_host = SessionTracker.get_current_session_host_ip()
-            if previous_host is not None and previous_host != current_session_host.ip:
-                active_session_id = SessionTracker.advance_session(host_ip=current_session_host.ip, players=p2p_session_connected)
-            else:
-                active_session_id = SessionTracker.get_current_session_id()
-                SessionTracker.record_session_host(current_session_host.ip)
+            active_session_id = SessionTracker.get_current_session_id()
+            SessionTracker.record_session_host(current_session_host.ip)
             SessionHost.record_host(
                 current_session_host,
                 diagnostics=SessionHost.last_diagnostics,

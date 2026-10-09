@@ -266,6 +266,18 @@ class CaptureState:
             return not (Settings.capture_arp_spoofing or cls.is_neighbour_interface or cls.interface_type in (INTERFACE_TYPE_BRIDGED, INTERFACE_TYPE_SHARING))
 
     @classmethod
+    def is_scanning_gta5_process(cls) -> bool:
+        """Return `True` if local capture is actively filtering traffic on the running GTA V process PID."""
+        with cls._lock:
+            is_local = not (Settings.capture_arp_spoofing or cls.is_neighbour_interface or cls.interface_type in (INTERFACE_TYPE_BRIDGED, INTERFACE_TYPE_SHARING))
+            return (
+                is_local
+                and cls.gta5_is_running
+                and cls.gta5_pid is not None
+                and Settings.capture_filter_process_pid == cls.gta5_pid
+            )
+
+    @classmethod
     def update_target_process_status(cls, status: TargetProcessStatus) -> None:
         """Update target process running state, PID, path, and UDP socket ports."""
         with cls._lock:
