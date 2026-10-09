@@ -563,7 +563,10 @@ Process is currently suspended'
 
             if is_current:
                 current_session_host = SessionHost.get_player()
-                if current_session_host is not None:
+                session_history = SessionHost.get_history(session_id=session_id)
+                last_host = session_history[-1] if session_history else None
+
+                if current_session_host is not None and not current_session_host.left_event.is_set():
                     matched_player = PlayersRegistry.get_player_by_ip(current_session_host.ip)
                     usernames = ', '.join(matched_player.usernames) if matched_player is not None and matched_player.usernames else ''
                     host_text = f'Host: Detected: {current_session_host.ip}' + (f'  |  {usernames}' if usernames else '')
@@ -577,6 +580,19 @@ Process is currently suspended'
                     host_action.setToolTip('Select this host player in the table and open host diagnostics')
                     host_action.triggered.connect(partial(self._select_and_show_current_host_diagnostics, current_session_host.ip))
                     session_menu.addAction(host_action)
+                elif last_host is not None:
+                    matched_player = PlayersRegistry.get_player_by_ip(last_host.ip)
+                    usernames = ', '.join(matched_player.usernames) if matched_player is not None and matched_player.usernames else ''
+                    host_text = f'Host: Detected: {last_host.ip}' + (f'  |  {usernames}' if usernames else '') + ' (Left)'
+                    flag_icon = load_country_flag_icon(last_host.country_code) or QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'crown.svg'))
+                    host_action = QAction(flag_icon, host_text, session_menu)
+                    host_action.setToolTip('Select this host player in the table and open host diagnostics (Host has left the session)')
+                    host_action.triggered.connect(self._create_past_host_action_handler(last_host))
+                    session_menu.addAction(host_action)
+                    if SessionHost.search_player:
+                        searching_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'crown.svg')), 'Host: Searching…', session_menu)
+                        searching_action.setEnabled(False)
+                        session_menu.addAction(searching_action)
                 elif SessionHost.search_player:
                     searching_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'crown.svg')), 'Host: Searching…', session_menu)
                     searching_action.setEnabled(False)
@@ -678,7 +694,11 @@ Process is currently suspended'
 
     def _open_host_history_diagnostics(self, history_entry: HostHistoryEntry) -> None:
         """Display diagnostic information for a specific host history entry."""
-        if history_entry.diagnostics is None:
+        diagnostics = history_entry.diagnostics
+        if diagnostics is None and SessionHost.last_diagnostics is not None and SessionHost.last_diagnostics.detected_host_ip == history_entry.ip:
+            diagnostics = SessionHost.last_diagnostics
+
+        if diagnostics is None:
             QMessageBox.information(
                 self,
                 TITLE,
@@ -688,19 +708,25 @@ Process is currently suspended'
 
         show_session_host_diagnostics_dialog(
             self,
-            history_entry.diagnostics,
+            diagnostics,
             dialog_key=history_entry.dialog_key,
         )
 
     def _show_session_host_diagnostics(self) -> None:
         """Display detailed diagnostic information from the last session host detection attempt."""
-        if SessionHost.last_diagnostics is None:
+        diagnostics = SessionHost.last_diagnostics
+        if diagnostics is None:
+            current_history = SessionHost.get_history(session_id=SessionTracker.get_current_session_id())
+            if current_history and current_history[-1].diagnostics is not None:
+                diagnostics = current_history[-1].diagnostics
+
+        if diagnostics is None:
             QMessageBox.information(self, TITLE, 'No session host detection diagnostics are available yet.')
             return
 
         show_session_host_diagnostics_dialog(
             self,
-            SessionHost.last_diagnostics,
+            diagnostics,
             redetect_callback=self._redetect_host_from_diagnostics,
         )
 

@@ -637,23 +637,6 @@ def rendering_core(
                         )
                         SessionHost.players_pending_for_disconnection = list(p2p_session_connected)
                         _session_transitioned_for_pending_disconnections = False
-                elif (
-                    current_session_host is not None
-                    and not is_relay_host
-                    and not current_session_host.packets.pps.is_first_calculation
-                    and not current_session_host.packets.pps.calculated_rate
-                    and any(player.packets.pps.calculated_rate for player in p2p_session_connected if player.ip != current_session_host.ip)
-                ):
-                    idle_players = [player for player in p2p_session_connected if not player.packets.pps.calculated_rate]
-                    if not SessionHost.players_pending_for_disconnection:
-                        logger.debug(
-                            '[SessionHost] Current host %s has 0 PPS while active players joined, marking %d idle player%s as pending disconnection',
-                            current_session_host.ip,
-                            len(idle_players),
-                            pluralize(len(idle_players)),
-                        )
-                        SessionHost.players_pending_for_disconnection = idle_players
-                        _session_transitioned_for_pending_disconnections = False
                 elif SessionHost.search_player:
                     if SessionHost.search_start_time is None:
                         SessionHost.search_start_time = time.monotonic()
