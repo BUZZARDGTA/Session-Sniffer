@@ -1,5 +1,6 @@
 """Context menu mixin for SessionTableView right-click interactions."""
 
+from datetime import datetime
 from typing import TYPE_CHECKING, cast
 
 from PySide6.QtCore import QItemSelectionModel, QUrl
@@ -8,8 +9,10 @@ from PySide6.QtWidgets import QInputDialog, QMenu, QTableView
 
 from session_sniffer.constants.local import BUILTIN_SCRIPTS_DIR_PATH, RESOURCES_DIR_PATH, USER_SCRIPTS_DIR_PATH
 from session_sniffer.constants.standalone import LOOKY_BASE_HOST
+from session_sniffer.constants.standard import LOCAL_TZ
 from session_sniffer.error_messages import ensure_instance
 from session_sniffer.guis.looky_text import configure_looky_action
+from session_sniffer.guis.session_host_diagnostics_dialog import show_session_host_diagnostics_dialog
 from session_sniffer.guis.table_model import SessionTableModel
 from session_sniffer.guis.tables_detections_mixin import build_detections_menu, build_detections_menu_multi
 from session_sniffer.guis.tables_player_actions import (
@@ -30,10 +33,10 @@ from session_sniffer.guis.tables_userip_mixin import resolve_usernames_for_playe
 from session_sniffer.networking.ip_range import check_ip_against_ranges
 from session_sniffer.networking.isp_filter import get_player_primary_isp, is_player_isp_filtered
 from session_sniffer.networking.looky_system import get_looky_user_url
-from session_sniffer.player.registry import PlayersRegistry, SessionHost
+from session_sniffer.player.registry import HostDiagnosticsSnapshot, PlayersRegistry, SessionHost
 from session_sniffer.rendering_core.types import CaptureState
 from session_sniffer.settings.settings import Settings
-from session_sniffer.text_utils import pluralize
+from session_sniffer.text_utils import format_elapsed_time, pluralize
 from session_sniffer.utils import dedup_preserve_order, run_cmd_script
 
 if TYPE_CHECKING:
@@ -784,6 +787,90 @@ class TableContextMenuMixin(QTableView):
                 icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'close.svg')),
             )
 
+        def add_host_diagnostics_action(ip_address: str) -> None:
+            if not Settings.is_session_host_feature_set():
+                return
+
+            def _show_diagnostics(snapshot: HostDiagnosticsSnapshot, dialog_key: str) -> None:
+                show_session_host_diagnostics_dialog(
+                    self.window(),
+                    snapshot,
+                    dialog_key=dialog_key,
+                )
+
+            def _build_diagnostics_handler(
+                target_snapshot: HostDiagnosticsSnapshot,
+                target_dialog_key: str,
+            ) -> Callable[[], None]:
+                def _handler() -> None:
+                    _show_diagnostics(target_snapshot, target_dialog_key)
+
+                return _handler
+
+            player_history_entries = [
+                entry
+                for entry in SessionHost.get_history()
+                if entry.ip == ip_address and entry.diagnostics is not None
+            ]
+
+            if len(player_history_entries) == 1:
+                history_entry = player_history_entries[0]
+                history_diagnostics = history_entry.diagnostics
+                if history_diagnostics is not None:
+                    add_action(
+                        context_menu,
+                        'Host Diagnostics…',
+                        tooltip='Show session host detection diagnostics recorded for this player.',
+                        handler=_build_diagnostics_handler(history_diagnostics, history_entry.dialog_key),
+                        icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'bug.svg')),
+                    )
+            elif len(player_history_entries) > 1:
+                host_diagnostics_menu = add_menu(
+                    context_menu,
+                    'Host Diagnostics',
+                    icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'bug.svg')),
+                )
+                now = datetime.now(tz=LOCAL_TZ)
+                for history_entry in reversed(player_history_entries):
+                    history_diagnostics = history_entry.diagnostics
+                    if history_diagnostics is None:
+                        continue
+                    elapsed_time_string = format_elapsed_time(now - history_entry.detected_at)
+                    time_label = f'{history_entry.detected_at.strftime("%H:%M:%S")} ({elapsed_time_string} ago)'
+                    add_action(
+                        host_diagnostics_menu,
+                        time_label,
+                        tooltip=f'Show session host detection diagnostics from {time_label}.',
+                        handler=_build_diagnostics_handler(history_diagnostics, history_entry.dialog_key),
+                    )
+            elif SessionHost.is_host(ip_address) and SessionHost.last_diagnostics is not None:
+                current_host_diagnostics = SessionHost.last_diagnostics
+                add_action(
+                    context_menu,
+                    'Host Diagnostics…',
+                    tooltip='Show session host detection diagnostics for the currently detected host.',
+                    handler=_build_diagnostics_handler(current_host_diagnostics, 'host_diagnostics'),
+                    icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'bug.svg')),
+                )
+            elif SessionHost.last_diagnostics is not None:
+                latest_diagnostics = SessionHost.last_diagnostics
+                add_action(
+                    context_menu,
+                    'Host Diagnostics…',
+                    tooltip='Show session host detection diagnostics from the last evaluation.',
+                    handler=_build_diagnostics_handler(latest_diagnostics, 'host_diagnostics'),
+                    icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'bug.svg')),
+                )
+            else:
+                action = add_action(
+                    context_menu,
+                    'Host Diagnostics…',
+                    tooltip='No session host detection diagnostics are available yet.',
+                    handler=None,
+                    icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'bug.svg')),
+                )
+                action.setEnabled(False)
+
         copy_selection_action = add_action(
             context_menu,
             'Copy Selection',
@@ -851,6 +938,7 @@ class TableContextMenuMixin(QTableView):
 
         if is_single_player_selection:
             add_clear_session_host_action(selected_ips[0])
+            add_host_diagnostics_action(selected_ips[0])
 
         if is_single_player_selection or is_multi_selection_with_ips:
             add_shared_selected_players_actions(selected_ips, selected_players)

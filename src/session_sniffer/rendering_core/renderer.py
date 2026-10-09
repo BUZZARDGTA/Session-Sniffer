@@ -662,7 +662,7 @@ def rendering_core(
 
         current_session_host = SessionHost.get_player()
         if current_session_host is not None and current_session_host.ip != _last_recorded_host_ip:
-            SessionHost.record_host(current_session_host)
+            SessionHost.record_host(current_session_host, diagnostics=SessionHost.last_diagnostics)
             _last_recorded_host_ip = current_session_host.ip
         elif current_session_host is None and _last_recorded_host_ip is not None:
             _last_recorded_host_ip = None

@@ -31,15 +31,6 @@ _SESSION_HOST_AMBIGUITY_MIN_TD = timedelta(milliseconds=SESSION_HOST_AMBIGUITY_M
 _SESSION_HOST_AMBIGUITY_MAX_TD = timedelta(milliseconds=SESSION_HOST_AMBIGUITY_MAX_THRESHOLD_MS)
 
 
-@dataclass(slots=True)
-class HostHistoryEntry:
-    """Snapshot of a session host at the time of detection."""
-
-    ip: str
-    detected_at: datetime
-    country_code: str
-
-
 class PlayersRegistry:
     """Class to manage the registry of connected and disconnected players.
 
@@ -361,6 +352,21 @@ class HostDiagnosticsSnapshot:
 
 
 @dataclass(slots=True)
+class HostHistoryEntry:
+    """Snapshot of a session host at the time of detection."""
+
+    ip: str
+    detected_at: datetime
+    country_code: str
+    diagnostics: HostDiagnosticsSnapshot | None = None
+
+    @property
+    def dialog_key(self) -> str:
+        """Return the unique dialog key for this host history entry."""
+        return f'host_history_{self.ip}_{self.detected_at.isoformat()}'
+
+
+@dataclass(slots=True)
 class _DetectionEvaluationResult:
     """Internal evaluation outcome and details for session host detection."""
 
@@ -593,13 +599,19 @@ class SessionHost:
         cls.last_timing_gap_candidate = None
 
     @classmethod
-    def record_host(cls, player: Player) -> None:
+    def record_host(cls, player: Player, diagnostics: HostDiagnosticsSnapshot | None = None) -> None:
         """Snapshot the given player as a detected session host and append to history."""
+        country_code = (
+            player.iplookup.geolite2.country_code
+            if player.iplookup.geolite2.country_code not in {'...', 'N/A'}
+            else player.iplookup.ipapi.country_code
+        )
         cls._history.append(
             HostHistoryEntry(
                 ip=player.ip,
                 detected_at=datetime.now(tz=LOCAL_TZ),
-                country_code=player.iplookup.geolite2.country_code if player.iplookup.geolite2.country_code not in {'...', 'N/A'} else player.iplookup.ipapi.country_code,
+                country_code=country_code,
+                diagnostics=diagnostics,
             ),
         )
 

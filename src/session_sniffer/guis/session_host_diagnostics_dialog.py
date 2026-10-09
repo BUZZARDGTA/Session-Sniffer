@@ -84,7 +84,7 @@ class SessionHostDiagnosticsDialog(QDialog):
         self._snapshot = snapshot
         self._redetect_callback = redetect_callback
 
-        self.setWindowTitle(f'{TITLE} - Session Host Diagnostics')
+        self._update_window_title()
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
         set_dialog_window_flags(self)
 
@@ -116,9 +116,17 @@ class SessionHostDiagnosticsDialog(QDialog):
 
         self._rebuild_content()
 
+    def _update_window_title(self) -> None:
+        if self._snapshot.detected_host_ip is not None:
+            time_string = self._snapshot.timestamp.strftime('%H:%M:%S')
+            self.setWindowTitle(f'{TITLE} - Session Host Diagnostics - {self._snapshot.detected_host_ip} ({time_string})')
+        else:
+            self.setWindowTitle(f'{TITLE} - Session Host Diagnostics')
+
     def update_snapshot(self, snapshot: HostDiagnosticsSnapshot) -> None:
         """Update the displayed snapshot and refresh the dialog contents."""
         self._snapshot = snapshot
+        self._update_window_title()
         self._rebuild_content()
 
     def _clear_layout(self, layout: QLayout) -> None:
@@ -789,11 +797,12 @@ def show_session_host_diagnostics_dialog(
     parent: QWidget | None,
     snapshot: HostDiagnosticsSnapshot,
     *,
+    dialog_key: str = 'host_diagnostics',
     redetect_callback: Callable[[], HostDiagnosticsSnapshot | None] | None = None,
 ) -> SessionHostDiagnosticsDialog:
     """Open or focus the Session Host Diagnostics dialog with the given snapshot."""
     dialog = _active_host_diagnostics_dialogs.show_or_focus(
-        'host_diagnostics',
+        dialog_key,
         lambda: SessionHostDiagnosticsDialog(parent, snapshot, redetect_callback=redetect_callback),
     )
     dialog.update_snapshot(snapshot)

@@ -430,7 +430,7 @@ def userip_add_username(parent: QWidget, ip_address: str, player: Player) -> Non
         prompt_message=prompt_message,
     )
 
-    if not entered_usernames:
+    if entered_usernames is None or not entered_usernames:
         return
 
     if Settings.userip_sync_known_alts:

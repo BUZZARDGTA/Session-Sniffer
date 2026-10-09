@@ -17,7 +17,7 @@ from session_sniffer.error_messages import (
 )
 from session_sniffer.gta5.suspend_manager import GTASuspendManager
 from session_sniffer.guis.session_host_diagnostics_dialog import show_session_host_diagnostics_dialog
-from session_sniffer.guis.session_host_history_window import setup_session_host_actions
+from session_sniffer.guis.session_host_history_window import SessionHostActionCallbacks, setup_session_host_actions
 from session_sniffer.guis.stylesheets import GTA5_STATUS_LABEL_STYLESHEET
 from session_sniffer.player.registry import PlayersRegistry, SessionHost
 from session_sniffer.rdr2.suspend_manager import RDR2SuspendManager
@@ -31,7 +31,7 @@ if TYPE_CHECKING:
     from session_sniffer.guis.detections_manager import DetectionsManagerDialog
     from session_sniffer.guis.player_resolver import PlayerResolverWindow
     from session_sniffer.guis.userip_manager import UserIPDatabasesManager
-    from session_sniffer.player.registry import HostDiagnosticsSnapshot
+    from session_sniffer.player.registry import HostDiagnosticsSnapshot, HostHistoryEntry
 
 logger = logging.getLogger(__name__)
 
@@ -74,7 +74,7 @@ class GameMixin(QMainWindow):
     if TYPE_CHECKING:
         _update_looky_actions: Callable[[], None]
         _build_looky_submenu: Callable[[QMenu], None]
-        _select_connected_ips: Callable[[list[str]], None]
+        _select_ips: Callable[[list[str]], None]
         _detections_manager_window: DetectionsManagerDialog | None
         _userip_manager_window: UserIPDatabasesManager | None
 
@@ -186,10 +186,13 @@ class GameMixin(QMainWindow):
         session_host_submenu.aboutToShow.connect(_update_host_status_label)
         setup_session_host_actions(
             session_host_submenu,
-            self._clear_session_host,
-            self._redetect_session_host,
-            self._show_session_host_diagnostics,
-            self._select_connected_ips,
+            SessionHostActionCallbacks(
+                clear_host=self._clear_session_host,
+                redetect_host=self._redetect_session_host,
+                show_diagnostics=self._show_session_host_diagnostics,
+                select_ips=self._select_ips,
+                open_history_diagnostics=self._open_host_history_diagnostics,
+            ),
         )
 
         self._game_menu_process_separator = game_menu.addSeparator()
@@ -531,6 +534,22 @@ Process is currently suspended'
     def _clear_session_host(self) -> None:
         """Manually clear the current session host and reset host detection state."""
         SessionHost.clear_session_host_data()
+
+    def _open_host_history_diagnostics(self, history_entry: HostHistoryEntry) -> None:
+        """Display diagnostic information for a specific host history entry."""
+        if history_entry.diagnostics is None:
+            QMessageBox.information(
+                self,
+                TITLE,
+                f'No session host detection diagnostics were recorded for host {history_entry.ip}.',
+            )
+            return
+
+        show_session_host_diagnostics_dialog(
+            self,
+            history_entry.diagnostics,
+            dialog_key=history_entry.dialog_key,
+        )
 
     def _show_session_host_diagnostics(self) -> None:
         """Display detailed diagnostic information from the last session host detection attempt."""
