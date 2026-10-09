@@ -1,16 +1,11 @@
 """Shared Looky System UI text and small helpers."""
 
-from typing import TYPE_CHECKING
-
 from PySide6.QtGui import QAction  # noqa: TC002
 
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.networking.looky_system import LookyState
 from session_sniffer.rendering_core.types import CaptureState
 from session_sniffer.settings import Settings
-
-if TYPE_CHECKING:
-    from session_sniffer.models.player import Player
 
 LOOKY_TITLE = f'{TITLE} - Looky System'
 LOOKY_SETTINGS_AUTH_PATH = 'Settings → Looky System → Authentication'
@@ -21,7 +16,6 @@ LOOKY_MENU_TOOLTIP_API_KEY_MISSING = f'Looky System requires an API key. Add one
 LOOKY_MENU_TOOLTIP_API_KEY_INVALID_OR_NO_ACCESS = f'Your Looky System API key is invalid or your account has no API access. Update your key in {LOOKY_SETTINGS_AUTH_PATH}.'
 LOOKY_MENU_TOOLTIP_GTA5_NOT_RUNNING = 'Looky System is available only while GTA V is running.'
 LOOKY_MENU_TOOLTIP_RESTRICTED_GTA5_NOT_RUNNING = 'Looky System is restricted to GTA V, which is not currently running.'
-LOOKY_MENU_TOOLTIP_RESTRICTED_NOT_GTA5_PROCESS = 'Looky System is restricted to player IPs communicating directly with GTA V.'
 LOOKY_MENU_TOOLTIP_DISABLED = f'Looky System is disabled. Enable it in {LOOKY_SETTINGS_GENERAL_PATH}.'
 
 # Dialog / message-box warnings
@@ -40,20 +34,11 @@ def configure_looky_action(
     *,
     is_gta5_running: bool | None = None,
     check_gta5_restriction: bool = False,
-    players: Player | list[Player] | None = None,
 ) -> None:
     """Configure the enabled status and tooltip of a Looky-related QAction.
 
     Avoids duplicating the gating logic and tooltip settings across multiple widgets and menus.
     """
-    target_players: list[Player] | None
-    if players is None:
-        target_players = None
-    elif isinstance(players, list):
-        target_players = list(players)
-    else:
-        target_players = [players]
-
     if not Settings.looky_enabled:
         action.setEnabled(False)
         action.setToolTip(LOOKY_MENU_TOOLTIP_DISABLED)
@@ -66,18 +51,10 @@ def configure_looky_action(
     elif is_gta5_running is False:
         action.setEnabled(False)
         action.setToolTip(LOOKY_MENU_TOOLTIP_GTA5_NOT_RUNNING)
-    elif target_players and Settings.looky_exclusive_gta5_process and CaptureState.is_local_capture():
-        if not any(player.is_gta5_process for player in target_players):
-            action.setEnabled(False)
-            action.setToolTip(LOOKY_MENU_TOOLTIP_RESTRICTED_NOT_GTA5_PROCESS)
-        else:
-            action.setEnabled(True)
-            if default_tooltip is not None:
-                action.setToolTip(default_tooltip)
     elif check_gta5_restriction and Settings.looky_exclusive_gta5_process and CaptureState.is_local_capture():
         from session_sniffer.player.registry import PlayersRegistry  # noqa: PLC0415  # pylint: disable=import-outside-toplevel
 
-        if not CaptureState.gta5_is_running and not any(player.is_gta5_process for player in PlayersRegistry.get_default_sorted_players()):
+        if not CaptureState.gta5_is_running and not PlayersRegistry.get_default_sorted_players():
             action.setEnabled(False)
             action.setToolTip(LOOKY_MENU_TOOLTIP_RESTRICTED_GTA5_NOT_RUNNING)
         else:

@@ -28,7 +28,6 @@ from session_sniffer.guis.tables_userip_mixin import (
 )
 from session_sniffer.guis.userip_manager_helpers import populate_userip_databases_menu
 from session_sniffer.player.userip import UserIPDatabases
-from session_sniffer.rendering_core.types import CaptureState
 from session_sniffer.settings.settings import Settings
 from session_sniffer.text_utils import pluralize
 from session_sniffer.utils import dedup_preserve_order
@@ -192,7 +191,7 @@ def build_userip_menu(
             handler=lambda: looky_refresh_userip_entries(parent, [(player.userip.db_path, [ip_address])]) if player.userip else None,
             icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'eye.svg')),
         )
-        configure_looky_action(refresh_action, default_tooltip=refresh_action.toolTip(), players=player)
+        configure_looky_action(refresh_action, default_tooltip=refresh_action.toolTip())
         userip_menu.addSeparator()
     entry_desc = _classify_userip_entry(ip_address)
     if entry_desc == 'single IP':
@@ -297,8 +296,6 @@ def build_userip_menu_multi(
             _refresh_by_db: dict[Path, list[str]] = {}
             for _p in players:
                 if _p.userip is not None:
-                    if Settings.looky_exclusive_gta5_process and CaptureState.is_local_capture() and not _p.is_gta5_process:
-                        continue
                     _refresh_by_db.setdefault(_p.userip.db_path, []).append(_p.ip)
             if _refresh_by_db:
                 if rename_players:
@@ -310,7 +307,7 @@ def build_userip_menu_multi(
                     handler=lambda: looky_refresh_userip_entries(parent, list(_refresh_by_db.items())),
                     icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'eye.svg')),
                 )
-                configure_looky_action(refresh_multi_action, default_tooltip=refresh_multi_action.toolTip(), players=players)
+                configure_looky_action(refresh_multi_action, default_tooltip=refresh_multi_action.toolTip())
                 userip_menu.addSeparator()
 
         move_userip_menu = add_menu(

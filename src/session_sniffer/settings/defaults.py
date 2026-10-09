@@ -763,14 +763,13 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         display_label='Restrict to GTA5 Process',
         setting_type=SettingType.BOOLEAN,
         tooltip=(
-            'Only perform Looky System auto-resolve queries when the GTA5 process is actively\n'
-            'detected on this PC (Legacy GTA5.exe or Enhanced GTA5_Enhanced.exe), and restrict\n'
-            'lookups exclusively to player IP addresses communicating with the GTA5 process.\n\n'
+            'Only perform Looky System auto-resolve queries when GTA V is actively\n'
+            'detected running on this PC (Legacy GTA5.exe or Enhanced GTA5_Enhanced.exe).\n\n'
             'Note: This setting only applies to local PC captures. When scanning an external\n'
             'device (such as a console via ARP spoofing), external process inspection is not\n'
             'possible, so this restriction is automatically bypassed and queries run for all\n'
             'captured non-third-party player IPs.\n\n'
-            'When disabled, queries run continuously regardless of GTA5 process status and include\n'
+            'When disabled, queries run continuously regardless of GTA V running status and include\n'
             'all captured non-third-party player IPs.'
         ),
     ),

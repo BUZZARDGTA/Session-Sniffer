@@ -424,8 +424,12 @@ def rendering_core(
             with player.looky_system.lock:
                 looky_usernames = list(player.looky_system.usernames)
                 looky_initialized = player.looky_system.is_initialized
+                looky_needs_refresh = player.looky_system.needs_refresh
 
-            looky_complete = not (Settings.looky_enabled and looky_initialized and looky_usernames) or all(name in player.usernames for name in looky_usernames)
+            if Settings.looky_enabled and Settings.is_gta5_feature_set():
+                looky_complete = looky_initialized and not looky_needs_refresh and all(name in player.usernames for name in looky_usernames)
+            else:
+                looky_complete = True
             if player.left_event.is_set() and not _userip_db_rebuilt and player.iplookup.geolite2.is_initialized and has_geo and looky_complete:
                 continue
 

@@ -30,7 +30,6 @@ from session_sniffer.guis.stylesheets import (
 from session_sniffer.guis.tables_player_actions._player_info_dialog_mixin import PlayerInfoDialogMixin
 from session_sniffer.guis.tables_player_actions.looky_system._looky_helpers import check_looky_prerequisites
 from session_sniffer.guis.utils import ActiveDialogRegistry, set_dialog_window_flags
-from session_sniffer.models.player import Player
 from session_sniffer.networking.looky_system import (
     extract_rate_limit_message,
     extract_rate_limit_wait_seconds,
@@ -46,6 +45,7 @@ if TYPE_CHECKING:
 
     from session_sniffer.guis.tables_player_actions._ip_lookup_dialog import StandaloneIPLookup
     from session_sniffer.models.looky_system import LookyPlayer
+    from session_sniffer.models.player import Player
 
 logger = logging.getLogger(__name__)
 
@@ -184,8 +184,7 @@ def show_looky_lookup(parent: QWidget, player: Player | StandaloneIPLookup) -> N
     if _active_dialogs.focus(player.ip):
         return
 
-    target_player: Player | None = player if isinstance(player, Player) else None
-    api_key = check_looky_prerequisites(parent, player=target_player)
+    api_key = check_looky_prerequisites(parent)
     if api_key is None:
         return
 

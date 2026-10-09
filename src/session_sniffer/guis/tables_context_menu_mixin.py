@@ -452,12 +452,8 @@ class TableContextMenuMixin(QTableView):
             if not Settings.is_gta5_feature_set() or not players or any(player.is_third_party_server for player in players):
                 return
 
-            def _apply_looky_gating(
-                action: QAction,
-                *,
-                players: Player | list[Player] | None = None,
-            ) -> None:
-                configure_looky_action(action, default_tooltip=action.toolTip(), players=players)
+            def _apply_looky_gating(action: QAction) -> None:
+                configure_looky_action(action, default_tooltip=action.toolTip())
 
             looky_menu = add_menu(parent_menu, 'Looky System', 'Looky System tools and shortcuts.', icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'eye.svg')))
 
@@ -482,7 +478,7 @@ class TableContextMenuMixin(QTableView):
                     handler=lambda: show_looky_lookup(self, players[0]),
                     icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'search.svg')),
                 )
-                _apply_looky_gating(lookup_action, players=players[0])
+                _apply_looky_gating(lookup_action)
                 if players[0].looky_system.rockstarids:
                     rockstar_ids = players[0].looky_system.rockstarids
                     usernames = players[0].looky_system.usernames
@@ -550,13 +546,11 @@ class TableContextMenuMixin(QTableView):
                         handler=lambda: show_crawler_request(self, players[0]),
                         icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'bot.svg')),
                     )
-                    _apply_looky_gating(crawler_action, players=players[0])
+                    _apply_looky_gating(crawler_action)
                 return
 
             def _show_looky_lookup_for_all() -> None:
                 for player in players:
-                    if Settings.looky_exclusive_gta5_process and CaptureState.is_local_capture() and not player.is_gta5_process:
-                        continue
                     show_looky_lookup(self, player)
 
             lookup_all_action = add_action(
@@ -566,7 +560,7 @@ class TableContextMenuMixin(QTableView):
                 handler=_show_looky_lookup_for_all,
                 icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'search.svg')),
             )
-            _apply_looky_gating(lookup_all_action, players=players)
+            _apply_looky_gating(lookup_all_action)
 
             all_selected_rockstar_ids: list[int] = []
             for player in players:

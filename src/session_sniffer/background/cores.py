@@ -28,6 +28,7 @@ from session_sniffer.networking.reverse_dns import reverse_dns_lookup
 from session_sniffer.networking.third_party_servers import is_third_party_server_ip
 from session_sniffer.player.registry import PlayersRegistry
 from session_sniffer.player.userip import gui_dispatcher
+from session_sniffer.rendering_core.renderer import wake_rendering_core
 from session_sniffer.rendering_core.types import CaptureState
 from session_sniffer.settings import Settings
 from session_sniffer.utils import dedup_preserve_order
@@ -172,13 +173,18 @@ _pinger_queue = ResolutionQueue()
 _looky_queue = ResolutionQueue()
 
 
-def _is_looky_eligible(player: Player) -> bool:
+def is_looky_eligible(player: Player) -> bool:
     """Check whether a player is eligible for Looky System resolution."""
     if not Settings.is_gta5_feature_set():
         return False
     if player.is_third_party_server:
         return False
-    return not (Settings.looky_exclusive_gta5_process and CaptureState.is_local_capture() and not player.is_gta5_process)
+    return not (
+        Settings.looky_exclusive_gta5_process
+        and CaptureState.is_local_capture()
+        and not CaptureState.gta5_is_running
+        and not player.looky_system.needs_refresh
+    )
 
 
 def enqueue_player_for_resolution(player: Player) -> None:
@@ -193,7 +199,7 @@ def enqueue_player_for_resolution(player: Player) -> None:
         _pinger_wakeup_event.set()
 
     if (
-        _is_looky_eligible(player)
+        is_looky_eligible(player)
         and (not player.looky_system.is_initialized or player.looky_system.needs_refresh)
         and _looky_queue.put(player.ip)
     ):
@@ -257,11 +263,32 @@ def wake_looky_core() -> None:
     if Settings.is_gta5_feature_set():
         for player in chain(PlayersRegistry.get_connected_players(), PlayersRegistry.get_disconnected_players()):
             if (
-                not player.is_third_party_server
+                is_looky_eligible(player)
                 and (not player.looky_system.is_initialized or player.looky_system.needs_refresh)
                 and _looky_queue.put(player.ip)
             ):
                 _looky_wakeup_event.set()
+
+
+def trigger_looky_rescan_all_players() -> int:
+    """Queue all eligible session players for immediate Looky System lookup.
+
+    Marks all non-third-party players in the registry for immediate refresh and wakes the Looky core.
+
+    Returns:
+        The number of players queued for rescan.
+    """
+    count = 0
+    for player in PlayersRegistry.get_default_sorted_players():
+        if player.is_third_party_server:
+            continue
+        with player.looky_system.lock:
+            player.looky_system.last_fetched_at = 0.0
+            player.looky_system.needs_refresh = True
+        count += 1
+    if count > 0:
+        wake_looky_core()
+    return count
 
 
 def wake_all_player_cores(player: Player | None = None) -> None:
@@ -647,13 +674,7 @@ def looky_core() -> None:
             if is_third_party_server_ip(target_ip):
                 continue
             matched_player = PlayersRegistry.get_player_by_ip(target_ip)
-            if matched_player is None:
-                continue
-            if (
-                Settings.looky_exclusive_gta5_process
-                and CaptureState.is_local_capture()
-                and not matched_player.is_gta5_process
-            ):
+            if matched_player is None or not is_looky_eligible(matched_player):
                 continue
             if (
                 not matched_player.looky_system.is_initialized
@@ -668,7 +689,7 @@ def looky_core() -> None:
             for player in PlayersRegistry.get_connected_players():
                 if (
                     player.looky_system.is_initialized
-                    and _is_looky_eligible(player)
+                    and is_looky_eligible(player)
                     and (player.looky_system.needs_refresh or (current_time - player.looky_system.last_fetched_at) >= _LOOKY_REFRESH_INTERVAL)
                     and _looky_queue.put(player.ip)
                 ):
@@ -757,11 +778,25 @@ def looky_core() -> None:
                             matched_player.looky_system.needs_refresh = False
                             matched_player.looky_system.last_fetched_at = time.monotonic()
                             matched_player.looky_system.is_initialized = True
-                        if matched_player.looky_system.usernames:
+                            looky_usernames = list(matched_player.looky_system.usernames)
+
+                        ps3_username = matched_player.ps3_username
+                        has_usernames = bool(
+                            ps3_username
+                            or (matched_player.userip is not None and matched_player.userip.usernames)
+                            or (matched_player.mod_menus is not None and matched_player.mod_menus.usernames)
+                            or looky_usernames
+                        )
+                        if not has_usernames:
+                            matched_player.usernames = []
+                        else:
                             matched_player.usernames = dedup_preserve_order(
-                                matched_player.usernames,
-                                matched_player.looky_system.usernames,
+                                (ps3_username,) if ps3_username is not None and ps3_username else (),
+                                matched_player.userip.usernames if matched_player.userip is not None else (),
+                                matched_player.mod_menus.usernames if matched_player.mod_menus is not None else (),
+                                looky_usernames,
                             )
+                wake_rendering_core()
                 resolved_any = True
                 server_error_consecutive_failures = 0
 

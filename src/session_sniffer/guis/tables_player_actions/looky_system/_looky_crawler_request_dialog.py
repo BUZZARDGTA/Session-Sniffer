@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from session_sniffer.background import trigger_looky_rescan_all_players
 from session_sniffer.guis._crashing_qthread import CrashingQThread
 from session_sniffer.guis.delegates import ElidedTextTooltipDelegate
 from session_sniffer.guis.looky_text import (
@@ -51,7 +52,6 @@ from session_sniffer.networking.looky_system import (
     send_crawlme_instruction,
     watch_instruction_status,
 )
-from session_sniffer.player.registry import PlayersRegistry
 from session_sniffer.rendering_core.types import CaptureState
 from session_sniffer.settings.settings import Settings
 from session_sniffer.text_utils import pluralize
@@ -624,7 +624,7 @@ class _CrawlerRequest:
     version: str
     rid: int | None
     send_fn: Callable[[], str]
-    on_completed: Callable[[], None] | None = None
+    on_completed: Callable[[], object] | None = None
 
 
 def _start_crawler_send(request: _CrawlerRequest) -> None:
@@ -652,7 +652,7 @@ def get_crawler_game_version() -> str:
 
 def show_crawler_request(parent: QWidget, player: Player) -> None:
     """Validate and start a Looky System crawler instruction for `player`; open a crawler request dialog on success."""
-    api_key = check_looky_prerequisites(parent, player=player)
+    api_key = check_looky_prerequisites(parent)
     if api_key is None:
         return
 
@@ -671,10 +671,6 @@ def show_crawler_request(parent: QWidget, player: Player) -> None:
 
     display_name = next((name for name, rockstar_id in entries if rockstar_id == rid), player.ip)
 
-    def _on_crawl_completed() -> None:
-        with player.looky_system.lock:
-            player.looky_system.needs_refresh = True
-
     version = get_crawler_game_version()
     _start_crawler_send(
         _CrawlerRequest(
@@ -684,7 +680,7 @@ def show_crawler_request(parent: QWidget, player: Player) -> None:
             version=version,
             rid=rid,
             send_fn=lambda: send_crawler_instruction(rid, api_key, version),
-            on_completed=_on_crawl_completed,
+            on_completed=trigger_looky_rescan_all_players,
         ),
     )
 
@@ -699,12 +695,6 @@ def show_crawlme_request(parent: QWidget) -> None:
         QMessageBox.warning(parent, LOOKY_TITLE, LOOKY_MENU_TOOLTIP_GTA5_NOT_RUNNING)
         return
 
-    def _on_crawl_completed() -> None:
-        for player in PlayersRegistry.get_default_sorted_players():
-            if player.looky_system.is_initialized:
-                with player.looky_system.lock:
-                    player.looky_system.needs_refresh = True
-
     version = get_crawler_game_version()
     _start_crawler_send(
         _CrawlerRequest(
@@ -714,7 +704,7 @@ def show_crawlme_request(parent: QWidget) -> None:
             version=version,
             rid=None,
             send_fn=lambda: send_crawlme_instruction(api_key, version),
-            on_completed=_on_crawl_completed,
+            on_completed=trigger_looky_rescan_all_players,
         ),
     )
 
