@@ -178,7 +178,7 @@ def build_userip_menu(
     userip_menu.addSeparator()
     add_action(
         userip_menu,
-        'Add Username',
+        'Add Username…',
         tooltip='Add an additional username for this IP address in its UserIP database.',
         handler=lambda: userip_add_username(parent, ip_address, player),
         icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'add.svg')),
@@ -192,7 +192,7 @@ def build_userip_menu(
             handler=lambda: looky_refresh_userip_entries(parent, [(player.userip.db_path, [ip_address])]) if player.userip else None,
             icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'eye.svg')),
         )
-        configure_looky_action(refresh_action, default_tooltip=refresh_action.toolTip(), players=player)
+        configure_looky_action(refresh_action, default_tooltip=refresh_action.toolTip())
         userip_menu.addSeparator()
     entry_desc = _classify_userip_entry(ip_address)
     if entry_desc == 'single IP':
@@ -234,7 +234,7 @@ def build_userip_menu(
     if player.userip.usernames and len(player.userip.usernames) >= MIN_USERNAMES_FOR_REMOVAL:
         add_action(
             userip_menu,
-            'Remove Username',
+            'Remove Username…',
             tooltip='Remove selected usernames for this IP address while keeping others.',
             handler=lambda: userip_remove_username(parent, ip_address, player),
             icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')),
@@ -310,7 +310,7 @@ def build_userip_menu_multi(
                     handler=lambda: looky_refresh_userip_entries(parent, list(_refresh_by_db.items())),
                     icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'eye.svg')),
                 )
-                configure_looky_action(refresh_multi_action, default_tooltip=refresh_multi_action.toolTip(), players=players)
+                configure_looky_action(refresh_multi_action, default_tooltip=refresh_multi_action.toolTip())
                 userip_menu.addSeparator()
 
         move_userip_menu = add_menu(

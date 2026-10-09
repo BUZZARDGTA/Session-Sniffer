@@ -420,19 +420,17 @@ def userip_add_username(parent: QWidget, ip_address: str, player: Player) -> Non
     db_path = player.userip.db_path
     db_display = player.userip.db_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix('')
     existing = ', '.join(player.userip.usernames) if player.userip.usernames else 'None'
-    username_input, success = QInputDialog.getText(
+    candidates = [name for name in resolve_usernames_for_player(player) if name not in player.userip.usernames]
+    prompt_message = f'Current username{pluralize(len(player.userip.usernames))} for {ip_address}: {existing}\n\nEnter the new username to add:'
+    entered_usernames = _prompt_usernames_to_add(
         parent,
-        'Add Username',
-        f'Current usernames for {ip_address}: {existing}\n\nEnter the new username to add:',
+        [ip_address],
+        db_path,
+        candidate_usernames=candidates or None,
+        prompt_message=prompt_message,
     )
 
-    if not success:
-        return
-
-    entered_usernames = dedup_preserve_order(split_usernames(username_input))
-
     if not entered_usernames:
-        QMessageBox.warning(parent, TITLE, 'ERROR:\nNo username was provided.')
         return
 
     if Settings.userip_sync_known_alts:
