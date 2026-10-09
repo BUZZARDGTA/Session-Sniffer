@@ -652,7 +652,7 @@ def get_crawler_game_version() -> str:
 
 def show_crawler_request(parent: QWidget, player: Player) -> None:
     """Validate and start a Looky System crawler instruction for `player`; open a crawler request dialog on success."""
-    api_key = check_looky_prerequisites(parent, player=player)
+    api_key = check_looky_prerequisites(parent)
     if api_key is None:
         return
 
