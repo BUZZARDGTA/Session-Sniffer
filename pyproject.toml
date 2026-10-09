@@ -9,8 +9,8 @@ dependencies = [
     "aiohttp==3.14.3",
     "geoip2==5.3.0",
     "packaging==26.3",
-    "pydantic==2.13.5",
-    "PySide6==6.11.2",
+    "pydantic==2.14.0",
+    "PySide6==6.12.0",
     "requests==2.34.2",
 
     # Security fixes
@@ -43,7 +43,7 @@ dev = [
     "pyright",
     "ruff",
     "ty",
-    "types-requests==2.33.0.20260906",
+    "types-requests==2.33.0.20261006",
     "vulture",
 ]
 
