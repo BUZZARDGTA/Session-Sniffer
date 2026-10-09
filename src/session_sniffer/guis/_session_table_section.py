@@ -260,14 +260,12 @@ class SessionTableSection(QWidget):
 
         if not is_connected:
             session_label = QLabel('Session:')
-            session_label.setToolTip('Filter disconnected players by session (All vs Current).')
+            session_label.setToolTip('Filter disconnected players by session.')
 
             session_filter_combo = QComboBox()
             session_filter_combo.setObjectName('sectionSessionFilterCombo')
-            session_filter_combo.setToolTip('Filter disconnected players by session (All vs Current).')
+            session_filter_combo.setToolTip('Filter disconnected players by session.')
             session_filter_combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
-            session_filter_combo.addItem('All', SessionFilterState.FILTER_ALL)
-            session_filter_combo.addItem('Current', SessionFilterState.FILTER_CURRENT)
             session_filter_combo.currentIndexChanged.connect(self._handle_session_filter_changed)
             self._session_filter_combo = session_filter_combo
 
@@ -705,25 +703,19 @@ class SessionTableSection(QWidget):
         self._handle_rows_per_page_changed(self._rows_per_page_spinbox.value())
         self._rows_per_page_spinbox.clearFocus()
 
+    def sync_session_filter(self) -> None:
+        """Synchronize the session filter combobox and section header."""
+        if self._session_filter_combo is not None:
+            self._sync_session_filter_combo()
+        self._update_header_label()
+
     def set_selected_session_filter(self, session_id: int) -> None:
         """Set the active session filter and synchronize the combobox."""
-        if self._session_filter_combo is not None:
-            self._session_filter_combo.blockSignals(True)  # noqa: FBT003
-            if session_id == SessionFilterState.FILTER_ALL:
-                self._session_filter_combo.setPlaceholderText('')
-                self._session_filter_combo.setCurrentIndex(0)
-            elif session_id == SessionFilterState.FILTER_CURRENT:
-                self._session_filter_combo.setPlaceholderText('')
-                self._session_filter_combo.setCurrentIndex(1)
-            elif 0 < session_id < SessionTracker.get_current_session_id():
-                self._session_filter_combo.setPlaceholderText(SessionTracker.get_session_display_name(session_id))
-                self._session_filter_combo.setCurrentIndex(-1)
-            self._session_filter_combo.blockSignals(False)  # noqa: FBT003
-
         self._current_page = 1
         PaginationState.set_disconnected_page(1)
         SessionFilterState.set_selected_session(session_id=session_id)
-        self._sync_session_filter_combo()
+        if self._session_filter_combo is not None:
+            self._sync_session_filter_combo()
         self._update_header_label()
         self.session_filter_changed.emit(session_id)
 
@@ -731,7 +723,6 @@ class SessionTableSection(QWidget):
         """Handle session filter combobox selection changes."""
         if self._session_filter_combo is None or index < 0:
             return
-        self._session_filter_combo.setPlaceholderText('')
         selected_session = self._session_filter_combo.itemData(index)
         if selected_session is None:
             selected_session = SessionFilterState.FILTER_ALL
@@ -869,7 +860,9 @@ class SessionTableSection(QWidget):
         return any(player.session_id < current_session_id for player in PlayersRegistry.get_disconnected_players())
 
     @staticmethod
-    def _set_combo_item_enabled(item: QStandardItem, *, enabled: bool) -> None:
+    def _set_combo_item_enabled(item: QStandardItem | None, *, enabled: bool) -> None:
+        if item is None:
+            return
         flags = item.flags()
         if enabled:
             flags |= Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable
@@ -878,27 +871,80 @@ class SessionTableSection(QWidget):
         item.setFlags(flags)
 
     def _sync_session_filter_combo(self) -> None:
-        """Synchronize the session filter combobox enabled state and item availability."""
+        """Synchronize the session filter combobox enabled state, item list, and active selection."""
         if self._session_filter_combo is None:
             return
 
         selected_session = SessionFilterState.get_selected_session()
-        is_past_session = 0 < selected_session < SessionTracker.get_current_session_id()
+        current_session_id = SessionTracker.get_current_session_id()
+        all_session_ids = SessionTracker.get_all_session_ids()
+        past_session_ids = [session_id for session_id in all_session_ids if session_id < current_session_id]
         has_past_disconnected = self._has_past_disconnected_players()
-        total_sessions = len(SessionTracker.get_all_session_ids())
+        is_past_session = 0 < selected_session < current_session_id
 
-        can_change_filter = is_past_session or has_past_disconnected
+        desired_items: list[tuple[str, int, str]] = [
+            ('All', SessionFilterState.FILTER_ALL, 'Show disconnected players from all recorded sessions'),
+            ('Current', SessionFilterState.FILTER_CURRENT, 'Show disconnected players from the current active session'),
+        ]
+        for past_id in reversed(past_session_ids):
+            display_name = SessionTracker.get_session_display_name(past_id)
+            player_count = SessionTracker.get_session_player_count(past_id)
+            player_noun = f'player{pluralize(player_count)}'
+            time_label = SessionTracker.get_session_time_label(past_id)
+            tooltip_parts = [f'{player_count} {player_noun} recorded in {display_name}']
+            if time_label:
+                tooltip_parts.append(time_label)
+            desired_items.append((display_name, past_id, '  |  '.join(tooltip_parts)))
+
+        current_items = [
+            (
+                self._session_filter_combo.itemText(i),
+                self._session_filter_combo.itemData(i),
+                self._session_filter_combo.itemData(i, Qt.ItemDataRole.ToolTipRole) or '',
+            )
+            for i in range(self._session_filter_combo.count())
+        ]
+
+        if current_items != desired_items:
+            self._session_filter_combo.blockSignals(True)  # noqa: FBT003
+            self._session_filter_combo.clear()
+            for text, data, tooltip in desired_items:
+                self._session_filter_combo.addItem(text, data)
+                self._session_filter_combo.setItemData(self._session_filter_combo.count() - 1, tooltip, Qt.ItemDataRole.ToolTipRole)
+            self._session_filter_combo.blockSignals(False)  # noqa: FBT003
+
+        target_index = -1
+        for i in range(self._session_filter_combo.count()):
+            if self._session_filter_combo.itemData(i) == selected_session:
+                target_index = i
+                break
+
+        if target_index >= 0:
+            if self._session_filter_combo.currentIndex() != target_index:
+                self._session_filter_combo.blockSignals(True)  # noqa: FBT003
+                self._session_filter_combo.setCurrentIndex(target_index)
+                self._session_filter_combo.blockSignals(False)  # noqa: FBT003
+        else:
+            self._session_filter_combo.blockSignals(True)  # noqa: FBT003
+            self._session_filter_combo.setCurrentIndex(0)
+            self._session_filter_combo.blockSignals(False)  # noqa: FBT003
+            SessionFilterState.set_selected_session(session_id=SessionFilterState.FILTER_ALL)
+            selected_session = SessionFilterState.FILTER_ALL
+            is_past_session = False
+
+        can_change_filter = is_past_session or has_past_disconnected or bool(past_session_ids)
         self._session_filter_combo.setEnabled(can_change_filter)
 
-        if total_sessions <= 1:
+        if len(all_session_ids) <= 1:
             self._session_filter_combo.setToolTip('Filter disconnected players by session (only one session recorded).')
-        elif not has_past_disconnected and not is_past_session:
+        elif not has_past_disconnected and not is_past_session and not past_session_ids:
             self._session_filter_combo.setToolTip('Filter disconnected players by session (no disconnected players from other sessions).')
         else:
-            self._session_filter_combo.setToolTip('Filter disconnected players by session (All vs Current).')
+            self._session_filter_combo.setToolTip('Filter disconnected players by session.')
 
-        if self._session_filter_combo.count() > 1:
-            model = self._session_filter_combo.model()
-            if isinstance(model, QStandardItemModel):
-                self._set_combo_item_enabled(model.item(0), enabled=selected_session != SessionFilterState.FILTER_ALL)
-                self._set_combo_item_enabled(model.item(1), enabled=selected_session != SessionFilterState.FILTER_CURRENT)
+        model = self._session_filter_combo.model()
+        if isinstance(model, QStandardItemModel):
+            for i in range(self._session_filter_combo.count()):
+                item = model.item(i)
+                item_data = self._session_filter_combo.itemData(i)
+                self._set_combo_item_enabled(item, enabled=selected_session != item_data)

@@ -528,31 +528,8 @@ Process is currently suspended'
 
         current_session_id = SessionTracker.get_current_session_id()
         all_session_ids = SessionTracker.get_all_session_ids()
-        has_past_disconnected = (
-            len(all_session_ids) > 1
-            and any(player.session_id < current_session_id for player in PlayersRegistry.get_disconnected_players())
-        )
+        has_past_disconnected = len(all_session_ids) > 1 and any(player.session_id < current_session_id for player in PlayersRegistry.get_disconnected_players())
         current_filter = SessionFilterState.get_selected_session()
-        is_all_active = current_filter == SessionFilterState.FILTER_ALL
-
-        all_sessions_action = self._sessions_submenu.addAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'layers.svg')), 'All Sessions')
-        all_sessions_action.setCheckable(True)
-        all_sessions_action.setChecked(is_all_active)
-        all_sessions_can_change = not is_all_active and (
-            len(all_session_ids) > 1 and (has_past_disconnected or current_filter != SessionFilterState.FILTER_CURRENT)
-        )
-        all_sessions_action.setEnabled(all_sessions_can_change)
-        if is_all_active:
-            all_sessions_action.setToolTip('Show disconnected players from all recorded sessions (already active)')
-        elif len(all_session_ids) <= 1:
-            all_sessions_action.setToolTip('Show disconnected players from all recorded sessions (only one session recorded)')
-        elif not has_past_disconnected and current_filter == SessionFilterState.FILTER_CURRENT:
-            all_sessions_action.setToolTip('Show disconnected players from all recorded sessions (no disconnected players from other sessions)')
-        else:
-            all_sessions_action.setToolTip('Show disconnected players from all recorded sessions')
-        all_sessions_action.triggered.connect(partial(self._apply_session_filter, SessionFilterState.FILTER_ALL))
-
-        self._sessions_submenu.addSeparator()
 
         host_callbacks = SessionHostActionCallbacks(
             clear_host=self._clear_session_host,
@@ -577,9 +554,7 @@ Process is currently suspended'
                 continue
             session_menu.setToolTipsVisible(True)
             menu_tooltip = (
-                f'{player_count} {player_noun} recorded in {display_name}  |  {time_label}'
-                if time_label
-                else f'{player_count} {player_noun} recorded in {display_name}'
+                f'{player_count} {player_noun} recorded in {display_name}  |  {time_label}' if time_label else f'{player_count} {player_noun} recorded in {display_name}'
             )
             session_menu.setToolTip(menu_tooltip)
             session_menu.menuAction().setToolTip(menu_tooltip)
@@ -588,10 +563,9 @@ Process is currently suspended'
             players_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'player.svg')), f'Players: {player_count}', session_menu)
             if is_current:
                 connected_count = len([player for player in PlayersRegistry.get_connected_players() if not player.is_third_party_server])
-                disconnected_count = len([
-                    player for player in PlayersRegistry.get_disconnected_players()
-                    if player.session_id == session_id and not player.is_third_party_server
-                ])
+                disconnected_count = len(
+                    [player for player in PlayersRegistry.get_disconnected_players() if player.session_id == session_id and not player.is_third_party_server]
+                )
                 connected_noun = f'connected player{pluralize(connected_count)}'
                 disconnected_noun = f'disconnected player{pluralize(disconnected_count)}'
                 players_action.setToolTip(f'{connected_count} {connected_noun}, {disconnected_count} {disconnected_noun}')
@@ -623,8 +597,7 @@ Process is currently suspended'
                 else:
                     time_action_text = f'Time: {formatted_start} - {formatted_end} ({format_duration(duration_seconds)})'
                 time_action_tooltip = (
-                    f'Session duration: {format_duration(duration_seconds)} '
-                    f'({start_dt.strftime("%Y-%m-%d %H:%M:%S")} - {end_dt.strftime("%Y-%m-%d %H:%M:%S")})'
+                    f'Session duration: {format_duration(duration_seconds)} ({start_dt.strftime("%Y-%m-%d %H:%M:%S")} - {end_dt.strftime("%Y-%m-%d %H:%M:%S")})'
                 )
             elif start_dt is not None:
                 formatted_start = _format_session_time_component(start_dt, now_date)
@@ -728,20 +701,23 @@ Process is currently suspended'
             filter_action.setChecked(is_filter_active)
 
             if is_filter_active:
-                filter_can_change = False
-                filter_action.setToolTip('Filter to only show players from this session (already active)')
-            elif is_current and not has_past_disconnected and current_filter == SessionFilterState.FILTER_ALL:
-                filter_can_change = False
-                filter_action.setToolTip('Filter to only show players from this session (no disconnected players from other sessions)')
+                filter_action.setEnabled(True)
+                filter_action.setToolTip('Show all sessions (currently filtered to this session)')
+                filter_target = SessionFilterState.FILTER_ALL
             elif len(all_session_ids) <= 1:
-                filter_can_change = False
+                filter_action.setEnabled(False)
                 filter_action.setToolTip('Filter to only show players from this session (only one session recorded)')
+                filter_target = target_filter
+            elif is_current and not has_past_disconnected and current_filter == SessionFilterState.FILTER_ALL:
+                filter_action.setEnabled(False)
+                filter_action.setToolTip('Filter to only show players from this session (no disconnected players from other sessions)')
+                filter_target = target_filter
             else:
-                filter_can_change = True
+                filter_action.setEnabled(True)
                 filter_action.setToolTip('Filter to only show players from this session')
+                filter_target = target_filter
 
-            filter_action.setEnabled(filter_can_change)
-            filter_action.triggered.connect(partial(self._apply_session_filter, target_filter))
+            filter_action.triggered.connect(partial(self._apply_session_filter, filter_target))
             session_menu.addAction(filter_action)
 
         self._sessions_submenu.addSeparator()
@@ -770,8 +746,8 @@ Process is currently suspended'
 
     def _prompt_rename_session(self, session_id: int) -> None:
         """Prompt user to rename the specified session and synchronize the session filter."""
-        if prompt_rename_session(self, session_id) and SessionFilterState.get_selected_session() == session_id:
-            self._disconnected.set_selected_session_filter(session_id)
+        if prompt_rename_session(self, session_id):
+            self._disconnected.sync_session_filter()
 
     def _apply_session_filter(self, session_id: int) -> None:
         """Apply a session filter and synchronize table controls."""
