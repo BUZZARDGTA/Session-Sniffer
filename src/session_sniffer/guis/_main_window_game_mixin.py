@@ -517,16 +517,33 @@ Process is currently suspended'
         """Rebuild the dynamic Sessions tree with all recorded sessions, host controls, and history."""
         self._sessions_submenu.clear()
 
+        current_session_id = SessionTracker.get_current_session_id()
+        all_session_ids = SessionTracker.get_all_session_ids()
+        has_past_disconnected = (
+            len(all_session_ids) > 1
+            and any(player.session_id < current_session_id for player in PlayersRegistry.get_disconnected_players())
+        )
+        current_filter = SessionFilterState.get_selected_session()
+        is_all_active = current_filter == SessionFilterState.FILTER_ALL
+
         all_sessions_action = self._sessions_submenu.addAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'layers.svg')), 'All Sessions')
         all_sessions_action.setCheckable(True)
-        all_sessions_action.setChecked(SessionFilterState.get_selected_session() == SessionFilterState.FILTER_ALL)
-        all_sessions_action.setToolTip('Show disconnected players from all recorded sessions')
+        all_sessions_action.setChecked(is_all_active)
+        all_sessions_can_change = not is_all_active and (
+            len(all_session_ids) > 1 and (has_past_disconnected or current_filter != SessionFilterState.FILTER_CURRENT)
+        )
+        all_sessions_action.setEnabled(all_sessions_can_change)
+        if is_all_active:
+            all_sessions_action.setToolTip('Show disconnected players from all recorded sessions (already active)')
+        elif len(all_session_ids) <= 1:
+            all_sessions_action.setToolTip('Show disconnected players from all recorded sessions (only one session recorded)')
+        elif not has_past_disconnected and current_filter == SessionFilterState.FILTER_CURRENT:
+            all_sessions_action.setToolTip('Show disconnected players from all recorded sessions (no disconnected players from other sessions)')
+        else:
+            all_sessions_action.setToolTip('Show disconnected players from all recorded sessions')
         all_sessions_action.triggered.connect(partial(self._apply_session_filter, SessionFilterState.FILTER_ALL))
 
         self._sessions_submenu.addSeparator()
-
-        current_session_id = SessionTracker.get_current_session_id()
-        all_session_ids = SessionTracker.get_all_session_ids()
 
         host_callbacks = SessionHostActionCallbacks(
             clear_host=self._clear_session_host,
@@ -601,10 +618,23 @@ Process is currently suspended'
 
             filter_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'search.svg')), 'Filter to this Session', session_menu)
             filter_action.setCheckable(True)
-            filter_action.setToolTip('Filter to only show players from this session')
-            current_filter = SessionFilterState.get_selected_session()
             is_filter_active = current_filter in (SessionFilterState.FILTER_CURRENT, session_id) if is_current else current_filter == session_id
             filter_action.setChecked(is_filter_active)
+
+            if is_filter_active:
+                filter_can_change = False
+                filter_action.setToolTip('Filter to only show players from this session (already active)')
+            elif is_current and not has_past_disconnected and current_filter == SessionFilterState.FILTER_ALL:
+                filter_can_change = False
+                filter_action.setToolTip('Filter to only show players from this session (no disconnected players from other sessions)')
+            elif len(all_session_ids) <= 1:
+                filter_can_change = False
+                filter_action.setToolTip('Filter to only show players from this session (only one session recorded)')
+            else:
+                filter_can_change = True
+                filter_action.setToolTip('Filter to only show players from this session')
+
+            filter_action.setEnabled(filter_can_change)
             target_filter = SessionFilterState.FILTER_CURRENT if is_current else session_id
             filter_action.triggered.connect(partial(self._apply_session_filter, target_filter))
             session_menu.addAction(filter_action)

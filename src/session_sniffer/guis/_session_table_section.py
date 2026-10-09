@@ -3,7 +3,7 @@
 from typing import TYPE_CHECKING, cast, override
 
 from PySide6.QtCore import QEvent, QObject, QSize, Qt, Signal
-from PySide6.QtGui import QIcon
+from PySide6.QtGui import QIcon, QStandardItem, QStandardItemModel
 from PySide6.QtWidgets import (
     QComboBox,
     QFrame,
@@ -36,7 +36,7 @@ from session_sniffer.guis.stylesheets import (
 from session_sniffer.guis.table_model import SessionTableModel
 from session_sniffer.guis.tables import SessionTableView
 from session_sniffer.guis.utils import make_padded_icon, render_svg_pixmap_from_resource, scale_by_ui
-from session_sniffer.player.registry import SessionTracker
+from session_sniffer.player.registry import PlayersRegistry, SessionTracker
 from session_sniffer.rendering_core.types import PaginationState, SearchState, SessionFilterState
 from session_sniffer.settings import Settings
 from session_sniffer.text_utils import pluralize
@@ -277,6 +277,7 @@ class SessionTableSection(QWidget):
             session_pair.addWidget(session_label)
             session_pair.addWidget(session_filter_combo)
             header_layout.addLayout(session_pair)
+            self._sync_session_filter_combo()
         else:
             self._session_filter_combo = None
 
@@ -553,6 +554,7 @@ class SessionTableSection(QWidget):
         """Clear all table data and reset selection count."""
         self.table_model.reset_columns()
         self._selected_count = 0
+        self._sync_session_filter_combo()
         self._update_header_label()
         self.table_view.reset_initial_data_sizing()
         self.table_view.setup_static_column_resizing()
@@ -721,6 +723,7 @@ class SessionTableSection(QWidget):
         self._current_page = 1
         PaginationState.set_disconnected_page(1)
         SessionFilterState.set_selected_session(session_id=session_id)
+        self._sync_session_filter_combo()
         self._update_header_label()
         self.session_filter_changed.emit(session_id)
 
@@ -736,6 +739,7 @@ class SessionTableSection(QWidget):
         self._current_page = 1
         PaginationState.set_disconnected_page(1)
         SessionFilterState.set_selected_session(session_id=selected_session)
+        self._sync_session_filter_combo()
         self._update_header_label()
         self.session_filter_changed.emit(selected_session)
 
@@ -806,6 +810,8 @@ class SessionTableSection(QWidget):
         if not self._rows_keyboard_editing:
             self._page_spinbox.setSuffix(f' / {self._total_pages}')
 
+        self._sync_session_filter_combo()
+
     def _install_spinbox_input_filter(self, spinbox: QSpinBox) -> None:
         """Attach an event filter that tracks keyboard vs. wheel editing and ignores unfocused wheels."""
         line_edit = spinbox.lineEdit()
@@ -854,3 +860,45 @@ class SessionTableSection(QWidget):
 
     def _get_highlight_search_column(self) -> int:
         return self.get_search_column_index(SearchState.get_column_name())
+
+    def _has_past_disconnected_players(self) -> bool:
+        """Check if any disconnected player belongs to a past session."""
+        current_session_id = SessionTracker.get_current_session_id()
+        if len(SessionTracker.get_all_session_ids()) <= 1:
+            return False
+        return any(player.session_id < current_session_id for player in PlayersRegistry.get_disconnected_players())
+
+    @staticmethod
+    def _set_combo_item_enabled(item: QStandardItem, *, enabled: bool) -> None:
+        flags = item.flags()
+        if enabled:
+            flags |= Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable
+        else:
+            flags &= ~(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable)
+        item.setFlags(flags)
+
+    def _sync_session_filter_combo(self) -> None:
+        """Synchronize the session filter combobox enabled state and item availability."""
+        if self._session_filter_combo is None:
+            return
+
+        selected_session = SessionFilterState.get_selected_session()
+        is_past_session = 0 < selected_session < SessionTracker.get_current_session_id()
+        has_past_disconnected = self._has_past_disconnected_players()
+        total_sessions = len(SessionTracker.get_all_session_ids())
+
+        can_change_filter = is_past_session or has_past_disconnected
+        self._session_filter_combo.setEnabled(can_change_filter)
+
+        if total_sessions <= 1:
+            self._session_filter_combo.setToolTip('Filter disconnected players by session (only one session recorded).')
+        elif not has_past_disconnected and not is_past_session:
+            self._session_filter_combo.setToolTip('Filter disconnected players by session (no disconnected players from other sessions).')
+        else:
+            self._session_filter_combo.setToolTip('Filter disconnected players by session (All vs Current).')
+
+        if self._session_filter_combo.count() > 1:
+            model = self._session_filter_combo.model()
+            if isinstance(model, QStandardItemModel):
+                self._set_combo_item_enabled(model.item(0), enabled=selected_session != SessionFilterState.FILTER_ALL)
+                self._set_combo_item_enabled(model.item(1), enabled=selected_session != SessionFilterState.FILTER_CURRENT)

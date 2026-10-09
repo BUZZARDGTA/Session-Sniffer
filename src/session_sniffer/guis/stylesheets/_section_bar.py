@@ -73,6 +73,11 @@ def section_bar_qss(accent: str) -> str:
     QComboBox:focus, QComboBox:on {{
         border-color: {accent};
     }}
+    QComboBox:disabled {{
+        color: rgba(255, 255, 255, 0.35);
+        background: rgba(0, 0, 0, 0.20);
+        border-color: rgba(255, 255, 255, 0.05);
+    }}
     QComboBox::drop-down {{
         subcontrol-origin: padding;
         subcontrol-position: top right;
@@ -164,6 +169,10 @@ def section_bar_qss(accent: str) -> str:
     QComboBox QAbstractItemView::item:selected, QComboBox QAbstractItemView::item:hover {{
         background-color: #2b2e3a;
         color: #ffffff;
+    }}
+    QComboBox QAbstractItemView::item:disabled {{
+        color: rgba(255, 255, 255, 0.35);
+        background: transparent;
     }}
     """.strip()
 
