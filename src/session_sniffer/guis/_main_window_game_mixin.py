@@ -545,7 +545,7 @@ Process is currently suspended'
             time_label = SessionTracker.get_session_time_label(session_id)
             session_title = f'{display_name} (Current)' if is_current else display_name
             label_parts = [session_title, f'{player_count} {player_noun}']
-            if time_label:
+            if time_label is not None:
                 label_parts.append(time_label)
             session_label = '  |  '.join(label_parts)
             session_icon = QIcon(str(RESOURCES_DIR_PATH / 'icons' / ('radio.svg' if is_current else 'history.svg')))
@@ -553,9 +553,9 @@ Process is currently suspended'
             if not session_menu:
                 continue
             session_menu.setToolTipsVisible(True)
-            menu_tooltip = (
-                f'{player_count} {player_noun} recorded in {display_name}  |  {time_label}' if time_label else f'{player_count} {player_noun} recorded in {display_name}'
-            )
+            menu_tooltip = f'{player_count} {player_noun} recorded in {display_name}'
+            if time_label is not None:
+                menu_tooltip = f'{menu_tooltip}  |  {time_label}'
             session_menu.setToolTip(menu_tooltip)
             session_menu.menuAction().setToolTip(menu_tooltip)
 
