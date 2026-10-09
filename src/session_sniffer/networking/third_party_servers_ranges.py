@@ -1715,6 +1715,7 @@ US_DEPARTMENT_OF_DEFENSE_RANGES: tuple[NamedRange, ...] = create_named_ranges(
     '26.0.0.0/8',
     '199.10.16.0/21',
     '199.10.24.0/23',
+    '199.252.0.0/16',
 )
 
 VALVE_RANGES: tuple[NamedRange, ...] = create_named_ranges(
