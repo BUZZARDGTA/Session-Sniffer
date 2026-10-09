@@ -13,7 +13,7 @@ from PySide6.QtCore import (
     QPersistentModelIndex,
     Qt,
 )
-from PySide6.QtGui import QColor, QIcon, QPainter, QPixmap
+from PySide6.QtGui import QColor, QIcon
 from PySide6.QtWidgets import (
     QHeaderView,
     QTableView,
@@ -32,44 +32,17 @@ from session_sniffer.error_messages import format_type_error
 from session_sniffer.guis.exceptions import TableDataConsistencyError, UnsupportedSortColumnError
 from session_sniffer.guis.high_rate_monitor import HighRateTracker
 from session_sniffer.guis.player_identifier import PlayerIdentifierTracker
+from session_sniffer.guis.table_icons import get_ip_column_composite_icon
 from session_sniffer.player.registry import PlayersRegistry, SessionHost
 from session_sniffer.player.userip import UserIPDatabases
 from session_sniffer.settings import Settings
 
 if TYPE_CHECKING:
+    from session_sniffer.guis.tables import SessionTableView
     from session_sniffer.models.player import Player
+    from session_sniffer.rendering_core.types import CellColor
 
 MAX_POSSIBLE_IP_ICONS = 3
-
-
-def _create_composite_icon(icon_paths: tuple[str, ...]) -> QIcon:
-    """Combine SVG icons side-by-side into a single composite QIcon supporting standard and HiDPI."""
-    if not icon_paths:
-        return QIcon()
-    if len(icon_paths) == 1:
-        return QIcon(icon_paths[0])
-    count = len(icon_paths)
-    total_width = 16 * count + 2 * (count - 1)
-    loaded_icons = [QIcon(path) for path in icon_paths]
-    composite = QIcon()
-    for scale in (1, 2):
-        pixmap = QPixmap(total_width * scale, 16 * scale)
-        pixmap.setDevicePixelRatio(scale)
-        pixmap.fill(Qt.GlobalColor.transparent)
-        painter = QPainter()
-        if painter.begin(pixmap):
-            try:
-                for i, icon in enumerate(loaded_icons):
-                    icon.paint(painter, i * 18, 0, 16, 16)
-            finally:
-                painter.end()
-            composite.addPixmap(pixmap)
-    return composite
-
-
-if TYPE_CHECKING:
-    from session_sniffer.guis.tables import SessionTableView
-    from session_sniffer.rendering_core.types import CellColor
 
 GUI_COLUMN_HEADERS_TOOLTIPS = {
     'Usernames': (
@@ -414,7 +387,6 @@ class SessionTableModel(QAbstractTableModel):  # pylint: disable=too-many-public
             pps=self.get_column_index('PPS'),
         )
         self._ip_to_row_index: dict[str, int] = {}  # O(1) row lookup by IP
-        self._ip_icons_cache: dict[tuple[str, ...], QIcon] = {}
         self._looky_icon = QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'eye.svg'))
 
     @staticmethod
@@ -542,26 +514,19 @@ class SessionTableModel(QAbstractTableModel):  # pylint: disable=too-many-public
                     output = matched_player.country_flag.icon
             elif self.ip_column_index >= 0 and self.ip_column_index == column_index:
                 ip = self.get_ip_from_data_safely(self._data[row_index])
-                icon_paths: list[str] = []
-                if Settings.gui_session_host_icon and SessionHost.is_host(ip):
-                    icon_paths.append(str(RESOURCES_DIR_PATH / 'icons' / 'crown.svg'))
-                if Settings.high_rate_monitor_icon and HighRateTracker.is_high_rate(ip):
-                    icon_paths.append(str(RESOURCES_DIR_PATH / 'icons' / 'speedometer.svg'))
-                if Settings.player_identifier_icon and PlayerIdentifierTracker.is_identified(ip):
-                    icon_paths.append(str(RESOURCES_DIR_PATH / 'icons' / 'target.svg'))
-                if icon_paths:
-                    cache_key = tuple(icon_paths)
-                    if cache_key not in self._ip_icons_cache:
-                        self._ip_icons_cache[cache_key] = _create_composite_icon(cache_key)
-                    output = self._ip_icons_cache[cache_key]
+                output = get_ip_column_composite_icon(
+                    is_host=Settings.gui_session_host_icon and Settings.is_gta5_feature_set() and SessionHost.is_host(ip),
+                    is_high_rate=Settings.high_rate_monitor_icon and HighRateTracker.is_high_rate(ip),
+                    is_identified=Settings.player_identifier_icon and PlayerIdentifierTracker.is_identified(ip),
+                )
             elif self.username_column_index >= 0 and self.username_column_index == column_index:
-                if Settings.looky_enabled:
+                if Settings.looky_enabled and Settings.is_gta5_feature_set():
                     ip = self.get_ip_from_data_safely(self._data[row_index])
                     matched_player = PlayersRegistry.get_player_by_ip(ip)
                     if matched_player is not None and self._is_player_looky_resolved(matched_player):
                         output = self._looky_icon
         elif role == Qt.ItemDataRole.UserRole:
-            if self.username_column_index >= 0 and self.username_column_index == column_index and Settings.looky_enabled:
+            if self.username_column_index >= 0 and self.username_column_index == column_index and Settings.looky_enabled and Settings.is_gta5_feature_set():
                 ip = self.get_ip_from_data_safely(self._data[row_index])
                 matched_player = PlayersRegistry.get_player_by_ip(ip)
                 if matched_player is not None:

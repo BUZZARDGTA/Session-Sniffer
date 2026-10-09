@@ -6,7 +6,7 @@ import time
 from datetime import datetime
 from itertools import chain
 from operator import attrgetter
-from threading import Thread
+from threading import Event, Thread
 from typing import TYPE_CHECKING
 
 from session_sniffer.background.events import gui_closed__event
@@ -65,6 +65,14 @@ if TYPE_CHECKING:
     from session_sniffer.capture.packet_capture import CaptureHolder
 
 logger = logging.getLogger(__name__)
+
+_rendering_wake_event = Event()
+
+
+def wake_rendering_core() -> None:
+    """Wake the rendering core thread immediately to produce a new snapshot without waiting."""
+    _rendering_wake_event.set()
+
 
 _THREAD_COUNT_WARN_THRESHOLD = 150
 
@@ -381,9 +389,13 @@ def rendering_core(
             if _userip_db_rebuilt:
                 _userip_not_found.clear()
 
-        if last_modmenu_refresh_time is None or time.monotonic() - last_modmenu_refresh_time >= _poll_interval:
-            ModMenuLogsParser.refresh()
-            last_modmenu_refresh_time = time.monotonic()
+        if Settings.is_gta5_feature_set():
+            if last_modmenu_refresh_time is None or time.monotonic() - last_modmenu_refresh_time >= _poll_interval:
+                ModMenuLogsParser.refresh()
+                last_modmenu_refresh_time = time.monotonic()
+            all_modmenu_usernames = ModMenuLogsParser.get_all_ip_to_usernames_map()
+        else:
+            all_modmenu_usernames = {}
 
         session_connected, session_disconnected = PlayersRegistry.get_connected_and_disconnected_players()
         players_to_disconnect = _process_player_disconnections(session_connected, session_disconnected)
@@ -407,7 +419,6 @@ def rendering_core(
         for i in reversed(players_to_disconnect):
             del session_connected[i]
 
-        all_modmenu_usernames = ModMenuLogsParser.get_all_ip_to_usernames_map()
         for player in chain(session_connected, session_disconnected):
             has_geo = player.country_flag is not None or player.iplookup.ipapi.is_initialized
             with player.looky_system.lock:
@@ -791,7 +802,9 @@ def rendering_core(
         )
 
         _has_players_for_poll = bool(session_connected or session_disconnected)
-        gui_closed__event.wait(1.0)
+        if not gui_closed__event.is_set():
+            _rendering_wake_event.wait(1.0)
+            _rendering_wake_event.clear()
 
     if discord_rpc_manager is not None:
         discord_rpc_manager.close()

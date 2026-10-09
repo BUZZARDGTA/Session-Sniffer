@@ -54,7 +54,7 @@ from session_sniffer.guis.relay_conflict import prompt_to_disable_gta5_relay_if_
 from session_sniffer.guis.splash_screen import SplashScreen
 from session_sniffer.guis.theme import get_stylesheet
 from session_sniffer.guis.utils import compute_ui_scale, get_screen_size, initialize_ui_scale
-from session_sniffer.launcher.cache_preloader import preload_application_caches
+from session_sniffer.launcher.cache_preloader import preload_application_caches, warm_table_gui_assets
 from session_sniffer.launcher.package_checker import check_packages_version, get_dependencies_from_pyproject
 from session_sniffer.logging_setup import register_secret_provider, setup_logging
 from session_sniffer.models.player import PacketInfo, Player, PlayerUserIPDetection
@@ -70,7 +70,7 @@ from session_sniffer.player.detections import GUIDetectionSettings
 from session_sniffer.player.registry import PlayersRegistry
 from session_sniffer.player.userip import UserIPDatabases
 from session_sniffer.player.userip_backup import run_userip_backup_async
-from session_sniffer.rendering_core.renderer import rendering_core
+from session_sniffer.rendering_core.renderer import rendering_core, wake_rendering_core
 from session_sniffer.rendering_core.types import CaptureState, CaptureStats, GeoIP2Readers, GUIRenderingState
 from session_sniffer.settings import Settings
 from session_sniffer.updater import UpdateCheckOutcome, check_for_updates
@@ -131,7 +131,7 @@ def main() -> None:
     # Own splash msgboxes so they appear above it without being globally topmost
     msgbox.set_owner_hwnd(splash.winId())
 
-    preload_executor = ThreadPoolExecutor(max_workers=6, thread_name_prefix='Preload')
+    preload_executor = ThreadPoolExecutor(max_workers=5, thread_name_prefix='Preload')
     update_check_future = preload_executor.submit(check_for_updates, updater_channel=Settings.updater_channel)
     npcap_future = preload_executor.submit(ensure_npcap_installed)
     geolite2_future = preload_executor.submit(
@@ -139,10 +139,6 @@ def main() -> None:
         progress_callback=functools.partial(splash.update_progress, target_message='Initializing GeoLite2 databases'),
     )
     mac_lookup_future = preload_executor.submit(MacLookup.load)
-    cache_future = preload_executor.submit(
-        preload_application_caches,
-        progress_callback=functools.partial(splash.update_progress, target_message='Initializing caches'),
-    )
 
     def _populate_interfaces_after_mac() -> None:
         mac_lookup_future.result()  # Vendor name lookups require MacLookup to be loaded first.
@@ -196,11 +192,17 @@ def main() -> None:
     splash.run_with_spinner(mac_lookup_future.result)
 
     splash.update_status('Initializing caches')
-    splash.run_with_spinner(cache_future.result)
-    preload_executor.shutdown(wait=False)
+    splash.run_with_spinner(
+        preload_application_caches,
+        progress_callback=functools.partial(splash.update_progress, target_message='Initializing caches'),
+    )
+    warm_table_gui_assets(
+        progress_callback=functools.partial(splash.update_progress, target_message='Initializing caches'),
+    )
 
     splash.update_status('Network interface selection')
     splash.run_with_spinner(network_interfaces_future.result)
+    preload_executor.shutdown(wait=False)
 
     available_interfaces: list[Interface] = []
     capture_interfaces = splash.run_with_spinner(get_filtered_capture_interfaces)
@@ -325,6 +327,7 @@ def main() -> None:
                     ),
                 ),
             )
+            wake_rendering_core()
 
             handle_detection_notification(matched_player, 'player_joined_session')
             enqueue_player_for_resolution(matched_player)
@@ -337,6 +340,7 @@ def main() -> None:
                 sent_by_local_host=sent_by_local_host,
             )
             PlayersRegistry.move_player_to_connected(matched_player)
+            wake_rendering_core()
 
             handle_detection_notification(matched_player, 'player_rejoined_session')
             enqueue_player_for_resolution(matched_player)
@@ -816,9 +820,10 @@ def main() -> None:
         window.show()
         window.raise_()
         window.activateWindow()
-        QTimer.singleShot(100, splash.close_splash)
+        wake_rendering_core()
+        QTimer.singleShot(50, splash.close_splash)
 
-    QTimer.singleShot(200, _reveal_main_window)
+    QTimer.singleShot(100, _reveal_main_window)
 
     def _check_startup_relay_conflict() -> None:
         """Warn at startup when relay detection is enabled but relay IPs are being filtered out."""
@@ -862,6 +867,7 @@ def main() -> None:
         about_to_quit_executed = True
         logger.debug('_on_app_about_to_quit triggered: setting gui_closed, waking rendering state and player cores')
         gui_closed__event.set()
+        wake_rendering_core()
         GUIRenderingState.wake()
         wake_all_player_cores()
         if capture.is_running():

@@ -69,3 +69,15 @@ def get_country_flag(country_code: str) -> PlayerCountryFlag | None:
     country_flag = PlayerCountryFlag(image)
     _country_flag_cache[country_code] = country_flag
     return country_flag
+
+
+def warm_country_flag_icons() -> int:
+    """Warm up QPixmap and QIcon instances for all preloaded country flags.
+
+    Must be called from the Qt GUI thread. Returns the total count of warmed flags.
+    """
+    warmed_count = 0
+    for flag in _country_flag_cache.values():
+        _ = flag.icon
+        warmed_count += 1
+    return warmed_count
