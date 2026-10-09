@@ -141,14 +141,6 @@ class CaptureNotRunningError(CaptureError):
         super().__init__('Capture is not running')
 
 
-class CaptureNoSnifferError(CaptureError):
-    """Exception raised when attempting to terminate a non-existent sniffer."""
-
-    def __init__(self) -> None:
-        """Initialize the exception."""
-        super().__init__('No active sniffer to terminate')
-
-
 class CaptureThreadAlreadyRunningError(CaptureError):
     """Exception raised when attempting to start a capture thread that is already running."""
 

@@ -43,7 +43,6 @@ class StatusBarColors(enum.StrEnum):
     # Status indicators
     ENABLED = ColorPalette.GOOD_GREEN
     DISABLED = ColorPalette.CRITICAL_RED
-    DEFAULT_TEXT = ColorPalette.GOOD_GREEN
 
     # Section labels and accents
     LABEL_ACCENT = ColorPalette.ACCENT_ORANGE

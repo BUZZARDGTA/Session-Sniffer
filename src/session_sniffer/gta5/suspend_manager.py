@@ -2,10 +2,8 @@
 
 from typing import ClassVar, override
 
-from session_sniffer.capture.suspend_manager import BaseSuspendManager, SuspendSnapshot
+from session_sniffer.capture.suspend_manager import BaseSuspendManager
 from session_sniffer.rendering_core.types import CaptureState
-
-GTASuspendSnapshot = SuspendSnapshot
 
 
 class GTASuspendManager(BaseSuspendManager):

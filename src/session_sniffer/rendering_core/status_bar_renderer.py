@@ -1,6 +1,5 @@
 """Status bar section rendering helpers for the GUI."""
 
-import enum
 import os
 import threading
 import time
@@ -112,17 +111,6 @@ class StatusBarSnapshot:
     userip: StatusBarUserIPInfo
     interface: StatusBarInterfaceInfo
     system: StatusBarSystemInfo
-
-
-class StatusBarThresholds(enum.IntEnum):
-    """Performance thresholds for color coding."""
-
-    BPS_CRITICAL = 3_000_000
-    BPS_WARNING = 1_000_000
-    PPS_CRITICAL = 1500
-    PPS_WARNING = 1000
-    MEMORY_HIGH = 500
-    MEMORY_MEDIUM = 300
 
 
 def _compute_disk_io_rates() -> None:

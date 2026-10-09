@@ -148,22 +148,6 @@ PORT_SCANNER_TABLE_MIN_COLUMN_WIDTHS: dict[str, int] = {
     'Banner / Details': 160,
 }
 
-HOTSPOT_MANAGER_TABLE_MIN_COLUMN_WIDTHS: dict[str, int] = {
-    'Device / Hostname': 169,
-    'IPv4 Address': 135,
-    'MAC Address': 150,
-    'Manufacturer / Vendor': 192,
-    'Connection': 121,
-}
-
-USERIP_MANAGER_TABLE_MIN_COLUMN_WIDTHS: dict[str, int] = {
-    '#': 59,
-    'Usernames': 118,
-    'IP': 120,
-    'Range': 89,
-    'Database': 108,
-}
-
 PLAYER_LEADERBOARD_TABLE_MIN_COLUMN_WIDTHS: dict[str, int] = {
     'Rank': 82,
     'Status': 89,
@@ -240,24 +224,6 @@ PORT_HEATMAP_TABLE_MIN_COLUMN_WIDTHS: dict[str, int] = {
     'Port': 77,
     'Count': 88,
     '% of Total': 114,
-}
-
-LOGS_MANAGER_USERIP_LOG_TABLE_MIN_COLUMN_WIDTHS: dict[str, int] = {
-    'Database': 108,
-    'Usernames': 118,
-    'IP': 120,
-    'Date': 80,
-    'Time': 82,
-    'Country': 102,
-}
-
-LOGS_MANAGER_DETECTION_LOG_TABLE_MIN_COLUMN_WIDTHS: dict[str, int] = {
-    'Detection': 111,
-    'Usernames': 118,
-    'IP': 120,
-    'Date': 80,
-    'Time': 82,
-    'Country': 102,
 }
 
 DEFAULT_MIN_COLUMN_WIDTH: int = 60
