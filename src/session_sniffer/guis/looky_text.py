@@ -15,7 +15,7 @@ LOOKY_SETTINGS_GENERAL_PATH = 'Settings → Looky System → General'
 LOOKY_MENU_TOOLTIP_API_KEY_MISSING = f'Looky System requires an API key. Add one in {LOOKY_SETTINGS_AUTH_PATH}.'
 LOOKY_MENU_TOOLTIP_API_KEY_INVALID_OR_NO_ACCESS = f'Your Looky System API key is invalid or your account has no API access. Update your key in {LOOKY_SETTINGS_AUTH_PATH}.'
 LOOKY_MENU_TOOLTIP_GTA5_NOT_RUNNING = 'Looky System is available only while GTA V is running.'
-LOOKY_MENU_TOOLTIP_RESTRICTED_GTA5_NOT_RUNNING = 'Looky System is restricted to GTA V, which is not currently running.'
+LOOKY_MENU_TOOLTIP_RESTRICTED_GTA5_NOT_RUNNING = 'Looky System is restricted to GTA V, which is not currently running or being scanned.'
 LOOKY_MENU_TOOLTIP_DISABLED = f'Looky System is disabled. Enable it in {LOOKY_SETTINGS_GENERAL_PATH}.'
 
 # Dialog / message-box warnings
@@ -54,7 +54,7 @@ def configure_looky_action(
     elif check_gta5_restriction and Settings.looky_exclusive_gta5_process and CaptureState.is_local_capture():
         from session_sniffer.player.registry import PlayersRegistry  # noqa: PLC0415  # pylint: disable=import-outside-toplevel
 
-        if not CaptureState.gta5_is_running and not PlayersRegistry.get_default_sorted_players():
+        if not CaptureState.is_scanning_gta5_process() and not PlayersRegistry.get_default_sorted_players():
             action.setEnabled(False)
             action.setToolTip(LOOKY_MENU_TOOLTIP_RESTRICTED_GTA5_NOT_RUNNING)
         else:

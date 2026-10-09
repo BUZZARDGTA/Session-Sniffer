@@ -90,10 +90,10 @@ class LookyMixin(QMainWindow):
         if (
             Settings.looky_exclusive_gta5_process
             and CaptureState.is_local_capture()
-            and not CaptureState.gta5_is_running
+            and not CaptureState.is_scanning_gta5_process()
             and not players
         ):
-            QMessageBox.warning(self, LOOKY_TITLE, 'Looky System is restricted to GTA V, which is not currently running.')
+            QMessageBox.warning(self, LOOKY_TITLE, 'Looky System is restricted to GTA V, which is not currently running or being scanned.')
             return
 
         count = trigger_looky_rescan_all_players()

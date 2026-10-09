@@ -182,8 +182,7 @@ def is_looky_eligible(player: Player) -> bool:
     return not (
         Settings.looky_exclusive_gta5_process
         and CaptureState.is_local_capture()
-        and not CaptureState.gta5_is_running
-        and not player.looky_system.needs_refresh
+        and not CaptureState.is_scanning_gta5_process()
     )
 
 
@@ -684,7 +683,7 @@ def looky_core() -> None:
             ):
                 pending_ip_addresses.append(target_ip)
 
-        if not pending_ip_addresses and (CaptureState.gta5_is_running or not (Settings.looky_exclusive_gta5_process and CaptureState.is_local_capture())):
+        if not pending_ip_addresses and (CaptureState.is_scanning_gta5_process() or not (Settings.looky_exclusive_gta5_process and CaptureState.is_local_capture())):
             # Check if any connected players need initial lookup or periodic refresh
             current_time = time.monotonic()
             for player in PlayersRegistry.get_connected_players():
