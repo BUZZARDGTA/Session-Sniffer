@@ -251,6 +251,25 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         ),
         requires_capture_restart=False,
     ),
+    'capture_filter_process_name': SettingMeta(
+        category='Capture',
+        group='General',
+        display_label='Target Process Name',
+        setting_type=SettingType.STRING,
+        tooltip='Target process executable name to track across restarts.',
+        hidden=True,
+    ),
+    'capture_filter_process_track_by_name': SettingMeta(
+        category='Capture',
+        group='General',
+        display_label='Track Target Process By Name',
+        setting_type=SettingType.BOOLEAN,
+        tooltip=(
+            'When enabled, tracks the selected target process executable name across\n'
+            'game restarts and edition switches (such as between GTA V Legacy and Enhanced),\n'
+            'automatically re-acquiring the process ID and UDP ports.'
+        ),
+    ),
     'capture_overflow_timer': SettingMeta(
         category='Capture',
         group='General',
@@ -985,6 +1004,8 @@ class SettingDefaults(TypedDict):
     capture_block_third_party_servers: tuple[str, ...]
     capture_feature_set: str | None
     capture_filter_process_pid: int
+    capture_filter_process_name: str | None
+    capture_filter_process_track_by_name: bool
     capture_overflow_timer: int
     capture_ps3_name_resolver: bool
     capture_prepend_custom_capture_filter: str | None
@@ -1086,6 +1107,8 @@ SETTING_DEFAULTS: SettingDefaults = {
     'capture_block_third_party_servers': ALL_THIRD_PARTY_SERVER_NAMES,
     'capture_feature_set': None,
     'capture_filter_process_pid': 0,
+    'capture_filter_process_name': None,
+    'capture_filter_process_track_by_name': True,
     'capture_overflow_timer': 3,
     'capture_ps3_name_resolver': False,
     'capture_prepend_custom_capture_filter': None,

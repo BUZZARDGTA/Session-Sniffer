@@ -267,14 +267,23 @@ class CaptureState:
 
     @classmethod
     def is_scanning_gta5_process(cls) -> bool:
-        """Return `True` if local capture is actively filtering traffic on the running GTA V process PID."""
+        """Return `True` if local capture is actively filtering traffic on the running GTA V process."""
         with cls._lock:
             is_local = not (Settings.capture_arp_spoofing or cls.is_neighbour_interface or cls.interface_type in (INTERFACE_TYPE_BRIDGED, INTERFACE_TYPE_SHARING))
+            tracked_name = Settings.capture_filter_process_name
+            is_targeting_gta5 = (
+                Settings.capture_filter_process_pid == cls.gta5_pid
+                or (
+                    Settings.capture_filter_process_track_by_name
+                    and tracked_name is not None
+                    and tracked_name.lower() in ('gta5.exe', 'gta5_enhanced.exe')
+                )
+            )
             return (
                 is_local
                 and cls.gta5_is_running
                 and cls.gta5_pid is not None
-                and Settings.capture_filter_process_pid == cls.gta5_pid
+                and is_targeting_gta5
             )
 
     @classmethod

@@ -20,7 +20,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from session_sniffer.capture.process import get_running_applications
+from session_sniffer.capture.process import GTA5_PROCESS_NAMES, get_running_applications
 from session_sniffer.capture.process_monitor import ensure_process_monitor_running
 from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.constants.standalone import TITLE
@@ -76,13 +76,23 @@ class TargetProcessDialog(QDialog):
         search_layout.addWidget(refresh_button)
         main_layout.addLayout(search_layout)
 
-        # Options row
-        options_layout = QHBoxLayout()
+        # Options
+        options_layout = QVBoxLayout()
+        options_layout.setSpacing(scale_by_ui(4))
         self._user_apps_only_checkbox = QCheckBox('Show user applications and games only (hide background system services)')
         self._user_apps_only_checkbox.setChecked(True)
         self._user_apps_only_checkbox.toggled.connect(self._populate_process_table)
         options_layout.addWidget(self._user_apps_only_checkbox)
-        options_layout.addStretch()
+
+        self._track_by_name_checkbox = QCheckBox('Track target process by executable name (auto-detect restarts / editions)')
+        self._track_by_name_checkbox.setToolTip(
+            'Keep tracking the selected process name instead of a static PID. '
+            'Automatically re-detects the process when restarted and switches seamlessly between GTA V editions.',
+        )
+        self._track_by_name_checkbox.setChecked(Settings.capture_filter_process_track_by_name)
+        self._track_by_name_checkbox.toggled.connect(self._on_track_by_name_toggled)
+        options_layout.addWidget(self._track_by_name_checkbox)
+
         main_layout.addLayout(options_layout)
 
         # Main process table
@@ -159,10 +169,12 @@ class TargetProcessDialog(QDialog):
         main_layout.addLayout(action_layout)
 
         self.selected_pid: int = Settings.capture_filter_process_pid
+        self.selected_process_name: str | None = Settings.capture_filter_process_name
         self._cached_processes: list[tuple[int, str, str]] = []
         if not CaptureState.is_local_capture():
             self._table.setEnabled(False)
             self._pid_spinbox.setEnabled(False)
+            self._track_by_name_checkbox.setEnabled(False)
             self._sniff_selected_button.setEnabled(False)
         self._populate_process_table()
 
@@ -175,16 +187,31 @@ class TargetProcessDialog(QDialog):
             )
             return
 
-        current_pid = Settings.capture_filter_process_pid
-        if current_pid <= 0:
+        if not Settings.is_process_filter_active():
             self._status_label.setText('<b>Status:</b> Currently sniffing <b>ALL network traffic</b> (no process filter active).')
+            return
+
+        current_pid = Settings.capture_filter_process_pid
+        track_by_name = Settings.capture_filter_process_track_by_name
+        tracked_name = Settings.capture_filter_process_name
+
+        is_running = CaptureState.target_process_running
+        process_name = CaptureState.target_process_name or tracked_name or 'Unknown Process'
+
+        if is_running:
+            status_badge = '<span style="color: #4CAF50; font-weight: bold;">● RUNNING</span>'
+            pid_info = f' (PID: {current_pid})' if current_pid > 0 else ''
+            mode_info = ' [Tracking by Name]' if track_by_name else ''
+            self._status_label.setText(f'<b>Status:</b> Exclusively sniffing <b>{process_name}</b>{pid_info}{mode_info} — {status_badge}')
         else:
-            is_running = CaptureState.target_process_running
-            process_name = CaptureState.target_process_name or 'Unknown Process'
-            status_badge = (
-                '<span style="color: #4CAF50; font-weight: bold;">● RUNNING</span>' if is_running else '<span style="color: #f44336; font-weight: bold;">● NOT RUNNING</span>'
-            )
-            self._status_label.setText(f'<b>Status:</b> Exclusively sniffing <b>{process_name}</b> (PID: {current_pid}) — {status_badge}')
+            status_badge = '<span style="color: #f44336; font-weight: bold;">● NOT RUNNING</span>'
+            if track_by_name and tracked_name is not None:
+                self._status_label.setText(
+                    f'<b>Status:</b> Exclusively tracking <b>{tracked_name}</b> by name — {status_badge} (waiting to launch)',
+                )
+            else:
+                pid_info = f' (PID: {current_pid})' if current_pid > 0 else ''
+                self._status_label.setText(f'<b>Status:</b> Exclusively sniffing <b>{process_name}</b>{pid_info} — {status_badge}')
 
     @staticmethod
     def _process_sort_key(item: tuple[int, str, str], normalized_query: str) -> tuple[int, str, int]:
@@ -235,6 +262,10 @@ class TargetProcessDialog(QDialog):
             matching_processes = list(self._cached_processes)
 
         current_target_pid = Settings.capture_filter_process_pid
+        track_by_name = Settings.capture_filter_process_track_by_name
+        target_name = Settings.capture_filter_process_name
+        target_name_lower = target_name.lower() if target_name is not None else None
+        is_gta5_target = target_name_lower in GTA5_PROCESS_NAMES if target_name_lower is not None else False
         selected_row_to_restore: int | None = None
         active_target_row: int | None = None
 
@@ -246,6 +277,7 @@ class TargetProcessDialog(QDialog):
             for row_index, (pid, name, exe_path) in enumerate(matching_processes):
                 name_item = QTableWidgetItem(name)
                 name_item.setData(Qt.ItemDataRole.UserRole, pid)
+                name_item.setData(Qt.ItemDataRole.UserRole + 1, name)
                 name_item.setIcon(get_process_icon(exe_path))
 
                 pid_item = QTableWidgetItem(str(pid))
@@ -254,7 +286,15 @@ class TargetProcessDialog(QDialog):
                 if exe_path:
                     path_item.setToolTip(exe_path)
 
-                if pid == current_target_pid:
+                is_active_target = False
+                if pid == current_target_pid > 0:
+                    is_active_target = True
+                elif track_by_name and target_name_lower is not None:
+                    name_lower = name.lower()
+                    if (is_gta5_target and name_lower in GTA5_PROCESS_NAMES) or name_lower == target_name_lower:
+                        is_active_target = True
+
+                if is_active_target:
                     active_target_row = row_index
                     name_item.setText(f'{name} (Active Target)')
                     name_item.setToolTip(
@@ -318,14 +358,15 @@ class TargetProcessDialog(QDialog):
         name_item = self._table.item(item.row(), 0)
         if name_item is not None:
             pid_value = name_item.data(Qt.ItemDataRole.UserRole)
+            name_value = name_item.data(Qt.ItemDataRole.UserRole + 1)
             if isinstance(pid_value, int):
-                self._apply_pid(pid_value)
+                self._apply_selection(pid_value, str(name_value) if name_value else None)
                 self.accept()
 
     def _on_sniff_selected_clicked(self) -> None:
         """Sniff the currently selected process in the table."""
         if self._manual_container.isVisible() and self._pid_spinbox.hasFocus():
-            self._apply_pid(self._pid_spinbox.value())
+            self._apply_selection(self._pid_spinbox.value())
             self.accept()
             return
 
@@ -335,29 +376,48 @@ class TargetProcessDialog(QDialog):
             name_item = self._table.item(selected_row, 0)
             if name_item is not None:
                 pid_value = name_item.data(Qt.ItemDataRole.UserRole)
+                name_value = name_item.data(Qt.ItemDataRole.UserRole + 1)
                 if isinstance(pid_value, int):
-                    self._apply_pid(pid_value)
+                    self._apply_selection(pid_value, str(name_value) if name_value else None)
                     self.accept()
                     return
 
         # Fallback to spinbox value
-        self._apply_pid(self._pid_spinbox.value())
+        self._apply_selection(self._pid_spinbox.value())
         self.accept()
 
     def _on_disable_clicked(self) -> None:
         """Disable process filtering and capture all traffic."""
-        self._apply_pid(0)
+        self._apply_selection(0)
         self.accept()
 
-    def _apply_pid(self, pid: int) -> None:
-        """Store target PID, save settings, and trigger process monitor."""
+    def _apply_selection(self, pid: int, process_name: str | None = None) -> None:
+        """Store target process selection, save settings, and trigger process monitor."""
         if not CaptureState.is_local_capture():
             return
+        if process_name is None and pid > 0:
+            for cached_pid, cached_name, _ in self._cached_processes:
+                if cached_pid == pid:
+                    process_name = cached_name
+                    break
+        track_by_name = self._track_by_name_checkbox.isChecked()
         self.selected_pid = pid
+        self.selected_process_name = process_name if pid > 0 else None
         Settings.capture_filter_process_pid = pid
+        Settings.capture_filter_process_name = self.selected_process_name
+        Settings.capture_filter_process_track_by_name = track_by_name
         Settings.rewrite_settings_file()
         ensure_process_monitor_running()
         self._update_status_label()
+
+    def _on_track_by_name_toggled(self) -> None:
+        """Update track-by-name setting and refresh status."""
+        checked = self._track_by_name_checkbox.isChecked()
+        Settings.capture_filter_process_track_by_name = checked
+        Settings.rewrite_settings_file()
+        ensure_process_monitor_running()
+        self._update_status_label()
+        self._filter_process_list(self._search_input.text())
 
     @override
     def resizeEvent(self, a0: QResizeEvent) -> None:
@@ -380,7 +440,8 @@ class TargetProcessDialog(QDialog):
         name_item = self._table.item(row, 0)
         pid_item = self._table.item(row, 1)
         path_item = self._table.item(row, 2)
-        process_name = name_item.text() if name_item else ''
+        raw_name = name_item.data(Qt.ItemDataRole.UserRole + 1) if name_item else None
+        process_name = str(raw_name) if raw_name else (name_item.text() if name_item else '')
         pid_str = pid_item.text() if pid_item else ''
         exe_path = path_item.text() if path_item else ''
         set_clipboard_text(f'{process_name}\t{pid_str}\t{exe_path}')
@@ -401,7 +462,8 @@ class TargetProcessDialog(QDialog):
         pid_item = self._table.item(row, 1)
         path_item = self._table.item(row, 2)
 
-        process_name = name_item.text() if name_item else ''
+        raw_name = name_item.data(Qt.ItemDataRole.UserRole + 1) if name_item else None
+        process_name = str(raw_name) if raw_name else (name_item.text() if name_item else '')
         pid_str = pid_item.text() if pid_item else ''
         exe_path = path_item.text() if path_item else ''
 

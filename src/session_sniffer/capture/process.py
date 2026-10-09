@@ -659,6 +659,95 @@ def inspect_target_process(
     return (TargetProcessStatus(pid=target_pid, is_running=False), None)
 
 
+GTA5_PROCESS_NAMES: frozenset[str] = frozenset(
+    {
+        'gta5.exe',
+        'gta5_enhanced.exe',
+    },
+)
+
+
+def find_running_target_process(
+    target_name: str,
+    target_pid: int = 0,
+    *,
+    cached_process: ProcessInfo | None = None,
+) -> tuple[TargetProcessStatus, ProcessInfo | None]:
+    """Inspect and resolve a running target process by executable name and/or PID.
+
+    If the target process matches a known GTA V executable (`gta5.exe` or `gta5_enhanced.exe`),
+    both editions are searched interchangeably and verified with Authenticode signatures.
+    """
+    normalized_target = target_name.strip().lower()
+    is_gta5 = normalized_target in GTA5_PROCESS_NAMES
+    candidate_names = GTA5_PROCESS_NAMES if is_gta5 else frozenset({normalized_target})
+
+    # Fast path: re-query existing cached process handle if still running.
+    if cached_process is not None and is_process_running(cached_process):
+        process_path = get_process_image_path(cached_process.pid)
+        if process_path is not None and process_path.name.lower() in candidate_names:
+            return (
+                TargetProcessStatus(
+                    pid=cached_process.pid,
+                    name=process_path.name,
+                    path=process_path,
+                    udp_ports=get_process_udp_ports(cached_process.pid),
+                    is_running=True,
+                ),
+                cached_process,
+            )
+
+    # Secondary fast path: verify target_pid if provided and running.
+    if target_pid > 0 and is_process_running(target_pid):
+        process_path = get_process_image_path(target_pid)
+        if (
+            process_path is not None
+            and process_path.name.lower() in candidate_names
+            and (not is_gta5 or has_valid_authenticode_signature(process_path))
+        ):
+            creation_time = get_process_creation_time(target_pid)
+            cached_info = ProcessInfo(pid=target_pid, creation_time=creation_time) if creation_time is not None else None
+            return (
+                TargetProcessStatus(
+                    pid=target_pid,
+                    name=process_path.name,
+                    path=process_path.resolve(),
+                    udp_ports=get_process_udp_ports(target_pid),
+                    is_running=True,
+                ),
+                cached_info,
+            )
+
+    # Slow path: iterate running processes to find candidate executable.
+    for pid, process_name in iter_running_processes():
+        if not process_name or process_name.lower() not in candidate_names:
+            continue
+
+        process_path = get_process_image_path(pid)
+        if process_path is None:
+            continue
+
+        if is_gta5 and not has_valid_authenticode_signature(process_path):
+            logger.debug('[TargetProcess] Authenticode signature invalid for GTA5, ignoring: "%s" (PID: %s)', process_path, pid)
+            continue
+
+        resolved_path = process_path.resolve()
+        creation_time = get_process_creation_time(pid)
+        cached_info = ProcessInfo(pid=pid, creation_time=creation_time) if creation_time is not None else None
+        return (
+            TargetProcessStatus(
+                pid=pid,
+                name=process_path.name,
+                path=resolved_path,
+                udp_ports=get_process_udp_ports(pid),
+                is_running=True,
+            ),
+            cached_info,
+        )
+
+    return (TargetProcessStatus(name=target_name, is_running=False), None)
+
+
 _SYSTEM_PROCESS_NAMES: frozenset[str] = frozenset(
     {
         'conhost.exe',

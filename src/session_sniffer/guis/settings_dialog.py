@@ -547,7 +547,10 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
 
             case SettingType.INTEGER | SettingType.INTEGER_OR_ALL:
                 if key == 'capture_filter_process_pid':
-                    cast('ProcessSelectorWidget', widget).set_value(int(value) if isinstance(value, (int, float)) else 0)
+                    cast('ProcessSelectorWidget', widget).set_value(
+                        int(value) if isinstance(value, (int, float)) else 0,
+                        Settings.capture_filter_process_name,
+                    )
                 else:
                     cast('QSpinBox', widget).setValue(int(value) if isinstance(value, (int, float)) else 0)
 
@@ -677,6 +680,10 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
                 setattr(Settings, key, formatted_value)
             else:
                 setattr(Settings, key, value)
+
+        if 'capture_filter_process_pid' in self._widgets:
+            selector = cast('ProcessSelectorWidget', self._widgets['capture_filter_process_pid'])
+            Settings.capture_filter_process_name = selector.process_name()
 
         if self._capture.is_running():
             Settings.capture_interface_name = self._capture.config.interface.name

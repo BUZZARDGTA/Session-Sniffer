@@ -136,7 +136,7 @@ class ProcessSelectorWidget(QWidget):
             self._combo.setItemData(0, 'Capture all network traffic without process filtering.', Qt.ItemDataRole.ToolTipRole)
 
             processes = get_running_applications(user_apps_only=True)
-            found_current = not current_pid
+            found_current = False
 
             for pid, name, exe_path in processes:
                 display_text = f'{name} (PID: {pid})'
@@ -145,14 +145,26 @@ class ProcessSelectorWidget(QWidget):
                 item_index = self._combo.count() - 1
                 item_tooltip = f'{name} (PID: {pid})\n{exe_path}' if exe_path else f'{name} (PID: {pid})'
                 self._combo.setItemData(item_index, item_tooltip, Qt.ItemDataRole.ToolTipRole)
-                if pid == current_pid:
+                self._combo.setItemData(item_index, name, Qt.ItemDataRole.UserRole + 1)
+                if pid == current_pid > 0:
                     found_current = True
 
             # If current PID was set to a process that is not running right now, append it so setting is preserved
             if not found_current and current_pid > 0:
-                self._combo.addItem(warning_icon, f'Process PID {current_pid} (Not Running)', current_pid)
+                tracked_name = Settings.capture_filter_process_name
+                display_text = f'{tracked_name} (PID: {current_pid} - Not Running)' if tracked_name is not None else f'Process PID {current_pid} (Not Running)'
+                self._combo.addItem(warning_icon, display_text, current_pid)
                 not_running_index = self._combo.count() - 1
-                self._combo.setItemData(not_running_index, f'Process PID {current_pid} (Not Running)', Qt.ItemDataRole.ToolTipRole)
+                self._combo.setItemData(not_running_index, display_text, Qt.ItemDataRole.ToolTipRole)
+                if tracked_name is not None:
+                    self._combo.setItemData(not_running_index, tracked_name, Qt.ItemDataRole.UserRole + 1)
+            elif not found_current and current_pid <= 0 and Settings.capture_filter_process_track_by_name and Settings.capture_filter_process_name is not None:
+                tracked_name = Settings.capture_filter_process_name
+                display_text = f'{tracked_name} (Not Running)'
+                self._combo.addItem(warning_icon, display_text, 0)
+                not_running_index = self._combo.count() - 1
+                self._combo.setItemData(not_running_index, f'{tracked_name} (Waiting to launch)', Qt.ItemDataRole.ToolTipRole)
+                self._combo.setItemData(not_running_index, tracked_name, Qt.ItemDataRole.UserRole + 1)
 
             self.set_value(current_pid)
 
@@ -163,10 +175,25 @@ class ProcessSelectorWidget(QWidget):
         combo_data = self._combo.currentData()
         return combo_data if isinstance(combo_data, int) else 0
 
-    def set_value(self, pid: int) -> None:
+    def process_name(self) -> str | None:
+        """Return the currently selected process name (or None)."""
+        current_index = self._combo.currentIndex()
+        if current_index <= 0:
+            return None
+        data = self._combo.itemData(current_index, Qt.ItemDataRole.UserRole + 1)
+        return str(data) if data is not None else None
+
+    def set_value(self, pid: int, process_name: str | None = None) -> None:
         """Set the selected PID in the combo box."""
+        target_name = process_name or Settings.capture_filter_process_name
         for index in range(self._combo.count()):
             if self._combo.itemData(index) == pid:
+                if not pid and index > 0:
+                    if target_name is not None and self._combo.itemData(index, Qt.ItemDataRole.UserRole + 1) == target_name:
+                        self._combo.setCurrentIndex(index)
+                        self._update_combo_tooltip()
+                        return
+                    continue
                 self._combo.setCurrentIndex(index)
                 self._update_combo_tooltip()
                 return
@@ -174,10 +201,20 @@ class ProcessSelectorWidget(QWidget):
         # If PID is not in combo, add it and select
         if pid > 0:
             warning_icon = QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'warning.svg'))
-            display_text = f'Process PID {pid} (Not Running)'
+            display_text = f'{target_name} (PID: {pid} - Not Running)' if target_name is not None else f'Process PID {pid} (Not Running)'
             self._combo.addItem(warning_icon, display_text, pid)
             item_index = self._combo.count() - 1
-            self._combo.setItemData(item_index, f'Process PID {pid} (Not Running)', Qt.ItemDataRole.ToolTipRole)
+            self._combo.setItemData(item_index, display_text, Qt.ItemDataRole.ToolTipRole)
+            if target_name is not None:
+                self._combo.setItemData(item_index, target_name, Qt.ItemDataRole.UserRole + 1)
+            self._combo.setCurrentIndex(item_index)
+        elif target_name is not None and Settings.capture_filter_process_track_by_name:
+            warning_icon = QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'warning.svg'))
+            display_text = f'{target_name} (Not Running)'
+            self._combo.addItem(warning_icon, display_text, 0)
+            item_index = self._combo.count() - 1
+            self._combo.setItemData(item_index, f'{target_name} (Waiting to launch)', Qt.ItemDataRole.ToolTipRole)
+            self._combo.setItemData(item_index, target_name, Qt.ItemDataRole.UserRole + 1)
             self._combo.setCurrentIndex(item_index)
         else:
             self._combo.setCurrentIndex(0)
@@ -190,7 +227,9 @@ class ProcessSelectorWidget(QWidget):
         dialog = TargetProcessDialog(self)
         if dialog.exec():
             selected_pid = dialog.selected_pid
+            selected_name = dialog.selected_process_name
             Settings.capture_filter_process_pid = selected_pid
+            Settings.capture_filter_process_name = selected_name
             ensure_process_monitor_running()
             self.refresh_process_list()
-            self.set_value(selected_pid)
+            self.set_value(selected_pid, selected_name)

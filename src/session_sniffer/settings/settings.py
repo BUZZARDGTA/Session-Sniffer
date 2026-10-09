@@ -52,6 +52,8 @@ class Settings:
     capture_filtered_isps: tuple[str, ...] = SETTING_DEFAULTS['capture_filtered_isps']
     capture_feature_set: str | None = SETTING_DEFAULTS['capture_feature_set']
     capture_filter_process_pid: int = SETTING_DEFAULTS['capture_filter_process_pid']
+    capture_filter_process_name: str | None = SETTING_DEFAULTS['capture_filter_process_name']
+    capture_filter_process_track_by_name: bool = SETTING_DEFAULTS['capture_filter_process_track_by_name']
     capture_overflow_timer: int = SETTING_DEFAULTS['capture_overflow_timer']
     capture_ps3_name_resolver: bool = SETTING_DEFAULTS['capture_ps3_name_resolver']
     capture_prepend_custom_capture_filter: str | None = SETTING_DEFAULTS['capture_prepend_custom_capture_filter']
@@ -157,6 +159,8 @@ class Settings:
         'CAPTURE_FILTERED_ISPS',
         'CAPTURE_FEATURE_SET',
         'CAPTURE_FILTER_PROCESS_PID',
+        'CAPTURE_FILTER_PROCESS_NAME',
+        'CAPTURE_FILTER_PROCESS_TRACK_BY_NAME',
         'CAPTURE_OVERFLOW_TIMER',
         'CAPTURE_PS3_NAME_RESOLVER',
         'CAPTURE_PREPEND_CUSTOM_CAPTURE_FILTER',
@@ -303,6 +307,11 @@ class Settings:
         """Iterate over all settings and their current values."""
         for setting_name in cls.ALL_SETTINGS:
             yield setting_name, getattr(cls, setting_name.lower())
+
+    @classmethod
+    def is_process_filter_active(cls) -> bool:
+        """Return `True` if target process filtering is active (by PID or by tracked executable name)."""
+        return cls.capture_filter_process_pid > 0 or (cls.capture_filter_process_track_by_name and bool(cls.capture_filter_process_name))
 
     @classmethod
     def is_gta5_feature_set(cls) -> bool:

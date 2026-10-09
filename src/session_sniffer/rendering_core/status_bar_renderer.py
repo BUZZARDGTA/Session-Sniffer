@@ -239,8 +239,12 @@ def _build_config_section(snapshot: StatusBarSnapshot) -> str:
             f'<span style="color: {StatusBarColors.LABEL_ACCENT};">Discord:</span> <span style="color: {rpc_color};">{rpc_status}</span>',
         )
 
-    if Settings.capture_filter_process_pid > 0 and CaptureState.is_local_capture():
-        target_name = CaptureState.target_process_name or f'PID {Settings.capture_filter_process_pid}'
+    if Settings.is_process_filter_active() and CaptureState.is_local_capture():
+        target_name = (
+            CaptureState.target_process_name
+            or (Settings.capture_filter_process_name if Settings.capture_filter_process_track_by_name else None)
+            or (f'PID {Settings.capture_filter_process_pid}' if Settings.capture_filter_process_pid > 0 else 'Target Process')
+        )
         target_color = StatusBarColors.ENABLED if CaptureState.target_process_running else StatusBarColors.DISABLED
         parts.append(
             f'<span style="color: {StatusBarColors.LABEL_ACCENT};">Target:</span> <span style="color: {target_color};">{target_name}</span>',

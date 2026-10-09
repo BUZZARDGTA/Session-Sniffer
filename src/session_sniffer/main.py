@@ -288,7 +288,7 @@ def main() -> None:
         else:
             return
 
-        has_process_filter = Settings.capture_filter_process_pid > 0
+        has_process_filter = Settings.is_process_filter_active()
         if (
             has_process_filter
             and CaptureState.is_local_capture()

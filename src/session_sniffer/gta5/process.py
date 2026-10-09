@@ -9,16 +9,10 @@ immutable `GTA5Status` snapshot.
 from dataclasses import dataclass, field
 
 from session_sniffer.capture.process import (
+    GTA5_PROCESS_NAMES,
     GameProcessStatus,
     ProcessInfo,
     find_running_game_process,
-)
-
-_GTA5_PROCESS_NAMES: frozenset[str] = frozenset(
-    {
-        'gta5.exe',
-        'gta5_enhanced.exe',
-    },
 )
 
 
@@ -55,7 +49,7 @@ def find_running_gta5_path(
 ) -> tuple[GTA5Status, ProcessInfo | None]:
     """Return a `GTA5Status` snapshot for the currently running GTA5 process plus its process handle."""
     return find_running_game_process(
-        _GTA5_PROCESS_NAMES,
+        GTA5_PROCESS_NAMES,
         'GTA5',
         GTA5Status,
         cached_proc=cached_proc,

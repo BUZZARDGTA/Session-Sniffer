@@ -10,7 +10,12 @@ from threading import enumerate as enumerate_threads
 
 from session_sniffer.background import wake_looky_core
 from session_sniffer.background.events import gui_closed__event
-from session_sniffer.capture.process import ProcessInfo, TargetProcessStatus, inspect_target_process
+from session_sniffer.capture.process import (
+    ProcessInfo,
+    TargetProcessStatus,
+    find_running_target_process,
+    inspect_target_process,
+)
 from session_sniffer.gta5.process import GTA5Status, find_running_gta5_path
 from session_sniffer.rdr2.process import RDR2Status, find_running_rdr2_path
 from session_sniffer.rendering_core.types import CaptureState
@@ -21,7 +26,12 @@ logger = logging.getLogger(__name__)
 _PROCESS_MONITOR_THREAD_NAME = 'ProcessMonitor'
 
 
-def _log_process_status_transition(previous: TargetProcessStatus, current: TargetProcessStatus) -> None:
+def _log_process_status_transition(
+    previous: TargetProcessStatus,
+    current: TargetProcessStatus,
+    *,
+    tracking_by_name: bool = False,
+) -> None:
     """Log meaningful target process state changes (detect/exit/PID change at INFO, port updates at DEBUG)."""
     process_identifier = f'{current.name} (PID: {current.pid})' if bool(current.name) else f'PID {current.pid}'
     previous_identifier = f'{previous.name} (PID: {previous.pid})' if bool(previous.name) else f'PID {previous.pid}'
@@ -31,14 +41,63 @@ def _log_process_status_transition(previous: TargetProcessStatus, current: Targe
             logger.info('[ProcessMonitor] Target process detected: %s at "%s"', process_identifier, current.path)
             if current.udp_ports:
                 logger.info('[ProcessMonitor] %s UDP ports bound: %s', process_identifier, sorted(current.udp_ports))
+        elif tracking_by_name:
+            logger.info('[ProcessMonitor] Target process exited: %s; tracking by name for restart', previous_identifier)
         else:
             logger.info('[ProcessMonitor] Target process exited: %s; resetting to capture all traffic', previous_identifier)
-    elif current.is_running and current.pid != previous.pid:
+    elif current.is_running and (current.pid != previous.pid or current.name != previous.name):
         logger.info('[ProcessMonitor] Target process changed (%s -> %s)', previous_identifier, process_identifier)
         if current.udp_ports:
             logger.info('[ProcessMonitor] %s UDP ports bound: %s', process_identifier, sorted(current.udp_ports))
     elif current.is_running and current.udp_ports != previous.udp_ports:
         logger.debug('[ProcessMonitor] %s UDP ports updated: %s', process_identifier, sorted(current.udp_ports))
+
+
+def _monitor_target_process(
+    previous_status: TargetProcessStatus,
+    cached_process: ProcessInfo | None,
+) -> tuple[TargetProcessStatus, ProcessInfo | None]:
+    """Inspect and resolve target process status when filtering is enabled."""
+    target_pid = Settings.capture_filter_process_pid
+    tracked_name = Settings.capture_filter_process_name
+    track_by_name = Settings.capture_filter_process_track_by_name and tracked_name is not None
+
+    if track_by_name:
+        target_name = tracked_name or ''
+        status, updated_cache = find_running_target_process(
+            target_name,
+            target_pid,
+            cached_process=cached_process,
+        )
+        if status.is_running:
+            if status.pid != target_pid or (status.name is not None and status.name != Settings.capture_filter_process_name):
+                if status.pid is not None:
+                    Settings.capture_filter_process_pid = status.pid
+                if status.name is not None:
+                    Settings.capture_filter_process_name = status.name
+                Settings.rewrite_settings_file()
+            _log_process_status_transition(previous_status, status, tracking_by_name=True)
+            return (status, updated_cache)
+
+        if previous_status.is_running:
+            _log_process_status_transition(previous_status, status, tracking_by_name=True)
+        return (status, None)
+
+    if target_pid > 0:
+        status, updated_cache = inspect_target_process(target_pid, cached_process)
+        if not status.is_running:
+            if previous_status.is_running:
+                _log_process_status_transition(previous_status, status, tracking_by_name=False)
+            else:
+                logger.info('[ProcessMonitor] Target process (PID %d) is not running; resetting to capture all traffic', target_pid)
+            Settings.capture_filter_process_pid = 0
+            Settings.rewrite_settings_file()
+            return (TargetProcessStatus(), None)
+
+        _log_process_status_transition(previous_status, status, tracking_by_name=False)
+        return (status, updated_cache)
+
+    return (TargetProcessStatus(), None)
 
 
 def _process_monitor() -> None:
@@ -54,8 +113,7 @@ def _process_monitor() -> None:
     cached_rdr2_process: ProcessInfo | None = None
 
     while not gui_closed__event.is_set():
-        target_pid = Settings.capture_filter_process_pid
-        has_process_filter = target_pid > 0
+        has_process_filter = Settings.is_process_filter_active()
 
         if not has_process_filter and not Settings.is_session_host_feature_set():
             CaptureState.update_target_process_status(TargetProcessStatus())
@@ -85,20 +143,11 @@ def _process_monitor() -> None:
             CaptureState.update_rdr2_status(last_rdr2_status)
 
         # Update Target Process Status
-        if target_pid > 0 and CaptureState.is_local_capture():
-            previous_process_status = last_process_status
-            last_process_status, cached_process = inspect_target_process(target_pid, cached_process)
-            if not last_process_status.is_running:
-                if previous_process_status.is_running:
-                    _log_process_status_transition(previous_process_status, last_process_status)
-                else:
-                    logger.info('[ProcessMonitor] Target process (PID %d) is not running; resetting to capture all traffic', target_pid)
-                Settings.capture_filter_process_pid = 0
-                Settings.rewrite_settings_file()
-                last_process_status = TargetProcessStatus()
-                cached_process = None
-            else:
-                _log_process_status_transition(previous_process_status, last_process_status)
+        if has_process_filter and CaptureState.is_local_capture():
+            last_process_status, cached_process = _monitor_target_process(
+                previous_status=last_process_status,
+                cached_process=cached_process,
+            )
             CaptureState.update_target_process_status(last_process_status)
         elif last_process_status.is_running or last_process_status.pid is not None:
             last_process_status = TargetProcessStatus()
@@ -110,7 +159,7 @@ def _process_monitor() -> None:
 
 def ensure_process_monitor_running() -> None:
     """Start the process monitor thread if needed and it is not already running."""
-    if Settings.capture_filter_process_pid <= 0 and not Settings.is_session_host_feature_set():
+    if not Settings.is_process_filter_active() and not Settings.is_session_host_feature_set():
         return
     for thread in enumerate_threads():
         if thread.name == _PROCESS_MONITOR_THREAD_NAME and thread.is_alive():

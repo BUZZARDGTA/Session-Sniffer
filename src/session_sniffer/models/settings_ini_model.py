@@ -81,6 +81,8 @@ class SettingsIniModel(BaseModel):
     CAPTURE_BLOCK_THIRD_PARTY_SERVERS: tuple[str, ...]
     CAPTURE_FEATURE_SET: str | None
     CAPTURE_FILTER_PROCESS_PID: int
+    CAPTURE_FILTER_PROCESS_NAME: str | None
+    CAPTURE_FILTER_PROCESS_TRACK_BY_NAME: bool
     CAPTURE_OVERFLOW_TIMER: int
     CAPTURE_PS3_NAME_RESOLVER: bool
     CAPTURE_PREPEND_CUSTOM_CAPTURE_FILTER: str | None
@@ -184,6 +186,7 @@ class SettingsIniModel(BaseModel):
     _BOOL_FIELDS: ClassVar[frozenset[str]] = frozenset(
         {
             'CAPTURE_ARP_SPOOFING',
+            'CAPTURE_FILTER_PROCESS_TRACK_BY_NAME',
             'CAPTURE_PS3_NAME_RESOLVER',
             *CAPTURE_FILTER_BLOCK_SETTINGS,
             'DISCORD_PRESENCE',
@@ -474,6 +477,25 @@ class SettingsIniModel(BaseModel):
             return cast('int', cls._get_default_for_field(info) or 0)
         cls._set_flag(info, 'should_rewrite', value=True)
         return cast('int', cls._get_default_for_field(info) or 0)
+
+    @field_validator('CAPTURE_FILTER_PROCESS_NAME', mode='before')
+    @classmethod
+    def _parse_filter_process_name(cls, value: object, info: ValidationInfo) -> str | None:
+        if value is None:
+            return None
+        if isinstance(value, str):
+            try:
+                none_value, need_rewrite = custom_str_to_nonetype(value)
+            except InvalidNoneTypeValueError:
+                stripped = value.strip()
+                if stripped != value:
+                    cls._set_flag(info, 'should_rewrite', value=True)
+                return stripped or None
+            if need_rewrite:
+                cls._record_rewrite(info, 'None')
+            return none_value
+        cls._set_flag(info, 'should_rewrite', value=True)
+        return cast('str | None', cls._get_default_for_field(info))
 
     @field_validator('CAPTURE_PREPEND_CUSTOM_CAPTURE_FILTER', mode='before')
     @classmethod
