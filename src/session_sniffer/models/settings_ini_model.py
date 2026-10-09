@@ -1359,9 +1359,9 @@ class SettingsIniModel(BaseModel):
 
         disconnected_shown = set(self.GUI_COLUMNS_DISCONNECTED_SHOWN) | forced_columns
         if self.GUI_DISCONNECTED_TABLE_SORT_COLUMN not in disconnected_shown:
-            updates['GUI_DISCONNECTED_TABLE_SORT_COLUMN'] = 'Last Rejoin'
+            updates['GUI_DISCONNECTED_TABLE_SORT_COLUMN'] = 'Last Seen'
             if context is not None:
-                context.ini_rewrites['GUI_DISCONNECTED_TABLE_SORT_COLUMN'] = 'Last Rejoin'
+                context.ini_rewrites['GUI_DISCONNECTED_TABLE_SORT_COLUMN'] = 'Last Seen'
             self._set_flag(info, 'should_rewrite', value=True)
 
         if updates:

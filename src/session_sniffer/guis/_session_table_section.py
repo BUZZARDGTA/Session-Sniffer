@@ -152,7 +152,7 @@ class SessionTableSection(QWidget):
             configured_column = Settings.gui_disconnected_table_sort_column
             sort_order = Qt.SortOrder.AscendingOrder if Settings.gui_disconnected_table_sort_order == 'Ascending' else Qt.SortOrder.DescendingOrder
             sort_column_name = (
-                configured_column if configured_column in column_names else ('Last Rejoin' if 'Last Rejoin' in column_names else (column_names[0] if column_names else ''))
+                configured_column if configured_column in column_names else ('Last Seen' if 'Last Seen' in column_names else (column_names[0] if column_names else ''))
             )
 
         # Header container
@@ -566,7 +566,7 @@ class SessionTableSection(QWidget):
         else:
             configured_column = Settings.gui_disconnected_table_sort_column
             sort_order = Qt.SortOrder.AscendingOrder if Settings.gui_disconnected_table_sort_order == 'Ascending' else Qt.SortOrder.DescendingOrder
-            fallback = 'Last Rejoin'
+            fallback = 'Last Seen'
 
         if configured_column in column_names:
             sort_column_name = configured_column

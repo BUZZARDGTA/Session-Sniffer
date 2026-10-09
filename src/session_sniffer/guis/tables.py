@@ -475,7 +475,7 @@ class SessionTableView(TableHeaderMenuMixin, TableContextMenuMixin, QTableView):
         model = self.model()
         column_index = model.get_column_index(column_name)
         if column_index is None:
-            fallback = 'Last Rejoin'
+            fallback = 'Last Rejoin' if self.is_connected_table else 'Last Seen'
             column_index = model.get_column_index(fallback)
             if column_index is None:
                 if model.columnCount() > 0:

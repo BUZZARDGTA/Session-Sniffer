@@ -1152,7 +1152,7 @@ SETTING_DEFAULTS: SettingDefaults = {
     'gui_connected_table_sort_order': 'Descending',
     'gui_disconnected_players_enabled': True,
     'gui_disconnected_table_rows_per_page': 0,
-    'gui_disconnected_table_sort_column': 'Last Rejoin',
+    'gui_disconnected_table_sort_column': 'Last Seen',
     'gui_disconnected_table_sort_order': 'Ascending',
     'gui_disconnected_players_timer': 10,
     'gui_disconnected_players_limit': 500,
