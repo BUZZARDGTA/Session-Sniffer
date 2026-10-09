@@ -864,7 +864,7 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
             checked_disconnected = {cb.objectName() for cb in disconnected_widget.findChildren(QCheckBox) if cb.isChecked()}
             available_disconnected = [col for col in Settings.GUI_ALL_DISCONNECTED_COLUMNS if col in checked_disconnected or col in Settings.GUI_FORCED_COLUMNS]
             current_selected = disconnected_sort_widget.currentText()
-            target_selected = current_selected if current_selected in available_disconnected else 'Last Seen'
+            target_selected = current_selected if current_selected in available_disconnected else 'Last Rejoin'
             disconnected_sort_widget.blockSignals(True)  # noqa: FBT003
             disconnected_sort_widget.clear()
             disconnected_sort_widget.addItems(available_disconnected)

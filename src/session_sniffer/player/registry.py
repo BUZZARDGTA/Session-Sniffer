@@ -38,7 +38,7 @@ class PlayersRegistry:
     """
 
     _DEFAULT_CONNECTED_SORT_ORDER: ClassVar[str] = 'datetime.last_rejoin'
-    _DEFAULT_DISCONNECTED_SORT_ORDER: ClassVar[str] = 'datetime.last_seen'
+    _DEFAULT_DISCONNECTED_SORT_ORDER: ClassVar[str] = 'datetime.last_rejoin'
 
     _registry_lock: ClassVar[RLock] = RLock()
     _connected_players_registry: ClassVar[dict[str, Player]] = {}
