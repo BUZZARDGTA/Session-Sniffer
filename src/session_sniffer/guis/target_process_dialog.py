@@ -3,12 +3,11 @@
 import re
 from typing import override
 
-from PySide6.QtCore import QFileInfo, QPoint, QSignalBlocker, QSize, Qt
+from PySide6.QtCore import QPoint, QSignalBlocker, QSize, Qt
 from PySide6.QtGui import QAction, QIcon, QKeySequence, QResizeEvent, QShortcut, QShowEvent
 from PySide6.QtWidgets import (
     QCheckBox,
     QDialog,
-    QFileIconProvider,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -34,6 +33,7 @@ from session_sniffer.guis.stylesheets import SVG_ICON_CONTEXT_MENU_STYLESHEET
 from session_sniffer.guis.table_column_resizing import TableColumnResizeController, setup_table_header_context_menu
 from session_sniffer.guis.utils import (
     apply_search_icon,
+    get_process_icon,
     scale_by_ui,
     set_clipboard_text,
 )
@@ -158,9 +158,6 @@ class TargetProcessDialog(QDialog):
 
         main_layout.addLayout(action_layout)
 
-        self._icon_provider = QFileIconProvider()
-        self._icon_cache: dict[str, QIcon] = {}
-        self._default_file_icon = self._icon_provider.icon(QFileIconProvider.IconType.File)
         self.selected_pid: int = Settings.capture_filter_process_pid
         self._cached_processes: list[tuple[int, str, str]] = []
         if not CaptureState.is_local_capture():
@@ -188,26 +185,6 @@ class TargetProcessDialog(QDialog):
                 '<span style="color: #4CAF50; font-weight: bold;">● RUNNING</span>' if is_running else '<span style="color: #f44336; font-weight: bold;">● NOT RUNNING</span>'
             )
             self._status_label.setText(f'<b>Status:</b> Exclusively sniffing <b>{process_name}</b> (PID: {current_pid}) — {status_badge}')
-
-    def _get_process_icon(self, exe_path: str) -> QIcon:
-        """Retrieve and cache the executable icon for a process."""
-        if not exe_path:
-            return self._default_file_icon
-
-        icon = self._icon_cache.get(exe_path)
-        if icon is not None:
-            return icon
-
-        file_info = QFileInfo(exe_path)
-        if file_info.exists():
-            icon = self._icon_provider.icon(file_info)
-            if icon.isNull():
-                icon = self._default_file_icon
-        else:
-            icon = self._default_file_icon
-
-        self._icon_cache[exe_path] = icon
-        return icon
 
     @staticmethod
     def _process_sort_key(item: tuple[int, str, str], normalized_query: str) -> tuple[int, str, int]:
@@ -269,7 +246,7 @@ class TargetProcessDialog(QDialog):
             for row_index, (pid, name, exe_path) in enumerate(matching_processes):
                 name_item = QTableWidgetItem(name)
                 name_item.setData(Qt.ItemDataRole.UserRole, pid)
-                name_item.setIcon(self._get_process_icon(exe_path))
+                name_item.setIcon(get_process_icon(exe_path))
 
                 pid_item = QTableWidgetItem(str(pid))
                 pid_item.setToolTip(f'{name} (PID: {pid})')

@@ -2,9 +2,10 @@
 
 from contextlib import contextmanager
 from dataclasses import dataclass
+from functools import cache
 from typing import TYPE_CHECKING, cast, override
 
-from PySide6.QtCore import QByteArray, QPoint, QRectF, Qt, QTimer
+from PySide6.QtCore import QByteArray, QFileInfo, QPoint, QRectF, Qt, QTimer
 from PySide6.QtGui import (
     QColor,
     QIcon,
@@ -19,6 +20,7 @@ from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QDialog,
+    QFileIconProvider,
     QFrame,
     QHBoxLayout,
     QHeaderView,
@@ -902,3 +904,33 @@ def load_country_flag_icon(country_code: str) -> QIcon | None:
     """Load and return a cached country flag QIcon."""
     flag = get_country_flag(country_code)
     return flag.icon if flag is not None else None
+
+
+@cache
+def _get_icon_provider() -> QFileIconProvider:
+    return QFileIconProvider()
+
+
+_process_icon_cache: dict[str, QIcon] = {}
+
+
+def get_process_icon(exe_path: str) -> QIcon:
+    """Retrieve and cache the executable icon for a process."""
+    provider = _get_icon_provider()
+    if not exe_path:
+        return provider.icon(QFileIconProvider.IconType.File)
+
+    icon = _process_icon_cache.get(exe_path)
+    if icon is not None:
+        return icon
+
+    file_info = QFileInfo(exe_path)
+    if file_info.exists():
+        icon = provider.icon(file_info)
+        if icon.isNull():
+            icon = provider.icon(QFileIconProvider.IconType.File)
+    else:
+        icon = provider.icon(QFileIconProvider.IconType.File)
+
+    _process_icon_cache[exe_path] = icon
+    return icon

@@ -2,12 +2,11 @@
 
 from typing import override
 
-from PySide6.QtCore import QEvent, QFileInfo, QObject, QSignalBlocker, Qt
+from PySide6.QtCore import QEvent, QObject, QSignalBlocker, Qt
 from PySide6.QtGui import QIcon, QKeyEvent
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QComboBox,
-    QFileIconProvider,
     QHBoxLayout,
     QPushButton,
     QWidget,
@@ -18,6 +17,7 @@ from session_sniffer.capture.process_monitor import ensure_process_monitor_runni
 from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.guis._settings_widget_builders import format_setting_tooltip
 from session_sniffer.guis.target_process_dialog import TargetProcessDialog
+from session_sniffer.guis.utils import get_process_icon
 from session_sniffer.rendering_core.types import CaptureState
 from session_sniffer.settings import SettingMeta, Settings
 
@@ -33,7 +33,7 @@ class _ProcessComboBoxViewFilter(QObject):
             if text and text.isprintable() and isinstance(watched, QAbstractItemView):
                 watched.keyPressEvent(event)
                 current_index = watched.currentIndex()
-                if current_index.isValid():
+                if current_index.isValid() and current_index.row() > 0:
                     watched.scrollTo(current_index, QAbstractItemView.ScrollHint.PositionAtTop)
                 return True
         return super().eventFilter(watched, event)
@@ -137,17 +137,10 @@ class ProcessSelectorWidget(QWidget):
 
             processes = get_running_applications(user_apps_only=True)
             found_current = not current_pid
-            provider = QFileIconProvider()
-            default_file_icon = provider.icon(QFileIconProvider.IconType.File)
-            icon_cache: dict[str, QIcon] = {}
 
             for pid, name, exe_path in processes:
                 display_text = f'{name} (PID: {pid})'
-                if exe_path and exe_path not in icon_cache:
-                    file_info = QFileInfo(exe_path)
-                    icon = provider.icon(file_info) if file_info.exists() else default_file_icon
-                    icon_cache[exe_path] = default_file_icon if icon.isNull() else icon
-                icon = icon_cache.get(exe_path, default_file_icon)
+                icon = get_process_icon(exe_path)
                 self._combo.addItem(icon, display_text, pid)
                 item_index = self._combo.count() - 1
                 item_tooltip = f'{name} (PID: {pid})\n{exe_path}' if exe_path else f'{name} (PID: {pid})'
