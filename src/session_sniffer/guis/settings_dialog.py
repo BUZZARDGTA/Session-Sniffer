@@ -30,7 +30,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from session_sniffer.background import clear_voice_notification_queue, ensure_looky_core_running
+from session_sniffer.background import clear_voice_notification_queue, ensure_looky_core_running, wake_looky_core
 from session_sniffer.capture.arp_spoofing import ArpSpoofingController
 from session_sniffer.capture.filters import build_capture_filters
 from session_sniffer.capture.process_monitor import ensure_process_monitor_running
@@ -688,6 +688,8 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
 
         ensure_process_monitor_running()
         ensure_looky_core_running()
+        if Settings.looky_enabled and Settings.is_gta5_feature_set():
+            wake_looky_core()
 
         capture_settings_changed = any(value != self._old_values.get(key) for key, value in new_values.items() if SETTING_METADATA[key].requires_capture_restart)
         if capture_settings_changed and self._capture.is_running():

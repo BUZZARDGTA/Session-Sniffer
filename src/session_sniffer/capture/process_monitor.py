@@ -8,6 +8,7 @@ import logging
 from threading import Thread
 from threading import enumerate as enumerate_threads
 
+from session_sniffer.background import wake_looky_core
 from session_sniffer.background.events import gui_closed__event
 from session_sniffer.capture.process import ProcessInfo, TargetProcessStatus, inspect_target_process
 from session_sniffer.gta5.process import GTA5Status, find_running_gta5_path
@@ -82,8 +83,11 @@ def _process_monitor() -> None:
 
         # Update GTA5 status for GTA5-specific features (suspend manager, Looky)
         if Settings.is_gta5_feature_set():
+            previous_gta5_running = last_gta5_status.is_running
             last_gta5_status, cached_gta5_process = find_running_gta5_path(cached_gta5_process, last_gta5_status)
             CaptureState.update_gta5_status(last_gta5_status)
+            if not previous_gta5_running and last_gta5_status.is_running:
+                wake_looky_core()
         elif last_gta5_status.is_running:
             last_gta5_status = GTA5Status(path=None)
             cached_gta5_process = None

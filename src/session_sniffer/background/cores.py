@@ -175,7 +175,7 @@ _looky_queue = ResolutionQueue()
 
 def is_looky_eligible(player: Player) -> bool:
     """Check whether a player is eligible for Looky System resolution."""
-    if not Settings.is_gta5_feature_set():
+    if not Settings.looky_enabled or not Settings.is_gta5_feature_set():
         return False
     if player.is_third_party_server:
         return False
@@ -633,6 +633,7 @@ def looky_core() -> None:
                     _verified_api_key = Settings.looky_api_key
                     _failed_verification_api_key = None
                     server_error_consecutive_failures = 0
+                    wake_looky_core()
             except requests.HTTPError as e:
                 status = e.response.status_code if e.response is not None else '?'
                 reason = e.response.reason if e.response is not None else 'Unknown'
@@ -684,18 +685,32 @@ def looky_core() -> None:
                 pending_ip_addresses.append(target_ip)
 
         if not pending_ip_addresses and (CaptureState.gta5_is_running or not (Settings.looky_exclusive_gta5_process and CaptureState.is_local_capture())):
-            # Check if any connected players need periodic refresh
+            # Check if any connected players need initial lookup or periodic refresh
             current_time = time.monotonic()
             for player in PlayersRegistry.get_connected_players():
                 if (
-                    player.looky_system.is_initialized
-                    and is_looky_eligible(player)
-                    and (player.looky_system.needs_refresh or (current_time - player.looky_system.last_fetched_at) >= _LOOKY_REFRESH_INTERVAL)
+                    is_looky_eligible(player)
+                    and (
+                        not player.looky_system.is_initialized
+                        or player.looky_system.needs_refresh
+                        or (current_time - player.looky_system.last_fetched_at) >= _LOOKY_REFRESH_INTERVAL
+                    )
                     and _looky_queue.put(player.ip)
                 ):
                     pending_ip_addresses.append(player.ip)
                     if len(pending_ip_addresses) >= _batch_size:
                         break
+
+            if len(pending_ip_addresses) < _batch_size:
+                for player in PlayersRegistry.get_disconnected_players():
+                    if (
+                        is_looky_eligible(player)
+                        and (not player.looky_system.is_initialized or player.looky_system.needs_refresh)
+                        and _looky_queue.put(player.ip)
+                    ):
+                        pending_ip_addresses.append(player.ip)
+                        if len(pending_ip_addresses) >= _batch_size:
+                            break
 
         if not pending_ip_addresses:
             _looky_wakeup_event.wait(1)

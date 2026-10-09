@@ -28,6 +28,7 @@ from session_sniffer.background import (
     process_userip_task,
     submit_global_detections_check,
     wake_all_player_cores,
+    wake_looky_core,
 )
 from session_sniffer.background.events import gui_closed__event
 from session_sniffer.capture.arp_spoofing import ArpSpoofingController
@@ -845,6 +846,7 @@ def main() -> None:
     pinger_core__thread.start()
 
     ensure_looky_core_running()
+    wake_looky_core()
 
     _userip_backup_timer = QTimer()
     _userip_backup_timer.setInterval(15 * 60 * 1000)
