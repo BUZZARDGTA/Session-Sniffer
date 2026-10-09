@@ -550,7 +550,7 @@ class TableContextMenuMixin(QTableView):
                         handler=lambda: show_crawler_request(self, players[0]),
                         icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'bot.svg')),
                     )
-                    _apply_looky_gating(crawler_action)
+                    _apply_looky_gating(crawler_action, players=players[0])
                 return
 
             def _show_looky_lookup_for_all() -> None:

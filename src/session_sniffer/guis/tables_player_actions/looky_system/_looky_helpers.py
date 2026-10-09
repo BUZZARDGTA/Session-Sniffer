@@ -16,7 +16,6 @@ from PySide6.QtWidgets import (
 )
 
 from session_sniffer.guis.looky_text import (
-    LOOKY_MENU_TOOLTIP_RESTRICTED_GTA5_NOT_RUNNING,
     LOOKY_MENU_TOOLTIP_RESTRICTED_NOT_GTA5_PROCESS,
     LOOKY_TITLE,
     LOOKY_WARNING_API_ACCESS_MISSING,
@@ -111,12 +110,8 @@ def check_looky_prerequisites(parent: QWidget, player: Player | None = None) -> 
         QMessageBox.warning(parent, LOOKY_TITLE, LOOKY_WARNING_API_ACCESS_MISSING)
         return None
 
-    if player is not None and Settings.looky_exclusive_gta5_process and CaptureState.is_local_capture():
-        if not CaptureState.gta5_is_running:
-            QMessageBox.warning(parent, LOOKY_TITLE, LOOKY_MENU_TOOLTIP_RESTRICTED_GTA5_NOT_RUNNING)
-            return None
-        if not player.is_gta5_process:
-            QMessageBox.warning(parent, LOOKY_TITLE, LOOKY_MENU_TOOLTIP_RESTRICTED_NOT_GTA5_PROCESS)
-            return None
+    if player is not None and Settings.looky_exclusive_gta5_process and CaptureState.is_local_capture() and not player.is_gta5_process:
+        QMessageBox.warning(parent, LOOKY_TITLE, LOOKY_MENU_TOOLTIP_RESTRICTED_NOT_GTA5_PROCESS)
+        return None
 
     return Settings.looky_api_key

@@ -639,14 +639,6 @@ def looky_core() -> None:
             gui_closed__event.wait(30)
             continue
 
-        if (
-            Settings.looky_exclusive_gta5_process
-            and CaptureState.is_local_capture()
-            and not CaptureState.gta5_is_running
-        ):
-            gui_closed__event.wait(1.0)
-            continue
-
         pending_ip_addresses: list[str] = []
         while len(pending_ip_addresses) < _batch_size:
             target_ip = _looky_queue.get()
@@ -670,7 +662,7 @@ def looky_core() -> None:
             ):
                 pending_ip_addresses.append(target_ip)
 
-        if not pending_ip_addresses:
+        if not pending_ip_addresses and (CaptureState.gta5_is_running or not (Settings.looky_exclusive_gta5_process and CaptureState.is_local_capture())):
             # Check if any connected players need periodic refresh
             current_time = time.monotonic()
             for player in PlayersRegistry.get_connected_players():

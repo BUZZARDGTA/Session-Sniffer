@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 from PySide6.QtGui import QAction, QIcon
 from PySide6.QtWidgets import QMainWindow, QMenu, QMessageBox
 
+from session_sniffer.background import wake_looky_core
 from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.guis.looky_text import (
     LOOKY_TITLE,
@@ -84,15 +85,16 @@ class LookyMixin(QMainWindow):
 
     def _rescan_all_looky_players(self) -> None:
         """Reset the Looky System fetch timestamp for every player so `looky_core` re-fetches them immediately."""
+        players = PlayersRegistry.get_default_sorted_players()
         if (
             Settings.looky_exclusive_gta5_process
             and CaptureState.is_local_capture()
             and not CaptureState.gta5_is_running
+            and not any(player.is_gta5_process for player in players)
         ):
             QMessageBox.warning(self, LOOKY_TITLE, 'Looky System is restricted to GTA V, which is not currently running.')
             return
 
-        players = PlayersRegistry.get_default_sorted_players()
         count = 0
         for player in players:
             if Settings.looky_exclusive_gta5_process and CaptureState.is_local_capture() and not player.is_gta5_process:
@@ -100,10 +102,12 @@ class LookyMixin(QMainWindow):
             if player.looky_system.is_initialized:
                 with player.looky_system.lock:
                     player.looky_system.last_fetched_at = 0.0
+                    player.looky_system.needs_refresh = True
                 count += 1
 
         if not count:
             QMessageBox.information(self, LOOKY_TITLE, 'No Looky System players to rescan.\nNo players have been fetched yet.')
         else:
+            wake_looky_core()
             noun = 'player' if count == 1 else 'players'
             QMessageBox.information(self, LOOKY_TITLE, f'{count} {noun} queued for Looky System rescan.\nResults will update automatically.')

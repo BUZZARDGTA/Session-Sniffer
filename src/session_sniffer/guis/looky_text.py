@@ -66,13 +66,20 @@ def configure_looky_action(
     elif is_gta5_running is False:
         action.setEnabled(False)
         action.setToolTip(LOOKY_MENU_TOOLTIP_GTA5_NOT_RUNNING)
-    elif (check_gta5_restriction or (target_players is not None and target_players)) and Settings.looky_exclusive_gta5_process and CaptureState.is_local_capture():
-        if not CaptureState.gta5_is_running:
-            action.setEnabled(False)
-            action.setToolTip(LOOKY_MENU_TOOLTIP_RESTRICTED_GTA5_NOT_RUNNING)
-        elif target_players is not None and target_players and not any(player.is_gta5_process for player in target_players):
+    elif target_players and Settings.looky_exclusive_gta5_process and CaptureState.is_local_capture():
+        if not any(player.is_gta5_process for player in target_players):
             action.setEnabled(False)
             action.setToolTip(LOOKY_MENU_TOOLTIP_RESTRICTED_NOT_GTA5_PROCESS)
+        else:
+            action.setEnabled(True)
+            if default_tooltip is not None:
+                action.setToolTip(default_tooltip)
+    elif check_gta5_restriction and Settings.looky_exclusive_gta5_process and CaptureState.is_local_capture():
+        from session_sniffer.player.registry import PlayersRegistry  # noqa: PLC0415  # pylint: disable=import-outside-toplevel
+
+        if not CaptureState.gta5_is_running and not any(player.is_gta5_process for player in PlayersRegistry.get_default_sorted_players()):
+            action.setEnabled(False)
+            action.setToolTip(LOOKY_MENU_TOOLTIP_RESTRICTED_GTA5_NOT_RUNNING)
         else:
             action.setEnabled(True)
             if default_tooltip is not None:

@@ -192,7 +192,7 @@ def build_userip_menu(
             handler=lambda: looky_refresh_userip_entries(parent, [(player.userip.db_path, [ip_address])]) if player.userip else None,
             icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'eye.svg')),
         )
-        configure_looky_action(refresh_action, default_tooltip=refresh_action.toolTip())
+        configure_looky_action(refresh_action, default_tooltip=refresh_action.toolTip(), players=player)
         userip_menu.addSeparator()
     entry_desc = _classify_userip_entry(ip_address)
     if entry_desc == 'single IP':
@@ -310,7 +310,7 @@ def build_userip_menu_multi(
                     handler=lambda: looky_refresh_userip_entries(parent, list(_refresh_by_db.items())),
                     icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'eye.svg')),
                 )
-                configure_looky_action(refresh_multi_action, default_tooltip=refresh_multi_action.toolTip())
+                configure_looky_action(refresh_multi_action, default_tooltip=refresh_multi_action.toolTip(), players=players)
                 userip_menu.addSeparator()
 
         move_userip_menu = add_menu(
