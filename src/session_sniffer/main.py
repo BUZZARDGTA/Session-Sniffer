@@ -70,7 +70,8 @@ from session_sniffer.player.detections import GUIDetectionSettings
 from session_sniffer.player.registry import PlayersRegistry
 from session_sniffer.player.userip import UserIPDatabases
 from session_sniffer.player.userip_backup import run_userip_backup_async
-from session_sniffer.rendering_core.renderer import rendering_core, wake_rendering_core
+from session_sniffer.rendering_core.events import wake_rendering_core
+from session_sniffer.rendering_core.renderer import rendering_core
 from session_sniffer.rendering_core.types import CaptureState, CaptureStats, GeoIP2Readers, GUIRenderingState
 from session_sniffer.settings import Settings
 from session_sniffer.updater import UpdateCheckOutcome, check_for_updates

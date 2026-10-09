@@ -28,7 +28,7 @@ from session_sniffer.networking.reverse_dns import reverse_dns_lookup
 from session_sniffer.networking.third_party_servers import is_third_party_server_ip
 from session_sniffer.player.registry import PlayersRegistry
 from session_sniffer.player.userip import gui_dispatcher
-from session_sniffer.rendering_core.renderer import wake_rendering_core
+from session_sniffer.rendering_core.events import wake_rendering_core
 from session_sniffer.rendering_core.types import CaptureState
 from session_sniffer.settings import Settings
 from session_sniffer.utils import dedup_preserve_order

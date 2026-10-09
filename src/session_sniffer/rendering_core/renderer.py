@@ -6,7 +6,7 @@ import time
 from datetime import datetime
 from itertools import chain
 from operator import attrgetter
-from threading import Event, Thread
+from threading import Thread
 from typing import TYPE_CHECKING
 
 from session_sniffer.background.events import gui_closed__event
@@ -36,6 +36,7 @@ from session_sniffer.player.userip import UserIPDatabases
 from session_sniffer.player.userip_loader import update_userip_databases
 from session_sniffer.rdr2.suspend_manager import RDR2SuspendManager
 from session_sniffer.rendering_core.country_flags import get_country_flag
+from session_sniffer.rendering_core.events import rendering_wake_event
 from session_sniffer.rendering_core.modmenu_logs_parser import ModMenuLogsParser
 from session_sniffer.rendering_core.session_table_renderer import (
     SessionTableRenderContext,
@@ -65,14 +66,6 @@ if TYPE_CHECKING:
     from session_sniffer.capture.packet_capture import CaptureHolder
 
 logger = logging.getLogger(__name__)
-
-_rendering_wake_event = Event()
-
-
-def wake_rendering_core() -> None:
-    """Wake the rendering core thread immediately to produce a new snapshot without waiting."""
-    _rendering_wake_event.set()
-
 
 _THREAD_COUNT_WARN_THRESHOLD = 150
 
@@ -807,8 +800,8 @@ def rendering_core(
 
         _has_players_for_poll = bool(session_connected or session_disconnected)
         if not gui_closed__event.is_set():
-            _rendering_wake_event.wait(1.0)
-            _rendering_wake_event.clear()
+            rendering_wake_event.wait(1.0)
+            rendering_wake_event.clear()
 
     if discord_rpc_manager is not None:
         discord_rpc_manager.close()
