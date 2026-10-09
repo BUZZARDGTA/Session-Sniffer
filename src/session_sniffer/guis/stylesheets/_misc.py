@@ -31,6 +31,7 @@ border: none;
 # =============================================================================
 
 SECTION_CLEAR_BUTTON_STYLESHEET = 'font-weight: 700; font-size: 8.5pt;'
+SECTION_MERGE_BUTTON_STYLESHEET = 'font-weight: 700; font-size: 8.5pt;'
 
 SECTION_HEADER_SEPARATOR_STYLESHEET = 'background-color: rgba(255, 255, 255, 0.12); border: none; max-width: 1px; min-width: 1px; margin: 6px 4px;'
 

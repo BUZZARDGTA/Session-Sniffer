@@ -19,6 +19,7 @@ from session_sniffer.rendering_core.types import (
     SearchState,
     SessionFilterState,
     SortState,
+    TableMergeState,
 )
 
 logger = logging.getLogger(__name__)
@@ -88,6 +89,7 @@ class GUIWorkerThread(CrashingQThread):
         last_pagination_version: int = -1
         last_sort_version: int = -1
         last_session_filter_version: int = -1
+        last_table_merge_version: int = -1
         last_session_id: int = -1
 
         cached_connected_zipped: list[tuple[tuple[str, ...], tuple[CellColor, ...]]] = []
@@ -111,6 +113,7 @@ class GUIWorkerThread(CrashingQThread):
             connected_rows_per_page, connected_page, disconnected_rows_per_page, disconnected_page, pagination_version = PaginationState.get()
             connected_sort_col, connected_sort_order, disconnected_sort_col, disconnected_sort_order, sort_version = SortState.get()
             selected_session, session_filter_version = SessionFilterState.get()
+            table_merge_version = TableMergeState.get_version()
             current_session_id = SessionTracker.get_current_session_id()
 
             current_session_changed = (
@@ -122,6 +125,7 @@ class GUIWorkerThread(CrashingQThread):
                 or search_version != last_search_version
                 or sort_version != last_sort_version
                 or session_filter_version != last_session_filter_version
+                or table_merge_version != last_table_merge_version
                 or current_session_changed
             )
             pagination_changed = pagination_version != last_pagination_version
@@ -137,6 +141,7 @@ class GUIWorkerThread(CrashingQThread):
             last_pagination_version = pagination_version
             last_sort_version = sort_version
             last_session_filter_version = session_filter_version
+            last_table_merge_version = table_merge_version
             last_session_id = current_session_id
 
             if needs_filter_and_sort:
@@ -147,7 +152,23 @@ class GUIWorkerThread(CrashingQThread):
                     past_data = last_snapshot.past_sessions.get(selected_session)
                     source_disconnected = list(past_data.rows_with_colors) if past_data is not None else []
                 elif selected_session == SessionFilterState.FILTER_CURRENT:
-                    source_connected = cached_connected_zipped
+                    if TableMergeState.is_merged():
+                        try:
+                            connected_ip_col = last_snapshot.column_config.connected_column_names.index('IP Address')
+                        except ValueError:
+                            connected_ip_col = _COLUMN_NOT_FOUND
+
+                        if connected_ip_col != _COLUMN_NOT_FOUND:
+                            players_map = PlayersRegistry.get_players_map()
+                            source_connected = [
+                                entry
+                                for entry in cached_connected_zipped
+                                if (player := players_map.get(entry[0][connected_ip_col])) is not None and player.session_id == current_session_id
+                            ]
+                        else:
+                            source_connected = cached_connected_zipped
+                    else:
+                        source_connected = cached_connected_zipped
                     try:
                         disconnected_ip_col = last_snapshot.column_config.disconnected_column_names.index('IP Address')
                     except ValueError:

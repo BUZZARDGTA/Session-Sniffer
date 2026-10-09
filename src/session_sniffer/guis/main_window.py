@@ -58,6 +58,7 @@ from session_sniffer.rendering_core.types import (
     PaginationState,
     SearchState,
     SessionFilterState,
+    TableMergeState,
 )
 from session_sniffer.settings import Settings
 
@@ -139,16 +140,9 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
 
     def _update_splitter_visibility(self) -> None:
         self._connected.update_disconnected_players_state()
-        if not Settings.gui_disconnected_players_enabled:
-            self._disconnected.setVisible(False)
-            self._disconnected.expand_button.setVisible(False)
-            self._connected.collapse_button.setVisible(False)
-            self._connected.expand_button.setVisible(False)
-            self._connected.setVisible(True)
-            self._tables_splitter.setVisible(True)
-            self._placeholder.setVisible(False)
-            return
-
+        self._disconnected.update_disconnected_players_state()
+        is_merged = TableMergeState.is_merged()
+        self._header.set_search_placeholder_merged(is_merged=is_merged)
         selected_session = SessionFilterState.get_selected_session()
         is_past_session = 0 < selected_session < SessionTracker.get_current_session_id()
         if is_past_session:
@@ -161,6 +155,16 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
             self._tables_splitter.setVisible(True)
             self._placeholder.setVisible(False)
             self._tables_splitter.setSizes([0, 10000])
+            return
+
+        if is_merged:
+            self._disconnected.setVisible(False)
+            self._disconnected.expand_button.setVisible(False)
+            self._connected.collapse_button.setVisible(False)
+            self._connected.expand_button.setVisible(False)
+            self._connected.setVisible(True)
+            self._tables_splitter.setVisible(True)
+            self._placeholder.setVisible(False)
             return
 
         self._connected.collapse_button.setVisible(True)
@@ -190,6 +194,13 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
                 if total_height > 0:
                     half_height = total_height // 2
                     self._tables_splitter.setSizes([half_height, total_height - half_height])
+
+    def _toggle_tables_merged(self) -> None:
+        """Toggle merging connected and disconnected tables on the fly."""
+        TableMergeState.toggle()
+        self._update_splitter_visibility()
+        self._connected.table_view.viewport().update()
+        self._disconnected.table_view.viewport().update()
 
     def __init__(
         self,
@@ -260,6 +271,10 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
         search_shortcut.setContext(Qt.ShortcutContext.WindowShortcut)
         search_shortcut.activated.connect(self._header.focus_search)
 
+        merge_shortcut = QShortcut(QKeySequence('Ctrl+M'), self)
+        merge_shortcut.setContext(Qt.ShortcutContext.WindowShortcut)
+        merge_shortcut.activated.connect(self._toggle_tables_merged)
+
         connected_column_names = [
             column for column in Settings.GUI_ALL_CONNECTED_COLUMNS if column in set(Settings.gui_columns_connected_shown) or column in Settings.GUI_FORCED_COLUMNS
         ]
@@ -267,6 +282,7 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
             is_connected=True,
             column_names=connected_column_names,
             clear_slot=self._clear_connected_players,
+            merge_slot=self._toggle_tables_merged,
             parent=self,
         )
         self._connected.table_view.open_rate_graph_callback = self._player_resolver_window.high_rate_monitor.open_graph
@@ -283,6 +299,7 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
             is_connected=False,
             column_names=disconnected_column_names,
             clear_slot=self._clear_disconnected_players,
+            merge_slot=self._toggle_tables_merged,
             parent=self,
         )
         self._disconnected.table_view.blacklist_high_rate_callback = self._player_resolver_window.high_rate_monitor.blacklist_ips
@@ -313,6 +330,7 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
         main_layout.addWidget(self._disconnected.expand_button)
 
         self._connected.section_toggled.connect(self._update_splitter_visibility)
+        self._connected.session_filter_changed.connect(self._on_session_filter_changed)
         self._disconnected.section_toggled.connect(self._update_splitter_visibility)
         self._disconnected.session_filter_changed.connect(self._on_session_filter_changed)
 
@@ -703,6 +721,7 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
         def _factory() -> SettingsDialog:
             window = SettingsDialog(None, self.capture.get(), self._on_change_interface)
             for callback in (
+                TableMergeState.reset_override,
                 self._update_game_toolbar_visibility,
                 self._apply_always_on_top,
                 self._update_splitter_visibility,

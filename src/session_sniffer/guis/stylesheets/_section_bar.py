@@ -55,6 +55,11 @@ def section_bar_qss(accent: str) -> str:
         border-color: rgba(239, 68, 68, 0.45);
         color: #fca5a5;
     }}
+    QPushButton#sectionMergeButton:hover {{
+        background: rgba(59, 130, 246, 0.15);
+        border-color: rgba(59, 130, 246, 0.45);
+        color: #93c5fd;
+    }}
     QComboBox {{
         min-height: 28px;
         padding: 0 16px 0 6px;

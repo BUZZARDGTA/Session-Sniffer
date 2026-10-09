@@ -34,6 +34,7 @@ from session_sniffer.guis.stylesheets import (
     STAT_CARD_UPTIME_VALUE_STYLESHEET,
 )
 from session_sniffer.guis.utils import render_svg_pixmap_from_resource, scale_by_ui
+from session_sniffer.rendering_core.types import TableMergeState
 from session_sniffer.settings import Settings
 
 if TYPE_CHECKING:
@@ -137,7 +138,6 @@ class SessionHeader(QFrame):
         self.search_bar = _HeaderSearchBar()
         self.search_bar.setObjectName('headerSearchBar')
         self.search_bar.setStyleSheet(HEADER_SEARCH_BAR_STYLESHEET)
-        self.search_bar.setPlaceholderText('Search connected + disconnected players...')
         self.search_bar.setMinimumWidth(scale_by_ui(120))
         self.search_bar.setMaximumWidth(scale_by_ui(460))
         self.search_bar.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
@@ -153,9 +153,10 @@ class SessionHeader(QFrame):
         self.search_combo.setStyleSheet(HEADER_SEARCH_COMBO_STYLESHEET)
         self.search_combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
         self.search_combo.setMinimumWidth(scale_by_ui(116))
-        self.search_combo.setToolTip('Filter search to a specific column across both tables')
         self._populate_searchable_columns()
         self.search_combo.currentIndexChanged.connect(self._on_search_column_changed)
+
+        self.set_search_placeholder_merged(is_merged=TableMergeState.is_merged())
 
         search_layout.addWidget(self.search_bar)
         search_layout.addWidget(self.search_combo)
@@ -229,6 +230,15 @@ class SessionHeader(QFrame):
         """Focus the global search input and select all current query text."""
         self.search_bar.setFocus()
         self.search_bar.selectAll()
+
+    def set_search_placeholder_merged(self, *, is_merged: bool) -> None:
+        """Update search placeholder and tooltip based on whether tables are merged."""
+        if is_merged:
+            self.search_bar.setPlaceholderText('Search players...')
+            self.search_combo.setToolTip('Filter search to a specific column')
+        else:
+            self.search_bar.setPlaceholderText('Search connected + disconnected players...')
+            self.search_combo.setToolTip('Filter search to a specific column across both tables')
 
     def set_capture_running(self, *, is_running: bool) -> None:
         """Toggle the visibility of the capture stopped badge."""

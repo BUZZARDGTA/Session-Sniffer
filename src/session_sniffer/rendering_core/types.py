@@ -11,6 +11,7 @@ from PySide6.QtGui import QColor
 
 from session_sniffer.background.events import gui_closed__event
 from session_sniffer.networking.interface import INTERFACE_TYPE_BRIDGED, INTERFACE_TYPE_SHARING
+from session_sniffer.rendering_core.events import wake_rendering_core
 from session_sniffer.settings import Settings
 
 if TYPE_CHECKING:
@@ -173,6 +174,62 @@ class SessionFilterState:
         with cls._lock:
             cls._version += 1
         GUIRenderingState.wake()
+
+
+class TableMergeState:
+    """Thread-safe runtime table merge state shared between the GUI and the renderer thread."""
+
+    _lock: ClassVar[Lock] = Lock()
+    _override: ClassVar[bool | None] = None
+    _version: ClassVar[int] = 0
+
+    @classmethod
+    def is_merged(cls) -> bool:
+        """Return `True` if connected and disconnected tables are currently merged."""
+        with cls._lock:
+            if cls._override is not None:
+                return cls._override
+            return not Settings.gui_disconnected_players_enabled
+
+    @classmethod
+    def set_merged(cls, *, merged: bool) -> None:
+        """Set whether tables should be merged without saving to settings."""
+        with cls._lock:
+            if cls._override == merged:
+                return
+            cls._override = merged
+            cls._version += 1
+        wake_rendering_core()
+        GUIRenderingState.wake()
+
+    @classmethod
+    def toggle(cls) -> bool:
+        """Toggle table merge state and return the new state."""
+        with cls._lock:
+            current = cls._override if cls._override is not None else not Settings.gui_disconnected_players_enabled
+            cls._override = not current
+            cls._version += 1
+            new_state = cls._override
+        wake_rendering_core()
+        GUIRenderingState.wake()
+        return new_state
+
+    @classmethod
+    def reset_override(cls) -> None:
+        """Reset runtime override so table mode follows the persistent setting."""
+        with cls._lock:
+            if cls._override is None:
+                return
+            cls._override = None
+            cls._version += 1
+        wake_rendering_core()
+        GUIRenderingState.wake()
+
+    @classmethod
+    def get_version(cls) -> int:
+        """Return the current version counter."""
+        with cls._lock:
+            return cls._version
 
 
 class SortState:

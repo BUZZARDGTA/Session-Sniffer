@@ -26,6 +26,7 @@ from session_sniffer.guis.stylesheets import (
     DISCONNECTED_EXPAND_BUTTON_STYLESHEET,
     SECTION_CLEAR_BUTTON_STYLESHEET,
     SECTION_HEADER_SEPARATOR_STYLESHEET,
+    SECTION_MERGE_BUTTON_STYLESHEET,
     STATUS_BAR_CAPTURE_LABEL_STYLESHEET,
     STATUS_BAR_CONFIG_LABEL_STYLESHEET,
     STATUS_BAR_ISSUES_LABEL_STYLESHEET,
@@ -37,7 +38,7 @@ from session_sniffer.guis.table_model import SessionTableModel
 from session_sniffer.guis.tables import SessionTableView
 from session_sniffer.guis.utils import make_padded_icon, render_svg_pixmap_from_resource, scale_by_ui
 from session_sniffer.player.registry import PlayersRegistry, SessionTracker
-from session_sniffer.rendering_core.types import PaginationState, SearchState, SessionFilterState
+from session_sniffer.rendering_core.types import PaginationState, SearchState, SessionFilterState, TableMergeState
 from session_sniffer.settings import Settings
 from session_sniffer.text_utils import pluralize
 
@@ -95,7 +96,8 @@ class SessionTableSection(QWidget):
     expand_button: QPushButton
     collapse_button: QToolButton
     _clear_button: QPushButton
-    _session_filter_combo: QComboBox | None
+    _session_filter_combo: QComboBox
+    _session_filter_label: QLabel
     _is_expanded: bool
 
     def __init__(
@@ -104,6 +106,7 @@ class SessionTableSection(QWidget):
         is_connected: bool,
         column_names: list[str],
         clear_slot: Callable[[], None],
+        merge_slot: Callable[[], None] | None = None,
         parent: QWidget | None = None,
     ) -> None:
         """Build the header, table, and expand button for a collapsible session section."""
@@ -116,7 +119,6 @@ class SessionTableSection(QWidget):
 
         self._is_connected = is_connected
         self._rows_keyboard_editing = False
-        self._session_filter_combo = None
 
         if is_connected:
             accent = '#22c55e'
@@ -129,7 +131,7 @@ class SessionTableSection(QWidget):
             header_text = '#94a3b8'
             expand_button_stylesheet = CONNECTED_EXPAND_BUTTON_STYLESHEET
             collapse_tooltip = 'Hide the connected players table'
-            clear_tooltip = 'Clear all connected players' if Settings.gui_disconnected_players_enabled else 'Clear all players'
+            clear_tooltip = 'Clear all players' if TableMergeState.is_merged() else 'Clear all connected players'
             expand_tooltip = 'Show the connected players table'
             configured_column = Settings.gui_connected_table_sort_column
             sort_order = Qt.SortOrder.AscendingOrder if Settings.gui_connected_table_sort_order == 'Ascending' else Qt.SortOrder.DescendingOrder
@@ -258,26 +260,38 @@ class SessionTableSection(QWidget):
         else:
             PaginationState.set_disconnected(rows_per_page=initial_rpp, page=1)
 
-        if not is_connected:
-            session_label = QLabel('Session:')
-            session_label.setToolTip('Filter disconnected players by session.')
+        session_label = QLabel('Session:')
+        self._session_filter_label: QLabel = session_label
 
-            session_filter_combo = QComboBox()
-            session_filter_combo.setObjectName('sectionSessionFilterCombo')
-            session_filter_combo.setToolTip('Filter disconnected players by session.')
-            session_filter_combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
-            session_filter_combo.currentIndexChanged.connect(self._handle_session_filter_changed)
-            self._session_filter_combo = session_filter_combo
+        session_filter_combo = QComboBox()
+        session_filter_combo.setObjectName('sectionSessionFilterCombo')
+        session_filter_combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
+        session_filter_combo.currentIndexChanged.connect(self._handle_session_filter_changed)
+        self._session_filter_combo = session_filter_combo
 
-            session_pair = QHBoxLayout()
-            session_pair.setSpacing(3)
-            session_pair.setContentsMargins(0, 0, 0, 0)
-            session_pair.addWidget(session_label)
-            session_pair.addWidget(session_filter_combo)
-            header_layout.addLayout(session_pair)
-            self._sync_session_filter_combo()
+        session_pair = QHBoxLayout()
+        session_pair.setSpacing(3)
+        session_pair.setContentsMargins(0, 0, 0, 0)
+        session_pair.addWidget(session_label)
+        session_pair.addWidget(session_filter_combo)
+        header_layout.addLayout(session_pair)
+
+        if is_connected:
+            is_merged = TableMergeState.is_merged()
+            self._session_filter_label.setVisible(is_merged)
+            self._session_filter_combo.setVisible(is_merged)
+        self._sync_session_filter_combo()
+
+        if merge_slot is not None:
+            merge_button = QPushButton()
+            merge_button.setObjectName('sectionMergeButton')
+            merge_button.setStyleSheet(SECTION_MERGE_BUTTON_STYLESHEET)
+            merge_button.clicked.connect(merge_slot)
+            self._merge_button: QPushButton | None = merge_button
+            self.update_merge_button_state()
+            header_layout.addWidget(merge_button)
         else:
-            self._session_filter_combo = None
+            self._merge_button = None
 
         header_layout.addWidget(clear_button)
         header_layout.addWidget(collapse_button)
@@ -605,25 +619,43 @@ class SessionTableSection(QWidget):
         self.table_view.setEnabled(enabled)
         self.expand_button.setEnabled(enabled)
 
+    def update_merge_button_state(self) -> None:
+        """Update the merge button text and tooltip according to the current merge state."""
+        if self._merge_button is None:
+            return
+        is_merged = TableMergeState.is_merged()
+        self._merge_button.setText('SPLIT' if is_merged else 'MERGE')
+        self._merge_button.setToolTip(
+            'Split into connected and disconnected tables (Ctrl+M)' if is_merged else 'Merge connected and disconnected tables into one (Ctrl+M)',
+        )
+
     def update_disconnected_players_state(self) -> None:
         """Update header label and tooltips when the disconnected players setting changes."""
         self._update_header_label()
+        if not self.is_expanded:
+            self.expand_button.setText(
+                f'Show {self._expand_button_noun()} ({max(self.last_count, 0)})',
+            )
+        self.update_merge_button_state()
         if self._is_connected:
-            disconnected_enabled = Settings.gui_disconnected_players_enabled
-            self._clear_button.setToolTip('Clear all connected players' if disconnected_enabled else 'Clear all players')
+            is_merged = TableMergeState.is_merged()
+            self._clear_button.setToolTip('Clear all players' if is_merged else 'Clear all connected players')
             self._rows_per_page_spinbox.setToolTip(f'Limit how many {self._rows_per_page_tooltip_noun()} are shown per page. Set 0 to show all.')
+            self._session_filter_label.setVisible(is_merged)
+            self._session_filter_combo.setVisible(is_merged)
             self.table_view.viewport().update()
+        self._sync_session_filter_combo()
 
     def _expand_button_noun(self) -> str:
-        """Return the player label for the expand button, respecting the disconnected players setting."""
+        """Return the player label for the expand button, respecting the table merge state."""
         if self._is_connected:
-            return 'Connected Players' if Settings.gui_disconnected_players_enabled else 'Players'
+            return 'Players' if TableMergeState.is_merged() else 'Connected Players'
         return 'Disconnected Players'
 
     def _rows_per_page_tooltip_noun(self) -> str:
-        """Return the player noun used in the rows-per-page tooltip, respecting the disconnected players setting."""
+        """Return the player noun used in the rows-per-page tooltip, respecting the table merge state."""
         if self._is_connected:
-            return 'connected players' if Settings.gui_disconnected_players_enabled else 'players'
+            return 'players' if TableMergeState.is_merged() else 'connected players'
         return 'disconnected players'
 
     def _header_label_text(self) -> str:
@@ -632,7 +664,7 @@ class SessionTableSection(QWidget):
             display_name = SessionTracker.get_session_display_name(selected_session)
             intro = f"Session '{display_name}' Players"
         elif self._is_connected:
-            intro = 'Connected Players' if Settings.gui_disconnected_players_enabled else 'Players'
+            intro = 'Players' if TableMergeState.is_merged() else 'Connected Players'
         else:
             intro = 'Disconnected Players'
 
@@ -705,8 +737,7 @@ class SessionTableSection(QWidget):
 
     def sync_session_filter(self) -> None:
         """Synchronize the session filter combobox and section header."""
-        if self._session_filter_combo is not None:
-            self._sync_session_filter_combo()
+        self._sync_session_filter_combo()
         self._update_header_label()
 
     def set_selected_session_filter(self, session_id: int) -> None:
@@ -714,14 +745,13 @@ class SessionTableSection(QWidget):
         self._current_page = 1
         PaginationState.set_disconnected_page(1)
         SessionFilterState.set_selected_session(session_id=session_id)
-        if self._session_filter_combo is not None:
-            self._sync_session_filter_combo()
+        self._sync_session_filter_combo()
         self._update_header_label()
         self.session_filter_changed.emit(session_id)
 
     def _handle_session_filter_changed(self, index: int) -> None:
         """Handle session filter combobox selection changes."""
-        if self._session_filter_combo is None or index < 0:
+        if index < 0:
             return
         selected_session = self._session_filter_combo.itemData(index)
         if selected_session is None:
@@ -872,9 +902,6 @@ class SessionTableSection(QWidget):
 
     def _sync_session_filter_combo(self) -> None:
         """Synchronize the session filter combobox enabled state, item list, and active selection."""
-        if self._session_filter_combo is None:
-            return
-
         selected_session = SessionFilterState.get_selected_session()
         current_session_id = SessionTracker.get_current_session_id()
         all_session_ids = SessionTracker.get_all_session_ids()
@@ -882,9 +909,12 @@ class SessionTableSection(QWidget):
         has_past_disconnected = self._has_past_disconnected_players()
         is_past_session = 0 < selected_session < current_session_id
 
+        is_merged = TableMergeState.is_merged()
+        noun = 'players' if (self._is_connected or is_merged) else 'disconnected players'
+
         desired_items: list[tuple[str, int, str]] = [
-            ('All', SessionFilterState.FILTER_ALL, 'Show disconnected players from all recorded sessions'),
-            ('Current', SessionFilterState.FILTER_CURRENT, 'Show disconnected players from the current active session'),
+            ('All', SessionFilterState.FILTER_ALL, f'Show {noun} from all recorded sessions'),
+            ('Current', SessionFilterState.FILTER_CURRENT, f'Show {noun} from the current active session'),
         ]
         for past_id in reversed(past_session_ids):
             display_name = SessionTracker.get_session_display_name(past_id)
@@ -892,7 +922,7 @@ class SessionTableSection(QWidget):
             player_noun = f'player{pluralize(player_count)}'
             time_label = SessionTracker.get_session_time_label(past_id)
             tooltip_parts = [f'{player_count} {player_noun} recorded in {display_name}']
-            if time_label:
+            if time_label is not None:
                 tooltip_parts.append(time_label)
             desired_items.append((display_name, past_id, '  |  '.join(tooltip_parts)))
 
@@ -936,11 +966,14 @@ class SessionTableSection(QWidget):
         self._session_filter_combo.setEnabled(can_change_filter)
 
         if len(all_session_ids) <= 1:
-            self._session_filter_combo.setToolTip('Filter disconnected players by session (only one session recorded).')
+            tooltip = f'Filter {noun} by session (only one session recorded).'
         elif not has_past_disconnected and not is_past_session and not past_session_ids:
-            self._session_filter_combo.setToolTip('Filter disconnected players by session (no disconnected players from other sessions).')
+            tooltip = f'Filter {noun} by session (no {noun} from other sessions).'
         else:
-            self._session_filter_combo.setToolTip('Filter disconnected players by session.')
+            tooltip = f'Filter {noun} by session.'
+
+        self._session_filter_combo.setToolTip(tooltip)
+        self._session_filter_label.setToolTip(tooltip)
 
         model = self._session_filter_combo.model()
         if isinstance(model, QStandardItemModel):

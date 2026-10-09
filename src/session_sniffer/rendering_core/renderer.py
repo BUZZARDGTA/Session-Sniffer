@@ -57,6 +57,7 @@ from session_sniffer.rendering_core.types import (
     GUIStatusTexts,
     GUITableData,
     SessionTableSnapshot,
+    TableMergeState,
 )
 from session_sniffer.rendering_core.webhook_text_renderer import build_webhook_mobile_text, build_webhook_table_text
 from session_sniffer.settings import Settings
@@ -322,7 +323,7 @@ def rendering_core(
     _userip_not_found: set[str] = set()
 
     def _process_player_disconnections(connected: list[Player], disconnected: list[Player]) -> list[int]:
-        if not Settings.gui_disconnected_players_enabled:
+        if TableMergeState.is_merged():
             for player in disconnected:
                 player.left_event.clear()
                 PlayersRegistry.move_player_to_connected(player)

@@ -44,7 +44,7 @@ from session_sniffer.guis.tables_header_menu_mixin import TableHeaderMenuMixin
 from session_sniffer.guis.utils import scale_by_ui
 from session_sniffer.models import GUIState
 from session_sniffer.player.registry import PlayersRegistry
-from session_sniffer.rendering_core.types import PaginationState, SearchState, SortState
+from session_sniffer.rendering_core.types import PaginationState, SearchState, SortState, TableMergeState
 from session_sniffer.settings.settings import Settings
 
 if TYPE_CHECKING:
@@ -321,15 +321,13 @@ class SessionTableView(TableHeaderMenuMixin, TableContextMenuMixin, QTableView):
                 ),
             )
 
+            is_merged = TableMergeState.is_merged()
             if search_text and has_registry_players:
-                if self.is_connected_table:
-                    title = 'No matching connected players' if Settings.gui_disconnected_players_enabled else 'No matching players'
-                else:
-                    title = 'No matching disconnected players'
+                title = ('No matching players' if is_merged else 'No matching connected players') if self.is_connected_table else 'No matching disconnected players'
                 subtitle = 'No players match the current search filter.'
             elif self.is_connected_table:
-                title = 'No connected players' if Settings.gui_disconnected_players_enabled else 'No players'
-                subtitle = 'Connected players will appear here.' if Settings.gui_disconnected_players_enabled else 'Players will appear here.'
+                title = 'No players' if is_merged else 'No connected players'
+                subtitle = 'Players will appear here.' if is_merged else 'Connected players will appear here.'
             else:
                 title = 'No disconnected players'
                 subtitle = 'Disconnected players will appear here.'
