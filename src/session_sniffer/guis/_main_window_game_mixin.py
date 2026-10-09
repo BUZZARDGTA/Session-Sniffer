@@ -1,6 +1,7 @@
 """Game process-control, session-host, and player-resolver mixin for `MainWindow`."""
 
 import logging
+from datetime import date, datetime
 from functools import partial
 from threading import Event
 from typing import TYPE_CHECKING
@@ -12,6 +13,7 @@ from PySide6.QtWidgets import QLabel, QMainWindow, QMenu, QMenuBar, QMessageBox,
 from session_sniffer import msgbox
 from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.constants.standalone import TITLE
+from session_sniffer.constants.standard import LOCAL_TZ
 from session_sniffer.error_messages import (
     format_game_solo_session_process_not_running_message,
     format_game_solo_session_suspend_failed_message,
@@ -25,11 +27,12 @@ from session_sniffer.guis.session_host_history_window import (
 )
 from session_sniffer.guis.stylesheets import GTA5_STATUS_LABEL_STYLESHEET
 from session_sniffer.guis.tables_player_actions import prompt_rename_session
-from session_sniffer.guis.utils import load_country_flag_icon
+from session_sniffer.guis.utils import format_duration, load_country_flag_icon
 from session_sniffer.player.registry import PlayersRegistry, SessionHost, SessionTracker
 from session_sniffer.rdr2.suspend_manager import RDR2SuspendManager
 from session_sniffer.rendering_core.types import CaptureState, SessionFilterState
 from session_sniffer.settings import Settings
+from session_sniffer.text_utils import pluralize
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -52,6 +55,12 @@ def format_game_solo_action_text() -> str:
 def format_game_solo_tooltip(game_label: str) -> str:
     """Return the tooltip text for the solo public session action."""
     return f'Suspend {game_label} for {Settings.solo_session_duration} seconds then auto-resume.\nThis forces the game to spawn you alone in a public session.'
+
+
+def _format_session_time_component(target_dt: datetime, current_date: date) -> str:
+    """Format a session timestamp with date prefix if not today."""
+    prefix = f'{target_dt.strftime("%m/%d")} ' if target_dt.date() != current_date else ''
+    return f'{prefix}{target_dt.strftime("%H:%M:%S")}'
 
 
 class GameMixin(QMainWindow):
@@ -554,12 +563,84 @@ Process is currently suspended'
         for session_id in reversed(all_session_ids):
             is_current = session_id == current_session_id
             display_name = SessionTracker.get_session_display_name(session_id)
-            session_label = f'{display_name} (Current)' if is_current else display_name
+            player_count = SessionTracker.get_session_player_count(session_id)
+            player_noun = f'player{pluralize(player_count)}'
+            time_label = SessionTracker.get_session_time_label(session_id)
+            session_title = f'{display_name} (Current)' if is_current else display_name
+            label_parts = [session_title, f'{player_count} {player_noun}']
+            if time_label:
+                label_parts.append(time_label)
+            session_label = '  |  '.join(label_parts)
             session_icon = QIcon(str(RESOURCES_DIR_PATH / 'icons' / ('radio.svg' if is_current else 'history.svg')))
             session_menu = self._sessions_submenu.addMenu(session_icon, session_label)
             if not session_menu:
                 continue
             session_menu.setToolTipsVisible(True)
+            menu_tooltip = (
+                f'{player_count} {player_noun} recorded in {display_name}  |  {time_label}'
+                if time_label
+                else f'{player_count} {player_noun} recorded in {display_name}'
+            )
+            session_menu.setToolTip(menu_tooltip)
+            session_menu.menuAction().setToolTip(menu_tooltip)
+
+            target_filter = SessionFilterState.FILTER_CURRENT if is_current else session_id
+            players_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'player.svg')), f'Players: {player_count}', session_menu)
+            if is_current:
+                connected_count = len([player for player in PlayersRegistry.get_connected_players() if not player.is_third_party_server])
+                disconnected_count = len([
+                    player for player in PlayersRegistry.get_disconnected_players()
+                    if player.session_id == session_id and not player.is_third_party_server
+                ])
+                connected_noun = f'connected player{pluralize(connected_count)}'
+                disconnected_noun = f'disconnected player{pluralize(disconnected_count)}'
+                players_action.setToolTip(f'{connected_count} {connected_noun}, {disconnected_count} {disconnected_noun}')
+            else:
+                players_action.setToolTip(f'{player_count} {player_noun} recorded in this session')
+
+            players_action.triggered.connect(partial(self._apply_session_filter, target_filter))
+
+            start_dt = SessionTracker.get_session_start_time(session_id)
+            end_dt = SessionTracker.get_session_end_time(session_id)
+            now_dt = datetime.now(tz=LOCAL_TZ)
+            now_date = now_dt.date()
+
+            if is_current:
+                if start_dt is not None:
+                    elapsed_seconds = max(0.0, (now_dt - start_dt).total_seconds())
+                    formatted_start = _format_session_time_component(start_dt, now_date)
+                    time_action_text = f'Time: Started at {formatted_start} ({format_duration(elapsed_seconds)} ago)'
+                    time_action_tooltip = f'Session started at {start_dt.strftime("%Y-%m-%d %H:%M:%S")} (running for {format_duration(elapsed_seconds)})'
+                else:
+                    time_action_text = 'Time: Current session'
+                    time_action_tooltip = 'Current active session'
+            elif start_dt is not None and end_dt is not None:
+                duration_seconds = max(0.0, (end_dt - start_dt).total_seconds())
+                formatted_start = _format_session_time_component(start_dt, now_date)
+                formatted_end = _format_session_time_component(end_dt, now_date)
+                if formatted_start == formatted_end:
+                    time_action_text = f'Time: {formatted_start} ({format_duration(duration_seconds)})'
+                else:
+                    time_action_text = f'Time: {formatted_start} - {formatted_end} ({format_duration(duration_seconds)})'
+                time_action_tooltip = (
+                    f'Session duration: {format_duration(duration_seconds)} '
+                    f'({start_dt.strftime("%Y-%m-%d %H:%M:%S")} - {end_dt.strftime("%Y-%m-%d %H:%M:%S")})'
+                )
+            elif start_dt is not None:
+                formatted_start = _format_session_time_component(start_dt, now_date)
+                time_action_text = f'Time: Started at {formatted_start}'
+                time_action_tooltip = f'Session started at {start_dt.strftime("%Y-%m-%d %H:%M:%S")}'
+            elif end_dt is not None:
+                formatted_end = _format_session_time_component(end_dt, now_date)
+                time_action_text = f'Time: Ended at {formatted_end}'
+                time_action_tooltip = f'Session ended at {end_dt.strftime("%Y-%m-%d %H:%M:%S")}'
+            else:
+                time_action_text = 'Time: No time recorded'
+                time_action_tooltip = 'No timestamps recorded for this session'
+
+            time_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'timer.svg')), time_action_text, session_menu)
+            time_action.setToolTip(time_action_tooltip)
+            time_action.triggered.connect(partial(self._apply_session_filter, target_filter))
 
             if is_current:
                 current_session_host = SessionHost.get_player()
@@ -602,6 +683,8 @@ Process is currently suspended'
                     no_host_action.setEnabled(False)
                     session_menu.addAction(no_host_action)
 
+                session_menu.addAction(players_action)
+                session_menu.addAction(time_action)
                 setup_session_host_actions(session_menu, host_callbacks)
             else:
                 session_history = SessionHost.get_history(session_id=session_id)
@@ -616,14 +699,21 @@ Process is currently suspended'
                     host_action.triggered.connect(self._create_past_host_action_handler(last_host))
                     session_menu.addAction(host_action)
 
+                    session_menu.addAction(players_action)
+                    session_menu.addAction(time_action)
+
                     diagnostics_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'bug.svg')), 'Host Diagnostics…', session_menu)
                     diagnostics_action.setToolTip('Show diagnostics recorded for this host detection')
                     diagnostics_action.triggered.connect(partial(self._open_host_history_diagnostics, last_host))
+                    session_menu.addSeparator()
                     session_menu.addAction(diagnostics_action)
                 else:
                     no_host_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'crown.svg')), 'Host: None recorded', session_menu)
                     no_host_action.setEnabled(False)
                     session_menu.addAction(no_host_action)
+
+                    session_menu.addAction(players_action)
+                    session_menu.addAction(time_action)
 
             session_menu.addSeparator()
 
@@ -651,7 +741,6 @@ Process is currently suspended'
                 filter_action.setToolTip('Filter to only show players from this session')
 
             filter_action.setEnabled(filter_can_change)
-            target_filter = SessionFilterState.FILTER_CURRENT if is_current else session_id
             filter_action.triggered.connect(partial(self._apply_session_filter, target_filter))
             session_menu.addAction(filter_action)
 

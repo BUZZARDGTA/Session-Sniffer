@@ -1,4 +1,4 @@
-"""Player registry for connected and disconnected players."""
+"""Player registry for connected and disconnected players."""  # pylint: disable=too-many-lines
 
 import logging
 from collections import OrderedDict
@@ -95,6 +95,7 @@ class PlayersRegistry:
 
             cls._connected_players_registry[player.ip] = player
             cls._all_players_by_ip[player.ip] = player
+            SessionTracker.record_session_player_activity(player.session_id, player.datetime.first_seen)
             return player
 
     @classmethod
@@ -873,12 +874,101 @@ class SessionTracker:
 
     _session_names: ClassVar[dict[int, str]] = {}
     _session_snapshots: ClassVar[dict[int, list[Player]]] = {}
+    _session_start_times: ClassVar[dict[int, datetime]] = {}
+    _session_end_times: ClassVar[dict[int, datetime]] = {}
 
     @classmethod
     def get_session_snapshots(cls, session_id: int) -> list[Player]:
         """Return the snapshot list of players for a past session."""
         with cls._lock:
             return list(cls._session_snapshots.get(session_id, []))
+
+    @classmethod
+    def get_session_players(cls, session_id: int, *, include_servers: bool = False) -> list[Player]:
+        """Return all players belonging to the specified session sequence number."""
+        with cls._lock:
+            if session_id == cls._current_session_id:
+                players = [
+                    *PlayersRegistry.get_connected_players(),
+                    *(player for player in PlayersRegistry.get_disconnected_players() if player.session_id == session_id),
+                ]
+            else:
+                players = list(cls._session_snapshots.get(session_id, [])) or [
+                    player for player in PlayersRegistry.get_disconnected_players() if player.session_id == session_id
+                ]
+        return players if include_servers else [player for player in players if not player.is_third_party_server]
+
+    @classmethod
+    def get_session_player_count(cls, session_id: int, *, include_servers: bool = False) -> int:
+        """Return the count of players belonging to the specified session sequence number."""
+        return len(cls.get_session_players(session_id, include_servers=include_servers))
+
+    @classmethod
+    def record_session_player_activity(cls, session_id: int, timestamp: datetime) -> None:
+        """Record player activity timestamp to preserve session boundaries."""
+        with cls._lock:
+            existing_start = cls._session_start_times.get(session_id)
+            if existing_start is None or timestamp < existing_start:
+                cls._session_start_times[session_id] = timestamp
+
+    @classmethod
+    def get_session_start_time(cls, session_id: int) -> datetime | None:
+        """Return the start timestamp for the specified session sequence number."""
+        with cls._lock:
+            recorded_start = cls._session_start_times.get(session_id)
+        players = cls.get_session_players(session_id, include_servers=True)
+        player_starts = [player.datetime.first_seen for player in players]
+        if player_starts:
+            earliest_player = min(player_starts)
+            if recorded_start is not None:
+                return min(recorded_start, earliest_player)
+            return earliest_player
+        return recorded_start
+
+    @classmethod
+    def get_session_end_time(cls, session_id: int) -> datetime | None:
+        """Return the end timestamp for the specified session sequence number."""
+        with cls._lock:
+            if session_id == cls._current_session_id:
+                return None
+            recorded_end = cls._session_end_times.get(session_id)
+        players = cls.get_session_players(session_id, include_servers=True)
+        player_ends = [player.datetime.last_seen for player in players]
+        if player_ends:
+            latest_player = max(player_ends)
+            if recorded_end is not None:
+                return max(recorded_end, latest_player)
+            return latest_player
+        return recorded_end
+
+    @classmethod
+    def get_session_time_label(cls, session_id: int) -> str | None:
+        """Return a formatted time string for the session sequence number."""
+        start_time = cls.get_session_start_time(session_id)
+        end_time = cls.get_session_end_time(session_id)
+        if start_time is None and end_time is None:
+            return None
+
+        now_date = datetime.now(tz=LOCAL_TZ).date()
+
+        def _format_dt(target_datetime: datetime) -> str:
+            prefix = f'{target_datetime.strftime("%m/%d")} ' if target_datetime.date() != now_date else ''
+            return f'{prefix}{target_datetime.strftime("%H:%M:%S")}'
+
+        if start_time is not None and end_time is not None:
+            start_str = _format_dt(start_time)
+            end_str = _format_dt(end_time)
+            if start_str == end_str:
+                return start_str
+            return f'{start_str} - {end_str}'
+
+        if start_time is not None:
+            return _format_dt(start_time)
+
+        if end_time is not None:
+            return _format_dt(end_time)
+
+        return None
 
     @classmethod
     def get_current_session_id(cls) -> int:
@@ -933,10 +1023,18 @@ class SessionTracker:
     def advance_session(cls, *, host_ip: str | None = None, players: Iterable[Player] | None = None) -> int:
         """Advance to the next session identifier and optionally record its host IP and update player session IDs."""
         with cls._lock:
+            now = datetime.now(tz=LOCAL_TZ)
             old_session_id = cls._current_session_id
+            cls._session_end_times[old_session_id] = now
+            if old_session_id not in cls._session_start_times:
+                old_players = cls.get_session_players(old_session_id, include_servers=True)
+                player_starts = [player.datetime.first_seen for player in old_players]
+                if player_starts:
+                    cls._session_start_times[old_session_id] = min(player_starts)
             cls._current_session_id += 1
             cls._known_sessions.add(cls._current_session_id)
             cls._current_host_ip = host_ip
+            cls._session_start_times[cls._current_session_id] = now
             new_session_id = cls._current_session_id
             if old_session_id not in cls._session_snapshots:
                 session_players = [player.snapshot(session_id=old_session_id) for player in PlayersRegistry.get_connected_players()]
@@ -967,3 +1065,5 @@ class SessionTracker:
             cls._known_sessions = {1}
             cls._session_names.clear()
             cls._session_snapshots.clear()
+            cls._session_start_times.clear()
+            cls._session_end_times.clear()
