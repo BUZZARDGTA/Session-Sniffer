@@ -288,11 +288,14 @@ def main() -> None:
         else:
             return
 
+        has_process_filter = Settings.capture_filter_process_pid > 0
         if (
-            Settings.capture_filter_process_pid > 0
+            has_process_filter
             and CaptureState.is_local_capture()
-            and CaptureState.target_process_running
-            and local_port not in CaptureState.target_process_udp_ports
+            and (
+                not CaptureState.target_process_running
+                or local_port not in CaptureState.target_process_udp_ports
+            )
         ):
             return
 
