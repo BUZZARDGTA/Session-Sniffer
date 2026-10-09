@@ -818,28 +818,11 @@ class SessionHost:
                         timing_gap=gap_seconds,
                     ),
                 )
-            elif is_sole_p2p_candidate:
-                cls.last_rejection_reason = (
-                    f'Not enough network packets sent yet to candidate {potential_session_host_player.ip} '
-                    f'({potential_session_host_player.packets.sent} / {MINIMUM_PACKETS_FOR_RELAY_SESSION_HOST} sent packets).\n\n'
-                    'Please wait a few moments for packets to be sent and try again.'
-                )
-                cls.last_diagnostics = _build_host_diagnostics_snapshot(
-                    session_players=candidates,
-                    candidates=connected_players,
-                    result=_DetectionEvaluationResult(
-                        outcome=(
-                            f'Candidate {potential_session_host_player.ip} has only sent {potential_session_host_player.packets.sent} '
-                            f'packets (minimum sent required: {MINIMUM_PACKETS_FOR_RELAY_SESSION_HOST}).'
-                        ),
-                        rejection_reason=cls.last_rejection_reason,
-                        timing_gap=gap_seconds,
-                    ),
-                )
             else:
-                cls.last_timing_gap_candidate = (connected_players[0].ip, connected_players[1].ip)
-                cls.search_player = False
-                cls.search_start_time = None
+                if not is_sole_p2p_candidate:
+                    cls.last_timing_gap_candidate = (connected_players[0].ip, connected_players[1].ip)
+                    cls.search_player = False
+                    cls.search_start_time = None
                 cls.last_rejection_reason = (
                     f'Not enough network packets sent yet to candidate {potential_session_host_player.ip} '
                     f'({potential_session_host_player.packets.sent} / {MINIMUM_PACKETS_FOR_RELAY_SESSION_HOST} sent packets).\n\n'
