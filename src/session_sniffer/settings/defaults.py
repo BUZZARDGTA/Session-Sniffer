@@ -2,7 +2,7 @@
 
 # pylint: disable=too-many-lines
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum, auto
 from typing import TypedDict
 
@@ -31,7 +31,6 @@ class SettingType(Enum):
     INTEGER_OR_ALL = auto()
     FLOAT = auto()
     ENUM = auto()
-    BOOL_OR_ENUM = auto()
     IPV4 = auto()
     MAC_ADDRESS = auto()
     COLUMN_TUPLE = auto()
@@ -54,7 +53,6 @@ class SettingMeta:
     min_value: float | None = None
     max_value: float | None = None
     step: float | None = None
-    column_source: tuple[str, ...] = field(default_factory=tuple)
     allowed_columns_attr: str | None = None
     display_labels: dict[str, str] | None = None
     group: str | None = None
@@ -62,7 +60,6 @@ class SettingMeta:
     hidden: bool = False
     special_value_text: str = 'All'
     max_length: int | None = None
-    min_length: int | None = None
     min_width: int | None = None
     max_width: int | None = None
     validator_pattern: str | None = None

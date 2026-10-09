@@ -238,19 +238,6 @@ def create_enum_widget(meta: SettingMeta) -> QComboBox:
     return combo
 
 
-def create_bool_or_enum_widget(meta: SettingMeta) -> QComboBox:
-    """Create a combo-box widget for a bool-or-enum setting (first item is 'Disabled')."""
-    combo = QComboBox()
-    items = ['Disabled']
-    if meta.allowed_values:
-        items.extend(meta.allowed_values)
-    combo.addItems(items)
-    tooltip = format_setting_tooltip(meta)
-    if tooltip is not None and tooltip:
-        combo.setToolTip(tooltip)
-    return combo
-
-
 def create_column_tuple_widget(key: str, meta: SettingMeta) -> QGroupBox:
     """Create a multi-column grid of checkboxes for column visibility."""
     allowed_attr = meta.allowed_columns_attr or ''

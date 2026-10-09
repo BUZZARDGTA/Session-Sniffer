@@ -47,7 +47,6 @@ from session_sniffer.guis._settings_looky_mixin import SettingsDialogLookyMixin
 from session_sniffer.guis._settings_widget_builders import (
     build_discord_info_group,
     build_webserver_help_group,
-    create_bool_or_enum_widget,
     create_boolean_widget,
     create_color_widget,
     create_column_tuple_widget,
@@ -504,7 +503,6 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
             SettingType.INTEGER: partial(create_integer_widget, meta),
             SettingType.INTEGER_OR_ALL: partial(create_integer_or_all_widget, meta),
             SettingType.ENUM: partial(create_enum_widget, meta),
-            SettingType.BOOL_OR_ENUM: partial(create_bool_or_enum_widget, meta),
             SettingType.COLUMN_TUPLE: partial(create_column_tuple_widget, key, meta),
             SettingType.COLOR: partial(create_color_widget, meta),
             SettingType.THIRD_PARTY_SERVERS_TUPLE: partial(create_third_party_servers_split_widget, key, meta),
@@ -556,9 +554,6 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
             case SettingType.ENUM:
                 self._set_enum(widget, value)
 
-            case SettingType.BOOL_OR_ENUM:
-                self._set_bool_or_enum(widget, value)
-
             case SettingType.COLUMN_TUPLE | SettingType.THIRD_PARTY_SERVERS_TUPLE:
                 shown: tuple[str, ...] = value if isinstance(value, tuple) else ()
                 shown_set = set(shown)
@@ -580,16 +575,6 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
         if index >= 0:
             combo.setCurrentIndex(index)
 
-    def _set_bool_or_enum(self, widget: QWidget, value: SettingValue) -> None:
-        """Set value for a bool-or-enum combo box."""
-        combo_be = cast('QComboBox', widget)
-        if value is False:
-            combo_be.setCurrentIndex(0)
-        else:
-            index = combo_be.findText(str(value), Qt.MatchFlag.MatchFixedString)
-            if index >= 0:
-                combo_be.setCurrentIndex(index)
-
     def _read_widget_value(self, key: str, widget: QWidget) -> SettingValue:
         """Extract the current value from *widget* for setting *key*."""
         meta = SETTING_METADATA[key]
@@ -610,9 +595,6 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
             case SettingType.ENUM:
                 text = cast('QComboBox', widget).currentText()
                 value = None if text == _NONE_PLACEHOLDER else text
-            case SettingType.BOOL_OR_ENUM:
-                text = cast('QComboBox', widget).currentText()
-                value = False if text == 'Disabled' else text
             case SettingType.COLUMN_TUPLE | SettingType.THIRD_PARTY_SERVERS_TUPLE:
                 value = self._read_column_tuple(meta, widget)
             case SettingType.IP_RANGE_TUPLE | SettingType.STRING_TUPLE:
