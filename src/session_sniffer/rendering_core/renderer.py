@@ -307,7 +307,6 @@ def rendering_core(
     _sniffer_just_started: bool = True
     _sniffer_start_time: float = time.monotonic()
     _session_host_was_active: bool = False
-    _session_ended: bool = False
     _session_transitioned_for_pending_disconnections: bool = False
     last_webhook_submit_time: float | None = None
     discord_rpc_manager: DiscordRPC | None = None
@@ -508,6 +507,9 @@ def rendering_core(
                 if SessionHost.has_player() or SessionHost.players_pending_for_disconnection or SessionHost.search_player or SessionHost.last_timing_gap_candidate is not None:
                     SessionHost.clear_session_host_data()
                     _session_transitioned_for_pending_disconnections = False
+                if _session_host_was_active and not p2p_session_connected:
+                    SessionTracker.advance_session()
+                    _session_host_was_active = False
             else:
                 game_just_started = False
                 if Settings.is_gta5_feature_set() and CaptureState.gta5_just_started:
@@ -518,10 +520,11 @@ def rendering_core(
                     game_just_started = True
 
                 if game_just_started:
+                    if _session_host_was_active:
+                        SessionTracker.advance_session()
                     _sniffer_just_started = True
                     _sniffer_start_time = time.monotonic()
                     _session_host_was_active = False
-                    _session_ended = False
                     _session_transitioned_for_pending_disconnections = False
                     _relay_host_logged_ip = None
                 current_session_host = SessionHost.get_player()
@@ -591,7 +594,6 @@ def rendering_core(
                         SessionHost.search_player = True
                         SessionHost.search_start_time = None
                         SessionTracker.advance_session(players=new_session_connected)
-                        _session_ended = False
 
                 # Sniffer startup: wait the full window before deciding.
                 # Players seen before the window expires suppress the search; once the window
@@ -612,9 +614,6 @@ def rendering_core(
                     elif p2p_session_connected:
                         SessionHost.search_player = False
 
-                if p2p_session_connected and _session_ended:
-                    SessionTracker.advance_session(players=p2p_session_connected)
-                    _session_ended = False
                 if p2p_session_connected:
                     _session_host_was_active = True
 
@@ -622,7 +621,7 @@ def rendering_core(
                     if _session_host_was_active and (SessionHost.has_player() or not SessionHost.search_player):
                         logger.debug('[SessionHost] No connected P2P players, resetting host and triggering search')
                     if _session_host_was_active:
-                        _session_ended = True
+                        SessionTracker.advance_session()
                     _session_host_was_active = False
                     _relay_host_logged_ip = None
                     SessionHost.clear_session_host_data()
