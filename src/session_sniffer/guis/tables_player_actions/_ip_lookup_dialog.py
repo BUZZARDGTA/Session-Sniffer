@@ -320,7 +320,7 @@ class IPLookupDetailsDialog(PlayerInfoDialogMixin):
         configure_looky_action(
             lookup_button,
             default_tooltip='Query the Looky System API to view full player details for this IP.',
-            check_gta5_restriction=True,
+            check_gta5_restriction=isinstance(self._target, StandaloneIPLookup) or not getattr(self._target, 'is_gta5_process', False),
         )
         buttons_layout.addWidget(lookup_button)
 

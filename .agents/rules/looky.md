@@ -24,12 +24,26 @@ Session Sniffer sends captured IP addresses externally over the internet to the 
 
 ### Anti-Leak Security Constraint
 * In local capture mode (`CaptureState.is_local_capture()`), when `Settings.looky_exclusive_gta5_process` is True (default):
-  * **No IP address must ever be transmitted to the Looky System API unless capture is actively filtering
+  * **Automatic background capture queries must never be transmitted to the Looky System API unless capture is actively filtering
     on the running GTA V process PID (`CaptureState.is_scanning_gta5_process()`).**
-  * **Never relax or soften this restriction** to make Looky lookups work in the default "Sniff All Traffic" mode. Sniffing all traffic captures personal,
+  * **Never relax or soften this restriction** to make automated Looky lookups work in the default "Sniff All Traffic" mode. Sniffing all traffic captures personal,
     non-game network connections (web browsers, Discord, Spotify, background software). Transmitting these arbitrary IPs to third-party Looky servers is a severe privacy leak.
-  * **Never bypass the check** simply because players are present in `PlayersRegistry`, or because a player was previously seen or cached.
-    If `not CaptureState.is_scanning_gta5_process()`, queries for local capture must halt immediately.
+  * **Standalone arbitrary IP lookups** (`StandaloneIPLookup`) must also require GTA V process scanning.
+
+### Confirmed GTA V Process Players vs Other Traffic and Arbitrary IPs
+* **Confirmed GTA V Process Players (`player.is_gta5_process == True`)**:
+  * In Session Sniffer, a player has `is_gta5_process == True` only when packet capture confirmed communication with the actively scanned GTA V PID (`local_port in CaptureState.gta5_udp_ports`).
+  * Prior scanned confirmed GTA V PID players are permitted to be used with Looky System even when the sniffer is closed or GTA V is offline (commits `4699f1f9` and `ddced2e9`):
+    * Manual context menu actions ("Lookup", "Lookup (All Selected)", and "Request Crawler") remain accessible for them.
+    * "Request Crawler" sends the crawler bot to the target player's Rockstar ID in the cloud, so the local GTA V process does not need to be running.
+    * "Rescan All Players" is permitted when at least one confirmed GTA V process player is present in `PlayersRegistry`.
+* **Other P2P Traffic & Non-GTA Players (`player.is_gta5_process == False`)**:
+  * Any P2P traffic captured from somewhere else than the GTA V PID (such as background applications, Discord, web browsers, or torrent clients captured during "Sniff All Traffic", where `player.is_gta5_process` is `False`).
+  * These players must **never** be used with or transmitted to Looky System when the sniffer is closed or GTA V PID scanning is offline.
+  * Context menu actions and lookup dialogs must enforce `check_gta5_restriction=True` for them (disabling actions with `LOOKY_MENU_TOOLTIP_RESTRICTED_GTA5_NOT_RUNNING` or showing `LOOKY_WARNING_RESTRICTED_GTA5_NOT_RUNNING` dialog).
+* **Live Session & Standalone Arbitrary IP Actions**:
+  * "Request Crawler in My Session" (`show_crawlme_request`) requires GTA V to be actively running and scanned (`CaptureState.gta5_is_running` and `CaptureState.is_scanning_gta5_process()`).
+  * Standalone IP lookup for arbitrary uncaptured IPs (`StandaloneIPLookup`) strictly enforces `check_gta5_restriction=True`.
 
 ### Eligibility Gating (`is_looky_eligible`)
 `is_looky_eligible(player)` in `session_sniffer.background.cores` must always check:
@@ -44,6 +58,7 @@ def is_looky_eligible(player: Player) -> bool:
     return not (
         Settings.looky_exclusive_gta5_process
         and not CaptureState.is_scanning_gta5_process()
+        and not (player.is_gta5_process and (not player.looky_system.is_initialized or player.looky_system.needs_refresh))
     )
 ```
 
@@ -59,20 +74,17 @@ Context menus and automated lookups must omit or suppress Looky System for them.
 
 ## Manual UI Actions and Pre-Flight Validation
 
-All manual entry points that can query Looky System must strictly enforce the same gating logic:
-
 1. **Context Menu Actions**:
    * The Looky System submenu in `session_sniffer.guis.tables_context_menu_mixin` must return early and omit itself entirely when `not CaptureState.is_local_capture()`.
-   * "Lookup", "Lookup (All Selected)", and "Request Crawler" must use:
-     `configure_looky_action(action, default_tooltip=action.toolTip(), check_gta5_restriction=True)`
-   * When `check_gta5_restriction` triggers, the action is disabled with tooltip `LOOKY_MENU_TOOLTIP_RESTRICTED_NOT_LOCAL` (if non-local) or `LOOKY_MENU_TOOLTIP_RESTRICTED_GTA5_NOT_RUNNING` (if local without GTA V PID).
+   * Actions operate on captured `Player` objects and use:
+     `configure_looky_action(action, default_tooltip=action.toolTip(), check_gta5_restriction=any(not player.is_gta5_process for player in players))`
 
 2. **Standalone Dialog Buttons**:
-   * The "Looky Lookup…" button in `session_sniffer.guis.tables_player_actions._ip_lookup_dialog` must also be gated using:
-     `configure_looky_action(lookup_button, default_tooltip=..., check_gta5_restriction=True)`.
+   * The "Looky Lookup…" button in `session_sniffer.guis.tables_player_actions._ip_lookup_dialog` gates based on target type:
+     `configure_looky_action(lookup_button, default_tooltip=..., check_gta5_restriction=isinstance(self._target, StandaloneIPLookup) or not getattr(self._target, 'is_gta5_process', False))`.
 
 3. **Background Lookup in Standalone Dialogs**:
-   * Background threads in standalone dialogs (e.g. `_resolve_standalone_lookup` in `_ip_lookup_dialog.py`) must verify the PID restriction before dispatching `lookup_ip`:
+   * Standalone IP background resolutions verify the PID restriction before dispatching `lookup_ip`:
      `not is_looky_gta5_restricted()`
 
 4. **Pre-Flight Function `check_looky_prerequisites`**:
@@ -80,7 +92,9 @@ All manual entry points that can query Looky System must strictly enforce the sa
      * Checks API key presence, `Settings.looky_enabled`, `LookyState.api_access`.
      * Rejects non-local capture (`not CaptureState.is_local_capture()`) with `LOOKY_WARNING_RESTRICTED_NOT_LOCAL`.
      * When `check_gta5_restriction=True`, verifies `is_looky_gta5_restricted()` and shows `LOOKY_WARNING_RESTRICTED_GTA5_NOT_RUNNING` warning message box if unsatisfied.
-   * `show_looky_lookup()`, `show_crawler_request()`, and `show_crawlme_request()` must always pass `check_gta5_restriction=True`.
+   * `show_crawler_request()` enforces `check_gta5_restriction=not player.is_gta5_process`.
+   * `show_crawlme_request()` always passes `check_gta5_restriction=True`.
+   * `show_looky_lookup()` enforces `check_gta5_restriction=not isinstance(player, Player) or not player.is_gta5_process`.
 
 5. **"Rescan All Players" Action**:
    * `_rescan_all_looky_players()` in `session_sniffer.guis._main_window_looky_mixin` must check:
@@ -89,7 +103,8 @@ All manual entry points that can query Looky System must strictly enforce the sa
          QMessageBox.warning(self, LOOKY_TITLE, LOOKY_WARNING_RESTRICTED_NOT_LOCAL)
          return
 
-     if is_looky_gta5_restricted():
+     players = PlayersRegistry.get_default_sorted_players()
+     if is_looky_gta5_restricted() and not any(player.is_gta5_process for player in players):
          QMessageBox.warning(self, LOOKY_TITLE, LOOKY_WARNING_RESTRICTED_GTA5_NOT_RUNNING)
          return
      ```

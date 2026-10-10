@@ -184,6 +184,7 @@ def is_looky_eligible(player: Player) -> bool:
     return not (
         Settings.looky_exclusive_gta5_process
         and not CaptureState.is_scanning_gta5_process()
+        and not (player.is_gta5_process and (not player.looky_system.is_initialized or player.looky_system.needs_refresh))
     )
 
 
@@ -273,7 +274,7 @@ def wake_looky_core() -> None:
 def trigger_looky_rescan_all_players() -> int:
     """Queue all eligible session players for immediate Looky System lookup.
 
-    Marks all non-third-party players in the registry for immediate refresh and wakes the Looky core.
+    Marks all eligible players in the registry for immediate refresh and wakes the Looky core.
 
     Returns:
         The number of players queued for rescan.
@@ -281,6 +282,8 @@ def trigger_looky_rescan_all_players() -> int:
     count = 0
     for player in PlayersRegistry.get_default_sorted_players():
         if player.is_third_party_server:
+            continue
+        if Settings.looky_exclusive_gta5_process and not CaptureState.is_scanning_gta5_process() and not player.is_gta5_process:
             continue
         with player.looky_system.lock:
             player.looky_system.last_fetched_at = 0.0

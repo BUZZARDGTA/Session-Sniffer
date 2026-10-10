@@ -651,7 +651,7 @@ def get_crawler_game_version() -> str:
 
 def show_crawler_request(parent: QWidget, player: Player) -> None:
     """Validate and start a Looky System crawler instruction for `player`; open a crawler request dialog on success."""
-    api_key = check_looky_prerequisites(parent, check_gta5_restriction=True)
+    api_key = check_looky_prerequisites(parent, check_gta5_restriction=not player.is_gta5_process)
     if api_key is None:
         return
 

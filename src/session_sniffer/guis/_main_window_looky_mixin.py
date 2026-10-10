@@ -15,6 +15,7 @@ from session_sniffer.guis.looky_text import (
     is_looky_gta5_restricted,
 )
 from session_sniffer.guis.tables_player_actions import show_crawlme_request
+from session_sniffer.player.registry import PlayersRegistry
 from session_sniffer.rendering_core.types import CaptureState
 from session_sniffer.text_utils import pluralize
 
@@ -76,10 +77,14 @@ class LookyMixin(QMainWindow):
             is_gta5_running=CaptureState.gta5_is_running,
             check_gta5_restriction=True,
         )
+        has_eligible_players = any(
+            player.is_gta5_process if is_looky_gta5_restricted() else True
+            for player in PlayersRegistry.get_default_sorted_players()
+        )
         configure_looky_action(
             self._looky_rescan_all_action,
             'Immediately refresh Looky System data for all players without waiting for the next automatic update.',
-            check_gta5_restriction=True,
+            check_gta5_restriction=not has_eligible_players,
         )
 
     def _request_crawler_own_session(self) -> None:
@@ -92,7 +97,8 @@ class LookyMixin(QMainWindow):
             QMessageBox.warning(self, LOOKY_TITLE, LOOKY_WARNING_RESTRICTED_NOT_LOCAL)
             return
 
-        if is_looky_gta5_restricted():
+        players = PlayersRegistry.get_default_sorted_players()
+        if is_looky_gta5_restricted() and not any(player.is_gta5_process for player in players):
             QMessageBox.warning(self, LOOKY_TITLE, LOOKY_WARNING_RESTRICTED_GTA5_NOT_RUNNING)
             return
 

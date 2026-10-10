@@ -184,7 +184,10 @@ def show_looky_lookup(parent: QWidget, player: Player | StandaloneIPLookup) -> N
     if _active_dialogs.focus(player.ip):
         return
 
-    api_key = check_looky_prerequisites(parent, check_gta5_restriction=True)
+    from session_sniffer.models.player import Player  # noqa: PLC0415  # pylint: disable=import-outside-toplevel
+
+    check_gta5_restriction = not isinstance(player, Player) or not player.is_gta5_process
+    api_key = check_looky_prerequisites(parent, check_gta5_restriction=check_gta5_restriction)
     if api_key is None:
         return
 
