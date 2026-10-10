@@ -20,8 +20,6 @@ from session_sniffer.ctypes_windows import WindowsGuid, release_com_interface
 
 if sys.platform == 'win32':
     import winreg
-else:
-    winreg = None  # type: ignore[assignment]  # pylint: disable=invalid-name
 
 logger = logging.getLogger(__name__)
 
@@ -53,79 +51,84 @@ def _normalize_guid(guid_string: str) -> str:
 def _get_bridge_member_guids() -> set[str]:
     """Return the set of adapter GUIDs that are members of a Windows Network Bridge."""
     members: set[str] = set()
-    try:
-        with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, _BRIDGE_LINKAGE_KEY) as key:
-            bind_value, _ = winreg.QueryValueEx(key, 'Bind')
-    except OSError:
-        return members
+    if sys.platform == 'win32':
+        bind_value: object = None
+        try:
+            with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, _BRIDGE_LINKAGE_KEY) as key:
+                bind_value, _ = winreg.QueryValueEx(key, 'Bind')
+        except OSError:
+            return members
 
-    if not isinstance(bind_value, list):
-        return members
+        if not isinstance(bind_value, list):
+            return members
 
-    for entry in cast('list[object]', bind_value):
-        if isinstance(entry, str) and entry:
-            members.add(_normalize_guid(entry))
+        for entry in cast('list[object]', bind_value):
+            if isinstance(entry, str) and entry:
+                members.add(_normalize_guid(entry))
+
     return members
 
 
 def _find_bridge_device_guid() -> str | None:
     """Find the NetCfgInstanceId of the Network Bridge adapter, if one exists."""
-    try:
-        network_key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, _NETWORK_CONNECTIONS_KEY)
-    except OSError:
-        return None
+    if sys.platform == 'win32':
+        try:
+            network_key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, _NETWORK_CONNECTIONS_KEY)
+        except OSError:
+            return None
 
-    with network_key:
-        index = 0
-        while True:
-            try:
-                subkey_name = winreg.EnumKey(network_key, index)
-            except OSError:
-                break
-            index += 1
+        with network_key:
+            index = 0
+            while True:
+                try:
+                    subkey_name = winreg.EnumKey(network_key, index)
+                except OSError:
+                    break
+                index += 1
 
-            if not (subkey_name.startswith('{') and subkey_name.endswith('}')):
-                continue
+                if not (subkey_name.startswith('{') and subkey_name.endswith('}')):
+                    continue
 
-            try:
-                with winreg.OpenKey(network_key, rf'{subkey_name}\Connection') as conn_key:
-                    name, _ = winreg.QueryValueEx(conn_key, 'Name')
-            except OSError:
-                continue
+                try:
+                    with winreg.OpenKey(network_key, rf'{subkey_name}\Connection') as conn_key:
+                        name, _ = winreg.QueryValueEx(conn_key, 'Name')
+                except OSError:
+                    continue
 
-            if isinstance(name, str) and name == 'Network Bridge':
-                return _normalize_guid(subkey_name)
+                if isinstance(name, str) and name == 'Network Bridge':
+                    return _normalize_guid(subkey_name)
 
     return None
 
 
 def _find_bridge_device_guid_from_pnp() -> str | None:
     """Find the NetCfgInstanceId of the Network Bridge by checking PnpInstanceID."""
-    try:
-        connections_key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, _NETWORK_CONNECTIONS_KEY)
-    except OSError:
-        return None
+    if sys.platform == 'win32':
+        try:
+            connections_key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, _NETWORK_CONNECTIONS_KEY)
+        except OSError:
+            return None
 
-    with connections_key:
-        index = 0
-        while True:
-            try:
-                subkey_name = winreg.EnumKey(connections_key, index)
-            except OSError:
-                break
-            index += 1
+        with connections_key:
+            index = 0
+            while True:
+                try:
+                    subkey_name = winreg.EnumKey(connections_key, index)
+                except OSError:
+                    break
+                index += 1
 
-            if not (subkey_name.startswith('{') and subkey_name.endswith('}')):
-                continue
+                if not (subkey_name.startswith('{') and subkey_name.endswith('}')):
+                    continue
 
-            try:
-                with winreg.OpenKey(connections_key, rf'{subkey_name}\Connection') as conn_key:
-                    pnp_id, _ = winreg.QueryValueEx(conn_key, 'PnpInstanceID')
-            except OSError:
-                continue
+                try:
+                    with winreg.OpenKey(connections_key, rf'{subkey_name}\Connection') as conn_key:
+                        pnp_id, _ = winreg.QueryValueEx(conn_key, 'PnpInstanceID')
+                except OSError:
+                    continue
 
-            if isinstance(pnp_id, str) and 'BRIDGEMP' in pnp_id.upper():
-                return _normalize_guid(subkey_name)
+                if isinstance(pnp_id, str) and 'BRIDGEMP' in pnp_id.upper():
+                    return _normalize_guid(subkey_name)
 
     return None
 
