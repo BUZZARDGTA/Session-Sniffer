@@ -537,16 +537,52 @@ Process is currently suspended'
             show_diagnostics=self._show_session_host_diagnostics,
         )
 
+        now_dt = datetime.now(tz=LOCAL_TZ)
+        now_date = now_dt.date()
+
         for session_id in reversed(all_session_ids):
             is_current = session_id == current_session_id
             display_name = SessionTracker.get_session_display_name(session_id)
             player_count = SessionTracker.get_session_player_count(session_id)
             player_noun = f'player{pluralize(player_count)}'
-            time_label = SessionTracker.get_session_time_label(session_id)
             session_title = f'{display_name} (Current)' if is_current else display_name
+
+            start_dt = SessionTracker.get_session_start_time(session_id)
+            end_dt = SessionTracker.get_session_end_time(session_id)
+
+            duration_label: str | None = None
+            if is_current:
+                if start_dt is not None:
+                    elapsed_seconds = max(0.0, (now_dt - start_dt).total_seconds())
+                    duration_label = format_duration(elapsed_seconds)
+                    formatted_start = _format_session_time_component(start_dt, now_date)
+                    time_action_text = f'Time: Started at {formatted_start}'
+                    time_action_tooltip = f'Session started at {start_dt.strftime("%Y-%m-%d %H:%M:%S")} (running for {duration_label})'
+                else:
+                    time_action_text = 'Time: Current session'
+                    time_action_tooltip = 'Current active session'
+            elif start_dt is not None and end_dt is not None:
+                duration_seconds = max(0.0, (end_dt - start_dt).total_seconds())
+                duration_label = format_duration(duration_seconds)
+                formatted_start = _format_session_time_component(start_dt, now_date)
+                formatted_end = _format_session_time_component(end_dt, now_date)
+                time_action_text = f'Time: {formatted_start}' if formatted_start == formatted_end else f'Time: {formatted_start} - {formatted_end}'
+                time_action_tooltip = f'Session duration: {duration_label} ({start_dt.strftime("%Y-%m-%d %H:%M:%S")} - {end_dt.strftime("%Y-%m-%d %H:%M:%S")})'
+            elif start_dt is not None:
+                formatted_start = _format_session_time_component(start_dt, now_date)
+                time_action_text = f'Time: Started at {formatted_start}'
+                time_action_tooltip = f'Session started at {start_dt.strftime("%Y-%m-%d %H:%M:%S")}'
+            elif end_dt is not None:
+                formatted_end = _format_session_time_component(end_dt, now_date)
+                time_action_text = f'Time: Ended at {formatted_end}'
+                time_action_tooltip = f'Session ended at {end_dt.strftime("%Y-%m-%d %H:%M:%S")}'
+            else:
+                time_action_text = 'Time: No time recorded'
+                time_action_tooltip = 'No timestamps recorded for this session'
+
             label_parts = [session_title, f'{player_count} {player_noun}']
-            if time_label is not None:
-                label_parts.append(time_label)
+            if duration_label is not None:
+                label_parts.append(duration_label)
             session_label = '  |  '.join(label_parts)
             session_icon = QIcon(str(RESOURCES_DIR_PATH / 'icons' / ('radio.svg' if is_current else 'history.svg')))
             session_menu = self._sessions_submenu.addMenu(session_icon, session_label)
@@ -554,8 +590,9 @@ Process is currently suspended'
                 continue
             session_menu.setToolTipsVisible(True)
             menu_tooltip = f'{player_count} {player_noun} recorded in {display_name}'
-            if time_label is not None:
-                menu_tooltip = f'{menu_tooltip}  |  {time_label}'
+            exact_time_label = SessionTracker.get_session_time_label(session_id)
+            if exact_time_label is not None:
+                menu_tooltip = f'{menu_tooltip}  |  {exact_time_label} ({duration_label})' if duration_label is not None else f'{menu_tooltip}  |  {exact_time_label}'
             session_menu.setToolTip(menu_tooltip)
             session_menu.menuAction().setToolTip(menu_tooltip)
 
@@ -573,43 +610,6 @@ Process is currently suspended'
                 players_action.setToolTip(f'{player_count} {player_noun} recorded in this session')
 
             players_action.triggered.connect(partial(self._apply_session_filter, target_filter))
-
-            start_dt = SessionTracker.get_session_start_time(session_id)
-            end_dt = SessionTracker.get_session_end_time(session_id)
-            now_dt = datetime.now(tz=LOCAL_TZ)
-            now_date = now_dt.date()
-
-            if is_current:
-                if start_dt is not None:
-                    elapsed_seconds = max(0.0, (now_dt - start_dt).total_seconds())
-                    formatted_start = _format_session_time_component(start_dt, now_date)
-                    time_action_text = f'Time: Started at {formatted_start} ({format_duration(elapsed_seconds)} ago)'
-                    time_action_tooltip = f'Session started at {start_dt.strftime("%Y-%m-%d %H:%M:%S")} (running for {format_duration(elapsed_seconds)})'
-                else:
-                    time_action_text = 'Time: Current session'
-                    time_action_tooltip = 'Current active session'
-            elif start_dt is not None and end_dt is not None:
-                duration_seconds = max(0.0, (end_dt - start_dt).total_seconds())
-                formatted_start = _format_session_time_component(start_dt, now_date)
-                formatted_end = _format_session_time_component(end_dt, now_date)
-                if formatted_start == formatted_end:
-                    time_action_text = f'Time: {formatted_start} ({format_duration(duration_seconds)})'
-                else:
-                    time_action_text = f'Time: {formatted_start} - {formatted_end} ({format_duration(duration_seconds)})'
-                time_action_tooltip = (
-                    f'Session duration: {format_duration(duration_seconds)} ({start_dt.strftime("%Y-%m-%d %H:%M:%S")} - {end_dt.strftime("%Y-%m-%d %H:%M:%S")})'
-                )
-            elif start_dt is not None:
-                formatted_start = _format_session_time_component(start_dt, now_date)
-                time_action_text = f'Time: Started at {formatted_start}'
-                time_action_tooltip = f'Session started at {start_dt.strftime("%Y-%m-%d %H:%M:%S")}'
-            elif end_dt is not None:
-                formatted_end = _format_session_time_component(end_dt, now_date)
-                time_action_text = f'Time: Ended at {formatted_end}'
-                time_action_tooltip = f'Session ended at {end_dt.strftime("%Y-%m-%d %H:%M:%S")}'
-            else:
-                time_action_text = 'Time: No time recorded'
-                time_action_tooltip = 'No timestamps recorded for this session'
 
             time_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'timer.svg')), time_action_text, session_menu)
             time_action.setToolTip(time_action_tooltip)
