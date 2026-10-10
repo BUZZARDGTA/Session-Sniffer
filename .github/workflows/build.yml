@@ -85,7 +85,7 @@ jobs:
           ${{ matrix.venv_python }} -c "import os, sys; path = 'dist/${{ matrix.asset_name }}'; sys.exit(0 if os.path.isfile(path) else f'Missing: {path}')"
 
       - name: Upload workflow artifact
-        uses: actions/upload-artifact@v7.0.1
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: ${{ matrix.asset_name }}
           path: .github/workflows/dist/${{ matrix.asset_name }}
@@ -104,7 +104,7 @@ jobs:
       linux_download_url: ${{ steps.release_asset.outputs.linux_download_url }}
     steps:
       - name: Download workflow artifacts
-        uses: actions/download-artifact@v8.0.1
+        uses: actions/download-artifact@v8.0.2
         with:
           path: artifacts
           merge-multiple: true
