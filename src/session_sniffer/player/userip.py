@@ -35,14 +35,11 @@ class _GUIThreadDispatcher(QObject):
 
     def __init__(self) -> None:
         super().__init__()
+        self._call.connect(self._dispatch)
 
-        def _dispatch_fn(fn: Callable[[], None]) -> None:
-            try:
-                fn()
-            except Exception:  # pylint: disable=broad-exception-caught
-                logger.exception('Unhandled exception in GUI thread dispatcher')
-
-        self._call.connect(_dispatch_fn)
+    @staticmethod
+    def _dispatch(fn: Callable[[], None]) -> None:
+        fn()
 
     def invoke(self, fn: Callable[[], None]) -> None:
         """Emit `fn` as a signal — Qt will queue it to the GUI thread automatically."""
