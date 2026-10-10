@@ -80,8 +80,7 @@ class _DiscordIPCConnection:
             if sys.platform == 'win32':
                 pipe_path = Path(rf'\\.\pipe\discord-ipc-{pipe_index}')
                 try:
-                    stream = pipe_path.open('r+b', buffering=0)  # pylint: disable=consider-using-with
-                    return cls(pipe_stream=stream)
+                    return cls(pipe_stream=pipe_path.open('r+b', buffering=0))
                 except OSError:
                     continue
             elif hasattr(socket, 'AF_UNIX'):
@@ -98,8 +97,7 @@ class _DiscordIPCConnection:
                     try:
                         unix_socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
                         unix_socket.connect(str(socket_path))
-                        stream = unix_socket.makefile('r+b', buffering=0)
-                        return cls(pipe_stream=stream, unix_socket=unix_socket)
+                        return cls(pipe_stream=unix_socket.makefile('r+b', buffering=0), unix_socket=unix_socket)
                     except OSError:
                         continue
 

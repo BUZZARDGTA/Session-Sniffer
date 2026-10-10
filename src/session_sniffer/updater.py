@@ -136,6 +136,16 @@ def _remove_file_if_possible(path: Path) -> None:
         logger.debug('Failed to remove file %s: %s', path, e)
 
 
+def _launch_updated_executable(executable_path: Path) -> subprocess.Popen[bytes]:
+    """Launch the updated executable in an independent detached process."""
+    return subprocess.Popen(
+        [str(executable_path)],
+        cwd=str(executable_path.parent),
+        env={**os.environ, 'PYINSTALLER_RESET_ENVIRONMENT': '1'},
+        close_fds=True,
+    )
+
+
 def _apply_update(new_exe: Path) -> None:
     """Replace the running executable with `new_exe`, relaunch it, and exit.
 
@@ -213,12 +223,7 @@ def _apply_update(new_exe: Path) -> None:
     # Setting PYINSTALLER_RESET_ENVIRONMENT=1 tells the bootloader that this is a
     # new independent application launch, so it extracts to its own fresh _MEI dir.
     try:
-        subprocess.Popen(  # pylint: disable=consider-using-with
-            [str(current_exe)],
-            cwd=str(current_exe.parent),
-            env={**os.environ, 'PYINSTALLER_RESET_ENVIRONMENT': '1'},
-            close_fds=True,
-        )
+        _launch_updated_executable(current_exe)
     except OSError as e:
         logger.exception('Failed to launch updated executable')
         msgbox.show(

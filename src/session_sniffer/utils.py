@@ -497,6 +497,11 @@ def resolve_lnk(shortcut_path: Path) -> Path:
     return shortcut_path
 
 
+def _launch_detached_command(command: list[str]) -> subprocess.Popen[bytes]:
+    """Launch a command asynchronously in a detached child process."""
+    return subprocess.Popen(command)
+
+
 def run_cmd_script(script: Path, args: list[str] | None = None) -> None:
     """Executes a script with the given arguments in a new terminal window."""
     if script.suffix.casefold() == '.lnk':
@@ -510,7 +515,7 @@ def run_cmd_script(script: Path, args: list[str] | None = None) -> None:
         if terminal_emulator:
             subprocess.run([terminal_emulator, '-e', *command], check=False)
         else:
-            subprocess.Popen(command)  # pylint: disable=consider-using-with
+            _launch_detached_command(command)
         return
 
     full_command = [str(CMD_EXE), '/K']
