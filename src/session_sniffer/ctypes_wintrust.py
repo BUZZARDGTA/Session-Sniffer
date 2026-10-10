@@ -13,54 +13,50 @@ if TYPE_CHECKING:
 
 class _WintrustFileInfo(ctypes.Structure):
     _fields_ = [
-        ('cbStruct', ctypes.wintypes.DWORD),
-        ('pcwszFilePath', ctypes.c_wchar_p),
-        ('hFile', ctypes.wintypes.HANDLE),
-        ('pgKnownSubject', ctypes.c_void_p),
+        ('cb_struct', ctypes.wintypes.DWORD),
+        ('pcwsz_file_path', ctypes.c_wchar_p),
+        ('h_file', ctypes.wintypes.HANDLE),
+        ('pg_known_subject', ctypes.c_void_p),
     ]
 
     def __init__(self, path: str) -> None:
         super().__init__()
-        # pylint: disable=invalid-name
-        self.cbStruct = ctypes.sizeof(_WintrustFileInfo)
-        self.pcwszFilePath = path
-        self.hFile = None
-        self.pgKnownSubject = None
-        # pylint: enable=invalid-name
+        self.cb_struct = ctypes.sizeof(_WintrustFileInfo)
+        self.pcwsz_file_path = path
+        self.h_file = None
+        self.pg_known_subject = None
 
 
 class _WintrustData(ctypes.Structure):
     _fields_ = [
-        ('cbStruct', ctypes.wintypes.DWORD),
-        ('pPolicyCallbackData', ctypes.c_void_p),
-        ('pSIPClientData', ctypes.c_void_p),
-        ('dwUIChoice', ctypes.wintypes.DWORD),
-        ('fdwRevocationChecks', ctypes.wintypes.DWORD),
-        ('dwUnionChoice', ctypes.wintypes.DWORD),
-        ('pFile', ctypes.c_void_p),
-        ('dwStateAction', ctypes.wintypes.DWORD),
-        ('hWVTStateData', ctypes.wintypes.HANDLE),
-        ('pwszURLReference', ctypes.c_wchar_p),
-        ('dwProvFlags', ctypes.wintypes.DWORD),
-        ('dwUIContext', ctypes.wintypes.DWORD),
+        ('cb_struct', ctypes.wintypes.DWORD),
+        ('p_policy_callback_data', ctypes.c_void_p),
+        ('p_sip_client_data', ctypes.c_void_p),
+        ('dw_ui_choice', ctypes.wintypes.DWORD),
+        ('fdw_revocation_checks', ctypes.wintypes.DWORD),
+        ('dw_union_choice', ctypes.wintypes.DWORD),
+        ('p_file', ctypes.c_void_p),
+        ('dw_state_action', ctypes.wintypes.DWORD),
+        ('h_wvt_state_data', ctypes.wintypes.HANDLE),
+        ('pwsz_url_reference', ctypes.c_wchar_p),
+        ('dw_prov_flags', ctypes.wintypes.DWORD),
+        ('dw_ui_context', ctypes.wintypes.DWORD),
     ]
 
     def __init__(self, file_info: _WintrustFileInfo) -> None:
         super().__init__()
-        # pylint: disable=invalid-name
-        self.cbStruct = ctypes.sizeof(_WintrustData)
-        self.pPolicyCallbackData = None
-        self.pSIPClientData = None
-        self.dwUIChoice = _WTD_UI_NONE
-        self.fdwRevocationChecks = _WTD_REVOKE_NONE
-        self.dwUnionChoice = _WTD_CHOICE_FILE
-        self.pFile = ctypes.cast(ctypes.byref(file_info), ctypes.c_void_p)
-        self.dwStateAction = _WTD_STATEACTION_VERIFY
-        self.hWVTStateData = None
-        self.pwszURLReference = None
-        self.dwProvFlags = 0
-        self.dwUIContext = 0
-        # pylint: enable=invalid-name
+        self.cb_struct = ctypes.sizeof(_WintrustData)
+        self.p_policy_callback_data = None
+        self.p_sip_client_data = None
+        self.dw_ui_choice = _WTD_UI_NONE
+        self.fdw_revocation_checks = _WTD_REVOKE_NONE
+        self.dw_union_choice = _WTD_CHOICE_FILE
+        self.p_file = ctypes.cast(ctypes.byref(file_info), ctypes.c_void_p)
+        self.dw_state_action = _WTD_STATEACTION_VERIFY
+        self.h_wvt_state_data = None
+        self.pwsz_url_reference = None
+        self.dw_prov_flags = 0
+        self.dw_ui_context = 0
 
 
 _WTD_UI_NONE = 2
@@ -108,7 +104,7 @@ def has_valid_authenticode_signature(path: Path) -> bool:
     )
 
     # Always release the state handle regardless of verification outcome
-    trust_data.dwStateAction = _WTD_STATEACTION_CLOSE
+    trust_data.dw_state_action = _WTD_STATEACTION_CLOSE
     _WinVerifyTrust(
         None,
         ctypes.byref(_WINTRUST_ACTION_GENERIC_VERIFY_V2),
