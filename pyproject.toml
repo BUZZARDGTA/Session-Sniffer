@@ -56,8 +56,6 @@ ignore_missing_imports = true
 strict = true
 
 
-
-
 [tool.pylint.master]
 enable = "all"
 extension-pkg-allow-list = ["PySide6", "shiboken6"]
@@ -108,7 +106,15 @@ good-names = [
 method-rgx = "^(__[a-z][a-z0-9_]*__|_?[a-z][a-z0-9_]*|closeEvent|columnCount|eventFilter|filterAcceptsRow|headerData|helpEvent|highlightBlock|horizontalHeader|keyPressEvent|lessThan|mouseMoveEvent|mousePressEvent|mouseReleaseEvent|paintEvent|resizeEvent|rowCount|selectionModel|setModel|showEvent|sizeHint|verticalHeader)$"
 
 [tool.pylint.classes]
-exclude-protected = ["_asdict", "_fields", "_fields_", "_make", "_replace", "_source", "os._exit"] # pylint defaults + ctypes `_fields_`
+exclude-protected = [
+    "_asdict",
+    "_fields",
+    "_fields_",
+    "_make",
+    "_replace",
+    "_source",
+    "os._exit",
+] # pylint defaults + ctypes `_fields_`
 
 [tool.pylint.design]
 exclude-too-few-public-methods = [".*Structure.*"]
