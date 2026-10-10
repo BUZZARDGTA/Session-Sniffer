@@ -11,6 +11,7 @@ from PySide6.QtGui import QColor
 
 from session_sniffer.background.events import gui_closed__event
 from session_sniffer.networking.interface import INTERFACE_TYPE_BRIDGED, INTERFACE_TYPE_SHARING
+from session_sniffer.player.registry import PlayersRegistry
 from session_sniffer.rendering_core.events import wake_rendering_core
 from session_sniffer.settings import Settings
 
@@ -439,8 +440,6 @@ class CaptureStats:
     @classmethod
     def recalculate_total_packets(cls) -> None:
         """Recalculate total captured packets from current players in registry."""
-        from session_sniffer.player.registry import PlayersRegistry  # noqa: PLC0415  # pylint: disable=import-outside-toplevel
-
         cls.total_packets_captured = (
             sum(player.packets.total_exchanged for player in PlayersRegistry.get_players_map().values())
             + cls.packets_overflow_dropped
