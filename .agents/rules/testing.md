@@ -28,7 +28,11 @@ Depending on the change, this may include:
 
 Do not run unrelated expensive validation when it provides no useful signal.
 
-For non-trivial changes, broaden validation when appropriate.
+For code changes, run targeted checks first when a specific tool provides the clearest signal. For significant code changes, run the full project quality script with `python code_quality_checks.py` after targeted checks pass.
+
+For release-only changes that only update `pyproject.toml` and `uv.lock`, use release-specific validation instead of the full quality script: `uv lock --check` and CRLF line-ending verification for the modified release files.
+
+For non-trivial changes, broaden validation when appropriate. When broadening to the full project quality suite, use `python code_quality_checks.py` rather than invoking every tool manually.
 
 ## Existing Tooling
 

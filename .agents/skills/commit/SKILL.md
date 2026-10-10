@@ -67,9 +67,12 @@ Write the message from the actual diff. Do not invent functionality or motivatio
 Before committing:
 
 1. Review the staged diff.
-2. Run the smallest relevant validation available for the selected changes when practical.
-3. Do not claim validation was performed unless it actually ran successfully.
-4. If validation fails, stop before committing and report the failure.
+2. Follow the shared quality workflow in `.agents/rules/testing.md`.
+3. Run the smallest relevant validation available for the selected changes when practical.
+4. For significant staged code changes, run targeted checks first, then `python code_quality_checks.py` before committing.
+5. For release-only staged changes limited to `pyproject.toml` and `uv.lock`, run release-specific validation instead: `uv lock --check` and CRLF line-ending verification for the modified release files.
+6. Do not claim validation was performed unless it actually ran successfully.
+7. If validation fails, stop before committing and report the failure.
 
 For multiple commits, validate each staged change as appropriate before creating its commit.
 

@@ -28,7 +28,7 @@ Use this skill when the user wants to prepare and commit a new Session Sniffer r
     - Enforce CRLF (`\r\n`) line endings on `uv.lock` (since `uv` outputs LF line endings by default).
     - Run `uv lock --check` to verify the lockfile is completely synchronized.
 11. Review the resulting diff (both `pyproject.toml` and `uv.lock` should reflect the new version).
-12. Run the relevant project validation before committing.
+12. Run the release-specific validation before committing. For version-only changes, use `uv lock --check` and CRLF line-ending verification for `pyproject.toml` and `uv.lock`; do not run the full `python code_quality_checks.py` suite unless the release also includes significant code, dependency, resource, or packaging changes.
 13. Verify CRLF (`\r\n`) line endings on all modified files, especially `uv.lock` and `pyproject.toml`.
 14. Show the user:
     - previous version,

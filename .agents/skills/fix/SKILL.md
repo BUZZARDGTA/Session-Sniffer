@@ -196,16 +196,15 @@ A regression test should fail for the old behavior and pass for the corrected be
 
 ## Validation
 
-Use the project's existing validation configuration and commands.
+Use the project's existing validation configuration and commands. Follow the shared quality workflow in `.agents/rules/testing.md`.
 
 Start with the narrowest useful check, for example:
-- the affected test;
-- the relevant test module;
+- the original failing check or reproduction;
 - the relevant linter command;
 - a targeted type check (e.g. `mypy`, `pyright --warnings`, `pyrefly check .`, `ty check .`);
 - the affected build/package check.
 
-Then broaden validation when the change warrants it.
+Then broaden validation when the change warrants it. For significant code changes, run targeted checks first, then the full project quality script with `python code_quality_checks.py`.
 
 For a lint report, re-run the relevant linter and confirm the reported diagnostic is gone. If the command still exits non-zero because of unrelated existing findings, distinguish the fixed finding from the remaining findings.
 
