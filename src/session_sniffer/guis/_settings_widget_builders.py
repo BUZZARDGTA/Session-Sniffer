@@ -164,7 +164,8 @@ def create_text_widget(meta: SettingMeta) -> QLineEdit:
         _act.setCheckable(True)
         _act.setToolTip('Show')
 
-        def _toggle_echo(checked: bool, _le: QLineEdit = le, _show: QIcon = icon_show, _hide: QIcon = icon_hide, _a: QAction = _act) -> None:  # noqa: FBT001
+        def _toggle_echo(_le: QLineEdit = le, _show: QIcon = icon_show, _hide: QIcon = icon_hide, _a: QAction = _act) -> None:
+            checked = _a.isChecked()
             if isinstance(_le, SecretLineEdit):
                 _le.set_revealed(revealed=checked)
             else:
@@ -713,9 +714,9 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
         finally:
             is_updating = False
 
-    def make_handler(name: str) -> Callable[[bool], None]:
-        def handler(checked: bool) -> None:  # noqa: FBT001
-            on_preset_clicked(name, checked=checked)
+    def make_handler(name: str) -> Callable[[], None]:
+        def handler() -> None:
+            on_preset_clicked(name, checked=preset_checkboxes[name].isChecked())
 
         return handler
 

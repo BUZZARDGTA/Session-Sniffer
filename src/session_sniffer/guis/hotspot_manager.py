@@ -1,6 +1,7 @@
 """Hotspot and connection sharing management dialog."""
 
 import logging
+from dataclasses import dataclass
 from typing import Final, cast, override
 
 from PySide6.QtCore import QPoint, Qt, QTimer, Signal
@@ -72,13 +73,21 @@ logger = logging.getLogger(__name__)
 _EXPECTED_ICS_STATUS_TUPLE_LENGTH: Final[int] = 3
 
 
+@dataclass(frozen=True, slots=True)
+class HotspotActionResult:
+    """Result of an asynchronous hotspot or connection sharing action."""
+
+    success: bool
+    message: str
+
+
 class HotspotActionWorker(CrashingQThread):
     """Background worker for asynchronous hotspot and connection sharing tasks."""
 
     info_ready = Signal(object)
     devices_ready = Signal(object)
     ics_status_ready = Signal(object)
-    action_completed = Signal(bool, str)
+    action_completed = Signal(HotspotActionResult)
 
     def __init__(self, task_name: str, **kwargs: object) -> None:
         """Initialize the HotspotActionWorker."""
@@ -101,29 +110,34 @@ class HotspotActionWorker(CrashingQThread):
                 ssid = str(self._kwargs.get('ssid', ''))
                 passphrase = str(self._kwargs.get('passphrase', ''))
                 success, error_message = configure_hotspot(ssid, passphrase)
-                self.action_completed.emit(success, error_message or 'Hotspot network name and password updated successfully.')
+                self.action_completed.emit(HotspotActionResult(success=success, message=error_message or 'Hotspot network name and password updated successfully.'))
 
             elif self._task_name == 'start_hotspot':
                 success, error_message = start_hotspot()
-                self.action_completed.emit(success, error_message or 'Mobile Hotspot started.')
+                self.action_completed.emit(HotspotActionResult(success=success, message=error_message or 'Mobile Hotspot started.'))
 
             elif self._task_name == 'stop_hotspot':
                 success, error_message = stop_hotspot()
-                self.action_completed.emit(success, error_message or 'Mobile Hotspot stopped.')
+                self.action_completed.emit(HotspotActionResult(success=success, message=error_message or 'Mobile Hotspot stopped.'))
 
             elif self._task_name == 'enable_ics':
                 public_adapter = str(self._kwargs.get('public_adapter', ''))
                 private_adapter = str(self._kwargs.get('private_adapter', ''))
                 success, error_message = enable_ics(public_adapter, private_adapter)
-                self.action_completed.emit(success, error_message or f'Internet Connection Sharing enabled between {public_adapter} and {private_adapter}.')
+                self.action_completed.emit(
+                    HotspotActionResult(
+                        success=success,
+                        message=error_message or f'Internet Connection Sharing enabled between {public_adapter} and {private_adapter}.',
+                    )
+                )
 
             elif self._task_name == 'disable_ics':
                 success, error_message = disable_ics()
-                self.action_completed.emit(success, error_message or 'Internet Connection Sharing disabled.')
+                self.action_completed.emit(HotspotActionResult(success=success, message=error_message or 'Internet Connection Sharing disabled.'))
 
         except (OSError, RuntimeError) as e:
             logger.exception('Hotspot action worker failed on task %s', self._task_name)
-            self.action_completed.emit(False, str(e))  # noqa: FBT003
+            self.action_completed.emit(HotspotActionResult(success=False, message=str(e)))
 
 
 class HotspotManagerWidget(QWidget):
@@ -692,18 +706,18 @@ class HotspotManagerWidget(QWidget):
         self._active_worker = worker
         worker.start()
 
-    def _on_action_finished(self, success: bool, message: str) -> None:  # noqa: FBT001
+    def _on_action_finished(self, result: HotspotActionResult) -> None:
         """Handle completion of background worker tasks."""
         self._save_hotspot_button.setEnabled(True)
         self._toggle_hotspot_button.setEnabled(True)
         self._enable_sharing_button.setEnabled(True)
         self._reset_sharing_button.setEnabled(True)
-        self._status_bar_label.setText(message)
+        self._status_bar_label.setText(result.message)
 
-        if success:
+        if result.success:
             self.status_changed.emit()
         else:
-            QMessageBox.warning(self, 'Hotspot Operation Error', message)
+            QMessageBox.warning(self, 'Hotspot Operation Error', result.message)
 
         self._start_refresh_task()
 

@@ -174,8 +174,8 @@ class TableHeaderMenuMixin(QTableView):
                 actions: list[QAction],
                 *,
                 select: bool,
-            ) -> Callable[[bool], None]:
-                def _handler(_checked: bool) -> None:  # noqa: FBT001
+            ) -> Callable[[], None]:
+                def _handler() -> None:
                     target_action.setChecked(select)
                     for action_item in actions:
                         with QSignalBlocker(action_item):
@@ -186,6 +186,12 @@ class TableHeaderMenuMixin(QTableView):
                         self._deselect_category_columns(category_columns)
 
                 return _handler
+
+            def _make_column_toggled_handler(action: QAction, name: str) -> Callable[[], None]:
+                def _on_column_toggled() -> None:
+                    self._toggle_column_visibility(name, checked=action.isChecked())
+
+                return _on_column_toggled
 
             select_all_action.triggered.connect(
                 _make_toggle_all_handler(select_all_action, columns, column_actions, select=True),
@@ -211,10 +217,7 @@ class TableHeaderMenuMixin(QTableView):
                 if column_tooltip is not None:
                     column_action.setToolTip(column_tooltip)
 
-                def _on_column_toggled(checked: bool, name: str = column_name) -> None:  # noqa: FBT001
-                    self._toggle_column_visibility(name, checked=checked)
-
-                column_action.toggled.connect(_on_column_toggled)
+                column_action.toggled.connect(_make_column_toggled_handler(column_action, column_name))
                 category_menu.addAction(column_action)
                 column_actions.append(column_action)
             choose_columns_menu.addMenu(category_menu)

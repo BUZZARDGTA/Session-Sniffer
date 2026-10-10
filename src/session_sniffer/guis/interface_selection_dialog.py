@@ -898,9 +898,9 @@ class InterfaceSelectionDialog(QDialog):
                 interface_secondary_button_enabled_style(self._ui_scale) if arp_enabled else interface_secondary_button_disabled_style(self._ui_scale),
             )
 
-    def _on_navigation_tab_toggled(self, checked: bool) -> None:  # noqa: FBT001
+    def _on_navigation_tab_toggled(self) -> None:
         """Handle switching between Network Interfaces and Hotspot & Sharing pages."""
-        if checked:
+        if self._tab_interfaces_btn.isChecked():
             self._stacked_widget.setCurrentIndex(0)
             self._column_resizer.setup_column_resizing()
         else:

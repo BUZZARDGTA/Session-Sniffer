@@ -383,7 +383,8 @@ class HighRateMonitorWidget(QWidget):
 
     # Actions ----------------------------------------------------------------
 
-    def _on_auto_select_toggled(self, checked: bool) -> None:  # noqa: FBT001
+    def _on_auto_select_toggled(self) -> None:
+        checked = self._auto_select_checkbox.isChecked()
         self._auto_select = checked
         self._select_button.setEnabled(not checked)
         self._deselect_button.setEnabled(not checked)

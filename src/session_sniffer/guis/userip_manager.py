@@ -607,7 +607,7 @@ class UserIPDatabasesManager(
             username_item.setIcon(self._looky_icon)
             username_item.setForeground(QBrush(QColor('#a855f7')))
             username_item.setToolTip('Added automatically by Looky System')
-            username_item.setData(True, Qt.ItemDataRole.UserRole)  # noqa: FBT003
+            username_item.setData(is_looky, Qt.ItemDataRole.UserRole)
 
         db_item = QStandardItem(database[0] if database else '')
         if database is not None:
@@ -668,8 +668,9 @@ class UserIPDatabasesManager(
         if not self._global_search_active:
             self._global_search_checkbox.setChecked(True)
 
-    def _on_global_search_toggled(self, checked: bool) -> None:  # noqa: FBT001
+    def _on_global_search_toggled(self) -> None:
         """Switch between single-database editing mode and read-only global search mode."""
+        checked = self._global_search_checkbox.isChecked()
         if checked:
             if self._dirty and not self._confirm_discard():
                 with QSignalBlocker(self._global_search_checkbox):
@@ -731,7 +732,7 @@ class UserIPDatabasesManager(
             for row in range(top_left.row(), bottom_right.row() + 1):
                 item = self._model.item(row, USERNAME_COLUMN)
                 if item and item.data(Qt.ItemDataRole.UserRole):
-                    item.setData(False, Qt.ItemDataRole.UserRole)  # noqa: FBT003
+                    item.setData(None, Qt.ItemDataRole.UserRole)
                     item.setIcon(QIcon())
                     item.setForeground(QBrush())
                     item.setToolTip('')

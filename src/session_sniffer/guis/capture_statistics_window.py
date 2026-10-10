@@ -521,5 +521,5 @@ class CaptureStatisticsWindow(RateGraphWindowMixin):
 
     # Internal ————————————————————————————————————————————————————————————————
 
-    def _on_all_time_toggled(self, checked: bool) -> None:  # noqa: FBT001
-        self._latency_group.setTitle('Latency (all time)' if checked else 'Latency (60s)')
+    def _on_all_time_toggled(self) -> None:
+        self._latency_group.setTitle('Latency (all time)' if self._checkbox_all_time.isChecked() else 'Latency (60s)')

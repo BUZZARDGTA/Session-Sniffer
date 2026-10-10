@@ -226,7 +226,7 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
         disconnected_enabled_widget = self._widgets.get('gui_disconnected_players_enabled')
         if isinstance(disconnected_enabled_widget, QCheckBox):
             disconnected_enabled_widget.toggled.connect(self._on_disconnected_players_enabled_toggled)
-            self._on_disconnected_players_enabled_toggled(disconnected_enabled_widget.isChecked())
+            self._on_disconnected_players_enabled_toggled()
 
         # Enable/disable High Rate Monitor threshold fields based on Smart vs Manual mode.
         hrm_mode_widget = self._widgets.get('high_rate_monitor_mode')
@@ -418,8 +418,11 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
             if is_supported_game:
                 self._tabs.setTabText(self._game_tab_index, feature_set)
 
-    def _on_disconnected_players_enabled_toggled(self, checked: bool) -> None:  # noqa: FBT001
+    def _on_disconnected_players_enabled_toggled(self) -> None:
         """Update dependent controls and labels based on the Disconnected Players toggle."""
+        disconnected_enabled_widget = self._widgets.get('gui_disconnected_players_enabled')
+        checked = isinstance(disconnected_enabled_widget, QCheckBox) and disconnected_enabled_widget.isChecked()
+
         connected_rpp_label = self._labels.get('gui_connected_table_rows_per_page')
         connected_rpp_widget = self._widgets.get('gui_connected_table_rows_per_page')
         if connected_rpp_label is not None:

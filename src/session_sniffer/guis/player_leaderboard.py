@@ -643,45 +643,45 @@ class PlayerLeaderboardWindow(ToggleAlwaysOnTopMixin):
         if viewport:
             viewport.update()
 
-    def _on_hide_servers_toggled(self, checked: bool) -> None:  # noqa: FBT001
+    def _on_hide_servers_toggled(self) -> None:
         """Toggle exclusion of known game/relay server IPs and refresh the count label."""
         QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
         try:
-            self._proxy.set_hide_servers(hide=checked)
+            self._proxy.set_hide_servers(hide=self._hide_servers_checkbox.isChecked())
             self._update_count_label()
         finally:
             QApplication.restoreOverrideCursor()
 
-    def _on_hide_vpns_toggled(self, checked: bool) -> None:  # noqa: FBT001
+    def _on_hide_vpns_toggled(self) -> None:
         """Toggle exclusion of VPN/proxy IPs and refresh the count label."""
         QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
         try:
-            self._proxy.set_hide_vpns(hide=checked)
+            self._proxy.set_hide_vpns(hide=self._hide_vpns_checkbox.isChecked())
             self._update_count_label()
         finally:
             QApplication.restoreOverrideCursor()
 
-    def _on_hide_hosting_toggled(self, checked: bool) -> None:  # noqa: FBT001
+    def _on_hide_hosting_toggled(self) -> None:
         """Toggle exclusion of hosting/datacenter IPs and refresh the count label."""
         QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
         try:
-            self._proxy.set_hide_hosting(hide=checked)
+            self._proxy.set_hide_hosting(hide=self._hide_hosting_checkbox.isChecked())
             self._update_count_label()
         finally:
             QApplication.restoreOverrideCursor()
 
-    def _on_current_session_toggled(self, checked: bool) -> None:  # noqa: FBT001
+    def _on_current_session_toggled(self) -> None:
         """Toggle filtering to players present in the active session and refresh the count label."""
         QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
         try:
-            self._proxy.set_current_session_only(enabled=checked)
+            self._proxy.set_current_session_only(enabled=self._current_session_checkbox.isChecked())
             self._update_count_label()
         finally:
             QApplication.restoreOverrideCursor()
 
-    def _on_relative_dates_toggled(self, checked: bool) -> None:  # noqa: FBT001
+    def _on_relative_dates_toggled(self) -> None:
         """Toggle relative date formatting for First Seen and Last Seen columns."""
-        self._model.set_relative_dates(relative=checked)
+        self._model.set_relative_dates(relative=self._relative_dates_checkbox.isChecked())
 
     def _show_context_menu(self, pos: QPoint) -> None:
         index = self._table.indexAt(pos)

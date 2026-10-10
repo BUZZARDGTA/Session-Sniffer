@@ -64,11 +64,19 @@ logger = logging.getLogger(__name__)
 _SHA_SPLIT_THRESHOLD: int = 32
 
 
+@dataclass(frozen=True, slots=True)
+class _DownloadResult:
+    """Result of a background update download attempt."""
+
+    success: bool
+    message: str = ''
+
+
 class _DownloadWorker(CrashingQThread):
     """Background thread that streams an HTTP download and reports progress."""
 
     progress_signal: Signal = Signal(int, int)  # bytes_done, total_bytes
-    finished_signal: Signal = Signal(bool, str)  # success, message
+    finished_signal: Signal = Signal(_DownloadResult)
 
     def __init__(self, download_url: str, dest_path: Path) -> None:
         super().__init__()
@@ -101,7 +109,7 @@ class _DownloadWorker(CrashingQThread):
             with self._dest_path.open('wb') as file:
                 for chunk in response.iter_content(chunk_size=chunk_size):
                     if self._cancel_event.is_set() or self.isInterruptionRequested():
-                        self.finished_signal.emit(False, 'Cancelled')  # noqa: FBT003
+                        self.finished_signal.emit(_DownloadResult(success=False, message='Cancelled'))
                         return
                     file.write(chunk)
                     done += len(chunk)
@@ -109,10 +117,10 @@ class _DownloadWorker(CrashingQThread):
 
         except requests.exceptions.RequestException as e:
             logger.warning('Update download failed: %s', e)
-            self.finished_signal.emit(False, str(e))  # noqa: FBT003
+            self.finished_signal.emit(_DownloadResult(success=False, message=str(e)))
             return
 
-        self.finished_signal.emit(True, '')  # noqa: FBT003
+        self.finished_signal.emit(_DownloadResult(success=True))
 
 
 @dataclass(frozen=True, slots=True)
@@ -638,15 +646,15 @@ class UpdateDownloadDialog(DraggableDialogMixin, QDialog):
             self._size_label.setText(f'{self._format_size_mb(done)} downloaded')
         self._status_label.setText('Streaming update from GitHub…')
 
-    def _on_finished(self, success: bool, message: str) -> None:  # noqa: FBT001
+    def _on_finished(self, result: _DownloadResult) -> None:
         """Handle download completion or failure."""
-        self._success = success
-        if success:
+        self._success = result.success
+        if result.success:
             self.accept()
         else:
-            if message and message != 'Cancelled':
-                self._error_message = message
-                self._status_label.setText(f'Download failed: {message}')
+            if result.message and result.message != 'Cancelled':
+                self._error_message = result.message
+                self._status_label.setText(f'Download failed: {result.message}')
             self.reject()
 
     def _on_cancel(self) -> None:

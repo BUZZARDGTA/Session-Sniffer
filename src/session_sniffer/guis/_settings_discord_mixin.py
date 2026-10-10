@@ -95,8 +95,11 @@ class SettingsDialogDiscordMixin(QDialog):
             show_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'eye.svg')), ' Show')
             show_button.setCheckable(True)
             show_button.setToolTip('Reveal or hide the webhook URL')
-            show_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
-            show_button.toggled.connect(partial(self._toggle_url_visibility, url_line, show_button))
+
+            def _on_toggle_visibility() -> None:
+                self._toggle_url_visibility(url_line, show_button)
+
+            show_button.toggled.connect(_on_toggle_visibility)
             url_row_layout.addWidget(show_button)
 
             test_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'settings.svg')), ' Test')
@@ -149,18 +152,25 @@ class SettingsDialogDiscordMixin(QDialog):
         # Wire enable cascade.
         if enabled_meta is not None:
             enabled_checkbox = cast('QCheckBox', self._widgets['discord_webhook_enabled'])
-            enabled_checkbox.toggled.connect(partial(self._on_webhook_enabled_toggled, details_widget, url_line))
+
+            def _on_enable_toggled() -> None:
+                self._on_webhook_enabled_toggled(details_widget, url_line)
+
+            enabled_checkbox.toggled.connect(_on_enable_toggled)
 
         return group_box
 
-    def _on_webhook_enabled_toggled(self, details_widget: QWidget, url_line: QLineEdit | None, checked: bool) -> None:  # noqa: FBT001
+    def _on_webhook_enabled_toggled(self, details_widget: QWidget, url_line: QLineEdit | None) -> None:
         """Enable/disable child webhook fields based on the master checkbox."""
+        enabled_checkbox = cast('QCheckBox', self._widgets['discord_webhook_enabled'])
+        checked = enabled_checkbox.isChecked()
         details_widget.setEnabled(checked)
         if url_line is not None:
             url_line.setEnabled(checked)
 
-    def _toggle_url_visibility(self, url_line: QLineEdit, show_button: QPushButton, checked: bool) -> None:  # noqa: FBT001
+    def _toggle_url_visibility(self, url_line: QLineEdit, show_button: QPushButton) -> None:
         """Toggle masked/plain echo for the webhook URL."""
+        checked = show_button.isChecked()
         if isinstance(url_line, SecretLineEdit):
             url_line.set_revealed(revealed=checked)
         else:

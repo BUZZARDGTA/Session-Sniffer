@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, cast, override
 
 from PySide6.QtCore import QByteArray, QFileInfo, QPoint, QRectF, Qt, QTimer
 from PySide6.QtGui import (
+    QAction,
     QColor,
     QIcon,
     QPainter,
@@ -354,8 +355,11 @@ class ToggleAlwaysOnTopMixin(QWidget):
         checkbox.toggled.connect(self.toggle_always_on_top)
         layout.addWidget(checkbox)
 
-    def toggle_always_on_top(self, checked: bool) -> None:  # noqa: FBT001
+    def toggle_always_on_top(self, *, checked: bool | None = None) -> None:
         """Apply or remove the always-on-top window flag based on *checked*."""
+        if checked is None:
+            sender = self.sender()
+            checked = sender.isChecked() if isinstance(sender, (QCheckBox, QAction)) else not bool(self.windowFlags() & Qt.WindowType.WindowStaysOnTopHint)
         apply_always_on_top(self, checked=checked)
 
 

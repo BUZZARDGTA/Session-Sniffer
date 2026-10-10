@@ -441,9 +441,9 @@ class SessionsLogTab(QWidget):
         else:
             self._global_search_checkbox.setChecked(True)
 
-    def _on_global_search_toggled(self, checked: bool) -> None:  # noqa: FBT001
+    def _on_global_search_toggled(self) -> None:
         """Switch between single-file view mode and global search mode."""
-        if checked:
+        if self._global_search_checkbox.isChecked():
             self._file_watcher.stop()
             self._global_search_active = True
             self._clear_tree_selection()

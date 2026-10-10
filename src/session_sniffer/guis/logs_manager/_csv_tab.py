@@ -583,11 +583,11 @@ class CsvLogTab(QWidget):
                 except ValueError:
                     pass
 
-    def _toggle_column_visibility(self, checked: bool) -> None:  # noqa: FBT001
+    def _toggle_column_visibility(self) -> None:
         action = self.sender()
         if isinstance(action, QAction):
             column = action.data()
-            self._table.setColumnHidden(column, not checked)
+            self._table.setColumnHidden(column, not action.isChecked())
             self._reset_column_sizes()
 
     # ------------------------------------------------------------------
