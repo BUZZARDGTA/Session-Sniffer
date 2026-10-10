@@ -241,7 +241,7 @@ class UserIPDatabasesManager(
 
         # Hide size / type / date-modified columns — keep only the name
         for column in range(1, self._fs_model.columnCount()):
-            self._tree.setColumnHidden(column, True)  # noqa: FBT003
+            self._tree.hideColumn(column)
 
         self._tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self._tree.customContextMenuRequested.connect(self._show_tree_context_menu)
@@ -397,7 +397,7 @@ class UserIPDatabasesManager(
             for column in range(self._model.columnCount()):
                 header.setSectionResizeMode(column, QHeaderView.ResizeMode.Interactive)
 
-        self._entries_table.setColumnHidden(DATABASE_COLUMN, True)  # noqa: FBT003
+        self._entries_table.hideColumn(DATABASE_COLUMN)
         self._reset_column_sizes()
         setup_table_header_context_menu(self._entries_table, on_reset=self._reset_column_sizes)
         if header:

@@ -308,14 +308,14 @@ def terminate_process_tree(pid: int | None = None) -> None:
                         queue.append(child_pid)
 
                 for child_pid in reversed(descendant_pids):
-                    child_handle = kernel32.OpenProcess(0x0001, False, child_pid)  # noqa: FBT003
+                    child_handle = kernel32.OpenProcess(0x0001, 0, child_pid)
                     if child_handle:
                         kernel32.TerminateProcess(child_handle, 1)
                         kernel32.CloseHandle(child_handle)
         finally:
             kernel32.CloseHandle(snapshot_handle)
 
-    target_handle = kernel32.OpenProcess(0x0001, False, target_pid)  # noqa: FBT003
+    target_handle = kernel32.OpenProcess(0x0001, 0, target_pid)
     if target_handle:
         kernel32.TerminateProcess(target_handle, 1)
         kernel32.CloseHandle(target_handle)

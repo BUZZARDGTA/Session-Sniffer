@@ -238,7 +238,7 @@ def get_process_creation_time(pid: int) -> float | None:
             return Path(f'/proc/{pid}').stat().st_ctime
         except OSError:
             return None
-    handle = _kernel32.OpenProcess(_PROCESS_QUERY_LIMITED_INFORMATION, False, pid)  # noqa: FBT003
+    handle = _kernel32.OpenProcess(_PROCESS_QUERY_LIMITED_INFORMATION, 0, pid)
     if not handle:
         return None
     try:
@@ -272,7 +272,7 @@ def is_process_running(target: int | ProcessInfo, creation_time: float | None = 
     if sys.platform != 'win32':
         return _is_process_running_linux(pid, creation_time)
 
-    handle = _kernel32.OpenProcess(_PROCESS_QUERY_LIMITED_INFORMATION, False, pid)  # noqa: FBT003
+    handle = _kernel32.OpenProcess(_PROCESS_QUERY_LIMITED_INFORMATION, 0, pid)
     if not handle:
         return False
     try:
@@ -296,7 +296,7 @@ def get_process_image_path(pid: int) -> Path | None:
             return Path(f'/proc/{pid}/exe').resolve()
         except OSError:
             return None
-    handle = _kernel32.OpenProcess(_PROCESS_QUERY_LIMITED_INFORMATION, False, pid)  # noqa: FBT003
+    handle = _kernel32.OpenProcess(_PROCESS_QUERY_LIMITED_INFORMATION, 0, pid)
     if not handle:
         return None
     try:
@@ -354,7 +354,7 @@ def suspend_process(pid: int) -> None:
         os.kill(pid, signal.SIGSTOP)
         return
 
-    handle = _kernel32.OpenProcess(_PROCESS_SUSPEND_RESUME | _PROCESS_QUERY_LIMITED_INFORMATION, False, pid)  # noqa: FBT003
+    handle = _kernel32.OpenProcess(_PROCESS_SUSPEND_RESUME | _PROCESS_QUERY_LIMITED_INFORMATION, 0, pid)
     if not handle:
         last_error = _kernel32.GetLastError()
         if last_error in (2, 87, 1168):
@@ -383,7 +383,7 @@ def resume_process(pid: int) -> None:
         os.kill(pid, signal.SIGCONT)
         return
 
-    handle = _kernel32.OpenProcess(_PROCESS_SUSPEND_RESUME | _PROCESS_QUERY_LIMITED_INFORMATION, False, pid)  # noqa: FBT003
+    handle = _kernel32.OpenProcess(_PROCESS_SUSPEND_RESUME | _PROCESS_QUERY_LIMITED_INFORMATION, 0, pid)
     if not handle:
         last_error = _kernel32.GetLastError()
         if last_error in (2, 87, 1168):

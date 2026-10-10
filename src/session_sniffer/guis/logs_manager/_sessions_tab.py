@@ -174,7 +174,7 @@ class SessionsLogTab(QWidget):
         self._tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self._tree.customContextMenuRequested.connect(self._on_tree_context_menu)
         for column in (1, 2, 3):
-            self._tree.setColumnHidden(column, True)  # noqa: FBT003
+            self._tree.hideColumn(column)
         self._tree.clicked.connect(self._on_tree_clicked)
         self._tree.activated.connect(self._on_tree_activated)
         selection_model = self._tree.selectionModel()
