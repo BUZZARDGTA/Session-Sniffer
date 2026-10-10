@@ -229,7 +229,7 @@ def _build_config_section(snapshot: StatusBarSnapshot) -> str:
     if snapshot.capture.feature_set is not None:
         parts.append(
             f'<span style="color: {StatusBarColors.LABEL_ACCENT};">Feature Set:</span> '
-            f'<span style="color: {StatusBarColors.SECONDARY_ACCENT};">{snapshot.capture.feature_set}</span>',
+            f'<span style="color: {StatusBarColors.ENABLED};">{snapshot.capture.feature_set}</span>',
         )
 
     if snapshot.system.discord_presence_enabled:

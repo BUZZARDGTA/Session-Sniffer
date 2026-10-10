@@ -21,7 +21,6 @@ class ColorPalette(enum.StrEnum):
     # Primary accent colors
     ACCENT_BLUE = 'lightblue'
     ACCENT_ORANGE = 'darkorange'
-    ACCENT_PURPLE = 'plum'
     ACCENT_GRAY = 'steelblue'
 
     # Status indicator colors
@@ -47,7 +46,6 @@ class StatusBarColors(enum.StrEnum):
     # Section labels and accents
     LABEL_ACCENT = ColorPalette.ACCENT_ORANGE
     TITLE_ACCENT = ColorPalette.ACCENT_BLUE
-    SECONDARY_ACCENT = ColorPalette.ACCENT_PURPLE
 
 
 class ThresholdColors(enum.StrEnum):
