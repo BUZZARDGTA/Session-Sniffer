@@ -362,10 +362,8 @@ class SessionHostDiagnosticsDialog(QDialog):
             row_layout.addWidget(status_badge, alignment=Qt.AlignmentFlag.AlignTop)
 
             text_layout = QVBoxLayout()
+            text_layout.setContentsMargins(0, 0, 0, 0)
             text_layout.setSpacing(3)
-
-            title_row = QHBoxLayout()
-            title_row.setSpacing(8)
 
             title_label = QLabel(item.title)
             title_font = QFont()
@@ -373,17 +371,7 @@ class SessionHostDiagnosticsDialog(QDialog):
             title_font.setPointSize(9)
             title_label.setFont(title_font)
             title_label.setStyleSheet('color: #e2e8f0;' if item.passed else 'color: #fca5a5;')
-            title_row.addWidget(title_label)
-
-            title_row.addStretch(1)
-
-            if item.badge_text is not None and item.badge_stylesheet is not None:
-                metric_badge = QLabel(item.badge_text)
-                metric_badge.setStyleSheet(item.badge_stylesheet)
-                metric_badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
-                title_row.addWidget(metric_badge)
-
-            text_layout.addLayout(title_row)
+            text_layout.addWidget(title_label)
 
             detail_label = QLabel(item.detail)
             detail_label.setStyleSheet('color: #94a3b8; font-size: 8.5pt;')
@@ -391,6 +379,13 @@ class SessionHostDiagnosticsDialog(QDialog):
             text_layout.addWidget(detail_label)
 
             row_layout.addLayout(text_layout, stretch=1)
+
+            if item.badge_text is not None and item.badge_stylesheet is not None:
+                metric_badge = QLabel(item.badge_text)
+                metric_badge.setStyleSheet(item.badge_stylesheet)
+                metric_badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                row_layout.addWidget(metric_badge, alignment=Qt.AlignmentFlag.AlignTop)
+
             layout.addWidget(row)
 
         return card

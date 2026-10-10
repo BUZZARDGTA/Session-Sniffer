@@ -433,21 +433,23 @@ def _build_host_diagnostics_snapshot(
         time_difference_text = f'{result.timing_gap:.3f}s ({gap_milliseconds:.1f}ms)' if result.timing_gap >= 1.0 else f'{gap_milliseconds:.1f}ms'
         if SESSION_HOST_AMBIGUITY_MIN_THRESHOLD_MS <= gap_milliseconds <= SESSION_HOST_AMBIGUITY_MAX_THRESHOLD_MS:
             timing_resolution = (
-                f'2 candidates were evaluated, and candidate #1 joined earlier within the valid timing window '
-                f'({SESSION_HOST_AMBIGUITY_MIN_THRESHOLD_MS}ms - {SESSION_HOST_AMBIGUITY_MAX_THRESHOLD_MS}ms).'
+                '2 candidates were evaluated, and candidate #1 joined earlier\n'
+                f'within the valid timing window ({SESSION_HOST_AMBIGUITY_MIN_THRESHOLD_MS}ms - {SESSION_HOST_AMBIGUITY_MAX_THRESHOLD_MS}ms).'
             )
         elif gap_milliseconds < SESSION_HOST_AMBIGUITY_MIN_THRESHOLD_MS:
             timing_resolution = (
-                f'Rejected — {gap_milliseconds:.1f}ms gap is below the {SESSION_HOST_AMBIGUITY_MIN_THRESHOLD_MS}ms '
-                'minimum threshold (players connected almost simultaneously, timing is ambiguous).'
+                f'Rejected — {gap_milliseconds:.1f}ms gap is below the {SESSION_HOST_AMBIGUITY_MIN_THRESHOLD_MS}ms minimum threshold\n'
+                '(players connected almost simultaneously, timing is ambiguous).'
             )
         else:
             timing_resolution = (
-                f'Rejected — {time_difference_text} gap exceeds the {SESSION_HOST_AMBIGUITY_MAX_THRESHOLD_MS}ms '
-                'maximum threshold (candidate #1 joined too far ahead of candidate #2).'
+                f'Rejected — {time_difference_text} gap exceeds the {SESSION_HOST_AMBIGUITY_MAX_THRESHOLD_MS}ms maximum threshold\n'
+                '(candidate #1 joined too far ahead of candidate #2).'
             )
     elif len(candidates) == 1:
         timing_resolution = 'Only 1 non-server player was present, so timing comparison was skipped.'
+
+    timing_resolution_summary = timing_resolution.replace('\n', ' ') if timing_resolution is not None else ''
 
     lines: list[str] = [
         '=== Session Host Detection Diagnostics ===',
@@ -471,13 +473,13 @@ def _build_host_diagnostics_snapshot(
             '',
             '--- Timing Analysis ---',
             f'- Time Difference: {time_difference_text}',
-            f'- Timing Gap Resolution: {timing_resolution}',
+            f'- Timing Gap Resolution: {timing_resolution_summary}',
         ])
     elif len(candidates) == 1:
         lines.extend([
             '',
             '--- Timing Analysis ---',
-            f'- Sole P2P Player: {timing_resolution}',
+            f'- Sole P2P Player: {timing_resolution_summary}',
         ])
 
     if candidates:
