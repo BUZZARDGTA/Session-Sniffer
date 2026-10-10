@@ -2,7 +2,7 @@
 
 from typing import TYPE_CHECKING, cast, override
 
-from PySide6.QtCore import QEvent, QObject, QSize, Qt, Signal
+from PySide6.QtCore import QEvent, QObject, QSignalBlocker, QSize, Qt, Signal
 from PySide6.QtGui import QIcon, QStandardItem, QStandardItemModel
 from PySide6.QtWidgets import (
     QComboBox,
@@ -703,9 +703,8 @@ class SessionTableSection(QWidget):
         if self._rows_per_page == configured_rows:
             return
         self._rows_per_page = max(configured_rows, 0)
-        self._rows_per_page_spinbox.blockSignals(True)  # noqa: FBT003
-        self._rows_per_page_spinbox.setValue(self._rows_per_page)
-        self._rows_per_page_spinbox.blockSignals(False)  # noqa: FBT003
+        with QSignalBlocker(self._rows_per_page_spinbox):
+            self._rows_per_page_spinbox.setValue(self._rows_per_page)
         self._current_page, self._total_pages = self._sync_paging_controls(
             total_rows=max(self.last_count, 0),
             rows_per_page=self._rows_per_page,
@@ -786,12 +785,11 @@ class SessionTableSection(QWidget):
             total_pages = max(1, (total_rows + rows_per_page - 1) // rows_per_page)
             page = min(max(1, requested_page), total_pages)
 
-        self._page_spinbox.blockSignals(True)  # noqa: FBT003
-        self._page_spinbox.setMinimum(1)
-        self._page_spinbox.setMaximum(total_pages)
-        self._page_spinbox.setEnabled(0 < rows_per_page < total_rows)
-        self._page_spinbox.setValue(page)
-        self._page_spinbox.blockSignals(False)  # noqa: FBT003
+        with QSignalBlocker(self._page_spinbox):
+            self._page_spinbox.setMinimum(1)
+            self._page_spinbox.setMaximum(total_pages)
+            self._page_spinbox.setEnabled(0 < rows_per_page < total_rows)
+            self._page_spinbox.setValue(page)
 
         return page, total_pages
 
@@ -808,9 +806,8 @@ class SessionTableSection(QWidget):
         if not self._rows_keyboard_editing:
             self._rows_per_page_spinbox.setRange(0, 5000)
             if self._rows_per_page_spinbox.value() != self._rows_per_page:
-                self._rows_per_page_spinbox.blockSignals(True)  # noqa: FBT003
-                self._rows_per_page_spinbox.setValue(self._rows_per_page)
-                self._rows_per_page_spinbox.blockSignals(False)  # noqa: FBT003
+                with QSignalBlocker(self._rows_per_page_spinbox):
+                    self._rows_per_page_spinbox.setValue(self._rows_per_page)
             if self._rows_per_page > 0:
                 self._rows_per_page_spinbox.setPrefix(f'{total_count} / ')
                 self._rows_per_page_spinbox.setSuffix('')
@@ -938,12 +935,11 @@ class SessionTableSection(QWidget):
         ]
 
         if current_items != desired_items:
-            self._session_filter_combo.blockSignals(True)  # noqa: FBT003
-            self._session_filter_combo.clear()
-            for text, data, tooltip in desired_items:
-                self._session_filter_combo.addItem(text, data)
-                self._session_filter_combo.setItemData(self._session_filter_combo.count() - 1, tooltip, Qt.ItemDataRole.ToolTipRole)
-            self._session_filter_combo.blockSignals(False)  # noqa: FBT003
+            with QSignalBlocker(self._session_filter_combo):
+                self._session_filter_combo.clear()
+                for text, data, tooltip in desired_items:
+                    self._session_filter_combo.addItem(text, data)
+                    self._session_filter_combo.setItemData(self._session_filter_combo.count() - 1, tooltip, Qt.ItemDataRole.ToolTipRole)
 
         target_index = -1
         for i in range(self._session_filter_combo.count()):
@@ -953,13 +949,11 @@ class SessionTableSection(QWidget):
 
         if target_index >= 0:
             if self._session_filter_combo.currentIndex() != target_index:
-                self._session_filter_combo.blockSignals(True)  # noqa: FBT003
-                self._session_filter_combo.setCurrentIndex(target_index)
-                self._session_filter_combo.blockSignals(False)  # noqa: FBT003
+                with QSignalBlocker(self._session_filter_combo):
+                    self._session_filter_combo.setCurrentIndex(target_index)
         else:
-            self._session_filter_combo.blockSignals(True)  # noqa: FBT003
-            self._session_filter_combo.setCurrentIndex(0)
-            self._session_filter_combo.blockSignals(False)  # noqa: FBT003
+            with QSignalBlocker(self._session_filter_combo):
+                self._session_filter_combo.setCurrentIndex(0)
             SessionFilterState.set_selected_session(session_id=SessionFilterState.FILTER_ALL)
             selected_session = SessionFilterState.FILTER_ALL
             is_past_session = False

@@ -792,7 +792,7 @@ def looky_core() -> None:
                                 looky_player.name.strip() for looky_player in unique_players if looky_player.name and looky_player.name.strip()
                             ]
                             matched_player.looky_system.rockstarids = [looky_player.rockstarid for looky_player in unique_players]
-                            matched_player.looky_system.last_seens = [looky_player.lastSeen for looky_player in unique_players]
+                            matched_player.looky_system.last_seens = [looky_player.last_seen for looky_player in unique_players]
                             matched_player.looky_system.needs_refresh = False
                             matched_player.looky_system.last_fetched_at = time.monotonic()
                             matched_player.looky_system.is_initialized = True

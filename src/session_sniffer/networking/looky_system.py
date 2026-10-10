@@ -88,7 +88,7 @@ class LookyState:
     @classmethod
     def set(cls, response: LookyVerifyResponse) -> None:
         """Apply a successful token-verification response."""
-        cls.api_access = response.userData.apiAccess
+        cls.api_access = response.user_data.api_access
         cls.user_data = response
 
     @classmethod
@@ -173,7 +173,7 @@ def verify_token(api_key: str) -> LookyVerifyResponse:
         api_key: Looky System Bearer API key.
 
     Returns:
-        `LookyVerifyResponse` with `userData` populated from the API response.
+        `LookyVerifyResponse` with `user_data` populated from the API response.
 
     Raises:
         requests.HTTPError: On a non-2xx response (e.g. 401 for invalid key).
@@ -189,7 +189,7 @@ def verify_token(api_key: str) -> LookyVerifyResponse:
     whoami = LookyWhoAmI.model_validate(response.json())
     return LookyVerifyResponse(
         success=True,
-        userData=LookyUserData(username=whoami.username, apiAccess=whoami.apiAccess, status=whoami.status, rid=whoami.rid),
+        user_data=LookyUserData(username=whoami.username, api_access=whoami.api_access, status=whoami.status, rid=whoami.rid),
     )
 
 
@@ -216,10 +216,10 @@ def lookup_ip(ip: str, api_key: str, version: str = 'both') -> list[LookyPlayer]
 
 
 def _sort_looky_players(players: list[LookyPlayer]) -> list[LookyPlayer]:
-    """Sort Looky players from most recent to oldest by `lastSeen`."""
+    """Sort Looky players from most recent to oldest by `last_seen`."""
     return sorted(
         players,
-        key=lambda player: player.lastSeen.astimezone(UTC) if player.lastSeen.tzinfo is not None else player.lastSeen.replace(tzinfo=UTC),
+        key=lambda player: player.last_seen.astimezone(UTC) if player.last_seen.tzinfo is not None else player.last_seen.replace(tzinfo=UTC),
         reverse=True,
     )
 

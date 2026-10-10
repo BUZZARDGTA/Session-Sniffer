@@ -782,9 +782,9 @@ class DetectionsManagerTabsMixin(QDialog):
         return read_duration_widgets_helper(combo, spin)
 
     @staticmethod
-    def _set_voice_combo(combo: QComboBox, value: Literal['Male', 'Female'] | bool) -> None:  # noqa: FBT001
+    def _set_voice_combo(combo: QComboBox, *, value: Literal['Male', 'Female'] | bool) -> None:
         """Set voice combo from a stored voice notification value."""
-        set_voice_combo_helper(combo, value)
+        set_voice_combo_helper(combo, value=value)
 
     @staticmethod
     def _read_voice_combo(combo: QComboBox) -> Literal['Male', 'Female'] | bool:

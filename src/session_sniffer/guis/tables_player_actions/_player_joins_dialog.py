@@ -2,7 +2,7 @@
 
 from typing import TYPE_CHECKING, override
 
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import QSignalBlocker, Qt, QTimer
 from PySide6.QtGui import QCloseEvent, QColor, QIcon
 from PySide6.QtWidgets import (
     QHBoxLayout,
@@ -197,20 +197,19 @@ class PlayerJoinsWindow(StatTableWindowMixin):
             self._apply_initial_column_resizing()
             self._table.setSortingEnabled(True)
         else:
-            self._table.blockSignals(True)  # noqa: FBT003
-            table_index_to_row: dict[int, int] = {}
-            for row in range(self._table.rowCount()):
-                item = self._table.item(row, _COLUMN_INDEX)
-                if item is not None:
-                    stored_index = item.data(Qt.ItemDataRole.UserRole)
-                    if isinstance(stored_index, int):
-                        table_index_to_row[stored_index] = row
+            with QSignalBlocker(self._table):
+                table_index_to_row: dict[int, int] = {}
+                for row in range(self._table.rowCount()):
+                    item = self._table.item(row, _COLUMN_INDEX)
+                    if item is not None:
+                        stored_index = item.data(Qt.ItemDataRole.UserRole)
+                        if isinstance(stored_index, int):
+                            table_index_to_row[stored_index] = row
 
-            for join in joins:
-                target_row = table_index_to_row.get(join.join_index)
-                if target_row is not None:
-                    self._update_row(target_row, join)
-            self._table.blockSignals(False)  # noqa: FBT003
+                for join in joins:
+                    target_row = table_index_to_row.get(join.join_index)
+                    if target_row is not None:
+                        self._update_row(target_row, join)
 
     def _populate_row(self, row: int, join: PlayerJoin) -> None:
         """Create and place all table widget items for a single join session row."""

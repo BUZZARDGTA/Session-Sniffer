@@ -12,6 +12,9 @@ import signal
 import subprocess
 import sys
 from ctypes import wintypes
+
+if sys.platform == 'win32':
+    import winreg
 from datetime import UTC, datetime, tzinfo
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal
@@ -75,8 +78,6 @@ def get_documents_dir() -> Path:
         TypeError: If the retrieved path is not a string.
     """
     if sys.platform == 'win32':
-        import winreg  # noqa: PLC0415  # pylint: disable=import-outside-toplevel
-
         with winreg.OpenKey(winreg.HKEY_CURRENT_USER, USER_SHELL_FOLDERS__REG_KEY) as key:
             documents_path, _ = winreg.QueryValueEx(key, 'Personal')
             if not isinstance(documents_path, str):

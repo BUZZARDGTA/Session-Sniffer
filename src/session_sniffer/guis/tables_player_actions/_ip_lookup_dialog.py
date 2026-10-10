@@ -185,7 +185,7 @@ def _resolve_standalone_lookup(lookup: StandaloneIPLookup) -> None:
             with lookup.looky_system.lock:
                 lookup.looky_system.usernames = [entry.name for entry in unique_results]
                 lookup.looky_system.rockstarids = [entry.rockstarid for entry in unique_results]
-                lookup.looky_system.last_seens = [entry.lastSeen for entry in unique_results]
+                lookup.looky_system.last_seens = [entry.last_seen for entry in unique_results]
                 lookup.looky_system.needs_refresh = False
                 lookup.looky_system.last_fetched_at = time.monotonic()
                 lookup.looky_system.is_initialized = True

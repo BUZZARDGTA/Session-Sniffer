@@ -2,7 +2,7 @@
 
 from typing import Final, override
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QSignalBlocker, Qt
 from PySide6.QtGui import QGuiApplication, QKeyEvent, QKeySequence, QMouseEvent, QResizeEvent
 from PySide6.QtWidgets import QLineEdit, QMenu, QStyle, QStyleOptionFrame, QToolButton, QWidget
 
@@ -71,15 +71,14 @@ class SecretLineEdit(QLineEdit):
 
     def _update_display(self) -> None:
         """Update the displayed characters without re-emitting external textChanged signals."""
-        self.blockSignals(True)  # noqa: FBT003
-        if self._revealed:
-            self.setEchoMode(QLineEdit.EchoMode.Normal)
-            super().setText(self._real_text)
-        else:
-            self.setEchoMode(QLineEdit.EchoMode.Password)
-            super().setText(self._get_mask_text() if self._real_text else '')
-            self.setCursorPosition(0)
-        self.blockSignals(False)  # noqa: FBT003
+        with QSignalBlocker(self):
+            if self._revealed:
+                self.setEchoMode(QLineEdit.EchoMode.Normal)
+                super().setText(self._real_text)
+            else:
+                self.setEchoMode(QLineEdit.EchoMode.Password)
+                super().setText(self._get_mask_text() if self._real_text else '')
+                self.setCursorPosition(0)
 
     def _paste_from_clipboard(self) -> None:
         """Paste stripped text from the clipboard into the underlying secret value."""

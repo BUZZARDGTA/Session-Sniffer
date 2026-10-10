@@ -131,13 +131,13 @@ class LookyLookupDialog(PlayerInfoDialogMixin):
             group, form = self._make_group(title, accent='#4c1d95')
             self._add_row(form, 'Rockstar ID', str(entry.rockstarid))
             self._add_row(form, 'Username', entry.name)
-            last_seen_dt = entry.lastSeen if entry.lastSeen.tzinfo is None else entry.lastSeen.astimezone(UTC)
+            last_seen_dt = entry.last_seen if entry.last_seen.tzinfo is None else entry.last_seen.astimezone(UTC)
             self._add_row(form, 'Last Seen', last_seen_dt.strftime('%Y-%m-%d %H:%M:%S UTC'))
-            self._add_row(form, 'Last Country', entry.lastCountry)
-            self._add_row(form, 'Modder', 'Yes' if entry.isModder else 'No')
-            self._add_row(form, 'Enhanced', 'Yes' if entry.isEnhanced else 'No')
-            self._add_row(form, 'Legacy', 'Yes' if entry.isLegacy else 'No')
-            self._add_row(form, 'VPN', 'Yes' if entry.isVpn else 'No')
+            self._add_row(form, 'Last Country', entry.last_country)
+            self._add_row(form, 'Modder', 'Yes' if entry.is_modder else 'No')
+            self._add_row(form, 'Enhanced', 'Yes' if entry.is_enhanced else 'No')
+            self._add_row(form, 'Legacy', 'Yes' if entry.is_legacy else 'No')
+            self._add_row(form, 'VPN', 'Yes' if entry.is_vpn else 'No')
 
             buttons_layout = QHBoxLayout()
             buttons_layout.setContentsMargins(0, 4, 0, 0)
@@ -205,7 +205,7 @@ def show_looky_lookup(parent: QWidget, player: Player | StandaloneIPLookup) -> N
         with player.looky_system.lock:
             player.looky_system.usernames = [entry.name.strip() for entry in unique_results if entry.name and entry.name.strip()]
             player.looky_system.rockstarids = [entry.rockstarid for entry in unique_results]
-            player.looky_system.last_seens = [entry.lastSeen for entry in unique_results]
+            player.looky_system.last_seens = [entry.last_seen for entry in unique_results]
             player.looky_system.needs_refresh = False
             player.looky_system.last_fetched_at = time.monotonic()
             player.looky_system.is_initialized = True

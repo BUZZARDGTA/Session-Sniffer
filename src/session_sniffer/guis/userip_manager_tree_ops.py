@@ -6,7 +6,7 @@ import shutil
 import subprocess
 from pathlib import Path
 
-from PySide6.QtCore import QFileSystemWatcher, QPoint, Qt, QUrl
+from PySide6.QtCore import QFileSystemWatcher, QPoint, QSignalBlocker, Qt, QUrl
 from PySide6.QtGui import QAction, QDesktopServices, QIcon, QStandardItemModel
 from PySide6.QtWidgets import QCheckBox, QDialog, QFileDialog, QFileSystemModel, QFrame, QInputDialog, QLineEdit, QMenu, QMessageBox, QPushButton, QTreeView
 
@@ -168,9 +168,8 @@ class TreeOperationsMixin(QDialog):
         if not current_index.isValid():
             return
 
-        selection.blockSignals(True)  # noqa: FBT003
-        self._tree.setCurrentIndex(current_index)
-        selection.blockSignals(False)  # noqa: FBT003
+        with QSignalBlocker(selection):
+            self._tree.setCurrentIndex(current_index)
 
     # ------------------------------------------------------------------
     # Discard confirmation

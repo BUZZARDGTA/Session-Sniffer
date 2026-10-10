@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, ClassVar, override
 if TYPE_CHECKING:
     from pathlib import Path
 
-from PySide6.QtCore import QByteArray, QFileSystemWatcher, QModelIndex, Qt, QTimer, QUrl
+from PySide6.QtCore import QByteArray, QFileSystemWatcher, QModelIndex, QSignalBlocker, Qt, QTimer, QUrl
 from PySide6.QtGui import (
     QBrush,
     QCloseEvent,
@@ -675,9 +675,8 @@ class UserIPDatabasesManager(
         """Switch between single-database editing mode and read-only global search mode."""
         if checked:
             if self._dirty and not self._confirm_discard():
-                self._global_search_checkbox.blockSignals(True)  # noqa: FBT003
-                self._global_search_checkbox.setChecked(False)
-                self._global_search_checkbox.blockSignals(False)  # noqa: FBT003
+                with QSignalBlocker(self._global_search_checkbox):
+                    self._global_search_checkbox.setChecked(False)
                 return
             self._clear_dirty_state()
             self._global_search_active = True

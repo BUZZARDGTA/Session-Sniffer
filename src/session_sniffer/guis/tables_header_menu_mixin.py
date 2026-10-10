@@ -2,7 +2,7 @@
 
 from typing import TYPE_CHECKING
 
-from PySide6.QtCore import QPoint, Qt
+from PySide6.QtCore import QPoint, QSignalBlocker, Qt
 from PySide6.QtGui import QAction, QIcon
 from PySide6.QtWidgets import QMenu, QTableView
 
@@ -171,9 +171,8 @@ class TableHeaderMenuMixin(QTableView):
                 def _handler(_checked: bool) -> None:  # noqa: FBT001
                     target_action.setChecked(select)
                     for action_item in actions:
-                        action_item.blockSignals(True)  # noqa: FBT003
-                        action_item.setChecked(select)
-                        action_item.blockSignals(False)  # noqa: FBT003
+                        with QSignalBlocker(action_item):
+                            action_item.setChecked(select)
                     if select:
                         self._select_category_columns(category_columns)
                     else:

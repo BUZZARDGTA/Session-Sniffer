@@ -65,7 +65,7 @@ def read_duration_widgets_helper(combo: QComboBox, spin: QSpinBox) -> int | Lite
     return 'Auto'
 
 
-def set_voice_combo_helper(combo: QComboBox, value: Literal['Male', 'Female'] | bool) -> None:  # noqa: FBT001
+def set_voice_combo_helper(combo: QComboBox, *, value: Literal['Male', 'Female'] | bool) -> None:
     """Set voice combo from a stored voice notification value."""
     if value == 'Male':
         combo.setCurrentText('Male')
@@ -217,7 +217,7 @@ class ComboRuleEditorDialog(QDialog):
         conditions_layout.addLayout(self._conditions_container)
 
         add_condition_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'add.svg')), ' Add Condition')
-        add_condition_button.clicked.connect(self._add_condition_row)
+        add_condition_button.clicked.connect(self._on_add_condition_clicked)
         conditions_layout.addWidget(add_condition_button)
 
         conditions_group.setLayout(conditions_layout)
@@ -243,7 +243,7 @@ class ComboRuleEditorDialog(QDialog):
         self._voice_combo.addItems(['Disabled', 'Male', 'Female'])
         self._voice_combo.setToolTip('Select voice for text-to-speech notifications')
         if rule:
-            set_voice_combo_helper(self._voice_combo, rule.voice_notifications)
+            set_voice_combo_helper(self._voice_combo, value=rule.voice_notifications)
         voice_row.addWidget(self._voice_combo)
         voice_row.addStretch()
         action_layout.addLayout(voice_row)
@@ -309,21 +309,21 @@ class ComboRuleEditorDialog(QDialog):
         # Pre-populate conditions from existing rule
         if rule:
             for key, value in rule.conditions.items():
-                self._add_condition_row(key, value)
+                self._add_condition_row(preset_key=key, preset_value=value)
 
     def _on_duration_text_changed(self, text: str) -> None:
         self._duration_spin.setVisible(text == 'Manual')
 
+    def _on_add_condition_clicked(self) -> None:
+        self._add_condition_row()
+
     def _add_condition_row(
         self,
-        preset_key: str | bool | None = None,  # noqa: FBT001
-        preset_value: str | bool | list[str] | None = None,  # noqa: FBT001
+        *,
+        preset_key: str | None = None,
+        preset_value: str | bool | list[str] | None = None,
     ) -> None:
         """Add a new condition row with type selector and value widget."""
-        # Handle the case where the clicked signal passes a boolean 'checked' state
-        if isinstance(preset_key, bool):
-            preset_key = None
-
         if preset_key is None and self._condition_rows:
             # Validate existing conditions before adding a new row
             conditions = self._read_conditions()

@@ -9,7 +9,7 @@ enabled/disabled adapters appear and disappear in real time.
 import logging
 from dataclasses import dataclass, field
 from threading import Thread
-from typing import TYPE_CHECKING, Any, ClassVar, override
+from typing import TYPE_CHECKING, ClassVar, override
 
 from PySide6.QtCore import QItemSelectionModel, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QCloseEvent, QFont, QIcon, QResizeEvent, QShowEvent
@@ -189,9 +189,9 @@ class SafeQTableWidget(QTableWidget):
 class RefreshARPButton(QPushButton):
     """A QPushButton that contains a full-size overlay QLabel without using a layout."""
 
-    def __init__(self, *args: Any, **kwargs: Any) -> None:  # noqa: ANN401
+    def __init__(self, text: str = '', parent: QWidget | None = None) -> None:
         """Initialize the button and create the full-size transparent overlay label."""
-        super().__init__(*args, **kwargs)
+        super().__init__(text, parent)
         self.overlay_label = QLabel(self)
         self.overlay_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.overlay_label.setTextFormat(Qt.TextFormat.RichText)

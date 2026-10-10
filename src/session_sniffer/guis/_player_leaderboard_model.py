@@ -13,6 +13,7 @@ from PySide6.QtCore import (
 from PySide6.QtGui import QColor, QIcon
 
 from session_sniffer.constants.standard import LOCAL_TZ
+from session_sniffer.guis.tables_player_actions._format import format_bool
 from session_sniffer.guis.utils import load_country_flag_icon
 from session_sniffer.text_utils import pluralize
 
@@ -103,13 +104,6 @@ SEARCH_COLUMN_TO_INDEX: dict[str, int] = {
 def get_flag_icon(country_code: str) -> QIcon | None:
     """Return a cached QIcon for the given ISO country code, or None if unavailable."""
     return load_country_flag_icon(country_code) if country_code else None
-
-
-def format_bool(value: bool | None) -> str:  # noqa: FBT001
-    """Format an optional boolean for display."""
-    if value is None:
-        return 'N/A'
-    return 'Yes' if value else 'No'
 
 
 def format_datetime(dt: datetime | None) -> str:

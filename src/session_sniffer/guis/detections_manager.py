@@ -223,7 +223,7 @@ class DetectionsManagerDialog(UnsavedChangesMixin, DetectionsManagerTabsMixin, Q
             self.mobile_duration_spin,
             GUIDetectionSettings.mobile_suspend_duration if GUIDetectionSettings.mobile_suspend_enabled else 'Disabled',
         )
-        self._set_voice_combo(self.mobile_voice_combo, GUIDetectionSettings.mobile_voice_notifications)
+        self._set_voice_combo(self.mobile_voice_combo, value=GUIDetectionSettings.mobile_voice_notifications)
         self.mobile_logging_checkbox.setChecked(GUIDetectionSettings.mobile_logging)
         self.mobile_msgbox_checkbox.setChecked(GUIDetectionSettings.mobile_message_box)
 
@@ -233,7 +233,7 @@ class DetectionsManagerDialog(UnsavedChangesMixin, DetectionsManagerTabsMixin, Q
             self.vpn_duration_spin,
             GUIDetectionSettings.vpn_suspend_duration if GUIDetectionSettings.vpn_suspend_enabled else 'Disabled',
         )
-        self._set_voice_combo(self.vpn_voice_combo, GUIDetectionSettings.vpn_voice_notifications)
+        self._set_voice_combo(self.vpn_voice_combo, value=GUIDetectionSettings.vpn_voice_notifications)
         self.vpn_logging_checkbox.setChecked(GUIDetectionSettings.vpn_logging)
         self.vpn_msgbox_checkbox.setChecked(GUIDetectionSettings.vpn_message_box)
 
@@ -243,7 +243,7 @@ class DetectionsManagerDialog(UnsavedChangesMixin, DetectionsManagerTabsMixin, Q
             self.hosting_duration_spin,
             GUIDetectionSettings.hosting_suspend_duration if GUIDetectionSettings.hosting_suspend_enabled else 'Disabled',
         )
-        self._set_voice_combo(self.hosting_voice_combo, GUIDetectionSettings.hosting_voice_notifications)
+        self._set_voice_combo(self.hosting_voice_combo, value=GUIDetectionSettings.hosting_voice_notifications)
         self.hosting_logging_checkbox.setChecked(GUIDetectionSettings.hosting_logging)
         self.hosting_msgbox_checkbox.setChecked(GUIDetectionSettings.hosting_message_box)
 
@@ -259,7 +259,7 @@ class DetectionsManagerDialog(UnsavedChangesMixin, DetectionsManagerTabsMixin, Q
             self.country_duration_spin,
             GUIDetectionSettings.country_suspend_duration if GUIDetectionSettings.country_suspend_enabled else 'Disabled',
         )
-        self._set_voice_combo(self.country_voice_combo, GUIDetectionSettings.country_voice_notifications)
+        self._set_voice_combo(self.country_voice_combo, value=GUIDetectionSettings.country_voice_notifications)
         self.country_logging_checkbox.setChecked(GUIDetectionSettings.country_logging)
         self.country_msgbox_checkbox.setChecked(GUIDetectionSettings.country_message_box)
 
@@ -275,7 +275,7 @@ class DetectionsManagerDialog(UnsavedChangesMixin, DetectionsManagerTabsMixin, Q
             self.isp_duration_spin,
             GUIDetectionSettings.isp_suspend_duration if GUIDetectionSettings.isp_suspend_enabled else 'Disabled',
         )
-        self._set_voice_combo(self.isp_voice_combo, GUIDetectionSettings.isp_voice_notifications)
+        self._set_voice_combo(self.isp_voice_combo, value=GUIDetectionSettings.isp_voice_notifications)
         self.isp_logging_checkbox.setChecked(GUIDetectionSettings.isp_logging)
         self.isp_msgbox_checkbox.setChecked(GUIDetectionSettings.isp_message_box)
 
@@ -291,7 +291,7 @@ class DetectionsManagerDialog(UnsavedChangesMixin, DetectionsManagerTabsMixin, Q
             self.asn_duration_spin,
             GUIDetectionSettings.asn_suspend_duration if GUIDetectionSettings.asn_suspend_enabled else 'Disabled',
         )
-        self._set_voice_combo(self.asn_voice_combo, GUIDetectionSettings.asn_voice_notifications)
+        self._set_voice_combo(self.asn_voice_combo, value=GUIDetectionSettings.asn_voice_notifications)
         self.asn_logging_checkbox.setChecked(GUIDetectionSettings.asn_logging)
         self.asn_msgbox_checkbox.setChecked(GUIDetectionSettings.asn_message_box)
 
@@ -301,7 +301,7 @@ class DetectionsManagerDialog(UnsavedChangesMixin, DetectionsManagerTabsMixin, Q
             self.player_join_duration_spin,
             GUIDetectionSettings.player_join_duration if GUIDetectionSettings.player_join_enabled else 'Disabled',
         )
-        self._set_voice_combo(self.player_join_voice_combo, GUIDetectionSettings.player_join_voice_notifications)
+        self._set_voice_combo(self.player_join_voice_combo, value=GUIDetectionSettings.player_join_voice_notifications)
         self.player_join_logging_checkbox.setChecked(GUIDetectionSettings.player_join_logging)
         self.player_join_msgbox_checkbox.setChecked(GUIDetectionSettings.player_join_message_box)
 
@@ -311,7 +311,7 @@ class DetectionsManagerDialog(UnsavedChangesMixin, DetectionsManagerTabsMixin, Q
             self.player_rejoin_duration_spin,
             GUIDetectionSettings.player_rejoin_duration if GUIDetectionSettings.player_rejoin_enabled else 'Disabled',
         )
-        self._set_voice_combo(self.player_rejoin_voice_combo, GUIDetectionSettings.player_rejoin_voice_notifications)
+        self._set_voice_combo(self.player_rejoin_voice_combo, value=GUIDetectionSettings.player_rejoin_voice_notifications)
         self.player_rejoin_logging_checkbox.setChecked(GUIDetectionSettings.player_rejoin_logging)
         self.player_rejoin_msgbox_checkbox.setChecked(GUIDetectionSettings.player_rejoin_message_box)
 
@@ -321,7 +321,7 @@ class DetectionsManagerDialog(UnsavedChangesMixin, DetectionsManagerTabsMixin, Q
             self.player_leave_duration_spin,
             GUIDetectionSettings.player_leave_duration if GUIDetectionSettings.player_leave_enabled else 'Disabled',
         )
-        self._set_voice_combo(self.player_leave_voice_combo, GUIDetectionSettings.player_leave_voice_notifications)
+        self._set_voice_combo(self.player_leave_voice_combo, value=GUIDetectionSettings.player_leave_voice_notifications)
         self.player_leave_logging_checkbox.setChecked(GUIDetectionSettings.player_leave_logging)
         self.player_leave_msgbox_checkbox.setChecked(GUIDetectionSettings.player_leave_message_box)
 
@@ -333,7 +333,7 @@ class DetectionsManagerDialog(UnsavedChangesMixin, DetectionsManagerTabsMixin, Q
                 self.gta5_relay_duration_spin,
                 GUIDetectionSettings.gta5_relay_duration if GUIDetectionSettings.gta5_relay_enabled else 'Disabled',
             )
-            self._set_voice_combo(self.gta5_relay_voice_combo, GUIDetectionSettings.gta5_relay_voice_notifications)
+            self._set_voice_combo(self.gta5_relay_voice_combo, value=GUIDetectionSettings.gta5_relay_voice_notifications)
             self.gta5_relay_logging_checkbox.setChecked(GUIDetectionSettings.gta5_relay_logging)
             self.gta5_relay_msgbox_checkbox.setChecked(GUIDetectionSettings.gta5_relay_message_box)
 

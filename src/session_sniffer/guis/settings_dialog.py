@@ -5,7 +5,7 @@ from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING, cast, override
 
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import QSignalBlocker, Qt, QTimer
 from PySide6.QtGui import QAction, QColor, QIcon
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -861,11 +861,10 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
             available_connected = [col for col in Settings.GUI_ALL_CONNECTED_COLUMNS if col in checked_connected or col in Settings.GUI_FORCED_COLUMNS]
             current_selected = connected_sort_widget.currentText()
             target_selected = current_selected if current_selected in available_connected else 'Last Rejoin'
-            connected_sort_widget.blockSignals(True)  # noqa: FBT003
-            connected_sort_widget.clear()
-            connected_sort_widget.addItems(available_connected)
-            connected_sort_widget.setCurrentText(target_selected)
-            connected_sort_widget.blockSignals(False)  # noqa: FBT003
+            with QSignalBlocker(connected_sort_widget):
+                connected_sort_widget.clear()
+                connected_sort_widget.addItems(available_connected)
+                connected_sort_widget.setCurrentText(target_selected)
 
         disconnected_widget = self._widgets.get('gui_columns_disconnected_shown')
         disconnected_sort_widget = self._widgets.get('gui_disconnected_table_sort_column')
@@ -874,11 +873,10 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
             available_disconnected = [col for col in Settings.GUI_ALL_DISCONNECTED_COLUMNS if col in checked_disconnected or col in Settings.GUI_FORCED_COLUMNS]
             current_selected = disconnected_sort_widget.currentText()
             target_selected = current_selected if current_selected in available_disconnected else 'Last Seen'
-            disconnected_sort_widget.blockSignals(True)  # noqa: FBT003
-            disconnected_sort_widget.clear()
-            disconnected_sort_widget.addItems(available_disconnected)
-            disconnected_sort_widget.setCurrentText(target_selected)
-            disconnected_sort_widget.blockSignals(False)  # noqa: FBT003
+            with QSignalBlocker(disconnected_sort_widget):
+                disconnected_sort_widget.clear()
+                disconnected_sort_widget.addItems(available_disconnected)
+                disconnected_sort_widget.setCurrentText(target_selected)
 
     def _update_restart_notice(self, *_args: object) -> None:
         """Update visibility of the capture restart notice banner."""

@@ -7,7 +7,7 @@ from datetime import UTC, datetime, timedelta
 from ipaddress import IPv4Address
 from typing import TYPE_CHECKING, override
 
-from PySide6.QtCore import QItemSelectionModel, QModelIndex, QPoint, Qt, QUrl
+from PySide6.QtCore import QItemSelectionModel, QModelIndex, QPoint, QSignalBlocker, Qt, QUrl
 from PySide6.QtGui import (
     QAction,
     QDesktopServices,
@@ -337,12 +337,11 @@ class CsvLogTab(QWidget):
 
     def _rebuild_column_combo(self, headers: list[str]) -> None:
         """Rebuild the column filter combo box from actual file headers."""
-        self._column_combo.blockSignals(True)  # noqa: FBT003
-        self._column_combo.clear()
-        self._column_combo.addItem('All Columns', -1)
-        for i, header in enumerate(headers):
-            self._column_combo.addItem(header, i)
-        self._column_combo.blockSignals(False)  # noqa: FBT003
+        with QSignalBlocker(self._column_combo):
+            self._column_combo.clear()
+            self._column_combo.addItem('All Columns', -1)
+            for i, header in enumerate(headers):
+                self._column_combo.addItem(header, i)
 
     def _get_active_search_column(self) -> int:
         column_data = self._column_combo.currentData()

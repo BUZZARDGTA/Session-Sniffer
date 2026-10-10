@@ -3,7 +3,7 @@
 import re
 from typing import TYPE_CHECKING, cast, override
 
-from PySide6.QtCore import QRegularExpression, QSize, Qt
+from PySide6.QtCore import QRegularExpression, QSignalBlocker, QSize, Qt
 from PySide6.QtGui import QAction, QIcon, QRegularExpressionValidator
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -119,9 +119,8 @@ def create_text_widget(meta: SettingMeta) -> QLineEdit:
             formatted = ':'.join(hex_only[i : i + 2] for i in range(0, len(hex_only), 2))
             if formatted == text:
                 return
-            widget.blockSignals(True)  # noqa: FBT003
-            widget.setText(formatted)
-            widget.blockSignals(False)  # noqa: FBT003
+            with QSignalBlocker(widget):
+                widget.setText(formatted)
             new_pos = len(formatted)
             hex_count = 0
             for i, char in enumerate(formatted):
@@ -142,9 +141,8 @@ def create_text_widget(meta: SettingMeta) -> QLineEdit:
             filtered = ''.join(_rx.findall(text))
             if filtered == text:
                 return
-            _le.blockSignals(True)  # noqa: FBT003
-            _le.setText(filtered)
-            _le.blockSignals(False)  # noqa: FBT003
+            with QSignalBlocker(_le):
+                _le.setText(filtered)
 
         le.textEdited.connect(_filter_chars)
     tooltip = format_setting_tooltip(meta)
@@ -684,9 +682,8 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
             checked_ranges = {range_name for range_name, checkbox in checkboxes.items() if checkbox.isChecked()}
             for preset_name, preset_set in presets_map.items():
                 is_active = preset_set.issubset(checked_ranges)
-                preset_checkboxes[preset_name].blockSignals(True)  # noqa: FBT003
-                preset_checkboxes[preset_name].setChecked(is_active)
-                preset_checkboxes[preset_name].blockSignals(False)  # noqa: FBT003
+                with QSignalBlocker(preset_checkboxes[preset_name]):
+                    preset_checkboxes[preset_name].setChecked(is_active)
         finally:
             is_updating = False
 
@@ -700,22 +697,19 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
             if checked:
                 for rname in preset_set:
                     if rname in checkboxes:
-                        checkboxes[rname].blockSignals(True)  # noqa: FBT003
-                        checkboxes[rname].setChecked(True)
-                        checkboxes[rname].blockSignals(False)  # noqa: FBT003
+                        with QSignalBlocker(checkboxes[rname]):
+                            checkboxes[rname].setChecked(True)
             else:
                 for rname in preset_set:
                     if rname in checkboxes:
-                        checkboxes[rname].blockSignals(True)  # noqa: FBT003
-                        checkboxes[rname].setChecked(False)
-                        checkboxes[rname].blockSignals(False)  # noqa: FBT003
+                        with QSignalBlocker(checkboxes[rname]):
+                            checkboxes[rname].setChecked(False)
 
             checked_ranges = {range_name for range_name, checkbox in checkboxes.items() if checkbox.isChecked()}
             for other_name, other_set in presets_map.items():
                 is_active = other_set.issubset(checked_ranges)
-                preset_checkboxes[other_name].blockSignals(True)  # noqa: FBT003
-                preset_checkboxes[other_name].setChecked(is_active)
-                preset_checkboxes[other_name].blockSignals(False)  # noqa: FBT003
+                with QSignalBlocker(preset_checkboxes[other_name]):
+                    preset_checkboxes[other_name].setChecked(is_active)
         finally:
             is_updating = False
 
@@ -730,15 +724,13 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
         is_updating = True
         try:
             for checkbox in preset_checkboxes.values():
-                checkbox.blockSignals(True)  # noqa: FBT003
-                checkbox.setChecked(True)
-                checkbox.blockSignals(False)  # noqa: FBT003
+                with QSignalBlocker(checkbox):
+                    checkbox.setChecked(True)
             for preset_set in presets_map.values():
                 for rname in preset_set:
                     if rname in checkboxes:
-                        checkboxes[rname].blockSignals(True)  # noqa: FBT003
-                        checkboxes[rname].setChecked(True)
-                        checkboxes[rname].blockSignals(False)  # noqa: FBT003
+                        with QSignalBlocker(checkboxes[rname]):
+                            checkboxes[rname].setChecked(True)
         finally:
             is_updating = False
         update_presets_from_ranges()
@@ -748,15 +740,13 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
         is_updating = True
         try:
             for checkbox in preset_checkboxes.values():
-                checkbox.blockSignals(True)  # noqa: FBT003
-                checkbox.setChecked(False)
-                checkbox.blockSignals(False)  # noqa: FBT003
+                with QSignalBlocker(checkbox):
+                    checkbox.setChecked(False)
             for preset_set in presets_map.values():
                 for rname in preset_set:
                     if rname in checkboxes:
-                        checkboxes[rname].blockSignals(True)  # noqa: FBT003
-                        checkboxes[rname].setChecked(False)
-                        checkboxes[rname].blockSignals(False)  # noqa: FBT003
+                        with QSignalBlocker(checkboxes[rname]):
+                            checkboxes[rname].setChecked(False)
         finally:
             is_updating = False
         update_presets_from_ranges()

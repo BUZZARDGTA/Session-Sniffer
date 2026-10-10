@@ -82,8 +82,8 @@ class EntriesContextMenuMixin(QDialog):
 
     def _move_rows(self, proxy_index: QModelIndex, direction: int) -> None: ...  # pylint: disable=unused-argument
 
-    def _get_row_entry_value(self, row: int) -> str:  # pylint: disable=unused-argument  # noqa: ARG002
-        return ''
+    def _get_row_entry_value(self, row: int) -> str:
+        raise NotImplementedError
 
     def _load_database(self, path: Path) -> None: ...  # pylint: disable=unused-argument
 

@@ -46,7 +46,7 @@ if TYPE_CHECKING:
     from session_sniffer.settings import SettingMeta
 
 
-def _bool_badge(value: bool, true_text: str, false_text: str) -> str:  # noqa: FBT001
+def _bool_badge(*, value: bool, true_text: str, false_text: str) -> str:
     """Return an HTML-coloured badge string: green for `True`, red for `False`."""
     if value:
         return f'<span style="color:#4ade80; font-size:10.5pt; font-weight:600;">{true_text}</span>'
@@ -220,8 +220,8 @@ class SettingsDialogLookyMixin(QDialog):
                     widget.deleteLater()
 
         self._looky_account_sensitive_widgets.clear()
-        username_widget = SensitiveValueWidget(data.userData.username)
-        rid_widget = SensitiveValueWidget(str(data.userData.rid))
+        username_widget = SensitiveValueWidget(data.user_data.username)
+        rid_widget = SensitiveValueWidget(str(data.user_data.rid))
         self._looky_account_sensitive_widgets.extend([username_widget, rid_widget])
 
         # Row 0: Username & API Access (aligned on the exact same horizontal line)
@@ -229,7 +229,7 @@ class SettingsDialogLookyMixin(QDialog):
         self._looky_card_grid.addWidget(username_widget, 0, 1, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         self._looky_card_grid.addWidget(self._make_card_label('API Access'), 0, 3, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self._looky_card_grid.addWidget(
-            self._make_card_value(_bool_badge(data.userData.apiAccess, 'Enabled', 'Disabled')),
+            self._make_card_value(_bool_badge(value=data.user_data.api_access, true_text='Enabled', false_text='Disabled')),
             0,
             4,
             Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
@@ -240,7 +240,7 @@ class SettingsDialogLookyMixin(QDialog):
         self._looky_card_grid.addWidget(rid_widget, 1, 1, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         self._looky_card_grid.addWidget(self._make_card_label('Status'), 1, 3, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self._looky_card_grid.addWidget(
-            self._make_card_value(_bool_badge(data.userData.status, 'Active', 'Inactive')),
+            self._make_card_value(_bool_badge(value=data.user_data.status, true_text='Active', false_text='Inactive')),
             1,
             4,
             Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,

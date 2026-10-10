@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-from PySide6.QtCore import QFileSystemWatcher, QItemSelectionModel, QModelIndex, Qt, QTimer
+from PySide6.QtCore import QFileSystemWatcher, QItemSelectionModel, QModelIndex, QSignalBlocker, Qt, QTimer
 from PySide6.QtGui import QColor, QStandardItem, QStandardItemModel
 from PySide6.QtWidgets import (
     QDialog,
@@ -426,14 +426,11 @@ class UserIPEntriesOperationsMixin(QDialog):
                 if old_username and entry_ip_or_range:
                     rows_by_database[Path(database_path_str)].append((row, old_username, entry_ip_or_range))
 
-            self._fs_watcher.blockSignals(True)  # noqa: FBT003
-            try:
+            with QSignalBlocker(self._fs_watcher):
                 for database_path, entries in rows_by_database.items():
                     if database_path.is_file():
                         rename_pairs = [(old_name, ip_value) for _, old_name, ip_value in entries]
                         rewrite_db_rename_entries(database_path, rename_pairs, new_username)
-            finally:
-                self._fs_watcher.blockSignals(False)  # noqa: FBT003
             self._rebuild_fs_watch()
 
             for row in source_rows:
@@ -612,101 +609,100 @@ class UserIPEntriesOperationsMixin(QDialog):
 
         self._saving = True
         self._fs_sync_timer.stop()
-        self._fs_watcher.blockSignals(True)  # noqa: FBT003
         try:
-            # Commit and close any active delegate editor before inspecting entries
-            self._entries_table.setCurrentIndex(QModelIndex())
-            self._entries_table.clearFocus()
+            with QSignalBlocker(self._fs_watcher):
+                # Commit and close any active delegate editor before inspecting entries
+                self._entries_table.setCurrentIndex(QModelIndex())
+                self._entries_table.clearFocus()
 
-            # --- Validate all entries ---
-            errors: list[str] = []
-            entries: list[tuple[str, str, bool]] = []
+                # --- Validate all entries ---
+                errors: list[str] = []
+                entries: list[tuple[str, str, bool]] = []
 
-            for row in range(self._model.rowCount()):
-                username_item = self._model.item(row, USERNAME_COLUMN)
-                if not username_item:
-                    continue
+                for row in range(self._model.rowCount()):
+                    username_item = self._model.item(row, USERNAME_COLUMN)
+                    if not username_item:
+                        continue
 
-                username = username_item.text().strip()
-                ip = self._get_row_entry_value(row)
+                    username = username_item.text().strip()
+                    ip = self._get_row_entry_value(row)
 
-                if not username and not ip:
-                    continue  # skip completely empty rows
+                    if not username and not ip:
+                        continue  # skip completely empty rows
 
-                if not username:
-                    errors.append(f'Row {row + 1}: Username is empty.')
-                if not ip:
-                    errors.append(f'Row {row + 1}: IP or Range is empty.')
-                elif not is_valid_ip_range_entry(ip):
-                    errors.append(f'Row {row + 1}: "{ip}" is not a valid IP address or range.')
+                    if not username:
+                        errors.append(f'Row {row + 1}: Username is empty.')
+                    if not ip:
+                        errors.append(f'Row {row + 1}: IP or Range is empty.')
+                    elif not is_valid_ip_range_entry(ip):
+                        errors.append(f'Row {row + 1}: "{ip}" is not a valid IP address or range.')
 
-                if username and ip:
-                    is_looky = bool(username_item.data(Qt.ItemDataRole.UserRole))
-                    entries.append((username, ip, is_looky))
+                    if username and ip:
+                        is_looky = bool(username_item.data(Qt.ItemDataRole.UserRole))
+                        entries.append((username, ip, is_looky))
 
-            if errors:
-                QMessageBox.critical(self, TITLE, '\n'.join(errors))
-                return
+                if errors:
+                    QMessageBox.critical(self, TITLE, '\n'.join(errors))
+                    return
 
-            # --- Deduplicate exact (username, ip) pairs ---
-            seen: set[tuple[str, str]] = set()
-            unique_entries: list[tuple[str, str, bool]] = []
-            duplicate_count = 0
-            for entry in entries:
-                base_entry = (entry[0], entry[1])
-                if base_entry in seen:
-                    duplicate_count += 1
-                    continue
-                seen.add(base_entry)
-                unique_entries.append(entry)
-            entries = unique_entries
+                # --- Deduplicate exact (username, ip) pairs ---
+                seen: set[tuple[str, str]] = set()
+                unique_entries: list[tuple[str, str, bool]] = []
+                duplicate_count = 0
+                for entry in entries:
+                    base_entry = (entry[0], entry[1])
+                    if base_entry in seen:
+                        duplicate_count += 1
+                        continue
+                    seen.add(base_entry)
+                    unique_entries.append(entry)
+                entries = unique_entries
 
-            if duplicate_count > 0:
-                QMessageBox.information(
-                    self,
-                    TITLE,
-                    f'{duplicate_count} exact duplicate entr{"y was" if duplicate_count == 1 else "ies were"} removed before saving.',
-                )
+                if duplicate_count > 0:
+                    QMessageBox.information(
+                        self,
+                        TITLE,
+                        f'{duplicate_count} exact duplicate entr{"y was" if duplicate_count == 1 else "ies were"} removed before saving.',
+                    )
 
-            # --- Read existing file to preserve header ---
-            header_lines, _ = read_preserved_sections(self._current_path)
+                # --- Read existing file to preserve header ---
+                header_lines, _ = read_preserved_sections(self._current_path)
 
-            # --- Build settings from widgets ---
-            settings_values = self.read_settings_from_widgets()
+                # --- Build settings from widgets ---
+                settings_values = self.read_settings_from_widgets()
 
-            # --- Validate COLOR ---
-            color_value = settings_values.get('COLOR', '')
-            if color_value and not QColor(color_value).isValid():
-                QMessageBox.critical(self, TITLE, f'Invalid color value: "{color_value}"\n\nUse a Qt color name (e.g. RED, GREEN) or hex (e.g. #ff00ff).')
-                return
+                # --- Validate COLOR ---
+                color_value = settings_values.get('COLOR', '')
+                if color_value and not QColor(color_value).isValid():
+                    QMessageBox.critical(self, TITLE, f'Invalid color value: "{color_value}"\n\nUse a Qt color name (e.g. RED, GREEN) or hex (e.g. #ff00ff).')
+                    return
 
-            # --- Build new file content ---
-            output_lines: list[str] = [*header_lines]
+                # --- Build new file content ---
+                output_lines: list[str] = [*header_lines]
 
-            output_lines.append('[Settings]')
-            output_lines.extend(f'{key}={settings_values.get(key, SETTINGS_DEFAULTS[key])}' for key in SETTINGS_KEYS_ORDER)
-            output_lines.append('')
+                output_lines.append('[Settings]')
+                output_lines.extend(f'{key}={settings_values.get(key, SETTINGS_DEFAULTS[key])}' for key in SETTINGS_KEYS_ORDER)
+                output_lines.append('')
 
-            output_lines.append('[UserIP]')
-            for username, ip, is_looky in entries:
-                suffix = ' ; looky' if is_looky else ''
-                output_lines.append(f'{username}={ip}{suffix}')
-            output_lines.append('')  # trailing newline
+                output_lines.append('[UserIP]')
+                for username, ip, is_looky in entries:
+                    suffix = ' ; looky' if is_looky else ''
+                    output_lines.append(f'{username}={ip}{suffix}')
+                output_lines.append('')  # trailing newline
 
-            written_content = '\r\n'.join(output_lines)
-            self._current_path.write_text(written_content, encoding='utf-8', newline='')
-            self._disk_snapshot = self._current_path.read_text('utf-8')
+                written_content = '\r\n'.join(output_lines)
+                self._current_path.write_text(written_content, encoding='utf-8', newline='')
+                self._disk_snapshot = self._current_path.read_text('utf-8')
 
-            self._settings_snapshot = settings_values.copy()
-            self._clear_dirty_state()
-            self._update_file_info(self._current_path)
-            self._set_status(f'Saved {len(entries)} entries to {self._current_path.name}')
-            self._refresh_stats()
-            self._rebuild_fs_watch()
-            if duplicate_count > 0:
-                self._load_database(self._current_path)
+                self._settings_snapshot = settings_values.copy()
+                self._clear_dirty_state()
+                self._update_file_info(self._current_path)
+                self._set_status(f'Saved {len(entries)} entries to {self._current_path.name}')
+                self._refresh_stats()
+                self._rebuild_fs_watch()
+                if duplicate_count > 0:
+                    self._load_database(self._current_path)
         finally:
-            self._fs_watcher.blockSignals(False)  # noqa: FBT003
             self._saving = False
 
     # ------------------------------------------------------------------
@@ -739,8 +735,7 @@ class UserIPEntriesOperationsMixin(QDialog):
             else:
                 seen[key] = row
 
-        self._model.blockSignals(True)  # noqa: FBT003
-        try:
+        with QSignalBlocker(self._model):
             for row in range(self._model.rowCount()):
                 for column in range(DATABASE_COLUMN):
                     item = self._model.item(row, column)
@@ -750,8 +745,6 @@ class UserIPEntriesOperationsMixin(QDialog):
                         item.setBackground(DUPLICATE_HIGHLIGHT_BRUSH)
                     else:
                         item.setData(None, Qt.ItemDataRole.BackgroundRole)
-        finally:
-            self._model.blockSignals(False)  # noqa: FBT003
 
         return len(duplicate_rows)
 

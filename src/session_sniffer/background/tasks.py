@@ -6,6 +6,9 @@ import shutil
 import subprocess
 import sys
 import time
+
+if sys.platform == 'win32':
+    import winsound
 from collections import deque
 from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass
@@ -217,7 +220,6 @@ def _voice_notification_worker() -> None:
 
             try:
                 if sys.platform == 'win32':
-                    import winsound  # noqa: PLC0415  # pylint: disable=import-outside-toplevel
                     try:
                         if not Path(wav_path).is_file():
                             logger.warning('Voice notification file not found: %s', wav_path)
@@ -245,7 +247,7 @@ def clear_detection_voice_notifications() -> None:
     _voice_notification_queue.remove_matching(lambda path: 'detection' in Path(path).parts)
 
 
-def _tts_voice_name(voice_setting: Literal['Male', 'Female'] | bool) -> Literal['Liam', 'Jane']:  # noqa: FBT001
+def _tts_voice_name(*, voice_setting: Literal['Male', 'Female'] | bool) -> Literal['Liam', 'Jane']:
     """Map a voice-notification setting to its TTS folder name (`Liam` for Male, `Jane` otherwise)."""
     return 'Liam' if voice_setting == 'Male' else 'Jane'
 
@@ -415,7 +417,7 @@ def handle_detection_notification(
 
             # Voice notification (queued, plays sequentially through VoiceNotificationWorker)
             if Settings.voice_notifications_enabled and voice_setting:
-                tts_candidate_path = TTS_DIR_PATH / _tts_voice_name(voice_setting) / 'event' / f'{notification_type}.wav'
+                tts_candidate_path = TTS_DIR_PATH / _tts_voice_name(voice_setting=voice_setting) / 'event' / f'{notification_type}.wav'
                 _voice_notification_queue.put(str(tts_candidate_path))
 
             data_ready = wait_for_player_data_ready(player, data_fields=('reverse_dns.hostname', 'iplookup.geolite2', 'iplookup.ipapi'), timeout=3.0)
@@ -469,7 +471,7 @@ def handle_detection_notification(
 
                 # Voice notification
                 if Settings.voice_notifications_enabled and rule.voice_notifications:
-                    tts_candidate_path = TTS_DIR_PATH / _tts_voice_name(rule.voice_notifications) / 'detection' / 'combo_rule_detected.wav'
+                    tts_candidate_path = TTS_DIR_PATH / _tts_voice_name(voice_setting=rule.voice_notifications) / 'detection' / 'combo_rule_detected.wav'
                     _voice_notification_queue.put(str(tts_candidate_path))
 
                 # Logging
@@ -543,7 +545,7 @@ def process_userip_task(
             )
 
         if Settings.voice_notifications_enabled and userip.settings.voice_notifications:
-            tts_candidate_path = TTS_DIR_PATH / _tts_voice_name(userip.settings.voice_notifications) / 'userip' / f'{connection_type}.wav'
+            tts_candidate_path = TTS_DIR_PATH / _tts_voice_name(voice_setting=userip.settings.voice_notifications) / 'userip' / f'{connection_type}.wav'
             _voice_notification_queue.put(str(tts_candidate_path))
 
         if player.userip is None:
@@ -661,7 +663,9 @@ def monitor_gta5_relay_task(player: Player) -> None:
     wait_for_player_data_ready(player, data_fields=('reverse_dns.hostname', 'iplookup.geolite2', 'iplookup.ipapi'), timeout=10.0)
 
     if Settings.voice_notifications_enabled and GUIDetectionSettings.gta5_relay_voice_notifications:
-        tts_candidate_path = TTS_DIR_PATH / _tts_voice_name(GUIDetectionSettings.gta5_relay_voice_notifications) / 'detection' / 'gta5_relay_detected.wav'
+        tts_candidate_path = (
+            TTS_DIR_PATH / _tts_voice_name(voice_setting=GUIDetectionSettings.gta5_relay_voice_notifications) / 'detection' / 'gta5_relay_detected.wav'
+        )
         _voice_notification_queue.put(str(tts_candidate_path))
 
     if GUIDetectionSettings.gta5_relay_logging:
@@ -720,7 +724,7 @@ def check_global_detections(player: Player) -> None:
     ) -> None:
         """Handle voice, logging, and message box for a detection."""
         if Settings.voice_notifications_enabled and settings.voice:
-            tts_candidate_path = TTS_DIR_PATH / _tts_voice_name(settings.voice) / 'detection' / f'{settings.tts_filename}.wav'
+            tts_candidate_path = TTS_DIR_PATH / _tts_voice_name(voice_setting=settings.voice) / 'detection' / f'{settings.tts_filename}.wav'
             _voice_notification_queue.put(str(tts_candidate_path))
 
         if settings.log:

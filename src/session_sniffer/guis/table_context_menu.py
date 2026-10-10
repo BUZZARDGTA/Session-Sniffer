@@ -1,7 +1,7 @@
 """Provides a manager for standard QTableWidget context menus."""
 
 import functools
-from typing import TYPE_CHECKING, Any, override
+from typing import TYPE_CHECKING, override
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction, QIcon, QKeySequence, QResizeEvent, QShortcut, QShowEvent
@@ -72,15 +72,15 @@ def extract_ip_addresses_from_table_selection(table: QTableWidget) -> list[str]:
     return ip_addresses
 
 
-def skip_if_menu_open(func: Callable[..., Any]) -> Callable[..., Any]:
+def skip_if_menu_open[**P, R](func: Callable[P, R]) -> Callable[P, R | None]:
     """Decorator that skips the method if the instance's context menu is currently open."""
 
     @functools.wraps(func)
-    def wrapper(self: Any, *args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
-        # pylint: disable=protected-access
-        if getattr(self, '_context_menu_manager', None) and self._context_menu_manager.is_menu_open():
+    def wrapper(*args: P.args, **kwargs: P.kwargs) -> R | None:
+        menu_manager = getattr(args[0], '_context_menu_manager', None) if args else None
+        if menu_manager is not None and menu_manager.is_menu_open():
             return None
-        return func(self, *args, **kwargs)
+        return func(*args, **kwargs)
 
     return wrapper
 
