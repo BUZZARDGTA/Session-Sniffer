@@ -444,232 +444,212 @@ class IcmpEchoEngine:
         )
 
 
-class TcpPortProbeEngine:  # pylint: disable=too-few-public-methods
-    """TCP port connectivity probe using standard Python sockets."""
+def probe_tcp_port(
+    target_ip: str,
+    port: int,
+    *,
+    timeout_seconds: float = 2.0,
+    sequence: int = 1,
+) -> PingProbeResult:
+    """Attempt a single TCP connection to target_ip:port using standard Python sockets."""
+    start_time = time.perf_counter()
+    tcp_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    tcp_socket.settimeout(timeout_seconds)
 
-    @staticmethod
-    def probe(
-        target_ip: str,
-        port: int,
-        *,
-        timeout_seconds: float = 2.0,
-        sequence: int = 1,
-    ) -> PingProbeResult:
-        """Attempt a single TCP connection to target_ip:port."""
-        start_time = time.perf_counter()
-        tcp_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        tcp_socket.settimeout(timeout_seconds)
+    try:
+        tcp_socket.connect((target_ip, port))
+        round_trip_time_ms = (time.perf_counter() - start_time) * 1000.0
+        return PingProbeResult(
+            sequence=sequence,
+            target_host=target_ip,
+            target_ip=target_ip,
+            port=port,
+            is_successful=True,
+            round_trip_time_ms=round_trip_time_ms,
+            time_to_live=None,
+            status_message='Connected',
+        )
+    except TimeoutError:
+        return PingProbeResult(
+            sequence=sequence,
+            target_host=target_ip,
+            target_ip=target_ip,
+            port=port,
+            is_successful=False,
+            round_trip_time_ms=None,
+            time_to_live=None,
+            status_message='Connection timed out',
+        )
+    except ConnectionRefusedError:
+        return PingProbeResult(
+            sequence=sequence,
+            target_host=target_ip,
+            target_ip=target_ip,
+            port=port,
+            is_successful=False,
+            round_trip_time_ms=None,
+            time_to_live=None,
+            status_message='Connection refused (Port closed)',
+        )
+    except OSError as e:
+        return PingProbeResult(
+            sequence=sequence,
+            target_host=target_ip,
+            target_ip=target_ip,
+            port=port,
+            is_successful=False,
+            round_trip_time_ms=None,
+            time_to_live=None,
+            status_message=str(e),
+        )
+    finally:
+        tcp_socket.close()
 
-        try:
-            tcp_socket.connect((target_ip, port))
-            round_trip_time_ms = (time.perf_counter() - start_time) * 1000.0
-            return PingProbeResult(
-                sequence=sequence,
-                target_host=target_ip,
-                target_ip=target_ip,
-                port=port,
-                is_successful=True,
-                round_trip_time_ms=round_trip_time_ms,
-                time_to_live=None,
-                status_message='Connected',
+
+def probe_udp_port(
+    target_ip: str,
+    port: int,
+    *,
+    timeout_seconds: float = 2.0,
+    sequence: int = 1,
+    payload_size: int = 32,
+) -> PingProbeResult:
+    """Attempt a single UDP probe to target_ip:port using a connected datagram socket."""
+    payload_data = b'x' * max(0, payload_size)
+    payload_bytes = len(payload_data)
+    start_time = time.perf_counter()
+    udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    udp_socket.settimeout(timeout_seconds)
+
+    try:
+        udp_socket.connect((target_ip, port))
+        udp_socket.send(payload_data)
+        data, _ = udp_socket.recvfrom(1024)
+        round_trip_time_ms = (time.perf_counter() - start_time) * 1000.0
+        return PingProbeResult(
+            sequence=sequence,
+            target_host=target_ip,
+            target_ip=target_ip,
+            port=port,
+            is_successful=True,
+            round_trip_time_ms=round_trip_time_ms,
+            time_to_live=None,
+            status_message=f'Reply received ({len(data)} bytes)',
+            payload_bytes=payload_bytes,
+        )
+    except (ConnectionResetError, ConnectionRefusedError):
+        round_trip_time_ms = (time.perf_counter() - start_time) * 1000.0
+        return PingProbeResult(
+            sequence=sequence,
+            target_host=target_ip,
+            target_ip=target_ip,
+            port=port,
+            is_successful=True,
+            round_trip_time_ms=round_trip_time_ms,
+            time_to_live=None,
+            status_message='Port closed (Host reached)',
+            payload_bytes=payload_bytes,
+        )
+    except TimeoutError:
+        return PingProbeResult(
+            sequence=sequence,
+            target_host=target_ip,
+            target_ip=target_ip,
+            port=port,
+            is_successful=False,
+            round_trip_time_ms=None,
+            time_to_live=None,
+            status_message='Request timed out (Open/filtered)',
+            payload_bytes=payload_bytes,
+        )
+    except OSError as e:
+        return PingProbeResult(
+            sequence=sequence,
+            target_host=target_ip,
+            target_ip=target_ip,
+            port=port,
+            is_successful=False,
+            round_trip_time_ms=None,
+            time_to_live=None,
+            status_message=str(e),
+            payload_bytes=payload_bytes,
+        )
+    finally:
+        udp_socket.close()
+
+
+_CHECK_HOST_API: Final = 'https://check-host.net'
+_CHECK_HOST_MIN_NODE_INFO_LENGTH_FOR_CITY: Final = 2
+_CHECK_HOST_MIN_HOP_FIELDS: Final = 2
+
+
+def probe_check_host(target_ip: str, *, sequence: int = 1) -> list[PingProbeResult]:
+    """Request and retrieve remote multi-vantage ping results from Check-Host.net nodes."""
+    results: list[PingProbeResult] = []
+    try:
+        request_response = session.get(
+            f'{_CHECK_HOST_API}/check-ping?host={target_ip}',
+            headers={'Accept': 'application/json'},
+            timeout=10,
+        )
+        request_response.raise_for_status()
+        request_data = cast('dict[str, object]', request_response.json())
+        request_id = request_data.get('request_id')
+        nodes = cast('dict[str, list[str]] | None', request_data.get('nodes'))
+
+        if not isinstance(request_id, str) or nodes is None or not nodes:
+            results.append(
+                PingProbeResult(
+                    sequence=sequence,
+                    target_host=target_ip,
+                    target_ip=target_ip,
+                    port=None,
+                    is_successful=False,
+                    round_trip_time_ms=None,
+                    time_to_live=None,
+                    status_message='Failed to initiate check-ping request',
+                ),
             )
-        except TimeoutError:
-            return PingProbeResult(
-                sequence=sequence,
-                target_host=target_ip,
-                target_ip=target_ip,
-                port=port,
-                is_successful=False,
-                round_trip_time_ms=None,
-                time_to_live=None,
-                status_message='Connection timed out',
-            )
-        except ConnectionRefusedError:
-            return PingProbeResult(
-                sequence=sequence,
-                target_host=target_ip,
-                target_ip=target_ip,
-                port=port,
-                is_successful=False,
-                round_trip_time_ms=None,
-                time_to_live=None,
-                status_message='Connection refused (Port closed)',
-            )
-        except OSError as e:
-            return PingProbeResult(
-                sequence=sequence,
-                target_host=target_ip,
-                target_ip=target_ip,
-                port=port,
-                is_successful=False,
-                round_trip_time_ms=None,
-                time_to_live=None,
-                status_message=str(e),
-            )
-        finally:
-            tcp_socket.close()
+            return results
 
+        # Poll for results
+        time.sleep(4.0)
+        result_response = session.get(
+            f'{_CHECK_HOST_API}/check-result/{request_id}',
+            headers={'Accept': 'application/json'},
+            timeout=10,
+        )
+        result_response.raise_for_status()
+        result_data = cast('dict[str, object]', result_response.json())
 
-class UdpPortProbeEngine:  # pylint: disable=too-few-public-methods
-    """UDP port reachability and latency probe using connected datagram sockets."""
+        for node_name, node_info in nodes.items():
+            country = node_info[1] if len(node_info) > 1 else 'Unknown'
+            city = node_info[2] if len(node_info) > _CHECK_HOST_MIN_NODE_INFO_LENGTH_FOR_CITY else ''
+            node_label = f'{country} ({city})' if city else country
 
-    @staticmethod
-    def probe(
-        target_ip: str,
-        port: int,
-        *,
-        timeout_seconds: float = 2.0,
-        sequence: int = 1,
-        payload_size: int = 32,
-    ) -> PingProbeResult:
-        """Attempt a single UDP probe to target_ip:port."""
-        payload_data = b'x' * max(0, payload_size)
-        payload_bytes = len(payload_data)
-        start_time = time.perf_counter()
-        udp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        udp_socket.settimeout(timeout_seconds)
+            node_result = result_data.get(node_name)
+            if isinstance(node_result, list) and node_result and isinstance(node_result[0], list):
+                sample_hops = cast('list[list[object]]', node_result[0])
+                successful_rtts = [
+                    float(hop[1]) * 1000.0
+                    for hop in sample_hops
+                    if len(hop) >= _CHECK_HOST_MIN_HOP_FIELDS and hop[0] == 'OK' and isinstance(hop[1], (float, int))
+                ]
 
-        try:
-            udp_socket.connect((target_ip, port))
-            udp_socket.send(payload_data)
-            data, _ = udp_socket.recvfrom(1024)
-            round_trip_time_ms = (time.perf_counter() - start_time) * 1000.0
-            return PingProbeResult(
-                sequence=sequence,
-                target_host=target_ip,
-                target_ip=target_ip,
-                port=port,
-                is_successful=True,
-                round_trip_time_ms=round_trip_time_ms,
-                time_to_live=None,
-                status_message=f'Reply received ({len(data)} bytes)',
-                payload_bytes=payload_bytes,
-            )
-        except (ConnectionResetError, ConnectionRefusedError):
-            round_trip_time_ms = (time.perf_counter() - start_time) * 1000.0
-            return PingProbeResult(
-                sequence=sequence,
-                target_host=target_ip,
-                target_ip=target_ip,
-                port=port,
-                is_successful=True,
-                round_trip_time_ms=round_trip_time_ms,
-                time_to_live=None,
-                status_message='Port closed (Host reached)',
-                payload_bytes=payload_bytes,
-            )
-        except TimeoutError:
-            return PingProbeResult(
-                sequence=sequence,
-                target_host=target_ip,
-                target_ip=target_ip,
-                port=port,
-                is_successful=False,
-                round_trip_time_ms=None,
-                time_to_live=None,
-                status_message='Request timed out (Open/filtered)',
-                payload_bytes=payload_bytes,
-            )
-        except OSError as e:
-            return PingProbeResult(
-                sequence=sequence,
-                target_host=target_ip,
-                target_ip=target_ip,
-                port=port,
-                is_successful=False,
-                round_trip_time_ms=None,
-                time_to_live=None,
-                status_message=str(e),
-                payload_bytes=payload_bytes,
-            )
-        finally:
-            udp_socket.close()
-
-
-class CheckHostPingEngine:  # pylint: disable=too-few-public-methods
-    """Remote multi-vantage ping probe using the Check-Host.net API."""
-
-    CHECK_HOST_API: Final = 'https://check-host.net'
-    MIN_NODE_INFO_LENGTH_FOR_CITY: Final = 2
-    MIN_HOP_FIELDS: Final = 2
-
-    @classmethod
-    def probe(cls, target_ip: str, *, sequence: int = 1) -> list[PingProbeResult]:
-        """Request and retrieve ping results from Check-Host.net nodes."""
-        results: list[PingProbeResult] = []
-        try:
-            request_response = session.get(
-                f'{cls.CHECK_HOST_API}/check-ping?host={target_ip}',
-                headers={'Accept': 'application/json'},
-                timeout=10,
-            )
-            request_response.raise_for_status()
-            request_data = cast('dict[str, object]', request_response.json())
-            request_id = request_data.get('request_id')
-            nodes = cast('dict[str, list[str]] | None', request_data.get('nodes'))
-
-            if not isinstance(request_id, str) or nodes is None or not nodes:
-                results.append(
-                    PingProbeResult(
-                        sequence=sequence,
-                        target_host=target_ip,
-                        target_ip=target_ip,
-                        port=None,
-                        is_successful=False,
-                        round_trip_time_ms=None,
-                        time_to_live=None,
-                        status_message='Failed to initiate check-ping request',
-                    ),
-                )
-                return results
-
-            # Poll for results
-            time.sleep(4.0)
-            result_response = session.get(
-                f'{cls.CHECK_HOST_API}/check-result/{request_id}',
-                headers={'Accept': 'application/json'},
-                timeout=10,
-            )
-            result_response.raise_for_status()
-            result_data = cast('dict[str, object]', result_response.json())
-
-            for node_name, node_info in nodes.items():
-                country = node_info[1] if len(node_info) > 1 else 'Unknown'
-                city = node_info[2] if len(node_info) > cls.MIN_NODE_INFO_LENGTH_FOR_CITY else ''
-                node_label = f'{country} ({city})' if city else country
-
-                node_result = result_data.get(node_name)
-                if isinstance(node_result, list) and node_result and isinstance(node_result[0], list):
-                    sample_hops = cast('list[list[object]]', node_result[0])
-                    successful_rtts = [float(hop[1]) * 1000.0 for hop in sample_hops if len(hop) >= cls.MIN_HOP_FIELDS and hop[0] == 'OK' and isinstance(hop[1], (float, int))]
-
-                    if successful_rtts:
-                        average_rtt = sum(successful_rtts) / len(successful_rtts)
-                        results.append(
-                            PingProbeResult(
-                                sequence=sequence,
-                                target_host=node_label,
-                                target_ip=target_ip,
-                                port=None,
-                                is_successful=True,
-                                round_trip_time_ms=average_rtt,
-                                time_to_live=None,
-                                status_message=f'{len(successful_rtts)}/4 packets received',
-                            ),
-                        )
-                    else:
-                        results.append(
-                            PingProbeResult(
-                                sequence=sequence,
-                                target_host=node_label,
-                                target_ip=target_ip,
-                                port=None,
-                                is_successful=False,
-                                round_trip_time_ms=None,
-                                time_to_live=None,
-                                status_message='Packet timeout',
-                            ),
-                        )
+                if successful_rtts:
+                    average_rtt = sum(successful_rtts) / len(successful_rtts)
+                    results.append(
+                        PingProbeResult(
+                            sequence=sequence,
+                            target_host=node_label,
+                            target_ip=target_ip,
+                            port=None,
+                            is_successful=True,
+                            round_trip_time_ms=average_rtt,
+                            time_to_live=None,
+                            status_message=f'{len(successful_rtts)}/4 packets received',
+                        ),
+                    )
                 else:
                     results.append(
                         PingProbeResult(
@@ -680,25 +660,38 @@ class CheckHostPingEngine:  # pylint: disable=too-few-public-methods
                             is_successful=False,
                             round_trip_time_ms=None,
                             time_to_live=None,
-                            status_message='No response from node',
+                            status_message='Packet timeout',
                         ),
                     )
+            else:
+                results.append(
+                    PingProbeResult(
+                        sequence=sequence,
+                        target_host=node_label,
+                        target_ip=target_ip,
+                        port=None,
+                        is_successful=False,
+                        round_trip_time_ms=None,
+                        time_to_live=None,
+                        status_message='No response from node',
+                    ),
+                )
 
-        except (OSError, ValueError) as e:
-            results.append(
-                PingProbeResult(
-                    sequence=sequence,
-                    target_host=target_ip,
-                    target_ip=target_ip,
-                    port=None,
-                    is_successful=False,
-                    round_trip_time_ms=None,
-                    time_to_live=None,
-                    status_message=f'Web ping error: {e}',
-                ),
-            )
+    except (OSError, ValueError) as e:
+        results.append(
+            PingProbeResult(
+                sequence=sequence,
+                target_host=target_ip,
+                target_ip=target_ip,
+                port=None,
+                is_successful=False,
+                round_trip_time_ms=None,
+                time_to_live=None,
+                status_message=f'Web ping error: {e}',
+            ),
+        )
 
-        return results
+    return results
 
 
 def ping_locally(

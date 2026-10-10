@@ -36,14 +36,14 @@ from session_sniffer.guis.stylesheets import (
 )
 from session_sniffer.guis.utils import animate_button_feedback, scale_by_ui
 from session_sniffer.networking.ping import (
-    CheckHostPingEngine,
     IcmpEchoEngine,
     PingMode,
     PingProbeConfiguration,
     PingProbeResult,
     PingStatistics,
-    TcpPortProbeEngine,
-    UdpPortProbeEngine,
+    probe_check_host,
+    probe_tcp_port,
+    probe_udp_port,
 )
 from session_sniffer.settings import Settings
 
@@ -106,7 +106,7 @@ class PingWorkerThread(CrashingQThread):
         elif config.mode == PingMode.TCP:
             port_to_probe = config.port if config.port is not None else _DEFAULT_PORT
             while not self._cancel_event.is_set() and not self.isInterruptionRequested():
-                result = TcpPortProbeEngine.probe(
+                result = probe_tcp_port(
                     config.target_host,
                     port_to_probe,
                     timeout_seconds=config.timeout_seconds,
@@ -122,7 +122,7 @@ class PingWorkerThread(CrashingQThread):
         elif config.mode == PingMode.UDP:
             port_to_probe = config.port if config.port is not None else _DEFAULT_PORT
             while not self._cancel_event.is_set() and not self.isInterruptionRequested():
-                result = UdpPortProbeEngine.probe(
+                result = probe_udp_port(
                     config.target_host,
                     port_to_probe,
                     timeout_seconds=config.timeout_seconds,
@@ -138,7 +138,7 @@ class PingWorkerThread(CrashingQThread):
 
         else:  # PingMode.WEB
             while not self._cancel_event.is_set() and not self.isInterruptionRequested():
-                results = CheckHostPingEngine.probe(config.target_host, sequence=sequence_number)
+                results = probe_check_host(config.target_host, sequence=sequence_number)
                 for probe_result in results:
                     self.result_received.emit(probe_result)
                 if 0 < config.count <= sequence_number:
