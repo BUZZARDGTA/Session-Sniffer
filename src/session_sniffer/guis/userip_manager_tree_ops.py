@@ -58,21 +58,36 @@ class TreeOperationsMixin(QDialog):
     _global_search_checkbox: QCheckBox
     _settings_snapshot: dict[str, str]
 
-    # pylint: disable=unused-argument
     def _clear_dirty_state(self) -> None: ...
+
     def _mark_entries_dirty(self) -> None: ...
+
     def _mark_settings_dirty(self) -> None: ...
+
     def _refresh_protection_visibility(self) -> None: ...
-    def _set_status(self, text: str) -> None: ...
+
+    def _set_status(self, text: str) -> None:
+        raise NotImplementedError
+
     def _refresh_stats(self) -> None: ...
-    def _load_database(self, path: Path) -> None: ...
-    def _update_file_info(self, path: Path | None) -> None: ...
-    def _append_row(self, username: str, ip: str, *, index: int = 0, database: tuple[str, Path] | None = None, is_looky: bool = False) -> None: ...
+
+    def _load_database(self, path: Path) -> None:
+        raise NotImplementedError
+
+    def _update_file_info(self, path: Path | None) -> None:
+        raise NotImplementedError
+
+    def _append_row(self, username: str, ip: str, *, index: int = 0, database: tuple[str, Path] | None = None, is_looky: bool = False) -> None:
+        raise NotImplementedError
+
     def _backup_databases_now(self) -> None: ...
-    def _export_database_file(self, path: Path) -> None: ...
+
+    def _export_database_file(self, path: Path) -> None:
+        raise NotImplementedError
+
     def _import_database_files(self) -> None: ...
+
     def _open_backups_folder(self) -> None: ...
-    # pylint: enable=unused-argument
 
     def _unwatch_path(self, path: Path) -> None:
         """Remove *path* and any of its descendants from the filesystem watcher."""

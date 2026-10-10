@@ -72,17 +72,17 @@ class UserIPEntriesOperationsMixin(QDialog):
     _search_input: QLineEdit
     _settings_container: QFrame
 
-    # pylint: disable=unused-argument
     def _append_row(
         self, username: str, ip: str, *, index: int = 0, database: tuple[str, Path] | None = None, is_looky: bool = False
-    ) -> None: ...
-    # pylint: enable=unused-argument
+    ) -> None:
+        raise NotImplementedError
 
     def _mark_entries_dirty(self) -> None: ...
 
     def _update_entry_counts(self) -> None: ...
 
-    def _set_status(self, text: str) -> None: ...  # pylint: disable=unused-argument
+    def _set_status(self, text: str) -> None:
+        raise NotImplementedError
 
     def _refresh_stats(self) -> None: ...
 
@@ -91,9 +91,11 @@ class UserIPEntriesOperationsMixin(QDialog):
 
     def _clear_dirty_state(self) -> None: ...
 
-    def _update_file_info(self, path: Path | None) -> None: ...  # pylint: disable=unused-argument
+    def _update_file_info(self, path: Path | None) -> None:
+        raise NotImplementedError
 
-    def _load_database(self, path: Path) -> None: ...  # pylint: disable=unused-argument
+    def _load_database(self, path: Path) -> None:
+        raise NotImplementedError
 
     if TYPE_CHECKING:
         read_settings_from_widgets: Callable[[], dict[str, str]]

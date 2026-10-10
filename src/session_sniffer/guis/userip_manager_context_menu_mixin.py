@@ -74,20 +74,26 @@ class EntriesContextMenuMixin(QDialog):
 
     def _reset_column_sizes(self) -> None: ...
 
-    def _edit_entry_ip(self, source_row: int) -> None: ...  # pylint: disable=unused-argument
+    def _edit_entry_ip(self, source_row: int) -> None:
+        raise NotImplementedError
 
-    def _insert_entry_at(self, source_row: int) -> None: ...  # pylint: disable=unused-argument
+    def _insert_entry_at(self, source_row: int) -> None:
+        raise NotImplementedError
 
-    def _add_username(self, source_row: int) -> None: ...  # pylint: disable=unused-argument
+    def _add_username(self, source_row: int) -> None:
+        raise NotImplementedError
 
-    def _move_rows(self, proxy_index: QModelIndex, direction: int) -> None: ...  # pylint: disable=unused-argument
+    def _move_rows(self, proxy_index: QModelIndex, direction: int) -> None:
+        raise NotImplementedError
 
     def _get_row_entry_value(self, row: int) -> str:
         raise NotImplementedError
 
-    def _load_database(self, path: Path) -> None: ...  # pylint: disable=unused-argument
+    def _load_database(self, path: Path) -> None:
+        raise NotImplementedError
 
-    def _move_selected_to_database(self, target_db_path: Path) -> None: ...  # pylint: disable=unused-argument
+    def _move_selected_to_database(self, target_db_path: Path) -> None:
+        raise NotImplementedError
 
     def _update_entry_counts(self) -> None: ...
 

@@ -35,10 +35,11 @@ class UserIPImportExportMixin(QDialog):
     _current_path: Path | None = None
     _global_search_active: bool = False
 
-    # pylint: disable=unused-argument
-    def _set_status(self, text: str) -> None: ...
+    def _set_status(self, text: str) -> None:
+        raise NotImplementedError
 
-    def _load_database(self, path: Path) -> None: ...
+    def _load_database(self, path: Path) -> None:
+        raise NotImplementedError
 
     def _refresh_stats(self) -> None: ...
 
@@ -46,10 +47,10 @@ class UserIPImportExportMixin(QDialog):
 
     def _append_row(
         self, username: str, ip: str, *, index: int = 0, database: tuple[str, Path] | None = None, is_looky: bool = False
-    ) -> None: ...
+    ) -> None:
+        raise NotImplementedError
 
     def _mark_entries_dirty(self) -> None: ...
-    # pylint: enable=unused-argument
 
     if TYPE_CHECKING:
         _get_selected_tree_directory: Callable[[], Path]
