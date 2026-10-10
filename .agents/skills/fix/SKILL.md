@@ -117,17 +117,10 @@ If a structural warning is not worth safely changing, explain why and leave it u
 
 ### Example: too-many-lines
 
-When reviewing metric findings such as `too-many-lines`, distinguish between code that warrants extraction and genuine exceptions that should remain unified:
-
-1. **Genuine exceptions (leave as-is)**:
-   - **Standalone developer / diagnostic scripts**: self-contained diagnostic or verification CLI scripts (e.g. `.dev/verify_ranges.py`) where modularizing adds unnecessary indirection.
-
-   For these genuine cases:
-   - Leave the file unified and retain or permit `# pylint: disable=too-many-lines`.
-   - Do not split them into artificial chunks or submodules solely to lower line counts.
-
-2. **Actionable refactoring**:
-   - Reserve structural refactoring (such as extracting mixins or helper modules) for code with distinct separable concerns (e.g. bloated GUI windows, widgets, or controllers).
+When reviewing metric findings such as `too-many-lines`:
+- Do not artificially fragment cohesive files into submodules or arbitrary chunks solely to satisfy metric-based line limits.
+- Reserve structural refactoring (such as extracting mixins or helper modules) for code with distinct separable concerns (e.g. bloated GUI windows, widgets, or controllers).
+- Keep cohesive files unified and streamline within the file (eliminating dead code, deduplicating helpers, formatting data cleanly) without changing behavior.
 
 ### Example: duplicate-code
 
