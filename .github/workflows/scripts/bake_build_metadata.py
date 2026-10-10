@@ -1,4 +1,4 @@
-"""Bake build metadata into src/session_sniffer/constants/_build_info.py for CI releases."""  # noqa: INP001
+"""Bake build metadata into src/session_sniffer/constants/_build_info.py for CI releases."""
 
 import os
 import platform

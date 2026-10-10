@@ -151,8 +151,10 @@ select = ["ALL"]
 
 [tool.ruff.lint.per-file-ignores]
 ".dev/*" = ["INP001"]
-"check_project_dependencies.py" = ["INP001", "T201"]
+".github/workflows/scripts/*" = ["INP001"]
+"check_project_dependencies.py" = ["INP001", "S310", "T201"]
 "code_quality_checks.py" = ["INP001", "T201", "S602"]
+"scripts/*" = ["INP001"]
 
 [tool.ruff.lint.flake8-quotes]
 inline-quotes = "single"

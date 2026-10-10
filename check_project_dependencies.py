@@ -52,7 +52,7 @@ def fetch_json(url: str, timeout: int = 10) -> object:
     if parsed_url.scheme not in ('http', 'https'):
         return None
 
-    request = urllib.request.Request(  # noqa: S310
+    request = urllib.request.Request(
         url,
         headers={
             'User-Agent': 'Session-Sniffer-Dependency-Checker',
@@ -60,7 +60,7 @@ def fetch_json(url: str, timeout: int = 10) -> object:
         },
     )
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:  # noqa: S310
+        with urllib.request.urlopen(request, timeout=timeout) as response:
             return json.loads(response.read().decode('utf-8'))
     except (urllib.error.URLError, TimeoutError, json.JSONDecodeError):
         return None
