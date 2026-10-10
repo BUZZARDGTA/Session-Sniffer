@@ -30,33 +30,6 @@ class PlayerGeoLite2:
     asn: str = '...'
 
 
-def _default_ipapi_values() -> dict[str, object]:
-    """Return default placeholder values for IP-API lookup fields."""
-    return {
-        'continent': '...',
-        'continent_code': '...',
-        'country': '...',
-        'country_code': '...',
-        'region': '...',
-        'region_code': '...',
-        'city': '...',
-        'district': '...',
-        'zip_code': '...',
-        'lat': '...',
-        'lon': '...',
-        'time_zone': '...',
-        'offset': '...',
-        'currency': '...',
-        'org': '...',
-        'isp': '...',
-        'asn': '...',
-        'as_name': '...',
-        'mobile': '...',
-        'proxy': '...',
-        'hosting': '...',
-    }
-
-
 def _default_ping_values() -> dict[str, object]:
     """Return default placeholder values for ping lookup fields."""
     return {
@@ -75,146 +48,37 @@ def _default_ping_values() -> dict[str, object]:
 
 
 @dataclass(kw_only=True, slots=True)
-class PlayerIPAPI:  # pylint: disable=too-many-public-methods
+class PlayerIPAPI:
     """Store IP-API lookup state and cached values for a player."""
-
-    _FIELD_NAMES: ClassVar[frozenset[str]] = frozenset(_default_ipapi_values())
 
     is_initialized: bool = False
 
-    _values: dict[str, object] = dataclasses.field(default_factory=_default_ipapi_values)
-
-    def __getattr__(self, name: str) -> object:
-        """Provide backward-compatible dotted attribute access for IP-API fields."""
-        if name in self._FIELD_NAMES:
-            return self._values[name]
-        raise AttributeError(name)
-
-    @override
-    def __setattr__(self, name: str, value: object) -> None:
-        """Provide backward-compatible dotted attribute assignment for IP-API fields."""
-        if name in {'is_initialized', '_values'}:
-            object.__setattr__(self, name, value)
-            return
-        if name in self._FIELD_NAMES:
-            self._values[name] = value
-            return
-        object.__setattr__(self, name, value)
+    continent: str = '...'
+    continent_code: str = '...'
+    country: str = '...'
+    country_code: str = '...'
+    region: str = '...'
+    region_code: str = '...'
+    city: str = '...'
+    district: str = '...'
+    zip_code: str = '...'
+    lat: float | str = '...'
+    lon: float | str = '...'
+    time_zone: str = '...'
+    offset: int | str = '...'
+    currency: str = '...'
+    org: str = '...'
+    isp: str = '...'
+    asn: str = '...'
+    as_name: str = '...'
+    mobile: bool | str = '...'
+    proxy: bool | str = '...'
+    hosting: bool | str = '...'
 
     def update_fields(self, data: dict[str, object]) -> None:
         """Batch-update IP-API lookup fields from a pre-validated mapping."""
-        self._values.update(data)
-
-    @property
-    def continent(self) -> str:
-        """Return the continent string from the IP-API lookup result."""
-        return str(self._values['continent'])
-
-    @property
-    def continent_code(self) -> str:
-        """Return the continent code string from the IP-API lookup result."""
-        return str(self._values['continent_code'])
-
-    @property
-    def country(self) -> str:
-        """Return the country string from the IP-API lookup result."""
-        return str(self._values['country'])
-
-    @property
-    def country_code(self) -> str:
-        """Return the country code string from the IP-API lookup result."""
-        return str(self._values['country_code'])
-
-    @property
-    def region(self) -> str:
-        """Return the region string from the IP-API lookup result."""
-        return str(self._values['region'])
-
-    @property
-    def region_code(self) -> str:
-        """Return the region code string from the IP-API lookup result."""
-        return str(self._values['region_code'])
-
-    @property
-    def city(self) -> str:
-        """Return the city string from the IP-API lookup result."""
-        return str(self._values['city'])
-
-    @property
-    def district(self) -> str:
-        """Return the district string from the IP-API lookup result."""
-        return str(self._values['district'])
-
-    @property
-    def zip_code(self) -> str:
-        """Return the ZIP code string from the IP-API lookup result."""
-        return str(self._values['zip_code'])
-
-    @property
-    def lat(self) -> float | str:
-        """Return the latitude from the IP-API lookup result."""
-        value = self._values['lat']
-        return float(value) if isinstance(value, (int, float)) else str(value)
-
-    @property
-    def lon(self) -> float | str:
-        """Return the longitude from the IP-API lookup result."""
-        value = self._values['lon']
-        return float(value) if isinstance(value, (int, float)) else str(value)
-
-    @property
-    def time_zone(self) -> str:
-        """Return the time zone string from the IP-API lookup result."""
-        return str(self._values['time_zone'])
-
-    @property
-    def offset(self) -> int | str:
-        """Return the UTC offset from the IP-API lookup result."""
-        value = self._values['offset']
-        return int(value) if isinstance(value, (int, float)) else str(value)
-
-    @property
-    def currency(self) -> str:
-        """Return the currency string from the IP-API lookup result."""
-        return str(self._values['currency'])
-
-    @property
-    def org(self) -> str:
-        """Return the organization string from the IP-API lookup result."""
-        return str(self._values['org'])
-
-    @property
-    def as_name(self) -> str:
-        """Return the AS name string from the IP-API lookup result."""
-        return str(self._values['as_name'])
-
-    @property
-    def isp(self) -> str:
-        """Return the ISP string from the IP-API lookup result."""
-        return str(self._values['isp'])
-
-    @property
-    def asn(self) -> str:
-        """Return the ASN string from the IP-API lookup result."""
-        return str(self._values['asn'])
-
-    @property
-    def mobile(self) -> bool | str:
-        """Return the mobile flag from the IP-API lookup result."""
-        value = self._values['mobile']
-        return value if isinstance(value, bool) else str(value)
-
-    @property
-    def proxy(self) -> bool | str:
-        """Return the proxy flag from the IP-API lookup result."""
-        value = self._values['proxy']
-        return value if isinstance(value, bool) else str(value)
-
-    @property
-    def hosting(self) -> bool | str:
-        """Return the hosting flag from the IP-API lookup result."""
-        value = self._values['hosting']
-        return value if isinstance(value, bool) else str(value)
+        for key, value in data.items():
+            setattr(self, key, value)
 
 
 class PlayerCountryFlag:
