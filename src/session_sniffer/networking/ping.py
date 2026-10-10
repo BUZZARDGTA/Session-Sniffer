@@ -180,6 +180,15 @@ class PingStatistics:
             self.total_failed += 1
 
 
+def _recvmsg_fallback(
+    _bufsize: int,
+    _ancbufsize: int = 0,
+    _flags: int = 0,
+) -> tuple[bytes, list[tuple[int, int, bytes]], int, tuple[str, int]]:
+    """Fallback stub for recvmsg on platforms where it is not available."""
+    return b'', [], 0, ('', 0)
+
+
 class IcmpEchoEngine:
     """Native ICMP echo pinger using Win32 IcmpSendEcho on Windows or ICMP datagram sockets on Linux."""
 
@@ -289,8 +298,7 @@ class IcmpEchoEngine:
         start_time = time.perf_counter()
         try:
             self._linux_socket.sendto(packet, (resolved_ip, 0))
-            receive_message_function = getattr(self._linux_socket, 'recvmsg')  # noqa: B009
-            _packet_data, ancillary_data, _message_flags, _peer_address = receive_message_function(1024, 1024)
+            _packet_data, ancillary_data, _message_flags, _peer_address = getattr(self._linux_socket, 'recvmsg', _recvmsg_fallback)(1024, 1024)
             round_trip_time_ms = (time.perf_counter() - start_time) * 1000.0
 
             time_to_live: int | None = None
