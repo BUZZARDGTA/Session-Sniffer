@@ -121,7 +121,6 @@ When reviewing metric findings such as `too-many-lines`, distinguish between cod
 
 1. **Genuine exceptions (leave as-is)**:
    - **Declarative data tables / IP range registries**: files containing large static lookup tables, IP CIDR blocks, or dataset constants (e.g. `src/session_sniffer/networking/third_party_servers_ranges.py`). Splitting these across multiple files impairs readability and searchability without any architectural benefit.
-   - **Centralized configuration schemas / models**: files defining monolithic Pydantic models or configuration structures (e.g. `src/session_sniffer/models/settings_ini_model.py`). Keeping the configuration schema unified preserves cohesive type validation and schema readability.
    - **Standalone developer / diagnostic scripts**: self-contained diagnostic or verification CLI scripts (e.g. `.dev/verify_ranges.py`) where modularizing adds unnecessary indirection.
 
    For these genuine cases:
