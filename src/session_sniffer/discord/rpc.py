@@ -9,6 +9,7 @@ import os
 import socket
 import struct
 import sys
+import tempfile
 import time
 import uuid
 from enum import Enum, auto
@@ -89,7 +90,7 @@ class _DiscordIPCConnection:
                     directory_path = os.environ.get(environment_variable)
                     if directory_path:
                         candidate_paths.append(Path(directory_path) / f'discord-ipc-{pipe_index}')
-                candidate_paths.append(Path('/tmp') / f'discord-ipc-{pipe_index}')  # noqa: S108
+                candidate_paths.append(Path(tempfile.gettempdir()) / f'discord-ipc-{pipe_index}')
 
                 for socket_path in candidate_paths:
                     if not socket_path.exists():
