@@ -87,7 +87,6 @@ LP_IP_ADAPTER_GATEWAY_ADDRESS = ctypes.POINTER(IP_ADAPTER_GATEWAY_ADDRESS)
 LP_IP_ADAPTER_ADDRESSES = ctypes.POINTER(IP_ADAPTER_ADDRESSES)
 
 
-# pylint: disable=protected-access
 IP_ADAPTER_UNICAST_ADDRESS._fields_ = [
     ('Length', wintypes.ULONG),
     ('Flags', wintypes.DWORD),
@@ -358,7 +357,6 @@ class _LinuxIfAddrs(ctypes.Structure):
     pass
 
 
-# pylint: disable=protected-access
 _LinuxIfAddrs._fields_ = [
     ('ifa_next', ctypes.POINTER(_LinuxIfAddrs)),
     ('ifa_name', ctypes.c_char_p),
