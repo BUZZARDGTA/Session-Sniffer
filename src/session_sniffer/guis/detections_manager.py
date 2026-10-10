@@ -35,6 +35,7 @@ from session_sniffer.guis._dialog_mixins import (
 )
 from session_sniffer.guis.stylesheets import DETECTIONS_MANAGER_HEADER_STYLESHEET, DIALOG_BUTTON_STYLESHEET
 from session_sniffer.guis.utils import (
+    consume_maximize_on_show,
     resize_window_for_screen,
     scale_by_ui,
     set_dialog_window_flags,
@@ -643,8 +644,7 @@ class DetectionsManagerDialog(UnsavedChangesMixin, DetectionsManagerTabsMixin, Q
     def showEvent(self, a0: QShowEvent) -> None:
         """Handle the window show event and maximize if required."""
         super().showEvent(a0)
-        if self.property('_should_maximize_on_show') is True:
-            self.setProperty('_should_maximize_on_show', False)  # noqa: FBT003
+        if consume_maximize_on_show(self):
             self.showMaximized()
 
 

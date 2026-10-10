@@ -205,6 +205,22 @@ def get_screen_size() -> tuple[int, int]:
     return screen_width, screen_height
 
 
+_MAXIMIZE_ON_SHOW_PROPERTY = '_should_maximize_on_show'
+
+
+def set_maximize_on_show(window: QWidget, *, maximize: bool) -> None:
+    """Mark whether *window* should be maximized the next time it is shown."""
+    window.setProperty(_MAXIMIZE_ON_SHOW_PROPERTY, maximize)
+
+
+def consume_maximize_on_show(window: QWidget) -> bool:
+    """Return whether *window* was marked to be maximized on show, clearing the mark."""
+    if window.property(_MAXIMIZE_ON_SHOW_PROPERTY) is not True:
+        return False
+    set_maximize_on_show(window, maximize=False)
+    return True
+
+
 def resize_window_for_screen(window: QWidget, screen_size: tuple[int, int] | None = None) -> None:
     """Resize a window based on the screen resolution.
 
@@ -229,7 +245,7 @@ def resize_window_for_screen(window: QWidget, screen_size: tuple[int, int] | Non
         or (avail_height < _MIN_SCREEN_HEIGHT_WARNING and min_size.height() >= _LARGE_WINDOW_MIN_HEIGHT)
     ):
         window.setWindowState(Qt.WindowState.WindowMaximized)
-        window.setProperty('_should_maximize_on_show', True)  # noqa: FBT003
+        set_maximize_on_show(window, maximize=True)
         return
 
     if avail_width >= _BREAKPOINT_2K_WIDTH and avail_height >= _BREAKPOINT_2K_HEIGHT:

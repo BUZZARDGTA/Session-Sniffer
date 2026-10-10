@@ -68,10 +68,12 @@ from session_sniffer.guis.userip_manager_settings_mixin import SettingsPanelMixi
 from session_sniffer.guis.userip_manager_tree_ops import TreeOperationsMixin
 from session_sniffer.guis.utils import (
     apply_search_icon,
+    consume_maximize_on_show,
     get_screen_size,
     resize_window_for_screen,
     scale_by_ui,
     set_dialog_window_flags,
+    set_maximize_on_show,
 )
 from session_sniffer.models import GUIState
 from session_sniffer.settings.settings import Settings
@@ -151,7 +153,7 @@ class UserIPDatabasesManager(
         if UserIPDatabasesManager._cached_geometry is not None:
             self.restoreGeometry(UserIPDatabasesManager._cached_geometry)
             if UserIPDatabasesManager._cached_maximized:
-                self.setProperty('_should_maximize_on_show', True)  # noqa: FBT003
+                set_maximize_on_show(self, maximize=True)
         else:
             screen_size = get_screen_size()
             resize_window_for_screen(self, screen_size)
@@ -845,8 +847,7 @@ class UserIPDatabasesManager(
     def showEvent(self, a0: QShowEvent) -> None:
         """Handle the window show event and maximize if required."""
         super().showEvent(a0)
-        if self.property('_should_maximize_on_show') is True:
-            self.setProperty('_should_maximize_on_show', False)  # noqa: FBT003
+        if consume_maximize_on_show(self):
             self.showMaximized()
         self._adjust_username_column_width()
 

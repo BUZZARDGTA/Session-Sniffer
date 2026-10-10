@@ -28,7 +28,7 @@ from session_sniffer.guis.logs_manager._helpers import backup_file
 from session_sniffer.guis.logs_manager._sessions_tab import SessionsLogTab
 from session_sniffer.guis.logs_manager._text_tab import TextLogTab
 from session_sniffer.guis.stylesheets import DIALOG_BUTTON_STYLESHEET, DIALOG_DANGER_BUTTON_STYLESHEET
-from session_sniffer.guis.utils import resize_window_for_screen, scale_by_ui, set_dialog_window_flags
+from session_sniffer.guis.utils import consume_maximize_on_show, resize_window_for_screen, scale_by_ui, set_dialog_window_flags
 from session_sniffer.logging_setup import purge_crash_log, purge_debug_log
 from session_sniffer.rendering_core.renderer import SESSIONS_LOGGING_PATH
 from session_sniffer.settings import Settings
@@ -219,8 +219,7 @@ class LogsManager(QDialog):
     def showEvent(self, a0: QShowEvent) -> None:
         """Handle the window show event, maximize if required, and resume file watching."""
         super().showEvent(a0)
-        if self.property('_should_maximize_on_show') is True:
-            self.setProperty('_should_maximize_on_show', False)  # noqa: FBT003
+        if consume_maximize_on_show(self):
             self.showMaximized()
         self._start_all_watchers()
 

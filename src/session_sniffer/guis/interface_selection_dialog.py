@@ -55,6 +55,7 @@ from session_sniffer.guis.stylesheets import (
 from session_sniffer.guis.table_column_resizing import TableColumnResizeController, setup_table_header_context_menu
 from session_sniffer.guis.utils import (
     compute_ui_scale,
+    consume_maximize_on_show,
     make_padded_icon,
     render_svg_pixmap_from_resource,
     resize_window_for_screen,
@@ -984,8 +985,7 @@ class InterfaceSelectionDialog(QDialog):
     def showEvent(self, a0: QShowEvent) -> None:
         """Handle the window show event and maximize if required."""
         super().showEvent(a0)
-        if self.property('_should_maximize_on_show') is True:
-            self.setProperty('_should_maximize_on_show', False)  # noqa: FBT003
+        if consume_maximize_on_show(self):
             self.showMaximized()
         if not self._stacked_widget.currentIndex():
             self._column_resizer.setup_column_resizing()

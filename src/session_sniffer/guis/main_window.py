@@ -42,6 +42,7 @@ from session_sniffer.guis.tables_player_actions.looky_system._looky_crawler_requ
 from session_sniffer.guis.tables_player_actions.looky_system._looky_lookup_dialog import close_all_lookup_dialogs
 from session_sniffer.guis.utils import (
     apply_always_on_top,
+    consume_maximize_on_show,
     render_svg_pixmap_from_resource,
     resize_window_for_screen,
     scale_by_ui,
@@ -606,8 +607,7 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
     def showEvent(self, a0: QShowEvent) -> None:
         """Handle the window show event, maximize if required, and restore table splitter layout."""
         super().showEvent(a0)
-        if self.property('_should_maximize_on_show') is True:
-            self.setProperty('_should_maximize_on_show', False)  # noqa: FBT003
+        if consume_maximize_on_show(self):
             self.showMaximized()
         self._update_splitter_visibility()
 
