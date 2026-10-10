@@ -206,7 +206,7 @@ class SessionTableSection(QWidget):
         self._rows_per_page_spinbox = QSpinBox()
         self._rows_per_page_spinbox.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self._rows_per_page_spinbox.setRange(0, 5000)
-        self._rows_per_page_spinbox.setMinimumWidth(95)
+        self._rows_per_page_spinbox.setMinimumWidth(scale_by_ui(95))
         self._rows_per_page_spinbox.setSpecialValueText('All')
         self._rows_per_page_spinbox.setValue(initial_rpp)
         self._rows_per_page_spinbox.setToolTip(
@@ -218,7 +218,7 @@ class SessionTableSection(QWidget):
         self._install_spinbox_input_filter(self._rows_per_page_spinbox)
 
         rows_pair = QHBoxLayout()
-        rows_pair.setSpacing(3)
+        rows_pair.setSpacing(scale_by_ui(4))
         rows_pair.setContentsMargins(0, 0, 0, 0)
         rows_pair.addWidget(rows_label)
         rows_pair.addWidget(self._rows_per_page_spinbox)
@@ -237,7 +237,7 @@ class SessionTableSection(QWidget):
         self._install_spinbox_input_filter(self._page_spinbox)
 
         page_pair = QHBoxLayout()
-        page_pair.setSpacing(3)
+        page_pair.setSpacing(scale_by_ui(4))
         page_pair.setContentsMargins(0, 0, 0, 0)
         page_pair.addWidget(page_label)
         page_pair.addWidget(self._page_spinbox)
@@ -270,7 +270,7 @@ class SessionTableSection(QWidget):
         self._session_filter_combo = session_filter_combo
 
         session_pair = QHBoxLayout()
-        session_pair.setSpacing(3)
+        session_pair.setSpacing(scale_by_ui(4))
         session_pair.setContentsMargins(0, 0, 0, 0)
         session_pair.addWidget(session_label)
         session_pair.addWidget(session_filter_combo)
@@ -838,6 +838,8 @@ class SessionTableSection(QWidget):
         line_edit = spinbox.lineEdit()
         if not line_edit:
             return
+
+        line_edit.setTextMargins(scale_by_ui(4), 0, 0, 0)
 
         section = self
 
