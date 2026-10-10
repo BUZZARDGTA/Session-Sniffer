@@ -97,6 +97,10 @@ class Settings:
     gui_ignore_screen_resolution_warning: bool = SETTING_DEFAULTS['gui_ignore_screen_resolution_warning']
     voice_notifications_enabled: bool = SETTING_DEFAULTS['voice_notifications_enabled']
     pinger_local: bool = SETTING_DEFAULTS['pinger_local']
+    ping_count: int = SETTING_DEFAULTS['ping_count']
+    ping_interval_ms: int = SETTING_DEFAULTS['ping_interval_ms']
+    ping_timeout_ms: int = SETTING_DEFAULTS['ping_timeout_ms']
+    ping_payload_bytes: int = SETTING_DEFAULTS['ping_payload_bytes']
     discord_presence: bool = SETTING_DEFAULTS['discord_presence']
     discord_presence_title: str = SETTING_DEFAULTS['discord_presence_title']
     show_discord_popup: bool = SETTING_DEFAULTS['show_discord_popup']
@@ -227,6 +231,10 @@ class Settings:
         'LOOKY_GAME_VERSION',
         'LOOKY_API_KEY',
         'PINGER_LOCAL',
+        'PING_COUNT',
+        'PING_INTERVAL_MS',
+        'PING_TIMEOUT_MS',
+        'PING_PAYLOAD_BYTES',
         'HIGH_RATE_MONITOR_MODE',
         'HIGH_RATE_MONITOR_ICON',
         'HIGH_RATE_MONITOR_RUN_IN_BACKGROUND',

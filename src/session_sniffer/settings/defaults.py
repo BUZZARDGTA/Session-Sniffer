@@ -64,6 +64,7 @@ class SettingMeta:
     max_width: int | None = None
     validator_pattern: str | None = None
     secret: bool = False
+    suffix: str | None = None
 
 
 SETTING_CATEGORIES_ORDER: tuple[str, ...] = (
@@ -598,6 +599,50 @@ SETTING_METADATA: dict[str, SettingMeta] = {
             'hide your IP, but may be slower and subject to server rate limits or downtime.'
         ),
     ),
+    'ping_count': SettingMeta(
+        category='Session',
+        group='Player Pinging',
+        display_label='Ping Count',
+        setting_type=SettingType.INTEGER_OR_ALL,
+        min_value=0,
+        max_value=10000,
+        step=1,
+        special_value_text='Continuous (0)',
+        tooltip='Default number of ping requests to send per target in the Ping Diagnostics window. Set to 0 for continuous.',
+    ),
+    'ping_interval_ms': SettingMeta(
+        category='Session',
+        group='Player Pinging',
+        display_label='Ping Interval',
+        setting_type=SettingType.INTEGER,
+        min_value=50,
+        max_value=10000,
+        step=50,
+        suffix=' ms',
+        tooltip='Default interval between ping requests in milliseconds in the Ping Diagnostics window. (Min: 50 ms, Max: 10000 ms)',
+    ),
+    'ping_timeout_ms': SettingMeta(
+        category='Session',
+        group='Player Pinging',
+        display_label='Ping Timeout',
+        setting_type=SettingType.INTEGER,
+        min_value=100,
+        max_value=10000,
+        step=100,
+        suffix=' ms',
+        tooltip='Default timeout for each ping request in milliseconds in the Ping Diagnostics window. (Min: 100 ms, Max: 10000 ms)',
+    ),
+    'ping_payload_bytes': SettingMeta(
+        category='Session',
+        group='Player Pinging',
+        display_label='Ping Payload Size',
+        setting_type=SettingType.INTEGER,
+        min_value=0,
+        max_value=65500,
+        step=32,
+        suffix=' bytes',
+        tooltip='Default payload size in bytes for ICMP and UDP probes in the Ping Diagnostics window. (Min: 0 bytes, Max: 65500 bytes)',
+    ),
     'gui_servers_color_enabled': SettingMeta(
         category='Session',
         group='Detected Servers',
@@ -1047,6 +1092,10 @@ class SettingDefaults(TypedDict):
     gui_ignore_screen_resolution_warning: bool
     voice_notifications_enabled: bool
     pinger_local: bool
+    ping_count: int
+    ping_interval_ms: int
+    ping_timeout_ms: int
+    ping_payload_bytes: int
     discord_presence: bool
     discord_presence_title: str
     show_discord_popup: bool
@@ -1178,6 +1227,10 @@ SETTING_DEFAULTS: SettingDefaults = {
     'gui_ignore_screen_resolution_warning': False,
     'voice_notifications_enabled': True,
     'pinger_local': True,
+    'ping_count': 4,
+    'ping_interval_ms': 250,
+    'ping_timeout_ms': 1000,
+    'ping_payload_bytes': 32,
     'discord_presence': True,
     'discord_presence_title': 'Sniffing session traffic',
     'show_discord_popup': True,

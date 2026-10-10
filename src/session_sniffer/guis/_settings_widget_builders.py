@@ -186,6 +186,8 @@ def create_float_widget(meta: SettingMeta) -> QDoubleSpinBox:
     spin.setSingleStep(0.5)
     spin.setMinimum(meta.min_value if meta.min_value is not None else 0.0)
     spin.setMaximum(meta.max_value if meta.max_value is not None else 99999.0)
+    if meta.suffix is not None:
+        spin.setSuffix(meta.suffix)
     tooltip = format_setting_tooltip(meta)
     if tooltip is not None and tooltip:
         spin.setToolTip(tooltip)
@@ -199,6 +201,8 @@ def create_integer_widget(meta: SettingMeta) -> QSpinBox:
     spin.setSingleStep(int(meta.step) if meta.step is not None else 1)
     spin.setMinimum(int(meta.min_value) if meta.min_value is not None else 0)
     spin.setMaximum(int(meta.max_value) if meta.max_value is not None else 99999)
+    if meta.suffix is not None:
+        spin.setSuffix(meta.suffix)
     tooltip = format_setting_tooltip(meta)
     if tooltip is not None and tooltip:
         spin.setToolTip(tooltip)
@@ -213,6 +217,8 @@ def create_integer_or_all_widget(meta: SettingMeta) -> QSpinBox:
     spin.setMinimum(0)
     spin.setMaximum(int(meta.max_value) if meta.max_value is not None else 99999)
     spin.setSpecialValueText(meta.special_value_text)
+    if meta.suffix is not None:
+        spin.setSuffix(meta.suffix)
     tooltip = format_setting_tooltip(meta)
     if tooltip is not None and tooltip:
         spin.setToolTip(tooltip)

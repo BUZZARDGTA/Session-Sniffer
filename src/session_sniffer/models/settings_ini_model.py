@@ -163,6 +163,10 @@ class SettingsIniModel(BaseModel):
     LOOKY_GAME_VERSION: str
     LOOKY_API_KEY: str | None
     PINGER_LOCAL: bool
+    PING_COUNT: int
+    PING_INTERVAL_MS: int
+    PING_TIMEOUT_MS: int
+    PING_PAYLOAD_BYTES: int
     SOLO_SESSION_DURATION: int
     HIGH_RATE_MONITOR_MODE: str
     HIGH_RATE_MONITOR_ICON: bool
@@ -1336,6 +1340,118 @@ class SettingsIniModel(BaseModel):
                     parsed = int(float(stripped))
                 except ValueError:
                     parsed = None
+
+        if parsed is None:
+            cls._set_flag(info, 'should_rewrite', value=True)
+            return default_int
+        if parsed < min_val:
+            cls._set_flag(info, 'should_rewrite', value=True)
+            return min_val
+        if parsed > max_val:
+            cls._set_flag(info, 'should_rewrite', value=True)
+            return max_val
+        return parsed
+
+    @field_validator('PING_COUNT', mode='before')
+    @classmethod
+    def _parse_ping_count(cls, value: object, info: ValidationInfo) -> int:
+        min_val = 0
+        max_val = 10000
+        default = cls._get_default_for_field(info)
+        default_int = default if isinstance(default, int) else 4
+
+        parsed: int | None = None
+        if isinstance(value, (int, float)):
+            parsed = int(value)
+        elif isinstance(value, str):
+            try:
+                parsed = int(float(value))
+            except ValueError:
+                parsed = None
+
+        if parsed is None:
+            cls._set_flag(info, 'should_rewrite', value=True)
+            return default_int
+        if parsed < min_val:
+            cls._set_flag(info, 'should_rewrite', value=True)
+            return min_val
+        if parsed > max_val:
+            cls._set_flag(info, 'should_rewrite', value=True)
+            return max_val
+        return parsed
+
+    @field_validator('PING_INTERVAL_MS', mode='before')
+    @classmethod
+    def _parse_ping_interval_ms(cls, value: object, info: ValidationInfo) -> int:
+        min_val = 50
+        max_val = 10000
+        default = cls._get_default_for_field(info)
+        default_int = default if isinstance(default, int) else 250
+
+        parsed: int | None = None
+        if isinstance(value, (int, float)):
+            parsed = int(value)
+        elif isinstance(value, str):
+            try:
+                parsed = int(float(value))
+            except ValueError:
+                parsed = None
+
+        if parsed is None:
+            cls._set_flag(info, 'should_rewrite', value=True)
+            return default_int
+        if parsed < min_val:
+            cls._set_flag(info, 'should_rewrite', value=True)
+            return min_val
+        if parsed > max_val:
+            cls._set_flag(info, 'should_rewrite', value=True)
+            return max_val
+        return parsed
+
+    @field_validator('PING_TIMEOUT_MS', mode='before')
+    @classmethod
+    def _parse_ping_timeout_ms(cls, value: object, info: ValidationInfo) -> int:
+        min_val = 100
+        max_val = 10000
+        default = cls._get_default_for_field(info)
+        default_int = default if isinstance(default, int) else 1000
+
+        parsed: int | None = None
+        if isinstance(value, (int, float)):
+            parsed = int(value)
+        elif isinstance(value, str):
+            try:
+                parsed = int(float(value))
+            except ValueError:
+                parsed = None
+
+        if parsed is None:
+            cls._set_flag(info, 'should_rewrite', value=True)
+            return default_int
+        if parsed < min_val:
+            cls._set_flag(info, 'should_rewrite', value=True)
+            return min_val
+        if parsed > max_val:
+            cls._set_flag(info, 'should_rewrite', value=True)
+            return max_val
+        return parsed
+
+    @field_validator('PING_PAYLOAD_BYTES', mode='before')
+    @classmethod
+    def _parse_ping_payload_bytes(cls, value: object, info: ValidationInfo) -> int:
+        min_val = 0
+        max_val = 65500
+        default = cls._get_default_for_field(info)
+        default_int = default if isinstance(default, int) else 32
+
+        parsed: int | None = None
+        if isinstance(value, (int, float)):
+            parsed = int(value)
+        elif isinstance(value, str):
+            try:
+                parsed = int(float(value))
+            except ValueError:
+                parsed = None
 
         if parsed is None:
             cls._set_flag(info, 'should_rewrite', value=True)
