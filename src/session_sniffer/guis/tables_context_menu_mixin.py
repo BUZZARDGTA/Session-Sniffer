@@ -449,11 +449,11 @@ class TableContextMenuMixin(QTableView):
             )
 
         def add_looky_system_menu(parent_menu: QMenu, players: list[Player]) -> None:
-            if not Settings.is_gta5_feature_set() or not players or any(player.is_third_party_server for player in players):
+            if not Settings.is_gta5_feature_set() or not CaptureState.is_local_capture() or not players or any(player.is_third_party_server for player in players):
                 return
 
             def _apply_looky_gating(action: QAction) -> None:
-                configure_looky_action(action, default_tooltip=action.toolTip())
+                configure_looky_action(action, default_tooltip=action.toolTip(), check_gta5_restriction=True)
 
             looky_menu = add_menu(parent_menu, 'Looky System', 'Looky System tools and shortcuts.', icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'eye.svg')))
 

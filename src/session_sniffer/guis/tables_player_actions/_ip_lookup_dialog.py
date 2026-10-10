@@ -24,6 +24,7 @@ from shiboken6 import isValid
 
 from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.constants.standalone import LOOKY_BASE_HOST, TITLE
+from session_sniffer.guis.looky_text import configure_looky_action, is_looky_gta5_restricted
 from session_sniffer.guis.stylesheets import PLAYER_INFO_FORM_LABEL_STYLESHEET
 from session_sniffer.guis.tables_player_actions._actions import ping_ip, tcp_port_ping, web_ping
 from session_sniffer.guis.tables_player_actions._format import (
@@ -170,9 +171,10 @@ def _resolve_standalone_lookup(lookup: StandaloneIPLookup) -> None:
             lookup.ping.is_initialized = True
 
     # 6. Looky System
-    if not lookup.looky_system.is_initialized and Settings.looky_enabled and Settings.looky_api_key is not None and Settings.looky_api_key and Settings.is_gta5_feature_set():
+    api_key = Settings.looky_api_key or ''
+    if bool(api_key) and not lookup.looky_system.is_initialized and Settings.looky_enabled and Settings.is_gta5_feature_set() and not is_looky_gta5_restricted():
         try:
-            looky_players = lookup_ip(lookup.ip, Settings.looky_api_key, Settings.looky_game_version.lower())
+            looky_players = lookup_ip(lookup.ip, api_key, Settings.looky_game_version.lower())
             unique_results: list[LookyPlayer] = []
             seen_pairs: set[tuple[str, int]] = set()
             for entry in looky_players:
@@ -314,8 +316,12 @@ class IPLookupDetailsDialog(PlayerInfoDialogMixin):
         buttons_layout.setSpacing(10)
 
         lookup_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'search.svg')), ' Looky Lookup…')
-        lookup_button.setToolTip('Query the Looky System API to view full player details for this IP.')
         lookup_button.clicked.connect(lambda: show_looky_lookup(self, self._target))
+        configure_looky_action(
+            lookup_button,
+            default_tooltip='Query the Looky System API to view full player details for this IP.',
+            check_gta5_restriction=True,
+        )
         buttons_layout.addWidget(lookup_button)
 
         website_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'website.svg')), ' Looky Website')

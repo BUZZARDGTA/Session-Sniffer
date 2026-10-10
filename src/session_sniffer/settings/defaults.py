@@ -784,10 +784,6 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         tooltip=(
             'Only perform Looky System auto-resolve queries when capture is actively\n'
             'filtering traffic on the running GTA V process (PID).\n\n'
-            'Note: This setting only applies to local PC captures. When scanning an external\n'
-            'device (such as a console via ARP spoofing), external process inspection is not\n'
-            'possible, so this restriction is automatically bypassed and queries run for all\n'
-            'captured non-third-party player IPs.\n\n'
             'When disabled, queries run continuously regardless of GTA V process filter and include\n'
             'all captured non-third-party player IPs.'
         ),

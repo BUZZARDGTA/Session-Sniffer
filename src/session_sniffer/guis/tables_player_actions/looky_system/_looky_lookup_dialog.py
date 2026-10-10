@@ -184,7 +184,7 @@ def show_looky_lookup(parent: QWidget, player: Player | StandaloneIPLookup) -> N
     if _active_dialogs.focus(player.ip):
         return
 
-    api_key = check_looky_prerequisites(parent)
+    api_key = check_looky_prerequisites(parent, check_gta5_restriction=True)
     if api_key is None:
         return
 

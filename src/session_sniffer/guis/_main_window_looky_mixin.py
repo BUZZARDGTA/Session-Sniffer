@@ -9,12 +9,13 @@ from session_sniffer.background import trigger_looky_rescan_all_players
 from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.guis.looky_text import (
     LOOKY_TITLE,
+    LOOKY_WARNING_RESTRICTED_GTA5_NOT_RUNNING,
+    LOOKY_WARNING_RESTRICTED_NOT_LOCAL,
     configure_looky_action,
+    is_looky_gta5_restricted,
 )
 from session_sniffer.guis.tables_player_actions import show_crawlme_request
-from session_sniffer.player.registry import PlayersRegistry
 from session_sniffer.rendering_core.types import CaptureState
-from session_sniffer.settings import Settings
 from session_sniffer.text_utils import pluralize
 
 if TYPE_CHECKING:
@@ -73,6 +74,7 @@ class LookyMixin(QMainWindow):
             self._looky_crawler_join_own_session_action,
             'Call the crawler bot to resolve usernames for players in your current session.',
             is_gta5_running=CaptureState.gta5_is_running,
+            check_gta5_restriction=True,
         )
         configure_looky_action(
             self._looky_rescan_all_action,
@@ -86,14 +88,12 @@ class LookyMixin(QMainWindow):
 
     def _rescan_all_looky_players(self) -> None:
         """Reset the Looky System fetch timestamp for every player so `looky_core` re-fetches them immediately."""
-        players = PlayersRegistry.get_default_sorted_players()
-        if (
-            Settings.looky_exclusive_gta5_process
-            and CaptureState.is_local_capture()
-            and not CaptureState.is_scanning_gta5_process()
-            and not players
-        ):
-            QMessageBox.warning(self, LOOKY_TITLE, 'Looky System is restricted to GTA V, which is not currently running or being scanned.')
+        if not CaptureState.is_local_capture():
+            QMessageBox.warning(self, LOOKY_TITLE, LOOKY_WARNING_RESTRICTED_NOT_LOCAL)
+            return
+
+        if is_looky_gta5_restricted():
+            QMessageBox.warning(self, LOOKY_TITLE, LOOKY_WARNING_RESTRICTED_GTA5_NOT_RUNNING)
             return
 
         count = trigger_looky_rescan_all_players()
