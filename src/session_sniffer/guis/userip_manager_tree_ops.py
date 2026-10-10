@@ -98,7 +98,7 @@ class TreeOperationsMixin(QDialog):
         self._fs_watcher.remove_paths([path])
 
     # ------------------------------------------------------------------
-    # Tree: selection
+    # Tree selection
     # ------------------------------------------------------------------
 
     def _on_tree_selection_changed(self) -> None:
@@ -332,7 +332,7 @@ class TreeOperationsMixin(QDialog):
             menu.popup(viewport.mapToGlobal(position))
 
     # ------------------------------------------------------------------
-    # Tree: operations
+    # Tree operations
     # ------------------------------------------------------------------
 
     def _get_selected_tree_directory(self) -> Path:

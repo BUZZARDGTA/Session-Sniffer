@@ -131,7 +131,6 @@ IP_ADAPTER_ADDRESSES._fields_ = [
     ('FirstGatewayAddress', LP_IP_ADAPTER_GATEWAY_ADDRESS),
     # ... skipping the rest for brevity
 ]
-# pylint: enable=protected-access
 
 
 class MIB_IF_ROW2(ctypes.Structure):
@@ -211,7 +210,7 @@ if sys.platform == 'win32':
 
 
 # =========================
-# Neighbor ("Neighborhood")
+# Neighbor / Neighborhood
 # =========================
 
 

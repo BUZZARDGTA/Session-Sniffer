@@ -488,7 +488,6 @@ def main() -> None:
                     'Accept': 'application/json',
                 },
             )
-            # session.verify = False
             ping_loop(target_ip, session)
     except KeyboardInterrupt:
         sys.exit(0)

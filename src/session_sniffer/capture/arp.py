@@ -180,8 +180,7 @@ def build_arp_reply(
         _ETHERTYPE_ARP,
     )
 
-    # ARP payload: htype(2) + ptype(2) + hlen(1) + plen(1) + opcode(2)
-    #              + sender_mac(6) + sender_ip(4) + target_mac(6) + target_ip(4)
+    # ARP payload: htype(2), ptype(2), hlen(1), plen(1), opcode(2), sender_mac(6), sender_ip(4), target_mac(6), target_ip(4)
     arp_payload = struct.pack(
         '!HHBBH6s4s6s4s',
         _ARP_HARDWARE_TYPE_ETHERNET,
