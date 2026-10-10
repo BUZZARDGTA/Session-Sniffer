@@ -76,7 +76,6 @@ max-line-length = 176
 
 [tool.pylint."messages control"]
 disable = [
-    "consider-using-with",
     "too-many-branches",
     "too-many-instance-attributes",
     "too-many-locals",
@@ -217,4 +216,3 @@ error-on-warning = true # Error if ty emits any warning-level diagnostics.
 [tool.vulture]
 exclude = [".history", ".venv"]
 min_confidence = 61
-

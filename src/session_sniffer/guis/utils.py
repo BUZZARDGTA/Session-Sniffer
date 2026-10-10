@@ -1,14 +1,18 @@
 """Utility functions for GUI-related operations."""
 
+import os
+import sys
 from contextlib import contextmanager
 from dataclasses import dataclass
 from functools import cache
+from pathlib import Path
 from typing import TYPE_CHECKING, cast, override
 
-from PySide6.QtCore import QByteArray, QFileInfo, QPoint, QRectF, Qt, QTimer
+from PySide6.QtCore import QByteArray, QFileInfo, QPoint, QRectF, Qt, QTimer, QUrl
 from PySide6.QtGui import (
     QAction,
     QColor,
+    QDesktopServices,
     QIcon,
     QPainter,
     QPixmap,
@@ -954,3 +958,21 @@ def get_process_icon(exe_path: str) -> QIcon:
 
     _process_icon_cache[exe_path] = icon
     return icon
+
+
+def open_file_location(file_path: Path) -> None:
+    """Open the containing folder and select the file in the file manager."""
+    if file_path.is_file():
+        if sys.platform == 'win32':
+            explorer_exe = Path(os.getenv('WINDIR', r'C:\Windows')) / 'explorer.exe'
+            if explorer_exe.is_file():
+                os.startfile(str(explorer_exe), arguments=f'/select,"{file_path}"')
+                return
+        if file_path.parent.exists():
+            QDesktopServices.openUrl(QUrl.fromLocalFile(str(file_path.parent)))
+            return
+
+    if file_path.is_dir():
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(file_path)))
+    elif file_path.parent.exists():
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(file_path.parent)))

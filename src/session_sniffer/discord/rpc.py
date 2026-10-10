@@ -80,7 +80,7 @@ class _DiscordIPCConnection:
             if sys.platform == 'win32':
                 pipe_path = Path(rf'\\.\pipe\discord-ipc-{pipe_index}')
                 try:
-                    stream = pipe_path.open('r+b', buffering=0)
+                    stream = pipe_path.open('r+b', buffering=0)  # pylint: disable=consider-using-with
                     return cls(pipe_stream=stream)
                 except OSError:
                     continue

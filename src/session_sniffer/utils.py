@@ -510,7 +510,7 @@ def run_cmd_script(script: Path, args: list[str] | None = None) -> None:
         if terminal_emulator:
             subprocess.run([terminal_emulator, '-e', *command], check=False)
         else:
-            subprocess.Popen(command)
+            subprocess.Popen(command)  # pylint: disable=consider-using-with
         return
 
     full_command = [str(CMD_EXE), '/K']

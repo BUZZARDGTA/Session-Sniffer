@@ -48,7 +48,6 @@ from session_sniffer.guis.logs_manager._helpers import (
     MultiColumnFilterProxy,
     create_search_input,
     file_metadata_text,
-    open_file_location,
     purge_log_file,
 )
 from session_sniffer.guis.stylesheets import DIALOG_BUTTON_STYLESHEET, DIALOG_DANGER_BUTTON_STYLESHEET, SVG_ICON_CONTEXT_MENU_STYLESHEET
@@ -58,7 +57,7 @@ from session_sniffer.guis.tables_player_actions import (
     scan_ports_ip,
     show_detailed_ip_lookup,
 )
-from session_sniffer.guis.utils import animate_button_feedback, set_clipboard_text
+from session_sniffer.guis.utils import animate_button_feedback, open_file_location, set_clipboard_text
 from session_sniffer.text_utils import pluralize
 
 if TYPE_CHECKING:

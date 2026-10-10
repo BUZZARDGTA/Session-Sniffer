@@ -1,10 +1,7 @@
 """Shared constants and helper functions for the Logs Manager dialog."""
 
-import os
 import shutil
-import subprocess
 from datetime import UTC, datetime
-from pathlib import Path
 from typing import TYPE_CHECKING, override
 
 from PySide6.QtCore import QModelIndex, QPersistentModelIndex, QSortFilterProxyModel, QUrl
@@ -15,11 +12,12 @@ from session_sniffer.constants.local import CRASH_LOG_PATH, DEBUG_LOG_PATH, RESO
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.guis.stylesheets import DIALOG_BUTTON_STYLESHEET, DIALOG_DANGER_BUTTON_STYLESHEET
 from session_sniffer.guis.userip_manager_helpers import BYTES_PER_UNIT, human_readable_size
-from session_sniffer.guis.utils import animate_button_feedback, apply_search_icon, set_clipboard_text
+from session_sniffer.guis.utils import animate_button_feedback, apply_search_icon, open_file_location, set_clipboard_text
 from session_sniffer.logging_setup import purge_crash_log, purge_debug_log
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+    from pathlib import Path
 
 MAX_CSV_ROWS = 50_000
 LARGE_TEXT_FILE_LIMIT = 5 * BYTES_PER_UNIT * BYTES_PER_UNIT  # 5 MB
@@ -65,17 +63,6 @@ def file_metadata_text(file_path: Path) -> str:
     size = human_readable_size(stat.st_size)
     modified = datetime.fromtimestamp(stat.st_mtime, tz=UTC).astimezone()
     return f'{file_path.name}  |  {size}  |  Last modified: {human_readable_timestamp(modified)}'
-
-
-def open_file_location(file_path: Path) -> None:
-    """Open the containing folder and select the file in Windows Explorer."""
-    if file_path.is_file():
-        explorer_exe = Path(os.getenv('WINDIR', r'C:\Windows')) / 'explorer.exe'
-        subprocess.Popen(f'"{explorer_exe}" /select,"{file_path}"')
-    elif file_path.is_dir():
-        QDesktopServices.openUrl(QUrl.fromLocalFile(str(file_path)))
-    elif file_path.parent.exists():
-        QDesktopServices.openUrl(QUrl.fromLocalFile(str(file_path.parent)))
 
 
 def backup_file(file_path: Path) -> Path | None:

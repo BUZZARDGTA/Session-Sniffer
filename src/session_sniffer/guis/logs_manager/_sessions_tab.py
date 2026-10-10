@@ -39,7 +39,6 @@ from session_sniffer.guis.logs_manager._helpers import (
     copy_viewer_text_to_clipboard,
     create_log_viewer,
     create_search_input,
-    open_file_location,
     prepare_search,
     setup_copy_save_button_row,
     setup_metadata_label,
@@ -50,7 +49,7 @@ from session_sniffer.guis.stylesheets import (
     SVG_ICON_CONTEXT_MENU_STYLESHEET,
 )
 from session_sniffer.guis.userip_manager_helpers import human_readable_size
-from session_sniffer.guis.utils import SPINNER_FRAMES
+from session_sniffer.guis.utils import SPINNER_FRAMES, open_file_location
 from session_sniffer.models import SessionLogFile
 from session_sniffer.settings import Settings
 from session_sniffer.text_utils import format_single_border_table

@@ -9,7 +9,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from pathlib import Path
-from threading import Event, Lock, Thread
+from threading import Event, Thread
 
 from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QMessageBox
@@ -624,13 +624,15 @@ def main() -> None:
         on_open_hotspot=lambda: _switch_interface(initial_tab=1),
     )
 
-    # Re-entry guard: adapter-lost and ARP-failed pollers can fire concurrently; non-blocking acquire skips the second.
-    _capture_lost_lock = Lock()
+    # Re-entry guard: adapter-lost and ARP-failed pollers can fire concurrently; skips the second invocation.
+    _is_handling_capture_lost = False
 
     def _handle_capture_lost(*, stop_capture: bool, warning_message: str | None) -> None:
         """Shared handler for any event that requires stopping capture and re-selecting an interface."""
-        if not _capture_lost_lock.acquire(blocking=False):
+        nonlocal _is_handling_capture_lost
+        if _is_handling_capture_lost:
             return
+        _is_handling_capture_lost = True
         try:
             if stop_capture and capture_holder.is_running():
                 capture_holder.stop()
@@ -642,7 +644,7 @@ def main() -> None:
                 QMessageBox.warning(window, 'Capture Interrupted', warning_message)
             _switch_interface()
         finally:
-            _capture_lost_lock.release()
+            _is_handling_capture_lost = False
 
     _adapter_lost_attempts = 0
 

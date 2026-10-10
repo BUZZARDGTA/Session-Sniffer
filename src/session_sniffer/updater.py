@@ -213,7 +213,7 @@ def _apply_update(new_exe: Path) -> None:
     # Setting PYINSTALLER_RESET_ENVIRONMENT=1 tells the bootloader that this is a
     # new independent application launch, so it extracts to its own fresh _MEI dir.
     try:
-        subprocess.Popen(
+        subprocess.Popen(  # pylint: disable=consider-using-with
             [str(current_exe)],
             cwd=str(current_exe.parent),
             env={**os.environ, 'PYINSTALLER_RESET_ENVIRONMENT': '1'},

@@ -1,9 +1,7 @@
 """Tree-panel operations mixin for the UserIP Databases Manager dialog."""
 
 import logging
-import os
 import shutil
-import subprocess
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -22,6 +20,7 @@ from session_sniffer.guis.userip_manager_helpers import (
     NEW_DATABASE_TEMPLATE,
     iter_userip_entries,
 )
+from session_sniffer.guis.utils import open_file_location
 from session_sniffer.settings.settings import Settings
 from session_sniffer.text_templates import DEFAULT_USERIP_FILES_SETTINGS_INI, USERIP_DEFAULT_DB_FOOTER_TEMPLATE, USERIP_DEFAULT_DB_HEADER_TEMPLATE
 from session_sniffer.text_utils import format_triple_quoted_text
@@ -263,7 +262,7 @@ class TreeOperationsMixin(QDialog):
 
             explorer_target = file_path
             open_explorer_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'folder.svg')), 'Open in Explorer', self)
-            open_explorer_action.triggered.connect(lambda: self._open_in_explorer(explorer_target))
+            open_explorer_action.triggered.connect(lambda: open_file_location(explorer_target))
             menu.addAction(open_explorer_action)
 
             if file_path.is_file():
@@ -537,17 +536,6 @@ class TreeOperationsMixin(QDialog):
             self._current_path = new_path
 
         self._set_status(f'Moved "{path.name}" → {dest.relative_to(USERIP_DATABASES_DIR_PATH) or "root"}')
-
-    @staticmethod
-    def _open_in_explorer(path: Path) -> None:
-        """Open the containing folder and highlight the item in Windows Explorer."""
-        if path.is_file():
-            explorer_exe = Path(os.getenv('WINDIR', r'C:\Windows')) / 'explorer.exe'
-            subprocess.Popen(f'"{explorer_exe}" /select,"{path}"')
-        elif path.is_dir():
-            QDesktopServices.openUrl(QUrl.fromLocalFile(str(path)))
-        elif path.parent.exists():
-            QDesktopServices.openUrl(QUrl.fromLocalFile(str(path.parent)))
 
     def _reset_all_databases(self) -> None:
         """Delete every .ini database file in the databases directory after user confirmation.

@@ -2,7 +2,6 @@
 
 from ipaddress import IPv4Address
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 from PySide6.QtCore import QItemSelectionModel, QModelIndex, QPoint, Qt, QUrl
 from PySide6.QtGui import QAction, QDesktopServices, QIcon, QStandardItemModel
@@ -27,12 +26,9 @@ from session_sniffer.guis.userip_manager_helpers import (
     populate_userip_databases_menu,
     rewrite_db_without_entries,
 )
-from session_sniffer.guis.utils import copy_table_all_rows, copy_table_selection, set_clipboard_text
+from session_sniffer.guis.utils import copy_table_all_rows, copy_table_selection, open_file_location, set_clipboard_text
 from session_sniffer.settings.settings import Settings
 from session_sniffer.text_utils import pluralize
-
-if TYPE_CHECKING:
-    from collections.abc import Callable
 
 
 class EntriesContextMenuMixin(QDialog):
@@ -43,7 +39,7 @@ class EntriesContextMenuMixin(QDialog):
         _global_search_checkbox, _open_db_button, _tree, _fs_model
     And these methods:
         _add_entry, _add_username, _insert_entry_at, _move_rows, _get_row_entry_value,
-        _load_database, _open_in_explorer, _delete_selected
+        _load_database, _delete_selected
     """
 
     # -- Attribute stubs for type checkers --
@@ -57,7 +53,6 @@ class EntriesContextMenuMixin(QDialog):
     _tree: QTreeView
     _fs_model: QFileSystemModel
     _search_input: QLineEdit
-    _open_in_explorer: Callable[[Path], None]
 
     def _add_entry(self) -> None: ...
 
@@ -417,7 +412,7 @@ class EntriesContextMenuMixin(QDialog):
             menu.addAction(open_editor_action)
 
             open_explorer_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'folder.svg')), 'Open in Explorer', self)
-            open_explorer_action.triggered.connect(lambda: self._open_in_explorer(db_path))
+            open_explorer_action.triggered.connect(lambda: open_file_location(db_path))
             menu.addAction(open_explorer_action)
 
         menu.addSeparator()
