@@ -43,7 +43,7 @@ class CrashingQThread(QThread):
         try:
             cpp_ptr_val = shiboken6.getCppPointer(self)
             self._cpp_ptr: str = hex(cpp_ptr_val[0]) if cpp_ptr_val else 'unknown'
-        except Exception:  # noqa: BLE001 # pylint: disable=broad-exception-caught
+        except (TypeError, ValueError, RuntimeError):
             self._cpp_ptr = 'unknown'
         self.finished.connect(self._on_thread_finished)
         logger.debug('CrashingQThread initialized: %s (cpp_ptr: %s, py_id: 0x%x, parent: %s)', self._thread_name, self._cpp_ptr, id(self), parent)
