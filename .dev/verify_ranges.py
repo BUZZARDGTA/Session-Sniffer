@@ -611,27 +611,35 @@ def _evaluate_expansion_boundary(
     return expansion_found, expandable_ip_addresses, statuses['BACKWARD'], statuses['FORWARD'], details['BACKWARD'], details['FORWARD']
 
 
-def check_range(  # noqa: PLR0913  # pylint: disable=too-many-arguments
+@dataclass(kw_only=True, slots=True)
+class CheckRangeOptions:
+    """Optional configuration and state for checking a CIDR range."""
+
+    location: tuple[str, int | None] | None = None
+    only_detections: bool = False
+    current_index: int = 0
+    total_count: int = 0
+    detections: list[str] | None = None
+    fallback_client: RateLimitClient | None = None
+
+
+def check_range(
     client: RateLimitClient | GeoLite2Client,
     owner: str,
     cidr_range: str,
     owner_networks: list[ipaddress.IPv4Network],
-    *,
-    location: tuple[str, int | None] | None = None,
-    only_detections: bool = False,
-    current_index: int = 0,
-    total_count: int = 0,
-    detections: list[str] | None = None,
-    fallback_client: RateLimitClient | None = None,
+    options: CheckRangeOptions | None = None,
 ) -> bool:
     """Check the validity of the CIDR range and look for potential expansion."""
-    file_path, line_number = location or ('', None)
+    if options is None:
+        options = CheckRangeOptions()
+    file_path, line_number = options.location or ('', None)
     network = ipaddress.ip_network(cidr_range)
     if not isinstance(network, ipaddress.IPv4Network):
         message = f'Only IPv4 networks are supported: {cidr_range}'
         raise TypeError(message)
 
-    progress_prefix = f'[cyan][{int((current_index / total_count) * 100)}%][/cyan] ' if total_count > 0 and current_index > 0 else ''
+    progress_prefix = f'[cyan][{int((options.current_index / options.total_count) * 100)}%][/cyan] ' if options.total_count > 0 and options.current_index > 0 else ''
     status_message = (
         f'{progress_prefix}[bold cyan]Scanning [/bold cyan][bold white]{owner}[/bold white] '
         f'[bold cyan]([/bold cyan][bold magenta]{network.with_prefixlen}[/bold magenta][bold cyan])...[/bold cyan]'
@@ -657,16 +665,16 @@ def check_range(  # noqa: PLR0913  # pylint: disable=too-many-arguments
                     ip_range_str = str(start_ip) if start_ip == end_ip else f'{start_ip} - {end_ip}'
                     mismatch_lines.append(f'[red]✗[/red] [magenta]{ip_range_str}[/magenta] → {actual_owner}')
                     mismatches_raw.append(f'✗ {cidr_range} ({ip_range_str}) → {actual_owner}')
-            elif not matching_networks and fallback_client:
+            elif not matching_networks and options.fallback_client:
                 if owner not in IP_API_SKIPPED_OWNERS and network.prefixlen > MAX_IP_API_SUBNET_PREFIX:
                     status.update(
                         f'{progress_prefix}[bold cyan]Scanning [/bold cyan][bold white]{owner}[/bold white] '
                         f'[bold cyan]([/bold cyan][bold magenta]{network.with_prefixlen}[/bold magenta]'
                         f'[bold cyan])... [yellow]Fallback to IP-API[/yellow][/bold cyan]'
                     )
-                    fallback_results = lookup_ips_batch(fallback_client, all_ip_addresses)
+                    fallback_results = lookup_ips_batch(options.fallback_client, all_ip_addresses)
                     results.update(fallback_results)
-                    active_client = fallback_client
+                    active_client = options.fallback_client
                     sample_valid, lines, raw = _collect_sample_mismatches(base_samples, fallback_results, owner, cidr_range)
                     if not sample_valid:
                         is_valid = False
@@ -681,7 +689,7 @@ def check_range(  # noqa: PLR0913  # pylint: disable=too-many-arguments
                 mismatch_lines.extend(lines)
                 mismatches_raw.extend(raw)
 
-        expansion_found, expandable_ips, backward_status, forward_status, backward_details, forward_details = _evaluate_expansion_boundary(
+        expansion_found, expandable_ip_addresses, backward_status, forward_status, backward_details, forward_details = _evaluate_expansion_boundary(
             network, adjacent_ip_addresses, owner, owner_networks, results,
         )
 
@@ -722,18 +730,18 @@ def check_range(  # noqa: PLR0913  # pylint: disable=too-many-arguments
 
     expansion_raw = ''
     if expansion_found:
-        expansion_renderable, expansion_raw = suggest_expansion(active_client, owner, RangeContext(network, owner_networks), expandable_ips, status)
+        expansion_renderable, expansion_raw = suggest_expansion(active_client, owner, RangeContext(network, owner_networks), expandable_ip_addresses, status)
         if expansion_renderable is not None:
             renderables.extend([Text(''), Rule('[bold white]Expansion Available[/bold white]'), expansion_renderable])
 
     clean_path = os.path.relpath(file_path).replace('\\', '/') if file_path else ''
-    if has_mismatches and detections is not None:
+    if has_mismatches and options.detections is not None:
         for mismatch in mismatches_raw:
-            detections.append(f'{clean_path}:{line_number}: ({owner}) {mismatch} | [FIX SUGGESTION] {fix_raw}')
-    if expansion_found and detections is not None:
-        detections.append(f'{clean_path}:{line_number}: ({owner}) [EXPANSION] {cidr_range} is expandable | [EXPAND SUGGESTION] {expansion_raw}')
+            options.detections.append(f'{clean_path}:{line_number}: ({owner}) {mismatch} | [FIX SUGGESTION] {fix_raw}')
+    if expansion_found and options.detections is not None:
+        options.detections.append(f'{clean_path}:{line_number}: ({owner}) [EXPANSION] {cidr_range} is expandable | [EXPAND SUGGESTION] {expansion_raw}')
 
-    if not only_detections or not is_valid or expansion_found:
+    if not options.only_detections or not is_valid or expansion_found:
         title = (
             f'[bold white]{owner}[/bold white]  •  [bold magenta]{network.with_prefixlen}[/bold magenta]  •  '
             f'[dim]{network.network_address} → {network.broadcast_address}[/dim]  •  '
@@ -944,11 +952,18 @@ def main() -> None:
             current_index += 1
             progress.update(task_id, completed=current_index, description=f'[white]{owner}[/white] [magenta]{cidr_range}[/magenta]')
             check_range(
-                client, owner, cidr_range, networks_by_owner.get(owner, []),
-                location=(str(parsed_arguments.ranges_file), line_number),
-                only_detections=parsed_arguments.only_detections,
-                current_index=current_index, total_count=total_count,
-                detections=detections, fallback_client=fallback_client,
+                client,
+                owner,
+                cidr_range,
+                networks_by_owner.get(owner, []),
+                CheckRangeOptions(
+                    location=(str(parsed_arguments.ranges_file), line_number),
+                    only_detections=parsed_arguments.only_detections,
+                    current_index=current_index,
+                    total_count=total_count,
+                    detections=detections,
+                    fallback_client=fallback_client,
+                ),
             )
             if total_count > 0:
                 time.sleep(min(0.005, 1.0 / total_count))
