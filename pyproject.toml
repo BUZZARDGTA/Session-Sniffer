@@ -87,7 +87,6 @@ disable = [
 const-rgx = "(^[A-Z_][A-Z0-9_]*$|^_atexit_registered$)"
 good-names = [
     "_atexit_registered",
-    "_MIB_UDPROW_OWNER_PID",
     "_OPER_STATUS_FLAGS",
     "dwSize",
     "InterfaceIndex",
@@ -172,7 +171,6 @@ section-order = [
 
 [tool.ruff.lint.pep8-naming]
 ignore-names = [
-    "_MIB_UDPROW_OWNER_PID",
     "_OPER_STATUS_FLAGS",
     "IP_ADAPTER_ADDRESSES",
     "IP_ADAPTER_GATEWAY_ADDRESS",
@@ -219,12 +217,4 @@ error-on-warning = true # Error if ty emits any warning-level diagnostics.
 [tool.vulture]
 exclude = [".history", ".venv"]
 min_confidence = 61
-ignore_names = [
-    "QFont",
-    "QRect",
-    "filterAcceptsRow",
-    "flush",
-    "highlightBlock",
-    "snapshot_version",
-    "thread_name",
-]
+
