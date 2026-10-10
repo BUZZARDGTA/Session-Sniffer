@@ -362,7 +362,7 @@ def sort_table_rows[T: Sequence[str], C: Sequence[CellColor]](
     return sorted_rows
 
 
-class SessionTableModel(QAbstractTableModel):  # pylint: disable=too-many-public-methods
+class SessionTableModel(QAbstractTableModel):
     """Provide a Qt table model for rendering connected/disconnected sessions."""
 
     TABLE_CELL_TOOLTIP_MARGIN = 8  # Margin in pixels for determining when to show tooltips for truncated text
@@ -507,13 +507,13 @@ class SessionTableModel(QAbstractTableModel):  # pylint: disable=too-many-public
 
         if role == Qt.ItemDataRole.DecorationRole:
             if self._column_indices.country is not None and self._column_indices.country == column_index:
-                ip = self.get_ip_from_data_safely(self._data[row_index])
+                ip = self._get_ip_from_data_safely(self._data[row_index])
 
                 matched_player = PlayersRegistry.get_player_by_ip(ip)
                 if matched_player is not None and matched_player.country_flag is not None:
                     output = matched_player.country_flag.icon
             elif self.ip_column_index >= 0 and self.ip_column_index == column_index:
-                ip = self.get_ip_from_data_safely(self._data[row_index])
+                ip = self._get_ip_from_data_safely(self._data[row_index])
                 output = get_ip_column_composite_icon(
                     is_host=Settings.gui_session_host_icon and Settings.is_gta5_feature_set() and SessionHost.is_host(ip),
                     is_high_rate=Settings.high_rate_monitor_icon and HighRateTracker.is_high_rate(ip),
@@ -521,13 +521,13 @@ class SessionTableModel(QAbstractTableModel):  # pylint: disable=too-many-public
                 )
             elif self.username_column_index >= 0 and self.username_column_index == column_index:
                 if Settings.looky_enabled and Settings.is_gta5_feature_set():
-                    ip = self.get_ip_from_data_safely(self._data[row_index])
+                    ip = self._get_ip_from_data_safely(self._data[row_index])
                     matched_player = PlayersRegistry.get_player_by_ip(ip)
                     if matched_player is not None and self._is_player_looky_resolved(matched_player):
                         output = self._looky_icon
         elif role == Qt.ItemDataRole.UserRole:
             if self.username_column_index >= 0 and self.username_column_index == column_index and Settings.looky_enabled and Settings.is_gta5_feature_set():
-                ip = self.get_ip_from_data_safely(self._data[row_index])
+                ip = self._get_ip_from_data_safely(self._data[row_index])
                 matched_player = PlayersRegistry.get_player_by_ip(ip)
                 if matched_player is not None:
                     return self._get_unregistered_looky_usernames(matched_player)
@@ -560,7 +560,7 @@ class SessionTableModel(QAbstractTableModel):  # pylint: disable=too-many-public
                     output = cell_text
 
             if self.ip_column_index >= 0 and self.ip_column_index == column_index:
-                ip = self.get_ip_from_data_safely(self._data[row_index])
+                ip = self._get_ip_from_data_safely(self._data[row_index])
                 tooltips: list[str] = []
                 if bool(output):
                     tooltips.append(str(output))
@@ -655,7 +655,7 @@ class SessionTableModel(QAbstractTableModel):  # pylint: disable=too-many-public
 
     def _rebuild_ip_index(self) -> None:
         """Rebuild the IP-to-row-index cache from current data."""
-        self._ip_to_row_index = {self.get_ip_from_data_safely(row): i for i, row in enumerate(self._data)}
+        self._ip_to_row_index = {self._get_ip_from_data_safely(row): i for i, row in enumerate(self._data)}
 
     def get_column_index(self, column_name: str, /) -> int | None:
         """Get the table index of a specified column, or None if not present.
@@ -692,10 +692,10 @@ class SessionTableModel(QAbstractTableModel):  # pylint: disable=too-many-public
             The IP address string for the row, or empty string if out of bounds.
         """
         if 0 <= row < len(self._data):
-            return self.get_ip_from_data_safely(self._data[row])
+            return self._get_ip_from_data_safely(self._data[row])
         return ''
 
-    def get_ip_from_data_safely(self, row_data: Sequence[str]) -> str:
+    def _get_ip_from_data_safely(self, row_data: Sequence[str]) -> str:
         """Safely extract an IP address as a string from row data.
 
         This method ensures the IP address is always returned as a string type.
@@ -775,7 +775,7 @@ class SessionTableModel(QAbstractTableModel):  # pylint: disable=too-many-public
             self.dataChanged.emit(top_left, bottom_right)
         return True
 
-    def delete_row(self, row_index: int) -> None:
+    def _delete_row(self, row_index: int) -> None:
         """Delete a row from the model along with its associated colors.
 
         Args:
@@ -826,7 +826,7 @@ class SessionTableModel(QAbstractTableModel):  # pylint: disable=too-many-public
         """
         row_index = self._ip_to_row_index.get(ip)
         if row_index is not None:
-            self.delete_row(row_index)
+            self._delete_row(row_index)
 
     def refresh_view(self) -> None:
         """Notifies the view to refresh and reflect all changes made to the model."""
