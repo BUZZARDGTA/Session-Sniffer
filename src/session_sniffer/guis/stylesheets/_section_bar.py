@@ -92,7 +92,7 @@ def section_bar_qss(accent: str) -> str:
     }}
     QSpinBox {{
         min-height: 28px;
-        padding: 0 16px 0 6px;
+        padding: 0 16px 0 0;
         color: #f1f5f9;
         background: rgba(0, 0, 0, 0.35);
         border: 1px solid rgba(255, 255, 255, 0.12);
