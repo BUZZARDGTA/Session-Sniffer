@@ -77,10 +77,6 @@ max-line-length = 176
 [tool.pylint."messages control"]
 disable = [
     "consider-using-with",
-    "global-statement",
-    "locally-disabled",
-    "redefined-outer-name",
-    "suppressed-message",
     "too-many-branches",
     "too-many-instance-attributes",
     "too-many-locals",
@@ -145,16 +141,11 @@ quote-style = "single"
 [tool.ruff.lint]
 ignore = [
     "C901",    # complex-structure
-    "COM812",  # missing-trailing-comma - conflict with Ruff formatter (trailing comma handled by formatter)
     "CPY",     # missing-copyright-notice
-    "ERA001",  # commented-out-code
-    "FIX002",  # line-contains-todo
     "PLR0912", # too-many-branches
     "PLR0915", # too-many-statements
     "S603",    # subprocess-without-shell-equals-true
     "S606",    # start-process-with-no-shell
-    "TD003",   # missing-todo-link
-    "TD005",   # missing-todo-description
 ]
 select = ["ALL"]
 allowed-confusables = ["➕", "ℹ"]
