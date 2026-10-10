@@ -77,8 +77,14 @@ class ElidedTextTooltipDelegate(QStyledItemDelegate):
             text = index.data(Qt.ItemDataRole.DisplayRole)
             if isinstance(text, str) and text:
                 opt = QStyleOptionViewItem(option)
+                if not opt.rect.isValid():
+                    opt.rect = view.visualRect(index)
                 self.initStyleOption(opt, index)
-                if QFontMetrics(cast('QFont', opt.font)).horizontalAdvance(text) > view.visualRect(index).width() - 6:  # type: ignore[redundant-cast]
+                style = view.style()
+                text_rectangle = style.subElementRect(QStyle.SubElement.SE_ItemViewItemText, opt, view)
+                text_margin = style.pixelMetric(QStyle.PixelMetric.PM_FocusFrameHMargin, opt, view) + 1
+                usable_text_width = max(0, text_rectangle.width() - text_margin * 2)
+                if QFontMetrics(cast('QFont', opt.font)).horizontalAdvance(text) > usable_text_width:  # type: ignore[redundant-cast]
                     QToolTip.showText(event.globalPos(), text, view)
                     return True
 
