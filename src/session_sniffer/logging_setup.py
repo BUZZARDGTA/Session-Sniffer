@@ -357,11 +357,11 @@ def dump_crash_diagnostics(reason: str) -> None:
         for provider in providers:
             try:
                 lines.extend(provider())
-            except Exception as e:  # noqa: BLE001 # pylint: disable=broad-exception-caught
+            except (RuntimeError, OSError, ValueError, TypeError) as e:
                 lines.append(f'Diagnostic provider error: {e}')
         if sys.platform == 'win32':
             lines.extend(_capture_win32_native_stack())
-    except Exception as e:  # noqa: BLE001 # pylint: disable=broad-exception-caught
+    except (RuntimeError, OSError) as e:
         lines.append(f'Failed to collect thread diagnostics: {e}')
 
     lines.append('=== END THREAD DIAGNOSTIC DUMP ===')
