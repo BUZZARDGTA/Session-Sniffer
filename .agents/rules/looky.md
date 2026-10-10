@@ -10,9 +10,7 @@ These rules govern all Looky System development, integration, security controls,
 ## Overview & Architecture
 
 Looky System is a third-party service (`looky-gta.cc`) used to resolve IP addresses to Rockstar IDs and usernames for GTA V players:
-* **Background Worker**: `looky_core()` in `session_sniffer.background.cores` polls connected eligible players and performs batch lookups (`lookup_ip_batch`).
-* **Authentication Worker**: `looky_verify_token_core()` in `session_sniffer.background.cores`
-  validates the configured API key on startup and setting changes, updating `LookyState`.
+* **Background Worker**: `looky_core()` in `session_sniffer.background.cores` validates the configured API key on startup and setting changes (updating `LookyState`), polls connected eligible players, and performs batch lookups (`lookup_ip_batch`).
 * **Manual Lookups & Dialogs**: `session_sniffer.guis.tables_player_actions.looky_system` provides
   manual lookup (`show_looky_lookup`), crawler requests (`show_crawler_request`, `show_crawlme_request`),
   and UserIP database lookups (`looky_refresh_userip_entries`).

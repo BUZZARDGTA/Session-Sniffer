@@ -23,24 +23,24 @@ Use this skill when the user wants to prepare and commit a new Session Sniffer r
    - For a new RC: increment the existing `rc.N` number by one, preserving `X.Y.Z`.
    - For a final release: remove the `rc.N` suffix, preserving `X.Y.Z`.
    - Always append the new UTC build timestamp: `+YYYYMMDD.HHMM`
-10. Synchronize `uv.lock` immediately:
-    - Run `uv lock` to rebuild/update the `session-sniffer` version in `uv.lock`.
-    - Enforce CRLF (`\r\n`) line endings on `uv.lock` (since `uv` outputs LF line endings by default).
-    - Run `uv lock --check` to verify the lockfile is completely synchronized.
-11. Review the resulting diff (both `pyproject.toml` and `uv.lock` should reflect the new version).
-12. Run the release-specific validation before committing. For version-only changes, use `uv lock --check` and CRLF line-ending verification for `pyproject.toml` and `uv.lock`; do not run the full `python code_quality_checks.py` suite unless the release also includes significant code, dependency, resource, or packaging changes.
-13. Verify CRLF (`\r\n`) line endings on all modified files, especially `uv.lock` and `pyproject.toml`.
-14. Show the user:
+7. Synchronize `uv.lock` immediately:
+   - Run `uv lock` to rebuild/update the `session-sniffer` version in `uv.lock`.
+   - Enforce CRLF (`\r\n`) line endings on `uv.lock` (since `uv` outputs LF line endings by default).
+   - Run `uv lock --check` to verify the lockfile is completely synchronized.
+8. Review the resulting diff (both `pyproject.toml` and `uv.lock` should reflect the new version).
+9. Run the release-specific validation before committing. For version-only changes, use `uv lock --check` and CRLF line-ending verification for `pyproject.toml` and `uv.lock`; do not run the full `python code_quality_checks.py` suite unless the release also includes significant code, dependency, resource, or packaging changes.
+10. Verify CRLF (`\r\n`) line endings on all modified files, especially `uv.lock` and `pyproject.toml`.
+11. Show the user:
     - previous version,
     - new version,
     - changed files (`pyproject.toml`, `uv.lock`),
     - validation performed.
-15. Create exactly one version-bump commit containing both `pyproject.toml` and `uv.lock` using:
+12. Create exactly one version-bump commit containing both `pyproject.toml` and `uv.lock` using:
 
    `build: bump version to <new-version>`
 
-16. Ensure the version-bump commit is pushed before creating any GitHub tag or release. The release tag MUST match `version` in `pyproject.toml` exactly.
-17. Do not amend, reset, rebase, force-push, or otherwise rewrite Git history.
+13. Ensure the version-bump commit is pushed before creating any GitHub tag or release. The release tag MUST match `version` in `pyproject.toml` exactly.
+14. Do not amend, reset, rebase, force-push, or otherwise rewrite Git history.
 
 ## Version Format
 
