@@ -43,7 +43,6 @@ if TYPE_CHECKING:
     from session_sniffer.models.player import Player
     from session_sniffer.rendering_core.types import CellColor
 
-MAX_POSSIBLE_IP_ICONS = 3
 
 GUI_COLUMN_HEADERS_TOOLTIPS = {
     'Usernames': (
@@ -696,10 +695,6 @@ class SessionTableModel(QAbstractTableModel):  # pylint: disable=too-many-public
             return self.get_ip_from_data_safely(self._data[row])
         return ''
 
-    def get_all_ips(self) -> list[str]:
-        """Return the IP address for every row currently in the model."""
-        return [self.get_ip_from_data_safely(row_data) for row_data in self._data]
-
     def get_ip_from_data_safely(self, row_data: Sequence[str]) -> str:
         """Safely extract an IP address as a string from row data.
 
@@ -738,36 +733,6 @@ class SessionTableModel(QAbstractTableModel):  # pylint: disable=too-many-public
             raise TypeError(format_type_error(display_data, str))
 
         return display_data
-
-    def max_ip_icons(self) -> int:
-        """Return the maximum number of icons displayed in the IP Address column for any row."""
-        ip_column = self.ip_column_index
-        if ip_column < 0:
-            return 0
-        max_count = 0
-        for row_data in self._data:
-            if len(row_data) <= ip_column:
-                continue
-            ip = row_data[ip_column]
-            count = 0
-            if Settings.gui_session_host_icon and SessionHost.is_host(ip):
-                count += 1
-            if Settings.high_rate_monitor_icon and HighRateTracker.is_high_rate(ip):
-                count += 1
-            if Settings.player_identifier_icon and PlayerIdentifierTracker.is_identified(ip):
-                count += 1
-            if count > max_count:
-                max_count = count
-                if max_count == MAX_POSSIBLE_IP_ICONS:
-                    break
-        return max_count
-
-    def has_multiple_ports(self) -> bool:
-        """Return whether any row in the table contains multiple ports."""
-        ports_column = self.ports_column_index
-        if ports_column is None or ports_column < 0:
-            return False
-        return any(len(row_data) > ports_column and ',' in row_data[ports_column] for row_data in self._data)
 
     def sync_rows(self, rows_with_colors: Sequence[tuple[tuple[str, ...], tuple[CellColor, ...]]]) -> bool:
         """Synchronize the table model with pre-sorted, paginated rows and colors.
