@@ -166,7 +166,7 @@ class CrashingQThread(QThread):
         except SystemExit:
             logger.debug('CrashingQThread _run() raised SystemExit: %s (cpp_ptr: %s, native id: %s)', self._thread_name, self._cpp_ptr, self._native_id)
             return
-        except BaseException as e:  # pylint: disable=broad-exception-caught
+        except BaseException as e:
             logger.exception(
                 'CrashingQThread _run() raised unhandled exception in %s (cpp_ptr: %s, native id: %s)',
                 self._thread_name,
@@ -174,6 +174,7 @@ class CrashingQThread(QThread):
                 self._native_id,
             )
             terminate_on_uncaught_exception(e)
+            raise
 
     def _run(self) -> None:
         """Override in subclasses to define the thread's work."""
