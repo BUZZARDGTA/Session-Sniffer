@@ -148,6 +148,7 @@ ignore = [
     "TD005",   # missing-todo-description
 ]
 select = ["ALL"]
+allowed-confusables = ["➕", "ℹ"]
 
 [tool.ruff.lint.per-file-ignores]
 ".dev/*" = ["INP001"]

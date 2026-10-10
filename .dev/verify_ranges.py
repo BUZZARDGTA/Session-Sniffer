@@ -189,11 +189,8 @@ class RateLimitClient:  # pylint: disable=too-few-public-methods
         """Sleep for the specified duration, using the sleep callback if registered."""
         callback = self.sleep_callback
         if callback is not None:
-            try:
+            with contextlib.suppress(Exception):
                 callback(seconds, reason)
-            except Exception:  # pylint: disable=broad-exception-caught  # noqa: BLE001, S110
-                pass
-            else:
                 return
         time.sleep(seconds)
 
@@ -316,7 +313,7 @@ class GeoLite2Client:
                 )
             except geoip2.errors.AddressNotFoundError:
                 pass
-            except Exception as e:  # pylint: disable=broad-exception-caught  # noqa: BLE001
+            except geoip2.errors.GeoIP2Error as e:
                 lookup_result['message'] = str(e)
             results.append(lookup_result)
         return results
@@ -655,7 +652,7 @@ def scan_network_geolite2(
             if database_network.broadcast_address >= end_ip:
                 break
             current_ip = ipaddress.IPv4Address(next_24_aligned_ip)
-        except Exception as e:  # pylint: disable=broad-exception-caught  # noqa: BLE001
+        except geoip2.errors.GeoIP2Error as e:
             # Other errors
             mismatches.append((current_ip, current_ip, f'Error: {e}'))
             current_ip += 1
@@ -968,7 +965,7 @@ def check_expansion(client: RateLimitClient | GeoLite2Client, owner: str, cidr_r
             else:
                 console.print('    [green]\\[NO EXPANSION][/green]')
 
-        except Exception as e:  # noqa: BLE001  # pylint: disable=broad-exception-caught
+        except (requests.RequestException, geoip2.errors.GeoIP2Error) as e:
             console.print(f'    [red]\\[ERROR][/red] {e}')
 
 
@@ -1336,7 +1333,7 @@ def run_preflight_checks(
                 lines.append('  [red]❌ Delete these ranges:[/red]')
                 lines.extend(f"    '{n.with_prefixlen}'," for n in to_delete)
             if to_add:
-                lines.append('  [green]➕ Add these ranges instead:[/green]')  # noqa: RUF001
+                lines.append('  [green]➕ Add these ranges instead:[/green]')
                 lines.extend(f"    '{n.with_prefixlen}'," for n in to_add)
 
             collapse_suggestions.append('\n'.join(lines))
@@ -1550,7 +1547,7 @@ def main() -> None:
                 if not parsed_arguments.only_detections:
                     clean_relative_path = os.path.relpath(str(parsed_arguments.ranges_file)).replace('\\', '/')
                     link_suffix = f'  •  [blue]{clean_relative_path}:{line_number}[/blue]' if clean_relative_path else ''
-                    console.print(f'[dim]ℹ Skipping Range Verification for {owner} CIDR:[/dim] [magenta dim]{cidr_range}[/magenta dim]{link_suffix}')  # noqa: RUF001
+                    console.print(f'[dim]ℹ Skipping Range Verification for {owner} CIDR:[/dim] [magenta dim]{cidr_range}[/magenta dim]{link_suffix}')
                 continue
 
             current_index += 1
@@ -1589,7 +1586,7 @@ def main() -> None:
 
     console.print(f'  [green]✓ Successfully verified [bold]{total_count}[/bold] ranges in [bold]{time_str}[/bold].[/green]')
     if skipped_count > 0:
-        console.print(f'  [dim]ℹ Skipped [bold]{skipped_count}[/bold] ranges (ignored owners / huge ranges).[/dim]')  # noqa: RUF001
+        console.print(f'  [dim]ℹ Skipped [bold]{skipped_count}[/bold] ranges (ignored owners / huge ranges).[/dim]')
 
     if parsed_arguments.export:
         export_path = Path(parsed_arguments.export)
