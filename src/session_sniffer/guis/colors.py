@@ -78,7 +78,6 @@ class TableColors(enum.StrEnum):
     DISCONNECTED_USERIP_TEXT = 'white'
     DISCONNECTED_PAST_SESSION_TEXT = '#8c3e42'
     DISCONNECTED_PAST_SESSION_USERIP_TEXT = '#a8a8a8'
-    DISCONNECTED_CURRENT_SESSION_BACKGROUND = '#251316'
 
     # Looky username colors
     LOOKY_TEXT = '#c084fc'

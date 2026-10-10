@@ -141,9 +141,9 @@ class SessionTableSection(QWidget):
         else:
             accent = '#ef4444'
             border_color = '#59282a'
-            table_bg = '#141011'
-            alt_bg = '#191315'
-            grid_color = '#261719'
+            table_bg = '#180e11'
+            alt_bg = '#241317'
+            grid_color = '#2d181c'
             sel_bg = '#3d1a1e'
             header_bg = '#1d1315'
             header_text = '#94a3b8'

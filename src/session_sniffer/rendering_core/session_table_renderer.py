@@ -26,7 +26,6 @@ HARDCODED_DEFAULT_TABLE_BACKGROUND_CELL_COLOR = None
 _CONNECTED_TEXT_COLOR = QColor(TableColors.CONNECTED_TEXT)
 _CONNECTED_USERIP_TEXT_COLOR = QColor(TableColors.CONNECTED_USERIP_TEXT)
 _DISCONNECTED_CURRENT_SESSION_TEXT_COLOR = QColor(TableColors.DISCONNECTED_TEXT)
-_DISCONNECTED_CURRENT_SESSION_BACKGROUND_COLOR = QColor(TableColors.DISCONNECTED_CURRENT_SESSION_BACKGROUND)
 _DISCONNECTED_PAST_SESSION_TEXT_COLOR = QColor(TableColors.DISCONNECTED_PAST_SESSION_TEXT)
 _DISCONNECTED_PAST_SESSION_USERIP_TEXT_COLOR = QColor(TableColors.DISCONNECTED_PAST_SESSION_USERIP_TEXT)
 _DISCONNECTED_USERIP_TEXT_COLOR = QColor(TableColors.DISCONNECTED_USERIP_TEXT)
@@ -194,7 +193,7 @@ def build_disconnected_player_row(
     """Build column strings and cell colors for a disconnected or past-session player row."""
     _current_session_disconnected_cell = CellColor(
         foreground=_DISCONNECTED_CURRENT_SESSION_TEXT_COLOR,
-        background=_DISCONNECTED_CURRENT_SESSION_BACKGROUND_COLOR,
+        background=HARDCODED_DEFAULT_TABLE_BACKGROUND_CELL_COLOR,
     )
     _current_session_disconnected_row_colors = (_current_session_disconnected_cell,) * context.disconnected_num_columns
 
