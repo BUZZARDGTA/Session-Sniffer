@@ -691,15 +691,7 @@ class TableContextMenuMixin(QTableView):
                     usernames = [cell_text]
 
                 if len(usernames) == 1:
-                    chosen_username, success = QInputDialog.getText(
-                        self,
-                        'Search Username',
-                        'Enter the username to search for:',
-                        text=usernames[0],
-                    )
-                    if not success or not chosen_username.strip():
-                        return None
-                    return chosen_username.strip()
+                    return usernames[0].strip() or None
 
                 chosen_username, success = QInputDialog.getItem(
                     self,
