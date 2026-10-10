@@ -135,7 +135,7 @@ Do not blindly merge unrelated code just because pylint reports similar lines.
  
 ### Example: hardcoded-bind-all-interfaces (S104)
 
-- `WEBSERVER_DEFAULT_HOST: str = '0.0.0.0'  # noqa: S104` in `src/session_sniffer/constants/standalone.py`: genuine exception (`0.0.0.0` is the intentional default webserver host); leave as-is.
+- `WEBSERVER_DEFAULT_HOST: str = '0.0.0.0'  # noqa: S104` in `src/session_sniffer/constants/standalone.py`: `0.0.0.0` is the intentional default webserver host; leave as-is.
 
 ## Tracebacks and Runtime Errors
 
