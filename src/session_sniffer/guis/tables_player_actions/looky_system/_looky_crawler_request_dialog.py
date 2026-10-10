@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from session_sniffer.background.cores import trigger_looky_rescan_all_players
 from session_sniffer.guis._crashing_qthread import CrashingQThread
 from session_sniffer.guis.delegates import ElidedTextTooltipDelegate
 from session_sniffer.guis.looky_text import (
@@ -670,8 +671,6 @@ def show_crawler_request(parent: QWidget, player: Player) -> None:
 
     display_name = next((name for name, rockstar_id in entries if rockstar_id == rid), player.ip)
 
-    from session_sniffer.background.cores import trigger_looky_rescan_all_players  # noqa: PLC0415  # pylint: disable=import-outside-toplevel
-
     version = get_crawler_game_version()
     _start_crawler_send(
         _CrawlerRequest(
@@ -695,8 +694,6 @@ def show_crawlme_request(parent: QWidget) -> None:
     if not CaptureState.gta5_is_running:
         QMessageBox.warning(parent, LOOKY_TITLE, LOOKY_MENU_TOOLTIP_GTA5_NOT_RUNNING)
         return
-
-    from session_sniffer.background.cores import trigger_looky_rescan_all_players  # noqa: PLC0415  # pylint: disable=import-outside-toplevel
 
     version = get_crawler_game_version()
     _start_crawler_send(

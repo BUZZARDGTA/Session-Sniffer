@@ -54,6 +54,7 @@ from session_sniffer.networking.looky_system import (
     extract_rate_limit_wait_seconds,
     lookup_ip_batch,
 )
+from session_sniffer.settings.settings import Settings
 from session_sniffer.text_utils import pluralize
 from session_sniffer.utils import write_lines_to_file
 
@@ -566,8 +567,6 @@ def looky_refresh_userip_entries(
     if not all_ips:
         QMessageBox.information(parent, LOOKY_TITLE, 'No single IP addresses found to look up.')
         return
-
-    from session_sniffer.settings.settings import Settings  # noqa: PLC0415  # pylint: disable=import-outside-toplevel  # deferred to avoid circular imports
 
     worker = _LookyRefreshWorker(all_ips, api_key, Settings.looky_game_version.lower())
 

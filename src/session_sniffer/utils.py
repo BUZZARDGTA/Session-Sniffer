@@ -76,6 +76,7 @@ def get_documents_dir() -> Path:
     """
     if sys.platform == 'win32':
         import winreg  # noqa: PLC0415  # pylint: disable=import-outside-toplevel
+
         with winreg.OpenKey(winreg.HKEY_CURRENT_USER, USER_SHELL_FOLDERS__REG_KEY) as key:
             documents_path, _ = winreg.QueryValueEx(key, 'Personal')
             if not isinstance(documents_path, str):

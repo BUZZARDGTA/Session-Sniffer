@@ -23,14 +23,14 @@ from session_sniffer.constants.standard import LOCAL_TZ
 from session_sniffer.core import ScriptControl, terminate_on_uncaught_exception
 from session_sniffer.error_messages import format_type_error
 from session_sniffer.gta5.suspend_manager import GTASuspendManager
-from session_sniffer.guis.tables_player_actions import (
+from session_sniffer.guis.tables_player_actions._detection_dialogs import (
     DetectionNotificationInfo,
     NotificationType,
     PlayerDetectionInfo,
     show_detection_notification_dialog,
     show_player_detection_dialog,
-    show_userip_detected_dialog,
 )
+from session_sniffer.guis.tables_player_actions._userip_dialog import show_userip_detected_dialog
 from session_sniffer.guis.utils import find_main_window
 from session_sniffer.models.player import Player, PlayerUserIPDetection
 from session_sniffer.networking.geolite2 import query_geolite2_asn, query_geolite2_city, query_geolite2_country
@@ -47,7 +47,6 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
 logger = logging.getLogger(__name__)
-
 
 _GTA5_RELAY_RANGES = ThirdPartyServers.get_ip_obj_ranges_for(['TAKETWO_INTERACTIVE', 'MICROSOFT'])
 
@@ -184,7 +183,6 @@ class _VoiceNotificationWorkerState:
 
 
 _voice_notification_worker_state = _VoiceNotificationWorkerState()
-
 
 _VOICE_NOTIFICATION_THREAD_NAME = 'VoiceNotificationWorker'
 _voice_notification_lock = Lock()
@@ -432,16 +430,10 @@ def handle_detection_notification(
                         writer = csv.writer(file)
                         if write_csv_header:
                             writer.writerow(['Detection', 'Usernames', 'IP', 'Date', 'Time', 'Country'])
-                        writer.writerow(
-                            [
-                                config['title'],
-                                ', '.join(player.usernames),
-                                player.ip,
-                                now.strftime('%Y-%m-%d'),
-                                now.strftime('%H:%M:%S'),
-                                player.iplookup.geolite2.country,
-                            ],
-                        )
+                        writer.writerow([
+                            config['title'], ', '.join(player.usernames), player.ip,
+                            now.strftime('%Y-%m-%d'), now.strftime('%H:%M:%S'), player.iplookup.geolite2.country,
+                        ])
 
             # Message box popup
             if msgbox_setting:
