@@ -839,7 +839,7 @@ class SessionTableSection(QWidget):
         if not line_edit:
             return
 
-        line_edit.setTextMargins(scale_by_ui(4), 0, 0, 0)
+        line_edit.setTextMargins(scale_by_ui(9), 0, 0, 0)
 
         section = self
 

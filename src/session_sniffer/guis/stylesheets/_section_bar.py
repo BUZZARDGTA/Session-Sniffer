@@ -62,13 +62,13 @@ def section_bar_qss(accent: str) -> str:
     }}
     QComboBox {{
         min-height: 28px;
-        padding: 0 18px 0 8px;
+        padding: 0 16px 0 10px;
         color: #f1f5f9;
         background: rgba(0, 0, 0, 0.35);
         border: 1px solid rgba(255, 255, 255, 0.12);
         border-radius: 6px;
-        min-width: 55px;
-        max-width: 90px;
+        min-width: 45px;
+        max-width: 80px;
         font-size: 8.5pt;
     }}
     QComboBox:hover {{
@@ -92,13 +92,13 @@ def section_bar_qss(accent: str) -> str:
     }}
     QSpinBox {{
         min-height: 28px;
-        padding: 0 18px 0 8px;
+        padding: 0 16px 0 6px;
         color: #f1f5f9;
         background: rgba(0, 0, 0, 0.35);
         border: 1px solid rgba(255, 255, 255, 0.12);
         border-radius: 6px;
         min-width: 55px;
-        max-width: 80px;
+        max-width: 72px;
         font-size: 8.5pt;
     }}
     QSpinBox:hover {{
