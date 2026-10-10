@@ -173,7 +173,7 @@ class LeaderboardTableModel(QAbstractTableModel):
             COLUMN_MOBILE,
             COLUMN_VPN,
             COLUMN_HOSTING,
-        }
+        },
     )
 
     def __init__(self) -> None:

@@ -455,7 +455,7 @@ def get_connected_devices() -> list[ConnectedDevice]:
                     mac_address=mac_raw,
                     vendor_name=vendor_name,
                     connection_type='Wi-Fi Hotspot',
-                )
+                ),
             )
 
     return devices

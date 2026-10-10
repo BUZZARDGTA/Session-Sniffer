@@ -266,7 +266,7 @@ def build_userip_menu_multi(
                 + (player.looky_system.usernames if player.looky_system.is_initialized else [])
                 + player.usernames
                 for player in players
-            )
+            ),
         )
         populate_userip_databases_menu(
             add_userip_menu,

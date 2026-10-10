@@ -803,7 +803,7 @@ def looky_core() -> None:
                             ps3_username
                             or (matched_player.userip is not None and matched_player.userip.usernames)
                             or (matched_player.mod_menus is not None and matched_player.mod_menus.usernames)
-                            or looky_usernames
+                            or looky_usernames,
                         )
                         if not has_usernames:
                             matched_player.usernames = []

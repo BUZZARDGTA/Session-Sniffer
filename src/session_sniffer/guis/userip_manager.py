@@ -778,7 +778,7 @@ class UserIPDatabasesManager(
         self._file_info_label.setText(
             f'<span style="color:#8a9bad;">File:</span> <b style="color:#6db3f2;">{path.name}</b><br>'
             f'<span style="color:#8a9bad;">Size:</span> <b style="color:#e0e0e0;">{size}</b><br>'
-            f'<span style="color:#8a9bad;">Modified:</span> <span style="color:#a0b0c0;">{human_readable_timestamp(modified)}</span>'
+            f'<span style="color:#8a9bad;">Modified:</span> <span style="color:#a0b0c0;">{human_readable_timestamp(modified)}</span>',
         )
 
     @override

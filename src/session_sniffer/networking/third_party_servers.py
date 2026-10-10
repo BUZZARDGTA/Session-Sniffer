@@ -144,7 +144,7 @@ ALL_THIRD_PARTY_SERVER_NAMES: tuple[str, ...] = tuple(server.name for server in 
 
 
 _ALL_THIRD_PARTY_SERVER_NETWORKS = tuple(
-    ipaddress.collapse_addresses([network for server in ThirdPartyServers for network in server.ip_networks if isinstance(network, ipaddress.IPv4Network)])
+    ipaddress.collapse_addresses([network for server in ThirdPartyServers for network in server.ip_networks if isinstance(network, ipaddress.IPv4Network)]),
 )
 _ALL_THIRD_PARTY_SERVER_OBJ_RANGES = _build_ip_obj_ranges(_ALL_THIRD_PARTY_SERVER_NETWORKS)
 

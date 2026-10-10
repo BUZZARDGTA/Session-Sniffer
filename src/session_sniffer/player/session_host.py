@@ -132,7 +132,7 @@ def _build_host_diagnostics_snapshot(
                 is_pending_disconnection=player in SessionHost.players_pending_for_disconnection,
                 is_relayed=not bool(player.packets.received),
                 is_disconnected=player.left_event.is_set(),
-            )
+            ),
         )
 
     filtered_servers = [

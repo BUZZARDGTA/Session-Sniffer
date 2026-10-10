@@ -128,7 +128,7 @@ class HotspotActionWorker(CrashingQThread):
                     HotspotActionResult(
                         success=success,
                         message=error_message or f'Internet Connection Sharing enabled between {public_adapter} and {private_adapter}.',
-                    )
+                    ),
                 )
 
             elif self._task_name == 'disable_ics':
@@ -233,7 +233,7 @@ class HotspotManagerWidget(QWidget):
             admin_badge.setToolTip('Session Sniffer is running without administrator rights. Hotspot works, but Windows ICS sharing requires admin rights.')
             admin_badge.setStyleSheet(
                 'color: #f59e0b; background: rgba(245, 158, 11, 0.12); border: 1px solid rgba(245, 158, 11, 0.35); '
-                'border-radius: 4px; padding: 3px 8px; font-size: 7.5pt; font-weight: 800;'
+                'border-radius: 4px; padding: 3px 8px; font-size: 7.5pt; font-weight: 800;',
             )
             layout.addWidget(admin_badge)
 
@@ -458,7 +458,7 @@ class HotspotManagerWidget(QWidget):
             '}'
             'QTableWidget::item:selected {'
             '    background-color: #2a4365;'
-            '}'
+            '}',
         )
         self._devices_stacked.addWidget(self._table)
 

@@ -214,7 +214,7 @@ class PortScannerTabWidget(QWidget):
                 'Service',
                 'Latency (ms)',
                 'Banner / Details',
-            ]
+            ],
         )
         self._results_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self._results_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
@@ -608,7 +608,7 @@ class PortScannerTabWidget(QWidget):
                                 result.service_name,
                                 f'{result.latency_ms:.1f}' if result.latency_ms is not None else '',
                                 result.banner or '',
-                            ]
+                            ],
                         )
                 else:
                     file.write(f'Port Scan Results for {self.target}\n')

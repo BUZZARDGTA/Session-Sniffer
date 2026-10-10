@@ -309,7 +309,7 @@ class LookyRefreshReviewDialog(PlayerInfoDialogMixin):
             '}'
             'QLineEdit:focus {'
             '    border: 1px solid #7c3aed;'
-            '}'
+            '}',
         )
         self._search_input.setMinimumWidth(200)
         apply_search_icon(self._search_input)
@@ -608,7 +608,7 @@ def looky_refresh_userip_entries(
                             ip=ip,
                             existing_usernames=existing_names_list,
                             new_entries=new_entries,
-                        )
+                        ),
                     )
                     total_new += len(new_entries)
 

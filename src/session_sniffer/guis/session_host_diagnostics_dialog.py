@@ -261,7 +261,7 @@ class SessionHostDiagnosticsDialog(QDialog):
                 copy_host_usernames_button.setStyleSheet(COMPACT_BUTTON_STYLESHEET)
                 detected_usernames = ', '.join(self._snapshot.detected_host_usernames)
                 copy_host_usernames_button.clicked.connect(
-                    lambda: self._copy_text(copy_host_usernames_button, detected_usernames)
+                    lambda: self._copy_text(copy_host_usernames_button, detected_usernames),
                 )
                 actions_layout.addWidget(copy_host_usernames_button)
 
@@ -419,7 +419,7 @@ class SessionHostDiagnosticsDialog(QDialog):
                 detail=candidates_detail,
                 badge_text=p2p_badge,
                 badge_stylesheet=p2p_badge_style,
-            )
+            ),
         )
 
         # 2. Candidate Activity
@@ -457,7 +457,7 @@ class SessionHostDiagnosticsDialog(QDialog):
                 detail=activity_detail,
                 badge_text=activity_badge,
                 badge_stylesheet=activity_badge_style,
-            )
+            ),
         )
 
         # 3. Connection Timing Window
@@ -510,7 +510,7 @@ class SessionHostDiagnosticsDialog(QDialog):
                 detail=timing_detail,
                 badge_text=timing_badge,
                 badge_stylesheet=timing_badge_style,
-            )
+            ),
         )
 
         # 4. Packet Threshold Criteria
@@ -569,7 +569,7 @@ class SessionHostDiagnosticsDialog(QDialog):
                 detail=packet_detail,
                 badge_text=packet_badge,
                 badge_stylesheet=packet_badge_style,
-            )
+            ),
         )
 
         return items

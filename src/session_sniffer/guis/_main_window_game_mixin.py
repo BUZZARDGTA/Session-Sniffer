@@ -427,7 +427,7 @@ class GameMixin(QMainWindow):
                 self._game_status_label.setText(f'<span style="color: #ff9800;">●</span> {visible_text}')
                 self._game_status_label.setToolTip(
                     f'{path_tooltip}\
-Process is currently suspended'
+Process is currently suspended',
                 )
             else:
                 visible_text = version_text
@@ -602,7 +602,7 @@ Process is currently suspended'
             if is_current:
                 connected_count = len([player for player in PlayersRegistry.get_connected_players() if not player.is_third_party_server])
                 disconnected_count = len(
-                    [player for player in PlayersRegistry.get_disconnected_players() if player.session_id == session_id and not player.is_third_party_server]
+                    [player for player in PlayersRegistry.get_disconnected_players() if player.session_id == session_id and not player.is_third_party_server],
                 )
                 connected_noun = f'connected player{pluralize(connected_count)}'
                 disconnected_noun = f'disconnected player{pluralize(disconnected_count)}'
@@ -731,7 +731,7 @@ Process is currently suspended'
                     history_menu,
                     self._select_ips,
                     self._open_host_history_diagnostics,
-                )
+                ),
             )
 
     def _create_past_host_action_handler(self, target_entry: HostHistoryEntry) -> Callable[[], None]:

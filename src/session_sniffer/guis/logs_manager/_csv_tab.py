@@ -180,7 +180,7 @@ class CsvLogTab(QWidget):
                 self._table,
                 self._search_input.text,
                 self._get_active_search_column,
-            )
+            ),
         )
         self._table.setWordWrap(False)
 

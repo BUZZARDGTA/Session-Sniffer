@@ -96,7 +96,7 @@ class HotspotSetupGuideDialog(DraggableDialogMixin, QDialog):
             '    min-height: 24px;'
             '    max-height: 24px;'
             '}'
-            'QPushButton:hover { color: #ffffff; }'
+            'QPushButton:hover { color: #ffffff; }',
         )
         close_button.clicked.connect(self.reject)
         top_bar_layout.addWidget(close_button)
@@ -144,7 +144,7 @@ class HotspotSetupGuideDialog(DraggableDialogMixin, QDialog):
 
         description_label = QLabel(
             "Session Sniffer can share your PC's internet connection to a console or device so you can capture its network traffic. "
-            'Choose the method that works best for your setup.'
+            'Choose the method that works best for your setup.',
         )
         description_label.setWordWrap(True)
         description_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -173,7 +173,7 @@ class HotspotSetupGuideDialog(DraggableDialogMixin, QDialog):
         wifi_badge = QLabel('RECOMMENDED')
         wifi_badge.setStyleSheet(
             'color: #38bdf8; background: rgba(56, 189, 248, 0.12); border: 1px solid rgba(56, 189, 248, 0.4); '
-            'border-radius: 4px; padding: 1px 6px; font-size: 7pt; font-weight: 800;'
+            'border-radius: 4px; padding: 1px 6px; font-size: 7pt; font-weight: 800;',
         )
         wifi_header_layout.addWidget(wifi_badge)
         wifi_header_layout.addStretch()

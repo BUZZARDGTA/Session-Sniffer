@@ -194,7 +194,7 @@ class TextLogTab(QWidget):
                             level=current_level,
                             text='\n'.join(current_lines),
                             line_count=len(current_lines),
-                        )
+                        ),
                     )
                 raw_level = cast('str', match.group(1))
                 if raw_level == 'WARN':
@@ -213,7 +213,7 @@ class TextLogTab(QWidget):
                     level=current_level,
                     text='\n'.join(current_lines),
                     line_count=len(current_lines),
-                )
+                ),
             )
 
         return entries

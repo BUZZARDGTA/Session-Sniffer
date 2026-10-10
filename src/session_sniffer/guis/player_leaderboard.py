@@ -393,7 +393,7 @@ class PlayerLeaderboardWindow(ToggleAlwaysOnTopMixin):
                 self._table,
                 self._search_box.text,
                 self._get_active_search_column,
-            )
+            ),
         )
         header.setStretchLastSection(False)
         for column in range(len(HEADERS)):

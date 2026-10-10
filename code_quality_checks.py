@@ -191,7 +191,7 @@ def invoke_quality_tool(tool: QualityTool, step_number: int, total_steps: int, r
 
     print(
         f'{DARK_YELLOW}[FAIL] {tool.name} completed with errors '
-        f'(exit code {process.returncode}) in {elapsed_seconds} seconds{RESET}'
+        f'(exit code {process.returncode}) in {elapsed_seconds} seconds{RESET}',
     )
     if tool.name == 'snyk':
         print(f'{GRAY}   Tip: Snyk authentication may be required or expired. Run `snyk auth` to authenticate.{RESET}')

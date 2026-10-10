@@ -120,7 +120,7 @@ class SessionHeader(QFrame):
         brand_layout.addLayout(title_row)
 
         subtitle_label = QLabel(
-            'The best <span style="color: #22c55e; font-weight: 600;">FREE</span> and <span style="color: #22c55e; font-weight: 600;">Open-Source</span> packet sniffer'
+            'The best <span style="color: #22c55e; font-weight: 600;">FREE</span> and <span style="color: #22c55e; font-weight: 600;">Open-Source</span> packet sniffer',
         )
         subtitle_label.setObjectName('headerSubtitle')
         subtitle_label.setStyleSheet(HEADER_SUBTITLE_STYLESHEET)

@@ -670,7 +670,7 @@ def check_range(
                     status.update(
                         f'{progress_prefix}[bold cyan]Scanning [/bold cyan][bold white]{owner}[/bold white] '
                         f'[bold cyan]([/bold cyan][bold magenta]{network.with_prefixlen}[/bold magenta]'
-                        f'[bold cyan])... [yellow]Fallback to IP-API[/yellow][/bold cyan]'
+                        f'[bold cyan])... [yellow]Fallback to IP-API[/yellow][/bold cyan]',
                     )
                     fallback_results = lookup_ips_batch(options.fallback_client, all_ip_addresses)
                     results.update(fallback_results)
@@ -893,7 +893,7 @@ def main() -> None:
         if not database_path.exists():
             console.print(
                 f'[red]Error: GeoLite2-ASN database not found at {database_path.absolute()}[/red]\n'
-                '[yellow]Please download it or launch the main app first to download it automatically.[/yellow]'
+                '[yellow]Please download it or launch the main app first to download it automatically.[/yellow]',
             )
             sys.exit(1)
         client: GeoLite2Client | RateLimitClient = GeoLite2Client(database_path)

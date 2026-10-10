@@ -462,7 +462,7 @@ def rendering_core(
                 ps3_username
                 or (player.userip is not None and player.userip.usernames)
                 or (player.mod_menus is not None and player.mod_menus.usernames)
-                or (looky_initialized and looky_usernames)
+                or (looky_initialized and looky_usernames),
             )
             if not has_usernames:
                 if player.usernames:

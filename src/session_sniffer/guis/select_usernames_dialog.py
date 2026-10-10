@@ -122,7 +122,7 @@ class SelectUsernamesDialog(QDialog):
         usernames_list = QListView()
         usernames_list.setModel(self._proxy)
         usernames_list.setSelectionMode(
-            QListView.SelectionMode.ExtendedSelection if self._multiple else QListView.SelectionMode.SingleSelection
+            QListView.SelectionMode.ExtendedSelection if self._multiple else QListView.SelectionMode.SingleSelection,
         )
         usernames_list.setAlternatingRowColors(True)
         usernames_list.setWordWrap(False)

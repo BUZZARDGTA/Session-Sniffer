@@ -46,7 +46,7 @@ class UserIPImportExportMixin(QDialog):
     def _mark_settings_dirty(self) -> None: ...
 
     def _append_row(
-        self, username: str, ip: str, *, index: int = 0, database: tuple[str, Path] | None = None, is_looky: bool = False
+        self, username: str, ip: str, *, index: int = 0, database: tuple[str, Path] | None = None, is_looky: bool = False,
     ) -> None:
         raise NotImplementedError
 
