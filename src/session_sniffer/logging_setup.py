@@ -25,7 +25,7 @@ from session_sniffer.constants.local import CRASH_LOG_PATH, CURRENT_VERSION, DEB
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping, Sequence
-    from types import TracebackType
+    from types import FrameType, TracebackType
 
 
 __all__ = ['clear_secret_cache', 'dump_crash_diagnostics', 'flush_all_loggers', 'register_diagnostic_provider', 'register_secret_provider', 'setup_logging']
@@ -230,10 +230,9 @@ def _get_secret_values() -> tuple[str, ...]:
         providers = tuple(_secret_providers)
         secrets: set[str] = set()
         for provider in providers:
-            try:
+            secret: str | None = None
+            with contextlib.suppress(Exception):
                 secret = provider()
-            except Exception:  # pylint: disable=broad-exception-caught  # noqa: BLE001
-                secret = None
             if secret is not None and secret:
                 secrets.add(secret)
 
@@ -343,7 +342,8 @@ def dump_crash_diagnostics(reason: str) -> None:
         f'Active Python threads count: {threading.active_count()}',
     ]
     try:
-        current_frames = sys._current_frames()  # noqa: SLF001 # pyright: ignore[reportPrivateUsage] # pylint: disable=protected-access
+        get_current_frames = cast('Callable[[], dict[int, FrameType]] | None', getattr(sys, '_current_frames', None))
+        current_frames: dict[int, FrameType] = get_current_frames() if callable(get_current_frames) else {}
         for thread in threading.enumerate():
             native_id = getattr(thread, 'native_id', None)
             lines.append(f'Thread name="{thread.name}", ident={thread.ident}, native_id={native_id}, daemon={thread.daemon}, alive={thread.is_alive()}')
