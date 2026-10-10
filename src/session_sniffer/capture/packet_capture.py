@@ -428,16 +428,7 @@ class PacketCapture:
                 if self.config.display_filter_fn is not None and not self.config.display_filter_fn(packet):
                     continue
 
-                try:
-                    self.config.callback(packet)
-                except Exception:  # pylint: disable=broad-exception-caught
-                    logger.exception(
-                        'Unhandled exception in packet callback for packet from %s:%d to %s:%d',
-                        packet.ip.src,
-                        packet.port.src,
-                        packet.ip.dst,
-                        packet.port.dst,
-                    )
+                self.config.callback(packet)
         finally:
             with self._state.control_lock:
                 if self._state.pcap_handle is pcap_handle:
