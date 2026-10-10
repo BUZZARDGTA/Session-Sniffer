@@ -381,7 +381,10 @@ class CaptureStatisticsWindow(RateGraphWindowMixin):
         bps_data = list(self._bps_buffer)
 
         self._ppm_sample_buffer.append(CaptureStats.total_packets_captured)
-        ppm_count = self._ppm_sample_buffer[-1] - self._ppm_sample_buffer[0] if len(self._ppm_sample_buffer) >= _MIN_PPM_SAMPLES else 0
+        if len(self._ppm_sample_buffer) >= _MIN_PPM_SAMPLES and self._ppm_sample_buffer[-1] < self._ppm_sample_buffer[0]:
+            self._ppm_sample_buffer.clear()
+            self._ppm_sample_buffer.append(CaptureStats.total_packets_captured)
+        ppm_count = max(0, self._ppm_sample_buffer[-1] - self._ppm_sample_buffer[0]) if len(self._ppm_sample_buffer) >= _MIN_PPM_SAMPLES else 0
         self._peak_ppm = max(self._peak_ppm, ppm_count)
         self._label_ppm.setText(str(ppm_count))
         self._label_peak_ppm.setText(str(self._peak_ppm))
@@ -444,6 +447,11 @@ class CaptureStatisticsWindow(RateGraphWindowMixin):
         self._pps_running_sum = 0
         self._bps_running_sum = 0.0
 
+        self._ppm_sample_buffer.clear()
+        self._peak_ppm = 0
+        self._last_latency_ms = 0.0
+        self._last_latency_ts = 0.0
+
         zeros = [0.0] * VISIBLE_WINDOW
 
         self._latency_widget.set_data(zeros)
@@ -458,6 +466,30 @@ class CaptureStatisticsWindow(RateGraphWindowMixin):
         self._bps_widget.set_y_range(0, _FLOOR_KBS)
         self._bps_widget.set_average(0)
         self._graphs_all_zero = False
+
+        self._label_connected.setText(str(PlayersRegistry.get_connected_count()))
+        self._label_disconnected.setText(str(PlayersRegistry.get_disconnected_count()))
+        self._label_total.setText(str(PlayersRegistry.get_total_count()))
+
+        self._label_total_packets.setText('0')
+        self._label_ppm.setText('0')
+        self._label_peak_ppm.setText('0')
+        self._label_pps.setText('0')
+        self._label_peak_pps.setText('0')
+        self._label_bandwidth.setText(PlayerBandwidth.format_bytes(0))
+        self._label_download.setText(PlayerBandwidth.format_bytes(0))
+        self._label_upload.setText(PlayerBandwidth.format_bytes(0))
+        self._label_total_bandwidth.setText(PlayerBandwidth.format_bytes(0))
+        self._label_total_download.setText(PlayerBandwidth.format_bytes(0))
+        self._label_total_upload.setText(PlayerBandwidth.format_bytes(0))
+        self._label_bps.setText(PlayerBandwidth.format_bytes(0))
+        self._label_bpm.setText(PlayerBandwidth.format_bytes(0))
+        self._label_peak_bps.setText(PlayerBandwidth.format_bytes(0))
+        self._label_peak_bpm.setText(PlayerBandwidth.format_bytes(0))
+        self._label_latest.setText('— ms')
+        self._label_avg.setText('— ms')
+        self._label_min.setText('— ms')
+        self._label_max.setText('— ms')
 
     def _load_history(self) -> None:
         """Backfill graphs with recorded samples from `CaptureStats.capture_health_samples`."""

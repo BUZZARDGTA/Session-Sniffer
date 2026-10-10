@@ -418,18 +418,29 @@ class CaptureStats:
         cls.capture_health_samples = deque(maxlen=maxlen)
 
     @classmethod
-    def reset_on_interface_switch(cls) -> None:
-        """Reset all per-capture counters and clear history buffers on an interface switch."""
-        cls.restarted_times = 0
-        cls.packets_latencies.clear()
-        cls.capture_health_samples.clear()
-        cls.packets_overflow_dropped = 0
+    def reset_capture_stats(cls) -> None:
+        """Reset all per-capture packet counters and peak rates when clearing session data."""
+        cls.total_packets_captured = 0
+        cls.peak_bps_rate = 0
+        cls.peak_bpm_rate = 0
+        cls.peak_pps_rate = 0
         cls.global_bandwidth = 0
         cls.global_download = 0
         cls.global_upload = 0
         cls.global_bps_rate = 0
         cls.global_bpm_rate = 0
         cls.global_pps_rate = 0
+        cls.global_avg_latency_ms = 0.0
+        cls.packets_dropped = 0
+        cls.packets_overflow_dropped = 0
+        cls.packets_latencies.clear()
+        cls.capture_health_samples.clear()
+
+    @classmethod
+    def reset_on_interface_switch(cls) -> None:
+        """Reset all per-capture counters and clear history buffers on an interface switch."""
+        cls.restarted_times = 0
+        cls.reset_capture_stats()
 
 
 class CellColor(NamedTuple):

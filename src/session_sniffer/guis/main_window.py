@@ -3,6 +3,7 @@
 import logging
 import sys
 import threading
+import time
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, override
 
@@ -51,8 +52,9 @@ from session_sniffer.models import GUIState
 from session_sniffer.player.registry import PlayersRegistry, SessionHost, SessionTracker
 from session_sniffer.player.userip import UserIPDatabases
 from session_sniffer.rdr2.suspend_manager import RDR2SuspendManager
-from session_sniffer.rendering_core.status_bar_renderer import build_gui_status_text
+from session_sniffer.rendering_core.status_bar_renderer import build_gui_status_text, reset_status_bar_latency
 from session_sniffer.rendering_core.types import (
+    CaptureStats,
     GUIRenderingState,
     GUIUpdatePayload,
     PaginationState,
@@ -841,6 +843,8 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
 
         if TableMergeState.is_merged():
             self._clear_disconnected_players()
+        elif not PlayersRegistry.get_total_count():
+            self.reset_capture_stats()
 
     def _clear_disconnected_players(self) -> None:
         """Clear all disconnected players from the table and registry."""
@@ -856,3 +860,25 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
             for ip in disconnected_ips:
                 GTASuspendManager.release_reasons_for_ip(ip)
                 RDR2SuspendManager.release_reasons_for_ip(ip)
+
+        if not PlayersRegistry.get_total_count():
+            self.reset_capture_stats()
+
+    def reset_capture_stats(self) -> None:
+        """Reset capture statistics, graphs, header counters, and open stats windows."""
+        CaptureStats.reset_capture_stats()
+        reset_status_bar_latency()
+        uptime = max(0, int(time.monotonic() - CaptureStats.capture_started_at)) if self.capture.is_running() and CaptureStats.capture_started_at > 0 else 0
+        self._header.update_stats(uptime_seconds=uptime, total_packets=0)
+        self.reset_session_graph()
+        self._update_status_bar()
+        if self._session_timeline_window is not None and self._session_timeline_window.isVisible():
+            self._session_timeline_window.refresh()
+        if self._country_breakdown_window is not None and self._country_breakdown_window.isVisible():
+            self._country_breakdown_window.refresh()
+        if self._reconnect_frequency_window is not None and self._reconnect_frequency_window.isVisible():
+            self._reconnect_frequency_window.refresh()
+        if self._port_heatmap_window is not None and self._port_heatmap_window.isVisible():
+            self._port_heatmap_window.refresh()
+        if self._session_duration_window is not None and self._session_duration_window.isVisible():
+            self._session_duration_window.refresh()

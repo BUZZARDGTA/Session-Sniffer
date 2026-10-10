@@ -21,6 +21,7 @@ _BYTES_PER_MB = 1024**2
 
 _CPU_COUNT: int = os.cpu_count() or 1
 _LATENCY_DISPLAY_WINDOW_SECONDS = 60
+_MIN_RATE_INTERVAL_SECONDS = 0.2
 
 
 @dataclass(slots=True)
@@ -46,6 +47,13 @@ _initial_io_bytes = get_current_process_io_bytes()
 _CPU_STATE = _CPUState()
 _IO_STATE = _IOState(read_bytes=_initial_io_bytes[0], write_bytes=_initial_io_bytes[1])
 _LATENCY_STATE = _LatencyState()
+
+
+def reset_status_bar_latency() -> None:
+    """Reset the recorded last non-zero latency state."""
+    _LATENCY_STATE.last_nonzero_ms = 0.0
+    _LATENCY_STATE.last_nonzero_ts = 0.0
+
 
 if TYPE_CHECKING:
     from session_sniffer.capture.packet_capture import PacketCapture
@@ -120,7 +128,7 @@ def _compute_disk_io_rates() -> None:
     CaptureStats.app_disk_write_total_mb = write_bytes / _BYTES_PER_MB
     now = time.monotonic()
     delta_time = now - _IO_STATE.timestamp
-    if delta_time <= 0.0:
+    if delta_time < _MIN_RATE_INTERVAL_SECONDS:
         return
     delta_read = read_bytes - _IO_STATE.read_bytes
     delta_write = write_bytes - _IO_STATE.write_bytes
@@ -138,14 +146,14 @@ def _capture_global_state(capture: PacketCapture, discord_rpc_manager: DiscordRP
         discord_rpc_connected = discord_rpc_manager.connection_status.is_set() if discord_rpc_manager is not None else CaptureState.discord_rpc_connected
 
     now = time.monotonic()
-    current_cpu_time = get_current_process_cpu_time()
-    delta_cpu = current_cpu_time - _CPU_STATE.last_cpu_time
     delta_time = now - _CPU_STATE.last_timestamp
-    _CPU_STATE.last_cpu_time = current_cpu_time
-    _CPU_STATE.last_timestamp = now
-    if delta_time > 0.0:
-        CaptureStats.app_cpu_percent = (max(0.0, delta_cpu) / delta_time / _CPU_COUNT) * 100.0
-        CaptureStats.app_peak_cpu_percent = max(CaptureStats.app_peak_cpu_percent, CaptureStats.app_cpu_percent)
+    if delta_time >= _MIN_RATE_INTERVAL_SECONDS:
+        current_cpu_time = get_current_process_cpu_time()
+        delta_cpu = current_cpu_time - _CPU_STATE.last_cpu_time
+        _CPU_STATE.last_cpu_time = current_cpu_time
+        _CPU_STATE.last_timestamp = now
+        CaptureStats.app_cpu_percent = min(100.0, (max(0.0, delta_cpu) / delta_time / _CPU_COUNT) * 100.0)
+        CaptureStats.app_peak_cpu_percent = min(100.0, max(CaptureStats.app_peak_cpu_percent, CaptureStats.app_cpu_percent))
 
     CaptureStats.app_memory_mb = get_current_process_memory_mb()
     CaptureStats.app_peak_memory_mb = max(CaptureStats.app_peak_memory_mb, CaptureStats.app_memory_mb)
@@ -226,17 +234,17 @@ def _build_config_section(snapshot: StatusBarSnapshot) -> str:
             f'<span style="color: {StatusBarColors.LABEL_ACCENT};">ARP:</span> <span style="color: {StatusBarColors.ENABLED};">Enabled</span>',
         )
 
-    if snapshot.capture.feature_set is not None:
-        parts.append(
-            f'<span style="color: {StatusBarColors.LABEL_ACCENT};">Feature Set:</span> '
-            f'<span style="color: {StatusBarColors.ENABLED};">{snapshot.capture.feature_set}</span>',
-        )
-
     if snapshot.system.discord_presence_enabled:
         rpc_color = StatusBarColors.ENABLED if snapshot.system.discord_rpc_connected else StatusBarColors.DISABLED
         rpc_status = 'Connected' if snapshot.system.discord_rpc_connected else 'Waiting'
         parts.append(
             f'<span style="color: {StatusBarColors.LABEL_ACCENT};">Discord:</span> <span style="color: {rpc_color};">{rpc_status}</span>',
+        )
+
+    if snapshot.capture.feature_set is not None:
+        parts.append(
+            f'<span style="color: {StatusBarColors.LABEL_ACCENT};">Feature Set:</span> '
+            f'<span style="color: {StatusBarColors.ENABLED};">{snapshot.capture.feature_set}</span>',
         )
 
     if Settings.is_process_filter_active() and CaptureState.is_local_capture():
