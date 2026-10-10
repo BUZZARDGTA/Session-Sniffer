@@ -5,10 +5,7 @@ from ipaddress import IPv4Address
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-if TYPE_CHECKING:
-    from collections.abc import Callable
-
-from PySide6.QtCore import QFileSystemWatcher, QItemSelectionModel, QModelIndex, QSignalBlocker, Qt, QTimer
+from PySide6.QtCore import QItemSelectionModel, QModelIndex, QSignalBlocker, Qt
 from PySide6.QtGui import QColor, QStandardItem, QStandardItemModel
 from PySide6.QtWidgets import (
     QDialog,
@@ -41,13 +38,18 @@ from session_sniffer.guis.userip_manager_helpers import (
 from session_sniffer.networking.ip_range import is_valid_ip_range_entry
 from session_sniffer.text_utils import pluralize
 
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from session_sniffer.guis.file_watch import DebouncedFileWatcher
+
 
 class UserIPEntriesOperationsMixin(QDialog):
     """Mixin providing entry-level manipulation, editing, movement, deletion, saving, and filesystem synchronization.
 
     Expects these attributes on the concrete class:
         _entries_table, _proxy, _model, _current_path, _next_index,
-        _global_search_active, _fs_watcher, _fs_sync_timer, _saving,
+        _global_search_active, _fs_watcher, _saving,
         _disk_snapshot, _settings_snapshot, _dirty, _search_input,
         _settings_container
     And these methods:
@@ -63,8 +65,7 @@ class UserIPEntriesOperationsMixin(QDialog):
     _current_path: Path | None
     _next_index: int = 0
     _global_search_active: bool
-    _fs_watcher: QFileSystemWatcher
-    _fs_sync_timer: QTimer
+    _fs_watcher: DebouncedFileWatcher
     _saving: bool
     _disk_snapshot: str
     _settings_snapshot: dict[str, str]
@@ -106,23 +107,16 @@ class UserIPEntriesOperationsMixin(QDialog):
 
     def _rebuild_fs_watch(self) -> None:
         """Point the filesystem watcher at the databases directory and the active file(s)."""
-        watched = [*self._fs_watcher.files(), *self._fs_watcher.directories()]
-        if watched:
-            self._fs_watcher.removePaths(watched)
+        directories: list[Path] = [USERIP_DATABASES_DIR_PATH]
+        directories.extend(directory for directory in USERIP_DATABASES_DIR_PATH.rglob('*') if directory.is_dir())
 
-        paths: list[str] = [str(USERIP_DATABASES_DIR_PATH)]
-        paths.extend(str(directory) for directory in USERIP_DATABASES_DIR_PATH.rglob('*') if directory.is_dir())
-
+        files: list[Path] = []
         if self._global_search_active:
-            paths.extend(str(ini_path) for ini_path in USERIP_DATABASES_DIR_PATH.rglob('*.ini') if ini_path.is_file())
+            files.extend(ini_path for ini_path in USERIP_DATABASES_DIR_PATH.rglob('*.ini') if ini_path.is_file())
         elif self._current_path is not None and self._current_path.is_file():
-            paths.append(str(self._current_path))
+            files.append(self._current_path)
 
-        self._fs_watcher.addPaths(paths)
-
-    def _on_fs_changed(self, _path: str) -> None:
-        """Coalesce rapid filesystem notifications before reconciling with disk."""
-        self._fs_sync_timer.start()
+        self._fs_watcher.watch(files=files, directories=directories)
 
     def _sync_from_disk(self) -> None:
         """Reconcile the entries view and stats with the current on-disk state."""
@@ -610,7 +604,6 @@ class UserIPEntriesOperationsMixin(QDialog):
             return
 
         self._saving = True
-        self._fs_sync_timer.stop()
         try:
             with QSignalBlocker(self._fs_watcher):
                 # Commit and close any active delegate editor before inspecting entries

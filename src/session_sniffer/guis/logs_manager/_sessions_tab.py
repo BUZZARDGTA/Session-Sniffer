@@ -160,7 +160,7 @@ class SessionsLogTab(QWidget):
         tree_container_layout.setContentsMargins(0, 0, 0, 0)
         tree_container_layout.setSpacing(0)
 
-        self._fs_model = QFileSystemModel()
+        self._fs_model = QFileSystemModel(self)
         self._fs_model.setRootPath(str(self._sessions_dir))
         self._fs_model.setNameFilters(['*.json'])
         self._fs_model.setNameFilterDisables(False)

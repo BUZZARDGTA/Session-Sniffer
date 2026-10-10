@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, ClassVar, override
 if TYPE_CHECKING:
     from pathlib import Path
 
-from PySide6.QtCore import QByteArray, QFileSystemWatcher, QModelIndex, QSignalBlocker, Qt, QTimer, QUrl
+from PySide6.QtCore import QByteArray, QModelIndex, QSignalBlocker, Qt, QUrl
 from PySide6.QtGui import (
     QBrush,
     QCloseEvent,
@@ -44,6 +44,7 @@ from session_sniffer.constants.local import GUI_STATE_PATH, RESOURCES_DIR_PATH, 
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.guis._dialog_mixins import prompt_unsaved_changes_close
 from session_sniffer.guis.delegates import ElidedTextTooltipDelegate, SearchHighlightDelegate
+from session_sniffer.guis.file_watch import DebouncedFileWatcher
 from session_sniffer.guis.logs_manager._helpers import human_readable_timestamp
 from session_sniffer.guis.stylesheets import DIALOG_BUTTON_STYLESHEET, DIALOG_DANGER_BUTTON_STYLESHEET, DIALOG_PRIMARY_BUTTON_STYLESHEET
 from session_sniffer.guis.table_column_resizing import setup_table_header_context_menu
@@ -216,7 +217,7 @@ class UserIPDatabasesManager(
         # Filesystem-backed tree view
         USERIP_DATABASES_DIR_PATH.mkdir(parents=True, exist_ok=True)
 
-        self._fs_model = QFileSystemModel()
+        self._fs_model = QFileSystemModel(self)
         self._fs_model.setRootPath(str(USERIP_DATABASES_DIR_PATH))
         self._fs_model.setReadOnly(False)
         self._fs_model.setNameFilters(['*.ini'])
@@ -498,13 +499,7 @@ class UserIPDatabasesManager(
         root_layout.addWidget(self._splitter)
 
         # --- Real-time filesystem sync ---
-        self._fs_watcher = QFileSystemWatcher(self)
-        self._fs_watcher.fileChanged.connect(self._on_fs_changed)
-        self._fs_watcher.directoryChanged.connect(self._on_fs_changed)
-        self._fs_sync_timer = QTimer(self)
-        self._fs_sync_timer.setSingleShot(True)
-        self._fs_sync_timer.setInterval(250)
-        self._fs_sync_timer.timeout.connect(self._sync_from_disk)
+        self._fs_watcher = DebouncedFileWatcher(self, self._sync_from_disk, interval_ms=250, poll_interval_ms=250)
         self._rebuild_fs_watch()
 
         self._refresh_stats()
@@ -829,6 +824,7 @@ class UserIPDatabasesManager(
         ):
             return
 
+        self._fs_watcher.stop()
         super().closeEvent(event)
         if event.isAccepted() and Settings.gui_remember_window_layout:
             geometry = self.saveGeometry()

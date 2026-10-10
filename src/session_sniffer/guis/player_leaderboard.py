@@ -1,9 +1,9 @@
 """Most Seen Players leaderboard window."""
 
+from pathlib import Path
 from typing import TYPE_CHECKING, override
 
 from PySide6.QtCore import (
-    QFileSystemWatcher,
     QItemSelectionModel,
     QModelIndex,
     QPoint,
@@ -70,6 +70,7 @@ from session_sniffer.guis._player_leaderboard_workers import (
     server_ips_for,
 )
 from session_sniffer.guis.delegates import ElidedTextTooltipDelegate, SearchHighlightDelegate
+from session_sniffer.guis.file_watch import DebouncedFileWatcher
 from session_sniffer.guis.stylesheets import SVG_ICON_CONTEXT_MENU_STYLESHEET
 from session_sniffer.guis.table_column_resizing import setup_static_table_column_resizing, setup_table_header_context_menu
 from session_sniffer.guis.table_context_menu import add_copy_usernames_and_ips_actions
@@ -98,7 +99,6 @@ from session_sniffer.text_utils import pluralize
 
 if TYPE_CHECKING:
     from collections.abc import Callable
-    from pathlib import Path
 
 
 # How often the displayed leaderboard is re-derived from the live session snapshot while visible.
@@ -432,9 +432,12 @@ class PlayerLeaderboardWindow(ToggleAlwaysOnTopMixin):
         self._watched_dirs: frozenset[str] = frozenset()
         self._scan_worker: SessionFilesScanWorker | None = None
         self._scan_pending = False
-        self._sessions_watcher = QFileSystemWatcher(self)
-        self._sessions_watcher.directoryChanged.connect(self._on_sessions_changed)
-        self._sessions_watcher.fileChanged.connect(self._on_sessions_changed)
+        self._sessions_watcher = DebouncedFileWatcher(
+            self,
+            self._request_scan,
+            interval_ms=_SESSIONS_SCAN_COOLDOWN_MS,
+            poll_interval_ms=1000,
+        )
         self._scan_cooldown = QTimer(self)
         self._scan_cooldown.setSingleShot(True)
         self._scan_cooldown.setInterval(_SESSIONS_SCAN_COOLDOWN_MS)
@@ -446,10 +449,6 @@ class PlayerLeaderboardWindow(ToggleAlwaysOnTopMixin):
         self.raise_()
         self.activateWindow()
         self._start_load()
-
-    def _on_sessions_changed(self, _path: str) -> None:
-        """Handle a filesystem-change notification, throttled to at most one scan per cooldown."""
-        self._request_scan()
 
     def _request_scan(self) -> None:
         """Request a background scan now, or defer it until the cooldown elapses."""
@@ -492,11 +491,7 @@ class PlayerLeaderboardWindow(ToggleAlwaysOnTopMixin):
 
     def _rearm_sessions_watcher(self, directories: frozenset[str]) -> None:
         """Point the filesystem watcher at the current set of session directories."""
-        watched = [*self._sessions_watcher.files(), *self._sessions_watcher.directories()]
-        if watched:
-            self._sessions_watcher.removePaths(watched)
-        if directories:
-            self._sessions_watcher.addPaths(list(directories))
+        self._sessions_watcher.watch(directories=[Path(d) for d in directories])
         self._watched_dirs = directories
 
     def _on_scan_finished(self) -> None:
@@ -835,9 +830,7 @@ class PlayerLeaderboardWindow(ToggleAlwaysOnTopMixin):
         """Stop live refresh and wait for any in-flight workers before the window is destroyed."""
         self._scan_cooldown.stop()
         self._live_timer.stop()
-        watched_paths = [*self._sessions_watcher.files(), *self._sessions_watcher.directories()]
-        if watched_paths:
-            self._sessions_watcher.removePaths(watched_paths)
+        self._sessions_watcher.stop()
         if self._scan_worker is not None and self._scan_worker.isRunning():
             self._scan_worker.cancel()
         self._scan_worker = None

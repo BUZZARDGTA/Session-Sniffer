@@ -5,8 +5,9 @@ import os
 import shutil
 import subprocess
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-from PySide6.QtCore import QFileSystemWatcher, QPoint, QSignalBlocker, Qt, QUrl
+from PySide6.QtCore import QPoint, QSignalBlocker, Qt, QUrl
 from PySide6.QtGui import QAction, QDesktopServices, QIcon, QStandardItemModel
 from PySide6.QtWidgets import QCheckBox, QDialog, QFileDialog, QFileSystemModel, QFrame, QInputDialog, QLineEdit, QMenu, QMessageBox, QPushButton, QTreeView
 
@@ -24,6 +25,9 @@ from session_sniffer.guis.userip_manager_helpers import (
 from session_sniffer.settings.settings import Settings
 from session_sniffer.text_templates import DEFAULT_USERIP_FILES_SETTINGS_INI, USERIP_DEFAULT_DB_FOOTER_TEMPLATE, USERIP_DEFAULT_DB_HEADER_TEMPLATE
 from session_sniffer.text_utils import format_triple_quoted_text
+
+if TYPE_CHECKING:
+    from session_sniffer.guis.file_watch import DebouncedFileWatcher
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +57,7 @@ class TreeOperationsMixin(QDialog):
     _delete_button: QPushButton
     _delete_tree_button: QPushButton
     _entries_dirty: bool
-    _fs_watcher: QFileSystemWatcher
+    _fs_watcher: DebouncedFileWatcher
     _global_search_active: bool
     _global_search_checkbox: QCheckBox
     _settings_snapshot: dict[str, str]
@@ -91,14 +95,7 @@ class TreeOperationsMixin(QDialog):
 
     def _unwatch_path(self, path: Path) -> None:
         """Remove *path* and any of its descendants from the filesystem watcher."""
-        target_path_str = str(path)
-        watched_paths_to_remove = [
-            watched_path
-            for watched_path in (*self._fs_watcher.files(), *self._fs_watcher.directories())
-            if watched_path == target_path_str or watched_path.startswith((f'{target_path_str}\\', f'{target_path_str}/'))
-        ]
-        if watched_paths_to_remove:
-            self._fs_watcher.removePaths(watched_paths_to_remove)
+        self._fs_watcher.remove_paths([path])
 
     # ------------------------------------------------------------------
     # Tree: selection
