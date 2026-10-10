@@ -41,13 +41,13 @@ class Style(enum.IntFlag):
     MB_YESNO = 0x00000004  # Contains Yes and No buttons.
     MB_YESNOCANCEL = 0x00000003  # Contains Yes, No, and Cancel buttons.
     MB_ICONEXCLAMATION = 0x00000030  # Displays an Exclamation icon (Warning).
-    MB_ICONWARNING = 0x00000030  # Displays a Warning icon.
+    MB_ICONWARNING = MB_ICONEXCLAMATION  # Displays a Warning icon.
     MB_ICONINFORMATION = 0x00000040  # Displays an Information icon.
-    MB_ICONASTERISK = 0x00000040  # Displays an Asterisk icon (Info).
+    MB_ICONASTERISK = MB_ICONINFORMATION  # Displays an Asterisk icon (Info).
     MB_ICONQUESTION = 0x00000020  # Displays a Question icon.
     MB_ICONSTOP = 0x00000010  # Displays a Stop icon (Error).
-    MB_ICONERROR = 0x00000010  # Displays an Error icon.
-    MB_ICONHAND = 0x00000010  # Displays a Hand icon (Error).
+    MB_ICONERROR = MB_ICONSTOP  # Displays an Error icon.
+    MB_ICONHAND = MB_ICONSTOP  # Displays a Hand icon (Error).
     MB_DEFBUTTON1 = 0x00000000  # First button is the default button.
     MB_DEFBUTTON2 = 0x00000100  # Second button is the default button.
     MB_DEFBUTTON3 = 0x00000200  # Third button is the default button.
