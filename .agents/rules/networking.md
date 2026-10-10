@@ -89,6 +89,9 @@ Before introducing a new network operation, determine whether an existing projec
 
 Avoid adding network requests to latency-sensitive paths.
 
+Third-party integrations that transmit network metadata or IP addresses externally (such as Looky System)
+must strictly follow their domain-specific rules and gating logic (see `.agents/rules/looky.md`).
+
 ## Data Sensitivity
 
 Captured packet information, IP addresses, and session information can be sensitive.
