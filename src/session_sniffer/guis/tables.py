@@ -1,10 +1,9 @@
 """Session table view for connected and disconnected players tables."""
 
-from typing import TYPE_CHECKING, cast, override
+from typing import TYPE_CHECKING, override
 
 from PySide6.QtCore import QAbstractItemModel, QEvent, QItemSelection, QItemSelectionModel, QModelIndex, QObject, QRect, QRectF, QSize, Qt
 from PySide6.QtGui import (
-    QAction,
     QClipboard,
     QColor,
     QFont,
@@ -20,7 +19,6 @@ from PySide6.QtGui import (
 from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtWidgets import (
     QHeaderView,
-    QMenu,
     QSizePolicy,
     QTableView,
     QToolTip,
@@ -37,24 +35,20 @@ from session_sniffer.constants.tables import (
 from session_sniffer.error_messages import ensure_instance, format_type_error
 from session_sniffer.guis.app import app
 from session_sniffer.guis.delegates import ElidedTextTooltipDelegate
-from session_sniffer.guis.table_column_resizing import setup_static_table_column_resizing
 from session_sniffer.guis.table_model import SessionTableModel
 from session_sniffer.guis.tables_context_menu_mixin import TableContextMenuMixin
 from session_sniffer.guis.tables_header_menu_mixin import TableHeaderMenuMixin
 from session_sniffer.guis.utils import scale_by_ui
-from session_sniffer.models import GUIState
 from session_sniffer.player.registry import PlayersRegistry
 from session_sniffer.rendering_core.types import PaginationState, SearchState, SortState, TableMergeState
-from session_sniffer.settings.settings import Settings
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from session_sniffer.guis.main_window import MainWindow
     from session_sniffer.models.player import Player
 
 
-class SessionTableView(TableHeaderMenuMixin, TableContextMenuMixin, QTableView):  # pylint: disable=too-many-public-methods
+class SessionTableView(TableHeaderMenuMixin, TableContextMenuMixin, QTableView):
     """Render a session table view with custom selection and tooltips."""
 
     def __init__(
@@ -350,124 +344,6 @@ class SessionTableView(TableHeaderMenuMixin, TableContextMenuMixin, QTableView):
     # Custom / internal management methods
     # --------------------------------------------------------------------------
 
-    @property
-    def has_custom_column_widths(self) -> bool:
-        """Return True if the user has manually resized columns or custom widths were applied."""
-        return self._custom_column_widths is not None
-
-    def _on_section_resized(self, logical_index: int, _old_size: int, new_size: int) -> None:
-        """Track user-driven column resizing."""
-        if self._is_programmatic_resizing:
-            return
-        model = self.model()
-        header_text = model.headerData(logical_index, Qt.Orientation.Horizontal)
-        if header_text is not None and header_text:
-            if self._custom_column_widths is None:
-                self._custom_column_widths = self.get_column_widths()
-            min_width = max(
-                scale_by_ui(self.min_column_widths.get(header_text, DEFAULT_MIN_COLUMN_WIDTH)),
-                self.horizontalHeader().sectionSizeFromContents(logical_index).width(),
-            )
-            if new_size < min_width:
-                self._is_programmatic_resizing = True
-                try:
-                    self.horizontalHeader().resizeSection(logical_index, min_width)
-                finally:
-                    self._is_programmatic_resizing = False
-                new_size = min_width
-            self._custom_column_widths[header_text] = new_size
-
-    def get_column_widths(self) -> dict[str, int]:
-        """Return a mapping of column header names to their current section widths."""
-        model = self.model()
-        header = self.horizontalHeader()
-        widths: dict[str, int] = {}
-        for column in range(model.columnCount()):
-            header_label = model.headerData(column, Qt.Orientation.Horizontal)
-            if header_label is not None and header_label:
-                widths[header_label] = header.sectionSize(column)
-        return widths
-
-    def apply_column_widths(self, widths: dict[str, int]) -> None:
-        """Apply saved column widths to matching header sections."""
-        self._is_programmatic_resizing = True
-        try:
-            model = self.model()
-            header = self.horizontalHeader()
-            for column in range(model.columnCount()):
-                header_label = model.headerData(column, Qt.Orientation.Horizontal)
-                if header_label in widths and widths[header_label] > 0:
-                    min_width = max(
-                        scale_by_ui(self.min_column_widths.get(header_label, DEFAULT_MIN_COLUMN_WIDTH)),
-                        header.sectionSizeFromContents(column).width(),
-                    )
-                    width = max(min_width, widths[header_label])
-                    header.setSectionResizeMode(column, QHeaderView.ResizeMode.Interactive)
-                    header.resizeSection(column, width)
-            self._custom_column_widths = dict(widths)
-        finally:
-            self._is_programmatic_resizing = False
-
-    def request_column_recalculation(self, *, payload_count: int = 2) -> None:
-        """Flag that columns should be recalculated and resized on subsequent data updates."""
-        self._recalculation_payloads_remaining = max(self._recalculation_payloads_remaining, payload_count)
-
-    def clear_custom_column_widths(self, column_names: set[str] | list[str] | tuple[str, ...]) -> None:
-        """Remove custom widths for specific columns so they can be recalculated from content."""
-        if self._custom_column_widths is not None:
-            for column_name in column_names:
-                self._custom_column_widths.pop(column_name, None)
-            if not self._custom_column_widths:
-                self._custom_column_widths = None
-        if Settings.gui_remember_window_layout:
-            gui_state = GUIState.load()
-            widths = gui_state.connected_table_column_widths if self.is_connected_table else gui_state.disconnected_table_column_widths
-            if widths is not None:
-                changed = False
-                for column_name in column_names:
-                    if column_name in widths:
-                        del widths[column_name]
-                        changed = True
-                if changed:
-                    if not widths:
-                        if self.is_connected_table:
-                            gui_state.connected_table_column_widths = None
-                        else:
-                            gui_state.disconnected_table_column_widths = None
-                    gui_state.save()
-
-    @override
-    def setup_static_column_resizing(self) -> None:
-        """Set up column sizing for the table, fitting columns and distributing extra space to flexible columns."""
-        self._is_programmatic_resizing = True
-        try:
-            setup_static_table_column_resizing(
-                self,
-                custom_widths=self._custom_column_widths,
-                min_column_widths=self.min_column_widths,
-                max_column_widths=self.max_column_widths,
-            )
-        finally:
-            self._is_programmatic_resizing = False
-
-    def check_initial_data_column_sizing(self) -> None:
-        """Perform initial or requested content-aware column sizing when row data is populated."""
-        if self._recalculation_payloads_remaining > 0 and self.model().rowCount() > 0:
-            self._recalculation_payloads_remaining -= 1
-            self._has_auto_sized_with_data = True
-            self.setup_static_column_resizing()
-        elif not self._has_auto_sized_with_data and self.model().rowCount() > 0:
-            self._has_auto_sized_with_data = True
-            if self._custom_column_widths is None:
-                self.setup_static_column_resizing()
-        elif not self.model().rowCount():
-            self._has_auto_sized_with_data = False
-
-    def reset_initial_data_sizing(self) -> None:
-        """Reset the flag tracking whether the table has auto-sized its columns with row data."""
-        self._has_auto_sized_with_data = False
-        self._recalculation_payloads_remaining = 0
-
     def apply_sort(self, column_name: str, order: Qt.SortOrder) -> None:
         """Sort the table by column name and sort order."""
         model = self.model()
@@ -528,6 +404,53 @@ class SessionTableView(TableHeaderMenuMixin, TableContextMenuMixin, QTableView):
             if reset_page:
                 PaginationState.set_disconnected_page(1)
             SortState.set_disconnected(column_name=column_name, order=sort_order)
+
+    def _on_section_clicked(self, section_index: int) -> None:
+        """Sort the table by the clicked header section."""
+        h_scroll = self.horizontalScrollBar().value()
+        v_scroll = self.verticalScrollBar().value()
+        model = self.model()
+        horizontal_header = self.horizontalHeader()
+
+        sort_column_changed = self._previous_sort_section_index != section_index
+
+        # If it's the first click or sorting is being toggled
+        if self._previous_sort_section_index is None or self._previous_sort_section_index != section_index:
+            horizontal_header.setSortIndicator(section_index, Qt.SortOrder.DescendingOrder)
+
+        # Sort the model
+        model.sort(section_index, horizontal_header.sortIndicatorOrder())
+        self._previous_sort_section_index = section_index
+        self._push_sort_state(reset_page=True)
+        if sort_column_changed:
+            self.setup_static_column_resizing()
+        self.horizontalScrollBar().setValue(h_scroll)
+        self.verticalScrollBar().setValue(v_scroll)
+
+    def _show_flag_tooltip(self, event: QHoverEvent, index: QModelIndex, player: Player) -> None:
+        """Show tooltip only if hovering exactly over the flag."""
+        cell_rect = self.visualRect(index)
+        icon_size = self.iconSize()
+        if not icon_size.isValid():
+            icon_size = QSize(16, 16)
+        flag_rect = QRect(
+            cell_rect.left() + 6,
+            cell_rect.top() + (cell_rect.height() - icon_size.height()) // 2,
+            icon_size.width(),
+            icon_size.height(),
+        )
+        if flag_rect.contains(event.position().toPoint()):
+            country_name: str | None = None
+            if player.iplookup.geolite2 and player.iplookup.geolite2.country:
+                country_name = player.iplookup.geolite2.country
+            elif player.iplookup.ipapi and player.iplookup.ipapi.country:
+                country_name = player.iplookup.ipapi.country
+            if country_name is not None and country_name:
+                QToolTip.showText(event.globalPosition().toPoint(), country_name, self)
+            else:
+                QToolTip.hideText()
+        else:
+            QToolTip.hideText()
 
     def capture_selection(self) -> None:
         """Save the current cell selection by player IP and scroll positions for later restoration."""
@@ -590,75 +513,6 @@ class SessionTableView(TableHeaderMenuMixin, TableContextMenuMixin, QTableView):
         self._saved_selection.clear()
 
     @override
-    def handle_menu_hovered(self, action: QAction) -> None:
-        """Propagate QAction tooltip text to its parent menu."""
-        # Fixes: https://stackoverflow.com/questions/21725119/why-wont-qtooltips-appear-on-qactions-within-a-qmenu
-        action_parent = action.parent()
-        if isinstance(action_parent, QMenu):
-            action_parent.setToolTip(action.toolTip())
-
-    def _on_section_clicked(self, section_index: int) -> None:
-        """Sort the table by the clicked header section."""
-        h_scroll = self.horizontalScrollBar().value()
-        v_scroll = self.verticalScrollBar().value()
-        model = self.model()
-        horizontal_header = self.horizontalHeader()
-
-        sort_column_changed = self._previous_sort_section_index != section_index
-
-        # If it's the first click or sorting is being toggled
-        if self._previous_sort_section_index is None or self._previous_sort_section_index != section_index:
-            horizontal_header.setSortIndicator(section_index, Qt.SortOrder.DescendingOrder)
-
-        # Sort the model
-        model.sort(section_index, horizontal_header.sortIndicatorOrder())
-        self._previous_sort_section_index = section_index
-        self._push_sort_state(reset_page=True)
-        if sort_column_changed:
-            self.setup_static_column_resizing()
-        self.horizontalScrollBar().setValue(h_scroll)
-        self.verticalScrollBar().setValue(v_scroll)
-
-    @override
-    def _reset_column_sizes(self) -> None:
-        """Restore the default column sizing rules (Stretch / ResizeToContents)."""
-        self._custom_column_widths = None
-        self._has_auto_sized_with_data = False
-        self.setup_static_column_resizing()
-        if Settings.gui_remember_window_layout:
-            gui_state = GUIState.load()
-            if self.is_connected_table:
-                gui_state.connected_table_column_widths = None
-            else:
-                gui_state.disconnected_table_column_widths = None
-            gui_state.save()
-
-    def _show_flag_tooltip(self, event: QHoverEvent, index: QModelIndex, player: Player) -> None:
-        """Show tooltip only if hovering exactly over the flag."""
-        cell_rect = self.visualRect(index)
-        icon_size = self.iconSize()
-        if not icon_size.isValid():
-            icon_size = QSize(16, 16)
-        flag_rect = QRect(
-            cell_rect.left() + 6,
-            cell_rect.top() + (cell_rect.height() - icon_size.height()) // 2,
-            icon_size.width(),
-            icon_size.height(),
-        )
-        if flag_rect.contains(event.position().toPoint()):
-            country_name: str | None = None
-            if player.iplookup.geolite2 and player.iplookup.geolite2.country:
-                country_name = player.iplookup.geolite2.country
-            elif player.iplookup.ipapi and player.iplookup.ipapi.country:
-                country_name = player.iplookup.ipapi.country
-            if country_name is not None and country_name:
-                QToolTip.showText(event.globalPosition().toPoint(), country_name, self)
-            else:
-                QToolTip.hideText()
-        else:
-            QToolTip.hideText()
-
-    @override
     def copy_selected_cells(self, selected_model: SessionTableModel, selected_indexes: list[QModelIndex]) -> None:
         """Copy the selected cells data from the table to the clipboard."""
         # Access the system clipboard from the centralized app instance
@@ -686,22 +540,6 @@ class SessionTableView(TableHeaderMenuMixin, TableContextMenuMixin, QTableView):
         clipboard.setText(clipboard_content)
 
     @override
-    def remove_players_by_ip_from_table(self, ip_addresses: set[str]) -> None:
-        """Remove multiple players from the table by calling the appropriate `MainWindow` method.
-
-        Args:
-            ip_addresses: Set of IP addresses of the players to remove.
-        """
-        # Get the MainWindow instance
-        main_window = cast('MainWindow', self.window())
-
-        # Remove each player
-        for ip in ip_addresses:
-            if self.is_connected_table:
-                main_window.remove_player_from_connected(ip)
-            else:
-                main_window.remove_player_from_disconnected(ip)
-
     def _select_all_cells_helper(self, *, select: bool) -> None:
         """Helper function to select or deselect all cells in the table.
 
@@ -729,6 +567,7 @@ class SessionTableView(TableHeaderMenuMixin, TableContextMenuMixin, QTableView):
         flag = QItemSelectionModel.SelectionFlag.Select if select else QItemSelectionModel.SelectionFlag.Deselect
         selection_model.select(selection, flag)
 
+    @override
     def _select_row_cells_helper(self, row: int, *, select: bool) -> None:
         """Helper function to select or unselect all cells in a specific row.
 
@@ -753,6 +592,7 @@ class SessionTableView(TableHeaderMenuMixin, TableContextMenuMixin, QTableView):
         flag = QItemSelectionModel.SelectionFlag.Select if select else QItemSelectionModel.SelectionFlag.Deselect
         selection_model.select(selection, flag)
 
+    @override
     def _select_column_cells_helper(self, column: int, *, select: bool) -> None:
         """Helper function to select or unselect all cells in a given column.
 
@@ -776,33 +616,3 @@ class SessionTableView(TableHeaderMenuMixin, TableContextMenuMixin, QTableView):
         # Use the appropriate selection flag based on the `select` argument
         flag = QItemSelectionModel.SelectionFlag.Select if select else QItemSelectionModel.SelectionFlag.Deselect
         selection_model.select(selection, flag)
-
-    @override
-    def select_all_cells(self) -> None:
-        """Select all cells in the table."""
-        self._select_all_cells_helper(select=True)
-
-    @override
-    def unselect_all_cells(self) -> None:
-        """Unselect all cells in the table."""
-        self._select_all_cells_helper(select=False)
-
-    @override
-    def select_row_cells(self, row: int) -> None:
-        """Select all cells in the specified row."""
-        self._select_row_cells_helper(row, select=True)
-
-    @override
-    def unselect_row_cells(self, row: int) -> None:
-        """Unselect all cells in the specified row."""
-        self._select_row_cells_helper(row, select=False)
-
-    @override
-    def select_column_cells(self, column: int) -> None:
-        """Select all cells in the specified column."""
-        self._select_column_cells_helper(column, select=True)
-
-    @override
-    def unselect_column_cells(self, column: int) -> None:
-        """Unselect all cells in the specified column."""
-        self._select_column_cells_helper(column, select=False)

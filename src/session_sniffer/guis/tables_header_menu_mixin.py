@@ -4,20 +4,27 @@ from typing import TYPE_CHECKING
 
 from PySide6.QtCore import QPoint, QSignalBlocker, Qt
 from PySide6.QtGui import QAction, QIcon
-from PySide6.QtWidgets import QMenu, QTableView
+from PySide6.QtWidgets import QHeaderView, QMenu, QTableView
 
 from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.constants.tables import (
     BANDWIDTH_RATE_STAT_COLUMNS,
+    DEFAULT_MIN_COLUMN_WIDTH,
     LOCATION_COLUMNS,
     PACKET_STAT_COLUMNS,
     PORT_COLUMNS,
     STATUS_COLUMNS,
 )
 from session_sniffer.guis.stylesheets import CATEGORY_SUBMENU_CHECKBOX_STYLESHEET, SVG_ICON_CONTEXT_MENU_STYLESHEET
-from session_sniffer.guis.table_column_resizing import add_column_sizing_actions, size_all_columns_to_fit, size_column_to_fit
+from session_sniffer.guis.table_column_resizing import (
+    add_column_sizing_actions,
+    setup_static_table_column_resizing,
+    size_all_columns_to_fit,
+    size_column_to_fit,
+)
 from session_sniffer.guis.table_model import GUI_COLUMN_HEADERS_TOOLTIPS
-from session_sniffer.guis.utils import PersistentMenu
+from session_sniffer.guis.utils import PersistentMenu, scale_by_ui
+from session_sniffer.models import GUIState
 from session_sniffer.settings.defaults import SETTING_DEFAULTS
 from session_sniffer.settings.settings import Settings
 
@@ -66,12 +73,12 @@ class TableHeaderMenuMixin(QTableView):
 
     if TYPE_CHECKING:
         is_connected_table: bool
-
-        def _reset_column_sizes(self) -> None:
-            """Stub."""
-
-        def setup_static_column_resizing(self) -> None:
-            """Stub."""
+        min_column_widths: dict[str, int]
+        max_column_widths: dict[str, int]
+        _custom_column_widths: dict[str, int] | None
+        _is_programmatic_resizing: bool
+        _has_auto_sized_with_data: bool
+        _recalculation_payloads_remaining: int
 
     def _show_header_context_menu(self, pos: QPoint) -> None:
         """Show a context menu on the column header with sizing and column-visibility actions."""
@@ -304,3 +311,133 @@ class TableHeaderMenuMixin(QTableView):
             Settings.gui_columns_disconnected_shown = new_shown
         Settings.rewrite_settings_file()
         self.setup_static_column_resizing()
+
+    @property
+    def has_custom_column_widths(self) -> bool:
+        """Return True if the user has manually resized columns or custom widths were applied."""
+        return self._custom_column_widths is not None
+
+    def _on_section_resized(self, logical_index: int, _old_size: int, new_size: int) -> None:
+        """Track user-driven column resizing."""
+        if self._is_programmatic_resizing:
+            return
+        model = self.model()
+        header_text = model.headerData(logical_index, Qt.Orientation.Horizontal)
+        if header_text is not None and header_text:
+            if self._custom_column_widths is None:
+                self._custom_column_widths = self.get_column_widths()
+            min_width = max(
+                scale_by_ui(self.min_column_widths.get(header_text, DEFAULT_MIN_COLUMN_WIDTH)),
+                self.horizontalHeader().sectionSizeFromContents(logical_index).width(),
+            )
+            if new_size < min_width:
+                self._is_programmatic_resizing = True
+                try:
+                    self.horizontalHeader().resizeSection(logical_index, min_width)
+                finally:
+                    self._is_programmatic_resizing = False
+                new_size = min_width
+            self._custom_column_widths[header_text] = new_size
+
+    def get_column_widths(self) -> dict[str, int]:
+        """Return a mapping of column header names to their current section widths."""
+        model = self.model()
+        header = self.horizontalHeader()
+        widths: dict[str, int] = {}
+        for column in range(model.columnCount()):
+            header_label = model.headerData(column, Qt.Orientation.Horizontal)
+            if header_label is not None and header_label:
+                widths[header_label] = header.sectionSize(column)
+        return widths
+
+    def apply_column_widths(self, widths: dict[str, int]) -> None:
+        """Apply saved column widths to matching header sections."""
+        self._is_programmatic_resizing = True
+        try:
+            model = self.model()
+            header = self.horizontalHeader()
+            for column in range(model.columnCount()):
+                header_label = model.headerData(column, Qt.Orientation.Horizontal)
+                if header_label in widths and widths[header_label] > 0:
+                    min_width = max(
+                        scale_by_ui(self.min_column_widths.get(header_label, DEFAULT_MIN_COLUMN_WIDTH)),
+                        header.sectionSizeFromContents(column).width(),
+                    )
+                    width = max(min_width, widths[header_label])
+                    header.setSectionResizeMode(column, QHeaderView.ResizeMode.Interactive)
+                    header.resizeSection(column, width)
+            self._custom_column_widths = dict(widths)
+        finally:
+            self._is_programmatic_resizing = False
+
+    def request_column_recalculation(self, *, payload_count: int = 2) -> None:
+        """Flag that columns should be recalculated and resized on subsequent data updates."""
+        self._recalculation_payloads_remaining = max(self._recalculation_payloads_remaining, payload_count)
+
+    def clear_custom_column_widths(self, column_names: set[str] | list[str] | tuple[str, ...]) -> None:
+        """Remove custom widths for specific columns so they can be recalculated from content."""
+        if self._custom_column_widths is not None:
+            for column_name in column_names:
+                self._custom_column_widths.pop(column_name, None)
+            if not self._custom_column_widths:
+                self._custom_column_widths = None
+        if Settings.gui_remember_window_layout:
+            gui_state = GUIState.load()
+            widths = gui_state.connected_table_column_widths if self.is_connected_table else gui_state.disconnected_table_column_widths
+            if widths is not None:
+                changed = False
+                for column_name in column_names:
+                    if column_name in widths:
+                        del widths[column_name]
+                        changed = True
+                if changed:
+                    if not widths:
+                        if self.is_connected_table:
+                            gui_state.connected_table_column_widths = None
+                        else:
+                            gui_state.disconnected_table_column_widths = None
+                    gui_state.save()
+
+    def setup_static_column_resizing(self) -> None:
+        """Set up column sizing for the table, fitting columns and distributing extra space to flexible columns."""
+        self._is_programmatic_resizing = True
+        try:
+            setup_static_table_column_resizing(
+                self,
+                custom_widths=self._custom_column_widths,
+                min_column_widths=self.min_column_widths,
+                max_column_widths=self.max_column_widths,
+            )
+        finally:
+            self._is_programmatic_resizing = False
+
+    def check_initial_data_column_sizing(self) -> None:
+        """Perform initial or requested content-aware column sizing when row data is populated."""
+        if self._recalculation_payloads_remaining > 0 and self.model().rowCount() > 0:
+            self._recalculation_payloads_remaining -= 1
+            self._has_auto_sized_with_data = True
+            self.setup_static_column_resizing()
+        elif not self._has_auto_sized_with_data and self.model().rowCount() > 0:
+            self._has_auto_sized_with_data = True
+            if self._custom_column_widths is None:
+                self.setup_static_column_resizing()
+        elif not self.model().rowCount():
+            self._has_auto_sized_with_data = False
+
+    def reset_initial_data_sizing(self) -> None:
+        """Reset the flag tracking whether the table has auto-sized its columns with row data."""
+        self._has_auto_sized_with_data = False
+        self._recalculation_payloads_remaining = 0
+
+    def _reset_column_sizes(self) -> None:
+        """Restore the default column sizing rules (Stretch / ResizeToContents)."""
+        self._custom_column_widths = None
+        self._has_auto_sized_with_data = False
+        self.setup_static_column_resizing()
+        if Settings.gui_remember_window_layout:
+            gui_state = GUIState.load()
+            if self.is_connected_table:
+                gui_state.connected_table_column_widths = None
+            else:
+                gui_state.disconnected_table_column_widths = None
+            gui_state.save()

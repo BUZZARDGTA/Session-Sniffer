@@ -60,34 +60,16 @@ class TableContextMenuMixin(QTableView):
         unblacklist_high_rate_callback: Callable[[list[str]], None] | None
         is_high_rate_blacklisted_callback: Callable[[str], bool] | None
 
-        def handle_menu_hovered(self, action: QAction) -> None:
-            """Stub."""
-
         def copy_selected_cells(self, selected_model: SessionTableModel, selected_indexes: list[QModelIndex]) -> None:
             """Stub."""
 
-        def remove_players_by_ip_from_table(self, ip_addresses: set[str]) -> None:
+        def _select_all_cells_helper(self, *, select: bool) -> None:
             """Stub."""
 
-        def select_all_cells(self) -> None:
+        def _select_row_cells_helper(self, row: int, *, select: bool) -> None:
             """Stub."""
 
-        def unselect_all_cells(self) -> None:
-            """Stub."""
-
-        def select_row_cells(self, row: int) -> None:
-            """Stub."""
-
-        def unselect_row_cells(self, row: int) -> None:
-            """Stub."""
-
-        def select_column_cells(self, column: int) -> None:
-            """Stub."""
-
-        def unselect_column_cells(self, column: int) -> None:
-            """Stub."""
-
-        def _reset_column_sizes(self) -> None:
+        def _select_column_cells_helper(self, column: int, *, select: bool) -> None:
             """Stub."""
 
     def show_context_menu(self, pos: QPoint) -> None:
@@ -104,7 +86,7 @@ class TableContextMenuMixin(QTableView):
         # Create the main context menu
         context_menu = QMenu(self)
         context_menu.setToolTipsVisible(True)
-        context_menu.hovered.connect(self.handle_menu_hovered)
+        context_menu.hovered.connect(self._handle_menu_hovered)
 
         def get_selected_ips(indexes: list[QModelIndex]) -> list[str]:
             seen_rows: set[int] = set()
@@ -942,3 +924,50 @@ class TableContextMenuMixin(QTableView):
         add_search_in_menu()
 
         context_menu.popup(self.mapToGlobal(pos))
+
+    def _handle_menu_hovered(self, action: QAction) -> None:
+        """Propagate QAction tooltip text to its parent menu."""
+        # Fixes: https://stackoverflow.com/questions/21725119/why-wont-qtooltips-appear-on-qactions-within-a-qmenu
+        action_parent = action.parent()
+        if isinstance(action_parent, QMenu):
+            action_parent.setToolTip(action.toolTip())
+
+    def remove_players_by_ip_from_table(self, ip_addresses: set[str]) -> None:
+        """Remove multiple players from the table by calling the appropriate `MainWindow` method.
+
+        Args:
+            ip_addresses: Set of IP addresses of the players to remove.
+        """
+        # Get the MainWindow instance
+        main_window = cast('MainWindow', self.window())
+
+        # Remove each player
+        for ip in ip_addresses:
+            if self.is_connected_table:
+                main_window.remove_player_from_connected(ip)
+            else:
+                main_window.remove_player_from_disconnected(ip)
+
+    def select_all_cells(self) -> None:
+        """Select all cells in the table."""
+        self._select_all_cells_helper(select=True)
+
+    def unselect_all_cells(self) -> None:
+        """Unselect all cells in the table."""
+        self._select_all_cells_helper(select=False)
+
+    def select_row_cells(self, row: int) -> None:
+        """Select all cells in the specified row."""
+        self._select_row_cells_helper(row, select=True)
+
+    def unselect_row_cells(self, row: int) -> None:
+        """Unselect all cells in the specified row."""
+        self._select_row_cells_helper(row, select=False)
+
+    def select_column_cells(self, column: int) -> None:
+        """Select all cells in the specified column."""
+        self._select_column_cells_helper(column, select=True)
+
+    def unselect_column_cells(self, column: int) -> None:
+        """Unselect all cells in the specified column."""
+        self._select_column_cells_helper(column, select=False)
