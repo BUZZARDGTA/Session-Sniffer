@@ -21,7 +21,8 @@ from session_sniffer.guis.session_pps_graph import SessionPpsGraphWindow
 from session_sniffer.guis.session_rate_graph import SessionRateGraphWindow
 from session_sniffer.guis.session_timeline import SessionTimelineWindow
 from session_sniffer.guis.utils import show_or_focus_window
-from session_sniffer.player.registry import PlayersRegistry, SessionHost
+from session_sniffer.player.registry import PlayersRegistry
+from session_sniffer.player.session_host import SessionHost
 from session_sniffer.rdr2.suspend_manager import RDR2SuspendManager
 from session_sniffer.rendering_core.types import CaptureStats
 from session_sniffer.settings import Settings

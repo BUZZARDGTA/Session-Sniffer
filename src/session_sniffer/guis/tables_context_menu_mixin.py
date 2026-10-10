@@ -33,7 +33,8 @@ from session_sniffer.guis.tables_userip_mixin import resolve_usernames_for_playe
 from session_sniffer.networking.ip_range import check_ip_against_ranges
 from session_sniffer.networking.isp_filter import get_player_primary_isp, is_player_isp_filtered
 from session_sniffer.networking.looky_system import get_looky_user_url
-from session_sniffer.player.registry import HostDiagnosticsSnapshot, PlayersRegistry, SessionHost
+from session_sniffer.player.registry import PlayersRegistry
+from session_sniffer.player.session_host import HostDiagnosticsSnapshot, SessionHost
 from session_sniffer.rendering_core.types import CaptureState
 from session_sniffer.settings.settings import Settings
 from session_sniffer.text_utils import format_elapsed_time, pluralize

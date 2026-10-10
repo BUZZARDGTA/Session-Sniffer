@@ -50,7 +50,8 @@ from session_sniffer.guis.utils import (
 )
 from session_sniffer.guis.worker_thread import GUIWorkerThread
 from session_sniffer.models import GUIState
-from session_sniffer.player.registry import PlayersRegistry, SessionHost, SessionTracker
+from session_sniffer.player.registry import PlayersRegistry, SessionTracker
+from session_sniffer.player.session_host import SessionHost
 from session_sniffer.player.userip import UserIPDatabases
 from session_sniffer.rdr2.suspend_manager import RDR2SuspendManager
 from session_sniffer.rendering_core.status_bar_renderer import build_gui_status_text, reset_status_bar_latency

@@ -22,16 +22,15 @@ from session_sniffer.models import SessionLogFile
 from session_sniffer.models.player import Player, PlayerBandwidth, PlayerModMenus
 from session_sniffer.networking.geolite2 import extract_asn_info, extract_city_info, extract_country_info
 from session_sniffer.networking.port_scanner import get_active_port_scan_threads
-from session_sniffer.player.registry import (
+from session_sniffer.player.registry import PlayersRegistry, SessionTracker
+from session_sniffer.player.session_host import (
     MAXIMUM_PACKETS_FOR_RELAY_SESSION_HOST,
     MINIMUM_PACKETS_FOR_RELAY_SESSION_HOST,
     SESSION_HOST_CANDIDATE_PLAYERS_COUNT,
     SESSION_HOST_MAX_PACKETS_FOR_DETECTION,
     SESSION_HOST_SEARCH_TIMEOUT_SECONDS,
     SESSION_HOST_STARTUP_WINDOW_SECONDS,
-    PlayersRegistry,
     SessionHost,
-    SessionTracker,
 )
 from session_sniffer.player.userip import UserIPDatabases
 from session_sniffer.player.userip_loader import update_userip_databases

@@ -9,7 +9,8 @@ from PySide6.QtGui import QAction, QIcon
 from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.constants.standard import LOCAL_TZ
 from session_sniffer.guis.utils import load_country_flag_icon
-from session_sniffer.player.registry import HostHistoryEntry, PlayersRegistry, SessionHost, SessionTracker
+from session_sniffer.player.registry import PlayersRegistry, SessionTracker
+from session_sniffer.player.session_host import HostHistoryEntry, SessionHost
 from session_sniffer.text_utils import format_elapsed_time
 
 if TYPE_CHECKING:

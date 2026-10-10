@@ -33,7 +33,8 @@ from session_sniffer.guis.exceptions import TableDataConsistencyError, Unsupport
 from session_sniffer.guis.high_rate_monitor import HighRateTracker
 from session_sniffer.guis.player_identifier import PlayerIdentifierTracker
 from session_sniffer.guis.table_icons import get_ip_column_composite_icon
-from session_sniffer.player.registry import PlayersRegistry, SessionHost, SessionTracker
+from session_sniffer.player.registry import PlayersRegistry, SessionTracker
+from session_sniffer.player.session_host import SessionHost
 from session_sniffer.player.userip import UserIPDatabases
 from session_sniffer.settings import Settings
 

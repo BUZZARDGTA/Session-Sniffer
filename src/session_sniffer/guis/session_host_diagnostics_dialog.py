@@ -50,7 +50,7 @@ from session_sniffer.text_utils import format_elapsed_time, pluralize
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from session_sniffer.player.registry import HostCandidateDiagnostic, HostDiagnosticsSnapshot
+    from session_sniffer.player.session_host import HostCandidateDiagnostic, HostDiagnosticsSnapshot
 
 _SESSION_HOST_AMBIGUITY_MIN_THRESHOLD_MS: float = 50.0
 _SESSION_HOST_AMBIGUITY_MAX_THRESHOLD_MS: float = 1600.0

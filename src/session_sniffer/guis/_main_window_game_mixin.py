@@ -28,7 +28,8 @@ from session_sniffer.guis.session_host_history_window import (
 from session_sniffer.guis.stylesheets import GTA5_STATUS_LABEL_STYLESHEET
 from session_sniffer.guis.tables_player_actions import prompt_rename_session
 from session_sniffer.guis.utils import format_duration, load_country_flag_icon
-from session_sniffer.player.registry import PlayersRegistry, SessionHost, SessionTracker
+from session_sniffer.player.registry import PlayersRegistry, SessionTracker
+from session_sniffer.player.session_host import SessionHost
 from session_sniffer.rdr2.suspend_manager import RDR2SuspendManager
 from session_sniffer.rendering_core.types import CaptureState, SessionFilterState
 from session_sniffer.settings import Settings
@@ -42,7 +43,7 @@ if TYPE_CHECKING:
     from session_sniffer.guis.detections_manager import DetectionsManagerDialog
     from session_sniffer.guis.player_resolver import PlayerResolverWindow
     from session_sniffer.guis.userip_manager import UserIPDatabasesManager
-    from session_sniffer.player.registry import HostDiagnosticsSnapshot, HostHistoryEntry
+    from session_sniffer.player.session_host import HostDiagnosticsSnapshot, HostHistoryEntry
 
 logger = logging.getLogger(__name__)
 
