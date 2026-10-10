@@ -651,7 +651,7 @@ class PlayerLeaderboardWindow(ToggleAlwaysOnTopMixin):
         """Toggle exclusion of known game/relay server IPs and refresh the count label."""
         QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
         try:
-            self._proxy.set_hide_servers(checked)
+            self._proxy.set_hide_servers(hide=checked)
             self._update_count_label()
         finally:
             QApplication.restoreOverrideCursor()
@@ -660,7 +660,7 @@ class PlayerLeaderboardWindow(ToggleAlwaysOnTopMixin):
         """Toggle exclusion of VPN/proxy IPs and refresh the count label."""
         QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
         try:
-            self._proxy.set_hide_vpns(checked)
+            self._proxy.set_hide_vpns(hide=checked)
             self._update_count_label()
         finally:
             QApplication.restoreOverrideCursor()
@@ -669,7 +669,7 @@ class PlayerLeaderboardWindow(ToggleAlwaysOnTopMixin):
         """Toggle exclusion of hosting/datacenter IPs and refresh the count label."""
         QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
         try:
-            self._proxy.set_hide_hosting(checked)
+            self._proxy.set_hide_hosting(hide=checked)
             self._update_count_label()
         finally:
             QApplication.restoreOverrideCursor()
@@ -678,14 +678,14 @@ class PlayerLeaderboardWindow(ToggleAlwaysOnTopMixin):
         """Toggle filtering to players present in the active session and refresh the count label."""
         QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
         try:
-            self._proxy.set_current_session_only(checked)
+            self._proxy.set_current_session_only(enabled=checked)
             self._update_count_label()
         finally:
             QApplication.restoreOverrideCursor()
 
     def _on_relative_dates_toggled(self, checked: bool) -> None:  # noqa: FBT001
         """Toggle relative date formatting for First Seen and Last Seen columns."""
-        self._model.set_relative_dates(checked)
+        self._model.set_relative_dates(relative=checked)
 
     def _show_context_menu(self, pos: QPoint) -> None:
         index = self._table.indexAt(pos)

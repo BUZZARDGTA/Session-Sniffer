@@ -340,7 +340,7 @@ class ToggleAlwaysOnTopMixin(QWidget):
 
     def toggle_always_on_top(self, checked: bool) -> None:  # noqa: FBT001
         """Apply or remove the always-on-top window flag based on *checked*."""
-        apply_always_on_top(self, checked)
+        apply_always_on_top(self, checked=checked)
 
 
 class RateGraphWindowMixin(ToggleAlwaysOnTopMixin):
@@ -374,7 +374,7 @@ class RateGraphWindowMixin(ToggleAlwaysOnTopMixin):
         raise NotImplementedError
 
 
-def apply_always_on_top(window: QWidget, checked: bool) -> None:  # noqa: FBT001
+def apply_always_on_top(window: QWidget, *, checked: bool) -> None:
     """Apply or remove the always-on-top window flag, preserving native decorations.
 
     Uses `setWindowFlag` (single-flag toggle) instead of a full `setWindowFlags`

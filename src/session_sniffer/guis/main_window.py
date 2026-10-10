@@ -686,7 +686,7 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
 
     def _apply_always_on_top(self) -> None:
         """Apply the always-on-top setting to the main window."""
-        apply_always_on_top(self, Settings.gui_always_on_top)
+        apply_always_on_top(self, checked=Settings.gui_always_on_top)
 
     def _apply_table_settings(self) -> None:
         """Apply configured table sort, pagination, and column settings to connected and disconnected tables."""

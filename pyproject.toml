@@ -56,9 +56,6 @@ ignore_missing_imports = true
 strict = true
 
 
-[[tool.mypy.overrides]]
-module = "session_sniffer.error_messages"
-warn_unused_ignores = false
 
 
 [tool.pylint.master]
@@ -194,10 +191,7 @@ runtime-evaluated-base-classes = ["pydantic.BaseModel", "typing.NamedTuple"]
 python_version = "3.14"
 python-platform = "win32"
 min-severity = "warn"
-site-package-path = [
-    ".venv/Lib/site-packages",
-    ".venv/lib/python3.14/site-packages",
-]
+
 
 [tool.pyrefly.errors]
 bad-assignment = "ignore"

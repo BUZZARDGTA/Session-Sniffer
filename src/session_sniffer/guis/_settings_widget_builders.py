@@ -687,7 +687,7 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
         finally:
             is_updating = False
 
-    def on_preset_clicked(pname: str, checked: bool) -> None:  # noqa: FBT001
+    def on_preset_clicked(pname: str, *, checked: bool) -> None:
         nonlocal is_updating
         if is_updating:
             return
@@ -715,7 +715,7 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
 
     def make_handler(name: str) -> Callable[[bool], None]:
         def handler(checked: bool) -> None:  # noqa: FBT001
-            on_preset_clicked(name, checked)
+            on_preset_clicked(name, checked=checked)
 
         return handler
 

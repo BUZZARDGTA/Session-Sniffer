@@ -397,7 +397,7 @@ class LeaderboardTableModel(QAbstractTableModel):
         self.endResetModel()
         self.headerDataChanged.emit(Qt.Orientation.Horizontal, COLUMN_SESSIONS, COLUMN_SESSIONS)
 
-    def set_relative_dates(self, relative: bool) -> None:  # noqa: FBT001
+    def set_relative_dates(self, *, relative: bool) -> None:
         """Toggle relative date formatting for First Seen and Last Seen columns."""
         if self._relative_dates == relative:
             return
@@ -459,7 +459,7 @@ class LeaderboardSortProxy(QSortFilterProxyModel):
         self._search_column = column
         self.invalidateFilter()
 
-    def set_hide_servers(self, hide: bool) -> None:  # noqa: FBT001
+    def set_hide_servers(self, *, hide: bool) -> None:
         """Toggle hiding of known third-party game/relay server IPs."""
         self._hide_servers = hide
         self.invalidateFilter()
@@ -472,17 +472,17 @@ class LeaderboardSortProxy(QSortFilterProxyModel):
         if self._hide_servers:
             self.invalidateFilter()
 
-    def set_hide_vpns(self, hide: bool) -> None:  # noqa: FBT001
+    def set_hide_vpns(self, *, hide: bool) -> None:
         """Toggle hiding of IPs flagged as VPNs/proxies."""
         self._hide_vpns = hide
         self.invalidateFilter()
 
-    def set_hide_hosting(self, hide: bool) -> None:  # noqa: FBT001
+    def set_hide_hosting(self, *, hide: bool) -> None:
         """Toggle hiding of IPs flagged as hosting/datacenter providers."""
         self._hide_hosting = hide
         self.invalidateFilter()
 
-    def set_current_session_only(self, enabled: bool) -> None:  # noqa: FBT001
+    def set_current_session_only(self, *, enabled: bool) -> None:
         """Toggle filtering to only players in the active session."""
         self._current_session_only = enabled
         self.invalidateFilter()
