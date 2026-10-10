@@ -129,7 +129,7 @@ def _capture_win32_native_stack(max_frames: int = 32) -> list[str]:
                 lines.append(f'  #{index:02d}: 0x{address:016x} -> {module_name}+0x{offset:x}')
             else:
                 lines.append(f'  #{index:02d}: 0x{address:016x}')
-    except Exception as e:  # noqa: BLE001 # pylint: disable=broad-exception-caught
+    except (AttributeError, OSError, ctypes.ArgumentError) as e:
         lines.append(f'  Failed to capture native stack: {e}')
     return lines
 
@@ -141,17 +141,16 @@ def _install_win32_crt_handlers() -> None:
     try:
         ucrt = ctypes.cdll.ucrtbase
         _state.c_invalid_param_handler = _INVALID_PARAM_HANDLER_TYPE(_win32_invalid_param_handler)
-        ucrt._set_invalid_parameter_handler(_state.c_invalid_param_handler)  # noqa: SLF001 # pylint: disable=protected-access
+        ucrt['_set_invalid_parameter_handler'](_state.c_invalid_param_handler)
 
         _state.c_purecall_handler = _PURECALL_HANDLER_TYPE(_win32_purecall_handler)
-        ucrt._set_purecall_handler(_state.c_purecall_handler)  # noqa: SLF001 # pylint: disable=protected-access
+        ucrt['_set_purecall_handler'](_state.c_purecall_handler)
 
         with contextlib.suppress(AttributeError, OSError):
-            vcruntime = ctypes.cdll.LoadLibrary('vcruntime140.dll')
-            if hasattr(vcruntime, '_set_purecall_handler'):
-                vcruntime._set_purecall_handler.argtypes = [_PURECALL_HANDLER_TYPE]  # noqa: SLF001 # pylint: disable=protected-access
-                vcruntime._set_purecall_handler.restype = ctypes.c_void_p  # noqa: SLF001 # pylint: disable=protected-access
-                vcruntime._set_purecall_handler(_state.c_purecall_handler)  # noqa: SLF001 # pylint: disable=protected-access
+            vcruntime_set_purecall_handler = ctypes.cdll.LoadLibrary('vcruntime140.dll')['_set_purecall_handler']
+            vcruntime_set_purecall_handler.argtypes = [_PURECALL_HANDLER_TYPE]
+            vcruntime_set_purecall_handler.restype = ctypes.c_void_p
+            vcruntime_set_purecall_handler(_state.c_purecall_handler)
 
         _state.c_sigabrt_handler = _SIGNAL_HANDLER_TYPE(_win32_sigabrt_handler)
         _state.prev_sigabrt_handler = int(ucrt.signal(22, _state.c_sigabrt_handler))
@@ -380,7 +379,7 @@ def dump_crash_diagnostics(reason: str) -> None:
         with CRASH_LOG_PATH.open('a', encoding='utf-8') as f:
             f.write(dump_text)
             f.flush()
-    except Exception as e:  # noqa: BLE001 # pylint: disable=broad-exception-caught
+    except OSError as e:
         if sys.__stderr__ is not None:
             with contextlib.suppress(Exception):
                 sys.__stderr__.write(f'Failed to write to crash.log: {e}\n')
@@ -490,11 +489,9 @@ class _StderrToLogger:
         """Write directly to the original stderr stream during recursive logging."""
         if self._fallback is None:
             return
-        try:
+        with contextlib.suppress(OSError, ValueError):
             self._fallback.write(message)
             self._fallback.flush()
-        except Exception:  # noqa: BLE001  # pylint: disable=broad-exception-caught
-            return
 
 
 # --- Default console level ---
