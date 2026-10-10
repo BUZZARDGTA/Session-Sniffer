@@ -1,6 +1,6 @@
 ---
 name: fix
-description: Diagnose and fix Session Sniffer bugs, errors, tracebacks, logs, lint failures, static-analysis findings, test failures, and IDE-reported problems. Use when the user invokes /fix or provides an error report, traceback, log, linter output, failing test, or other concrete problem that needs investigation and a code fix.
+description: Diagnose and fix Session Sniffer bugs, errors, tracebacks, logs, lint failures, static-analysis findings, and IDE-reported problems. Use when the user invokes /fix or provides an error report, traceback, log, linter output, or other concrete problem that needs investigation and a code fix.
 ---
 
 # Session Sniffer Fix
@@ -11,7 +11,7 @@ The user may provide any combination of:
 - a traceback or exception;
 - runtime logs;
 - IDE error output;
-- test failures;
+- reproduction script failures;
 - linter or static-analysis output;
 - type-checker output;
 - build or packaging errors;
@@ -29,12 +29,12 @@ The goal is to diagnose the actual problem, make the smallest appropriate code c
 4. Inspect the surrounding source code and related implementations before deciding on a fix.
 5. Determine whether the reported item is:
    - a real runtime/functional bug;
-   - a test failure;
+   - a reproduction failure;
    - a build/configuration problem;
    - a static-analysis or lint finding;
    - a warning that should be addressed;
    - or a false positive / intentional project behavior.
-6. Reproduce the problem when practical using the smallest relevant command or test.
+6. Reproduce the problem when practical using the smallest relevant command or reproduction script.
 7. Trace the root cause rather than merely suppressing the diagnostic.
 8. Make the smallest clean fix that is consistent with existing Session Sniffer architecture and coding conventions.
 9. Do not modify unrelated user changes.
@@ -62,7 +62,7 @@ For output such as:
 src/session_sniffer/foo.py:123:4: E...
 Traceback (most recent call last):
 ...
-AssertionError: ...
+ValueError: ...
 ```
 
 extract:
@@ -115,12 +115,7 @@ Do not:
 
 If a structural warning is not worth safely changing, explain why and leave it unchanged rather than hiding it.
 
-### Example: too-many-lines
-
-When reviewing metric findings such as `too-many-lines`:
-- Do not artificially fragment cohesive files into submodules or arbitrary chunks solely to satisfy metric-based line limits.
-- Reserve structural refactoring (such as extracting mixins or helper modules) for code with distinct separable concerns (e.g. bloated GUI windows, widgets, or controllers).
-- Keep cohesive files unified and streamline within the file (eliminating dead code, deduplicating helpers, formatting data cleanly) without changing behavior.
+For file sizing warnings (e.g. `too-many-lines`), follow the guidelines in `.agents/rules/python.md` ("File Sizing and Structural Warnings"): keep cohesive files unified and streamline within the file without arbitrary fragmentation.
 
 ### Example: duplicate-code
 
@@ -129,13 +124,13 @@ If the diagnostic identifies duplicated blocks across files:
 2. determine whether they represent the same behavior or only superficially similar code;
 3. if they are genuinely shared behavior, look for an appropriate existing utility/module or create a small shared helper if justified;
 4. update callers consistently;
-5. run focused tests and the relevant lint check.
+5. run focused validation and the relevant lint check.
 
 Do not blindly merge unrelated code just because pylint reports similar lines.
- 
-### Example: hardcoded-bind-all-interfaces (S104)
 
-- `WEBSERVER_DEFAULT_HOST: str = '0.0.0.0'  # noqa: S104` in `src/session_sniffer/constants/standalone.py`: `0.0.0.0` is the intentional default webserver host; leave as-is.
+### Genuine Exceptions
+
+Before attempting to fix security or style warnings, verify whether the flagged construct is an intentional project exception documented in `.agents/rules/python.md` (e.g. `WEBSERVER_DEFAULT_HOST`). Leave intentional exceptions as-is.
 
 ## Tracebacks and Runtime Errors
 
@@ -145,20 +140,8 @@ For a traceback:
 2. Read the stack from the failing operation back through Session Sniffer code.
 3. Identify the first application-level frame that explains why the invalid state/value occurred.
 4. Inspect the data/control flow that produced that state.
-5. Fix the cause rather than adding a broad `try/except` around the failing operation.
+5. Fix the root cause rather than adding a defensive `try/except`. Follow the exception handling rules in `.agents/rules/python.md` (never broadly catch `Exception` or swallow errors with `except ...: pass`).
 6. Preserve useful exception information and existing logging behavior.
-7. Add or update a regression test when practical.
-
-Do not use broad exception swallowing such as:
-
-```python
-try:
-    ...
-except Exception:
-    pass
-```
-
-unless the existing architecture explicitly requires that behavior and the reason is documented.
 
 ## Logs and IDE Reports
 
@@ -176,46 +159,29 @@ If the IDE reports a problem without enough context, inspect the referenced sour
 
 If the report is sufficient to investigate, proceed without unnecessary clarification.
 
-## Tests and Regression Coverage
-
-When a bug is reproducible in a testable component:
-
-1. Prefer an existing test that demonstrates the failure.
-2. If no suitable test exists, add a focused regression test when practical.
-3. Keep the test specific to the bug and its expected behavior.
-4. Do not weaken or delete a test simply because it fails after the change.
-5. Do not modify tests merely to make an incorrect implementation appear correct.
-
-A regression test should fail for the old behavior and pass for the corrected behavior whenever practical.
-
 ## Validation
 
-Use the project's existing validation configuration and commands. Follow the shared quality workflow in `.agents/rules/testing.md`.
+Follow the shared quality and validation workflow in `.agents/rules/testing.md`.
 
-Start with the narrowest useful check, for example:
-- the original failing check or reproduction;
-- the relevant linter command;
-- a targeted type check (e.g. `mypy`, `pyright --warnings`, `pyrefly check .`, `ty check .`);
-- the affected build/package check.
-
-Then broaden validation when the change warrants it. For significant code changes, run targeted checks first, then the full project quality script with `python code_quality_checks.py`.
+Start with the narrowest useful check:
+- the original failing check, reproduction script, or relevant linter/type checker;
+- broaden validation when the change warrants it, using `python code_quality_checks.py` for significant code changes.
 
 For a lint report, re-run the relevant linter and confirm the reported diagnostic is gone. If the command still exits non-zero because of unrelated existing findings, distinguish the fixed finding from the remaining findings.
 
-For a traceback, run the relevant test or reproduction and verify that the same traceback no longer occurs.
+For a traceback or runtime bug, re-run the reproduction to verify the failure no longer occurs.
 
 Never report "all checks pass" if only a targeted check passed.
 
 ## Scope and Safety
 
-- Never reset, rebase, force-push, amend, or rewrite existing Git history.
-- Never discard unrelated working-tree changes.
-- Never use blanket staging or modify unrelated files just to satisfy validation.
+Follow the Git and Change Discipline rules in `.agents/rules/core.md`.
+
+In addition:
 - Do not update dependencies unless the diagnosis actually requires it.
 - Do not change public behavior unnecessarily.
 - Do not silence diagnostics when a proper fix is reasonably safe.
 - Do not introduce a workaround when the root cause can be fixed cleanly.
-- Preserve existing project conventions and architecture.
 - Keep fixes focused and reviewable.
 
 ## Fix vs. Refactor

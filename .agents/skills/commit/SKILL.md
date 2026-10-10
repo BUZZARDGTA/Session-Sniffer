@@ -52,14 +52,13 @@ Write the message from the actual diff. Do not invent functionality or motivatio
 
 ## Safety
 
+Follow the Git and Change Discipline rules in `.agents/rules/core.md`.
+
 * Never modify files merely to make commits possible.
-* Never include unrelated user changes.
 * Preserve unstaged and uncommitted changes that are outside the selected commit.
 * Use partial/hunk staging when files contain changes belonging to multiple commits.
 * Inspect the staged diff before every commit.
 * Do not use `git add .` or equivalent blanket staging when only part of the working tree belongs in a commit.
-* Do not amend existing commits.
-* Do not reset, rebase, force-push, or rewrite existing history.
 * Do not push commits unless the user explicitly asks for a push as a separate action.
 
 ## Validation
@@ -67,12 +66,8 @@ Write the message from the actual diff. Do not invent functionality or motivatio
 Before committing:
 
 1. Review the staged diff.
-2. Follow the shared quality workflow in `.agents/rules/testing.md`.
-3. Run the smallest relevant validation available for the selected changes when practical.
-4. For significant staged code changes, run targeted checks first, then `python code_quality_checks.py` before committing.
-5. For release-only staged changes limited to `pyproject.toml` and `uv.lock`, run release-specific validation instead: `uv lock --check` and CRLF line-ending verification for the modified release files.
-6. Do not claim validation was performed unless it actually ran successfully.
-7. If validation fails, stop before committing and report the failure.
+2. Follow the validation workflow in `.agents/rules/testing.md` for the staged changes (running targeted checks, the full quality script when appropriate, or release-specific validation for version-only bumps).
+3. If validation fails, stop before committing and report the failure.
 
 For multiple commits, validate each staged change as appropriate before creating its commit.
 
