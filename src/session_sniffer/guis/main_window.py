@@ -839,6 +839,9 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
                 GTASuspendManager.release_reasons_for_ip(ip)
                 RDR2SuspendManager.release_reasons_for_ip(ip)
 
+        if TableMergeState.is_merged():
+            self._clear_disconnected_players()
+
     def _clear_disconnected_players(self) -> None:
         """Clear all disconnected players from the table and registry."""
         self._state.min_accepted_snapshot_version = GUIRenderingState.get_version() + 1

@@ -281,10 +281,16 @@ def rendering_core(
         Thread(target=_write_session_logging_task, args=(snapshot_model,), name='SessionLoggingWriter', daemon=True).start()
 
     def process_gui_session_tables_rendering() -> SessionTableSnapshot:
+        if TableMergeState.is_merged():
+            render_connected = [*session_connected, *session_disconnected]
+            render_disconnected: list[Player] = []
+        else:
+            render_connected = session_connected
+            render_disconnected = session_disconnected
         return build_session_table_snapshot(
             SessionTableRenderContext(
-                session_connected=session_connected,
-                session_disconnected=session_disconnected,
+                session_connected=render_connected,
+                session_disconnected=render_disconnected,
                 connected_shown_columns=connected_shown_columns,
                 disconnected_shown_columns=disconnected_shown_columns,
                 connected_num_columns=connected_num_columns,
@@ -323,14 +329,6 @@ def rendering_core(
     _userip_not_found: set[str] = set()
 
     def _process_player_disconnections(connected: list[Player], disconnected: list[Player]) -> list[int]:
-        if TableMergeState.is_merged():
-            for player in disconnected:
-                player.left_event.clear()
-                PlayersRegistry.move_player_to_connected(player)
-                connected.append(player)
-            disconnected.clear()
-            return []
-
         to_disconnect: list[int] = []
         now = datetime.now(tz=LOCAL_TZ)
         for i, player in enumerate(connected):
@@ -509,7 +507,7 @@ def rendering_core(
                     SessionHost.clear_session_host_data()
                     _session_transitioned_for_pending_disconnections = False
                 if _session_host_was_active and not p2p_session_connected:
-                    SessionTracker.advance_session()
+                    SessionTracker.advance_session(players=session_connected)
                     _session_host_was_active = False
             else:
                 game_just_started = False
@@ -522,7 +520,7 @@ def rendering_core(
 
                 if game_just_started:
                     if _session_host_was_active:
-                        SessionTracker.advance_session()
+                        SessionTracker.advance_session(players=session_connected)
                     _sniffer_just_started = True
                     _sniffer_start_time = time.monotonic()
                     _session_host_was_active = False
@@ -622,7 +620,7 @@ def rendering_core(
                     if _session_host_was_active and (SessionHost.has_player() or not SessionHost.search_player):
                         logger.debug('[SessionHost] No connected P2P players, resetting host and triggering search')
                     if _session_host_was_active:
-                        SessionTracker.advance_session()
+                        SessionTracker.advance_session(players=session_connected)
                     _session_host_was_active = False
                     _relay_host_logged_ip = None
                     SessionHost.clear_session_host_data()
