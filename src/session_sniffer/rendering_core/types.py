@@ -437,6 +437,16 @@ class CaptureStats:
         cls.capture_health_samples.clear()
 
     @classmethod
+    def recalculate_total_packets(cls) -> None:
+        """Recalculate total captured packets from current players in registry."""
+        from session_sniffer.player.registry import PlayersRegistry  # noqa: PLC0415  # pylint: disable=import-outside-toplevel
+
+        cls.total_packets_captured = (
+            sum(player.packets.total_exchanged for player in PlayersRegistry.get_players_map().values())
+            + cls.packets_overflow_dropped
+        )
+
+    @classmethod
     def reset_on_interface_switch(cls) -> None:
         """Reset all per-capture counters and clear history buffers on an interface switch."""
         cls.restarted_times = 0

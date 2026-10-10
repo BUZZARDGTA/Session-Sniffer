@@ -381,9 +381,10 @@ class CaptureStatisticsWindow(RateGraphWindowMixin):
         bps_data = list(self._bps_buffer)
 
         self._ppm_sample_buffer.append(CaptureStats.total_packets_captured)
-        if len(self._ppm_sample_buffer) >= _MIN_PPM_SAMPLES and self._ppm_sample_buffer[-1] < self._ppm_sample_buffer[0]:
+        if self._ppm_sample_buffer and self._ppm_sample_buffer[-1] < self._ppm_sample_buffer[0]:
             self._ppm_sample_buffer.clear()
             self._ppm_sample_buffer.append(CaptureStats.total_packets_captured)
+            self._peak_ppm = 0
         ppm_count = max(0, self._ppm_sample_buffer[-1] - self._ppm_sample_buffer[0]) if len(self._ppm_sample_buffer) >= _MIN_PPM_SAMPLES else 0
         self._peak_ppm = max(self._peak_ppm, ppm_count)
         self._label_ppm.setText(str(ppm_count))

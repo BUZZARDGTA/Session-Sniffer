@@ -64,6 +64,12 @@ class StatsMixin(QMainWindow):
 
     def _sync_game_process_button(self) -> None: ...  # Provided by GameMixin
 
+    def recalculate_capture_stats(self) -> None:
+        """Recalculate capture statistics from currently remaining players in registry."""
+
+    def reset_capture_stats(self) -> None:
+        """Reset capture statistics, graphs, header counters, and open stats windows."""
+
     def _select_connected_ips(self, ip_addresses: list[str]) -> None:
         """Select and scroll to player rows by IP in the connected table."""
         selection = QItemSelection()
@@ -302,6 +308,8 @@ class StatsMixin(QMainWindow):
         GTASuspendManager.release_reasons_for_ip(ip)
         RDR2SuspendManager.release_reasons_for_ip(ip)
 
+        self.recalculate_capture_stats()
+
     def remove_player_from_disconnected(self, ip: str) -> None:
         """Remove a single player from disconnected table and registry by IP address."""
         removed_player: Player | None = PlayersRegistry.remove_disconnected_player(ip)
@@ -312,3 +320,5 @@ class StatsMixin(QMainWindow):
 
         GTASuspendManager.release_reasons_for_ip(ip)
         RDR2SuspendManager.release_reasons_for_ip(ip)
+
+        self.recalculate_capture_stats()

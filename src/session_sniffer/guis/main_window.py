@@ -843,8 +843,8 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
 
         if TableMergeState.is_merged():
             self._clear_disconnected_players()
-        elif not PlayersRegistry.get_total_count():
-            self.reset_capture_stats()
+        else:
+            self.recalculate_capture_stats()
 
     def _clear_disconnected_players(self) -> None:
         """Clear all disconnected players from the table and registry."""
@@ -861,9 +861,42 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
                 GTASuspendManager.release_reasons_for_ip(ip)
                 RDR2SuspendManager.release_reasons_for_ip(ip)
 
-        if not PlayersRegistry.get_total_count():
-            self.reset_capture_stats()
+        self.recalculate_capture_stats()
 
+    @override
+    def recalculate_capture_stats(self) -> None:
+        """Recalculate capture statistics from currently remaining players in registry."""
+        total_remaining = PlayersRegistry.get_total_count()
+        if not total_remaining:
+            self.reset_capture_stats()
+            return
+
+        CaptureStats.recalculate_total_packets()
+        if not PlayersRegistry.get_connected_count():
+            CaptureStats.global_bandwidth = 0
+            CaptureStats.global_download = 0
+            CaptureStats.global_upload = 0
+            CaptureStats.global_bps_rate = 0
+            CaptureStats.global_bpm_rate = 0
+            CaptureStats.global_pps_rate = 0
+
+        uptime = max(0, int(time.monotonic() - CaptureStats.capture_started_at)) if self.capture.is_running() and CaptureStats.capture_started_at > 0 else 0
+        self._header.update_stats(uptime_seconds=uptime, total_packets=CaptureStats.total_packets_captured)
+        self._update_status_bar()
+        if self._capture_statistics_window is not None and self._capture_statistics_window.isVisible():
+            self._capture_statistics_window.refresh()
+        if self._session_timeline_window is not None and self._session_timeline_window.isVisible():
+            self._session_timeline_window.refresh()
+        if self._country_breakdown_window is not None and self._country_breakdown_window.isVisible():
+            self._country_breakdown_window.refresh()
+        if self._reconnect_frequency_window is not None and self._reconnect_frequency_window.isVisible():
+            self._reconnect_frequency_window.refresh()
+        if self._port_heatmap_window is not None and self._port_heatmap_window.isVisible():
+            self._port_heatmap_window.refresh()
+        if self._session_duration_window is not None and self._session_duration_window.isVisible():
+            self._session_duration_window.refresh()
+
+    @override
     def reset_capture_stats(self) -> None:
         """Reset capture statistics, graphs, header counters, and open stats windows."""
         CaptureStats.reset_capture_stats()
