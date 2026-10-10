@@ -15,6 +15,7 @@ import sys
 import threading
 import time
 import traceback
+from dataclasses import dataclass
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from threading import Event, RLock, local
@@ -42,17 +43,26 @@ _setup_lock = RLock()
 _secret_provider_lock = RLock()
 _stderr_reentry_state = local()
 _atexit_registered = Event()
-_crash_log_file: TextIO | None = None  # pylint: disable=invalid-name
 
 _SECRETS_CACHE_TTL_SECONDS = 2.0
-_cached_secrets: tuple[str, ...] = ()
-_cached_secrets_expiry: float = 0.0  # pylint: disable=invalid-name
 
-_win32_crt_handlers_installed: bool = False  # pylint: disable=invalid-name
-_c_invalid_param_handler: Any = None  # pylint: disable=invalid-name
-_c_purecall_handler: Any = None  # pylint: disable=invalid-name
-_c_sigabrt_handler: Any = None  # pylint: disable=invalid-name
-_prev_sigabrt_handler: int = 0  # pylint: disable=invalid-name
+
+@dataclass
+class _LoggingState:
+    """Mutable module-level state shared by the logging, secret-redaction, and crash-diagnostic helpers."""
+
+    crash_log_file: TextIO | None = None
+    cached_secrets: tuple[str, ...] = ()
+    cached_secrets_expiry: float = 0.0
+    win32_crt_handlers_installed: bool = False
+    # CRT callback objects must stay referenced for the process lifetime so ctypes does not free them.
+    c_invalid_param_handler: Any = None
+    c_purecall_handler: Any = None
+    c_sigabrt_handler: Any = None
+    prev_sigabrt_handler: int = 0
+
+
+_state = _LoggingState()
 
 if sys.platform == 'win32':
     _INVALID_PARAM_HANDLER_TYPE = ctypes.CFUNCTYPE(
@@ -88,9 +98,9 @@ def _win32_purecall_handler() -> None:
 
 def _win32_sigabrt_handler(sig: int) -> None:
     dump_crash_diagnostics('SIGABRT received (C runtime abort)')
-    if _prev_sigabrt_handler and _prev_sigabrt_handler not in (0, 1):
+    if _state.prev_sigabrt_handler and _state.prev_sigabrt_handler not in (0, 1):
         with contextlib.suppress(Exception):
-            prev_fn = _SIGNAL_HANDLER_TYPE(_prev_sigabrt_handler)
+            prev_fn = _SIGNAL_HANDLER_TYPE(_state.prev_sigabrt_handler)
             prev_fn(sig)
 
 
@@ -126,27 +136,26 @@ def _capture_win32_native_stack(max_frames: int = 32) -> list[str]:
 
 def _install_win32_crt_handlers() -> None:
     """Install Windows CRT diagnostic handlers to intercept and log low-level aborts and asserts."""
-    global _win32_crt_handlers_installed, _c_invalid_param_handler, _c_purecall_handler, _c_sigabrt_handler, _prev_sigabrt_handler  # noqa: PLW0603
-    if sys.platform != 'win32' or _win32_crt_handlers_installed:
+    if sys.platform != 'win32' or _state.win32_crt_handlers_installed:
         return
     try:
         ucrt = ctypes.cdll.ucrtbase
-        _c_invalid_param_handler = _INVALID_PARAM_HANDLER_TYPE(_win32_invalid_param_handler)
-        ucrt._set_invalid_parameter_handler(_c_invalid_param_handler)  # noqa: SLF001 # pylint: disable=protected-access
+        _state.c_invalid_param_handler = _INVALID_PARAM_HANDLER_TYPE(_win32_invalid_param_handler)
+        ucrt._set_invalid_parameter_handler(_state.c_invalid_param_handler)  # noqa: SLF001 # pylint: disable=protected-access
 
-        _c_purecall_handler = _PURECALL_HANDLER_TYPE(_win32_purecall_handler)
-        ucrt._set_purecall_handler(_c_purecall_handler)  # noqa: SLF001 # pylint: disable=protected-access
+        _state.c_purecall_handler = _PURECALL_HANDLER_TYPE(_win32_purecall_handler)
+        ucrt._set_purecall_handler(_state.c_purecall_handler)  # noqa: SLF001 # pylint: disable=protected-access
 
         with contextlib.suppress(AttributeError, OSError):
             vcruntime = ctypes.cdll.LoadLibrary('vcruntime140.dll')
             if hasattr(vcruntime, '_set_purecall_handler'):
                 vcruntime._set_purecall_handler.argtypes = [_PURECALL_HANDLER_TYPE]  # noqa: SLF001 # pylint: disable=protected-access
                 vcruntime._set_purecall_handler.restype = ctypes.c_void_p  # noqa: SLF001 # pylint: disable=protected-access
-                vcruntime._set_purecall_handler(_c_purecall_handler)  # noqa: SLF001 # pylint: disable=protected-access
+                vcruntime._set_purecall_handler(_state.c_purecall_handler)  # noqa: SLF001 # pylint: disable=protected-access
 
-        _c_sigabrt_handler = _SIGNAL_HANDLER_TYPE(_win32_sigabrt_handler)
-        _prev_sigabrt_handler = int(ucrt.signal(22, _c_sigabrt_handler))
-        _win32_crt_handlers_installed = True
+        _state.c_sigabrt_handler = _SIGNAL_HANDLER_TYPE(_win32_sigabrt_handler)
+        _state.prev_sigabrt_handler = int(ucrt.signal(22, _state.c_sigabrt_handler))
+        _state.win32_crt_handlers_installed = True
     except (AttributeError, OSError) as e:
         logging.getLogger(_APP_LOGGER_NAME).debug('Failed to install Win32 CRT diagnostic handlers: %s', e)
 
@@ -190,8 +199,7 @@ def _invalidate_secret_cache() -> None:
 
     Must be called with `_secret_provider_lock` held.
     """
-    global _cached_secrets_expiry  # noqa: PLW0603
-    _cached_secrets_expiry = 0.0
+    _state.cached_secrets_expiry = 0.0
 
 
 def clear_secret_cache() -> None:
@@ -212,15 +220,13 @@ def _get_secret_values() -> tuple[str, ...]:
     Providers are re-invoked only after the TTL expires, after a new provider is registered, or after
     `clear_secret_cache()` is called.  A provider that raises is silently skipped for that cycle.
     """
-    global _cached_secrets, _cached_secrets_expiry  # noqa: PLW0603
-
     current_time = time.monotonic()
-    if current_time < _cached_secrets_expiry:
-        return _cached_secrets
+    if current_time < _state.cached_secrets_expiry:
+        return _state.cached_secrets
 
     with _secret_provider_lock:
-        if current_time < _cached_secrets_expiry:
-            return _cached_secrets
+        if current_time < _state.cached_secrets_expiry:
+            return _state.cached_secrets
 
         providers = tuple(_secret_providers)
         secrets: set[str] = set()
@@ -232,9 +238,9 @@ def _get_secret_values() -> tuple[str, ...]:
             if secret is not None and secret:
                 secrets.add(secret)
 
-        _cached_secrets = tuple(sorted(secrets, key=len, reverse=True))
-        _cached_secrets_expiry = time.monotonic() + _SECRETS_CACHE_TTL_SECONDS
-        return _cached_secrets
+        _state.cached_secrets = tuple(sorted(secrets, key=len, reverse=True))
+        _state.cached_secrets_expiry = time.monotonic() + _SECRETS_CACHE_TTL_SECONDS
+        return _state.cached_secrets
 
 
 def _redact_text(value: str, secrets: tuple[str, ...] | None = None) -> str:
@@ -333,9 +339,9 @@ def flush_all_loggers() -> None:
         if stream is not None:
             with contextlib.suppress(Exception):
                 stream.flush()
-    if _crash_log_file is not None:
+    if _state.crash_log_file is not None:
         with contextlib.suppress(OSError):
-            _crash_log_file.flush()
+            _state.crash_log_file.flush()
 
 
 def dump_crash_diagnostics(reason: str) -> None:
@@ -564,14 +570,13 @@ def _configure_common_filters(handler: logging.Handler) -> None:
 
 def _close_crash_log() -> None:
     """Disable faulthandler and close the crash log file cleanly on exit."""
-    global _crash_log_file  # noqa: PLW0603
-    if _crash_log_file is not None:
+    if _state.crash_log_file is not None:
         try:
             faulthandler.disable()
-            _crash_log_file.close()
+            _state.crash_log_file.close()
         except OSError:
             pass
-        _crash_log_file = None
+        _state.crash_log_file = None
 
 
 def _register_shutdown_once() -> None:
@@ -644,11 +649,10 @@ def setup_logging(
         _register_shutdown_once()
 
         # --- Native crash fault handler (captures fatal C/C++ exceptions and signals) ---
-        global _crash_log_file  # noqa: PLW0603
-        if _crash_log_file is None:
+        if _state.crash_log_file is None:
             CRASH_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
-            _crash_log_file = CRASH_LOG_PATH.open('a', encoding='utf-8')
-            faulthandler.enable(file=_crash_log_file, all_threads=True)
+            _state.crash_log_file = CRASH_LOG_PATH.open('a', encoding='utf-8')
+            faulthandler.enable(file=_state.crash_log_file, all_threads=True)
             if sys.platform == 'win32':
                 _install_win32_crt_handlers()
 
@@ -672,17 +676,16 @@ def purge_debug_log() -> None:
 
 def purge_crash_log() -> None:
     """Safely truncate crash.log while handling the active faulthandler file descriptor."""
-    global _crash_log_file  # noqa: PLW0603
     faulthandler.disable()
-    if _crash_log_file is not None:
+    if _state.crash_log_file is not None:
         try:
-            _crash_log_file.flush()
-            _crash_log_file.close()
+            _state.crash_log_file.flush()
+            _state.crash_log_file.close()
         except OSError:
             pass
-        _crash_log_file = None
+        _state.crash_log_file = None
     CRASH_LOG_PATH.write_text('', encoding='utf-8')
-    _crash_log_file = CRASH_LOG_PATH.open('a', encoding='utf-8')
-    faulthandler.enable(file=_crash_log_file, all_threads=True)
+    _state.crash_log_file = CRASH_LOG_PATH.open('a', encoding='utf-8')
+    faulthandler.enable(file=_state.crash_log_file, all_threads=True)
     if sys.platform == 'win32':
         _install_win32_crt_handlers()
