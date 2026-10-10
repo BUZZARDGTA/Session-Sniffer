@@ -100,7 +100,7 @@ def _capture_win32_native_stack(max_frames: int = 32) -> list[str]:
     if sys.platform != 'win32':
         return lines
     try:
-        kernel32 = ctypes.windll.kernel32  # pyright: ignore[reportAttributeAccessIssue]
+        kernel32 = ctypes.windll.kernel32
         frames = (ctypes.c_void_p * max_frames)()
         captured_count: int = int(kernel32.RtlCaptureStackBackTrace(0, max_frames, frames, None))
         module_handle_flag = 0x00000004  # GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS
