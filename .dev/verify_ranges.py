@@ -73,6 +73,9 @@ MAX_DISPLAYED_OWNERS = 3
 STALE_CONNECTION_THRESHOLD = 10  # seconds; close pooled connections after sleeps longer than this
 MAX_ERROR_BACKOFF = 120
 MAX_IP_API_SUBNET_PREFIX = 12  # Skip ranges <= /12 (>= 1M IPs) when using IP-API
+MAX_AUTO_FIX_PREFIX_LEN = 24  # Skip auto-fix for subnets smaller than /24
+MAX_SLASH_24_BLOCK_INDEX = 0xFFFFFF  # Maximum /24 block index in IPv4 address space
+MAX_IPV4_INT = 0xFFFFFFFF  # Maximum IPv4 32-bit integer address
 
 # Owners skipped unconditionally across all verification engines (GeoLite2 and IP-API).
 # Reasons:
@@ -233,7 +236,7 @@ class RateLimitClient:  # pylint: disable=too-few-public-methods
                     time_to_live_str = response.headers.get('X-Ttl')
 
                     try:
-                        time_to_live = int(time_to_live_str) if bool(time_to_live_str) else 60
+                        time_to_live = int(time_to_live_str) if time_to_live_str is not None else 60
                     except ValueError:
                         time_to_live = 60
 
@@ -691,9 +694,9 @@ def suggest_fix(
         raw_text = f'No matching blocks found — consider removing {network.with_prefixlen}'
         return Text(f'[FIX SUGGESTION] {raw_text}', style='red'), raw_text
 
-    if network.prefixlen > 24:  # noqa: PLR2004
-        status.update(f'[yellow]Range /{network.prefixlen} is smaller than /24 — skipping auto-fix[/yellow]')
-        return None, f'Range /{network.prefixlen} is smaller than /24 — skipping auto-fix'
+    if network.prefixlen > MAX_AUTO_FIX_PREFIX_LEN:
+        status.update(f'[yellow]Range /{network.prefixlen} is smaller than /{MAX_AUTO_FIX_PREFIX_LEN} — skipping auto-fix[/yellow]')
+        return None, f'Range /{network.prefixlen} is smaller than /{MAX_AUTO_FIX_PREFIX_LEN} — skipping auto-fix'
 
     start_block = int(network.network_address) // SUBNET_BLOCK_SIZE
     end_block = int(network.broadcast_address) // SUBNET_BLOCK_SIZE
@@ -804,8 +807,8 @@ def _search_expansion_boundary(
         probe_block = current + step * direction
 
         # Don't go out of IPv4 range
-        if probe_block < 0 or probe_block > 0xFFFFFF:  # noqa: PLR2004  # max /24 block index
-            probe_block = max(0, min(probe_block, 0xFFFFFF))
+        if probe_block < 0 or probe_block > MAX_SLASH_24_BLOCK_INDEX:
+            probe_block = max(0, min(probe_block, MAX_SLASH_24_BLOCK_INDEX))
             is_owner_match = _check_block_owner(client, owner, probe_block, cache)
             if is_owner_match:
                 last_good_block = probe_block
@@ -980,7 +983,7 @@ def _get_adjacent_ips(network: ipaddress.IPv4Network) -> list[str]:
 
     # block immediately after the range
     after_ip_int = int(network.broadcast_address) + 1
-    if after_ip_int <= 0xFFFFFFFF:  # noqa: PLR2004
+    if after_ip_int <= MAX_IPV4_INT:
         # align to /24 boundary
         after_aligned_integer = after_ip_int - (after_ip_int % SUBNET_BLOCK_SIZE)
         adjacent.append(str(ipaddress.IPv4Address(after_aligned_integer)))
