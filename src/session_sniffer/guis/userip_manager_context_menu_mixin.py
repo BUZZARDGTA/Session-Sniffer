@@ -14,29 +14,22 @@ from session_sniffer.guis.looky_text import (
 )
 from session_sniffer.guis.stylesheets import SVG_ICON_CONTEXT_MENU_STYLESHEET
 from session_sniffer.guis.tables_player_actions import (
-    create_multi_tcp_ping_menu,
-    create_multi_udp_ping_menu,
-    ping_ip,
+    create_ping_menu,
     scan_ports_ip,
     show_detailed_ip_lookup,
-    tcp_port_ping,
-    udp_port_ping,
-    web_ping,
 )
 from session_sniffer.guis.tables_player_actions.looky_system._looky_refresh_userip import looky_refresh_userip_entries
 from session_sniffer.guis.userip_manager_helpers import (
     DATABASE_COLUMN,
     RANGE_COLUMN,
-    RE_USERIP_INI_PARSER_PATTERN,
-    SECTION_USERIP,
     USERNAME_COLUMN,
     EntriesSortProxy,
-    handle_ini_section_header,
     populate_userip_databases_menu,
+    rewrite_db_without_entries,
 )
-from session_sniffer.guis.utils import set_clipboard_text
+from session_sniffer.guis.utils import copy_table_all_rows, copy_table_selection, set_clipboard_text
 from session_sniffer.settings.settings import Settings
-from session_sniffer.text_utils import pluralize, split_usernames
+from session_sniffer.text_utils import pluralize
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -301,56 +294,7 @@ class EntriesContextMenuMixin(QDialog):
                 lookup_action.triggered.connect(lambda _checked=False, ip_address=_ip_target: show_detailed_ip_lookup(self, ip_address))
                 menu.addAction(lookup_action)
 
-            ping_menu = QMenu('Ping', menu)
-            ping_menu.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'ping.svg')))
-            ping_menu.setStyleSheet(SVG_ICON_CONTEXT_MENU_STYLESHEET)
-            ping_menu.setToolTipsVisible(True)
-
-            if len(selected_ips) > 1:
-                _ip_addresses_target = list(selected_ips)
-                normal_ping_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'ping.svg')), 'Normal (ICMP)', self)
-                normal_ping_action.setToolTip('Checks if selected IP addresses respond to pings.')
-
-                def _do_normal_ping_multi() -> None:
-                    ping_ip(_ip_addresses_target)
-
-                normal_ping_action.triggered.connect(_do_normal_ping_multi)
-                ping_menu.addAction(normal_ping_action)
-
-                create_multi_tcp_ping_menu(self, _ip_addresses_target, ping_menu)
-                create_multi_udp_ping_menu(self, _ip_addresses_target, ping_menu)
-
-                web_ping_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'ping.svg')), 'Web (Check-Host)', self)
-                web_ping_action.setToolTip('Checks if selected IP addresses respond via Check-Host.net distributed nodes.')
-
-                def _do_web_ping_multi() -> None:
-                    web_ping(_ip_addresses_target)
-
-                web_ping_action.triggered.connect(_do_web_ping_multi)
-                ping_menu.addAction(web_ping_action)
-            else:
-                _ip_target = ip_or_range
-                normal_ping_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'ping.svg')), 'Normal (ICMP)', self)
-                normal_ping_action.setToolTip('Checks if selected IP address responds to pings.')
-                normal_ping_action.triggered.connect(lambda _checked=False, ip_address=_ip_target: ping_ip(ip_address))
-                ping_menu.addAction(normal_ping_action)
-
-                tcp_ping_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'ping.svg')), 'TCP Port Ping', self)
-                tcp_ping_action.setToolTip('Checks if selected IP address responds to TCP pings on a given port.')
-                tcp_ping_action.triggered.connect(lambda _checked=False, ip_address=_ip_target: tcp_port_ping(self, ip_address))
-                ping_menu.addAction(tcp_ping_action)
-
-                udp_ping_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'ping.svg')), 'UDP Port Ping', self)
-                udp_ping_action.setToolTip('Checks if selected IP address responds to UDP pings on a given port.')
-                udp_ping_action.triggered.connect(lambda _checked=False, ip_address=_ip_target: udp_port_ping(self, ip_address))
-                ping_menu.addAction(udp_ping_action)
-
-                web_ping_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'ping.svg')), 'Web (Check-Host)', self)
-                web_ping_action.setToolTip('Checks if selected IP address responds via Check-Host.net distributed nodes.')
-                web_ping_action.triggered.connect(lambda _checked=False, ip_address=_ip_target: web_ping(ip_address))
-                ping_menu.addAction(web_ping_action)
-
-            menu.addMenu(ping_menu)
+            create_ping_menu(self, menu, list(selected_ips) if len(selected_ips) > 1 else [ip_or_range])
 
             scan_ports_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'port_scanner.svg')), 'Scan Ports…', self)
             scan_ports_action.setToolTip('Scan TCP and UDP ports on the selected host(s).')
@@ -540,56 +484,7 @@ class EntriesContextMenuMixin(QDialog):
                 lookup_gs_action.triggered.connect(lambda _checked=False, ip_address=_ip_gs: show_detailed_ip_lookup(self, ip_address))
                 menu.addAction(lookup_gs_action)
 
-            ping_menu_gs = QMenu('Ping', menu)
-            ping_menu_gs.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'ping.svg')))
-            ping_menu_gs.setStyleSheet(SVG_ICON_CONTEXT_MENU_STYLESHEET)
-            ping_menu_gs.setToolTipsVisible(True)
-
-            if len(selected_ips_gs) > 1:
-                _ip_addresses_gs = list(selected_ips_gs)
-                normal_ping_gs_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'ping.svg')), 'Normal (ICMP)', self)
-                normal_ping_gs_action.setToolTip('Checks if selected IP addresses respond to pings.')
-
-                def _do_normal_ping_multi_gs() -> None:
-                    ping_ip(_ip_addresses_gs)
-
-                normal_ping_gs_action.triggered.connect(_do_normal_ping_multi_gs)
-                ping_menu_gs.addAction(normal_ping_gs_action)
-
-                create_multi_tcp_ping_menu(self, _ip_addresses_gs, ping_menu_gs)
-                create_multi_udp_ping_menu(self, _ip_addresses_gs, ping_menu_gs)
-
-                web_ping_gs_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'ping.svg')), 'Web (Check-Host)', self)
-                web_ping_gs_action.setToolTip('Checks if selected IP addresses respond via Check-Host.net distributed nodes.')
-
-                def _do_web_ping_multi_gs() -> None:
-                    web_ping(_ip_addresses_gs)
-
-                web_ping_gs_action.triggered.connect(_do_web_ping_multi_gs)
-                ping_menu_gs.addAction(web_ping_gs_action)
-            else:
-                _ip_gs = ip_or_range
-                normal_ping_gs_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'ping.svg')), 'Normal (ICMP)', self)
-                normal_ping_gs_action.setToolTip('Checks if selected IP address responds to pings.')
-                normal_ping_gs_action.triggered.connect(lambda _checked=False, ip_address=_ip_gs: ping_ip(ip_address))
-                ping_menu_gs.addAction(normal_ping_gs_action)
-
-                tcp_ping_gs_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'ping.svg')), 'TCP Port Ping', self)
-                tcp_ping_gs_action.setToolTip('Checks if selected IP address responds to TCP pings on a given port.')
-                tcp_ping_gs_action.triggered.connect(lambda _checked=False, ip_address=_ip_gs: tcp_port_ping(self, ip_address))
-                ping_menu_gs.addAction(tcp_ping_gs_action)
-
-                udp_ping_gs_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'ping.svg')), 'UDP Port Ping', self)
-                udp_ping_gs_action.setToolTip('Checks if selected IP address responds to UDP pings on a given port.')
-                udp_ping_gs_action.triggered.connect(lambda _checked=False, ip_address=_ip_gs: udp_port_ping(self, ip_address))
-                ping_menu_gs.addAction(udp_ping_gs_action)
-
-                web_ping_gs_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'ping.svg')), 'Web (Check-Host)', self)
-                web_ping_gs_action.setToolTip('Checks if selected IP address responds via Check-Host.net distributed nodes.')
-                web_ping_gs_action.triggered.connect(lambda _checked=False, ip_address=_ip_gs: web_ping(ip_address))
-                ping_menu_gs.addAction(web_ping_gs_action)
-
-            menu.addMenu(ping_menu_gs)
+            create_ping_menu(self, menu, list(selected_ips_gs) if len(selected_ips_gs) > 1 else [ip_or_range])
 
             scan_ports_gs_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'port_scanner.svg')), 'Scan Ports…', self)
             scan_ports_gs_action.setToolTip('Scan TCP and UDP ports on the selected host(s).')
@@ -617,104 +512,23 @@ class EntriesContextMenuMixin(QDialog):
             menu.addSeparator()
             menu.addAction(delete_action)
 
-    # pylint: disable=duplicate-code
     def _delete_global_search_entry(self, db_path: Path, username: str, ip_or_range: str, source_row: int) -> None:
         """Remove a single entry from the database file and from the search results table."""
-        content = db_path.read_text('utf-8')
-        lines = content.splitlines()
-        new_lines: list[str] = []
-        in_userip_section = False
-        removed = False
-
-        for raw_line in lines:
-            stripped = raw_line.strip()
-            is_header, in_userip_section = handle_ini_section_header(raw_line, stripped, new_lines, in_section=in_userip_section, section_name=SECTION_USERIP)
-            if is_header:
-                continue
-
-            if not in_userip_section or removed:
-                new_lines.append(raw_line)
-                continue
-
-            match = RE_USERIP_INI_PARSER_PATTERN.search(stripped)
-            if not match:
-                new_lines.append(raw_line)
-                continue
-
-            username_raw = match.group('username')
-            ip_raw = match.group('ip')
-            if username_raw is None or ip_raw is None or ip_raw.strip() != ip_or_range:
-                new_lines.append(raw_line)
-                continue
-
-            line_usernames = split_usernames(username_raw)
-            if username not in line_usernames:
-                new_lines.append(raw_line)
-                continue
-
-            remaining_usernames = [name for name in line_usernames if name != username]
-            removed = True
-            if remaining_usernames:
-                equality_index = raw_line.find('=')
-                ending = raw_line[equality_index + 1 :] if equality_index != -1 else ip_raw.strip()
-                new_lines.append(f'{", ".join(remaining_usernames)}={ending}')
-
-        if not removed:
+        to_remove = {(username, ip_or_range)}
+        rewrite_db_without_entries(db_path, to_remove)
+        if to_remove:
             return
 
-        db_path.write_text('\r\n'.join(new_lines) + ('\r\n' if new_lines else ''), encoding='utf-8', newline='')
         self._model.removeRow(source_row)
         self._update_entry_counts()
 
-    # pylint: disable=duplicate-code
     def _copy_selected_entries(self) -> None:
         """Copy selected rows from the UserIP entries table to the clipboard as tab-separated text."""
-        selection_model = self._entries_table.selectionModel()
-        if not selection_model:
-            return
-        selected_indexes = selection_model.selectedIndexes()
-        if not selected_indexes:
-            return
-
-        rows: dict[int, dict[int, str]] = {}
-        for model_index in selected_indexes:
-            if self._entries_table.isColumnHidden(model_index.column()):
-                continue
-            row_index = model_index.row()
-            column_index = model_index.column()
-            cell_data = model_index.data(Qt.ItemDataRole.DisplayRole)
-            rows.setdefault(row_index, {})[column_index] = str(cell_data) if cell_data is not None else ''
-
-        lines: list[str] = []
-        for row_index in sorted(rows):
-            column_map = rows[row_index]
-            lines.append('\t'.join(column_map[column_index] for column_index in sorted(column_map)))
-
-        if not lines:
-            return
-
-        set_clipboard_text('\n'.join(lines))
+        copy_table_selection(self._entries_table)
 
     def _copy_all_entries(self) -> None:
         """Copy all visible rows from the UserIP entries table to the clipboard as tab-separated text."""
-        lines: list[str] = []
-        column_count = self._proxy.columnCount()
-        row_count = self._proxy.rowCount()
-        for row_index in range(row_count):
-            cells: list[str] = []
-            for column_index in range(column_count):
-                if self._entries_table.isColumnHidden(column_index):
-                    continue
-                index = self._proxy.index(row_index, column_index)
-                cell_data = self._proxy.data(index, Qt.ItemDataRole.DisplayRole)
-                cells.append(str(cell_data) if cell_data is not None else '')
-            lines.append('\t'.join(cells))
-
-        if not lines:
-            return
-
-        set_clipboard_text('\n'.join(lines))
-    # pylint: enable=duplicate-code
+        copy_table_all_rows(self._entries_table)
 
     def _go_to_entry(self, source_row: int) -> None:
         """Clear the search filter and scroll to the entry in the full database list."""

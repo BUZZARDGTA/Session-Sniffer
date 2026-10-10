@@ -12,13 +12,8 @@ from session_sniffer.constants.tables import DEFAULT_MIN_COLUMN_WIDTH
 from session_sniffer.guis.stylesheets import SVG_ICON_CONTEXT_MENU_STYLESHEET
 from session_sniffer.guis.table_column_resizing import TableColumnResizeController, setup_table_header_context_menu
 from session_sniffer.guis.tables_player_actions._actions import (
-    create_multi_tcp_ping_menu,
-    create_multi_udp_ping_menu,
-    ping_ip,
+    create_ping_menu,
     scan_ports_ip,
-    tcp_port_ping,
-    udp_port_ping,
-    web_ping,
 )
 from session_sniffer.guis.tables_player_actions._ip_lookup_dialog import (
     show_detailed_ip_lookup,
@@ -170,55 +165,7 @@ class TableContextMenuManager:
                 lookup_action.triggered.connect(lambda _checked=False, ip_address=target_ip: show_detailed_ip_lookup(self._parent, ip_address))
                 menu.addAction(lookup_action)
 
-            # pylint: disable=duplicate-code
-            ping_menu = QMenu('Ping', menu)
-            ping_menu.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'ping.svg')))
-            ping_menu.setToolTipsVisible(True)
-            if len(selected_ip_addresses) == 1:
-                target_ip = selected_ip_addresses[0]
-                normal_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'ping.svg')), 'Normal (ICMP)', ping_menu)
-                normal_action.setToolTip('Checks if selected IP address responds to pings.')
-                normal_action.triggered.connect(lambda _checked=False, ip_address=target_ip: ping_ip(ip_address))
-                ping_menu.addAction(normal_action)
-
-                tcp_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'ping.svg')), 'TCP Port Ping', ping_menu)
-                tcp_action.setToolTip('Checks if selected IP address responds to TCP pings on a given port.')
-                tcp_action.triggered.connect(lambda _checked=False, ip_address=target_ip: tcp_port_ping(self._parent, ip_address))
-                ping_menu.addAction(tcp_action)
-
-                udp_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'ping.svg')), 'UDP Port Ping', ping_menu)
-                udp_action.setToolTip('Checks if selected IP address responds to UDP pings on a given port.')
-                udp_action.triggered.connect(lambda _checked=False, ip_address=target_ip: udp_port_ping(self._parent, ip_address))
-                ping_menu.addAction(udp_action)
-
-                web_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'ping.svg')), 'Web (Check-Host)', ping_menu)
-                web_action.setToolTip('Checks if selected IP address responds via Check-Host.net distributed nodes.')
-                web_action.triggered.connect(lambda _checked=False, ip_address=target_ip: web_ping(ip_address))
-                ping_menu.addAction(web_action)
-            else:
-                ip_list = list(selected_ip_addresses)
-                normal_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'ping.svg')), 'Normal (ICMP)', ping_menu)
-                normal_action.setToolTip('Checks if selected IP addresses respond to pings.')
-
-                def _ping_all() -> None:
-                    ping_ip(ip_list)
-
-                normal_action.triggered.connect(_ping_all)
-                ping_menu.addAction(normal_action)
-
-                create_multi_tcp_ping_menu(self._parent, ip_list, ping_menu)
-                create_multi_udp_ping_menu(self._parent, ip_list, ping_menu)
-
-                web_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'ping.svg')), 'Web (Check-Host)', ping_menu)
-                web_action.setToolTip('Checks if selected IP addresses respond via Check-Host.net distributed nodes.')
-
-                def _web_ping_all() -> None:
-                    web_ping(ip_list)
-
-                web_action.triggered.connect(_web_ping_all)
-                ping_menu.addAction(web_action)
-
-            menu.addMenu(ping_menu)
+            create_ping_menu(self._parent, menu, selected_ip_addresses)
 
             scan_ports_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'port_scanner.svg')), 'Scan Ports…', menu)
             scan_ports_action.setToolTip('Scan TCP and UDP ports on the selected host(s).')
