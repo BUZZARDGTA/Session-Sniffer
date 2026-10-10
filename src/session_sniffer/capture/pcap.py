@@ -6,6 +6,7 @@ requiring any third-party packet manipulation frameworks.
 
 import ctypes
 import ctypes.util
+import functools
 import logging
 import os
 import sys
@@ -84,101 +85,92 @@ class RawCapturedPacket:
     datalink_type: int
 
 
-class _PcapLibrary:  # pylint: disable=too-few-public-methods
-    """Lazy loader for wpcap.dll and Packet.dll."""
+@functools.cache
+def _load_pcap_library() -> ctypes.CDLL:
+    """Load the pcap library (wpcap.dll and Packet.dll, or libpcap) once and return the configured instance."""
+    if sys.platform == 'win32':
+        system_root = os.environ.get('WINDIR', 'C:\\Windows')
+        npcap_directory = Path(system_root) / 'System32' / 'Npcap'
 
-    _instance: ctypes.CDLL | None = None
-
-    @classmethod
-    def get(cls) -> ctypes.CDLL:
-        """Load and return the wpcap DLL instance."""
-        if cls._instance is not None:
-            return cls._instance
-
-        if sys.platform == 'win32':
-            system_root = os.environ.get('WINDIR', 'C:\\Windows')
-            npcap_directory = Path(system_root) / 'System32' / 'Npcap'
-
-            if npcap_directory.is_dir():
-                ctypes.windll.kernel32.SetDllDirectoryW(str(npcap_directory))
-                packet_path = npcap_directory / 'Packet.dll'
-                wpcap_path = npcap_directory / 'wpcap.dll'
-                if packet_path.is_file():
-                    ctypes.cdll.LoadLibrary(str(packet_path))
-                library = ctypes.cdll.LoadLibrary(str(wpcap_path))
-            else:
-                library = ctypes.CDLL('wpcap.dll')
+        if npcap_directory.is_dir():
+            ctypes.windll.kernel32.SetDllDirectoryW(str(npcap_directory))
+            packet_path = npcap_directory / 'Packet.dll'
+            wpcap_path = npcap_directory / 'wpcap.dll'
+            if packet_path.is_file():
+                ctypes.cdll.LoadLibrary(str(packet_path))
+            library = ctypes.cdll.LoadLibrary(str(wpcap_path))
         else:
-            library = None
-            for lib_name in ('libpcap.so.0.8', 'libpcap.so.1', 'libpcap.so'):
-                try:
-                    library = ctypes.cdll.LoadLibrary(lib_name)
-                    break
-                except OSError as e:
-                    logger.debug('Failed to load libpcap candidate %s: %s', lib_name, e)
-                    continue
-            if library is None:
-                pcap_path = ctypes.util.find_library('pcap')
-                if pcap_path:
-                    library = ctypes.cdll.LoadLibrary(pcap_path)
-                else:
-                    error_message = 'libpcap library not found on the system'
-                    raise OSError(error_message)
+            library = ctypes.CDLL('wpcap.dll')
+    else:
+        library = None
+        for lib_name in ('libpcap.so.0.8', 'libpcap.so.1', 'libpcap.so'):
+            try:
+                library = ctypes.cdll.LoadLibrary(lib_name)
+                break
+            except OSError as e:
+                logger.debug('Failed to load libpcap candidate %s: %s', lib_name, e)
+                continue
+        if library is None:
+            pcap_path = ctypes.util.find_library('pcap')
+            if pcap_path:
+                library = ctypes.cdll.LoadLibrary(pcap_path)
+            else:
+                error_message = 'libpcap library not found on the system'
+                raise OSError(error_message)
 
-        # Define function signatures
-        library.pcap_open_live.argtypes = [c_char_p, c_int, c_int, c_int, c_char_p]
-        library.pcap_open_live.restype = c_void_p
+    # Define function signatures
+    library.pcap_open_live.argtypes = [c_char_p, c_int, c_int, c_int, c_char_p]
+    library.pcap_open_live.restype = c_void_p
 
-        library.pcap_compile.argtypes = [c_void_p, ctypes.POINTER(BpfProgram), c_char_p, c_int, c_uint32]
-        library.pcap_compile.restype = c_int
+    library.pcap_compile.argtypes = [c_void_p, ctypes.POINTER(BpfProgram), c_char_p, c_int, c_uint32]
+    library.pcap_compile.restype = c_int
 
-        library.pcap_setfilter.argtypes = [c_void_p, ctypes.POINTER(BpfProgram)]
-        library.pcap_setfilter.restype = c_int
+    library.pcap_setfilter.argtypes = [c_void_p, ctypes.POINTER(BpfProgram)]
+    library.pcap_setfilter.restype = c_int
 
-        library.pcap_freecode.argtypes = [ctypes.POINTER(BpfProgram)]
-        library.pcap_freecode.restype = None
+    library.pcap_freecode.argtypes = [ctypes.POINTER(BpfProgram)]
+    library.pcap_freecode.restype = None
 
-        library.pcap_next_ex.argtypes = [
-            c_void_p,
-            ctypes.POINTER(ctypes.POINTER(PcapPkthdr)),
-            ctypes.POINTER(ctypes.POINTER(c_ubyte)),
-        ]
-        library.pcap_next_ex.restype = c_int
+    library.pcap_next_ex.argtypes = [
+        c_void_p,
+        ctypes.POINTER(ctypes.POINTER(PcapPkthdr)),
+        ctypes.POINTER(ctypes.POINTER(c_ubyte)),
+    ]
+    library.pcap_next_ex.restype = c_int
 
-        library.pcap_stats.argtypes = [c_void_p, ctypes.POINTER(PcapStat)]
-        library.pcap_stats.restype = c_int
+    library.pcap_stats.argtypes = [c_void_p, ctypes.POINTER(PcapStat)]
+    library.pcap_stats.restype = c_int
 
-        library.pcap_breakloop.argtypes = [c_void_p]
-        library.pcap_breakloop.restype = None
+    library.pcap_breakloop.argtypes = [c_void_p]
+    library.pcap_breakloop.restype = None
 
-        library.pcap_close.argtypes = [c_void_p]
-        library.pcap_close.restype = None
+    library.pcap_close.argtypes = [c_void_p]
+    library.pcap_close.restype = None
 
-        library.pcap_geterr.argtypes = [c_void_p]
-        library.pcap_geterr.restype = c_char_p
+    library.pcap_geterr.argtypes = [c_void_p]
+    library.pcap_geterr.restype = c_char_p
 
-        library.pcap_datalink.argtypes = [c_void_p]
-        library.pcap_datalink.restype = c_int
+    library.pcap_datalink.argtypes = [c_void_p]
+    library.pcap_datalink.restype = c_int
 
-        library.pcap_sendpacket.argtypes = [c_void_p, ctypes.POINTER(c_ubyte), c_int]
-        library.pcap_sendpacket.restype = c_int
+    library.pcap_sendpacket.argtypes = [c_void_p, ctypes.POINTER(c_ubyte), c_int]
+    library.pcap_sendpacket.restype = c_int
 
-        if hasattr(library, 'pcap_setbuff'):
-            library.pcap_setbuff.argtypes = [c_void_p, c_int]
-            library.pcap_setbuff.restype = c_int
+    if hasattr(library, 'pcap_setbuff'):
+        library.pcap_setbuff.argtypes = [c_void_p, c_int]
+        library.pcap_setbuff.restype = c_int
 
-        if hasattr(library, 'pcap_setmintocopy'):
-            library.pcap_setmintocopy.argtypes = [c_void_p, c_int]
-            library.pcap_setmintocopy.restype = c_int
+    if hasattr(library, 'pcap_setmintocopy'):
+        library.pcap_setmintocopy.argtypes = [c_void_p, c_int]
+        library.pcap_setmintocopy.restype = c_int
 
-        cls._instance = library
-        return library
+    return library
 
 
 def is_pcap_library_available() -> bool:
     """Return `True` if the underlying pcap library can be loaded successfully."""
     try:
-        _PcapLibrary.get()
+        _load_pcap_library()
     except (OSError, RuntimeError) as e:
         logger.debug('Pcap library unavailable: %s', e)
         return False
@@ -224,7 +216,7 @@ class PcapHandle:
         Raises:
             PcapOpenError: If `pcap_open_live` fails.
         """
-        library = _PcapLibrary.get()
+        library = _load_pcap_library()
         error_buffer = ctypes.create_string_buffer(PCAP_ERRBUF_SIZE)
         device_bytes = device_name.encode('utf-8')
         handle = library.pcap_open_live(
@@ -272,7 +264,7 @@ class PcapHandle:
         if self._is_closed:
             raise PcapClosedError
 
-        library = _PcapLibrary.get()
+        library = _load_pcap_library()
         bpf_program = BpfProgram()
         filter_bytes = filter_string.encode('utf-8')
 
@@ -301,7 +293,7 @@ class PcapHandle:
         if self._is_closed:
             return False
 
-        library = _PcapLibrary.get()
+        library = _load_pcap_library()
         bpf_program = BpfProgram()
         filter_bytes = filter_string.encode('utf-8')
 
@@ -330,7 +322,7 @@ class PcapHandle:
         if self._is_closed:
             return None
 
-        library = _PcapLibrary.get()
+        library = _load_pcap_library()
 
         result = library.pcap_next_ex(
             self._handle,
@@ -374,7 +366,7 @@ class PcapHandle:
         if self._is_closed:
             return None
 
-        library = _PcapLibrary.get()
+        library = _load_pcap_library()
 
         result = library.pcap_next_ex(
             self._handle,
@@ -405,7 +397,7 @@ class PcapHandle:
         if self._is_closed:
             return None
 
-        library = _PcapLibrary.get()
+        library = _load_pcap_library()
         stats = PcapStat()
         if library.pcap_stats(self._handle, byref(stats)):
             return None
@@ -414,7 +406,7 @@ class PcapHandle:
     def break_loop(self) -> None:
         """Break the capture read loop."""
         if not self._is_closed:
-            library = _PcapLibrary.get()
+            library = _load_pcap_library()
             library.pcap_breakloop(self._handle)
 
     def send_packet(self, data: bytes) -> None:
@@ -433,7 +425,7 @@ class PcapHandle:
         if not data:
             return
 
-        library = _PcapLibrary.get()
+        library = _load_pcap_library()
         packet_buffer = (c_ubyte * len(data)).from_buffer_copy(data)
         result = library.pcap_sendpacket(self._handle, packet_buffer, len(data))
         if result:
@@ -445,5 +437,5 @@ class PcapHandle:
         with self._lock:
             if not self._is_closed:
                 self._is_closed = True
-                library = _PcapLibrary.get()
+                library = _load_pcap_library()
                 library.pcap_close(self._handle)
