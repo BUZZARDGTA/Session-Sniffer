@@ -8,8 +8,6 @@ The INI parser produces a dict[str, str] of UPPER_CASE key → raw string value.
 This model validates each field and records canonical rewrite intent via context.
 """
 
-# pylint: disable=too-many-lines
-
 import ast
 from dataclasses import dataclass
 from typing import Any, ClassVar, Self, cast
@@ -35,6 +33,28 @@ from session_sniffer.utils import (
     validate_and_strip_balanced_outer_parens,
 )
 from session_sniffer.utils_exceptions import InvalidBooleanValueError, InvalidNoneTypeValueError, NoMatchFoundError
+
+
+def _parse_int_value(value: object) -> int | None:
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return int(value)
+    if isinstance(value, str):
+        try:
+            return int(float(value))
+        except ValueError:
+            return None
+    return None
+
+
+def _parse_float_value(value: object) -> float | None:
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return float(value)
+    if isinstance(value, str):
+        try:
+            return float(value)
+        except ValueError:
+            return None
+    return None
 
 
 @dataclass(slots=True)
@@ -230,6 +250,47 @@ class SettingsIniModel(BaseModel):
         },
     )
 
+    _CLAMPED_INT_BOUNDS: ClassVar[dict[str, tuple[int, int, int]]] = {
+        'DISCORD_WEBHOOK_REFRESH_INTERVAL': (5, 300, 15),
+        'SOLO_SESSION_DURATION': (6, 60, 6),
+        'HIGH_RATE_MONITOR_PPS_THRESHOLD': (20, 50, 30),
+        'HIGH_RATE_MONITOR_BPS_THRESHOLD': (3, 500, 5),
+        'HIGH_RATE_MONITOR_DURATION_THRESHOLD': (1, 10, 3),
+        'PLAYER_IDENTIFIER_SPIKE_SECONDS': (1, 30, 3),
+        'PLAYER_IDENTIFIER_BASELINE_SECONDS': (5, 120, 10),
+        'PLAYER_IDENTIFIER_CONTAMINATION_SECONDS': (1, 30, 5),
+        'PLAYER_IDENTIFIER_CONTAMINATION_MIN_SAMPLES': (5, 60, 15),
+        'PLAYER_IDENTIFIER_BASELINE_TIMEOUT': (10, 300, 30),
+        'DISCORD_WEBHOOK_MAX_ROWS_PER_TABLE': (1, 100, 25),
+        'DISCORD_WEBHOOK_MAX_CONNECTED_PLAYERS': (0, 100, 0),
+        'DISCORD_WEBHOOK_MAX_DISCONNECTED_PLAYERS': (0, 100, 0),
+        'PING_COUNT': (0, 10000, 4),
+        'PING_INTERVAL_MS': (50, 10000, 250),
+        'PING_TIMEOUT_MS': (100, 10000, 1000),
+        'PING_PAYLOAD_BYTES': (0, 65500, 32),
+    }
+
+    _CLAMPED_FLOAT_BOUNDS: ClassVar[dict[str, tuple[float, float, float]]] = {
+        'PLAYER_IDENTIFIER_SPIKE_ZSCORE': (1.0, 20.0, 3.0),
+        'PLAYER_IDENTIFIER_CONTAMINATION_ZSCORE': (3.0, 50.0, 10.0),
+        'PLAYER_IDENTIFIER_SESSION_DRIFT_ZSCORE': (1.0, 30.0, 6.0),
+    }
+
+    _ENUM_ALLOWED_VALUES: ClassVar[dict[str, tuple[str, ...]]] = {
+        'HIGH_RATE_MONITOR_MODE': ('Smart', 'Manual'),
+        'DISCORD_WEBHOOK_FORMAT': ('Desktop', 'Mobile'),
+        'GUI_COLUMNS_TIMEZONE_DISPLAY': ('Timezone', 'Timezone + Local Time', 'Local Time'),
+        'GUI_CONNECTED_TABLE_SORT_ORDER': ('Ascending', 'Descending'),
+        'GUI_DISCONNECTED_TABLE_SORT_ORDER': ('Ascending', 'Descending'),
+        'LOOKY_GAME_VERSION': ('Both', 'Legacy', 'Enhanced'),
+        'USERIP_BACKUP_FREQUENCY': USERIP_BACKUP_FREQUENCIES,
+    }
+
+    _OPTIONAL_ENUM_VALUES: ClassVar[dict[str, tuple[str, ...]]] = {
+        'CAPTURE_FEATURE_SET': ('GTA V', 'RDR2'),
+        'UPDATER_CHANNEL': ('Stable', 'Pre-release'),
+    }
+
     @staticmethod
     def _get_context(info: ValidationInfo) -> _ValidatorContext | None:
         if not isinstance(info.context, _ValidatorContext):
@@ -273,21 +334,15 @@ class SettingsIniModel(BaseModel):
             try:
                 resolved, need_rewrite = custom_str_to_bool(value)
             except InvalidBooleanValueError:
-                default_value = cls._get_default_for_field(info)
-                if isinstance(default_value, bool):
-                    cls._set_flag(info, 'should_rewrite', value=True)
-                    return default_value
                 cls._set_flag(info, 'should_rewrite', value=True)
-                return False
+                default_value = cls._get_default_for_field(info)
+                return default_value if isinstance(default_value, bool) else False
             if need_rewrite:
                 cls._record_rewrite(info, str(resolved))
             return resolved
-        default_value = cls._get_default_for_field(info)
-        if isinstance(default_value, bool):
-            cls._set_flag(info, 'should_rewrite', value=True)
-            return default_value
         cls._set_flag(info, 'should_rewrite', value=True)
-        return False
+        default_value = cls._get_default_for_field(info)
+        return default_value if isinstance(default_value, bool) else False
 
     @field_validator('CAPTURE_INTERFACE_NAME', mode='before')
     @classmethod
@@ -345,16 +400,30 @@ class SettingsIniModel(BaseModel):
         cls._set_flag(info, 'should_rewrite', value=True)
         return cast('str | None', cls._get_default_for_field(info))
 
-    @field_validator('CAPTURE_BLOCK_THIRD_PARTY_SERVERS', mode='before')
+    @field_validator(
+        'CAPTURE_BLOCK_THIRD_PARTY_SERVERS',
+        'GUI_COLUMNS_CONNECTED_SHOWN',
+        'GUI_COLUMNS_DISCONNECTED_SHOWN',
+        'DISCORD_WEBHOOK_COLUMNS_CONNECTED',
+        'DISCORD_WEBHOOK_COLUMNS_DISCONNECTED',
+        mode='before',
+    )
     @classmethod
-    def _parse_block_servers(cls, value: object, info: ValidationInfo) -> tuple[str, ...]:
+    def _parse_shown_columns(cls, value: object, info: ValidationInfo) -> tuple[str, ...]:
         context = cls._get_context(info)
-        all_servers: tuple[str, ...] = () if context is None else context.all_third_party_servers
+        column_map = {
+            'CAPTURE_BLOCK_THIRD_PARTY_SERVERS': context.all_third_party_servers if context else (),
+            'GUI_COLUMNS_CONNECTED_SHOWN': context.toggleable_connected_columns if context else (),
+            'GUI_COLUMNS_DISCONNECTED_SHOWN': context.toggleable_disconnected_columns if context else (),
+            'DISCORD_WEBHOOK_COLUMNS_CONNECTED': context.all_connected_columns if context else (),
+            'DISCORD_WEBHOOK_COLUMNS_DISCONNECTED': context.all_disconnected_columns if context else (),
+        }
+        allowed = column_map.get(info.field_name or '', ())
 
         if isinstance(value, tuple):
             return cast('tuple[str, ...]', value)
         if isinstance(value, str):
-            normalized, need_rewrite_current, need_rewrite_settings = _normalize_tuple_column(value, all_servers)
+            normalized, need_rewrite_current, need_rewrite_settings = _normalize_tuple_column(value, allowed)
             if need_rewrite_current:
                 cls._record_rewrite(info, str(normalized) if normalized is not None else str(cls._get_default_for_field(info)))
             if need_rewrite_settings:
@@ -374,10 +443,7 @@ class SettingsIniModel(BaseModel):
             except ValueError, SyntaxError, RecursionError, MemoryError:
                 cls._set_flag(info, 'should_rewrite', value=True)
                 return ()
-            if not isinstance(parsed, tuple):
-                cls._set_flag(info, 'should_rewrite', value=True)
-                return ()
-            if not all(isinstance(item, str) for item in cast('tuple[str | int, ...]', parsed)):
+            if not isinstance(parsed, tuple) or not all(isinstance(item, str) for item in cast('tuple[str | int, ...]', parsed)):
                 cls._set_flag(info, 'should_rewrite', value=True)
                 return ()
             valid_items: list[str] = []
@@ -423,9 +489,11 @@ class SettingsIniModel(BaseModel):
         cls._set_flag(info, 'should_rewrite', value=True)
         return ()
 
-    @field_validator('CAPTURE_FEATURE_SET', mode='before')
+    @field_validator(*_OPTIONAL_ENUM_VALUES, mode='before')
     @classmethod
-    def _parse_feature_set(cls, value: object, info: ValidationInfo) -> str | None:
+    def _parse_optional_enum(cls, value: object, info: ValidationInfo) -> str | None:
+        field_name = info.field_name or ''
+        allowed = cls._OPTIONAL_ENUM_VALUES[field_name]
         if value is None:
             return None
         if isinstance(value, str):
@@ -433,7 +501,7 @@ class SettingsIniModel(BaseModel):
                 none_value, need_rewrite = custom_str_to_nonetype(value)
             except InvalidNoneTypeValueError:
                 try:
-                    case_match, normalized = check_case_insensitive_and_exact_match(value, ('GTA V', 'RDR2'))
+                    case_match, normalized = check_case_insensitive_and_exact_match(value, allowed)
                 except NoMatchFoundError:
                     cls._set_flag(info, 'should_rewrite', value=True)
                     return cast('str | None', cls._get_default_for_field(info))
@@ -446,41 +514,18 @@ class SettingsIniModel(BaseModel):
         cls._set_flag(info, 'should_rewrite', value=True)
         return cast('str | None', cls._get_default_for_field(info))
 
-    @field_validator('CAPTURE_OVERFLOW_TIMER', mode='before')
+    @field_validator('CAPTURE_OVERFLOW_TIMER', 'CAPTURE_FILTER_PROCESS_PID', mode='before')
     @classmethod
-    def _parse_overflow_timer(cls, value: object, info: ValidationInfo) -> int:
-        if isinstance(value, (int, float)):
-            return int(value) if value >= 0 else cast('int', cls._get_default_for_field(info) or 3)
-        if isinstance(value, str):
-            try:
-                parsed = int(float(value))
-            except ValueError:
-                cls._set_flag(info, 'should_rewrite', value=True)
-                return cast('int', cls._get_default_for_field(info) or 3)
-            if parsed >= 0:
-                return parsed
-            cls._set_flag(info, 'should_rewrite', value=True)
-            return cast('int', cls._get_default_for_field(info) or 3)
-        cls._set_flag(info, 'should_rewrite', value=True)
-        return cast('int', cls._get_default_for_field(info) or 3)
+    def _parse_non_negative_int(cls, value: object, info: ValidationInfo) -> int:
+        default = cls._get_default_for_field(info)
+        fallback = 3 if info.field_name == 'CAPTURE_OVERFLOW_TIMER' else 0
+        default_int = default if isinstance(default, int) else fallback
 
-    @field_validator('CAPTURE_FILTER_PROCESS_PID', mode='before')
-    @classmethod
-    def _parse_filter_process_pid(cls, value: object, info: ValidationInfo) -> int:
-        if isinstance(value, (int, float)):
-            return int(value) if value >= 0 else cast('int', cls._get_default_for_field(info) or 0)
-        if isinstance(value, str):
-            try:
-                parsed = int(float(value))
-            except ValueError:
-                cls._set_flag(info, 'should_rewrite', value=True)
-                return cast('int', cls._get_default_for_field(info) or 0)
-            if parsed >= 0:
-                return parsed
-            cls._set_flag(info, 'should_rewrite', value=True)
-            return cast('int', cls._get_default_for_field(info) or 0)
+        parsed = _parse_int_value(value)
+        if parsed is not None and parsed >= 0:
+            return parsed
         cls._set_flag(info, 'should_rewrite', value=True)
-        return cast('int', cls._get_default_for_field(info) or 0)
+        return default_int
 
     @field_validator('CAPTURE_FILTER_PROCESS_NAME', mode='before')
     @classmethod
@@ -519,77 +564,23 @@ class SettingsIniModel(BaseModel):
             return none_value
         return cast('str | None', cls._get_default_for_field(info))
 
-    @field_validator('GUI_COLUMNS_CONNECTED_SHOWN', mode='before')
-    @classmethod
-    def _parse_connected_shown(cls, value: object, info: ValidationInfo) -> tuple[str, ...]:
-        context = cls._get_context(info)
-        allowed: tuple[str, ...] = () if context is None else context.toggleable_connected_columns
-        return cls._parse_shown_columns(value, allowed, info)
-
-    @field_validator('GUI_COLUMNS_DISCONNECTED_SHOWN', mode='before')
-    @classmethod
-    def _parse_disconnected_shown(cls, value: object, info: ValidationInfo) -> tuple[str, ...]:
-        context = cls._get_context(info)
-        allowed: tuple[str, ...] = () if context is None else context.toggleable_disconnected_columns
-        return cls._parse_shown_columns(value, allowed, info)
-
-    @field_validator('DISCORD_WEBHOOK_COLUMNS_CONNECTED', mode='before')
-    @classmethod
-    def _parse_webhook_columns_connected(cls, value: object, info: ValidationInfo) -> tuple[str, ...]:
-        context = cls._get_context(info)
-        allowed: tuple[str, ...] = () if context is None else context.all_connected_columns
-        return cls._parse_shown_columns(value, allowed, info)
-
-    @field_validator('DISCORD_WEBHOOK_COLUMNS_DISCONNECTED', mode='before')
-    @classmethod
-    def _parse_webhook_columns_disconnected(cls, value: object, info: ValidationInfo) -> tuple[str, ...]:
-        context = cls._get_context(info)
-        allowed: tuple[str, ...] = () if context is None else context.all_disconnected_columns
-        return cls._parse_shown_columns(value, allowed, info)
-
-    @classmethod
-    def _parse_shown_columns(cls, value: object, allowed: tuple[str, ...], info: ValidationInfo) -> tuple[str, ...]:
-        if isinstance(value, tuple):
-            return cast('tuple[str, ...]', value)
-        if isinstance(value, str):
-            normalized, need_rewrite_current, need_rewrite_settings = _normalize_tuple_column(value, allowed)
-            if need_rewrite_current:
-                cls._record_rewrite(info, str(normalized) if normalized is not None else str(cls._get_default_for_field(info)))
-            if need_rewrite_settings:
-                cls._set_flag(info, 'should_rewrite', value=True)
-            return normalized if normalized is not None else cast('tuple[str, ...]', cls._get_default_for_field(info) or ())
-        cls._set_flag(info, 'should_rewrite', value=True)
-        return cast('tuple[str, ...]', cls._get_default_for_field(info) or ())
-
     @field_validator('GUI_CONNECTED_TABLE_ROWS_PER_PAGE', 'GUI_DISCONNECTED_TABLE_ROWS_PER_PAGE', mode='before')
     @classmethod
     def _parse_rows_per_page(cls, value: object, info: ValidationInfo) -> int:
-        max_rpp = 5000  # Settings.MAX_GUI_TABLE_ROWS_PER_PAGE
+        maximum_rows_per_page = 5000  # Settings.MAX_GUI_TABLE_ROWS_PER_PAGE
         context = cls._get_context(info)
         if context is not None:
-            max_rpp = context.max_gui_table_rows_per_page
+            maximum_rows_per_page = context.max_gui_table_rows_per_page
 
-        if isinstance(value, int):
-            if 0 <= value <= max_rpp:
-                return value
-            cls._set_flag(info, 'should_rewrite', value=True)
-            default = cls._get_default_for_field(info)
-            return default if isinstance(default, int) else 0
-        if isinstance(value, str):
-            try:
-                parsed = int(float(value))
-            except ValueError:
-                cls._set_flag(info, 'should_rewrite', value=True)
-                default = cls._get_default_for_field(info)
-                return default if isinstance(default, int) else 0
-            if 0 <= parsed <= max_rpp:
-                return parsed
-            cls._set_flag(info, 'should_rewrite', value=True)
-            default = cls._get_default_for_field(info)
-            return default if isinstance(default, int) else 0
-        cls._set_flag(info, 'should_rewrite', value=True)
         default = cls._get_default_for_field(info)
-        return default if isinstance(default, int) else 0
+        default_int = default if isinstance(default, int) else 0
+
+        parsed = _parse_int_value(value)
+        if parsed is not None and 0 <= parsed <= maximum_rows_per_page:
+            return parsed
+
+        cls._set_flag(info, 'should_rewrite', value=True)
+        return default_int
 
     @field_validator('WEBSERVER_PORT', mode='before')
     @classmethod
@@ -601,21 +592,8 @@ class SettingsIniModel(BaseModel):
             cls._set_flag(info, 'should_rewrite', value=True)
             return default_int
 
-        if isinstance(value, int):
-            port = value
-        elif isinstance(value, float):
-            port = int(value)
-        elif isinstance(value, str):
-            try:
-                port = int(value)
-            except ValueError:
-                cls._set_flag(info, 'should_rewrite', value=True)
-                return default_int
-        else:
-            cls._set_flag(info, 'should_rewrite', value=True)
-            return default_int
-
-        if MIN_PORT <= port <= MAX_PORT:
+        port = _parse_int_value(value)
+        if port is not None and MIN_PORT <= port <= MAX_PORT:
             return port
 
         cls._set_flag(info, 'should_rewrite', value=True)
@@ -634,65 +612,43 @@ class SettingsIniModel(BaseModel):
     @field_validator('GUI_DISCONNECTED_PLAYERS_TIMER', mode='before')
     @classmethod
     def _parse_disconnected_timer(cls, value: object, info: ValidationInfo) -> int:
-        min_timer = 3  # Settings.MIN_GUI_DISCONNECTED_PLAYERS_TIMER_SECONDS
+        minimum_timer = 3  # Settings.MIN_GUI_DISCONNECTED_PLAYERS_TIMER_SECONDS
         context = cls._get_context(info)
         if context is not None:
-            min_timer = context.min_gui_disconnected_players_timer
+            minimum_timer = context.min_gui_disconnected_players_timer
 
-        if isinstance(value, (int, float)):
-            int_value = int(value)
-            if int_value >= min_timer:
-                return int_value
-            cls._set_flag(info, 'should_rewrite', value=True)
-            return cast('int', cls._get_default_for_field(info) or 10)
-        if isinstance(value, str):
-            try:
-                parsed = int(float(value))
-            except ValueError:
-                cls._set_flag(info, 'should_rewrite', value=True)
-                return cast('int', cls._get_default_for_field(info) or 10)
-            if parsed >= min_timer:
-                return parsed
-            cls._set_flag(info, 'should_rewrite', value=True)
-            return cast('int', cls._get_default_for_field(info) or 10)
+        default = cls._get_default_for_field(info)
+        default_int = default if isinstance(default, int) else 10
+
+        parsed = _parse_int_value(value)
+        if parsed is not None and parsed >= minimum_timer:
+            return parsed
+
         cls._set_flag(info, 'should_rewrite', value=True)
-        return cast('int', cls._get_default_for_field(info) or 10)
+        return default_int
 
     @field_validator('GUI_DISCONNECTED_PLAYERS_LIMIT', mode='before')
     @classmethod
     def _parse_disconnected_limit(cls, value: object, info: ValidationInfo) -> int:
-        max_limit = 20000
+        maximum_limit = 20000
         context = cls._get_context(info)
         if context is not None:
-            max_limit = context.max_gui_disconnected_players_limit
+            maximum_limit = context.max_gui_disconnected_players_limit
 
-        if isinstance(value, (int, float)):
-            int_value = int(value)
-            if 0 <= int_value <= max_limit:
-                return int_value
-            cls._set_flag(info, 'should_rewrite', value=True)
-            return cast('int', cls._get_default_for_field(info) or 500)
-        if isinstance(value, str):
-            try:
-                parsed = int(float(value))
-            except ValueError:
-                cls._set_flag(info, 'should_rewrite', value=True)
-                return cast('int', cls._get_default_for_field(info) or 500)
-            if 0 <= parsed <= max_limit:
-                return parsed
-            cls._set_flag(info, 'should_rewrite', value=True)
-            return cast('int', cls._get_default_for_field(info) or 500)
+        default = cls._get_default_for_field(info)
+        default_int = default if isinstance(default, int) else 500
+
+        parsed = _parse_int_value(value)
+        if parsed is not None and 0 <= parsed <= maximum_limit:
+            return parsed
+
         cls._set_flag(info, 'should_rewrite', value=True)
-        return cast('int', cls._get_default_for_field(info) or 500)
+        return default_int
 
     @field_validator('DISCORD_PRESENCE_TITLE', mode='before')
     @classmethod
     def _parse_discord_presence_title(cls, value: object, info: ValidationInfo) -> str:
-        if isinstance(value, str) and len(value) == 1:
-            cls._set_flag(info, 'should_rewrite', value=True)
-            default_value = cls._get_default_for_field(info)
-            return default_value if isinstance(default_value, str) else ''
-        if isinstance(value, str):
+        if isinstance(value, str) and len(value) != 1:
             return value
         cls._set_flag(info, 'should_rewrite', value=True)
         default_value = cls._get_default_for_field(info)
@@ -704,8 +660,8 @@ class SettingsIniModel(BaseModel):
         if isinstance(value, str) and QColor(value).isValid():
             return value
         cls._set_flag(info, 'should_rewrite', value=True)
-        default_val = cls._get_default_for_field(info)
-        return str(default_val) if default_val is not None else DEFAULT_DETECTED_SERVER_COLOR
+        default_value = cls._get_default_for_field(info)
+        return str(default_value) if default_value is not None else DEFAULT_DETECTED_SERVER_COLOR
 
     @field_validator('DISCORD_WEBHOOK_URL', 'DISCORD_WEBHOOK_MESSAGE_IDS', 'WEBSERVER_USERNAME', 'WEBSERVER_PASSWORD', 'LOOKY_API_KEY', mode='before')
     @classmethod
@@ -723,479 +679,51 @@ class SettingsIniModel(BaseModel):
         cls._set_flag(info, 'should_rewrite', value=True)
         return cast('str | None', cls._get_default_for_field(info))
 
-    @field_validator('DISCORD_WEBHOOK_REFRESH_INTERVAL', mode='before')
+    @field_validator(*_CLAMPED_INT_BOUNDS, mode='before')
     @classmethod
-    def _parse_webhook_refresh_interval(cls, value: object, info: ValidationInfo) -> int:
-        min_val = 5
-        max_val = 300
+    def _parse_clamped_int(cls, value: object, info: ValidationInfo) -> int:
+        field_name = info.field_name or ''
+        minimum_value, maximum_value, fallback_default = cls._CLAMPED_INT_BOUNDS[field_name]
         default = cls._get_default_for_field(info)
-        default_int = default if isinstance(default, int) else 15
+        default_int = default if isinstance(default, int) else fallback_default
 
-        parsed: int | None = None
-        if isinstance(value, (int, float)):
-            parsed = int(value)
-        elif isinstance(value, str):
-            try:
-                parsed = int(float(value))
-            except ValueError:
-                parsed = None
-
+        parsed = _parse_int_value(value)
         if parsed is None:
             cls._set_flag(info, 'should_rewrite', value=True)
             return default_int
-        if parsed < min_val:
+        if parsed < minimum_value:
             cls._set_flag(info, 'should_rewrite', value=True)
-            return min_val
-        if parsed > max_val:
+            return minimum_value
+        if parsed > maximum_value:
             cls._set_flag(info, 'should_rewrite', value=True)
-            return max_val
+            return maximum_value
         return parsed
 
-    @field_validator('SOLO_SESSION_DURATION', mode='before')
+    @field_validator(*_CLAMPED_FLOAT_BOUNDS, mode='before')
     @classmethod
-    def _parse_solo_session_duration(cls, value: object, info: ValidationInfo) -> int:
-        min_val = 6
-        max_val = 60
+    def _parse_clamped_float(cls, value: object, info: ValidationInfo) -> float:
+        field_name = info.field_name or ''
+        minimum_value, maximum_value, fallback_default = cls._CLAMPED_FLOAT_BOUNDS[field_name]
         default = cls._get_default_for_field(info)
-        default_int = default if isinstance(default, int) else 6
+        default_float = default if isinstance(default, float) else fallback_default
 
-        parsed: int | None = None
-        if isinstance(value, (int, float)):
-            parsed = int(value)
-        elif isinstance(value, str):
-            try:
-                parsed = int(float(value))
-            except ValueError:
-                parsed = None
-
-        if parsed is None:
-            cls._set_flag(info, 'should_rewrite', value=True)
-            return default_int
-        if parsed < min_val:
-            cls._set_flag(info, 'should_rewrite', value=True)
-            return min_val
-        if parsed > max_val:
-            cls._set_flag(info, 'should_rewrite', value=True)
-            return max_val
-        return parsed
-
-    @field_validator('HIGH_RATE_MONITOR_MODE', mode='before')
-    @classmethod
-    def _parse_high_rate_monitor_mode(cls, value: object, info: ValidationInfo) -> str:
-        if isinstance(value, str):
-            try:
-                case_match, normalized = check_case_insensitive_and_exact_match(value, ('Smart', 'Manual'))
-            except NoMatchFoundError:
-                cls._set_flag(info, 'should_rewrite', value=True)
-                return cast('str', cls._get_default_for_field(info))
-            if not case_match:
-                cls._record_rewrite(info, normalized)
-            return normalized
-        cls._set_flag(info, 'should_rewrite', value=True)
-        return cast('str', cls._get_default_for_field(info))
-
-    @field_validator('HIGH_RATE_MONITOR_PPS_THRESHOLD', mode='before')
-    @classmethod
-    def _parse_high_rate_monitor_pps_threshold(cls, value: object, info: ValidationInfo) -> int:
-        min_val = 20
-        max_val = 50
-        default = cls._get_default_for_field(info)
-        default_int = default if isinstance(default, int) else 30
-
-        parsed: int | None = None
-        if isinstance(value, (int, float)):
-            parsed = int(value)
-        elif isinstance(value, str):
-            try:
-                parsed = int(float(value))
-            except ValueError:
-                parsed = None
-
-        if parsed is None:
-            cls._set_flag(info, 'should_rewrite', value=True)
-            return default_int
-        if parsed < min_val:
-            cls._set_flag(info, 'should_rewrite', value=True)
-            return min_val
-        if parsed > max_val:
-            cls._set_flag(info, 'should_rewrite', value=True)
-            return max_val
-        return parsed
-
-    @field_validator('HIGH_RATE_MONITOR_BPS_THRESHOLD', mode='before')
-    @classmethod
-    def _parse_high_rate_monitor_bps_threshold(cls, value: object, info: ValidationInfo) -> int:
-        min_val = 3
-        max_val = 500
-        default = cls._get_default_for_field(info)
-        default_int = default if isinstance(default, int) else 5
-
-        parsed: int | None = None
-        if isinstance(value, (int, float)):
-            parsed = int(value)
-        elif isinstance(value, str):
-            try:
-                parsed = int(float(value))
-            except ValueError:
-                parsed = None
-
-        if parsed is None:
-            cls._set_flag(info, 'should_rewrite', value=True)
-            return default_int
-        if parsed < min_val:
-            cls._set_flag(info, 'should_rewrite', value=True)
-            return min_val
-        if parsed > max_val:
-            cls._set_flag(info, 'should_rewrite', value=True)
-            return max_val
-        return parsed
-
-    @field_validator('HIGH_RATE_MONITOR_DURATION_THRESHOLD', mode='before')
-    @classmethod
-    def _parse_high_rate_monitor_duration_threshold(cls, value: object, info: ValidationInfo) -> int:
-        min_val = 1
-        max_val = 10
-        default = cls._get_default_for_field(info)
-        default_int = default if isinstance(default, int) else 3
-
-        parsed: int | None = None
-        if isinstance(value, (int, float)):
-            parsed = int(value)
-        elif isinstance(value, str):
-            try:
-                parsed = int(float(value))
-            except ValueError:
-                parsed = None
-
-        if parsed is None:
-            cls._set_flag(info, 'should_rewrite', value=True)
-            return default_int
-        if parsed < min_val:
-            cls._set_flag(info, 'should_rewrite', value=True)
-            return min_val
-        if parsed > max_val:
-            cls._set_flag(info, 'should_rewrite', value=True)
-            return max_val
-        return parsed
-
-    @field_validator('PLAYER_IDENTIFIER_SPIKE_ZSCORE', mode='before')
-    @classmethod
-    def _parse_player_identifier_spike_zscore(cls, value: object, info: ValidationInfo) -> float:
-        min_val = 1.0
-        max_val = 20.0
-        default = cls._get_default_for_field(info)
-        default_float = default if isinstance(default, float) else 3.0
-
-        parsed: float | None = None
-        if isinstance(value, (int, float)):
-            parsed = float(value)
-        elif isinstance(value, str):
-            try:
-                parsed = float(value)
-            except ValueError:
-                parsed = None
-
+        parsed = _parse_float_value(value)
         if parsed is None:
             cls._set_flag(info, 'should_rewrite', value=True)
             return default_float
-        if parsed < min_val:
+        if parsed < minimum_value:
             cls._set_flag(info, 'should_rewrite', value=True)
-            return min_val
-        if parsed > max_val:
+            return minimum_value
+        if parsed > maximum_value:
             cls._set_flag(info, 'should_rewrite', value=True)
-            return max_val
+            return maximum_value
         return parsed
 
-    @field_validator('PLAYER_IDENTIFIER_SPIKE_SECONDS', mode='before')
+    @field_validator(*_ENUM_ALLOWED_VALUES, mode='before')
     @classmethod
-    def _parse_player_identifier_spike_seconds(cls, value: object, info: ValidationInfo) -> int:
-        min_val = 1
-        max_val = 30
-        default = cls._get_default_for_field(info)
-        default_int = default if isinstance(default, int) else 3
-
-        parsed: int | None = None
-        if isinstance(value, (int, float)):
-            parsed = int(value)
-        elif isinstance(value, str):
-            try:
-                parsed = int(float(value))
-            except ValueError:
-                parsed = None
-
-        if parsed is None:
-            cls._set_flag(info, 'should_rewrite', value=True)
-            return default_int
-        if parsed < min_val:
-            cls._set_flag(info, 'should_rewrite', value=True)
-            return min_val
-        if parsed > max_val:
-            cls._set_flag(info, 'should_rewrite', value=True)
-            return max_val
-        return parsed
-
-    @field_validator('PLAYER_IDENTIFIER_BASELINE_SECONDS', mode='before')
-    @classmethod
-    def _parse_player_identifier_baseline_seconds(cls, value: object, info: ValidationInfo) -> int:
-        min_val = 5
-        max_val = 120
-        default = cls._get_default_for_field(info)
-        default_int = default if isinstance(default, int) else 10
-
-        parsed: int | None = None
-        if isinstance(value, (int, float)):
-            parsed = int(value)
-        elif isinstance(value, str):
-            try:
-                parsed = int(float(value))
-            except ValueError:
-                parsed = None
-
-        if parsed is None:
-            cls._set_flag(info, 'should_rewrite', value=True)
-            return default_int
-        if parsed < min_val:
-            cls._set_flag(info, 'should_rewrite', value=True)
-            return min_val
-        if parsed > max_val:
-            cls._set_flag(info, 'should_rewrite', value=True)
-            return max_val
-        return parsed
-
-    @field_validator('PLAYER_IDENTIFIER_CONTAMINATION_ZSCORE', mode='before')
-    @classmethod
-    def _parse_player_identifier_contamination_zscore(cls, value: object, info: ValidationInfo) -> float:
-        min_val = 3.0
-        max_val = 50.0
-        default = cls._get_default_for_field(info)
-        default_float = default if isinstance(default, float) else 10.0
-
-        parsed: float | None = None
-        if isinstance(value, (int, float)):
-            parsed = float(value)
-        elif isinstance(value, str):
-            try:
-                parsed = float(value)
-            except ValueError:
-                parsed = None
-
-        if parsed is None:
-            cls._set_flag(info, 'should_rewrite', value=True)
-            return default_float
-        if parsed < min_val:
-            cls._set_flag(info, 'should_rewrite', value=True)
-            return min_val
-        if parsed > max_val:
-            cls._set_flag(info, 'should_rewrite', value=True)
-            return max_val
-        return parsed
-
-    @field_validator('PLAYER_IDENTIFIER_CONTAMINATION_SECONDS', mode='before')
-    @classmethod
-    def _parse_player_identifier_contamination_seconds(cls, value: object, info: ValidationInfo) -> int:
-        min_val = 1
-        max_val = 30
-        default = cls._get_default_for_field(info)
-        default_int = default if isinstance(default, int) else 5
-
-        parsed: int | None = None
-        if isinstance(value, (int, float)):
-            parsed = int(value)
-        elif isinstance(value, str):
-            try:
-                parsed = int(float(value))
-            except ValueError:
-                parsed = None
-
-        if parsed is None:
-            cls._set_flag(info, 'should_rewrite', value=True)
-            return default_int
-        if parsed < min_val:
-            cls._set_flag(info, 'should_rewrite', value=True)
-            return min_val
-        if parsed > max_val:
-            cls._set_flag(info, 'should_rewrite', value=True)
-            return max_val
-        return parsed
-
-    @field_validator('PLAYER_IDENTIFIER_CONTAMINATION_MIN_SAMPLES', mode='before')
-    @classmethod
-    def _parse_player_identifier_contamination_min_samples(cls, value: object, info: ValidationInfo) -> int:
-        min_val = 5
-        max_val = 60
-        default = cls._get_default_for_field(info)
-        default_int = default if isinstance(default, int) else 15
-
-        parsed: int | None = None
-        if isinstance(value, (int, float)):
-            parsed = int(value)
-        elif isinstance(value, str):
-            try:
-                parsed = int(float(value))
-            except ValueError:
-                parsed = None
-
-        if parsed is None:
-            cls._set_flag(info, 'should_rewrite', value=True)
-            return default_int
-        if parsed < min_val:
-            cls._set_flag(info, 'should_rewrite', value=True)
-            return min_val
-        if parsed > max_val:
-            cls._set_flag(info, 'should_rewrite', value=True)
-            return max_val
-        return parsed
-
-    @field_validator('PLAYER_IDENTIFIER_BASELINE_TIMEOUT', mode='before')
-    @classmethod
-    def _parse_player_identifier_baseline_timeout(cls, value: object, info: ValidationInfo) -> int:
-        min_val = 10
-        max_val = 300
-        default = cls._get_default_for_field(info)
-        default_int = default if isinstance(default, int) else 30
-
-        parsed: int | None = None
-        if isinstance(value, (int, float)):
-            parsed = int(value)
-        elif isinstance(value, str):
-            try:
-                parsed = int(float(value))
-            except ValueError:
-                parsed = None
-
-        if parsed is None:
-            cls._set_flag(info, 'should_rewrite', value=True)
-            return default_int
-        if parsed < min_val:
-            cls._set_flag(info, 'should_rewrite', value=True)
-            return min_val
-        if parsed > max_val:
-            cls._set_flag(info, 'should_rewrite', value=True)
-            return max_val
-        return parsed
-
-    @field_validator('PLAYER_IDENTIFIER_SESSION_DRIFT_ZSCORE', mode='before')
-    @classmethod
-    def _parse_player_identifier_session_drift_zscore(cls, value: object, info: ValidationInfo) -> float:
-        min_val = 1.0
-        max_val = 30.0
-        default = cls._get_default_for_field(info)
-        default_float = default if isinstance(default, float) else 6.0
-
-        parsed: float | None = None
-        if isinstance(value, (int, float)):
-            parsed = float(value)
-        elif isinstance(value, str):
-            try:
-                parsed = float(value)
-            except ValueError:
-                parsed = None
-
-        if parsed is None:
-            cls._set_flag(info, 'should_rewrite', value=True)
-            return default_float
-        if parsed < min_val:
-            cls._set_flag(info, 'should_rewrite', value=True)
-            return min_val
-        if parsed > max_val:
-            cls._set_flag(info, 'should_rewrite', value=True)
-            return max_val
-        return parsed
-
-    @field_validator('DISCORD_WEBHOOK_MAX_ROWS_PER_TABLE', mode='before')
-    @classmethod
-    def _parse_webhook_max_rows(cls, value: object, info: ValidationInfo) -> int:
-        min_val = 1
-        max_val = 100
-        default = cls._get_default_for_field(info)
-        default_int = default if isinstance(default, int) else 25
-
-        parsed: int | None = None
-        if isinstance(value, (int, float)):
-            parsed = int(value)
-        elif isinstance(value, str):
-            try:
-                parsed = int(float(value))
-            except ValueError:
-                parsed = None
-
-        if parsed is None:
-            cls._set_flag(info, 'should_rewrite', value=True)
-            return default_int
-        if parsed < min_val:
-            cls._set_flag(info, 'should_rewrite', value=True)
-            return min_val
-        if parsed > max_val:
-            cls._set_flag(info, 'should_rewrite', value=True)
-            return max_val
-        return parsed
-
-    @field_validator('DISCORD_WEBHOOK_MAX_CONNECTED_PLAYERS', 'DISCORD_WEBHOOK_MAX_DISCONNECTED_PLAYERS', mode='before')
-    @classmethod
-    def _parse_webhook_max_players(cls, value: object, info: ValidationInfo) -> int:
-        min_val = 0  # 0 = All (unlimited)
-        max_val = 100
-        default = cls._get_default_for_field(info)
-        default_int = default if isinstance(default, int) else 0
-
-        parsed: int | None = None
-        if isinstance(value, (int, float)):
-            parsed = int(value)
-        elif isinstance(value, str):
-            try:
-                parsed = int(float(value))
-            except ValueError:
-                parsed = None
-
-        if parsed is None:
-            cls._set_flag(info, 'should_rewrite', value=True)
-            return default_int
-        if parsed < min_val:
-            cls._set_flag(info, 'should_rewrite', value=True)
-            return min_val
-        if parsed > max_val:
-            cls._set_flag(info, 'should_rewrite', value=True)
-            return max_val
-        return parsed
-
-    @field_validator('DISCORD_WEBHOOK_FORMAT', mode='before')
-    @classmethod
-    def _parse_webhook_format(cls, value: object, info: ValidationInfo) -> str:
-        if isinstance(value, str):
-            try:
-                case_match, normalized = check_case_insensitive_and_exact_match(value, ('Desktop', 'Mobile'))
-            except NoMatchFoundError:
-                cls._set_flag(info, 'should_rewrite', value=True)
-                return cast('str', cls._get_default_for_field(info))
-            if not case_match:
-                cls._record_rewrite(info, normalized)
-            return normalized
-        cls._set_flag(info, 'should_rewrite', value=True)
-        return cast('str', cls._get_default_for_field(info))
-
-    @field_validator('GUI_COLUMNS_TIMEZONE_DISPLAY', mode='before')
-    @classmethod
-    def _parse_timezone_display(cls, value: object, info: ValidationInfo) -> str:
-        if isinstance(value, str):
-            try:
-                case_match, normalized = check_case_insensitive_and_exact_match(
-                    value,
-                    ('Timezone', 'Timezone + Local Time', 'Local Time'),
-                )
-            except NoMatchFoundError:
-                cls._set_flag(info, 'should_rewrite', value=True)
-                return cast('str', cls._get_default_for_field(info))
-            if not case_match:
-                cls._record_rewrite(info, normalized)
-            return normalized
-        cls._set_flag(info, 'should_rewrite', value=True)
-        return cast('str', cls._get_default_for_field(info))
-
-    @field_validator('GUI_CONNECTED_TABLE_SORT_COLUMN', mode='before')
-    @classmethod
-    def _parse_connected_table_sort_column(cls, value: object, info: ValidationInfo) -> str:
-        context = cls._get_context(info)
-        allowed: tuple[str, ...] = () if context is None else context.all_connected_columns
+    def _parse_enum_field(cls, value: object, info: ValidationInfo) -> str:
+        field_name = info.field_name or ''
+        allowed = cls._ENUM_ALLOWED_VALUES[field_name]
         if isinstance(value, str):
             try:
                 case_match, normalized = check_case_insensitive_and_exact_match(value, allowed)
@@ -1208,11 +736,18 @@ class SettingsIniModel(BaseModel):
         cls._set_flag(info, 'should_rewrite', value=True)
         return cast('str', cls._get_default_for_field(info))
 
-    @field_validator('GUI_DISCONNECTED_TABLE_SORT_COLUMN', mode='before')
+    @field_validator('GUI_CONNECTED_TABLE_SORT_COLUMN', 'GUI_DISCONNECTED_TABLE_SORT_COLUMN', mode='before')
     @classmethod
-    def _parse_disconnected_table_sort_column(cls, value: object, info: ValidationInfo) -> str:
+    def _parse_table_sort_column(cls, value: object, info: ValidationInfo) -> str:
         context = cls._get_context(info)
-        allowed: tuple[str, ...] = () if context is None else context.all_disconnected_columns
+        allowed = (
+            context.all_connected_columns
+            if context and info.field_name == 'GUI_CONNECTED_TABLE_SORT_COLUMN'
+            else context.all_disconnected_columns
+            if context
+            else ()
+        )
+
         if isinstance(value, str):
             try:
                 case_match, normalized = check_case_insensitive_and_exact_match(value, allowed)
@@ -1224,59 +759,6 @@ class SettingsIniModel(BaseModel):
             return normalized
         cls._set_flag(info, 'should_rewrite', value=True)
         return cast('str', cls._get_default_for_field(info))
-
-    @field_validator('GUI_CONNECTED_TABLE_SORT_ORDER', 'GUI_DISCONNECTED_TABLE_SORT_ORDER', mode='before')
-    @classmethod
-    def _parse_table_sort_order(cls, value: object, info: ValidationInfo) -> str:
-        if isinstance(value, str):
-            try:
-                case_match, normalized = check_case_insensitive_and_exact_match(value, ('Ascending', 'Descending'))
-            except NoMatchFoundError:
-                cls._set_flag(info, 'should_rewrite', value=True)
-                return cast('str', cls._get_default_for_field(info))
-            if not case_match:
-                cls._record_rewrite(info, normalized)
-            return normalized
-        cls._set_flag(info, 'should_rewrite', value=True)
-        return cast('str', cls._get_default_for_field(info))
-
-    @field_validator('LOOKY_GAME_VERSION', mode='before')
-    @classmethod
-    def _parse_looky_game_version(cls, value: object, info: ValidationInfo) -> str:
-        if isinstance(value, str):
-            try:
-                case_match, normalized = check_case_insensitive_and_exact_match(value, ('Both', 'Legacy', 'Enhanced'))
-            except NoMatchFoundError:
-                cls._set_flag(info, 'should_rewrite', value=True)
-                return cast('str', cls._get_default_for_field(info))
-            if not case_match:
-                cls._record_rewrite(info, normalized)
-            return normalized
-        cls._set_flag(info, 'should_rewrite', value=True)
-        return cast('str', cls._get_default_for_field(info))
-
-    @field_validator('UPDATER_CHANNEL', mode='before')
-    @classmethod
-    def _parse_updater_channel(cls, value: object, info: ValidationInfo) -> str | None:
-        if value is None:
-            return None
-        if isinstance(value, str):
-            try:
-                none_value, need_rewrite = custom_str_to_nonetype(value)
-            except InvalidNoneTypeValueError:
-                try:
-                    case_match, normalized = check_case_insensitive_and_exact_match(value, ('Stable', 'Pre-release'))
-                except NoMatchFoundError:
-                    cls._set_flag(info, 'should_rewrite', value=True)
-                    return cast('str | None', cls._get_default_for_field(info))
-                if not case_match:
-                    cls._record_rewrite(info, normalized)
-                return normalized
-            if need_rewrite:
-                cls._record_rewrite(info, 'None')
-            return none_value
-        cls._set_flag(info, 'should_rewrite', value=True)
-        return cast('str | None', cls._get_default_for_field(info))
 
     @field_validator('UPDATER_SKIPPED_VERSION', mode='before')
     @classmethod
@@ -1304,164 +786,30 @@ class SettingsIniModel(BaseModel):
         cls._set_flag(info, 'should_rewrite', value=True)
         return cast('str | None', cls._get_default_for_field(info))
 
-    @field_validator('USERIP_BACKUP_FREQUENCY', mode='before')
-    @classmethod
-    def _parse_userip_backup_frequency(cls, value: object, info: ValidationInfo) -> str:
-        if isinstance(value, str):
-            try:
-                case_match, normalized = check_case_insensitive_and_exact_match(value, USERIP_BACKUP_FREQUENCIES)
-            except NoMatchFoundError:
-                cls._set_flag(info, 'should_rewrite', value=True)
-                return cast('str', cls._get_default_for_field(info))
-            if not case_match:
-                cls._record_rewrite(info, normalized)
-            return normalized
-        cls._set_flag(info, 'should_rewrite', value=True)
-        return cast('str', cls._get_default_for_field(info))
-
     @field_validator('USERIP_BACKUP_RETENTION_LIMIT', mode='before')
     @classmethod
     def _parse_userip_backup_retention_limit(cls, value: object, info: ValidationInfo) -> int:
-        min_val = 0  # 0 = Keep All
-        max_val = 100
+        minimum_limit = 0  # 0 = Keep All
+        maximum_limit = 100
         default = cls._get_default_for_field(info)
         default_int = default if isinstance(default, int) else 10
 
-        parsed: int | None = None
-        if isinstance(value, (int, float)):
-            parsed = int(value)
-        elif isinstance(value, str):
-            stripped = value.strip()
-            if stripped.lower() in ('keep all', 'keepall', 'all'):
-                cls._set_flag(info, 'should_rewrite', value=True)
-                parsed = 0
-            else:
-                try:
-                    parsed = int(float(stripped))
-                except ValueError:
-                    parsed = None
+        parsed: int | None
+        if isinstance(value, str) and value.strip().lower() in ('keep all', 'keepall', 'all'):
+            cls._set_flag(info, 'should_rewrite', value=True)
+            parsed = 0
+        else:
+            parsed = _parse_int_value(value)
 
         if parsed is None:
             cls._set_flag(info, 'should_rewrite', value=True)
             return default_int
-        if parsed < min_val:
+        if parsed < minimum_limit:
             cls._set_flag(info, 'should_rewrite', value=True)
-            return min_val
-        if parsed > max_val:
+            return minimum_limit
+        if parsed > maximum_limit:
             cls._set_flag(info, 'should_rewrite', value=True)
-            return max_val
-        return parsed
-
-    @field_validator('PING_COUNT', mode='before')
-    @classmethod
-    def _parse_ping_count(cls, value: object, info: ValidationInfo) -> int:
-        min_val = 0
-        max_val = 10000
-        default = cls._get_default_for_field(info)
-        default_int = default if isinstance(default, int) else 4
-
-        parsed: int | None = None
-        if isinstance(value, (int, float)):
-            parsed = int(value)
-        elif isinstance(value, str):
-            try:
-                parsed = int(float(value))
-            except ValueError:
-                parsed = None
-
-        if parsed is None:
-            cls._set_flag(info, 'should_rewrite', value=True)
-            return default_int
-        if parsed < min_val:
-            cls._set_flag(info, 'should_rewrite', value=True)
-            return min_val
-        if parsed > max_val:
-            cls._set_flag(info, 'should_rewrite', value=True)
-            return max_val
-        return parsed
-
-    @field_validator('PING_INTERVAL_MS', mode='before')
-    @classmethod
-    def _parse_ping_interval_ms(cls, value: object, info: ValidationInfo) -> int:
-        min_val = 50
-        max_val = 10000
-        default = cls._get_default_for_field(info)
-        default_int = default if isinstance(default, int) else 250
-
-        parsed: int | None = None
-        if isinstance(value, (int, float)):
-            parsed = int(value)
-        elif isinstance(value, str):
-            try:
-                parsed = int(float(value))
-            except ValueError:
-                parsed = None
-
-        if parsed is None:
-            cls._set_flag(info, 'should_rewrite', value=True)
-            return default_int
-        if parsed < min_val:
-            cls._set_flag(info, 'should_rewrite', value=True)
-            return min_val
-        if parsed > max_val:
-            cls._set_flag(info, 'should_rewrite', value=True)
-            return max_val
-        return parsed
-
-    @field_validator('PING_TIMEOUT_MS', mode='before')
-    @classmethod
-    def _parse_ping_timeout_ms(cls, value: object, info: ValidationInfo) -> int:
-        min_val = 100
-        max_val = 10000
-        default = cls._get_default_for_field(info)
-        default_int = default if isinstance(default, int) else 1000
-
-        parsed: int | None = None
-        if isinstance(value, (int, float)):
-            parsed = int(value)
-        elif isinstance(value, str):
-            try:
-                parsed = int(float(value))
-            except ValueError:
-                parsed = None
-
-        if parsed is None:
-            cls._set_flag(info, 'should_rewrite', value=True)
-            return default_int
-        if parsed < min_val:
-            cls._set_flag(info, 'should_rewrite', value=True)
-            return min_val
-        if parsed > max_val:
-            cls._set_flag(info, 'should_rewrite', value=True)
-            return max_val
-        return parsed
-
-    @field_validator('PING_PAYLOAD_BYTES', mode='before')
-    @classmethod
-    def _parse_ping_payload_bytes(cls, value: object, info: ValidationInfo) -> int:
-        min_val = 0
-        max_val = 65500
-        default = cls._get_default_for_field(info)
-        default_int = default if isinstance(default, int) else 32
-
-        parsed: int | None = None
-        if isinstance(value, (int, float)):
-            parsed = int(value)
-        elif isinstance(value, str):
-            try:
-                parsed = int(float(value))
-            except ValueError:
-                parsed = None
-
-        if parsed is None:
-            cls._set_flag(info, 'should_rewrite', value=True)
-            return default_int
-        if parsed < min_val:
-            cls._set_flag(info, 'should_rewrite', value=True)
-            return min_val
-        if parsed > max_val:
-            cls._set_flag(info, 'should_rewrite', value=True)
-            return max_val
+            return maximum_limit
         return parsed
 
     @model_validator(mode='after')
@@ -1488,19 +836,15 @@ class SettingsIniModel(BaseModel):
         context = self._get_context(info)
         forced_columns = {'Usernames', 'First Seen', 'Last Rejoin', 'Last Seen', 'Rejoins', 'IP Address'}
 
-        connected_shown = set(self.GUI_COLUMNS_CONNECTED_SHOWN) | forced_columns
-        if self.GUI_CONNECTED_TABLE_SORT_COLUMN not in connected_shown:
-            updates['GUI_CONNECTED_TABLE_SORT_COLUMN'] = 'Last Rejoin'
-            if context is not None:
-                context.ini_rewrites['GUI_CONNECTED_TABLE_SORT_COLUMN'] = 'Last Rejoin'
-            self._set_flag(info, 'should_rewrite', value=True)
-
-        disconnected_shown = set(self.GUI_COLUMNS_DISCONNECTED_SHOWN) | forced_columns
-        if self.GUI_DISCONNECTED_TABLE_SORT_COLUMN not in disconnected_shown:
-            updates['GUI_DISCONNECTED_TABLE_SORT_COLUMN'] = 'Last Seen'
-            if context is not None:
-                context.ini_rewrites['GUI_DISCONNECTED_TABLE_SORT_COLUMN'] = 'Last Seen'
-            self._set_flag(info, 'should_rewrite', value=True)
+        for setting_key, fallback_sort, shown_columns in (
+            ('GUI_CONNECTED_TABLE_SORT_COLUMN', 'Last Rejoin', self.GUI_COLUMNS_CONNECTED_SHOWN),
+            ('GUI_DISCONNECTED_TABLE_SORT_COLUMN', 'Last Seen', self.GUI_COLUMNS_DISCONNECTED_SHOWN),
+        ):
+            if getattr(self, setting_key) not in set(shown_columns) | forced_columns:
+                updates[setting_key] = fallback_sort
+                if context is not None:
+                    context.ini_rewrites[setting_key] = fallback_sort
+                self._set_flag(info, 'should_rewrite', value=True)
 
         if updates:
             return self.model_copy(update=updates)
@@ -1533,7 +877,7 @@ class SettingsIniModel(BaseModel):
         full_input: dict[str, Any] = dict(config.defaults)
         full_input.update(raw_settings)
 
-        ctx = _ValidatorContext(
+        context = _ValidatorContext(
             defaults=dict(config.defaults),
             ini_rewrites=ini_rewrites,
             flags=flags,
@@ -1546,7 +890,7 @@ class SettingsIniModel(BaseModel):
             min_gui_disconnected_players_timer=config.min_gui_disconnected_players_timer,
             max_gui_disconnected_players_limit=config.max_gui_disconnected_players_limit,
         )
-        parsed = cls.model_validate(full_input, context=ctx)
+        parsed = cls.model_validate(full_input, context=context)
 
         # Unknown keys trigger rewrite
         unknown_keys = raw_keys - all_names_set
