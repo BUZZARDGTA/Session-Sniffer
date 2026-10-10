@@ -16,8 +16,6 @@ from pathlib import Path
 
 if sys.platform == 'win32':
     import winreg
-else:
-    winreg = None  # type: ignore[assignment]  # pylint: disable=invalid-name
 
 from session_sniffer.capture.pcap import is_pcap_library_available
 from session_sniffer.capture.process import iter_running_processes
@@ -108,18 +106,16 @@ def _is_npcap_setup_in_progress() -> bool:
 
 def _is_npcap_registry_installed() -> bool:
     """Check if Npcap installation entry is recorded in the Windows registry."""
-    if sys.platform != 'win32':
-        return False
-
-    for subkey in (
-        r'SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\NpcapInst',
-        r'SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\NpcapInst',
-    ):
-        try:
-            with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, subkey, 0, winreg.KEY_READ):
-                return True
-        except OSError:
-            continue
+    if sys.platform == 'win32':
+        for subkey in (
+            r'SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\NpcapInst',
+            r'SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\NpcapInst',
+        ):
+            try:
+                with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, subkey, 0, winreg.KEY_READ):
+                    return True
+            except OSError:
+                continue
 
     return False
 

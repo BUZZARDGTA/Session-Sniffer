@@ -2,11 +2,10 @@
 
 import ctypes
 import sys
+from ctypes import wintypes
 from pathlib import Path
 
 if sys.platform == 'win32':
-    from ctypes import wintypes
-
     _SC_MANAGER_CONNECT = 0x0001
     _SERVICE_QUERY_STATUS = 0x0004
     _SERVICE_RUNNING = 0x00000004
@@ -33,16 +32,14 @@ if sys.platform == 'win32':
     _advapi32.CloseServiceHandle.argtypes = [wintypes.HANDLE]
     _advapi32.CloseServiceHandle.restype = wintypes.BOOL
 else:
-    wintypes = None  # type: ignore[assignment]  # pylint: disable=invalid-name
     _SC_MANAGER_CONNECT = 0
     _SERVICE_QUERY_STATUS = 0
     _SERVICE_RUNNING = 0
-    _advapi32 = None  # type: ignore[assignment]  # pylint: disable=invalid-name
 
 
 def get_system32_dir() -> Path:
     """Return the System32 path via the Win32 API, bypassing environment variables."""
-    if sys.platform != 'win32' or wintypes is None:
+    if sys.platform != 'win32':
         return Path('/bin')
     buf = ctypes.create_unicode_buffer(wintypes.MAX_PATH)
     ctypes.windll.kernel32.GetSystemDirectoryW(buf, wintypes.MAX_PATH)
@@ -74,7 +71,7 @@ def is_service_running(service_name: str) -> bool:
 
 def is_npcap_setup_window_visible() -> bool:
     """Check if any visible window belongs to the Npcap setup wizard."""
-    if sys.platform != 'win32' or wintypes is None:
+    if sys.platform != 'win32':
         return False
 
     found = False
