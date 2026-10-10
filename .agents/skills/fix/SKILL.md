@@ -203,7 +203,7 @@ Start with the narrowest useful check, for example:
 - the affected test;
 - the relevant test module;
 - the relevant linter command;
-- a targeted type check;
+- a targeted type check (e.g. `mypy`, `pyright --warnings`, `pyrefly check .`, `ty check .`);
 - the affected build/package check.
 
 Then broaden validation when the change warrants it.

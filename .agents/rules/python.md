@@ -10,6 +10,7 @@ globs: **/*.py
 * The project requires Python 3.14.
 * `pyproject.toml` is authoritative for Python version, dependencies, formatting, linting, type checking, and static-analysis configuration.
 * Follow the existing project tooling. Do not introduce competing formatters, linters, or type checkers.
+* Type checking and linting are strictly enforced with Ruff, Flake8, Pylint, MyPy, Pyright, Pyrefly, ty, and Vulture.
 * Preserve the existing suppression and configuration lists unless the task explicitly requires changing them.
 * The project targets a line length of 176 characters.
 

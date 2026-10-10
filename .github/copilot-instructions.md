@@ -49,9 +49,9 @@ Use VS Code tasks instead of ad‑hoc commands:
 - Run app: task `🚀 Launch Session Sniffer` (ensures `.venv` interpreter).
 - Dependency check: `🔄 Check Project Dependencies` powershell script (read-only updates info).
 - Install dependencies: `📦 Install Dependencies` after editing `pyproject.toml`.
-- Unified quality run: `🔎 Run All Quality Checks` or individual tasks (Ruff, MyPy, Pyrefly, Pyright, Flake8, Pylint, Vulture, Pip Audit, Safety, Snyk).
+- Unified quality run: `🔎 Run All Quality Checks` or individual tasks (Ruff, MyPy, Pyrefly, Pyright, ty, Flake8, Pylint, Vulture, Pip Audit, Snyk).
 
-Ruff / Pyrefly / Pyright / MyPy operate in strict modes; line length is 176; many docstring warnings are intentionally disabled. Preserve current suppression lists—do not re‑enable disabled IDs unless specifically requested.
+Ruff / Pyrefly / Pyright / MyPy / ty operate in strict modes; line length is 176; many docstring warnings are intentionally disabled. Preserve current suppression lists—do not re‑enable disabled IDs unless specifically requested.
 
 ## Dependency & Version Management
 - Pin new dependencies exactly (match existing style) in `pyproject.toml` unless they are security libs (which may use `>=`).

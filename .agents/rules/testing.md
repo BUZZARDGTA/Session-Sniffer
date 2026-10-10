@@ -36,6 +36,17 @@ Follow the project's existing tooling and configuration in `pyproject.toml`.
 
 The project uses strict static-analysis and linting configurations including Ruff, MyPy, Pyrefly, Pyright, ty, Flake8, Pylint, and Vulture within the local `.venv`.
 
+The individual validation commands in `.venv` are:
+* Ruff: `ruff check .`
+* Flake8: `flake8 . --config .flake8`
+* Pylint: `pylint . --rcfile pyproject.toml`
+* MyPy: `mypy . --config-file pyproject.toml`
+* Pyright: `pyright --warnings`
+* Pyrefly: `pyrefly check .`
+* ty: `ty check .`
+* Vulture: `vulture .`
+* Full suite: `python code_quality_checks.py`
+
 Do not introduce competing validation tools.
 
 Preserve existing intentional suppression lists and disabled diagnostics unless the task explicitly requires changing them.
