@@ -86,6 +86,8 @@ Before adding a dependency:
 Prefer clear, explicit, maintainable Python over clever abstractions or metaprogramming.
 
 Fix the underlying problem rather than suppressing a diagnostic or weakening type checking to make the code pass.
+* **Genuine exceptions (leave as-is)**: Retain intentional inline suppressions where the code is semantically correct and cannot be refactored cleanly without obfuscation:
+  * `WEBSERVER_DEFAULT_HOST: str = '0.0.0.0'  # noqa: S104` in `src/session_sniffer/constants/standalone.py`: listening on `0.0.0.0` is the intentional default to allow local network webserver access. Do not attempt to evade Bandit `S104` with string concatenation or dynamic formatting.
 
 ## File Sizing and Structural Warnings
 
