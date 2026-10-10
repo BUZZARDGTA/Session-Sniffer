@@ -272,32 +272,25 @@ def _redact_args(args: tuple[object, ...] | Mapping[str, object], secrets: tuple
     return {key: _redact_value(value, secrets) for key, value in args.items()}
 
 
-class _SecretRedactFilter(logging.Filter):  # pylint: disable=too-few-public-methods
-    """Scrub known secret values from log records before handlers emit them."""
+def _secret_redact_filter(record: logging.LogRecord) -> bool:
+    """Scrub known secret values from a log record in-place before handlers emit it, and keep the record."""
+    if getattr(record, 'secrets_redacted', False):
+        return True
 
-    @override
-    def filter(self, record: logging.LogRecord) -> bool:
-        """Redact record message fields in-place and keep the record."""
-        if getattr(record, 'secrets_redacted', False):
-            return True
-
-        secrets = _get_secret_values()
-        if not secrets:
-            record.secrets_redacted = True
-            return True
-
-        record.msg = _redact_value(record.msg, secrets)
-        if record.args is not None and record.args:
-            record.args = _redact_args(record.args, secrets)
-        if record.exc_text is not None and record.exc_text:
-            record.exc_text = _redact_text(record.exc_text, secrets)
-        if record.stack_info is not None and record.stack_info:
-            record.stack_info = _redact_text(record.stack_info, secrets)
+    secrets = _get_secret_values()
+    if not secrets:
         record.secrets_redacted = True
         return True
 
-
-_SECRET_REDACT_FILTER = _SecretRedactFilter()
+    record.msg = _redact_value(record.msg, secrets)
+    if record.args is not None and record.args:
+        record.args = _redact_args(record.args, secrets)
+    if record.exc_text is not None and record.exc_text:
+        record.exc_text = _redact_text(record.exc_text, secrets)
+    if record.stack_info is not None and record.stack_info:
+        record.stack_info = _redact_text(record.stack_info, secrets)
+    record.secrets_redacted = True
+    return True
 
 
 class _RedactingFormatter(logging.Formatter):
@@ -564,7 +557,7 @@ def _add_filter_once(handler: logging.Handler, filter_: logging.Filter | Callabl
 
 def _configure_common_filters(handler: logging.Handler) -> None:
     """Install filters shared by all managed handlers."""
-    _add_filter_once(handler, _SECRET_REDACT_FILTER)
+    _add_filter_once(handler, _secret_redact_filter)
     _add_filter_once(handler, _urllib3_noise_filter)
 
 
@@ -630,7 +623,7 @@ def setup_logging(
         debug_handler.setFormatter(_FILE_FORMATTER)
         _configure_common_filters(debug_handler)
         for handler in root.handlers:
-            _add_filter_once(handler, _SECRET_REDACT_FILTER)
+            _add_filter_once(handler, _secret_redact_filter)
 
         # --- Root logger must be permissive enough to reach all handlers ---
         root.setLevel(min(console_level, logging.DEBUG))
@@ -665,9 +658,8 @@ def purge_debug_log() -> None:
         handler.acquire()
         try:
             handler.flush()
-            handler.close()
+            handler.close()  # Clears `handler.stream`; the next emit reopens the file in append mode.
             DEBUG_LOG_PATH.write_text('', encoding='utf-8')
-            handler.stream = handler._open()  # noqa: SLF001  # pylint: disable=protected-access
         finally:
             handler.release()
     else:
