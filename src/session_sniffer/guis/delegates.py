@@ -3,6 +3,8 @@
 from typing import TYPE_CHECKING, cast, override
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from PySide6.QtGui import QFont
 
 from PySide6.QtCore import QEvent, QModelIndex, QPersistentModelIndex, QPointF, QRect, QSize, Qt
@@ -33,9 +35,6 @@ from PySide6.QtWidgets import (
 from session_sniffer.guis.colors import TableColors
 from session_sniffer.text_utils import split_usernames
 
-if TYPE_CHECKING:
-    from collections.abc import Callable
-
 _STANDARD_ICON_SIZE = 16
 _CONNECTED_TEXT_COLOR = QColor(TableColors.CONNECTED_TEXT)
 _DISCONNECTED_TEXT_COLOR = QColor(TableColors.DISCONNECTED_TEXT)
@@ -56,6 +55,16 @@ _LOOKY_TEXT_COLOR = QColor(TableColors.LOOKY_TEXT)
 _DISCONNECTED_LOOKY_TEXT_COLOR = QColor(TableColors.DISCONNECTED_LOOKY_TEXT)
 _SEARCH_HIGHLIGHT_BG_COLOR = QColor('#e3b341')
 _SEARCH_HIGHLIGHT_FG_COLOR = QColor('#000000')
+
+
+def _get_option_rect(option: QStyleOptionViewItem) -> QRect:
+    """Return the cell rectangle from a style option."""
+    return cast('QRect', object.__getattribute__(option, 'rect'))
+
+
+def _get_option_font(option: QStyleOptionViewItem) -> QFont:
+    """Return the font from a style option."""
+    return cast('QFont', object.__getattribute__(option, 'font'))
 
 
 class ElidedTextTooltipDelegate(QStyledItemDelegate):
@@ -84,7 +93,7 @@ class ElidedTextTooltipDelegate(QStyledItemDelegate):
                 text_rectangle = style.subElementRect(QStyle.SubElement.SE_ItemViewItemText, opt, view)
                 text_margin = style.pixelMetric(QStyle.PixelMetric.PM_FocusFrameHMargin, opt, view) + 1
                 usable_text_width = max(0, text_rectangle.width() - text_margin * 2)
-                if QFontMetrics(cast('QFont', opt.font)).horizontalAdvance(text) > usable_text_width:  # type: ignore[redundant-cast]
+                if QFontMetrics(_get_option_font(opt)).horizontalAdvance(text) > usable_text_width:
                     QToolTip.showText(event.globalPos(), text, view)
                     return True
 
@@ -110,6 +119,7 @@ class ElidedTextTooltipDelegate(QStyledItemDelegate):
         if painter:
             is_hovered = bool(option.state & QStyle.StateFlag.State_MouseOver)
             is_selected = bool(option.state & QStyle.StateFlag.State_Selected)
+            rect = _get_option_rect(option)
 
             if is_hovered:
                 is_connected: bool | None = None
@@ -120,7 +130,6 @@ class ElidedTextTooltipDelegate(QStyledItemDelegate):
                         is_connected = raw_is_connected
 
                 painter.save()
-                rect = cast('QRect', option.rect)  # type: ignore[redundant-cast]
 
                 if is_connected is True:
                     grad = QLinearGradient(rect.topLeft(), rect.bottomLeft())
@@ -153,7 +162,7 @@ class ElidedTextTooltipDelegate(QStyledItemDelegate):
                 background_brush = index.data(Qt.ItemDataRole.BackgroundRole)
                 if isinstance(background_brush, (QColor, QBrush)) and not is_selected:
                     painter.save()
-                    painter.fillRect(cast('QRect', option.rect), background_brush)  # type: ignore[redundant-cast]
+                    painter.fillRect(rect, background_brush)
                     painter.restore()
 
         opt = QStyleOptionViewItem(option)
@@ -207,8 +216,9 @@ class SearchHighlightDelegate(ElidedTextTooltipDelegate):
             super().paint(painter, option, index)
             return
 
+        cell_rectangle = _get_option_rect(option)
+
         if painter:
-            cell_rectangle = cast('QRect', option.rect)  # type: ignore[redundant-cast]
             is_hovered = bool(option.state & QStyle.StateFlag.State_MouseOver)
             is_selected = bool(option.state & QStyle.StateFlag.State_Selected)
 
@@ -245,8 +255,7 @@ class SearchHighlightDelegate(ElidedTextTooltipDelegate):
                 text_color = foreground_brush.color()
 
         if painter:
-            cell_rectangle = cast('QRect', option.rect)  # type: ignore[redundant-cast]
-            font = cast('QFont', style_option.font)  # type: ignore[redundant-cast]
+            font = _get_option_font(style_option)
             painter.save()
             painter.setFont(font)
 
