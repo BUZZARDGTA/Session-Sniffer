@@ -10,7 +10,7 @@ import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal, cast
+from typing import TYPE_CHECKING, Any, cast
 
 import geoip2.database
 import geoip2.errors
@@ -24,14 +24,10 @@ from rich.rule import Rule
 from rich.table import Table
 from rich.text import Text
 
-# Add src/ folder to path so it can import session_sniffer
-SOURCE_PATH = str(Path(__file__).resolve().parent.parent / 'src')
-if SOURCE_PATH not in sys.path:
-    sys.path.insert(0, SOURCE_PATH)
-
-from session_sniffer.guis.utils import format_duration  # pylint: disable=wrong-import-position  # noqa: E402
-from session_sniffer.networking.http_session import HEADERS  # pylint: disable=wrong-import-position  # noqa: E402
-from session_sniffer.text_utils import pluralize  # pylint: disable=wrong-import-position  # noqa: E402
+from session_sniffer.guis.utils import format_duration
+from session_sniffer.networking.http_session import HEADERS
+from session_sniffer.text_utils import pluralize
+from session_sniffer.utils import get_app_dir
 
 # Dedicated session for ip-api.com with NO automatic retries.
 # The shared `session` from http_session.py has urllib3 Retry(total=3) which silently
@@ -39,18 +35,6 @@ from session_sniffer.text_utils import pluralize  # pylint: disable=wrong-import
 # 4x the actual traffic and triggering server-side connection drops.
 _ip_api_session = requests.Session()
 _ip_api_session.headers.update(HEADERS)
-
-try:
-    from session_sniffer.utils import get_app_dir
-except ImportError:
-
-    def get_app_dir(*, scope: Literal['roaming', 'local']) -> Path:
-        """Get the application directory."""
-        del scope
-        base_path = Path(os.getenv('LOCALAPPDATA', str(Path.home() / 'AppData' / 'Local')))
-        application_directory = base_path / 'Session Sniffer'
-        application_directory.mkdir(parents=True, exist_ok=True)
-        return application_directory
 
 
 console = Console()
@@ -98,7 +82,7 @@ IP_API_SKIPPED_OWNERS: set[str] = {
 }
 
 
-class RateLimitClient:  # pylint: disable=too-few-public-methods
+class RateLimitClient:
     """Client for querying the IP API with rate limiting."""
 
     session: requests.Session
@@ -268,6 +252,10 @@ class RateLimitClient:  # pylint: disable=too-few-public-methods
                 console.print(f'[yellow]\\[BACKOFF] sleeping {backoff}s[/yellow]')
                 self._sleep(backoff, 'BACKOFF retry')
                 self._close_stale_connections(backoff)
+
+    def close(self) -> None:
+        """Close the underlying HTTP session and its pooled connections."""
+        self.session.close()
 
 
 class GeoLite2Client:
@@ -1600,8 +1588,9 @@ def main() -> None:
         except OSError as e:
             console.print(f'\n[red]✗ Failed to export detections to {export_path.resolve()}: {e}[/red]')
 
-    if isinstance(client, GeoLite2Client):
-        client.close()
+    client.close()
+    if fallback_client:
+        fallback_client.close()
 
 
 if __name__ == '__main__':
