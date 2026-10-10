@@ -37,6 +37,7 @@ from session_sniffer.guis.stylesheets import (
     WEBSERVER_HELP_LABEL_STYLESHEET,
 )
 from session_sniffer.guis.userip_manager_helpers import IPRangeBuilderDialog
+from session_sniffer.guis.utils import scale_by_ui
 from session_sniffer.settings import SETTING_DEFAULTS, SettingMeta, SettingType
 from session_sniffer.settings.settings import Settings
 
@@ -188,6 +189,7 @@ def create_float_widget(meta: SettingMeta) -> QDoubleSpinBox:
     spin.setMaximum(meta.max_value if meta.max_value is not None else 99999.0)
     if meta.suffix is not None:
         spin.setSuffix(meta.suffix)
+    spin.lineEdit().setTextMargins(scale_by_ui(5), 0, 0, 0)
     tooltip = format_setting_tooltip(meta)
     if tooltip is not None and tooltip:
         spin.setToolTip(tooltip)
@@ -203,6 +205,7 @@ def create_integer_widget(meta: SettingMeta) -> QSpinBox:
     spin.setMaximum(int(meta.max_value) if meta.max_value is not None else 99999)
     if meta.suffix is not None:
         spin.setSuffix(meta.suffix)
+    spin.lineEdit().setTextMargins(scale_by_ui(5), 0, 0, 0)
     tooltip = format_setting_tooltip(meta)
     if tooltip is not None and tooltip:
         spin.setToolTip(tooltip)
@@ -219,6 +222,7 @@ def create_integer_or_all_widget(meta: SettingMeta) -> QSpinBox:
     spin.setSpecialValueText(meta.special_value_text)
     if meta.suffix is not None:
         spin.setSuffix(meta.suffix)
+    spin.lineEdit().setTextMargins(scale_by_ui(5), 0, 0, 0)
     tooltip = format_setting_tooltip(meta)
     if tooltip is not None and tooltip:
         spin.setToolTip(tooltip)
