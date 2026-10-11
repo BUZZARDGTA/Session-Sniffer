@@ -118,7 +118,7 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name='Session_Sniffer',
+    name='Session_Sniffer_macOS' if sys.platform == 'darwin' else 'Session_Sniffer',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

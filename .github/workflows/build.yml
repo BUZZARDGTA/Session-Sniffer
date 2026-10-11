@@ -25,10 +25,17 @@ jobs:
             name: Windows x64
             asset_name: Session_Sniffer.exe
             venv_python: .venv/Scripts/python
+            architecture: x64
           - os: ubuntu-24.04
             name: Linux x64
             asset_name: Session_Sniffer
             venv_python: .venv/bin/python
+            architecture: x64
+          - os: macos-14
+            name: macOS ARM64
+            asset_name: Session_Sniffer_macOS
+            venv_python: .venv/bin/python
+            architecture: arm64
     runs-on: ${{ matrix.os }}
     name: Build ${{ matrix.name }}
     steps:
@@ -41,7 +48,7 @@ jobs:
         uses: actions/setup-python@v7.0.0
         with:
           python-version: '3.14'
-          architecture: x64
+          architecture: ${{ matrix.architecture }}
           cache: pip
           cache-dependency-path: pyproject.toml
 
@@ -102,6 +109,9 @@ jobs:
       linux_sha256: ${{ steps.release_asset.outputs.linux_sha256 }}
       linux_file_size: ${{ steps.release_asset.outputs.linux_file_size }}
       linux_download_url: ${{ steps.release_asset.outputs.linux_download_url }}
+      darwin_sha256: ${{ steps.release_asset.outputs.darwin_sha256 }}
+      darwin_file_size: ${{ steps.release_asset.outputs.darwin_file_size }}
+      darwin_download_url: ${{ steps.release_asset.outputs.darwin_download_url }}
     steps:
       - name: Download workflow artifacts
         uses: actions/download-artifact@v8.0.2
@@ -120,6 +130,7 @@ jobs:
 
           exe_path="artifacts/Session_Sniffer.exe"
           linux_path="artifacts/Session_Sniffer"
+          darwin_path="artifacts/Session_Sniffer_macOS"
 
           if [[ ! -f "$exe_path" ]]; then
             echo "Expected Windows release asset is missing: $exe_path" >&2
@@ -131,13 +142,21 @@ jobs:
             exit 1
           fi
 
+          if [[ ! -f "$darwin_path" ]]; then
+            echo "Expected macOS release asset is missing: $darwin_path" >&2
+            exit 1
+          fi
+
           sha256=$(sha256sum "$exe_path" | cut -d ' ' -f 1)
           file_size=$(stat -c%s "$exe_path")
 
           linux_sha256=$(sha256sum "$linux_path" | cut -d ' ' -f 1)
           linux_file_size=$(stat -c%s "$linux_path")
 
-          gh release upload "$RELEASE_TAG" "$exe_path" "$linux_path" --repo "$GH_REPO" --clobber
+          darwin_sha256=$(sha256sum "$darwin_path" | cut -d ' ' -f 1)
+          darwin_file_size=$(stat -c%s "$darwin_path")
+
+          gh release upload "$RELEASE_TAG" "$exe_path" "$linux_path" "$darwin_path" --repo "$GH_REPO" --clobber
 
           download_url=$(gh api "repos/$GH_REPO/releases/tags/$RELEASE_TAG" \
             --jq '.assets | map(select(.name == "Session_Sniffer.exe")) | if length == 1 then .[0].browser_download_url else empty end')
@@ -155,12 +174,23 @@ jobs:
             exit 1
           fi
 
+          darwin_download_url=$(gh api "repos/$GH_REPO/releases/tags/$RELEASE_TAG" \
+            --jq '.assets | map(select(.name == "Session_Sniffer_macOS")) | if length == 1 then .[0].browser_download_url else empty end')
+
+          if [[ -z "$darwin_download_url" ]]; then
+            echo "Failed to resolve unique Session_Sniffer_macOS download URL." >&2
+            exit 1
+          fi
+
           echo "sha256=$sha256" >> "$GITHUB_OUTPUT"
           echo "file_size=$file_size" >> "$GITHUB_OUTPUT"
           echo "download_url=$download_url" >> "$GITHUB_OUTPUT"
           echo "linux_sha256=$linux_sha256" >> "$GITHUB_OUTPUT"
           echo "linux_file_size=$linux_file_size" >> "$GITHUB_OUTPUT"
           echo "linux_download_url=$linux_download_url" >> "$GITHUB_OUTPUT"
+          echo "darwin_sha256=$darwin_sha256" >> "$GITHUB_OUTPUT"
+          echo "darwin_file_size=$darwin_file_size" >> "$GITHUB_OUTPUT"
+          echo "darwin_download_url=$darwin_download_url" >> "$GITHUB_OUTPUT"
 
   update-version-info:
     needs: [upload-release-artifact]
@@ -200,6 +230,9 @@ jobs:
           LINUX_DOWNLOAD_URL: ${{ needs.upload-release-artifact.outputs.linux_download_url }}
           LINUX_SHA256: ${{ needs.upload-release-artifact.outputs.linux_sha256 }}
           LINUX_FILE_SIZE: ${{ needs.upload-release-artifact.outputs.linux_file_size }}
+          DARWIN_DOWNLOAD_URL: ${{ needs.upload-release-artifact.outputs.darwin_download_url }}
+          DARWIN_SHA256: ${{ needs.upload-release-artifact.outputs.darwin_sha256 }}
+          DARWIN_FILE_SIZE: ${{ needs.upload-release-artifact.outputs.darwin_file_size }}
         run: |
           set -euo pipefail
 
@@ -247,7 +280,10 @@ jobs:
             --file-size "$FILE_SIZE" \
             --linux-download-url "$LINUX_DOWNLOAD_URL" \
             --linux-sha256 "$LINUX_SHA256" \
-            --linux-file-size "$LINUX_FILE_SIZE"
+            --linux-file-size "$LINUX_FILE_SIZE" \
+            --darwin-download-url "$DARWIN_DOWNLOAD_URL" \
+            --darwin-sha256 "$DARWIN_SHA256" \
+            --darwin-file-size "$DARWIN_FILE_SIZE"
 
           rm -rf .github
 

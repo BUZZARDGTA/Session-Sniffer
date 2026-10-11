@@ -52,6 +52,9 @@ def main() -> None:
     parser.add_argument('--linux-download-url', help='The direct download URL for the Linux release binary')
     parser.add_argument('--linux-sha256', type=validate_sha256, help='The SHA-256 hash of the Linux release binary (lowercase hex)')
     parser.add_argument('--linux-file-size', type=int, help='The size of the Linux release binary in bytes')
+    parser.add_argument('--darwin-download-url', help='The direct download URL for the macOS release binary')
+    parser.add_argument('--darwin-sha256', type=validate_sha256, help='The SHA-256 hash of the macOS release binary (lowercase hex)')
+    parser.add_argument('--darwin-file-size', type=int, help='The size of the macOS release binary in bytes')
 
     args = parser.parse_args()
 
@@ -85,6 +88,9 @@ def main() -> None:
         'linux_download_url': args.linux_download_url,
         'linux_sha256': args.linux_sha256,
         'linux_file_size': args.linux_file_size,
+        'darwin_download_url': args.darwin_download_url,
+        'darwin_sha256': args.darwin_sha256,
+        'darwin_file_size': args.darwin_file_size,
         'is_devrelease': version.is_devrelease,
         'is_postrelease': version.is_postrelease,
         'is_prerelease': version.is_prerelease,
