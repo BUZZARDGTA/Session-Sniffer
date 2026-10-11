@@ -756,7 +756,7 @@ Process is currently suspended',
             )
 
         self._sessions_submenu.addSeparator()
-        clear_all_sessions_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'reset.svg')), 'Clear All Sessions & History…', self._sessions_submenu)
+        clear_all_sessions_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'reset.svg')), 'Clear All Sessions && History…', self._sessions_submenu)
         clear_all_sessions_action.setToolTip('Clear all past sessions, reset session tracking, and clear session host history')
         can_clear_all = len(all_session_ids) > 1 or bool(SessionHost.get_history()) or current_session_id > 1
         clear_all_sessions_action.setEnabled(can_clear_all)
