@@ -71,6 +71,12 @@ class SessionStatusBar(QStatusBar):
         self._performance_label.setTextFormat(Qt.TextFormat.RichText)
         self._performance_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self._performance_label.setStyleSheet(STATUS_BAR_PERFORMANCE_LABEL_STYLESHEET)
+        self._performance_label.setToolTip(
+            'Packet capture performance metrics:\n\n'
+            '• Latency: Processing delay between packet arrival at the network driver and capture analysis (not network ping).\n'
+            '  If this value steadily increments, the capture engine is falling behind real-time traffic (see Capture Overflow Timer setting).\n\n'
+            '• Restarts: Number of times packet capture was automatically restarted.',
+        )
 
         self.addWidget(self._capture_label)
         self.addWidget(self._config_label)
