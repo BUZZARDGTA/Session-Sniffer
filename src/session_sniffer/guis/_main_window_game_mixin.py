@@ -101,6 +101,11 @@ class GameMixin(QMainWindow):
         _userip_manager_window: UserIPDatabasesManager | None
         _disconnected: SessionTableSection
 
+    def _refresh_session_gui_state(self) -> None: ...  # Provided by StatsMixin
+
+    def recalculate_capture_stats(self) -> None:
+        """Recalculate capture statistics from remaining players."""
+
     def _active_game_label(self) -> str:
         """Return the user-facing game label for the active preset."""
         if Settings.is_rdr2_feature_set():
@@ -706,6 +711,12 @@ Process is currently suspended',
             rename_action.triggered.connect(partial(self._prompt_rename_session, session_id))
             session_menu.addAction(rename_action)
 
+            if not is_current:
+                delete_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')), f"Delete Session '{display_name}'…", session_menu)
+                delete_action.setToolTip(f"Delete Session '{display_name}' and remove its player history")
+                delete_action.triggered.connect(partial(self._prompt_delete_session, session_id, display_name))
+                session_menu.addAction(delete_action)
+
             filter_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'search.svg')), 'Filter to this Session', session_menu)
             filter_action.setCheckable(True)
             is_filter_active = current_filter in (SessionFilterState.FILTER_CURRENT, session_id) if is_current else current_filter == session_id
@@ -744,6 +755,14 @@ Process is currently suspended',
                 ),
             )
 
+        self._sessions_submenu.addSeparator()
+        clear_all_sessions_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'reset.svg')), 'Clear All Sessions & History…', self._sessions_submenu)
+        clear_all_sessions_action.setToolTip('Clear all past sessions, reset session tracking, and clear session host history')
+        can_clear_all = len(all_session_ids) > 1 or bool(SessionHost.get_history()) or current_session_id > 1
+        clear_all_sessions_action.setEnabled(can_clear_all)
+        clear_all_sessions_action.triggered.connect(self._prompt_clear_all_sessions_and_history)
+        self._sessions_submenu.addAction(clear_all_sessions_action)
+
     def _create_past_host_action_handler(self, target_entry: HostHistoryEntry) -> Callable[[], None]:
         def _handler() -> None:
             self._select_ips([target_entry.ip])
@@ -759,6 +778,52 @@ Process is currently suspended',
         """Prompt user to rename the specified session and synchronize the session filter."""
         if prompt_rename_session(self, session_id):
             self._disconnected.sync_session_filter()
+
+    def _prompt_delete_session(self, session_id: int, display_name: str) -> None:
+        """Prompt user to delete the specified session and synchronize the session filter."""
+        reply = QMessageBox.question(
+            self,
+            TITLE,
+            f"Are you sure you want to delete session '{display_name}'?\n\nThis will remove the session and its player history permanently.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+
+        SessionTracker.delete_session(session_id)
+        SessionHost.prune_history_for_session(session_id)
+        if SessionFilterState.get_selected_session() == session_id:
+            SessionFilterState.set_selected_session(session_id=SessionFilterState.FILTER_ALL)
+            self._disconnected.clear_table()
+        self._refresh_session_gui_state()
+
+    def _prompt_clear_all_sessions_and_history(self) -> None:
+        """Prompt user to clear all sessions and history."""
+        reply = QMessageBox.question(
+            self,
+            TITLE,
+            'Are you sure you want to clear all sessions and history?\n\n'
+            'This will delete all past sessions, reset session tracking, and clear session host history permanently.',
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+
+        SessionTracker.reset()
+        SessionHost.clear_history()
+        SessionHost.clear_session_host_data()
+        PlayersRegistry.clear_disconnected_players()
+        for player in PlayersRegistry.get_connected_players():
+            player.session_id = 1
+            SessionTracker.record_session_player_activity(1, player.datetime.first_seen)
+            SessionTracker.record_session_player_activity(1, player.datetime.last_seen)
+
+        SessionFilterState.set_selected_session(session_id=SessionFilterState.FILTER_ALL)
+        self._disconnected.clear_table()
+        self._refresh_session_gui_state()
+        self.recalculate_capture_stats()
 
     def _apply_session_filter(self, session_id: int) -> None:
         """Apply a session filter and synchronize table controls."""

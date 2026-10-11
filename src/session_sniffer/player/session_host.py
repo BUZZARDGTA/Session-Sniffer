@@ -356,6 +356,11 @@ class SessionHost:
         cls._history.clear()
 
     @classmethod
+    def prune_history_for_session(cls, session_id: int) -> None:
+        """Remove host history entries belonging to the specified session."""
+        cls._history = [entry for entry in cls._history if entry.session_id != session_id]
+
+    @classmethod
     def get_host_player(cls, session_connected: list[Player]) -> Player | None:
         """Infer and cache the session host from currently connected players and eligible relay candidates."""
         if not session_connected:

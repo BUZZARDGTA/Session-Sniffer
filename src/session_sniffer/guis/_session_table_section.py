@@ -566,6 +566,7 @@ class SessionTableSection(QWidget):
         """Clear all table data and reset selection count."""
         self.table_model.reset_columns()
         self._selected_count = 0
+        self.last_count = 0
         self._sync_session_filter_combo()
         self._update_header_label()
         self.table_view.reset_initial_data_sizing()
@@ -639,7 +640,6 @@ class SessionTableSection(QWidget):
         self.update_merge_button_state()
         if self._is_connected:
             is_merged = TableMergeState.is_merged()
-            self._clear_button.setToolTip('Clear all players' if is_merged else 'Clear all connected players')
             self._rows_per_page_spinbox.setToolTip(f'Limit how many {self._rows_per_page_tooltip_noun()} are shown per page. Set 0 to show all.')
             self._session_filter_label.setVisible(is_merged)
             self._session_filter_combo.setVisible(is_merged)
@@ -674,8 +674,22 @@ class SessionTableSection(QWidget):
             return f'{base} ({self._selected_count} {noun} selected)'
         return base
 
+    def _update_clear_button_tooltip(self) -> None:
+        if self._is_connected:
+            is_merged = TableMergeState.is_merged()
+            self._clear_button.setToolTip('Clear all players' if is_merged else 'Clear all connected players')
+        else:
+            selected_session = SessionFilterState.get_selected_session()
+            current_session_id = SessionTracker.get_current_session_id()
+            if 0 < selected_session < current_session_id:
+                display_name = SessionTracker.get_session_display_name(selected_session)
+                self._clear_button.setToolTip(f"Clear all players from session '{display_name}'")
+            else:
+                self._clear_button.setToolTip('Clear all disconnected players')
+
     def _update_header_label(self) -> None:
         self._header_label.setText(self._header_label_text())
+        self._update_clear_button_tooltip()
 
     def refresh_selection_count(self) -> None:
         """Recompute the selected-row count and update the header label."""

@@ -300,6 +300,17 @@ class PlayersRegistry:
             player.left_event.set()
         return player
 
+    @classmethod
+    def remove_players_by_session_id(cls, session_id: int) -> None:
+        """Remove all disconnected players belonging to the specified session."""
+        with cls._registry_lock:
+            disconnected_to_remove = [player for player in cls._disconnected_players_registry.values() if player.session_id == session_id]
+            for player in disconnected_to_remove:
+                cls._disconnected_players_registry.pop(player.ip, None)
+                cls._all_players_by_ip.pop(player.ip, None)
+        for player in disconnected_to_remove:
+            player.left_event.set()
+
 
 class SessionTracker:
     """Track the current session identifier and session transitions."""
@@ -494,6 +505,47 @@ class SessionTracker:
             cls._current_host_ip = host_ip
 
     @classmethod
+    def delete_session(cls, session_id: int) -> bool:
+        """Delete a past session and its associated snapshots and metadata."""
+        with cls._lock:
+            if session_id == cls._current_session_id:
+                return False
+            if session_id in cls._known_sessions:
+                cls._known_sessions.discard(session_id)
+                cls._session_names.pop(session_id, None)
+                cls._session_snapshots.pop(session_id, None)
+                cls._session_start_times.pop(session_id, None)
+                cls._session_end_times.pop(session_id, None)
+                logger.debug('[SessionTracker] Deleted session %d', session_id)
+                deleted = True
+            else:
+                deleted = False
+        if deleted:
+            PlayersRegistry.remove_players_by_session_id(session_id)
+        return deleted
+
+    @classmethod
+    def clear_session_players(cls, session_id: int) -> None:
+        """Clear the snapshot players for a past session."""
+        with cls._lock:
+            if session_id in cls._session_snapshots:
+                cls._session_snapshots[session_id].clear()
+                logger.debug('[SessionTracker] Cleared players for session %d', session_id)
+
+    @classmethod
+    def remove_session_player(cls, session_id: int, ip: str) -> bool:
+        """Remove a player by IP from a past session snapshot."""
+        with cls._lock:
+            if session_id in cls._session_snapshots:
+                initial_count = len(cls._session_snapshots[session_id])
+                cls._session_snapshots[session_id] = [player for player in cls._session_snapshots[session_id] if player.ip != ip]
+                removed = len(cls._session_snapshots[session_id]) < initial_count
+                if removed:
+                    logger.debug('[SessionTracker] Removed player %s from session %d', ip, session_id)
+                return removed
+            return False
+
+    @classmethod
     def reset(cls) -> None:
         """Reset session tracking state to the initial session."""
         with cls._lock:
@@ -504,3 +556,4 @@ class SessionTracker:
             cls._session_snapshots.clear()
             cls._session_start_times.clear()
             cls._session_end_times.clear()
+            logger.debug('[SessionTracker] Reset session tracker to initial session')

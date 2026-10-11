@@ -21,10 +21,10 @@ from session_sniffer.guis.session_pps_graph import SessionPpsGraphWindow
 from session_sniffer.guis.session_rate_graph import SessionRateGraphWindow
 from session_sniffer.guis.session_timeline import SessionTimelineWindow
 from session_sniffer.guis.utils import show_or_focus_window
-from session_sniffer.player.registry import PlayersRegistry
+from session_sniffer.player.registry import PlayersRegistry, SessionTracker
 from session_sniffer.player.session_host import SessionHost
 from session_sniffer.rdr2.suspend_manager import RDR2SuspendManager
-from session_sniffer.rendering_core.types import CaptureStats
+from session_sniffer.rendering_core.types import CaptureStats, GUIRenderingState, SessionFilterState
 from session_sniffer.settings import Settings
 
 if TYPE_CHECKING:
@@ -64,6 +64,7 @@ class StatsMixin(QMainWindow):
     _capture_statistics_window: CaptureStatisticsWindow | None
 
     def _sync_game_process_button(self) -> None: ...  # Provided by GameMixin
+    def _update_sessions_menu(self) -> None: ...  # Provided by GameMixin
 
     def recalculate_capture_stats(self) -> None:
         """Recalculate capture statistics from currently remaining players in registry."""
@@ -311,8 +312,23 @@ class StatsMixin(QMainWindow):
 
         self.recalculate_capture_stats()
 
+    def _refresh_session_gui_state(self) -> None:
+        """Wake rendering and synchronize session filter and menus."""
+        SessionFilterState.bump_version()
+        GUIRenderingState.wake()
+        self._update_sessions_menu()
+        self._disconnected.sync_session_filter()
+
     def remove_player_from_disconnected(self, ip: str) -> None:
         """Remove a single player from disconnected table and registry by IP address."""
+        selected_session = SessionFilterState.get_selected_session()
+        current_session_id = SessionTracker.get_current_session_id()
+        if 0 < selected_session < current_session_id:
+            if SessionTracker.remove_session_player(selected_session, ip):
+                self._disconnected.table_model.remove_player_by_ip(ip)
+                self._refresh_session_gui_state()
+            return
+
         removed_player: Player | None = PlayersRegistry.remove_disconnected_player(ip)
         if removed_player is None:
             return

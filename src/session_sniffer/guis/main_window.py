@@ -848,7 +848,16 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
             self.recalculate_capture_stats()
 
     def _clear_disconnected_players(self) -> None:
-        """Clear all disconnected players from the table and registry."""
+        """Clear all disconnected players from the table and registry (or active past session)."""
+        selected_session = SessionFilterState.get_selected_session()
+        current_session_id = SessionTracker.get_current_session_id()
+        if 0 < selected_session < current_session_id:
+            self._state.min_accepted_snapshot_version = GUIRenderingState.get_version() + 1
+            SessionTracker.clear_session_players(selected_session)
+            self._disconnected.clear_table()
+            self._refresh_session_gui_state()
+            return
+
         self._state.min_accepted_snapshot_version = GUIRenderingState.get_version() + 1
         disconnected_players = PlayersRegistry.get_default_sorted_players(include_connected=False, include_disconnected=True)
         disconnected_ips = {player.ip for player in disconnected_players}
