@@ -426,7 +426,7 @@ def userip_add_username(parent: QWidget, ip_address: str, player: Player) -> Non
         parent,
         [ip_address],
         db_path,
-        candidate_usernames=candidates or None,
+        candidate_usernames=candidates,
         prompt_message=prompt_message,
     )
 
@@ -855,7 +855,7 @@ def _rewrite_database_removing_usernames(
     selected: list[str],
 ) -> None:
     """Rewrite a UserIP database file, removing only the specified (username, ip) entries."""
-    usernames_to_remove = set(selected)
+    usernames_to_remove_cf = {name.casefold() for name in selected}
 
     content = db_path.read_text('utf-8')
 
@@ -884,7 +884,7 @@ def _rewrite_database_removing_usernames(
             continue
 
         line_usernames = split_usernames(username_raw)
-        remaining_usernames = [name for name in line_usernames if name not in usernames_to_remove]
+        remaining_usernames = [name for name in line_usernames if name.casefold() not in usernames_to_remove_cf]
         removed_from_line = len(line_usernames) - len(remaining_usernames)
         if removed_from_line <= 0:
             new_lines.append(raw_line)
