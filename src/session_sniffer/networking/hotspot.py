@@ -27,13 +27,21 @@ MIN_PASSPHRASE_LENGTH: Final[int] = 8
 MAX_PASSPHRASE_LENGTH: Final[int] = 63
 
 _WINRT_HOTSPOT_INFO_SCRIPT: Final[str] = """
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 [Windows.System.UserProfile.LockScreen, Windows.System.UserProfile, ContentType = WindowsRuntime] | Out-Null
 Add-Type -AssemblyName System.Runtime.WindowsRuntime
 
 $netConn = [Windows.Networking.Connectivity.NetworkInformation, Windows.Networking.Connectivity, ContentType = WindowsRuntime]
 $profile = $netConn::GetInternetConnectionProfile()
 $tetheringType = [Windows.Networking.NetworkOperators.NetworkOperatorTetheringManager, Windows.Networking.NetworkOperators, ContentType = WindowsRuntime]
-$mgr = $tetheringType::CreateFromConnectionProfile($profile)
+$mgr = $null
+if ($profile) {
+    try {
+        $mgr = $tetheringType::CreateFromConnectionProfile($profile)
+    } catch {
+        $mgr = $null
+    }
+}
 
 if ($mgr) {
     $config = $mgr.GetCurrentAccessPointConfiguration()
@@ -72,6 +80,7 @@ if ($mgr) {
 _WINRT_CONFIGURE_HOTSPOT_SCRIPT: Final[str] = """
 param([string]$NewSsid, [string]$NewPassphrase)
 
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 [Windows.System.UserProfile.LockScreen, Windows.System.UserProfile, ContentType = WindowsRuntime] | Out-Null
 Add-Type -AssemblyName System.Runtime.WindowsRuntime
 
@@ -88,7 +97,14 @@ function Await-Action($action) {
 $netConn = [Windows.Networking.Connectivity.NetworkInformation, Windows.Networking.Connectivity, ContentType = WindowsRuntime]
 $profile = $netConn::GetInternetConnectionProfile()
 $tetheringType = [Windows.Networking.NetworkOperators.NetworkOperatorTetheringManager, Windows.Networking.NetworkOperators, ContentType = WindowsRuntime]
-$mgr = $tetheringType::CreateFromConnectionProfile($profile)
+$mgr = $null
+if ($profile) {
+    try {
+        $mgr = $tetheringType::CreateFromConnectionProfile($profile)
+    } catch {
+        $mgr = $null
+    }
+}
 
 if ($mgr) {
     $config = $mgr.GetCurrentAccessPointConfiguration()
@@ -103,6 +119,7 @@ if ($mgr) {
 """
 
 _WINRT_START_HOTSPOT_SCRIPT: Final[str] = """
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 [Windows.System.UserProfile.LockScreen, Windows.System.UserProfile, ContentType = WindowsRuntime] | Out-Null
 Add-Type -AssemblyName System.Runtime.WindowsRuntime
 
@@ -121,7 +138,14 @@ function Await-Op($op, $resultType) {
 $netConn = [Windows.Networking.Connectivity.NetworkInformation, Windows.Networking.Connectivity, ContentType = WindowsRuntime]
 $profile = $netConn::GetInternetConnectionProfile()
 $tetheringType = [Windows.Networking.NetworkOperators.NetworkOperatorTetheringManager, Windows.Networking.NetworkOperators, ContentType = WindowsRuntime]
-$mgr = $tetheringType::CreateFromConnectionProfile($profile)
+$mgr = $null
+if ($profile) {
+    try {
+        $mgr = $tetheringType::CreateFromConnectionProfile($profile)
+    } catch {
+        $mgr = $null
+    }
+}
 
 if ($mgr) {
     $op = $mgr.StartTetheringAsync()
@@ -139,6 +163,7 @@ if ($mgr) {
 """
 
 _WINRT_STOP_HOTSPOT_SCRIPT: Final[str] = """
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 [Windows.System.UserProfile.LockScreen, Windows.System.UserProfile, ContentType = WindowsRuntime] | Out-Null
 Add-Type -AssemblyName System.Runtime.WindowsRuntime
 
@@ -157,7 +182,14 @@ function Await-Op($op, $resultType) {
 $netConn = [Windows.Networking.Connectivity.NetworkInformation, Windows.Networking.Connectivity, ContentType = WindowsRuntime]
 $profile = $netConn::GetInternetConnectionProfile()
 $tetheringType = [Windows.Networking.NetworkOperators.NetworkOperatorTetheringManager, Windows.Networking.NetworkOperators, ContentType = WindowsRuntime]
-$mgr = $tetheringType::CreateFromConnectionProfile($profile)
+$mgr = $null
+if ($profile) {
+    try {
+        $mgr = $tetheringType::CreateFromConnectionProfile($profile)
+    } catch {
+        $mgr = $null
+    }
+}
 
 if ($mgr) {
     $op = $mgr.StopTetheringAsync()
@@ -176,6 +208,7 @@ if ($mgr) {
 _ICS_ENABLE_SCRIPT: Final[str] = """
 param([string]$PublicAdapterName, [string]$PrivateAdapterName)
 
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 try {
     $service = Get-Service -Name SharedAccess -ErrorAction SilentlyContinue
     if ($service -and $service.Status -ne 'Running') {
@@ -231,6 +264,7 @@ try {
 """
 
 _ICS_DISABLE_SCRIPT: Final[str] = """
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 try {
     $manager = New-Object -ComObject HNetCfg.HNetShare
     $connections = $manager.EnumEveryConnection
@@ -280,6 +314,19 @@ def is_admin() -> bool:
     return False
 
 
+def _decode_stream(raw_bytes: bytes) -> str:
+    """Decode raw bytes from a PowerShell subprocess stream to string safely."""
+    if not raw_bytes:
+        return ''
+    try:
+        return raw_bytes.decode('utf-8')
+    except UnicodeDecodeError:
+        try:
+            return raw_bytes.decode('oem', errors='replace')
+        except LookupError:
+            return raw_bytes.decode('utf-8', errors='replace')
+
+
 def _run_powershell_script(script_text: str, *arguments: str) -> dict[str, object]:
     """Execute a PowerShell command string safely and return decoded JSON output."""
     if sys.platform != 'win32':
@@ -292,8 +339,8 @@ def _run_powershell_script(script_text: str, *arguments: str) -> dict[str, objec
     creation_flags = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
     try:
         with (
-            tempfile.TemporaryFile(mode='w+', encoding='utf-8') as stdout_file,
-            tempfile.TemporaryFile(mode='w+', encoding='utf-8') as stderr_file,
+            tempfile.TemporaryFile(mode='w+b') as stdout_file,
+            tempfile.TemporaryFile(mode='w+b') as stderr_file,
         ):
             subprocess.run(
                 command_args,
@@ -305,8 +352,8 @@ def _run_powershell_script(script_text: str, *arguments: str) -> dict[str, objec
             )
             stdout_file.seek(0)
             stderr_file.seek(0)
-            stdout_text = stdout_file.read().strip()
-            stderr_text = stderr_file.read().strip()
+            stdout_text = _decode_stream(stdout_file.read()).strip()
+            stderr_text = _decode_stream(stderr_file.read()).strip()
     except (subprocess.TimeoutExpired, OSError) as e:
         logger.warning('PowerShell script execution failed: %s', e)
         return {'Success': False, 'Error': str(e)}
