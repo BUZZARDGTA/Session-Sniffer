@@ -167,7 +167,7 @@ class UserIPDatabasesManager(
         self._next_index = 1
         self._disk_snapshot: str = ''
         self._saving = False
-        self._looky_icon = QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'eye.svg'))
+        self._looky_icon = QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'eye_show.svg'))
 
         root_layout = QVBoxLayout(self)
 

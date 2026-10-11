@@ -307,7 +307,7 @@ class EntriesContextMenuMixin(QDialog):
 
             # Looky System refresh (only for single IPs in GTA5 feature set)
             if Settings.is_gta5_feature_set() and is_single_ip:
-                refresh_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'eye.svg')), 'Add Username (Looky System)', self)
+                refresh_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'eye_show.svg')), 'Add Username (Looky System)', self)
                 refresh_action.triggered.connect(
                     lambda _checked=False, database_path=self._current_path, target_ip=ip_or_range: looky_refresh_userip_entries(self, [(database_path, [target_ip])]),
                 )
@@ -492,7 +492,7 @@ class EntriesContextMenuMixin(QDialog):
             _db_refresh = Path(db_path_str)
             _ip_refresh = ip_or_range
             menu.addSeparator()
-            refresh_gs_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'eye.svg')), 'Add Username (Looky System)', self)
+            refresh_gs_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'eye_show.svg')), 'Add Username (Looky System)', self)
             refresh_gs_action.triggered.connect(
                 lambda _checked=False, database_path=_db_refresh, target_ip=_ip_refresh: looky_refresh_userip_entries(self, [(database_path, [target_ip])]),
             )
