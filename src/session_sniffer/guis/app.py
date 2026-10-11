@@ -135,9 +135,9 @@ _configure_platform_qt_environment()
 app = QApplication([])  # Passing an empty list for application arguments
 app.setPalette(get_dark_palette())
 
-_icon_path = RESOURCES_DIR_PATH / 'icons' / ('sonar.ico' if sys.platform == 'win32' else 'sonar.svg')
+_icon_path = (RESOURCES_DIR_PATH / 'icons' / 'ico' / 'app_icon.ico') if sys.platform == 'win32' else (RESOURCES_DIR_PATH / 'icons' / 'app_icon.svg')
 if not _icon_path.is_file():
-    _icon_path = RESOURCES_DIR_PATH / 'icons' / 'sonar.svg'
+    _icon_path = RESOURCES_DIR_PATH / 'icons' / 'app_icon.svg'
 app.setWindowIcon(QIcon(str(_icon_path)))
 
 _wheel_filter = _DisableScrollValueChangeFilter(app)

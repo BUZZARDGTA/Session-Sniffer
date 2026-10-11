@@ -132,5 +132,5 @@ exe = EXE(
     codesign_identity=None,
     entitlements_file=None,
     onefile=True,
-    icon='../../resources/icons/sonar.ico' if sys.platform == 'win32' else None,
+    icon='../../resources/icons/ico/app_icon.ico' if sys.platform == 'win32' else None,
 )

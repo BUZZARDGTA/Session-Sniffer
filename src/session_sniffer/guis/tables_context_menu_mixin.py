@@ -447,7 +447,7 @@ class TableContextMenuMixin(QTableView):
                 parent_menu,
                 'Looky System',
                 'Looky System tools and shortcuts.',
-                icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'looky_system' / 'scan_eye.svg')),
+                icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'scan_eye.svg')),
             )
 
             def _open_looky_website() -> None:
@@ -539,7 +539,7 @@ class TableContextMenuMixin(QTableView):
                         'Call Crawler',
                         tooltip='Call the crawler bot to resolve usernames for players in the session associated with this IP.',
                         handler=lambda: show_crawler_request(self, players[0]),
-                        icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'looky_system' / 'bot.svg')),
+                        icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'bot.svg')),
                     )
                     _apply_looky_gating(crawler_action)
 
@@ -548,7 +548,7 @@ class TableContextMenuMixin(QTableView):
                         'Proxy Join',
                         tooltip="Call the Looky System proxy bot to join this player's session.",
                         handler=lambda: show_proxy_join_request(self, players[0]),
-                        icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'looky_system' / 'user_plus.svg')),
+                        icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'user_plus.svg')),
                     )
                     _apply_looky_gating(proxy_join_action)
                 return

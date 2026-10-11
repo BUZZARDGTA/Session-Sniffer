@@ -3,6 +3,6 @@ Type=Application
 Name=Session Sniffer
 Comment=A packet sniffer for Peer-To-Peer network sessions
 Exec=Session_Sniffer
-Icon=sonar
+Icon=app_icon
 Terminal=false
 Categories=Network;Monitor;Security;

@@ -40,7 +40,7 @@ class LookyMixin(QMainWindow):
 
     def _build_looky_submenu(self, gta5_menu: QMenu) -> None:
         """Build the Looky System submenu and attach it to `gta5_menu`."""
-        looky_submenu = gta5_menu.addMenu(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'looky_system' / 'scan_eye.svg')), 'Looky System')
+        looky_submenu = gta5_menu.addMenu(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'scan_eye.svg')), 'Looky System')
         if not looky_submenu:
             message = 'Failed to create Looky System submenu'
             raise RuntimeError(message)
@@ -55,7 +55,7 @@ class LookyMixin(QMainWindow):
 
         looky_submenu.addSeparator()
 
-        looky_crawler_join_own_session_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'looky_system' / 'bot.svg')), 'Request Crawler in My Session', self)
+        looky_crawler_join_own_session_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'bot.svg')), 'Request Crawler in My Session', self)
         looky_crawler_join_own_session_action.setToolTip('Call the crawler bot to resolve usernames for players in your current session.')
         looky_crawler_join_own_session_action.triggered.connect(self._request_crawler_own_session)
         looky_submenu.addAction(looky_crawler_join_own_session_action)

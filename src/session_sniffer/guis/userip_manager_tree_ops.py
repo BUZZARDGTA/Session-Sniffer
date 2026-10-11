@@ -243,7 +243,7 @@ class TreeOperationsMixin(QDialog):
                 if Settings.is_gta5_feature_set():
                     menu.addSeparator()
                     _dir_path = file_path
-                    refresh_dir_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'looky_system' / 'eye.svg')), 'Add Usernames in Folder (Looky)', self)
+                    refresh_dir_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'eye.svg')), 'Add Usernames in Folder (Looky)', self)
                     refresh_dir_action.triggered.connect(lambda: self._refresh_databases_looky(list(_dir_path.rglob('*.ini'))))
                     configure_looky_action(refresh_dir_action, 'Look up all IPs in this folder via Looky System and add any new usernames.')
                     menu.addAction(refresh_dir_action)
@@ -274,7 +274,7 @@ class TreeOperationsMixin(QDialog):
 
                 if Settings.is_gta5_feature_set() and file_path.suffix.lower() == '.ini':
                     _file_path = file_path
-                    refresh_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'looky_system' / 'eye.svg')), 'Add Usernames (Looky System)', self)
+                    refresh_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'eye.svg')), 'Add Usernames (Looky System)', self)
                     refresh_action.triggered.connect(lambda: self._refresh_databases_looky([_file_path]))
                     configure_looky_action(refresh_action, 'Look up all IPs in this database via Looky System and add any new usernames.')
                     menu.addAction(refresh_action)
@@ -305,7 +305,7 @@ class TreeOperationsMixin(QDialog):
 
             if Settings.is_gta5_feature_set():
                 menu.addSeparator()
-                refresh_all_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'looky_system' / 'eye.svg')), 'Add Usernames in All Databases (Looky)', self)
+                refresh_all_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'eye.svg')), 'Add Usernames in All Databases (Looky)', self)
                 refresh_all_action.triggered.connect(lambda: self._refresh_databases_looky(list(USERIP_DATABASES_DIR_PATH.rglob('*.ini'))))
                 configure_looky_action(refresh_all_action, 'Look up all IPs across all UserIP databases via Looky System and add any new usernames.')
                 menu.addAction(refresh_all_action)

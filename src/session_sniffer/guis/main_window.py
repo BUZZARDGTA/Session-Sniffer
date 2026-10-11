@@ -105,7 +105,7 @@ class _MinimizedTablesPlaceholder(QWidget):
         icon_label = QLabel()
         icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         icon_size = scale_by_ui(42)
-        pixmap = render_svg_pixmap_from_resource('sonar.svg', icon_size, icon_size)
+        pixmap = render_svg_pixmap_from_resource('app_icon.svg', icon_size, icon_size)
         icon_label.setPixmap(pixmap)
         layout.addWidget(icon_label)
 
