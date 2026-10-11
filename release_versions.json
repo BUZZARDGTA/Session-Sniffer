@@ -2,32 +2,35 @@
     "latest_prerelease": {
         "base_version": "1.5.0",
         "epoch": 0,
-        "release_url": "https://github.com/BUZZARDGTA/Session-Sniffer/releases/tag/v1.5.0rc.78%2B20261011.0458",
-        "download_url": "https://github.com/BUZZARDGTA/Session-Sniffer/releases/download/v1.5.0rc.78%2B20261011.0458/Session_Sniffer.exe",
-        "sha256": "63cdaa4de46eecc8d218d0c9d88ac9f06e8d69bd61ac57f80f1979bf02b13efc",
-        "file_size": 60612513,
-        "linux_download_url": "https://github.com/BUZZARDGTA/Session-Sniffer/releases/download/v1.5.0rc.78%2B20261011.0458/Session_Sniffer",
-        "linux_sha256": "f2b367fab515dad32679e4ca8d09050ff18309cd682856e79ce8759b4b2fbebf",
-        "linux_file_size": 100215128,
+        "release_url": "https://github.com/BUZZARDGTA/Session-Sniffer/releases/tag/v1.5.0rc.79%2B20261011.1524",
+        "download_url": "https://github.com/BUZZARDGTA/Session-Sniffer/releases/download/v1.5.0rc.79%2B20261011.1524/Session_Sniffer.exe",
+        "sha256": "794b3a9430597aa9a55377320c6d2a021b7ffe7d3b24c16b4b25a42597664099",
+        "file_size": 60650617,
+        "linux_download_url": "https://github.com/BUZZARDGTA/Session-Sniffer/releases/download/v1.5.0rc.79%2B20261011.1524/Session_Sniffer",
+        "linux_sha256": "b0ebcaf1d74d54447bf3ed7e1fa8da3db3d3b18c9d6c6ec1665391cb4cca1ebd",
+        "linux_file_size": 100336912,
+        "darwin_download_url": "https://github.com/BUZZARDGTA/Session-Sniffer/releases/download/v1.5.0rc.79%2B20261011.1524/Session_Sniffer_macOS",
+        "darwin_sha256": "f03d64646b7e9395aca12f685b6e75b108913f3ecf484c28bc6cc726c50b447a",
+        "darwin_file_size": 51111152,
         "is_devrelease": false,
         "is_postrelease": false,
         "is_prerelease": true,
-        "local": "20261011.458",
+        "local": "20261011.1524",
         "major": 1,
         "micro": 0,
         "minor": 5,
         "post": null,
         "pre": [
             "rc",
-            78
+            79
         ],
-        "public": "1.5.0rc78",
+        "public": "1.5.0rc79",
         "release": [
             1,
             5,
             0
         ],
-        "version": "1.5.0rc78+20261011.458"
+        "version": "1.5.0rc79+20261011.1524"
     },
     "latest_stable": {
         "base_version": "1.4.3",
