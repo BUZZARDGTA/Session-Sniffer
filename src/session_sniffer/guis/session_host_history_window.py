@@ -8,7 +8,11 @@ from PySide6.QtGui import QAction, QIcon
 
 from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.constants.standard import LOCAL_TZ
-from session_sniffer.guis.utils import load_country_flag_icon
+from session_sniffer.guis.utils import (
+    format_menu_usernames,
+    format_player_action_tooltip,
+    load_country_flag_icon,
+)
 from session_sniffer.player.registry import PlayersRegistry, SessionTracker
 from session_sniffer.player.session_host import HostHistoryEntry, SessionHost
 from session_sniffer.text_utils import format_elapsed_time
@@ -52,14 +56,17 @@ def populate_host_history_submenu(
     now = datetime.now(tz=LOCAL_TZ)
     for entry in reversed(history):
         matched_player = PlayersRegistry.get_player_by_ip(entry.ip)
-        usernames = ', '.join(matched_player.usernames) if matched_player is not None and matched_player.usernames else '—'
+        usernames = matched_player.usernames if matched_player is not None and matched_player.usernames else ()
+        formatted_usernames = format_menu_usernames(usernames, placeholder='—')
         elapsed_time_string = format_elapsed_time(now - entry.detected_at)
         session_prefix = ''
         if entry.session_id is not None:
             session_prefix = f'[{SessionTracker.get_session_display_name(entry.session_id)}] '
-        action_label = f'{session_prefix}{entry.ip}  |  {usernames}  |  {entry.detected_at.strftime("%H:%M:%S")} ({elapsed_time_string} ago)'
+        action_label = f'{session_prefix}{entry.ip}  |  {formatted_usernames}  |  {entry.detected_at.strftime("%H:%M:%S")} ({elapsed_time_string} ago)'
         action = QAction(action_label, menu)
-        action.setToolTip('Select this player in the table and open their host detection diagnostics.')
+        action.setToolTip(
+            format_player_action_tooltip('Select this player in the table and open their host detection diagnostics.', usernames),
+        )
         action.triggered.connect(_create_entry_triggered_handler(entry))
         flag_icon = load_country_flag_icon(entry.country_code)
         if flag_icon is not None:

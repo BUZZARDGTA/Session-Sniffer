@@ -27,7 +27,12 @@ from session_sniffer.guis.session_host_history_window import (
 )
 from session_sniffer.guis.stylesheets import GTA5_STATUS_LABEL_STYLESHEET
 from session_sniffer.guis.tables_player_actions import prompt_rename_session
-from session_sniffer.guis.utils import format_duration, load_country_flag_icon
+from session_sniffer.guis.utils import (
+    format_duration,
+    format_menu_usernames,
+    format_player_action_tooltip,
+    load_country_flag_icon,
+)
 from session_sniffer.player.registry import PlayersRegistry, SessionTracker
 from session_sniffer.player.session_host import SessionHost
 from session_sniffer.rdr2.suspend_manager import RDR2SuspendManager
@@ -623,8 +628,9 @@ Process is currently suspended',
 
                 if current_session_host is not None and not current_session_host.left_event.is_set():
                     matched_player = PlayersRegistry.get_player_by_ip(current_session_host.ip)
-                    usernames = ', '.join(matched_player.usernames) if matched_player is not None and matched_player.usernames else ''
-                    host_text = f'Host: Detected: {current_session_host.ip}' + (f'  |  {usernames}' if usernames else '')
+                    usernames = matched_player.usernames if matched_player is not None and matched_player.usernames else ()
+                    formatted_usernames = format_menu_usernames(usernames)
+                    host_text = f'Host: Detected: {current_session_host.ip}' + (f'  |  {formatted_usernames}' if formatted_usernames else '')
                     country_code = (
                         current_session_host.iplookup.geolite2.country_code
                         if current_session_host.iplookup.geolite2.country_code not in {'...', 'N/A'}
@@ -632,16 +638,19 @@ Process is currently suspended',
                     )
                     flag_icon = load_country_flag_icon(country_code) or QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'crown.svg'))
                     host_action = QAction(flag_icon, host_text, session_menu)
-                    host_action.setToolTip('Select this host player in the table and open host diagnostics')
+                    host_action.setToolTip(format_player_action_tooltip('Select this host player in the table and open host diagnostics', usernames))
                     host_action.triggered.connect(partial(self._select_and_show_current_host_diagnostics, current_session_host.ip))
                     session_menu.addAction(host_action)
                 elif last_host is not None:
                     matched_player = PlayersRegistry.get_player_by_ip(last_host.ip)
-                    usernames = ', '.join(matched_player.usernames) if matched_player is not None and matched_player.usernames else ''
-                    host_text = f'Host: Detected: {last_host.ip}' + (f'  |  {usernames}' if usernames else '') + ' (Left)'
+                    usernames = matched_player.usernames if matched_player is not None and matched_player.usernames else ()
+                    formatted_usernames = format_menu_usernames(usernames)
+                    host_text = f'Host: Detected: {last_host.ip}' + (f'  |  {formatted_usernames}' if formatted_usernames else '') + ' (Left)'
                     flag_icon = load_country_flag_icon(last_host.country_code) or QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'crown.svg'))
                     host_action = QAction(flag_icon, host_text, session_menu)
-                    host_action.setToolTip('Select this host player in the table and open host diagnostics (Host has left the session)')
+                    host_action.setToolTip(
+                        format_player_action_tooltip('Select this host player in the table and open host diagnostics (Host has left the session)', usernames),
+                    )
                     host_action.triggered.connect(self._create_past_host_action_handler(last_host))
                     session_menu.addAction(host_action)
                     if SessionHost.search_player:
@@ -665,11 +674,12 @@ Process is currently suspended',
                 if session_history:
                     last_host = session_history[-1]
                     matched_player = PlayersRegistry.get_player_by_ip(last_host.ip)
-                    usernames = ', '.join(matched_player.usernames) if matched_player is not None and matched_player.usernames else ''
-                    host_label = f'Host: {last_host.ip}' + (f'  |  {usernames}' if usernames else '')
+                    usernames = matched_player.usernames if matched_player is not None and matched_player.usernames else ()
+                    formatted_usernames = format_menu_usernames(usernames)
+                    host_label = f'Host: {last_host.ip}' + (f'  |  {formatted_usernames}' if formatted_usernames else '')
                     flag_icon = load_country_flag_icon(last_host.country_code) or QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'crown.svg'))
                     host_action = QAction(flag_icon, host_label, session_menu)
-                    host_action.setToolTip('Select this host player in the table and open host diagnostics')
+                    host_action.setToolTip(format_player_action_tooltip('Select this host player in the table and open host diagnostics', usernames))
                     host_action.triggered.connect(self._create_past_host_action_handler(last_host))
                     session_menu.addAction(host_action)
 

@@ -47,12 +47,13 @@ from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.guis.delegates import ElidedTextTooltipDelegate
 from session_sniffer.rendering_core.country_flags import get_country_flag
 from session_sniffer.settings.settings import Settings
+from session_sniffer.text_utils import pluralize
 
 from .app import app
 from .exceptions import PrimaryScreenNotFoundError, UnsupportedScreenResolutionError
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Generator
+    from collections.abc import Callable, Generator, Sequence
 
     from PySide6.QtGui import QMouseEvent
 
@@ -150,6 +151,23 @@ def format_player_display(ip: str, usernames: list[str]) -> str:
         names = ', '.join(usernames)
         return f'{names} ({ip})'
     return ip
+
+
+def format_menu_usernames(usernames: Sequence[str] | None, *, max_display: int = 3, placeholder: str = '') -> str:
+    """Format a sequence of usernames for concise display in a menu item, eliding excess names."""
+    if usernames is None or not usernames:
+        return placeholder
+    if len(usernames) <= max_display:
+        return ', '.join(usernames)
+    remaining_count = len(usernames) - max_display
+    return f'{", ".join(usernames[:max_display])} (+{remaining_count} other{pluralize(remaining_count)})'
+
+
+def format_player_action_tooltip(base_tooltip: str, usernames: Sequence[str] | None) -> str:
+    """Return *base_tooltip* augmented with the full list of usernames if present."""
+    if usernames is None or not usernames:
+        return base_tooltip
+    return f'{base_tooltip}\n\nUsername{pluralize(len(usernames))}: {", ".join(usernames)}'
 
 
 def create_section_separator(title: str) -> QWidget:
