@@ -126,7 +126,7 @@ class TreeOperationsMixin(QDialog):
         path = Path(file_path_str)
         if path.parent == USERIP_DATABASES_DIR_PATH and path.name in DEFAULT_USERIP_FILES_SETTINGS_INI:
             self._delete_tree_button.setEnabled(True)
-            self._delete_tree_button.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'refresh.svg')))
+            self._delete_tree_button.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'refresh-cw.svg')))
             self._delete_tree_button.setText(' Reset')
             self._delete_tree_button.setToolTip('Reset this default database to factory content')
             self._delete_tree_button.clicked.disconnect()
@@ -232,7 +232,7 @@ class TreeOperationsMixin(QDialog):
             file_path = Path(self._fs_model.filePath(index))
 
             if file_path.is_dir():
-                new_db_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'new_file.svg')), 'New Database Here', self)
+                new_db_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'file-plus.svg')), 'New Database Here', self)
                 new_db_action.triggered.connect(lambda: self._new_database(parent_dir=file_path))
                 menu.addAction(new_db_action)
 
@@ -243,18 +243,18 @@ class TreeOperationsMixin(QDialog):
                 if Settings.is_gta5_feature_set():
                     menu.addSeparator()
                     _dir_path = file_path
-                    refresh_dir_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'eye_show.svg')), 'Add Usernames in Folder (Looky)', self)
+                    refresh_dir_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'eye.svg')), 'Add Usernames in Folder (Looky)', self)
                     refresh_dir_action.triggered.connect(lambda: self._refresh_databases_looky(list(_dir_path.rglob('*.ini'))))
                     configure_looky_action(refresh_dir_action, 'Look up all IPs in this folder via Looky System and add any new usernames.')
                     menu.addAction(refresh_dir_action)
 
                 menu.addSeparator()
 
-            move_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'move_box.svg')), 'Move to...', self)
+            move_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'box.svg')), 'Move to...', self)
             move_action.triggered.connect(lambda: self._move_tree_item(file_path))
             menu.addAction(move_action)
 
-            rename_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'edit.svg')), 'Rename', self)
+            rename_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square-pen.svg')), 'Rename', self)
             rename_action.triggered.connect(lambda: self._rename_tree_item(file_path))
             menu.addAction(rename_action)
 
@@ -266,7 +266,7 @@ class TreeOperationsMixin(QDialog):
             menu.addAction(open_explorer_action)
 
             if file_path.is_file():
-                open_editor_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'text_editor.svg')), 'Open in Text Editor', self)
+                open_editor_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'file-text.svg')), 'Open in Text Editor', self)
                 open_editor_action.triggered.connect(lambda: QDesktopServices.openUrl(QUrl.fromLocalFile(str(file_path))))
                 menu.addAction(open_editor_action)
 
@@ -274,20 +274,20 @@ class TreeOperationsMixin(QDialog):
 
                 if Settings.is_gta5_feature_set() and file_path.suffix.lower() == '.ini':
                     _file_path = file_path
-                    refresh_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'eye_show.svg')), 'Add Usernames (Looky System)', self)
+                    refresh_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'eye.svg')), 'Add Usernames (Looky System)', self)
                     refresh_action.triggered.connect(lambda: self._refresh_databases_looky([_file_path]))
                     configure_looky_action(refresh_action, 'Look up all IPs in this database via Looky System and add any new usernames.')
                     menu.addAction(refresh_action)
                     menu.addSeparator()
 
-                export_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'export.svg')), 'Export Database…', self)
+                export_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'upload.svg')), 'Export Database…', self)
                 export_action.triggered.connect(lambda: self._export_database_file(file_path))
                 menu.addAction(export_action)
 
             menu.addSeparator()
 
             if file_path.parent == USERIP_DATABASES_DIR_PATH and file_path.name in DEFAULT_USERIP_FILES_SETTINGS_INI:
-                reset_default_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'refresh.svg')), 'Reset', self)
+                reset_default_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'refresh-cw.svg')), 'Reset', self)
                 reset_default_action.triggered.connect(lambda: self._reset_default_database(file_path))
                 menu.addAction(reset_default_action)
             else:
@@ -295,7 +295,7 @@ class TreeOperationsMixin(QDialog):
                 delete_action.triggered.connect(lambda: self._delete_path(file_path))
                 menu.addAction(delete_action)
         else:
-            new_db_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'new_file.svg')), 'New Database', self)
+            new_db_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'file-plus.svg')), 'New Database', self)
             new_db_action.triggered.connect(self._new_database)
             menu.addAction(new_db_action)
 
@@ -305,7 +305,7 @@ class TreeOperationsMixin(QDialog):
 
             if Settings.is_gta5_feature_set():
                 menu.addSeparator()
-                refresh_all_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'eye_show.svg')), 'Add Usernames in All Databases (Looky)', self)
+                refresh_all_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'eye.svg')), 'Add Usernames in All Databases (Looky)', self)
                 refresh_all_action.triggered.connect(lambda: self._refresh_databases_looky(list(USERIP_DATABASES_DIR_PATH.rglob('*.ini'))))
                 configure_looky_action(refresh_all_action, 'Look up all IPs across all UserIP databases via Looky System and add any new usernames.')
                 menu.addAction(refresh_all_action)
@@ -318,7 +318,7 @@ class TreeOperationsMixin(QDialog):
 
             menu.addSeparator()
 
-            backup_now_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'export.svg')), 'Backup Databases Now', self)
+            backup_now_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'upload.svg')), 'Backup Databases Now', self)
             backup_now_action.triggered.connect(self._backup_databases_now)
             menu.addAction(backup_now_action)
 

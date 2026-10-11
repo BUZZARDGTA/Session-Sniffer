@@ -756,7 +756,7 @@ class SessionHostDiagnosticsDialog(QDialog):
 
         # In-place re-detect host button
         if self._redetect_callback is not None:
-            redetect_btn = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'refresh.svg')), ' Re-detect Host')
+            redetect_btn = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'refresh-cw.svg')), ' Re-detect Host')
             redetect_btn.setStyleSheet(COMPACT_BUTTON_STYLESHEET)
             redetect_btn.clicked.connect(self._on_redetect_clicked)
             layout.addWidget(redetect_btn)

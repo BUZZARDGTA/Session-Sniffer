@@ -176,13 +176,13 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
         import_button.clicked.connect(self._import_settings)
         button_row.addWidget(import_button)
 
-        export_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'export.svg')), ' Export')
+        export_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'upload.svg')), ' Export')
         export_button.setToolTip('Export current settings to a Settings.ini file')
         export_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
         export_button.clicked.connect(self._export_settings)
         button_row.addWidget(export_button)
 
-        reset_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'reset.svg')), ' Reset all…')
+        reset_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'rotate-ccw.svg')), ' Reset all…')
         reset_button.setToolTip('Reset all settings across all tabs to their default values (review before saving)')
         reset_button.setStyleSheet(DIALOG_DANGER_BUTTON_STYLESHEET)
         save_button = setup_tab_dialog_buttons(button_row, reset_button, self._reset_to_defaults, self._reset_current_tab)
@@ -190,7 +190,7 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
         save_button.clicked.connect(self._save_settings)
         button_row.addWidget(save_button)
 
-        cancel_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'close.svg')), ' Cancel')
+        cancel_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'x.svg')), ' Cancel')
         cancel_button.setToolTip('Discard changes and close')
         cancel_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
         cancel_button.clicked.connect(self.reject)
@@ -364,7 +364,7 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
         separator.setStyleSheet('background: rgba(61, 142, 201, 0.25); border: none; max-height: 1px;')
         layout.addWidget(separator)
 
-        change_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'refresh.svg')), ' Change Interface\u2026')
+        change_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'refresh-cw.svg')), ' Change Interface\u2026')
         change_button.setToolTip('Close settings and open the network interface selection screen')
         change_button.setStyleSheet(DIALOG_PRIMARY_BUTTON_STYLESHEET)
         change_button.clicked.connect(self._open_interface_selection)

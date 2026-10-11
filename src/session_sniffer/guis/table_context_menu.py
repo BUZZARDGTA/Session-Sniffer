@@ -142,14 +142,14 @@ class TableContextMenuManager:
 
         menu.addSeparator()
 
-        select_all_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'select_all.svg')), 'Select All', menu)
+        select_all_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square-check.svg')), 'Select All', menu)
         select_all_action.setShortcut('Ctrl+A')
         select_all_action.setToolTip('Select all rows in the table.')
         select_all_action.setEnabled(self._table.rowCount() > 0)
         select_all_action.triggered.connect(self._table.selectAll)
         menu.addAction(select_all_action)
 
-        clear_selection_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'unselect_all.svg')), 'Clear Selection', menu)
+        clear_selection_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square.svg')), 'Clear Selection', menu)
         clear_selection_action.setToolTip('Deselect all currently selected rows.')
         clear_selection_action.triggered.connect(self._table.clearSelection)
         menu.addAction(clear_selection_action)
@@ -167,7 +167,7 @@ class TableContextMenuManager:
 
             create_ping_menu(self._parent, menu, selected_ip_addresses)
 
-            scan_ports_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'port_scanner.svg')), 'Scan Ports…', menu)
+            scan_ports_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'radar.svg')), 'Scan Ports…', menu)
             scan_ports_action.setToolTip('Scan TCP and UDP ports on the selected host(s).')
 
             def _scan_selected_ports() -> None:

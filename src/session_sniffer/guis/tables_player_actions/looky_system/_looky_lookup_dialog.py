@@ -160,7 +160,7 @@ class LookyLookupDialog(PlayerInfoDialogMixin):
 
                 return _proxy_join
 
-            proxy_join_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'user_plus.svg')), ' Proxy Join')
+            proxy_join_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'user-plus.svg')), ' Proxy Join')
             proxy_join_button.setCursor(Qt.CursorShape.PointingHandCursor)
             proxy_join_button.setStyleSheet(LOOKY_ACTION_BUTTON_STYLESHEET)
             proxy_join_button.setToolTip(f"Call the Looky System proxy bot to join {target_name}'s session.")

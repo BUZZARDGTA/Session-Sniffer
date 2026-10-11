@@ -390,17 +390,17 @@ class IPLookupDetailsDialog(PlayerInfoDialogMixin):
         buttons_layout.setContentsMargins(0, 6, 0, 0)
         buttons_layout.setSpacing(10)
 
-        icmp_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'ping.svg')), ' ICMP Ping')
+        icmp_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'radio-tower.svg')), ' ICMP Ping')
         icmp_button.setToolTip('Launch continuous ICMP ping diagnostics window for this IP.')
         icmp_button.clicked.connect(lambda: ping_ip(self._target.ip))
         buttons_layout.addWidget(icmp_button)
 
-        tcp_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'ping.svg')), ' TCP Port Ping…')
+        tcp_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'radio-tower.svg')), ' TCP Port Ping…')
         tcp_button.setToolTip('Launch TCP port ping diagnostics window for this IP.')
         tcp_button.clicked.connect(lambda: tcp_port_ping(self, self._target.ip))
         buttons_layout.addWidget(tcp_button)
 
-        web_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'ping.svg')), ' Web (Check-Host)…')
+        web_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'radio-tower.svg')), ' Web (Check-Host)…')
         web_button.setToolTip('Launch multi-vantage Check-Host.net ping diagnostics window for this IP.')
         web_button.clicked.connect(lambda: web_ping(self._target.ip))
         buttons_layout.addWidget(web_button)

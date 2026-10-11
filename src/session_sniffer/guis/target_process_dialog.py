@@ -69,7 +69,7 @@ class TargetProcessDialog(QDialog):
         search_layout.addWidget(search_label)
         search_layout.addWidget(self._search_input)
 
-        refresh_icon = QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'refresh.svg'))
+        refresh_icon = QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'refresh-cw.svg'))
         refresh_button = QPushButton(refresh_icon, ' Refresh')
         refresh_button.setToolTip('Refresh the list of currently running processes')
         refresh_button.clicked.connect(self._populate_process_table)

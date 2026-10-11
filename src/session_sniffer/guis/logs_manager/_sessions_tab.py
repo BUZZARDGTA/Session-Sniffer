@@ -224,7 +224,7 @@ class SessionsLogTab(QWidget):
         self._open_location_button.clicked.connect(self._open_location)
         button_row.addWidget(self._open_location_button)
 
-        self._open_file_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'text_editor.svg')), ' Open File')
+        self._open_file_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'file-text.svg')), ' Open File')
         self._open_file_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
         self._open_file_button.setToolTip('Open the selected log file in the default text editor')
         self._open_file_button.clicked.connect(self._open_file)
@@ -289,7 +289,7 @@ class SessionsLogTab(QWidget):
         menu.setStyleSheet(SVG_ICON_CONTEXT_MENU_STYLESHEET)
 
         if not is_dir:
-            open_action = menu.addAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'text_editor.svg')), 'Open File')
+            open_action = menu.addAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'file-text.svg')), 'Open File')
             if open_action:
                 open_action.triggered.connect(self._open_file)
 

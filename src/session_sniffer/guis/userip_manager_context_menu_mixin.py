@@ -109,7 +109,7 @@ class EntriesContextMenuMixin(QDialog):
             if index.isValid():
                 self._build_entry_context_menu(menu, index)
             else:
-                add_entry_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'add.svg')), 'Add Entry', self)
+                add_entry_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'plus.svg')), 'Add Entry', self)
                 add_entry_action.setToolTip('Open the IP Range Builder dialog and insert the result as a new entry.')
                 add_entry_action.triggered.connect(self._add_entry)
                 menu.addAction(add_entry_action)
@@ -181,14 +181,14 @@ class EntriesContextMenuMixin(QDialog):
 
         menu.addSeparator()
 
-        select_all_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'select_all.svg')), 'Select All', self)
+        select_all_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square-check.svg')), 'Select All', self)
         select_all_action.setShortcut('Ctrl+A')
         select_all_action.setToolTip('Select all rows in the database.')
         select_all_action.setEnabled(self._proxy.rowCount() > 0)
         select_all_action.triggered.connect(self._entries_table.selectAll)
         menu.addAction(select_all_action)
 
-        clear_selection_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'unselect_all.svg')), 'Clear Selection', self)
+        clear_selection_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square.svg')), 'Clear Selection', self)
         clear_selection_action.setToolTip('Deselect all currently selected rows.')
         clear_selection_action.triggered.connect(self._entries_table.clearSelection)
         menu.addAction(clear_selection_action)
@@ -196,7 +196,7 @@ class EntriesContextMenuMixin(QDialog):
         menu.addSeparator()
 
         if selected_count <= 1:
-            go_to_entry_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'arrow_forward.svg')), 'Go to Entry', self)
+            go_to_entry_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'arrow-right.svg')), 'Go to Entry', self)
             go_to_entry_action.setToolTip('Clear the search filter and navigate to this entry in the full database list.')
             go_to_entry_action.setEnabled(bool(self._search_input.text().strip()))
             go_to_entry_action.triggered.connect(lambda: self._go_to_entry(row))
@@ -227,35 +227,35 @@ class EntriesContextMenuMixin(QDialog):
         source_row = self._proxy.mapToSource(index).row()
 
         if source_row > 0:
-            move_up_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'menu_arrow_up.svg')), 'Move Up', self)
+            move_up_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'arrow-up.svg')), 'Move Up', self)
             move_up_action.triggered.connect(lambda: self._move_rows(index, -1))
             menu.addAction(move_up_action)
         if source_row < self._model.rowCount() - 1:
-            move_down_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'menu_arrow_down.svg')), 'Move Down', self)
+            move_down_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'arrow-down.svg')), 'Move Down', self)
             move_down_action.triggered.connect(lambda: self._move_rows(index, 1))
             menu.addAction(move_down_action)
 
         if source_row > 0 or source_row < self._model.rowCount() - 1:
             menu.addSeparator()
 
-        insert_above_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'menu_arrow_up.svg')), 'Insert Entry Above', self)
+        insert_above_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'arrow-up.svg')), 'Insert Entry Above', self)
         insert_above_action.triggered.connect(lambda: self._insert_entry_at(source_row))
         menu.addAction(insert_above_action)
 
-        insert_below_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'menu_arrow_down.svg')), 'Insert Entry Below', self)
+        insert_below_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'arrow-down.svg')), 'Insert Entry Below', self)
         insert_below_action.triggered.connect(lambda: self._insert_entry_at(source_row + 1))
         menu.addAction(insert_below_action)
 
         menu.addSeparator()
 
         rename_label = f'Rename Selected ({selected_count})' if selected_count > 1 else 'Rename'
-        rename_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'edit.svg')), rename_label, self)
+        rename_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square-pen.svg')), rename_label, self)
         rename_action.setShortcut('F2')
         rename_action.setToolTip(f'Rename the username for the selected {pluralize(selected_count, "entry", "entries")}.')
         rename_action.triggered.connect(self._rename_selected)
         menu.addAction(rename_action)
 
-        edit_ip_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'edit.svg')), 'Edit IP/Range…', self)
+        edit_ip_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square-pen.svg')), 'Edit IP/Range…', self)
         edit_ip_action.triggered.connect(lambda: self._edit_entry_ip(source_row))
         menu.addAction(edit_ip_action)
 
@@ -263,7 +263,7 @@ class EntriesContextMenuMixin(QDialog):
 
         move_db_label = f'Move Selected to Database ({selected_count})' if selected_count > 1 else 'Move to Database'
         move_db_menu = QMenu(move_db_label, menu)
-        move_db_menu.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'move_box.svg')))
+        move_db_menu.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'box.svg')))
         move_db_menu.setStyleSheet(SVG_ICON_CONTEXT_MENU_STYLESHEET)
         move_db_menu.setToolTipsVisible(True)
         all_db_paths = [ini_path for ini_path in USERIP_DATABASES_DIR_PATH.rglob('*.ini') if ini_path.is_file()]
@@ -291,7 +291,7 @@ class EntriesContextMenuMixin(QDialog):
 
             create_ping_menu(self, menu, list(selected_ips) if len(selected_ips) > 1 else [ip_or_range])
 
-            scan_ports_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'port_scanner.svg')), 'Scan Ports…', self)
+            scan_ports_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'radar.svg')), 'Scan Ports…', self)
             scan_ports_action.setToolTip('Scan TCP and UDP ports on the selected host(s).')
             scan_target = list(selected_ips) if len(selected_ips) > 1 else ip_or_range
             scan_ports_action.triggered.connect(lambda _checked=False, target=scan_target: scan_ports_ip(target))
@@ -300,14 +300,14 @@ class EntriesContextMenuMixin(QDialog):
         # Username additions (manual and Looky System)
         if ip_or_range and self._current_path is not None and selected_count <= 1:
             menu.addSeparator()
-            add_username_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'add.svg')), 'Add Username', self)
+            add_username_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'plus.svg')), 'Add Username', self)
             add_username_action.setToolTip('Add an additional username for this IP address or range in the current database.')
             add_username_action.triggered.connect(lambda: self._add_username(source_row))
             menu.addAction(add_username_action)
 
             # Looky System refresh (only for single IPs in GTA5 feature set)
             if Settings.is_gta5_feature_set() and is_single_ip:
-                refresh_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'eye_show.svg')), 'Add Username (Looky System)', self)
+                refresh_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'eye.svg')), 'Add Username (Looky System)', self)
                 refresh_action.triggered.connect(
                     lambda _checked=False, database_path=self._current_path, target_ip=ip_or_range: looky_refresh_userip_entries(self, [(database_path, [target_ip])]),
                 )
@@ -384,14 +384,14 @@ class EntriesContextMenuMixin(QDialog):
 
         menu.addSeparator()
 
-        select_all_gs_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'select_all.svg')), 'Select All', self)
+        select_all_gs_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square-check.svg')), 'Select All', self)
         select_all_gs_action.setShortcut('Ctrl+A')
         select_all_gs_action.setToolTip('Select all rows in search results.')
         select_all_gs_action.setEnabled(self._proxy.rowCount() > 0)
         select_all_gs_action.triggered.connect(self._entries_table.selectAll)
         menu.addAction(select_all_gs_action)
 
-        clear_selection_gs_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'unselect_all.svg')), 'Clear Selection', self)
+        clear_selection_gs_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square.svg')), 'Clear Selection', self)
         clear_selection_gs_action.setToolTip('Deselect all currently selected rows.')
         clear_selection_gs_action.triggered.connect(self._entries_table.clearSelection)
         menu.addAction(clear_selection_gs_action)
@@ -402,12 +402,12 @@ class EntriesContextMenuMixin(QDialog):
         if db_path_str:
             db_path = Path(db_path_str)
 
-            go_to_db_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'arrow_forward.svg')), 'Go to Database', self)
+            go_to_db_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'arrow-right.svg')), 'Go to Database', self)
             go_to_db_action.setToolTip('Open this database and navigate to this entry.')
             go_to_db_action.triggered.connect(lambda: self._navigate_to_database(db_path, username=username, ip_or_range=ip_or_range))
             menu.addAction(go_to_db_action)
 
-            open_editor_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'text_editor.svg')), 'Open in Text Editor', self)
+            open_editor_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'file-text.svg')), 'Open in Text Editor', self)
             open_editor_action.triggered.connect(lambda: QDesktopServices.openUrl(QUrl.fromLocalFile(str(db_path))))
             menu.addAction(open_editor_action)
 
@@ -418,7 +418,7 @@ class EntriesContextMenuMixin(QDialog):
         menu.addSeparator()
 
         rename_gs_label = f'Rename Selected ({selected_count_gs})' if selected_count_gs > 1 else 'Rename'
-        rename_gs_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'edit.svg')), rename_gs_label, self)
+        rename_gs_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square-pen.svg')), rename_gs_label, self)
         rename_gs_action.setShortcut('F2')
         rename_gs_action.setToolTip(f'Rename the username for the selected {pluralize(selected_count_gs, "entry", "entries")}.')
         rename_gs_action.triggered.connect(self._rename_selected)
@@ -426,7 +426,7 @@ class EntriesContextMenuMixin(QDialog):
 
         move_gs_label = f'Move Selected to Database ({selected_count_gs})' if selected_count_gs > 1 else 'Move to Database'
         move_gs_menu = QMenu(move_gs_label, menu)
-        move_gs_menu.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'move_box.svg')))
+        move_gs_menu.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'box.svg')))
         move_gs_menu.setStyleSheet(SVG_ICON_CONTEXT_MENU_STYLESHEET)
         move_gs_menu.setToolTipsVisible(True)
         all_db_paths_gs = [ini_path for ini_path in USERIP_DATABASES_DIR_PATH.rglob('*.ini') if ini_path.is_file()]
@@ -481,7 +481,7 @@ class EntriesContextMenuMixin(QDialog):
 
             create_ping_menu(self, menu, list(selected_ips_gs) if len(selected_ips_gs) > 1 else [ip_or_range])
 
-            scan_ports_gs_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'port_scanner.svg')), 'Scan Ports…', self)
+            scan_ports_gs_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'radar.svg')), 'Scan Ports…', self)
             scan_ports_gs_action.setToolTip('Scan TCP and UDP ports on the selected host(s).')
             scan_target_gs = list(selected_ips_gs) if len(selected_ips_gs) > 1 else ip_or_range
             scan_ports_gs_action.triggered.connect(lambda _checked=False, target=scan_target_gs: scan_ports_ip(target))
@@ -492,7 +492,7 @@ class EntriesContextMenuMixin(QDialog):
             _db_refresh = Path(db_path_str)
             _ip_refresh = ip_or_range
             menu.addSeparator()
-            refresh_gs_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'eye_show.svg')), 'Add Username (Looky System)', self)
+            refresh_gs_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'eye.svg')), 'Add Username (Looky System)', self)
             refresh_gs_action.triggered.connect(
                 lambda _checked=False, database_path=_db_refresh, target_ip=_ip_refresh: looky_refresh_userip_entries(self, [(database_path, [target_ip])]),
             )

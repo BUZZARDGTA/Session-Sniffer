@@ -108,7 +108,7 @@ class PlayerJoinsWindow(StatTableWindowMixin):
         self._player: Player = player
 
         self.setWindowTitle(f'{TITLE} - Player Joins ({format_player_display(self._player.ip, self._player.usernames)})')
-        self.setWindowIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'history.svg')))
+        self.setWindowIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'rotate-ccw-clock.svg')))
 
         layout = self.setup_window_layout(always_on_top=always_on_top, spacing=6)
 

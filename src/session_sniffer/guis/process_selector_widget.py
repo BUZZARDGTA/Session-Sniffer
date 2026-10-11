@@ -79,7 +79,7 @@ class ProcessSelectorWidget(QWidget):
         self._browse_button.clicked.connect(self._on_browse_clicked)
         layout.addWidget(self._browse_button)
 
-        refresh_icon = QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'refresh.svg'))
+        refresh_icon = QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'refresh-cw.svg'))
         self._refresh_button = QPushButton(refresh_icon, '', self)
         self._refresh_button.setToolTip('Refresh running processes list.')
         self._refresh_button.clicked.connect(self.refresh_process_list)

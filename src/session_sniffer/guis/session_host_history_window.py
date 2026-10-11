@@ -81,12 +81,12 @@ def setup_session_host_actions(
     """Populate common session host control actions."""
     session_host_submenu.addSeparator()
 
-    clear_host_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'close.svg')), 'Clear Session Host', session_host_submenu)
+    clear_host_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'x.svg')), 'Clear Session Host', session_host_submenu)
     clear_host_action.setToolTip('Manually clear the currently detected session host')
     clear_host_action.triggered.connect(callbacks.clear_host)
     session_host_submenu.addAction(clear_host_action)
 
-    redetect_host_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'refresh.svg')), 'Re-detect Host', session_host_submenu)
+    redetect_host_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'refresh-cw.svg')), 'Re-detect Host', session_host_submenu)
     redetect_host_action.setToolTip('Clear the current host and immediately re-trigger host detection')
     redetect_host_action.triggered.connect(callbacks.redetect_host)
     session_host_submenu.addAction(redetect_host_action)

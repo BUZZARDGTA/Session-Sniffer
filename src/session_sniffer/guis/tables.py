@@ -86,7 +86,7 @@ class SessionTableView(TableHeaderMenuMixin, TableContextMenuMixin, QTableView):
         self._is_programmatic_resizing: bool = False
         self._has_auto_sized_with_data: bool = False
         self._recalculation_payloads_remaining: int = 0
-        empty_icon_filename = 'empty_connected_players.svg' if is_connected_table else 'empty_disconnected_players.svg'
+        empty_icon_filename = 'user-round-check.svg' if is_connected_table else 'user-round-x.svg'
         self._empty_icon_renderer = QSvgRenderer((RESOURCES_DIR_PATH / 'icons' / empty_icon_filename).as_posix())
 
         self.setModel(model)

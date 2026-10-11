@@ -262,7 +262,7 @@ class FilesMixin(QMainWindow):
 
         data_menu.addSeparator()
 
-        app_logs_submenu = data_menu.addMenu(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'text_editor.svg')), 'Application Logs')
+        app_logs_submenu = data_menu.addMenu(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'file-text.svg')), 'Application Logs')
         if not app_logs_submenu:
             message = 'Failed to create Application Logs submenu'
             raise RuntimeError(message)
@@ -281,17 +281,17 @@ class FilesMixin(QMainWindow):
 
         app_logs_submenu.addSeparator()
 
-        open_detection_log_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'text_editor.svg')), 'Detection_Logging.csv', self)
+        open_detection_log_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'file-text.svg')), 'Detection_Logging.csv', self)
         open_detection_log_action.setToolTip('Open Local AppData\\Session Sniffer\\Logging\\Detection_Logging.csv')
         open_detection_log_action.triggered.connect(self._open_detection_log_file)
         app_logs_submenu.addAction(open_detection_log_action)
 
-        open_protection_log_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'text_editor.svg')), 'Protection_Logging.csv', self)
+        open_protection_log_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'file-text.svg')), 'Protection_Logging.csv', self)
         open_protection_log_action.setToolTip('Open Local AppData\\Session Sniffer\\Logging\\Protection_Logging.csv')
         open_protection_log_action.triggered.connect(self._open_protection_log_file)
         app_logs_submenu.addAction(open_protection_log_action)
 
-        open_userip_log_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'text_editor.svg')), 'UserIP_Logging.csv', self)
+        open_userip_log_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'file-text.svg')), 'UserIP_Logging.csv', self)
         open_userip_log_action.setToolTip('Open Local AppData\\Session Sniffer\\Logging\\UserIP_Logging.csv')
         open_userip_log_action.triggered.connect(self._open_userip_log_file)
         app_logs_submenu.addAction(open_userip_log_action)
@@ -310,19 +310,19 @@ class FilesMixin(QMainWindow):
 
         debug_logs_submenu.addSeparator()
 
-        open_debug_log_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'text_editor.svg')), 'debug.log', self)
+        open_debug_log_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'file-text.svg')), 'debug.log', self)
         open_debug_log_action.setToolTip('Open Local AppData\\Session Sniffer\\Debug\\debug.log')
         open_debug_log_action.triggered.connect(self._open_debug_log_file)
         debug_logs_submenu.addAction(open_debug_log_action)
 
-        open_crash_log_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'text_editor.svg')), 'crash.log', self)
+        open_crash_log_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'file-text.svg')), 'crash.log', self)
         open_crash_log_action.setToolTip('Open Local AppData\\Session Sniffer\\Debug\\crash.log')
         open_crash_log_action.triggered.connect(self._open_crash_log_file)
         debug_logs_submenu.addAction(open_crash_log_action)
 
         data_menu.addSeparator()
 
-        open_settings_ini_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'file_settings.svg')), 'Open Settings.ini', self)
+        open_settings_ini_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'file-cog.svg')), 'Open Settings.ini', self)
         open_settings_ini_action.setToolTip('Open Roaming AppData\\Session Sniffer\\Settings.ini')
         open_settings_ini_action.triggered.connect(self._open_settings_file)
         data_menu.addAction(open_settings_ini_action)
@@ -423,7 +423,7 @@ class FilesMixin(QMainWindow):
         repo_action.triggered.connect(self._open_project_repo)
         help_menu.addAction(repo_action)
 
-        docs_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'book.svg')), 'Documentation', self)
+        docs_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'book-text.svg')), 'Documentation', self)
         docs_action.setToolTip('View the complete documentation and user guide for Session Sniffer')
         docs_action.triggered.connect(self._open_documentation)
         help_menu.addAction(docs_action)
@@ -433,12 +433,12 @@ class FilesMixin(QMainWindow):
         tips_action.triggered.connect(self._open_tips_and_tricks)
         help_menu.addAction(tips_action)
 
-        release_notes_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'history.svg')), 'Release Notes', self)
+        release_notes_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'rotate-ccw-clock.svg')), 'Release Notes', self)
         release_notes_action.setToolTip('View the release history and notes on GitHub')
         release_notes_action.triggered.connect(self._open_release_notes)
         help_menu.addAction(release_notes_action)
 
-        license_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'balance.svg')), 'View License', self)
+        license_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'scale.svg')), 'View License', self)
         license_action.setToolTip('View the GNU General Public License (GPLv3) for Session Sniffer')
         license_action.triggered.connect(self._view_license)
         help_menu.addAction(license_action)
@@ -457,7 +457,7 @@ class FilesMixin(QMainWindow):
 
         help_menu.addSeparator()
 
-        check_updates_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'cloud_download.svg')), 'Check for Updates', self)
+        check_updates_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'cloud-download.svg')), 'Check for Updates', self)
         check_updates_action.setToolTip('Check GitHub for a newer version of Session Sniffer')
         check_updates_action.triggered.connect(self._check_for_updates)
         help_menu.addAction(check_updates_action)

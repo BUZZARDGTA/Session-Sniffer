@@ -2,10 +2,10 @@
 
 from session_sniffer.constants.local import RESOURCES_DIR_PATH
 
-_CHEVRON_RIGHT_PATH = (RESOURCES_DIR_PATH / 'icons' / 'chevron_right.svg').as_posix()
-_CHEVRON_RIGHT_DISABLED_PATH = (RESOURCES_DIR_PATH / 'icons' / 'chevron_right_disabled.svg').as_posix()
-_CHECKBOX_CHECKED_PATH = (RESOURCES_DIR_PATH / 'icons' / 'select_all.svg').as_posix()
-_CHECKBOX_UNCHECKED_PATH = (RESOURCES_DIR_PATH / 'icons' / 'unselect_all.svg').as_posix()
+_CHEVRON_RIGHT_PATH = (RESOURCES_DIR_PATH / 'icons' / 'chevron-right.svg').as_posix()
+_CHEVRON_RIGHT_DISABLED_PATH = (RESOURCES_DIR_PATH / 'icons' / 'chevron-right-disabled.svg').as_posix()
+_CHECKBOX_CHECKED_PATH = (RESOURCES_DIR_PATH / 'icons' / 'square-check.svg').as_posix()
+_CHECKBOX_UNCHECKED_PATH = (RESOURCES_DIR_PATH / 'icons' / 'square.svg').as_posix()
 
 # =============================================================================
 # CONTEXT MENU STYLES

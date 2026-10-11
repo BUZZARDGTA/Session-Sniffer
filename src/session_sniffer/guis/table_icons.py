@@ -9,7 +9,7 @@ from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.settings import Settings
 
 CROWN_ICON_PATH = str(RESOURCES_DIR_PATH / 'icons' / 'crown.svg')
-SPEEDOMETER_ICON_PATH = str(RESOURCES_DIR_PATH / 'icons' / 'speedometer.svg')
+SPEEDOMETER_ICON_PATH = str(RESOURCES_DIR_PATH / 'icons' / 'gauge.svg')
 TARGET_ICON_PATH = str(RESOURCES_DIR_PATH / 'icons' / 'target.svg')
 
 

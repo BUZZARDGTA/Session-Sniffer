@@ -75,7 +75,7 @@ def add_column_sizing_actions(
         if isinstance(header_value, str) and header_value:
             clicked_column_name = header_value
 
-    size_column_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'fit_width.svg')), 'Size Column to Fit', menu)
+    size_column_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'move-horizontal.svg')), 'Size Column to Fit', menu)
     size_column_action.setEnabled(is_valid_clicked_column)
     if bool(clicked_column_name):
         size_column_action.setToolTip(f"Resize the '{clicked_column_name}' column so all text is fully visible without truncation or ellipses.")
@@ -88,13 +88,13 @@ def add_column_sizing_actions(
 
     menu.addAction(size_column_action)
 
-    size_all_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'fit_all.svg')), 'Size All Columns to Fit', menu)
+    size_all_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'move-vertical.svg')), 'Size All Columns to Fit', menu)
     size_all_action.setToolTip('Resize all visible columns so that any truncated text across the entire table is fully visible without ellipses.')
     size_all_action.triggered.connect(lambda: size_all_columns_to_fit(table))
     menu.addAction(size_all_action)
 
     if on_reset is not None:
-        reset_sizes_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'refresh.svg')), 'Reset Column Sizes', menu)
+        reset_sizes_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'refresh-cw.svg')), 'Reset Column Sizes', menu)
         reset_sizes_action.setToolTip('Reset all column widths back to their initial default layout.')
         reset_sizes_action.triggered.connect(on_reset)
         menu.addAction(reset_sizes_action)

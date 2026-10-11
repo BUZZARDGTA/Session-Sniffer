@@ -175,7 +175,7 @@ class SessionTableSection(QWidget):
         icon_label = QLabel()
         icon_label.setFixedSize(scale_by_ui(26), scale_by_ui(26))
         icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        icon_label.setPixmap(render_svg_pixmap_from_resource('player.svg', scale_by_ui(20), scale_by_ui(20), accent))
+        icon_label.setPixmap(render_svg_pixmap_from_resource('user-round.svg', scale_by_ui(20), scale_by_ui(20), accent))
 
         self._header_label = QLabel(self._header_label_text())
         self._header_label.setObjectName('sectionTitle')
@@ -189,7 +189,7 @@ class SessionTableSection(QWidget):
         self._clear_button = clear_button
 
         collapse_button = QToolButton()
-        collapse_button.setIcon(QIcon((RESOURCES_DIR_PATH / 'icons' / 'collapse_table.svg').as_posix()))
+        collapse_button.setIcon(QIcon((RESOURCES_DIR_PATH / 'icons' / 'arrow-down-to-line.svg').as_posix()))
         collapse_button.setIconSize(QSize(16, 16))
         collapse_button.setToolTip(collapse_tooltip)
         collapse_button.clicked.connect(self.minimize)
@@ -511,7 +511,7 @@ class SessionTableSection(QWidget):
 
         # Expand button (shown when section is collapsed; laid out by MainWindow, not this section)
         self.expand_button = QPushButton(f'Show {self._expand_button_noun()} (0)')
-        _expand_icon = QIcon((RESOURCES_DIR_PATH / 'icons' / 'expand_table.svg').as_posix())
+        _expand_icon = QIcon((RESOURCES_DIR_PATH / 'icons' / 'arrow-up-from-line.svg').as_posix())
         self.expand_button.setIcon(make_padded_icon(_expand_icon, (16, 16), 8))
         self.expand_button.setIconSize(QSize(16 + 8, 16))
         self.expand_button.setToolTip(expand_tooltip)

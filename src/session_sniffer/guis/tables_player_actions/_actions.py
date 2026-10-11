@@ -189,7 +189,7 @@ def create_multi_tcp_ping_menu(
     ip_addresses: list[str],
     ping_menu: QMenu,
     *,
-    icon_name: str = 'ping.svg',
+    icon_name: str = 'radio-tower.svg',
 ) -> QMenu:
     """Create and attach a 'TCP Port Ping' submenu for multiple IP addresses to *ping_menu*."""
     tcp_menu = QMenu('TCP Port Ping', ping_menu)
@@ -270,7 +270,7 @@ def create_multi_udp_ping_menu(
     ip_addresses: list[str],
     ping_menu: QMenu,
     *,
-    icon_name: str = 'ping.svg',
+    icon_name: str = 'radio-tower.svg',
 ) -> QMenu:
     """Create and attach a 'UDP Port Ping' submenu for multiple IP addresses to *ping_menu*."""
     udp_menu = QMenu('UDP Port Ping', ping_menu)
@@ -307,7 +307,7 @@ def create_ping_menu(
     menu: QMenu,
     ip_addresses: Sequence[str],
     *,
-    icon_name: str = 'ping.svg',
+    icon_name: str = 'radio-tower.svg',
 ) -> QMenu:
     """Create and attach a standardized 'Ping' submenu for one or more IP addresses to *menu*."""
     ping_menu = QMenu('Ping', menu)

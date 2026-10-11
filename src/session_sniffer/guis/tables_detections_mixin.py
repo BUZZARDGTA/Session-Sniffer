@@ -68,7 +68,7 @@ def build_detections_menu(
                 f'Add Country ({country_name})',
                 tooltip=f'Add {country_name} to the country detection list.',
                 handler=lambda: _toggle_detection_list(GUIDetectionSettings.country_detection_list, country_name, add=True),
-                icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'add.svg')),
+                icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'plus.svg')),
             )
 
     # --- ISP ---
@@ -88,7 +88,7 @@ def build_detections_menu(
                 f'Add ISP ({isp})',
                 tooltip=f'Add ISP "{isp}" to the ISP detection list.',
                 handler=lambda _isp=isp: _toggle_detection_list(GUIDetectionSettings.isp_detection_list, _isp, add=True),
-                icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'add.svg')),
+                icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'plus.svg')),
             )
 
     # --- ASN ---
@@ -109,7 +109,7 @@ def build_detections_menu(
                 f'Add ASN ({asn_value})',
                 tooltip=f'Add ASN "{asn_value}" to the ASN detection list.',
                 handler=lambda: _toggle_detection_list(GUIDetectionSettings.asn_detection_list, asn_value, add=True),
-                icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'add.svg')),
+                icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'plus.svg')),
             )
 
     menu.addSeparator()
@@ -160,7 +160,7 @@ def build_detections_menu_multi(
             f'Add {len(new_countries)} Countr{pluralize(len(new_countries), "y", "ies")} to Detection List',
             tooltip=f'Add {", ".join(new_countries)} to the country detection list.',
             handler=_add_countries,
-            icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'add.svg')),
+            icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'plus.svg')),
         )
     if existing_countries:
 
@@ -198,7 +198,7 @@ def build_detections_menu_multi(
             f'Add {len(new_isps)} ISP{pluralize(len(new_isps))} to Detection List',
             tooltip=f'Add {", ".join(new_isps)} to the ISP detection list.',
             handler=_add_isps,
-            icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'add.svg')),
+            icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'plus.svg')),
         )
     if existing_isps:
 
@@ -234,7 +234,7 @@ def build_detections_menu_multi(
             f'Add {len(new_asns)} ASN{pluralize(len(new_asns))} to Detection List',
             tooltip=f'Add {", ".join(new_asns)} to the ASN detection list.',
             handler=_add_asns,
-            icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'add.svg')),
+            icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'plus.svg')),
         )
     if existing_asns:
 

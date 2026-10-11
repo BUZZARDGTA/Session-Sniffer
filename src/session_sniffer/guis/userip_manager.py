@@ -167,7 +167,7 @@ class UserIPDatabasesManager(
         self._next_index = 1
         self._disk_snapshot: str = ''
         self._saving = False
-        self._looky_icon = QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'eye_show.svg'))
+        self._looky_icon = QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'eye.svg'))
 
         root_layout = QVBoxLayout(self)
 
@@ -183,7 +183,7 @@ class UserIPDatabasesManager(
         # Tree toolbar buttons
         tree_buttons = QHBoxLayout()
 
-        new_db_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'new_file.svg')), ' New DB')
+        new_db_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'file-plus.svg')), ' New DB')
         new_db_button.setAutoDefault(False)
         new_db_button.setToolTip('Create a new UserIP database file')
         new_db_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
@@ -206,7 +206,7 @@ class UserIPDatabasesManager(
         self._delete_tree_button.clicked.connect(self._delete_tree_item)  # reconnected dynamically in _on_tree_selection_changed
         tree_buttons.addWidget(self._delete_tree_button)
 
-        reset_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'reset.svg')), ' Reset all…')
+        reset_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'rotate-ccw.svg')), ' Reset all…')
         reset_button.setAutoDefault(False)
         reset_button.setFixedWidth(115)
         reset_button.setToolTip('Permanently delete all user databases and restore defaults')
@@ -274,22 +274,22 @@ class UserIPDatabasesManager(
         transfer_buttons.addWidget(import_button)
 
         export_menu = QMenu(self)
-        self._export_selected_action = export_menu.addAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'export.svg')), 'Export selected database…')
+        self._export_selected_action = export_menu.addAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'upload.svg')), 'Export selected database…')
         if self._export_selected_action:
             self._export_selected_action.triggered.connect(self._export_selected_database)
             self._export_selected_action.setEnabled(False)
-        export_zip_action = export_menu.addAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'export.svg')), 'Export all as ZIP…')
+        export_zip_action = export_menu.addAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'upload.svg')), 'Export all as ZIP…')
         if export_zip_action:
             export_zip_action.triggered.connect(self._export_all_as_zip)
         export_menu.addSeparator()
-        backup_databases_action = export_menu.addAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'export.svg')), 'Backup databases now')
+        backup_databases_action = export_menu.addAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'upload.svg')), 'Backup databases now')
         if backup_databases_action:
             backup_databases_action.triggered.connect(self._backup_databases_now)
         open_backups_action = export_menu.addAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'folder.svg')), 'Open backups folder')
         if open_backups_action:
             open_backups_action.triggered.connect(self._open_backups_folder)
 
-        export_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'export.svg')), ' Export…')
+        export_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'upload.svg')), ' Export…')
         export_button.setAutoDefault(False)
         export_button.setMaximumWidth(130)
         export_button.setToolTip('Export databases to an external location')
@@ -432,7 +432,7 @@ class UserIPDatabasesManager(
         # Entry action buttons
         entry_buttons = QHBoxLayout()
 
-        self._add_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'add.svg')), ' Add Entry')
+        self._add_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'plus.svg')), ' Add Entry')
         self._add_button.setAutoDefault(False)
         self._add_button.setToolTip('Add a new entry (single IP, IP range, or subnet) to the current database')
         self._add_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
@@ -440,7 +440,7 @@ class UserIPDatabasesManager(
         self._add_button.clicked.connect(self._add_entry)
         entry_buttons.addWidget(self._add_button)
 
-        self._edit_ip_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'edit.svg')), ' Edit IP/Range…')
+        self._edit_ip_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square-pen.svg')), ' Edit IP/Range…')
         self._edit_ip_button.setAutoDefault(False)
         self._edit_ip_button.setToolTip('Edit the IP or range of the selected entry using the builder')
         self._edit_ip_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
@@ -448,7 +448,7 @@ class UserIPDatabasesManager(
         self._edit_ip_button.clicked.connect(self._edit_selected_entry_ip)
         entry_buttons.addWidget(self._edit_ip_button)
 
-        self._rename_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'edit.svg')), ' Rename')
+        self._rename_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square-pen.svg')), ' Rename')
         self._rename_button.setAutoDefault(False)
         self._rename_button.setToolTip('Rename the username of the selected entry or entries')
         self._rename_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
@@ -456,7 +456,7 @@ class UserIPDatabasesManager(
         self._rename_button.clicked.connect(self._rename_selected)
         entry_buttons.addWidget(self._rename_button)
 
-        self._open_db_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'text_editor.svg')), ' Open DB')
+        self._open_db_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'file-text.svg')), ' Open DB')
         self._open_db_button.setAutoDefault(False)
         self._open_db_button.setToolTip('Open the current database file in the default text editor')
         self._open_db_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)

@@ -154,8 +154,8 @@ def create_text_widget(meta: SettingMeta) -> QLineEdit:
         le.setMaximumWidth(meta.max_width)
     if meta.secret:
         _icons_dir = RESOURCES_DIR_PATH / 'icons'
-        icon_show = QIcon(str(_icons_dir / 'eye_show.svg'))
-        icon_hide = QIcon(str(_icons_dir / 'eye_hide.svg'))
+        icon_show = QIcon(str(_icons_dir / 'eye.svg'))
+        icon_hide = QIcon(str(_icons_dir / 'eye-off.svg'))
         reveal_action = le.addAction(icon_hide, QLineEdit.ActionPosition.TrailingPosition)
         if not reveal_action:
             message = 'QLineEdit.addAction returned None'
@@ -271,9 +271,9 @@ def create_column_tuple_widget(key: str, meta: SettingMeta) -> QGroupBox:
         grid.addWidget(checkbox, i // column_count, i % column_count)
     grid.setRowStretch(grid.rowCount(), 1)
 
-    button_select_all = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'select_all.svg')), ' Select All')
-    button_deselect_all = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'unselect_all.svg')), ' Unselect All')
-    button_reset = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'reset_default.svg')), ' Reset to Default')
+    button_select_all = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square-check.svg')), ' Select All')
+    button_deselect_all = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square.svg')), ' Unselect All')
+    button_reset = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'undo.svg')), ' Reset to Default')
     button_reset.setToolTip('Reset to default selected columns')
     for button in (button_select_all, button_deselect_all):
         button.setStyleSheet(COMPACT_BUTTON_STYLESHEET)
@@ -380,9 +380,9 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
         presets_grid.addWidget(checkbox, i // presets_num_columns, i % presets_num_columns)
     presets_grid.setRowStretch(presets_grid.rowCount(), 1)
 
-    preset_button_select_all = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'select_all.svg')), ' Select All')
-    preset_button_deselect_all = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'unselect_all.svg')), ' Unselect All')
-    preset_button_reset = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'reset_default.svg')), ' Reset to Default')
+    preset_button_select_all = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square-check.svg')), ' Select All')
+    preset_button_deselect_all = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square.svg')), ' Unselect All')
+    preset_button_reset = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'undo.svg')), ' Reset to Default')
     preset_button_reset.setToolTip('Reset to default presets')
     for button in (preset_button_select_all, preset_button_deselect_all):
         button.setStyleSheet(COMPACT_BUTTON_STYLESHEET)
@@ -426,9 +426,9 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
         grid.addWidget(checkbox, i // column_count, i % column_count)
     grid.setRowStretch(grid.rowCount(), 1)
 
-    button_select_all = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'select_all.svg')), ' Select All')
-    button_deselect_all = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'unselect_all.svg')), ' Unselect All')
-    button_reset = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'reset_default.svg')), ' Reset to Default')
+    button_select_all = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square-check.svg')), ' Select All')
+    button_deselect_all = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square.svg')), ' Unselect All')
+    button_reset = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'undo.svg')), ' Reset to Default')
     button_reset.setToolTip('Reset to default selected options')
     for button in (button_select_all, button_deselect_all):
         button.setStyleSheet(COMPACT_BUTTON_STYLESHEET)
@@ -799,7 +799,7 @@ def create_ip_range_tuple_widget(meta: SettingMeta, parent: QWidget) -> QGroupBo
     list_widget.setSelectionMode(QListWidget.SelectionMode.ExtendedSelection)
     list_widget.setSortingEnabled(True)
 
-    add_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'add.svg')), ' Add')
+    add_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'plus.svg')), ' Add')
     add_button.setToolTip('Add a new blocked IP address, range, or subnet')
     add_button.setStyleSheet(COMPACT_BUTTON_STYLESHEET)
     add_button.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -868,7 +868,7 @@ def create_string_tuple_widget(
     list_widget.setSelectionMode(QListWidget.SelectionMode.ExtendedSelection)
     list_widget.setSortingEnabled(True)
 
-    add_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'add.svg')), ' Add')
+    add_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'plus.svg')), ' Add')
     add_button.setToolTip('Add a new entry to the list')
     add_button.setStyleSheet(COMPACT_BUTTON_STYLESHEET)
     add_button.setCursor(Qt.CursorShape.PointingHandCursor)

@@ -123,7 +123,7 @@ def setup_tab_dialog_buttons(
     reset_button.clicked.connect(reset_to_defaults)
     button_row.addWidget(reset_button)
 
-    reset_tab_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'refresh.svg')), ' Reset')
+    reset_tab_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'refresh-cw.svg')), ' Reset')
     reset_tab_button.setToolTip('Reset current tab settings to their default values (review before saving)')
     reset_tab_button.setStyleSheet(DIALOG_DANGER_BUTTON_STYLESHEET)
     reset_tab_button.clicked.connect(reset_current_tab)

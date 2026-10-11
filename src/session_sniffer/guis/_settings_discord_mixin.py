@@ -92,7 +92,7 @@ class SettingsDialogDiscordMixin(QDialog):
             url_row_layout.setSpacing(6)
             url_row_layout.addWidget(url_line, 1)
 
-            show_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'eye_show.svg')), ' Show')
+            show_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'eye.svg')), ' Show')
             show_button.setCheckable(True)
             show_button.setToolTip('Reveal or hide the webhook URL')
 
@@ -130,7 +130,7 @@ class SettingsDialogDiscordMixin(QDialog):
         # Reset Stored Messages button (separate row, also gated on enabled).
         reset_messages_row = QHBoxLayout()
         reset_messages_row.addStretch()
-        reset_messages_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'refresh.svg')), ' Reset Stored Messages')
+        reset_messages_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'refresh-cw.svg')), ' Reset Stored Messages')
         reset_messages_button.setToolTip(
             'Forget the IDs of the two posted messages so the next refresh creates fresh ones.\n'
             'Use this after changing channels or after Wick/automod deletes the old messages.',
@@ -176,7 +176,7 @@ class SettingsDialogDiscordMixin(QDialog):
         else:
             url_line.setEchoMode(QLineEdit.EchoMode.Normal if checked else QLineEdit.EchoMode.Password)
         show_button.setText(' Hide' if checked else ' Show')
-        show_button.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / ('eye_hide.svg' if checked else 'eye_show.svg'))))
+        show_button.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / ('eye-off.svg' if checked else 'eye.svg'))))
 
     def _reset_stored_messages(self) -> None:
         """Clear persisted Discord webhook message IDs so the next post creates new messages."""

@@ -216,7 +216,7 @@ class ComboRuleEditorDialog(QDialog):
         self._conditions_container = QVBoxLayout()
         conditions_layout.addLayout(self._conditions_container)
 
-        add_condition_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'add.svg')), ' Add Condition')
+        add_condition_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'plus.svg')), ' Add Condition')
         add_condition_button.clicked.connect(self._on_add_condition_clicked)
         conditions_layout.addWidget(add_condition_button)
 
@@ -435,7 +435,7 @@ class ComboRuleEditorDialog(QDialog):
                 ip_edit.setPlaceholderText('e.g. 192.168.1.0/24, 10.0.0.1-10.0.0.50, 1.2.3.*')
                 ip_layout.addWidget(ip_edit, stretch=1)
 
-                builder_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'edit.svg')), '')
+                builder_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square-pen.svg')), '')
                 builder_button.setToolTip('Open IP Range Builder')
                 builder_button.setMaximumWidth(40)
                 builder_button.setCursor(Qt.CursorShape.PointingHandCursor)

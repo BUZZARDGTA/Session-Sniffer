@@ -90,7 +90,7 @@ class LogsManager(QDialog):
         self._debug_tab = TextLogTab(file_path=DEBUG_LOG_PATH, enable_severity_filter=True)
         tabs.addTab(self._debug_tab, QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'bug.svg')), 'Debug Log')
         self._crash_tab = TextLogTab(file_path=CRASH_LOG_PATH)
-        tabs.addTab(self._crash_tab, QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'crash.svg')), 'Crash Log')
+        tabs.addTab(self._crash_tab, QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'triangle-alert.svg')), 'Crash Log')
 
         self._tabs = tabs
         root_layout.addWidget(tabs, stretch=1)
@@ -105,13 +105,13 @@ class LogsManager(QDialog):
         purge_all_button.clicked.connect(self.purge_all_logs)
         button_row.addWidget(purge_all_button)
 
-        clean_empty_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'clear_all.svg')), ' Clean Empty Sessions')
+        clean_empty_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'trash.svg')), ' Clean Empty Sessions')
         clean_empty_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
         clean_empty_button.setToolTip('Delete empty session logs and empty folders (keeps active session)')
         clean_empty_button.clicked.connect(self.clean_empty_sessions)
         button_row.addWidget(clean_empty_button)
 
-        close_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'close.svg')), ' Close')
+        close_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'x.svg')), ' Close')
         close_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
         close_button.setToolTip('Close the Logs Manager')
         close_button.clicked.connect(self.close)

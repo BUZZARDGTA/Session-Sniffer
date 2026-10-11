@@ -175,7 +175,7 @@ class SessionHeader(QFrame):
         pulse_icon = QLabel()
         pulse_icon.setFixedSize(scale_by_ui(18), scale_by_ui(18))
         pulse_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        pulse_icon.setPixmap(render_svg_pixmap_from_resource('frequency.svg', scale_by_ui(16), scale_by_ui(16), '#22c55e'))
+        pulse_icon.setPixmap(render_svg_pixmap_from_resource('activity.svg', scale_by_ui(16), scale_by_ui(16), '#22c55e'))
         stats_card_layout.addWidget(pulse_icon)
 
         uptime_layout = QVBoxLayout()

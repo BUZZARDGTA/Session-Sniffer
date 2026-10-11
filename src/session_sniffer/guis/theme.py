@@ -42,16 +42,16 @@ def get_stylesheet(ui_scale: float = 1.0) -> str:
     branch_vline_path = (RESOURCES_DIR_PATH / 'icons' / 'branch_vline.svg').as_posix()
     branch_more_path = (RESOURCES_DIR_PATH / 'icons' / 'branch_more.svg').as_posix()
     branch_end_path = (RESOURCES_DIR_PATH / 'icons' / 'branch_end.svg').as_posix()
-    chevron_right_path = (RESOURCES_DIR_PATH / 'icons' / 'chevron_right.svg').as_posix()
-    chevron_right_disabled_path = (RESOURCES_DIR_PATH / 'icons' / 'chevron_right_disabled.svg').as_posix()
+    chevron_right_path = (RESOURCES_DIR_PATH / 'icons' / 'chevron-right.svg').as_posix()
+    chevron_right_disabled_path = (RESOURCES_DIR_PATH / 'icons' / 'chevron-right-disabled.svg').as_posix()
     chevron_right_more_path = (RESOURCES_DIR_PATH / 'icons' / 'chevron_right_more.svg').as_posix()
     chevron_right_end_path = (RESOURCES_DIR_PATH / 'icons' / 'chevron_right_end.svg').as_posix()
     chevron_down_more_path = (RESOURCES_DIR_PATH / 'icons' / 'chevron_down_more.svg').as_posix()
     chevron_down_end_path = (RESOURCES_DIR_PATH / 'icons' / 'chevron_down_end.svg').as_posix()
-    arrow_up_path = (RESOURCES_DIR_PATH / 'icons' / 'arrow_up.svg').as_posix()
-    arrow_down_path = (RESOURCES_DIR_PATH / 'icons' / 'arrow_down.svg').as_posix()
+    arrow_up_path = (RESOURCES_DIR_PATH / 'icons' / 'chevron-up.svg').as_posix()
+    arrow_down_path = (RESOURCES_DIR_PATH / 'icons' / 'chevron-down.svg').as_posix()
     check_path = (RESOURCES_DIR_PATH / 'icons' / 'check.svg').as_posix()
-    close_path = (RESOURCES_DIR_PATH / 'icons' / 'close.svg').as_posix()
+    close_path = (RESOURCES_DIR_PATH / 'icons' / 'x.svg').as_posix()
 
     # Scale the base font size proportionally to the screen resolution.
     # 10pt is the design baseline (2K / 1.0 scale).  Smaller screens get

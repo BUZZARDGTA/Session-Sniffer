@@ -298,7 +298,7 @@ class DetectionsManagerTabsMixin(QDialog):
         # Buttons row
         button_layout = QHBoxLayout()
 
-        add_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'add.svg')), ' Add Rule')
+        add_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'plus.svg')), ' Add Rule')
         add_button.setCursor(Qt.CursorShape.PointingHandCursor)
         add_button.clicked.connect(self._add_combo_rule)
         button_layout.addWidget(add_button)
@@ -310,7 +310,7 @@ class DetectionsManagerTabsMixin(QDialog):
         self._combo_toggle_button.clicked.connect(self._toggle_combo_rule)
         button_layout.addWidget(self._combo_toggle_button)
 
-        self._combo_edit_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'edit.svg')), ' Edit')
+        self._combo_edit_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square-pen.svg')), ' Edit')
         self._combo_edit_button.setEnabled(False)
         self._combo_edit_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self._combo_edit_button.clicked.connect(self._edit_combo_rule)
@@ -407,7 +407,7 @@ class DetectionsManagerTabsMixin(QDialog):
         for rule in ComboRulesManager.rules:
             conditions_summary = ', '.join(f'{key}={value}' if not isinstance(value, bool) else key for key, value in rule.conditions.items())
             item = QListWidgetItem(f'{rule.name}  [{conditions_summary}]')
-            item.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / ('check.svg' if rule.enabled else 'close.svg'))))
+            item.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / ('check.svg' if rule.enabled else 'x.svg'))))
             item.setData(Qt.ItemDataRole.UserRole, id(rule))
             self._combo_rules_list.addItem(item)
 
@@ -589,7 +589,7 @@ class DetectionsManagerTabsMixin(QDialog):
         list_layout.addWidget(list_widget)
 
         buttons_layout = QVBoxLayout()
-        add_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'add.svg')), ' Add')
+        add_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'plus.svg')), ' Add')
         add_button.setCursor(Qt.CursorShape.PointingHandCursor)
         add_callback = getattr(self, f'_add_{detection_type}')
         add_button.clicked.connect(add_callback)

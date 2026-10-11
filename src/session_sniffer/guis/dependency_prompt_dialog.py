@@ -136,7 +136,7 @@ class DependencyPromptDialog(DraggableDialogMixin, QDialog):
         icon_inner_layout.setContentsMargins(0, 0, 0, 0)
         icon_inner_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        icon_pixmap = render_svg_pixmap_from_resource('ethernet.svg', scale_by_ui(22), scale_by_ui(22))
+        icon_pixmap = render_svg_pixmap_from_resource('ethernet-port.svg', scale_by_ui(22), scale_by_ui(22))
         icon_label = QLabel()
         icon_label.setPixmap(icon_pixmap)
         icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)

@@ -340,7 +340,7 @@ class UpdateDownloadDialog(DraggableDialogMixin, QDialog):
             date_row.setSpacing(6)
             date_row.setContentsMargins(0, 0, 0, 0)
 
-            date_row.addWidget(self._svg_label('calendar.svg', 16, 16), 0, Qt.AlignmentFlag.AlignVCenter)
+            date_row.addWidget(self._svg_label('calendar-days.svg', 16, 16), 0, Qt.AlignmentFlag.AlignVCenter)
 
             date_widget = QLabel(date_text)
             date_widget.setFont(QFont('Consolas', 9))
@@ -354,7 +354,7 @@ class UpdateDownloadDialog(DraggableDialogMixin, QDialog):
         size_row.setSpacing(6)
         size_row.setContentsMargins(0, 0, 0, 0)
 
-        size_row.addWidget(self._svg_label('size.svg', 16, 16), 0, Qt.AlignmentFlag.AlignVCenter)
+        size_row.addWidget(self._svg_label('hard-drive.svg', 16, 16), 0, Qt.AlignmentFlag.AlignVCenter)
 
         size_widget = QLabel(size_text or 'xx.x MB')
         size_widget.setFont(QFont('Consolas', 9))
@@ -553,7 +553,7 @@ class UpdateDownloadDialog(DraggableDialogMixin, QDialog):
 
     def _create_cloud_download_icon(self) -> QWidget:
         """Create the small cloud-with-down-arrow icon from an SVG asset."""
-        return self._svg_label('cloud_download.svg', 20, 20)
+        return self._svg_label('cloud-download.svg', 20, 20)
 
     @staticmethod
     def _svg_label(filename: str, width: int, height: int) -> QLabel:

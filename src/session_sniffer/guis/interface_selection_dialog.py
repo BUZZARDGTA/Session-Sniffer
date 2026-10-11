@@ -381,7 +381,7 @@ class InterfaceSelectionDialog(QDialog):
         _refresh_pad = scale(8)
         _refresh_w, _refresh_h = scale(28), scale(22)
         self._refresh_arp_icon = make_padded_icon(
-            QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'refresh.svg')),
+            QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'refresh-cw.svg')),
             (_refresh_w, _refresh_h),
             _refresh_pad,
         )
@@ -497,7 +497,7 @@ class InterfaceSelectionDialog(QDialog):
         select_button.setMinimumSize(scale(330), scale(56))
         _play_pad = scale(10)
         _play_w, _play_h = scale(46), scale(28)
-        select_button.setIcon(make_padded_icon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'play.svg')), (_play_w, _play_h), _play_pad))
+        select_button.setIcon(make_padded_icon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'circle-play.svg')), (_play_w, _play_h), _play_pad))
 
         select_button.setIconSize(QSize(_play_w + _play_pad, _play_h))
         select_button.clicked.connect(self.select_interface)

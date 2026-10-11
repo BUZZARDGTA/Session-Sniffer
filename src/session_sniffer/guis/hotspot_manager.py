@@ -237,13 +237,13 @@ class HotspotManagerWidget(QWidget):
             )
             layout.addWidget(admin_badge)
 
-        guide_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'book.svg')), ' Setup Guide')
+        guide_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'book-text.svg')), ' Setup Guide')
         guide_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
         guide_button.setToolTip('Open step-by-step setup instructions for Wi-Fi Hotspot and Ethernet Bridge')
         guide_button.clicked.connect(self._open_setup_guide)
         layout.addWidget(guide_button)
 
-        refresh_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'refresh.svg')), ' Refresh')
+        refresh_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'refresh-cw.svg')), ' Refresh')
         refresh_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
         refresh_button.setToolTip('Refresh hotspot status, connection sharing, and connected clients')
         refresh_button.clicked.connect(self._start_refresh_task)
@@ -305,7 +305,7 @@ class HotspotManagerWidget(QWidget):
         password_layout.addWidget(self._password_input)
 
         self._toggle_password_button = QPushButton()
-        self._toggle_password_button.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'eye_show.svg')))
+        self._toggle_password_button.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'eye.svg')))
         self._toggle_password_button.setToolTip('Reveal / Hide password')
         self._toggle_password_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
         self._toggle_password_button.clicked.connect(self._toggle_password_visibility)
@@ -326,7 +326,7 @@ class HotspotManagerWidget(QWidget):
         self._save_hotspot_button.clicked.connect(self._save_hotspot_credentials)
         buttons_layout.addWidget(self._save_hotspot_button)
 
-        self._toggle_hotspot_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'play.svg')), ' Start Hotspot')
+        self._toggle_hotspot_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'circle-play.svg')), ' Start Hotspot')
         self._toggle_hotspot_button.setStyleSheet(DIALOG_PRIMARY_BUTTON_STYLESHEET)
         self._toggle_hotspot_button.clicked.connect(self._toggle_hotspot_state)
         buttons_layout.addWidget(self._toggle_hotspot_button)
@@ -391,7 +391,7 @@ class HotspotManagerWidget(QWidget):
         self._enable_sharing_button.clicked.connect(self._enable_sharing_action)
         buttons_layout.addWidget(self._enable_sharing_button)
 
-        self._reset_sharing_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'reset.svg')), ' Reset')
+        self._reset_sharing_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'rotate-ccw.svg')), ' Reset')
         self._reset_sharing_button.setStyleSheet(DIALOG_DANGER_BUTTON_STYLESHEET)
         self._reset_sharing_button.setToolTip('Disable connection sharing on all adapters')
         self._reset_sharing_button.clicked.connect(self._disable_sharing_action)
@@ -413,7 +413,7 @@ class HotspotManagerWidget(QWidget):
         # Header
         header_layout = QHBoxLayout()
         devices_icon = QLabel()
-        devices_icon.setPixmap(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'devices.svg')).pixmap(scale_by_ui(16), scale_by_ui(16)))
+        devices_icon.setPixmap(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'monitor-smartphone.svg')).pixmap(scale_by_ui(16), scale_by_ui(16)))
         header_layout.addWidget(devices_icon)
 
         title = QLabel('Connected devices')
@@ -472,7 +472,7 @@ class HotspotManagerWidget(QWidget):
 
         empty_icon = QLabel()
         empty_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        empty_icon.setPixmap(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'controller.svg')).pixmap(scale_by_ui(32), scale_by_ui(32)))
+        empty_icon.setPixmap(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'gamepad-2.svg')).pixmap(scale_by_ui(32), scale_by_ui(32)))
         empty_icon.setStyleSheet('background: transparent; background-color: transparent;')
         empty_layout.addWidget(empty_icon)
 
@@ -543,7 +543,7 @@ class HotspotManagerWidget(QWidget):
             self._hotspot_status_badge.setText('ON')
             self._hotspot_status_badge.setStyleSheet(HOTSPOT_BADGE_ACTIVE_STYLESHEET)
             self._toggle_hotspot_button.setText(' Stop Hotspot')
-            self._toggle_hotspot_button.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'stop.svg')))
+            self._toggle_hotspot_button.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'circle-stop.svg')))
             self._toggle_hotspot_button.setStyleSheet(DIALOG_DANGER_BUTTON_STYLESHEET)
         elif in_transition:
             self._hotspot_status_badge.setText('TRANSITION')
@@ -552,7 +552,7 @@ class HotspotManagerWidget(QWidget):
             self._hotspot_status_badge.setText('OFF')
             self._hotspot_status_badge.setStyleSheet(HOTSPOT_BADGE_INACTIVE_STYLESHEET)
             self._toggle_hotspot_button.setText(' Start Hotspot')
-            self._toggle_hotspot_button.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'play.svg')))
+            self._toggle_hotspot_button.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'circle-play.svg')))
             self._toggle_hotspot_button.setStyleSheet(DIALOG_PRIMARY_BUTTON_STYLESHEET)
 
         self._hotspot_ssid_pill.setText(info_object.ssid or 'No SSID')
@@ -620,10 +620,10 @@ class HotspotManagerWidget(QWidget):
         self._is_password_revealed = not self._is_password_revealed
         if self._is_password_revealed:
             self._password_input.setEchoMode(QLineEdit.EchoMode.Normal)
-            self._toggle_password_button.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'eye_hide.svg')))
+            self._toggle_password_button.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'eye-off.svg')))
         else:
             self._password_input.setEchoMode(QLineEdit.EchoMode.Password)
-            self._toggle_password_button.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'eye_show.svg')))
+            self._toggle_password_button.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'eye.svg')))
 
     def _save_hotspot_credentials(self) -> None:
         """Validate and dispatch credential updates in background worker."""
@@ -751,11 +751,11 @@ class HotspotManagerWidget(QWidget):
         menu.addSeparator()
 
         if device.ip_address and device.ip_address != 'Assigned via DHCP':
-            ping_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'ping.svg')), f'Ping {device.ip_address}...', self)
+            ping_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'radio-tower.svg')), f'Ping {device.ip_address}...', self)
             ping_action.triggered.connect(lambda: self._open_ping_dialog(device.ip_address))
             menu.addAction(ping_action)
 
-            scan_ports_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'port_scanner.svg')), f'Scan Ports: {device.ip_address}...', self)
+            scan_ports_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'radar.svg')), f'Scan Ports: {device.ip_address}...', self)
             scan_ports_action.triggered.connect(lambda: self._open_port_scanner_dialog(device.ip_address))
             menu.addAction(scan_ports_action)
 

@@ -191,9 +191,9 @@ class PingTabWidget(QWidget):
 
         mode_label = QLabel('Protocol:')
         self._mode_combo = QComboBox()
-        self._mode_combo.addItem(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'ping.svg')), 'ICMP (Standard)', PingMode.ICMP)
-        self._mode_combo.addItem(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'ping.svg')), 'TCP Port', PingMode.TCP)
-        self._mode_combo.addItem(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'ping.svg')), 'UDP Port', PingMode.UDP)
+        self._mode_combo.addItem(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'radio-tower.svg')), 'ICMP (Standard)', PingMode.ICMP)
+        self._mode_combo.addItem(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'radio-tower.svg')), 'TCP Port', PingMode.TCP)
+        self._mode_combo.addItem(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'radio-tower.svg')), 'UDP Port', PingMode.UDP)
         self._mode_combo.addItem(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'globe.svg')), 'Web (Check-Host)', PingMode.WEB)
         if mode == PingMode.TCP:
             self._mode_combo.setCurrentIndex(1)
@@ -208,7 +208,7 @@ class PingTabWidget(QWidget):
         self._port_spinbox.setValue(port if port is not None else _DEFAULT_PORT)
         self._port_spinbox.valueChanged.connect(self._on_target_or_port_changed)
 
-        self._start_stop_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'play.svg')), ' Start')
+        self._start_stop_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'circle-play.svg')), ' Start')
         self._start_stop_button.setStyleSheet(DIALOG_PRIMARY_BUTTON_STYLESHEET)
         self._start_stop_button.clicked.connect(self._toggle_start_stop)
 
@@ -303,7 +303,7 @@ class PingTabWidget(QWidget):
         copy_button.clicked.connect(self._copy_log)
         self._copy_button = copy_button
 
-        clear_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'clear_all.svg')), ' Clear')
+        clear_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'trash.svg')), ' Clear')
         clear_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
         clear_button.clicked.connect(self._clear_log)
 
@@ -357,7 +357,7 @@ class PingTabWidget(QWidget):
         payload_size_value = self._payload_spinbox.value()
 
         self._start_stop_button.setText(' Stop')
-        self._start_stop_button.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'stop.svg')))
+        self._start_stop_button.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'circle-stop.svg')))
         self._start_stop_button.setStyleSheet(DIALOG_DANGER_BUTTON_STYLESHEET)
         self._target_input.setEnabled(False)
         self._mode_combo.setEnabled(False)
@@ -420,7 +420,7 @@ class PingTabWidget(QWidget):
         """Handle worker thread termination."""
         self._worker_thread = None
         self._start_stop_button.setText(' Start')
-        self._start_stop_button.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'play.svg')))
+        self._start_stop_button.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'circle-play.svg')))
         self._start_stop_button.setStyleSheet(DIALOG_PRIMARY_BUTTON_STYLESHEET)
         self._target_input.setEnabled(True)
         self._mode_combo.setEnabled(True)
@@ -551,7 +551,7 @@ class PingWindow(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
         self.destroyed.connect(lambda: setattr(PingWindow, '_instance', None) if PingWindow._instance is self else None)
         self.setWindowTitle(f'{TITLE} - Ping Diagnostics')
-        self.setWindowIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'ping.svg')))
+        self.setWindowIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'radio-tower.svg')))
         self.resize(scale_by_ui(860), scale_by_ui(560))
 
         main_layout = QVBoxLayout(self)
@@ -568,19 +568,19 @@ class PingWindow(QWidget):
         footer_layout.setContentsMargins(4, 4, 4, 4)
         footer_layout.setSpacing(8)
 
-        start_all_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'play.svg')), ' Start All')
+        start_all_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'circle-play.svg')), ' Start All')
         start_all_button.setStyleSheet(DIALOG_PRIMARY_BUTTON_STYLESHEET)
         start_all_button.clicked.connect(self.start_all_tabs)
 
-        stop_all_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'stop.svg')), ' Stop All')
+        stop_all_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'circle-stop.svg')), ' Stop All')
         stop_all_button.setStyleSheet(DIALOG_DANGER_BUTTON_STYLESHEET)
         stop_all_button.clicked.connect(self.stop_all_tabs)
 
-        add_target_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'add.svg')), ' Add Target…')
+        add_target_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'plus.svg')), ' Add Target…')
         add_target_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
         add_target_button.clicked.connect(self._prompt_add_target)
 
-        close_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'close.svg')), ' Close')
+        close_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'x.svg')), ' Close')
         close_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
         close_button.clicked.connect(self.close)
 

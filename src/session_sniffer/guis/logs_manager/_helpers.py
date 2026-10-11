@@ -227,7 +227,7 @@ def add_purge_and_location_buttons(
     open_location_button.clicked.connect(lambda: open_file_location(file_path))
     layout.addWidget(open_location_button)
 
-    open_file_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'text_editor.svg')), ' Open File')
+    open_file_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'file-text.svg')), ' Open File')
     open_file_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
     open_file_button.setToolTip('Open the log file in the default text editor')
     open_file_button.clicked.connect(lambda: QDesktopServices.openUrl(QUrl.fromLocalFile(str(file_path))))

@@ -102,7 +102,7 @@ class TableHeaderMenuMixin(QTableView):
         menu.addSeparator()
 
         hide_label = f"Hide Column '{clicked_column_name}'" if bool(clicked_column_name) else 'Hide Column'
-        hide_column_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'eye_hide.svg')), hide_label, menu)
+        hide_column_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'eye-off.svg')), hide_label, menu)
         hide_column_action.setEnabled(clicked_column_name is not None and clicked_column_name in toggleable_columns)
         hide_column_action.setToolTip(
             f"Hide the '{clicked_column_name}' column from the table." if bool(clicked_column_name) else 'Hide the selected column from the table.',
@@ -119,18 +119,18 @@ class TableHeaderMenuMixin(QTableView):
         choose_columns_menu.setToolTipsVisible(True)
         choose_columns_menu.setToolTip('Choose which columns to show or hide in this table.')
 
-        reset_columns_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'reset.svg')), 'Reset to Default', choose_columns_menu)
+        reset_columns_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'rotate-ccw.svg')), 'Reset to Default', choose_columns_menu)
         reset_columns_action.setToolTip('Reset column visibility back to default visible columns.')
         reset_columns_action.triggered.connect(self._reset_to_default_columns)
         choose_columns_menu.addAction(reset_columns_action)
         choose_columns_menu.addSeparator()
 
-        select_all_columns_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'select_all.svg')), 'Select All', choose_columns_menu)
+        select_all_columns_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square-check.svg')), 'Select All', choose_columns_menu)
         select_all_columns_action.setToolTip('Show all available columns in the table.')
         select_all_columns_action.triggered.connect(self._select_all_columns)
         choose_columns_menu.addAction(select_all_columns_action)
 
-        deselect_all_columns_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'unselect_all.svg')), 'Unselect All', choose_columns_menu)
+        deselect_all_columns_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square.svg')), 'Unselect All', choose_columns_menu)
         deselect_all_columns_action.setToolTip('Hide all optional columns from the table.')
         deselect_all_columns_action.triggered.connect(self._deselect_all_columns)
         choose_columns_menu.addAction(deselect_all_columns_action)

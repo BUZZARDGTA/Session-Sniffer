@@ -266,7 +266,7 @@ class PortScannerTabWidget(QWidget):
         export_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
         export_button.clicked.connect(self._export_results)
 
-        clear_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'clear_all.svg')), ' Clear')
+        clear_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'trash.svg')), ' Clear')
         clear_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
         clear_button.clicked.connect(self._clear_results)
 
@@ -332,7 +332,7 @@ class PortScannerTabWidget(QWidget):
         self._ports_input.setPlaceholderText('e.g. 80, 443, 1-1024')
         self._ports_input.textEdited.connect(self._on_ports_text_edited)
 
-        self._start_stop_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'play.svg')), ' Start Scan')
+        self._start_stop_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'circle-play.svg')), ' Start Scan')
         self._start_stop_button.setStyleSheet(DIALOG_PRIMARY_BUTTON_STYLESHEET)
         self._start_stop_button.clicked.connect(self._toggle_start_stop)
 
@@ -432,7 +432,7 @@ class PortScannerTabWidget(QWidget):
         self._metrics_label.setText(f'Starting scan of {len(parsed_ports)} ports on {target_host} ({target_ip})…')
 
         self._start_stop_button.setText(' Stop Scan')
-        self._start_stop_button.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'stop.svg')))
+        self._start_stop_button.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'circle-stop.svg')))
         self._start_stop_button.setStyleSheet(DIALOG_DANGER_BUTTON_STYLESHEET)
         self._target_input.setEnabled(False)
         self._preset_combo.setEnabled(False)
@@ -466,7 +466,7 @@ class PortScannerTabWidget(QWidget):
         """Restore control states upon worker thread completion."""
         self._worker_thread = None
         self._start_stop_button.setText(' Start Scan')
-        self._start_stop_button.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'play.svg')))
+        self._start_stop_button.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'circle-play.svg')))
         self._start_stop_button.setStyleSheet(DIALOG_PRIMARY_BUTTON_STYLESHEET)
         self._target_input.setEnabled(True)
         self._preset_combo.setEnabled(True)
@@ -683,7 +683,7 @@ class PortScannerTabWidget(QWidget):
         menu.addSeparator()
 
         ping_action = menu.addAction(
-            QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'play.svg')),
+            QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'circle-play.svg')),
             f'Ping {target_host}:{port_str} ({proto_str})',
         )
 
@@ -717,7 +717,7 @@ class PortScannerWindow(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
         self.destroyed.connect(lambda: setattr(PortScannerWindow, '_instance', None) if PortScannerWindow._instance is self else None)
         self.setWindowTitle(f'{TITLE} - Port Scanner')
-        self.setWindowIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'port_scanner.svg')))
+        self.setWindowIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'radar.svg')))
         self.resize(scale_by_ui(920), scale_by_ui(640))
 
         window_layout = QVBoxLayout(self)
@@ -746,19 +746,19 @@ class PortScannerWindow(QWidget):
         bar_layout.setContentsMargins(4, 4, 4, 4)
         bar_layout.setSpacing(8)
 
-        scan_all_btn = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'play.svg')), ' Scan All')
+        scan_all_btn = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'circle-play.svg')), ' Scan All')
         scan_all_btn.setStyleSheet(DIALOG_PRIMARY_BUTTON_STYLESHEET)
         scan_all_btn.clicked.connect(self.start_all_tabs)
 
-        stop_all_btn = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'stop.svg')), ' Stop All')
+        stop_all_btn = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'circle-stop.svg')), ' Stop All')
         stop_all_btn.setStyleSheet(DIALOG_DANGER_BUTTON_STYLESHEET)
         stop_all_btn.clicked.connect(self.stop_all_tabs)
 
-        add_target_btn = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'add.svg')), ' Add Target…')
+        add_target_btn = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'plus.svg')), ' Add Target…')
         add_target_btn.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
         add_target_btn.clicked.connect(self._prompt_add_target)
 
-        close_btn = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'close.svg')), ' Close')
+        close_btn = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'x.svg')), ' Close')
         close_btn.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
         close_btn.clicked.connect(self.close)
 

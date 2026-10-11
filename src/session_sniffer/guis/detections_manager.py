@@ -140,12 +140,12 @@ class DetectionsManagerDialog(UnsavedChangesMixin, DetectionsManagerTabsMixin, Q
 
         # Tabs
         self._tabs = QTabWidget()
-        self._tabs.addTab(self.create_player_events_tab(), QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'player.svg')), 'Player Events')
-        self._tabs.addTab(self.create_network_based_tab(), QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'ethernet.svg')), 'Network-Based')
+        self._tabs.addTab(self.create_player_events_tab(), QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'user-round.svg')), 'Player Events')
+        self._tabs.addTab(self.create_network_based_tab(), QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'ethernet-port.svg')), 'Network-Based')
         self._tabs.addTab(self.create_geo_based_tab(), QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'globe.svg')), 'Geography-Based')
         self._tabs.addTab(self.create_combo_rules_tab(), QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'link.svg')), 'Combo Rules')
         if Settings.is_gta5_feature_set():
-            self._tabs.addTab(self.create_gta5_relays_tab(), QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'controller.svg')), 'GTA5 Relays')
+            self._tabs.addTab(self.create_gta5_relays_tab(), QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'gamepad-2.svg')), 'GTA5 Relays')
         layout.addWidget(self._tabs)
 
         # Bottom buttons
@@ -157,20 +157,20 @@ class DetectionsManagerDialog(UnsavedChangesMixin, DetectionsManagerTabsMixin, Q
         import_button.clicked.connect(self._import_detections)
         button_row.addWidget(import_button)
 
-        export_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'export.svg')), ' Export')
+        export_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'upload.svg')), ' Export')
         export_button.setToolTip('Export detection settings to a JSON file')
         export_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
         export_button.clicked.connect(self._export_detections)
         button_row.addWidget(export_button)
 
-        reset_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'reset.svg')), ' Reset all…')
+        reset_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'rotate-ccw.svg')), ' Reset all…')
         reset_button.setToolTip('Reset all detection settings to defaults')
         save_button = setup_tab_dialog_buttons(button_row, reset_button, self._reset_to_defaults, self._reset_current_tab)
         save_button.setToolTip('Save all detection settings')
         save_button.clicked.connect(self._save_and_apply)
         button_row.addWidget(save_button)
 
-        cancel_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'close.svg')), ' Cancel')
+        cancel_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'x.svg')), ' Cancel')
         cancel_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
         cancel_button.clicked.connect(self.reject)
         button_row.addWidget(cancel_button)

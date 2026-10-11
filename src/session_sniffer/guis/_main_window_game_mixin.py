@@ -200,10 +200,10 @@ class GameMixin(QMainWindow):
         self._game_menu_process_separator = game_menu.addSeparator()
 
         # Shared: Game Process submenu
-        self._icon_controller = QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'controller.svg'))
+        self._icon_controller = QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'gamepad-2.svg'))
         self._icon_user = QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'user.svg'))
-        self._icon_pause = QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'pause.svg'))
-        self._icon_play = QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'play.svg'))
+        self._icon_pause = QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'circle-pause.svg'))
+        self._icon_play = QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'circle-play.svg'))
 
         game_process_submenu = game_menu.addMenu(self._icon_controller, 'GTA5 Process')
         if not game_process_submenu:
@@ -595,7 +595,7 @@ Process is currently suspended',
             if duration_label is not None:
                 label_parts.append(duration_label)
             session_label = '  |  '.join(label_parts)
-            session_icon = QIcon(str(RESOURCES_DIR_PATH / 'icons' / ('radio.svg' if is_current else 'history.svg')))
+            session_icon = QIcon(str(RESOURCES_DIR_PATH / 'icons' / ('radio.svg' if is_current else 'rotate-ccw-clock.svg')))
             session_menu = self._sessions_submenu.addMenu(session_icon, session_label)
             if not session_menu:
                 continue
@@ -608,7 +608,7 @@ Process is currently suspended',
             session_menu.menuAction().setToolTip(menu_tooltip)
 
             target_filter = SessionFilterState.FILTER_CURRENT if is_current else session_id
-            players_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'player.svg')), f'Players: {player_count}', session_menu)
+            players_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'user-round.svg')), f'Players: {player_count}', session_menu)
             if is_current:
                 connected_count = len([player for player in PlayersRegistry.get_connected_players() if not player.is_third_party_server])
                 disconnected_count = len(
@@ -706,7 +706,7 @@ Process is currently suspended',
 
             session_menu.addSeparator()
 
-            rename_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'edit.svg')), f"Rename Session '{display_name}'…", session_menu)
+            rename_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square-pen.svg')), f"Rename Session '{display_name}'…", session_menu)
             rename_action.setToolTip(f"Rename Session '{display_name}'")
             rename_action.triggered.connect(partial(self._prompt_rename_session, session_id))
             session_menu.addAction(rename_action)
@@ -756,7 +756,7 @@ Process is currently suspended',
             )
 
         self._sessions_submenu.addSeparator()
-        clear_all_sessions_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'reset.svg')), 'Clear All Sessions && History…', self._sessions_submenu)
+        clear_all_sessions_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'rotate-ccw.svg')), 'Clear All Sessions && History…', self._sessions_submenu)
         clear_all_sessions_action.setToolTip('Clear all past sessions, reset session tracking, and clear session host history')
         can_clear_all = len(all_session_ids) > 1 or bool(SessionHost.get_history()) or current_session_id > 1
         clear_all_sessions_action.setEnabled(can_clear_all)

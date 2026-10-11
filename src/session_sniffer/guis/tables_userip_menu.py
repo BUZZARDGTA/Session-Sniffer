@@ -141,7 +141,7 @@ def build_userip_menu(
     if player.userip is None:
         database_paths = UserIPDatabases.get_userip_database_filepaths()
         player_usernames = resolve_usernames_for_player(player)
-        add_userip_menu = add_menu(userip_menu, 'Add', tooltip='Add selected IP address to UserIP database.', icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'add.svg')))
+        add_userip_menu = add_menu(userip_menu, 'Add', tooltip='Add selected IP address to UserIP database.', icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'plus.svg')))
         populate_userip_databases_menu(
             add_userip_menu,
             database_paths,
@@ -152,7 +152,7 @@ def build_userip_menu(
             userip_menu,
             'Add as Range',
             tooltip='Add selected IP as a range entry to a UserIP database.',
-            icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'add.svg')),
+            icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'plus.svg')),
         )
         populate_userip_databases_menu(
             add_range_userip_menu,
@@ -180,7 +180,7 @@ def build_userip_menu(
         'Add Username…',
         tooltip='Add an additional username for this IP address in its UserIP database.',
         handler=lambda: userip_add_username(parent, ip_address, player),
-        icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'add.svg')),
+        icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'plus.svg')),
     )
     if Settings.is_gta5_feature_set():
         userip_menu.addSeparator()
@@ -189,7 +189,7 @@ def build_userip_menu(
             'Add Username (Looky System)',
             tooltip='Look up this IP via Looky System and add any new usernames to its UserIP database.',
             handler=lambda: looky_refresh_userip_entries(parent, [(player.userip.db_path, [ip_address])]) if player.userip else None,
-            icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'eye_show.svg')),
+            icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'eye.svg')),
         )
         configure_looky_action(refresh_action, default_tooltip=refresh_action.toolTip())
         userip_menu.addSeparator()
@@ -200,7 +200,7 @@ def build_userip_menu(
             'Convert to Range',
             tooltip=f'Replace this single IP entry with a range, e.g. a VPN or subnet, keeping its username{pluralize(len(player.userip.usernames))}.',
             handler=lambda: userip_convert_to_range(parent, ip_address, player),
-            icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'refresh.svg')),
+            icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'refresh-cw.svg')),
         )
     else:
         add_action(
@@ -208,20 +208,20 @@ def build_userip_menu(
             'Edit Range',
             tooltip=f'Edit this {entry_desc} entry, or narrow it back to a single IP, keeping its username{pluralize(len(player.userip.usernames))}.',
             handler=lambda: userip_edit_range(parent, ip_address, player),
-            icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'edit.svg')),
+            icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square-pen.svg')),
         )
     add_action(
         userip_menu,
         'Rename',
         tooltip='Rename all entries for this IP address by picking from existing usernames in its database.',
         handler=lambda: userip_rename(parent, ip_address, player),
-        icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'edit.svg')),
+        icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square-pen.svg')),
     )
     move_userip_menu = add_menu(
         userip_menu,
         'Move',
         tooltip=f'Move this {entry_desc} entry to another UserIP database.',
-        icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'move_box.svg')),
+        icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'box.svg')),
     )
     populate_userip_databases_menu(
         move_userip_menu,
@@ -257,7 +257,7 @@ def build_userip_menu_multi(
     if all(not UserIPDatabases.is_known_ip(ip) for ip in ip_addresses):
         userip_menu = add_menu(context_menu, 'UserIP', icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'database.svg')))
         add_count = '' if len(ip_addresses) == 1 else f'{len(ip_addresses)} '
-        add_userip_menu = add_menu(userip_menu, 'Add Selected', icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'add.svg')))
+        add_userip_menu = add_menu(userip_menu, 'Add Selected', icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'plus.svg')))
         all_usernames = dedup_preserve_order(
             *(
                 ([player.ps3_username] if player.ps3_username is not None and player.ps3_username else [])
@@ -288,7 +288,7 @@ def build_userip_menu_multi(
                 'Rename Selected',
                 tooltip=f'Rename the username for {rename_phrase} in its UserIP database.',
                 handler=lambda: userip_rename_multi(parent, rename_players),
-                icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'edit.svg')),
+                icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square-pen.svg')),
             )
 
         if Settings.is_gta5_feature_set():
@@ -305,7 +305,7 @@ def build_userip_menu_multi(
                     'Add Usernames (Looky System)',
                     tooltip=f'Look up {entries_phrase} via Looky System and add any new usernames to their UserIP databases.',
                     handler=lambda: looky_refresh_userip_entries(parent, list(_refresh_by_db.items())),
-                    icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'eye_show.svg')),
+                    icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'eye.svg')),
                 )
                 configure_looky_action(refresh_multi_action, default_tooltip=refresh_multi_action.toolTip())
                 userip_menu.addSeparator()
@@ -314,7 +314,7 @@ def build_userip_menu_multi(
             userip_menu,
             'Move Selected',
             tooltip=f'Move {entries_phrase} to another UserIP database.',
-            icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'move_box.svg')),
+            icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'box.svg')),
         )
         populate_userip_databases_menu(
             move_userip_menu,

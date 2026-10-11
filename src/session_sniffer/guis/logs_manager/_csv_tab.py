@@ -200,7 +200,7 @@ class CsvLogTab(QWidget):
         button_row.addWidget(copy_button)
         self._copy_button = copy_button
 
-        export_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'export.svg')), ' Export As...')
+        export_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'upload.svg')), ' Export As...')
         export_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
         export_button.setToolTip('Export the full log to a new CSV file')
         export_button.clicked.connect(self._export_as)
@@ -227,7 +227,7 @@ class CsvLogTab(QWidget):
         open_location_button.clicked.connect(lambda: open_file_location(self._file_path))
         button_row.addWidget(open_location_button)
 
-        open_file_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'text_editor.svg')), ' Open File')
+        open_file_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'file-text.svg')), ' Open File')
         open_file_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
         open_file_button.setToolTip('Open the log file in the default text editor')
         open_file_button.clicked.connect(lambda: QDesktopServices.openUrl(QUrl.fromLocalFile(str(self._file_path))))
@@ -506,14 +506,14 @@ class CsvLogTab(QWidget):
 
         menu.addSeparator()
 
-        select_all_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'select_all.svg')), 'Select All', menu)
+        select_all_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square-check.svg')), 'Select All', menu)
         select_all_action.setShortcut('Ctrl+A')
         select_all_action.setToolTip('Select all visible rows.')
         select_all_action.setEnabled(self._proxy.rowCount() > 0)
         select_all_action.triggered.connect(self._table.selectAll)
         menu.addAction(select_all_action)
 
-        clear_selection_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'unselect_all.svg')), 'Clear Selection', menu)
+        clear_selection_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square.svg')), 'Clear Selection', menu)
         clear_selection_action.setToolTip('Deselect all rows.')
         clear_selection_action.triggered.connect(self._table.clearSelection)
         menu.addAction(clear_selection_action)
@@ -534,7 +534,7 @@ class CsvLogTab(QWidget):
             _target_ips = list(selected_ips)
             create_ping_menu(self, menu, _target_ips)
 
-            scan_ports_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'port_scanner.svg')), 'Scan Ports…', menu)
+            scan_ports_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'radar.svg')), 'Scan Ports…', menu)
             scan_ports_action.setToolTip('Scan TCP and UDP ports on the selected host(s).')
 
             def _scan_all_csv() -> None:

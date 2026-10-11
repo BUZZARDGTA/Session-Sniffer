@@ -40,7 +40,7 @@ class LookyMixin(QMainWindow):
 
     def _build_looky_submenu(self, gta5_menu: QMenu) -> None:
         """Build the Looky System submenu and attach it to `gta5_menu`."""
-        looky_submenu = gta5_menu.addMenu(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'scan_eye.svg')), 'Looky System')
+        looky_submenu = gta5_menu.addMenu(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'scan-eye.svg')), 'Looky System')
         if not looky_submenu:
             message = 'Failed to create Looky System submenu'
             raise RuntimeError(message)
@@ -61,7 +61,7 @@ class LookyMixin(QMainWindow):
         looky_submenu.addAction(looky_crawler_join_own_session_action)
         self._looky_crawler_join_own_session_action = looky_crawler_join_own_session_action
 
-        looky_rescan_all_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'refresh.svg')), 'Rescan All Players', self)
+        looky_rescan_all_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'refresh-cw.svg')), 'Rescan All Players', self)
         looky_rescan_all_action.setToolTip('Immediately refresh Looky System data for all players without waiting for the next automatic update.')
         looky_rescan_all_action.triggered.connect(self._rescan_all_looky_players)
         looky_submenu.addAction(looky_rescan_all_action)

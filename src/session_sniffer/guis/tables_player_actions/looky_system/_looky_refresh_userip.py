@@ -324,7 +324,7 @@ class LookyRefreshReviewDialog(PlayerInfoDialogMixin):
         select_all_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         select_all_btn.clicked.connect(self._select_all)
         deselect_all_btn = QPushButton('Unselect All')
-        deselect_all_btn.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'close.svg')))
+        deselect_all_btn.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'x.svg')))
         deselect_all_btn.setStyleSheet(LOOKY_REVIEW_SELECT_BUTTON_STYLESHEET)
         deselect_all_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         deselect_all_btn.clicked.connect(self._deselect_all)

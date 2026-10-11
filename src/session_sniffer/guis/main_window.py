@@ -393,14 +393,14 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
             raise RuntimeError(message)
         capture_menu.setToolTipsVisible(True)
 
-        toggle_capture_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'stop.svg')), 'Stop Capture', self)
+        toggle_capture_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'circle-stop.svg')), 'Stop Capture', self)
         toggle_capture_action.setToolTip('Stop packet capture')
         toggle_capture_action.triggered.connect(self._toggle_capture)
         capture_menu.addAction(toggle_capture_action)
 
         capture_menu.addSeparator()
 
-        change_interface_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'refresh.svg')), 'Change Interface', self)
+        change_interface_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'refresh-cw.svg')), 'Change Interface', self)
         change_interface_action.setToolTip('Stop capture, select a different network interface, and restart capture')
         change_interface_action.triggered.connect(self._on_change_interface)
         capture_menu.addAction(change_interface_action)
@@ -433,7 +433,7 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
         userip_manager_action.triggered.connect(self._open_userip_manager)
         tools_menu.addAction(userip_manager_action)
 
-        logs_manager_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'text_editor.svg')), 'Logs Manager', self)
+        logs_manager_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'file-text.svg')), 'Logs Manager', self)
         logs_manager_action.setToolTip('View, search, filter, and manage application log files')
         logs_manager_action.triggered.connect(self._open_logs_manager)
         tools_menu.addAction(logs_manager_action)
@@ -445,12 +445,12 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
         leaderboard_action.triggered.connect(self._open_player_leaderboard)
         tools_menu.addAction(leaderboard_action)
 
-        port_scanner_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'port_scanner.svg')), 'Port Scanner', self)
+        port_scanner_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'radar.svg')), 'Port Scanner', self)
         port_scanner_action.setToolTip('Perform multi-threaded TCP and UDP port scanning with service banner detection')
         port_scanner_action.triggered.connect(self._open_port_scanner)
         tools_menu.addAction(port_scanner_action)
 
-        ping_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'ping.svg')), 'Ping Diagnostics', self)
+        ping_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'radio-tower.svg')), 'Ping Diagnostics', self)
         ping_action.setToolTip('Send ICMP echo, TCP connect, UDP reachability, or Web latency probes')
         ping_action.triggered.connect(self._open_ping_diagnostics)
         tools_menu.addAction(ping_action)
@@ -771,11 +771,11 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
 
         if is_running:
             self._actions.toggle_capture.setText('Stop Capture')
-            self._actions.toggle_capture.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'stop.svg')))
+            self._actions.toggle_capture.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'circle-stop.svg')))
             self._actions.toggle_capture.setToolTip('Stop packet capture')
         else:
             self._actions.toggle_capture.setText('Start Capture')
-            self._actions.toggle_capture.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'play.svg')))
+            self._actions.toggle_capture.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'circle-play.svg')))
             self._actions.toggle_capture.setToolTip('Start packet capture')
 
     def _toggle_capture(self) -> None:
