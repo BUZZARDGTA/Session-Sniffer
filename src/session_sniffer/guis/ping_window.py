@@ -194,7 +194,7 @@ class PingTabWidget(QWidget):
         self._mode_combo.addItem(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'ping.svg')), 'ICMP (Standard)', PingMode.ICMP)
         self._mode_combo.addItem(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'ping.svg')), 'TCP Port', PingMode.TCP)
         self._mode_combo.addItem(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'ping.svg')), 'UDP Port', PingMode.UDP)
-        self._mode_combo.addItem(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'website.svg')), 'Web (Check-Host)', PingMode.WEB)
+        self._mode_combo.addItem(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'globe.svg')), 'Web (Check-Host)', PingMode.WEB)
         if mode == PingMode.TCP:
             self._mode_combo.setCurrentIndex(1)
         elif mode == PingMode.UDP:

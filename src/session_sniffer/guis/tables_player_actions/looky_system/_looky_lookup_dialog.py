@@ -146,7 +146,7 @@ class LookyLookupDialog(PlayerInfoDialogMixin):
 
             profile_url = get_looky_user_url(entry.rockstarid)
             target_name = entry.name or str(entry.rockstarid)
-            view_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'website.svg')), ' View on Website')
+            view_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'globe.svg')), ' View on Website')
             view_button.setCursor(Qt.CursorShape.PointingHandCursor)
             view_button.setStyleSheet(LOOKY_ACTION_BUTTON_STYLESHEET)
             view_button.setToolTip(f"Open {target_name}'s profile on the Looky System website ({profile_url}).")
@@ -160,7 +160,7 @@ class LookyLookupDialog(PlayerInfoDialogMixin):
 
                 return _proxy_join
 
-            proxy_join_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'link.svg')), ' Proxy Join')
+            proxy_join_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'looky_system' / 'user_plus.svg')), ' Proxy Join')
             proxy_join_button.setCursor(Qt.CursorShape.PointingHandCursor)
             proxy_join_button.setStyleSheet(LOOKY_ACTION_BUTTON_STYLESHEET)
             proxy_join_button.setToolTip(f"Call the Looky System proxy bot to join {target_name}'s session.")

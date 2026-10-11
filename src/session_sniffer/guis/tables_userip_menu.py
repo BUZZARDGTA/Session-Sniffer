@@ -189,7 +189,7 @@ def build_userip_menu(
             'Add Username (Looky System)',
             tooltip='Look up this IP via Looky System and add any new usernames to its UserIP database.',
             handler=lambda: looky_refresh_userip_entries(parent, [(player.userip.db_path, [ip_address])]) if player.userip else None,
-            icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'eye.svg')),
+            icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'looky_system' / 'eye.svg')),
         )
         configure_looky_action(refresh_action, default_tooltip=refresh_action.toolTip())
         userip_menu.addSeparator()
@@ -305,7 +305,7 @@ def build_userip_menu_multi(
                     'Add Usernames (Looky System)',
                     tooltip=f'Look up {entries_phrase} via Looky System and add any new usernames to their UserIP databases.',
                     handler=lambda: looky_refresh_userip_entries(parent, list(_refresh_by_db.items())),
-                    icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'eye.svg')),
+                    icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'looky_system' / 'eye.svg')),
                 )
                 configure_looky_action(refresh_multi_action, default_tooltip=refresh_multi_action.toolTip())
                 userip_menu.addSeparator()

@@ -198,7 +198,7 @@ class DependencyPromptDialog(DraggableDialogMixin, QDialog):
         action_button.setStyleSheet(DEPENDENCY_PROMPT_ACTION_BUTTON_STYLESHEET)
         action_button.setFont(QFont('Segoe UI', scale_by_ui(9), QFont.Weight.Bold))
         action_button.setCursor(Qt.CursorShape.PointingHandCursor)
-        action_icon = render_svg_pixmap_from_resource('website.svg', scale_by_ui(16), scale_by_ui(16))
+        action_icon = render_svg_pixmap_from_resource('globe.svg', scale_by_ui(16), scale_by_ui(16))
         action_button.setIcon(QIcon(action_icon))
         action_button.setFixedHeight(scale_by_ui(34))
         action_button.clicked.connect(self._handle_action_clicked)

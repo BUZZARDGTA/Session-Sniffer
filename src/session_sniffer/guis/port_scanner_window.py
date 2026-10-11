@@ -697,7 +697,7 @@ class PortScannerTabWidget(QWidget):
             url_scheme = 'https' if port_num in (443, 8443) else 'http'
             browser_url = f'{url_scheme}://{target_host}:{port_num}'
             open_browser_action = menu.addAction(
-                QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'website.svg')),
+                QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'globe.svg')),
                 f'Open in Browser ({browser_url})',
             )
             open_browser_action.triggered.connect(lambda: webbrowser.open(browser_url))

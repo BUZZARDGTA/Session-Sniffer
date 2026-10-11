@@ -443,7 +443,12 @@ class TableContextMenuMixin(QTableView):
                     check_gta5_restriction=any(not player.is_gta5_process for player in players),
                 )
 
-            looky_menu = add_menu(parent_menu, 'Looky System', 'Looky System tools and shortcuts.', icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'eye.svg')))
+            looky_menu = add_menu(
+                parent_menu,
+                'Looky System',
+                'Looky System tools and shortcuts.',
+                icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'looky_system' / 'scan_eye.svg')),
+            )
 
             def _open_looky_website() -> None:
                 QDesktopServices.openUrl(QUrl(LOOKY_BASE_HOST))
@@ -453,20 +458,10 @@ class TableContextMenuMixin(QTableView):
                 'Open Website',
                 tooltip='Open the Looky System website in your default browser.',
                 handler=_open_looky_website,
-                icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'website.svg')),
+                icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'globe.svg')),
             )
 
-            looky_menu.addSeparator()
-
             if len(players) == 1:
-                lookup_action = add_action(
-                    looky_menu,
-                    'Lookup',
-                    tooltip='Query the Looky System API to find players associated with this IP.',
-                    handler=lambda: show_looky_lookup(self, players[0]),
-                    icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'search.svg')),
-                )
-                _apply_looky_gating(lookup_action)
                 if players[0].looky_system.rockstarids:
                     rockstar_ids = players[0].looky_system.rockstarids
                     usernames = players[0].looky_system.usernames
@@ -483,14 +478,14 @@ class TableContextMenuMixin(QTableView):
                             'View on Website',
                             tooltip=f"Open {target_name}'s profile on the Looky System website ({profile_url}).",
                             handler=_open_single_profile,
-                            icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'website.svg')),
+                            icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'globe.svg')),
                         )
                     else:
                         view_website_menu = add_menu(
                             looky_menu,
                             'View on Website',
                             "Open this player's profile on the Looky System website.",
-                            icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'website.svg')),
+                            icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'globe.svg')),
                         )
 
                         def _make_profile_opener(url: str) -> Callable[[], None]:
@@ -511,7 +506,7 @@ class TableContextMenuMixin(QTableView):
                                 label,
                                 tooltip=f"Open {target_name}'s profile on the Looky System website ({profile_url}).",
                                 handler=_make_profile_opener(profile_url),
-                                icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'website.svg')),
+                                icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'globe.svg')),
                             )
                         view_website_menu.addSeparator()
 
@@ -524,15 +519,27 @@ class TableContextMenuMixin(QTableView):
                             f'Open All ({len(rockstar_ids)})',
                             tooltip=f'Open all {len(rockstar_ids)} player profiles on the Looky System website.',
                             handler=_open_all_player_profiles,
-                            icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'website.svg')),
+                            icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'globe.svg')),
                         )
 
+                looky_menu.addSeparator()
+
+                lookup_action = add_action(
+                    looky_menu,
+                    'Lookup',
+                    tooltip='Query the Looky System API to find players associated with this IP.',
+                    handler=lambda: show_looky_lookup(self, players[0]),
+                    icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'user.svg')),
+                )
+                _apply_looky_gating(lookup_action)
+
+                if players[0].looky_system.rockstarids:
                     crawler_action = add_action(
                         looky_menu,
-                        'Request Crawler',
+                        'Call Crawler',
                         tooltip='Call the crawler bot to resolve usernames for players in the session associated with this IP.',
                         handler=lambda: show_crawler_request(self, players[0]),
-                        icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'bot.svg')),
+                        icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'looky_system' / 'bot.svg')),
                     )
                     _apply_looky_gating(crawler_action)
 
@@ -541,23 +548,10 @@ class TableContextMenuMixin(QTableView):
                         'Proxy Join',
                         tooltip="Call the Looky System proxy bot to join this player's session.",
                         handler=lambda: show_proxy_join_request(self, players[0]),
-                        icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'link.svg')),
+                        icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'looky_system' / 'user_plus.svg')),
                     )
                     _apply_looky_gating(proxy_join_action)
                 return
-
-            def _show_looky_lookup_for_all() -> None:
-                for player in players:
-                    show_looky_lookup(self, player)
-
-            lookup_all_action = add_action(
-                looky_menu,
-                'Lookup (All Selected)',
-                tooltip='Query the Looky System API for each selected player IP.',
-                handler=_show_looky_lookup_for_all,
-                icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'search.svg')),
-            )
-            _apply_looky_gating(lookup_all_action)
 
             all_selected_rockstar_ids: list[int] = []
             for player in players:
@@ -577,8 +571,23 @@ class TableContextMenuMixin(QTableView):
                     'View on Website (All Selected)',
                     tooltip=f'Open {profile_count} player profile{pluralize(profile_count)} on the Looky System website.',
                     handler=_open_all_selected_profiles,
-                    icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'website.svg')),
+                    icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'globe.svg')),
                 )
+
+            looky_menu.addSeparator()
+
+            def _show_looky_lookup_for_all() -> None:
+                for player in players:
+                    show_looky_lookup(self, player)
+
+            lookup_all_action = add_action(
+                looky_menu,
+                'Lookup (All Selected)',
+                tooltip='Query the Looky System API for each selected player IP.',
+                handler=_show_looky_lookup_for_all,
+                icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'user.svg')),
+            )
+            _apply_looky_gating(lookup_all_action)
 
         def add_ping_menu(ip_addresses: list[str]) -> None:
             if not ip_addresses:

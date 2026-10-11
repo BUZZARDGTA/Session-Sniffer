@@ -315,7 +315,7 @@ class IPLookupDetailsDialog(PlayerInfoDialogMixin):
         buttons_layout.setContentsMargins(0, 6, 0, 0)
         buttons_layout.setSpacing(10)
 
-        lookup_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'search.svg')), ' Looky Lookup…')
+        lookup_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'user.svg')), ' Looky Lookup…')
         lookup_button.clicked.connect(lambda: show_looky_lookup(self, self._target))
         configure_looky_action(
             lookup_button,
@@ -324,7 +324,7 @@ class IPLookupDetailsDialog(PlayerInfoDialogMixin):
         )
         buttons_layout.addWidget(lookup_button)
 
-        website_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'website.svg')), ' Looky Website')
+        website_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'globe.svg')), ' Looky Website')
         website_button.setToolTip('Open the Looky System website in your default browser.')
 
         def _on_website_clicked() -> None:

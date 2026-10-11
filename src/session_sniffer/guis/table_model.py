@@ -386,7 +386,7 @@ class SessionTableModel(QAbstractTableModel):
             pps=self.get_column_index('PPS'),
         )
         self._ip_to_row_index: dict[str, int] = {}  # O(1) row lookup by IP
-        self._looky_icon = QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'eye.svg'))
+        self._looky_icon = QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'looky_system' / 'eye.svg'))
 
     @staticmethod
     def _is_player_looky_resolved(player: Player) -> bool:
