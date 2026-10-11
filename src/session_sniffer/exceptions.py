@@ -58,4 +58,4 @@ class UnsupportedPlatformError(RuntimeError):
         Args:
             platform: The current platform name.
         """
-        super().__init__(f'This application only supports Windows and Linux (current platform: {platform}).')
+        super().__init__(f'This application only supports Windows, Linux, and macOS (current platform: {platform}).')

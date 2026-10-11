@@ -114,6 +114,8 @@ def get_app_dir(*, scope: Literal['roaming', 'local']) -> Path:
             base = Path(os.getenv('APPDATA', str(Path.home() / 'AppData' / 'Roaming')))
         else:
             base = Path(os.getenv('LOCALAPPDATA', str(Path.home() / 'AppData' / 'Local')))
+    elif sys.platform == 'darwin':
+        base = Path.home() / 'Library' / 'Application Support'
     elif scope == 'roaming':
         base = Path(os.getenv('XDG_CONFIG_HOME', str(Path.home() / '.config')))
     else:
@@ -266,6 +268,25 @@ def terminate_process_tree(pid: int | None = None) -> None:
                         children_by_parent.setdefault(parent_process_id, []).append(child_pid)
                     except (OSError, ValueError, IndexError):
                         continue
+        elif sys.platform == 'darwin':
+            try:
+                ps_executable = shutil.which('ps') or '/bin/ps'
+                ps_process = subprocess.run(
+                    [ps_executable, '-A', '-o', 'pid=,ppid='],
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                    timeout=2.0,
+                )
+                min_ps_output_parts = 2
+                for line in ps_process.stdout.splitlines():
+                    parts = line.strip().split()
+                    if len(parts) >= min_ps_output_parts and parts[0].isdigit() and parts[1].isdigit():
+                        child_pid = int(parts[0])
+                        parent_pid = int(parts[1])
+                        children_by_parent.setdefault(parent_pid, []).append(child_pid)
+            except (subprocess.TimeoutExpired, OSError):
+                pass
 
         descendant_pids: list[int] = []
         queue: list[int] = [target_pid]
@@ -511,6 +532,10 @@ def run_cmd_script(script: Path, args: list[str] | None = None) -> None:
         command = [sys.executable, str(script)] if script.suffix.casefold() == '.py' else [str(script)]
         if args is not None:
             command.extend(args)
+        if sys.platform == 'darwin':
+            open_executable = shutil.which('open') or '/usr/bin/open'
+            subprocess.run([open_executable, '-a', 'Terminal', *command], check=False)
+            return
         terminal_emulator = shutil.which('x-terminal-emulator') or shutil.which('gnome-terminal') or shutil.which('xterm')
         if terminal_emulator:
             subprocess.run([terminal_emulator, '-e', *command], check=False)

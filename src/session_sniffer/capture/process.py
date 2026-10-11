@@ -1,10 +1,12 @@
-"""Target process inspection and UDP port resolution via Win32 IP Helper and Windows APIs on Windows, or procfs on Linux."""
+"""Target process inspection and UDP port resolution via Win32 IP Helper and Windows APIs on Windows, procfs on Linux, or libproc and lsof on macOS."""
 
 import ctypes
 import logging
 import os
+import shutil
 import signal
 import socket
+import subprocess
 import sys
 import time
 from ctypes import wintypes
@@ -38,6 +40,13 @@ _SYSTEM_PROCESS_INFORMATION_MIN_SIZE = 256
 _SYSTEM_THREAD_INFORMATION_SIZE = 80
 _PORT_MASK = 0xFFFF
 
+_DARWIN_PROC_ALL_PIDS = 1
+_DARWIN_PROC_PIDTBSDINFO = 3
+_DARWIN_PROC_PIDTASKINFO = 4
+_DARWIN_SSTOP = 4
+_MIN_LSOF_UDP_FIELDS = 9
+_DARWIN_LSOF_EXECUTABLE = '/usr/sbin/lsof'
+
 if sys.platform == 'win32':
     _kernel32 = ctypes.windll.kernel32
     _ntdll = ctypes.windll.ntdll
@@ -59,12 +68,8 @@ class _IOCounters(ctypes.Structure):
     """ctypes definition for IO_COUNTERS structure."""
 
     _fields_ = [
-        ('ReadOperationCount', ctypes.c_uint64),
-        ('WriteOperationCount', ctypes.c_uint64),
-        ('OtherOperationCount', ctypes.c_uint64),
-        ('ReadTransferCount', ctypes.c_uint64),
-        ('WriteTransferCount', ctypes.c_uint64),
-        ('OtherTransferCount', ctypes.c_uint64),
+        ('ReadOperationCount', ctypes.c_uint64), ('WriteOperationCount', ctypes.c_uint64), ('OtherOperationCount', ctypes.c_uint64),
+        ('ReadTransferCount', ctypes.c_uint64), ('WriteTransferCount', ctypes.c_uint64), ('OtherTransferCount', ctypes.c_uint64),
     ]
 
 
@@ -72,16 +77,9 @@ class _ProcessMemoryCounters(ctypes.Structure):
     """ctypes definition for PROCESS_MEMORY_COUNTERS structure."""
 
     _fields_ = [
-        ('cb', wintypes.DWORD),
-        ('PageFaultCount', wintypes.DWORD),
-        ('PeakWorkingSetSize', ctypes.c_size_t),
-        ('WorkingSetSize', ctypes.c_size_t),
-        ('QuotaPeakPagedPoolUsage', ctypes.c_size_t),
-        ('QuotaPagedPoolUsage', ctypes.c_size_t),
-        ('QuotaPeakNonPagedPoolUsage', ctypes.c_size_t),
-        ('QuotaNonPagedPoolUsage', ctypes.c_size_t),
-        ('PagefileUsage', ctypes.c_size_t),
-        ('PeakPagefileUsage', ctypes.c_size_t),
+        ('cb', wintypes.DWORD), ('PageFaultCount', wintypes.DWORD), ('PeakWorkingSetSize', ctypes.c_size_t), ('WorkingSetSize', ctypes.c_size_t),
+        ('QuotaPeakPagedPoolUsage', ctypes.c_size_t), ('QuotaPagedPoolUsage', ctypes.c_size_t), ('QuotaPeakNonPagedPoolUsage', ctypes.c_size_t),
+        ('QuotaNonPagedPoolUsage', ctypes.c_size_t), ('PagefileUsage', ctypes.c_size_t), ('PeakPagefileUsage', ctypes.c_size_t),
     ]
 
     def __init__(self, *args: object, **kwargs: object) -> None:
@@ -92,78 +90,39 @@ class _ProcessMemoryCounters(ctypes.Structure):
 if sys.platform == 'win32':
     _kernel32.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
     _kernel32.OpenProcess.restype = wintypes.HANDLE
-
     _kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
     _kernel32.CloseHandle.restype = wintypes.BOOL
-
     _kernel32.GetCurrentProcess.argtypes = []
     _kernel32.GetCurrentProcess.restype = wintypes.HANDLE
-
     _kernel32.GetExitCodeProcess.argtypes = [wintypes.HANDLE, ctypes.POINTER(wintypes.DWORD)]
     _kernel32.GetExitCodeProcess.restype = wintypes.BOOL
-
     _kernel32.GetProcessTimes.argtypes = [
-        wintypes.HANDLE,
-        ctypes.POINTER(wintypes.FILETIME),
-        ctypes.POINTER(wintypes.FILETIME),
-        ctypes.POINTER(wintypes.FILETIME),
-        ctypes.POINTER(wintypes.FILETIME),
+        wintypes.HANDLE, ctypes.POINTER(wintypes.FILETIME), ctypes.POINTER(wintypes.FILETIME),
+        ctypes.POINTER(wintypes.FILETIME), ctypes.POINTER(wintypes.FILETIME),
     ]
     _kernel32.GetProcessTimes.restype = wintypes.BOOL
-
-    _kernel32.QueryFullProcessImageNameW.argtypes = [
-        wintypes.HANDLE,
-        wintypes.DWORD,
-        wintypes.LPWSTR,
-        ctypes.POINTER(wintypes.DWORD),
-    ]
+    _kernel32.QueryFullProcessImageNameW.argtypes = [wintypes.HANDLE, wintypes.DWORD, wintypes.LPWSTR, ctypes.POINTER(wintypes.DWORD)]
     _kernel32.QueryFullProcessImageNameW.restype = wintypes.BOOL
-
     _kernel32.CreateToolhelp32Snapshot.argtypes = [wintypes.DWORD, wintypes.DWORD]
     _kernel32.CreateToolhelp32Snapshot.restype = wintypes.HANDLE
-
     _kernel32.Process32FirstW.argtypes = [wintypes.HANDLE, ctypes.POINTER(ProcessEntry32W)]
     _kernel32.Process32FirstW.restype = wintypes.BOOL
-
     _kernel32.Process32NextW.argtypes = [wintypes.HANDLE, ctypes.POINTER(ProcessEntry32W)]
     _kernel32.Process32NextW.restype = wintypes.BOOL
-
     _kernel32.TerminateProcess.argtypes = [wintypes.HANDLE, wintypes.UINT]
     _kernel32.TerminateProcess.restype = wintypes.BOOL
-
     _kernel32.GetProcessIoCounters.argtypes = [wintypes.HANDLE, ctypes.POINTER(_IOCounters)]
     _kernel32.GetProcessIoCounters.restype = wintypes.BOOL
-
-    _psapi.GetProcessMemoryInfo.argtypes = [
-        wintypes.HANDLE,
-        ctypes.POINTER(_ProcessMemoryCounters),
-        wintypes.DWORD,
-    ]
+    _psapi.GetProcessMemoryInfo.argtypes = [wintypes.HANDLE, ctypes.POINTER(_ProcessMemoryCounters), wintypes.DWORD]
     _psapi.GetProcessMemoryInfo.restype = wintypes.BOOL
-
     _ntdll.NtSuspendProcess.argtypes = [wintypes.HANDLE]
     _ntdll.NtSuspendProcess.restype = wintypes.LONG
-
     _ntdll.NtResumeProcess.argtypes = [wintypes.HANDLE]
     _ntdll.NtResumeProcess.restype = wintypes.LONG
-
-    _ntdll.NtQuerySystemInformation.argtypes = [
-        wintypes.ULONG,
-        ctypes.c_void_p,
-        wintypes.ULONG,
-        ctypes.POINTER(wintypes.ULONG),
-    ]
+    _ntdll.NtQuerySystemInformation.argtypes = [wintypes.ULONG, ctypes.c_void_p, wintypes.ULONG, ctypes.POINTER(wintypes.ULONG)]
     _ntdll.NtQuerySystemInformation.restype = wintypes.LONG
-
     _GetExtendedUdpTable = _iphlpapi.GetExtendedUdpTable
-    _GetExtendedUdpTable.argtypes = [
-        ctypes.c_void_p,
-        ctypes.POINTER(wintypes.DWORD),
-        wintypes.BOOL,
-        wintypes.ULONG,
-        ctypes.c_int,
-        wintypes.ULONG,
-    ]
+    _GetExtendedUdpTable.argtypes = [ctypes.c_void_p, ctypes.POINTER(wintypes.DWORD), wintypes.BOOL, wintypes.ULONG, ctypes.c_int, wintypes.ULONG]
     _GetExtendedUdpTable.restype = wintypes.DWORD
 
 
@@ -229,10 +188,140 @@ def _get_creation_time_from_handle(handle: wintypes.HANDLE) -> float | None:
     return (time_100ns - _WINDOWS_EPOCH_DELTA_100NS) / 10000000.0
 
 
+class _DarwinProcBsdInfo(ctypes.Structure):
+    _fields_ = [
+        ('pbi_flags', ctypes.c_uint32), ('pbi_status', ctypes.c_uint32), ('pbi_xstatus', ctypes.c_uint32), ('pbi_pid', ctypes.c_uint32),
+        ('pbi_ppid', ctypes.c_uint32), ('pbi_uid', ctypes.c_uint32), ('pbi_gid', ctypes.c_uint32), ('pbi_ruid', ctypes.c_uint32),
+        ('pbi_rgid', ctypes.c_uint32), ('pbi_svuid', ctypes.c_uint32), ('pbi_svgid', ctypes.c_uint32), ('rfu_1', ctypes.c_uint32),
+        ('pbi_comm', ctypes.c_char * 16), ('pbi_name', ctypes.c_char * 32), ('pbi_nfiles', ctypes.c_uint32), ('pbi_pgid', ctypes.c_uint32),
+        ('pbi_pjobc', ctypes.c_uint32), ('e_tdev', ctypes.c_uint32), ('e_tpgid', ctypes.c_uint32), ('pbi_nice', ctypes.c_int32),
+        ('pbi_start_tvsec', ctypes.c_uint64), ('pbi_start_tvusec', ctypes.c_uint64),
+    ]
+
+
+class _DarwinProcTaskInfo(ctypes.Structure):
+    _fields_ = [
+        ('pti_virtual_size', ctypes.c_uint64), ('pti_resident_size', ctypes.c_uint64), ('pti_total_user', ctypes.c_uint64),
+        ('pti_total_system', ctypes.c_uint64), ('pti_threads_user', ctypes.c_uint64), ('pti_threads_system', ctypes.c_uint64),
+        ('pti_policy', ctypes.c_int32), ('pti_faults', ctypes.c_int32), ('pti_pageins', ctypes.c_int32),
+        ('pti_cow_faults', ctypes.c_int32), ('pti_messages_sent', ctypes.c_int32), ('pti_messages_received', ctypes.c_int32),
+        ('pti_syscalls_mach', ctypes.c_int32), ('pti_syscalls_unix', ctypes.c_int32), ('pti_csw', ctypes.c_int32),
+        ('pti_threadnum', ctypes.c_int32), ('pti_numrunning', ctypes.c_int32), ('pti_priority', ctypes.c_int32),
+    ]
+
+
+def _get_process_creation_time_darwin(pid: int) -> float | None:
+    """Return creation time of the process on macOS using libproc."""
+    try:
+        libc = ctypes.CDLL(None)
+        bsdinfo = _DarwinProcBsdInfo()
+        return_bytes = libc.proc_pidinfo(pid, _DARWIN_PROC_PIDTBSDINFO, 0, ctypes.byref(bsdinfo), ctypes.sizeof(bsdinfo))
+        if return_bytes == ctypes.sizeof(bsdinfo):
+            return float(bsdinfo.pbi_start_tvsec) + (float(bsdinfo.pbi_start_tvusec) / 1_000_000.0)
+    except (OSError, AttributeError):
+        pass
+    return None
+
+
+def _is_process_running_darwin(pid: int, creation_time: float | None) -> bool:
+    """Check if process is running on macOS."""
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        pass
+    if creation_time is not None:
+        actual_creation_time = get_process_creation_time(pid)
+        return not (actual_creation_time is None or abs(actual_creation_time - creation_time) > _CREATION_TIME_TOLERANCE_SECONDS)
+    return True
+
+
+def _get_process_image_path_darwin(pid: int) -> Path | None:
+    """Return the resolved executable file path for the given PID on macOS."""
+    try:
+        libc = ctypes.CDLL(None)
+        path_buffer = ctypes.create_string_buffer(4096)
+        return_length = libc.proc_pidpath(pid, path_buffer, ctypes.sizeof(path_buffer))
+        if return_length > 0:
+            path_string = path_buffer.value.decode('utf-8', errors='replace')
+            if path_string:
+                return Path(path_string).resolve()
+    except (OSError, AttributeError):
+        pass
+    return None
+
+
+def _iter_running_processes_darwin() -> list[tuple[int, str]]:
+    """Return a snapshot list of (pid, name) for all running processes on macOS."""
+    try:
+        libc = ctypes.CDLL(None)
+        bytes_needed = libc.proc_listpids(_DARWIN_PROC_ALL_PIDS, 0, None, 0)
+        if bytes_needed <= 0:
+            return []
+        buffer = ctypes.create_string_buffer(bytes_needed)
+        actual_bytes = libc.proc_listpids(_DARWIN_PROC_ALL_PIDS, 0, buffer, bytes_needed)
+        if actual_bytes <= 0:
+            return []
+        pid_count = actual_bytes // ctypes.sizeof(ctypes.c_int32)
+        pids = (ctypes.c_int32 * pid_count).from_buffer(buffer)
+        processes: list[tuple[int, str]] = []
+        name_buffer = ctypes.create_string_buffer(256)
+        for pid in pids:
+            if pid <= 0:
+                continue
+            name_length = libc.proc_name(pid, name_buffer, ctypes.sizeof(name_buffer))
+            name = name_buffer.value.decode('utf-8', errors='replace') if name_length > 0 else ''
+            processes.append((int(pid), name))
+    except (OSError, AttributeError):
+        return []
+    return processes
+
+
+def _is_process_suspended_darwin(pid: int) -> bool:
+    """Check if process is suspended on macOS."""
+    try:
+        libc = ctypes.CDLL(None)
+        bsdinfo = _DarwinProcBsdInfo()
+        return_bytes = libc.proc_pidinfo(pid, _DARWIN_PROC_PIDTBSDINFO, 0, ctypes.byref(bsdinfo), ctypes.sizeof(bsdinfo))
+        if return_bytes == ctypes.sizeof(bsdinfo):
+            return bool(bsdinfo.pbi_status == _DARWIN_SSTOP)
+    except (OSError, AttributeError):
+        pass
+    return False
+
+
+def _get_process_udp_ports_darwin(target_pid: int) -> frozenset[int]:
+    """Return the set of local UDP ports currently bound by target PID on macOS via lsof."""
+    try:
+        lsof_executable = shutil.which('lsof') or _DARWIN_LSOF_EXECUTABLE
+        process = subprocess.run(
+            [lsof_executable, '-nP', '-iUDP', '-a', '-p', str(target_pid)],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=3.0,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return frozenset[int]()
+
+    ports: set[int] = set()
+    for line in process.stdout.splitlines()[1:]:
+        tokens = line.strip().split()
+        if len(tokens) >= _MIN_LSOF_UDP_FIELDS:
+            endpoint = tokens[-1]
+            port_string = endpoint.rsplit(':', 1)[-1]
+            if port_string.isdigit():
+                ports.add(int(port_string))
+    return frozenset(ports)
+
+
 def get_process_creation_time(pid: int) -> float | None:
     """Return the creation time of the process in seconds since Unix epoch, or None if unavailable."""
     if pid <= 0:
         return None
+    if sys.platform == 'darwin':
+        return _get_process_creation_time_darwin(pid)
     if sys.platform != 'win32':
         try:
             return Path(f'/proc/{pid}').stat().st_ctime
@@ -257,21 +346,8 @@ def _is_process_running_linux(pid: int, creation_time: float | None) -> bool:
     return True
 
 
-def is_process_running(target: int | ProcessInfo, creation_time: float | None = None) -> bool:
-    """Return `True` if the process is currently active and matches creation time if specified."""
-    if isinstance(target, ProcessInfo):
-        pid = target.pid
-        if creation_time is None:
-            creation_time = target.creation_time
-    else:
-        pid = target
-
-    if pid <= 0:
-        return False
-
-    if sys.platform != 'win32':
-        return _is_process_running_linux(pid, creation_time)
-
+def _is_process_running_windows(pid: int, creation_time: float | None) -> bool:
+    """Check if process is running on Windows."""
     handle = _kernel32.OpenProcess(_PROCESS_QUERY_LIMITED_INFORMATION, 0, pid)
     if not handle:
         return False
@@ -287,15 +363,32 @@ def is_process_running(target: int | ProcessInfo, creation_time: float | None = 
         _kernel32.CloseHandle(handle)
 
 
-def get_process_image_path(pid: int) -> Path | None:
-    """Return the resolved executable file path for the given PID, or `None` if inaccessible."""
+def is_process_running(target: int | ProcessInfo, creation_time: float | None = None) -> bool:
+    """Return `True` if the process is currently active and matches creation time if specified."""
+    if isinstance(target, ProcessInfo):
+        pid = target.pid
+        if creation_time is None:
+            creation_time = target.creation_time
+    else:
+        pid = target
+
     if pid <= 0:
-        return None
+        return False
+    if sys.platform == 'darwin':
+        return _is_process_running_darwin(pid, creation_time)
     if sys.platform != 'win32':
-        try:
-            return Path(f'/proc/{pid}/exe').resolve()
-        except OSError:
-            return None
+        return _is_process_running_linux(pid, creation_time)
+    return _is_process_running_windows(pid, creation_time)
+
+
+def _get_process_image_path_linux(pid: int) -> Path | None:
+    try:
+        return Path(f'/proc/{pid}/exe').resolve()
+    except OSError:
+        return None
+
+
+def _get_process_image_path_windows(pid: int) -> Path | None:
     handle = _kernel32.OpenProcess(_PROCESS_QUERY_LIMITED_INFORMATION, 0, pid)
     if not handle:
         return None
@@ -309,8 +402,21 @@ def get_process_image_path(pid: int) -> Path | None:
         _kernel32.CloseHandle(handle)
 
 
+def get_process_image_path(pid: int) -> Path | None:
+    """Return the resolved executable file path for the given PID, or `None` if inaccessible."""
+    if pid <= 0:
+        return None
+    if sys.platform == 'darwin':
+        return _get_process_image_path_darwin(pid)
+    if sys.platform != 'win32':
+        return _get_process_image_path_linux(pid)
+    return _get_process_image_path_windows(pid)
+
+
 def iter_running_processes() -> list[tuple[int, str]]:
     """Return a snapshot list of `(pid, name)` for all running processes."""
+    if sys.platform == 'darwin':
+        return _iter_running_processes_darwin()
     if sys.platform != 'win32':
         processes: list[tuple[int, str]] = []
         proc_dir = Path('/proc')
@@ -477,32 +583,57 @@ def is_process_suspended(pid: int) -> bool:
     """Check whether the target process is in a suspended/stopped state."""
     if pid <= 0:
         return False
+    if sys.platform == 'darwin':
+        return _is_process_suspended_darwin(pid)
     if sys.platform != 'win32':
         return _is_process_suspended_linux(pid)
     return _is_process_suspended_win32(pid)
 
 
-def get_current_process_memory_mb() -> float:
-    """Return the RSS memory usage of the current process in megabytes."""
-    if sys.platform != 'win32':
-        try:
-            with Path('/proc/self/status').open(encoding='ascii') as status_file:
-                for line in status_file:
-                    if line.startswith('VmRSS:'):
-                        fields = line.split()
-                        return float(fields[1]) / 1024.0
-        except OSError:
-            pass
-        return 0.0
+def _get_current_process_memory_darwin() -> float:
+    try:
+        libc = ctypes.CDLL(None)
+        taskinfo = _DarwinProcTaskInfo()
+        return_bytes = libc.proc_pidinfo(os.getpid(), _DARWIN_PROC_PIDTASKINFO, 0, ctypes.byref(taskinfo), ctypes.sizeof(taskinfo))
+        if return_bytes == ctypes.sizeof(taskinfo):
+            return float(taskinfo.pti_resident_size) / _BYTES_PER_MB
+    except (OSError, AttributeError):
+        pass
+    return 0.0
 
+
+def _get_current_process_memory_linux() -> float:
+    try:
+        with Path('/proc/self/status').open(encoding='ascii') as status_file:
+            for line in status_file:
+                if line.startswith('VmRSS:'):
+                    fields = line.split()
+                    return float(fields[1]) / 1024.0
+    except OSError:
+        pass
+    return 0.0
+
+
+def _get_current_process_memory_windows() -> float:
     memory_counters = _ProcessMemoryCounters()
     if not _psapi.GetProcessMemoryInfo(_kernel32.GetCurrentProcess(), ctypes.byref(memory_counters), ctypes.sizeof(memory_counters)):
         return 0.0
     return float(memory_counters.WorkingSetSize) / _BYTES_PER_MB
 
 
+def get_current_process_memory_mb() -> float:
+    """Return the RSS memory usage of the current process in megabytes."""
+    if sys.platform == 'darwin':
+        return _get_current_process_memory_darwin()
+    if sys.platform != 'win32':
+        return _get_current_process_memory_linux()
+    return _get_current_process_memory_windows()
+
+
 def get_current_process_io_bytes() -> tuple[int, int]:
     """Return `(read_bytes, write_bytes)` for the current process."""
+    if sys.platform == 'darwin':
+        return (0, 0)
     if sys.platform != 'win32':
         read_bytes = 0
         write_bytes = 0
@@ -547,6 +678,8 @@ def get_current_process_cpu_time() -> float:
 
 def get_process_udp_ports(target_pid: int) -> frozenset[int]:
     """Return the set of local UDP ports currently bound by the target PID via Win32 IP Helper API."""
+    if sys.platform == 'darwin':
+        return _get_process_udp_ports_darwin(target_pid)
     if sys.platform != 'win32':
         inode_to_port: dict[str, int] = {}
         for udp_table_path in ('/proc/net/udp', '/proc/net/udp6'):
@@ -750,21 +883,9 @@ def find_running_target_process(
 
 _SYSTEM_PROCESS_NAMES: frozenset[str] = frozenset(
     {
-        'conhost.exe',
-        'csrss.exe',
-        'dwm.exe',
-        'fontdrvhost.exe',
-        'lsass.exe',
-        'registry',
-        'runtimebroker.exe',
-        'services.exe',
-        'sihost.exe',
-        'smss.exe',
-        'spoolsv.exe',
-        'system',
-        'taskhostw.exe',
-        'wininit.exe',
-        'winlogon.exe',
+        'conhost.exe', 'csrss.exe', 'dwm.exe', 'fontdrvhost.exe', 'lsass.exe', 'registry',
+        'runtimebroker.exe', 'services.exe', 'sihost.exe', 'smss.exe', 'spoolsv.exe',
+        'system', 'taskhostw.exe', 'wininit.exe', 'winlogon.exe',
     },
 )
 

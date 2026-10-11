@@ -39,6 +39,10 @@ def _compute_os_info() -> str:
 
     machine = platform.machine()
     arch = 'x64' if machine in ('AMD64', 'x86_64') else machine
+    if sys.platform == 'darwin':
+        macos_version = platform.mac_ver()[0]
+        version_string = macos_version or platform.version()
+        return f'macOS {arch} {version_string}'
     return f'{platform.system()} {arch} {platform.version()}'
 
 

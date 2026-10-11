@@ -103,7 +103,7 @@ def main() -> None:
 
     os.chdir(SCRIPT_DIR)
 
-    if sys.platform not in ('win32', 'linux'):
+    if sys.platform not in ('win32', 'linux', 'darwin'):
         raise UnsupportedPlatformError(sys.platform)
 
     Settings.load_from_settings_file(SETTINGS_PATH)

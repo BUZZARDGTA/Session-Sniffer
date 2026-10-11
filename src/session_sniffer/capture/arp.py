@@ -59,8 +59,8 @@ def _mac_bytes_to_string(mac_bytes: bytes) -> str:
     return ':'.join(f'{byte:02x}' for byte in mac_bytes)
 
 
-def _resolve_mac_address_linux(ip_address: str) -> str:
-    """Resolve an IPv4 address to its MAC address on Linux."""
+def _resolve_mac_address_unix(ip_address: str) -> str:
+    """Resolve an IPv4 address to its MAC address on Linux and macOS."""
     for _interface_index, cached_ip, cached_mac in iterate_ipv4_neighbors():
         if cached_ip == ip_address and cached_mac is not None and cached_mac and cached_mac.upper() not in {'00:00:00:00:00:00', 'FF:FF:FF:FF:FF:FF'}:
             return cached_mac.lower()
@@ -79,11 +79,11 @@ def _resolve_mac_address_linux(ip_address: str) -> str:
         if cached_ip == ip_address and cached_mac is not None and cached_mac and cached_mac.upper() not in {'00:00:00:00:00:00', 'FF:FF:FF:FF:FF:FF'}:
             return cached_mac.lower()
 
-    raise ArpResolutionError(ip_address, 'Host not found in Linux ARP table')
+    raise ArpResolutionError(ip_address, 'Host not found in ARP table')
 
 
 def resolve_mac_address(ip_address: str, source_ip: str | None = None) -> str:
-    """Resolve an IPv4 address to its MAC address using SendARP on Windows or the ARP table on Linux.
+    """Resolve an IPv4 address to its MAC address using SendARP on Windows or the ARP table on Linux/macOS.
 
     Args:
         ip_address: The target IPv4 address to resolve.
@@ -96,7 +96,7 @@ def resolve_mac_address(ip_address: str, source_ip: str | None = None) -> str:
         ArpResolutionError: If the MAC address cannot be resolved.
     """
     if sys.platform != 'win32':
-        return _resolve_mac_address_linux(ip_address)
+        return _resolve_mac_address_unix(ip_address)
     try:
         destination_ip = wintypes.DWORD(struct.unpack('<I', socket.inet_aton(ip_address))[0])
     except OSError as e:

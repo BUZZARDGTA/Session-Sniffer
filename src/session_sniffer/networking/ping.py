@@ -190,13 +190,13 @@ def _recvmsg_fallback(
 
 
 class IcmpEchoEngine:
-    """Native ICMP echo pinger using Win32 IcmpSendEcho on Windows or ICMP datagram sockets on Linux."""
+    """Native ICMP echo pinger using Win32 IcmpSendEcho on Windows or ICMP datagram sockets on Linux and macOS."""
 
     def __init__(self) -> None:
         """Initialize the native ICMP engine."""
         self._is_windows = sys.platform == 'win32'
         self._handle: int | None = None
-        self._linux_socket: socket.socket | None = None
+        self._unix_socket: socket.socket | None = None
 
         if self._is_windows:
             try:
@@ -211,16 +211,16 @@ class IcmpEchoEngine:
                 self._handle = None
         else:
             try:
-                self._linux_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_ICMP)
+                self._unix_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_ICMP)
                 if hasattr(socket, 'IP_RECVTTL'):
-                    self._linux_socket.setsockopt(socket.IPPROTO_IP, socket.IP_RECVTTL, 1)
+                    self._unix_socket.setsockopt(socket.IPPROTO_IP, socket.IP_RECVTTL, 1)
             except OSError as e:
-                logger.warning('Failed to create unprivileged ICMP socket on Linux: %s', e)
-                self._linux_socket = None
+                logger.warning('Failed to create unprivileged ICMP socket: %s', e)
+                self._unix_socket = None
 
     def is_available(self) -> bool:
         """Return True if the native ICMP handle or socket is valid."""
-        return (self._handle is not None) if self._is_windows else (self._linux_socket is not None)
+        return (self._handle is not None) if self._is_windows else (self._unix_socket is not None)
 
     def __enter__(self) -> Self:
         """Support context manager entry."""
@@ -245,15 +245,15 @@ class IcmpEchoEngine:
                     logger.debug('Failed to close Win32 ICMP handle: %s', e)
                 finally:
                     self._handle = None
-        elif self._linux_socket is not None:
+        elif self._unix_socket is not None:
             try:
-                self._linux_socket.close()
+                self._unix_socket.close()
             except OSError:
                 pass
             finally:
-                self._linux_socket = None
+                self._unix_socket = None
 
-    def _ping_linux(
+    def _ping_unix(
         self,
         target_ip: str,
         *,
@@ -262,7 +262,7 @@ class IcmpEchoEngine:
         payload_data: bytes,
     ) -> PingProbeResult:
         payload_bytes = len(payload_data)
-        if self._linux_socket is None:
+        if self._unix_socket is None:
             return PingProbeResult(
                 sequence=sequence,
                 target_host=target_ip,
@@ -294,11 +294,11 @@ class IcmpEchoEngine:
         header = struct.pack('!BBHHH', 8, 0, 0, identifier, sequence & 0xFFFF)
         packet = header + payload_data
 
-        self._linux_socket.settimeout(timeout_seconds)
+        self._unix_socket.settimeout(timeout_seconds)
         start_time = time.perf_counter()
         try:
-            self._linux_socket.sendto(packet, (resolved_ip, 0))
-            _packet_data, ancillary_data, _message_flags, _peer_address = getattr(self._linux_socket, 'recvmsg', _recvmsg_fallback)(1024, 1024)
+            self._unix_socket.sendto(packet, (resolved_ip, 0))
+            _packet_data, ancillary_data, _message_flags, _peer_address = getattr(self._unix_socket, 'recvmsg', _recvmsg_fallback)(1024, 1024)
             round_trip_time_ms = (time.perf_counter() - start_time) * 1000.0
 
             time_to_live: int | None = None
@@ -355,7 +355,7 @@ class IcmpEchoEngine:
         payload_bytes = len(payload_data)
 
         if not self._is_windows:
-            return self._ping_linux(
+            return self._ping_unix(
                 target_ip,
                 timeout_seconds=timeout_seconds,
                 sequence=sequence,

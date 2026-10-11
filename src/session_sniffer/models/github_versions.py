@@ -21,6 +21,9 @@ class VersionInfo(BaseModel):
     linux_download_url: str | None = None
     linux_sha256: str | None = None
     linux_file_size: int | None = None
+    darwin_download_url: str | None = None
+    darwin_sha256: str | None = None
+    darwin_file_size: int | None = None
     is_prerelease: bool = False
 
     @property
@@ -31,6 +34,8 @@ class VersionInfo(BaseModel):
     @property
     def platform_download_url(self) -> str:
         """Return platform-specific download URL."""
+        if sys.platform == 'darwin' and self.darwin_download_url:
+            return self.darwin_download_url
         if sys.platform.startswith('linux') and self.linux_download_url:
             return self.linux_download_url
         return self.download_url
@@ -38,6 +43,8 @@ class VersionInfo(BaseModel):
     @property
     def platform_sha256(self) -> str:
         """Return platform-specific SHA-256."""
+        if sys.platform == 'darwin' and self.darwin_sha256:
+            return self.darwin_sha256
         if sys.platform.startswith('linux') and self.linux_sha256:
             return self.linux_sha256
         return self.sha256
@@ -45,6 +52,8 @@ class VersionInfo(BaseModel):
     @property
     def platform_file_size(self) -> int | None:
         """Return platform-specific file size."""
+        if sys.platform == 'darwin' and self.darwin_file_size is not None:
+            return self.darwin_file_size
         if sys.platform.startswith('linux') and self.linux_file_size is not None:
             return self.linux_file_size
         return self.file_size

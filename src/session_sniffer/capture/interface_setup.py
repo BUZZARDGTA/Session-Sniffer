@@ -101,7 +101,7 @@ def get_filtered_capture_interfaces() -> list[tuple[str, str]]:
     result: list[tuple[str, str]] = []
     for interface in AllInterfaces.iterate():
         if sys.platform != 'win32':
-            if interface.identity.name != 'lo' and interface.identity.name not in EXCLUDED_CAPTURE_NETWORK_INTERFACES:
+            if interface.identity.name not in ('lo', 'lo0') and interface.identity.name not in EXCLUDED_CAPTURE_NETWORK_INTERFACES:
                 result.append((interface.identity.name, interface.identity.name))
             continue
 

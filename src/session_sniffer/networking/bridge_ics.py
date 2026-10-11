@@ -363,6 +363,8 @@ def get_adapter_classification() -> dict[str, AdapterClassification]:
 
     When an adapter qualifies for multiple classifications, bridge membership wins.
     """
+    if sys.platform == 'darwin':
+        return {}
     if sys.platform != 'win32':
         return _get_linux_bridge_classification()
 

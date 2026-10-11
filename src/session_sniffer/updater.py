@@ -378,6 +378,10 @@ def _handle_update_decision(
         logger.info('Update available (%s) but no Linux binary was published; skipping update.', format_project_version(candidate))
         return (UpdateCheckOutcome.PROCEED, None)
 
+    if sys.platform == 'darwin' and not candidate_info.darwin_download_url:
+        logger.info('Update available (%s) but no macOS binary was published; skipping update.', format_project_version(candidate))
+        return (UpdateCheckOutcome.PROCEED, None)
+
     if _is_running_executable_identical(candidate_info):
         logger.info('Running executable SHA-256 matches candidate release (%s); already up to date.', candidate_info.platform_sha256)
         return (UpdateCheckOutcome.PROCEED, None)

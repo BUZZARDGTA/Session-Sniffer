@@ -102,8 +102,8 @@ def _load_pcap_library() -> ctypes.CDLL:
         else:
             library = ctypes.CDLL('wpcap.dll')
     else:
-        library = None
-        for lib_name in ('libpcap.so.0.8', 'libpcap.so.1', 'libpcap.so'):
+        candidates = ('libpcap.dylib', '/usr/lib/libpcap.dylib') if sys.platform == 'darwin' else ('libpcap.so.0.8', 'libpcap.so.1', 'libpcap.so')
+        for lib_name in candidates:
             try:
                 library = ctypes.cdll.LoadLibrary(lib_name)
                 break

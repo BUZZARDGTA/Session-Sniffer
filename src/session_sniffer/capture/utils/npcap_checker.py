@@ -67,6 +67,46 @@ def get_linux_permissions_required_message() -> str:
     )
 
 
+def can_capture_packets_on_darwin() -> bool:
+    """Check whether the current process has permission to open BPF capture devices on macOS."""
+    if not is_libpcap_installed():
+        return False
+    for index in range(16):
+        bpf_device = Path(f'/dev/bpf{index}')
+        if bpf_device.exists() and os.access(bpf_device, os.R_OK | os.W_OK):
+            return True
+    return False
+
+
+def get_darwin_permissions_required_message() -> str:
+    """Format the message explaining the required BPF capture device permissions on macOS."""
+    return (
+        'Session Sniffer requires read and write permissions to BPF packet capture devices (/dev/bpf*) on macOS.\n\n'
+        'To grant capture permissions to BPF devices, run the following in Terminal:\n'
+        '  sudo chmod 666 /dev/bpf*\n\n'
+        "Alternatively, install Wireshark's 'ChmodBPF' package to retain BPF permissions across reboots."
+    )
+
+
+def ensure_darwin_capture_ready() -> None:
+    """Ensure that libpcap is available and BPF capture permissions are granted on macOS."""
+    if not is_libpcap_installed() and not show_dependency_prompt(
+        title='libpcap Required',
+        message='Session Sniffer requires libpcap on macOS to capture packets.\n\nPlease verify that libpcap is present in /usr/lib.',
+        condition=is_libpcap_installed,
+        status_callback=_get_libpcap_status,
+    ):
+        sys.exit(1)
+
+    if not can_capture_packets_on_darwin() and not show_dependency_prompt(
+        title='Capture Permissions Required',
+        message=get_darwin_permissions_required_message(),
+        condition=can_capture_packets_on_darwin,
+        status_callback=_get_darwin_permissions_status,
+    ):
+        sys.exit(1)
+
+
 def ensure_libpcap_installed() -> None:
     """Ensure that libpcap is installed and capture permissions are granted on Linux."""
     if not is_libpcap_installed() and not show_dependency_prompt(
@@ -196,8 +236,17 @@ def _get_linux_permissions_status() -> tuple[str, str]:
     return 'Listening for permissions…', 'Grant capture capabilities or run with elevated privileges.'
 
 
+def _get_darwin_permissions_status() -> tuple[str, str]:
+    """Return dynamic status for macOS packet capture permissions."""
+    if can_capture_packets_on_darwin():
+        return ('Capture permissions verified!', 'Resuming Session Sniffer…')
+    return ('Listening for BPF device permissions…', 'Run "sudo chmod 666 /dev/bpf*" in Terminal to grant permissions.')
+
+
 def get_npcap_status() -> tuple[str, str]:
     """Return the current dynamic installation status in chronological order with minimum step durations."""
+    if sys.platform == 'darwin':
+        return _get_darwin_permissions_status()
     if sys.platform != 'win32':
         return _get_libpcap_status()
 
@@ -268,6 +317,8 @@ def get_npcap_status() -> tuple[str, str]:
 
 def is_npcap_installed() -> bool:
     """Check if the capture driver is installed, running, and no setup wizard is in progress."""
+    if sys.platform == 'darwin':
+        return can_capture_packets_on_darwin()
     if sys.platform != 'win32':
         return can_capture_packets_on_linux()
 
@@ -290,6 +341,9 @@ def open_npcap_download_page() -> None:
 
 def ensure_npcap_installed() -> None:
     """Ensure that the capture driver is installed. If not, show instructions and wait for user to install manually."""
+    if sys.platform == 'darwin':
+        ensure_darwin_capture_ready()
+        return
     if sys.platform != 'win32':
         ensure_libpcap_installed()
         return

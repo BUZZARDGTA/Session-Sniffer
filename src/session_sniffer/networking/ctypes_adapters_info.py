@@ -1,7 +1,10 @@
-"""Network adapter information retrieval for Windows and Linux."""
+"""Network adapter information retrieval for Windows, Linux, and macOS."""
 
 import ctypes
+import re
+import shutil
 import socket
+import subprocess
 import sys
 from ctypes import wintypes
 from pathlib import Path
@@ -41,6 +44,16 @@ MEDIA_CONNECT_STATE_DISCONNECTED = 2  # Media is disconnected
 
 _ARP_MIN_FIELD_COUNT = 6
 _ROUTE_MIN_FIELD_COUNT = 3
+_MAC_OCTETS_COUNT = 6
+_MIN_NETSTAT_ROUTE_FIELDS = 4
+
+_DARWIN_ARP_REGEX = re.compile(r'^\S+\s+\((?P<ip>[0-9.]+)\)\s+at\s+(?P<mac>[0-9a-fA-F:]+)\s+on\s+(?P<interface>[a-zA-Z0-9]+)')
+_DARWIN_AF_LINK = 18
+_DARWIN_AF_INET = 2
+_DARWIN_ARP_EXECUTABLE = '/usr/sbin/arp'
+_DARWIN_NETSTAT_EXECUTABLE = '/usr/sbin/netstat'
+_IFF_UP = 0x1
+_IFF_RUNNING = 0x40
 
 # Windows Network Adapter State constant
 # https://learn.microsoft.com/en-us/previous-versions/windows/desktop/legacy/hh968170(v=vs.85)
@@ -262,36 +275,64 @@ def _sockaddr_to_ipv4(sockaddr_ptr: int | None) -> str | None:
     return None
 
 
-def iterate_ipv4_neighbors() -> Iterator[tuple[int, str | None, str | None]]:
-    """Yield IPv4 neighbor entries (interface index, IPv4, link-layer MAC).
-
-    This uses Windows IP Helper API `GetIpNetTable` on Windows or `/proc/net/arp` on Linux
-    and returns tuples of:
-        - InterfaceIndex (int)
-        - IPv4Address (str | None)
-        - MacAddress (str | None)
-
-    Returns an empty iterator if the table cannot be retrieved.
-    """
-    if sys.platform != 'win32':
-        try:
-            with Path('/proc/net/arp').open(encoding='ascii') as arp_file:
-                arp_lines = arp_file.readlines()
-        except OSError:
-            return
-
-        for line in arp_lines[1:]:
-            parts = line.split()
-            if len(parts) >= _ARP_MIN_FIELD_COUNT:
-                ip_address, _hw_type, flags, mac_address, _mask, device_name = parts[:6]
-                if flags != '0x0' and mac_address != '00:00:00:00:00:00':
-                    try:
-                        interface_index = socket.if_nametoindex(device_name)
-                    except OSError:
-                        interface_index = 0
-                    yield interface_index, ip_address, mac_address.upper()
+def _iterate_ipv4_neighbors_darwin() -> Iterator[tuple[int, str | None, str | None]]:
+    """Yield IPv4 neighbor entries on macOS by querying the ARP table."""
+    try:
+        arp_executable = shutil.which('arp') or _DARWIN_ARP_EXECUTABLE
+        process = subprocess.run(
+            [arp_executable, '-an'],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=5.0,
+        )
+    except (OSError, subprocess.TimeoutExpired):
         return
 
+    for line in process.stdout.splitlines():
+        match = _DARWIN_ARP_REGEX.search(line.strip())
+        if not match:
+            continue
+        ip_address = str(match.group('ip'))
+        raw_mac = str(match.group('mac'))
+        interface_name = str(match.group('interface'))
+
+        mac_parts = raw_mac.split(':')
+        if len(mac_parts) != _MAC_OCTETS_COUNT:
+            continue
+        try:
+            mac_address = ':'.join(f'{int(part, 16):02X}' for part in mac_parts)
+        except ValueError:
+            continue
+
+        try:
+            interface_index = socket.if_nametoindex(interface_name)
+        except OSError:
+            interface_index = 0
+
+        yield interface_index, ip_address, mac_address
+
+
+def _iterate_ipv4_neighbors_linux() -> Iterator[tuple[int, str | None, str | None]]:
+    try:
+        with Path('/proc/net/arp').open(encoding='ascii') as arp_file:
+            arp_lines = arp_file.readlines()
+    except OSError:
+        return
+
+    for line in arp_lines[1:]:
+        parts = line.split()
+        if len(parts) >= _ARP_MIN_FIELD_COUNT:
+            ip_address, _hw_type, flags, mac_address, _mask, device_name = parts[:6]
+            if flags != '0x0' and mac_address != '00:00:00:00:00:00':
+                try:
+                    interface_index = socket.if_nametoindex(device_name)
+                except OSError:
+                    interface_index = 0
+                yield interface_index, ip_address, mac_address.upper()
+
+
+def _iterate_ipv4_neighbors_windows() -> Iterator[tuple[int, str | None, str | None]]:
     size = wintypes.ULONG(0)
     ret = _get_ip_net_table(None, ctypes.byref(size))
     if ret not in (ERROR_INSUFFICIENT_BUFFER, ERROR_SUCCESS):
@@ -305,12 +346,10 @@ def iterate_ipv4_neighbors() -> Iterator[tuple[int, str | None, str | None]]:
     if ret != ERROR_SUCCESS:
         return
 
-    # First DWORD is number of entries
     num_entries = ctypes.cast(buf, ctypes.POINTER(wintypes.DWORD)).contents.value
     if not num_entries:
         return
 
-    # Rows start right after the first DWORD
     base = ctypes.addressof(buf)
     header_size = ctypes.sizeof(wintypes.DWORD)
     row_size = ctypes.sizeof(MIB_IPNETROW)
@@ -320,14 +359,28 @@ def iterate_ipv4_neighbors() -> Iterator[tuple[int, str | None, str | None]]:
     for i in range(valid_entries):
         row_ptr = ctypes.cast(base + header_size + i * row_size, ctypes.POINTER(MIB_IPNETROW))
         row = row_ptr.contents
-
-        # IPv4 address in little-endian DWORD
         ipv4 = socket.inet_ntoa(int(row.dwAddr).to_bytes(4, 'little'))
-
-        # Format MAC if present
         mac_address = None if not row.dwPhysAddrLen else ':'.join(f'{byte:02X}' for byte in row.bPhysAddr[: row.dwPhysAddrLen])
-
         yield int(row.dwIndex), ipv4, mac_address
+
+
+def iterate_ipv4_neighbors() -> Iterator[tuple[int, str | None, str | None]]:
+    """Yield IPv4 neighbor entries (interface index, IPv4, link-layer MAC).
+
+    This uses Windows IP Helper API `GetIpNetTable` on Windows, `/proc/net/arp` on Linux,
+    or `arp -an` on macOS, and returns tuples of:
+        - InterfaceIndex (int)
+        - IPv4Address (str | None)
+        - MacAddress (str | None)
+
+    Returns an empty iterator if the table cannot be retrieved.
+    """
+    if sys.platform == 'darwin':
+        yield from _iterate_ipv4_neighbors_darwin()
+    elif sys.platform == 'win32':
+        yield from _iterate_ipv4_neighbors_windows()
+    else:
+        yield from _iterate_ipv4_neighbors_linux()
 
 
 def _read_sys_file(path: Path) -> str:
@@ -463,12 +516,222 @@ def _get_linux_adapters_info() -> Iterator[AdapterData]:
         )
 
 
+class _DarwinSockaddr(ctypes.Structure):
+    _fields_ = [
+        ('sa_len', ctypes.c_uint8),
+        ('sa_family', ctypes.c_uint8),
+        ('sa_data', ctypes.c_char * 14),
+    ]
+
+
+class _DarwinSockaddrIn(ctypes.Structure):
+    _fields_ = [
+        ('sin_len', ctypes.c_uint8),
+        ('sin_family', ctypes.c_uint8),
+        ('sin_port', ctypes.c_uint16),
+        ('sin_addr', ctypes.c_uint32),
+        ('sin_zero', ctypes.c_char * 8),
+    ]
+
+
+class _DarwinSockaddrDl(ctypes.Structure):
+    _fields_ = [
+        ('sdl_len', ctypes.c_uint8),
+        ('sdl_family', ctypes.c_uint8),
+        ('sdl_index', ctypes.c_uint16),
+        ('sdl_type', ctypes.c_uint8),
+        ('sdl_nlen', ctypes.c_uint8),
+        ('sdl_alen', ctypes.c_uint8),
+        ('sdl_slen', ctypes.c_uint8),
+        ('sdl_data', ctypes.c_char * 24),
+    ]
+
+
+class _DarwinIfData64(ctypes.Structure):
+    _fields_ = [
+        ('ifi_type', ctypes.c_uint8),
+        ('ifi_typelen', ctypes.c_uint8),
+        ('ifi_physical', ctypes.c_uint8),
+        ('ifi_addrlen', ctypes.c_uint8),
+        ('ifi_hdrlen', ctypes.c_uint8),
+        ('ifi_recvquota', ctypes.c_uint8),
+        ('ifi_xmitquota', ctypes.c_uint8),
+        ('ifi_unused1', ctypes.c_uint8),
+        ('ifi_mtu', ctypes.c_uint32),
+        ('ifi_metric', ctypes.c_uint32),
+        ('ifi_baudrate', ctypes.c_uint64),
+        ('ifi_ipackets', ctypes.c_uint64),
+        ('ifi_ierrors', ctypes.c_uint64),
+        ('ifi_opackets', ctypes.c_uint64),
+        ('ifi_oerrors', ctypes.c_uint64),
+        ('ifi_collisions', ctypes.c_uint64),
+        ('ifi_ibytes', ctypes.c_uint64),
+        ('ifi_obytes', ctypes.c_uint64),
+    ]
+
+
+class _DarwinIfAddrs(ctypes.Structure):
+    pass
+
+
+_DarwinIfAddrs._fields_ = [
+    ('ifa_next', ctypes.POINTER(_DarwinIfAddrs)),
+    ('ifa_name', ctypes.c_char_p),
+    ('ifa_flags', ctypes.c_uint),
+    ('ifa_addr', ctypes.POINTER(_DarwinSockaddr)),
+    ('ifa_netmask', ctypes.POINTER(_DarwinSockaddr)),
+    ('ifa_ifu', ctypes.c_void_p),
+    ('ifa_data', ctypes.c_void_p),
+]
+
+
+def _get_darwin_gateways_by_interface() -> dict[str, list[str]]:
+    """Retrieve default IPv4 gateways grouped by interface name on macOS."""
+    gateways_by_interface_name: dict[str, list[str]] = {}
+    try:
+        netstat_executable = shutil.which('netstat') or _DARWIN_NETSTAT_EXECUTABLE
+        process = subprocess.run(
+            [netstat_executable, '-rn', '-f', 'inet'],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=5.0,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return gateways_by_interface_name
+
+    for line in process.stdout.splitlines():
+        fields = line.strip().split()
+        if len(fields) >= _MIN_NETSTAT_ROUTE_FIELDS and fields[0] == 'default':
+            gateway_ip = fields[1]
+            interface_name = fields[3]
+            try:
+                socket.inet_aton(gateway_ip)
+            except OSError:
+                continue
+            gateways_by_interface_name.setdefault(interface_name, []).append(gateway_ip)
+
+    return gateways_by_interface_name
+
+
+def _populate_darwin_ifaddr(
+    address_entry: _DarwinIfAddrs,
+    ipv4_by_interface_name: dict[str, list[str]],
+    mac_by_interface_name: dict[str, str | None],
+    status_by_interface_name: dict[str, bool],
+    traffic_by_interface_name: dict[str, tuple[int, int, int]],
+) -> None:
+    if not address_entry.ifa_name:
+        return
+    interface_name_string = address_entry.ifa_name.decode('utf-8', errors='replace')
+    status_by_interface_name[interface_name_string] = bool(address_entry.ifa_flags & _IFF_UP)
+
+    if address_entry.ifa_addr:
+        sa_family = address_entry.ifa_addr.contents.sa_family
+        if sa_family == _DARWIN_AF_INET:
+            sockaddr_in = ctypes.cast(address_entry.ifa_addr, ctypes.POINTER(_DarwinSockaddrIn)).contents
+            ip_string = socket.inet_ntoa(sockaddr_in.sin_addr.to_bytes(4, 'little'))
+            ipv4_by_interface_name.setdefault(interface_name_string, []).append(ip_string)
+        elif sa_family == _DARWIN_AF_LINK:
+            sockaddr_dl = ctypes.cast(address_entry.ifa_addr, ctypes.POINTER(_DarwinSockaddrDl)).contents
+            if sockaddr_dl.sdl_alen == _MAC_OCTETS_COUNT:
+                raw_bytes = bytes(sockaddr_dl.sdl_data)[sockaddr_dl.sdl_nlen : sockaddr_dl.sdl_nlen + _MAC_OCTETS_COUNT]
+                if any(raw_bytes):
+                    mac_by_interface_name[interface_name_string] = ':'.join(f'{b:02X}' for b in raw_bytes)
+
+    if address_entry.ifa_data:
+        if_data = ctypes.cast(address_entry.ifa_data, ctypes.POINTER(_DarwinIfData64)).contents
+        traffic_by_interface_name[interface_name_string] = (
+            int(if_data.ifi_opackets),
+            int(if_data.ifi_ipackets),
+            int(if_data.ifi_baudrate),
+        )
+
+
+def _get_darwin_adapters_info() -> Iterator[AdapterData]:
+    """Retrieve network adapter information on macOS systems."""
+    neighbors_by_interface_index: dict[int, list[tuple[str | None, str | None]]] = {}
+    for interface_index, ip_address, mac_address in _iterate_ipv4_neighbors_darwin():
+        neighbors_by_interface_index.setdefault(interface_index, []).append((ip_address, mac_address))
+
+    gateways_by_interface_name = _get_darwin_gateways_by_interface()
+
+    ipv4_by_interface_name: dict[str, list[str]] = {}
+    mac_by_interface_name: dict[str, str | None] = {}
+    status_by_interface_name: dict[str, bool] = {}
+    traffic_by_interface_name: dict[str, tuple[int, int, int]] = {}
+
+    try:
+        libc = ctypes.CDLL(None)
+        libc.getifaddrs.argtypes = [ctypes.POINTER(ctypes.POINTER(_DarwinIfAddrs))]
+        libc.getifaddrs.restype = ctypes.c_int
+        libc.freeifaddrs.argtypes = [ctypes.POINTER(_DarwinIfAddrs)]
+        libc.freeifaddrs.restype = None
+
+        ifaddrs_pointer = ctypes.POINTER(_DarwinIfAddrs)()
+        if not libc.getifaddrs(ctypes.byref(ifaddrs_pointer)):
+            current_address = ifaddrs_pointer
+            while current_address:
+                _populate_darwin_ifaddr(
+                    current_address.contents,
+                    ipv4_by_interface_name,
+                    mac_by_interface_name,
+                    status_by_interface_name,
+                    traffic_by_interface_name,
+                )
+                current_address = current_address.contents.ifa_next
+            libc.freeifaddrs(ifaddrs_pointer)
+    except (OSError, AttributeError):
+        pass
+
+    try:
+        interface_list = socket.if_nameindex()
+    except OSError:
+        return
+
+    for interface_index, interface_name in interface_list:
+        mac_address = mac_by_interface_name.get(interface_name)
+        is_up = status_by_interface_name.get(interface_name, False)
+        packets_sent, packets_recv, link_speed_bps = traffic_by_interface_name.get(interface_name, (0, 0, 0))
+
+        interface_ipv4_list = ipv4_by_interface_name.get(interface_name, [])
+        interface_gateways = gateways_by_interface_name.get(interface_name, [])
+        interface_neighbors = neighbors_by_interface_index.get(interface_index, [])
+
+        yield AdapterData(
+            identity=AdapterIdentity(
+                interface_index=interface_index,
+                friendly_name=interface_name,
+                description=interface_name,
+                mac_address=mac_address,
+                adapter_guid=interface_name,
+            ),
+            status=AdapterStatus(
+                operational_status=IF_OPER_STATUS_UP if is_up else IF_OPER_STATUS_NOT_PRESENT,
+                ip_enabled=bool(interface_ipv4_list),
+                media_connect_state=MEDIA_CONNECT_STATE_CONNECTED if is_up else MEDIA_CONNECT_STATE_DISCONNECTED,
+            ),
+            traffic=AdapterTraffic(
+                packets_sent=packets_sent,
+                packets_recv=packets_recv,
+                transmit_link_speed=link_speed_bps,
+                receive_link_speed=link_speed_bps,
+            ),
+            ipv4_addresses=interface_ipv4_list,
+            gateway_addresses=interface_gateways,
+            neighbors=interface_neighbors,
+        )
+
+
 def get_adapters_info() -> Iterator[AdapterData]:
     """Retrieves information for all network adapters.
 
     Returns:
         An iterator of `AdapterData` objects containing network adapter information.
     """
+    if sys.platform == 'darwin':
+        yield from _get_darwin_adapters_info()
+        return
     if sys.platform != 'win32':
         yield from _get_linux_adapters_info()
         return
