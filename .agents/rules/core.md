@@ -6,7 +6,7 @@ trigger: always_on
 
 ## Project Context
 
-Session Sniffer is a mature cross-platform (Windows and Linux) PySide6 desktop application for monitoring and analyzing P2P network sessions from games and other software.
+Session Sniffer is a mature cross-platform (Windows, Linux, and macOS) PySide6 desktop application for monitoring and analyzing P2P network sessions from games and other software.
 
 Treat the existing codebase and architecture as intentional. Before making changes, inspect the relevant implementation, callers, data flow, and existing patterns.
 

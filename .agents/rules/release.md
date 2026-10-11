@@ -56,7 +56,7 @@ The `excludes` list in `.github/workflows/Session_Sniffer.spec` must be maintain
   * Exclude unused protocol and terminal modules (`xmlrpc`, `curses`).
 * **Lossless Build Flags**:
   * Keep `optimize=0` in `Session_Sniffer.spec` to preserve assertions, bytecode integrity, and docstrings required by dependencies like Pydantic.
-  * Keep `strip=False` to preserve PE symbol tables and avoid binary corruption.
+  * Keep `strip=False` to preserve symbol tables across binary formats (PE/ELF/Mach-O) and avoid binary corruption.
   * Keep `upx=False` to avoid binary header manipulation and runtime startup decompression overhead.
 * **Spec File Maintenance**:
   * Before modifying `excludes`, verify module reachability across `src/` and dependencies.

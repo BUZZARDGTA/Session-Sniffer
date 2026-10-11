@@ -19,9 +19,11 @@
 
 ## ⬇️ Download
 
-Grab the latest stable release executable for Windows, or run from source on Windows and Linux.
+Grab the latest stable release executable for Windows, Linux, and macOS, or run from source.
 
 [![Download Latest Release (Windows)](https://img.shields.io/badge/Download%20Latest%20Release%20(Windows)-%23007ACC?style=for-the-badge&logo=github&logoColor=white)](https://github.com/BUZZARDGTA/Session-Sniffer/releases/latest/download/Session_Sniffer.exe)
+[![Download Latest Release (Linux)](https://img.shields.io/badge/Download%20Latest%20Release%20(Linux)-%23FCC624?style=for-the-badge&logo=linux&logoColor=black)](https://github.com/BUZZARDGTA/Session-Sniffer/releases/latest/download/Session_Sniffer)
+[![Download Latest Release (macOS)](https://img.shields.io/badge/Download%20Latest%20Release%20(macOS)-%23000000?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/BUZZARDGTA/Session-Sniffer/releases/latest/download/Session_Sniffer_macOS)
 
 🔨 Prefer to run or build from source? See the step-by-step guide on the [**Building from Source**](https://github.com/BUZZARDGTA/Session-Sniffer/wiki/Building-from-Source) wiki page.
 
@@ -138,10 +140,11 @@ Session Sniffer supports resolving and displaying player usernames through sever
 
 ## ⚙️ Requirements
 
-- **OS**: [Windows](https://www.microsoft.com/windows) 10 or 11 (x64) or [Linux](https://ubuntu.com) (Ubuntu 22.04+ / Debian-based x64)
+- **OS**: [Windows](https://www.microsoft.com/windows) 10 or 11 (x64), [Linux](https://ubuntu.com) (Ubuntu 22.04+ / Debian-based x64), or [macOS](https://www.apple.com/macos) 14+ (ARM64 / Apple Silicon)
 - **Capture Driver / Library**:
   - **Windows**: [Npcap](https://nmap.org/npcap/)
   - **Linux**: `libpcap` (e.g. `sudo apt install libpcap-dev`) and capture capabilities granted to Python (`sudo setcap cap_net_raw,cap_net_admin=eip $(readlink -f .venv/bin/python)`)
+  - **macOS**: Built-in `libpcap` with capture permissions granted to `/dev/bpf*` (e.g. via Wireshark's ChmodBPF package or `sudo chmod 660 /dev/bpf*`)
 - **Optional**: [MaxMind GeoLite2](https://dev.maxmind.com/geoip/geolite2-free-geolocation-data/)
 
 ---

@@ -1,7 +1,7 @@
 # Copilot Coding Agent Instructions for Session Sniffer
 
 ## Overview
-Session Sniffer is a cross-platform (Windows and Linux) PySide6 packet sniffer focused on P2P game sessions. The entry point is `src/session_sniffer/main.py` (module execution via `python -m session_sniffer`), which orchestrates: environment checks, settings load, interface discovery, packet capture startup, background processing threads, and GUI initialization. Core logic lives under `src/session_sniffer/` in cohesive subpackages (capture, guis, networking, rendering_core, models, constants, discord). Data flows from live packet capture → player/session registries → rendering core → GUI worker thread signal → Qt table models/views.
+Session Sniffer is a cross-platform (Windows, Linux, and macOS) PySide6 packet sniffer focused on P2P game sessions. The entry point is `src/session_sniffer/main.py` (module execution via `python -m session_sniffer`), which orchestrates: environment checks, settings load, interface discovery, packet capture startup, background processing threads, and GUI initialization. Core logic lives under `src/session_sniffer/` in cohesive subpackages (capture, guis, networking, rendering_core, models, constants, discord). Data flows from live packet capture → player/session registries → rendering core → GUI worker thread signal → Qt table models/views.
 
 Important import note: even with the `src/` layout, Python imports remain `from session_sniffer...`, not `from src.session_sniffer...`. The `src` directory is a source root on `PYTHONPATH`; it is not part of the package name.
 
