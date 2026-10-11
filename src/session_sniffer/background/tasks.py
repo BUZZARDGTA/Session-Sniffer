@@ -604,8 +604,19 @@ _GTA5_RELAY_PPS_NONZERO_STREAK_SECONDS = 5.0
 
 def is_gta5_relay_ip(ip: str) -> bool:
     """Return True if *ip* belongs to the GTAV Take-Two Interactive or Microsoft relay IP ranges."""
-    addr = IPv4Address(ip)
-    return is_ip_in_ranges(addr, _GTA5_RELAY_RANGES)
+    return is_ip_in_ranges(IPv4Address(ip), _GTA5_RELAY_RANGES)
+
+
+def is_gta5_relay_monitoring_active() -> bool:
+    """Return True if GTA5 relay monitoring is active and has any actionable notification or response enabled."""
+    if not Settings.is_gta5_feature_set() or not GUIDetectionSettings.has_any_gta5_relay_action_enabled():
+        return False
+    return (
+        GUIDetectionSettings.gta5_relay_enabled
+        or (Settings.voice_notifications_enabled and bool(GUIDetectionSettings.gta5_relay_voice_notifications))
+        or GUIDetectionSettings.gta5_relay_logging
+        or GUIDetectionSettings.gta5_relay_message_box
+    )
 
 
 def monitor_gta5_relay_task(player: Player) -> None:
@@ -613,8 +624,8 @@ def monitor_gta5_relay_task(player: Player) -> None:
 
     Only active when:
     - The GTA5 feature set is selected.
+    - At least one GTA5 relay action is enabled.
     - The player IP belongs to the Take-Two Interactive / GTA5 relay CIDR ranges.
-    - GTA5 relay detection is enabled and a process path is configured.
 
     The monitor polls the player's packet count until it reaches the
     configurable `GUIDetectionSettings.gta5_relay_packet_threshold` while
@@ -623,7 +634,7 @@ def monitor_gta5_relay_task(player: Player) -> None:
     Args:
         player: The player object to monitor.
     """
-    if not Settings.is_gta5_feature_set():
+    if not is_gta5_relay_monitoring_active():
         return
 
     if not is_gta5_relay_ip(player.ip):
@@ -634,6 +645,10 @@ def monitor_gta5_relay_task(player: Player) -> None:
     # A 0-PPS relay is not actively sending packets and must be a false positive.
     _pps_nonzero_since: float | None = None
     while not player.left_event.is_set() and not gui_closed__event.is_set() and PlayersRegistry.is_player_connected(player):
+        if not is_gta5_relay_monitoring_active():
+            player.relay_monitor_started = False
+            return
+
         pps_active = _is_player_packet_flow_active(player)
         if pps_active:
             if _pps_nonzero_since is None:
@@ -655,40 +670,26 @@ def monitor_gta5_relay_task(player: Player) -> None:
 
     if GUIDetectionSettings.gta5_relay_enabled and CaptureState.is_local_capture():
         GTASuspendManager.request_suspend(
-            reason_key=f'gta5_relay:{player.ip}',
-            left_event=player.left_event,
-            duration=GUIDetectionSettings.gta5_relay_duration,
+            reason_key=f'gta5_relay:{player.ip}', left_event=player.left_event, duration=GUIDetectionSettings.gta5_relay_duration,
         )
 
     wait_for_player_data_ready(player, data_fields=('reverse_dns.hostname', 'iplookup.geolite2', 'iplookup.ipapi'), timeout=10.0)
 
     if Settings.voice_notifications_enabled and GUIDetectionSettings.gta5_relay_voice_notifications:
-        tts_candidate_path = (
-            TTS_DIR_PATH / _tts_voice_name(voice_setting=GUIDetectionSettings.gta5_relay_voice_notifications) / 'detection' / 'gta5_relay_detected.wav'
-        )
+        tts_candidate_path = TTS_DIR_PATH / _tts_voice_name(voice_setting=GUIDetectionSettings.gta5_relay_voice_notifications) / 'detection' / 'gta5_relay_detected.wav'
         _voice_notification_queue.put(str(tts_candidate_path))
 
     if GUIDetectionSettings.gta5_relay_logging:
-        _log_to_protection_csv(
-            'GTA5 RELAY DETECTED!',
-            ', '.join(player.usernames),
-            player.ip,
-            player.iplookup.geolite2.country,
-        )
+        _log_to_protection_csv('GTA5 RELAY DETECTED!', ', '.join(player.usernames), player.ip, player.iplookup.geolite2.country)
 
     if GUIDetectionSettings.gta5_relay_message_box:
         _et = datetime.now(tz=LOCAL_TZ).strftime('%H:%M:%S')
 
         def _show_relay_notif() -> None:
-            show_detection_notification_dialog(
-                find_main_window(),
-                player,
-                DetectionNotificationInfo(
-                    display_title='GTA5 Relay Detected',
-                    extra_detection_fields=[('Packets', str(player.packets.exchanged))],
-                    event_time=_et,
-                ),
+            notification_info = DetectionNotificationInfo(
+                display_title='GTA5 Relay Detected', extra_detection_fields=[('Packets', str(player.packets.exchanged))], event_time=_et,
             )
+            show_detection_notification_dialog(find_main_window(), player, notification_info)
 
         gui_dispatcher.invoke(_show_relay_notif)
 

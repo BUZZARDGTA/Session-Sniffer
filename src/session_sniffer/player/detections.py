@@ -296,3 +296,13 @@ class GUIDetectionSettings:
             or bool(cls.isp_detection_list)
             or bool(cls.asn_detection_list)
         )
+
+    @classmethod
+    def has_any_gta5_relay_action_enabled(cls) -> bool:
+        """Return True if any GTA5 relay action is active."""
+        return (
+            cls.gta5_relay_enabled
+            or bool(cls.gta5_relay_voice_notifications)
+            or cls.gta5_relay_logging
+            or cls.gta5_relay_message_box
+        )

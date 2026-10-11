@@ -22,6 +22,7 @@ from session_sniffer.background import (
     hostname_core,
     iplookup_core,
     is_gta5_relay_ip,
+    is_gta5_relay_monitoring_active,
     monitor_gta5_relay_task,
     pinger_core,
     player_rates_core,
@@ -376,9 +377,13 @@ def main() -> None:
             matched_player.detection_checked = True
             submit_global_detections_check(matched_player)
 
-        if not matched_player.relay_monitor_started:
+        if (
+            not matched_player.relay_monitor_started
+            and is_gta5_relay_monitoring_active()
+            and (CaptureState.gta5_is_running or not CaptureState.is_local_capture())
+        ):
             matched_player.relay_monitor_started = True
-            if Settings.is_gta5_feature_set() and (CaptureState.gta5_is_running or not CaptureState.is_local_capture()) and is_gta5_relay_ip(matched_player.ip):
+            if is_gta5_relay_ip(matched_player.ip):
                 Thread(
                     target=monitor_gta5_relay_task,
                     name=f'GTA5RelayMonitor-{matched_player.ip}',
