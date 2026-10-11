@@ -45,8 +45,11 @@ from session_sniffer.guis.tables_player_actions._userip_dialog import (
     show_userip_detected_dialog,
 )
 from session_sniffer.guis.tables_player_actions.looky_system._looky_crawler_request_dialog import (
+    show_crawler_by_rid,
     show_crawler_request,
     show_crawlme_request,
+    show_proxy_join_by_rid,
+    show_proxy_join_request,
 )
 from session_sniffer.guis.tables_player_actions.looky_system._looky_lookup_dialog import (
     LookyLookupDialog,
@@ -84,6 +87,7 @@ __all__ = [
     'ping_ip',
     'prompt_rename_session',
     'scan_ports_ip',
+    'show_crawler_by_rid',
     'show_crawler_request',
     'show_crawlme_request',
     'show_detailed_ip_lookup',
@@ -91,6 +95,8 @@ __all__ = [
     'show_looky_lookup',
     'show_player_detection_dialog',
     'show_player_joins',
+    'show_proxy_join_by_rid',
+    'show_proxy_join_request',
     'show_seen_stats',
     'show_userip_detected_dialog',
     'tcp_port_ping',

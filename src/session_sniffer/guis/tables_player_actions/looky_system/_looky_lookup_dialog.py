@@ -28,6 +28,7 @@ from session_sniffer.guis.stylesheets import (
     LOOKY_CRAWLER_HEADER_STYLESHEET,
 )
 from session_sniffer.guis.tables_player_actions._player_info_dialog_mixin import PlayerInfoDialogMixin
+from session_sniffer.guis.tables_player_actions.looky_system._looky_crawler_request_dialog import show_proxy_join_by_rid
 from session_sniffer.guis.tables_player_actions.looky_system._looky_helpers import check_looky_prerequisites
 from session_sniffer.guis.utils import ActiveDialogRegistry, set_dialog_window_flags
 from session_sniffer.models.player import Player
@@ -151,6 +152,20 @@ class LookyLookupDialog(PlayerInfoDialogMixin):
             view_button.setToolTip(f"Open {target_name}'s profile on the Looky System website ({profile_url}).")
             view_button.clicked.connect(_make_open_profile_slot(profile_url))
             buttons_layout.addWidget(view_button)
+
+            def _make_proxy_join_slot(target_rid: int, name: str) -> Callable[[], None]:
+                def _proxy_join() -> None:
+                    check_restriction = not isinstance(player, Player) or not player.is_gta5_process
+                    show_proxy_join_by_rid(self, target_rid, name, check_gta5_restriction=check_restriction)
+
+                return _proxy_join
+
+            proxy_join_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'link.svg')), ' Proxy Join')
+            proxy_join_button.setCursor(Qt.CursorShape.PointingHandCursor)
+            proxy_join_button.setStyleSheet(LOOKY_ACTION_BUTTON_STYLESHEET)
+            proxy_join_button.setToolTip(f"Call the Looky System proxy bot to join {target_name}'s session.")
+            proxy_join_button.clicked.connect(_make_proxy_join_slot(entry.rockstarid, target_name))
+            buttons_layout.addWidget(proxy_join_button)
             buttons_layout.addStretch()
 
             form.addRow('', buttons_layout)

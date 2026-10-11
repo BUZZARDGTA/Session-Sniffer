@@ -6,7 +6,7 @@ import re
 import time
 from dataclasses import dataclass
 from datetime import UTC
-from typing import TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING, ClassVar, cast
 
 import requests
 from pydantic import TypeAdapter
@@ -123,6 +123,21 @@ def extract_rate_limit_message(exc: requests.HTTPError) -> str:
         return str(exc.response.json().get('message', 'Too Many Requests'))
     except requests.JSONDecodeError:
         return 'Too Many Requests'
+
+
+def extract_api_error_message(exc: requests.HTTPError) -> str | None:
+    """Return the API error message from an `HTTPError` response JSON `message` field, or `None` if not present."""
+    if exc.response is None:
+        return None
+    try:
+        body: object = exc.response.json()
+    except requests.JSONDecodeError:
+        return None
+    if isinstance(body, dict):
+        raw_message: object = cast('dict[str, object]', body).get('message')
+        if isinstance(raw_message, str) and raw_message.strip():
+            return raw_message.strip()
+    return None
 
 
 def is_terminal_instruction_status(status: str) -> bool:
@@ -322,6 +337,43 @@ def send_crawler_instruction(rid: int, api_key: str, version: str) -> str:
         raise
     except Exception as e:
         logger.debug('Looky crawler request error for rid=%s target=%s: %s', rid, version, e)
+        raise
+
+
+def send_proxy_join_instruction(rid: int, api_key: str, version: str) -> str:
+    """POST an `rid_join` instruction to the Looky System API to call the proxy join bot for `rid`.
+
+    Args:
+        rid: The Rockstar player ID to proxy join.
+        api_key: Looky System Bearer API key.
+        version: Game version filter sent to the API (`'both'`, `'legacy'`, or `'enhanced'`).
+
+    Returns:
+        The instruction tracking ID (UUID string) for polling status via `watch_instruction_status`.
+
+    Raises:
+        requests.HTTPError: On a non-2xx response.
+        requests.RequestException: On connection/timeout errors.
+        KeyError: If the response JSON does not contain a `'trackingId'` field.
+    """
+    headers = _json_auth_headers(api_key)
+    headers['Referer'] = get_looky_user_url(rid)
+    try:
+        response = session.post(
+            LOOKY_INSTRUCTION_URL,
+            headers=headers,
+            json={'type': 'rid_join', 'rid': rid, 'target': version},
+            timeout=(3.0, 10.0),
+        )
+        response.raise_for_status()
+        return str(response.json()['trackingId'])
+    except requests.HTTPError as e:
+        status_code = e.response.status_code if e.response is not None else '?'
+        text = e.response.text if e.response is not None else ''
+        logger.debug('Looky proxy join HTTP error for rid=%s target=%s: HTTP %s (response: %s)', rid, version, status_code, text)
+        raise
+    except Exception as e:
+        logger.debug('Looky proxy join request error for rid=%s target=%s: %s', rid, version, e)
         raise
 
 

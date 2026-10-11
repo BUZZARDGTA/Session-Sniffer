@@ -26,6 +26,7 @@ from session_sniffer.guis.tables_player_actions import (
     show_detailed_ip_lookup,
     show_looky_lookup,
     show_player_joins,
+    show_proxy_join_request,
     show_seen_stats,
 )
 from session_sniffer.guis.tables_userip_menu import add_action, add_menu, build_userip_menu, build_userip_menu_multi
@@ -534,6 +535,15 @@ class TableContextMenuMixin(QTableView):
                         icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'bot.svg')),
                     )
                     _apply_looky_gating(crawler_action)
+
+                    proxy_join_action = add_action(
+                        looky_menu,
+                        'Proxy Join',
+                        tooltip="Call the Looky System proxy bot to join this player's session.",
+                        handler=lambda: show_proxy_join_request(self, players[0]),
+                        icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'link.svg')),
+                    )
+                    _apply_looky_gating(proxy_join_action)
                 return
 
             def _show_looky_lookup_for_all() -> None:

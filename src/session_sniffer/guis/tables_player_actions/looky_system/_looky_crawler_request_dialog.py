@@ -45,11 +45,13 @@ from session_sniffer.guis.utils import set_dialog_window_flags
 from session_sniffer.networking.looky_system import (
     LookyInstructionContext,
     LookyState,
+    extract_api_error_message,
     extract_rate_limit_message,
     extract_rate_limit_wait_seconds,
     is_terminal_failure_instruction_status,
     send_crawler_instruction,
     send_crawlme_instruction,
+    send_proxy_join_instruction,
     watch_instruction_status,
 )
 from session_sniffer.rendering_core.types import CaptureState
@@ -89,7 +91,8 @@ class _CrawlerSendWorker(CrashingQThread):
                     self.send_rate_limited.emit(wait_seconds, extract_rate_limit_message(e))
                 else:
                     status_code = e.response.status_code if e.response is not None else '?'
-                    self.send_failed.emit(f'API error: HTTP {status_code}')
+                    api_message = extract_api_error_message(e)
+                    self.send_failed.emit(api_message or f'API error: HTTP {status_code}')
                     if e.response is not None:
                         logger.debug('HTTP %s Response: %s', status_code, e.response.text)
                         logger.debug('Response Headers: %s', dict(e.response.headers))
@@ -178,7 +181,8 @@ class _CrawlerWatchWorker(CrashingQThread):
                     failure_message = f'Rate limited during status stream: {message}.'
             else:
                 status_code = e.response.status_code if e.response is not None else '?'
-                failure_message = f'API error while watching status: HTTP {status_code}'
+                api_message = extract_api_error_message(e)
+                failure_message = f'API error while watching status: {api_message or f"HTTP {status_code}"}'
                 if e.response is not None:
                     logger.debug('HTTP %s Response: %s', status_code, e.response.text)
                     logger.debug('Response Headers: %s', dict(e.response.headers))
@@ -245,7 +249,7 @@ class _CrawlerRequestDialog(QDialog):
         layout.setContentsMargins(12, 12, 12, 12)
         layout.setSpacing(8)
 
-        header = QLabel(f'Crawler Request — {request.display_name}')
+        header = QLabel(f'{request.title_prefix} — {request.display_name}')
         header.setAlignment(Qt.AlignmentFlag.AlignCenter)
         header.setStyleSheet(LOOKY_CRAWLER_HEADER_STYLESHEET)
         layout.addWidget(header)
@@ -263,7 +267,7 @@ class _CrawlerRequestDialog(QDialog):
         minimize_button = self._widgets.button_box.button(QDialogButtonBox.StandardButton.Close)
         if minimize_button:
             minimize_button.setText('Minimize')
-            minimize_button.setToolTip('Hide this window; the crawler keeps running in the background.')
+            minimize_button.setToolTip('Hide this window; the operation keeps running in the background.')
             minimize_button.clicked.connect(self.showMinimized)
         cancel_button = self._widgets.button_box.addButton('Cancel', QDialogButtonBox.ButtonRole.RejectRole)
         if cancel_button:
@@ -409,7 +413,7 @@ class _CrawlerRequestDialog(QDialog):
         """Append a friendly timestamped SSE status line to the log and update the live status label."""
         status_labels = {
             'queued': 'Queued — waiting for a bot to pick up the request',
-            'running': 'Running — crawler is actively working',
+            'running': 'Running — bot is actively working',
             'completed': 'Completed — instruction finished successfully',
             'failed': 'Failed — the bot encountered an error',
             'canceled': 'Canceled — the request was canceled',
@@ -542,7 +546,14 @@ class _CrawlerRequestDialog(QDialog):
 class _RIDPickerDialog(QDialog):
     """Modal dialog for selecting one Rockstar ID when a player has multiple."""
 
-    def __init__(self, parent: QWidget, entries: list[tuple[str, int]]) -> None:
+    def __init__(
+        self,
+        parent: QWidget,
+        entries: list[tuple[str, int]],
+        *,
+        title_prefix: str = 'Crawler Request',
+        action_verb: str = 'request the crawler',
+    ) -> None:
         super().__init__(parent)
         self.setWindowTitle(LOOKY_TITLE)
         self.setWindowModality(Qt.WindowModality.WindowModal)
@@ -554,12 +565,12 @@ class _RIDPickerDialog(QDialog):
         layout.setContentsMargins(12, 12, 12, 12)
         layout.setSpacing(10)
 
-        header = QLabel('Crawler Request — Select Rockstar ID')
+        header = QLabel(f'{title_prefix} — Select Rockstar ID')
         header.setAlignment(Qt.AlignmentFlag.AlignCenter)
         header.setStyleSheet(LOOKY_CRAWLER_HEADER_STYLESHEET)
         layout.addWidget(header)
 
-        label = QLabel('Multiple RIDs found for this player.\n\nSelect one to request the crawler:')
+        label = QLabel(f'Multiple RIDs found for this player.\n\nSelect one to {action_verb}:')
         label.setWordWrap(True)
         label.setStyleSheet(LOOKY_BODY_LABEL_STYLESHEET)
         layout.addWidget(label)
@@ -606,9 +617,15 @@ class _RIDPickerDialog(QDialog):
         return int(item.data(Qt.ItemDataRole.UserRole))
 
     @staticmethod
-    def pick_rid(parent: QWidget, entries: list[tuple[str, int]]) -> int | None:
+    def pick_rid(
+        parent: QWidget,
+        entries: list[tuple[str, int]],
+        *,
+        title_prefix: str = 'Crawler Request',
+        action_verb: str = 'request the crawler',
+    ) -> int | None:
         """Show the picker dialog and return the chosen RID, or `None` if canceled."""
-        dialog = _RIDPickerDialog(parent, entries)
+        dialog = _RIDPickerDialog(parent, entries, title_prefix=title_prefix, action_verb=action_verb)
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return None
         return dialog.selected_rid()
@@ -624,6 +641,7 @@ class _CrawlerRequest:
     version: str
     rid: int | None
     send_fn: Callable[[], str]
+    title_prefix: str = 'Crawler Request'
     on_completed: Callable[[], object] | None = None
 
 
@@ -650,6 +668,33 @@ def get_crawler_game_version() -> str:
     return 'legacy'
 
 
+def show_crawler_by_rid(
+    parent: QWidget,
+    rid: int,
+    display_name: str,
+    *,
+    check_gta5_restriction: bool = False,
+) -> None:
+    """Validate and start a Looky System crawler instruction for `rid`; open a request dialog on success."""
+    api_key = check_looky_prerequisites(parent, check_gta5_restriction=check_gta5_restriction)
+    if api_key is None:
+        return
+
+    version = get_crawler_game_version()
+    _start_crawler_send(
+        _CrawlerRequest(
+            display_name=display_name,
+            api_key=api_key,
+            registry_key=f'crawler:{rid}',
+            version=version,
+            rid=rid,
+            send_fn=lambda: send_crawler_instruction(rid, api_key, version),
+            title_prefix='Crawler Request',
+            on_completed=trigger_looky_rescan_all_players,
+        ),
+    )
+
+
 def show_crawler_request(parent: QWidget, player: Player) -> None:
     """Validate and start a Looky System crawler instruction for `player`; open a crawler request dialog on success."""
     api_key = check_looky_prerequisites(parent, check_gta5_restriction=not player.is_gta5_process)
@@ -665,24 +710,70 @@ def show_crawler_request(parent: QWidget, player: Player) -> None:
         return
 
     entries = list(zip(player.looky_system.usernames, player.looky_system.rockstarids, strict=False))
-    rid = player.looky_system.rockstarids[0] if len(player.looky_system.rockstarids) == 1 else _RIDPickerDialog.pick_rid(parent, entries)
+    rid = (
+        player.looky_system.rockstarids[0]
+        if len(player.looky_system.rockstarids) == 1
+        else _RIDPickerDialog.pick_rid(parent, entries, title_prefix='Crawler Request', action_verb='request the crawler')
+    )
     if rid is None:
         return
 
     display_name = next((name for name, rockstar_id in entries if rockstar_id == rid), player.ip)
+    show_crawler_by_rid(parent, rid=rid, display_name=display_name, check_gta5_restriction=not player.is_gta5_process)
+
+
+def show_proxy_join_by_rid(
+    parent: QWidget,
+    rid: int,
+    display_name: str,
+    *,
+    check_gta5_restriction: bool = False,
+) -> None:
+    """Validate and start a Looky System proxy join instruction for `rid`; open a request dialog on success."""
+    api_key = check_looky_prerequisites(parent, check_gta5_restriction=check_gta5_restriction)
+    if api_key is None:
+        return
 
     version = get_crawler_game_version()
     _start_crawler_send(
         _CrawlerRequest(
             display_name=display_name,
             api_key=api_key,
-            registry_key=f'crawler:{rid}',
+            registry_key=f'proxy_join:{rid}',
             version=version,
             rid=rid,
-            send_fn=lambda: send_crawler_instruction(rid, api_key, version),
+            send_fn=lambda: send_proxy_join_instruction(rid, api_key, version),
+            title_prefix='Proxy Join',
             on_completed=trigger_looky_rescan_all_players,
         ),
     )
+
+
+def show_proxy_join_request(parent: QWidget, player: Player) -> None:
+    """Validate and start a Looky System proxy join instruction for `player`; open a proxy join request dialog on success."""
+    api_key = check_looky_prerequisites(parent, check_gta5_restriction=not player.is_gta5_process)
+    if api_key is None:
+        return
+
+    if not player.looky_system.rockstarids:
+        QMessageBox.warning(
+            parent,
+            LOOKY_TITLE,
+            'No Rockstar ID found for this IP address.\nThe Looky System has not resolved any players for this IP yet.',
+        )
+        return
+
+    entries = list(zip(player.looky_system.usernames, player.looky_system.rockstarids, strict=False))
+    rid = (
+        player.looky_system.rockstarids[0]
+        if len(player.looky_system.rockstarids) == 1
+        else _RIDPickerDialog.pick_rid(parent, entries, title_prefix='Proxy Join', action_verb='proxy join')
+    )
+    if rid is None:
+        return
+
+    display_name = next((name for name, rockstar_id in entries if rockstar_id == rid), player.ip)
+    show_proxy_join_by_rid(parent, rid=rid, display_name=display_name, check_gta5_restriction=not player.is_gta5_process)
 
 
 def show_crawlme_request(parent: QWidget) -> None:
