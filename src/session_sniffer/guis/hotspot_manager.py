@@ -305,7 +305,7 @@ class HotspotManagerWidget(QWidget):
         password_layout.addWidget(self._password_input)
 
         self._toggle_password_button = QPushButton()
-        self._toggle_password_button.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'eye.svg')))
+        self._toggle_password_button.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'eye_show.svg')))
         self._toggle_password_button.setToolTip('Reveal / Hide password')
         self._toggle_password_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
         self._toggle_password_button.clicked.connect(self._toggle_password_visibility)
@@ -623,7 +623,7 @@ class HotspotManagerWidget(QWidget):
             self._toggle_password_button.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'eye_hide.svg')))
         else:
             self._password_input.setEchoMode(QLineEdit.EchoMode.Password)
-            self._toggle_password_button.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'eye.svg')))
+            self._toggle_password_button.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'eye_show.svg')))
 
     def _save_hotspot_credentials(self) -> None:
         """Validate and dispatch credential updates in background worker."""
