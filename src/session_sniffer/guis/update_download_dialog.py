@@ -515,14 +515,14 @@ class UpdateDownloadDialog(DraggableDialogMixin, QDialog):
         footer = QHBoxLayout()
         footer.setContentsMargins(0, 0, 0, 0)
         footer.setSpacing(10)
-        footer.addStretch(1)
-
         self._skip_button = QPushButton('Skip This Version')
         self._skip_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self._skip_button.setStyleSheet(UPDATE_DOWNLOAD_SKIP_BUTTON_STYLESHEET)
         self._skip_button.setToolTip('Skip this update version and do not prompt again until a newer version is released')
         self._skip_button.clicked.connect(self._on_skip)
         footer.addWidget(self._skip_button)
+
+        footer.addStretch(1)
 
         self._later_button = QPushButton('Remind Me Later')
         self._later_button.setCursor(Qt.CursorShape.PointingHandCursor)
