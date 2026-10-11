@@ -553,11 +553,11 @@ class UpdateDownloadDialog(DraggableDialogMixin, QDialog):
 
     def _create_cloud_download_icon(self) -> QWidget:
         """Create the small cloud-with-down-arrow icon from an SVG asset."""
-        return self._svg_label('cloud_download.svg', 32, 22)
+        return self._svg_label('cloud_download.svg', 20, 20)
 
     @staticmethod
     def _svg_label(filename: str, width: int, height: int) -> QLabel:
-        """Render an SVG file to a transparent QLabel pixmap, preserving aspect ratio."""
+        """Render an SVG file to a transparent QLabel pixmap."""
         pixmap = render_svg_pixmap_from_resource(filename, width, height)
 
         label = QLabel()
