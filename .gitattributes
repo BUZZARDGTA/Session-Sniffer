@@ -26,6 +26,8 @@ code_quality_checks.py linguist-vendored
 # Binary files - no conversion
 *.exe binary
 *.dll binary
+*.dylib binary
+*.so binary
 *.png binary
 *.wav binary
 *.ico binary

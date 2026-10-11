@@ -214,5 +214,7 @@ __marimo__/
 
 # Project data directory
 /Session_Sniffer.exe
+/Session_Sniffer
+/Session_Sniffer_macOS
 detections.txt
 .dev/sonar.png

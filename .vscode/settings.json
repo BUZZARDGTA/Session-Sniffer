@@ -15,7 +15,9 @@
         "bin": true,
         "COPYING": true,
         "resources": true,
-        "Session_Sniffer.exe": true
+        "Session_Sniffer.exe": true,
+        "Session_Sniffer": true,
+        "Session_Sniffer_macOS": true
     },
     "python.terminal.activateEnvironment": true,
     "python.terminal.activateEnvInCurrentTerminal": true,
