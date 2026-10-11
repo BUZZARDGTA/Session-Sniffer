@@ -35,7 +35,6 @@ from session_sniffer.guis.player_identifier import PlayerIdentifierTracker
 from session_sniffer.guis.table_icons import get_ip_column_composite_icon
 from session_sniffer.player.registry import PlayersRegistry, SessionTracker
 from session_sniffer.player.session_host import SessionHost
-from session_sniffer.player.userip import UserIPDatabases
 from session_sniffer.settings import Settings
 
 if TYPE_CHECKING:
@@ -400,21 +399,12 @@ class SessionTableModel(QAbstractTableModel):
     @staticmethod
     def _get_unregistered_looky_usernames(player: Player) -> set[str]:
         """Return the set of Looky usernames for *player* that are not present in their local UserIP database."""
-        if player.userip:
-            return set()
         with player.looky_system.lock:
             if not player.looky_system.is_initialized or not player.looky_system.usernames:
                 return set()
             looky_names = list(player.looky_system.usernames)
-        unregistered: set[str] = set()
-        for name in looky_names:
-            cleaned = name.strip()
-            if not cleaned:
-                continue
-            if UserIPDatabases.is_known_username(cleaned):
-                continue
-            unregistered.add(cleaned)
-        return unregistered
+        userip_names: set[str] = {name.strip().casefold() for name in player.userip.usernames if name.strip()} if player.userip and player.userip.usernames else set()
+        return {name.strip() for name in looky_names if name.strip() and name.strip().casefold() not in userip_names}
 
     # --------------------------------------------------------------------------
     # Public properties

@@ -1,5 +1,6 @@
 """Custom item delegates for table and tree views."""
 
+import html
 from typing import TYPE_CHECKING, cast, override
 
 if TYPE_CHECKING:
@@ -36,9 +37,7 @@ from session_sniffer.guis.colors import TableColors
 from session_sniffer.text_utils import split_usernames
 
 _STANDARD_ICON_SIZE = 16
-_CONNECTED_TEXT_COLOR = QColor(TableColors.CONNECTED_TEXT)
 _DISCONNECTED_TEXT_COLOR = QColor(TableColors.DISCONNECTED_TEXT)
-_DEFAULT_FOREGROUND_COLORS = (_CONNECTED_TEXT_COLOR, _DISCONNECTED_TEXT_COLOR)
 
 _COLOR_WHITE = QColor('#ffffff')
 _COLOR_CONNECTED_SEL_TOP = QColor(42, 110, 85, 160)
@@ -67,6 +66,33 @@ def _get_option_font(option: QStyleOptionViewItem) -> QFont:
     return cast('QFont', object.__getattribute__(option, 'font'))
 
 
+def _is_disconnected_cell(view: object, index: QModelIndex | QPersistentModelIndex) -> bool:
+    """Return True if the cell belongs to a disconnected table or has disconnected styling."""
+    if view is not None and hasattr(view, 'is_connected_table'):
+        raw_is_connected = getattr(view, 'is_connected_table', None)
+        if isinstance(raw_is_connected, bool):
+            return not raw_is_connected
+    foreground_brush = index.data(Qt.ItemDataRole.ForegroundRole)
+    resolved_foreground_color = (
+        foreground_brush if isinstance(foreground_brush, QColor) else (foreground_brush.color() if isinstance(foreground_brush, QBrush) else None)
+    )
+    return resolved_foreground_color is not None and resolved_foreground_color == _DISCONNECTED_TEXT_COLOR
+
+
+def _format_looky_tooltip_html(text: str, unregistered_looky_names: set[str], *, is_disconnected: bool) -> str:
+    """Format elided username text for tooltip with HTML highlighting for unregistered Looky usernames."""
+    unregistered_looky_casefolded = {name.casefold() for name in unregistered_looky_names}
+    looky_color_hex = TableColors.DISCONNECTED_LOOKY_TEXT if is_disconnected else TableColors.LOOKY_TEXT
+    formatted_tokens: list[str] = []
+    for token in split_usernames(text):
+        escaped_token = html.escape(token)
+        if token.casefold() in unregistered_looky_casefolded:
+            formatted_tokens.append(f'<span style="color: {looky_color_hex};">{escaped_token}</span>')
+        else:
+            formatted_tokens.append(escaped_token)
+    return f'<span>{", ".join(formatted_tokens)}</span>'
+
+
 class ElidedTextTooltipDelegate(QStyledItemDelegate):
     """Custom delegate that reliably shows a tooltip only if the text is horizontally truncated."""
 
@@ -79,25 +105,35 @@ class ElidedTextTooltipDelegate(QStyledItemDelegate):
         index: QModelIndex | QPersistentModelIndex,
     ) -> bool:
         """Show tooltip for elided cells, let the default handle the rest."""
-        if event and event.type() == QEvent.Type.ToolTip:
-            if index.data(Qt.ItemDataRole.ToolTipRole):
-                return super().helpEvent(event, view, option, index)
+        if not event or event.type() != QEvent.Type.ToolTip:
+            return super().helpEvent(event, view, option, index)
 
-            text = index.data(Qt.ItemDataRole.DisplayRole)
-            if isinstance(text, str) and text:
-                opt = QStyleOptionViewItem(option)
-                if not opt.rect.isValid():
-                    opt.rect = view.visualRect(index)
-                self.initStyleOption(opt, index)
-                style = view.style()
-                text_rectangle = style.subElementRect(QStyle.SubElement.SE_ItemViewItemText, opt, view)
-                text_margin = style.pixelMetric(QStyle.PixelMetric.PM_FocusFrameHMargin, opt, view) + 1
-                usable_text_width = max(0, text_rectangle.width() - text_margin * 2)
-                if QFontMetrics(_get_option_font(opt)).horizontalAdvance(text) > usable_text_width:
-                    QToolTip.showText(event.globalPos(), text, view)
-                    return True
+        if index.data(Qt.ItemDataRole.ToolTipRole):
+            return super().helpEvent(event, view, option, index)
 
-        return super().helpEvent(event, view, option, index)
+        text = index.data(Qt.ItemDataRole.DisplayRole)
+        if not isinstance(text, str) or not text:
+            return super().helpEvent(event, view, option, index)
+
+        opt = QStyleOptionViewItem(option)
+        if not opt.rect.isValid():
+            opt.rect = view.visualRect(index)
+        self.initStyleOption(opt, index)
+        style = view.style()
+        text_rectangle = style.subElementRect(QStyle.SubElement.SE_ItemViewItemText, opt, view)
+        text_margin = style.pixelMetric(QStyle.PixelMetric.PM_FocusFrameHMargin, opt, view) + 1
+        usable_text_width = max(0, text_rectangle.width() - text_margin * 2)
+        if QFontMetrics(_get_option_font(opt)).horizontalAdvance(text) <= usable_text_width:
+            return super().helpEvent(event, view, option, index)
+
+        tooltip_text = text
+        user_role_data = index.data(Qt.ItemDataRole.UserRole)
+        unregistered_looky_names: set[str] | None = cast('set[str]', user_role_data) if isinstance(user_role_data, set) and user_role_data else None
+        if unregistered_looky_names is not None:
+            tooltip_text = _format_looky_tooltip_html(text, unregistered_looky_names, is_disconnected=_is_disconnected_cell(view, index))
+
+        QToolTip.showText(event.globalPos(), tooltip_text, view)
+        return True
 
     @override
     def initStyleOption(self, option: QStyleOptionViewItem, index: QModelIndex | QPersistentModelIndex) -> None:
@@ -298,27 +334,10 @@ class SearchHighlightDelegate(ElidedTextTooltipDelegate):
             base_format.format = base_char_format
             formats.append(base_format)
 
-            if (
-                unregistered_looky_names is not None
-                and unregistered_looky_names
-                and not isinstance(background_brush, (QColor, QBrush))
-                and text_color in _DEFAULT_FOREGROUND_COLORS
-            ):
+            if unregistered_looky_names is not None:
                 unregistered_looky_casefolded = {name.casefold() for name in unregistered_looky_names}
                 looky_format = QTextCharFormat()
-                is_disconnected = False
-                view = self.parent()
-                if view is not None and hasattr(view, 'is_connected_table'):
-                    raw_is_connected = getattr(view, 'is_connected_table', None)
-                    if isinstance(raw_is_connected, bool):
-                        is_disconnected = not raw_is_connected
-                if not is_disconnected:
-                    foreground_brush = index.data(Qt.ItemDataRole.ForegroundRole)
-                    resolved_foreground_color = (
-                        foreground_brush if isinstance(foreground_brush, QColor) else (foreground_brush.color() if isinstance(foreground_brush, QBrush) else None)
-                    )
-                    if resolved_foreground_color is not None and resolved_foreground_color == _DISCONNECTED_TEXT_COLOR:
-                        is_disconnected = True
+                is_disconnected = _is_disconnected_cell(self.parent(), index)
                 looky_color = _DISCONNECTED_LOOKY_TEXT_COLOR if is_disconnected else _LOOKY_TEXT_COLOR
                 looky_format.setForeground(looky_color)
 
