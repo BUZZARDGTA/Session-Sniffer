@@ -1,14 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
-  <defs>
-    <mask id="slash-cut">
-      <rect width="48" height="48" fill="white"/>
-      <line x1="15" y1="15" x2="33" y2="33" stroke="black" stroke-width="4.5" stroke-linecap="round"/>
-    </mask>
-  </defs>
-  <circle cx="24" cy="24" r="18" fill="none" stroke="#ef4444" stroke-width="2.5"/>
-  <g mask="url(#slash-cut)">
-    <circle cx="24" cy="18" r="5" fill="#ef4444"/>
-    <path d="M 15 33 C 15 25.5 33 25.5 33 33 Z" fill="#ef4444"/>
-  </g>
-  <line x1="16" y1="16" x2="32" y2="32" stroke="#ef4444" stroke-width="2.2" stroke-linecap="round"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <path d="m16.5 16.5 5 5"/>
+  <path d="M2 21a8 8 0 0 1 11.531-7.18"/>
+  <path d="m21.5 16.5-5 5"/>
+  <circle cx="10" cy="8" r="5"/>
 </svg>
