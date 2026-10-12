@@ -290,13 +290,11 @@ class CaptureState:
     gta5_is_running: ClassVar[bool] = False
     gta5_is_enhanced: ClassVar[bool] = False
     gta5_is_legacy: ClassVar[bool] = False
-    gta5_just_started: ClassVar[bool] = False
     gta5_path: ClassVar[Path | None] = None
     gta5_pid: ClassVar[int | None] = None
     gta5_is_suspended: ClassVar[bool] = False
     gta5_udp_ports: ClassVar[frozenset[int]] = frozenset[int]()
     rdr2_is_running: ClassVar[bool] = False
-    rdr2_just_started: ClassVar[bool] = False
     rdr2_path: ClassVar[Path | None] = None
     rdr2_pid: ClassVar[int | None] = None
     rdr2_is_suspended: ClassVar[bool] = False
@@ -356,10 +354,8 @@ class CaptureState:
 
     @classmethod
     def update_gta5_status(cls, status: GTA5Status) -> None:
-        """Update GTA5 running/suspended state and set `gta5_just_started` on the first detected launch."""
+        """Update GTA5 running/suspended state, path, PID, and UDP socket ports."""
         with cls._lock:
-            if status.is_running and not cls.gta5_is_running:
-                cls.gta5_just_started = True
             cls.gta5_is_running = status.is_running
             cls.gta5_is_enhanced = status.is_enhanced
             cls.gta5_is_legacy = status.is_legacy
@@ -370,10 +366,8 @@ class CaptureState:
 
     @classmethod
     def update_rdr2_status(cls, status: RDR2Status) -> None:
-        """Update RDR2 running/suspended state and set `rdr2_just_started` on the first detected launch."""
+        """Update RDR2 running/suspended state, path, PID, and UDP socket ports."""
         with cls._lock:
-            if status.is_running and not cls.rdr2_is_running:
-                cls.rdr2_just_started = True
             cls.rdr2_is_running = status.is_running
             cls.rdr2_path = status.path
             cls.rdr2_pid = status.pid

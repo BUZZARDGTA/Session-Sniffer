@@ -505,22 +505,6 @@ def rendering_core(
                     SessionTracker.advance_session(players=session_connected)
                     _session_host_was_active = False
             else:
-                game_just_started = False
-                if Settings.is_gta5_feature_set() and CaptureState.gta5_just_started:
-                    CaptureState.gta5_just_started = False
-                    game_just_started = True
-                elif Settings.is_rdr2_feature_set() and CaptureState.rdr2_just_started:
-                    CaptureState.rdr2_just_started = False
-                    game_just_started = True
-
-                if game_just_started:
-                    if _session_host_was_active:
-                        SessionTracker.advance_session(players=session_connected)
-                    _sniffer_just_started = True
-                    _sniffer_start_time = time.monotonic()
-                    _session_host_was_active = False
-                    _session_transitioned_for_pending_disconnections = False
-                    _relay_host_logged_ip = None
                 current_session_host = SessionHost.get_player()
                 is_relay_host = current_session_host is not None and SessionHost.is_relay_host_candidate(current_session_host)
                 if current_session_host is not None and current_session_host.left_event.is_set():
