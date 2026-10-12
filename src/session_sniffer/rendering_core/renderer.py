@@ -497,10 +497,8 @@ def rendering_core(
         p2p_session_connected = [player for player in session_connected if not player.is_third_party_server]
 
         if Settings.is_session_host_feature_set():
-            game_is_running = (
-                CaptureState.is_scanning_gta5_process()
-                if Settings.is_gta5_feature_set()
-                else (CaptureState.rdr2_is_running or not CaptureState.is_local_capture())
+            game_is_running = not CaptureState.is_local_capture() or (
+                CaptureState.gta5_is_running if Settings.is_gta5_feature_set() else CaptureState.rdr2_is_running
             )
 
             if not game_is_running or not Settings.gui_session_host_detection:
