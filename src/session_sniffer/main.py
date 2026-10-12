@@ -45,6 +45,7 @@ from session_sniffer.constants.local import (
     COMBO_RULES_PATH,
     DETECTIONS_JSON_PATH,
     SCRIPT_DIR,
+    SESSIONS_LOGGING_DIR_PATH,
     SETTINGS_PATH,
     USER_SCRIPTS_DIR_PATH,
 )
@@ -81,11 +82,11 @@ from session_sniffer.player.registry import PlayersRegistry, SessionTracker
 from session_sniffer.player.userip import UserIPDatabases
 from session_sniffer.player.userip_backup import run_userip_backup_async
 from session_sniffer.rendering_core.events import wake_rendering_core
-from session_sniffer.rendering_core.renderer import rendering_core
+from session_sniffer.rendering_core.renderer import SESSIONS_LOGGING_PATH, rendering_core
 from session_sniffer.rendering_core.types import CaptureState, CaptureStats, GeoIP2Readers, GUIRenderingState
 from session_sniffer.settings import Settings
 from session_sniffer.updater import UpdateCheckOutcome, check_for_updates
-from session_sniffer.utils import dedup_preserve_order, ensure_app_dir_ownership, is_pyinstaller_compiled
+from session_sniffer.utils import cleanup_session_logs, dedup_preserve_order, ensure_app_dir_ownership, is_pyinstaller_compiled
 from session_sniffer.webserver import WebServer, start_webserver_from_settings
 
 setup_logging(console_level=logging.INFO)
@@ -210,6 +211,17 @@ def main() -> None:
     warm_table_gui_assets(
         progress_callback=functools.partial(splash.update_progress, target_message='Initializing caches'),
     )
+
+    if Settings.gui_sessions_logging_delete_empty_files or Settings.gui_sessions_logging_delete_empty_folders:
+        splash.update_status('Cleaning session logs')
+        splash.run_with_spinner(
+            cleanup_session_logs,
+            sessions_dir=SESSIONS_LOGGING_DIR_PATH,
+            delete_empty_files=Settings.gui_sessions_logging_delete_empty_files,
+            delete_empty_folders=Settings.gui_sessions_logging_delete_empty_folders,
+            gui_sessions_logging=Settings.gui_sessions_logging,
+            active_session_path=SESSIONS_LOGGING_PATH.with_suffix('.json'),
+        )
 
     splash.update_status('Network interface selection')
     splash.run_with_spinner(network_interfaces_future.result)

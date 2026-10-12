@@ -61,7 +61,7 @@ from session_sniffer.rendering_core.types import (
 from session_sniffer.rendering_core.webhook_text_renderer import build_webhook_mobile_text, build_webhook_table_text
 from session_sniffer.settings import Settings
 from session_sniffer.text_utils import format_elapsed_time, pluralize
-from session_sniffer.utils import cleanup_session_logs, dedup_preserve_order, get_session_log_path
+from session_sniffer.utils import dedup_preserve_order, get_session_log_path
 
 if TYPE_CHECKING:
     from session_sniffer.capture.packet_capture import CaptureHolder
@@ -354,21 +354,6 @@ def rendering_core(
 
             handle_detection_notification(player, 'player_left_session')
         return to_disconnect
-
-    # Perform session log cleanup once at startup in a background thread so startup is not delayed
-    if Settings.gui_sessions_logging_delete_empty_files or Settings.gui_sessions_logging_delete_empty_folders:
-        Thread(
-            target=cleanup_session_logs,
-            kwargs={
-                'sessions_dir': SESSIONS_LOGGING_DIR_PATH,
-                'delete_empty_files': Settings.gui_sessions_logging_delete_empty_files,
-                'delete_empty_folders': Settings.gui_sessions_logging_delete_empty_folders,
-                'gui_sessions_logging': Settings.gui_sessions_logging,
-                'active_session_path': SESSIONS_LOGGING_PATH.with_suffix('.json'),
-            },
-            name='CleanupSessionLogs',
-            daemon=True,
-        ).start()
 
     while not gui_closed__event.is_set():
         capture = capture_holder.get()  # Resolve the active capture each iteration
