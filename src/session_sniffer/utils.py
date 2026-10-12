@@ -21,6 +21,9 @@ if sys.platform == 'win32':
     import winreg
 
 with contextlib.suppress(ImportError):
+    import posix
+
+with contextlib.suppress(ImportError):
     import pwd
 
 from session_sniffer.constants.standalone import TITLE
@@ -95,7 +98,7 @@ def _get_target_user_identity() -> tuple[int, int, Path] | None:
     """Return the (uid, gid, home_path) of the invoking user when running via sudo on POSIX."""
     if sys.platform == 'win32':
         return None
-    if bool(os.geteuid()):  # pyright: ignore[reportAttributeAccessIssue, reportUnknownArgumentType]  # pylint: disable=no-member
+    if bool(posix.geteuid()):
         return None
     sudo_user = os.environ.get('SUDO_USER')
     if not sudo_user:
@@ -115,54 +118,48 @@ def _get_user_home() -> Path:
     return Path.home()
 
 
-def _ensure_path_ownership(target_path: Path) -> None:
-    """Ensure a directory or file is owned by the original user when running under sudo on POSIX."""
-    if not hasattr(os, 'chown'):
-        return
-    user_identity = _get_target_user_identity()
-    if user_identity is None:
-        return
-    target_uid, target_gid, _ = user_identity
+def _repair_path_ownership(target_path: Path, target_uid: int, target_gid: int) -> bool:
+    """Repair path ownership to target_uid and target_gid if needed.
+
+    Returns:
+        True if ownership matches or was successfully repaired, False if stat or chown failed.
+    """
+    if sys.platform == 'win32':
+        return False
     try:
         stat_info = target_path.stat()
         if stat_info.st_uid != target_uid or stat_info.st_gid != target_gid:
-            os.chown(target_path, target_uid, target_gid)  # pyright: ignore[reportAttributeAccessIssue]  # pylint: disable=no-member
+            posix.chown(target_path, target_uid, target_gid)
     except OSError:
-        pass
+        return False
+    return True
+
+
+def _ensure_path_ownership(target_path: Path) -> None:
+    """Ensure a directory or file is owned by the original user when running under sudo on POSIX."""
+    if sys.platform == 'win32':
+        return
+    user_identity = _get_target_user_identity()
+    if user_identity is not None:
+        target_uid, target_gid, _ = user_identity
+        _repair_path_ownership(target_path, target_uid, target_gid)
 
 
 def ensure_app_dir_ownership(app_dir: Path) -> None:
     """Recursively repair app_dir ownership to the original user when running under sudo on POSIX."""
-    if not hasattr(os, 'chown'):
+    if sys.platform == 'win32':
         return
     user_identity = _get_target_user_identity()
-    if user_identity is None:
-        return
-    target_uid, target_gid, _ = user_identity
-    try:
-        stat_info = app_dir.stat()
-        if stat_info.st_uid != target_uid or stat_info.st_gid != target_gid:
-            os.chown(app_dir, target_uid, target_gid)  # pyright: ignore[reportAttributeAccessIssue]  # pylint: disable=no-member
-    except OSError:
-        return
+    if user_identity is not None:
+        target_uid, target_gid, _ = user_identity
+        if not _repair_path_ownership(app_dir, target_uid, target_gid):
+            return
 
-    for root_dir, dir_names, file_names in os.walk(app_dir):
-        for dir_name in dir_names:
-            dir_path = Path(root_dir) / dir_name
-            try:
-                stat_info = dir_path.stat()
-                if stat_info.st_uid != target_uid or stat_info.st_gid != target_gid:
-                    os.chown(dir_path, target_uid, target_gid)  # pyright: ignore[reportAttributeAccessIssue]  # pylint: disable=no-member
-            except OSError:
-                continue
-        for file_name in file_names:
-            file_path = Path(root_dir) / file_name
-            try:
-                stat_info = file_path.stat()
-                if stat_info.st_uid != target_uid or stat_info.st_gid != target_gid:
-                    os.chown(file_path, target_uid, target_gid)  # pyright: ignore[reportAttributeAccessIssue]  # pylint: disable=no-member
-            except OSError:
-                continue
+        for root_dir, dir_names, file_names in os.walk(app_dir):
+            for dir_name in dir_names:
+                _repair_path_ownership(Path(root_dir) / dir_name, target_uid, target_gid)
+            for file_name in file_names:
+                _repair_path_ownership(Path(root_dir) / file_name, target_uid, target_gid)
 
 
 def get_app_dir(*, scope: Literal['roaming', 'local']) -> Path:
