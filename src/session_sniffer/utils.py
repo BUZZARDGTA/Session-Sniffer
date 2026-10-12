@@ -3,6 +3,7 @@
 This module contains a variety of helper functions and custom exceptions used across the project.
 """
 
+import contextlib
 import ctypes
 import json
 import logging
@@ -12,12 +13,15 @@ import signal
 import subprocess
 import sys
 from ctypes import wintypes
-
-if sys.platform == 'win32':
-    import winreg
 from datetime import UTC, datetime, tzinfo
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal
+
+if sys.platform == 'win32':
+    import winreg
+
+with contextlib.suppress(ImportError):
+    import pwd
 
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.constants.standard import CMD_EXE
@@ -87,6 +91,80 @@ def get_documents_dir() -> Path:
     return Path.home() / 'Documents'
 
 
+def _get_target_user_identity() -> tuple[int, int, Path] | None:
+    """Return the (uid, gid, home_path) of the invoking user when running via sudo on POSIX."""
+    if sys.platform == 'win32':
+        return None
+    if bool(os.geteuid()):  # pyright: ignore[reportAttributeAccessIssue, reportUnknownArgumentType]  # pylint: disable=no-member
+        return None
+    sudo_user = os.environ.get('SUDO_USER')
+    if not sudo_user:
+        return None
+    try:
+        pw_record = pwd.getpwnam(sudo_user)
+        return (int(pw_record.pw_uid), int(pw_record.pw_gid), Path(str(pw_record.pw_dir)))
+    except (KeyError, OSError):
+        return None
+
+
+def _get_user_home() -> Path:
+    """Return the user's home directory, respecting sudo invocation on POSIX."""
+    user_identity = _get_target_user_identity()
+    if user_identity is not None:
+        return user_identity[2]
+    return Path.home()
+
+
+def _ensure_path_ownership(target_path: Path) -> None:
+    """Ensure a directory or file is owned by the original user when running under sudo on POSIX."""
+    if not hasattr(os, 'chown'):
+        return
+    user_identity = _get_target_user_identity()
+    if user_identity is None:
+        return
+    target_uid, target_gid, _ = user_identity
+    try:
+        stat_info = target_path.stat()
+        if stat_info.st_uid != target_uid or stat_info.st_gid != target_gid:
+            os.chown(target_path, target_uid, target_gid)  # pyright: ignore[reportAttributeAccessIssue]  # pylint: disable=no-member
+    except OSError:
+        pass
+
+
+def ensure_app_dir_ownership(app_dir: Path) -> None:
+    """Recursively repair app_dir ownership to the original user when running under sudo on POSIX."""
+    if not hasattr(os, 'chown'):
+        return
+    user_identity = _get_target_user_identity()
+    if user_identity is None:
+        return
+    target_uid, target_gid, _ = user_identity
+    try:
+        stat_info = app_dir.stat()
+        if stat_info.st_uid != target_uid or stat_info.st_gid != target_gid:
+            os.chown(app_dir, target_uid, target_gid)  # pyright: ignore[reportAttributeAccessIssue]  # pylint: disable=no-member
+    except OSError:
+        return
+
+    for root_dir, dir_names, file_names in os.walk(app_dir):
+        for dir_name in dir_names:
+            dir_path = Path(root_dir) / dir_name
+            try:
+                stat_info = dir_path.stat()
+                if stat_info.st_uid != target_uid or stat_info.st_gid != target_gid:
+                    os.chown(dir_path, target_uid, target_gid)  # pyright: ignore[reportAttributeAccessIssue]  # pylint: disable=no-member
+            except OSError:
+                continue
+        for file_name in file_names:
+            file_path = Path(root_dir) / file_name
+            try:
+                stat_info = file_path.stat()
+                if stat_info.st_uid != target_uid or stat_info.st_gid != target_gid:
+                    os.chown(file_path, target_uid, target_gid)  # pyright: ignore[reportAttributeAccessIssue]  # pylint: disable=no-member
+            except OSError:
+                continue
+
+
 def get_app_dir(*, scope: Literal['roaming', 'local']) -> Path:
     """Return the per-user application data directory.
 
@@ -115,14 +193,15 @@ def get_app_dir(*, scope: Literal['roaming', 'local']) -> Path:
         else:
             base = Path(os.getenv('LOCALAPPDATA', str(Path.home() / 'AppData' / 'Local')))
     elif sys.platform == 'darwin':
-        base = Path.home() / 'Library' / 'Application Support'
+        base = _get_user_home() / 'Library' / 'Application Support'
     elif scope == 'roaming':
-        base = Path(os.getenv('XDG_CONFIG_HOME', str(Path.home() / '.config')))
+        base = Path(os.getenv('XDG_CONFIG_HOME', str(_get_user_home() / '.config')))
     else:
-        base = Path(os.getenv('XDG_DATA_HOME', str(Path.home() / '.local' / 'share')))
+        base = Path(os.getenv('XDG_DATA_HOME', str(_get_user_home() / '.local' / 'share')))
 
     app_dir = base / TITLE
     app_dir.mkdir(parents=True, exist_ok=True)
+    ensure_app_dir_ownership(app_dir)
     return app_dir
 
 
@@ -139,6 +218,11 @@ def get_session_log_path(base_dir: Path, tz: tzinfo) -> Path:
     now = datetime.now(tz=tz)
     date_dir = base_dir / now.strftime('%Y') / now.strftime('%m') / now.strftime('%d')
     date_dir.mkdir(parents=True, exist_ok=True)
+    current_dir: Path | None = date_dir
+    while current_dir and current_dir != base_dir.parent:
+        if current_dir.exists():
+            _ensure_path_ownership(current_dir)
+        current_dir = current_dir.parent
     return date_dir / f'{now.strftime("%Y-%m-%d_%H-%M-%S")}.log'
 
 
