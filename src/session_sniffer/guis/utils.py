@@ -885,11 +885,7 @@ def apply_search_icon(line_edit: QLineEdit) -> None:
 
 
 def make_padded_icon(source: QIcon, icon_size: tuple[int, int], right_padding: int) -> QIcon:
-    """Return a QIcon with `right_padding` transparent pixels appended to the right of *source*.
-
-    Used to add space between a button's icon and its text label, since
-    PySide6 no longer exposes `PM_ButtonIconSpacing`.
-    """
+    """Return a QIcon with `right_padding` transparent pixels appended to the right of *source* (button icon spacing)."""
     width, height = icon_size
     pixmap = QPixmap(width + right_padding, height)
     pixmap.fill(Qt.GlobalColor.transparent)
@@ -917,6 +913,11 @@ def render_svg_pixmap_from_resource(filename: str, width: int, height: int, tint
     finally:
         painter.end()
     return pixmap
+
+
+def render_svg_icon_from_resource(filename: str, width: int, height: int, tint_color: str | None = None) -> QIcon:
+    """Render an SVG icon from `resources/icons/` to a QIcon with optional tint color."""
+    return QIcon(render_svg_pixmap_from_resource(filename, width, height, tint_color))
 
 
 def center_window_on_screen(window: QWidget) -> None:

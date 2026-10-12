@@ -77,6 +77,7 @@ from session_sniffer.guis.stylesheets import (
     SETTINGS_RESTART_BANNER_STYLESHEET,
 )
 from session_sniffer.guis.utils import (
+    render_svg_pixmap_from_resource,
     resize_window_for_screen,
     scale_by_ui,
     set_dialog_window_flags,
@@ -157,7 +158,7 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
         banner_layout.setSpacing(8)
 
         banner_icon_label = QLabel()
-        banner_icon_label.setPixmap(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'warning.svg')).pixmap(16, 16))
+        banner_icon_label.setPixmap(render_svg_pixmap_from_resource('triangle-alert.svg', 16, 16, '#f59e0b'))
         banner_layout.addWidget(banner_icon_label)
 
         banner_text_label = QLabel('Saving changes will restart packet capture.')

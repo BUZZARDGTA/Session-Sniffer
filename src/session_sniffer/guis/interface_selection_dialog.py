@@ -57,6 +57,7 @@ from session_sniffer.guis.utils import (
     compute_ui_scale,
     consume_maximize_on_show,
     make_padded_icon,
+    render_svg_icon_from_resource,
     render_svg_pixmap_from_resource,
     resize_window_for_screen,
     scale_by_ui,
@@ -497,7 +498,7 @@ class InterfaceSelectionDialog(QDialog):
         select_button.setMinimumSize(scale(330), scale(56))
         _play_pad = scale(10)
         _play_w, _play_h = scale(46), scale(28)
-        select_button.setIcon(make_padded_icon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'circle-play.svg')), (_play_w, _play_h), _play_pad))
+        select_button.setIcon(make_padded_icon(render_svg_icon_from_resource('circle-play.svg', _play_w, _play_h, '#ffffff'), (_play_w, _play_h), _play_pad))
 
         select_button.setIconSize(QSize(_play_w + _play_pad, _play_h))
         select_button.clicked.connect(self.select_interface)

@@ -17,7 +17,7 @@ from session_sniffer.capture.process_monitor import ensure_process_monitor_runni
 from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.guis._settings_widget_builders import format_setting_tooltip
 from session_sniffer.guis.target_process_dialog import TargetProcessDialog
-from session_sniffer.guis.utils import get_process_icon
+from session_sniffer.guis.utils import get_process_icon, render_svg_icon_from_resource
 from session_sniffer.rendering_core.types import CaptureState
 from session_sniffer.settings import SettingMeta, Settings
 
@@ -126,7 +126,7 @@ class ProcessSelectorWidget(QWidget):
 
         current_pid = self.value()
         globe_icon = QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'globe.svg'))
-        warning_icon = QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'warning.svg'))
+        warning_icon = render_svg_icon_from_resource('triangle-alert.svg', 16, 16, '#f59e0b')
 
         with QSignalBlocker(self._combo):
             self._combo.clear()
@@ -200,7 +200,7 @@ class ProcessSelectorWidget(QWidget):
 
         # If PID is not in combo, add it and select
         if pid > 0:
-            warning_icon = QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'warning.svg'))
+            warning_icon = render_svg_icon_from_resource('triangle-alert.svg', 16, 16, '#f59e0b')
             display_text = f'{target_name} (PID: {pid} - Not Running)' if target_name is not None else f'Process PID {pid} (Not Running)'
             self._combo.addItem(warning_icon, display_text, pid)
             item_index = self._combo.count() - 1
@@ -209,7 +209,7 @@ class ProcessSelectorWidget(QWidget):
                 self._combo.setItemData(item_index, target_name, Qt.ItemDataRole.UserRole + 1)
             self._combo.setCurrentIndex(item_index)
         elif target_name is not None and Settings.capture_filter_process_track_by_name:
-            warning_icon = QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'warning.svg'))
+            warning_icon = render_svg_icon_from_resource('triangle-alert.svg', 16, 16, '#f59e0b')
             display_text = f'{target_name} (Not Running)'
             self._combo.addItem(warning_icon, display_text, 0)
             item_index = self._combo.count() - 1

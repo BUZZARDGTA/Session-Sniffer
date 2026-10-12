@@ -41,6 +41,7 @@ from session_sniffer.guis.utils import (
     ActiveDialogRegistry,
     animate_button_feedback,
     load_country_flag_icon,
+    render_svg_pixmap_from_resource,
     scale_by_ui,
     set_clipboard_text,
     set_dialog_window_flags,
@@ -180,10 +181,10 @@ class SessionHostDiagnosticsDialog(QDialog):
 
         icon_label = QLabel()
         icon_size = scale_by_ui(32)
-        icon_filename = 'crown.svg' if is_success else 'warning.svg'
-        icon_path = RESOURCES_DIR_PATH / 'icons' / icon_filename
-        if icon_path.exists():
-            icon_label.setPixmap(QIcon(str(icon_path)).pixmap(icon_size, icon_size))
+        if is_success:
+            icon_label.setPixmap(render_svg_pixmap_from_resource('crown.svg', icon_size, icon_size))
+        else:
+            icon_label.setPixmap(render_svg_pixmap_from_resource('triangle-alert.svg', icon_size, icon_size, '#f59e0b'))
         icon_label.setAlignment(Qt.AlignmentFlag.AlignTop)
         layout.addWidget(icon_label)
 

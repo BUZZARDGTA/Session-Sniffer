@@ -48,6 +48,7 @@ from session_sniffer.guis.utils import (
     SUSPEND_TOOLTIP_MANUAL,
     create_section_separator,
     load_country_flag_icon,
+    render_svg_pixmap_from_resource,
 )
 from session_sniffer.models.combo_rules import ComboRule
 from session_sniffer.player.combo_rules import ComboRulesManager
@@ -208,7 +209,7 @@ class DetectionsManagerTabsMixin(QDialog):
         filter_warning_layout.setContentsMargins(8, 6, 8, 6)
         filter_warning_layout.setSpacing(10)
         warning_icon_label = QLabel()
-        warning_icon_label.setPixmap(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'warning.svg')).pixmap(20, 20))
+        warning_icon_label.setPixmap(render_svg_pixmap_from_resource('triangle-alert.svg', 20, 20, '#f59e0b'))
         warning_icon_label.setStyleSheet(WARNING_ICON_LABEL_STYLESHEET)
         filter_warning_layout.addWidget(warning_icon_label)
         warning_text_label = QLabel(
