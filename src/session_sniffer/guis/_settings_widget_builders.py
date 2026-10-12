@@ -164,14 +164,14 @@ def create_text_widget(meta: SettingMeta) -> QLineEdit:
         _act.setCheckable(True)
         _act.setToolTip('Show')
 
-        def _toggle_echo(_le: QLineEdit = le, _show: QIcon = icon_show, _hide: QIcon = icon_hide, _a: QAction = _act) -> None:
-            checked = _a.isChecked()
-            if isinstance(_le, SecretLineEdit):
-                _le.set_revealed(revealed=checked)
+        def _toggle_echo() -> None:
+            checked = _act.isChecked()
+            if isinstance(le, SecretLineEdit):
+                le.set_revealed(revealed=checked)
             else:
-                _le.setEchoMode(QLineEdit.EchoMode.Normal if checked else QLineEdit.EchoMode.Password)
-            _a.setIcon(_show if checked else _hide)
-            _a.setToolTip('Hide' if checked else 'Show')
+                le.setEchoMode(QLineEdit.EchoMode.Normal if checked else QLineEdit.EchoMode.Password)
+            _act.setIcon(icon_show if checked else icon_hide)
+            _act.setToolTip('Hide' if checked else 'Show')
 
         _act.toggled.connect(_toggle_echo)
         le.setProperty('secret_action', _act)
