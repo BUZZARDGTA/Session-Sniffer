@@ -3,9 +3,8 @@
 from typing import TYPE_CHECKING, cast, override
 
 from PySide6.QtCore import QEvent, QObject, QSignalBlocker, QSize, Qt, Signal
-from PySide6.QtGui import QIcon, QStandardItem, QStandardItemModel
+from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (
-    QComboBox,
     QFrame,
     QHBoxLayout,
     QHeaderView,
@@ -36,7 +35,7 @@ from session_sniffer.guis.stylesheets import (
 from session_sniffer.guis.table_model import SessionTableModel
 from session_sniffer.guis.tables import SessionTableView
 from session_sniffer.guis.utils import make_padded_icon, render_svg_pixmap_from_resource, scale_by_ui
-from session_sniffer.player.registry import PlayersRegistry, SessionTracker
+from session_sniffer.player.registry import SessionTracker
 from session_sniffer.rendering_core.types import PaginationState, SearchState, SessionFilterState, TableMergeState
 from session_sniffer.settings import Settings
 from session_sniffer.text_utils import pluralize
@@ -102,8 +101,6 @@ class SessionTableSection(QWidget):
     collapse_button: QToolButton
     _clear_button: QPushButton
     _merge_button: QPushButton | None
-    _session_filter_combo: QComboBox
-    _session_filter_label: QLabel
     _is_expanded: bool
 
     def __init__(
@@ -265,29 +262,6 @@ class SessionTableSection(QWidget):
             PaginationState.set_connected(rows_per_page=initial_rpp, page=1)
         else:
             PaginationState.set_disconnected(rows_per_page=initial_rpp, page=1)
-
-        session_label = QLabel('Session:')
-        session_label.setAlignment(Qt.AlignmentFlag.AlignVCenter)
-        self._session_filter_label: QLabel = session_label
-
-        self._session_filter_combo = QComboBox()
-        self._session_filter_combo.setObjectName('sectionSessionFilterCombo')
-        self._session_filter_combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
-        self._session_filter_combo.currentIndexChanged.connect(self._handle_session_filter_changed)
-
-        session_pair = QHBoxLayout()
-        session_pair.setSpacing(scale_by_ui(4))
-        session_pair.setContentsMargins(0, 0, 0, 0)
-        session_pair.setAlignment(Qt.AlignmentFlag.AlignVCenter)
-        session_pair.addWidget(session_label)
-        session_pair.addWidget(self._session_filter_combo)
-        header_layout.addLayout(session_pair)
-
-        if is_connected:
-            is_merged = TableMergeState.is_merged()
-            self._session_filter_label.setVisible(is_merged)
-            self._session_filter_combo.setVisible(is_merged)
-        self._sync_session_filter_combo()
 
         if merge_slot is not None:
             self._merge_button = QPushButton()
@@ -572,7 +546,6 @@ class SessionTableSection(QWidget):
         self.table_model.reset_columns()
         self._selected_count = 0
         self.last_count = 0
-        self._sync_session_filter_combo()
         self._update_header_label()
         self.table_view.reset_initial_data_sizing()
         self.table_view.setup_static_column_resizing()
@@ -644,12 +617,8 @@ class SessionTableSection(QWidget):
             )
         self.update_merge_button_state()
         if self._is_connected:
-            is_merged = TableMergeState.is_merged()
             self._rows_per_page_spinbox.setToolTip(f'Limit how many {self._rows_per_page_tooltip_noun()} are shown per page. Set 0 to show all.')
-            self._session_filter_label.setVisible(is_merged)
-            self._session_filter_combo.setVisible(is_merged)
             self.table_view.viewport().update()
-        self._sync_session_filter_combo()
 
     def _expand_button_noun(self) -> str:
         """Return the player label for the expand button, respecting the table merge state."""
@@ -756,33 +725,16 @@ class SessionTableSection(QWidget):
         self._rows_per_page_spinbox.clearFocus()
 
     def sync_session_filter(self) -> None:
-        """Synchronize the session filter combobox and section header."""
-        self._sync_session_filter_combo()
+        """Synchronize the section header label and clear button tooltip."""
         self._update_header_label()
 
     def set_selected_session_filter(self, session_id: int) -> None:
-        """Set the active session filter and synchronize the combobox."""
+        """Set the active session filter and update header state."""
         self._current_page = 1
         PaginationState.set_disconnected_page(1)
         SessionFilterState.set_selected_session(session_id=session_id)
-        self._sync_session_filter_combo()
         self._update_header_label()
         self.session_filter_changed.emit(session_id)
-
-    def _handle_session_filter_changed(self, index: int) -> None:
-        """Handle session filter combobox selection changes."""
-        if index < 0:
-            return
-        selected_session = self._session_filter_combo.itemData(index)
-        if selected_session is None:
-            selected_session = SessionFilterState.FILTER_ALL
-
-        self._current_page = 1
-        PaginationState.set_disconnected_page(1)
-        SessionFilterState.set_selected_session(session_id=selected_session)
-        self._sync_session_filter_combo()
-        self._update_header_label()
-        self.session_filter_changed.emit(selected_session)
 
     def _push_pagination_state(self) -> None:
         """Write current pagination state to the shared PaginationState."""
@@ -849,8 +801,6 @@ class SessionTableSection(QWidget):
         if not self._rows_keyboard_editing:
             self._page_spinbox.setSuffix(f' / {self._total_pages}')
 
-        self._sync_session_filter_combo()
-
     def _install_spinbox_input_filter(self, spinbox: QSpinBox) -> None:
         """Attach an event filter that tracks keyboard vs. wheel editing and ignores unfocused wheels."""
         line_edit = spinbox.lineEdit()
@@ -901,100 +851,3 @@ class SessionTableSection(QWidget):
 
     def _get_highlight_search_column(self) -> int:
         return self.get_search_column_index(SearchState.get_column_name())
-
-    def _has_past_disconnected_players(self) -> bool:
-        """Check if any disconnected player belongs to a past session."""
-        current_session_id = SessionTracker.get_current_session_id()
-        if len(SessionTracker.get_all_session_ids()) <= 1:
-            return False
-        return any(player.session_id < current_session_id for player in PlayersRegistry.get_disconnected_players())
-
-    @staticmethod
-    def _set_combo_item_enabled(item: QStandardItem | None, *, enabled: bool) -> None:
-        if item is None:
-            return
-        flags = item.flags()
-        if enabled:
-            flags |= Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable
-        else:
-            flags &= ~(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable)
-        item.setFlags(flags)
-
-    def _sync_session_filter_combo(self) -> None:
-        """Synchronize the session filter combobox enabled state, item list, and active selection."""
-        selected_session = SessionFilterState.get_selected_session()
-        current_session_id = SessionTracker.get_current_session_id()
-        all_session_ids = SessionTracker.get_all_session_ids()
-        past_session_ids = [session_id for session_id in all_session_ids if session_id < current_session_id]
-        has_past_disconnected = self._has_past_disconnected_players()
-        is_past_session = 0 < selected_session < current_session_id
-
-        is_merged = TableMergeState.is_merged()
-        noun = 'players' if (self._is_connected or is_merged) else 'disconnected players'
-
-        desired_items: list[tuple[str, int, str]] = [
-            ('All', SessionFilterState.FILTER_ALL, f'Show {noun} from all recorded sessions'),
-            ('Current', SessionFilterState.FILTER_CURRENT, f'Show {noun} from the current active session'),
-        ]
-        for past_id in reversed(past_session_ids):
-            display_name = SessionTracker.get_session_display_name(past_id)
-            player_count = SessionTracker.get_session_player_count(past_id)
-            player_noun = f'player{pluralize(player_count)}'
-            time_label = SessionTracker.get_session_time_label(past_id)
-            tooltip_parts = [f'{player_count} {player_noun} recorded in {display_name}']
-            if time_label is not None:
-                tooltip_parts.append(time_label)
-            desired_items.append((display_name, past_id, '  |  '.join(tooltip_parts)))
-
-        current_items = [
-            (
-                self._session_filter_combo.itemText(i),
-                self._session_filter_combo.itemData(i),
-                self._session_filter_combo.itemData(i, Qt.ItemDataRole.ToolTipRole) or '',
-            )
-            for i in range(self._session_filter_combo.count())
-        ]
-
-        if current_items != desired_items:
-            with QSignalBlocker(self._session_filter_combo):
-                self._session_filter_combo.clear()
-                for text, data, tooltip in desired_items:
-                    self._session_filter_combo.addItem(text, data)
-                    self._session_filter_combo.setItemData(self._session_filter_combo.count() - 1, tooltip, Qt.ItemDataRole.ToolTipRole)
-
-        target_index = -1
-        for i in range(self._session_filter_combo.count()):
-            if self._session_filter_combo.itemData(i) == selected_session:
-                target_index = i
-                break
-
-        if target_index >= 0:
-            if self._session_filter_combo.currentIndex() != target_index:
-                with QSignalBlocker(self._session_filter_combo):
-                    self._session_filter_combo.setCurrentIndex(target_index)
-        else:
-            with QSignalBlocker(self._session_filter_combo):
-                self._session_filter_combo.setCurrentIndex(0)
-            SessionFilterState.set_selected_session(session_id=SessionFilterState.FILTER_ALL)
-            selected_session = SessionFilterState.FILTER_ALL
-            is_past_session = False
-
-        can_change_filter = is_past_session or has_past_disconnected or bool(past_session_ids)
-        self._session_filter_combo.setEnabled(can_change_filter)
-
-        if len(all_session_ids) <= 1:
-            tooltip = f'Filter {noun} by session (only one session recorded).'
-        elif not has_past_disconnected and not is_past_session and not past_session_ids:
-            tooltip = f'Filter {noun} by session (no {noun} from other sessions).'
-        else:
-            tooltip = f'Filter {noun} by session.'
-
-        self._session_filter_combo.setToolTip(tooltip)
-        self._session_filter_label.setToolTip(tooltip)
-
-        model = self._session_filter_combo.model()
-        if isinstance(model, QStandardItemModel):
-            for i in range(self._session_filter_combo.count()):
-                item = model.item(i)
-                item_data = self._session_filter_combo.itemData(i)
-                self._set_combo_item_enabled(item, enabled=selected_session != item_data)

@@ -508,6 +508,8 @@ Process is currently suspended',
             game_menu_action.setVisible(has_feature_set)
 
         if not has_feature_set:
+            if SessionFilterState.get_selected_session() != SessionFilterState.FILTER_ALL:
+                self._disconnected.set_selected_session_filter(SessionFilterState.FILTER_ALL)
             return
 
         game_label = self._active_game_label()
