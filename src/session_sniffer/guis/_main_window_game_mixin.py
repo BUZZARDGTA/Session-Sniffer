@@ -78,8 +78,8 @@ class GameMixin(QMainWindow):
     _game_menu_status_separator: QAction
     _player_resolver_action: QAction
     _looky_submenu: QMenu
-    _game_menu_gta5_separator: QAction
-    _sessions_submenu: QMenu
+    _current_session_submenu: QMenu
+    _session_history_submenu: QMenu
     _game_menu_process_separator: QAction
     _game_process_submenu: QMenu
     _game_suspend_resume_action: QAction
@@ -187,15 +187,25 @@ class GameMixin(QMainWindow):
         self._build_looky_submenu(game_menu)
         self._game_menu_gta5_separator = game_menu.addSeparator()
 
-        # Shared: Sessions submenu
-        sessions_submenu = game_menu.addMenu(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'network.svg')), 'Sessions')
-        if not sessions_submenu:
-            message = 'Failed to create Sessions submenu'
+        # Shared: Current Session submenu
+        current_session_submenu = game_menu.addMenu(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'radio.svg')), 'Current Session')
+        if not current_session_submenu:
+            message = 'Failed to create Current Session submenu'
             raise RuntimeError(message)
-        sessions_submenu.setToolTipsVisible(True)
-        sessions_submenu.menuAction().setToolTip('Sessions tree, host controls, and history')
-        sessions_submenu.aboutToShow.connect(self._update_sessions_menu)
-        self._sessions_submenu = sessions_submenu
+        current_session_submenu.setToolTipsVisible(True)
+        current_session_submenu.menuAction().setToolTip('Current active session controls, host detection, and player stats')
+        current_session_submenu.aboutToShow.connect(self._update_current_session_menu)
+        self._current_session_submenu = current_session_submenu
+
+        # Shared: Session History submenu
+        session_history_submenu = game_menu.addMenu(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'rotate-ccw-clock.svg')), 'Session History')
+        if not session_history_submenu:
+            message = 'Failed to create Session History submenu'
+            raise RuntimeError(message)
+        session_history_submenu.setToolTipsVisible(True)
+        session_history_submenu.menuAction().setToolTip('Past sessions, recorded session hosts, and history archive')
+        session_history_submenu.aboutToShow.connect(self._update_session_history_menu)
+        self._session_history_submenu = session_history_submenu
 
         self._game_menu_process_separator = game_menu.addSeparator()
 
@@ -474,7 +484,8 @@ Process is currently suspended',
         if status_key != self._last_game_status_key:
             self._update_game_status_label()
             can_interact = self._game_has_any_process_path() or not CaptureState.is_local_capture()
-            self._sessions_submenu.setEnabled(can_interact)
+            self._current_session_submenu.setEnabled(can_interact)
+            self._session_history_submenu.setEnabled(can_interact)
             self._player_resolver_action.setEnabled(can_interact)
             self._sync_game_process_button()
 
@@ -519,7 +530,8 @@ Process is currently suspended',
         self._game_menu_gta5_separator.setVisible(is_gta5 and local_only)
 
         can_interact = self._game_has_any_process_path() or not CaptureState.is_local_capture()
-        self._sessions_submenu.setEnabled(can_interact)
+        self._current_session_submenu.setEnabled(can_interact)
+        self._session_history_submenu.setEnabled(can_interact)
         self._player_resolver_action.setEnabled(can_interact)
 
         if is_gta5:
@@ -533,148 +545,217 @@ Process is currently suspended',
         """Open the Player Resolver window, or focus the existing one."""
         self._player_resolver_window.show_and_focus()
 
-    def _update_sessions_menu(self) -> None:
-        """Rebuild the dynamic Sessions tree with all recorded sessions, host controls, and history."""
-        self._sessions_submenu.clear()
+    def _update_current_session_menu(self) -> None:
+        """Rebuild the Current Session submenu with live host detection controls and active session stats."""
+        self._current_session_submenu.clear()
 
         current_session_id = SessionTracker.get_current_session_id()
-        all_session_ids = SessionTracker.get_all_session_ids()
-        has_past_disconnected = len(all_session_ids) > 1 and any(player.session_id < current_session_id for player in PlayersRegistry.get_disconnected_players())
+        display_name = SessionTracker.get_session_display_name(current_session_id)
         current_filter = SessionFilterState.get_selected_session()
+        is_filter_active = current_filter in (SessionFilterState.FILTER_CURRENT, current_session_id)
+
+        # -----------------------------------------------------------------
+        # Host Status & Controls
+        # -----------------------------------------------------------------
+        current_session_host = SessionHost.get_player()
+        session_history = SessionHost.get_history(session_id=current_session_id)
+        last_host = session_history[-1] if session_history else None
+
+        if current_session_host is not None and not current_session_host.left_event.is_set():
+            matched_player = PlayersRegistry.get_player_by_ip(current_session_host.ip)
+            usernames = matched_player.usernames if matched_player is not None and matched_player.usernames else ()
+            formatted_usernames = format_menu_usernames(usernames)
+            host_text = f'Host: Detected: {current_session_host.ip}' + (f'  |  {formatted_usernames}' if formatted_usernames else '')
+            country_code = (
+                current_session_host.iplookup.geolite2.country_code
+                if current_session_host.iplookup.geolite2.country_code not in {'...', 'N/A'}
+                else current_session_host.iplookup.ipapi.country_code
+            )
+            flag_icon = load_country_flag_icon(country_code) or QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'crown.svg'))
+            host_action = QAction(flag_icon, host_text, self._current_session_submenu)
+            host_action.setToolTip(format_player_action_tooltip('Select this host player in the table and open host diagnostics', usernames))
+            host_action.triggered.connect(partial(self._select_and_show_current_host_diagnostics, current_session_host.ip))
+            self._current_session_submenu.addAction(host_action)
+        elif last_host is not None:
+            matched_player = PlayersRegistry.get_player_by_ip(last_host.ip)
+            usernames = matched_player.usernames if matched_player is not None and matched_player.usernames else ()
+            formatted_usernames = format_menu_usernames(usernames)
+            host_text = f'Host: Detected: {last_host.ip}' + (f'  |  {formatted_usernames}' if formatted_usernames else '') + ' (Left)'
+            flag_icon = load_country_flag_icon(last_host.country_code) or QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'crown.svg'))
+            host_action = QAction(flag_icon, host_text, self._current_session_submenu)
+            host_action.setToolTip(
+                format_player_action_tooltip('Select this host player in the table and open host diagnostics (Host has left the session)', usernames),
+            )
+            host_action.triggered.connect(self._create_past_host_action_handler(last_host))
+            self._current_session_submenu.addAction(host_action)
+            if SessionHost.search_player:
+                searching_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'crown.svg')), 'Host: Searching…', self._current_session_submenu)
+                searching_action.setEnabled(False)
+                self._current_session_submenu.addAction(searching_action)
+        elif SessionHost.search_player:
+            searching_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'crown.svg')), 'Host: Searching…', self._current_session_submenu)
+            searching_action.setEnabled(False)
+            self._current_session_submenu.addAction(searching_action)
+        else:
+            no_host_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'crown.svg')), 'Host: No host', self._current_session_submenu)
+            no_host_action.setEnabled(False)
+            self._current_session_submenu.addAction(no_host_action)
 
         host_callbacks = SessionHostActionCallbacks(
             clear_host=self._clear_session_host,
             redetect_host=self._redetect_session_host,
             show_diagnostics=self._show_session_host_diagnostics,
         )
+        setup_session_host_actions(self._current_session_submenu, host_callbacks)
+
+        self._current_session_submenu.addSeparator()
+
+        # -----------------------------------------------------------------
+        # Current Session Stats & Actions
+        # -----------------------------------------------------------------
+        connected_count = len([player for player in PlayersRegistry.get_connected_players() if not player.is_third_party_server])
+        disconnected_count = len(
+            [player for player in PlayersRegistry.get_disconnected_players() if player.session_id == current_session_id and not player.is_third_party_server],
+        )
+        player_count = connected_count + disconnected_count
+        player_noun = f'player{pluralize(player_count)}'
+        connected_noun = f'connected player{pluralize(connected_count)}'
+        disconnected_noun = f'disconnected player{pluralize(disconnected_count)}'
+
+        players_action = QAction(
+            QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'user-round.svg')),
+            f'Players: {player_count} {player_noun}',
+            self._current_session_submenu,
+        )
+        players_action.setToolTip(f'{connected_count} {connected_noun}, {disconnected_count} {disconnected_noun}')
+        players_action.triggered.connect(partial(self._apply_session_filter, SessionFilterState.FILTER_CURRENT))
+        self._current_session_submenu.addAction(players_action)
+
+        now_dt = datetime.now(tz=LOCAL_TZ)
+        now_date = now_dt.date()
+        start_dt = SessionTracker.get_session_start_time(current_session_id)
+        if start_dt is not None:
+            elapsed_seconds = max(0.0, (now_dt - start_dt).total_seconds())
+            duration_label = format_duration(elapsed_seconds)
+            formatted_start = _format_session_time_component(start_dt, now_date)
+            time_action_text = f'Time: Started at {formatted_start} ({duration_label})'
+            time_action_tooltip = f'Session started at {start_dt.strftime("%Y-%m-%d %H:%M:%S")} (running for {duration_label})'
+        else:
+            time_action_text = 'Time: Current session'
+            time_action_tooltip = 'Current active session'
+
+        time_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'timer.svg')), time_action_text, self._current_session_submenu)
+        time_action.setToolTip(time_action_tooltip)
+        time_action.triggered.connect(partial(self._apply_session_filter, SessionFilterState.FILTER_CURRENT))
+        self._current_session_submenu.addAction(time_action)
+
+        self._current_session_submenu.addSeparator()
+
+        rename_action = QAction(
+            QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square-pen.svg')),
+            f"Rename Session '{display_name}'…",
+            self._current_session_submenu,
+        )
+        rename_action.setToolTip(f"Rename Session '{display_name}'")
+        rename_action.triggered.connect(partial(self._prompt_rename_session, current_session_id))
+        self._current_session_submenu.addAction(rename_action)
+
+        all_session_ids = SessionTracker.get_all_session_ids()
+        has_past_disconnected = len(all_session_ids) > 1 and any(player.session_id < current_session_id for player in PlayersRegistry.get_disconnected_players())
+
+        filter_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'search.svg')), 'Filter to this Session', self._current_session_submenu)
+        filter_action.setCheckable(True)
+        filter_action.setChecked(is_filter_active)
+
+        if is_filter_active:
+            filter_action.setEnabled(True)
+            filter_action.setToolTip('Show all sessions (currently filtered to this session)')
+            filter_target = SessionFilterState.FILTER_ALL
+        elif len(all_session_ids) <= 1:
+            filter_action.setEnabled(False)
+            filter_action.setToolTip('Filter to only show players from this session (only one session recorded)')
+            filter_target = SessionFilterState.FILTER_CURRENT
+        elif not has_past_disconnected and current_filter == SessionFilterState.FILTER_ALL:
+            filter_action.setEnabled(False)
+            filter_action.setToolTip('Filter to only show players from this session (no disconnected players from other sessions)')
+            filter_target = SessionFilterState.FILTER_CURRENT
+        else:
+            filter_action.setEnabled(True)
+            filter_action.setToolTip('Filter to only show players from this session')
+            filter_target = SessionFilterState.FILTER_CURRENT
+
+        filter_action.triggered.connect(partial(self._apply_session_filter, filter_target))
+        self._current_session_submenu.addAction(filter_action)
+
+    def _update_session_history_menu(self) -> None:
+        """Rebuild the Session History submenu with past sessions, host history, and management controls."""
+        self._session_history_submenu.clear()
+
+        current_session_id = SessionTracker.get_current_session_id()
+        all_session_ids = SessionTracker.get_all_session_ids()
+        past_session_ids = [session_id for session_id in all_session_ids if session_id < current_session_id]
+        current_filter = SessionFilterState.get_selected_session()
 
         now_dt = datetime.now(tz=LOCAL_TZ)
         now_date = now_dt.date()
 
-        for session_id in reversed(all_session_ids):
-            is_current = session_id == current_session_id
-            display_name = SessionTracker.get_session_display_name(session_id)
-            player_count = SessionTracker.get_session_player_count(session_id)
-            player_noun = f'player{pluralize(player_count)}'
-            session_title = f'{display_name} (Current)' if is_current else display_name
+        if not past_session_ids:
+            no_past_sessions_action = QAction('(no previous sessions recorded)', self._session_history_submenu)
+            no_past_sessions_action.setEnabled(False)
+            self._session_history_submenu.addAction(no_past_sessions_action)
+        else:
+            for session_id in reversed(past_session_ids):
+                display_name = SessionTracker.get_session_display_name(session_id)
+                player_count = SessionTracker.get_session_player_count(session_id)
+                player_noun = f'player{pluralize(player_count)}'
 
-            start_dt = SessionTracker.get_session_start_time(session_id)
-            end_dt = SessionTracker.get_session_end_time(session_id)
+                start_dt = SessionTracker.get_session_start_time(session_id)
+                end_dt = SessionTracker.get_session_end_time(session_id)
 
-            duration_label: str | None = None
-            if is_current:
-                if start_dt is not None:
-                    elapsed_seconds = max(0.0, (now_dt - start_dt).total_seconds())
-                    duration_label = format_duration(elapsed_seconds)
+                duration_label: str | None = None
+                if start_dt is not None and end_dt is not None:
+                    duration_seconds = max(0.0, (end_dt - start_dt).total_seconds())
+                    duration_label = format_duration(duration_seconds)
+                    formatted_start = _format_session_time_component(start_dt, now_date)
+                    formatted_end = _format_session_time_component(end_dt, now_date)
+                    time_action_text = f'Time: {formatted_start}' if formatted_start == formatted_end else f'Time: {formatted_start} - {formatted_end}'
+                    time_action_tooltip = f'Session duration: {duration_label} ({start_dt.strftime("%Y-%m-%d %H:%M:%S")} - {end_dt.strftime("%Y-%m-%d %H:%M:%S")})'
+                elif start_dt is not None:
                     formatted_start = _format_session_time_component(start_dt, now_date)
                     time_action_text = f'Time: Started at {formatted_start}'
-                    time_action_tooltip = f'Session started at {start_dt.strftime("%Y-%m-%d %H:%M:%S")} (running for {duration_label})'
+                    time_action_tooltip = f'Session started at {start_dt.strftime("%Y-%m-%d %H:%M:%S")}'
+                elif end_dt is not None:
+                    formatted_end = _format_session_time_component(end_dt, now_date)
+                    time_action_text = f'Time: Ended at {formatted_end}'
+                    time_action_tooltip = f'Session ended at {end_dt.strftime("%Y-%m-%d %H:%M:%S")}'
                 else:
-                    time_action_text = 'Time: Current session'
-                    time_action_tooltip = 'Current active session'
-            elif start_dt is not None and end_dt is not None:
-                duration_seconds = max(0.0, (end_dt - start_dt).total_seconds())
-                duration_label = format_duration(duration_seconds)
-                formatted_start = _format_session_time_component(start_dt, now_date)
-                formatted_end = _format_session_time_component(end_dt, now_date)
-                time_action_text = f'Time: {formatted_start}' if formatted_start == formatted_end else f'Time: {formatted_start} - {formatted_end}'
-                time_action_tooltip = f'Session duration: {duration_label} ({start_dt.strftime("%Y-%m-%d %H:%M:%S")} - {end_dt.strftime("%Y-%m-%d %H:%M:%S")})'
-            elif start_dt is not None:
-                formatted_start = _format_session_time_component(start_dt, now_date)
-                time_action_text = f'Time: Started at {formatted_start}'
-                time_action_tooltip = f'Session started at {start_dt.strftime("%Y-%m-%d %H:%M:%S")}'
-            elif end_dt is not None:
-                formatted_end = _format_session_time_component(end_dt, now_date)
-                time_action_text = f'Time: Ended at {formatted_end}'
-                time_action_tooltip = f'Session ended at {end_dt.strftime("%Y-%m-%d %H:%M:%S")}'
-            else:
-                time_action_text = 'Time: No time recorded'
-                time_action_tooltip = 'No timestamps recorded for this session'
+                    time_action_text = 'Time: No time recorded'
+                    time_action_tooltip = 'No timestamps recorded for this session'
 
-            label_parts = [session_title, f'{player_count} {player_noun}']
-            if duration_label is not None:
-                label_parts.append(duration_label)
-            session_label = '  |  '.join(label_parts)
-            session_icon = QIcon(str(RESOURCES_DIR_PATH / 'icons' / ('radio.svg' if is_current else 'rotate-ccw-clock.svg')))
-            session_menu = self._sessions_submenu.addMenu(session_icon, session_label)
-            if not session_menu:
-                continue
-            session_menu.setToolTipsVisible(True)
-            menu_tooltip = f'{player_count} {player_noun} recorded in {display_name}'
-            exact_time_label = SessionTracker.get_session_time_label(session_id)
-            if exact_time_label is not None:
-                menu_tooltip = f'{menu_tooltip}  |  {exact_time_label} ({duration_label})' if duration_label is not None else f'{menu_tooltip}  |  {exact_time_label}'
-            session_menu.setToolTip(menu_tooltip)
-            session_menu.menuAction().setToolTip(menu_tooltip)
+                label_parts = [display_name, f'{player_count} {player_noun}']
+                if duration_label is not None:
+                    label_parts.append(duration_label)
+                session_label = '  |  '.join(label_parts)
+                session_icon = QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'rotate-ccw-clock.svg'))
+                session_menu = self._session_history_submenu.addMenu(session_icon, session_label)
+                if not session_menu:
+                    continue
+                session_menu.setToolTipsVisible(True)
+                menu_tooltip = f'{player_count} {player_noun} recorded in {display_name}'
+                exact_time_label = SessionTracker.get_session_time_label(session_id)
+                if exact_time_label is not None:
+                    menu_tooltip = f'{menu_tooltip}  |  {exact_time_label} ({duration_label})' if duration_label is not None else f'{menu_tooltip}  |  {exact_time_label}'
+                session_menu.setToolTip(menu_tooltip)
+                session_menu.menuAction().setToolTip(menu_tooltip)
 
-            target_filter = SessionFilterState.FILTER_CURRENT if is_current else session_id
-            players_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'user-round.svg')), f'Players: {player_count}', session_menu)
-            if is_current:
-                connected_count = len([player for player in PlayersRegistry.get_connected_players() if not player.is_third_party_server])
-                disconnected_count = len(
-                    [player for player in PlayersRegistry.get_disconnected_players() if player.session_id == session_id and not player.is_third_party_server],
-                )
-                connected_noun = f'connected player{pluralize(connected_count)}'
-                disconnected_noun = f'disconnected player{pluralize(disconnected_count)}'
-                players_action.setToolTip(f'{connected_count} {connected_noun}, {disconnected_count} {disconnected_noun}')
-            else:
+                players_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'user-round.svg')), f'Players: {player_count}', session_menu)
                 players_action.setToolTip(f'{player_count} {player_noun} recorded in this session')
+                players_action.triggered.connect(partial(self._apply_session_filter, session_id))
 
-            players_action.triggered.connect(partial(self._apply_session_filter, target_filter))
+                time_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'timer.svg')), time_action_text, session_menu)
+                time_action.setToolTip(time_action_tooltip)
+                time_action.triggered.connect(partial(self._apply_session_filter, session_id))
 
-            time_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'timer.svg')), time_action_text, session_menu)
-            time_action.setToolTip(time_action_tooltip)
-            time_action.triggered.connect(partial(self._apply_session_filter, target_filter))
-
-            if is_current:
-                current_session_host = SessionHost.get_player()
-                session_history = SessionHost.get_history(session_id=session_id)
-                last_host = session_history[-1] if session_history else None
-
-                if current_session_host is not None and not current_session_host.left_event.is_set():
-                    matched_player = PlayersRegistry.get_player_by_ip(current_session_host.ip)
-                    usernames = matched_player.usernames if matched_player is not None and matched_player.usernames else ()
-                    formatted_usernames = format_menu_usernames(usernames)
-                    host_text = f'Host: Detected: {current_session_host.ip}' + (f'  |  {formatted_usernames}' if formatted_usernames else '')
-                    country_code = (
-                        current_session_host.iplookup.geolite2.country_code
-                        if current_session_host.iplookup.geolite2.country_code not in {'...', 'N/A'}
-                        else current_session_host.iplookup.ipapi.country_code
-                    )
-                    flag_icon = load_country_flag_icon(country_code) or QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'crown.svg'))
-                    host_action = QAction(flag_icon, host_text, session_menu)
-                    host_action.setToolTip(format_player_action_tooltip('Select this host player in the table and open host diagnostics', usernames))
-                    host_action.triggered.connect(partial(self._select_and_show_current_host_diagnostics, current_session_host.ip))
-                    session_menu.addAction(host_action)
-                elif last_host is not None:
-                    matched_player = PlayersRegistry.get_player_by_ip(last_host.ip)
-                    usernames = matched_player.usernames if matched_player is not None and matched_player.usernames else ()
-                    formatted_usernames = format_menu_usernames(usernames)
-                    host_text = f'Host: Detected: {last_host.ip}' + (f'  |  {formatted_usernames}' if formatted_usernames else '') + ' (Left)'
-                    flag_icon = load_country_flag_icon(last_host.country_code) or QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'crown.svg'))
-                    host_action = QAction(flag_icon, host_text, session_menu)
-                    host_action.setToolTip(
-                        format_player_action_tooltip('Select this host player in the table and open host diagnostics (Host has left the session)', usernames),
-                    )
-                    host_action.triggered.connect(self._create_past_host_action_handler(last_host))
-                    session_menu.addAction(host_action)
-                    if SessionHost.search_player:
-                        searching_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'crown.svg')), 'Host: Searching…', session_menu)
-                        searching_action.setEnabled(False)
-                        session_menu.addAction(searching_action)
-                elif SessionHost.search_player:
-                    searching_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'crown.svg')), 'Host: Searching…', session_menu)
-                    searching_action.setEnabled(False)
-                    session_menu.addAction(searching_action)
-                else:
-                    no_host_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'crown.svg')), 'Host: No host', session_menu)
-                    no_host_action.setEnabled(False)
-                    session_menu.addAction(no_host_action)
-
-                session_menu.addAction(players_action)
-                session_menu.addAction(time_action)
-                setup_session_host_actions(session_menu, host_callbacks)
-            else:
                 session_history = SessionHost.get_history(session_id=session_id)
                 if session_history:
                     last_host = session_history[-1]
@@ -704,46 +785,31 @@ Process is currently suspended',
                     session_menu.addAction(players_action)
                     session_menu.addAction(time_action)
 
-            session_menu.addSeparator()
+                session_menu.addSeparator()
 
-            rename_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square-pen.svg')), f"Rename Session '{display_name}'…", session_menu)
-            rename_action.setToolTip(f"Rename Session '{display_name}'")
-            rename_action.triggered.connect(partial(self._prompt_rename_session, session_id))
-            session_menu.addAction(rename_action)
+                rename_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square-pen.svg')), f"Rename Session '{display_name}'…", session_menu)
+                rename_action.setToolTip(f"Rename Session '{display_name}'")
+                rename_action.triggered.connect(partial(self._prompt_rename_session, session_id))
+                session_menu.addAction(rename_action)
 
-            if not is_current:
                 delete_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')), f"Delete Session '{display_name}'…", session_menu)
                 delete_action.setToolTip(f"Delete Session '{display_name}' and remove its player history")
                 delete_action.triggered.connect(partial(self._prompt_delete_session, session_id, display_name))
                 session_menu.addAction(delete_action)
 
-            filter_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'search.svg')), 'Filter to this Session', session_menu)
-            filter_action.setCheckable(True)
-            is_filter_active = current_filter in (SessionFilterState.FILTER_CURRENT, session_id) if is_current else current_filter == session_id
-            filter_action.setChecked(is_filter_active)
-
-            if is_filter_active:
+                filter_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'search.svg')), 'Filter to this Session', session_menu)
+                filter_action.setCheckable(True)
+                is_filter_active_past = current_filter == session_id
+                filter_action.setChecked(is_filter_active_past)
                 filter_action.setEnabled(True)
-                filter_action.setToolTip('Show all sessions (currently filtered to this session)')
-                filter_target = SessionFilterState.FILTER_ALL
-            elif len(all_session_ids) <= 1:
-                filter_action.setEnabled(False)
-                filter_action.setToolTip('Filter to only show players from this session (only one session recorded)')
-                filter_target = target_filter
-            elif is_current and not has_past_disconnected and current_filter == SessionFilterState.FILTER_ALL:
-                filter_action.setEnabled(False)
-                filter_action.setToolTip('Filter to only show players from this session (no disconnected players from other sessions)')
-                filter_target = target_filter
-            else:
-                filter_action.setEnabled(True)
-                filter_action.setToolTip('Filter to only show players from this session')
-                filter_target = target_filter
+                filter_action.setToolTip('Show all sessions (currently filtered to this session)' if is_filter_active_past else 'Filter to only show players from this session')
+                filter_target = SessionFilterState.FILTER_ALL if is_filter_active_past else session_id
 
-            filter_action.triggered.connect(partial(self._apply_session_filter, filter_target))
-            session_menu.addAction(filter_action)
+                filter_action.triggered.connect(partial(self._apply_session_filter, filter_target))
+                session_menu.addAction(filter_action)
 
-        self._sessions_submenu.addSeparator()
-        history_menu = self._sessions_submenu.addMenu(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'host_history.svg')), 'Host History')
+        self._session_history_submenu.addSeparator()
+        history_menu = self._session_history_submenu.addMenu(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'host_history.svg')), 'Host History')
         if history_menu:
             history_menu.setToolTipsVisible(True)
             history_menu.aboutToShow.connect(
@@ -755,13 +821,17 @@ Process is currently suspended',
                 ),
             )
 
-        self._sessions_submenu.addSeparator()
-        clear_all_sessions_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'rotate-ccw.svg')), 'Clear All Sessions && History…', self._sessions_submenu)
-        clear_all_sessions_action.setToolTip('Clear all past sessions, reset session tracking, and clear session host history')
-        can_clear_all = len(all_session_ids) > 1 or bool(SessionHost.get_history()) or current_session_id > 1
-        clear_all_sessions_action.setEnabled(can_clear_all)
-        clear_all_sessions_action.triggered.connect(self._prompt_clear_all_sessions_and_history)
-        self._sessions_submenu.addAction(clear_all_sessions_action)
+        self._session_history_submenu.addSeparator()
+        clear_history_action = QAction(
+            QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'rotate-ccw.svg')),
+            'Clear Past Sessions && History…',
+            self._session_history_submenu,
+        )
+        clear_history_action.setToolTip('Clear all past sessions, their player logs, and session host history')
+        can_clear_history = bool(past_session_ids) or bool(SessionHost.get_history())
+        clear_history_action.setEnabled(can_clear_history)
+        clear_history_action.triggered.connect(self._prompt_clear_past_sessions_and_history)
+        self._session_history_submenu.addAction(clear_history_action)
 
     def _create_past_host_action_handler(self, target_entry: HostHistoryEntry) -> Callable[[], None]:
         def _handler() -> None:
@@ -798,29 +868,30 @@ Process is currently suspended',
             self._disconnected.clear_table()
         self._refresh_session_gui_state()
 
-    def _prompt_clear_all_sessions_and_history(self) -> None:
-        """Prompt user to clear all sessions and history."""
+    def _prompt_clear_past_sessions_and_history(self) -> None:
+        """Prompt user to clear past sessions and host history while preserving the active session."""
         reply = QMessageBox.question(
             self,
             TITLE,
-            'Are you sure you want to clear all sessions and history?\n\n'
-            'This will delete all past sessions, reset session tracking, and clear session host history permanently.',
+            'Are you sure you want to clear past sessions and history?\n\n'
+            'This will delete all past sessions and clear session host history permanently. Your current active session will not be affected.',
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No,
         )
         if reply != QMessageBox.StandardButton.Yes:
             return
 
-        SessionTracker.reset()
-        SessionHost.clear_history()
-        SessionHost.clear_session_host_data()
-        PlayersRegistry.clear_disconnected_players()
-        for player in PlayersRegistry.get_connected_players():
-            player.session_id = 1
-            SessionTracker.record_session_player_activity(1, player.datetime.first_seen)
-            SessionTracker.record_session_player_activity(1, player.datetime.last_seen)
+        current_session_id = SessionTracker.get_current_session_id()
+        past_session_ids = [session_id for session_id in SessionTracker.get_all_session_ids() if session_id < current_session_id]
+        for session_id in past_session_ids:
+            SessionTracker.delete_session(session_id)
+            SessionHost.prune_history_for_session(session_id)
 
-        SessionFilterState.set_selected_session(session_id=SessionFilterState.FILTER_ALL)
+        SessionHost.clear_history()
+
+        if SessionFilterState.get_selected_session() in past_session_ids:
+            SessionFilterState.set_selected_session(session_id=SessionFilterState.FILTER_ALL)
+
         self._disconnected.clear_table()
         self._refresh_session_gui_state()
         self.recalculate_capture_stats()

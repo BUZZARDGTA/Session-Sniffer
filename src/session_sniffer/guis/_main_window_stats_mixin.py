@@ -64,7 +64,8 @@ class StatsMixin(QMainWindow):
     _capture_statistics_window: CaptureStatisticsWindow | None
 
     def _sync_game_process_button(self) -> None: ...  # Provided by GameMixin
-    def _update_sessions_menu(self) -> None: ...  # Provided by GameMixin
+    def _update_current_session_menu(self) -> None: ...  # Provided by GameMixin
+    def _update_session_history_menu(self) -> None: ...  # Provided by GameMixin
 
     def recalculate_capture_stats(self) -> None:
         """Recalculate capture statistics from currently remaining players in registry."""
@@ -316,7 +317,8 @@ class StatsMixin(QMainWindow):
         """Wake rendering and synchronize session filter and menus."""
         SessionFilterState.bump_version()
         GUIRenderingState.wake()
-        self._update_sessions_menu()
+        self._update_current_session_menu()
+        self._update_session_history_menu()
         self._disconnected.sync_session_filter()
 
     def remove_player_from_disconnected(self, ip: str) -> None:

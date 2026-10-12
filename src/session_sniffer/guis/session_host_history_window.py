@@ -75,23 +75,21 @@ def populate_host_history_submenu(
 
 
 def setup_session_host_actions(
-    session_host_submenu: QMenu,
+    menu: QMenu,
     callbacks: SessionHostActionCallbacks,
 ) -> None:
     """Populate common session host control actions."""
-    session_host_submenu.addSeparator()
-
-    clear_host_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'x.svg')), 'Clear Session Host', session_host_submenu)
-    clear_host_action.setToolTip('Manually clear the currently detected session host')
-    clear_host_action.triggered.connect(callbacks.clear_host)
-    session_host_submenu.addAction(clear_host_action)
-
-    redetect_host_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'refresh-cw.svg')), 'Re-detect Host', session_host_submenu)
+    redetect_host_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'refresh-cw.svg')), 'Re-detect Host', menu)
     redetect_host_action.setToolTip('Clear the current host and immediately re-trigger host detection')
     redetect_host_action.triggered.connect(callbacks.redetect_host)
-    session_host_submenu.addAction(redetect_host_action)
+    menu.addAction(redetect_host_action)
 
-    diagnostics_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'bug.svg')), 'Host Diagnostics…', session_host_submenu)
+    clear_host_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'x.svg')), 'Clear Session Host', menu)
+    clear_host_action.setToolTip('Manually clear the currently detected session host')
+    clear_host_action.triggered.connect(callbacks.clear_host)
+    menu.addAction(clear_host_action)
+
+    diagnostics_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'bug.svg')), 'Host Diagnostics…', menu)
     diagnostics_action.setToolTip('Show detailed diagnostics and debug information from the last session host detection')
     diagnostics_action.triggered.connect(callbacks.show_diagnostics)
-    session_host_submenu.addAction(diagnostics_action)
+    menu.addAction(diagnostics_action)
