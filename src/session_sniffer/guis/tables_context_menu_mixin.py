@@ -768,7 +768,7 @@ class TableContextMenuMixin(QTableView):
             add_user_scripts_menu(ip_addresses)
 
         def add_clear_session_host_action(ip_address: str) -> None:
-            if not Settings.is_session_host_feature_set() or not SessionHost.is_host(ip_address):
+            if not Settings.gui_session_host_detection or not Settings.is_session_host_feature_set() or not SessionHost.is_host(ip_address):
                 return
 
             add_action(
@@ -780,7 +780,7 @@ class TableContextMenuMixin(QTableView):
             )
 
         def add_host_diagnostics_action(ip_address: str) -> None:
-            if not Settings.is_session_host_feature_set():
+            if not Settings.gui_session_host_detection or not Settings.is_session_host_feature_set():
                 return
 
             def _show_diagnostics(snapshot: HostDiagnosticsSnapshot, dialog_key: str) -> None:
