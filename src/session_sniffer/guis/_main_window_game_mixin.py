@@ -945,14 +945,6 @@ Process is currently suspended',
             QMessageBox.warning(self, TITLE, 'Session Host Detection is disabled in Settings.\n\nPlease enable it in Settings to detect the session host.')
             return None
 
-        if CaptureState.is_local_capture():
-            if Settings.is_gta5_feature_set() and not CaptureState.gta5_is_running:
-                QMessageBox.warning(self, TITLE, 'Grand Theft Auto V is not currently running.')
-                return None
-            if Settings.is_rdr2_feature_set() and not CaptureState.rdr2_is_running:
-                QMessageBox.warning(self, TITLE, 'Red Dead Redemption 2 is not currently running.')
-                return None
-
         connected_players = PlayersRegistry.get_connected_players()
         if not connected_players:
             QMessageBox.information(self, TITLE, 'No connected players were found in the current session.')

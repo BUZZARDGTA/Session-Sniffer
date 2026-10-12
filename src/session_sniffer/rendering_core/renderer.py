@@ -497,11 +497,7 @@ def rendering_core(
         p2p_session_connected = [player for player in session_connected if not player.is_third_party_server]
 
         if Settings.is_session_host_feature_set():
-            game_is_running = not CaptureState.is_local_capture() or (
-                CaptureState.gta5_is_running if Settings.is_gta5_feature_set() else CaptureState.rdr2_is_running
-            )
-
-            if not game_is_running or not Settings.gui_session_host_detection:
+            if not Settings.gui_session_host_detection:
                 if SessionHost.has_player() or SessionHost.players_pending_for_disconnection or SessionHost.search_player or SessionHost.last_timing_gap_candidate is not None:
                     SessionHost.clear_session_host_data()
                     _session_transitioned_for_pending_disconnections = False
