@@ -636,6 +636,9 @@ def run_cmd_script(script: Path, args: list[str] | None = None) -> None:
     subprocess.run([str(CMD_EXE), '/c', 'start', '', *full_command], check=False)
 
 
+_MAX_EMPTY_SESSION_LOG_SIZE_BYTES: int = 512
+
+
 def is_session_file_empty(file_path: Path) -> bool:
     """Check if the given session log file has no players found or is invalid.
 
@@ -645,6 +648,20 @@ def is_session_file_empty(file_path: Path) -> bool:
     Returns:
         True if the file has no players (empty 'connected' and 'disconnected' sections) or is unreadable.
     """
+    try:
+        file_size = file_path.stat().st_size
+    except OSError as e:
+        logger.warning('Failed to stat session log file %s: %s', file_path, e)
+        return True
+
+    if not file_size:
+        return True
+
+    # Empty session JSON files produced by Session Sniffer contain '{"connected":{},"disconnected":{}}' (~34 bytes).
+    # Files with actual players include player records and easily exceed 256 bytes.
+    if file_size > _MAX_EMPTY_SESSION_LOG_SIZE_BYTES:
+        return False
+
     try:
         data = json.loads(file_path.read_text(encoding='utf-8', errors='replace'))
     except (OSError, json.JSONDecodeError) as e:
@@ -686,106 +703,50 @@ def cleanup_session_logs(
     if not sessions_dir.exists():
         return files_deleted_count, len(deleted_folders_set)
 
-    json_files = sorted(sessions_dir.rglob('*.json'))
-    if not json_files:
-        if delete_empty_folders:
-            _delete_all_empty_folders(sessions_dir, deleted_folders_set)
-        return files_deleted_count, len(deleted_folders_set)
+    try:
+        sessions_dir_resolved = sessions_dir.resolve()
+    except OSError as e:
+        logger.debug('Failed to resolve sessions directory %s: %s', sessions_dir, e)
+        sessions_dir_resolved = sessions_dir
 
-    files_to_scan = json_files
-    if gui_sessions_logging:
-        if files_to_scan:
-            files_to_scan = files_to_scan[:-1]
-        if active_session_path:
+    active_session_normalized: str | None = None
+    if gui_sessions_logging and active_session_path is not None:
+        try:
+            active_session_normalized = os.path.normcase(os.path.normpath(str(active_session_path.resolve())))
+        except OSError as e:
+            logger.debug('Failed to resolve active session path %s: %s', active_session_path, e)
+            active_session_normalized = os.path.normcase(os.path.normpath(str(active_session_path)))
+
+    for root, _dirs, files in os.walk(sessions_dir_resolved, topdown=False):
+        current_dir = Path(root)
+
+        if delete_empty_files:
+            for file_name in files:
+                if not file_name.endswith('.json'):
+                    continue
+                file_path = current_dir / file_name
+                if active_session_normalized is not None and os.path.normcase(os.path.normpath(str(file_path))) == active_session_normalized:
+                    continue
+                if is_session_file_empty(file_path):
+                    try:
+                        file_path.unlink()
+                        files_deleted_count += 1
+                    except OSError as e:
+                        logger.warning('Failed to delete empty session file %s: %s', file_path, e)
+
+        if delete_empty_folders and current_dir != sessions_dir_resolved:
             try:
-                active_session_path_resolved = active_session_path.resolve()
-                files_to_scan = [file_path for file_path in files_to_scan if file_path.resolve() != active_session_path_resolved]
+                with os.scandir(root) as iterator:
+                    is_empty = next(iterator, None) is None
             except OSError as e:
-                logger.debug('Failed to resolve active session path %s: %s', active_session_path, e)
-                files_to_scan = [file_path for file_path in files_to_scan if file_path != active_session_path]
+                logger.warning('Failed to scan directory %s: %s', current_dir, e)
+                continue
 
-    deleted_parents: set[Path] = set()
-
-    if delete_empty_files:
-        for file_path in files_to_scan:
-            if is_session_file_empty(file_path):
+            if is_empty:
                 try:
-                    file_path.unlink()
-                    files_deleted_count += 1
-                    deleted_parents.add(file_path.parent)
+                    current_dir.rmdir()
+                    deleted_folders_set.add(current_dir)
                 except OSError as e:
-                    logger.warning('Failed to delete empty session file %s: %s', file_path, e)
-
-        for folder in deleted_parents:
-            _clean_upwards_if_empty(folder, sessions_dir, deleted_folders_set)
-
-    if delete_empty_folders:
-        _delete_all_empty_folders(sessions_dir, deleted_folders_set)
+                    logger.warning('Failed to remove empty folder %s: %s', current_dir, e)
 
     return files_deleted_count, len(deleted_folders_set)
-
-
-def _clean_upwards_if_empty(folder: Path, base_dir: Path, deleted_folders: set[Path]) -> None:
-    """Clean empty directories bottom-up from folder to base_dir, not deleting base_dir itself.
-
-    Args:
-        folder: Subdirectory to start cleaning from.
-        base_dir: Root directory to stop at.
-        deleted_folders: Set to collect deleted folder paths.
-    """
-    current = folder
-    try:
-        base_dir_resolved = base_dir.resolve()
-    except OSError as e:
-        logger.debug('Failed to resolve base directory %s: %s', base_dir, e)
-        base_dir_resolved = base_dir
-
-    while True:
-        try:
-            current_resolved = current.resolve()
-        except OSError as e:
-            logger.debug('Failed to resolve directory %s: %s', current, e)
-            current_resolved = current
-
-        if current_resolved == base_dir_resolved or not current.is_relative_to(base_dir):
-            break
-
-        if not current.exists():
-            current = current.parent
-            continue
-
-        try:
-            if not any(current.iterdir()):
-                current.rmdir()
-                deleted_folders.add(current)
-            else:
-                break
-        except OSError as e:
-            logger.warning('Failed to remove empty folder %s: %s', current, e)
-            break
-        current = current.parent
-
-
-def _delete_all_empty_folders(base_dir: Path, deleted_folders: set[Path]) -> None:
-    """Recursively delete all empty folders under base_dir bottom-up.
-
-    Args:
-        base_dir: Root directory.
-        deleted_folders: Set to collect deleted folder paths.
-    """
-    for root, dirs, _ in os.walk(base_dir, topdown=False):
-        for dir_name in dirs:
-            dir_path = Path(root) / dir_name
-            try:
-                dir_path_resolved = dir_path.resolve()
-                base_dir_resolved = base_dir.resolve()
-                if dir_path_resolved == base_dir_resolved:
-                    continue
-            except OSError as e:
-                logger.warning('Failed to resolve directory path %s: %s', dir_path, e)
-            try:
-                if not any(dir_path.iterdir()):
-                    dir_path.rmdir()
-                    deleted_folders.add(dir_path)
-            except OSError as e:
-                logger.warning('Failed to remove empty folder %s: %s', dir_path, e)
