@@ -529,6 +529,106 @@ def get_stylesheet(ui_scale: float = 1.0) -> str:
         background: none;
     }
 
+    /* Sliders */
+    QSlider {
+        min-height: 22px;
+    }
+    QSlider::groove:horizontal {
+        border: 1px solid #3e3e42;
+        height: 4px;
+        background-color: #2d2d30;
+        margin: 0px;
+        border-radius: 2px;
+    }
+    QSlider::sub-page:horizontal {
+        background-color: #007acc;
+        border: 1px solid #007acc;
+        height: 4px;
+        border-radius: 2px;
+    }
+    QSlider::sub-page:horizontal:disabled {
+        background-color: #2d2d30;
+        border-color: #3e3e42;
+    }
+    QSlider::add-page:horizontal {
+        background-color: #3e3e42;
+        border: 1px solid #3e3e42;
+        height: 4px;
+        border-radius: 2px;
+    }
+    QSlider::add-page:horizontal:disabled {
+        background-color: #252526;
+        border-color: #333333;
+    }
+    QSlider::handle:horizontal {
+        background-color: #424242;
+        border: 1px solid #686868;
+        width: 14px;
+        margin-top: -5px;
+        margin-bottom: -5px;
+        border-radius: 7px;
+    }
+    QSlider::handle:horizontal:hover {
+        background-color: #007acc;
+        border-color: #0098ff;
+    }
+    QSlider::handle:horizontal:pressed {
+        background-color: #0098ff;
+        border-color: #00b0ff;
+    }
+    QSlider::handle:horizontal:disabled {
+        background-color: #2d2d30;
+        border-color: #3e3e42;
+    }
+
+    QSlider::groove:vertical {
+        border: 1px solid #3e3e42;
+        width: 4px;
+        background-color: #2d2d30;
+        margin: 0px;
+        border-radius: 2px;
+    }
+    QSlider::sub-page:vertical {
+        background-color: #3e3e42;
+        border: 1px solid #3e3e42;
+        width: 4px;
+        border-radius: 2px;
+    }
+    QSlider::sub-page:vertical:disabled {
+        background-color: #252526;
+        border-color: #333333;
+    }
+    QSlider::add-page:vertical {
+        background-color: #007acc;
+        border: 1px solid #007acc;
+        width: 4px;
+        border-radius: 2px;
+    }
+    QSlider::add-page:vertical:disabled {
+        background-color: #2d2d30;
+        border-color: #3e3e42;
+    }
+    QSlider::handle:vertical {
+        background-color: #424242;
+        border: 1px solid #686868;
+        height: 14px;
+        margin-left: -5px;
+        margin-right: -5px;
+        border-radius: 7px;
+    }
+    QSlider::handle:vertical:hover {
+        background-color: #007acc;
+        border-color: #0098ff;
+    }
+    QSlider::handle:vertical:pressed {
+        background-color: #0098ff;
+        border-color: #00b0ff;
+    }
+    QSlider::handle:vertical:disabled {
+        background-color: #2d2d30;
+        border-color: #3e3e42;
+    }
+
     /* Tab Widget */
     QTabWidget::pane {
         border: 1px solid #333333;
