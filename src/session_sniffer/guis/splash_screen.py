@@ -49,7 +49,7 @@ class SplashScreen(QWidget):
         self.setWindowFlags(
             Qt.WindowType.FramelessWindowHint,
         )
-        self.setFixedSize(scale_by_ui(560), max(380, scale_by_ui(380)))
+        self.setFixedSize(scale_by_ui(560), max(400, scale_by_ui(400)))
         self.setStyleSheet(SPLASH_SCREEN_STYLESHEET)
 
         layout = QVBoxLayout(self)
