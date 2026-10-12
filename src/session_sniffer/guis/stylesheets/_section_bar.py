@@ -33,21 +33,23 @@ def section_bar_qss(accent: str) -> str:
         color: #ffffff;
         letter-spacing: 0.2px;
     }}
-    QPushButton, QToolButton {{
-        min-height: 28px;
-        padding: 0 10px;
+    QPushButton {{
+        min-height: 26px;
+        max-height: 26px;
+        padding: 0 12px;
         color: #cbd5e1;
         background: rgba(255, 255, 255, 0.05);
         border: 1px solid rgba(255, 255, 255, 0.12);
         border-radius: 6px;
+        font-weight: 700;
         font-size: 8.5pt;
     }}
-    QPushButton:hover, QToolButton:hover {{
+    QPushButton:hover {{
         background: rgba(255, 255, 255, 0.10);
         border-color: rgba(255, 255, 255, 0.25);
         color: #ffffff;
     }}
-    QPushButton:pressed, QToolButton:pressed {{
+    QPushButton:pressed {{
         background: rgba(255, 255, 255, 0.03);
     }}
     QPushButton#sectionClearButton:hover {{
@@ -60,15 +62,34 @@ def section_bar_qss(accent: str) -> str:
         border-color: rgba(59, 130, 246, 0.45);
         color: #93c5fd;
     }}
+    QToolButton#sectionCollapseButton {{
+        min-width: 26px;
+        max-width: 26px;
+        min-height: 26px;
+        max-height: 26px;
+        padding: 0;
+        color: #cbd5e1;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 6px;
+    }}
+    QToolButton#sectionCollapseButton:hover {{
+        background: rgba(255, 255, 255, 0.10);
+        border-color: rgba(255, 255, 255, 0.25);
+        color: #ffffff;
+    }}
+    QToolButton#sectionCollapseButton:pressed {{
+        background: rgba(255, 255, 255, 0.03);
+    }}
     QComboBox {{
-        min-height: 28px;
-        padding: 0 16px 0 10px;
+        min-height: 26px;
+        max-height: 26px;
+        padding: 0 20px 0 8px;
         color: #f1f5f9;
         background: rgba(0, 0, 0, 0.35);
         border: 1px solid rgba(255, 255, 255, 0.12);
         border-radius: 6px;
-        min-width: 45px;
-        max-width: 80px;
+        min-width: 55px;
         font-size: 8.5pt;
     }}
     QComboBox:hover {{
@@ -86,20 +107,25 @@ def section_bar_qss(accent: str) -> str:
     QComboBox::drop-down {{
         subcontrol-origin: padding;
         subcontrol-position: top right;
-        width: 16px;
+        width: 18px;
         border: none;
         border-left: 1px solid rgba(255, 255, 255, 0.10);
     }}
     QSpinBox {{
-        min-height: 28px;
-        padding: 0 16px 0 0;
+        min-height: 26px;
+        max-height: 26px;
+        padding: 0 18px 0 6px;
         color: #f1f5f9;
         background: rgba(0, 0, 0, 0.35);
         border: 1px solid rgba(255, 255, 255, 0.12);
         border-radius: 6px;
-        min-width: 55px;
-        max-width: 72px;
         font-size: 8.5pt;
+    }}
+    QSpinBox#sectionRowsSpinBox {{
+        min-width: 85px;
+    }}
+    QSpinBox#sectionPageSpinBox {{
+        min-width: 58px;
     }}
     QSpinBox:hover {{
         background: rgba(0, 0, 0, 0.50);
@@ -135,7 +161,8 @@ def section_bar_qss(accent: str) -> str:
         bottom: 1px;
     }}
     QLineEdit {{
-        min-height: 28px;
+        min-height: 26px;
+        max-height: 26px;
         padding: 0 30px 0 8px;
         color: #f1f5f9;
         background: rgba(0, 0, 0, 0.35);

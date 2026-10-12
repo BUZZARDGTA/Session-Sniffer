@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+from shiboken6 import isValid
 
 from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.constants.tables import COLUMN_FORMAT_SETTING_TO_COLUMNS
@@ -24,9 +25,7 @@ from session_sniffer.guis.delegates import SearchHighlightDelegate
 from session_sniffer.guis.stylesheets import (
     CONNECTED_EXPAND_BUTTON_STYLESHEET,
     DISCONNECTED_EXPAND_BUTTON_STYLESHEET,
-    SECTION_CLEAR_BUTTON_STYLESHEET,
     SECTION_HEADER_SEPARATOR_STYLESHEET,
-    SECTION_MERGE_BUTTON_STYLESHEET,
     STATUS_BAR_CAPTURE_LABEL_STYLESHEET,
     STATUS_BAR_CONFIG_LABEL_STYLESHEET,
     STATUS_BAR_ISSUES_LABEL_STYLESHEET,
@@ -102,6 +101,7 @@ class SessionTableSection(QWidget):
     expand_button: QPushButton
     collapse_button: QToolButton
     _clear_button: QPushButton
+    _merge_button: QPushButton | None
     _session_filter_combo: QComboBox
     _session_filter_label: QLabel
     _is_expanded: bool
@@ -122,7 +122,6 @@ class SessionTableSection(QWidget):
         self.last_count: int = -1
         self._selected_count: int = 0
         self._is_expanded = True
-
         self._is_connected = is_connected
         self._rows_keyboard_editing = False
 
@@ -139,11 +138,6 @@ class SessionTableSection(QWidget):
             collapse_tooltip = 'Hide the connected players table'
             clear_tooltip = 'Clear all players' if TableMergeState.is_merged() else 'Clear all connected players'
             expand_tooltip = 'Show the connected players table'
-            configured_column = Settings.gui_connected_table_sort_column
-            sort_order = Qt.SortOrder.AscendingOrder if Settings.gui_connected_table_sort_order == 'Ascending' else Qt.SortOrder.DescendingOrder
-            sort_column_name = (
-                configured_column if configured_column in column_names else ('Last Rejoin' if 'Last Rejoin' in column_names else (column_names[0] if column_names else ''))
-            )
         else:
             accent = '#ef4444'
             border_color = '#59282a'
@@ -157,20 +151,24 @@ class SessionTableSection(QWidget):
             collapse_tooltip = 'Hide the disconnected players table'
             clear_tooltip = 'Clear all disconnected players'
             expand_tooltip = 'Show the disconnected players table'
-            configured_column = Settings.gui_disconnected_table_sort_column
-            sort_order = Qt.SortOrder.AscendingOrder if Settings.gui_disconnected_table_sort_order == 'Ascending' else Qt.SortOrder.DescendingOrder
-            sort_column_name = (
-                configured_column if configured_column in column_names else ('Last Seen' if 'Last Seen' in column_names else (column_names[0] if column_names else ''))
-            )
+
+        configured_column = Settings.gui_connected_table_sort_column if is_connected else Settings.gui_disconnected_table_sort_column
+        sort_setting = Settings.gui_connected_table_sort_order if is_connected else Settings.gui_disconnected_table_sort_order
+        sort_order = Qt.SortOrder.AscendingOrder if sort_setting == 'Ascending' else Qt.SortOrder.DescendingOrder
+        fallback_column = 'Last Rejoin' if is_connected else 'Last Seen'
+        sort_column_name = (
+            configured_column if configured_column in column_names else (fallback_column if fallback_column in column_names else (column_names[0] if column_names else ''))
+        )
 
         # Header container
         header_container = QFrame()
         header_container.setObjectName('sectionBar')
         header_container.setStyleSheet(section_bar_qss(accent))
-        header_container.setFixedHeight(scale_by_ui(42))
+        header_container.setFixedHeight(max(scale_by_ui(42), 38))
         header_layout = QHBoxLayout(header_container)
-        header_layout.setContentsMargins(scale_by_ui(10), scale_by_ui(4), scale_by_ui(10), scale_by_ui(4))
+        header_layout.setContentsMargins(scale_by_ui(10), 3, scale_by_ui(10), 3)
         header_layout.setSpacing(scale_by_ui(8))
+        header_layout.setAlignment(Qt.AlignmentFlag.AlignVCenter)
 
         icon_label = QLabel()
         icon_label.setFixedSize(scale_by_ui(26), scale_by_ui(26))
@@ -181,23 +179,22 @@ class SessionTableSection(QWidget):
         self._header_label.setObjectName('sectionTitle')
         self._header_label.setAutoFillBackground(False)
 
-        clear_button = QPushButton('CLEAR')
-        clear_button.setObjectName('sectionClearButton')
-        clear_button.setStyleSheet(SECTION_CLEAR_BUTTON_STYLESHEET)
-        clear_button.setToolTip(clear_tooltip)
-        clear_button.clicked.connect(clear_slot)
-        self._clear_button = clear_button
+        self._clear_button = QPushButton('CLEAR')
+        self._clear_button.setObjectName('sectionClearButton')
+        self._clear_button.setToolTip(clear_tooltip)
+        self._clear_button.clicked.connect(clear_slot)
 
-        collapse_button = QToolButton()
-        collapse_button.setIcon(QIcon((RESOURCES_DIR_PATH / 'icons' / 'arrow-down-to-line.svg').as_posix()))
-        collapse_button.setIconSize(QSize(16, 16))
-        collapse_button.setToolTip(collapse_tooltip)
-        collapse_button.clicked.connect(self.minimize)
-        self.collapse_button = collapse_button
+        self.collapse_button = QToolButton()
+        self.collapse_button.setObjectName('sectionCollapseButton')
+        self.collapse_button.setIcon(QIcon((RESOURCES_DIR_PATH / 'icons' / 'arrow-down-to-line.svg').as_posix()))
+        self.collapse_button.setIconSize(QSize(16, 16))
+        self.collapse_button.setToolTip(collapse_tooltip)
+        self.collapse_button.clicked.connect(self.minimize)
 
         icon_title_pair = QHBoxLayout()
         icon_title_pair.setSpacing(1)
         icon_title_pair.setContentsMargins(0, 0, 0, 0)
+        icon_title_pair.setAlignment(Qt.AlignmentFlag.AlignVCenter)
         icon_title_pair.addWidget(icon_label)
         icon_title_pair.addWidget(self._header_label)
         header_layout.addLayout(icon_title_pair)
@@ -205,19 +202,18 @@ class SessionTableSection(QWidget):
 
         # Pagination controls — rows per page
         rows_label = QLabel('Rows:')
+        rows_label.setAlignment(Qt.AlignmentFlag.AlignVCenter)
         rows_label.setToolTip('Rows per page (0 = show all)')
 
         initial_rpp = Settings.gui_connected_table_rows_per_page if is_connected else Settings.gui_disconnected_table_rows_per_page
 
         self._rows_per_page_spinbox = QSpinBox()
+        self._rows_per_page_spinbox.setObjectName('sectionRowsSpinBox')
         self._rows_per_page_spinbox.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self._rows_per_page_spinbox.setRange(0, 5000)
-        self._rows_per_page_spinbox.setMinimumWidth(scale_by_ui(95))
         self._rows_per_page_spinbox.setSpecialValueText('All')
         self._rows_per_page_spinbox.setValue(initial_rpp)
-        self._rows_per_page_spinbox.setToolTip(
-            f'Limit how many {self._rows_per_page_tooltip_noun()} are shown per page. Set 0 to show all.',
-        )
+        self._rows_per_page_spinbox.setToolTip(f'Limit how many {self._rows_per_page_tooltip_noun()} are shown per page. Set 0 to show all.')
         self._rows_per_page_spinbox.setKeyboardTracking(False)
         self._rows_per_page_spinbox.valueChanged.connect(self._handle_rows_per_page_changed)
         self._rows_per_page_spinbox.editingFinished.connect(self._finalize_rows_edit)
@@ -226,15 +222,18 @@ class SessionTableSection(QWidget):
         rows_pair = QHBoxLayout()
         rows_pair.setSpacing(scale_by_ui(4))
         rows_pair.setContentsMargins(0, 0, 0, 0)
+        rows_pair.setAlignment(Qt.AlignmentFlag.AlignVCenter)
         rows_pair.addWidget(rows_label)
         rows_pair.addWidget(self._rows_per_page_spinbox)
         header_layout.addLayout(rows_pair)
 
         # Pagination controls — page number
         page_label = QLabel('Page:')
+        page_label.setAlignment(Qt.AlignmentFlag.AlignVCenter)
         page_label.setToolTip('Current page when rows are limited.')
 
         self._page_spinbox = QSpinBox()
+        self._page_spinbox.setObjectName('sectionPageSpinBox')
         self._page_spinbox.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self._page_spinbox.setRange(1, 1)
         self._page_spinbox.setToolTip('Jump between pages when a row limit is set.')
@@ -245,6 +244,7 @@ class SessionTableSection(QWidget):
         page_pair = QHBoxLayout()
         page_pair.setSpacing(scale_by_ui(4))
         page_pair.setContentsMargins(0, 0, 0, 0)
+        page_pair.setAlignment(Qt.AlignmentFlag.AlignVCenter)
         page_pair.addWidget(page_label)
         page_pair.addWidget(self._page_spinbox)
         header_layout.addLayout(page_pair)
@@ -253,7 +253,7 @@ class SessionTableSection(QWidget):
         nav_separator.setFrameShape(QFrame.Shape.VLine)
         nav_separator.setFrameShadow(QFrame.Shadow.Sunken)
         nav_separator.setStyleSheet(SECTION_HEADER_SEPARATOR_STYLESHEET)
-        header_layout.addWidget(nav_separator)
+        header_layout.addWidget(nav_separator, alignment=Qt.AlignmentFlag.AlignVCenter)
 
         # Internal paging state
         self._rows_per_page: int = initial_rpp
@@ -267,19 +267,20 @@ class SessionTableSection(QWidget):
             PaginationState.set_disconnected(rows_per_page=initial_rpp, page=1)
 
         session_label = QLabel('Session:')
+        session_label.setAlignment(Qt.AlignmentFlag.AlignVCenter)
         self._session_filter_label: QLabel = session_label
 
-        session_filter_combo = QComboBox()
-        session_filter_combo.setObjectName('sectionSessionFilterCombo')
-        session_filter_combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
-        session_filter_combo.currentIndexChanged.connect(self._handle_session_filter_changed)
-        self._session_filter_combo = session_filter_combo
+        self._session_filter_combo = QComboBox()
+        self._session_filter_combo.setObjectName('sectionSessionFilterCombo')
+        self._session_filter_combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
+        self._session_filter_combo.currentIndexChanged.connect(self._handle_session_filter_changed)
 
         session_pair = QHBoxLayout()
         session_pair.setSpacing(scale_by_ui(4))
         session_pair.setContentsMargins(0, 0, 0, 0)
+        session_pair.setAlignment(Qt.AlignmentFlag.AlignVCenter)
         session_pair.addWidget(session_label)
-        session_pair.addWidget(session_filter_combo)
+        session_pair.addWidget(self._session_filter_combo)
         header_layout.addLayout(session_pair)
 
         if is_connected:
@@ -289,18 +290,16 @@ class SessionTableSection(QWidget):
         self._sync_session_filter_combo()
 
         if merge_slot is not None:
-            merge_button = QPushButton()
-            merge_button.setObjectName('sectionMergeButton')
-            merge_button.setStyleSheet(SECTION_MERGE_BUTTON_STYLESHEET)
-            merge_button.clicked.connect(merge_slot)
-            self._merge_button: QPushButton | None = merge_button
+            self._merge_button = QPushButton()
+            self._merge_button.setObjectName('sectionMergeButton')
+            self._merge_button.clicked.connect(merge_slot)
             self.update_merge_button_state()
-            header_layout.addWidget(merge_button)
+            header_layout.addWidget(self._merge_button, alignment=Qt.AlignmentFlag.AlignVCenter)
         else:
             self._merge_button = None
 
-        header_layout.addWidget(clear_button)
-        header_layout.addWidget(collapse_button)
+        header_layout.addWidget(self._clear_button, alignment=Qt.AlignmentFlag.AlignVCenter)
+        header_layout.addWidget(self.collapse_button, alignment=Qt.AlignmentFlag.AlignVCenter)
 
         # Table model and view
         self.table_model = SessionTableModel(column_names)
@@ -694,6 +693,8 @@ class SessionTableSection(QWidget):
                 self._clear_button.setToolTip('Clear all disconnected players')
 
     def _update_header_label(self) -> None:
+        if not isValid(self._header_label):
+            return
         self._header_label.setText(self._header_label_text())
         self._update_clear_button_tooltip()
 
