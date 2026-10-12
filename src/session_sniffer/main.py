@@ -39,7 +39,15 @@ from session_sniffer.capture.packet_capture import CaptureConfig, CaptureHolder,
 from session_sniffer.capture.process_monitor import ensure_process_monitor_running
 from session_sniffer.capture.utils.check_capture_filters import check_broadcast_multicast_support
 from session_sniffer.capture.utils.npcap_checker import ensure_npcap_installed
-from session_sniffer.constants.local import COMBO_RULES_PATH, DETECTIONS_JSON_PATH, SCRIPT_DIR, SETTINGS_PATH, USER_SCRIPTS_DIR_PATH
+from session_sniffer.constants.local import (
+    APP_DIR_LOCAL,
+    APP_DIR_ROAMING,
+    COMBO_RULES_PATH,
+    DETECTIONS_JSON_PATH,
+    SCRIPT_DIR,
+    SETTINGS_PATH,
+    USER_SCRIPTS_DIR_PATH,
+)
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.constants.standard import LOCAL_TZ
 from session_sniffer.ctypes_console import hide_console_window
@@ -77,7 +85,7 @@ from session_sniffer.rendering_core.renderer import rendering_core
 from session_sniffer.rendering_core.types import CaptureState, CaptureStats, GeoIP2Readers, GUIRenderingState
 from session_sniffer.settings import Settings
 from session_sniffer.updater import UpdateCheckOutcome, check_for_updates
-from session_sniffer.utils import dedup_preserve_order, is_pyinstaller_compiled
+from session_sniffer.utils import dedup_preserve_order, ensure_app_dir_ownership, is_pyinstaller_compiled
 from session_sniffer.webserver import WebServer, start_webserver_from_settings
 
 setup_logging(console_level=logging.INFO)
@@ -910,6 +918,8 @@ def main() -> None:
 
 def _on_process_exit() -> None:
     logger.info('Application process exit hook executed (atexit)')
+    ensure_app_dir_ownership(APP_DIR_LOCAL)
+    ensure_app_dir_ownership(APP_DIR_ROAMING)
 
 
 if __name__ == '__main__':
