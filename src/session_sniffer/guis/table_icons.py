@@ -69,7 +69,7 @@ def get_ip_column_composite_icon(
 def preload_table_icons() -> None:
     """Pre-warm composite SVG icon variations for the IP column based on active feature sets and settings."""
     active_paths: list[str] = []
-    if Settings.is_gta5_feature_set() and Settings.gui_session_host_icon:
+    if Settings.is_session_host_feature_set() and Settings.gui_session_host_icon:
         active_paths.append(CROWN_ICON_PATH)
     if Settings.high_rate_monitor_icon:
         active_paths.append(SPEEDOMETER_ICON_PATH)
