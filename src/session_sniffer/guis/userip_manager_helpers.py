@@ -403,6 +403,89 @@ def rewrite_db_rename_entries(db_path: Path, pairs: list[tuple[str, str]], new_u
     return renamed_count
 
 
+def rewrite_db_edit_entry_ip(
+    db_path: Path,
+    old_ip_or_range: str,
+    new_ip_or_range: str,
+    *,
+    username: str | None = None,
+) -> int:
+    """Replace an entry's IP or range in a database file in-place.
+
+    Args:
+        db_path: Path to the UserIP database file.
+        old_ip_or_range: The current IP address or range string to replace.
+        new_ip_or_range: The new IP address or range string.
+        username: If provided, only replaces the entry for this specific username,
+            splitting multiple usernames on the same line if necessary. If None,
+            replaces all occurrences of `old_ip_or_range` in the `[UserIP]` section.
+
+    Returns:
+        The number of entries replaced.
+    """
+    if not db_path.is_file():
+        return 0
+    content = db_path.read_text('utf-8')
+    new_lines: list[str] = []
+    in_userip_section = False
+    replaced_count = 0
+
+    for raw_line in content.splitlines():
+        stripped = raw_line.strip()
+        is_header, in_userip_section = handle_ini_section_header(
+            raw_line, stripped, new_lines, in_section=in_userip_section, section_name=SECTION_USERIP,
+        )
+        if is_header:
+            continue
+        if not in_userip_section or (username is not None and replaced_count > 0):
+            new_lines.append(raw_line)
+            continue
+
+        match = RE_USERIP_INI_PARSER_PATTERN.search(stripped)
+        if not match:
+            new_lines.append(raw_line)
+            continue
+
+        username_val = match.group('username').strip()
+        ip_val = match.group('ip').strip()
+        if ip_val != old_ip_or_range:
+            new_lines.append(raw_line)
+            continue
+
+        line_usernames = split_usernames(username_val)
+
+        equality_index = raw_line.find('=')
+        after_equal = raw_line[equality_index + 1 :] if equality_index != -1 else ip_val
+
+        # Preserve comments if present
+        comment_suffix = ''
+        comment_idx = min((after_equal.find(char) for char in ('#', ';') if char in after_equal), default=-1)
+        if comment_idx != -1:
+            comment_suffix = f' {after_equal[comment_idx:].strip()}'
+
+        new_val = f'{new_ip_or_range}{comment_suffix}'
+
+        if username is not None:
+            if username not in line_usernames:
+                new_lines.append(raw_line)
+                continue
+
+            replaced_count += 1
+            if len(line_usernames) == 1:
+                new_lines.append(f'{username_val}={new_val}')
+            else:
+                remaining = [name for name in line_usernames if name != username]
+                new_lines.append(f'{", ".join(remaining)}={after_equal.strip()}')
+                new_lines.append(f'{username}={new_val}')
+        else:
+            replaced_count += len(line_usernames)
+            new_lines.append(f'{username_val}={new_val}')
+
+    if replaced_count:
+        db_path.write_text('\r\n'.join(new_lines) + ('\r\n' if new_lines else ''), encoding='utf-8', newline='')
+    return replaced_count
+
+
 def append_userip_entries(db_path: Path, entries: list[tuple[str, str, bool]]) -> int:
     """Append entries to the `[UserIP]` section of a database file, avoiding exact duplicates.
 

@@ -642,8 +642,15 @@ class UserIPDatabasesManager(
 
         self._delete_button.setEnabled(has_selection)
         self._rename_button.setEnabled(has_selection)
-        if not self._global_search_active:
-            self._edit_ip_button.setEnabled(len(selected_rows) == 1)
+        if len(selected_rows) == 1 and (self._global_search_active or self._current_path is not None):
+            source_row = self._proxy.mapToSource(selected_rows[0]).row()
+            range_item = self._model.item(source_row, RANGE_COLUMN)
+            is_range = bool(range_item and range_item.text().strip())
+            self._edit_ip_button.setText(' Edit Range…' if is_range else ' Edit IP…')
+            self._edit_ip_button.setEnabled(True)
+        else:
+            self._edit_ip_button.setText(' Edit IP/Range…')
+            self._edit_ip_button.setEnabled(False)
 
         if self._global_search_active:
             # Enable Open DB only when a single row is selected (unambiguous DB target)
@@ -692,10 +699,11 @@ class UserIPDatabasesManager(
         db_available = not self._global_search_active and self._current_path is not None
         self._add_button.setVisible(not self._global_search_active)
         self._add_button.setEnabled(db_available)
-        self._edit_ip_button.setVisible(not self._global_search_active)
+        self._edit_ip_button.setVisible(True)
         self._edit_ip_button.setEnabled(False)  # driven by selection
         self._rename_button.setEnabled(False)  # driven by selection
         self._delete_button.setEnabled(False)  # driven by selection
+        self._save_button.setVisible(not self._global_search_active)
         self._save_button.setEnabled(self._dirty)
         self._open_db_button.setEnabled(not self._global_search_active and self._current_path is not None)
         if self._export_selected_action is not None:

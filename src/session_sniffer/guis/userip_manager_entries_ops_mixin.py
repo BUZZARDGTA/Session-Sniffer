@@ -32,6 +32,7 @@ from session_sniffer.guis.userip_manager_helpers import (
     append_userip_entries,
     iter_userip_databases,
     read_preserved_sections,
+    rewrite_db_edit_entry_ip,
     rewrite_db_rename_entries,
     rewrite_db_without_entries,
 )
@@ -221,7 +222,7 @@ class UserIPEntriesOperationsMixin(QDialog):
 
     def _edit_entry_ip(self, source_row: int) -> None:
         """Open the IP Range Builder dialog to edit the IP/range of an existing entry."""
-        if self._current_path is None:
+        if not self._global_search_active and self._current_path is None:
             return
 
         current_entry = self._get_row_entry_value(source_row)
@@ -230,7 +231,7 @@ class UserIPEntriesOperationsMixin(QDialog):
             return
 
         new_ip_text = dialog.result_entry()
-        if not new_ip_text:
+        if not new_ip_text or new_ip_text == current_entry:
             return
 
         try:
@@ -239,15 +240,44 @@ class UserIPEntriesOperationsMixin(QDialog):
         except ValueError:
             is_single = False
 
-        ip_item = self._model.item(source_row, IP_COLUMN)
-        range_item = self._model.item(source_row, RANGE_COLUMN)
-        if ip_item:
-            ip_item.setText(new_ip_text if is_single else '')
-        if range_item:
-            range_item.setText('' if is_single else new_ip_text)
+        if self._global_search_active:
+            database_item = self._model.item(source_row, DATABASE_COLUMN)
+            database_path_str = database_item.data(Qt.ItemDataRole.UserRole) if database_item else None
+            username_item = self._model.item(source_row, USERNAME_COLUMN)
+            username = username_item.text().strip() if username_item else ''
+            database_path = Path(database_path_str) if database_path_str else None
+            if not database_path or not database_path.is_file() or not username:
+                return
 
-        self._mark_entries_dirty()
-        self._highlight_duplicates()
+            with QSignalBlocker(self._fs_watcher):
+                success = bool(rewrite_db_edit_entry_ip(database_path, current_entry, new_ip_text, username=username))
+            self._rebuild_fs_watch()
+
+            if not success:
+                return
+
+            ip_item = self._model.item(source_row, IP_COLUMN)
+            range_item = self._model.item(source_row, RANGE_COLUMN)
+            if ip_item:
+                ip_item.setText(new_ip_text if is_single else '')
+            if range_item:
+                range_item.setText('' if is_single else new_ip_text)
+
+            self._highlight_duplicates()
+            self._update_entry_counts()
+            self._set_status(f'Updated entry to "{new_ip_text}" in {database_path.name}.')
+        else:
+            ip_item = self._model.item(source_row, IP_COLUMN)
+            range_item = self._model.item(source_row, RANGE_COLUMN)
+            if ip_item:
+                ip_item.setText(new_ip_text if is_single else '')
+            if range_item:
+                range_item.setText('' if is_single else new_ip_text)
+
+            self._mark_entries_dirty()
+            self._highlight_duplicates()
+            self._update_entry_counts()
+            self._set_status(f'Updated entry to "{new_ip_text}". Remember to save.')
 
     def _insert_entry_at(self, source_row: int) -> None:
         """Insert a blank row at a specific position in the source model."""

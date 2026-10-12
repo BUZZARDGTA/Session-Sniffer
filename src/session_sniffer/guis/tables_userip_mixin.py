@@ -9,7 +9,7 @@ from PySide6.QtWidgets import QInputDialog, QLineEdit, QMessageBox, QWidget
 from session_sniffer.constants.local import USERIP_DATABASES_DIR_PATH
 from session_sniffer.constants.standalone import GITHUB_WIKI_SCRIPT_CONFIG_URL, TITLE
 from session_sniffer.guis.select_usernames_dialog import SelectUsernamesDialog
-from session_sniffer.guis.userip_manager_helpers import IPRangeBuilderDialog
+from session_sniffer.guis.userip_manager_helpers import IPRangeBuilderDialog, rewrite_db_edit_entry_ip
 from session_sniffer.networking.ip_range import check_ip_against_ranges, parse_ip_range_entry
 from session_sniffer.player.registry import PlayersRegistry
 from session_sniffer.player.userip import UserIPDatabases
@@ -280,32 +280,10 @@ def userip_convert_to_range(parent: QWidget, ip_address: str, player: Player) ->
     if not range_input:
         return
 
-    new_lines: list[str] = []
-    converted_count = 0
-    in_userip_section = False
-    for raw_line in db_path.read_text('utf-8').splitlines(keepends=True):
-        line = raw_line.strip()
-        if line.startswith('[') and line.endswith(']'):
-            in_userip_section = line == '[UserIP]'
-            new_lines.append(raw_line)
-            continue
-        if in_userip_section:
-            match = RE_USERIP_INI_PARSER_PATTERN.search(line)
-            if match:
-                username_raw = match.group('username')
-                ip_raw = match.group('ip')
-                if username_raw is not None and ip_raw is not None and ip_raw.strip() == ip_address:
-                    ending = raw_line[len(raw_line.rstrip()) :]
-                    new_lines.append(f'{username_raw.strip()}={range_input}{ending}')
-                    converted_count += 1
-                    continue
-        new_lines.append(raw_line)
-
+    converted_count = rewrite_db_edit_entry_ip(db_path, ip_address, range_input)
     if not converted_count:
         QMessageBox.information(parent, TITLE, f'No single-IP entries found for IP {ip_address} in the database.')
         return
-
-    write_lines_to_file(db_path, 'w', new_lines)
 
     entry_word = pluralize(converted_count, 'entry', 'entries')
     _show_modal_info_on_top(
@@ -377,32 +355,10 @@ def userip_edit_range(parent: QWidget, ip_address: str, player: Player) -> None:
     if not new_range or new_range == old_range:
         return
 
-    new_lines: list[str] = []
-    edited_count = 0
-    in_userip_section = False
-    for raw_line in db_path.read_text('utf-8').splitlines(keepends=True):
-        line = raw_line.strip()
-        if line.startswith('[') and line.endswith(']'):
-            in_userip_section = line == '[UserIP]'
-            new_lines.append(raw_line)
-            continue
-        if in_userip_section:
-            match = RE_USERIP_INI_PARSER_PATTERN.search(line)
-            if match:
-                username_raw = match.group('username')
-                ip_raw = match.group('ip')
-                if username_raw is not None and ip_raw is not None and ip_raw.strip() == old_range:
-                    ending = raw_line[len(raw_line.rstrip()) :]
-                    new_lines.append(f'{username_raw.strip()}={new_range}{ending}')
-                    edited_count += 1
-                    continue
-        new_lines.append(raw_line)
-
+    edited_count = rewrite_db_edit_entry_ip(db_path, old_range, new_range)
     if not edited_count:
         QMessageBox.information(parent, TITLE, f'No entries found for range "{old_range}" in the database.')
         return
-
-    write_lines_to_file(db_path, 'w', new_lines)
 
     entry_word = pluralize(edited_count, 'entry', 'entries')
     QMessageBox.information(
@@ -623,49 +579,10 @@ def userip_rename(parent: QWidget, ip_address: str, player: Player) -> None:
             QMessageBox.warning(parent, TITLE, 'No username was provided.')
         return
 
-    content = db_path.read_text('utf-8')
-
-    # Rewrite the database file, replacing only entries matching old_username + ip_address
-    new_lines: list[str] = []
-    renamed_count = 0
-    in_userip_section = False
-    for raw_line in content.splitlines(keepends=True):
-        line = raw_line.strip()
-        if line.startswith('[') and line.endswith(']'):
-            in_userip_section = line == '[UserIP]'
-            new_lines.append(raw_line)
-            continue
-        if not in_userip_section:
-            new_lines.append(raw_line)
-            continue
-
-        match = RE_USERIP_INI_PARSER_PATTERN.search(line)
-        if not match:
-            new_lines.append(raw_line)
-            continue
-
-        username_raw = match.group('username')
-        ip_raw = match.group('ip')
-        if username_raw is None or ip_raw is None or not _entry_ip_matches_any(ip_raw.strip(), [ip_address]):
-            new_lines.append(raw_line)
-            continue
-
-        line_usernames = split_usernames(username_raw)
-        if old_username not in line_usernames:
-            new_lines.append(raw_line)
-            continue
-
-        replaced_usernames = [new_username if name == old_username else name for name in line_usernames]
-        resulting_names = dedup_preserve_order(replaced_usernames)
-        ending = raw_line[len(raw_line.rstrip()) :]
-        new_lines.append(f'{", ".join(resulting_names)}={ip_raw.strip()}{ending}')
-        renamed_count += 1
-
+    renamed_count = _rewrite_db_for_rename(db_path, [(old_username, ip_address)], new_username)
     if not renamed_count:
         QMessageBox.information(parent, TITLE, f'No entries found for IP {ip_address} in the database.')
         return
-
-    write_lines_to_file(db_path, 'w', new_lines)
 
     entry_word = pluralize(renamed_count, 'entry', 'entries')
     QMessageBox.information(
