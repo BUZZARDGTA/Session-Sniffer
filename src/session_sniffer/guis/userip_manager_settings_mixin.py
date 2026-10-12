@@ -94,6 +94,7 @@ class SettingsPanelMixin(QDialog):
 
         self._settings_content = QWidget()
         self._settings_content.setStyleSheet(USERIP_SETTINGS_BODY_STYLESHEET)
+        self._settings_content.setVisible(False)
         content = QVBoxLayout(self._settings_content)
         content.setContentsMargins(4, 8, 4, 0)
         content.setSpacing(8)
