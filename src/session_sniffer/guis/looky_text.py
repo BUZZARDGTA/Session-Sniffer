@@ -36,8 +36,8 @@ LOOKY_LOG_VERIFICATION_HTTP_FAILED_TEMPLATE = '[Looky System] Token verification
 
 
 def is_looky_gta5_restricted() -> bool:
-    """Return whether Looky System is restricted due to non-local capture or unmonitored GTA V process."""
-    if not CaptureState.is_local_capture():
+    """Return whether Looky System is restricted due to non-local capture, non-GTA5 feature set, or unmonitored GTA V process."""
+    if not CaptureState.is_local_capture() or not Settings.is_gta5_feature_set():
         return True
     return Settings.looky_exclusive_gta5_process and not CaptureState.is_scanning_gta5_process()
 
@@ -56,6 +56,9 @@ def configure_looky_action(
     if not Settings.looky_enabled:
         action.setEnabled(False)
         action.setToolTip(LOOKY_MENU_TOOLTIP_DISABLED)
+    elif not Settings.is_gta5_feature_set():
+        action.setEnabled(False)
+        action.setToolTip(LOOKY_MENU_TOOLTIP_RESTRICTED_GTA5_NOT_RUNNING)
     elif not bool(Settings.looky_api_key):
         action.setEnabled(False)
         action.setToolTip(LOOKY_MENU_TOOLTIP_API_KEY_MISSING)

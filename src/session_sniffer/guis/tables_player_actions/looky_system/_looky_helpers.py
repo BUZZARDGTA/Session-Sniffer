@@ -88,32 +88,32 @@ def check_looky_prerequisites(parent: QWidget, *, check_gta5_restriction: bool =
     """Validate Looky System prerequisites and return the API key on success.
 
     Checks (in order):
+    - GTA V feature set is active
     - API key is set
     - Looky System is enabled
     - API access is granted
+    - Local capture is active
     - GTA V process scanning restriction (if `check_gta5_restriction` is True)
 
     Returns the API key string when all prerequisites are met, or None after
     displaying a warning for the first unmet prerequisite.
     """
-    if not bool(Settings.looky_api_key):
-        QMessageBox.warning(parent, LOOKY_TITLE, LOOKY_WARNING_API_KEY_MISSING)
-        return None
+    warning_message: str | None = None
+    if not Settings.is_gta5_feature_set():
+        warning_message = LOOKY_WARNING_RESTRICTED_GTA5_NOT_RUNNING
+    elif not bool(Settings.looky_api_key):
+        warning_message = LOOKY_WARNING_API_KEY_MISSING
+    elif not Settings.looky_enabled:
+        warning_message = LOOKY_WARNING_DISABLED
+    elif not LookyState.api_access:
+        warning_message = LOOKY_WARNING_API_ACCESS_MISSING
+    elif not CaptureState.is_local_capture():
+        warning_message = LOOKY_WARNING_RESTRICTED_NOT_LOCAL
+    elif check_gta5_restriction and is_looky_gta5_restricted():
+        warning_message = LOOKY_WARNING_RESTRICTED_GTA5_NOT_RUNNING
 
-    if not Settings.looky_enabled:
-        QMessageBox.warning(parent, LOOKY_TITLE, LOOKY_WARNING_DISABLED)
-        return None
-
-    if not LookyState.api_access:
-        QMessageBox.warning(parent, LOOKY_TITLE, LOOKY_WARNING_API_ACCESS_MISSING)
-        return None
-
-    if not CaptureState.is_local_capture():
-        QMessageBox.warning(parent, LOOKY_TITLE, LOOKY_WARNING_RESTRICTED_NOT_LOCAL)
-        return None
-
-    if check_gta5_restriction and is_looky_gta5_restricted():
-        QMessageBox.warning(parent, LOOKY_TITLE, LOOKY_WARNING_RESTRICTED_GTA5_NOT_RUNNING)
+    if warning_message is not None:
+        QMessageBox.warning(parent, LOOKY_TITLE, warning_message)
         return None
 
     return Settings.looky_api_key

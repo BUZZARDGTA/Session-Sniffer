@@ -7,6 +7,7 @@ import requests
 from PySide6.QtCore import QEvent, QObject, Qt, QTimer, Signal
 from PySide6.QtGui import QGuiApplication, QKeySequence
 from PySide6.QtWidgets import (
+    QComboBox,
     QDialog,
     QFrame,
     QGridLayout,
@@ -88,6 +89,7 @@ class SettingsDialogLookyMixin(QDialog):
     """
 
     # -- Attribute stubs (Looky System widgets, set during _build_tab) --
+    _looky_group_box: QGroupBox
     _looky_account_card: QFrame
     _looky_account_info_group: QGroupBox
     _looky_card_grid: QGridLayout
@@ -109,6 +111,7 @@ class SettingsDialogLookyMixin(QDialog):
     ) -> QGroupBox:
         """Build the custom Looky System group with info banner, settings, API key, and account info card."""
         group_box = QGroupBox('Looky System')
+        self._looky_group_box = group_box
         outer = create_standard_vbox_layout(group_box)
 
         info_label = QLabel(
@@ -255,9 +258,11 @@ class SettingsDialogLookyMixin(QDialog):
 
     def _on_looky_api_key_changed(self, text: str) -> None:
         """Show/hide Account Information and schedule a debounced verify when the key changes."""
+        preset_widget = self._widgets.get('capture_feature_set')
+        is_gta5 = not isinstance(preset_widget, QComboBox) or preset_widget.currentText() == 'GTA V'
         stripped = text.strip()
-        self._looky_account_info_group.setVisible(bool(stripped))
-        if not stripped or stripped == self._last_verified_key:
+        self._looky_account_info_group.setVisible(bool(stripped) and is_gta5)
+        if not is_gta5 or not stripped or stripped == self._last_verified_key:
             self._verify_debounce.stop()
             return
         self._looky_verify_status_label.setText('⟳ Verifying...')
@@ -267,6 +272,9 @@ class SettingsDialogLookyMixin(QDialog):
 
     def _trigger_looky_verify(self) -> None:
         """Start a background `/api/whoami` verify for the current API key value."""
+        preset_widget = self._widgets.get('capture_feature_set')
+        if isinstance(preset_widget, QComboBox) and preset_widget.currentText() != 'GTA V':
+            return
         api_key_widget = self._widgets.get('looky_api_key')
         if not isinstance(api_key_widget, QLineEdit):
             return

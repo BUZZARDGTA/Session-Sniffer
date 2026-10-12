@@ -245,7 +245,8 @@ class IPLookupDetailsDialog(PlayerInfoDialogMixin):
         scroll_layout = self._init_scroll_area(outer_layout)
 
         self._build_player_info_group(scroll_layout)
-        self._build_looky_group(scroll_layout)
+        if Settings.is_gta5_feature_set():
+            self._build_looky_group(scroll_layout)
         self._build_iplookup_group(scroll_layout)
         self._build_ping_group(scroll_layout)
         scroll_layout.addStretch(1)

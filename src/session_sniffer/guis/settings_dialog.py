@@ -285,7 +285,8 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
                 outer_layout.addWidget(self._build_discord_webhook_group(items, self._add_setting_row))
                 continue
             if category == 'GTA V' and group_name == 'Looky System':
-                outer_layout.addWidget(self._build_looky_group(items, self._add_setting_row))
+                self._looky_group_box = self._build_looky_group(items, self._add_setting_row)
+                outer_layout.addWidget(self._looky_group_box)
                 continue
 
             group_box = QGroupBox(group_name.replace('&', '&&'))
@@ -417,6 +418,16 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
             self._tabs.setTabVisible(self._game_tab_index, is_supported_game)
             if is_supported_game:
                 self._tabs.setTabText(self._game_tab_index, feature_set)
+
+        if hasattr(self, '_looky_group_box'):
+            self._looky_group_box.setVisible(is_gta5)
+        if is_gta5:
+            api_key_widget = self._widgets.get('looky_api_key')
+            self._on_looky_api_key_changed(api_key_widget.text() if isinstance(api_key_widget, QLineEdit) else '')
+        else:
+            self._verify_debounce.stop()
+            if self._verify_worker is not None and self._verify_worker.isRunning():
+                self._verify_worker.cancel()
 
     def _on_disconnected_players_enabled_toggled(self) -> None:
         """Update dependent controls and labels based on the Disconnected Players toggle."""
@@ -757,8 +768,12 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
     def _reset_tab_to_defaults(self, category: str) -> None:
         """Populate widgets belonging to *category* with default values without saving."""
         defaults_dict = cast('dict[str, SettingValue]', SETTING_DEFAULTS)
+        preset_widget = self._widgets.get('capture_feature_set')
+        is_rdr2 = isinstance(preset_widget, QComboBox) and preset_widget.currentText() == 'RDR2'
         for key, widget in self._widgets.items():
             if key in defaults_dict and SETTING_METADATA[key].category == category:
+                if is_rdr2 and category == 'GTA V' and SETTING_METADATA[key].group == 'Looky System':
+                    continue
                 self._set_widget_value(key, widget, defaults_dict[key])
         self._update_sort_column_options()
         self._update_high_rate_monitor_mode_state()

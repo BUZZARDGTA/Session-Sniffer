@@ -458,11 +458,12 @@ def rendering_core(
                 player.mod_menus = None
 
             ps3_username = player.ps3_username
+            include_looky = Settings.looky_enabled and Settings.is_gta5_feature_set() and looky_initialized
             has_usernames = bool(
                 ps3_username
                 or (player.userip is not None and player.userip.usernames)
                 or (player.mod_menus is not None and player.mod_menus.usernames)
-                or (looky_initialized and looky_usernames),
+                or (include_looky and looky_usernames),
             )
             if not has_usernames:
                 if player.usernames:
@@ -472,7 +473,7 @@ def rendering_core(
                     (ps3_username,) if ps3_username is not None and ps3_username else (),
                     player.userip.usernames if player.userip is not None else (),
                     player.mod_menus.usernames if player.mod_menus is not None else (),
-                    looky_usernames if looky_initialized else (),
+                    looky_usernames if include_looky else (),
                 )
 
             if not player.iplookup.geolite2.is_initialized:
