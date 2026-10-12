@@ -483,10 +483,6 @@ Process is currently suspended',
         status_key = self._get_current_game_status_key()
         if status_key != self._last_game_status_key:
             self._update_game_status_label()
-            can_interact = self._game_has_any_process_path() or not CaptureState.is_local_capture()
-            self._current_session_submenu.setEnabled(can_interact)
-            self._session_history_submenu.setEnabled(can_interact)
-            self._player_resolver_action.setEnabled(can_interact)
             self._sync_game_process_button()
 
     def _refresh_runtime_capability_windows(self) -> None:
@@ -530,11 +526,6 @@ Process is currently suspended',
         if looky_action:
             looky_action.setVisible(is_gta5 and local_only)
         self._game_menu_gta5_separator.setVisible(is_gta5 and local_only)
-
-        can_interact = self._game_has_any_process_path() or not CaptureState.is_local_capture()
-        self._current_session_submenu.setEnabled(can_interact)
-        self._session_history_submenu.setEnabled(can_interact)
-        self._player_resolver_action.setEnabled(can_interact)
 
         if is_gta5:
             self._update_looky_actions()
