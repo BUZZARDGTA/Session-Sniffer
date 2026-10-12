@@ -547,7 +547,7 @@ class _DarwinSockaddrDl(ctypes.Structure):
     ]
 
 
-class _DarwinIfData64(ctypes.Structure):
+class _DarwinIfData(ctypes.Structure):
     _fields_ = [
         ('ifi_type', ctypes.c_uint8),
         ('ifi_typelen', ctypes.c_uint8),
@@ -559,14 +559,14 @@ class _DarwinIfData64(ctypes.Structure):
         ('ifi_unused1', ctypes.c_uint8),
         ('ifi_mtu', ctypes.c_uint32),
         ('ifi_metric', ctypes.c_uint32),
-        ('ifi_baudrate', ctypes.c_uint64),
-        ('ifi_ipackets', ctypes.c_uint64),
-        ('ifi_ierrors', ctypes.c_uint64),
-        ('ifi_opackets', ctypes.c_uint64),
-        ('ifi_oerrors', ctypes.c_uint64),
-        ('ifi_collisions', ctypes.c_uint64),
-        ('ifi_ibytes', ctypes.c_uint64),
-        ('ifi_obytes', ctypes.c_uint64),
+        ('ifi_baudrate', ctypes.c_uint32),
+        ('ifi_ipackets', ctypes.c_uint32),
+        ('ifi_ierrors', ctypes.c_uint32),
+        ('ifi_opackets', ctypes.c_uint32),
+        ('ifi_oerrors', ctypes.c_uint32),
+        ('ifi_collisions', ctypes.c_uint32),
+        ('ifi_ibytes', ctypes.c_uint32),
+        ('ifi_obytes', ctypes.c_uint32),
     ]
 
 
@@ -639,13 +639,13 @@ def _populate_darwin_ifaddr(
                 if any(raw_bytes):
                     mac_by_interface_name[interface_name_string] = ':'.join(f'{b:02X}' for b in raw_bytes)
 
-    if address_entry.ifa_data:
-        if_data = ctypes.cast(address_entry.ifa_data, ctypes.POINTER(_DarwinIfData64)).contents
-        traffic_by_interface_name[interface_name_string] = (
-            int(if_data.ifi_opackets),
-            int(if_data.ifi_ipackets),
-            int(if_data.ifi_baudrate),
-        )
+            if address_entry.ifa_data:
+                if_data = ctypes.cast(address_entry.ifa_data, ctypes.POINTER(_DarwinIfData)).contents
+                traffic_by_interface_name[interface_name_string] = (
+                    int(if_data.ifi_opackets),
+                    int(if_data.ifi_ipackets),
+                    int(if_data.ifi_baudrate),
+                )
 
 
 def _get_darwin_adapters_info() -> Iterator[AdapterData]:
