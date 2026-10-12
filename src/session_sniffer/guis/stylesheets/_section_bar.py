@@ -122,10 +122,12 @@ def section_bar_qss(accent: str) -> str:
         font-size: 8.5pt;
     }}
     QSpinBox#sectionRowsSpinBox {{
-        min-width: 85px;
+        min-width: 55px;
+        max-width: 72px;
     }}
     QSpinBox#sectionPageSpinBox {{
-        min-width: 58px;
+        min-width: 42px;
+        max-width: 52px;
     }}
     QSpinBox:hover {{
         background: rgba(0, 0, 0, 0.50);
