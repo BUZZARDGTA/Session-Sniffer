@@ -28,6 +28,7 @@ from PySide6.QtWidgets import (
 from session_sniffer.constants.local import CURRENT_VERSION
 from session_sniffer.guis._crashing_qthread import CrashingQThread
 from session_sniffer.guis._dialog_mixins import DraggableDialogMixin
+from session_sniffer.guis.fonts import get_monospace_font, get_ui_font
 from session_sniffer.guis.stylesheets import (
     UPDATE_DOWNLOAD_CANCEL_BUTTON_STYLESHEET,
     UPDATE_DOWNLOAD_DIALOG_STYLESHEET,
@@ -222,7 +223,7 @@ class UpdateDownloadDialog(DraggableDialogMixin, QDialog):
         header.addWidget(self._create_download_icon(), 0, Qt.AlignmentFlag.AlignVCenter)
 
         self._title_label = QLabel('Update Available')
-        self._title_label.setFont(QFont('Segoe UI', 17, QFont.Weight.Bold))
+        self._title_label.setFont(get_ui_font(17, QFont.Weight.Bold))
         self._title_label.setStyleSheet(UPDATE_DOWNLOAD_TITLE_LABEL_STYLESHEET)
         header.addWidget(self._title_label, 0, Qt.AlignmentFlag.AlignVCenter)
 
@@ -247,7 +248,7 @@ class UpdateDownloadDialog(DraggableDialogMixin, QDialog):
         )
 
         arrow_label = QLabel('→')
-        arrow_label.setFont(QFont('Segoe UI', 22, QFont.Weight.Bold))
+        arrow_label.setFont(get_ui_font(22, QFont.Weight.Bold))
         arrow_label.setStyleSheet(UPDATE_DOWNLOAD_VERSION_ARROW_STYLESHEET)
         arrow_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         arrow_label.setFixedWidth(16)
@@ -314,7 +315,7 @@ class UpdateDownloadDialog(DraggableDialogMixin, QDialog):
             label_row.addWidget(dot, 0, Qt.AlignmentFlag.AlignVCenter)
 
         label_widget = QLabel(label)
-        label_widget.setFont(QFont('Segoe UI', 8, QFont.Weight.Bold))
+        label_widget.setFont(get_ui_font(8, QFont.Weight.Bold))
         label_widget.setStyleSheet(label_qss)
         label_row.addWidget(label_widget, 0, Qt.AlignmentFlag.AlignVCenter)
         label_row.addStretch(1)
@@ -322,7 +323,7 @@ class UpdateDownloadDialog(DraggableDialogMixin, QDialog):
         badge_text = 'PRE-RELEASE' if is_prerelease else 'STABLE'
         badge_stylesheet = UPDATE_DOWNLOAD_VERSION_CARD_BADGE_PRERELEASE_STYLESHEET if is_prerelease else UPDATE_DOWNLOAD_VERSION_CARD_BADGE_STABLE_STYLESHEET
         badge_widget = QLabel(badge_text)
-        badge_widget.setFont(QFont('Segoe UI', 7, QFont.Weight.Bold))
+        badge_widget.setFont(get_ui_font(7, QFont.Weight.Bold))
         badge_widget.setStyleSheet(badge_stylesheet)
         badge_widget.setAlignment(Qt.AlignmentFlag.AlignCenter)
         label_row.addWidget(badge_widget, 0, Qt.AlignmentFlag.AlignVCenter)
@@ -330,7 +331,7 @@ class UpdateDownloadDialog(DraggableDialogMixin, QDialog):
         card_layout.addLayout(label_row)
 
         version_widget = QLabel(version_text)
-        version_widget.setFont(QFont('Segoe UI', 13, QFont.Weight.Bold))
+        version_widget.setFont(get_ui_font(13, QFont.Weight.Bold))
         version_widget.setStyleSheet(value_qss)
         version_widget.setAlignment(Qt.AlignmentFlag.AlignCenter)
         card_layout.addWidget(version_widget)
@@ -343,7 +344,7 @@ class UpdateDownloadDialog(DraggableDialogMixin, QDialog):
             date_row.addWidget(self._svg_label('calendar-days.svg', 16, 16), 0, Qt.AlignmentFlag.AlignVCenter)
 
             date_widget = QLabel(date_text)
-            date_widget.setFont(QFont('Consolas', 9))
+            date_widget.setFont(get_monospace_font(9))
             date_widget.setStyleSheet(UPDATE_DOWNLOAD_VERSION_CARD_DATE_STYLESHEET)
             date_row.addWidget(date_widget, 0, Qt.AlignmentFlag.AlignVCenter)
             date_row.addStretch(1)
@@ -357,7 +358,7 @@ class UpdateDownloadDialog(DraggableDialogMixin, QDialog):
         size_row.addWidget(self._svg_label('hard-drive.svg', 16, 16), 0, Qt.AlignmentFlag.AlignVCenter)
 
         size_widget = QLabel(size_text or 'xx.x MB')
-        size_widget.setFont(QFont('Consolas', 9))
+        size_widget.setFont(get_monospace_font(9))
         size_widget.setStyleSheet(UPDATE_DOWNLOAD_VERSION_CARD_DATE_STYLESHEET)
         size_row.addWidget(size_widget, 0, Qt.AlignmentFlag.AlignVCenter)
         size_row.addStretch(1)
@@ -371,7 +372,7 @@ class UpdateDownloadDialog(DraggableDialogMixin, QDialog):
         sha_row.addWidget(self._svg_label('info.svg', 16, 16), 0, Qt.AlignmentFlag.AlignTop)
 
         sha_widget = QLabel(self._format_sha_display(sha_hash))
-        sha_widget.setFont(QFont('Consolas', 9))
+        sha_widget.setFont(get_monospace_font(9))
         sha_widget.setStyleSheet(UPDATE_DOWNLOAD_VERSION_CARD_SHA_STYLESHEET)
         sha_widget.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
         sha_widget.setMinimumHeight(28)
@@ -479,7 +480,7 @@ class UpdateDownloadDialog(DraggableDialogMixin, QDialog):
         section.addWidget(self._progress_bar)
 
         self._status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._status_label.setFont(QFont('Segoe UI', 9))
+        self._status_label.setFont(get_ui_font(9))
         self._status_label.setStyleSheet(UPDATE_DOWNLOAD_STATUS_LABEL_STYLESHEET)
         section.addWidget(self._status_label)
 
@@ -503,7 +504,7 @@ class UpdateDownloadDialog(DraggableDialogMixin, QDialog):
 
         pill_layout.addWidget(self._create_cloud_download_icon(), 0, Qt.AlignmentFlag.AlignVCenter)
 
-        self._size_label.setFont(QFont('Consolas', 10))
+        self._size_label.setFont(get_monospace_font(10))
         self._size_label.setStyleSheet(UPDATE_DOWNLOAD_SIZE_LABEL_STYLESHEET)
         self._size_label.setTextFormat(Qt.TextFormat.RichText)
         pill_layout.addWidget(self._size_label)

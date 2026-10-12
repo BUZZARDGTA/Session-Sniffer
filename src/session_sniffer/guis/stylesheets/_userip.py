@@ -131,6 +131,6 @@ QPushButton:hover {
 # IP RANGE BUILDER DIALOG STYLES
 # =============================================================================
 
-IP_RANGE_PREVIEW_VALID_STYLESHEET = 'font-family: Consolas, "Courier New", monospace; font-size: 10pt; padding: 6px; color: #80c080;'
-IP_RANGE_PREVIEW_ERROR_STYLESHEET = 'font-family: Consolas, "Courier New", monospace; font-size: 10pt; padding: 6px; color: #e06060;'
-IP_RANGE_PREVIEW_EMPTY_STYLESHEET = 'font-family: Consolas, "Courier New", monospace; font-size: 10pt; padding: 6px; color: #a0a0a0;'
+IP_RANGE_PREVIEW_VALID_STYLESHEET = 'font-family: Menlo, Consolas, "Courier New", monospace; font-size: 10pt; padding: 6px; color: #80c080;'
+IP_RANGE_PREVIEW_ERROR_STYLESHEET = 'font-family: Menlo, Consolas, "Courier New", monospace; font-size: 10pt; padding: 6px; color: #e06060;'
+IP_RANGE_PREVIEW_EMPTY_STYLESHEET = 'font-family: Menlo, Consolas, "Courier New", monospace; font-size: 10pt; padding: 6px; color: #a0a0a0;'

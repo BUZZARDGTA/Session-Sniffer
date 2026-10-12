@@ -2,7 +2,6 @@
 
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QDialog,
     QHBoxLayout,
@@ -16,6 +15,7 @@ from PySide6.QtWidgets import (
 )
 
 from session_sniffer.constants.standalone import TITLE
+from session_sniffer.guis.fonts import get_monospace_font
 from session_sniffer.guis.utils import (
     ActiveDialogRegistry,
     activate_window,
@@ -82,7 +82,7 @@ class DetailedMessageDialog(QDialog):
         if bool(detailed_text):
             self._details_edit = QPlainTextEdit(detailed_text)
             self._details_edit.setReadOnly(True)
-            self._details_edit.setFont(QFont('Consolas', 9))
+            self._details_edit.setFont(get_monospace_font(9))
             self._details_edit.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
             self._details_edit.setMinimumHeight(scale_by_ui(240))
             self._details_edit.hide()

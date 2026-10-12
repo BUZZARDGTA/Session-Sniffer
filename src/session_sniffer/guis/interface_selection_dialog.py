@@ -615,7 +615,7 @@ class InterfaceSelectionDialog(QDialog):
 
         self._controls.refresh_arp_button.setText('')
         main_style = f'color:#ffffff; font-weight:700; font-size:{font_pt_main}pt; letter-spacing:1px;'
-        sub_style = f'color:#ffd166; font-family:Consolas,monospace; font-size:{font_pt_sub}pt; letter-spacing:0.5px; margin-top:6px;'
+        sub_style = f'color:#ffd166; font-family:Menlo,Consolas,monospace; font-size:{font_pt_sub}pt; letter-spacing:0.5px; margin-top:6px;'
         self._refresh_arp_overlay.setText(
             f'<div style="{main_style}">{main_text}</div><div style="{sub_style}">{sub_text}</div>',
         )

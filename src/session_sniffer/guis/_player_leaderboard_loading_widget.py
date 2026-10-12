@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from session_sniffer.guis.fonts import get_ui_font
 from session_sniffer.guis.stylesheets import DIALOG_BUTTON_STYLESHEET
 from session_sniffer.guis.utils import scale_by_ui
 
@@ -55,7 +56,7 @@ class LeaderboardLoadingWidget(QWidget):
         frame_layout.setSpacing(10)
 
         self._header_label = QLabel('Building Leaderboard')
-        self._header_label.setFont(QFont('Segoe UI', 15, QFont.Weight.Bold))
+        self._header_label.setFont(get_ui_font(15, QFont.Weight.Bold))
         self._header_label.setStyleSheet('color: #88c0d0;')
         self._header_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         frame_layout.addWidget(self._header_label)
@@ -63,7 +64,7 @@ class LeaderboardLoadingWidget(QWidget):
         frame_layout.addStretch()
 
         self._status_label = QLabel('Scanning session logs...\nPlease wait...')
-        self._status_label.setFont(QFont('Segoe UI', 10))
+        self._status_label.setFont(get_ui_font(10))
         self._status_label.setStyleSheet('color: #a0a0a0;')
         self._status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._status_label.setWordWrap(True)

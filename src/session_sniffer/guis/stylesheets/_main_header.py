@@ -119,8 +119,8 @@ QFrame#headerStatsContainer {
 
 STAT_CARD_TITLE_STYLESHEET = 'font-size: 7.5pt; font-weight: 600; color: #64748b; letter-spacing: 0.3px;'
 
-STAT_CARD_UPTIME_VALUE_STYLESHEET = "font-size: 10.5pt; font-weight: 700; color: #22c55e; font-family: 'Consolas', 'Courier New', monospace;"
+STAT_CARD_UPTIME_VALUE_STYLESHEET = "font-size: 10.5pt; font-weight: 700; color: #22c55e; font-family: 'Menlo', 'Consolas', 'Courier New', monospace;"
 
-STAT_CARD_PACKETS_VALUE_STYLESHEET = "font-size: 10.5pt; font-weight: 700; color: #22c55e; font-family: 'Consolas', 'Courier New', monospace;"
+STAT_CARD_PACKETS_VALUE_STYLESHEET = "font-size: 10.5pt; font-weight: 700; color: #22c55e; font-family: 'Menlo', 'Consolas', 'Courier New', monospace;"
 
 HEADER_STATS_DIVIDER_STYLESHEET = 'background-color: rgba(255, 255, 255, 0.08); border: none; max-width: 1px; min-width: 1px; margin: 4px 8px;'

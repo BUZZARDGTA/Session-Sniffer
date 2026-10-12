@@ -1,5 +1,7 @@
 """Custom sleek dark theme for Session Sniffer."""
 
+import sys
+
 from PySide6.QtGui import QColor, QPalette
 
 from session_sniffer.constants.local import RESOURCES_DIR_PATH
@@ -63,13 +65,23 @@ def get_stylesheet(ui_scale: float = 1.0) -> str:
     else:
         base_font_pt = 8
 
+    if sys.platform == 'darwin':
+        ui_font_family = "'Helvetica Neue', Arial, sans-serif"
+        mono_font_family = "Menlo, 'Courier New', monospace"
+    elif sys.platform == 'win32':
+        ui_font_family = "'Segoe UI', Arial, sans-serif"
+        mono_font_family = "Consolas, 'Courier New', 'Lucida Console', monospace"
+    else:
+        ui_font_family = "'Ubuntu', 'DejaVu Sans', Arial, sans-serif"
+        mono_font_family = "'DejaVu Sans Mono', 'Courier New', monospace"
+
     css = (
         """
     /* Main Background */
     QMainWindow, QDialog, QWidget {
         background-color: #121212;
         color: #e0e0e0;
-        font-family: 'Segoe UI', Arial, sans-serif;
+        font-family: {ui_font_family};
         font-size: {base_font_pt}pt;
     }
 
@@ -138,7 +150,7 @@ def get_stylesheet(ui_scale: float = 1.0) -> str:
     }
 
     QPlainTextEdit {
-        font-family: Consolas, 'Courier New', 'Lucida Console', monospace;
+        font-family: {mono_font_family};
     }
 
     QAbstractItemView QLineEdit, QAbstractItemView QSpinBox, QAbstractItemView QDoubleSpinBox, QAbstractItemView QComboBox {
@@ -820,4 +832,6 @@ def get_stylesheet(ui_scale: float = 1.0) -> str:
     css = css.replace('{arrow_down_path}', arrow_down_path)
     css = css.replace('{check_path}', check_path)
     css = css.replace('{close_path}', close_path)
+    css = css.replace('{ui_font_family}', ui_font_family)
+    css = css.replace('{mono_font_family}', mono_font_family)
     return css.replace('{base_font_pt}', str(base_font_pt))

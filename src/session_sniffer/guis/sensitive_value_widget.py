@@ -3,7 +3,7 @@
 from typing import TYPE_CHECKING, Final, override
 
 from PySide6.QtCore import QEvent, QObject, QSize, Qt, QTimer
-from PySide6.QtGui import QFont, QIcon, QMouseEvent
+from PySide6.QtGui import QIcon, QMouseEvent
 from PySide6.QtWidgets import (
     QApplication,
     QGraphicsBlurEffect,
@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
 )
 
 from session_sniffer.constants.local import RESOURCES_DIR_PATH
+from session_sniffer.guis.fonts import get_monospace_font
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -90,7 +91,7 @@ class SensitiveValueWidget(QWidget):
         container_layout.setSpacing(8)
 
         self._label = QLabel(self._container)
-        font = QFont('Consolas', 13)
+        font = get_monospace_font(13)
         font.setBold(True)
         self._label.setFont(font)
         self._label.setStyleSheet('color: #f3e8ff; background: transparent; padding: 0 2px;')

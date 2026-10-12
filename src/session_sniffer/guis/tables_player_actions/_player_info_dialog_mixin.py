@@ -3,7 +3,6 @@
 from typing import TYPE_CHECKING, override
 
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QCloseEvent, QFont
 from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
@@ -15,6 +14,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from session_sniffer.guis.fonts import get_monospace_font
 from session_sniffer.guis.stylesheets import (
     PLAYER_INFO_FORM_LABEL_STYLESHEET,
     PLAYER_INFO_VALUE_LABEL_STYLESHEET,
@@ -25,6 +25,8 @@ from session_sniffer.guis.utils import apply_adaptive_window_size
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+
+    from PySide6.QtGui import QCloseEvent
 
 
 class PlayerInfoDialogMixin(QDialog):
@@ -67,7 +69,7 @@ class PlayerInfoDialogMixin(QDialog):
         value_widget.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse | Qt.TextInteractionFlag.TextSelectableByKeyboard)
         value_widget.setCursor(Qt.CursorShape.IBeamCursor)
         value_widget.setWordWrap(True)
-        value_widget.setFont(QFont('Consolas'))
+        value_widget.setFont(get_monospace_font())
         value_widget.setStyleSheet(PLAYER_INFO_VALUE_LABEL_STYLESHEET)
         value_widget.setToolTip('Click and drag to select; Ctrl+C to copy.')
         return value_widget

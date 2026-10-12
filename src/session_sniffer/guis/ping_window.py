@@ -6,7 +6,7 @@ from threading import Event
 from typing import Final, override
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QCloseEvent, QFont, QIcon, QTextCursor
+from PySide6.QtGui import QCloseEvent, QIcon, QTextCursor
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -29,6 +29,7 @@ from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.error_messages import ensure_instance
 from session_sniffer.guis._crashing_qthread import CrashingQThread
+from session_sniffer.guis.fonts import get_monospace_font
 from session_sniffer.guis.stylesheets import (
     DIALOG_BUTTON_STYLESHEET,
     DIALOG_DANGER_BUTTON_STYLESHEET,
@@ -278,8 +279,7 @@ class PingTabWidget(QWidget):
         # --- Log Console ---
         self._console_log = QTextEdit()
         self._console_log.setReadOnly(True)
-        console_font = QFont('Consolas', 10)
-        console_font.setStyleHint(QFont.StyleHint.Monospace)
+        console_font = get_monospace_font(10)
         self._console_log.setFont(console_font)
         self._console_log.setStyleSheet(
             'QTextEdit { background-color: #141414; color: #e0e0e0; border: 1px solid #2d3640; border-radius: 4px; padding: 6px; }',

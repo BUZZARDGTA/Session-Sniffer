@@ -120,7 +120,7 @@ LIST_WIDGET_STYLE = """
         border: 1px solid #2a3f4a;
         border-radius: 4px;
         padding: 5px;
-        font-family: 'Consolas', 'Courier New', monospace;
+        font-family: 'Menlo', 'Consolas', 'Courier New', monospace;
     }
     QListWidget::item {
         padding: 5px;

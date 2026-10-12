@@ -9,7 +9,7 @@ from threading import Event
 from typing import Final, override
 
 from PySide6.QtCore import QPoint, Qt, Signal
-from PySide6.QtGui import QCloseEvent, QFont, QIcon, QResizeEvent, QShowEvent
+from PySide6.QtGui import QCloseEvent, QIcon, QResizeEvent, QShowEvent
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -39,6 +39,7 @@ from session_sniffer.constants.tables import (
 )
 from session_sniffer.error_messages import ensure_instance
 from session_sniffer.guis._crashing_qthread import CrashingQThread
+from session_sniffer.guis.fonts import get_monospace_font
 from session_sniffer.guis.ping_window import PingWindow
 from session_sniffer.guis.stylesheets import (
     DIALOG_BUTTON_STYLESHEET,
@@ -47,7 +48,11 @@ from session_sniffer.guis.stylesheets import (
     SVG_ICON_CONTEXT_MENU_STYLESHEET,
 )
 from session_sniffer.guis.table_column_resizing import TableColumnResizeController, setup_table_header_context_menu
-from session_sniffer.guis.utils import animate_button_feedback, scale_by_ui, set_clipboard_text
+from session_sniffer.guis.utils import (
+    animate_button_feedback,
+    scale_by_ui,
+    set_clipboard_text,
+)
 from session_sniffer.networking.ping import PingMode
 from session_sniffer.networking.port_scanner import (
     DEFAULT_SCAN_THREADS,
@@ -234,8 +239,7 @@ class PortScannerTabWidget(QWidget):
         setup_table_header_context_menu(self._results_table, on_reset=self._reset_column_sizes)
         self._reset_column_sizes()
 
-        table_font = QFont('Consolas', 9)
-        table_font.setStyleHint(QFont.StyleHint.Monospace)
+        table_font = get_monospace_font(9)
         self._results_table.setFont(table_font)
         self._results_table.setStyleSheet(
             'QTableWidget { background-color: #141414; alternate-background-color: #1b1b1b; '

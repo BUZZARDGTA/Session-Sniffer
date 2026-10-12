@@ -10,9 +10,15 @@ from PySide6.QtWidgets import QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPlai
 
 from session_sniffer.constants.local import CRASH_LOG_PATH, DEBUG_LOG_PATH, RESOURCES_DIR_PATH
 from session_sniffer.constants.standalone import TITLE
+from session_sniffer.guis.fonts import get_monospace_font
 from session_sniffer.guis.stylesheets import DIALOG_BUTTON_STYLESHEET, DIALOG_DANGER_BUTTON_STYLESHEET
 from session_sniffer.guis.userip_manager_helpers import BYTES_PER_UNIT, human_readable_size
-from session_sniffer.guis.utils import animate_button_feedback, apply_search_icon, open_file_location, set_clipboard_text
+from session_sniffer.guis.utils import (
+    animate_button_feedback,
+    apply_search_icon,
+    open_file_location,
+    set_clipboard_text,
+)
 from session_sniffer.logging_setup import purge_crash_log, purge_debug_log
 
 if TYPE_CHECKING:
@@ -180,10 +186,8 @@ def create_log_viewer() -> QPlainTextEdit:
     """Return a read-only, monospace QPlainTextEdit configured for log display."""
     viewer = QPlainTextEdit()
     viewer.setReadOnly(True)
-    mono_font = QFont('Consolas', 9)
-    mono_font.setStyleHint(QFont.StyleHint.Monospace)
+    mono_font = get_monospace_font(9)
     mono_font.setFixedPitch(True)
-    mono_font.setFamilies(['Consolas', 'Courier New', 'Lucida Console', 'monospace'])
     viewer.setFont(mono_font)
     viewer.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
     return viewer

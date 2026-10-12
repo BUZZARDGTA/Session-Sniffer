@@ -27,13 +27,17 @@ from session_sniffer.logging_setup import dump_crash_diagnostics, flush_all_logg
 logger = logging.getLogger(__name__)
 
 
+_SUPPRESSED_QT_MESSAGE_SUBSTRINGS = (
+    'Portal operation not allowed',
+    'QFileSystemWatcher: FindNextChangeNotification failed',
+    'QThreadStorage: entry',
+    'QWaitCondition: Destroyed while threads are still waiting',
+    'Populating font family aliases took',
+)
+
+
 def _qt_message_handler(message_type: QtMsgType, context: QMessageLogContext, message: str) -> None:
-    if message_type != QtMsgType.QtFatalMsg and (
-        'Portal operation not allowed' in message
-        or 'QFileSystemWatcher: FindNextChangeNotification failed' in message
-        or 'QThreadStorage: entry' in message
-        or 'QWaitCondition: Destroyed while threads are still waiting' in message
-    ):
+    if message_type != QtMsgType.QtFatalMsg and any(substring in message for substring in _SUPPRESSED_QT_MESSAGE_SUBSTRINGS):
         return
     type_name = {
         QtMsgType.QtDebugMsg: 'DEBUG',

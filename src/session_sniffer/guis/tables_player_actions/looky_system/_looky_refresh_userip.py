@@ -31,6 +31,7 @@ from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.guis._crashing_qthread import CrashingQThread
 from session_sniffer.guis.delegates import SearchHighlightDelegate
+from session_sniffer.guis.fonts import get_monospace_font
 from session_sniffer.guis.looky_text import LOOKY_TITLE
 from session_sniffer.guis.stylesheets import (
     LOOKY_ACTION_BUTTON_STYLESHEET,
@@ -356,7 +357,7 @@ class LookyRefreshReviewDialog(PlayerInfoDialogMixin):
 
         # Build the tree: one top-level item per IP, children for existing + new
         self._new_items: list[tuple[QTreeWidgetItem, _PendingEntry]] = []
-        mono_font = QFont('Consolas')
+        mono_font = get_monospace_font()
         bold_font = QFont()
         bold_font.setBold(True)
 

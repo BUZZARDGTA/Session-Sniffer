@@ -11,6 +11,7 @@ from shiboken6 import isValid
 
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.core.control import ScriptControl
+from session_sniffer.guis.fonts import get_monospace_font, get_ui_font
 from session_sniffer.guis.stylesheets import (
     SPLASH_LOG_AREA_STYLESHEET,
     SPLASH_SCREEN_STYLESHEET,
@@ -57,19 +58,19 @@ class SplashScreen(QWidget):
 
         title_label = QLabel(TITLE)
         title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        title_label.setFont(QFont('Segoe UI', scale_by_ui(42), QFont.Weight.Bold))
+        title_label.setFont(get_ui_font(scale_by_ui(42), QFont.Weight.Bold))
         title_label.setStyleSheet(SPLASH_TITLE_LABEL_STYLESHEET)
         layout.addWidget(title_label)
 
         self._subtitle = QLabel('Initializing sniffing engine…')
         self._subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._subtitle.setFont(QFont('Segoe UI', scale_by_ui(18)))
+        self._subtitle.setFont(get_ui_font(scale_by_ui(18)))
         self._subtitle.setStyleSheet(SPLASH_SUBTITLE_LABEL_STYLESHEET)
         layout.addWidget(self._subtitle)
 
         self._log_area = QTextEdit()
         self._log_area.setReadOnly(True)
-        self._log_area.setFont(QFont('Consolas', scale_by_ui(10)))
+        self._log_area.setFont(get_monospace_font(scale_by_ui(10)))
         self._log_area.setStyleSheet(SPLASH_LOG_AREA_STYLESHEET)
         layout.addWidget(self._log_area)
 

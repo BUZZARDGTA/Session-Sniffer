@@ -35,6 +35,7 @@ from session_sniffer.constants.tables import (
 from session_sniffer.error_messages import ensure_instance, format_type_error
 from session_sniffer.guis.app import app
 from session_sniffer.guis.delegates import ElidedTextTooltipDelegate
+from session_sniffer.guis.fonts import get_ui_font
 from session_sniffer.guis.table_model import SessionTableModel
 from session_sniffer.guis.tables_context_menu_mixin import TableContextMenuMixin
 from session_sniffer.guis.tables_header_menu_mixin import TableHeaderMenuMixin
@@ -294,8 +295,8 @@ class SessionTableView(TableHeaderMenuMixin, TableContextMenuMixin, QTableView):
             icon_spacing = scale_by_ui(14)
             title_spacing = scale_by_ui(6)
 
-            title_font = QFont('Segoe UI', scale_by_ui(11), QFont.Weight.DemiBold)
-            subtitle_font = QFont('Segoe UI', scale_by_ui(9))
+            title_font = get_ui_font(scale_by_ui(11), QFont.Weight.DemiBold)
+            subtitle_font = get_ui_font(scale_by_ui(9))
 
             title_fm = QFontMetrics(title_font)
             subtitle_fm = QFontMetrics(subtitle_font)

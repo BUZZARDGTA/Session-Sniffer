@@ -295,9 +295,9 @@ UPDATE_DOWNLOAD_VERSION_CARD_VALUE_MUTED_STYLESHEET = 'color: #c4ced9;background
 
 UPDATE_DOWNLOAD_VERSION_CARD_VALUE_ACCENT_STYLESHEET = 'color: #f0f4fa;background: transparent;font-size: 17px;font-weight: 700;'
 
-UPDATE_DOWNLOAD_VERSION_CARD_DATE_STYLESHEET = 'color: #6f7e91;background: transparent;font-family: Consolas, "Courier New", monospace;'
+UPDATE_DOWNLOAD_VERSION_CARD_DATE_STYLESHEET = 'color: #6f7e91;background: transparent;font-family: Menlo, Consolas, "Courier New", monospace;'
 
-UPDATE_DOWNLOAD_VERSION_CARD_SHA_STYLESHEET = 'color: #6f7e91;background: transparent;font-family: Consolas, "Courier New", monospace;font-size: 11.5px;'
+UPDATE_DOWNLOAD_VERSION_CARD_SHA_STYLESHEET = 'color: #6f7e91;background: transparent;font-family: Menlo, Consolas, "Courier New", monospace;font-size: 11.5px;'
 
 UPDATE_DOWNLOAD_VERSION_ARROW_STYLESHEET = 'color: #4aa3ee;background: transparent;font-weight: 800;'
 
@@ -305,7 +305,7 @@ UPDATE_DOWNLOAD_STATUS_LABEL_STYLESHEET = 'color: #a0b0c4;background: transparen
 
 UPDATE_DOWNLOAD_SIZE_PILL_STYLESHEET = 'QFrame#updateDownloadSizePill {  background: rgba(20, 28, 40, 0.65);  border: 1px solid #2f3e52;  border-radius: 12px;}'
 
-UPDATE_DOWNLOAD_SIZE_LABEL_STYLESHEET = 'color: #c8d4e4;background: transparent;font-family: Consolas, "Courier New", monospace;font-weight: 600;'
+UPDATE_DOWNLOAD_SIZE_LABEL_STYLESHEET = 'color: #c8d4e4;background: transparent;font-family: Menlo, Consolas, "Courier New", monospace;font-weight: 600;'
 
 UPDATE_DOWNLOAD_PROGRESS_BAR_STYLESHEET = (
     'QProgressBar {'
@@ -439,7 +439,7 @@ LOOKY_CRAWLER_LOG_STYLESHEET = (
     '    color: #c4b5fd;'
     '    border: 1px solid #2d1b6e;'
     '    border-radius: 6px;'
-    '    font-family: Consolas, "Courier New", monospace;'
+    '    font-family: Menlo, Consolas, "Courier New", monospace;'
     '    font-size: 10pt;'
     '    padding: 6px;'
     '    selection-background-color: #4c1d95;'
@@ -506,7 +506,7 @@ LOOKY_LIST_WIDGET_STYLESHEET = (
     '    border: 1px solid #2d1b6e;'
     '    border-radius: 6px;'
     '    padding: 4px;'
-    '    font-family: Consolas, "Courier New", monospace;'
+    '    font-family: Menlo, Consolas, "Courier New", monospace;'
     '    font-size: 9pt;'
     '    outline: 0;'
     '}'
@@ -537,7 +537,7 @@ LOOKY_REVIEW_TABLE_STYLESHEET = (
     '    color: #d4c8f0;'
     '    border: 1px solid #2d1b6e;'
     '    border-radius: 8px;'
-    '    font-family: Consolas, "Courier New", monospace;'
+    '    font-family: Menlo, Consolas, "Courier New", monospace;'
     '    font-size: 9pt;'
     '    padding: 4px;'
     '    outline: 0;'

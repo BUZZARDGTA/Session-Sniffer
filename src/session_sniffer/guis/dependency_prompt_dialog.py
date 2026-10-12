@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
 
 from session_sniffer.guis._dialog_mixins import DraggableDialogMixin
 from session_sniffer.guis.app import app
+from session_sniffer.guis.fonts import get_monospace_font, get_ui_font
 from session_sniffer.guis.stylesheets import (
     DEPENDENCY_PROMPT_ACTION_BUTTON_STYLESHEET,
     DEPENDENCY_PROMPT_CLOSE_BUTTON_STYLESHEET,
@@ -150,12 +151,12 @@ class DependencyPromptDialog(DraggableDialogMixin, QDialog):
         title_column.setContentsMargins(0, 0, 0, 0)
 
         kicker_label = QLabel('NETWORK DRIVER')
-        kicker_label.setFont(QFont('Segoe UI', scale_by_ui(8), QFont.Weight.Bold))
+        kicker_label.setFont(get_ui_font(scale_by_ui(8), QFont.Weight.Bold))
         kicker_label.setStyleSheet(DEPENDENCY_PROMPT_KICKER_LABEL_STYLESHEET)
         title_column.addWidget(kicker_label)
 
         title_label = QLabel(title)
-        title_label.setFont(QFont('Segoe UI', scale_by_ui(13), QFont.Weight.Bold))
+        title_label.setFont(get_ui_font(scale_by_ui(13), QFont.Weight.Bold))
         title_label.setStyleSheet(DEPENDENCY_PROMPT_TITLE_LABEL_STYLESHEET)
         title_column.addWidget(title_label)
 
@@ -182,7 +183,7 @@ class DependencyPromptDialog(DraggableDialogMixin, QDialog):
 
         msg_label = QLabel(message)
         msg_label.setWordWrap(True)
-        msg_label.setFont(QFont('Segoe UI', scale_by_ui(9)))
+        msg_label.setFont(get_ui_font(scale_by_ui(9)))
         msg_label.setStyleSheet(DEPENDENCY_PROMPT_MESSAGE_LABEL_STYLESHEET)
         card_layout.addWidget(msg_label)
 
@@ -196,7 +197,7 @@ class DependencyPromptDialog(DraggableDialogMixin, QDialog):
 
         action_button = QPushButton(f'  {action_text}')
         action_button.setStyleSheet(DEPENDENCY_PROMPT_ACTION_BUTTON_STYLESHEET)
-        action_button.setFont(QFont('Segoe UI', scale_by_ui(9), QFont.Weight.Bold))
+        action_button.setFont(get_ui_font(scale_by_ui(9), QFont.Weight.Bold))
         action_button.setCursor(Qt.CursorShape.PointingHandCursor)
         action_icon = render_svg_pixmap_from_resource('globe.svg', scale_by_ui(16), scale_by_ui(16))
         action_button.setIcon(QIcon(action_icon))
@@ -217,7 +218,7 @@ class DependencyPromptDialog(DraggableDialogMixin, QDialog):
         layout.setSpacing(scale_by_ui(12))
 
         self._spinner_label = QLabel(SPINNER_FRAMES[0])
-        self._spinner_label.setFont(QFont('Consolas', scale_by_ui(13), QFont.Weight.Bold))
+        self._spinner_label.setFont(get_monospace_font(scale_by_ui(13), QFont.Weight.Bold))
         self._spinner_label.setStyleSheet(f'color: {_SPINNER_COLOR}; background: transparent;')
         self._spinner_label.setFixedWidth(scale_by_ui(22))
         self._spinner_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -233,19 +234,19 @@ class DependencyPromptDialog(DraggableDialogMixin, QDialog):
             initial_title, initial_subtitle = self._status_callback()
 
         self._status_title_label = QLabel(initial_title)
-        self._status_title_label.setFont(QFont('Segoe UI', scale_by_ui(9), QFont.Weight.Bold))
+        self._status_title_label.setFont(get_ui_font(scale_by_ui(9), QFont.Weight.Bold))
         self._status_title_label.setStyleSheet(DEPENDENCY_PROMPT_STATUS_TITLE_STYLESHEET)
         text_column.addWidget(self._status_title_label)
 
         self._status_subtitle_label = QLabel(initial_subtitle)
-        self._status_subtitle_label.setFont(QFont('Segoe UI', scale_by_ui(8)))
+        self._status_subtitle_label.setFont(get_ui_font(scale_by_ui(8)))
         self._status_subtitle_label.setStyleSheet(DEPENDENCY_PROMPT_STATUS_SUBTITLE_STYLESHEET)
         text_column.addWidget(self._status_subtitle_label)
 
         layout.addLayout(text_column, 1)
 
         badge_label = QLabel('AUTO-DETECT')
-        badge_label.setFont(QFont('Segoe UI', scale_by_ui(7), QFont.Weight.Bold))
+        badge_label.setFont(get_ui_font(scale_by_ui(7), QFont.Weight.Bold))
         badge_label.setStyleSheet(DEPENDENCY_PROMPT_STATUS_BADGE_STYLESHEET)
         badge_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(badge_label, 0, Qt.AlignmentFlag.AlignVCenter)
@@ -269,7 +270,7 @@ class DependencyPromptDialog(DraggableDialogMixin, QDialog):
         hint_layout.addWidget(info_label, 0, Qt.AlignmentFlag.AlignVCenter)
 
         hint_label = QLabel('Administrator permissions may be requested during setup')
-        hint_label.setFont(QFont('Segoe UI', scale_by_ui(8)))
+        hint_label.setFont(get_ui_font(scale_by_ui(8)))
         hint_label.setStyleSheet(DEPENDENCY_PROMPT_FOOTER_HINT_STYLESHEET)
         hint_layout.addWidget(hint_label, 0, Qt.AlignmentFlag.AlignVCenter)
 
@@ -278,7 +279,7 @@ class DependencyPromptDialog(DraggableDialogMixin, QDialog):
 
         exit_button = QPushButton('Exit Application')
         exit_button.setStyleSheet(DEPENDENCY_PROMPT_EXIT_BUTTON_STYLESHEET)
-        exit_button.setFont(QFont('Segoe UI', scale_by_ui(8), QFont.Weight.Bold))
+        exit_button.setFont(get_ui_font(scale_by_ui(8), QFont.Weight.Bold))
         exit_button.setCursor(Qt.CursorShape.PointingHandCursor)
         exit_button.setFixedHeight(scale_by_ui(28))
         exit_button.clicked.connect(self.reject)
