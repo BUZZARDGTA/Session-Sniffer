@@ -1,6 +1,5 @@
 """UserIP Databases Manager dialog for browsing, editing, and managing UserIP database files and entries."""
 
-import logging
 from datetime import UTC, datetime
 from ipaddress import IPv4Address
 from typing import TYPE_CHECKING, ClassVar, override
@@ -77,8 +76,6 @@ from session_sniffer.guis.utils import (
 )
 from session_sniffer.models import GUIState
 from session_sniffer.settings.settings import Settings
-
-logger = logging.getLogger(__name__)
 
 
 def _load_userip_manager_state() -> tuple[QByteArray | None, bool, QByteArray | None, dict[str, int] | None]:

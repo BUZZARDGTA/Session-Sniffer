@@ -44,14 +44,6 @@ class DebouncedFileWatcher(QObject):
         self._poll_timer.setInterval(poll_interval_ms)
         self._poll_timer.timeout.connect(self._check_polling)
 
-    def files(self) -> list[str]:
-        """Return the list of currently watched file paths."""
-        return sorted(self._files)
-
-    def directories(self) -> list[str]:
-        """Return the list of currently watched directory paths."""
-        return sorted(self._directories)
-
     def watch(self, *, files: Iterable[Path | str] = (), directories: Iterable[Path | str] = ()) -> None:
         """Replace the set of watched *files* and *directories* and arm the watcher."""
         self.stop()

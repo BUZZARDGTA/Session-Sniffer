@@ -9,7 +9,6 @@ if TYPE_CHECKING:
 
 _IPV4_OCTET_COUNT = 4
 _IPV4_MAX_OCTET = 255
-_IPV4_VERSION = 4
 
 
 @dataclass(frozen=True, slots=True)

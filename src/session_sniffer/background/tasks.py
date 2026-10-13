@@ -1,7 +1,6 @@
 """Background tasks for UserIP processing and detection notifications."""
 
 import csv
-import logging
 import time
 from concurrent.futures import Future, ThreadPoolExecutor
 from datetime import datetime, timedelta
@@ -42,8 +41,6 @@ from session_sniffer.utils import dedup_preserve_order
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
-
-logger = logging.getLogger(__name__)
 
 _GTA5_RELAY_RANGES = ThirdPartyServers.get_ip_obj_ranges_for(['TAKETWO_INTERACTIVE', 'MICROSOFT'])
 

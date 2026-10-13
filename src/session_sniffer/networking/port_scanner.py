@@ -1,7 +1,6 @@
 """High-performance multi-threaded TCP and UDP port scanner engine."""
 
 import enum
-import logging
 import re
 import socket
 import time
@@ -12,8 +11,6 @@ from typing import TYPE_CHECKING, ClassVar, Final
 
 if TYPE_CHECKING:
     from collections.abc import Generator
-
-logger = logging.getLogger(__name__)
 
 
 class _ActiveScanTracker:
