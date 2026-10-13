@@ -8,13 +8,10 @@ from collections import deque
 from dataclasses import dataclass
 from pathlib import Path
 from threading import Event, Lock, Thread
-from typing import TYPE_CHECKING, Literal
+from typing import Literal
 
 if sys.platform == 'win32':
     import winsound
-
-if TYPE_CHECKING:
-    from collections.abc import Callable
 
 from session_sniffer.background.events import gui_closed__event
 from session_sniffer.settings import Settings
@@ -81,20 +78,6 @@ class _DeduplicatedQueue:
             self._deque.clear()
             self._set.clear()
             self._not_empty.clear()
-
-    def remove_matching(self, predicate: Callable[[str], bool]) -> None:
-        """Remove all items for which *predicate(item)* is truthy."""
-        with self._lock:
-            kept: deque[str] = deque()
-            kept_set: set[str] = set()
-            for item in self._deque:
-                if not predicate(item):
-                    kept.append(item)
-                    kept_set.add(item)
-            self._deque = kept
-            self._set = kept_set
-            if not self._deque:
-                self._not_empty.clear()
 
 
 _voice_notification_queue = _DeduplicatedQueue(maxsize=_VOICE_QUEUE_MAXSIZE)
@@ -172,11 +155,6 @@ def queue_voice_notification(wav_path: Path | str) -> None:
 def clear_voice_notification_queue() -> None:
     """Drain all pending voice notifications from the queue."""
     _voice_notification_queue.clear()
-
-
-def clear_detection_voice_notifications() -> None:
-    """Remove only detection voice notifications from the queue, keeping userip ones."""
-    _voice_notification_queue.remove_matching(lambda path: 'detection' in Path(path).parts)
 
 
 def tts_voice_name(*, voice_setting: Literal['Male', 'Female'] | bool) -> Literal['Liam', 'Jane']:

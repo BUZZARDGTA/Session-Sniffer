@@ -15,7 +15,6 @@ from session_sniffer.guis.stylesheets._buttons import (
     GRAPH_PPS_POPOUT_BUTTON_STYLESHEET,
 )
 from session_sniffer.guis.stylesheets._combo_detections import (
-    BOLD_LABEL_STYLESHEET,
     COUNTRY_SELECTOR_COMBO_STYLESHEET,
     DESC_LABEL_STYLESHEET,
     DETECTIONS_MANAGER_HEADER_STYLESHEET,
@@ -23,15 +22,8 @@ from session_sniffer.guis.stylesheets._combo_detections import (
     HINT_LABEL_STYLESHEET,
     LIST_WIDGET_STYLE,
     RELAY_FILTER_WARNING_STYLESHEET,
-    SECTION_SEPARATOR_LABEL_STYLESHEET,
     WARNING_ICON_LABEL_STYLESHEET,
     WARNING_TEXT_LABEL_STYLESHEET,
-)
-from session_sniffer.guis.stylesheets._gta5 import (
-    CRAWLER_TARGET_INFO_LABEL_STYLESHEET,
-    GTA5_MANUAL_SUSPEND_ACTIVE_STYLESHEET,
-    GTA5_MANUAL_SUSPEND_IDLE_STYLESHEET,
-    GTA5_SOLO_SESSION_ACTIVE_STYLESHEET,
 )
 from session_sniffer.guis.stylesheets._host_diagnostics import (
     HOST_BADGE_DANGER_STYLESHEET,
@@ -68,7 +60,6 @@ from session_sniffer.guis.stylesheets._interface import (
     INTERFACE_TABLE_CONTAINER_STYLESHEET,
     format_interface_refresh_arp_progress_style,
     interface_checkbox_stylesheet,
-    interface_header_label_stylesheet,
     interface_instruction_label_stylesheet,
     interface_secondary_button_disabled_style,
     interface_secondary_button_enabled_style,
@@ -207,7 +198,6 @@ from session_sniffer.guis.stylesheets._userip import (
 )
 
 __all__ = [
-    'BOLD_LABEL_STYLESHEET',
     'CATEGORY_SUBMENU_CHECKBOX_STYLESHEET',
     'COLOR_BUTTON_EMPTY_STYLESHEET',
     'COLOR_SWATCH_GROUP_HEADER_STYLESHEET',
@@ -216,7 +206,6 @@ __all__ = [
     'COMPACT_DANGER_BUTTON_STYLESHEET',
     'CONNECTED_EXPAND_BUTTON_STYLESHEET',
     'COUNTRY_SELECTOR_COMBO_STYLESHEET',
-    'CRAWLER_TARGET_INFO_LABEL_STYLESHEET',
     'DEPENDENCY_PROMPT_ACTION_BUTTON_STYLESHEET',
     'DEPENDENCY_PROMPT_CLOSE_BUTTON_STYLESHEET',
     'DEPENDENCY_PROMPT_DIALOG_STYLESHEET',
@@ -247,9 +236,6 @@ __all__ = [
     'GRAPH_LATENCY_POPOUT_BUTTON_STYLESHEET',
     'GRAPH_PPS_POPOUT_BUTTON_STYLESHEET',
     'GROUPBOX_STYLE',
-    'GTA5_MANUAL_SUSPEND_ACTIVE_STYLESHEET',
-    'GTA5_MANUAL_SUSPEND_IDLE_STYLESHEET',
-    'GTA5_SOLO_SESSION_ACTIVE_STYLESHEET',
     'GTA5_STATUS_LABEL_STYLESHEET',
     'HEADER_SEARCH_BAR_STYLESHEET',
     'HEADER_SEARCH_COMBO_STYLESHEET',
@@ -321,7 +307,6 @@ __all__ = [
     'PROGRESS_BAR_IDLE_STYLESHEET',
     'RELAY_FILTER_WARNING_STYLESHEET',
     'SECTION_HEADER_SEPARATOR_STYLESHEET',
-    'SECTION_SEPARATOR_LABEL_STYLESHEET',
     'SETTINGS_RESTART_BANNER_STYLESHEET',
     'SETTINGS_SEPARATOR_STYLESHEET',
     'SPLASH_LOG_AREA_STYLESHEET',
@@ -372,7 +357,6 @@ __all__ = [
     'color_swatch_button_stylesheet',
     'format_interface_refresh_arp_progress_style',
     'interface_checkbox_stylesheet',
-    'interface_header_label_stylesheet',
     'interface_instruction_label_stylesheet',
     'interface_secondary_button_disabled_style',
     'interface_secondary_button_enabled_style',

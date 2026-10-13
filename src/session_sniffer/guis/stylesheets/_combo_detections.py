@@ -135,23 +135,9 @@ LIST_WIDGET_STYLE = """
     }
 """
 
-SECTION_SEPARATOR_LABEL_STYLESHEET = """
-    color: #88c0d0;
-    font-size: 9pt;
-    font-weight: bold;
-    padding: 6px 12px;
-    margin-top: 8px;
-    margin-bottom: 4px;
-    background-color: #161e26;
-    border: 1px solid #2a3f4a;
-    border-radius: 4px;
-"""
-
 DESC_LABEL_STYLESHEET = 'color: #a0b8c0; font-style: italic; font-size: 10pt; padding: 5px;'
 
 HINT_LABEL_STYLESHEET = 'color: #a0a0a0; font-style: italic; padding-bottom: 4px;'
-
-BOLD_LABEL_STYLESHEET = 'font-weight: bold;'
 
 RELAY_FILTER_WARNING_STYLESHEET = (
     'QWidget { background-color: #3a2400; border: 1px solid #c87800; border-radius: 6px; padding: 2px; }'

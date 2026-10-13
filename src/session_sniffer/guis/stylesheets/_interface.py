@@ -23,15 +23,6 @@ INTERFACE_BOTTOM_CONTAINER_STYLESHEET = (
 INTERFACE_BOTTOM_SEPARATOR_STYLESHEET = 'QFrame#bottomSeparator { background-color: #2f4356; max-height: 1px; border: none;}'
 
 
-def interface_header_label_stylesheet(ui_scale: float) -> str:
-    """Return the QSS for the interface selection dialog title label at the given UI `scale`."""
-
-    def scale(value: int) -> int:
-        return max(1, round(value * ui_scale))
-
-    return f'QLabel#dialogTitleLabel {{ color: #f4f7fb; font-size: {scale(17)}pt; font-weight: 700; padding-top: {scale(6)}px; padding-bottom: {scale(6)}px;}}'
-
-
 def interface_table_stylesheet(ui_scale: float) -> str:
     """Return the QSS for the interface selection table widget at the given UI `scale`."""
 

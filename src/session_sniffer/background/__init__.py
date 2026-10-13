@@ -10,10 +10,7 @@ from session_sniffer.background.cores import (
     pinger_core,
     trigger_looky_rescan_all_players,
     wake_all_player_cores,
-    wake_hostname_core,
-    wake_iplookup_core,
     wake_looky_core,
-    wake_pinger_core,
 )
 from session_sniffer.background.events import gui_closed__event
 from session_sniffer.background.tasks import (
@@ -30,7 +27,6 @@ from session_sniffer.background.tasks import (
     wait_for_player_data_ready,
 )
 from session_sniffer.background.voice_notifications import (
-    clear_detection_voice_notifications,
     clear_voice_notification_queue,
     ensure_voice_notification_worker_running,
     queue_voice_notification,
@@ -40,7 +36,6 @@ from session_sniffer.background.voice_notifications import (
 __all__ = [
     'NotificationConfig',
     'check_global_detections',
-    'clear_detection_voice_notifications',
     'clear_resolution_queues',
     'clear_voice_notification_queue',
     'enqueue_player_for_resolution',
@@ -64,8 +59,5 @@ __all__ = [
     'tts_voice_name',
     'wait_for_player_data_ready',
     'wake_all_player_cores',
-    'wake_hostname_core',
-    'wake_iplookup_core',
     'wake_looky_core',
-    'wake_pinger_core',
 ]

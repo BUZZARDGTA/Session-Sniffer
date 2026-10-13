@@ -204,30 +204,6 @@ def _wait_iplookup_event(timeout: float, *, ignore_wake: bool = False) -> bool:
     return False
 
 
-def wake_iplookup_core() -> None:
-    """Signal the IP-API background core loop to immediately check for pending player lookups."""
-    _iplookup_wakeup_event.set()
-    for player in chain(PlayersRegistry.get_connected_players(), PlayersRegistry.get_disconnected_players()):
-        if not player.iplookup.ipapi.is_initialized and _iplookup_queue.put(player.ip):
-            _iplookup_wakeup_event.set()
-
-
-def wake_hostname_core() -> None:
-    """Signal the reverse DNS background core to immediately check for pending hostnames."""
-    _hostname_wakeup_event.set()
-    for player in chain(PlayersRegistry.get_connected_players(), PlayersRegistry.get_disconnected_players()):
-        if not player.reverse_dns.is_initialized and _hostname_queue.put(player.ip):
-            _hostname_wakeup_event.set()
-
-
-def wake_pinger_core() -> None:
-    """Signal the pinger background core to immediately check for pending player pings."""
-    _pinger_wakeup_event.set()
-    for player in PlayersRegistry.get_connected_players():
-        if not player.ping.is_initialized and not player.left_event.is_set() and _pinger_queue.put(player.ip):
-            _pinger_wakeup_event.set()
-
-
 def wake_looky_core() -> None:
     """Signal the Looky System background core to immediately check for pending player lookups."""
     _looky_wakeup_event.set()
