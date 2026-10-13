@@ -654,7 +654,6 @@ class PlayerJoin:
 
     Attributes:
         join_index: The 1-based sequential index of this join (1 for initial, 2+ for rejoins).
-        rejoin_number: Number of prior rejoins (0 for initial join, 1 for first rejoin, etc.).
         joined_at: Timestamp when this join session started.
         last_seen: Timestamp when the player was last seen during this join session.
         ports: Observed ports for this join session only.
@@ -665,7 +664,6 @@ class PlayerJoin:
     """
 
     join_index: int
-    rejoin_number: int
     joined_at: datetime_type
     last_seen: datetime_type
     ports: PlayerPorts

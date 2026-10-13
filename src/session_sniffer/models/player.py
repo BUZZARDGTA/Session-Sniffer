@@ -127,7 +127,6 @@ class Player:
 
         initial_join = PlayerJoin(
             join_index=1,
-            rejoin_number=0,
             joined_at=packet.datetime,
             last_seen=packet.datetime,
             ports=PlayerPorts.from_packet_port(packet.port),
@@ -203,7 +202,6 @@ class Player:
 
         new_join = PlayerJoin(
             join_index=len(self.joins) + 1,
-            rejoin_number=self.rejoins,
             joined_at=packet_datetime,
             last_seen=packet_datetime,
             ports=PlayerPorts.from_packet_port(port),

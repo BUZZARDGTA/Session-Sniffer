@@ -1,15 +1,5 @@
 """Constants for GUI tables, including column definitions, per-table widths, and auto-sizing constraints."""
 
-# Shared bandwidth column → attribute-path mapping used in the table_model sort map.
-BANDWIDTH_BASE_COLUMN_ATTRS: dict[str, str] = {
-    'T. Bandwidth': 'bandwidth.total_exchanged',
-    'Bandwidth': 'bandwidth.exchanged',
-    'T. Download': 'bandwidth.total_download',
-    'Download': 'bandwidth.download',
-    'T. Upload': 'bandwidth.total_upload',
-    'Upload': 'bandwidth.upload',
-}
-
 # Shared packet stat column names, used in Settings column lists and the search filter.
 PACKET_STAT_COLUMNS: tuple[str, ...] = (
     'T. Packets',
@@ -26,8 +16,15 @@ PACKET_STAT_COLUMNS: tuple[str, ...] = (
     'Max Packet Length',
 )
 
-# Bandwidth column names derived from the attribute map above.
-BANDWIDTH_STAT_COLUMNS: tuple[str, ...] = tuple(BANDWIDTH_BASE_COLUMN_ATTRS)
+# Shared bandwidth column names, used in Settings column lists and the search filter.
+BANDWIDTH_STAT_COLUMNS: tuple[str, ...] = (
+    'T. Bandwidth',
+    'Bandwidth',
+    'T. Download',
+    'Download',
+    'T. Upload',
+    'Upload',
+)
 
 # Connected-table rate stat block: packets + PPS/PPM + bandwidth + BPS/BPM.
 CONNECTED_RATE_STAT_COLUMNS: tuple[str, ...] = (*PACKET_STAT_COLUMNS, 'PPS', 'PPM', *BANDWIDTH_STAT_COLUMNS, 'BPS', 'BPM')
