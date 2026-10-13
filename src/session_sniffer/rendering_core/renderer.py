@@ -10,7 +10,7 @@ from threading import Thread
 from typing import TYPE_CHECKING
 
 from session_sniffer.background.events import gui_closed__event
-from session_sniffer.background.tasks import handle_detection_notification, process_userip_task
+from session_sniffer.background.tasks import handle_detection_notification, process_userip_task, trigger_auto_username_userip
 from session_sniffer.constants.local import SESSIONS_LOGGING_DIR_PATH
 from session_sniffer.constants.standard import LOCAL_TZ
 from session_sniffer.core import ScriptControl
@@ -404,6 +404,7 @@ def rendering_core(
                 looky_usernames = list(player.looky_system.usernames)
                 looky_initialized = player.looky_system.is_initialized
                 looky_needs_refresh = player.looky_system.needs_refresh
+                looky_userip_checked = player.looky_system.as_userip_checked
 
             if Settings.looky_enabled and Settings.is_gta5_feature_set():
                 looky_complete = looky_initialized and not looky_needs_refresh and all(name in player.usernames for name in looky_usernames)
@@ -434,17 +435,25 @@ def rendering_core(
 
             modmenu_usernames_for_player = all_modmenu_usernames.get(player.ip)
             if modmenu_usernames_for_player is not None and modmenu_usernames_for_player:
+                modmenu_changed = player.mod_menus is None or player.mod_menus.usernames != modmenu_usernames_for_player
                 if player.mod_menus is None:
                     player.mod_menus = PlayerModMenus(
                         usernames=modmenu_usernames_for_player,
                     )
                 else:
                     player.mod_menus.usernames[:] = modmenu_usernames_for_player
+                if modmenu_changed:
+                    trigger_auto_username_userip(player, modmenu_usernames_for_player)
             else:
                 player.mod_menus = None
 
             ps3_username = player.ps3_username
             include_looky = Settings.looky_enabled and Settings.is_gta5_feature_set() and looky_initialized
+            if include_looky and looky_usernames and not looky_userip_checked:
+                with player.looky_system.lock:
+                    player.looky_system.as_userip_checked = True
+                trigger_auto_username_userip(player, looky_usernames)
+
             has_usernames = bool(
                 ps3_username
                 or (player.userip is not None and player.userip.usernames)

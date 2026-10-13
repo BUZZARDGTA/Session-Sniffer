@@ -54,6 +54,7 @@ from session_sniffer.player.registry import PlayersRegistry, SessionTracker
 from session_sniffer.player.session_host import SessionHost
 from session_sniffer.player.userip import UserIPDatabases
 from session_sniffer.rdr2.suspend_manager import RDR2SuspendManager
+from session_sniffer.rendering_core.events import wake_rendering_core
 from session_sniffer.rendering_core.status_bar_renderer import build_gui_status_text, reset_status_bar_latency
 from session_sniffer.rendering_core.types import (
     CaptureStats,
@@ -717,6 +718,8 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
             UserIPDatabases.build()
             self._connected.table_view.viewport().update()
             self._disconnected.table_view.viewport().update()
+        if changed is None or 'USERIP_AUTO_FEED_FROM_USERNAMES' in changed:
+            wake_rendering_core()
 
     def _open_settings_dialog(self) -> None:
         """Open the Settings window, or focus the existing one."""

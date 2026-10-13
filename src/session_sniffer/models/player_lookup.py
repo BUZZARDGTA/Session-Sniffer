@@ -159,7 +159,7 @@ class PlayerUserIPDetection:
     date_time: str
 
     as_processed_task: bool = True
-    type: Literal['Static IP'] = 'Static IP'
+    type: Literal['Static IP', 'Username'] = 'Static IP'
 
 
 def _empty_usernames() -> list[str]:
@@ -180,6 +180,7 @@ class PlayerLooky:
 
     is_initialized: bool = False
     needs_refresh: bool = False
+    as_userip_checked: bool = False
     last_fetched_at: float = 0.0
     usernames: list[str] = dataclasses.field(default_factory=list[str])
     rockstarids: list[int] = dataclasses.field(default_factory=list[int])

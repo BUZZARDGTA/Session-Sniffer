@@ -127,6 +127,13 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         setting_type=SettingType.BOOLEAN,
         tooltip='When adding or resolving usernames for an IP, automatically include known alt accounts linked to those usernames across UserIP databases.',
     ),
+    'userip_auto_feed_from_usernames': SettingMeta(
+        category='General',
+        group='UserIP Databases',
+        display_label='Auto-Feed from Usernames',
+        setting_type=SettingType.BOOLEAN,
+        tooltip='Automatically resolve and append player IPs to matching UserIP databases when detected from mod menu logs or Looky System on PC.',
+    ),
     'capture_interface_name': SettingMeta(
         category='Capture',
         group='Interface',

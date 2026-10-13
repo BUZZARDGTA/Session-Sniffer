@@ -178,6 +178,7 @@ class SettingsIniModel(BaseModel):
     USERIP_BACKUP_FREQUENCY: str
     USERIP_BACKUP_RETENTION_LIMIT: int
     USERIP_SYNC_KNOWN_ALTS: bool
+    USERIP_AUTO_FEED_FROM_USERNAMES: bool
     LOOKY_ENABLED: bool
     LOOKY_EXCLUSIVE_GTA5_PROCESS: bool
     LOOKY_GAME_VERSION: str
@@ -247,6 +248,7 @@ class SettingsIniModel(BaseModel):
             'HIGH_RATE_MONITOR_AUTO_SELECT',
             'PLAYER_IDENTIFIER_ICON',
             'USERIP_SYNC_KNOWN_ALTS',
+            'USERIP_AUTO_FEED_FROM_USERNAMES',
         },
     )
 

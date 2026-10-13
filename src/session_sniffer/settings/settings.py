@@ -126,6 +126,7 @@ class Settings:
     userip_backup_frequency: str = SETTING_DEFAULTS['userip_backup_frequency']
     userip_backup_retention_limit: int = SETTING_DEFAULTS['userip_backup_retention_limit']
     userip_sync_known_alts: bool = SETTING_DEFAULTS['userip_sync_known_alts']
+    userip_auto_feed_from_usernames: bool = SETTING_DEFAULTS['userip_auto_feed_from_usernames']
     looky_enabled: bool = SETTING_DEFAULTS['looky_enabled']
     looky_exclusive_gta5_process: bool = SETTING_DEFAULTS['looky_exclusive_gta5_process']
     looky_game_version: str = SETTING_DEFAULTS['looky_game_version']
@@ -226,6 +227,7 @@ class Settings:
         'USERIP_BACKUP_FREQUENCY',
         'USERIP_BACKUP_RETENTION_LIMIT',
         'USERIP_SYNC_KNOWN_ALTS',
+        'USERIP_AUTO_FEED_FROM_USERNAMES',
         'LOOKY_ENABLED',
         'LOOKY_EXCLUSIVE_GTA5_PROCESS',
         'LOOKY_GAME_VERSION',

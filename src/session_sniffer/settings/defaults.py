@@ -96,6 +96,7 @@ class SettingDefaults(TypedDict):
     userip_backup_frequency: str
     userip_backup_retention_limit: int
     userip_sync_known_alts: bool
+    userip_auto_feed_from_usernames: bool
     looky_enabled: bool
     looky_exclusive_gta5_process: bool
     looky_game_version: str
@@ -247,6 +248,7 @@ SETTING_DEFAULTS: SettingDefaults = {
     'userip_backup_frequency': 'Daily',
     'userip_backup_retention_limit': 10,
     'userip_sync_known_alts': True,
+    'userip_auto_feed_from_usernames': True,
     'looky_enabled': True,
     'looky_exclusive_gta5_process': True,
     'looky_game_version': 'Both',

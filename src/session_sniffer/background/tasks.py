@@ -1,3 +1,4 @@
+# pylint: disable=too-many-lines
 """Background tasks for UserIP processing and detection notifications."""
 
 import csv
@@ -41,13 +42,15 @@ from session_sniffer.networking.third_party_servers import ThirdPartyServers, is
 from session_sniffer.player.combo_rules import ComboRulesManager
 from session_sniffer.player.detections import GUIDetectionSettings
 from session_sniffer.player.registry import PlayersRegistry
-from session_sniffer.player.userip import UserIP, gui_dispatcher
+from session_sniffer.player.userip import UserIP, UserIPDatabases, gui_dispatcher
+from session_sniffer.player.userip_loader import append_userip_entry_if_missing, update_userip_databases
+from session_sniffer.rendering_core.events import wake_rendering_core
 from session_sniffer.rendering_core.types import CaptureState, CaptureStats
 from session_sniffer.settings import Settings
 from session_sniffer.utils import dedup_preserve_order
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Sequence
 
 logger = logging.getLogger(__name__)
 
@@ -597,6 +600,57 @@ def process_userip_task(
     finally:
         with _active_userip_tasks_lock:
             _active_userip_tasks.discard(task_key)
+
+
+def trigger_auto_username_userip(player: Player, detected_usernames: Sequence[str]) -> bool:
+    """Auto-detect player UserIP from username and auto-feed matching database.
+
+    Exclusively active on PC (GTA V feature set and local capture).
+
+    Returns:
+        True if a matching UserIP database entry was detected and processed; False otherwise.
+    """
+    if not (Settings.userip_auto_feed_from_usernames and Settings.is_gta5_feature_set() and CaptureState.is_local_capture()):
+        return False
+
+    if not detected_usernames:
+        return False
+
+    matched = UserIPDatabases.resolve_userip_by_usernames(detected_usernames, player.ip)
+    if matched is None:
+        return False
+
+    resolved_userip, matched_username = matched
+
+    # Auto-feed the database if entry is not present
+    appended = append_userip_entry_if_missing(resolved_userip.db_path, matched_username, player.ip)
+    if appended:
+        update_userip_databases()
+
+    # Immediate detection if not already processed
+    should_trigger_detection = player.userip_detection is None or not player.userip_detection.as_processed_task
+    if should_trigger_detection:
+        now = datetime.now(tz=LOCAL_TZ)
+        if player.userip is None:
+            player.userip = resolved_userip
+        if resolved_userip.usernames:
+            player.usernames = dedup_preserve_order(player.usernames, resolved_userip.usernames)
+        player.userip_detection = PlayerUserIPDetection(
+            time=now.strftime('%H:%M:%S'),
+            date_time=now.strftime('%Y-%m-%d_%H:%M:%S'),
+            type='Username',
+        )
+        Thread(
+            target=process_userip_task,
+            name=f'ProcessUserIPTask-{player.ip}-connected',
+            args=(player, player.userip, 'connected'),
+            daemon=True,
+        ).start()
+    elif resolved_userip.usernames:
+        player.usernames = dedup_preserve_order(player.usernames, resolved_userip.usernames)
+
+    wake_rendering_core()
+    return True
 
 
 _GTA5_RELAY_PPS_NONZERO_STREAK_SECONDS = 5.0

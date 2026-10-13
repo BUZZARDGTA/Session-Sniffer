@@ -38,6 +38,7 @@ from session_sniffer.networking.looky_system import (
     get_looky_user_url,
     lookup_ip,
 )
+from session_sniffer.rendering_core.events import wake_rendering_core
 from session_sniffer.settings.settings import Settings
 from session_sniffer.text_utils import pluralize
 from session_sniffer.utils import dedup_preserve_order
@@ -224,8 +225,10 @@ def show_looky_lookup(parent: QWidget, player: Player | StandaloneIPLookup) -> N
             player.looky_system.needs_refresh = False
             player.looky_system.last_fetched_at = time.monotonic()
             player.looky_system.is_initialized = True
+            player.looky_system.as_userip_checked = False
         if player.looky_system.usernames:
             player.usernames = dedup_preserve_order(player.usernames, player.looky_system.usernames)
+            wake_rendering_core()
 
         if not isValid(parent):
             return

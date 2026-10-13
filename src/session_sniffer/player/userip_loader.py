@@ -8,13 +8,13 @@ from typing import TYPE_CHECKING
 from session_sniffer.constants.local import USERIP_DATABASES_DIR_PATH
 from session_sniffer.constants.standalone import GITHUB_WIKI_USERIP_CONFIG_URL, TITLE
 from session_sniffer.player.userip import UserIPDatabases
-from session_sniffer.rendering_core.userip_ini_parser import parse_userip_ini_file
+from session_sniffer.rendering_core.userip_ini_parser import RE_USERIP_INI_PARSER_PATTERN, parse_userip_ini_file
 from session_sniffer.text_templates import (
     DEFAULT_USERIP_FILES_SETTINGS_INI,
     USERIP_DEFAULT_DB_FOOTER_TEMPLATE,
     USERIP_DEFAULT_DB_HEADER_TEMPLATE,
 )
-from session_sniffer.text_utils import format_triple_quoted_text
+from session_sniffer.text_utils import format_triple_quoted_text, split_usernames
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -103,3 +103,54 @@ def update_userip_databases() -> tuple[float, bool]:
         _last_known_userip_db_mod_times.update(_snapshot_userip_database_mod_times())
 
         return time.monotonic(), True
+
+
+_userip_file_append_lock: Lock = Lock()
+
+
+def append_userip_entry_if_missing(db_path: Path, username: str, ip: str) -> bool:
+    """Append a `{username}={ip}` entry to the UserIP database file if not already present.
+
+    Ensures CRLF line endings and proper section placement.
+
+    Returns:
+        True if the entry was added; False if already present or invalid.
+    """
+    cleaned_username = username.strip()
+    cleaned_ip = ip.strip()
+    if not cleaned_username or not cleaned_ip or not db_path.is_file():
+        return False
+
+    with _userip_file_append_lock:
+        content = db_path.read_text(encoding='utf-8', newline='')
+
+        for line in content.splitlines():
+            match = RE_USERIP_INI_PARSER_PATTERN.search(line.strip())
+            if match:
+                entry_usernames = split_usernames(match.group('username'))
+                entry_ip = match.group('ip').strip()
+                if any(u.casefold() == cleaned_username.casefold() for u in entry_usernames) and entry_ip == cleaned_ip:
+                    return False
+
+        lines = content.splitlines()
+        userip_section_index = -1
+        next_section_index = -1
+        for i, line in enumerate(lines):
+            stripped_line = line.strip()
+            if stripped_line.casefold() == '[userip]':
+                userip_section_index = i
+            elif userip_section_index != -1 and stripped_line.startswith('[') and stripped_line.endswith(']'):
+                next_section_index = i
+                break
+
+        new_entry = f'{cleaned_username}={cleaned_ip}'
+        if userip_section_index == -1:
+            lines.extend(['', '[UserIP]', new_entry])
+        elif next_section_index != -1:
+            lines.insert(next_section_index, new_entry)
+        else:
+            lines.append(new_entry)
+
+        new_content = '\r\n'.join(lines).strip('\r\n') + '\r\n'
+        db_path.write_text(new_content, encoding='utf-8', newline='')
+        return True

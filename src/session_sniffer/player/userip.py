@@ -124,6 +124,7 @@ class UserIPDatabases:
     _range_entries: ClassVar[list[_RangeEntry]] = []
     _known_alts_clusters: ClassVar[dict[str, list[str]]] = {}
     _known_usernames: ClassVar[set[str]] = set()
+    _username_to_meta: ClassVar[dict[str, tuple[Path, UserIPSettings, str]]] = {}
     notified_ip_conflicts: ClassVar[set[str]] = set()
     _open_conflict_dialog: ClassVar[QMessageBox | None] = None
     build_version: ClassVar[int] = 0
@@ -413,6 +414,25 @@ class UserIPDatabases:
             if player.userip is None:
                 player.userip_detection = None
 
+        username_to_meta: dict[str, tuple[Path, UserIPSettings, str]] = {}
+        for db_entry in current_databases:
+            for username in (*db_entry.single_ips.keys(), *db_entry.range_ips.keys()):
+                stripped = username.strip()
+                if not stripped:
+                    continue
+                cf = stripped.casefold()
+                canonical = canonical_names.get(cf, stripped)
+                if cf not in username_to_meta:
+                    username_to_meta[cf] = (db_entry.db_path, db_entry.settings, canonical)
+
+        for cf, cluster in known_alts_clusters.items():
+            if cf in username_to_meta:
+                meta = username_to_meta[cf]
+                for alt_name in cluster:
+                    alt_cf = alt_name.casefold()
+                    if alt_cf not in username_to_meta:
+                        username_to_meta[alt_cf] = (meta[0], meta[1], alt_name)
+
         has_new_conflicts = bool(unresolved_conflicts - cls.notified_ip_conflicts)
         conflicts_changed = unresolved_conflicts != cls.notified_ip_conflicts
         newly_detected_ips = unresolved_conflicts - cls.notified_ip_conflicts
@@ -429,7 +449,8 @@ class UserIPDatabases:
             cls.ips_set = ips_set
             cls._ip_to_userip = ip_to_userip
             cls._range_entries = range_entries
-            cls._known_usernames = set(canonical_names.keys())
+            cls._username_to_meta = username_to_meta
+            cls._known_usernames = set(canonical_names.keys()) | set(username_to_meta.keys())
             cls.build_version += 1
 
         if unresolved_conflicts and (has_new_conflicts or (conflicts_changed and cls._open_conflict_dialog is not None)):
@@ -464,6 +485,55 @@ class UserIPDatabases:
     def resolve_userip(cls, ip: str) -> UserIP | None:
         """Look up a single IP against the already-built structures without triggering a rebuild."""
         return cls._resolve_from_built_structures(ip, cls._ip_to_userip, cls._range_entries)
+
+    @classmethod
+    def resolve_userip_by_username(cls, username: str, player_ip: str) -> tuple[UserIP, str] | None:
+        """Resolve a UserIP snapshot and canonical username for a single candidate username.
+
+        Args:
+            username: The candidate username to look up.
+            player_ip: The IP address of the player being checked.
+
+        Returns:
+            A tuple of (UserIP, canonical_username) or None if no match is found.
+        """
+        stripped = username.strip()
+        if not stripped:
+            return None
+        cf = stripped.casefold()
+        with cls._update_userip_database_lock:
+            meta = cls._username_to_meta.get(cf)
+            if meta is None:
+                return None
+            db_path, settings, canonical_name = meta
+            clusters = cls._known_alts_clusters
+
+        usernames = (
+            cls._expand_usernames_with_cluster_dict([canonical_name], clusters)
+            if Settings.userip_sync_known_alts
+            else [canonical_name]
+        )
+        return (
+            UserIP(
+                ip=player_ip,
+                db_path=db_path,
+                settings=settings,
+                usernames=usernames,
+            ),
+            canonical_name,
+        )
+
+    @classmethod
+    def resolve_userip_by_usernames(cls, usernames: Sequence[str], player_ip: str) -> tuple[UserIP, str] | None:
+        """Resolve a UserIP snapshot and matched username from a sequence of candidate usernames.
+
+        Returns the first matching database resolution, or None if none match.
+        """
+        for username in usernames:
+            resolved = cls.resolve_userip_by_username(username, player_ip)
+            if resolved is not None:
+                return resolved
+        return None
 
     @classmethod
     def get_matching_range_raws(cls, ip: str) -> list[str]:

@@ -796,6 +796,7 @@ def looky_core() -> None:
                             matched_player.looky_system.needs_refresh = False
                             matched_player.looky_system.last_fetched_at = time.monotonic()
                             matched_player.looky_system.is_initialized = True
+                            matched_player.looky_system.as_userip_checked = False
                             looky_usernames = list(matched_player.looky_system.usernames)
 
                         ps3_username = matched_player.ps3_username
