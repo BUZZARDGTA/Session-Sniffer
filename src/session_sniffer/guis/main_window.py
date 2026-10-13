@@ -470,7 +470,7 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
 
     def show_discord_intro(self) -> None:
         """Open the Discord intro dialog, retaining a reference to prevent garbage collection."""
-        show_or_focus_window(self, '_discord_intro_window', DiscordIntro)
+        show_or_focus_window(self, '_discord_intro_window', lambda: DiscordIntro(self))
 
     @override
     def eventFilter(self, a0: QObject, a1: QEvent) -> bool:

@@ -57,7 +57,7 @@ class DiscordIntro(QDialog):
         # has no Qt parent, and that owner relationship leaves the main window's native close (X)
         # button rendered as disabled while this popup is alive. FramelessWindowHint | Dialog gives
         # the same borderless custom-chrome look without the owner-window side effect.
-        self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Dialog)  # | Qt.WindowType.WindowStaysOnTopHint
+        self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Dialog)
 
         if sys.platform == 'win32':
             self.setWindowOpacity(0)
