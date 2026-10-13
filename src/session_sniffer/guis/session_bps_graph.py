@@ -13,7 +13,6 @@ class SessionBpsGraphWindow(SingleRateGraphBase):
 
     WINDOW_TITLE = 'Session BPS Graph'
     LEFT_LABEL = 'KB/s'
-    AXIS_PEN = '#00bcd4'
     CURVE_PEN = '#00bcd4'
     CURVE_BRUSH = (0, 188, 212, 60)
     AVG_PEN = '#0097a7'

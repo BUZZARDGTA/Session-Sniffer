@@ -10,7 +10,6 @@ class PacketsLatencyGraphWindow(SingleRateGraphBase):
 
     WINDOW_TITLE = 'Packets Latency Graph'
     LEFT_LABEL = 'Latency (ms/s)'
-    AXIS_PEN = '#ff9800'
     CURVE_PEN = '#ff9800'
     CURVE_BRUSH = (255, 152, 0, 60)
     AVG_PEN = '#e65100'

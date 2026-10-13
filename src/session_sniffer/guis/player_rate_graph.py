@@ -28,7 +28,6 @@ class SingleRateGraphBase(RateGraphWindowMixin):
 
     WINDOW_TITLE: str
     LEFT_LABEL: str
-    AXIS_PEN: str
     CURVE_PEN: str
     CURVE_BRUSH: tuple[int, int, int, int]
     AVG_PEN: str

@@ -10,7 +10,6 @@ class SessionPpsGraphWindow(SingleRateGraphBase):
 
     WINDOW_TITLE = 'Session PPS Graph'
     LEFT_LABEL = 'PPS'
-    AXIS_PEN = 'lime'
     CURVE_PEN = 'lime'
     CURVE_BRUSH = (0, 255, 0, 60)
     AVG_PEN = '#388e3c'

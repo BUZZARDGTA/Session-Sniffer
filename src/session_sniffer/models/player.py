@@ -78,8 +78,6 @@ class Player:
         'reverse_dns',
         'session_id',
         'userip',
-        'userip_check_positive',
-        'userip_check_version',
         'userip_detection',
         'usernames',
     )
@@ -105,8 +103,6 @@ class Player:
     reverse_dns: PlayerReverseDNS
     session_id: int
     userip: UserIP | None
-    userip_check_positive: bool
-    userip_check_version: int
     userip_detection: PlayerUserIPDetection | None
     usernames: list[str]
 
@@ -125,8 +121,6 @@ class Player:
         self.detection_checked = False
         self.relay_monitor_started = False
         self.usernames = []
-        self.userip_check_version = -1
-        self.userip_check_positive = False
         self.is_gta5_process = False
         self.is_rdr2_process = False
         self.is_third_party_server = is_third_party_server_ip(ip)

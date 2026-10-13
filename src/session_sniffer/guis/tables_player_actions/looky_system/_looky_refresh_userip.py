@@ -237,7 +237,6 @@ class LookyRefreshReviewDialog(PlayerInfoDialogMixin):
         self._apply_standard_dialog_size()
         self.resize(max(self.width(), 760), max(self.height(), 580))
 
-        self._ip_groups = ip_groups
         self._accepted_entries: list[_PendingEntry] | None = None
 
         outer_layout = QVBoxLayout(self)

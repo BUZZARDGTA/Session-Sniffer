@@ -133,16 +133,6 @@ class LogsManager(QDialog):
         self._tabs.setCurrentWidget(self._sessions_tab)
         self._sessions_tab.set_search_global(text)
 
-    def show_debug_log(self, severity: str | None = None) -> None:
-        """Switch to the Debug Log tab, optionally applying a severity filter."""
-        self._tabs.setCurrentWidget(self._debug_tab)
-        if severity is not None:
-            self._debug_tab.set_severity(severity)
-
-    def show_crash_log(self) -> None:
-        """Switch to the Crash Log tab."""
-        self._tabs.setCurrentWidget(self._crash_tab)
-
     # ------------------------------------------------------------------
     # Clean empty sessions
     # ------------------------------------------------------------------

@@ -234,8 +234,6 @@ class _CrawlerRequestDialog(QDialog):
         self._watch_worker: _CrawlerWatchWorker | None = None
         self._send_worker: _CrawlerSendWorker | None = None
         self._retry_remaining = 0
-        self._rate_limit_message = ''
-        self._last_status = ''
         self._cancel_button: QPushButton | None = None
         self._is_completed = False
         _CrawlerRequestDialog._open_dialogs[request.registry_key] = self
@@ -323,7 +321,7 @@ class _CrawlerRequestDialog(QDialog):
         """Send immediately, unless a local rate-limit cooldown is still active — then show its countdown."""
         remaining = LookyState.crawler_cooldown_remaining()
         if remaining > 0:
-            self._start_retry_countdown(remaining, 'Rate limit cooldown active.')
+            self._start_retry_countdown(remaining)
         else:
             self._send_now()
 
@@ -373,11 +371,10 @@ class _CrawlerRequestDialog(QDialog):
             self._show_failed(f'Rate limited: {message}')
             return
         LookyState.record_crawler_cooldown(wait_seconds)
-        self._start_retry_countdown(wait_seconds, f'Rate limited: {message}')
+        self._start_retry_countdown(wait_seconds)
 
-    def _start_retry_countdown(self, wait_seconds: int, message: str) -> None:
+    def _start_retry_countdown(self, wait_seconds: int) -> None:
         """Show the amber countdown UI and start the 1-second auto-retry timer."""
-        self._rate_limit_message = message
         self._retry_remaining = max(1, wait_seconds)
         self._widgets.progress_bar.hide()
         self._widgets.try_again_button.hide()
@@ -421,7 +418,6 @@ class _CrawlerRequestDialog(QDialog):
         label = status_labels.get(status.lower(), status)
         text = label if result is None else f'{label} — {result}'
         self._append_log_line(text)
-        self._last_status = status.lower()
 
     def _on_reconnect_triggered(self, attempt: int) -> None:
         """Show an amber log line indicating that the stream dropped and we are waiting to reconnect."""

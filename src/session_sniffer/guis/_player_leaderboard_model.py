@@ -186,7 +186,6 @@ class LeaderboardTableModel(QAbstractTableModel):
         self._mode: str = MODE_DAYS
         self._scope_attr: str = 'days_total'
         self._relative_dates: bool = True
-        self._username_cache: dict[str, str] = {}
         # Bound method dispatch — avoids per-cell getattr() overhead
         self._display_dispatch: dict[int, Callable[[int, LeaderboardEntry], object]] = {
             COLUMN_RANK: self._display_rank,

@@ -41,7 +41,6 @@ if TYPE_CHECKING:
     from rich.status import Status
 
 IP_API_BATCH_URL = 'http://ip-api.com/batch'
-THROTTLING_RATE_LIMIT_THRESHOLD = 3
 COOLDOWN_HTTP_STATUS = 429
 EXPECTED_ARGS_COUNT = 2
 MIN_WORD_LENGTH = 4
@@ -92,7 +91,6 @@ class RateLimitClient:
         """Initialize the RateLimitClient."""
         self.session, self.min_interval = session, 60 / 14
         self.last_request_time, self.cooldown_until = 0.0, 0.0
-        self.last_rate_limit: int | None = None
         self.capacity, self.window = 14, 60
         self.tokens, self.last_refill = float(self.capacity), time.time()
         self.consecutive_errors = 0
@@ -134,7 +132,6 @@ class RateLimitClient:
         """Apply rate limit headers from the API response."""
         with contextlib.suppress(ValueError, TypeError):
             rate_limit_value = int(headers['X-Rl'])
-            self.last_rate_limit = rate_limit_value
             self.tokens = min(float(rate_limit_value), float(self.capacity))
 
     def _sleep(self, seconds: float, reason: str) -> None:

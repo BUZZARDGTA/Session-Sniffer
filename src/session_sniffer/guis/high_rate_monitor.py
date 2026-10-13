@@ -439,10 +439,6 @@ class HighRateMonitorWidget(QWidget):
         if self._timer.isActive():
             self._scan_players()
 
-    def blacklist_ip(self, ip_address: str) -> None:
-        """Add an IP to the blacklist to exclude it from high-rate detection."""
-        self.blacklist_ips([ip_address])
-
     def unblacklist_ips(self, ip_addresses: list[str]) -> None:
         """Remove multiple IPs from the blacklist to include them in high-rate detection again."""
         if not ip_addresses:
@@ -451,10 +447,6 @@ class HighRateMonitorWidget(QWidget):
             self._blacklisted_ips.discard(ip_address)
         if self._timer.isActive():
             self._scan_players()
-
-    def unblacklist_ip(self, ip_address: str) -> None:
-        """Remove an IP from the blacklist to include it in high-rate detection again."""
-        self.unblacklist_ips([ip_address])
 
     def is_ip_blacklisted(self, ip_address: str) -> bool:
         """Return whether the given IP is currently blacklisted from high-rate detection."""
