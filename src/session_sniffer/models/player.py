@@ -63,7 +63,6 @@ class Player:
         'detection_checked',
         'iplookup',
         'is_gta5_process',
-        'is_rdr2_process',
         'is_third_party_server',
         'joins',
         'left_event',
@@ -88,7 +87,6 @@ class Player:
     detection_checked: bool
     iplookup: PlayerIPLookup
     is_gta5_process: bool
-    is_rdr2_process: bool
     is_third_party_server: bool
     joins: list[PlayerJoin]
     left_event: Event
@@ -122,7 +120,6 @@ class Player:
         self.relay_monitor_started = False
         self.usernames = []
         self.is_gta5_process = False
-        self.is_rdr2_process = False
         self.is_third_party_server = is_third_party_server_ip(ip)
 
         initial_join = PlayerJoin(

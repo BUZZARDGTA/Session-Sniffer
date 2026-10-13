@@ -57,11 +57,9 @@ class _PlayerRateData:
     total_pps_duration: int = 0
 
     # BPS tracking
-    first_high_bps_time: datetime | None = None
     newer_high_bps_time: datetime | None = None
     is_high_bps: bool = False
     current_bps_duration: int = 0
-    total_bps_duration: int = 0
 
     def update_pps_stats(self, *, now: datetime, pps: int, threshold: int, required_duration: int) -> None:
         """Update high-PPS status for this player."""
@@ -94,13 +92,10 @@ class _PlayerRateData:
             self.current_bps_duration = 0
             return
 
-        if self.first_high_bps_time is None:
-            self.first_high_bps_time = now
         if self.newer_high_bps_time is None:
             self.newer_high_bps_time = now
 
         self.current_bps_duration = int((now - self.newer_high_bps_time).total_seconds())
-        self.total_bps_duration = int((now - self.first_high_bps_time).total_seconds())
 
         if self.current_bps_duration >= required_duration:
             self.is_high_bps = True

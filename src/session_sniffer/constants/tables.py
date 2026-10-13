@@ -129,7 +129,6 @@ INTERFACE_SELECTION_TABLE_MIN_COLUMN_WIDTHS: dict[str, int] = {
 
 TARGET_PROCESS_TABLE_MIN_COLUMN_WIDTHS: dict[str, int] = {
     'Application / Process Name': 222,
-    'Process Name': 137,
     'PID': 73,
     'Executable Path': 220,
 }
@@ -139,9 +138,7 @@ PORT_SCANNER_TABLE_MIN_COLUMN_WIDTHS: dict[str, int] = {
     'Protocol': 103,
     'State': 82,
     'Service': 95,
-    'Latency': 99,
     'Latency (ms)': 130,
-    'Banner': 160,
     'Banner / Details': 160,
 }
 
@@ -169,7 +166,6 @@ LEADERBOARD_SEEN_STATS_TABLE_MIN_COLUMN_WIDTHS: dict[str, int] = {
 
 RECONNECT_FREQUENCY_TABLE_MIN_COLUMN_WIDTHS: dict[str, int] = {
     'Rejoins': 96,
-    'Reconnections': 140,
     'IP': 120,
     'Usernames': 118,
 }
@@ -243,9 +239,7 @@ FLEXIBLE_STRETCH_COLUMNS: tuple[str, ...] = (
     'Vendor Name',
     'Name',
     'Application / Process Name',
-    'Process Name',
     'Executable Path',
-    'Banner',
     'Banner / Details',
     'Service',
     'Player',
@@ -259,9 +253,7 @@ FLEXIBLE_COLUMN_WEIGHTS: dict[str, int] = {
     'Vendor Name': 2,
     'Name': 1,
     'Application / Process Name': 2,
-    'Process Name': 2,
     'Executable Path': 3,
-    'Banner': 3,
     'Banner / Details': 3,
     'Service': 1,
     'Player': 3,
