@@ -79,7 +79,6 @@ class StatusBarCaptureStats:
     global_bps_rate: int
     global_pps_rate: int
     restarted_times: int
-    avg_latency_ms: float
     last_nonzero_latency_ms: float
     last_nonzero_latency_ts: float
 
@@ -105,7 +104,6 @@ class StatusBarInterfaceInfo:
 class StatusBarSystemInfo:
     """System-level metrics for the status bar."""
 
-    memory_mb: float
     discord_presence_enabled: bool
     discord_rpc_connected: bool
 
@@ -179,7 +177,6 @@ def _capture_global_state(capture: PacketCapture, discord_rpc_manager: DiscordRP
             global_bps_rate=CaptureStats.global_bps_rate,
             global_pps_rate=CaptureStats.global_pps_rate,
             restarted_times=CaptureStats.restarted_times,
-            avg_latency_ms=CaptureStats.global_avg_latency_ms,
             last_nonzero_latency_ms=_LATENCY_STATE.last_nonzero_ms,
             last_nonzero_latency_ts=_LATENCY_STATE.last_nonzero_ts,
         ),
@@ -193,7 +190,6 @@ def _capture_global_state(capture: PacketCapture, discord_rpc_manager: DiscordRP
             arp_spoofing_running=ArpSpoofingController.is_running(),
         ),
         system=StatusBarSystemInfo(
-            memory_mb=CaptureStats.app_memory_mb,
             discord_presence_enabled=Settings.discord_presence,
             discord_rpc_connected=discord_rpc_connected,
         ),

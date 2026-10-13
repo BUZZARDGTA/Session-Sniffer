@@ -15,8 +15,6 @@ _BOOL_CONDITIONS: frozenset[str] = frozenset({'mobile', 'vpn', 'hosting'})
 EVENT_CONDITION: str = 'event'
 _VALID_EVENTS: frozenset[str] = frozenset({'join', 'rejoin', 'leave'})
 
-ALL_CONDITION_KEYS: frozenset[str] = _STRING_CONDITIONS | _BOOL_CONDITIONS | {EVENT_CONDITION}
-
 type ConditionValue = str | bool | list[str]
 
 
@@ -83,16 +81,6 @@ class ComboRule(BaseModel):
         """Return True if the rule has an event condition."""
         return EVENT_CONDITION in self.conditions
 
-    @property
-    def has_ip_condition(self) -> bool:
-        """Return True if the rule has at least one IP-based condition."""
-        return any(condition_key != EVENT_CONDITION for condition_key in self.conditions)
-
     def to_dict(self) -> dict[str, object]:
         """Serialize the rule to a JSON-compatible dictionary."""
         return cast('dict[str, object]', self.model_dump(mode='json'))
-
-    @classmethod
-    def from_dict(cls, data: dict[str, object]) -> ComboRule:
-        """Deserialize a rule from a JSON-compatible dictionary."""
-        return cls.model_validate(data)

@@ -219,17 +219,3 @@ class ComboRulesManager:
     def evaluate(cls, player: Player, event_type: str | None = None) -> list[ComboRule]:
         """Return all enabled combo rules whose conditions match the given player and event."""
         return [rule for rule in cls.rules if _evaluate_rule(rule, player, event_type)]
-
-    @classmethod
-    def export_rules(cls) -> list[dict[str, object]]:
-        """Export rules as a list of dicts for inclusion in detection settings export."""
-        return [rule.to_dict() for rule in cls.rules]
-
-    @classmethod
-    def import_rules(cls, rules_data: list[object]) -> None:
-        """Import rules from a list of dicts from detection settings import."""
-        try:
-            cls.rules = TypeAdapter(list[ComboRule]).validate_python(rules_data)
-        except ValidationError:
-            logger.exception('Failed to import combo rules')
-            cls.rules = []
