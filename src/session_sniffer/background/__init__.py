@@ -19,9 +19,6 @@ from session_sniffer.background.events import gui_closed__event
 from session_sniffer.background.tasks import (
     NotificationConfig,
     check_global_detections,
-    clear_detection_voice_notifications,
-    clear_voice_notification_queue,
-    ensure_voice_notification_worker_running,
     handle_detection_notification,
     is_gta5_relay_ip,
     is_gta5_relay_monitoring_active,
@@ -29,7 +26,15 @@ from session_sniffer.background.tasks import (
     player_rates_core,
     process_userip_task,
     submit_global_detections_check,
+    trigger_auto_username_userip,
     wait_for_player_data_ready,
+)
+from session_sniffer.background.voice_notifications import (
+    clear_detection_voice_notifications,
+    clear_voice_notification_queue,
+    ensure_voice_notification_worker_running,
+    queue_voice_notification,
+    tts_voice_name,
 )
 
 __all__ = [
@@ -52,8 +57,11 @@ __all__ = [
     'pinger_core',
     'player_rates_core',
     'process_userip_task',
+    'queue_voice_notification',
     'submit_global_detections_check',
+    'trigger_auto_username_userip',
     'trigger_looky_rescan_all_players',
+    'tts_voice_name',
     'wait_for_player_data_ready',
     'wake_all_player_cores',
     'wake_hostname_core',

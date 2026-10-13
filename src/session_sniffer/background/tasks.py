@@ -1,27 +1,18 @@
-# pylint: disable=too-many-lines
 """Background tasks for UserIP processing and detection notifications."""
 
 import csv
 import logging
-import shutil
-import subprocess
-import sys
 import time
-
-if sys.platform == 'win32':
-    import winsound
-from collections import deque
 from concurrent.futures import Future, ThreadPoolExecutor
-from dataclasses import dataclass
 from datetime import datetime, timedelta
 from ipaddress import IPv4Address
-from pathlib import Path
-from threading import Event, Lock, Thread
+from threading import Lock, Thread
 from typing import TYPE_CHECKING, Literal, NamedTuple, TypedDict, cast
 
 from session_sniffer import msgbox
 from session_sniffer.background.cores import enqueue_player_for_resolution
 from session_sniffer.background.events import gui_closed__event
+from session_sniffer.background.voice_notifications import queue_voice_notification, tts_voice_name
 from session_sniffer.constants.local import DETECTION_LOGGING_PATH, PROTECTION_LOGGING_PATH, TTS_DIR_PATH, USERIP_DATABASES_DIR_PATH, USERIP_LOGGING_PATH
 from session_sniffer.constants.standard import LOCAL_TZ
 from session_sniffer.core import ScriptControl, terminate_on_uncaught_exception
@@ -92,167 +83,10 @@ def _log_to_protection_csv(detection: str, usernames: str, ip: str, country: str
 
 _active_userip_tasks: set[tuple[str, Literal['connected', 'disconnected']]] = set()
 _active_userip_tasks_lock = Lock()
-_VOICE_QUEUE_MAXSIZE = 10
-_INTER_SOUND_PAUSE_SECONDS = 0.5
 _MINUTE_INTERVAL_SECONDS = 60.0
 _ONE_SECOND_TD = timedelta(seconds=1)
 _notification_pool = ThreadPoolExecutor(max_workers=20, thread_name_prefix='Notification')
 _detection_check_pool = ThreadPoolExecutor(max_workers=4, thread_name_prefix='DetectionCheck')
-
-
-class _DeduplicatedQueue:
-    """Bounded FIFO queue that silently rejects duplicate entries."""
-
-    def __init__(self, maxsize: int) -> None:
-        self._deque: deque[str] = deque()
-        self._set: set[str] = set()
-        self._lock = Lock()
-        self._not_empty = Event()
-        self._maxsize = maxsize
-
-    def put(self, item: str) -> None:
-        """Enqueue *item* unless it is already present or the queue is full."""
-        if not Settings.voice_notifications_enabled:
-            return
-        with self._lock:
-            if item in self._set:
-                return
-            if len(self._deque) >= self._maxsize:
-                logger.debug('Voice queue full (%d items); dropping %s', self._maxsize, item)
-                return
-            self._deque.append(item)
-            self._set.add(item)
-            self._not_empty.set()
-        ensure_voice_notification_worker_running()
-
-    def get(self, timeout: float) -> str | None:
-        """Dequeue oldest item, waiting up to *timeout* seconds, returning None on timeout while retaining duplicate rejection."""
-        if not self._not_empty.wait(timeout):
-            return None
-        with self._lock:
-            if not self._deque:
-                self._not_empty.clear()
-                return None
-            item = self._deque.popleft()
-            if not self._deque:
-                self._not_empty.clear()
-            return item
-
-    def acknowledge(self, item: str) -> None:
-        """Remove *item* from the duplicate-rejection set after it has been fully processed."""
-        with self._lock:
-            self._set.discard(item)
-
-    def empty(self) -> bool:
-        """Return True if the queue has no pending items."""
-        with self._lock:
-            return not self._deque
-
-    def clear(self) -> None:
-        """Remove all pending items."""
-        with self._lock:
-            self._deque.clear()
-            self._set.clear()
-            self._not_empty.clear()
-
-    def remove_matching(self, predicate: Callable[[str], bool]) -> None:
-        """Remove all items for which *predicate(item)* is truthy."""
-        with self._lock:
-            kept: deque[str] = deque()
-            kept_set: set[str] = set()
-            for item in self._deque:
-                if not predicate(item):
-                    kept.append(item)
-                    kept_set.add(item)
-            self._deque = kept
-            self._set = kept_set
-            if not self._deque:
-                self._not_empty.clear()
-
-
-_voice_notification_queue = _DeduplicatedQueue(maxsize=_VOICE_QUEUE_MAXSIZE)
-
-
-def _play_wav_linux(wav_path: str) -> None:
-    """Play a WAV audio file on Linux using available audio player (pw-play, aplay, or paplay)."""
-    player = shutil.which('pw-play') or shutil.which('aplay') or shutil.which('paplay')
-    if player is not None:
-        try:
-            subprocess.run([player, wav_path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10.0, check=False)
-        except (OSError, subprocess.TimeoutExpired) as e:
-            logger.warning('Failed to play audio with %s: %s', player, e)
-
-
-@dataclass(slots=True)
-class _VoiceNotificationWorkerState:
-    is_running: bool = False
-
-
-_voice_notification_worker_state = _VoiceNotificationWorkerState()
-
-_VOICE_NOTIFICATION_THREAD_NAME = 'VoiceNotificationWorker'
-_voice_notification_lock = Lock()
-
-
-def ensure_voice_notification_worker_running() -> None:
-    """Start the `VoiceNotificationWorker` thread if it is not already running."""
-    if not Settings.voice_notifications_enabled:
-        return
-    with _voice_notification_lock:
-        if _voice_notification_worker_state.is_running:
-            return
-        _voice_notification_worker_state.is_running = True
-        Thread(target=_voice_notification_worker, name=_VOICE_NOTIFICATION_THREAD_NAME, daemon=True).start()
-
-
-def _voice_notification_worker() -> None:
-    """Worker that sequentially plays queued voice notification WAV files until drained."""
-    try:
-        while not gui_closed__event.is_set():
-            if not Settings.voice_notifications_enabled:
-                _voice_notification_queue.clear()
-                return
-
-            wav_path = _voice_notification_queue.get(timeout=1.0)
-            if wav_path is None:
-                with _voice_notification_lock:
-                    if _voice_notification_queue.empty():
-                        _voice_notification_worker_state.is_running = False
-                        return
-                    continue
-
-            try:
-                if sys.platform == 'win32':
-                    try:
-                        if not Path(wav_path).is_file():
-                            logger.warning('Voice notification file not found: %s', wav_path)
-                        else:
-                            winsound.PlaySound(wav_path, winsound.SND_FILENAME | winsound.SND_NODEFAULT)
-                    except (RuntimeError, OSError, ValueError) as e:
-                        logger.warning('Failed to play voice notification %s: %s', wav_path, e)
-                else:
-                    _play_wav_linux(wav_path)
-                gui_closed__event.wait(_INTER_SOUND_PAUSE_SECONDS)
-            finally:
-                _voice_notification_queue.acknowledge(wav_path)
-    finally:
-        with _voice_notification_lock:
-            _voice_notification_worker_state.is_running = False
-
-
-def clear_voice_notification_queue() -> None:
-    """Drain all pending voice notifications from the queue."""
-    _voice_notification_queue.clear()
-
-
-def clear_detection_voice_notifications() -> None:
-    """Remove only detection voice notifications from the queue, keeping userip ones."""
-    _voice_notification_queue.remove_matching(lambda path: 'detection' in Path(path).parts)
-
-
-def _tts_voice_name(*, voice_setting: Literal['Male', 'Female'] | bool) -> Literal['Liam', 'Jane']:
-    """Map a voice-notification setting to its TTS folder name (`Liam` for Male, `Jane` otherwise)."""
-    return 'Liam' if voice_setting == 'Male' else 'Jane'
 
 
 def _check_userip_usernames(player: Player) -> bool:
@@ -420,8 +254,8 @@ def handle_detection_notification(
 
             # Voice notification (queued, plays sequentially through VoiceNotificationWorker)
             if Settings.voice_notifications_enabled and voice_setting:
-                tts_candidate_path = TTS_DIR_PATH / _tts_voice_name(voice_setting=voice_setting) / 'event' / f'{notification_type}.wav'
-                _voice_notification_queue.put(str(tts_candidate_path))
+                tts_candidate_path = TTS_DIR_PATH / tts_voice_name(voice_setting=voice_setting) / 'event' / f'{notification_type}.wav'
+                queue_voice_notification(tts_candidate_path)
 
             data_ready = wait_for_player_data_ready(player, data_fields=('reverse_dns.hostname', 'iplookup.geolite2', 'iplookup.ipapi'), timeout=3.0)
 
@@ -474,8 +308,8 @@ def handle_detection_notification(
 
                 # Voice notification
                 if Settings.voice_notifications_enabled and rule.voice_notifications:
-                    tts_candidate_path = TTS_DIR_PATH / _tts_voice_name(voice_setting=rule.voice_notifications) / 'detection' / 'combo_rule_detected.wav'
-                    _voice_notification_queue.put(str(tts_candidate_path))
+                    tts_candidate_path = TTS_DIR_PATH / tts_voice_name(voice_setting=rule.voice_notifications) / 'detection' / 'combo_rule_detected.wav'
+                    queue_voice_notification(tts_candidate_path)
 
                 # Logging
                 if rule.logging:
@@ -548,8 +382,8 @@ def process_userip_task(
             )
 
         if Settings.voice_notifications_enabled and userip.settings.voice_notifications:
-            tts_candidate_path = TTS_DIR_PATH / _tts_voice_name(voice_setting=userip.settings.voice_notifications) / 'userip' / f'{connection_type}.wav'
-            _voice_notification_queue.put(str(tts_candidate_path))
+            tts_candidate_path = TTS_DIR_PATH / tts_voice_name(voice_setting=userip.settings.voice_notifications) / 'userip' / f'{connection_type}.wav'
+            queue_voice_notification(tts_candidate_path)
 
         if player.userip is None:
             player.userip = userip
@@ -730,8 +564,8 @@ def monitor_gta5_relay_task(player: Player) -> None:
     wait_for_player_data_ready(player, data_fields=('reverse_dns.hostname', 'iplookup.geolite2', 'iplookup.ipapi'), timeout=10.0)
 
     if Settings.voice_notifications_enabled and GUIDetectionSettings.gta5_relay_voice_notifications:
-        tts_candidate_path = TTS_DIR_PATH / _tts_voice_name(voice_setting=GUIDetectionSettings.gta5_relay_voice_notifications) / 'detection' / 'gta5_relay_detected.wav'
-        _voice_notification_queue.put(str(tts_candidate_path))
+        tts_candidate_path = TTS_DIR_PATH / tts_voice_name(voice_setting=GUIDetectionSettings.gta5_relay_voice_notifications) / 'detection' / 'gta5_relay_detected.wav'
+        queue_voice_notification(tts_candidate_path)
 
     if GUIDetectionSettings.gta5_relay_logging:
         _log_to_protection_csv('GTA5 RELAY DETECTED!', ', '.join(player.usernames), player.ip, player.iplookup.geolite2.country)
@@ -779,8 +613,8 @@ def check_global_detections(player: Player) -> None:
     ) -> None:
         """Handle voice, logging, and message box for a detection."""
         if Settings.voice_notifications_enabled and settings.voice:
-            tts_candidate_path = TTS_DIR_PATH / _tts_voice_name(voice_setting=settings.voice) / 'detection' / f'{settings.tts_filename}.wav'
-            _voice_notification_queue.put(str(tts_candidate_path))
+            tts_candidate_path = TTS_DIR_PATH / tts_voice_name(voice_setting=settings.voice) / 'detection' / f'{settings.tts_filename}.wav'
+            queue_voice_notification(tts_candidate_path)
 
         if settings.log:
             _log_to_protection_csv(
