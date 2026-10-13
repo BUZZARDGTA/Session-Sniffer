@@ -119,7 +119,6 @@ class DetectionsManagerDialog(UnsavedChangesMixin, DetectionsManagerTabsMixin, Q
         self.player_leave_msgbox_checkbox: QCheckBox
         # -- GTA5 Relays (GTA5 preset only) --
         self._relay_filter_warning: QWidget
-        self.gta5_relay_detection_section: QWidget
         self.gta5_relay_packet_threshold_spin: QSpinBox
         self.gta5_relay_duration_combo: QComboBox
         self.gta5_relay_duration_spin: QSpinBox

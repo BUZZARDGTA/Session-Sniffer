@@ -48,19 +48,19 @@ def _paginate[T](
     total_rows: int,
     rows_per_page: int,
     requested_page: int,
-) -> tuple[Sequence[T], int, int]:
+) -> tuple[Sequence[T], int]:
     """Slice rows into a single page.
 
     Returns:
-        (page_rows, clamped_page, total_pages)
+        (page_rows, clamped_page)
     """
     if rows_per_page <= 0:
-        return rows, 1, 1
+        return rows, 1
 
     total_pages = max(1, (total_rows + rows_per_page - 1) // rows_per_page)
     page = min(max(1, requested_page), total_pages)
     start_index = (page - 1) * rows_per_page
-    return rows[start_index : start_index + rows_per_page], page, total_pages
+    return rows[start_index : start_index + rows_per_page], page
 
 
 class GUIWorkerThread(CrashingQThread):
@@ -244,13 +244,13 @@ class GUIWorkerThread(CrashingQThread):
                 )
 
             # Apply pagination
-            connected_page_rows, connected_page, connected_total_pages = _paginate(
+            connected_page_rows, connected_page = _paginate(
                 cached_connected_sorted,
                 cached_connected_count,
                 connected_rows_per_page,
                 connected_page,
             )
-            disconnected_page_rows, disconnected_page, disconnected_total_pages = _paginate(
+            disconnected_page_rows, disconnected_page = _paginate(
                 cached_disconnected_sorted,
                 cached_disconnected_count,
                 disconnected_rows_per_page,
@@ -274,7 +274,5 @@ class GUIWorkerThread(CrashingQThread):
                     disconnected_rows_per_page=disconnected_rows_per_page,
                     connected_page=connected_page,
                     disconnected_page=disconnected_page,
-                    connected_total_pages=connected_total_pages,
-                    disconnected_total_pages=disconnected_total_pages,
                 ),
             )

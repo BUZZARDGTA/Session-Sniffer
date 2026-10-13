@@ -743,9 +743,6 @@ def rendering_core(
             disconnected_column_names = [
                 column_name for column_name in Settings.GUI_ALL_DISCONNECTED_COLUMNS if column_name in disconnected_shown_columns or column_name in Settings.GUI_FORCED_COLUMNS
             ]
-            connected_num_columns = len(connected_column_names)
-            disconnected_num_columns = len(disconnected_column_names)
-            connected_column_mapping = {header: i for i, header in enumerate(connected_column_names)}
         header_text = generate_gui_header_html(capture=capture)
         (
             status_capture_text,
@@ -771,18 +768,15 @@ def rendering_core(
                     status_performance_text=status_performance_text,
                 ),
                 connected=GUITableData(
-                    column_count=connected_num_columns,
                     row_count=session_table_snapshot.connected_count,
                     rows_with_colors=session_table_snapshot.connected_rows_with_colors,
                 ),
                 disconnected=GUITableData(
-                    column_count=disconnected_num_columns,
                     row_count=session_table_snapshot.disconnected_count,
                     rows_with_colors=session_table_snapshot.disconnected_rows_with_colors,
                 ),
                 past_sessions={
                     session_id: GUITableData(
-                        column_count=disconnected_num_columns,
                         row_count=len(rows),
                         rows_with_colors=rows,
                     )
