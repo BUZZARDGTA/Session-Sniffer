@@ -317,7 +317,6 @@ class SessionTracker:
 
     _lock: ClassVar[RLock] = RLock()
     _current_session_id: ClassVar[int] = 1
-    _current_host_ip: ClassVar[str | None] = None
     _known_sessions: ClassVar[set[int]] = {1}
 
     _session_names: ClassVar[dict[int, str]] = {}
@@ -456,8 +455,8 @@ class SessionTracker:
             return f'#{session_id}'
 
     @classmethod
-    def advance_session(cls, *, host_ip: str | None = None, players: Iterable[Player] | None = None) -> int:
-        """Advance to the next session identifier and optionally record its host IP and update player session IDs."""
+    def advance_session(cls, *, players: Iterable[Player] | None = None) -> int:
+        """Advance to the next session identifier and update player session IDs."""
         with cls._lock:
             now = datetime.now(tz=LOCAL_TZ)
             old_session_id = cls._current_session_id
@@ -469,7 +468,6 @@ class SessionTracker:
                     cls._session_start_times[old_session_id] = min(player_starts)
             cls._current_session_id += 1
             cls._known_sessions.add(cls._current_session_id)
-            cls._current_host_ip = host_ip
             cls._session_start_times[cls._current_session_id] = now
             new_session_id = cls._current_session_id
             if old_session_id not in cls._session_snapshots:
@@ -480,17 +478,11 @@ class SessionTracker:
                     if player.session_id == old_session_id
                 )
                 cls._session_snapshots[old_session_id] = session_players
-            logger.debug('[SessionTracker] Advanced to session %d (host: %s)', cls._current_session_id, host_ip or 'None')
+            logger.debug('[SessionTracker] Advanced to session %d', cls._current_session_id)
         if players is not None:
             for player in players:
                 player.session_id = new_session_id
         return new_session_id
-
-    @classmethod
-    def record_session_host(cls, host_ip: str) -> None:
-        """Record the host IP for the current session."""
-        with cls._lock:
-            cls._current_host_ip = host_ip
 
     @classmethod
     def delete_session(cls, session_id: int) -> bool:
@@ -538,7 +530,6 @@ class SessionTracker:
         """Reset session tracking state to the initial session."""
         with cls._lock:
             cls._current_session_id = 1
-            cls._current_host_ip = None
             cls._known_sessions = {1}
             cls._session_names.clear()
             cls._session_snapshots.clear()

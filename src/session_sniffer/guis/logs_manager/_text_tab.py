@@ -155,14 +155,6 @@ class TextLogTab(QWidget):
         # Initial load
         self.load_data()
 
-    def set_severity(self, severity: str) -> None:
-        """Set the active severity filter by name (e.g. 'WARNING+', 'ERROR', 'All Severities')."""
-        if self._severity_combo is None:
-            return
-        index = self._severity_combo.findText(severity)
-        if index >= 0:
-            self._severity_combo.setCurrentIndex(index)
-
     def _on_severity_changed(self) -> None:
         """Handle severity filter selection change by applying the filter and scrolling to the bottom."""
         self._apply_filter(preserve_scroll=False)

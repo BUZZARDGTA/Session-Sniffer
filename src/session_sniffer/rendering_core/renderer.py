@@ -651,7 +651,6 @@ def rendering_core(
         current_session_host = SessionHost.get_player()
         if current_session_host is not None and current_session_host.ip != _last_recorded_host_ip:
             active_session_id = SessionTracker.get_current_session_id()
-            SessionTracker.record_session_host(current_session_host.ip)
             SessionHost.record_host(
                 current_session_host,
                 diagnostics=SessionHost.last_diagnostics,
