@@ -193,17 +193,6 @@ class TableMergeState:
             return not Settings.gui_disconnected_players_enabled
 
     @classmethod
-    def set_merged(cls, *, merged: bool) -> None:
-        """Set whether tables should be merged without saving to settings."""
-        with cls._lock:
-            if cls._override == merged:
-                return
-            cls._override = merged
-            cls._version += 1
-        wake_rendering_core()
-        GUIRenderingState.wake()
-
-    @classmethod
     def toggle(cls) -> bool:
         """Toggle table merge state and return the new state."""
         with cls._lock:
@@ -284,8 +273,6 @@ class CaptureState:
     discord_rpc_connected: ClassVar[bool] = False
     target_process_name: ClassVar[str | None] = None
     target_process_running: ClassVar[bool] = False
-    target_process_path: ClassVar[Path | None] = None
-    target_process_pid: ClassVar[int | None] = None
     target_process_udp_ports: ClassVar[frozenset[int]] = frozenset[int]()
     gta5_is_running: ClassVar[bool] = False
     gta5_is_enhanced: ClassVar[bool] = False
@@ -344,12 +331,10 @@ class CaptureState:
 
     @classmethod
     def update_target_process_status(cls, status: TargetProcessStatus) -> None:
-        """Update target process running state, PID, path, and UDP socket ports."""
+        """Update target process running state and UDP socket ports."""
         with cls._lock:
             cls.target_process_name = status.name
             cls.target_process_running = status.is_running
-            cls.target_process_path = status.path
-            cls.target_process_pid = status.pid
             cls.target_process_udp_ports = status.udp_ports
 
     @classmethod

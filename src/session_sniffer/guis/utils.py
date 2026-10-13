@@ -2,7 +2,6 @@
 
 import os
 import sys
-from contextlib import contextmanager
 from dataclasses import dataclass
 from functools import cache
 from pathlib import Path
@@ -53,7 +52,7 @@ from .app import app
 from .exceptions import PrimaryScreenNotFoundError, UnsupportedScreenResolutionError
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Generator, Sequence
+    from collections.abc import Callable, Sequence
 
     from PySide6.QtGui import QMouseEvent
 
@@ -610,19 +609,6 @@ def setup_stat_table(table: QTableWidget, layout: QVBoxLayout, *, sorting: bool 
     layout.addWidget(table)
 
 
-def setup_stat_table_with_header(table: QTableWidget, layout: QVBoxLayout, *, sorting: bool = True) -> QHeaderView:
-    """Configure *table* and return its horizontal header for further customisation.
-
-    Calls `setup_stat_table` then retrieves the header; raises `RuntimeError` if unavailable.
-    """
-    setup_stat_table(table, layout, sorting=sorting)
-    h_header = table.horizontalHeader()
-    if not h_header:
-        message = 'Failed to get horizontal header'
-        raise RuntimeError(message)
-    return h_header
-
-
 def popup_menu_at_table(menu: QMenu, table: QTableView, pos: QPoint) -> None:
     """Pop up *menu* at the viewport-relative position *pos* of *table*.
 
@@ -695,22 +681,6 @@ def copy_table_all_rows(table: QTableView | QTreeView) -> None:
         return
 
     set_clipboard_text('\n'.join(lines))
-
-
-@contextmanager
-def paused_timer(timer: QTimer, interval_ms: int | None = None) -> Generator[None]:
-    """Temporarily pause a running QTimer and resume it on exit."""
-    was_active = timer.isActive()
-    if was_active:
-        timer.stop()
-    try:
-        yield
-    finally:
-        if was_active:
-            if interval_ms is not None:
-                timer.start(interval_ms)
-            else:
-                timer.start()
 
 
 def copy_table_cells(table: QAbstractItemView) -> None:

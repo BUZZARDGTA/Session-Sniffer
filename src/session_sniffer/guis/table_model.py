@@ -149,7 +149,6 @@ class _ColumnIndices:
     ip: int
     username: int
     country: int | None
-    ports: int | None
     pps: int | None
 
 
@@ -382,7 +381,6 @@ class SessionTableModel(QAbstractTableModel):
             ip=self._headers.index('IP Address'),
             username=self._headers.index('Usernames'),
             country=self.get_column_index('Country'),
-            ports=self.get_column_index('Ports'),
             pps=self.get_column_index('PPS'),
         )
         self._ip_to_row_index: dict[str, int] = {}  # O(1) row lookup by IP
@@ -448,15 +446,6 @@ class SessionTableModel(QAbstractTableModel):
         It is read-only and specific to this instance.
         """
         return self._column_indices.username
-
-    @property
-    def ports_column_index(self) -> int | None:
-        """Returns the index of the 'Ports' column in this table model, or None if not present.
-
-        This value is computed during initialization based on the `headers` provided.<br>
-        It is read-only and specific to this instance.
-        """
-        return self._column_indices.ports
 
     # --------------------------------------------------------------------------
     # Qt model methods (overrides)
@@ -800,7 +789,6 @@ class SessionTableModel(QAbstractTableModel):
                 ip=self._headers.index('IP Address'),
                 username=self._headers.index('Usernames'),
                 country=self.get_column_index('Country'),
-                ports=self.get_column_index('Ports'),
                 pps=self.get_column_index('PPS'),
             )
         self._data = []

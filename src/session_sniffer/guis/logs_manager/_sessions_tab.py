@@ -850,12 +850,6 @@ class SessionsLogTab(QWidget):
         return parsed.strftime('%H:%M:%S.%f')[:-3]
 
     @staticmethod
-    def _format_bool(value: object) -> str:
-        if isinstance(value, bool):
-            return 'Yes' if value else 'No'
-        return '...'
-
-    @staticmethod
     def _format_table_value(value: object) -> str:
         if value is None:
             return 'N/A'

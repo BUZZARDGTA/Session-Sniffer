@@ -91,16 +91,6 @@ class ModMenuLogsParser:
             cls._last_mod_times = current_mod_times
 
     @classmethod
-    def has_ip(cls, ip: str) -> bool:
-        """Check if the given IP exists in any parsed log."""
-        return ip in cls._ip_to_usernames_map
-
-    @classmethod
-    def get_usernames_by_ip(cls, ip: str) -> list[str]:
-        """Retrieval of usernames associated with the given IP."""
-        return cls._ip_to_usernames_map.get(ip, [])
-
-    @classmethod
     def get_all_ip_to_usernames_map(cls) -> dict[str, list[str]]:
         """Snapshot mapping of all IPs to lists of usernames."""
         return cls._ip_to_usernames_map

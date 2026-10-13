@@ -24,7 +24,6 @@ from session_sniffer.guis.userip_manager_helpers import (
     USERNAME_COLUMN,
     EntriesSortProxy,
     populate_userip_databases_menu,
-    rewrite_db_without_entries,
 )
 from session_sniffer.guis.utils import copy_table_all_rows, copy_table_selection, open_file_location, set_clipboard_text
 from session_sniffer.settings.settings import Settings
@@ -516,16 +515,6 @@ class EntriesContextMenuMixin(QDialog):
             delete_action.triggered.connect(self._delete_selected)
             menu.addSeparator()
             menu.addAction(delete_action)
-
-    def _delete_global_search_entry(self, db_path: Path, username: str, ip_or_range: str, source_row: int) -> None:
-        """Remove a single entry from the database file and from the search results table."""
-        to_remove = {(username, ip_or_range)}
-        rewrite_db_without_entries(db_path, to_remove)
-        if to_remove:
-            return
-
-        self._model.removeRow(source_row)
-        self._update_entry_counts()
 
     def _copy_selected_entries(self) -> None:
         """Copy selected rows from the UserIP entries table to the clipboard as tab-separated text."""

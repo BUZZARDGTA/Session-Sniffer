@@ -218,10 +218,6 @@ class IcmpEchoEngine:
                 logger.warning('Failed to create unprivileged ICMP socket: %s', e)
                 self._unix_socket = None
 
-    def is_available(self) -> bool:
-        """Return True if the native ICMP handle or socket is valid."""
-        return (self._handle is not None) if self._is_windows else (self._unix_socket is not None)
-
     def __enter__(self) -> Self:
         """Support context manager entry."""
         return self

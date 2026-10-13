@@ -163,12 +163,6 @@ class TextLogTab(QWidget):
         if index >= 0:
             self._severity_combo.setCurrentIndex(index)
 
-    def current_severity(self) -> str:
-        """Return the currently selected severity filter name, or empty string if disabled."""
-        if self._severity_combo is None:
-            return ''
-        return self._severity_combo.currentText()
-
     def _on_severity_changed(self) -> None:
         """Handle severity filter selection change by applying the filter and scrolling to the bottom."""
         self._apply_filter(preserve_scroll=False)

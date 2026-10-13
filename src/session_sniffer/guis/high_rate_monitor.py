@@ -472,10 +472,6 @@ class HighRateMonitorWidget(QWidget):
             self._timer.stop()
         self.reset_all()
 
-    def get_tracked(self, ip: str) -> _PlayerRateData | None:
-        """Return the tracked rate data for the given IP, or None."""
-        return self._tracked.get(ip)
-
     @override
     def showEvent(self, event: QShowEvent) -> None:
         """Select flagged high-rate players if auto-selection is enabled upon showing the monitor."""

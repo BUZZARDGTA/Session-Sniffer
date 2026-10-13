@@ -425,12 +425,6 @@ class SessionTracker:
             return cls._current_session_id
 
     @classmethod
-    def get_current_session_host_ip(cls) -> str | None:
-        """Return the detected host IP for the current session."""
-        with cls._lock:
-            return cls._current_host_ip
-
-    @classmethod
     def get_all_session_ids(cls) -> list[int]:
         """Return a sorted list of all known session sequence numbers."""
         with cls._lock:
@@ -460,12 +454,6 @@ class SessionTracker:
             if custom_name is not None:
                 return custom_name
             return f'#{session_id}'
-
-    @classmethod
-    def get_all_session_names(cls) -> dict[int, str]:
-        """Return a copy of the mapping of session IDs to custom names."""
-        with cls._lock:
-            return dict(cls._session_names)
 
     @classmethod
     def advance_session(cls, *, host_ip: str | None = None, players: Iterable[Player] | None = None) -> int:

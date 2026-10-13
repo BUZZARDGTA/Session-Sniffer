@@ -29,12 +29,6 @@ class _ActiveScanTracker:
             return cls._active_threads
 
     @classmethod
-    def is_active(cls) -> bool:
-        """Return True if any port scan is currently in progress."""
-        with cls._lock:
-            return cls._active_threads > 0
-
-    @classmethod
     def add_threads(cls, thread_count: int) -> None:
         """Register newly started scan worker threads."""
         with cls._lock:
@@ -50,11 +44,6 @@ class _ActiveScanTracker:
 def get_active_port_scan_threads() -> int:
     """Return the total number of worker threads currently allocated to active port scans."""
     return _ActiveScanTracker.get_threads()
-
-
-def is_port_scan_active() -> bool:
-    """Return whether a port scan is currently executing."""
-    return _ActiveScanTracker.is_active()
 
 
 @contextmanager
@@ -225,13 +214,6 @@ class PortScanStatistics:
     closed_count: int = 0
     filtered_count: int = 0
     start_time: float = field(default_factory=time.perf_counter)
-
-    @property
-    def progress_percentage(self) -> float:
-        """Return completion percentage between 0.0 and 100.0."""
-        if not self.total_probes:
-            return 0.0
-        return (self.completed_probes / self.total_probes) * 100.0
 
     @property
     def elapsed_seconds(self) -> float:

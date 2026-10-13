@@ -275,8 +275,6 @@ class SessionHost:
     last_timing_gap_candidate: ClassVar[tuple[str, str] | None] = None
     last_rejection_reason: ClassVar[str | None] = None
     last_diagnostics: ClassVar[HostDiagnosticsSnapshot | None] = None
-    last_detection_success: ClassVar[bool] = False
-    last_detected_host_ip: ClassVar[str | None] = None
     _history: ClassVar[list[HostHistoryEntry]] = []
 
     @classmethod
@@ -364,7 +362,6 @@ class SessionHost:
     def get_host_player(cls, session_connected: list[Player]) -> Player | None:
         """Infer and cache the session host from currently connected players and eligible relay candidates."""
         if not session_connected:
-            cls.last_detection_success = False
             cls.last_rejection_reason = 'No other players are currently connected in your session.'
             cls.last_diagnostics = _build_host_diagnostics_snapshot(
                 session_players=[],
@@ -390,7 +387,6 @@ class SessionHost:
 
         p2p_players = [player for player in candidates if not player.is_third_party_server]
         if not p2p_players:
-            cls.last_detection_success = False
             cls.last_rejection_reason = f'All {len(candidates)} connected IP{pluralize(len(candidates))} are game or relay servers, not direct peer-to-peer players.'
             cls.last_diagnostics = _build_host_diagnostics_snapshot(
                 session_players=candidates,
@@ -407,7 +403,6 @@ class SessionHost:
             and player not in cls.players_pending_for_disconnection
         ]
         if not active_p2p_players:
-            cls.last_detection_success = False
             cls.last_rejection_reason = f'All connected peer-to-peer player{pluralize(len(p2p_players))} are disconnecting, so the session host cannot be determined.'
             cls.last_diagnostics = _build_host_diagnostics_snapshot(
                 session_players=candidates,
@@ -432,7 +427,6 @@ class SessionHost:
             gap_seconds = time_difference.total_seconds()
             gap_milliseconds = gap_seconds * 1000
             if time_difference > _SESSION_HOST_AMBIGUITY_MAX_TD:
-                cls.last_detection_success = False
                 cls.search_player = False
                 cls.search_start_time = None
                 cls.last_rejection_reason = (
@@ -455,7 +449,6 @@ class SessionHost:
             if time_difference >= _SESSION_HOST_AMBIGUITY_MIN_TD:
                 potential_session_host_player = connected_players[0]
             else:
-                cls.last_detection_success = False
                 cls.last_rejection_reason = (
                     f'The first two players connected almost at the exact same moment ({gap_milliseconds:.1f}ms apart).\n\n'
                     'Their connection times are too close to determine who hosted the session.'
@@ -499,7 +492,6 @@ class SessionHost:
             # so packet count is irrelevant (the session is already in progress).
             or (not cls.manual_redetect and potential_session_host_player.packets.exchanged > SESSION_HOST_MAX_PACKETS_FOR_DETECTION)
         ):
-            cls.last_detection_success = False
             if not potential_session_host_player:
                 cls.last_rejection_reason = 'No potential host candidate could be selected.'
                 cls.last_diagnostics = _build_host_diagnostics_snapshot(
@@ -565,8 +557,6 @@ class SessionHost:
             return None
 
         logger.debug('[SessionHost] Host found: %s', potential_session_host_player.ip)
-        cls.last_detection_success = True
-        cls.last_detected_host_ip = potential_session_host_player.ip
         cls.set_player(potential_session_host_player)
         cls.search_player = False
         cls.manual_redetect = False

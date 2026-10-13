@@ -112,20 +112,6 @@ class ThirdPartyServers(enum.Enum):
         return tuple(ipaddress.ip_network(ip_range) for ip_range in self.ip_ranges)
 
     @classmethod
-    def get_ip_ranges_for(cls, server_names: Iterable[str]) -> list[CidrRange]:
-        """Return a collapsed, minimal list of CIDR range strings for the specified server names."""
-        names_set = set(server_names)
-        networks: list[ipaddress.IPv4Network] = []
-
-        for server in cls:
-            if server.name in names_set:
-                networks.extend(network for network in server.ip_networks if isinstance(network, ipaddress.IPv4Network))
-
-        # Merge overlapping/adjacent ranges to keep the BPF filter small and efficient
-        collapsed = list(ipaddress.collapse_addresses(networks))
-        return [str(network) for network in collapsed]
-
-    @classmethod
     def get_ip_obj_ranges_for(cls, server_names: Iterable[str]) -> list[tuple[IPv4Address, IPv4Address]]:
         """Return a collapsed, minimal list of IPv4Address tuple ranges for the specified server names."""
         names_set = set(server_names)

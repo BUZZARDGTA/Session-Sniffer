@@ -64,19 +64,6 @@ class ResolutionQueue:
             self._has_items.set()
             return True
 
-    def put_many(self, ip_addresses: list[str]) -> int:
-        """Enqueue multiple IP addresses, skipping duplicates. Returns number of added IP addresses."""
-        added_count = 0
-        with self._lock:
-            for ip_address in ip_addresses:
-                if ip_address not in self._queued_ip_addresses:
-                    self._queued_ip_addresses.add(ip_address)
-                    self._deque.append(ip_address)
-                    added_count += 1
-            if added_count > 0:
-                self._has_items.set()
-        return added_count
-
     def requeue_front(self, ip_addresses: list[str]) -> None:
         """Re-enqueue IP addresses to the front of the queue maintaining relative order."""
         with self._lock:
@@ -99,23 +86,6 @@ class ResolutionQueue:
             if not self._deque:
                 self._has_items.clear()
             return ip_address
-
-    def get_batch(self, max_items: int) -> list[str]:
-        """Pop up to `max_items` IP addresses without blocking."""
-        with self._lock:
-            if not self._deque and self.on_empty is not None:
-                self.on_empty()
-            count = min(max_items, len(self._deque))
-            if not count:
-                return []
-            items: list[str] = []
-            for _ in range(count):
-                ip_address = self._deque.popleft()
-                self._queued_ip_addresses.discard(ip_address)
-                items.append(ip_address)
-            if not self._deque:
-                self._has_items.clear()
-            return items
 
     def wait(self, timeout: float) -> bool:
         """Wait until items are available or timeout expires."""

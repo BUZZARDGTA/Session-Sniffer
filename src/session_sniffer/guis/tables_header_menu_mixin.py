@@ -19,8 +19,6 @@ from session_sniffer.guis.stylesheets import CATEGORY_SUBMENU_CHECKBOX_STYLESHEE
 from session_sniffer.guis.table_column_resizing import (
     add_column_sizing_actions,
     setup_static_table_column_resizing,
-    size_all_columns_to_fit,
-    size_column_to_fit,
 )
 from session_sniffer.guis.table_model import GUI_COLUMN_HEADERS_TOOLTIPS
 from session_sniffer.guis.utils import PersistentMenu, scale_by_ui
@@ -225,14 +223,6 @@ class TableHeaderMenuMixin(QTableView):
         menu.addMenu(choose_columns_menu)
 
         menu.popup(horizontal_header.mapToGlobal(pos))
-
-    def _size_column_to_fit(self, column: int) -> None:
-        """Resize a single column to fit its contents (header + cell text)."""
-        size_column_to_fit(self, column)
-
-    def _size_all_columns_to_fit(self) -> None:
-        """Resize every visible column to fit its contents."""
-        size_all_columns_to_fit(self)
 
     def _toggle_column_visibility(self, column_name: str, *, checked: bool) -> None:
         """Toggle a column's visibility and persist the change to settings."""

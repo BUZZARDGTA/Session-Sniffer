@@ -6,7 +6,6 @@ from the Session-Sniffer versions endpoint.
 
 import sys
 
-from packaging.version import Version
 from pydantic import BaseModel
 
 
@@ -25,11 +24,6 @@ class VersionInfo(BaseModel):
     darwin_sha256: str | None = None
     darwin_file_size: int | None = None
     is_prerelease: bool = False
-
-    @property
-    def is_release_prerelease(self) -> bool:
-        """Return True if this version represents a pre-release."""
-        return self.is_prerelease or Version(self.version).is_prerelease
 
     @property
     def platform_download_url(self) -> str:

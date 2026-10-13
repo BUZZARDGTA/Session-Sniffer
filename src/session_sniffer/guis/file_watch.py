@@ -61,19 +61,6 @@ class DebouncedFileWatcher(QObject):
         if (self._files or self._directories) and self._poll_timer.interval() > 0:
             self._poll_timer.start()
 
-    def add_paths(self, paths: Iterable[Path | str]) -> None:
-        """Add *paths* (files or directories) to the watch list and start polling if needed."""
-        for raw_path in paths:
-            path_str = str(raw_path)
-            path_obj = Path(path_str)
-            if path_obj.is_dir():
-                self._directories.add(path_str)
-            else:
-                self._files.add(path_str)
-            self._path_snapshots[path_str] = self._get_path_snapshot(path_str)
-        if (self._files or self._directories) and self._poll_timer.interval() > 0 and not self._poll_timer.isActive():
-            self._poll_timer.start()
-
     def remove_paths(self, paths: Iterable[Path | str]) -> None:
         """Remove *paths* from the watch list and stop polling if no paths remain."""
         for raw_path in paths:

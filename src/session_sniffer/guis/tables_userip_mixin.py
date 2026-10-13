@@ -7,19 +7,14 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QInputDialog, QLineEdit, QMessageBox, QWidget
 
 from session_sniffer.constants.local import USERIP_DATABASES_DIR_PATH
-from session_sniffer.constants.standalone import GITHUB_WIKI_SCRIPT_CONFIG_URL, TITLE
+from session_sniffer.constants.standalone import TITLE
 from session_sniffer.guis.select_usernames_dialog import SelectUsernamesDialog
 from session_sniffer.guis.userip_manager_helpers import IPRangeBuilderDialog, rewrite_db_edit_entry_ip
 from session_sniffer.networking.ip_range import check_ip_against_ranges, parse_ip_range_entry
 from session_sniffer.player.registry import PlayersRegistry
 from session_sniffer.player.userip import UserIPDatabases
 from session_sniffer.settings import Settings
-from session_sniffer.text_templates import (
-    DEFAULT_USERIP_FILES_SETTINGS_INI,
-    USERIP_DEFAULT_DB_FOOTER_TEMPLATE,
-    USERIP_DEFAULT_DB_HEADER_TEMPLATE,
-)
-from session_sniffer.text_utils import format_triple_quoted_text, pluralize, split_usernames
+from session_sniffer.text_utils import pluralize, split_usernames
 from session_sniffer.utils import dedup_preserve_order, write_lines_to_file
 
 if TYPE_CHECKING:
@@ -28,27 +23,6 @@ if TYPE_CHECKING:
     from session_sniffer.models.player import Player
 
 RE_USERIP_INI_PARSER_PATTERN = re.compile(r'^(?![;#])(?P<username>[^=]+)=(?P<ip>[^;#]+)(?:[;#]\s*(?P<comment>.*))?')
-
-
-def ensure_searchlist_database() -> Path:
-    """Return the `Path` to `Searchlist.ini`, creating it with the default template if missing."""
-    searchlist_path = USERIP_DATABASES_DIR_PATH / 'Searchlist.ini'
-    if searchlist_path.is_file():
-        return searchlist_path
-    for candidate in USERIP_DATABASES_DIR_PATH.rglob('Searchlist.ini'):
-        if candidate.is_file():
-            return candidate
-    USERIP_DATABASES_DIR_PATH.mkdir(parents=True, exist_ok=True)
-    header = format_triple_quoted_text(
-        USERIP_DEFAULT_DB_HEADER_TEMPLATE.format(
-            title=TITLE,
-            configuration_guide_url=GITHUB_WIKI_SCRIPT_CONFIG_URL,
-        ),
-    )
-    settings = DEFAULT_USERIP_FILES_SETTINGS_INI.get('Searchlist.ini', '').strip()
-    footer = format_triple_quoted_text(USERIP_DEFAULT_DB_FOOTER_TEMPLATE, add_trailing_newline=True)
-    searchlist_path.write_text(f'{header}\n{settings}\n{footer}', encoding='utf-8')
-    return searchlist_path
 
 
 def _show_modal_info_on_top(parent: QWidget, title: str, text: str) -> None:

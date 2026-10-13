@@ -53,7 +53,6 @@ _DARWIN_AF_INET = 2
 _DARWIN_ARP_EXECUTABLE = '/usr/sbin/arp'
 _DARWIN_NETSTAT_EXECUTABLE = '/usr/sbin/netstat'
 _IFF_UP = 0x1
-_IFF_RUNNING = 0x40
 
 # Windows Network Adapter State constant
 # https://learn.microsoft.com/en-us/previous-versions/windows/desktop/legacy/hh968170(v=vs.85)

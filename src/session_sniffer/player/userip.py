@@ -123,11 +123,9 @@ class UserIPDatabases:
     _ip_to_userip: ClassVar[dict[str, UserIP]] = {}
     _range_entries: ClassVar[list[_RangeEntry]] = []
     _known_alts_clusters: ClassVar[dict[str, list[str]]] = {}
-    _known_usernames: ClassVar[set[str]] = set()
     _username_to_meta: ClassVar[dict[str, tuple[Path, UserIPSettings, str]]] = {}
     notified_ip_conflicts: ClassVar[set[str]] = set()
     _open_conflict_dialog: ClassVar[QMessageBox | None] = None
-    build_version: ClassVar[int] = 0
 
     @classmethod
     def _notify_ip_conflicts(cls, conflicts: Sequence[UserIPConflict], *, newly_detected_ips: set[str] | None = None) -> None:
@@ -450,8 +448,6 @@ class UserIPDatabases:
             cls._ip_to_userip = ip_to_userip
             cls._range_entries = range_entries
             cls._username_to_meta = username_to_meta
-            cls._known_usernames = set(canonical_names.keys()) | set(username_to_meta.keys())
-            cls.build_version += 1
 
         if unresolved_conflicts and (has_new_conflicts or (conflicts_changed and cls._open_conflict_dialog is not None)):
             cls._notify_ip_conflicts(conflicts, newly_detected_ips=newly_detected_ips)
@@ -471,15 +467,6 @@ class UserIPDatabases:
         except ValueError:
             return False
         return any(address in entry.ip_range for entry in cls._range_entries)
-
-    @classmethod
-    def is_known_username(cls, username: str) -> bool:
-        """Check if a username exists in any enabled UserIP database."""
-        stripped = username.strip()
-        if not stripped:
-            return False
-        with cls._update_userip_database_lock:
-            return stripped.casefold() in cls._known_usernames
 
     @classmethod
     def resolve_userip(cls, ip: str) -> UserIP | None:

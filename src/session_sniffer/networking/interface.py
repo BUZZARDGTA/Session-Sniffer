@@ -75,10 +75,6 @@ class Interface:
         self.neighbour_entries.append(neighbour_entry)
         return True
 
-    def get_neighbour_entries(self) -> list[NeighbourEntry]:
-        """Get neighbour entries for the given interface."""
-        return self.neighbour_entries
-
     def is_interface_inactive(self) -> bool:
         """Determine if an interface is inactive based on lack of traffic, IP addresses, and identifying details."""
         inactive_conditions = (
@@ -240,20 +236,3 @@ class AllInterfaces:
         """Remove all interfaces from the registry."""
         cls.all_interfaces.clear()
         cls._name_map.clear()
-
-    @classmethod
-    def delete_interface(cls, index: int) -> bool:
-        """Delete an interface by its `index`.
-
-        Args:
-            index: The index of the interface to delete.
-
-        Returns:
-            Whether an interface matching the index existed and was deleted.
-        """
-        interface = cls.all_interfaces.pop(index, None)
-        if interface:
-            if interface.identity.name:
-                cls._name_map.pop(interface.identity.name.casefold(), None)
-            return True
-        return False

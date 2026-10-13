@@ -18,7 +18,6 @@ from session_sniffer.utils import ProcessEntry32W
 
 logger = logging.getLogger(__name__)
 
-_PROCESS_TERMINATE = 0x0001
 _PROCESS_SUSPEND_RESUME = 0x0800
 _PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
 _STILL_ACTIVE = 259
