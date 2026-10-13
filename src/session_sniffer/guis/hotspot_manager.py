@@ -212,10 +212,6 @@ class HotspotManagerWidget(QWidget):
         layout = QHBoxLayout()
         layout.setSpacing(scale_by_ui(10))
 
-        icon_label = QLabel()
-        icon_label.setPixmap(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'wifi.svg')).pixmap(scale_by_ui(26), scale_by_ui(26)))
-        layout.addWidget(icon_label)
-
         title_layout = QVBoxLayout()
         title_layout.setSpacing(scale_by_ui(2))
         title_label = QLabel('Hotspot & Connection Sharing')
@@ -263,6 +259,10 @@ class HotspotManagerWidget(QWidget):
 
         # Header with pills
         header_layout = QHBoxLayout()
+        hotspot_icon = QLabel()
+        hotspot_icon.setPixmap(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'wifi.svg')).pixmap(scale_by_ui(16), scale_by_ui(16)))
+        header_layout.addWidget(hotspot_icon)
+
         header_title = QLabel('Wi-Fi Hotspot')
         header_title.setStyleSheet(HOTSPOT_CARD_HEADER_STYLESHEET)
         header_layout.addWidget(header_title)
@@ -346,6 +346,10 @@ class HotspotManagerWidget(QWidget):
 
         # Header with status pill
         header_layout = QHBoxLayout()
+        bridge_icon = QLabel()
+        bridge_icon.setPixmap(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'ethernet-port.svg')).pixmap(scale_by_ui(16), scale_by_ui(16)))
+        header_layout.addWidget(bridge_icon)
+
         header_title = QLabel('Sharing / Bridge')
         header_title.setStyleSheet(HOTSPOT_CARD_HEADER_STYLESHEET)
         header_layout.addWidget(header_title)

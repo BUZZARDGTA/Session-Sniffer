@@ -406,7 +406,7 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
         change_interface_action.triggered.connect(self._on_change_interface)
         capture_menu.addAction(change_interface_action)
 
-        hotspot_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'wifi.svg')), 'Hotspot && Sharing', self)
+        hotspot_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'router.svg')), 'Hotspot && Sharing', self)
         hotspot_action.setToolTip('Create a Wi-Fi hotspot or configure Internet Connection Sharing (ICS) to capture console traffic')
         hotspot_action.triggered.connect(self._open_hotspot_manager)
         capture_menu.addAction(hotspot_action)
