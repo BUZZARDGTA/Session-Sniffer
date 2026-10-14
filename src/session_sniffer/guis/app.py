@@ -22,7 +22,7 @@ from PySide6.QtWidgets import (
 
 from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.guis.theme import get_dark_palette
-from session_sniffer.logging_setup import dump_crash_diagnostics, flush_all_loggers
+from session_sniffer.logging_setup import dump_crash_diagnostics
 
 logger = logging.getLogger(__name__)
 
@@ -49,14 +49,13 @@ def _qt_message_handler(message_type: QtMsgType, context: QMessageLogContext, me
     ctx_info = f' ({context.file}:{context.line}, {context.function})' if context.file else ''
     full_message = f'Qt {type_name}: {message}{ctx_info}'
     if message_type == QtMsgType.QtFatalMsg:
-        logger.critical('%s', full_message)
         dump_crash_diagnostics(full_message)
-        flush_all_loggers()
-    elif message_type == QtMsgType.QtCriticalMsg:
+        return
+    if message_type == QtMsgType.QtCriticalMsg:
         logger.error('%s', full_message)
     elif message_type == QtMsgType.QtWarningMsg:
         logger.warning('%s', full_message)
-    if message_type in (QtMsgType.QtWarningMsg, QtMsgType.QtCriticalMsg, QtMsgType.QtFatalMsg):
+    if message_type in (QtMsgType.QtWarningMsg, QtMsgType.QtCriticalMsg):
         if sys.stderr is not None:
             sys.stderr.write(f'{full_message}\n')
             sys.stderr.flush()

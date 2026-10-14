@@ -167,12 +167,6 @@ class CrashingQThread(QThread):
             logger.debug('CrashingQThread _run() raised SystemExit: %s (cpp_ptr: %s, native id: %s)', self._thread_name, self._cpp_ptr, self._native_id)
             return
         except BaseException as e:
-            logger.exception(
-                'CrashingQThread _run() raised unhandled exception in %s (cpp_ptr: %s, native id: %s)',
-                self._thread_name,
-                self._cpp_ptr,
-                self._native_id,
-            )
             terminate_on_uncaught_exception(e)
             raise
 

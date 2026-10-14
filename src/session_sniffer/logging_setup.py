@@ -340,7 +340,7 @@ def dump_crash_diagnostics(
     *,
     exc_info: tuple[type[BaseException], BaseException, TracebackType | None] | None = None,
 ) -> None:
-    """Dump active threads and call stacks directly to crash.log, raw stderr, and the logger."""
+    """Dump active threads and call stacks directly to crash.log and raw stderr."""
     timestamp = time.strftime('%Y-%m-%d %H:%M:%S')
     lines: list[str] = [
         f'=== THREAD DIAGNOSTIC DUMP [{timestamp}] (triggered by: {reason}) ===',
@@ -394,14 +394,7 @@ def dump_crash_diagnostics(
                 sys.__stderr__.write(f'Failed to write to crash.log: {e}\n')
                 sys.__stderr__.flush()
 
-    # 3. Write through application logger if not in recursive state
-    if not getattr(_stderr_reentry_state, 'active', False):
-        with contextlib.suppress(Exception):
-            stderr_logger = logging.getLogger(_STDERR_LOGGER_NAME)
-            for diag_line in redacted_lines:
-                stderr_logger.critical('%s', diag_line)
-
-    # 4. Flush all loggers and files
+    # 3. Flush all loggers and files
     flush_all_loggers()
 
 
@@ -488,9 +481,10 @@ class _StderrToLogger:
 
         _stderr_reentry_state.active = True
         try:
-            self._logger.log(self._level, message)
             if any(marker in message for marker in ('QThread: Destroyed', 'Fatal Python error')):
                 dump_crash_diagnostics(message)
+            else:
+                self._logger.log(self._level, message)
         finally:
             _stderr_reentry_state.active = False
 

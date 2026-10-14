@@ -5,7 +5,6 @@ import signal
 import sys
 import threading
 import time
-import traceback
 from threading import Lock
 from types import TracebackType
 from typing import TYPE_CHECKING, ClassVar, Literal, NamedTuple
@@ -74,18 +73,18 @@ def terminate_script(
 ) -> None:
     """Terminate the application and optionally display crash information."""
     caller_thread = threading.current_thread()
-    caller_native_id = getattr(caller_thread, 'native_id', 'unknown')
-    logger.debug(
-        'terminate_script invoked: method=%s, caller_thread=%s (native_id=%s, ident=%s)',
-        terminate_method,
-        caller_thread.name,
-        caller_native_id,
-        caller_thread.ident,
-    )
-    caller_stack = ''.join(traceback.format_stack()[:-1])
-    logger.debug('terminate_script caller stack:\n%s', caller_stack.rstrip())
-    active_thread_names = [f'{t.name} (native_id={getattr(t, "native_id", "unknown")})' for t in threading.enumerate()]
-    logger.debug('Active threads at terminate_script (%d): %s', len(active_thread_names), active_thread_names)
+    is_crash = exception_info is not None or terminate_method == 'THREAD_RAISED' or msgbox_crash_text is not None or stdout_crash_text is not None
+    if not is_crash:
+        caller_native_id = getattr(caller_thread, 'native_id', 'unknown')
+        logger.debug(
+            'terminate_script invoked: method=%s, caller_thread=%s (native_id=%s, ident=%s)',
+            terminate_method,
+            caller_thread.name,
+            caller_native_id,
+            caller_thread.ident,
+        )
+        active_thread_names = [f'{t.name} (native_id={getattr(t, "native_id", "unknown")})' for t in threading.enumerate()]
+        logger.debug('Active threads at terminate_script (%d): %s', len(active_thread_names), active_thread_names)
 
     GTASuspendManager.shutdown()
     ScriptControl.run_termination_hooks()
@@ -93,17 +92,11 @@ def terminate_script(
     ScriptControl.set_crashed()
 
     if exception_info is not None:
-        logger.error(
-            'Uncaught exception: %s: %s',
-            exception_info.exc_type.__name__,
-            exception_info.exc_value,
-            exc_info=(exception_info.exc_type, exception_info.exc_value, exception_info.exc_traceback),
-        )
         dump_crash_diagnostics(
             f'Uncaught exception in {caller_thread.name} (method={terminate_method}): {exception_info.exc_type.__name__}: {exception_info.exc_value}',
             exc_info=(exception_info.exc_type, exception_info.exc_value, exception_info.exc_traceback),
         )
-    elif terminate_method == 'THREAD_RAISED' or msgbox_crash_text is not None or stdout_crash_text is not None:
+    elif is_crash:
         crash_detail = stdout_crash_text or msgbox_crash_text
         crash_reason = (
             f'terminate_script (method={terminate_method}, thread={caller_thread.name}): {crash_detail}'
@@ -136,12 +129,6 @@ def handle_exception(exc_type: type[BaseException], exc_value: BaseException, ex
     if issubclass(exc_type, KeyboardInterrupt):
         return
 
-    logger.critical(
-        'handle_exception invoked for main script: %s: %s',
-        exc_type.__name__,
-        exc_value,
-        exc_info=(exc_type, exc_value, exc_traceback),
-    )
     exception_info = ExceptionInfo(exc_type, exc_value, exc_traceback)
     terminate_script(
         'EXIT',
@@ -164,14 +151,6 @@ def terminate_on_uncaught_exception(exc: BaseException) -> None:
     Shared helper used by pool-task callbacks and QThread wrappers so the
     crash call is not duplicated across modules.
     """
-    current_thread = threading.current_thread()
-    logger.critical(
-        'terminate_on_uncaught_exception invoked from thread %s (native_id: %s): %s',
-        current_thread.name,
-        getattr(current_thread, 'native_id', 'unknown'),
-        exc,
-        exc_info=(type(exc), exc, exc.__traceback__),
-    )
     terminate_script(
         'THREAD_RAISED',
         f'An unexpected (uncaught) error occurred.\n\nPlease kindly report it to:\n{GITHUB_ISSUES_URL}',
@@ -184,17 +163,8 @@ def _handle_thread_exception(args: threading.ExceptHookArgs) -> None:
     if args.exc_type is SystemExit:
         return
 
-    thread_name = getattr(args.thread, 'name', 'unknown')
     exc_value = args.exc_value if args.exc_value is not None else RuntimeError('Unknown thread error')
-    exc_type = args.exc_type
-    logger.critical(
-        '_handle_thread_exception invoked for thread %s: %s: %s',
-        thread_name,
-        exc_type.__name__,
-        exc_value,
-        exc_info=(exc_type, exc_value, args.exc_traceback),
-    )
-    exception_info = ExceptionInfo(exc_type, exc_value, args.exc_traceback)
+    exception_info = ExceptionInfo(args.exc_type, exc_value, args.exc_traceback)
     terminate_script(
         'THREAD_RAISED',
         (f'An unexpected (uncaught) error occurred.\n\nPlease kindly report it to:\n{GITHUB_ISSUES_URL}'),
