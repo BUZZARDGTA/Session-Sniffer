@@ -432,7 +432,7 @@ class DiscordWebhookSender:
     def _run(self) -> None:
         """Worker loop: wait for payloads, post or edit on the configured cadence."""
         while not self._closed:
-            interval = max(5, int(getattr(Settings, 'discord_webhook_refresh_interval', 15)))
+            interval = max(5, Settings.discord_webhook_refresh_interval)
 
             # Block until awakened or interval expires
             try:
@@ -478,7 +478,7 @@ class DiscordWebhookSender:
 
     def _dispatch(self, url: str, payload: DiscordWebhookPayload) -> None:
         """Build messages for *payload* and POST/PATCH to Discord."""
-        max_rows = max(1, int(getattr(Settings, 'discord_webhook_max_rows_per_table', 25)))
+        max_rows = max(1, Settings.discord_webhook_max_rows_per_table)
         message_ids = _load_message_ids()
         ids_changed = False
 

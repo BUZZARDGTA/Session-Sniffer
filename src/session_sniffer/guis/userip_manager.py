@@ -911,7 +911,6 @@ class UserIPDatabasesManager(
         )
         self._entries_table.setColumnWidth(USERNAME_COLUMN, max(180, available_width - other_widths))
 
-    @override
     def _reset_column_sizes(self) -> None:
         """Reset column widths back to their initial default layout."""
         self._custom_column_widths = None

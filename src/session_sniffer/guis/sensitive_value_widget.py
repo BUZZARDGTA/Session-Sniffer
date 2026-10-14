@@ -124,8 +124,7 @@ class SensitiveValueWidget(QWidget):
     @override
     def eventFilter(self, watched: QObject, event: QEvent) -> bool:
         """Clicking on the blurred container or label reveals the value."""
-        target_widgets = (getattr(self, '_container', None), getattr(self, '_label', None))
-        if not getattr(self, '_revealed', False) and watched in target_widgets:
+        if not self._revealed and watched in (self._container, self._label):
             is_left_click = isinstance(event, QMouseEvent) and event.type() == QEvent.Type.MouseButtonPress and event.button() == Qt.MouseButton.LeftButton
             if is_left_click:
                 self.set_revealed(revealed=True)
@@ -154,21 +153,6 @@ class SensitiveValueWidget(QWidget):
         self._copy_button.setIcon(self._icon_copy)
         self._copy_button.setToolTip('Copy to clipboard')
 
-    @property
-    def text(self) -> str:
-        """The underlying sensitive text value."""
-        return self._text
-
-    def set_text(self, text: str) -> None:
-        """Update the underlying sensitive text value."""
-        self._text = text
-        self._apply_state()
-
-    @property
-    def is_revealed(self) -> bool:
-        """Whether the sensitive value is currently unblurred."""
-        return self._revealed
-
     def set_revealed(self, *, revealed: bool) -> None:
         """Set revealed state explicitly."""
         if self._revealed != revealed:
@@ -176,10 +160,6 @@ class SensitiveValueWidget(QWidget):
             self._apply_state()
             if self._on_toggled is not None:
                 self._on_toggled(self._revealed)
-
-    def toggle(self) -> None:
-        """Toggle revealed state between blurred and clear."""
-        self.set_revealed(revealed=not self._revealed)
 
     def _get_blurred_mask(self) -> str:
         """Compute the mask string dynamically to fill the container width."""

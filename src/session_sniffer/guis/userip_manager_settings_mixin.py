@@ -40,11 +40,10 @@ class SettingsPanelMixin(QDialog):
     """Mixin that builds and manages the database settings panel.
 
     Expects these attributes on the concrete class:
-        _dirty, _settings_loading
+        _settings_loading
     """
 
     # -- Attribute stubs for type checkers --
-    _dirty: bool
     _settings_loading: bool
     _settings_container: QFrame
     _settings_toggle: QPushButton
@@ -59,7 +58,6 @@ class SettingsPanelMixin(QDialog):
     _setting_voice: QComboBox
     _setting_suspend_mode: QComboBox
     _setting_suspend_custom: QSpinBox
-    _settings_snapshot: dict[str, str]
 
     def _mark_settings_dirty(self) -> None: ...
 

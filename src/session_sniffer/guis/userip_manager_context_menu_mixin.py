@@ -59,8 +59,6 @@ class EntriesContextMenuMixin(QDialog):
 
     def _rename_selected(self) -> None: ...
 
-    def _reset_column_sizes(self) -> None: ...
-
     def _edit_entry_ip(self, source_row: int) -> None:
         raise NotImplementedError
 
@@ -81,8 +79,6 @@ class EntriesContextMenuMixin(QDialog):
 
     def _move_selected_to_database(self, target_db_path: Path) -> None:
         raise NotImplementedError
-
-    def _update_entry_counts(self) -> None: ...
 
     # ------------------------------------------------------------------
     # Entries: context menu

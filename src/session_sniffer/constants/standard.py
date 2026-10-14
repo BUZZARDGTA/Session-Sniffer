@@ -10,6 +10,4 @@ if _local_tz is None:
     raise RuntimeError(_ERROR_MESSAGE)
 LOCAL_TZ: tzinfo = _local_tz
 
-SYSTEMROOT_PATH: Path = Path(os.getenv('SYSTEMROOT', 'C:/Windows'))
-SYSTEM32_PATH: Path = SYSTEMROOT_PATH / 'System32'
-CMD_EXE: Path = SYSTEM32_PATH / 'cmd.exe'
+CMD_EXE: Path = Path(os.getenv('SYSTEMROOT', 'C:/Windows')) / 'System32' / 'cmd.exe'

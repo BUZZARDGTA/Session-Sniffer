@@ -45,7 +45,6 @@ class TreeOperationsMixin(QDialog):
     _fs_model: QFileSystemModel
     _current_path: Path | None
     _dirty: bool
-    _next_index: int = 0
     _model: QStandardItemModel
     _open_db_button: QPushButton
     _export_selected_action: QAction | None
@@ -55,17 +54,11 @@ class TreeOperationsMixin(QDialog):
     _edit_ip_button: QPushButton
     _delete_button: QPushButton
     _delete_tree_button: QPushButton
-    _entries_dirty: bool
     _fs_watcher: DebouncedFileWatcher
     _global_search_active: bool
     _global_search_checkbox: QCheckBox
-    _settings_snapshot: dict[str, str]
 
     def _clear_dirty_state(self) -> None: ...
-
-    def _mark_entries_dirty(self) -> None: ...
-
-    def _mark_settings_dirty(self) -> None: ...
 
     def _refresh_protection_visibility(self) -> None: ...
 
@@ -78,9 +71,6 @@ class TreeOperationsMixin(QDialog):
         raise NotImplementedError
 
     def _update_file_info(self, path: Path | None) -> None:
-        raise NotImplementedError
-
-    def _append_row(self, username: str, ip: str, *, index: int = 0, database: tuple[str, Path] | None = None, is_looky: bool = False) -> None:
         raise NotImplementedError
 
     def _backup_databases_now(self) -> None: ...

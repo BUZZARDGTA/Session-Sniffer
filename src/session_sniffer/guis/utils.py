@@ -221,7 +221,7 @@ def get_screen_size() -> tuple[int, int]:
     screen_width = available_size.width()
     screen_height = available_size.height()
 
-    if (screen_width < min_screen_width or screen_height < min_screen_height) and not getattr(Settings, 'gui_ignore_screen_resolution_warning', False):
+    if (screen_width < min_screen_width or screen_height < min_screen_height) and not Settings.gui_ignore_screen_resolution_warning:
         raise UnsupportedScreenResolutionError(screen_width, screen_height, min_screen_width, min_screen_height)
 
     return screen_width, screen_height

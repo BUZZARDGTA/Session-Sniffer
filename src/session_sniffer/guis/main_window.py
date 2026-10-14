@@ -898,18 +898,8 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
         self._update_status_bar()
         if self._capture_statistics_window is not None and self._capture_statistics_window.isVisible():
             self._capture_statistics_window.refresh()
-        if self._session_timeline_window is not None and self._session_timeline_window.isVisible():
-            self._session_timeline_window.refresh()
-        if self._country_breakdown_window is not None and self._country_breakdown_window.isVisible():
-            self._country_breakdown_window.refresh()
-        if self._reconnect_frequency_window is not None and self._reconnect_frequency_window.isVisible():
-            self._reconnect_frequency_window.refresh()
-        if self._port_heatmap_window is not None and self._port_heatmap_window.isVisible():
-            self._port_heatmap_window.refresh()
-        if self._session_duration_window is not None and self._session_duration_window.isVisible():
-            self._session_duration_window.refresh()
+        self._refresh_stat_breakdown_windows()
 
-    @override
     def reset_capture_stats(self) -> None:
         """Reset capture statistics, graphs, header counters, and open stats windows."""
         CaptureStats.reset_capture_stats()
@@ -918,13 +908,4 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
         self._header.update_stats(uptime_seconds=uptime, total_packets=0)
         self.reset_session_graph()
         self._update_status_bar()
-        if self._session_timeline_window is not None and self._session_timeline_window.isVisible():
-            self._session_timeline_window.refresh()
-        if self._country_breakdown_window is not None and self._country_breakdown_window.isVisible():
-            self._country_breakdown_window.refresh()
-        if self._reconnect_frequency_window is not None and self._reconnect_frequency_window.isVisible():
-            self._reconnect_frequency_window.refresh()
-        if self._port_heatmap_window is not None and self._port_heatmap_window.isVisible():
-            self._port_heatmap_window.refresh()
-        if self._session_duration_window is not None and self._session_duration_window.isVisible():
-            self._session_duration_window.refresh()
+        self._refresh_stat_breakdown_windows()

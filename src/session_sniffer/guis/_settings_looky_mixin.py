@@ -253,7 +253,7 @@ class SettingsDialogLookyMixin(QDialog):
 
     def _hide_looky_account_sensitive_values(self) -> None:
         """Re-blur any revealed sensitive values in the account info card."""
-        for widget in getattr(self, '_looky_account_sensitive_widgets', []):
+        for widget in self._looky_account_sensitive_widgets:
             widget.set_revealed(revealed=False)
 
     def _on_looky_api_key_changed(self, text: str) -> None:

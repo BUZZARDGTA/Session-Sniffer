@@ -33,7 +33,6 @@ class LookyMixin(QMainWindow):
     # -- Attribute stubs for type checkers --
     _looky_crawler_join_own_session_action: QAction
     _looky_rescan_all_action: QAction
-    _looky_submenu: QMenu
 
     if TYPE_CHECKING:
         _open_looky_website: Callable[[], None]
@@ -46,7 +45,6 @@ class LookyMixin(QMainWindow):
             raise RuntimeError(message)
         looky_submenu.setToolTipsVisible(True)
         looky_submenu.menuAction().setToolTip('Looky System tools and shortcuts for GTA5 sessions')
-        self._looky_submenu = looky_submenu
 
         looky_open_website_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'globe.svg')), 'Open Website', self)
         looky_open_website_action.setToolTip('Open the Looky System website in your default browser')

@@ -70,9 +70,6 @@ class StatsMixin(QMainWindow):
     def recalculate_capture_stats(self) -> None:
         """Recalculate capture statistics from currently remaining players in registry."""
 
-    def reset_capture_stats(self) -> None:
-        """Reset capture statistics, graphs, header counters, and open stats windows."""
-
     def _select_connected_ips(self, ip_addresses: list[str]) -> None:
         """Select and scroll to player rows by IP in the connected table."""
         selection = QItemSelection()
@@ -186,6 +183,14 @@ class StatsMixin(QMainWindow):
             self._session_bps_graph_window.update_bps(CaptureStats.global_bps_rate)
         if self._packets_latency_graph_window is not None and self._packets_latency_graph_window.isVisible():
             self._packets_latency_graph_window.update_latency(CaptureStats.global_avg_latency_ms)
+        self._refresh_stat_breakdown_windows()
+
+        # Sync game process control state every tick
+        if Settings.is_gta5_feature_set() or Settings.is_rdr2_feature_set():
+            self._sync_game_process_button()
+
+    def _refresh_stat_breakdown_windows(self) -> None:
+        """Refresh all visible statistics breakdown windows."""
         if self._country_breakdown_window is not None and self._country_breakdown_window.isVisible():
             self._country_breakdown_window.refresh()
         if self._reconnect_frequency_window is not None and self._reconnect_frequency_window.isVisible():
@@ -196,10 +201,6 @@ class StatsMixin(QMainWindow):
             self._port_heatmap_window.refresh()
         if self._session_duration_window is not None and self._session_duration_window.isVisible():
             self._session_duration_window.refresh()
-
-        # Sync game process control state every tick
-        if Settings.is_gta5_feature_set() or Settings.is_rdr2_feature_set():
-            self._sync_game_process_button()
 
     def _open_session_pps_graph(self) -> None:
         """Open or focus the session-wide PPS graph window."""

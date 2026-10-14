@@ -286,8 +286,7 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
                 outer_layout.addWidget(self._build_discord_webhook_group(items, self._add_setting_row))
                 continue
             if category == 'GTA V' and group_name == 'Looky System':
-                self._looky_group_box = self._build_looky_group(items, self._add_setting_row)
-                outer_layout.addWidget(self._looky_group_box)
+                outer_layout.addWidget(self._build_looky_group(items, self._add_setting_row))
                 continue
 
             group_box = QGroupBox(group_name.replace('&', '&&'))
@@ -420,8 +419,7 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
             if is_supported_game:
                 self._tabs.setTabText(self._game_tab_index, feature_set)
 
-        if hasattr(self, '_looky_group_box'):
-            self._looky_group_box.setVisible(is_gta5)
+        self._looky_group_box.setVisible(is_gta5)
         if is_gta5:
             api_key_widget = self._widgets.get('looky_api_key')
             self._on_looky_api_key_changed(api_key_widget.text() if isinstance(api_key_widget, QLineEdit) else '')
@@ -899,35 +897,28 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
 
     def _update_restart_notice(self, *_args: object) -> None:
         """Update visibility of the capture restart notice banner."""
-        if getattr(self, '_loading_settings', False):
+        if self._loading_settings:
             return
         self._restart_notice_banner.setVisible(self._has_unsaved_restart_changes())
 
+    def _is_setting_modified(self, key: str, widget: QWidget) -> bool:
+        """Return `True` if *widget*'s current value for *key* differs from its initial value."""
+        current_value = self._read_widget_value(key, widget)
+        original_value = self._old_values.get(key)
+        if SETTING_METADATA[key].setting_type in (SettingType.IP_RANGE_TUPLE, SettingType.STRING_TUPLE):
+            return sorted(current_value if isinstance(current_value, tuple) else ()) != sorted(original_value if isinstance(original_value, tuple) else ())
+        return current_value != original_value
+
     def _has_unsaved_restart_changes(self) -> bool:
         """Return `True` if any modified setting requires a packet capture restart."""
-        for key, widget in self._widgets.items():
-            if not SETTING_METADATA[key].requires_capture_restart:
-                continue
-            current_value = self._read_widget_value(key, widget)
-            original_value = self._old_values.get(key)
-            if SETTING_METADATA[key].setting_type in (SettingType.IP_RANGE_TUPLE, SettingType.STRING_TUPLE):
-                if sorted(current_value if isinstance(current_value, tuple) else ()) != sorted(original_value if isinstance(original_value, tuple) else ()):
-                    return True
-            elif current_value != original_value:
-                return True
-        return False
+        return any(
+            SETTING_METADATA[key].requires_capture_restart and self._is_setting_modified(key, widget)
+            for key, widget in self._widgets.items()
+        )
 
     def _has_unsaved_changes(self) -> bool:
         """Return True if any widget value differs from the value at dialog open."""
-        for key, widget in self._widgets.items():
-            current_value = self._read_widget_value(key, widget)
-            original_value = self._old_values.get(key)
-            if SETTING_METADATA[key].setting_type in (SettingType.IP_RANGE_TUPLE, SettingType.STRING_TUPLE):
-                if sorted(current_value if isinstance(current_value, tuple) else ()) != sorted(original_value if isinstance(original_value, tuple) else ()):
-                    return True
-            elif current_value != original_value:
-                return True
-        return False
+        return any(self._is_setting_modified(key, widget) for key, widget in self._widgets.items())
 
     @override
     def _has_unsaved_changes_for_close(self) -> bool:

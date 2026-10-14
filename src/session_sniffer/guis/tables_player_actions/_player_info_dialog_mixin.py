@@ -1,6 +1,6 @@
 """Shared base mixin for player-info dialogs (group boxes, form rows, layout helpers)."""
 
-from typing import TYPE_CHECKING, override
+from typing import TYPE_CHECKING
 
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (
@@ -25,8 +25,6 @@ from session_sniffer.guis.utils import apply_adaptive_window_size
 
 if TYPE_CHECKING:
     from collections.abc import Callable
-
-    from PySide6.QtGui import QCloseEvent
 
 
 class PlayerInfoDialogMixin(QDialog):
@@ -115,8 +113,3 @@ class PlayerInfoDialogMixin(QDialog):
         header.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse | Qt.TextInteractionFlag.TextSelectableByKeyboard)
         outer_layout.addWidget(header)
         return header
-
-    @override
-    def closeEvent(self, event: QCloseEvent) -> None:
-        """Handle the close event."""
-        super().closeEvent(event)

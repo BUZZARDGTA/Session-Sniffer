@@ -164,12 +164,6 @@ class SessionFilterState:
             return cls._selected_session
 
     @classmethod
-    def get_version(cls) -> int:
-        """Return the current version counter."""
-        with cls._lock:
-            return cls._version
-
-    @classmethod
     def bump_version(cls) -> None:
         """Increment the session filter version to trigger a UI refresh."""
         with cls._lock:

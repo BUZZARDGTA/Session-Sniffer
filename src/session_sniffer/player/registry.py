@@ -524,15 +524,3 @@ class SessionTracker:
                     logger.debug('[SessionTracker] Removed player %s from session %d', ip, session_id)
                 return removed
             return False
-
-    @classmethod
-    def reset(cls) -> None:
-        """Reset session tracking state to the initial session."""
-        with cls._lock:
-            cls._current_session_id = 1
-            cls._known_sessions = {1}
-            cls._session_names.clear()
-            cls._session_snapshots.clear()
-            cls._session_start_times.clear()
-            cls._session_end_times.clear()
-            logger.debug('[SessionTracker] Reset session tracker to initial session')

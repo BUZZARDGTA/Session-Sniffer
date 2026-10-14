@@ -121,6 +121,7 @@ class SessionTableSection(QWidget):
         self._is_expanded = True
         self._is_connected = is_connected
         self._rows_keyboard_editing = False
+        self._spinbox_guards: list[QObject] = []
 
         if is_connected:
             accent = '#22c55e'
@@ -832,8 +833,6 @@ class SessionTableSection(QWidget):
         guard = _SpinboxInputGuard(self)
         spinbox.installEventFilter(guard)
         line_edit.installEventFilter(guard)
-        if not hasattr(self, '_spinbox_guards'):
-            self._spinbox_guards: list[QObject] = []
         self._spinbox_guards.append(guard)
 
     def set_keyboard_editing(self, *, is_editing: bool) -> None:

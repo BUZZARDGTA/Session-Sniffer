@@ -101,7 +101,6 @@ class StandaloneIPLookup:
     ping: PlayerPing = dataclasses.field(default_factory=PlayerPing)
     ports: _StandalonePorts = dataclasses.field(default_factory=_StandalonePorts)
     userip: UserIP | None = None
-    userip_detection: object = None
 
 
 type IPLookupTarget = Player | StandaloneIPLookup
@@ -321,7 +320,7 @@ class IPLookupDetailsDialog(PlayerInfoDialogMixin):
         configure_looky_action(
             lookup_button,
             default_tooltip='Query the Looky System API to view full player details for this IP.',
-            check_gta5_restriction=isinstance(self._target, StandaloneIPLookup) or not getattr(self._target, 'is_gta5_process', False),
+            check_gta5_restriction=isinstance(self._target, StandaloneIPLookup) or not self._target.is_gta5_process,
         )
         buttons_layout.addWidget(lookup_button)
 
