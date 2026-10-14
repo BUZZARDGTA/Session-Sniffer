@@ -98,11 +98,11 @@ def rendering_core(
     _disconnected_json_cache: dict[str, tuple[tuple[object, ...], dict[str, object]]] = {}
     _session_logging_writing: bool = False
     _session_logging_lock = threading.Lock()
+    _last_written_session_json: str | None = None
 
     def process_session_logging() -> None:
         nonlocal _session_logging_writing
         # JSON session snapshots are the canonical persisted format.
-        SESSIONS_LOGGING_PATH.parent.mkdir(parents=True, exist_ok=True)
 
         def format_player_logging_datetime(player_datetime: datetime) -> str:
             return player_datetime.strftime('%m/%d/%Y %H:%M:%S.%f')[:-3]
@@ -269,10 +269,17 @@ def rendering_core(
         )
 
         def _write_session_logging_task(model_snapshot: SessionLogFile) -> None:
-            nonlocal _session_logging_writing
+            nonlocal _last_written_session_json, _session_logging_writing
+            json_path = SESSIONS_LOGGING_PATH.with_suffix('.json')
             try:
-                json_path = SESSIONS_LOGGING_PATH.with_suffix('.json')
-                json_path.write_text(model_snapshot.model_dump_json(by_alias=True), encoding='utf-8')
+                json_content = model_snapshot.model_dump_json(by_alias=True)
+                if json_content == _last_written_session_json and json_path.is_file():
+                    return
+                json_path.parent.mkdir(parents=True, exist_ok=True)
+                json_path.write_text(json_content, encoding='utf-8')
+                _last_written_session_json = json_content
+            except OSError as e:
+                logger.warning('Failed to write session log to %s: %s', json_path, e)
             finally:
                 with _session_logging_lock:
                     _session_logging_writing = False
