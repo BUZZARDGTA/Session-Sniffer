@@ -11,6 +11,7 @@ import logging
 import subprocess
 import sys
 import tempfile
+from ctypes import wintypes
 from dataclasses import dataclass
 from typing import Final, cast
 
@@ -33,14 +34,16 @@ Add-Type -AssemblyName System.Runtime.WindowsRuntime
 
 $netConn = [Windows.Networking.Connectivity.NetworkInformation, Windows.Networking.Connectivity, ContentType = WindowsRuntime]
 $profile = $netConn::GetInternetConnectionProfile()
+if (-not $profile) {
+    Write-Output '{"Success": false, "Error": "No active internet connection available to share."}'
+    exit
+}
 $tetheringType = [Windows.Networking.NetworkOperators.NetworkOperatorTetheringManager, Windows.Networking.NetworkOperators, ContentType = WindowsRuntime]
 $mgr = $null
-if ($profile) {
-    try {
-        $mgr = $tetheringType::CreateFromConnectionProfile($profile)
-    } catch {
-        $mgr = $null
-    }
+try {
+    $mgr = $tetheringType::CreateFromConnectionProfile($profile)
+} catch {
+    $mgr = $null
 }
 
 if ($mgr) {
@@ -73,7 +76,7 @@ if ($mgr) {
     }
     Write-Output (ConvertTo-Json -Depth 5 $info)
 } else {
-    Write-Output '{"Success": false, "Error": "No internet connection profile available for tethering manager"}'
+    Write-Output '{"Success": false, "Error": "No Wi-Fi adapter capable of Mobile Hotspot detected."}'
 }
 """
 
@@ -291,6 +294,8 @@ class HotspotInfo:
     band: str
     client_count: int
     max_clients: int
+    is_available: bool = True
+    unavailable_reason: str | None = None
 
     @property
     def formatted_band(self) -> str:
@@ -325,6 +330,36 @@ def is_admin() -> bool:
         except AttributeError, OSError:
             return False
     return False
+
+
+def has_wifi_adapter() -> bool:
+    """Return whether a wireless LAN adapter is present and enabled on the system."""
+    if sys.platform != 'win32':
+        return False
+
+    try:
+        wlanapi = ctypes.windll.wlanapi
+    except AttributeError, OSError:
+        return False
+
+    negotiated_version = wintypes.DWORD()
+    client_handle = wintypes.HANDLE()
+    open_result = wlanapi.WlanOpenHandle(2, None, ctypes.byref(negotiated_version), ctypes.byref(client_handle))
+    if open_result or not bool(client_handle.value):
+        return False
+
+    interface_list_ptr = ctypes.c_void_p()
+    try:
+        enum_result = wlanapi.WlanEnumInterfaces(client_handle, None, ctypes.byref(interface_list_ptr))
+        if enum_result or not bool(interface_list_ptr.value):
+            return False
+        try:
+            num_items = ctypes.cast(interface_list_ptr, ctypes.POINTER(wintypes.DWORD)).contents.value
+            return num_items > 0
+        finally:
+            wlanapi.WlanFreeMemory(interface_list_ptr)
+    finally:
+        wlanapi.WlanCloseHandle(client_handle, None)
 
 
 def _decode_stream(raw_bytes: bytes) -> str:
@@ -388,17 +423,31 @@ def _run_powershell_script(script_text: str, *arguments: str) -> dict[str, objec
 
 def get_hotspot_info() -> HotspotInfo:
     """Retrieve the current Mobile Hotspot operational state and configuration."""
+    if not has_wifi_adapter():
+        return HotspotInfo(
+            operational_state='Unavailable',
+            ssid='',
+            passphrase='',
+            band='',
+            client_count=0,
+            max_clients=0,
+            is_available=False,
+            unavailable_reason='No Wi-Fi adapter detected on this PC.',
+        )
+
     response = _run_powershell_script(_WINRT_HOTSPOT_INFO_SCRIPT)
     if not response.get('Success', False):
         error_message = str(response.get('Error', 'Failed to query hotspot state'))
         logger.debug('Hotspot info query returned error: %s', error_message)
         return HotspotInfo(
-            operational_state='Off',
+            operational_state='Unavailable',
             ssid='',
             passphrase='',
             band='',
             client_count=0,
-            max_clients=8,
+            max_clients=0,
+            is_available=False,
+            unavailable_reason=error_message,
         )
 
     operational_state = str(response.get('State', 'Off'))
@@ -417,6 +466,7 @@ def get_hotspot_info() -> HotspotInfo:
         band=band,
         client_count=client_count,
         max_clients=max_clients,
+        is_available=True,
     )
 
 
@@ -430,6 +480,8 @@ def configure_hotspot(ssid: str, passphrase: str) -> tuple[bool, str | None]:
     Returns:
         Tuple of (success_boolean, optional_error_message).
     """
+    if not has_wifi_adapter():
+        return False, 'No Wi-Fi adapter detected on this PC.'
     if len(ssid) < MIN_SSID_LENGTH or len(ssid) > MAX_SSID_LENGTH:
         return False, f'SSID must be between {MIN_SSID_LENGTH} and {MAX_SSID_LENGTH} characters.'
     if len(passphrase) < MIN_PASSPHRASE_LENGTH or len(passphrase) > MAX_PASSPHRASE_LENGTH:
@@ -454,6 +506,8 @@ def start_hotspot() -> tuple[bool, str | None]:
     Returns:
         Tuple of (success_boolean, optional_error_message).
     """
+    if not has_wifi_adapter():
+        return False, 'No Wi-Fi adapter detected on this PC.'
     response = _run_powershell_script(_WINRT_START_HOTSPOT_SCRIPT)
     if response.get('Success', False):
         return True, None
@@ -468,6 +522,8 @@ def stop_hotspot() -> tuple[bool, str | None]:
     Returns:
         Tuple of (success_boolean, optional_error_message).
     """
+    if not has_wifi_adapter():
+        return False, 'No Wi-Fi adapter detected on this PC.'
     response = _run_powershell_script(_WINRT_STOP_HOTSPOT_SCRIPT)
     if response.get('Success', False):
         return True, None
@@ -488,6 +544,8 @@ def _resolve_neighbour_info(mac_address: str) -> tuple[str, str | None]:
 
 def get_connected_devices() -> list[ConnectedDevice]:
     """Retrieve list of devices connected through Mobile Hotspot."""
+    if not has_wifi_adapter():
+        return []
     devices: list[ConnectedDevice] = []
     response = _run_powershell_script(_WINRT_HOTSPOT_INFO_SCRIPT)
 

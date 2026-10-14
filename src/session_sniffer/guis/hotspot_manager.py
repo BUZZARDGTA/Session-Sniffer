@@ -62,6 +62,7 @@ from session_sniffer.networking.hotspot import (
     get_connected_devices,
     get_hotspot_info,
     get_ics_status,
+    has_wifi_adapter,
     is_admin,
     start_hotspot,
     stop_hotspot,
@@ -102,7 +103,7 @@ class HotspotActionWorker(CrashingQThread):
             if self._task_name == 'refresh_all':
                 info = get_hotspot_info()
                 self.info_ready.emit(info)
-                devices = get_connected_devices()
+                devices = get_connected_devices() if info.is_available else []
                 self.devices_ready.emit(devices)
                 ics_status = get_ics_status()
                 self.ics_status_ready.emit(ics_status)
@@ -253,6 +254,7 @@ class HotspotManagerWidget(QWidget):
         card = QFrame()
         card.setObjectName('hotspotCard')
         card.setStyleSheet(HOTSPOT_CARD_STYLESHEET)
+        self._hotspot_card = card
 
         layout = QVBoxLayout(card)
         layout.setContentsMargins(scale_by_ui(16), scale_by_ui(14), scale_by_ui(16), scale_by_ui(14))
@@ -262,10 +264,12 @@ class HotspotManagerWidget(QWidget):
         header_layout = QHBoxLayout()
         hotspot_icon = QLabel()
         hotspot_icon.setPixmap(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'wifi.svg')).pixmap(scale_by_ui(16), scale_by_ui(16)))
+        self._hotspot_icon_label = hotspot_icon
         header_layout.addWidget(hotspot_icon)
 
         header_title = QLabel('Wi-Fi Hotspot')
         header_title.setStyleSheet(HOTSPOT_CARD_HEADER_STYLESHEET)
+        self._hotspot_title_label = header_title
         header_layout.addWidget(header_title)
 
         self._hotspot_status_badge = QLabel('OFF')
@@ -291,6 +295,7 @@ class HotspotManagerWidget(QWidget):
         # SSID input
         ssid_label = QLabel('Hotspot name (SSID)')
         ssid_label.setStyleSheet(HOTSPOT_FIELD_LABEL_STYLESHEET)
+        self._ssid_label = ssid_label
         layout.addWidget(ssid_label)
 
         self._ssid_input = QLineEdit()
@@ -301,6 +306,7 @@ class HotspotManagerWidget(QWidget):
         # Password input with reveal toggle
         password_label = QLabel('Password (WPA2)')
         password_label.setStyleSheet(HOTSPOT_FIELD_LABEL_STYLESHEET)
+        self._password_label = password_label
         layout.addWidget(password_label)
 
         password_layout = QHBoxLayout()
@@ -320,6 +326,7 @@ class HotspotManagerWidget(QWidget):
 
         password_hint = QLabel('Password can be revealed locally.')
         password_hint.setStyleSheet('color: #8fa2b8; font-size: 8pt;')
+        self._password_hint_label = password_hint
         layout.addWidget(password_hint)
 
         layout.addStretch()
@@ -338,6 +345,7 @@ class HotspotManagerWidget(QWidget):
         buttons_layout.addWidget(self._toggle_hotspot_button)
 
         layout.addLayout(buttons_layout)
+        self._apply_hotspot_availability(is_available=has_wifi_adapter())
         return card
 
     def _build_bridge_card(self) -> QFrame:
@@ -540,11 +548,60 @@ class HotspotManagerWidget(QWidget):
         self._active_worker = worker
         worker.start()
 
+    def _apply_hotspot_availability(self, *, is_available: bool, unavailable_reason: str | None = None) -> None:
+        """Enable or grey out the Wi-Fi Hotspot card controls based on adapter availability."""
+        unavailable_flag = 'false' if is_available else 'true'
+        if self._hotspot_card.property('unavailable') != unavailable_flag:
+            self._hotspot_card.setProperty('unavailable', unavailable_flag)
+            style = self._hotspot_card.style()
+            style.unpolish(self._hotspot_card)
+            style.polish(self._hotspot_card)
+
+        self._hotspot_icon_label.setEnabled(is_available)
+        self._hotspot_title_label.setEnabled(is_available)
+        self._ssid_label.setEnabled(is_available)
+        self._ssid_input.setEnabled(is_available)
+        self._password_label.setEnabled(is_available)
+        self._password_input.setEnabled(is_available)
+        self._toggle_password_button.setEnabled(is_available)
+        self._save_hotspot_button.setEnabled(is_available)
+        self._toggle_hotspot_button.setEnabled(is_available)
+        self._hotspot_ssid_pill.setVisible(is_available)
+        self._hotspot_clients_pill.setVisible(is_available)
+
+        if not is_available:
+            reason = unavailable_reason or 'No Wi-Fi adapter detected on this PC.'
+            self._hotspot_band_pill.setVisible(False)
+            self._hotspot_status_badge.setText('UNAVAILABLE')
+            self._hotspot_status_badge.setStyleSheet(HOTSPOT_BADGE_INACTIVE_STYLESHEET)
+            self._hotspot_status_badge.setToolTip(reason)
+            self._toggle_hotspot_button.setText(' Start Hotspot')
+            self._toggle_hotspot_button.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'circle-play.svg')))
+            self._toggle_hotspot_button.setStyleSheet(DIALOG_PRIMARY_BUTTON_STYLESHEET)
+            self._ssid_input.clear()
+            self._ssid_input.setPlaceholderText('Wi-Fi adapter not available')
+            self._password_input.clear()
+            self._password_input.setPlaceholderText('Wi-Fi adapter not available')
+            self._password_hint_label.setText(reason)
+            self._password_hint_label.setStyleSheet('color: #5c6d80; font-size: 8pt;')
+        else:
+            self._hotspot_status_badge.setToolTip('')
+            self._ssid_input.setPlaceholderText('Enter Wi-Fi network name...')
+            self._password_input.setPlaceholderText('Minimum 8 characters...')
+            self._password_hint_label.setText('Password can be revealed locally.')
+            self._password_hint_label.setStyleSheet('color: #8fa2b8; font-size: 8pt;')
+
     def _on_hotspot_info_ready(self, info_object: object) -> None:
         """Handle updated HotspotInfo received from worker thread."""
         if not isinstance(info_object, HotspotInfo):
             return
         self._current_hotspot_info = info_object
+        self._apply_hotspot_availability(
+            is_available=info_object.is_available,
+            unavailable_reason=info_object.unavailable_reason,
+        )
+        if not info_object.is_available:
+            return
 
         is_active = info_object.operational_state == 'On'
         in_transition = info_object.operational_state == 'InTransition'
@@ -731,8 +788,9 @@ class HotspotManagerWidget(QWidget):
 
     def _on_action_finished(self, result: HotspotActionResult) -> None:
         """Handle completion of background worker tasks."""
-        self._save_hotspot_button.setEnabled(True)
-        self._toggle_hotspot_button.setEnabled(True)
+        hotspot_available = self._current_hotspot_info.is_available if self._current_hotspot_info is not None else has_wifi_adapter()
+        self._save_hotspot_button.setEnabled(hotspot_available)
+        self._toggle_hotspot_button.setEnabled(hotspot_available)
         self._enable_sharing_button.setEnabled(True)
         self._reset_sharing_button.setEnabled(True)
         self._status_bar_label.setText(result.message)

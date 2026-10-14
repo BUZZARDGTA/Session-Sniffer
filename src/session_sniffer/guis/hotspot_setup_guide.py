@@ -27,6 +27,7 @@ from session_sniffer.guis.stylesheets import (
     HOTSPOT_STEP_NUMBER_STYLESHEET,
 )
 from session_sniffer.guis.utils import scale_by_ui
+from session_sniffer.networking.hotspot import has_wifi_adapter
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -44,7 +45,7 @@ class _ClickableOptionCard(QFrame):
 
     @override
     def mouseReleaseEvent(self, event: QMouseEvent) -> None:
-        if event.button() == Qt.MouseButton.LeftButton:
+        if self.isEnabled() and event.button() == Qt.MouseButton.LeftButton:
             self._on_click()
             event.accept()
             return
@@ -153,6 +154,7 @@ class HotspotSetupGuideDialog(DraggableDialogMixin, QDialog):
         layout.addSpacing(scale_by_ui(4))
 
         # Option Card 1: Wi-Fi Hotspot
+        wifi_available = has_wifi_adapter()
         wifi_card = _ClickableOptionCard(lambda: self._stacked_widget.setCurrentIndex(1))
         wifi_card_layout = QHBoxLayout(wifi_card)
         wifi_card_layout.setContentsMargins(scale_by_ui(16), scale_by_ui(14), scale_by_ui(16), scale_by_ui(14))
@@ -162,28 +164,46 @@ class HotspotSetupGuideDialog(DraggableDialogMixin, QDialog):
         wifi_icon_label.setFixedSize(scale_by_ui(40), scale_by_ui(40))
         wifi_icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         wifi_icon_label.setPixmap(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'wifi.svg')).pixmap(scale_by_ui(24), scale_by_ui(24)))
-        wifi_icon_label.setStyleSheet('padding: 8px; background: rgba(61, 142, 201, 0.20); border-radius: 8px;')
+        wifi_icon_label.setStyleSheet(
+            'padding: 8px; background: rgba(61, 142, 201, 0.20); border-radius: 8px;'
+            if wifi_available
+            else 'padding: 8px; background: rgba(82, 97, 115, 0.12); border-radius: 8px;',
+        )
         wifi_card_layout.addWidget(wifi_icon_label, 0, Qt.AlignmentFlag.AlignCenter)
 
         wifi_text_layout = QVBoxLayout()
         wifi_header_layout = QHBoxLayout()
         wifi_title = QLabel('Wi-Fi Hotspot')
-        wifi_title.setStyleSheet('color: #ffffff; font-size: 10.5pt; font-weight: 700;')
+        wifi_title.setStyleSheet(
+            'color: #ffffff; font-size: 10.5pt; font-weight: 700;' if wifi_available else 'color: #5c6d80; font-size: 10.5pt; font-weight: 700;',
+        )
         wifi_header_layout.addWidget(wifi_title)
-        wifi_badge = QLabel('RECOMMENDED')
+        wifi_badge = QLabel('RECOMMENDED' if wifi_available else 'UNAVAILABLE')
         wifi_badge.setStyleSheet(
-            'color: #38bdf8; background: rgba(56, 189, 248, 0.12); border: 1px solid rgba(56, 189, 248, 0.4); '
-            'border-radius: 4px; padding: 1px 6px; font-size: 7pt; font-weight: 800;',
+            (
+                'color: #38bdf8; background: rgba(56, 189, 248, 0.12); border: 1px solid rgba(56, 189, 248, 0.4); '
+                'border-radius: 4px; padding: 1px 6px; font-size: 7pt; font-weight: 800;'
+            )
+            if wifi_available
+            else (
+                'color: #6b7c90; background: rgba(107, 124, 144, 0.12); border: 1px solid rgba(107, 124, 144, 0.3); '
+                'border-radius: 4px; padding: 1px 6px; font-size: 7pt; font-weight: 800;'
+            ),
         )
         wifi_header_layout.addWidget(wifi_badge)
         wifi_header_layout.addStretch()
         wifi_text_layout.addLayout(wifi_header_layout)
 
-        wifi_desc = QLabel('Create a wireless hotspot from your PC. Your console connects over Wi-Fi.')
+        wifi_desc = QLabel(
+            'Create a wireless hotspot from your PC. Your console connects over Wi-Fi.' if wifi_available else 'No Wi-Fi adapter detected on this PC.',
+        )
         wifi_desc.setWordWrap(True)
-        wifi_desc.setStyleSheet('color: #c8ddf0; font-size: 8.5pt;')
+        wifi_desc.setStyleSheet('color: #c8ddf0; font-size: 8.5pt;' if wifi_available else 'color: #526173; font-size: 8.5pt;')
         wifi_text_layout.addWidget(wifi_desc)
         wifi_card_layout.addLayout(wifi_text_layout, 1)
+        if not wifi_available:
+            wifi_card.setEnabled(False)
+            wifi_card.setCursor(Qt.CursorShape.ArrowCursor)
         layout.addWidget(wifi_card)
 
         # Option Card 2: Ethernet Bridge

@@ -7,6 +7,11 @@ QFrame#hotspotCard, QFrame#bridgeCard, QFrame#devicesCard {
     border-radius: 10px;
 }
 
+QFrame#hotspotCard[unavailable="true"] {
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #18202a, stop:1 #121820);
+    border: 1px solid #222c3a;
+}
+
 QFrame#hotspotCard QWidget#emptyDevicesWidget,
 QFrame#devicesCard QWidget#emptyDevicesWidget,
 QFrame#hotspotCard QCheckBox,
@@ -35,6 +40,10 @@ QLabel {
     color: #f0f4fa;
     font-size: 11pt;
     font-weight: 700;
+}
+
+QLabel:disabled {
+    color: #5c6d80;
 }
 """.strip()
 
@@ -95,6 +104,10 @@ QLabel {
     font-size: 9pt;
     font-weight: 600;
 }
+
+QLabel:disabled {
+    color: #526173;
+}
 """.strip()
 
 HOTSPOT_INPUT_STYLESHEET = """
@@ -110,6 +123,12 @@ QLineEdit, QComboBox {
 QLineEdit:focus, QComboBox:focus {
     border: 1px solid #3d8ec9;
     background-color: #171d28;
+}
+
+QLineEdit:disabled, QComboBox:disabled {
+    background-color: #10141b;
+    color: #526173;
+    border: 1px solid #1e2631;
 }
 
 QComboBox::drop-down {
@@ -157,6 +176,11 @@ QFrame#guideOptionCard {
 QFrame#guideOptionCard:hover {
     background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #253346, stop:1 #192433);
     border: 1px solid #3d8ec9;
+}
+
+QFrame#guideOptionCard:disabled {
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #161d26, stop:1 #10161d);
+    border: 1px solid #222c3a;
 }
 
 QFrame#guideOptionCard QLabel {
