@@ -292,6 +292,19 @@ class HotspotInfo:
     client_count: int
     max_clients: int
 
+    @property
+    def formatted_band(self) -> str:
+        """Return a human-readable display string for the Wi-Fi frequency band."""
+        match self.band:
+            case 'TwoPointFourGigahertz':
+                return '2.4 GHz'
+            case 'FiveGigahertz':
+                return '5 GHz'
+            case 'Auto':
+                return 'Auto'
+            case _:
+                return self.band
+
 
 @dataclass(frozen=True, slots=True)
 class ConnectedDevice:

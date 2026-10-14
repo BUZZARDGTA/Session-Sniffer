@@ -67,6 +67,7 @@ from session_sniffer.networking.hotspot import (
     stop_hotspot,
 )
 from session_sniffer.networking.interface import AllInterfaces
+from session_sniffer.text_utils import pluralize
 
 logger = logging.getLogger(__name__)
 
@@ -275,7 +276,12 @@ class HotspotManagerWidget(QWidget):
         self._hotspot_ssid_pill.setStyleSheet(HOTSPOT_PILL_INFO_STYLESHEET)
         header_layout.addWidget(self._hotspot_ssid_pill)
 
-        self._hotspot_clients_pill = QLabel('0 clients')
+        self._hotspot_band_pill = QLabel('-')
+        self._hotspot_band_pill.setStyleSheet(HOTSPOT_PILL_INFO_STYLESHEET)
+        self._hotspot_band_pill.setVisible(False)
+        header_layout.addWidget(self._hotspot_band_pill)
+
+        self._hotspot_clients_pill = QLabel('0/8 clients')
         self._hotspot_clients_pill.setStyleSheet(HOTSPOT_PILL_INFO_STYLESHEET)
         header_layout.addWidget(self._hotspot_clients_pill)
 
@@ -560,7 +566,20 @@ class HotspotManagerWidget(QWidget):
             self._toggle_hotspot_button.setStyleSheet(DIALOG_PRIMARY_BUTTON_STYLESHEET)
 
         self._hotspot_ssid_pill.setText(info_object.ssid or 'No SSID')
-        self._hotspot_clients_pill.setText(f'{info_object.client_count} clients')
+        self._hotspot_ssid_pill.setToolTip(f'Network SSID: {info_object.ssid or "None"}')
+
+        band_display = info_object.formatted_band
+        if band_display:
+            self._hotspot_band_pill.setText(band_display)
+            self._hotspot_band_pill.setToolTip(f'Wi-Fi Band: {band_display}')
+            self._hotspot_band_pill.setVisible(True)
+        else:
+            self._hotspot_band_pill.setVisible(False)
+
+        client_count = info_object.client_count
+        max_clients = info_object.max_clients
+        self._hotspot_clients_pill.setText(f'{client_count}/{max_clients} client{pluralize(client_count)}')
+        self._hotspot_clients_pill.setToolTip(f'Connected Clients: {client_count} of {max_clients} maximum allowed')
 
         # Only update inputs if user is not actively editing them
         if not self._ssid_input.hasFocus():
@@ -576,7 +595,7 @@ class HotspotManagerWidget(QWidget):
         devices: list[ConnectedDevice] = [device for device in raw_list if isinstance(device, ConnectedDevice)]
         self._current_devices = devices
 
-        self._device_count_badge.setText(f'{len(devices)} device{"s" if len(devices) != 1 else ""}')
+        self._device_count_badge.setText(f'{len(devices)} device{pluralize(len(devices))}')
 
         if not devices:
             self._devices_stacked.setCurrentIndex(1)
