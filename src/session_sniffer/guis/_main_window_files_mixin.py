@@ -63,6 +63,9 @@ if TYPE_CHECKING:
 class FilesMixin(QMainWindow):
     """File, folder, and URL open helpers mixin for `MainWindow`."""
 
+    _detections_manager_window: DetectionsManagerDialog | None
+    _logs_manager_window: LogsManager | None
+    _userip_manager_window: UserIPDatabasesManager | None
     _on_open_hotspot: Callable[[], None]
 
     def _open_userip_manager(self) -> UserIPDatabasesManager:
