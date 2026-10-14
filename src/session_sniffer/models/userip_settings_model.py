@@ -81,7 +81,7 @@ class UserIPSettingsModel(BaseModel):
             raise ValueError(message)
         if isinstance(value, str):
             try:
-                resolved, need_rewrite = custom_str_to_bool(value, only_match_against=False)
+                resolved, need_rewrite = custom_str_to_bool(value)
             except InvalidBooleanValueError:
                 try:
                     case_match, normalized = check_case_insensitive_and_exact_match(value, ('Male', 'Female'))
@@ -110,7 +110,7 @@ class UserIPSettingsModel(BaseModel):
             raise ValueError(message)
         if isinstance(value, str):
             try:
-                resolved, need_rewrite = custom_str_to_bool(value, only_match_against=False)
+                resolved, need_rewrite = custom_str_to_bool(value)
             except InvalidBooleanValueError:
                 try:
                     case_match, normalized = check_case_insensitive_and_exact_match(
