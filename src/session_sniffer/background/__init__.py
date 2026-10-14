@@ -6,16 +6,12 @@ from session_sniffer.background.cores import (
     ensure_looky_core_running,
     hostname_core,
     iplookup_core,
-    is_looky_eligible,
     pinger_core,
     trigger_looky_rescan_all_players,
     wake_all_player_cores,
     wake_looky_core,
 )
-from session_sniffer.background.events import gui_closed__event
 from session_sniffer.background.tasks import (
-    NotificationConfig,
-    check_global_detections,
     handle_detection_notification,
     is_gta5_relay_ip,
     is_gta5_relay_monitoring_active,
@@ -23,41 +19,25 @@ from session_sniffer.background.tasks import (
     player_rates_core,
     process_userip_task,
     submit_global_detections_check,
-    trigger_auto_username_userip,
-    wait_for_player_data_ready,
 )
-from session_sniffer.background.voice_notifications import (
-    clear_voice_notification_queue,
-    ensure_voice_notification_worker_running,
-    queue_voice_notification,
-    tts_voice_name,
-)
+from session_sniffer.background.voice_notifications import clear_voice_notification_queue
 
 __all__ = [
-    'NotificationConfig',
-    'check_global_detections',
     'clear_resolution_queues',
     'clear_voice_notification_queue',
     'enqueue_player_for_resolution',
     'ensure_looky_core_running',
-    'ensure_voice_notification_worker_running',
-    'gui_closed__event',
     'handle_detection_notification',
     'hostname_core',
     'iplookup_core',
     'is_gta5_relay_ip',
     'is_gta5_relay_monitoring_active',
-    'is_looky_eligible',
     'monitor_gta5_relay_task',
     'pinger_core',
     'player_rates_core',
     'process_userip_task',
-    'queue_voice_notification',
     'submit_global_detections_check',
-    'trigger_auto_username_userip',
     'trigger_looky_rescan_all_players',
-    'tts_voice_name',
-    'wait_for_player_data_ready',
     'wake_all_player_cores',
     'wake_looky_core',
 ]

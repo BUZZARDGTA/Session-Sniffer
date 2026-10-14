@@ -31,8 +31,10 @@ def _match_exact_lookup(value: str, *candidates: object) -> bool:
     return any(_valid_lookup_value(candidate) and candidate == value for candidate in candidates)
 
 
-def _match_isp_condition(value: str, player: Player) -> bool:
+def _match_isp_condition(value: ConditionValue, player: Player) -> bool:
     """Match ISP condition using the same logic as the existing ISP detection."""
+    if not isinstance(value, str):
+        return False
     value_upper = value.upper().strip()
 
     if player.iplookup.ipapi.as_name and player.iplookup.ipapi.as_name not in ('...', 'N/A'):
@@ -43,8 +45,10 @@ def _match_isp_condition(value: str, player: Player) -> bool:
     return bool(player.iplookup.ipapi.isp and player.iplookup.ipapi.isp not in ('...', 'N/A') and value_upper in player.iplookup.ipapi.isp.upper())
 
 
-def _match_asn_condition(value: str, player: Player) -> bool:
+def _match_asn_condition(value: ConditionValue, player: Player) -> bool:
     """Match ASN condition using normalized exact match."""
+    if not isinstance(value, str):
+        return False
     value_upper = value.upper().strip()
     normalized = value_upper if value_upper.startswith('AS') else f'AS{value_upper}'
 
@@ -54,9 +58,11 @@ def _match_asn_condition(value: str, player: Player) -> bool:
     return bool(player.iplookup.geolite2.asn and player.iplookup.geolite2.asn not in ('...', 'N/A') and player.iplookup.geolite2.asn.upper() == normalized)
 
 
-def _match_as_name_condition(value: str, player: Player) -> bool:
+def _match_as_name_condition(value: ConditionValue, player: Player) -> bool:
     """Match AS Name condition using substring match."""
-    return bool(player.iplookup.ipapi.as_name and player.iplookup.ipapi.as_name not in ('...', 'N/A') and value.upper().strip() in player.iplookup.ipapi.as_name.upper())
+    return isinstance(value, str) and bool(
+        player.iplookup.ipapi.as_name and player.iplookup.ipapi.as_name not in ('...', 'N/A') and value.upper().strip() in player.iplookup.ipapi.as_name.upper(),
+    )
 
 
 def _match_country_condition(value: ConditionValue, player: Player) -> bool:
@@ -88,21 +94,6 @@ def _match_region_condition(value: ConditionValue, player: Player) -> bool:
 def _match_org_condition(value: ConditionValue, player: Player) -> bool:
     """Match organization condition using substring match."""
     return isinstance(value, str) and _valid_lookup_value(player.iplookup.ipapi.org) and value.upper() in player.iplookup.ipapi.org.upper()
-
-
-def _match_isp_condition_wrapper(value: ConditionValue, player: Player) -> bool:
-    """Match ISP condition after narrowing the condition value."""
-    return isinstance(value, str) and _match_isp_condition(value, player)
-
-
-def _match_asn_condition_wrapper(value: ConditionValue, player: Player) -> bool:
-    """Match ASN condition after narrowing the condition value."""
-    return isinstance(value, str) and _match_asn_condition(value, player)
-
-
-def _match_as_name_condition_wrapper(value: ConditionValue, player: Player) -> bool:
-    """Match AS name condition after narrowing the condition value."""
-    return isinstance(value, str) and _match_as_name_condition(value, player)
 
 
 def _match_mobile_condition(value: ConditionValue, player: Player) -> bool:
@@ -142,9 +133,9 @@ _CONDITION_MATCHERS: dict[str, ConditionMatcher] = {
     'city': _match_city_condition,
     'region': _match_region_condition,
     'org': _match_org_condition,
-    'isp': _match_isp_condition_wrapper,
-    'asn': _match_asn_condition_wrapper,
-    'as_name': _match_as_name_condition_wrapper,
+    'isp': _match_isp_condition,
+    'asn': _match_asn_condition,
+    'as_name': _match_as_name_condition,
     'ip_range': _match_ip_range_condition,
     'mobile': _match_mobile_condition,
     'vpn': _match_vpn_condition,

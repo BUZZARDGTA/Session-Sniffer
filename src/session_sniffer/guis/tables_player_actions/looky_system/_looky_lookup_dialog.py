@@ -102,7 +102,6 @@ class LookyLookupDialog(PlayerInfoDialogMixin):
     def __init__(self, parent: QWidget | None, player: Player | StandaloneIPLookup, results: list[LookyPlayer]) -> None:
         """Render *results* for *player*."""
         super().__init__(parent)
-        self._ip = player.ip
         set_dialog_window_flags(self)
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
 

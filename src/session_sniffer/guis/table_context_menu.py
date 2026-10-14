@@ -190,14 +190,6 @@ class StatTableWindowMixin(ToggleAlwaysOnTopMixin):
     _column_resizer: TableColumnResizeController
     _context_menu_manager: TableContextMenuManager
 
-    @property
-    def _custom_column_widths(self) -> dict[str, int] | None:
-        return self._column_resizer.custom_widths
-
-    @_custom_column_widths.setter
-    def _custom_column_widths(self, value: dict[str, int] | None) -> None:
-        self._column_resizer.custom_widths = value
-
     def setup_stat_table_controls(
         self,
         layout: QBoxLayout,
@@ -225,7 +217,7 @@ class StatTableWindowMixin(ToggleAlwaysOnTopMixin):
 
     def _apply_initial_column_resizing(self) -> None:
         """Apply initial column sizing if custom widths have not been set by user."""
-        if self._custom_column_widths is None:
+        if self._column_resizer.custom_widths is None:
             self._setup_column_resizing()
 
     def _reset_column_sizes(self) -> None:

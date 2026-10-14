@@ -47,5 +47,4 @@ class ReconnectFrequencyWindow(StatTableWindowMixin):
                 self._table.setItem(row, column_index, item)
         self._table.setSortingEnabled(True)
         self._table.sortByColumn(0, Qt.SortOrder.DescendingOrder)
-        if self._custom_column_widths is None:
-            self._setup_column_resizing()
+        self._apply_initial_column_resizing()

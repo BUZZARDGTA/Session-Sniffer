@@ -3,9 +3,6 @@
 from .control import (
     ExceptionInfo,
     ScriptControl,
-    handle_exception,
-    handle_sigint,
-    handle_sigterm,
     terminate_on_uncaught_exception,
     terminate_script,
 )
@@ -13,9 +10,6 @@ from .control import (
 __all__ = [
     'ExceptionInfo',
     'ScriptControl',
-    'handle_exception',
-    'handle_sigint',
-    'handle_sigterm',
     'terminate_on_uncaught_exception',
     'terminate_script',
 ]

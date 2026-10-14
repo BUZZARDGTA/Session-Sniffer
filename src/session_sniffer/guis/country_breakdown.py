@@ -50,5 +50,4 @@ class CountryBreakdownWindow(StatTableWindowMixin):
             self._table.setItem(row, 1, count_item)
         self._table.setSortingEnabled(True)
         self._table.sortByColumn(1, Qt.SortOrder.DescendingOrder)
-        if self._custom_column_widths is None:
-            self._setup_column_resizing()
+        self._apply_initial_column_resizing()

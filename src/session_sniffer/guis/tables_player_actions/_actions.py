@@ -140,9 +140,9 @@ def scan_ports_ip(target: str | list[str]) -> None:
     PortScannerWindow.open_window(target)
 
 
-def tcp_port_ping(parent: QWidget, ip: str) -> None:
-    """Run a TCP port connectivity check to a host on a user-specified port indefinitely."""
-    port_string, success = QInputDialog.getText(parent, 'Input Port', 'Enter the port number to check TCP connectivity:')
+def _prompt_port_ping(parent: QWidget, target: str | list[str], *, mode: PingMode, prompt_label: str) -> None:
+    """Prompt the user for a port number and open the Ping Diagnostics window for *target*."""
+    port_string, success = QInputDialog.getText(parent, 'Input Port', prompt_label)
 
     if not success:
         return
@@ -159,29 +159,12 @@ def tcp_port_ping(parent: QWidget, ip: str) -> None:
         QMessageBox.warning(parent, 'Error', 'Please enter a valid port number between 1 and 65535.')
         return
 
-    PingWindow.open_window(ip, mode=PingMode.TCP, port=port)
+    PingWindow.open_window(target, mode=mode, port=port)
 
 
-def tcp_port_ping_multi(parent: QWidget, ip_addresses: list[str]) -> None:
-    """Ask for a port once, then run a TCP port connectivity check for each IP on that same port."""
-    port_string, success = QInputDialog.getText(parent, 'Input Port', 'Enter the port number to check TCP connectivity:')
-
-    if not success:
-        return
-
-    port_string = port_string.strip()
-
-    if not port_string.isdigit():
-        QMessageBox.warning(parent, 'Error', 'No valid port number provided.')
-        return
-
-    port = int(port_string)
-
-    if not MIN_PORT <= port <= MAX_PORT:
-        QMessageBox.warning(parent, 'Error', 'Please enter a valid port number between 1 and 65535.')
-        return
-
-    PingWindow.open_window(ip_addresses, mode=PingMode.TCP, port=port)
+def tcp_port_ping(parent: QWidget, target: str | list[str]) -> None:
+    """Run a TCP port connectivity check to the specified target host(s) on a user-specified port."""
+    _prompt_port_ping(parent, target, mode=PingMode.TCP, prompt_label='Enter the port number to check TCP connectivity:')
 
 
 def create_multi_tcp_ping_menu(
@@ -202,7 +185,7 @@ def create_multi_tcp_ping_menu(
     tcp_one_action.setToolTip('Ask for a port once, then TCP ping all selected IPs on that port.')
 
     def _do_tcp_ping_multi() -> None:
-        tcp_port_ping_multi(parent, ip_addresses)
+        tcp_port_ping(parent, ip_addresses)
 
     tcp_one_action.triggered.connect(_do_tcp_ping_multi)
     tcp_menu.addAction(tcp_one_action)
@@ -221,48 +204,9 @@ def create_multi_tcp_ping_menu(
     return tcp_menu
 
 
-def udp_port_ping(parent: QWidget, ip: str) -> None:
-    """Run a UDP port reachability check to a host on a user-specified port."""
-    port_string, success = QInputDialog.getText(parent, 'Input Port', 'Enter the port number to check UDP reachability:')
-
-    if not success:
-        return
-
-    port_string = port_string.strip()
-
-    if not port_string.isdigit():
-        QMessageBox.warning(parent, 'Error', 'No valid port number provided.')
-        return
-
-    port = int(port_string)
-
-    if not MIN_PORT <= port <= MAX_PORT:
-        QMessageBox.warning(parent, 'Error', 'Please enter a valid port number between 1 and 65535.')
-        return
-
-    PingWindow.open_window(ip, mode=PingMode.UDP, port=port)
-
-
-def udp_port_ping_multi(parent: QWidget, ip_addresses: list[str]) -> None:
-    """Ask for a port once, then run a UDP port reachability check for each IP on that same port."""
-    port_string, success = QInputDialog.getText(parent, 'Input Port', 'Enter the port number to check UDP reachability:')
-
-    if not success:
-        return
-
-    port_string = port_string.strip()
-
-    if not port_string.isdigit():
-        QMessageBox.warning(parent, 'Error', 'No valid port number provided.')
-        return
-
-    port = int(port_string)
-
-    if not MIN_PORT <= port <= MAX_PORT:
-        QMessageBox.warning(parent, 'Error', 'Please enter a valid port number between 1 and 65535.')
-        return
-
-    PingWindow.open_window(ip_addresses, mode=PingMode.UDP, port=port)
+def udp_port_ping(parent: QWidget, target: str | list[str]) -> None:
+    """Run a UDP port reachability check to the specified target host(s) on a user-specified port."""
+    _prompt_port_ping(parent, target, mode=PingMode.UDP, prompt_label='Enter the port number to check UDP reachability:')
 
 
 def create_multi_udp_ping_menu(
@@ -283,7 +227,7 @@ def create_multi_udp_ping_menu(
     udp_one_action.setToolTip('Ask for a port once, then UDP ping all selected IPs on that port.')
 
     def _do_udp_ping_multi() -> None:
-        udp_port_ping_multi(parent, ip_addresses)
+        udp_port_ping(parent, ip_addresses)
 
     udp_one_action.triggered.connect(_do_udp_ping_multi)
     udp_menu.addAction(udp_one_action)
