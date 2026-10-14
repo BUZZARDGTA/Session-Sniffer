@@ -19,6 +19,7 @@ from session_sniffer.networking.utils import is_mac_address
 type ManufDatabaseType = dict[str, list[ManufEntry]]
 
 MANUF_FILE_PATH = RESOURCES_DIR_PATH / 'manuf'
+_MAC_SEPARATORS_TRANSLATION = str.maketrans('', '', ':-')
 RE_MANUF_ENTRY_PATTERN = re.compile(
     r"""
         ^
@@ -49,14 +50,14 @@ class ManufEntry(NamedTuple):
 
 def _mac_str_to_int(mac: str) -> int:
     """Convert a MAC address string (with colons or dashes) to an integer."""
-    return int(mac.translate(str.maketrans('', '', ':-')), 16)
+    return int(mac.translate(_MAC_SEPARATORS_TRANSLATION), 16)
 
 
-def _mac_address_block_str_to_int(mac_address_block: str, prefix_length_bits: int) -> int:
-    """Convert the MAC address block string to an integer, shifted to the top bits per prefix length."""
-    raw_int = _mac_str_to_int(mac_address_block)
-    shift_amount = 48 - prefix_length_bits
-    return raw_int << shift_amount
+def _mac_address_block_str_to_int(mac_address_block: str) -> int:
+    """Convert the MAC address block string to a 48-bit-aligned integer."""
+    hex_digits = mac_address_block.translate(_MAC_SEPARATORS_TRANSLATION)
+    shift_amount = 48 - (len(hex_digits) * 4)
+    return int(hex_digits, 16) << shift_amount
 
 
 def _matches_prefix(mac_int: int, prefix_int: int, prefix_length_bits: int) -> bool:
@@ -94,7 +95,7 @@ def _parse_and_load_manuf_database() -> ManufDatabaseType:
             raise InvalidFullVendorNameError(full_vendor_name)
 
         prefix_length_bits_int = int(prefix_length_bits) if isinstance(prefix_length_bits, str) else 24
-        prefix_int = _mac_address_block_str_to_int(mac_address_block, prefix_length_bits_int)
+        prefix_int = _mac_address_block_str_to_int(mac_address_block)
 
         entry = ManufEntry(
             mac_address_block=mac_address_block,
@@ -103,9 +104,10 @@ def _parse_and_load_manuf_database() -> ManufDatabaseType:
             short_name=short_name,
             full_vendor_name=full_vendor_name,
         )
-        manuf_database.setdefault(mac_address_block.upper(), [])
-        if entry not in manuf_database[mac_address_block.upper()]:
-            manuf_database[mac_address_block.upper()].append(entry)
+        block_key = mac_address_block.upper()
+        bucket = manuf_database.setdefault(block_key, [])
+        if entry not in bucket:
+            bucket.append(entry)
 
     return manuf_database
 
@@ -135,12 +137,18 @@ class MacLookup:
             return None
 
         mac_int = _mac_str_to_int(mac_address)
+        normalized_mac = mac_address.replace('-', ':').upper()
+        candidate_keys = (
+            f'{normalized_mac[:13]}0',
+            f'{normalized_mac[:10]}0',
+            normalized_mac[:8],
+        )
 
         best_entry: ManufEntry | None = None
         best_prefix_length_bits = -1
 
-        for manuf_entries in cls._database.values():
-            for manuf in manuf_entries:
+        for candidate_key in candidate_keys:
+            for manuf in cls._database.get(candidate_key, ()):
                 if _matches_prefix(mac_int, manuf.prefix_int, manuf.prefix_length_bits) and manuf.prefix_length_bits > best_prefix_length_bits:
                     best_prefix_length_bits = manuf.prefix_length_bits
                     best_entry = manuf
