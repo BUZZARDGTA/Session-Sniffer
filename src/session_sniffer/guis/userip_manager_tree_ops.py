@@ -23,7 +23,7 @@ from session_sniffer.guis.userip_manager_helpers import (
 from session_sniffer.guis.utils import open_file_location
 from session_sniffer.settings.settings import Settings
 from session_sniffer.text_templates import DEFAULT_USERIP_FILES_SETTINGS_INI, USERIP_DEFAULT_DB_FOOTER_TEMPLATE, USERIP_DEFAULT_DB_HEADER_TEMPLATE
-from session_sniffer.text_utils import format_triple_quoted_text
+from session_sniffer.text_utils import format_triple_quoted_text, pluralize
 
 if TYPE_CHECKING:
     from session_sniffer.guis.file_watch import DebouncedFileWatcher
@@ -207,7 +207,7 @@ class TreeOperationsMixin(QDialog):
                 entries.append((db_path, ip_addresses))
 
         if not entries:
-            QMessageBox.information(self, TITLE, 'No IPs found in the selected database(s).')
+            QMessageBox.information(self, TITLE, f'No IPs found in the selected database{pluralize(len(db_paths))}.')
             return
 
         looky_refresh_userip_entries(self, entries)
@@ -397,7 +397,11 @@ class TreeOperationsMixin(QDialog):
         """Delete a file or folder with user confirmation."""
         if path.is_dir():
             children = list(path.iterdir())
-            message = f'Folder "{path.name}" is not empty ({len(children)} items).\n\nDelete it and all its contents?' if children else f'Delete empty folder "{path.name}"?'
+            message = (
+                f'Folder "{path.name}" is not empty ({len(children)} item{pluralize(len(children))}).\n\nDelete it and all its contents?'
+                if children
+                else f'Delete empty folder "{path.name}"?'
+            )
         else:
             message = f'Delete database "{path.name}"?'
 
@@ -543,7 +547,7 @@ class TreeOperationsMixin(QDialog):
         result = QMessageBox.warning(
             self,
             TITLE,
-            f'This will permanently reset all {count} database file{"s" if count != 1 else ""}.\n\n'
+            f'This will permanently reset all {count} database file{pluralize(count)}.\n\n'
             'Default databases will be restored to factory content.\n'
             'User-created databases will be deleted.\n\n'
             'This cannot be undone. Are you sure?',
@@ -590,8 +594,8 @@ class TreeOperationsMixin(QDialog):
 
         self._set_status(
             'Reset complete'
-            + (f'  |  Restored {restored} default file{"s" if restored != 1 else ""}' if restored else '')
-            + (f'  |  Deleted {deleted} user file{"s" if deleted != 1 else ""}' if deleted else ''),
+            + (f'  |  Restored {restored} default file{pluralize(restored)}' if restored else '')
+            + (f'  |  Deleted {deleted} user file{pluralize(deleted)}' if deleted else ''),
         )
         self._refresh_stats()
 

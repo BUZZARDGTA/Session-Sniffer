@@ -600,7 +600,7 @@ class TableContextMenuMixin(QTableView):
             add_action(
                 context_menu,
                 'Scan Ports…',
-                tooltip='Scan TCP and UDP ports on the selected host(s).',
+                tooltip=f'Scan TCP and UDP ports on the selected host{pluralize(len(ip_addresses))}.',
                 handler=lambda: scan_ports_ip(ip_addresses),
                 icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'radar.svg')),
             )

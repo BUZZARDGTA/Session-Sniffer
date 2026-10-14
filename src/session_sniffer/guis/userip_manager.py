@@ -76,6 +76,7 @@ from session_sniffer.guis.utils import (
 )
 from session_sniffer.models import GUIState
 from session_sniffer.settings.settings import Settings
+from session_sniffer.text_utils import pluralize
 
 
 def _load_userip_manager_state() -> tuple[QByteArray | None, bool, QByteArray | None, dict[str, int] | None]:
@@ -589,7 +590,7 @@ class UserIPDatabasesManager(
         duplicate_count = self._highlight_duplicates()
         status = f'Loaded {entry_count} entries from {path.name}'
         if duplicate_count > 0:
-            status += f' ({duplicate_count} duplicate{"s" if duplicate_count != 1 else ""} found)'
+            status += f' ({duplicate_count} duplicate{pluralize(duplicate_count)} found)'
         self._set_status(status)
         self._rebuild_fs_watch()
 

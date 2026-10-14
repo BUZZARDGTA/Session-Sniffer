@@ -613,7 +613,7 @@ def looky_refresh_userip_entries(
                     total_new += len(new_entries)
 
         if not total_new:
-            QMessageBox.information(parent, TITLE, 'No new usernames found to add.\n\nAll resolved usernames already exist in the database(s).')
+            QMessageBox.information(parent, TITLE, f'No new usernames found to add.\n\nAll resolved usernames already exist in the database{pluralize(len(entries))}.')
             return
 
         # Show the review dialog for user consent

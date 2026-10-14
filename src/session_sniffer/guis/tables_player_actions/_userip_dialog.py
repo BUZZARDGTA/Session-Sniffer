@@ -129,7 +129,7 @@ class UserIPDetectedDialog(PlayerInfoDialogMixin):
         )
         self._add_row(form, 'IP Address', player.ip)
         self._add_live_row(form, 'Hostname', lambda: format_text(player.reverse_dns.hostname))
-        self._add_live_row(form, 'Port(s)', lambda: ', '.join(map(str, reversed(player.ports.all))) if player.ports.all else 'N/A')
+        self._add_live_row(form, lambda: f'Port{pluralize(len(player.ports.all))}', lambda: ', '.join(map(str, reversed(player.ports.all))) if player.ports.all else 'N/A')
         self._add_live_row(form, 'Country Code', lambda: format_text(player.iplookup.geolite2.country_code))
         self._add_live_row(form, 'Detection Type', lambda: player.userip_detection.type if player.userip_detection is not None else detection_type)
         self._add_live_row(form, 'Database', self._get_database_name)

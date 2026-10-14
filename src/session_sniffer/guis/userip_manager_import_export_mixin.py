@@ -284,7 +284,7 @@ class UserIPImportExportMixin(QDialog):
         if imported:
             parts.append(f'Imported {imported} file{pluralize(imported)}')
         if merged:
-            parts.append(f'Merged {merged} entr{pluralize(merged, "ies", "y")}')
+            parts.append(f'Merged {merged} entr{pluralize(merged, "y", "ies")}')
         if skipped:
             parts.append(f'{skipped} skipped')
         if parts:
@@ -334,7 +334,7 @@ class UserIPImportExportMixin(QDialog):
             self._highlight_duplicates()
 
         self._set_status(
-            f'Merged {added} entr{pluralize(added, "ies", "y")} from "{src_path.name}" into "{self._current_path.name}".' + (' Remember to save.' if added else ''),
+            f'Merged {added} entr{pluralize(added, "y", "ies")} from "{src_path.name}" into "{self._current_path.name}".' + (' Remember to save.' if added else ''),
         )
 
     def _import_from_zip(self) -> None:
@@ -435,7 +435,7 @@ class UserIPImportExportMixin(QDialog):
         if imported:
             parts.append(f'Imported {imported} database{pluralize(imported)} from ZIP')
         if merged:
-            parts.append(f'Merged {merged} entr{pluralize(merged, "ies", "y")} from ZIP')
+            parts.append(f'Merged {merged} entr{pluralize(merged, "y", "ies")} from ZIP')
         if skipped:
             parts.append(f'{skipped} skipped')
         if parts:

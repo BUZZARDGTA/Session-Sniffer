@@ -299,7 +299,7 @@ class CsvLogTab(QWidget):
                 QMessageBox.warning(
                     self,
                     TITLE,
-                    f'Skipped {skipped} malformed row(s) while loading {self._file_path.name}.',
+                    f'Skipped {skipped} malformed row{pluralize(skipped)} while loading {self._file_path.name}.',
                 )
 
         if self._initial_loaded:
@@ -493,7 +493,7 @@ class CsvLogTab(QWidget):
         copy_label = f'Copy Selected Rows ({len(selected_rows)})' if len(selected_rows) > 1 else 'Copy Selected Row'
         copy_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), copy_label, menu)
         copy_action.setShortcut('Ctrl+C')
-        copy_action.setToolTip('Copy selected rows to the clipboard as comma-separated values.')
+        copy_action.setToolTip(f'Copy selected row{pluralize(len(selected_rows))} to the clipboard as comma-separated values.')
         copy_action.setEnabled(has_selection)
         copy_action.triggered.connect(self._copy_selected)
         menu.addAction(copy_action)
@@ -535,7 +535,7 @@ class CsvLogTab(QWidget):
             create_ping_menu(self, menu, _target_ips)
 
             scan_ports_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'radar.svg')), 'Scan Ports…', menu)
-            scan_ports_action.setToolTip('Scan TCP and UDP ports on the selected host(s).')
+            scan_ports_action.setToolTip('Scan TCP and UDP ports on the selected hosts.')
 
             def _scan_all_csv() -> None:
                 scan_ports_ip(_target_ips)

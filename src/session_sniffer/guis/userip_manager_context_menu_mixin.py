@@ -130,7 +130,7 @@ class EntriesContextMenuMixin(QDialog):
         copy_row_label = f'Copy Rows ({selected_count})' if selected_count > 1 else 'Copy Row'
         copy_row_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), copy_row_label, self)
         copy_row_action.setShortcut('Ctrl+C')
-        copy_row_action.setToolTip('Copy selected row(s) to the clipboard as tab-separated text.')
+        copy_row_action.setToolTip(f'Copy selected row{pluralize(selected_count)} to the clipboard as tab-separated text.')
         copy_row_action.triggered.connect(self._copy_selected_entries)
         menu.addAction(copy_row_action)
 
@@ -290,7 +290,7 @@ class EntriesContextMenuMixin(QDialog):
             create_ping_menu(self, menu, list(selected_ips) if len(selected_ips) > 1 else [ip_or_range])
 
             scan_ports_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'radar.svg')), 'Scan Ports…', self)
-            scan_ports_action.setToolTip('Scan TCP and UDP ports on the selected host(s).')
+            scan_ports_action.setToolTip(f'Scan TCP and UDP ports on the selected host{pluralize(max(1, len(selected_ips)))}.')
             scan_target = list(selected_ips) if len(selected_ips) > 1 else ip_or_range
             scan_ports_action.triggered.connect(lambda _checked=False, target=scan_target: scan_ports_ip(target))
             menu.addAction(scan_ports_action)
@@ -336,7 +336,7 @@ class EntriesContextMenuMixin(QDialog):
         copy_row_label = f'Copy Rows ({selected_count_gs})' if selected_count_gs > 1 else 'Copy Row'
         copy_row_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), copy_row_label, self)
         copy_row_action.setShortcut('Ctrl+C')
-        copy_row_action.setToolTip('Copy selected row(s) to the clipboard as tab-separated text.')
+        copy_row_action.setToolTip(f'Copy selected row{pluralize(selected_count_gs)} to the clipboard as tab-separated text.')
         copy_row_action.triggered.connect(self._copy_selected_entries)
         menu.addAction(copy_row_action)
 
@@ -487,7 +487,7 @@ class EntriesContextMenuMixin(QDialog):
             create_ping_menu(self, menu, list(selected_ips_gs) if len(selected_ips_gs) > 1 else [ip_or_range])
 
             scan_ports_gs_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'radar.svg')), 'Scan Ports…', self)
-            scan_ports_gs_action.setToolTip('Scan TCP and UDP ports on the selected host(s).')
+            scan_ports_gs_action.setToolTip(f'Scan TCP and UDP ports on the selected host{pluralize(max(1, len(selected_ips_gs)))}.')
             scan_target_gs = list(selected_ips_gs) if len(selected_ips_gs) > 1 else ip_or_range
             scan_ports_gs_action.triggered.connect(lambda _checked=False, target=scan_target_gs: scan_ports_ip(target))
             menu.addAction(scan_ports_gs_action)

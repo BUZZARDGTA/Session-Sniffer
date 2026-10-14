@@ -25,6 +25,7 @@ from session_sniffer.guis.utils import (
     scale_by_ui,
     set_clipboard_text,
 )
+from session_sniffer.text_utils import pluralize
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -124,7 +125,7 @@ class TableContextMenuManager:
         copy_label = f'Copy Rows ({selected_row_count})' if selected_row_count > 1 else 'Copy Row'
         copy_row_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), copy_label, menu)
         copy_row_action.setShortcut('Ctrl+C')
-        copy_row_action.setToolTip('Copy the selected row(s) to the clipboard as tab-separated text.')
+        copy_row_action.setToolTip(f'Copy the selected row{pluralize(selected_row_count)} to the clipboard as tab-separated text.')
         copy_row_action.setEnabled(selected_row_count > 0)
         copy_row_action.triggered.connect(lambda: copy_table_selection(self._table))
         menu.addAction(copy_row_action)
@@ -168,7 +169,7 @@ class TableContextMenuManager:
             create_ping_menu(self._parent, menu, selected_ip_addresses)
 
             scan_ports_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'radar.svg')), 'Scan Ports…', menu)
-            scan_ports_action.setToolTip('Scan TCP and UDP ports on the selected host(s).')
+            scan_ports_action.setToolTip(f'Scan TCP and UDP ports on the selected host{pluralize(len(selected_ip_addresses))}.')
 
             def _scan_selected_ports() -> None:
                 scan_ports_ip(selected_ip_addresses)

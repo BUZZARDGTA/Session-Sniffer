@@ -30,7 +30,7 @@ from session_sniffer.guis.stylesheets import (
     IP_RANGE_PREVIEW_VALID_STYLESHEET,
     SUBNET_DESC_LABEL_STYLESHEET,
 )
-from session_sniffer.text_utils import split_usernames
+from session_sniffer.text_utils import pluralize, split_usernames
 from session_sniffer.utils import dedup_preserve_order
 
 if TYPE_CHECKING:
@@ -843,7 +843,7 @@ class IPRangeBuilderDialog(QDialog):
             return
         count = int(end) - int(start) + 1
         self._set_preview(
-            f'Range: {start} - {end}\nCovers {count:,} address{"es" if count != 1 else ""}',
+            f'Range: {start} - {end}\nCovers {count:,} address{pluralize(count, "", "es")}',
             valid=True,
         )
 

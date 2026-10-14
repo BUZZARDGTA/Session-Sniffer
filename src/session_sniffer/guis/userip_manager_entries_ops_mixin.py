@@ -687,7 +687,7 @@ class UserIPEntriesOperationsMixin(QDialog):
                     QMessageBox.information(
                         self,
                         TITLE,
-                        f'{duplicate_count} exact duplicate entr{"y was" if duplicate_count == 1 else "ies were"} removed before saving.',
+                        f'{duplicate_count} exact duplicate entr{pluralize(duplicate_count, "y was", "ies were")} removed before saving.',
                     )
 
                 # --- Read existing file to preserve header ---

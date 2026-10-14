@@ -260,9 +260,9 @@ class LeaderboardTableModel(QAbstractTableModel):
         if column == COLUMN_SESSIONS:
             count = self.get_session_count(entry)
             return (
-                f'{count} unique calendar day(s) this player was seen within the selected time period'
+                f'{count} unique calendar day{pluralize(count)} this player was seen within the selected time period'
                 if self._mode == MODE_DAYS
-                else f'{count} sniffer session(s) in which this player was seen within the selected time period'
+                else f'{count} sniffer session{pluralize(count)} in which this player was seen within the selected time period'
             )
         return None
 

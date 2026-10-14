@@ -41,8 +41,7 @@ def format_type_error(
         expected_types_names = expected_types.__name__
         expected_type_count = 1
 
-    plural_suffix = '' if expected_type_count == 1 else 's'
-    return f'Expected type{plural_suffix} {expected_types_names}, got {actual_type} instead.{suffix}'
+    return f'Expected type{pluralize(expected_type_count)} {expected_types_names}, got {actual_type} instead.{suffix}'
 
 
 def ensure_instance[T](obj: object, expected_types: type[T] | tuple[type[T], ...]) -> T:

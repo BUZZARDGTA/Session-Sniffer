@@ -393,7 +393,7 @@ def userip_add_username(parent: QWidget, ip_address: str, player: Player) -> Non
 
     usernames_display = ', '.join(f'"{username}"' for username in entered_usernames)
     count = len(entered_usernames)
-    has_or_have = 'has' if count == 1 else 'have'
+    has_or_have = pluralize(count, 'has', 'have')
     entry_label = f'IP {target_entry}' if target_entry == ip_address else f'range {target_entry}'
     QMessageBox.information(
         parent,
@@ -483,7 +483,7 @@ def userip_rename_multi(parent: QWidget, players: list[Player]) -> None:
     new_username, success = QInputDialog.getText(
         parent,
         'Rename Selected',
-        f'Enter a new username for {len(eligible)} selected IP(s):\n{ips_display}',
+        f'Enter a new username for {len(eligible)} selected IP{pluralize(len(eligible))}:\n{ips_display}',
         QLineEdit.EchoMode.Normal,
         shared_username,
     )
@@ -506,10 +506,10 @@ def userip_rename_multi(parent: QWidget, players: list[Player]) -> None:
         total_renamed += _rewrite_db_for_rename(db_path, pairs, new_username)
 
     if not total_renamed:
-        QMessageBox.information(parent, TITLE, 'No entries were found for the selected IP(s).')
+        QMessageBox.information(parent, TITLE, f'No entries were found for the selected IP{pluralize(len(eligible))}.')
         return
 
-    entry_word = 'entry' if total_renamed == 1 else 'entries'
+    entry_word = pluralize(total_renamed, 'entry', 'entries')
     QMessageBox.information(parent, TITLE, f'Renamed {total_renamed} {entry_word} to "{new_username}".')
 
 

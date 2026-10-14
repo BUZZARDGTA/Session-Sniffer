@@ -27,6 +27,7 @@ from pydantic import BaseModel, ConfigDict, TypeAdapter, ValidationError
 from session_sniffer import msgbox
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.settings import Settings
+from session_sniffer.text_utils import pluralize
 
 logger = logging.getLogger(__name__)
 
@@ -189,7 +190,7 @@ def _build_message_content(
     truncated, removed = _truncate_table(table_text, max_rows)
     parts = [header, f'```\n{truncated}\n```']
     if removed:
-        parts.append(f'_… and {removed} more {"player" if removed == 1 else "players"} not shown_')
+        parts.append(f'_… and {removed} more player{pluralize(removed)} not shown_')
     return '\n'.join(parts)
 
 
@@ -248,7 +249,7 @@ def _build_multi_embed_payload(
         parts = ['\n\n'.join(current_blocks)]
         remaining = total_removed + extra_removed
         if is_last and remaining:
-            parts.append(f'_… and {remaining} more {"player" if remaining == 1 else "players"} not shown_')
+            parts.append(f'_… and {remaining} more player{pluralize(remaining)} not shown_')
         description = '\n\n'.join(parts)
         total_chars_used += len(embed_title) + len(description)
         embeds.append(_make_embed(embed_title, description))

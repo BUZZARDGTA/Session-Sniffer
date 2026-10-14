@@ -52,7 +52,7 @@ from session_sniffer.guis.userip_manager_helpers import human_readable_size
 from session_sniffer.guis.utils import SPINNER_FRAMES, open_file_location
 from session_sniffer.models import SessionLogFile
 from session_sniffer.settings import Settings
-from session_sniffer.text_utils import format_single_border_table
+from session_sniffer.text_utils import format_single_border_table, pluralize
 
 logger = logging.getLogger(__name__)
 
@@ -262,7 +262,7 @@ class SessionsLogTab(QWidget):
                 total_size += json_file.stat().st_size
                 file_count += 1
         self._metadata_label.setText(
-            f'{self._sessions_dir.name}  |  {human_readable_size(total_size)}  |  {file_count} json file(s)',
+            f'{self._sessions_dir.name}  |  {human_readable_size(total_size)}  |  {file_count} json file{pluralize(file_count)}',
         )
 
     # ------------------------------------------------------------------
@@ -346,7 +346,7 @@ class SessionsLogTab(QWidget):
                     total_size += json_file.stat().st_size
                     file_count += 1
             self._file_info_label.setText(
-                f'{selected.name}  (folder)  |  {human_readable_size(total_size)}  |  {file_count} json file(s)',
+                f'{selected.name}  (folder)  |  {human_readable_size(total_size)}  |  {file_count} json file{pluralize(file_count)}',
             )
             self._match_label.setText('')
             self._viewer.setExtraSelections([])
@@ -423,7 +423,7 @@ class SessionsLogTab(QWidget):
             self._viewer.setTextCursor(matched_cursors[0])
             self._viewer.centerCursor()
 
-        self._match_label.setText(f'{len(matched_cursors)} match(es)' if matched_cursors else 'No matches')
+        self._match_label.setText(f'{len(matched_cursors)} match{pluralize(len(matched_cursors), "", "es")}' if matched_cursors else 'No matches')
 
     def set_search_global(self, text: str) -> None:
         """Programmatically activate global search mode with the given text and start the search."""
@@ -627,9 +627,9 @@ class SessionsLogTab(QWidget):
 
         self._stop_loading_animation()
         self._viewer.setPlainText('\n'.join(result_lines))
-        self._match_label.setText(f'{total_matches} match(es)' if total_matches else 'No matches')
+        self._match_label.setText(f'{total_matches} match{pluralize(total_matches, "", "es")}' if total_matches else 'No matches')
         self._file_info_label.setText(
-            f'Search across all files  |  {files_with_matches} file(s) matched' if total_matches else '',
+            f'Search across all files  |  {files_with_matches} file{pluralize(files_with_matches)} matched' if total_matches else '',
         )
 
     def _build_loading_text(self) -> str:

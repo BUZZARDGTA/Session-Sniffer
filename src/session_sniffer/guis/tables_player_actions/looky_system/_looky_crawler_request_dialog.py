@@ -392,9 +392,9 @@ class _CrawlerRequestDialog(QDialog):
 
     def _update_retry_label(self) -> None:
         """Refresh the amber rate-limit countdown text."""
-        seconds_word = 'second' if self._retry_remaining == 1 else 'seconds'
         self._widgets.status_label.setText(
-            f'<span style="color: #fbbf24; font-weight: 600;">Server rate limit active<br>Automatically retrying in {self._retry_remaining} {seconds_word}…</span>',
+            '<span style="color: #fbbf24; font-weight: 600;">Server rate limit active<br>'
+            f'Automatically retrying in {self._retry_remaining} second{pluralize(self._retry_remaining)}…</span>',
         )
 
     # ------------------------------------------------------------------

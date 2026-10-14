@@ -791,7 +791,7 @@ class PlayerLeaderboardWindow(ToggleAlwaysOnTopMixin):
             create_ping_menu(self, menu, all_ips)
 
             scan_ports_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'radar.svg')), 'Scan Ports…', self)
-            scan_ports_action.setToolTip('Scan TCP and UDP ports on the selected host(s).')
+            scan_ports_action.setToolTip('Scan TCP and UDP ports on the selected hosts.')
 
             def _scan_all_leaderboard() -> None:
                 scan_ports_ip(all_ips)
