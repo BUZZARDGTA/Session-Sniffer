@@ -2,35 +2,35 @@
     "latest_prerelease": {
         "base_version": "1.5.0",
         "epoch": 0,
-        "release_url": "https://github.com/BUZZARDGTA/Session-Sniffer/releases/tag/v1.5.0rc.82%2B20261014.0357",
-        "download_url": "https://github.com/BUZZARDGTA/Session-Sniffer/releases/download/v1.5.0rc.82%2B20261014.0357/Session_Sniffer.exe",
-        "sha256": "c02d191292ddd495f9a3d9b78ade13400d532a10a6b0446761bf90a87c61be8d",
-        "file_size": 60488403,
-        "linux_download_url": "https://github.com/BUZZARDGTA/Session-Sniffer/releases/download/v1.5.0rc.82%2B20261014.0357/Session_Sniffer",
-        "linux_sha256": "0982eab4c31a33828d6a97e085a1f454574d8f5bc5ee83f3a274f551c99100b6",
-        "linux_file_size": 100169432,
-        "darwin_download_url": "https://github.com/BUZZARDGTA/Session-Sniffer/releases/download/v1.5.0rc.82%2B20261014.0357/Session_Sniffer_macOS",
-        "darwin_sha256": "af6ca7ee4f60ff935e976aba6ab28b0a8a61d6953926247dab28001cfa3c4043",
-        "darwin_file_size": 50941760,
+        "release_url": "https://github.com/BUZZARDGTA/Session-Sniffer/releases/tag/v1.5.0rc.83%2B20261014.0435",
+        "download_url": "https://github.com/BUZZARDGTA/Session-Sniffer/releases/download/v1.5.0rc.83%2B20261014.0435/Session_Sniffer.exe",
+        "sha256": "b97a6f6dc764a66912d1130ca96986bde91ee01a6d2cd5e5009172e33f6fee2e",
+        "file_size": 60488725,
+        "linux_download_url": "https://github.com/BUZZARDGTA/Session-Sniffer/releases/download/v1.5.0rc.83%2B20261014.0435/Session_Sniffer",
+        "linux_sha256": "2c1af0d9116a9006f3c3da0b50ad877487d5c605f79335334d5c56a519f57d89",
+        "linux_file_size": 100168408,
+        "darwin_download_url": "https://github.com/BUZZARDGTA/Session-Sniffer/releases/download/v1.5.0rc.83%2B20261014.0435/Session_Sniffer_macOS",
+        "darwin_sha256": "37c85a36383d7e3b307697528f32e485efd4b7d009d9dc910520b28db80a824d",
+        "darwin_file_size": 50942656,
         "is_devrelease": false,
         "is_postrelease": false,
         "is_prerelease": true,
-        "local": "20261014.357",
+        "local": "20261014.435",
         "major": 1,
         "micro": 0,
         "minor": 5,
         "post": null,
         "pre": [
             "rc",
-            82
+            83
         ],
-        "public": "1.5.0rc82",
+        "public": "1.5.0rc83",
         "release": [
             1,
             5,
             0
         ],
-        "version": "1.5.0rc82+20261014.357"
+        "version": "1.5.0rc83+20261014.435"
     },
     "latest_stable": {
         "base_version": "1.4.3",
