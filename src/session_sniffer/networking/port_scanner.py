@@ -208,8 +208,6 @@ class PortScanStatistics:
     total_probes: int = 0
     completed_probes: int = 0
     open_count: int = 0
-    closed_count: int = 0
-    filtered_count: int = 0
     start_time: float = field(default_factory=time.perf_counter)
 
     @property

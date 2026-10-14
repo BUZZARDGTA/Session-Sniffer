@@ -150,10 +150,6 @@ class PortScannerWorkerThread(CrashingQThread):
 
                 if probe_result.state == PortScanState.OPEN:
                     stats.open_count += 1
-                elif probe_result.state == PortScanState.CLOSED:
-                    stats.closed_count += 1
-                else:
-                    stats.filtered_count += 1
 
                 self.result_found.emit(probe_result)
                 self.scan_progress.emit(
