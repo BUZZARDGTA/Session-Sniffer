@@ -396,6 +396,7 @@ class SessionHost:
                     rejection_reason=cls.last_rejection_reason,
                 ),
             )
+            return None
         active_p2p_players = [
             player
             for player in p2p_players
@@ -417,7 +418,7 @@ class SessionHost:
             return None
         connected_players: list[Player] = nsmallest(SESSION_HOST_CANDIDATE_PLAYERS_COUNT, active_p2p_players, key=attrgetter('datetime.last_rejoin'))
 
-        potential_session_host_player: Player | None = None
+        potential_session_host_player: Player
         gap_seconds: float | None = None
 
         if len(connected_players) == 1:
@@ -425,49 +426,39 @@ class SessionHost:
         elif len(connected_players) == SESSION_HOST_CANDIDATE_PLAYERS_COUNT:
             time_difference = connected_players[1].datetime.last_rejoin - connected_players[0].datetime.last_rejoin
             gap_seconds = time_difference.total_seconds()
-            gap_milliseconds = gap_seconds * 1000
-            if time_difference > _SESSION_HOST_AMBIGUITY_MAX_TD:
+            if not _SESSION_HOST_AMBIGUITY_MIN_TD <= time_difference <= _SESSION_HOST_AMBIGUITY_MAX_TD:
                 cls.search_player = False
                 cls.search_start_time = None
-                cls.last_rejection_reason = (
-                    f'The connection time gap between the first two players is too large ({gap_seconds:.1f}s gap).\n\n'
-                    'Host detection requires players to connect together during session creation.'
-                )
+                if time_difference > _SESSION_HOST_AMBIGUITY_MAX_TD:
+                    cls.last_rejection_reason = (
+                        f'The connection time gap between the first two players is too large ({gap_seconds:.1f}s gap).\n\n'
+                        'Host detection requires players to connect together during session creation.'
+                    )
+                    outcome = (
+                        f'Connection time gap is too large: {gap_seconds:.1f}s gap exceeds maximum threshold '
+                        f'({SESSION_HOST_AMBIGUITY_MAX_THRESHOLD_MS}ms); players did not connect together.'
+                    )
+                else:
+                    gap_milliseconds = gap_seconds * 1000
+                    cls.last_rejection_reason = (
+                        f'The first two players connected almost at the exact same moment ({gap_milliseconds:.1f}ms apart).\n\n'
+                        'Their connection times are too close to determine who hosted the session.'
+                    )
+                    outcome = (
+                        f'Connection times are too close to determine host: first two players connected almost simultaneously '
+                        f'({gap_milliseconds:.1f}ms apart; minimum separation is {SESSION_HOST_AMBIGUITY_MIN_THRESHOLD_MS}ms).'
+                    )
                 cls.last_diagnostics = _build_host_diagnostics_snapshot(
                     session_players=candidates,
                     candidates=connected_players,
                     result=_DetectionEvaluationResult(
-                        outcome=(
-                            f'Connection time gap is too large: {gap_seconds:.1f}s gap exceeds maximum threshold '
-                            f'({SESSION_HOST_AMBIGUITY_MAX_THRESHOLD_MS}ms); players did not connect together.'
-                        ),
+                        outcome=outcome,
                         rejection_reason=cls.last_rejection_reason,
                         timing_gap=gap_seconds,
                     ),
                 )
                 return None
-            if time_difference >= _SESSION_HOST_AMBIGUITY_MIN_TD:
-                potential_session_host_player = connected_players[0]
-            else:
-                cls.last_rejection_reason = (
-                    f'The first two players connected almost at the exact same moment ({gap_milliseconds:.1f}ms apart).\n\n'
-                    'Their connection times are too close to determine who hosted the session.'
-                )
-                cls.last_diagnostics = _build_host_diagnostics_snapshot(
-                    session_players=candidates,
-                    candidates=connected_players,
-                    result=_DetectionEvaluationResult(
-                        outcome=(
-                            f'Connection times are too close to determine host: first two players connected almost simultaneously '
-                            f'({gap_milliseconds:.1f}ms apart; minimum separation is {SESSION_HOST_AMBIGUITY_MIN_THRESHOLD_MS}ms).'
-                        ),
-                        rejection_reason=cls.last_rejection_reason,
-                        timing_gap=gap_seconds,
-                    ),
-                )
-                cls.search_player = False
-                cls.search_start_time = None
-                return None
+            potential_session_host_player = connected_players[0]
         else:
             raise UnexpectedPlayerCountError(len(connected_players))
 
@@ -479,42 +470,17 @@ class SessionHost:
         is_sole_p2p_candidate = len(connected_players) == 1
 
         if (
-            not potential_session_host_player
-            # Skip players remaining to be disconnected from the previous session.
-            or potential_session_host_player in cls.players_pending_for_disconnection
             # The lower this value, the riskier it becomes, as it could potentially flag a player who ultimately isn't part of the newly discovered session.
             # In such scenarios, a better approach might involve checking around 25-100 packets.
             # However, increasing this value also increases the risk, as the host may have already disconnected.
-            or potential_session_host_player.packets.sent < MINIMUM_PACKETS_FOR_RELAY_SESSION_HOST
+            potential_session_host_player.packets.sent < MINIMUM_PACKETS_FOR_RELAY_SESSION_HOST
             # A candidate with too many packets has been connected far too long to be the host of a
             # newly joined session — host detection only applies at session join time.
             # Skip this check for manual re-detects: the user explicitly requested re-detection,
             # so packet count is irrelevant (the session is already in progress).
             or (not cls.manual_redetect and potential_session_host_player.packets.exchanged > SESSION_HOST_MAX_PACKETS_FOR_DETECTION)
         ):
-            if not potential_session_host_player:
-                cls.last_rejection_reason = 'No potential host candidate could be selected.'
-                cls.last_diagnostics = _build_host_diagnostics_snapshot(
-                    session_players=candidates,
-                    candidates=connected_players,
-                    result=_DetectionEvaluationResult(
-                        outcome='No potential host candidate could be selected.',
-                        rejection_reason=cls.last_rejection_reason,
-                        timing_gap=gap_seconds,
-                    ),
-                )
-            elif potential_session_host_player in cls.players_pending_for_disconnection:
-                cls.last_rejection_reason = f'Candidate player {potential_session_host_player.ip} is currently disconnecting or leaving the session.'
-                cls.last_diagnostics = _build_host_diagnostics_snapshot(
-                    session_players=candidates,
-                    candidates=connected_players,
-                    result=_DetectionEvaluationResult(
-                        outcome=f'Candidate player {potential_session_host_player.ip} is currently disconnecting or leaving the session.',
-                        rejection_reason=cls.last_rejection_reason,
-                        timing_gap=gap_seconds,
-                    ),
-                )
-            elif potential_session_host_player.packets.exchanged > SESSION_HOST_MAX_PACKETS_FOR_DETECTION:
+            if potential_session_host_player.packets.exchanged > SESSION_HOST_MAX_PACKETS_FOR_DETECTION:
                 cls.search_player = False
                 cls.search_start_time = None
                 cls.last_rejection_reason = (
