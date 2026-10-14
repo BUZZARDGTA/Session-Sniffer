@@ -110,6 +110,65 @@ a = Analysis(
     noarchive=False,
     optimize=0,
 )
+
+# Strip unused C++ Qt shared libraries, plugins, and localization files that
+# PyInstaller's PySide6 hooks collect automatically despite module `excludes`.
+_EXCLUDED_QT_BINARY_NAMES = {
+    # Software OpenGL Mesa rasterizer (~19.7 MB on Windows); unused by 2D QWidget/QPainter UI
+    'opengl32sw.dll',
+    # Transitive C++ Qt libraries pulled in only by unused Qt plugins (qpdf, qtuiotouchplugin)
+    'qt6pdf.dll',
+    'qtpdf',
+    'qt6network.dll',
+    'qtnetwork',
+    # Unused Qt imageformat plugins (Session Sniffer only uses PNG, SVG, and ICO/ICNS)
+    'qpdf.dll',
+    'libqpdf.so',
+    'libqpdf.dylib',
+    'qtiff.dll',
+    'libqtiff.so',
+    'libqtiff.dylib',
+    'qjpeg.dll',
+    'libqjpeg.so',
+    'libqjpeg.dylib',
+    'qwebp.dll',
+    'libqwebp.so',
+    'libqwebp.dylib',
+    'qgif.dll',
+    'libqgif.so',
+    'libqgif.dylib',
+    'qtga.dll',
+    'libqtga.so',
+    'libqtga.dylib',
+    'qwbmp.dll',
+    'libqwbmp.so',
+    'libqwbmp.dylib',
+    # Unused Qt generic TUIO touch network plugin
+    'qtuiotouchplugin.dll',
+    'libqtuiotouchplugin.so',
+    'libqtuiotouchplugin.dylib',
+    # Unused headless/alternative platform plugins (qwindows/qxcb/qwayland/qcocoa are kept)
+    'qdirect2d.dll',
+    'qoffscreen.dll',
+    'libqoffscreen.so',
+    'libqoffscreen.dylib',
+    'qminimal.dll',
+    'libqminimal.so',
+    'libqminimal.dylib',
+}
+
+a.binaries = [
+    binary
+    for binary in a.binaries
+    if (basename := binary[0].replace('\\', '/').rsplit('/', 1)[-1].lower()) not in _EXCLUDED_QT_BINARY_NAMES
+    and not basename.startswith(('libqt6pdf.so', 'libqt6network.so'))
+]
+a.datas = [
+    data
+    for data in a.datas
+    if not data[0].replace('\\', '/').lower().startswith(('pyside6/translations/', 'pyside6/qt/translations/'))
+]
+
 pyz = PYZ(a.pure)
 
 exe = EXE(
