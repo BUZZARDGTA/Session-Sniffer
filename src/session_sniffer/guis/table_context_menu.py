@@ -196,13 +196,11 @@ class StatTableWindowMixin(ToggleAlwaysOnTopMixin):
         *,
         always_on_top: bool,
         min_column_widths: dict[str, int] | None = None,
-        max_column_widths: dict[str, int] | None = None,
     ) -> None:
         """Initialize the context menu manager, column resizing hooks, and add the always-on-top checkbox."""
         self._column_resizer = TableColumnResizeController(
             self._table,
             min_column_widths=min_column_widths,
-            max_column_widths=max_column_widths,
         )
         header = self._table.horizontalHeader()
         header.setStretchLastSection(False)

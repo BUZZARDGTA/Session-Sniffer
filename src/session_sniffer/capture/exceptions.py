@@ -97,11 +97,7 @@ class InvalidPortNumberError(MalformedPacketError):
     message_template = f'Invalid port number: {{value}}. Port must be a number between {MIN_PORT} and {MAX_PORT}.'
 
 
-class InvalidLengthFormatError(MalformedPacketError):
-    """Raised when frame length is not in the expected format."""
-
-
-class InvalidLengthNumericError(InvalidLengthFormatError):
+class InvalidLengthNumericError(MalformedPacketError):
     """Raised when a length field is not a valid numeric format."""
 
     message_template = 'Invalid length format: {value}. Length must be a number.'

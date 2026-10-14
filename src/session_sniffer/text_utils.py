@@ -50,14 +50,12 @@ def format_triple_quoted_text(
     text: str,
     /,
     *,
-    add_leading_newline: bool = False,
     add_trailing_newline: bool = False,
 ) -> str:
-    """Format a triple-quoted string by removing leading whitespace and optionally adding newlines.
+    """Format a triple-quoted string by removing leading whitespace and optionally adding a trailing newline.
 
     Args:
         text: The text to format.
-        add_leading_newline: Whether to add a leading newline.
         add_trailing_newline: Whether to add a trailing newline.
 
     Returns:
@@ -65,8 +63,6 @@ def format_triple_quoted_text(
     """
     formatted_text = textwrap.dedent(text).strip()
 
-    if add_leading_newline:
-        formatted_text = '\n' + formatted_text
     if add_trailing_newline:
         formatted_text += '\n'
 

@@ -4,7 +4,7 @@ import re
 from contextlib import suppress
 from ipaddress import AddressValueError, IPv4Address
 
-from session_sniffer.networking.exceptions import InvalidIPv4AddressError, InvalidMacAddressError
+from session_sniffer.networking.exceptions import InvalidMacAddressError
 
 RE_MAC_ADDRESS_PATTERN = re.compile(r'^([0-9A-F]{2}[:-]){5}([0-9A-F]{2})$', re.IGNORECASE)
 
@@ -42,26 +42,11 @@ def format_mac_address(mac_address: str, /, separator: str = ':') -> str:
     return separator.join(sanitized_mac[i : i + 2] for i in range(0, len(sanitized_mac), 2))
 
 
-def is_ipv4_address(ipv4_address: str, /, *, raise_exception: bool = False) -> bool:
-    """Check if the given IPv4 address is valid.
-
-    If `raise_exception` is True, raises an `InvalidIPv4AddressError` if the IP address is invalid.
-
-    Args:
-        ipv4_address: The IP address to check.
-        raise_exception: If True, raise an exception for invalid IP addresses.
-
-    Returns:
-        Whether the IP address is valid.
-
-    Raises:
-        InvalidIPv4AddressError: If the IP address is invalid and `raise_exception` is True.
-    """
+def is_ipv4_address(ipv4_address: str, /) -> bool:
+    """Check if the given IPv4 address is valid."""
     with suppress(AddressValueError):
         IPv4Address(ipv4_address)
         return True
-    if raise_exception:
-        raise InvalidIPv4AddressError(ipv4_address)
     return False
 
 

@@ -240,12 +240,8 @@ def trigger_looky_rescan_all_players() -> int:
     return count
 
 
-def wake_all_player_cores(player: Player | None = None) -> None:
+def wake_all_player_cores() -> None:
     """Signal all background enrichment cores to immediately check for pending player work."""
-    if player is not None:
-        enqueue_player_for_resolution(player)
-        return
-
     _iplookup_wakeup_event.set()
     _hostname_wakeup_event.set()
     _pinger_wakeup_event.set()

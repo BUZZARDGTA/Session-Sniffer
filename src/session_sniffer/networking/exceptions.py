@@ -16,18 +16,6 @@ class InvalidMacAddressError(Exception):
         super().__init__(f'Invalid MAC address: {mac_address}\nA MAC address must be a 12-digit hexadecimal number long.')
 
 
-class InvalidIPv4AddressError(Exception):
-    """Exception raised when an invalid IPv4 address is found."""
-
-    def __init__(self, ipv4_address: str) -> None:
-        """Initialize the exception with the invalid IPv4 address.
-
-        Args:
-            ipv4_address: The invalid IPv4 address that caused the error.
-        """
-        super().__init__(f'Invalid IPv4 address: {ipv4_address}')
-
-
 class ManufLineParseError(ValueError):
     """Exception raised when parsing a manuf line fails."""
 

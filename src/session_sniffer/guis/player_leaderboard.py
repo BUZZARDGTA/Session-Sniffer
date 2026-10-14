@@ -1,7 +1,7 @@
 """Most Seen Players leaderboard window."""
 
 from pathlib import Path
-from typing import TYPE_CHECKING, override
+from typing import override
 
 from PySide6.QtCore import (
     QItemSelectionModel,
@@ -97,10 +97,6 @@ from session_sniffer.player.registry import PlayersRegistry
 from session_sniffer.player.seen_stats import LeaderboardBaseline, LeaderboardEntry, overlay_live_session
 from session_sniffer.rendering_core.renderer import SESSIONS_LOGGING_PATH
 from session_sniffer.text_utils import pluralize
-
-if TYPE_CHECKING:
-    from collections.abc import Callable
-
 
 # How often the displayed leaderboard is re-derived from the live session snapshot while visible.
 _LIVE_REFRESH_INTERVAL_MS = 1000
@@ -522,7 +518,7 @@ class PlayerLeaderboardWindow(ToggleAlwaysOnTopMixin):
         self._relative_dates_checkbox.setEnabled(enabled)
         self._cap_spinbox.setEnabled(enabled)
 
-    def _start_load(self, *, on_ready: Callable[[], object] | None = None) -> None:
+    def _start_load(self) -> None:
         """Run the leaderboard scan on a worker thread behind an in-window loading view."""
         if self._baseline_worker is not None and self._baseline_worker.isRunning():
             return
@@ -545,8 +541,6 @@ class PlayerLeaderboardWindow(ToggleAlwaysOnTopMixin):
             self._table.setup_static_column_resizing()
             self._table.clearSelection()
             self._table.setCurrentIndex(QModelIndex())
-            if on_ready is not None:
-                on_ready()
 
         worker.finished_ok.connect(_on_finished_ok)
         worker.start()

@@ -28,14 +28,6 @@ class InvalidBooleanValueError(Exception):
         super().__init__('Input is not a valid boolean value')
 
 
-class MismatchedBooleanValueError(Exception):
-    """Exception raised when the resolved value does not match the expected boolean value."""
-
-    def __init__(self) -> None:
-        """Initialize the exception with a default error message."""
-        super().__init__('Input does not match the specified boolean value')
-
-
 class InvalidNoneTypeValueError(Exception):
     """Exception raised when a string is not a valid NoneType value."""
 

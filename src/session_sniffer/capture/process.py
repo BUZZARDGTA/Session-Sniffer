@@ -362,14 +362,14 @@ def _is_process_running_windows(pid: int, creation_time: float | None) -> bool:
         _kernel32.CloseHandle(handle)
 
 
-def is_process_running(target: int | ProcessInfo, creation_time: float | None = None) -> bool:
+def is_process_running(target: int | ProcessInfo) -> bool:
     """Return `True` if the process is currently active and matches creation time if specified."""
     if isinstance(target, ProcessInfo):
         pid = target.pid
-        if creation_time is None:
-            creation_time = target.creation_time
+        creation_time = target.creation_time
     else:
         pid = target
+        creation_time = None
 
     if pid <= 0:
         return False

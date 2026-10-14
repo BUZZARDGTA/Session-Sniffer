@@ -104,7 +104,6 @@ def setup_table_header_context_menu(
     table: QTableView | QTreeView,
     *,
     on_reset: Callable[[], None] | None = None,
-    extra_menu_builder: Callable[[QMenu, int], None] | None = None,
 ) -> QHeaderView:
     """Configure the horizontal header of *table* with a standardized right-click context menu for column sizing."""
     horizontal_header = _get_horizontal_header(table)
@@ -121,9 +120,6 @@ def setup_table_header_context_menu(
         menu.setToolTipsVisible(True)
 
         add_column_sizing_actions(menu, table, clicked_column=clicked_column, on_reset=on_reset)
-
-        if extra_menu_builder is not None:
-            extra_menu_builder(menu, clicked_column)
 
         menu.popup(horizontal_header.mapToGlobal(position))
 
@@ -299,12 +295,10 @@ class TableColumnResizeController:
         table: QTableView,
         *,
         min_column_widths: dict[str, int] | None = None,
-        max_column_widths: dict[str, int] | None = None,
     ) -> None:
         """Initialize the column resize controller for *table*."""
         self._table = table
         self.min_column_widths: dict[str, int] | None = min_column_widths
-        self.max_column_widths: dict[str, int] | None = max_column_widths
         self.custom_widths: dict[str, int] | None = None
         self.is_programmatic_resizing: bool = False
 
@@ -364,7 +358,6 @@ class TableColumnResizeController:
                 self._table,
                 custom_widths=self.custom_widths,
                 min_column_widths=self.min_column_widths,
-                max_column_widths=self.max_column_widths,
             )
         finally:
             self.is_programmatic_resizing = False

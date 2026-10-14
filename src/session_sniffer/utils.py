@@ -34,7 +34,6 @@ from session_sniffer.utils_exceptions import (
     InvalidBooleanValueError,
     InvalidFileError,
     InvalidNoneTypeValueError,
-    MismatchedBooleanValueError,
     NoMatchFoundError,
     ParenthesisMismatchError,
 )
@@ -327,12 +326,9 @@ class ProcessEntry32W(ctypes.Structure):
         self.dwSize = ctypes.sizeof(self)
 
 
-def terminate_process_tree(pid: int | None = None) -> None:
-    """Terminates the process with the given PID and all its child processes.
-
-    Defaults to the current process if no PID is specified.
-    """
-    target_pid = pid if pid is not None else os.getpid()
+def terminate_process_tree() -> None:
+    """Terminates the current process and all its child processes."""
+    target_pid = os.getpid()
     if target_pid <= 0:
         return
 
@@ -448,16 +444,14 @@ def check_case_insensitive_and_exact_match(input_value: str, custom_values_tuple
     raise NoMatchFoundError(input_value)
 
 
-def custom_str_to_bool(string: str, *, only_match_against: bool | None = None) -> tuple[bool, bool]:
+def custom_str_to_bool(string: str) -> tuple[bool, bool]:
     """Return the boolean value represented by the string, regardless of case.
 
     Raise:
         InvalidBooleanValueError: if the string does not match a boolean value.
-        MismatchedBooleanValueError: If the resolved value does not match the expected boolean value.
 
     Args:
         string: The boolean string to be checked.
-        only_match_against: If provided, the only boolean value to match against.
     """
     need_rewrite_current_setting = False
     resolved_value = None
@@ -471,9 +465,6 @@ def custom_str_to_bool(string: str, *, only_match_against: bool | None = None) -
 
     if resolved_value is None:
         raise InvalidBooleanValueError
-
-    if only_match_against is not None and only_match_against is not resolved_value:
-        raise MismatchedBooleanValueError
 
     if string != str(resolved_value):
         need_rewrite_current_setting = True

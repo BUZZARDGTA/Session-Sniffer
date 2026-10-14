@@ -20,14 +20,12 @@ if TYPE_CHECKING:
 def format_type_error(
     obj: object,
     expected_types: type | tuple[type, ...],
-    suffix: str = '',
 ) -> str:
     """Generate a formatted error message for a type mismatch.
 
     Args:
         obj: The object whose type is being checked.
         expected_types: The expected type(s) for the object.
-        suffix: An optional suffix to append to the error message.
 
     Returns:
         The formatted error message.
@@ -41,7 +39,7 @@ def format_type_error(
         expected_types_names = expected_types.__name__
         expected_type_count = 1
 
-    return f'Expected type{pluralize(expected_type_count)} {expected_types_names}, got {actual_type} instead.{suffix}'
+    return f'Expected type{pluralize(expected_type_count)} {expected_types_names}, got {actual_type} instead.'
 
 
 def ensure_instance[T](obj: object, expected_types: type[T] | tuple[type[T], ...]) -> T:

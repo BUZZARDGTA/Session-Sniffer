@@ -156,11 +156,10 @@ def userip_add(
     selected_ips: list[str],
     selected_database: Path,
     *,
-    default_username: str = '',
     usernames: list[str] | None = None,
 ) -> None:
     """Add the selected IP address(es) to the chosen UserIP database."""
-    candidates = list(usernames) if usernames is not None else ([default_username] if default_username else None)
+    candidates = list(usernames) if usernames is not None else None
     chosen_usernames = _prompt_usernames_to_add(
         parent,
         selected_ips,
@@ -194,7 +193,6 @@ def userip_add_as_range(
     ip_address: str,
     selected_database: Path,
     *,
-    default_username: str = '',
     usernames: list[str] | None = None,
 ) -> None:
     """Add the selected IP address as a range entry to the chosen UserIP database."""
@@ -206,7 +204,7 @@ def userip_add_as_range(
     if not range_input:
         return
 
-    candidates = list(usernames) if usernames is not None else ([default_username] if default_username else None)
+    candidates = list(usernames) if usernames is not None else None
     prompt_message = f'Enter the username to associate with range "{range_input}":'
     chosen_usernames = _prompt_usernames_to_add(
         parent,

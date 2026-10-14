@@ -26,7 +26,7 @@ BACKUP_INTERVALS_SECONDS: dict[str, int] = {
 }
 
 
-def prune_old_backups(*, max_backups: int | None = None) -> None:
+def prune_old_backups() -> None:
     """Retain only the most recent backup archives in the backup directory based on retention settings."""
     with _backup_lock:
         if not USERIP_DATABASES_BACKUP_DIR_PATH.is_dir():
@@ -39,7 +39,7 @@ def prune_old_backups(*, max_backups: int | None = None) -> None:
             except OSError as e:
                 logger.warning('Failed to remove stale UserIP backup temporary file %s: %s', temporary_file.name, e)
 
-        limit = Settings.userip_backup_retention_limit if max_backups is None else max_backups
+        limit = Settings.userip_backup_retention_limit
         if limit <= 0:
             return
 
@@ -157,14 +157,13 @@ def backup_userip_databases(*, force: bool = False) -> Path | None:
         return backup_path
 
 
-def run_userip_backup_async(*, force: bool = False) -> None:
+def run_userip_backup_async() -> None:
     """Execute `backup_userip_databases` asynchronously in a background thread."""
     if gui_closed__event.is_set():
         return
 
     thread = threading.Thread(
         target=backup_userip_databases,
-        kwargs={'force': force},
         name='userip_backup',
         daemon=True,
     )

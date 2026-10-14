@@ -207,13 +207,13 @@ class _NpcapInstallTracker:
 _tracker = _NpcapInstallTracker()
 
 
-def _is_npcap_service_running(*, force: bool = False) -> bool:
+def _is_npcap_service_running() -> bool:
     """Check if the npcap kernel driver service is currently active and running with throttling."""
     if sys.platform != 'win32':
         return False
 
     now = time.monotonic()
-    if not force and (now - _tracker.last_service_query_time) < SERVICE_STEP_MIN_DURATION_SECONDS:
+    if (now - _tracker.last_service_query_time) < SERVICE_STEP_MIN_DURATION_SECONDS:
         return _tracker.last_service_query_result
 
     _tracker.last_service_query_time = now

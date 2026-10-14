@@ -68,12 +68,11 @@ class ScriptControl:
 def terminate_script(
     terminate_method: Literal['EXIT', 'SIGINT', 'SIGTERM', 'SIGBREAK', 'THREAD_RAISED'],
     msgbox_crash_text: str | None = None,
-    stdout_crash_text: str | None = None,
     exception_info: ExceptionInfo | None = None,
 ) -> None:
     """Terminate the application and optionally display crash information."""
     caller_thread = threading.current_thread()
-    is_crash = exception_info is not None or terminate_method == 'THREAD_RAISED' or msgbox_crash_text is not None or stdout_crash_text is not None
+    is_crash = exception_info is not None or terminate_method == 'THREAD_RAISED' or msgbox_crash_text is not None
     if not is_crash:
         caller_native_id = getattr(caller_thread, 'native_id', 'unknown')
         logger.debug(
@@ -97,10 +96,9 @@ def terminate_script(
             exc_info=(exception_info.exc_type, exception_info.exc_value, exception_info.exc_traceback),
         )
     elif is_crash:
-        crash_detail = stdout_crash_text or msgbox_crash_text
         crash_reason = (
-            f'terminate_script (method={terminate_method}, thread={caller_thread.name}): {crash_detail}'
-            if crash_detail is not None
+            f'terminate_script (method={terminate_method}, thread={caller_thread.name}): {msgbox_crash_text}'
+            if msgbox_crash_text is not None
             else f'terminate_script (method={terminate_method}, thread={caller_thread.name})'
         )
         dump_crash_diagnostics(crash_reason)
@@ -115,7 +113,7 @@ def terminate_script(
 
     # If the termination method is a normal exit/signal, do not sleep unless crash messages are present
     need_sleep = True
-    if terminate_method in ('EXIT', 'SIGINT', 'SIGTERM', 'SIGBREAK') and msgbox_crash_text is None and stdout_crash_text is None:
+    if terminate_method in ('EXIT', 'SIGINT', 'SIGTERM', 'SIGBREAK') and msgbox_crash_text is None:
         need_sleep = False
     if need_sleep:
         time.sleep(3)
