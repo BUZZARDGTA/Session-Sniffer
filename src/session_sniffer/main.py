@@ -143,7 +143,7 @@ def main() -> None:
     # Own splash msgboxes so they appear above it without being globally topmost
     msgbox.set_owner_hwnd(splash.winId())
 
-    preload_executor = ThreadPoolExecutor(max_workers=5, thread_name_prefix='Preload')
+    preload_executor = ThreadPoolExecutor(max_workers=6, thread_name_prefix='Preload')
     update_check_future = preload_executor.submit(check_for_updates, updater_channel=Settings.updater_channel)
     npcap_future = preload_executor.submit(ensure_npcap_installed)
     geolite2_future = preload_executor.submit(
@@ -151,6 +151,10 @@ def main() -> None:
         progress_callback=functools.partial(splash.update_progress, target_message='Initializing GeoLite2 databases'),
     )
     mac_lookup_future = preload_executor.submit(MacLookup.load)
+    caches_future = preload_executor.submit(
+        preload_application_caches,
+        progress_callback=functools.partial(splash.update_progress, target_message='Initializing caches'),
+    )
 
     def _populate_interfaces_after_mac() -> None:
         mac_lookup_future.result()  # Vendor name lookups require MacLookup to be loaded first.
@@ -204,10 +208,7 @@ def main() -> None:
     splash.run_with_spinner(mac_lookup_future.result)
 
     splash.update_status('Initializing caches')
-    splash.run_with_spinner(
-        preload_application_caches,
-        progress_callback=functools.partial(splash.update_progress, target_message='Initializing caches'),
-    )
+    splash.run_with_spinner(caches_future.result)
     warm_table_gui_assets(
         progress_callback=functools.partial(splash.update_progress, target_message='Initializing caches'),
     )
