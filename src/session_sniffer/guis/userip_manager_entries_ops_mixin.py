@@ -406,8 +406,6 @@ class UserIPEntriesOperationsMixin(QDialog):
 
         source_rows = sorted({self._proxy.mapToSource(index).row() for index in selected_indexes})
         count = len(source_rows)
-        if not count:
-            return
 
         if count == 1:
             first_row = source_rows[0]
@@ -449,15 +447,19 @@ class UserIPEntriesOperationsMixin(QDialog):
                 username_item = self._model.item(row, USERNAME_COLUMN)
                 old_username = username_item.text().strip() if username_item else ''
                 entry_ip_or_range = self._get_row_entry_value(row).strip()
-                if old_username and entry_ip_or_range:
+                if old_username and old_username != new_username and entry_ip_or_range:
                     rows_by_database[Path(database_path_str)].append((row, old_username, entry_ip_or_range))
 
+            renamed_count = 0
             with QSignalBlocker(self._fs_watcher):
                 for database_path, entries in rows_by_database.items():
                     if database_path.is_file():
                         rename_pairs = [(old_name, ip_value) for _, old_name, ip_value in entries]
-                        rewrite_db_rename_entries(database_path, rename_pairs, new_username)
+                        renamed_count += rewrite_db_rename_entries(database_path, rename_pairs, new_username)
             self._rebuild_fs_watch()
+
+            if not renamed_count:
+                return
 
             for row in source_rows:
                 username_item = self._model.item(row, USERNAME_COLUMN)
@@ -466,7 +468,7 @@ class UserIPEntriesOperationsMixin(QDialog):
 
             self._highlight_duplicates()
             self._update_entry_counts()
-            self._set_status(f'Renamed {count} {pluralize(count, "entry", "entries")} to "{new_username}" in database files.')
+            self._set_status(f'Renamed {renamed_count} {pluralize(renamed_count, "entry", "entries")} to "{new_username}" in database files.')
         else:
             for row in source_rows:
                 username_item = self._model.item(row, USERNAME_COLUMN)
@@ -592,17 +594,27 @@ class UserIPEntriesOperationsMixin(QDialog):
                 QMessageBox.information(self, TITLE, f'Selected {pluralize(count, "entry", "entries")} already belong to "{target_display_name}".')
                 return
 
-            append_userip_entries(target_db_path, [(u, ip, lk) for u, ip, lk, _ in valid_moves])
+            with QSignalBlocker(self._fs_watcher):
+                added_pairs = append_userip_entries(target_db_path, [(u, ip, lk) for u, ip, lk, _ in valid_moves])
 
-            for src_db_path, to_remove in entries_by_src.items():
-                if src_db_path.is_file():
-                    rewrite_db_without_entries(src_db_path, to_remove)
+                for src_db_path, to_remove in entries_by_src.items():
+                    if src_db_path.is_file():
+                        rewrite_db_without_entries(src_db_path, to_remove)
 
-            for _username, _ip, _is_looky, row in valid_moves:
-                db_item = self._model.item(row, DATABASE_COLUMN)
-                if db_item:
-                    db_item.setText(str(target_display_name))
-                    db_item.setData(str(target_db_path), Qt.ItemDataRole.UserRole)
+            rows_to_remove: list[int] = []
+            for username, ip_or_range, _is_looky, row in valid_moves:
+                pair = (username, ip_or_range)
+                if pair in added_pairs:
+                    added_pairs.discard(pair)
+                    db_item = self._model.item(row, DATABASE_COLUMN)
+                    if db_item:
+                        db_item.setText(str(target_display_name))
+                        db_item.setData(str(target_db_path), Qt.ItemDataRole.UserRole)
+                else:
+                    rows_to_remove.append(row)
+
+            for row in sorted(rows_to_remove, reverse=True):
+                self._model.removeRow(row)
 
             self._highlight_duplicates()
             self._refresh_stats()

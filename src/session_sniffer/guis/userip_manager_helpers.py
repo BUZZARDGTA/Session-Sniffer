@@ -486,7 +486,7 @@ def rewrite_db_edit_entry_ip(
     return replaced_count
 
 
-def append_userip_entries(db_path: Path, entries: list[tuple[str, str, bool]]) -> int:
+def append_userip_entries(db_path: Path, entries: list[tuple[str, str, bool]]) -> set[tuple[str, str]]:
     """Append entries to the `[UserIP]` section of a database file, avoiding exact duplicates.
 
     Args:
@@ -494,20 +494,23 @@ def append_userip_entries(db_path: Path, entries: list[tuple[str, str, bool]]) -
         entries: List of `(username, ip_or_range, is_looky)` tuples to append.
 
     Returns:
-        The number of entries actually added (excluding exact duplicates already present).
+        The set of `(username, ip_or_range)` pairs actually added (excluding exact duplicates already present).
     """
     content = db_path.read_text('utf-8') if db_path.is_file() else ''
     existing_pairs = set(iter_userip_entries(content))
     lines_to_add: list[str] = []
+    added_pairs: set[tuple[str, str]] = set()
 
     for username, ip_or_range, is_looky in entries:
-        if (username, ip_or_range) not in existing_pairs:
-            existing_pairs.add((username, ip_or_range))
+        pair = (username, ip_or_range)
+        if pair not in existing_pairs:
+            existing_pairs.add(pair)
+            added_pairs.add(pair)
             suffix = ' ; looky' if is_looky else ''
             lines_to_add.append(f'{username}={ip_or_range}{suffix}')
 
     if not lines_to_add:
-        return 0
+        return added_pairs
 
     has_userip_section = any(line.strip() == f'[{SECTION_USERIP}]' for line in content.splitlines())
     prefix = ''
@@ -518,7 +521,7 @@ def append_userip_entries(db_path: Path, entries: list[tuple[str, str, bool]]) -
 
     new_content = content + prefix + '\n'.join(lines_to_add) + '\n'
     db_path.write_text(new_content, encoding='utf-8')
-    return len(lines_to_add)
+    return added_pairs
 
 
 def populate_userip_databases_menu(
