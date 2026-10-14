@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, ClassVar, Literal, NamedTuple
 from session_sniffer import msgbox
 from session_sniffer.constants.standalone import GITHUB_ISSUES_URL, TITLE
 from session_sniffer.gta5.suspend_manager import GTASuspendManager
+from session_sniffer.logging_setup import dump_crash_diagnostics, flush_all_loggers
 from session_sniffer.utils import terminate_process_tree
 
 if TYPE_CHECKING:
@@ -91,13 +92,25 @@ def terminate_script(
 
     ScriptControl.set_crashed()
 
-    if exception_info:
+    if exception_info is not None:
         logger.error(
             'Uncaught exception: %s: %s',
             exception_info.exc_type.__name__,
             exception_info.exc_value,
             exc_info=(exception_info.exc_type, exception_info.exc_value, exception_info.exc_traceback),
         )
+        dump_crash_diagnostics(
+            f'Uncaught exception in {caller_thread.name} (method={terminate_method}): {exception_info.exc_type.__name__}: {exception_info.exc_value}',
+            exc_info=(exception_info.exc_type, exception_info.exc_value, exception_info.exc_traceback),
+        )
+    elif terminate_method == 'THREAD_RAISED' or msgbox_crash_text is not None or stdout_crash_text is not None:
+        crash_detail = stdout_crash_text or msgbox_crash_text
+        crash_reason = (
+            f'terminate_script (method={terminate_method}, thread={caller_thread.name}): {crash_detail}'
+            if crash_detail is not None
+            else f'terminate_script (method={terminate_method}, thread={caller_thread.name})'
+        )
+        dump_crash_diagnostics(crash_reason)
 
     if msgbox_crash_text is not None:
         msgbox_title = TITLE
@@ -114,6 +127,7 @@ def terminate_script(
     if need_sleep:
         time.sleep(3)
 
+    flush_all_loggers()
     terminate_process_tree()
 
 

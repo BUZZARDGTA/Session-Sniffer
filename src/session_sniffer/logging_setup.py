@@ -335,12 +335,20 @@ def flush_all_loggers() -> None:
             _state.crash_log_file.flush()
 
 
-def dump_crash_diagnostics(reason: str) -> None:
+def dump_crash_diagnostics(
+    reason: str,
+    *,
+    exc_info: tuple[type[BaseException], BaseException, TracebackType | None] | None = None,
+) -> None:
     """Dump active threads and call stacks directly to crash.log, raw stderr, and the logger."""
+    timestamp = time.strftime('%Y-%m-%d %H:%M:%S')
     lines: list[str] = [
-        f'=== THREAD DIAGNOSTIC DUMP (triggered by: {reason}) ===',
-        f'Active Python threads count: {threading.active_count()}',
+        f'=== THREAD DIAGNOSTIC DUMP [{timestamp}] (triggered by: {reason}) ===',
     ]
+    if exc_info is not None:
+        formatted_exception = ''.join(traceback.format_exception(*exc_info)).rstrip()
+        lines.append(f'Exception traceback:\n{formatted_exception}')
+    lines.append(f'Active Python threads count: {threading.active_count()}')
     try:
         get_current_frames = cast('Callable[[], dict[int, FrameType]] | None', getattr(sys, '_current_frames', None))
         current_frames: dict[int, FrameType] = get_current_frames() if callable(get_current_frames) else {}
@@ -365,7 +373,8 @@ def dump_crash_diagnostics(reason: str) -> None:
         lines.append(f'Failed to collect thread diagnostics: {e}')
 
     lines.append('=== END THREAD DIAGNOSTIC DUMP ===')
-    dump_text = '\n'.join(lines) + '\n'
+    redacted_lines = [_redact_text(line) for line in lines]
+    dump_text = '\n'.join(redacted_lines) + '\n'
 
     # 1. Write unbuffered directly to raw standard error
     if sys.__stderr__ is not None:
@@ -389,7 +398,7 @@ def dump_crash_diagnostics(reason: str) -> None:
     if not getattr(_stderr_reentry_state, 'active', False):
         with contextlib.suppress(Exception):
             stderr_logger = logging.getLogger(_STDERR_LOGGER_NAME)
-            for diag_line in lines:
+            for diag_line in redacted_lines:
                 stderr_logger.critical('%s', diag_line)
 
     # 4. Flush all loggers and files
