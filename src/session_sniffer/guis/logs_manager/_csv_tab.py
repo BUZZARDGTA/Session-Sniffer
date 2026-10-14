@@ -102,7 +102,6 @@ class CsvLogTab(QWidget):
         self._default_sort_order = config.default_sort_order
         self._stretch_column = config.stretch_column
         self._column_min_widths = config.column_min_widths
-        self._all_rows: list[list[str]] = []
         self._truncated = False
         self._initial_loaded = False
 
@@ -259,7 +258,6 @@ class CsvLogTab(QWidget):
         previous_scroll = scrollbar.value() if scrollbar else 0
 
         self._model.removeRows(0, self._model.rowCount())
-        self._all_rows.clear()
         self._truncated = False
 
         if not self._file_path.exists():
@@ -292,7 +290,6 @@ class CsvLogTab(QWidget):
                 for item in items:
                     item.setEditable(False)
                 self._model.appendRow(items)
-                self._all_rows.append(row)
 
             # Only surface malformed-row warnings on the first load; auto-refreshes stay silent.
             if skipped and not self._initial_loaded:

@@ -363,9 +363,9 @@ class TableHeaderMenuMixin(QTableView):
         finally:
             self._is_programmatic_resizing = False
 
-    def request_column_recalculation(self, *, payload_count: int = 2) -> None:
+    def request_column_recalculation(self) -> None:
         """Flag that columns should be recalculated and resized on subsequent data updates."""
-        self._recalculation_payloads_remaining = max(self._recalculation_payloads_remaining, payload_count)
+        self._recalculation_payloads_remaining = max(self._recalculation_payloads_remaining, 2)
 
     def clear_custom_column_widths(self, column_names: set[str] | list[str] | tuple[str, ...]) -> None:
         """Remove custom widths for specific columns so they can be recalculated from content."""

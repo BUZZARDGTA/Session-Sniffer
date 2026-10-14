@@ -171,12 +171,10 @@ def create_multi_tcp_ping_menu(
     parent: QWidget,
     ip_addresses: list[str],
     ping_menu: QMenu,
-    *,
-    icon_name: str = 'radio-tower.svg',
 ) -> QMenu:
     """Create and attach a 'TCP Port Ping' submenu for multiple IP addresses to *ping_menu*."""
     tcp_menu = QMenu('TCP Port Ping', ping_menu)
-    icon = QIcon(str(RESOURCES_DIR_PATH / 'icons' / icon_name))
+    icon = QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'radio-tower.svg'))
     tcp_menu.setIcon(icon)
     tcp_menu.setStyleSheet(SVG_ICON_CONTEXT_MENU_STYLESHEET)
     tcp_menu.setToolTipsVisible(True)
@@ -213,12 +211,10 @@ def create_multi_udp_ping_menu(
     parent: QWidget,
     ip_addresses: list[str],
     ping_menu: QMenu,
-    *,
-    icon_name: str = 'radio-tower.svg',
 ) -> QMenu:
     """Create and attach a 'UDP Port Ping' submenu for multiple IP addresses to *ping_menu*."""
     udp_menu = QMenu('UDP Port Ping', ping_menu)
-    icon = QIcon(str(RESOURCES_DIR_PATH / 'icons' / icon_name))
+    icon = QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'radio-tower.svg'))
     udp_menu.setIcon(icon)
     udp_menu.setStyleSheet(SVG_ICON_CONTEXT_MENU_STYLESHEET)
     udp_menu.setToolTipsVisible(True)
@@ -250,12 +246,10 @@ def create_ping_menu(
     parent: QWidget,
     menu: QMenu,
     ip_addresses: Sequence[str],
-    *,
-    icon_name: str = 'radio-tower.svg',
 ) -> QMenu:
     """Create and attach a standardized 'Ping' submenu for one or more IP addresses to *menu*."""
     ping_menu = QMenu('Ping', menu)
-    icon = QIcon(str(RESOURCES_DIR_PATH / 'icons' / icon_name))
+    icon = QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'radio-tower.svg'))
     ping_menu.setIcon(icon)
     ping_menu.setStyleSheet(SVG_ICON_CONTEXT_MENU_STYLESHEET)
     ping_menu.setToolTipsVisible(True)
@@ -292,8 +286,8 @@ def create_ping_menu(
         normal_action.triggered.connect(_do_ping_multi)
         ping_menu.addAction(normal_action)
 
-        create_multi_tcp_ping_menu(parent, ip_addresses_list, ping_menu, icon_name=icon_name)
-        create_multi_udp_ping_menu(parent, ip_addresses_list, ping_menu, icon_name=icon_name)
+        create_multi_tcp_ping_menu(parent, ip_addresses_list, ping_menu)
+        create_multi_udp_ping_menu(parent, ip_addresses_list, ping_menu)
 
         web_action = QAction(icon, 'Web (Check-Host)', ping_menu)
         web_action.setToolTip('Checks if selected IP addresses respond via Check-Host.net distributed nodes.')

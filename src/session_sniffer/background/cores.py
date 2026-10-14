@@ -46,13 +46,13 @@ logger = logging.getLogger(__name__)
 class ResolutionQueue:
     """Thread-safe FIFO queue with fast set-based deduplication."""
 
-    def __init__(self, on_empty: Callable[[], None] | None = None) -> None:
+    def __init__(self) -> None:
         """Initialize a ResolutionQueue instance."""
         self._deque: deque[str] = deque()
         self._queued_ip_addresses: set[str] = set()
         self._lock: RLock = RLock()
         self._has_items: Event = Event()
-        self.on_empty: Callable[[], None] | None = on_empty
+        self.on_empty: Callable[[], None] | None = None
 
     def put(self, ip_address: str) -> bool:
         """Enqueue an IP address if not already queued. Returns True if added."""
@@ -77,10 +77,11 @@ class ResolutionQueue:
     def get(self) -> str | None:
         """Pop an IP address without blocking, or None if empty."""
         with self._lock:
-            if not self._deque and self.on_empty is not None:
-                self.on_empty()
             if not self._deque:
-                return None
+                if self.on_empty is not None:
+                    self.on_empty()
+                if not self._deque:
+                    return None
             ip_address = self._deque.popleft()
             self._queued_ip_addresses.discard(ip_address)
             if not self._deque:

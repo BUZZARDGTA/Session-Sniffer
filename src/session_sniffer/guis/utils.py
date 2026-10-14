@@ -152,10 +152,11 @@ def format_player_display(ip: str, usernames: list[str]) -> str:
     return ip
 
 
-def format_menu_usernames(usernames: Sequence[str] | None, *, max_display: int = 3, placeholder: str = '') -> str:
+def format_menu_usernames(usernames: Sequence[str] | None, *, placeholder: str = '') -> str:
     """Format a sequence of usernames for concise display in a menu item, eliding excess names."""
     if usernames is None or not usernames:
         return placeholder
+    max_display = 3
     if len(usernames) <= max_display:
         return ', '.join(usernames)
     remaining_count = len(usernames) - max_display
@@ -737,7 +738,6 @@ def animate_button_feedback(
     *,
     feedback_text: str = ' Copied!',
     feedback_tooltip: str = 'Copied to clipboard!',
-    duration_milliseconds: int = 1500,
 ) -> None:
     """Temporarily update a button's icon, text, and tooltip to show confirmation feedback."""
     raw_timer = button.property('_feedback_timer')
@@ -788,7 +788,7 @@ def animate_button_feedback(
     timer.setSingleShot(True)
     timer.timeout.connect(_reset)
     button.setProperty('_feedback_timer', timer)
-    timer.start(duration_milliseconds)
+    timer.start(1500)
 
 
 def popup_menu_at_table_widget(menu: QMenu, table: QTableWidget, pos: QPoint) -> None:

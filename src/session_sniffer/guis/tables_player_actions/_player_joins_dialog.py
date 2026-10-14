@@ -100,7 +100,7 @@ _COLOR_DISCONNECTED = QColor(220, 80, 60)
 class PlayerJoinsWindow(StatTableWindowMixin):
     """Sortable table window showing detailed session times, timestamps, ports, and stats for each join of a player."""
 
-    def __init__(self, parent: QWidget | None, player: Player, *, always_on_top: bool = True) -> None:
+    def __init__(self, parent: QWidget | None, player: Player) -> None:
         """Initialize the Player Joins window."""
         super().__init__(parent.window() if parent is not None else None)
         self._player: Player = player
@@ -108,7 +108,7 @@ class PlayerJoinsWindow(StatTableWindowMixin):
         self.setWindowTitle(f'{TITLE} - Player Joins ({format_player_display(self._player.ip, self._player.usernames)})')
         self.setWindowIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'rotate-ccw-clock.svg')))
 
-        layout = self.setup_window_layout(always_on_top=always_on_top, spacing=6)
+        layout = self.setup_window_layout(always_on_top=True, spacing=6)
 
         self._header_label = QLabel(f'Player Joins — {format_player_display(self._player.ip, self._player.usernames)}')
         self._header_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -132,7 +132,7 @@ class PlayerJoinsWindow(StatTableWindowMixin):
         setup_stat_table(self._table, layout, sorting=True)
 
         bottom_layout = QHBoxLayout()
-        self.setup_stat_table_controls(bottom_layout, always_on_top=always_on_top, min_column_widths=PLAYER_JOINS_TABLE_MIN_COLUMN_WIDTHS)
+        self.setup_stat_table_controls(bottom_layout, always_on_top=True, min_column_widths=PLAYER_JOINS_TABLE_MIN_COLUMN_WIDTHS)
         bottom_layout.addStretch(1)
 
         self._count_label = QLabel()

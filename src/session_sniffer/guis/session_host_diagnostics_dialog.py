@@ -774,7 +774,7 @@ class SessionHostDiagnosticsDialog(QDialog):
 
     def _copy_text(self, button: QPushButton, text: str, *, feedback_text: str = ' Copied!') -> None:
         set_clipboard_text(text)
-        animate_button_feedback(button, feedback_text=feedback_text, duration_milliseconds=1500)
+        animate_button_feedback(button, feedback_text=feedback_text)
 
     def _copy_details(self, button: QPushButton) -> None:
         self._copy_text(button, self._snapshot.raw_details, feedback_text=' Copied Host Details!')

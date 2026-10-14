@@ -346,9 +346,9 @@ class SessionTracker:
         return players if include_servers else [player for player in players if not player.is_third_party_server]
 
     @classmethod
-    def get_session_player_count(cls, session_id: int, *, include_servers: bool = False) -> int:
+    def get_session_player_count(cls, session_id: int) -> int:
         """Return the count of players belonging to the specified session sequence number."""
-        return len(cls.get_session_players(session_id, include_servers=include_servers))
+        return len(cls.get_session_players(session_id))
 
     @classmethod
     def record_session_player_activity(cls, session_id: int, timestamp: datetime) -> None:

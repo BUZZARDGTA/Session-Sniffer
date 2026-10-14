@@ -69,7 +69,7 @@ def check_for_updates(
     return (UpdateCheckOutcome.IGNORE, None)
 
 
-def _fetch_versions_with_retries(*, max_attempts: int = 3) -> tuple[UpdateCheckOutcome, GithubVersionsResponse | None]:
+def _fetch_versions_with_retries() -> tuple[UpdateCheckOutcome, GithubVersionsResponse | None]:
     """Fetch GitHub versions with user-driven retry/abort policy.
 
     Returns:
@@ -79,6 +79,7 @@ def _fetch_versions_with_retries(*, max_attempts: int = 3) -> tuple[UpdateCheckO
             - IGNORE: User clicked Ignore button
             - FAILED: All retry attempts exhausted
     """
+    max_attempts = 3
     for attempt in range(1, max_attempts + 1):
         try:
             versions = _fetch_github_versions()

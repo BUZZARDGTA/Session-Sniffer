@@ -2,6 +2,9 @@
 
 from typing import TYPE_CHECKING, cast
 
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (
@@ -165,6 +168,8 @@ class DetectionsManagerTabsMixin(QDialog):
             'Country Detection',
             "Triggers when a player's country is in the detection list.",
             'country',
+            on_add=self._add_country,
+            on_remove=self._remove_country,
         )
         scroll_layout.addWidget(country_group)
 
@@ -172,6 +177,8 @@ class DetectionsManagerTabsMixin(QDialog):
             'ISP/Company Detection',
             "Triggers when a player's ISP or company is in the detection list (e.g., Vodafone, Orange, Cloudflare).",
             'isp',
+            on_add=self._add_isp,
+            on_remove=self._remove_isp,
         )
         scroll_layout.addWidget(isp_group)
 
@@ -179,6 +186,8 @@ class DetectionsManagerTabsMixin(QDialog):
             'ASN Number Detection',
             "Triggers when a player's ASN is in the detection list (e.g., AS15169, AS13335, or just 15169, 13335).",
             'asn',
+            on_add=self._add_asn,
+            on_remove=self._remove_asn,
         )
         scroll_layout.addWidget(asn_group)
 
@@ -561,7 +570,15 @@ class DetectionsManagerTabsMixin(QDialog):
         group.setLayout(group_layout)
         return group
 
-    def _create_list_detection_group(self, title: str, description: str, detection_type: str) -> QGroupBox:
+    def _create_list_detection_group(
+        self,
+        title: str,
+        description: str,
+        detection_type: str,
+        *,
+        on_add: Callable[[], None],
+        on_remove: Callable[[], None],
+    ) -> QGroupBox:
         """Create a detection group with enable, list, action, process path, and notification settings."""
         group = QGroupBox(title)
         group.setStyleSheet(GROUPBOX_STYLE)
@@ -585,14 +602,12 @@ class DetectionsManagerTabsMixin(QDialog):
         buttons_layout = QVBoxLayout()
         add_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'plus.svg')), ' Add')
         add_button.setCursor(Qt.CursorShape.PointingHandCursor)
-        add_callback = getattr(self, f'_add_{detection_type}')
-        add_button.clicked.connect(add_callback)
+        add_button.clicked.connect(on_add)
         buttons_layout.addWidget(add_button)
 
         remove_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')), ' Remove')
         remove_button.setCursor(Qt.CursorShape.PointingHandCursor)
-        remove_callback = getattr(self, f'_remove_{detection_type}')
-        remove_button.clicked.connect(remove_callback)
+        remove_button.clicked.connect(on_remove)
         buttons_layout.addWidget(remove_button)
 
         clear_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')), ' Clear All')

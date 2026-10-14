@@ -446,10 +446,6 @@ class _StderrToLogger:
         """Return whether the stream is attached to a terminal."""
         return False
 
-    def writable(self) -> bool:
-        """Return whether writes are supported."""
-        return True
-
     def fileno(self) -> int:
         """Return the fallback stream file descriptor when available."""
         if self._fallback is None:
@@ -466,8 +462,8 @@ class _StderrToLogger:
 
     def __exit__(
         self,
-        exc_type: type[BaseException] | None,
-        exc_value: BaseException | None,
+        _exc_type: type[BaseException] | None,
+        _exc_value: BaseException | None,
         _traceback: TracebackType | None,
     ) -> None:
         """Flush buffered stderr text when leaving a context manager."""

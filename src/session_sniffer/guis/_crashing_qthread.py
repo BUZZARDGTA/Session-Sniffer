@@ -88,7 +88,7 @@ class CrashingQThread(QThread):
         return result
 
     @classmethod
-    def stop_all_active_threads(cls, timeout_ms: int = 3000) -> None:
+    def stop_all_active_threads(cls) -> None:
         """Interrupt, quit, and wait for all active threads to terminate before destruction."""
         active_threads = [thread for thread in cls._active_threads if thread.isRunning()]
         logger.debug(
@@ -102,7 +102,7 @@ class CrashingQThread(QThread):
         for thread in active_threads:
             if thread.isRunning():
                 logger.debug('CrashingQThread stop_all_active_threads: waiting for %s (cpp_ptr: %s)', thread.thread_name, thread.cpp_ptr)
-                wait_ok = thread.wait(timeout_ms)
+                wait_ok = thread.wait(3000)
                 logger.debug(
                     'CrashingQThread stop_all_active_threads: wait finished for %s (cpp_ptr: %s, wait_ok: %s, running: %s)',
                     thread.thread_name,

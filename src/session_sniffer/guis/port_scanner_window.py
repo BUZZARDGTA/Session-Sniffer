@@ -170,7 +170,6 @@ class PortScannerTabWidget(QWidget):
         self,
         target: str | None = None,
         *,
-        ports_preset: str = 'Top 100 Common',
         tab_widget: QTabWidget | None = None,
         parent: QWidget | None = None,
     ) -> None:
@@ -185,7 +184,7 @@ class PortScannerTabWidget(QWidget):
         main_layout.setSpacing(6)
 
         target_text = '' if target is None or target.strip() == _DEFAULT_TARGET else target.strip()
-        controls_box = self._create_controls_box(target_text, ports_preset)
+        controls_box = self._create_controls_box(target_text)
         main_layout.addWidget(controls_box)
 
         # --- Progress Bar & Real-time Metrics ---
@@ -300,7 +299,7 @@ class PortScannerTabWidget(QWidget):
         if custom_index >= 0 and self._preset_combo.currentIndex() != custom_index:
             self._preset_combo.setCurrentIndex(custom_index)
 
-    def _create_controls_box(self, initial_target: str, ports_preset: str) -> QGroupBox:
+    def _create_controls_box(self, initial_target: str) -> QGroupBox:
         """Construct the configuration controls panel for the tab."""
         box = QGroupBox('Scan Configuration')
         box_layout = QVBoxLayout(box)
@@ -321,13 +320,13 @@ class PortScannerTabWidget(QWidget):
         for preset_name in PORT_PRESETS:
             self._preset_combo.addItem(preset_name)
         self._preset_combo.addItem('Custom')
-        preset_index = self._preset_combo.findText(ports_preset)
+        preset_index = self._preset_combo.findText('Top 100 Common')
         if preset_index >= 0:
             self._preset_combo.setCurrentIndex(preset_index)
         self._preset_combo.currentTextChanged.connect(self._on_preset_changed)
 
         ports_label = QLabel('Ports:')
-        initial_ports = PORT_PRESETS.get(ports_preset, '1-1024')
+        initial_ports = PORT_PRESETS.get('Top 100 Common', '1-1024')
         self._ports_input = QLineEdit(initial_ports)
         self._ports_input.setPlaceholderText('e.g. 80, 443, 1-1024')
         self._ports_input.textEdited.connect(self._on_ports_text_edited)
@@ -711,7 +710,7 @@ class PortScannerWindow(QWidget):
 
     _instance: PortScannerWindow | None = None
 
-    def __init__(self, targets: str | list[str] | None = None, *, ports_preset: str = 'Top 100 Common') -> None:
+    def __init__(self, targets: str | list[str] | None = None) -> None:
         """Initialize the Port Scanner window."""
         super().__init__(None, Qt.WindowType.Window)
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
@@ -739,7 +738,7 @@ class PortScannerWindow(QWidget):
             target_items = list(targets)
 
         for target_name in target_items:
-            self.add_target_tab(target_name, ports_preset=ports_preset, auto_start=False)
+            self.add_target_tab(target_name)
 
     def _build_footer_action_bar(self) -> QHBoxLayout:
         bar_layout = QHBoxLayout()
@@ -773,18 +772,16 @@ class PortScannerWindow(QWidget):
     def open_window(
         cls,
         targets: str | list[str] | None = None,
-        *,
-        ports_preset: str = 'Top 100 Common',
     ) -> PortScannerWindow:
         """Open or reuse the active PortScannerWindow and bring it to foreground."""
         active_window = cls._instance
         if active_window is None:
-            active_window = cls(targets, ports_preset=ports_preset)
+            active_window = cls(targets)
             cls._instance = active_window
         elif targets is not None:
             targets_list = [targets] if isinstance(targets, str) else list(targets)
             for target_host in targets_list:
-                active_window.add_target_tab(target_host, ports_preset=ports_preset, auto_start=False)
+                active_window.add_target_tab(target_host)
 
         active_window.show()
         active_window.raise_()
@@ -801,9 +798,6 @@ class PortScannerWindow(QWidget):
     def add_target_tab(
         self,
         target: str | None = None,
-        *,
-        ports_preset: str = 'Top 100 Common',
-        auto_start: bool = False,
     ) -> None:
         """Add a new target scanning tab or focus existing tab for this target."""
         normalized_target = target.strip() if target is not None else ''
@@ -813,16 +807,11 @@ class PortScannerWindow(QWidget):
             tab = self._tab_widget.widget(i)
             if isinstance(tab, PortScannerTabWidget) and tab.target == effective_target:
                 self._tab_widget.setCurrentIndex(i)
-                if auto_start and not tab.is_running:
-                    tab.start_scan()
                 return
 
-        tab_page = PortScannerTabWidget(normalized_target or None, ports_preset=ports_preset, tab_widget=self._tab_widget, parent=self._tab_widget)
+        tab_page = PortScannerTabWidget(normalized_target or None, tab_widget=self._tab_widget, parent=self._tab_widget)
         new_index = self._tab_widget.addTab(tab_page, tab_page.target)
         self._tab_widget.setCurrentIndex(new_index)
-
-        if auto_start:
-            tab_page.start_scan()
 
     def start_all_tabs(self) -> None:
         """Trigger scan on all open tabs."""
@@ -853,7 +842,7 @@ class PortScannerWindow(QWidget):
         dialog_prompt = 'Enter target IPv4 address or hostname to scan:'
         new_target, success = QInputDialog.getText(self, dialog_title, dialog_prompt)
         if success and new_target.strip():
-            self.add_target_tab(new_target.strip(), auto_start=False)
+            self.add_target_tab(new_target.strip())
 
     @override
     def closeEvent(self, event: QCloseEvent) -> None:

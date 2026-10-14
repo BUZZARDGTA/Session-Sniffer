@@ -1,6 +1,6 @@
 """Sleek, polished container that renders sensitive data blurred until revealed."""
 
-from typing import TYPE_CHECKING, Final, override
+from typing import Final, override
 
 from PySide6.QtCore import QEvent, QObject, QSize, Qt, QTimer
 from PySide6.QtGui import QIcon, QMouseEvent
@@ -16,9 +16,6 @@ from PySide6.QtWidgets import (
 
 from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.guis.fonts import get_monospace_font
-
-if TYPE_CHECKING:
-    from collections.abc import Callable
 
 _SENSITIVE_BLUR_RADIUS: Final[float] = 10.0
 _SENSITIVE_CONTAINER_WIDTH: Final[int] = 240
@@ -61,18 +58,11 @@ _SENSITIVE_ACTION_BUTTON_STYLESHEET: Final[str] = (
 class SensitiveValueWidget(QWidget):
     """A sleek, polished container that renders sensitive data blurred until revealed."""
 
-    def __init__(
-        self,
-        text: str,
-        *,
-        on_toggled: Callable[[bool], None] | None = None,
-        parent: QWidget | None = None,
-    ) -> None:
+    def __init__(self, text: str) -> None:
         """Initialize the sensitive value widget with blurred default state."""
-        super().__init__(parent)
+        super().__init__()
         self._text = text
         self._revealed = False
-        self._on_toggled = on_toggled
 
         icons_directory = RESOURCES_DIR_PATH / 'icons'
         self._icon_copy = QIcon(str(icons_directory / 'copy.svg'))
@@ -158,8 +148,6 @@ class SensitiveValueWidget(QWidget):
         if self._revealed != revealed:
             self._revealed = revealed
             self._apply_state()
-            if self._on_toggled is not None:
-                self._on_toggled(self._revealed)
 
     def _get_blurred_mask(self) -> str:
         """Compute the mask string dynamically to fill the container width."""

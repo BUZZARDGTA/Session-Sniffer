@@ -178,7 +178,6 @@ def arp_spoofing_task(
                     snaplen=65535,
                     promiscuous=True,
                     timeout_milliseconds=20,
-                    buffer_size=33_554_432,
                 )
             except (PcapOpenError, OSError) as exception:
                 report_failure(

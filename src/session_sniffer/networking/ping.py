@@ -224,8 +224,8 @@ class IcmpEchoEngine:
 
     def __exit__(
         self,
-        exc_type: type[BaseException] | None,
-        exc_value: BaseException | None,
+        _exc_type: type[BaseException] | None,
+        _exc_value: BaseException | None,
         _traceback: TracebackType | None,
     ) -> None:
         """Support context manager exit by closing the native ICMP handle."""
@@ -698,34 +698,27 @@ def probe_check_host(target_ip: str, *, sequence: int = 1) -> list[PingProbeResu
     return results
 
 
-def ping_locally(
-    target_ip: str,
-    *,
-    count: int = 3,
-    timeout_seconds: float = 1.0,
-    interval_seconds: float = 0.05,
-    payload_size: int = 32,
-) -> PingResult:
+def ping_locally(target_ip: str) -> PingResult:
     """Send local ICMP echo requests to target_ip and return a structured PingResult."""
     ping_times: list[float] = []
+    packets_transmitted = 3
 
     with IcmpEchoEngine() as engine:
-        for sequence_number in range(1, count + 1):
+        for sequence_number in range(1, packets_transmitted + 1):
             probe_result = engine.ping(
                 target_ip,
-                timeout_seconds=timeout_seconds,
+                timeout_seconds=1.0,
                 sequence=sequence_number,
-                payload_size=payload_size,
+                payload_size=32,
             )
             if probe_result.is_successful and probe_result.round_trip_time_ms is not None:
                 ping_times.append(probe_result.round_trip_time_ms)
-            if sequence_number < count and interval_seconds > 0:
-                time.sleep(interval_seconds)
+            if sequence_number < packets_transmitted:
+                time.sleep(0.05)
 
-    packets_transmitted = count
     packets_received = len(ping_times)
     packets_failed = packets_transmitted - packets_received
-    packet_loss = (packets_failed / packets_transmitted) * 100.0 if packets_transmitted > 0 else 0.0
+    packet_loss = (packets_failed / packets_transmitted) * 100.0
 
     rtt_min = min(ping_times) if ping_times else None
     rtt_avg = (sum(ping_times) / packets_received) if packets_received > 0 else None

@@ -29,20 +29,16 @@ def get_monospace_font_family() -> str:
 def get_ui_font(
     point_size: int = -1,
     weight: QFont.Weight | int = -1,
-    *,
-    italic: bool = False,
 ) -> QFont:
     """Create a QFont with the platform-appropriate UI font family."""
-    return QFont(get_ui_font_family(), point_size, weight, italic)
+    return QFont(get_ui_font_family(), point_size, weight)
 
 
 def get_monospace_font(
     point_size: int = -1,
     weight: QFont.Weight | int = -1,
-    *,
-    italic: bool = False,
 ) -> QFont:
     """Create a QFont with the platform-appropriate monospace font family."""
-    font = QFont(get_monospace_font_family(), point_size, weight, italic)
+    font = QFont(get_monospace_font_family(), point_size, weight)
     font.setStyleHint(QFont.StyleHint.Monospace)
     return font

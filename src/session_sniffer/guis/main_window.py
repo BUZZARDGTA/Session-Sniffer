@@ -232,7 +232,7 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
         self._logs_manager_window = None
         self._settings_dialog_window: SettingsDialog | None = None
         self._userip_manager_window = None
-        self._discord_intro_window: DiscordIntro | None = None
+        self._discord_intro_window = None
         self._leaderboard_window = None
         self._session_rate_graph_window = None
         self._session_pps_graph_window = None

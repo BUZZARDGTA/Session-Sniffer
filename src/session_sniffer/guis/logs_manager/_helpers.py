@@ -212,15 +212,13 @@ def add_purge_and_location_buttons(
     layout: QHBoxLayout,
     purge_fn: Callable[[], None],
     file_path: Path,
-    *,
-    purge_tooltip: str = 'Clear all contents from this log file (creates a backup first)',
 ) -> None:
     """Append addStretch → Purge File → Open File Location buttons to *layout*."""
     layout.addStretch()
 
     purge_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')), ' Purge File')
     purge_button.setStyleSheet(DIALOG_DANGER_BUTTON_STYLESHEET)
-    purge_button.setToolTip(purge_tooltip)
+    purge_button.setToolTip('Clear all contents from this log file (creates a backup first)')
     purge_button.clicked.connect(purge_fn)
     layout.addWidget(purge_button)
 

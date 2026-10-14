@@ -379,7 +379,6 @@ def send_proxy_join_instruction(rid: int, api_key: str, version: str) -> str:
 
 def watch_instruction_status(
     context: LookyInstructionContext,
-    max_reconnects: int = 3,
     *,
     should_cancel: Callable[[], bool] | None = None,
     on_reconnect: Callable[[int], None] | None = None,
@@ -392,12 +391,11 @@ def watch_instruction_status(
 
     Servers commonly close SSE streams after a short idle window and expect clients
     to reconnect. This function transparently reconnects to the same `tracking_id`
-    URL up to `max_reconnects` times whenever the stream ends before a terminal status
+    URL up to 3 times whenever the stream ends before a terminal status
     is received (including `ChunkedEncodingError`).
 
     Args:
         context: The instruction context containing the tracking ID, API key, game version, and optional RID.
-        max_reconnects: Maximum reconnection attempts before raising.
         should_cancel: Optional predicate polled before each connect and after each event; when it
             returns True the generator stops immediately without raising. Polling only happens between
             reads, so a cancel takes effect once the next event arrives, the stream drops, or the read
@@ -451,6 +449,7 @@ def watch_instruction_status(
         if is_terminal_instruction_status(initial_data.instruction.status):
             return
 
+        max_reconnects = 3
         reconnect_delay = 0
         for attempt in range(max_reconnects + 1):
             check_cancel()

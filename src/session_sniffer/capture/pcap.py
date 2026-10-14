@@ -199,7 +199,6 @@ class PcapHandle:
         snaplen: int = 65535,
         promiscuous: bool = True,
         timeout_milliseconds: int = 100,
-        buffer_size: int = 33_554_432,
     ) -> Self:
         r"""Open a live capture handle on the specified network adapter.
 
@@ -208,7 +207,6 @@ class PcapHandle:
             snaplen: Maximum bytes to capture per packet.
             promiscuous: Whether to open adapter in promiscuous mode.
             timeout_milliseconds: Read timeout in milliseconds.
-            buffer_size: Driver ring buffer size in bytes (default 32 MiB).
 
         Returns:
             An open `PcapHandle` instance.
@@ -237,8 +235,8 @@ class PcapHandle:
                 error_message += permission_hint
             raise PcapOpenError(device_name, error_message)
 
-        if buffer_size > 0 and hasattr(library, 'pcap_setbuff'):
-            library.pcap_setbuff(handle, c_int(buffer_size))
+        if hasattr(library, 'pcap_setbuff'):
+            library.pcap_setbuff(handle, c_int(33_554_432))
 
         if hasattr(library, 'pcap_setmintocopy'):
             library.pcap_setmintocopy(handle, c_int(1))

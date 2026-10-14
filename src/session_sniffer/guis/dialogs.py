@@ -7,7 +7,6 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QMessageBox,
-    QPlainTextEdit,
     QPushButton,
     QStyle,
     QVBoxLayout,
@@ -15,7 +14,6 @@ from PySide6.QtWidgets import (
 )
 
 from session_sniffer.constants.standalone import TITLE
-from session_sniffer.guis.fonts import get_monospace_font
 from session_sniffer.guis.utils import (
     ActiveDialogRegistry,
     activate_window,
@@ -37,18 +35,17 @@ def create_nonmodal_warning(parent: QWidget | None, text: str) -> QMessageBox:
 
 
 class DetailedMessageDialog(QDialog):
-    """A non-modal dialog displaying a message with an expandable details section."""
+    """A non-modal dialog displaying a message with a standard icon."""
 
     def __init__(
         self,
         parent: QWidget | None,
         title: str,
         text: str,
-        detailed_text: str | None = None,
         *,
         icon: QMessageBox.Icon = QMessageBox.Icon.Information,
     ) -> None:
-        """Initialize the detailed message dialog and construct its layout."""
+        """Initialize the message dialog and construct its layout."""
         super().__init__(parent)
         self.setWindowTitle(title)
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
@@ -76,24 +73,7 @@ class DetailedMessageDialog(QDialog):
         content_layout.addWidget(self._message_label, stretch=1)
         main_layout.addLayout(content_layout)
 
-        self._details_edit: QPlainTextEdit | None = None
-        self._toggle_button: QPushButton | None = None
-
-        if bool(detailed_text):
-            self._details_edit = QPlainTextEdit(detailed_text)
-            self._details_edit.setReadOnly(True)
-            self._details_edit.setFont(get_monospace_font(9))
-            self._details_edit.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
-            self._details_edit.setMinimumHeight(scale_by_ui(240))
-            self._details_edit.hide()
-            main_layout.addWidget(self._details_edit, stretch=1)
-
-            self._toggle_button = QPushButton('Show More')
-            self._toggle_button.clicked.connect(self._toggle_details)
-
         button_layout = QHBoxLayout()
-        if self._toggle_button is not None:
-            button_layout.addWidget(self._toggle_button)
         button_layout.addStretch(1)
 
         ok_button = QPushButton('OK')
@@ -117,18 +97,6 @@ class DetailedMessageDialog(QDialog):
         if icon == QMessageBox.Icon.Question:
             return QStyle.StandardPixmap.SP_MessageBoxQuestion
         return None
-
-    def _toggle_details(self) -> None:
-        if self._details_edit is None or self._toggle_button is None:
-            return
-        is_visible = self._details_edit.isVisible()
-        self._details_edit.setVisible(not is_visible)
-        self._toggle_button.setText('Show More' if is_visible else 'Hide More')
-        dialog_layout = self.layout()
-        if dialog_layout is not None:
-            dialog_layout.activate()
-        target_height = self.heightForWidth(self.width()) if self.hasHeightForWidth() else self.sizeHint().height()
-        self.resize(self.width(), max(target_height, self.minimumSizeHint().height()))
 
     def set_text(self, text: str) -> None:
         """Update the displayed message text."""

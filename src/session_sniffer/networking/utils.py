@@ -36,10 +36,10 @@ def sanitize_mac_address(mac_address: str, /) -> str:
     return ''.join(char for char in mac_address if char.isalnum()).upper()
 
 
-def format_mac_address(mac_address: str, /, separator: str = ':') -> str:
-    """Format the MAC address using the specified separator (default: XX:XX:XX:XX:XX:XX)."""
+def format_mac_address(mac_address: str, /) -> str:
+    """Format the MAC address using colon separators (`XX:XX:XX:XX:XX:XX`)."""
     sanitized_mac = sanitize_mac_address(mac_address)
-    return separator.join(sanitized_mac[i : i + 2] for i in range(0, len(sanitized_mac), 2))
+    return ':'.join(sanitized_mac[i : i + 2] for i in range(0, len(sanitized_mac), 2))
 
 
 def is_ipv4_address(ipv4_address: str, /) -> bool:

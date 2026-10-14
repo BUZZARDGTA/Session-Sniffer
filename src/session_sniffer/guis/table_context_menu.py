@@ -43,7 +43,6 @@ def add_copy_usernames_and_ips_actions(
     if usernames:
         copy_usernames_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), f'Copy Usernames ({len(usernames)})', parent)
         copy_usernames_action.setToolTip('Copy all selected usernames.')
-        copy_usernames_action.setEnabled(bool(usernames))
         copy_usernames_action.triggered.connect(lambda: set_clipboard_text('\n'.join(usernames)))
         menu.addAction(copy_usernames_action)
 
