@@ -70,7 +70,4 @@ class DiscordClosePayload(BaseModel):
 class DiscordResponsePayload(BaseModel):
     """Incoming response payload received from Discord IPC."""
 
-    cmd: str | None = None
     evt: str | None = None
-    data: dict[str, object] | None = None
-    nonce: str | None = None

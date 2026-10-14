@@ -769,7 +769,7 @@ class PlayerLeaderboardWindow(ToggleAlwaysOnTopMixin):
 
             lookup_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'info.svg')), 'IP Lookup Details…', self)
             lookup_action.setToolTip('Show detailed IP lookup information for this player.')
-            lookup_action.triggered.connect(lambda _checked=False, ip_address=entry.ip: show_detailed_ip_lookup(self, ip_address))
+            lookup_action.triggered.connect(lambda _checked=False, ip_address=entry.ip: show_detailed_ip_lookup(ip_address))
             menu.addAction(lookup_action)
 
             create_ping_menu(self, menu, [entry.ip])

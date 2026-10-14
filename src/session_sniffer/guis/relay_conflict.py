@@ -11,12 +11,12 @@ from session_sniffer.player.detections import GUIDetectionSettings
 from session_sniffer.settings import Settings
 
 
-def prompt_to_disable_gta5_relay_if_filtered(parent: QWidget | None, *, context: Literal['settings', 'startup']) -> bool:
+def prompt_to_disable_gta5_relay_if_filtered(parent: QWidget | None, *, context: Literal['settings', 'startup']) -> None:
     """Ask to disable GTA5 relay detection when the Take-Two Interactive or Microsoft relay IPs are filtered."""
     blocked_relays = [name for name in ('TAKETWO_INTERACTIVE', 'MICROSOFT') if name in Settings.capture_block_third_party_servers]
 
     if not (Settings.is_gta5_feature_set() and blocked_relays and GUIDetectionSettings.gta5_relay_enabled):
-        return False
+        return
 
     blocked_names = [f"'{ThirdPartyServers[name].display_name}'" for name in blocked_relays]
     blocked_names_str = ' and '.join(blocked_names)
@@ -37,8 +37,7 @@ def prompt_to_disable_gta5_relay_if_filtered(parent: QWidget | None, *, context:
         QMessageBox.StandardButton.Yes,
     )
     if result != QMessageBox.StandardButton.Yes:
-        return False
+        return
 
     GUIDetectionSettings.gta5_relay_enabled = False
     GUIDetectionSettings.export_to_file(DETECTIONS_JSON_PATH)
-    return True

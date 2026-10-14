@@ -227,8 +227,8 @@ class _CrawlerRequestDialog(QDialog):
     # preventing 'QThread: Destroyed while thread is still running' crashes.
     _detaching_workers: ClassVar[set[_CrawlerSendWorker | _CrawlerWatchWorker]] = set()
 
-    def __init__(self, parent: QWidget | None, request: _CrawlerRequest) -> None:
-        super().__init__(parent)
+    def __init__(self, request: _CrawlerRequest) -> None:
+        super().__init__(None)
         self._request = request
         self._registry_key = request.registry_key
         self._watch_worker: _CrawlerWatchWorker | None = None
@@ -650,7 +650,7 @@ def _start_crawler_send(request: _CrawlerRequest) -> None:
     """
     if _CrawlerRequestDialog.restore_existing(request.registry_key):
         return
-    _CrawlerRequestDialog(None, request).show()
+    _CrawlerRequestDialog(request).show()
 
 
 def get_crawler_game_version() -> str:

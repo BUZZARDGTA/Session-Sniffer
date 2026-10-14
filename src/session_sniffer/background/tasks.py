@@ -433,23 +433,20 @@ def process_userip_task(
             _active_userip_tasks.discard(task_key)
 
 
-def trigger_auto_username_userip(player: Player, detected_usernames: Sequence[str]) -> bool:
+def trigger_auto_username_userip(player: Player, detected_usernames: Sequence[str]) -> None:
     """Auto-detect player UserIP from username and auto-feed matching database.
 
     Exclusively active on PC (GTA V feature set and local capture).
-
-    Returns:
-        True if a matching UserIP database entry was detected and processed; False otherwise.
     """
     if not (Settings.userip_auto_feed_from_usernames and Settings.is_gta5_feature_set() and CaptureState.is_local_capture()):
-        return False
+        return
 
     if not detected_usernames:
-        return False
+        return
 
     matched = UserIPDatabases.resolve_userip_by_usernames(detected_usernames, player.ip)
     if matched is None:
-        return False
+        return
 
     resolved_userip, matched_username = matched
 
@@ -481,7 +478,6 @@ def trigger_auto_username_userip(player: Player, detected_usernames: Sequence[st
         player.usernames = dedup_preserve_order(player.usernames, resolved_userip.usernames)
 
     wake_rendering_core()
-    return True
 
 
 _GTA5_RELAY_PPS_NONZERO_STREAK_SECONDS = 5.0

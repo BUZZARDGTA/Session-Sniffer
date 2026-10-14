@@ -171,7 +171,7 @@ def create_multi_tcp_ping_menu(
     parent: QWidget,
     ip_addresses: list[str],
     ping_menu: QMenu,
-) -> QMenu:
+) -> None:
     """Create and attach a 'TCP Port Ping' submenu for multiple IP addresses to *ping_menu*."""
     tcp_menu = QMenu('TCP Port Ping', ping_menu)
     icon = QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'radio-tower.svg'))
@@ -199,7 +199,6 @@ def create_multi_tcp_ping_menu(
     tcp_menu.addAction(tcp_individual_action)
 
     ping_menu.addMenu(tcp_menu)
-    return tcp_menu
 
 
 def udp_port_ping(parent: QWidget, target: str | list[str]) -> None:
@@ -211,7 +210,7 @@ def create_multi_udp_ping_menu(
     parent: QWidget,
     ip_addresses: list[str],
     ping_menu: QMenu,
-) -> QMenu:
+) -> None:
     """Create and attach a 'UDP Port Ping' submenu for multiple IP addresses to *ping_menu*."""
     udp_menu = QMenu('UDP Port Ping', ping_menu)
     icon = QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'radio-tower.svg'))
@@ -239,14 +238,13 @@ def create_multi_udp_ping_menu(
     udp_menu.addAction(udp_individual_action)
 
     ping_menu.addMenu(udp_menu)
-    return udp_menu
 
 
 def create_ping_menu(
     parent: QWidget,
     menu: QMenu,
     ip_addresses: Sequence[str],
-) -> QMenu:
+) -> None:
     """Create and attach a standardized 'Ping' submenu for one or more IP addresses to *menu*."""
     ping_menu = QMenu('Ping', menu)
     icon = QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'radio-tower.svg'))
@@ -299,7 +297,6 @@ def create_ping_menu(
         ping_menu.addAction(web_action)
 
     menu.addMenu(ping_menu)
-    return ping_menu
 
 
 def block_ip_as_range(parent: QWidget, ip_address: str) -> str | None:

@@ -11,7 +11,6 @@ from session_sniffer.networking.exceptions import (
     InvalidFullVendorNameError,
     InvalidMacAddressBlockError,
     InvalidPrefixLengthBitsError,
-    InvalidShortNameError,
     ManufLineParseError,
 )
 from session_sniffer.networking.utils import is_mac_address
@@ -29,7 +28,7 @@ RE_MANUF_ENTRY_PATTERN = re.compile(
         )
         (?:/(?P<prefix_length_bits>24|28|36))?  # optional IEEE prefix length in bits; default 24 if missing
         [ \t]+
-        (?P<short_name>\S+)  # shortened name used by Wireshark for address name resolution
+        \S+  # shortened name used by Wireshark for address name resolution
         [ \t]+
         (?P<full_vendor_name>[^\t]+)  # the full vendor name from the registry
         $
@@ -41,10 +40,8 @@ RE_MANUF_ENTRY_PATTERN = re.compile(
 class ManufEntry(NamedTuple):
     """Represent a parsed entry from the Wireshark manuf database."""
 
-    mac_address_block: str
     prefix_int: int
     prefix_length_bits: int
-    short_name: str
     full_vendor_name: str
 
 
@@ -79,18 +76,15 @@ def _parse_and_load_manuf_database() -> ManufDatabaseType:
         if not match:
             raise ManufLineParseError(line)
 
-        mac_address_block, prefix_length_bits, short_name, full_vendor_name = match.group(
+        mac_address_block, prefix_length_bits, full_vendor_name = match.group(
             'mac_address_block',
             'prefix_length_bits',
-            'short_name',
             'full_vendor_name',
         )
         if not isinstance(mac_address_block, str):
             raise InvalidMacAddressBlockError(mac_address_block)
         if not isinstance(prefix_length_bits, (str, type(None))):
             raise InvalidPrefixLengthBitsError(prefix_length_bits)
-        if not isinstance(short_name, str):
-            raise InvalidShortNameError(short_name)
         if not isinstance(full_vendor_name, str):
             raise InvalidFullVendorNameError(full_vendor_name)
 
@@ -98,10 +92,8 @@ def _parse_and_load_manuf_database() -> ManufDatabaseType:
         prefix_int = _mac_address_block_str_to_int(mac_address_block)
 
         entry = ManufEntry(
-            mac_address_block=mac_address_block,
             prefix_int=prefix_int,
             prefix_length_bits=prefix_length_bits_int,
-            short_name=short_name,
             full_vendor_name=full_vendor_name,
         )
         block_key = mac_address_block.upper()

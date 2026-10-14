@@ -18,8 +18,6 @@ from session_sniffer.models.looky_system import (
     LookyInstructionStatusInitialResponse,
     LookyIpBatchResult,
     LookyPlayer,
-    LookyUserData,
-    LookyVerifyResponse,
     LookyWhoAmI,
 )
 from session_sniffer.networking.http_session import session
@@ -73,7 +71,7 @@ class LookyState:
     """
 
     api_access: ClassVar[bool] = False
-    user_data: ClassVar[LookyVerifyResponse | None] = None
+    user_data: ClassVar[LookyWhoAmI | None] = None
 
     # Monotonic deadline of the last server-imposed crawler rate limit, so the GUI can show the
     # remaining cooldown when re-opening the crawler without needlessly re-hitting the API.
@@ -86,10 +84,10 @@ class LookyState:
         cls.user_data = None
 
     @classmethod
-    def set(cls, response: LookyVerifyResponse) -> None:
+    def set(cls, user_data: LookyWhoAmI) -> None:
         """Apply a successful token-verification response."""
-        cls.api_access = response.user_data.api_access
-        cls.user_data = response
+        cls.api_access = user_data.api_access
+        cls.user_data = user_data
 
     @classmethod
     def record_crawler_cooldown(cls, wait_seconds: int) -> None:
@@ -181,14 +179,14 @@ def extract_rate_limit_wait_seconds(exc: requests.HTTPError) -> int | None:
     return None
 
 
-def verify_token(api_key: str) -> LookyVerifyResponse:
+def verify_token(api_key: str) -> LookyWhoAmI:
     """Verify a Looky System API key via `GET /api/whoami`.
 
     Args:
         api_key: Looky System Bearer API key.
 
     Returns:
-        `LookyVerifyResponse` with `user_data` populated from the API response.
+        `LookyWhoAmI` populated from the API response.
 
     Raises:
         requests.HTTPError: On a non-2xx response (e.g. 401 for invalid key).
@@ -201,11 +199,7 @@ def verify_token(api_key: str) -> LookyVerifyResponse:
         timeout=(3.0, 10.0),
     )
     response.raise_for_status()
-    whoami = LookyWhoAmI.model_validate(response.json())
-    return LookyVerifyResponse(
-        success=True,
-        user_data=LookyUserData(username=whoami.username, api_access=whoami.api_access, status=whoami.status, rid=whoami.rid),
-    )
+    return LookyWhoAmI.model_validate(response.json())
 
 
 def lookup_ip(ip: str, api_key: str, version: str = 'both') -> list[LookyPlayer]:

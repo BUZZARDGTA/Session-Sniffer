@@ -35,33 +35,10 @@ class LookyWhoAmI(BaseModel):
 
     model_config = ConfigDict(populate_by_name=True)
 
-    authenticated: bool
-    source: str
     api_access: bool = Field(validation_alias='apiAccess')
     status: bool
     username: str
     rid: int
-
-
-class LookyUserData(BaseModel):
-    """User account data derived from a successful Looky System API key verification."""
-
-    model_config = ConfigDict(populate_by_name=True)
-
-    username: str
-    api_access: bool = Field(validation_alias='apiAccess')
-    status: bool
-    rid: int
-
-
-class LookyVerifyResponse(BaseModel):
-    """Result of verifying a Looky System API key via `GET /api/whoami`."""
-
-    model_config = ConfigDict(populate_by_name=True)
-
-    success: bool
-    message: str | None = None
-    user_data: LookyUserData = Field(validation_alias='userData')
 
 
 class LookyInstructionStatusEventData(BaseModel):

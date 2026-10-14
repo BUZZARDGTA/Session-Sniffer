@@ -795,11 +795,10 @@ def show_session_host_diagnostics_dialog(
     *,
     dialog_key: str = 'host_diagnostics',
     redetect_callback: Callable[[], HostDiagnosticsSnapshot | None] | None = None,
-) -> SessionHostDiagnosticsDialog:
+) -> None:
     """Open or focus the Session Host Diagnostics dialog with the given snapshot."""
     dialog = _active_host_diagnostics_dialogs.show_or_focus(
         dialog_key,
         lambda: SessionHostDiagnosticsDialog(parent, snapshot, redetect_callback=redetect_callback),
     )
     dialog.update_snapshot(snapshot)
-    return dialog

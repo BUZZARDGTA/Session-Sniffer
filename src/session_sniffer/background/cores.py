@@ -186,23 +186,18 @@ def clear_resolution_queues() -> None:
     _looky_queue.clear()
 
 
-def _wait_iplookup_event(timeout: float, *, ignore_wake: bool = False) -> bool:
-    """Wait for _iplookup_wakeup_event or gui_closed__event up to timeout seconds.
-
-    Returns:
-        True if awakened by _iplookup_wakeup_event, False if timed out or gui_closed__event set.
-    """
+def _wait_iplookup_event(timeout: float, *, ignore_wake: bool = False) -> None:
+    """Wait for _iplookup_wakeup_event or gui_closed__event up to timeout seconds."""
     deadline = time.monotonic() + timeout
     while not gui_closed__event.is_set():
         remaining = deadline - time.monotonic()
         if remaining <= 0:
-            return False
+            return
         if not ignore_wake and (_iplookup_wakeup_event.wait(min(remaining, 0.5)) or _iplookup_queue.wait(min(remaining, 0.5))):
             _iplookup_wakeup_event.clear()
-            return True
+            return
         if ignore_wake and gui_closed__event.wait(min(remaining, 0.5)):
-            return False
-    return False
+            return
 
 
 def wake_looky_core() -> None:

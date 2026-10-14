@@ -253,14 +253,14 @@ class TableContextMenuMixin(QTableView):
                     context_menu,
                     'IP Lookup Details',
                     tooltip='Displays a notification with a detailed IP lookup report for selected player.',
-                    handler=lambda: show_detailed_ip_lookup(self, players[0]),
+                    handler=lambda: show_detailed_ip_lookup(players[0]),
                     icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'search.svg')),
                 )
                 return
 
             def _show_all_lookups() -> None:
                 for player in players:
-                    show_detailed_ip_lookup(self, player)
+                    show_detailed_ip_lookup(player)
 
             add_action(
                 context_menu,

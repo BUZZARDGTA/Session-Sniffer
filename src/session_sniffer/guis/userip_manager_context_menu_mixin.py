@@ -284,7 +284,7 @@ class EntriesContextMenuMixin(QDialog):
             if is_single_ip and len(selected_ips) <= 1:
                 _ip_target = ip_or_range
                 lookup_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'info.svg')), 'IP Lookup Details…', self)
-                lookup_action.triggered.connect(lambda _checked=False, ip_address=_ip_target: show_detailed_ip_lookup(self, ip_address))
+                lookup_action.triggered.connect(lambda _checked=False, ip_address=_ip_target: show_detailed_ip_lookup(ip_address))
                 menu.addAction(lookup_action)
 
             create_ping_menu(self, menu, list(selected_ips) if len(selected_ips) > 1 else [ip_or_range])
@@ -481,7 +481,7 @@ class EntriesContextMenuMixin(QDialog):
             if is_single_ip_gs and len(selected_ips_gs) <= 1:
                 _ip_gs = ip_or_range
                 lookup_gs_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'info.svg')), 'IP Lookup Details…', self)
-                lookup_gs_action.triggered.connect(lambda _checked=False, ip_address=_ip_gs: show_detailed_ip_lookup(self, ip_address))
+                lookup_gs_action.triggered.connect(lambda _checked=False, ip_address=_ip_gs: show_detailed_ip_lookup(ip_address))
                 menu.addAction(lookup_gs_action)
 
             create_ping_menu(self, menu, list(selected_ips_gs) if len(selected_ips_gs) > 1 else [ip_or_range])

@@ -67,13 +67,10 @@ class Interface:
     gateway_addresses: list[str] = field(default_factory=list[str])
     neighbour_entries: list[NeighbourEntry] = field(default_factory=list[NeighbourEntry])
 
-    def add_neighbour_entry(self, neighbour_entry: NeighbourEntry) -> bool:
+    def add_neighbour_entry(self, neighbour_entry: NeighbourEntry) -> None:
         """Add a neighbour entry for the given interface."""
-        if neighbour_entry in self.neighbour_entries:
-            return False
-
-        self.neighbour_entries.append(neighbour_entry)
-        return True
+        if neighbour_entry not in self.neighbour_entries:
+            self.neighbour_entries.append(neighbour_entry)
 
     def is_interface_inactive(self) -> bool:
         """Determine if an interface is inactive based on lack of traffic, IP addresses, and identifying details."""

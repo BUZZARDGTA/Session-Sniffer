@@ -68,10 +68,9 @@ def _get_option_font(option: QStyleOptionViewItem) -> QFont:
 
 def _is_disconnected_cell(view: object, index: QModelIndex | QPersistentModelIndex) -> bool:
     """Return True if the cell belongs to a disconnected table or has disconnected styling."""
-    if view is not None and hasattr(view, 'is_connected_table'):
-        raw_is_connected = getattr(view, 'is_connected_table', None)
-        if isinstance(raw_is_connected, bool):
-            return not raw_is_connected
+    raw_is_connected = getattr(view, 'is_connected_table', None)
+    if isinstance(raw_is_connected, bool):
+        return not raw_is_connected
     foreground_brush = index.data(Qt.ItemDataRole.ForegroundRole)
     resolved_foreground_color = (
         foreground_brush if isinstance(foreground_brush, QColor) else (foreground_brush.color() if isinstance(foreground_brush, QBrush) else None)
@@ -158,12 +157,8 @@ class ElidedTextTooltipDelegate(QStyledItemDelegate):
             rect = _get_option_rect(option)
 
             if is_hovered:
-                is_connected: bool | None = None
-                view = self.parent()
-                if view is not None and hasattr(view, 'is_connected_table'):
-                    raw_is_connected = getattr(view, 'is_connected_table', None)
-                    if isinstance(raw_is_connected, bool):
-                        is_connected = raw_is_connected
+                raw_is_connected = getattr(self.parent(), 'is_connected_table', None)
+                is_connected: bool | None = raw_is_connected if isinstance(raw_is_connected, bool) else None
 
                 painter.save()
 

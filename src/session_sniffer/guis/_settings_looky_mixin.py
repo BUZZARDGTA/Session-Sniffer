@@ -43,7 +43,7 @@ if TYPE_CHECKING:
     from PySide6.QtGui import QCloseEvent, QKeyEvent
     from PySide6.QtWidgets import QFormLayout
 
-    from session_sniffer.models.looky_system import LookyVerifyResponse
+    from session_sniffer.models.looky_system import LookyWhoAmI
     from session_sniffer.settings import SettingMeta
 
 
@@ -57,7 +57,7 @@ def _bool_badge(*, value: bool, true_text: str, false_text: str) -> str:
 class _LookyVerifyWorker(CrashingQThread):
     """Background thread that verifies a Looky System API key via `/api/whoami`."""
 
-    verified: Signal = Signal(object)  # LookyVerifyResponse
+    verified: Signal = Signal(object)  # LookyWhoAmI
     failed: Signal = Signal(str)  # error message
 
     def __init__(self, api_key: str) -> None:
@@ -212,7 +212,7 @@ class SettingsDialogLookyMixin(QDialog):
         lbl.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         return lbl
 
-    def _populate_looky_account_card(self, data: LookyVerifyResponse) -> None:
+    def _populate_looky_account_card(self, data: LookyWhoAmI) -> None:
         """Fill the account info card with `data` and make it visible."""
         # Clear previous items from grid
         while self._looky_card_grid.count() > 0:
@@ -223,8 +223,8 @@ class SettingsDialogLookyMixin(QDialog):
                     widget.deleteLater()
 
         self._looky_account_sensitive_widgets.clear()
-        username_widget = SensitiveValueWidget(data.user_data.username)
-        rid_widget = SensitiveValueWidget(str(data.user_data.rid))
+        username_widget = SensitiveValueWidget(data.username)
+        rid_widget = SensitiveValueWidget(str(data.rid))
         self._looky_account_sensitive_widgets.extend([username_widget, rid_widget])
 
         # Row 0: Username & API Access (aligned on the exact same horizontal line)
@@ -232,7 +232,7 @@ class SettingsDialogLookyMixin(QDialog):
         self._looky_card_grid.addWidget(username_widget, 0, 1, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         self._looky_card_grid.addWidget(self._make_card_label('API Access'), 0, 3, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self._looky_card_grid.addWidget(
-            self._make_card_value(_bool_badge(value=data.user_data.api_access, true_text='Enabled', false_text='Disabled')),
+            self._make_card_value(_bool_badge(value=data.api_access, true_text='Enabled', false_text='Disabled')),
             0,
             4,
             Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
@@ -243,7 +243,7 @@ class SettingsDialogLookyMixin(QDialog):
         self._looky_card_grid.addWidget(rid_widget, 1, 1, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         self._looky_card_grid.addWidget(self._make_card_label('Status'), 1, 3, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self._looky_card_grid.addWidget(
-            self._make_card_value(_bool_badge(value=data.user_data.status, true_text='Active', false_text='Inactive')),
+            self._make_card_value(_bool_badge(value=data.status, true_text='Active', false_text='Inactive')),
             1,
             4,
             Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
@@ -288,7 +288,7 @@ class SettingsDialogLookyMixin(QDialog):
         self._verify_worker.failed.connect(self._on_verify_failed)
         self._verify_worker.start()
 
-    def _on_verify_success(self, data: LookyVerifyResponse) -> None:
+    def _on_verify_success(self, data: LookyWhoAmI) -> None:
         """Handle a successful whoami response — populate the account card."""
         api_key_widget = self._widgets.get('looky_api_key')
         if isinstance(api_key_widget, QLineEdit):

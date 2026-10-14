@@ -227,22 +227,22 @@ class BaseSuspendManager:
             cls._condition.notify_all()
 
     @classmethod
-    def resume_os_suspended(cls) -> bool:
+    def resume_os_suspended(cls) -> None:
         """Resume the live target process when it was suspended outside this manager.
 
         Recovers a process left stopped outside this manager's control (for example, by
         a previously-crashed session) by issuing a single resume on the PID cached by the
         process monitor, so the OS thread suspend counts are not left unbalanced.
-        Does nothing and returns `False` when this manager owns an active suspend state,
-        since the monitor thread is responsible for resuming in that case.
+        Does nothing when this manager owns an active suspend state, since the monitor
+        thread is responsible for resuming in that case.
         """
         with cls._condition:
             if cls._state is not None:
-                return False
+                return
             target_process_id = cls._get_target_pid()
             if target_process_id is None:
-                return False
-            return cls._try_resume_pid(target_process_id)
+                return
+            cls._try_resume_pid(target_process_id)
 
     # ------------------------------------------------------------
     # Monitor lifecycle

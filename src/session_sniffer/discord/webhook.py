@@ -98,7 +98,7 @@ def is_valid_webhook_url(url: str | None) -> bool:
     return WEBHOOK_URL_RE.match(url.strip()) is not None
 
 
-def _truncate_table(table_text: str, max_rows: int, body_char_limit: int = _MAX_TABLE_BODY_CHARS) -> tuple[str, int]:
+def _truncate_table(table_text: str, max_rows: int) -> tuple[str, int]:
     """Return (possibly-truncated table, removed_row_count).
 
     Single-border tables produce lines like:
@@ -140,8 +140,8 @@ def _truncate_table(table_text: str, max_rows: int, body_char_limit: int = _MAX_
 
         # Hard char-cap fallback for single-border table: ugly but never breaks
         # markdown because the body is wrapped in a code fence.
-        if len(truncated) > body_char_limit:
-            truncated = truncated[: body_char_limit - 3] + '...'
+        if len(truncated) > _MAX_TABLE_BODY_CHARS:
+            truncated = truncated[: _MAX_TABLE_BODY_CHARS - 3] + '...'
     else:
         # Plain-text (mobile/markdown) mode: players are multi-line blocks
         # separated by a blank line. Truncate by full blocks so:
@@ -160,7 +160,7 @@ def _truncate_table(table_text: str, max_rows: int, body_char_limit: int = _MAX_
         def _joined_len(parts: list[str]) -> int:
             return sum(len(part) for part in parts) + 2 * max(0, len(parts) - 1)
 
-        while blocks and _joined_len(blocks) > body_char_limit:
+        while blocks and _joined_len(blocks) > _MAX_TABLE_BODY_CHARS:
             blocks.pop()
             removed += 1
         truncated = '\n\n'.join(blocks)

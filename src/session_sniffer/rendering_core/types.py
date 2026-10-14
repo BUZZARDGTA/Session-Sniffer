@@ -187,16 +187,14 @@ class TableMergeState:
             return not Settings.gui_disconnected_players_enabled
 
     @classmethod
-    def toggle(cls) -> bool:
-        """Toggle table merge state and return the new state."""
+    def toggle(cls) -> None:
+        """Toggle table merge state."""
         with cls._lock:
             current = cls._override if cls._override is not None else not Settings.gui_disconnected_players_enabled
             cls._override = not current
             cls._version += 1
-            new_state = cls._override
         wake_rendering_core()
         GUIRenderingState.wake()
-        return new_state
 
     @classmethod
     def reset_override(cls) -> None:

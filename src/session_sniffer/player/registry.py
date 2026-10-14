@@ -455,7 +455,7 @@ class SessionTracker:
             return f'#{session_id}'
 
     @classmethod
-    def advance_session(cls, *, players: Iterable[Player] | None = None) -> int:
+    def advance_session(cls, *, players: Iterable[Player] | None = None) -> None:
         """Advance to the next session identifier and update player session IDs."""
         with cls._lock:
             now = datetime.now(tz=LOCAL_TZ)
@@ -482,14 +482,13 @@ class SessionTracker:
         if players is not None:
             for player in players:
                 player.session_id = new_session_id
-        return new_session_id
 
     @classmethod
-    def delete_session(cls, session_id: int) -> bool:
+    def delete_session(cls, session_id: int) -> None:
         """Delete a past session and its associated snapshots and metadata."""
         with cls._lock:
             if session_id == cls._current_session_id:
-                return False
+                return
             if session_id in cls._known_sessions:
                 cls._known_sessions.discard(session_id)
                 cls._session_names.pop(session_id, None)
@@ -502,7 +501,6 @@ class SessionTracker:
                 deleted = False
         if deleted:
             PlayersRegistry.remove_players_by_session_id(session_id)
-        return deleted
 
     @classmethod
     def clear_session_players(cls, session_id: int) -> None:

@@ -70,7 +70,7 @@ class RateGraphWidget(QWidget):
         self.update()
 
     @classmethod
-    def create_pps_widget(cls, visible_window: int = 60, parent: QWidget | None = None) -> RateGraphWidget:
+    def create_pps_widget(cls, visible_window: int = 60) -> RateGraphWidget:
         """Create a RateGraphWidget configured for Packets per Second (PPS)."""
         return cls(
             left_label='PPS',
@@ -80,11 +80,10 @@ class RateGraphWidget(QWidget):
                 avg_color='#388e3c',
             ),
             visible_window=visible_window,
-            parent=parent,
         )
 
     @classmethod
-    def create_bps_widget(cls, visible_window: int = 60, parent: QWidget | None = None) -> RateGraphWidget:
+    def create_bps_widget(cls, visible_window: int = 60) -> RateGraphWidget:
         """Create a RateGraphWidget configured for Bytes per Second (BPS in KB/s)."""
         return cls(
             left_label='KB/s',
@@ -94,7 +93,6 @@ class RateGraphWidget(QWidget):
                 avg_color='#0097a7',
             ),
             visible_window=visible_window,
-            parent=parent,
         )
 
     @override

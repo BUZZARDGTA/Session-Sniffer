@@ -522,7 +522,7 @@ class CsvLogTab(QWidget):
 
             lookup_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'info.svg')), 'IP Lookup Details…', menu)
             lookup_action.setToolTip('Show detailed IP lookup information for this IP address.')
-            lookup_action.triggered.connect(lambda _checked=False, ip_address=selected_ips[0]: show_detailed_ip_lookup(self, ip_address))
+            lookup_action.triggered.connect(lambda _checked=False, ip_address=selected_ips[0]: show_detailed_ip_lookup(ip_address))
             menu.addAction(lookup_action)
 
             create_ping_menu(self, menu, selected_ips)

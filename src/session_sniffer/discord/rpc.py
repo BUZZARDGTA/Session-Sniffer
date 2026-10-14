@@ -109,24 +109,22 @@ class _DiscordIPCConnection:
         header_bytes = struct.pack(_HEADER_FORMAT, opcode, len(encoded_data))
         self._stream.write(header_bytes + encoded_data)
 
-    def receive(self) -> tuple[int, DiscordResponsePayload] | None:
+    def receive(self) -> DiscordResponsePayload | None:
         """Read and decode a frame from the Discord IPC pipe."""
         header_bytes = self._stream.read(_HEADER_LENGTH)
         if len(header_bytes) < _HEADER_LENGTH:
             return None
 
-        opcode, payload_length = struct.unpack(_HEADER_FORMAT, header_bytes)
+        _opcode, payload_length = struct.unpack(_HEADER_FORMAT, header_bytes)
         payload_bytes = self._stream.read(payload_length)
         if len(payload_bytes) < payload_length:
             return None
 
         try:
-            response_payload = DiscordResponsePayload.model_validate_json(payload_bytes)
+            return DiscordResponsePayload.model_validate_json(payload_bytes)
         except ValidationError as e:
             logger.warning('Failed to parse Discord RPC response: %s', e)
             return None
-
-        return opcode, response_payload
 
     def close(self) -> None:
         """Close the pipe stream and any underlying socket."""
@@ -206,13 +204,8 @@ def _connect_ipc(client_id: int) -> _DiscordIPCConnection | None:
 
     try:
         connection.send(_OPCODE_HANDSHAKE, DiscordHandshakePayload(client_id=str(client_id)))
-        response = connection.receive()
-        if response is None:
-            connection.close()
-            return None
-
-        _, payload = response
-        if payload.evt == 'ERROR':
+        payload = connection.receive()
+        if payload is None or payload.evt == 'ERROR':
             connection.close()
             return None
     except (OSError, ValidationError, struct.error) as e:

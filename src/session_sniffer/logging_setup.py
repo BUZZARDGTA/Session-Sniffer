@@ -104,12 +104,13 @@ def _win32_sigabrt_handler(sig: int) -> None:
             prev_fn(sig)
 
 
-def _capture_win32_native_stack(max_frames: int = 32) -> list[str]:
+def _capture_win32_native_stack() -> list[str]:
     """Capture native C/C++ return addresses and module offsets for the current thread."""
     lines: list[str] = []
     if sys.platform != 'win32':
         return lines
     try:
+        max_frames = 32
         kernel32 = ctypes.windll.kernel32
         frames = (ctypes.c_void_p * max_frames)()
         captured_count: int = int(kernel32.RtlCaptureStackBackTrace(0, max_frames, frames, None))

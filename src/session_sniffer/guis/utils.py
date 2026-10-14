@@ -791,18 +791,6 @@ def animate_button_feedback(
     timer.start(1500)
 
 
-def popup_menu_at_table_widget(menu: QMenu, table: QTableWidget, pos: QPoint) -> None:
-    """Pop up *menu* at the viewport-relative position *pos* of a `QTableWidget`.
-
-    Raises `RuntimeError` if the table viewport cannot be obtained.
-    """
-    viewport = table.viewport()
-    if not viewport:
-        message = 'Failed to get table viewport'
-        raise RuntimeError(message)
-    menu.popup(viewport.mapToGlobal(pos))
-
-
 _SEARCH_ICON_SVG = (
     b'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16">'
     b'<g opacity="0.65">'

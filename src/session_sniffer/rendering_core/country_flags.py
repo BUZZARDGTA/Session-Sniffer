@@ -15,16 +15,15 @@ _country_flag_cache: dict[str, PlayerCountryFlag] = {}
 _missing_country_flag_codes: set[str] = set()
 
 
-def preload_country_flags() -> int:
+def preload_country_flags() -> None:
     """Preload all country flag images into memory cache.
 
     Safe to execute from a background thread because QImage decoding does not
-    require the Qt GUI thread. Returns the total count of preloaded flags.
+    require the Qt GUI thread.
     """
     if not COUNTRY_FLAGS_DIR_PATH.is_dir():
-        return 0
+        return
 
-    loaded_count = 0
     for flag_path in COUNTRY_FLAGS_DIR_PATH.glob('*.png'):
         country_code = flag_path.stem.upper()
         if country_code in _country_flag_cache:
@@ -35,11 +34,8 @@ def preload_country_flags() -> int:
             image.loadFromData(flag_path.read_bytes())
             if not image.isNull():
                 _country_flag_cache[country_code] = PlayerCountryFlag(image)
-                loaded_count += 1
         except OSError as e:
             logger.debug('Failed to preload country flag "%s": %s', flag_path, e)
-
-    return loaded_count
 
 
 def get_country_flag(country_code: str) -> PlayerCountryFlag | None:
@@ -71,13 +67,10 @@ def get_country_flag(country_code: str) -> PlayerCountryFlag | None:
     return country_flag
 
 
-def warm_country_flag_icons() -> int:
+def warm_country_flag_icons() -> None:
     """Warm up QPixmap and QIcon instances for all preloaded country flags.
 
-    Must be called from the Qt GUI thread. Returns the total count of warmed flags.
+    Must be called from the Qt GUI thread.
     """
-    warmed_count = 0
     for flag in _country_flag_cache.values():
         _ = flag.icon
-        warmed_count += 1
-    return warmed_count

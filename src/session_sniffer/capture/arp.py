@@ -243,14 +243,12 @@ def send_arp_spoof_packets(
 def send_arp_restore_packets(
     pcap_handle: PcapHandle,
     targets: ArpSpoofTargets,
-    repeat_count: int = 3,
 ) -> None:
     """Send genuine ARP replies to restore normal routing between target and gateway.
 
     Args:
         pcap_handle: An open pcap handle on the target interface.
         targets: Target device and gateway address pairing.
-        repeat_count: Number of times to send each restore frame.
     """
     target_mac_bytes = mac_string_to_bytes(targets.target_mac)
     gateway_mac_bytes = mac_string_to_bytes(targets.gateway_mac)
@@ -271,7 +269,7 @@ def send_arp_restore_packets(
         target_ip=targets.target_ip,
     )
 
-    for _ in range(repeat_count):
+    for _ in range(3):
         pcap_handle.send_packet(frame_to_gateway)
         pcap_handle.send_packet(frame_to_target)
 

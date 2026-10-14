@@ -21,7 +21,7 @@ from session_sniffer.guis.tables_player_actions._ip_lookup_dialog import (
 from session_sniffer.guis.utils import (
     ToggleAlwaysOnTopMixin,
     copy_table_selection,
-    popup_menu_at_table_widget,
+    popup_menu_at_table,
     scale_by_ui,
     set_clipboard_text,
 )
@@ -162,7 +162,7 @@ class TableContextMenuManager:
                 target_ip = selected_ip_addresses[0]
                 lookup_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'search.svg')), 'IP Lookup Details…', menu)
                 lookup_action.setToolTip('Show detailed IP lookup information for this IP address.')
-                lookup_action.triggered.connect(lambda _checked=False, ip_address=target_ip: show_detailed_ip_lookup(self._parent, ip_address))
+                lookup_action.triggered.connect(lambda _checked=False, ip_address=target_ip: show_detailed_ip_lookup(ip_address))
                 menu.addAction(lookup_action)
 
             create_ping_menu(self._parent, menu, selected_ip_addresses)
@@ -176,7 +176,7 @@ class TableContextMenuManager:
             scan_ports_action.triggered.connect(_scan_selected_ports)
             menu.addAction(scan_ports_action)
 
-        popup_menu_at_table_widget(menu, self._table, pos)
+        popup_menu_at_table(menu, self._table, pos)
 
         self._is_open = True
         menu.aboutToHide.connect(lambda: setattr(self, '_is_open', False))

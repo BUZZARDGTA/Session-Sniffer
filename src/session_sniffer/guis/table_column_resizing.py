@@ -104,7 +104,7 @@ def setup_table_header_context_menu(
     table: QTableView | QTreeView,
     *,
     on_reset: Callable[[], None] | None = None,
-) -> QHeaderView:
+) -> None:
     """Configure the horizontal header of *table* with a standardized right-click context menu for column sizing."""
     horizontal_header = _get_horizontal_header(table)
     if not horizontal_header:
@@ -124,7 +124,6 @@ def setup_table_header_context_menu(
         menu.popup(horizontal_header.mapToGlobal(position))
 
     horizontal_header.customContextMenuRequested.connect(_on_header_context_menu_requested)
-    return horizontal_header
 
 
 def setup_static_table_column_resizing(

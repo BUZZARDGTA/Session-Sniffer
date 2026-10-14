@@ -36,7 +36,30 @@ class DetectionNotificationInfo:
     event_time: str
 
 
-class DetectionNotificationDialog(PlayerInfoDialogMixin):
+class _BaseDetectionDialog(PlayerInfoDialogMixin):
+    """Shared section builders for detection notification dialogs."""
+
+    def _build_network_group(self, parent_layout: QVBoxLayout, player: Player) -> None:
+        """Add the 'Network Details' section."""
+        group, form = self._make_group('Network Details', accent='#d69e2e')
+        self._add_row(form, 'ISP', format_text(player.iplookup.ipapi.isp))
+        self._add_row(form, 'Organization', format_text(player.iplookup.ipapi.org))
+        asn = format_text(player.iplookup.ipapi.asn)
+        as_name = format_text(player.iplookup.ipapi.as_name)
+        asn_display = f'{asn} ({as_name})' if asn != 'N/A' and as_name != 'N/A' else asn
+        self._add_row(form, 'ASN', asn_display)
+        parent_layout.addWidget(group)
+
+    def _build_flags_group(self, parent_layout: QVBoxLayout, player: Player) -> None:
+        """Add the 'Detection Flags' section."""
+        group, form = self._make_group('Detection Flags', accent='#805ad5')
+        self._add_row(form, 'Mobile (cellular)', format_bool(player.iplookup.ipapi.mobile))
+        self._add_row(form, 'Proxy / VPN / Tor', format_bool(player.iplookup.ipapi.proxy))
+        self._add_row(form, 'Hosting / Datacenter', format_bool(player.iplookup.ipapi.hosting))
+        parent_layout.addWidget(group)
+
+
+class DetectionNotificationDialog(_BaseDetectionDialog):
     """A non-modal dialog showing a detection manager notification for a player."""
 
     def __init__(
@@ -92,25 +115,6 @@ class DetectionNotificationDialog(PlayerInfoDialogMixin):
         self._add_row(form, 'City', format_text(player.iplookup.geolite2.city))
         parent_layout.addWidget(group)
 
-    def _build_network_group(self, parent_layout: QVBoxLayout, player: Player) -> None:
-        """Add the 'Network Details' section."""
-        group, form = self._make_group('Network Details', accent='#d69e2e')
-        self._add_row(form, 'ISP', format_text(player.iplookup.ipapi.isp))
-        self._add_row(form, 'Organization', format_text(player.iplookup.ipapi.org))
-        asn = format_text(player.iplookup.ipapi.asn)
-        as_name = format_text(player.iplookup.ipapi.as_name)
-        asn_display = f'{asn} ({as_name})' if asn != 'N/A' and as_name != 'N/A' else asn
-        self._add_row(form, 'ASN', asn_display)
-        parent_layout.addWidget(group)
-
-    def _build_flags_group(self, parent_layout: QVBoxLayout, player: Player) -> None:
-        """Add the 'Detection Flags' section."""
-        group, form = self._make_group('Detection Flags', accent='#805ad5')
-        self._add_row(form, 'Mobile (cellular)', format_bool(player.iplookup.ipapi.mobile))
-        self._add_row(form, 'Proxy / VPN / Tor', format_bool(player.iplookup.ipapi.proxy))
-        self._add_row(form, 'Hosting / Datacenter', format_bool(player.iplookup.ipapi.hosting))
-        parent_layout.addWidget(group)
-
 
 _active_notification_dialogs: ActiveDialogRegistry[tuple[str, str], DetectionNotificationDialog] = ActiveDialogRegistry()
 
@@ -143,7 +147,7 @@ _DETECTION_TYPE_HEADER_COLORS: dict[NotificationType, tuple[str, str]] = {
 _DETECTION_DEFAULT_HEADER_COLORS = ('#2d3748', '#4a5568')
 
 
-class PlayerDetectionDialog(PlayerInfoDialogMixin):
+class PlayerDetectionDialog(_BaseDetectionDialog):
     """A non-modal dialog showing a snapshot of player detection event data."""
 
     def __init__(
@@ -221,25 +225,6 @@ class PlayerDetectionDialog(PlayerInfoDialogMixin):
         self._add_row(form, 'Continent', continent_display)
         self._add_row(form, 'Country', country_display)
         self._add_row(form, 'Region', region_display)
-        parent_layout.addWidget(group)
-
-    def _build_network_group(self, parent_layout: QVBoxLayout, player: Player) -> None:
-        """Add the 'Network Details' section."""
-        group, form = self._make_group('Network Details', accent='#d69e2e')
-        self._add_row(form, 'ISP', format_text(player.iplookup.ipapi.isp))
-        self._add_row(form, 'Organization', format_text(player.iplookup.ipapi.org))
-        asn = format_text(player.iplookup.ipapi.asn)
-        as_name = format_text(player.iplookup.ipapi.as_name)
-        asn_display = f'{asn} ({as_name})' if asn != 'N/A' and as_name != 'N/A' else asn
-        self._add_row(form, 'ASN', asn_display)
-        parent_layout.addWidget(group)
-
-    def _build_flags_group(self, parent_layout: QVBoxLayout, player: Player) -> None:
-        """Add the 'Detection Flags' section."""
-        group, form = self._make_group('Detection Flags', accent='#805ad5')
-        self._add_row(form, 'Mobile (cellular)', format_bool(player.iplookup.ipapi.mobile))
-        self._add_row(form, 'Proxy / VPN / Tor', format_bool(player.iplookup.ipapi.proxy))
-        self._add_row(form, 'Hosting / Datacenter', format_bool(player.iplookup.ipapi.hosting))
         parent_layout.addWidget(group)
 
 

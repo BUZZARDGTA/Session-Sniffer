@@ -18,7 +18,6 @@ from PySide6.QtWidgets import (
     QLabel,
     QPushButton,
     QVBoxLayout,
-    QWidget,
 )
 from shiboken6 import isValid
 
@@ -219,9 +218,9 @@ class IPLookupDetailsDialog(PlayerInfoDialogMixin):
 
     _REFRESH_INTERVAL_MS = 500
 
-    def __init__(self, parent: QWidget | None, target: IPLookupTarget) -> None:
+    def __init__(self, target: IPLookupTarget) -> None:
         """Build the dialog, install the periodic refresh timer, and show initial values."""
-        super().__init__(parent)
+        super().__init__(None)
         set_dialog_window_flags(self)
         self._target: IPLookupTarget = target
         self._rows: list[tuple[QLabel, Callable[[IPLookupTarget], str], QLabel, Callable[[IPLookupTarget], str] | None]] = []
@@ -470,7 +469,7 @@ class IPLookupDetailsDialog(PlayerInfoDialogMixin):
 _active_dialogs: ActiveDialogRegistry[str, IPLookupDetailsDialog] = ActiveDialogRegistry()
 
 
-def show_detailed_ip_lookup(_parent: QWidget | None, target: Player | StandaloneIPLookup | str) -> None:
+def show_detailed_ip_lookup(target: Player | StandaloneIPLookup | str) -> None:
     """Open the live IP Lookup Details dialog for a player or IP address."""
     ip = target if isinstance(target, str) else target.ip
 
@@ -478,10 +477,10 @@ def show_detailed_ip_lookup(_parent: QWidget | None, target: Player | Standalone
         if isinstance(target, str):
             matched_player = PlayersRegistry.get_player_by_ip(target)
             if matched_player is not None:
-                return IPLookupDetailsDialog(None, matched_player)
+                return IPLookupDetailsDialog(matched_player)
             standalone_lookup = StandaloneIPLookup(ip=target)
             _start_standalone_lookup(standalone_lookup)
-            return IPLookupDetailsDialog(None, standalone_lookup)
-        return IPLookupDetailsDialog(None, target)
+            return IPLookupDetailsDialog(standalone_lookup)
+        return IPLookupDetailsDialog(target)
 
     _active_dialogs.show_or_focus(ip, _factory)
