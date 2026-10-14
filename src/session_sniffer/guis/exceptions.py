@@ -62,10 +62,6 @@ class UnsupportedScreenResolutionError(Exception):
             min_width: Minimum required width in pixels.
             min_height: Minimum required height in pixels.
         """
-        self.screen_width = screen_width
-        self.screen_height = screen_height
-        self.min_width = min_width
-        self.min_height = min_height
         self.msgbox_text = (
             f'Session Sniffer requires a minimum screen resolution of {min_width}x{min_height} pixels.\n\n'
             f'Your current screen resolution: {screen_width}x{screen_height}\n\n'

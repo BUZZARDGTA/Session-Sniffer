@@ -87,10 +87,6 @@ class SplashScreen(QWidget):
 
         self._executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix='SplashScreen')
 
-        self._center_on_screen()
-
-    def _center_on_screen(self) -> None:
-        """Center the splash window on the primary screen."""
         center_window_on_screen(self)
 
     @staticmethod

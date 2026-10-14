@@ -916,14 +916,10 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
             for key, widget in self._widgets.items()
         )
 
-    def _has_unsaved_changes(self) -> bool:
-        """Return True if any widget value differs from the value at dialog open."""
-        return any(self._is_setting_modified(key, widget) for key, widget in self._widgets.items())
-
     @override
     def _has_unsaved_changes_for_close(self) -> bool:
         """Return `True` if there are unsaved changes that should be saved before closing."""
-        return self._has_unsaved_changes()
+        return any(self._is_setting_modified(key, widget) for key, widget in self._widgets.items())
 
     @override
     def _save_on_close(self) -> bool:

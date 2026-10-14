@@ -188,7 +188,7 @@ class DiscordIntro(QDialog):
 
     def close_popup(self) -> None:
         """Fade out and close the Discord popup dialog."""
-        if sys.platform != 'win32' or not hasattr(self, 'fade_out'):
+        if sys.platform != 'win32':
             self.close()
             return
         self.fade_out.setDuration(500)

@@ -212,7 +212,7 @@ class UpdateDownloadDialog(DraggableDialogMixin, QDialog):
         layout.addWidget(self._build_divider())
         layout.addLayout(self._build_footer())
 
-        self._center_on_screen()
+        center_window_on_screen(self)
 
     def _build_header(self) -> QHBoxLayout:
         """Build the icon + title block at the top of the dialog."""
@@ -220,7 +220,7 @@ class UpdateDownloadDialog(DraggableDialogMixin, QDialog):
         header.setSpacing(14)
         header.setContentsMargins(0, 0, 0, 0)
 
-        header.addWidget(self._create_download_icon(), 0, Qt.AlignmentFlag.AlignVCenter)
+        header.addWidget(self._svg_label('update_download_badge.svg', 64, 64), 0, Qt.AlignmentFlag.AlignVCenter)
 
         self._title_label = QLabel('Update Available')
         self._title_label.setFont(get_ui_font(17, QFont.Weight.Bold))
@@ -502,7 +502,7 @@ class UpdateDownloadDialog(DraggableDialogMixin, QDialog):
         pill_layout.setContentsMargins(20, 10, 20, 10)
         pill_layout.setSpacing(10)
 
-        pill_layout.addWidget(self._create_cloud_download_icon(), 0, Qt.AlignmentFlag.AlignVCenter)
+        pill_layout.addWidget(self._svg_label('cloud-download.svg', 20, 20), 0, Qt.AlignmentFlag.AlignVCenter)
 
         self._size_label.setFont(get_monospace_font(10))
         self._size_label.setStyleSheet(UPDATE_DOWNLOAD_SIZE_LABEL_STYLESHEET)
@@ -548,14 +548,6 @@ class UpdateDownloadDialog(DraggableDialogMixin, QDialog):
 
         return footer
 
-    def _create_download_icon(self) -> QWidget:
-        """Create the small circular download badge from an SVG asset."""
-        return self._svg_label('update_download_badge.svg', 64, 64)
-
-    def _create_cloud_download_icon(self) -> QWidget:
-        """Create the small cloud-with-down-arrow icon from an SVG asset."""
-        return self._svg_label('cloud-download.svg', 20, 20)
-
     @staticmethod
     def _svg_label(filename: str, width: int, height: int) -> QLabel:
         """Render an SVG file to a transparent QLabel pixmap."""
@@ -567,10 +559,6 @@ class UpdateDownloadDialog(DraggableDialogMixin, QDialog):
         label.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         label.setStyleSheet('background: transparent;')
         return label
-
-    def _center_on_screen(self) -> None:
-        """Center the dialog on its screen."""
-        center_window_on_screen(self)
 
     @property
     def success(self) -> bool:

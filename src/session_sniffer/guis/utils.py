@@ -320,28 +320,22 @@ class NumericTableWidgetItem(QTableWidgetItem):
         if isinstance(value, (int, float)):
             self.setData(Qt.ItemDataRole.UserRole, value)
 
-    def numeric_value(self) -> float | None:
-        """Return the item's value as a float for sorting, or `None` if it cannot be parsed as a number."""
-        stored_value = self.data(Qt.ItemDataRole.UserRole)
+    @staticmethod
+    def _extract_numeric_value(item: QTableWidgetItem) -> float | None:
+        """Return *item*'s value as a float for sorting, or `None` if it cannot be parsed as a number."""
+        stored_value = item.data(Qt.ItemDataRole.UserRole)
         if isinstance(stored_value, (int, float)):
             return float(stored_value)
         try:
-            return float(self.text())
+            return float(item.text())
         except ValueError:
             return None
 
     @override
     def __lt__(self, other: QTableWidgetItem) -> bool:
         """Compare numerically using UserRole data if available, falling back to text then string comparison."""
-        self_numeric_value = self.numeric_value()
-        other_raw = other.data(Qt.ItemDataRole.UserRole)
-        if isinstance(other_raw, (int, float)):
-            other_numeric_value: float | None = float(other_raw)
-        else:
-            try:
-                other_numeric_value = float(other.text())
-            except ValueError:
-                other_numeric_value = None
+        self_numeric_value = self._extract_numeric_value(self)
+        other_numeric_value = self._extract_numeric_value(other)
         if self_numeric_value is not None and other_numeric_value is not None:
             return self_numeric_value < other_numeric_value
         return super().__lt__(other)

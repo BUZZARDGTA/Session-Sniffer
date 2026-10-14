@@ -1,6 +1,6 @@
 """Mixin providing tab-building, group-factory, and combo-rule management methods for DetectionsManagerDialog."""
 
-from typing import TYPE_CHECKING, Literal, cast
+from typing import TYPE_CHECKING, cast
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QIcon
@@ -24,14 +24,7 @@ from PySide6.QtWidgets import (
 
 from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.constants.standalone import MAX_SUSPEND_DURATION_SECONDS, TITLE
-from session_sniffer.guis._combo_rule_editor import (
-    ComboRuleEditorDialog,
-    CountrySelectionDialog,
-    read_duration_widgets_helper,
-    read_voice_combo_helper,
-    set_duration_widgets_helper,
-    set_voice_combo_helper,
-)
+from session_sniffer.guis._combo_rule_editor import ComboRuleEditorDialog, CountrySelectionDialog
 from session_sniffer.guis.country_data import get_country_flag_code
 from session_sniffer.guis.delegates import ElidedTextTooltipDelegate
 from session_sniffer.guis.stylesheets import (
@@ -767,27 +760,3 @@ class DetectionsManagerTabsMixin(QDialog):
         current_item = self.asn_list.currentItem()
         if current_item:
             self.asn_list.takeItem(self.asn_list.row(current_item))
-
-    # ------------------------------------------------------------------
-    # Duration & voice helpers
-    # ------------------------------------------------------------------
-
-    @staticmethod
-    def _set_duration_widgets(combo: QComboBox, spin: QSpinBox, duration: int | str) -> None:
-        """Set duration combo and spin box from a stored duration value."""
-        set_duration_widgets_helper(combo, spin, duration)
-
-    @staticmethod
-    def _read_duration_widgets(combo: QComboBox, spin: QSpinBox) -> int | Literal['Auto']:
-        """Read duration value from combo and spin box widgets."""
-        return read_duration_widgets_helper(combo, spin)
-
-    @staticmethod
-    def _set_voice_combo(combo: QComboBox, *, value: Literal['Male', 'Female'] | bool) -> None:
-        """Set voice combo from a stored voice notification value."""
-        set_voice_combo_helper(combo, value=value)
-
-    @staticmethod
-    def _read_voice_combo(combo: QComboBox) -> Literal['Male', 'Female'] | bool:
-        """Read voice notification value from a combo widget."""
-        return read_voice_combo_helper(combo)

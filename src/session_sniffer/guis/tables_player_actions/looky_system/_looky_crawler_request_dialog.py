@@ -100,7 +100,7 @@ class _CrawlerSendWorker(CrashingQThread):
         except requests.RequestException as e:
             if not self.isInterruptionRequested():
                 self.send_failed.emit(f'Connection error: {e}')
-                if hasattr(e, 'request') and e.request is not None:
+                if e.request is not None:
                     logger.debug('Request Headers: %s', dict(e.request.headers))
         except KeyError:
             if not self.isInterruptionRequested():
@@ -189,7 +189,7 @@ class _CrawlerWatchWorker(CrashingQThread):
                     logger.debug('Request Headers: %s', dict(e.request.headers))
         except requests.RequestException as e:
             failure_message = f'Connection error while watching status: {e}'
-            if hasattr(e, 'request') and e.request is not None:
+            if e.request is not None:
                 logger.debug('Request Headers: %s', dict(e.request.headers))
         except AttributeError:
             # Closing the active SSE response socket (via cancel()) while urllib3's iter_lines() is

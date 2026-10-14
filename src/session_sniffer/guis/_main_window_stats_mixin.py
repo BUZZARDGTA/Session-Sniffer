@@ -38,7 +38,7 @@ class StatsMixin(QMainWindow):
     """Statistics windows and player-display mixin for `MainWindow`.
 
     Expects these attributes on the concrete class (set in `__init__`):
-        `_connected`, `_disconnected`, `_leaderboard_window`,
+        `_connected`, `_disconnected`,
         `_session_rate_graph_window`, `_session_pps_graph_window`,
         `_session_bps_graph_window`, `_packets_latency_graph_window`,
         `_country_breakdown_window`, `_reconnect_frequency_window`,
@@ -51,7 +51,6 @@ class StatsMixin(QMainWindow):
     _disconnected: SessionTableSection
     _header: SessionHeader
     capture: CaptureHolder
-    _leaderboard_window: PlayerLeaderboardWindow | None
     _session_rate_graph_window: SessionRateGraphWindow | None
     _session_pps_graph_window: SessionPpsGraphWindow | None
     _session_bps_graph_window: SessionBpsGraphWindow | None

@@ -158,8 +158,6 @@ class PcapOpenError(PcapError):
 
     def __init__(self, device_name: str, error_message: str) -> None:
         """Initialize the exception with the device name and driver error message."""
-        self.device_name = device_name
-        self.error_message = error_message
         super().__init__(f'Failed to open pcap adapter "{device_name}": {error_message}')
 
 
@@ -176,8 +174,6 @@ class PcapFilterError(PcapError):
 
     def __init__(self, filter_string: str, error_message: str) -> None:
         """Initialize the exception with the filter string and driver error message."""
-        self.filter_string = filter_string
-        self.error_message = error_message
         super().__init__(f'Failed to apply BPF filter "{filter_string}": {error_message}')
 
 
@@ -186,7 +182,6 @@ class PcapReadError(PcapError):
 
     def __init__(self, error_message: str) -> None:
         """Initialize the exception with the driver error message."""
-        self.error_message = error_message
         super().__init__(f'Pcap read error: {error_message}')
 
 
@@ -195,7 +190,6 @@ class PcapSendError(PcapError):
 
     def __init__(self, error_message: str) -> None:
         """Initialize the exception with the driver error message."""
-        self.error_message = error_message
         super().__init__(f'Pcap send error: {error_message}')
 
 
@@ -204,6 +198,4 @@ class ArpResolutionError(CaptureError):
 
     def __init__(self, ip_address: str, reason: str) -> None:
         """Initialize the exception with the target IP and failure reason."""
-        self.ip_address = ip_address
-        self.reason = reason
         super().__init__(f'Failed to resolve MAC for {ip_address}: {reason}')
