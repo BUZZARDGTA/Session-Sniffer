@@ -4,7 +4,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from typing import TYPE_CHECKING, ClassVar, ParamSpec, TypeVar, override
 
-from PySide6.QtCore import Qt, QTimer, Signal
+from PySide6.QtCore import Qt, QThread, QTimer, Signal
 from PySide6.QtGui import QCloseEvent, QFont, QHideEvent, QTextCursor
 from PySide6.QtWidgets import QApplication, QLabel, QTextEdit, QVBoxLayout, QWidget
 from shiboken6 import isValid
@@ -127,7 +127,10 @@ class SplashScreen(QWidget):
 
     def _animate_spinner(self) -> None:
         """Advance the spinner animation on the current line."""
-        if not isValid(self) or self._current_message is None or not self.isVisible() or not isValid(self._log_area):
+        if not isValid(self):
+            return
+        if self._current_message is None or not self.isVisible() or not isValid(self._log_area):
+            self._spinner_timer.stop()
             return
         self._spinner_index = (self._spinner_index + 1) % len(SPINNER_FRAMES)
         self._render_current_line()
@@ -194,7 +197,8 @@ class SplashScreen(QWidget):
 
     def stop_spinner(self) -> None:
         """Stop the background spinner timer if valid."""
-        if isValid(self):
+        self._current_message = None
+        if isValid(self) and QThread.currentThread() == self.thread():
             self._spinner_timer.stop()
 
     def close_splash(self) -> None:
