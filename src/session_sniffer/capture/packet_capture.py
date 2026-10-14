@@ -51,6 +51,9 @@ _NULL_HEADER_LENGTH = 4
 _IPV4_MIN_HEADER_LENGTH = 20
 _UDP_HEADER_LENGTH = 8
 
+_UNPACK_UINT16_BE = struct.Struct('!H').unpack_from
+_UNPACK_UDP_HEADER = struct.Struct('!HHH').unpack_from
+
 
 def _log_malformed_packet_skip(
     reason: str,
@@ -64,18 +67,6 @@ def _log_malformed_packet_skip(
         reason,
         raw_length,
     )
-
-
-def _parse_and_validate_port(port: int, /) -> int:
-    if not MIN_PORT <= port <= MAX_PORT:
-        raise InvalidPortNumberError(port)
-    return port
-
-
-def _parse_and_validate_length(length: int, /) -> int:
-    if length < 0:
-        raise InvalidLengthNumericError(length)
-    return length
 
 
 class PacketIP(NamedTuple):
@@ -132,13 +123,13 @@ class Packet(NamedTuple):
             if frame_length < _ETHERNET_HEADER_LENGTH:
                 raise MalformedEthernetFrameTooShortError
 
-            ethertype = struct.unpack_from('!H', raw_bytes, 12)[0]
+            ethertype = _UNPACK_UINT16_BE(raw_bytes, 12)[0]
             ip_offset = _ETHERNET_HEADER_LENGTH
 
             if ethertype == _ETHERTYPE_VLAN:
                 if frame_length < _VLAN_HEADER_LENGTH:
                     raise MalformedVlanFrameTooShortError
-                ethertype = struct.unpack_from('!H', raw_bytes, 16)[0]
+                ethertype = _UNPACK_UINT16_BE(raw_bytes, 16)[0]
                 ip_offset = _VLAN_HEADER_LENGTH
 
             if ethertype != _ETHERTYPE_IPV4:
@@ -153,7 +144,7 @@ class Packet(NamedTuple):
             ip_offset = 0
 
         elif frame_length >= _ETHERNET_HEADER_LENGTH:
-            ethertype = struct.unpack_from('!H', raw_bytes, 12)[0]
+            ethertype = _UNPACK_UINT16_BE(raw_bytes, 12)[0]
             ip_offset = _ETHERNET_HEADER_LENGTH if ethertype == _ETHERTYPE_IPV4 else 0
         else:
             ip_offset = 0
@@ -178,10 +169,16 @@ class Packet(NamedTuple):
         dst_ip = socket.inet_ntoa(raw_bytes[ip_offset + 16 : ip_offset + 20])
 
         udp_offset = ip_offset + ip_header_length
-        src_port, dst_port, udp_length = struct.unpack_from('!HHH', raw_bytes, udp_offset)
+        src_port, dst_port, udp_length = _UNPACK_UDP_HEADER(raw_bytes, udp_offset)
 
         if not src_port or not dst_port:
             raise MissingPortError
+        if not MIN_PORT <= src_port <= MAX_PORT:
+            raise InvalidPortNumberError(src_port)
+        if not MIN_PORT <= dst_port <= MAX_PORT:
+            raise InvalidPortNumberError(dst_port)
+        if frame_length < 0:
+            raise InvalidLengthNumericError(frame_length)
 
         payload: bytes | None = None
         if include_payload:
@@ -196,10 +193,10 @@ class Packet(NamedTuple):
                 dst=dst_ip,
             ),
             port=Port(
-                src=_parse_and_validate_port(src_port),
-                dst=_parse_and_validate_port(dst_port),
+                src=src_port,
+                dst=dst_port,
             ),
-            length=_parse_and_validate_length(frame_length),
+            length=frame_length,
             payload=payload,
         )
 
