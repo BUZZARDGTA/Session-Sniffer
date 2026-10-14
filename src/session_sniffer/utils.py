@@ -710,12 +710,16 @@ def cleanup_session_logs(
         sessions_dir_resolved = sessions_dir
 
     active_session_normalized: str | None = None
+    active_session_ancestors_normalized: set[str] = set()
     if gui_sessions_logging and active_session_path is not None:
         try:
-            active_session_normalized = os.path.normcase(os.path.normpath(str(active_session_path.resolve())))
+            active_session_resolved = active_session_path.resolve()
         except OSError as e:
             logger.debug('Failed to resolve active session path %s: %s', active_session_path, e)
-            active_session_normalized = os.path.normcase(os.path.normpath(str(active_session_path)))
+            active_session_resolved = active_session_path
+        active_session_normalized = os.path.normcase(os.path.normpath(str(active_session_resolved)))
+        for parent_dir in active_session_resolved.parents:
+            active_session_ancestors_normalized.add(os.path.normcase(os.path.normpath(str(parent_dir))))
 
     for root, _dirs, files in os.walk(sessions_dir_resolved, topdown=False):
         current_dir = Path(root)
@@ -735,6 +739,8 @@ def cleanup_session_logs(
                         logger.warning('Failed to delete empty session file %s: %s', file_path, e)
 
         if delete_empty_folders and current_dir != sessions_dir_resolved:
+            if active_session_ancestors_normalized and os.path.normcase(os.path.normpath(str(current_dir))) in active_session_ancestors_normalized:
+                continue
             try:
                 with os.scandir(root) as iterator:
                     is_empty = next(iterator, None) is None
