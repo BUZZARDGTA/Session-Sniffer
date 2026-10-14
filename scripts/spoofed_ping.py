@@ -36,8 +36,8 @@ class CheckPingResponse(BaseModel):
     nodes: dict[str, list[str]] | None = None
 
     @field_validator('nodes')
-    @classmethod
-    def validate_nodes(cls, nodes: dict[str, list[str]] | None) -> dict[str, list[str]] | None:
+    @staticmethod
+    def validate_nodes(nodes: dict[str, list[str]] | None) -> dict[str, list[str]] | None:
         """Ensure each node contains at least country and city indexes."""
         if nodes is None:
             return None
