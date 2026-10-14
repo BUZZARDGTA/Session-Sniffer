@@ -750,6 +750,9 @@ def rendering_core(
             disconnected_column_names = [
                 column_name for column_name in Settings.GUI_ALL_DISCONNECTED_COLUMNS if column_name in disconnected_shown_columns or column_name in Settings.GUI_FORCED_COLUMNS
             ]
+            connected_num_columns = len(connected_column_names)
+            disconnected_num_columns = len(disconnected_column_names)
+            connected_column_mapping = {header: i for i, header in enumerate(connected_column_names)}
         header_text = generate_gui_header_html(capture=capture)
         (
             status_capture_text,
