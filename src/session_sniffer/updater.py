@@ -124,7 +124,11 @@ def _fetch_versions_with_retries() -> tuple[UpdateCheckOutcome, GithubVersionsRe
 
 def _fetch_github_versions() -> GithubVersionsResponse:
     """Fetch and validate version metadata from GitHub."""
-    response = session.get(GITHUB_VERSIONS_URL, timeout=10)
+    response = session.get(
+        GITHUB_VERSIONS_URL,
+        headers={'Accept': 'application/vnd.github.raw+json'},
+        timeout=10,
+    )
     response.raise_for_status()
     return GithubVersionsResponse.model_validate(response.json())
 
