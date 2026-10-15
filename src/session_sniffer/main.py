@@ -98,8 +98,17 @@ USER_SCRIPTS_DIR_PATH.mkdir(parents=True, exist_ok=True)
 _MAX_ADAPTER_LOST_RECOVERY_ATTEMPTS = 60
 
 
+def _on_process_exit() -> None:
+    logger.info('Application process exit hook executed (atexit)')
+    ensure_app_dir_ownership(APP_DIR_LOCAL)
+    ensure_app_dir_ownership(APP_DIR_ROAMING)
+
+
 def main() -> None:
     """Run environment checks, initialize dependencies, and start the GUI."""
+    atexit.register(logging.shutdown)
+    atexit.register(_on_process_exit)
+
     if is_pyinstaller_compiled():
         old_exe = Path(sys.executable).with_name(f'{Path(sys.executable).name}.old')
         if old_exe.is_file():
@@ -920,13 +929,5 @@ def main() -> None:
     sys.exit(exit_code)
 
 
-def _on_process_exit() -> None:
-    logger.info('Application process exit hook executed (atexit)')
-    ensure_app_dir_ownership(APP_DIR_LOCAL)
-    ensure_app_dir_ownership(APP_DIR_ROAMING)
-
-
 if __name__ == '__main__':
-    atexit.register(logging.shutdown)
-    atexit.register(_on_process_exit)
     main()
