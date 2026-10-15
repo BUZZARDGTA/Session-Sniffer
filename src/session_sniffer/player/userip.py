@@ -23,7 +23,7 @@ from session_sniffer.models.userip_settings_model import (
 from session_sniffer.networking.ip_range import IPRange, parse_ip_range
 from session_sniffer.player.registry import PlayersRegistry
 from session_sniffer.settings import Settings
-from session_sniffer.text_utils import format_triple_quoted_text
+from session_sniffer.text_utils import format_triple_quoted_text, split_usernames
 from session_sniffer.utils import dedup_preserve_order
 
 if TYPE_CHECKING:
@@ -274,7 +274,7 @@ class UserIPDatabases:
             )
             if existing_index is not None:
                 existing_conflict = build_state.conflicts[existing_index]
-                existing_names = [name.strip() for name in existing_conflict.conflicting_username.split(',') if name.strip()]
+                existing_names = split_usernames(existing_conflict.conflicting_username)
                 if username not in existing_names:
                     build_state.conflicts[existing_index] = existing_conflict._replace(
                         conflicting_username=f'{existing_conflict.conflicting_username}, {username}',

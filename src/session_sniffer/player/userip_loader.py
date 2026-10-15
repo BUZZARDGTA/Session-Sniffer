@@ -18,6 +18,7 @@ from session_sniffer.models.userip_settings_model import (
 )
 from session_sniffer.networking.ip_range import entry_ip_covers_ip, is_valid_ip_range_entry
 from session_sniffer.player.userip import ProtectionSettings, UserIPDatabases, UserIPSettings
+from session_sniffer.text_utils import split_usernames
 from session_sniffer.utils import custom_str_to_bool, validate_file
 from session_sniffer.utils_exceptions import InvalidBooleanValueError
 
@@ -100,7 +101,7 @@ def _parse_and_repair_single_raw_entry(
     else:
         need_rewrite = True
 
-    split_names = [u.strip() for u in username.split(',') if u.strip()]
+    split_names = split_usernames(username)
     if not split_names:
         return True
 
