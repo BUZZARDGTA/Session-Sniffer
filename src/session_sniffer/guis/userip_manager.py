@@ -46,7 +46,7 @@ from session_sniffer.guis.delegates import ElidedTextTooltipDelegate, SearchHigh
 from session_sniffer.guis.file_watch import DebouncedFileWatcher
 from session_sniffer.guis.logs_manager._helpers import human_readable_timestamp
 from session_sniffer.guis.stylesheets import DIALOG_BUTTON_STYLESHEET, DIALOG_DANGER_BUTTON_STYLESHEET, DIALOG_PRIMARY_BUTTON_STYLESHEET
-from session_sniffer.guis.table_column_resizing import setup_table_header_context_menu
+from session_sniffer.guis.table_column_resizing import adjust_last_visible_column_to_viewport, setup_table_header_context_menu
 from session_sniffer.guis.userip_manager_context_menu_mixin import EntriesContextMenuMixin
 from session_sniffer.guis.userip_manager_entries_ops_mixin import UserIPEntriesOperationsMixin
 from session_sniffer.guis.userip_manager_helpers import (
@@ -873,6 +873,15 @@ class UserIPDatabasesManager(
             if self._custom_column_widths is None:
                 self._custom_column_widths = self._get_column_widths()
             self._custom_column_widths[header_label] = new_size
+            self._is_programmatic_resizing = True
+            try:
+                adjust_last_visible_column_to_viewport(
+                    self._entries_table,
+                    resized_column=logical_index,
+                    custom_widths=self._custom_column_widths,
+                )
+            finally:
+                self._is_programmatic_resizing = False
 
     def _get_column_widths(self) -> dict[str, int]:
         """Return a mapping of column header names to their current section widths."""
@@ -902,6 +911,14 @@ class UserIPDatabasesManager(
     def _adjust_username_column_width(self) -> None:
         """Adjust the Username column width so all entries columns fit the viewport without trailing blank space."""
         if self._custom_column_widths is not None:
+            self._is_programmatic_resizing = True
+            try:
+                adjust_last_visible_column_to_viewport(
+                    self._entries_table,
+                    custom_widths=self._custom_column_widths,
+                )
+            finally:
+                self._is_programmatic_resizing = False
             return
         viewport = self._entries_table.viewport()
         available_width = viewport.width() if viewport and viewport.width() > 0 else self._entries_table.width()

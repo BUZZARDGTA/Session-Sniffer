@@ -29,6 +29,59 @@ def _get_horizontal_header(table: QTableView | QTreeView | QTableWidget) -> QHea
     return table.header()
 
 
+def adjust_last_visible_column_to_viewport(
+    table: QTableView | QTreeView,
+    *,
+    resized_column: int | None = None,
+    min_column_widths: dict[str, int] | None = None,
+    custom_widths: dict[str, int] | None = None,
+) -> None:
+    """Adjust the last visible column so the table stays flush with the viewport right edge when columns are resized."""
+    table_model = table.model()
+    horizontal_header = _get_horizontal_header(table)
+    if not table_model or not horizontal_header:
+        return
+
+    viewport = table.viewport()
+    viewport_width = viewport.width() if viewport and viewport.width() > _MINIMUM_VIEWPORT_WIDTH_THRESHOLD else table.width()
+    if viewport_width <= 0:
+        return
+
+    visible_logical_columns: list[int] = []
+    for visual_index in range(horizontal_header.count()):
+        logical_index = horizontal_header.logicalIndex(visual_index)
+        if logical_index >= 0 and not horizontal_header.isSectionHidden(logical_index):
+            visible_logical_columns.append(logical_index)
+
+    if not visible_logical_columns:
+        return
+
+    last_column = visible_logical_columns[-1]
+    last_label = str(table_model.headerData(last_column, Qt.Orientation.Horizontal) or '')
+    widths_map = min_column_widths or {}
+    last_min_width = max(
+        scale_by_ui(widths_map.get(last_label, DEFAULT_MIN_COLUMN_WIDTH)),
+        horizontal_header.sectionSizeFromContents(last_column).width(),
+    )
+
+    other_widths = sum(horizontal_header.sectionSize(column) for column in visible_logical_columns[:-1])
+    current_last_width = horizontal_header.sectionSize(last_column)
+    ideal_last_width = max(last_min_width, viewport_width - other_widths)
+
+    target_last_width = current_last_width
+    if other_widths + current_last_width < viewport_width or (
+        resized_column != last_column and other_widths + current_last_width > viewport_width and current_last_width > ideal_last_width
+    ):
+        target_last_width = ideal_last_width
+
+    if target_last_width != current_last_width:
+        horizontal_header.setSectionResizeMode(last_column, QHeaderView.ResizeMode.Interactive)
+        horizontal_header.resizeSection(last_column, target_last_width)
+
+    if custom_widths is not None and last_label:
+        custom_widths[last_label] = horizontal_header.sectionSize(last_column)
+
+
 def size_column_to_fit(table: QTableView | QTreeView, column_index: int) -> None:
     """Resize a single column to fit its contents (header label and cell values)."""
     table_model = table.model()
@@ -44,6 +97,7 @@ def size_column_to_fit(table: QTableView | QTreeView, column_index: int) -> None
 
     horizontal_header.setSectionResizeMode(column_index, QHeaderView.ResizeMode.Interactive)
     table.resizeColumnToContents(column_index)
+    adjust_last_visible_column_to_viewport(table, resized_column=column_index)
 
 
 def size_all_columns_to_fit(table: QTableView | QTreeView) -> None:
@@ -54,7 +108,9 @@ def size_all_columns_to_fit(table: QTableView | QTreeView) -> None:
 
     for column_index in range(horizontal_header.count()):
         if not horizontal_header.isSectionHidden(column_index):
-            size_column_to_fit(table, column_index)
+            horizontal_header.setSectionResizeMode(column_index, QHeaderView.ResizeMode.Interactive)
+            table.resizeColumnToContents(column_index)
+    adjust_last_visible_column_to_viewport(table)
 
 
 def add_column_sizing_actions(
@@ -324,17 +380,22 @@ class TableColumnResizeController:
             header.sectionSizeFromContents(logical_index).width(),
         )
 
-        if new_size < min_width:
-            self.is_programmatic_resizing = True
-            try:
+        self.is_programmatic_resizing = True
+        try:
+            if new_size < min_width:
                 header.resizeSection(logical_index, min_width)
-            finally:
-                self.is_programmatic_resizing = False
-            effective_size = min_width
-        else:
-            effective_size = new_size
-
-        self.custom_widths[column_name] = effective_size
+                effective_size = min_width
+            else:
+                effective_size = new_size
+            self.custom_widths[column_name] = effective_size
+            adjust_last_visible_column_to_viewport(
+                self._table,
+                resized_column=logical_index,
+                min_column_widths=self.min_column_widths,
+                custom_widths=self.custom_widths,
+            )
+        finally:
+            self.is_programmatic_resizing = False
 
     def get_column_widths(self) -> dict[str, int]:
         """Return the current column widths as a dictionary mapping header label to pixel width."""

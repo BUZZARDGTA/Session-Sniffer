@@ -18,6 +18,7 @@ from session_sniffer.constants.tables import (
 from session_sniffer.guis.stylesheets import CATEGORY_SUBMENU_CHECKBOX_STYLESHEET, SVG_ICON_CONTEXT_MENU_STYLESHEET
 from session_sniffer.guis.table_column_resizing import (
     add_column_sizing_actions,
+    adjust_last_visible_column_to_viewport,
     setup_static_table_column_resizing,
 )
 from session_sniffer.guis.table_model import GUI_COLUMN_HEADERS_TOOLTIPS
@@ -323,14 +324,20 @@ class TableHeaderMenuMixin(QTableView):
                 scale_by_ui(self.min_column_widths.get(header_text, DEFAULT_MIN_COLUMN_WIDTH)),
                 self.horizontalHeader().sectionSizeFromContents(logical_index).width(),
             )
-            if new_size < min_width:
-                self._is_programmatic_resizing = True
-                try:
+            self._is_programmatic_resizing = True
+            try:
+                if new_size < min_width:
                     self.horizontalHeader().resizeSection(logical_index, min_width)
-                finally:
-                    self._is_programmatic_resizing = False
-                new_size = min_width
-            self._custom_column_widths[header_text] = new_size
+                    new_size = min_width
+                self._custom_column_widths[header_text] = new_size
+                adjust_last_visible_column_to_viewport(
+                    self,
+                    resized_column=logical_index,
+                    min_column_widths=self.min_column_widths,
+                    custom_widths=self._custom_column_widths,
+                )
+            finally:
+                self._is_programmatic_resizing = False
 
     def get_column_widths(self) -> dict[str, int]:
         """Return a mapping of column header names to their current section widths."""
