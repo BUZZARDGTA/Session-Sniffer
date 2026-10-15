@@ -119,25 +119,41 @@ def format_player_gui_datetime(player_datetime: datetime, now: datetime | None =
     return formatted_datetime
 
 
+_active_zone_info_cache: dict[str, ZoneInfo | None] = {}
+_seen_zone_info_keys: set[str] = set()
+
+
+def _get_zone_info(tz_text: str) -> ZoneInfo | None:
+    """Resolve and cache a `ZoneInfo` instance while its timezone key is present in the tables."""
+    _seen_zone_info_keys.add(tz_text)
+    if tz_text in _active_zone_info_cache:
+        return _active_zone_info_cache[tz_text]
+    try:
+        tz = ZoneInfo(tz_text)
+    except (ZoneInfoNotFoundError, ValueError):
+        tz = None
+    _active_zone_info_cache[tz_text] = tz
+    return tz
+
+
 def format_player_time_zone(time_zone_value: object, offset_value: object = None) -> str:
     """Format the Time Zone cell according to the configured display mode."""
     tz_text = str(time_zone_value)
     timezone_display_mode = Settings.gui_columns_timezone_display
     if timezone_display_mode == 'Timezone' or tz_text in {'', '...'}:
         return tz_text
-    try:
-        tz = ZoneInfo(tz_text)
+    tz = _get_zone_info(tz_text)
+    if tz is not None:
         local_time = datetime.now(tz=tz).strftime('%H:%M')
-    except (ZoneInfoNotFoundError, ValueError):
-        if isinstance(offset_value, (int, float)):
+    elif isinstance(offset_value, (int, float)):
+        local_time = datetime.now(tz=timezone(timedelta(seconds=int(offset_value)))).strftime('%H:%M')
+    elif isinstance(offset_value, str) and offset_value not in {'', '...'}:
+        try:
             local_time = datetime.now(tz=timezone(timedelta(seconds=int(offset_value)))).strftime('%H:%M')
-        elif isinstance(offset_value, str) and offset_value not in {'', '...'}:
-            try:
-                local_time = datetime.now(tz=timezone(timedelta(seconds=int(offset_value)))).strftime('%H:%M')
-            except ValueError:
-                return tz_text
-        else:
+        except ValueError:
             return tz_text
+    else:
+        return tz_text
     if timezone_display_mode == 'Local Time':
         return local_time
     return f'{tz_text} · {local_time}'
@@ -331,6 +347,7 @@ def build_session_table_snapshot(
     context: SessionTableRenderContext,
 ) -> SessionTableSnapshot:
     """Build connected and disconnected table rows plus compiled colors."""
+    _seen_zone_info_keys.clear()
     session_connected_rows_with_colors: list[tuple[tuple[str, ...], tuple[CellColor, ...]]] = []
     session_disconnected_rows_with_colors: list[tuple[tuple[str, ...], tuple[CellColor, ...]]] = []
     now = datetime.now(tz=LOCAL_TZ)
@@ -561,6 +578,13 @@ def build_session_table_snapshot(
                     ),
                 )
             past_sessions_with_colors[session_id] = tuple(past_rows)
+
+    if len(_active_zone_info_cache) != len(_seen_zone_info_keys):
+        stale_zone_keys = tuple(key for key in _active_zone_info_cache if key not in _seen_zone_info_keys)
+        for key in stale_zone_keys:
+            del _active_zone_info_cache[key]
+        if stale_zone_keys:
+            ZoneInfo.clear_cache(only_keys=stale_zone_keys)
 
     connected_rows_with_colors = tuple(session_connected_rows_with_colors)
     disconnected_rows_with_colors = tuple(session_disconnected_rows_with_colors)
