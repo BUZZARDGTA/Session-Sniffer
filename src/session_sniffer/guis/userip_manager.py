@@ -471,6 +471,8 @@ class UserIPDatabasesManager(
         self._open_db_button.clicked.connect(self._open_db_in_editor)
         entry_buttons.addWidget(self._open_db_button)
 
+        entry_buttons.addStretch()
+
         self._delete_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')), ' Delete Selected')
         self._delete_button.setAutoDefault(False)
         self._delete_button.setToolTip('Delete the selected entries (with confirmation)')
@@ -479,7 +481,12 @@ class UserIPDatabasesManager(
         self._delete_button.clicked.connect(self._delete_selected)
         entry_buttons.addWidget(self._delete_button)
 
-        entry_buttons.addStretch()
+        close_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'x.svg')), ' Close')
+        close_button.setAutoDefault(False)
+        close_button.setToolTip('Close the UserIP Databases Manager')
+        close_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
+        close_button.clicked.connect(self.close)
+        entry_buttons.addWidget(close_button)
 
         right_layout.addLayout(entry_buttons)
 
