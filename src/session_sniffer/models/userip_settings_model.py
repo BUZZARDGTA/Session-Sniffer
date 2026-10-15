@@ -1,169 +1,431 @@
-"""Pydantic model for UserIP INI [Settings] section validation.
+"""Pydantic models for UserIP JSON database settings and entries."""
 
-Replaces the per-field if/elif chain in parse_userip_ini_file().
-Validates raw string values from the INI parser and normalizes them
-into their runtime Python types. Corruption in any field raises
-a `ValidationError` that the caller translates into a user notification.
-"""
+import json
+from dataclasses import dataclass
+from datetime import datetime
+from typing import Any, ClassVar, Literal, Self, cast
 
-from dataclasses import dataclass, field
-from typing import Literal, Self, cast
-
-from pydantic import BaseModel, ConfigDict, ValidationInfo, field_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 from PySide6.QtGui import QColor
 
-from session_sniffer.text_utils import parse_suspend_duration_setting
+from session_sniffer.constants.standard import LOCAL_TZ
 from session_sniffer.utils import check_case_insensitive_and_exact_match, custom_str_to_bool
 from session_sniffer.utils_exceptions import InvalidBooleanValueError, NoMatchFoundError
 
+type EntrySource = Literal['Manual', 'Session', 'Looky', 'Auto-IP', 'Import']
+
+USERIP_SOURCE_VALUES: tuple[EntrySource, ...] = (
+    'Manual',
+    'Session',
+    'Looky',
+    'Auto-IP',
+    'Import',
+)
+
+USERIP_SETTINGS_KEYS: tuple[str, ...] = (
+    'ENABLED',
+    'COLOR',
+    'LOG',
+    'NOTIFICATIONS',
+    'VOICE_NOTIFICATIONS',
+    'PROTECTION',
+    'PROTECTION_SUSPEND_PROCESS_MODE',
+)
+
+USERIP_ENTRY_KEYS: tuple[str, ...] = (
+    'username',
+    'ip',
+    'is_looky',
+    'notes',
+    'source',
+    'detections_count',
+    'added_at',
+    'updated_at',
+    'first_seen_at',
+    'last_seen_at',
+)
+
+
+def get_current_iso_timestamp() -> str:
+    """Return the current local timestamp formatted as an ISO-8601 string with timezone offset."""
+    return datetime.now(tz=LOCAL_TZ).isoformat(timespec='seconds')
+
+
+def normalize_iso_timestamp(value: object) -> tuple[str | None, bool]:
+    """Validate and normalize an optional ISO-8601 timestamp value.
+
+    Returns:
+        A tuple of `(normalized_iso_or_none, is_canonical)`.
+    """
+    if value is None:
+        return None, True
+    if not isinstance(value, str):
+        return None, False
+    stripped = value.strip()
+    if not stripped:
+        return None, False
+    try:
+        parsed = datetime.fromisoformat(stripped)
+    except ValueError:
+        return None, False
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=LOCAL_TZ)
+    normalized = parsed.isoformat(timespec='seconds')
+    return normalized, normalized == value
+
+
+def format_iso_timestamp_display(iso_str: str | None) -> str:
+    """Format an ISO-8601 timestamp string as `YYYY-MM-DD HH:MM:SS` in local time, or empty string if absent."""
+    if iso_str is None or not iso_str:
+        return ''
+    try:
+        parsed = datetime.fromisoformat(iso_str)
+    except ValueError:
+        return iso_str
+    if parsed.tzinfo is not None:
+        parsed = parsed.astimezone(LOCAL_TZ)
+    return parsed.strftime('%Y-%m-%d %H:%M:%S')
+
+
+def _parse_iso_for_compare(iso_str: str) -> datetime | None:
+    """Parse an ISO-8601 string into a timezone-aware datetime for chronological comparison."""
+    try:
+        parsed = datetime.fromisoformat(iso_str)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=LOCAL_TZ)
+    return parsed
+
+
+def pick_earliest_iso(first: str | None, second: str | None) -> str | None:
+    """Return the chronologically earlier of two optional ISO-8601 timestamps."""
+    if first is None or not first:
+        return second
+    if second is None or not second:
+        return first
+    dt_first = _parse_iso_for_compare(first)
+    dt_second = _parse_iso_for_compare(second)
+    if dt_first is not None and dt_second is not None:
+        return first if dt_first <= dt_second else second
+    return min(first, second)
+
+
+def pick_latest_iso(first: str | None, second: str | None) -> str | None:
+    """Return the chronologically later of two optional ISO-8601 timestamps."""
+    if first is None or not first:
+        return second
+    if second is None or not second:
+        return first
+    dt_first = _parse_iso_for_compare(first)
+    dt_second = _parse_iso_for_compare(second)
+    if dt_first is not None and dt_second is not None:
+        return first if dt_first >= dt_second else second
+    return max(first, second)
+
+
+def normalize_userip_source(value: object, *, is_looky: bool = False) -> tuple[EntrySource, bool]:
+    """Validate and normalize a raw UserIP entry source string.
+
+    Returns:
+        A tuple of `(normalized_source, is_canonical)`.
+    """
+    default_source: EntrySource = 'Looky' if is_looky else 'Manual'
+    if not isinstance(value, str):
+        return default_source, False
+    stripped = value.strip()
+    if not stripped:
+        return default_source, False
+    try:
+        case_match, normalized = check_case_insensitive_and_exact_match(stripped, USERIP_SOURCE_VALUES)
+    except NoMatchFoundError:
+        return default_source, False
+    resolved = cast('EntrySource', normalized)
+    if is_looky and resolved == 'Manual':
+        return 'Looky', False
+    return resolved, case_match and stripped == value
+
 
 @dataclass(slots=True)
-class _UserIPValidatorContext:
-    ini_rewrites: dict[str, str] = field(default_factory=dict[str, str])
-
-    def record_rewrite(self, field_name: str, rewrite_value: str) -> None:
-        """Record a field rewrite by name and its corrected string value."""
-        self.ini_rewrites[field_name] = rewrite_value
+class _UserIPSettingsContext:
+    need_rewrite: bool = False
 
 
 class UserIPSettingsModel(BaseModel):
-    """Pydantic model for a single UserIP database's [Settings] section."""
+    """Pydantic model for the `settings` object of a UserIP `.json` database file."""
 
-    model_config = ConfigDict(extra='forbid', strict=True, arbitrary_types_allowed=True)
+    model_config = ConfigDict(extra='ignore')
 
-    ENABLED: bool
-    COLOR: QColor
-    LOG: bool
-    NOTIFICATIONS: bool
-    VOICE_NOTIFICATIONS: Literal['Male', 'Female', False]
-    PROTECTION: Literal['Suspend_Process', False]
-    PROTECTION_SUSPEND_PROCESS_MODE: int | Literal['Auto']
+    ENABLED: bool = True
+    COLOR: str = ''
+    LOG: bool = False
+    NOTIFICATIONS: bool = False
+    VOICE_NOTIFICATIONS: Literal['Male', 'Female', False] = False
+    PROTECTION: bool = False
+    PROTECTION_SUSPEND_PROCESS_MODE: int | Literal['Auto'] = 'Auto'
+
+    _BOOL_DEFAULTS: ClassVar[dict[str, bool]] = {
+        'ENABLED': True,
+        'LOG': False,
+        'NOTIFICATIONS': False,
+        'PROTECTION': False,
+    }
 
     @staticmethod
-    def _record_rewrite(info: ValidationInfo, field_name: str, rewrite_value: str) -> None:
-        if isinstance(info.context, _UserIPValidatorContext):
-            info.context.record_rewrite(field_name, rewrite_value)
+    def _mark_rewrite(info: ValidationInfo) -> None:
+        if isinstance(info.context, _UserIPSettingsContext):
+            info.context.need_rewrite = True
 
-    @field_validator('ENABLED', 'LOG', 'NOTIFICATIONS', mode='before')
+    @field_validator('ENABLED', 'LOG', 'NOTIFICATIONS', 'PROTECTION', mode='before')
     @classmethod
-    def _parse_bool(cls, value: object, info: ValidationInfo) -> bool:
+    def _normalize_bool(cls, value: object, info: ValidationInfo) -> bool:
+        """Validate boolean settings and normalize string booleans."""
         if isinstance(value, bool):
             return value
         if isinstance(value, str):
-            resolved, need_rewrite = custom_str_to_bool(value)
-            if need_rewrite and isinstance(info.field_name, str):
-                cls._record_rewrite(info, info.field_name, str(resolved))
+            try:
+                resolved, _ = custom_str_to_bool(value.strip())
+            except InvalidBooleanValueError:
+                cls._mark_rewrite(info)
+                return cls._BOOL_DEFAULTS.get(info.field_name or '', False)
+            cls._mark_rewrite(info)
             return resolved
-        message = f'expected bool-like string, got {type(value).__name__}'
-        raise ValueError(message)
+        cls._mark_rewrite(info)
+        return cls._BOOL_DEFAULTS.get(info.field_name or '', False)
 
     @field_validator('COLOR', mode='before')
     @classmethod
-    def _parse_color(cls, value: object) -> QColor:
-        if isinstance(value, QColor):
-            return value
+    def _normalize_color(cls, value: object, info: ValidationInfo) -> str:
+        """Accept empty string or any valid QColor string (CSS name or #RRGGBB hex)."""
         if isinstance(value, str):
-            q_color = QColor(value)
-            if q_color.isValid():
-                return q_color
-            message = f'invalid color: {value!r}'
-            raise ValueError(message)
-        message = f'expected color string, got {type(value).__name__}'
-        raise ValueError(message)
+            stripped = value.strip()
+            if not stripped:
+                if stripped != value:
+                    cls._mark_rewrite(info)
+                return ''
+            if QColor.isValidColorName(stripped):
+                if stripped != value:
+                    cls._mark_rewrite(info)
+                return stripped
+        cls._mark_rewrite(info)
+        return 'WHITE'
 
     @field_validator('VOICE_NOTIFICATIONS', mode='before')
     @classmethod
-    def _parse_voice_notifications(cls, value: object, info: ValidationInfo) -> Literal['Male', 'Female', False]:
+    def _normalize_voice_notifications(cls, value: object, info: ValidationInfo) -> Literal['Male', 'Female', False]:
+        """Accept False, 'Male', or 'Female' (case-insensitive); normalize 'True' to 'Male'."""
         if isinstance(value, bool):
-            if value is False:
-                return value
-            message = f'expected voice notification value, got {type(value).__name__}'
-            raise ValueError(message)
+            if value:
+                cls._mark_rewrite(info)
+                return 'Male'
+            return False
         if isinstance(value, str):
+            stripped = value.strip()
             try:
-                resolved, need_rewrite = custom_str_to_bool(value)
+                resolved, _ = custom_str_to_bool(stripped)
             except InvalidBooleanValueError:
                 try:
-                    case_match, normalized = check_case_insensitive_and_exact_match(value, ('Male', 'Female'))
+                    case_match, normalized = check_case_insensitive_and_exact_match(stripped, ('Male', 'Female'))
                 except NoMatchFoundError:
-                    message = f'invalid voice notification: {value!r}'
-                    raise ValueError(message) from None
-                if not case_match and isinstance(info.field_name, str):
-                    cls._record_rewrite(info, info.field_name, normalized)
-                return cast("Literal['Male', 'Female']", normalized)
-            if need_rewrite and isinstance(info.field_name, str):
-                cls._record_rewrite(info, info.field_name, str(resolved))
-            if resolved is False:
-                return resolved
-            message = f'expected voice notification value, got {type(value).__name__}'
-            raise ValueError(message)
-        message = f'expected voice notification value, got {type(value).__name__}'
-        raise ValueError(message)
-
-    @field_validator('PROTECTION', mode='before')
-    @classmethod
-    def _parse_protection(cls, value: object, info: ValidationInfo) -> Literal['Suspend_Process', False]:
-        if isinstance(value, bool):
-            if value is False:
-                return value
-            message = f'expected protection value, got {type(value).__name__}'
-            raise ValueError(message)
-        if isinstance(value, str):
-            try:
-                resolved, need_rewrite = custom_str_to_bool(value)
-            except InvalidBooleanValueError:
-                try:
-                    case_match, normalized = check_case_insensitive_and_exact_match(
-                        value,
-                        ('Suspend_Process',),
-                    )
-                except NoMatchFoundError:
-                    message = f'invalid protection mode: {value!r}'
-                    raise ValueError(message) from None
-                if not case_match and isinstance(info.field_name, str):
-                    cls._record_rewrite(info, info.field_name, normalized)
-                return cast("Literal['Suspend_Process']", normalized)
-            if need_rewrite and isinstance(info.field_name, str):
-                cls._record_rewrite(info, info.field_name, str(resolved))
-            if resolved is False:
-                return resolved
-            message = f'expected protection value, got {type(value).__name__}'
-            raise ValueError(message)
-        message = f'expected protection value, got {type(value).__name__}'
-        raise ValueError(message)
+                    pass
+                else:
+                    if not case_match or stripped != value:
+                        cls._mark_rewrite(info)
+                    return cast('Literal["Male", "Female"]', normalized)
+            else:
+                cls._mark_rewrite(info)
+                return 'Male' if resolved else False
+        cls._mark_rewrite(info)
+        return False
 
     @field_validator('PROTECTION_SUSPEND_PROCESS_MODE', mode='before')
     @classmethod
-    def _parse_suspend_mode(cls, value: object) -> int | Literal['Auto']:
-        """Parse suspend mode values, preserving readable fixed-duration manual values."""
-        if isinstance(value, int):
-            if value >= 0:
-                return value
-            message = f'suspend process mode must be >= 0, got {value}'
-            raise ValueError(message)
+    def _normalize_suspend_mode(cls, value: object, info: ValidationInfo) -> int | Literal['Auto']:
+        """Accept 'Auto' (or False), 'Manual' (or True -> 10), or a non-negative integer."""
+        if isinstance(value, bool):
+            cls._mark_rewrite(info)
+            return 10 if value else 'Auto'
+        if isinstance(value, (int, float)):
+            int_val = int(value)
+            if isinstance(value, float) or int_val < 0:
+                cls._mark_rewrite(info)
+            return int_val if int_val >= 0 else 'Auto'
         if isinstance(value, str):
-            parsed = parse_suspend_duration_setting(value)
-            if isinstance(parsed, int) or parsed == 'Auto':
-                return parsed
-            message = f'invalid suspend process mode: {value!r}'
-            raise ValueError(message)
-        message = f'expected suspend mode value, got {type(value).__name__}'
-        raise ValueError(message)
+            stripped = value.strip()
+            try:
+                resolved, _ = custom_str_to_bool(stripped)
+            except InvalidBooleanValueError:
+                pass
+            else:
+                cls._mark_rewrite(info)
+                return 10 if resolved else 'Auto'
+
+            try:
+                case_match, normalized = check_case_insensitive_and_exact_match(stripped, ('Auto', 'Manual'))
+            except NoMatchFoundError:
+                pass
+            else:
+                if normalized == 'Manual' or not case_match or stripped != value:
+                    cls._mark_rewrite(info)
+                return 10 if normalized == 'Manual' else 'Auto'
+
+            try:
+                int_val = int(float(stripped))
+            except ValueError:
+                pass
+            else:
+                cls._mark_rewrite(info)
+                return int_val if int_val >= 0 else 'Auto'
+
+        cls._mark_rewrite(info)
+        return 'Auto'
 
     @classmethod
-    def validate_settings(cls, raw_settings: dict[str, str]) -> tuple[Self, dict[str, str]]:
-        """Validate raw UserIP [Settings] key/value strings.
+    def validate_settings(cls, raw_settings: dict[str, Any]) -> tuple[Self, bool]:
+        """Validate a raw settings dictionary and report whether the file needs rewriting."""
+        ctx = _UserIPSettingsContext()
+        normalized_input: dict[str, Any] = {}
+        for raw_key, raw_val in raw_settings.items():
+            upper_key = raw_key.strip().upper()
+            if upper_key != raw_key or upper_key not in USERIP_SETTINGS_KEYS or upper_key in normalized_input:
+                ctx.need_rewrite = True
+            if upper_key in USERIP_SETTINGS_KEYS:
+                normalized_input[upper_key] = raw_val
 
-        Args:
-            raw_settings: Mapping of setting names to raw string values.
+        if list(raw_settings.keys()) != list(USERIP_SETTINGS_KEYS):
+            ctx.need_rewrite = True
 
-        Returns:
-            (validated_model, ini_rewrites) where ini_rewrites maps field names
-            to their corrected string representations.
+        validated = cls.model_validate(normalized_input, context=ctx)
+        return validated, ctx.need_rewrite
 
-        Raises:
-            pydantic.ValidationError: If any setting value is corrupted.
-        """
-        ctx = _UserIPValidatorContext()
-        validated = cls.model_validate(raw_settings, context=ctx)
-        return validated, dict(ctx.ini_rewrites)
+
+class UserIPEntryModel(BaseModel):
+    """Pydantic model for a single entry in a UserIP `.json` database file."""
+
+    model_config = ConfigDict(extra='forbid')
+
+    username: str
+    ip: str
+    is_looky: bool = False
+    notes: str = ''
+    source: EntrySource = 'Manual'
+    detections_count: int = Field(default=0, ge=0)
+    added_at: str = Field(default_factory=get_current_iso_timestamp)
+    updated_at: str | None = None
+    first_seen_at: str | None = None
+    last_seen_at: str | None = None
+
+    @classmethod
+    def from_raw_entry_dict(
+        cls,
+        entry_dict: dict[str, Any],
+        *,
+        username: str,
+        ip: str,
+        is_looky: bool,
+        notes: str,
+    ) -> tuple[Self, bool]:
+        """Construct a `UserIPEntryModel` from a raw entry dictionary and report whether metadata was canonical."""
+        raw_source: object = entry_dict.get('source', 'Looky' if is_looky else 'Manual')
+        source, source_clean = normalize_userip_source(raw_source, is_looky=is_looky)
+
+        raw_detections: object = entry_dict.get('detections_count', 0)
+        detections_clean = isinstance(raw_detections, int) and not isinstance(raw_detections, bool) and raw_detections >= 0
+        if isinstance(raw_detections, bool):
+            detections_count = 0
+        elif isinstance(raw_detections, (int, float)):
+            detections_count = max(0, int(raw_detections))
+        elif isinstance(raw_detections, str) and raw_detections.strip().isdigit():
+            detections_count = int(raw_detections.strip())
+        else:
+            detections_count = 0
+
+        added_at_norm, added_clean = normalize_iso_timestamp(entry_dict.get('added_at'))
+        added_at = added_at_norm if added_at_norm is not None else get_current_iso_timestamp()
+        updated_at, updated_clean = normalize_iso_timestamp(entry_dict.get('updated_at'))
+        first_seen_at, first_seen_clean = normalize_iso_timestamp(entry_dict.get('first_seen_at'))
+        last_seen_at, last_seen_clean = normalize_iso_timestamp(entry_dict.get('last_seen_at'))
+
+        keys_clean = list(entry_dict.keys()) == list(USERIP_ENTRY_KEYS)
+        is_canonical = keys_clean and source_clean and detections_clean and added_clean and updated_clean and first_seen_clean and last_seen_clean
+        entry = cls(
+            username=username, ip=ip, is_looky=is_looky, notes=notes, source=source,
+            detections_count=detections_count, added_at=added_at, updated_at=updated_at, first_seen_at=first_seen_at, last_seen_at=last_seen_at,
+        )
+        return entry, is_canonical
+
+    def merge_duplicate(self, other: Self, *, sum_detections: bool = True) -> Self:
+        """Merge metadata and timestamps from a duplicate `(username, ip)` entry into this entry."""
+        merged_detections = self.detections_count + other.detections_count if sum_detections else max(self.detections_count, other.detections_count)
+        return self.model_copy(
+            update={
+                'notes': self.notes or other.notes,
+                'detections_count': merged_detections,
+                'added_at': pick_earliest_iso(self.added_at, other.added_at) or self.added_at,
+                'updated_at': pick_latest_iso(self.updated_at, other.updated_at),
+                'first_seen_at': pick_earliest_iso(self.first_seen_at, other.first_seen_at),
+                'last_seen_at': pick_latest_iso(self.last_seen_at, other.last_seen_at),
+            },
+        )
+
+
+class UserIPDatabaseFile(BaseModel):
+    """Pydantic model representing an entire UserIP `.json` database file."""
+
+    model_config = ConfigDict(extra='forbid')
+
+    settings: UserIPSettingsModel = Field(default_factory=UserIPSettingsModel)
+    entries: list[UserIPEntryModel] = Field(default_factory=list[UserIPEntryModel])
+
+    def serialize_to_json(self) -> str:
+        """Serialize this UserIP database file to a formatted JSON string with trailing newline."""
+        return json.dumps(self.model_dump(), indent=4, ensure_ascii=False) + '\n'
+
+
+DEFAULT_USERIP_FILES_SETTINGS: dict[str, UserIPSettingsModel] = {
+    'Blacklist.json': UserIPSettingsModel(
+        ENABLED=True,
+        COLOR='RED',
+        LOG=True,
+        NOTIFICATIONS=True,
+        VOICE_NOTIFICATIONS='Male',
+        PROTECTION=False,
+        PROTECTION_SUSPEND_PROCESS_MODE='Auto',
+    ),
+    'Enemylist.json': UserIPSettingsModel(
+        ENABLED=True,
+        COLOR='DARKGOLDENROD',
+        LOG=True,
+        NOTIFICATIONS=True,
+        VOICE_NOTIFICATIONS='Male',
+        PROTECTION=False,
+        PROTECTION_SUSPEND_PROCESS_MODE='Auto',
+    ),
+    'Friendlist.json': UserIPSettingsModel(
+        ENABLED=True,
+        COLOR='DARKGREEN',
+        LOG=True,
+        NOTIFICATIONS=False,
+        VOICE_NOTIFICATIONS='Female',
+        PROTECTION=False,
+        PROTECTION_SUSPEND_PROCESS_MODE='Auto',
+    ),
+    'Randomlist.json': UserIPSettingsModel(
+        ENABLED=True,
+        COLOR='BLACK',
+        LOG=True,
+        NOTIFICATIONS=False,
+        VOICE_NOTIFICATIONS='Female',
+        PROTECTION=False,
+        PROTECTION_SUSPEND_PROCESS_MODE='Auto',
+    ),
+    'Searchlist.json': UserIPSettingsModel(
+        ENABLED=True,
+        COLOR='BLUE',
+        LOG=True,
+        NOTIFICATIONS=False,
+        VOICE_NOTIFICATIONS='Female',
+        PROTECTION=False,
+        PROTECTION_SUSPEND_PROCESS_MODE='Auto',
+    ),
+}

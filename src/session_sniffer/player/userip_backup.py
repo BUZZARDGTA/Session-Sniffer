@@ -57,10 +57,10 @@ def prune_old_backups() -> None:
                     logger.warning('Failed to delete old UserIP backup %s: %s', old_backup.name, e)
 
 
-def _has_database_changes_since(latest_backup: Path, ini_files: list[Path]) -> bool:
+def _has_database_changes_since(latest_backup: Path, json_files: list[Path]) -> bool:
     """Return `True` if any database file was modified or if the file set differs from the archive."""
     latest_backup_mtime = latest_backup.stat().st_mtime
-    if any(ini_path.stat().st_mtime > latest_backup_mtime for ini_path in ini_files):
+    if any(json_path.stat().st_mtime > latest_backup_mtime for json_path in json_files):
         return True
 
     try:
@@ -69,11 +69,11 @@ def _has_database_changes_since(latest_backup: Path, ini_files: list[Path]) -> b
     except (zipfile.BadZipFile, OSError):
         return True
 
-    current_relative_paths = {str(ini_path.relative_to(USERIP_DATABASES_DIR_PATH)).replace('\\', '/') for ini_path in ini_files}
+    current_relative_paths = {str(json_path.relative_to(USERIP_DATABASES_DIR_PATH)).replace('\\', '/') for json_path in json_files}
     return archived_names != current_relative_paths
 
 
-def is_backup_due(ini_files: list[Path]) -> bool:
+def is_backup_due(json_files: list[Path]) -> bool:
     """Check whether a scheduled backup is due based on `Settings.userip_backup_frequency`."""
     frequency = Settings.userip_backup_frequency
     interval_seconds = BACKUP_INTERVALS_SECONDS.get(frequency)
@@ -96,7 +96,7 @@ def is_backup_due(ini_files: list[Path]) -> bool:
     if time.time() - latest_backup.stat().st_mtime < interval_seconds:
         return False
 
-    if _has_database_changes_since(latest_backup, ini_files):
+    if _has_database_changes_since(latest_backup, json_files):
         return True
 
     logger.debug('Skipping scheduled UserIP backup: no database changes detected since last backup.')
@@ -121,14 +121,14 @@ def backup_userip_databases(*, force: bool = False) -> Path | None:
 
         prune_old_backups()
 
-        ini_files = sorted(USERIP_DATABASES_DIR_PATH.rglob('*.ini'))
-        if not ini_files:
+        json_files = sorted(USERIP_DATABASES_DIR_PATH.rglob('*.json'))
+        if not json_files:
             logger.debug('No UserIP database files found to back up.')
             return None
 
         USERIP_DATABASES_BACKUP_DIR_PATH.mkdir(parents=True, exist_ok=True)
 
-        if not force and not is_backup_due(ini_files):
+        if not force and not is_backup_due(json_files):
             return None
 
         now = datetime.now(tz=UTC)
@@ -139,9 +139,9 @@ def backup_userip_databases(*, force: bool = False) -> Path | None:
 
         try:
             with zipfile.ZipFile(temporary_backup_path, 'w', compression=zipfile.ZIP_DEFLATED) as archive:
-                for ini_path in ini_files:
-                    arcname = ini_path.relative_to(USERIP_DATABASES_DIR_PATH)
-                    archive.write(str(ini_path), str(arcname))
+                for json_path in json_files:
+                    arcname = json_path.relative_to(USERIP_DATABASES_DIR_PATH)
+                    archive.write(str(json_path), str(arcname))
             temporary_backup_path.replace(backup_path)
         except OSError as e:
             try:
@@ -151,7 +151,7 @@ def backup_userip_databases(*, force: bool = False) -> Path | None:
             logger.warning('Failed to create UserIP database backup: %s', e)
             return None
 
-        count = len(ini_files)
+        count = len(json_files)
         logger.info('Created UserIP database backup at "%s" containing %s database%s.', backup_path.name, count, pluralize(count))
         prune_old_backups()
         return backup_path

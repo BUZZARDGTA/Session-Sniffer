@@ -16,6 +16,7 @@ from session_sniffer.guis.stylesheets import PLAYER_INFO_FORM_LABEL_STYLESHEET
 from session_sniffer.guis.tables_player_actions._format import format_bool, format_text
 from session_sniffer.guis.tables_player_actions._player_info_dialog_mixin import PlayerInfoDialogMixin
 from session_sniffer.guis.utils import ActiveDialogRegistry, format_player_display, set_dialog_window_flags
+from session_sniffer.models.userip_settings_model import format_iso_timestamp_display
 from session_sniffer.player.userip import UserIP, UserIPDatabases
 from session_sniffer.text_utils import pluralize
 from session_sniffer.utils import dedup_preserve_order
@@ -89,6 +90,14 @@ class UserIPDetectedDialog(PlayerInfoDialogMixin):
             return self._player.usernames
         return list(userip_names)
 
+    def _get_notes(self) -> list[str]:
+        userip = self._get_userip()
+        return list(userip.notes) if userip is not None and userip.notes else []
+
+    def _get_sources(self) -> list[str]:
+        userip = self._get_userip()
+        return list(userip.sources) if userip is not None and userip.sources else []
+
     def _get_database_name(self) -> str:
         userip = self._get_userip()
         if userip is not None:
@@ -133,6 +142,41 @@ class UserIPDetectedDialog(PlayerInfoDialogMixin):
         self._add_live_row(form, 'Country Code', lambda: format_text(player.iplookup.geolite2.country_code))
         self._add_live_row(form, 'Detection Type', lambda: player.userip_detection.type if player.userip_detection is not None else detection_type)
         self._add_live_row(form, 'Database', self._get_database_name)
+        self._add_live_row(
+            form,
+            lambda: f'Note{pluralize(len(self._get_notes()))}',
+            lambda: ', '.join(self._get_notes()) or 'N/A',
+        )
+        self._add_live_row(
+            form,
+            lambda: f'Source{pluralize(len(self._get_sources()))}',
+            lambda: ', '.join(self._get_sources()) or 'N/A',
+        )
+        self._add_live_row(
+            form,
+            'Detections',
+            lambda: str(userip.detections_count) if (userip := self._get_userip()) is not None else 'N/A',
+        )
+        self._add_live_row(
+            form,
+            'Added',
+            lambda: (format_iso_timestamp_display(userip.added_at) or 'N/A') if (userip := self._get_userip()) is not None else 'N/A',
+        )
+        self._add_live_row(
+            form,
+            'Updated',
+            lambda: (format_iso_timestamp_display(userip.updated_at) or 'N/A') if (userip := self._get_userip()) is not None else 'N/A',
+        )
+        self._add_live_row(
+            form,
+            'First Seen (DB)',
+            lambda: (format_iso_timestamp_display(userip.first_seen_at) or 'N/A') if (userip := self._get_userip()) is not None else 'N/A',
+        )
+        self._add_live_row(
+            form,
+            'Last Seen (DB)',
+            lambda: (format_iso_timestamp_display(userip.last_seen_at) or 'N/A') if (userip := self._get_userip()) is not None else 'N/A',
+        )
         parent_layout.addWidget(group)
 
     def _build_iplookup_group(self, parent_layout: QVBoxLayout, player: Player) -> None:

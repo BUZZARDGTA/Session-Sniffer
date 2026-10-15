@@ -207,19 +207,3 @@ def split_usernames(text: str) -> list[str]:
         tokens.append(cleaned)
 
     return tokens
-
-
-def has_unclosed_parentheses(text: str) -> bool:
-    """Return True if the text contains unmatched opening parentheses or brackets."""
-    paren_depth = 0
-    bracket_depth = 0
-    for char in text:
-        if char == '(':
-            paren_depth += 1
-        elif char == ')' and paren_depth > 0:
-            paren_depth -= 1
-        elif char == '[':
-            bracket_depth += 1
-        elif char == ']' and bracket_depth > 0:
-            bracket_depth -= 1
-    return bool(paren_depth or bracket_depth)

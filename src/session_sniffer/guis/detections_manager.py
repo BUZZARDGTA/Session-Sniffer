@@ -347,7 +347,7 @@ class DetectionsManagerDialog(UnsavedChangesMixin, DetectionsManagerTabsMixin, Q
         self.refresh_combo_rules_list()
 
     def _save_and_apply(self) -> None:
-        """Read widgets, write GUIDetectionSettings, persist to Settings.ini, and close."""
+        """Read widgets, write GUIDetectionSettings, persist to detections.json, and close."""
         # Clear voice queue if any detection was newly disabled
         enabled_fields = [
             'mobile_suspend_enabled',

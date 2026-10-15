@@ -40,6 +40,7 @@ from session_sniffer.settings import Settings
 if TYPE_CHECKING:
     from session_sniffer.guis.tables import SessionTableView
     from session_sniffer.models.player import Player
+    from session_sniffer.player.userip import UserIP
     from session_sniffer.rendering_core.types import CellColor
 
 
@@ -528,7 +529,7 @@ class SessionTableModel(QAbstractTableModel):
             resize_mode = horizontal_header.sectionResizeMode(index.column())
 
             # Return None if the column resize mode isn't set to Stretch, as it shouldn't be truncated
-            if resize_mode == QHeaderView.ResizeMode.Stretch:
+            if resize_mode == QHeaderView.ResizeMode.Stretch and column_index != self.username_column_index:
                 cell_text = self._data[row_index][column_index]
 
                 font_metrics = self.view.fontMetrics()
@@ -673,6 +674,16 @@ class SessionTableModel(QAbstractTableModel):
         if 0 <= row < len(self._data):
             return self._get_ip_from_data_safely(self._data[row])
         return ''
+
+    def get_player_userip_for_row(self, row: int, /) -> UserIP | None:
+        """Return the resolved `UserIP` instance for the given row index, or `None` if not matched."""
+        ip = self.get_ip_for_row(row)
+        if not ip:
+            return None
+        matched_player = PlayersRegistry.get_player_by_ip(ip)
+        if matched_player is None:
+            return None
+        return matched_player.userip
 
     def _get_ip_from_data_safely(self, row_data: Sequence[str]) -> str:
         """Safely extract an IP address as a string from row data.

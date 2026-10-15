@@ -1,12 +1,15 @@
 """Shared helpers, constants, and dialogs for the UserIP Databases Manager."""
 
+import contextlib
 import ipaddress
-import re
+import json
+import logging
+from datetime import datetime
 from ipaddress import IPv4Address
 from typing import TYPE_CHECKING, cast, override
 
 from PySide6.QtCore import QModelIndex, QPersistentModelIndex, QRegularExpression, QSortFilterProxyModel, Qt
-from PySide6.QtGui import QBrush, QColor, QIcon, QRegularExpressionValidator
+from PySide6.QtGui import QBrush, QColor, QIcon, QRegularExpressionValidator, QStandardItem, QStandardItemModel
 from PySide6.QtWidgets import (
     QButtonGroup,
     QDialog,
@@ -30,124 +33,72 @@ from session_sniffer.guis.stylesheets import (
     IP_RANGE_PREVIEW_VALID_STYLESHEET,
     SUBNET_DESC_LABEL_STYLESHEET,
 )
+from session_sniffer.models.userip_settings_model import (
+    DEFAULT_USERIP_FILES_SETTINGS,
+    UserIPDatabaseFile,
+    UserIPEntryModel,
+    UserIPSettingsModel,
+    format_iso_timestamp_display,
+    get_current_iso_timestamp,
+)
+from session_sniffer.networking.ip_range import entry_ip_covers_ip
 from session_sniffer.text_utils import pluralize, split_usernames
-from session_sniffer.utils import dedup_preserve_order
+from session_sniffer.utils import custom_str_to_bool
+from session_sniffer.utils_exceptions import InvalidBooleanValueError
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Iterator
+    from collections.abc import Callable, Iterable, Iterator, Sequence
     from pathlib import Path
+    from typing import Any
 
-RE_USERIP_INI_PARSER_PATTERN = re.compile(r'^(?![;#])(?P<username>[^=]+)=(?P<ip>[^;#]+)(?:[;#]\s*(?P<comment>.*))?')
-RE_SETTINGS_INI_PARSER_PATTERN = re.compile(r'^(?![;#])(?P<key>[^=]+)=(?P<value>.*)')
-
-SECTION_SETTINGS = 'Settings'
-SECTION_USERIP = 'UserIP'
+logger = logging.getLogger(__name__)
 
 INDEX_COLUMN = 0
 USERNAME_COLUMN = 1
 IP_COLUMN = 2
 RANGE_COLUMN = 3
-DATABASE_COLUMN = 4
+NOTES_COLUMN = 4
+SOURCE_COLUMN = 5
+DETECTIONS_COLUMN = 6
+ADDED_AT_COLUMN = 7
+UPDATED_AT_COLUMN = 8
+FIRST_SEEN_AT_COLUMN = 9
+LAST_SEEN_AT_COLUMN = 10
+DATABASE_COLUMN = 11
+
+TIMESTAMP_COLUMNS = (ADDED_AT_COLUMN, UPDATED_AT_COLUMN, FIRST_SEEN_AT_COLUMN, LAST_SEEN_AT_COLUMN)
+
+FILTERABLE_COLUMNS = (
+    USERNAME_COLUMN,
+    IP_COLUMN,
+    RANGE_COLUMN,
+    NOTES_COLUMN,
+    SOURCE_COLUMN,
+    ADDED_AT_COLUMN,
+    UPDATED_AT_COLUMN,
+    FIRST_SEEN_AT_COLUMN,
+    LAST_SEEN_AT_COLUMN,
+    DATABASE_COLUMN,
+)
+
+ENTRY_TABLE_HEADERS = ['#', 'Usernames', 'IP', 'Range', 'Notes', 'Source', 'Detections', 'Added', 'Updated', 'First Seen', 'Last Seen', 'Database']
+
+IS_PERSISTED_ROLE = Qt.ItemDataRole.UserRole + 1
 
 DUPLICATE_HIGHLIGHT_BRUSH = QBrush(QColor(255, 165, 0, 60))
 
 _IPV4_BROADCAST_FREE_PREFIX = 31
 _IPV4_VERSION = 4
 
-
-def handle_ini_section_header(
-    raw_line: str,
-    stripped: str,
-    new_lines: list[str],
-    *,
-    in_section: bool,
-    section_name: str,
-) -> tuple[bool, bool]:
-    """Check whether *stripped* is an INI section header.
-
-    If it is, append *raw_line* to *new_lines* and return `(True, is_target_section)`.
-    Otherwise return `(False, in_section)` unchanged.
-    """
-    if stripped.startswith('[') and stripped.endswith(']'):
-        new_lines.append(raw_line)
-        return True, stripped[1:-1] == section_name
-    return False, in_section
-
-
-SETTINGS_KEYS_ORDER: list[str] = [
-    'ENABLED',
-    'COLOR',
-    'LOG',
-    'NOTIFICATIONS',
-    'VOICE_NOTIFICATIONS',
-    'PROTECTION',
-    'PROTECTION_SUSPEND_PROCESS_MODE',
-]
-
-SETTINGS_DEFAULTS: dict[str, str] = {
-    'ENABLED': 'True',
-    'COLOR': '',
-    'LOG': 'True',
-    'NOTIFICATIONS': 'True',
-    'VOICE_NOTIFICATIONS': 'False',
-    'PROTECTION': 'False',
-    'PROTECTION_SUSPEND_PROCESS_MODE': 'Auto',
-}
-
-
-def parse_settings_from_lines(settings_lines: list[str]) -> dict[str, str]:
-    """Parse raw `[Settings]` lines into a `{KEY: value}` dictionary.
-
-    Unknown keys are silently ignored.  Missing keys are filled from defaults.
-    """
-    parsed: dict[str, str] = {}
-
-    for raw_line in settings_lines:
-        line = raw_line.strip()
-        if not line or line.startswith((';', '#')):
-            continue
-
-        match = RE_SETTINGS_INI_PARSER_PATTERN.search(line)
-        if not match:
-            continue
-
-        key_raw = match.group('key')
-        value_raw = match.group('value')
-        if key_raw is None or value_raw is None:
-            continue
-
-        key = key_raw.strip()
-        value = value_raw.strip()
-
-        if key in SETTINGS_KEYS_ORDER and key not in parsed:
-            parsed[key] = value
-
-    # Fill missing keys with defaults
-    for key in SETTINGS_KEYS_ORDER:
-        if key not in parsed:
-            parsed[key] = SETTINGS_DEFAULTS[key]
-
-    return parsed
-
-
-def parse_settings_from_content(content: str) -> dict[str, str]:
-    """Parse the `[Settings]` section of raw INI *content* into a `{KEY: value}` dictionary.
-
-    Convenience wrapper around :func:`parse_settings_from_lines` that accepts the full
-    file content as a string rather than a pre-split list of lines.
-    """
-    settings_lines: list[str] = []
-    current_section: str | None = None
-
-    for raw_line in content.splitlines():
-        line = raw_line.strip()
-        if line.startswith('[') and line.endswith(']'):
-            current_section = line[1:-1]
-            continue
-        if current_section == SECTION_SETTINGS:
-            settings_lines.append(raw_line)
-
-    return parse_settings_from_lines(settings_lines)
+NEW_DATABASE_SETTINGS = UserIPSettingsModel(
+    ENABLED=True,
+    COLOR='',
+    LOG=True,
+    NOTIFICATIONS=True,
+    VOICE_NOTIFICATIONS=False,
+    PROTECTION=False,
+    PROTECTION_SUSPEND_PROCESS_MODE='Auto',
+)
 
 
 class EntriesSortProxy(QSortFilterProxyModel):
@@ -161,16 +112,24 @@ class EntriesSortProxy(QSortFilterProxyModel):
         except ValueError:
             return tuple(byte_val for char_val in value.encode() for byte_val in (char_val,))
 
+    @staticmethod
+    def _timestamp_sort_key(value: object) -> float:
+        """Return a numeric POSIX timestamp for ISO-8601 strings, sorting empty values first."""
+        if isinstance(value, str) and value:
+            with contextlib.suppress(ValueError):
+                return datetime.fromisoformat(value).timestamp()
+        return float('-inf')
+
     @override
     def filterAcceptsRow(self, source_row: int, source_parent: QModelIndex | QPersistentModelIndex) -> bool:
-        """Filter rows by Username, IP, and Database columns only (skip the Index column)."""
+        """Filter rows across all searchable entry and metadata columns."""
         model = self.sourceModel()
         if not model:
             return True
         regex = self.filterRegularExpression()
         if not regex.pattern():
             return True
-        for column in (USERNAME_COLUMN, IP_COLUMN, RANGE_COLUMN, DATABASE_COLUMN):
+        for column in FILTERABLE_COLUMNS:
             index = model.index(source_row, column, source_parent)
             data = model.data(index, self.filterRole())
             if data is not None and regex.match(str(data)).hasMatch():
@@ -179,46 +138,156 @@ class EntriesSortProxy(QSortFilterProxyModel):
 
     @override
     def lessThan(self, left: QModelIndex | QPersistentModelIndex, right: QModelIndex | QPersistentModelIndex) -> bool:
-        """Compare two indexes, sorting IPs numerically and using IP as a tiebreaker."""
+        """Compare two indexes, sorting numeric/IP/timestamp columns appropriately and using IP as a tiebreaker."""
         model = self.sourceModel()
         if model:
-            # When sorting the Index column, compare numerically via UserRole.
-            if self.sortColumn() == INDEX_COLUMN:
+            sort_col = self.sortColumn()
+            if sort_col in (INDEX_COLUMN, DETECTIONS_COLUMN):
                 left_val = model.data(left, Qt.ItemDataRole.UserRole)
                 right_val = model.data(right, Qt.ItemDataRole.UserRole)
-                if isinstance(left_val, int) and isinstance(right_val, int):
+                if isinstance(left_val, int) and isinstance(right_val, int) and left_val != right_val:
                     return left_val < right_val
-            # When sorting the IP column directly, compare numerically.
-            elif self.sortColumn() in (IP_COLUMN, RANGE_COLUMN):
+            elif sort_col in (IP_COLUMN, RANGE_COLUMN):
                 left_ip = model.data(left)
                 right_ip = model.data(right)
                 if left_ip is not None and right_ip is not None:
                     return self._ip_sort_key(left_ip) < self._ip_sort_key(right_ip)
+            elif sort_col in TIMESTAMP_COLUMNS:
+                left_ts = self._timestamp_sort_key(model.data(left, Qt.ItemDataRole.UserRole))
+                right_ts = self._timestamp_sort_key(model.data(right, Qt.ItemDataRole.UserRole))
+                if left_ts != right_ts:
+                    return left_ts < right_ts
             else:
                 left_data = model.data(left)
                 right_data = model.data(right)
-                if left_data == right_data:
-                    left_ip = model.data(cast('QModelIndex', left).siblingAtColumn(IP_COLUMN))
-                    right_ip = model.data(cast('QModelIndex', right).siblingAtColumn(IP_COLUMN))
-                    if left_ip is not None and right_ip is not None:
-                        return self._ip_sort_key(left_ip) < self._ip_sort_key(right_ip)
+                if left_data != right_data:
+                    return super().lessThan(left, right)
+
+            left_ip = model.data(cast('QModelIndex', left).siblingAtColumn(IP_COLUMN))
+            right_ip = model.data(cast('QModelIndex', right).siblingAtColumn(IP_COLUMN))
+            if left_ip is not None and right_ip is not None:
+                return self._ip_sort_key(left_ip) < self._ip_sort_key(right_ip)
         return super().lessThan(left, right)
 
 
+def _make_readonly_item(text: str, user_data: object = None, *, tooltip: str = '') -> QStandardItem:
+    """Create a read-only `QStandardItem` with optional `UserRole` data and tooltip."""
+    item = QStandardItem(text)
+    item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+    if user_data is not None:
+        item.setData(user_data, Qt.ItemDataRole.UserRole)
+    if tooltip:
+        item.setToolTip(tooltip)
+    return item
+
+
+def _make_timestamp_item(iso_value: str | None) -> QStandardItem:
+    """Create a read-only timestamp `QStandardItem` storing the raw ISO string in `UserRole`."""
+    display_text = format_iso_timestamp_display(iso_value)
+    return _make_readonly_item(display_text, iso_value, tooltip=iso_value or '')
+
+
+def build_entry_row_items(
+    entry: UserIPEntryModel,
+    *,
+    index: int = 0,
+    database: tuple[str, Path] | None = None,
+    looky_icon: QIcon | None = None,
+    persisted: bool = True,
+) -> list[QStandardItem]:
+    """Construct the 12 `QStandardItem` instances for a single `UserIPEntryModel` row."""
+    index_item = _make_readonly_item(str(index) if index > 0 else '', index)
+    index_item.setData(1 if persisted else 0, IS_PERSISTED_ROLE)
+
+    username_item = QStandardItem(entry.username)
+    if entry.is_looky:
+        if looky_icon is not None:
+            username_item.setIcon(looky_icon)
+        username_item.setForeground(QBrush(QColor('#a855f7')))
+        username_item.setToolTip('Added automatically by Looky System')
+        username_item.setData(entry.is_looky, Qt.ItemDataRole.UserRole)
+
+    is_single_ip = False
+    if entry.ip:
+        with contextlib.suppress(ValueError):
+            IPv4Address(entry.ip)
+            is_single_ip = True
+
+    ip_item = QStandardItem(entry.ip if is_single_ip else '')
+    range_item = QStandardItem('' if is_single_ip else entry.ip)
+    notes_item = QStandardItem(entry.notes)
+    source_item = _make_readonly_item(entry.source, entry.source)
+    detections_item = _make_readonly_item(str(entry.detections_count), entry.detections_count)
+    added_item = _make_timestamp_item(entry.added_at)
+    updated_item = _make_timestamp_item(entry.updated_at)
+    first_seen_item = _make_timestamp_item(entry.first_seen_at)
+    last_seen_item = _make_timestamp_item(entry.last_seen_at)
+    db_item = _make_readonly_item(database[0] if database else '', str(database[1]) if database is not None else None)
+    return [index_item, username_item, ip_item, range_item, notes_item, source_item, detections_item, added_item, updated_item, first_seen_item, last_seen_item, db_item]
+
+
+def is_row_persisted(model: QStandardItemModel, row: int) -> bool:
+    """Return `True` if the row was loaded from or previously saved to disk."""
+    return bool(model.item(row, INDEX_COLUMN).data(IS_PERSISTED_ROLE))
+
+
+def mark_row_persisted(model: QStandardItemModel, row: int) -> None:
+    """Mark a row in *model* as persisted on disk."""
+    model.item(row, INDEX_COLUMN).setData(1, IS_PERSISTED_ROLE)
+
+
+def set_row_updated_at(model: QStandardItemModel, row: int, updated_iso: str | None = None) -> str:
+    """Update the `Updated` column item of *row* with *updated_iso* (defaults to current local ISO timestamp)."""
+    iso_val = updated_iso if updated_iso is not None else get_current_iso_timestamp()
+    updated_item = model.item(row, UPDATED_AT_COLUMN)
+    updated_item.setText(format_iso_timestamp_display(iso_val))
+    updated_item.setData(iso_val, Qt.ItemDataRole.UserRole)
+    updated_item.setToolTip(iso_val)
+    return iso_val
+
+
+def clear_row_looky_badge(model: QStandardItemModel, row: int) -> None:
+    """Clear the Looky badge and reset `Looky` source to `Manual` on *row* when manually edited or renamed."""
+    username_item = model.item(row, USERNAME_COLUMN)
+    if username_item.data(Qt.ItemDataRole.UserRole):
+        username_item.setData(None, Qt.ItemDataRole.UserRole)
+        username_item.setIcon(QIcon())
+        username_item.setForeground(QBrush())
+        username_item.setToolTip('')
+        source_item = model.item(row, SOURCE_COLUMN)
+        if source_item.data(Qt.ItemDataRole.UserRole) == 'Looky':
+            source_item.setText('Manual')
+            source_item.setData('Manual', Qt.ItemDataRole.UserRole)
+
+
+def extract_entry_model_from_row(model: QStandardItemModel, row: int) -> tuple[str, str, str, UserIPEntryModel | None]:
+    """Read all columns of *row* in *model* and build a `UserIPEntryModel` when username and IP are present."""
+    username_item = model.item(row, USERNAME_COLUMN)
+    username = username_item.text().strip()
+    ip_text = model.item(row, IP_COLUMN).text().strip() or model.item(row, RANGE_COLUMN).text().strip()
+    notes = model.item(row, NOTES_COLUMN).text().strip()
+    if not username or not ip_text:
+        return username, ip_text, notes, None
+
+    raw_meta: dict[str, Any] = {
+        'source': model.item(row, SOURCE_COLUMN).data(Qt.ItemDataRole.UserRole),
+        'detections_count': model.item(row, DETECTIONS_COLUMN).data(Qt.ItemDataRole.UserRole),
+        'added_at': model.item(row, ADDED_AT_COLUMN).data(Qt.ItemDataRole.UserRole),
+        'updated_at': model.item(row, UPDATED_AT_COLUMN).data(Qt.ItemDataRole.UserRole),
+        'first_seen_at': model.item(row, FIRST_SEEN_AT_COLUMN).data(Qt.ItemDataRole.UserRole),
+        'last_seen_at': model.item(row, LAST_SEEN_AT_COLUMN).data(Qt.ItemDataRole.UserRole),
+    }
+    entry_model, _ = UserIPEntryModel.from_raw_entry_dict(
+        raw_meta,
+        username=username,
+        ip=ip_text,
+        is_looky=bool(username_item.data(Qt.ItemDataRole.UserRole)),
+        notes=notes,
+    )
+    return username, ip_text, notes, entry_model
+
+
 BYTES_PER_UNIT = 1024
-
-NEW_DATABASE_TEMPLATE = """\
-[Settings]
-ENABLED=True
-COLOR=
-LOG=True
-NOTIFICATIONS=True
-VOICE_NOTIFICATIONS=False
-PROTECTION=False
-PROTECTION_SUSPEND_PROCESS_MODE=Auto
-
-[UserIP]
-"""
 
 
 def human_readable_size(size_bytes: int) -> str:
@@ -231,171 +300,162 @@ def human_readable_size(size_bytes: int) -> str:
     return f'{value:.1f} TB'
 
 
-def iter_userip_entries_with_metadata(content: str) -> Iterator[tuple[str, str, bool]]:
-    """Yield `(username, ip, is_looky)` tuples from the `[UserIP]` section of INI content."""
-    current_section: str | None = None
+def parse_userip_database_content(
+    content: str,
+    *,
+    default_settings: UserIPSettingsModel | None = None,
+) -> UserIPDatabaseFile:
+    """Parse raw JSON *content* into a validated `UserIPDatabaseFile` model."""
+    fallback_settings = default_settings if default_settings is not None else NEW_DATABASE_SETTINGS
+    if not content.strip():
+        return UserIPDatabaseFile(settings=fallback_settings.model_copy(), entries=[])
 
-    for raw_line in content.splitlines():
-        line = raw_line.strip()
+    try:
+        raw_data: object = json.loads(content)
+    except json.JSONDecodeError as e:
+        logger.warning('Failed to parse UserIP database JSON content: %s', e)
+        return UserIPDatabaseFile(settings=fallback_settings.model_copy(), entries=[])
 
-        if line.startswith('[') and line.endswith(']'):
-            current_section = line[1:-1]
+    if not isinstance(raw_data, dict):
+        return UserIPDatabaseFile(settings=fallback_settings.model_copy(), entries=[])
+
+    typed_data = cast('dict[str, Any]', raw_data)
+    raw_settings_obj: object = typed_data.get('settings')
+    if isinstance(raw_settings_obj, dict):
+        validated_settings, _ = UserIPSettingsModel.validate_settings(cast('dict[str, Any]', raw_settings_obj))
+    else:
+        validated_settings = fallback_settings.model_copy()
+
+    raw_entries_obj: object = typed_data.get('entries')
+    raw_entries = cast('list[object]', raw_entries_obj) if isinstance(raw_entries_obj, list) else []
+
+    entries: list[UserIPEntryModel] = []
+    for raw_entry in raw_entries:
+        if not isinstance(raw_entry, dict):
+            continue
+        entry_dict = cast('dict[str, Any]', raw_entry)
+        raw_username = entry_dict.get('username')
+        raw_ip = entry_dict.get('ip')
+        if not isinstance(raw_username, str) or not isinstance(raw_ip, str):
+            continue
+        username_str = raw_username.strip()
+        ip_str = raw_ip.strip()
+        if not username_str or not ip_str:
             continue
 
-        if current_section != SECTION_USERIP:
-            continue
+        raw_is_looky = entry_dict.get('is_looky', False)
+        is_looky = raw_is_looky if isinstance(raw_is_looky, bool) else False
+        if isinstance(raw_is_looky, str):
+            with contextlib.suppress(InvalidBooleanValueError):
+                is_looky, _ = custom_str_to_bool(raw_is_looky.strip())
 
-        match = RE_USERIP_INI_PARSER_PATTERN.search(line)
-        if not match:
-            continue
+        raw_notes = entry_dict.get('notes', '')
+        notes_str = raw_notes.strip() if isinstance(raw_notes, str) else ''
+        base_entry, _ = UserIPEntryModel.from_raw_entry_dict(
+            entry_dict,
+            username=username_str,
+            ip=ip_str,
+            is_looky=is_looky,
+            notes=notes_str,
+        )
+        entries.extend(base_entry.model_copy(update={'username': individual_username}) for individual_username in split_usernames(username_str))
 
-        username_raw = match.group('username')
-        ip_raw = match.group('ip')
-        comment_raw = match.group('comment')
-        if username_raw is None or ip_raw is None:
-            continue
-
-        username = username_raw.strip()
-        ip = ip_raw.strip()
-        if not username or not ip:
-            continue
-
-        is_looky = bool(comment_raw and comment_raw.strip().lower() == 'looky')
-        for individual_username in split_usernames(username):
-            yield individual_username, str(ip), is_looky
+    return UserIPDatabaseFile(settings=validated_settings, entries=entries)
 
 
-def iter_userip_entries(content: str) -> Iterator[tuple[str, str]]:
-    """Yield `(username, ip)` pairs from the `[UserIP]` section of INI content."""
-    for username, ip, _is_looky in iter_userip_entries_with_metadata(content):
-        yield username, ip
-
-
-def iter_userip_databases() -> Iterator[tuple[Path, list[tuple[str, str, bool]]]]:
-    """Yield `(database_path, entries)` for every UserIP database file, sorted by path."""
-    USERIP_DATABASES_DIR_PATH.mkdir(parents=True, exist_ok=True)
-    for ini_path in sorted(USERIP_DATABASES_DIR_PATH.rglob('*.ini')):
-        if not ini_path.is_file():
-            continue
-        yield ini_path, list(iter_userip_entries_with_metadata(ini_path.read_text('utf-8')))
-
-
-def read_preserved_sections(path: Path) -> tuple[list[str], list[str]]:
-    """Read the file and return (header_lines_before_sections, settings_section_lines).
-
-    Everything before the first `[section]` is considered the header (comments, etc.).
-    Lines inside `[Settings]` are preserved.  `[UserIP]` is rebuilt by the caller.
-    """
-    header_lines: list[str] = []
-    settings_lines: list[str] = []
-    current_section: str | None = None
-    found_first_section = False
-
+def load_userip_database_model(path: Path) -> UserIPDatabaseFile:
+    """Read and parse a UserIP `.json` database file into a `UserIPDatabaseFile` model."""
+    default_settings = DEFAULT_USERIP_FILES_SETTINGS.get(path.name) if path.parent == USERIP_DATABASES_DIR_PATH else None
     if not path.is_file():
-        return header_lines, settings_lines
+        fallback = default_settings if default_settings is not None else NEW_DATABASE_SETTINGS
+        return UserIPDatabaseFile(settings=fallback.model_copy(), entries=[])
+    try:
+        content = path.read_text(encoding='utf-8')
+    except OSError as e:
+        logger.warning('Failed to read UserIP database "%s": %s', path, e)
+        fallback = default_settings if default_settings is not None else NEW_DATABASE_SETTINGS
+        return UserIPDatabaseFile(settings=fallback.model_copy(), entries=[])
+    return parse_userip_database_content(content, default_settings=default_settings)
 
-    content = path.read_text('utf-8')
 
-    for raw_line in content.splitlines():
-        line = raw_line.strip()
+def save_userip_database_model(path: Path, db_model: UserIPDatabaseFile) -> None:
+    """Serialize and write a `UserIPDatabaseFile` model to *path*."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(db_model.serialize_to_json(), encoding='utf-8')
 
-        if line.startswith('[') and line.endswith(']'):
-            current_section = line[1:-1]
-            found_first_section = True
+
+def iter_userip_databases() -> Iterator[tuple[Path, list[UserIPEntryModel]]]:
+    """Yield `(database_path, entries)` for every UserIP `.json` database file, sorted by path."""
+    USERIP_DATABASES_DIR_PATH.mkdir(parents=True, exist_ok=True)
+    for json_path in sorted(USERIP_DATABASES_DIR_PATH.rglob('*.json')):
+        if not json_path.is_file():
             continue
+        yield json_path, load_userip_database_model(json_path).entries
 
-        if not found_first_section:
-            header_lines.append(raw_line)
+
+def dedup_userip_entries(entries: Iterable[UserIPEntryModel]) -> list[UserIPEntryModel]:
+    """Deduplicate `(username, ip)` pairs while preserving order and merging metadata."""
+    deduplicated: list[UserIPEntryModel] = []
+    seen_pairs: dict[tuple[str, str], int] = {}
+    for entry in entries:
+        pair_key = (entry.username, entry.ip)
+        if pair_key in seen_pairs:
+            existing_index = seen_pairs[pair_key]
+            deduplicated[existing_index] = deduplicated[existing_index].merge_duplicate(entry)
             continue
-
-        if current_section == SECTION_SETTINGS:
-            settings_lines.append(raw_line)
-
-    return header_lines, settings_lines
+        seen_pairs[pair_key] = len(deduplicated)
+        deduplicated.append(entry)
+    return deduplicated
 
 
 def rewrite_db_without_entries(db_path: Path, to_remove: set[tuple[str, str]]) -> None:
-    """Remove specific (username, ip) pairs from a database file in-place."""
-    new_lines: list[str] = []
-    in_userip_section = False
-    for raw_line in db_path.read_text('utf-8').splitlines():
-        stripped = raw_line.strip()
-        is_header, in_userip_section = handle_ini_section_header(raw_line, stripped, new_lines, in_section=in_userip_section, section_name=SECTION_USERIP)
-        if is_header:
-            continue
-        if not in_userip_section or not to_remove:
-            new_lines.append(raw_line)
-            continue
-
-        match = RE_USERIP_INI_PARSER_PATTERN.search(stripped)
-        if not match:
-            new_lines.append(raw_line)
-            continue
-
-        username_val = match.group('username').strip()
-        ip_val = match.group('ip').strip()
-        if not username_val or not ip_val:
-            new_lines.append(raw_line)
-            continue
-
-        line_usernames = split_usernames(username_val)
-        names_to_remove = {name for name in line_usernames if (name, ip_val) in to_remove}
-        if not names_to_remove:
-            new_lines.append(raw_line)
-            continue
-
-        remaining_usernames = [name for name in line_usernames if name not in names_to_remove]
-        if remaining_usernames:
-            equality_index = raw_line.find('=')
-            ending = raw_line[equality_index + 1 :] if equality_index != -1 else ip_val
-            new_lines.append(f'{", ".join(remaining_usernames)}={ending}')
-    db_path.write_text('\r\n'.join(new_lines) + ('\r\n' if new_lines else ''), encoding='utf-8', newline='')
+    """Remove specific `(username, ip)` pairs from a database file in-place."""
+    if not to_remove or not db_path.is_file():
+        return
+    db_model = load_userip_database_model(db_path)
+    filtered_entries = [entry for entry in db_model.entries if (entry.username, entry.ip) not in to_remove]
+    if len(filtered_entries) != len(db_model.entries):
+        db_model.entries = filtered_entries
+        save_userip_database_model(db_path, db_model)
 
 
-def rewrite_db_rename_entries(db_path: Path, pairs: list[tuple[str, str]], new_username: str) -> int:
-    """Replace matched (old_username, ip_or_range) entries with new_username in-place.
+def rewrite_db_rename_entries(
+    db_path: Path,
+    pairs: list[tuple[str, str]],
+    new_username: str,
+    *,
+    match_ip_ranges: bool = False,
+) -> int:
+    """Replace matched `(old_username, ip_or_range)` entries with *new_username* in-place.
 
     Returns the number of entries renamed.
     """
-    if not db_path.is_file():
+    if not db_path.is_file() or not pairs:
         return 0
-    content = db_path.read_text('utf-8')
-    new_lines: list[str] = []
-    in_userip_section = False
-    renamed_count = 0
+    db_model = load_userip_database_model(db_path)
     target_pairs = set(pairs)
+    renamed_count = 0
+    updated_entries: list[UserIPEntryModel] = []
+    now_iso = get_current_iso_timestamp()
 
-    for raw_line in content.splitlines():
-        stripped = raw_line.strip()
-        is_header, in_userip_section = handle_ini_section_header(raw_line, stripped, new_lines, in_section=in_userip_section, section_name=SECTION_USERIP)
-        if is_header:
-            continue
-        if not in_userip_section or not target_pairs:
-            new_lines.append(raw_line)
-            continue
-
-        match = RE_USERIP_INI_PARSER_PATTERN.search(stripped)
-        if not match:
-            new_lines.append(raw_line)
-            continue
-
-        username_val = match.group('username').strip()
-        ip_val = match.group('ip').strip()
-        line_usernames = split_usernames(username_val)
-        matched_names = {name for name in line_usernames if (name, ip_val) in target_pairs}
-        if not matched_names:
-            new_lines.append(raw_line)
-            continue
-
-        replaced_usernames = [new_username if name in matched_names else name for name in line_usernames]
-        resulting_names = dedup_preserve_order(replaced_usernames)
-        equality_index = raw_line.find('=')
-        ending = raw_line[equality_index + 1 :] if equality_index != -1 else ip_val
-        new_lines.append(f'{", ".join(resulting_names)}={ending}')
-        renamed_count += len(matched_names)
+    for entry in db_model.entries:
+        if match_ip_ranges:
+            matched = any(
+                pair_user == entry.username and (entry.ip == pair_ip or entry_ip_covers_ip(entry.ip, pair_ip))
+                for pair_user, pair_ip in pairs
+            )
+        else:
+            matched = (entry.username, entry.ip) in target_pairs
+        if matched:
+            renamed_count += 1
+            new_source = 'Manual' if entry.source == 'Looky' else entry.source
+            updated_entries.append(entry.model_copy(update={'username': new_username, 'is_looky': False, 'source': new_source, 'updated_at': now_iso}))
+        else:
+            updated_entries.append(entry)
 
     if renamed_count:
-        db_path.write_text('\r\n'.join(new_lines) + ('\r\n' if new_lines else ''), encoding='utf-8', newline='')
+        db_model.entries = dedup_userip_entries(updated_entries)
+        save_userip_database_model(db_path, db_model)
     return renamed_count
 
 
@@ -412,111 +472,123 @@ def rewrite_db_edit_entry_ip(
         db_path: Path to the UserIP database file.
         old_ip_or_range: The current IP address or range string to replace.
         new_ip_or_range: The new IP address or range string.
-        username: If provided, only replaces the entry for this specific username,
-            splitting multiple usernames on the same line if necessary. If None,
-            replaces all occurrences of `old_ip_or_range` in the `[UserIP]` section.
+        username: If provided, only replaces the entry for this specific username.
+            If None, replaces all occurrences of `old_ip_or_range`.
 
     Returns:
         The number of entries replaced.
     """
     if not db_path.is_file():
         return 0
-    content = db_path.read_text('utf-8')
-    new_lines: list[str] = []
-    in_userip_section = False
+    db_model = load_userip_database_model(db_path)
     replaced_count = 0
+    updated_entries: list[UserIPEntryModel] = []
+    now_iso = get_current_iso_timestamp()
 
-    for raw_line in content.splitlines():
-        stripped = raw_line.strip()
-        is_header, in_userip_section = handle_ini_section_header(
-            raw_line, stripped, new_lines, in_section=in_userip_section, section_name=SECTION_USERIP,
-        )
-        if is_header:
-            continue
-        if not in_userip_section:
-            new_lines.append(raw_line)
-            continue
-
-        match = RE_USERIP_INI_PARSER_PATTERN.search(stripped)
-        if not match:
-            new_lines.append(raw_line)
-            continue
-
-        username_val = match.group('username').strip()
-        ip_val = match.group('ip').strip()
-        if ip_val != old_ip_or_range:
-            new_lines.append(raw_line)
-            continue
-
-        line_usernames = split_usernames(username_val)
-
-        equality_index = raw_line.find('=')
-        after_equal = raw_line[equality_index + 1 :] if equality_index != -1 else ip_val
-
-        # Preserve comments if present
-        comment_suffix = ''
-        comment_idx = min((after_equal.find(char) for char in ('#', ';') if char in after_equal), default=-1)
-        if comment_idx != -1:
-            comment_suffix = f' {after_equal[comment_idx:].strip()}'
-
-        new_val = f'{new_ip_or_range}{comment_suffix}'
-
-        if username is not None:
-            if username not in line_usernames:
-                new_lines.append(raw_line)
-                continue
-
+    for entry in db_model.entries:
+        if entry.ip == old_ip_or_range and (username is None or entry.username == username):
             replaced_count += 1
-            if len(line_usernames) == 1:
-                new_lines.append(f'{username_val}={new_val}')
-            else:
-                remaining = [name for name in line_usernames if name != username]
-                new_lines.append(f'{", ".join(remaining)}={after_equal.strip()}')
-                new_lines.append(f'{username}={new_val}')
+            updated_entries.append(entry.model_copy(update={'ip': new_ip_or_range, 'updated_at': now_iso}))
         else:
-            replaced_count += len(line_usernames)
-            new_lines.append(f'{username_val}={new_val}')
+            updated_entries.append(entry)
 
     if replaced_count:
-        db_path.write_text('\r\n'.join(new_lines) + ('\r\n' if new_lines else ''), encoding='utf-8', newline='')
+        db_model.entries = dedup_userip_entries(updated_entries)
+        save_userip_database_model(db_path, db_model)
     return replaced_count
 
 
-def append_userip_entries(db_path: Path, entries: list[tuple[str, str, bool]]) -> set[tuple[str, str]]:
-    """Append entries to the `[UserIP]` section of a database file, avoiding exact duplicates.
+def rewrite_db_edit_entry_note(
+    db_path: Path,
+    username: str,
+    ip_or_range: str,
+    new_note: str,
+) -> bool:
+    """Update the `notes` field for a specific `(username, ip_or_range)` entry in *db_path*."""
+    if not db_path.is_file():
+        return False
+    db_model = load_userip_database_model(db_path)
+    cleaned_note = new_note.strip()
+    modified = False
+    now_iso = get_current_iso_timestamp()
+
+    for i, entry in enumerate(db_model.entries):
+        if entry.username == username and entry.ip == ip_or_range and entry.notes != cleaned_note:
+            db_model.entries[i] = entry.model_copy(update={'notes': cleaned_note, 'updated_at': now_iso})
+            modified = True
+
+    if modified:
+        save_userip_database_model(db_path, db_model)
+    return modified
+
+
+def rewrite_db_edit_ip_notes(
+    db_path: Path,
+    ip_address: str,
+    new_note: str,
+) -> int:
+    """Update the `notes` field for all entries in *db_path* covering *ip_address*.
+
+    Returns the number of entries matched.
+    """
+    if not db_path.is_file():
+        return 0
+    db_model = load_userip_database_model(db_path)
+    cleaned_note = new_note.strip()
+    matched_count = 0
+    modified = False
+    now_iso = get_current_iso_timestamp()
+
+    for i, entry in enumerate(db_model.entries):
+        if entry_ip_covers_ip(entry.ip, ip_address):
+            matched_count += 1
+            if entry.notes != cleaned_note:
+                db_model.entries[i] = entry.model_copy(update={'notes': cleaned_note, 'updated_at': now_iso})
+                modified = True
+
+    if modified:
+        save_userip_database_model(db_path, db_model)
+    return matched_count
+
+
+def append_userip_entries(db_path: Path, entries: Sequence[UserIPEntryModel]) -> set[tuple[str, str]]:
+    """Append entries to a UserIP `.json` database file, avoiding exact duplicates.
 
     Args:
         db_path: The target UserIP database file path.
-        entries: List of `(username, ip_or_range, is_looky)` tuples to append.
+        entries: Sequence of `UserIPEntryModel` instances to append.
 
     Returns:
         The set of `(username, ip_or_range)` pairs actually added (excluding exact duplicates already present).
     """
-    content = db_path.read_text('utf-8') if db_path.is_file() else ''
-    existing_pairs = set(iter_userip_entries(content))
-    lines_to_add: list[str] = []
+    db_model = load_userip_database_model(db_path)
+    existing_pairs: dict[tuple[str, str], int] = {
+        (entry.username.casefold(), entry.ip): i for i, entry in enumerate(db_model.entries)
+    }
     added_pairs: set[tuple[str, str]] = set()
+    modified = False
+    now_iso = get_current_iso_timestamp()
 
-    for username, ip_or_range, is_looky in entries:
-        pair = (username, ip_or_range)
-        if pair not in existing_pairs:
-            existing_pairs.add(pair)
-            added_pairs.add(pair)
-            suffix = ' ; looky' if is_looky else ''
-            lines_to_add.append(f'{username}={ip_or_range}{suffix}')
+    for entry in entries:
+        username = entry.username.strip()
+        ip_or_range = entry.ip.strip()
+        if not username or not ip_or_range:
+            continue
+        cf_pair = (username.casefold(), ip_or_range)
+        if cf_pair not in existing_pairs:
+            existing_pairs[cf_pair] = len(db_model.entries)
+            added_pairs.add((username, ip_or_range))
+            db_model.entries.append(entry.model_copy(update={'username': username, 'ip': ip_or_range, 'notes': entry.notes.strip()}))
+            modified = True
+        elif entry.notes.strip():
+            existing_index = existing_pairs[cf_pair]
+            existing_entry = db_model.entries[existing_index]
+            if not existing_entry.notes:
+                db_model.entries[existing_index] = existing_entry.model_copy(update={'notes': entry.notes.strip(), 'updated_at': now_iso})
+                modified = True
 
-    if not lines_to_add:
-        return added_pairs
-
-    has_userip_section = any(line.strip() == f'[{SECTION_USERIP}]' for line in content.splitlines())
-    prefix = ''
-    if not has_userip_section:
-        prefix = f'\n[{SECTION_USERIP}]\n'
-    elif content and not content.endswith(('\n', '\r')):
-        prefix = '\n'
-
-    new_content = content + prefix + '\n'.join(lines_to_add) + '\n'
-    db_path.write_text(new_content, encoding='utf-8')
+    if modified:
+        save_userip_database_model(db_path, db_model)
     return added_pairs
 
 

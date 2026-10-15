@@ -360,7 +360,7 @@ def _load_message_ids() -> dict[str, str]:
 
 
 def _save_message_ids(message_ids: dict[str, str]) -> None:
-    """Persist *message_ids* to Settings.ini."""
+    """Persist *message_ids* to settings.json."""
     Settings.discord_webhook_message_ids = _MESSAGE_IDS_ADAPTER.dump_json(message_ids).decode('utf-8') if message_ids else None
     Settings.rewrite_settings_file()
 

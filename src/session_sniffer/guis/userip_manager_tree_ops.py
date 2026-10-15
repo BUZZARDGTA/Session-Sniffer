@@ -10,20 +10,21 @@ from PySide6.QtGui import QAction, QDesktopServices, QIcon, QStandardItemModel
 from PySide6.QtWidgets import QCheckBox, QDialog, QFileDialog, QFileSystemModel, QFrame, QInputDialog, QLineEdit, QMenu, QMessageBox, QPushButton, QTreeView
 
 from session_sniffer.constants.local import RESOURCES_DIR_PATH, USERIP_DATABASES_DIR_PATH
-from session_sniffer.constants.standalone import GITHUB_WIKI_USERIP_CONFIG_URL, TITLE
+from session_sniffer.constants.standalone import TITLE
 from session_sniffer.guis.looky_text import (
     configure_looky_action,
 )
 from session_sniffer.guis.stylesheets import SVG_ICON_CONTEXT_MENU_STYLESHEET
 from session_sniffer.guis.tables_player_actions.looky_system._looky_refresh_userip import looky_refresh_userip_entries
 from session_sniffer.guis.userip_manager_helpers import (
-    NEW_DATABASE_TEMPLATE,
-    iter_userip_entries,
+    NEW_DATABASE_SETTINGS,
+    load_userip_database_model,
+    save_userip_database_model,
 )
 from session_sniffer.guis.utils import open_file_location
+from session_sniffer.models.userip_settings_model import DEFAULT_USERIP_FILES_SETTINGS, UserIPDatabaseFile
 from session_sniffer.settings.settings import Settings
-from session_sniffer.text_templates import DEFAULT_USERIP_FILES_SETTINGS_INI, USERIP_DEFAULT_DB_FOOTER_TEMPLATE, USERIP_DEFAULT_DB_HEADER_TEMPLATE
-from session_sniffer.text_utils import format_triple_quoted_text, pluralize
+from session_sniffer.text_utils import pluralize
 
 if TYPE_CHECKING:
     from session_sniffer.guis.file_watch import DebouncedFileWatcher
@@ -93,7 +94,7 @@ class TreeOperationsMixin(QDialog):
     # ------------------------------------------------------------------
 
     def _on_tree_selection_changed(self) -> None:
-        """Load the selected database when a .ini file is clicked in the tree."""
+        """Load the selected database when a .json file is clicked in the tree."""
         indexes = self._tree.selectedIndexes()
 
         if not indexes:
@@ -116,7 +117,7 @@ class TreeOperationsMixin(QDialog):
             return
 
         path = Path(file_path_str)
-        if path.parent == USERIP_DATABASES_DIR_PATH and path.name in DEFAULT_USERIP_FILES_SETTINGS_INI:
+        if path.parent == USERIP_DATABASES_DIR_PATH and path.name in DEFAULT_USERIP_FILES_SETTINGS:
             self._delete_tree_button.setEnabled(True)
             self._delete_tree_button.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'refresh-cw.svg')))
             self._delete_tree_button.setText(' Reset')
@@ -131,7 +132,7 @@ class TreeOperationsMixin(QDialog):
             self._delete_tree_button.clicked.disconnect()
             self._delete_tree_button.clicked.connect(self._delete_tree_item)
 
-        if not path.is_file() or path.suffix.lower() != '.ini':
+        if not path.is_file() or path.suffix.lower() != '.json':
             return
 
         if path == self._current_path and not self._global_search_active:
@@ -198,14 +199,10 @@ class TreeOperationsMixin(QDialog):
         """Collect all IPs from the given database files and refresh their usernames via Looky System."""
         entries: list[tuple[Path, list[str]]] = []
         for db_path in db_paths:
-            if not db_path.is_file() or db_path.suffix.lower() != '.ini':
+            if not db_path.is_file() or db_path.suffix.lower() != '.json':
                 continue
-            try:
-                content = db_path.read_text('utf-8')
-            except OSError as e:
-                logger.warning('Failed to read database file %s: %s', db_path, e)
-                continue
-            ip_addresses = [ip_address for _, ip_address in iter_userip_entries(content)]
+            db_model = load_userip_database_model(db_path)
+            ip_addresses = [entry.ip for entry in db_model.entries]
             if ip_addresses:
                 entries.append((db_path, ip_addresses))
 
@@ -237,7 +234,7 @@ class TreeOperationsMixin(QDialog):
                     menu.addSeparator()
                     _dir_path = file_path
                     refresh_dir_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'eye.svg')), 'Add Usernames in Folder (Looky)', self)
-                    refresh_dir_action.triggered.connect(lambda: self._refresh_databases_looky(list(_dir_path.rglob('*.ini'))))
+                    refresh_dir_action.triggered.connect(lambda: self._refresh_databases_looky(list(_dir_path.rglob('*.json'))))
                     configure_looky_action(refresh_dir_action, 'Look up all IPs in this folder via Looky System and add any new usernames.')
                     menu.addAction(refresh_dir_action)
 
@@ -265,7 +262,7 @@ class TreeOperationsMixin(QDialog):
 
                 menu.addSeparator()
 
-                if Settings.is_gta5_feature_set() and file_path.suffix.lower() == '.ini':
+                if Settings.is_gta5_feature_set() and file_path.suffix.lower() == '.json':
                     _file_path = file_path
                     refresh_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'eye.svg')), 'Add Usernames (Looky System)', self)
                     refresh_action.triggered.connect(lambda: self._refresh_databases_looky([_file_path]))
@@ -279,7 +276,7 @@ class TreeOperationsMixin(QDialog):
 
             menu.addSeparator()
 
-            if file_path.parent == USERIP_DATABASES_DIR_PATH and file_path.name in DEFAULT_USERIP_FILES_SETTINGS_INI:
+            if file_path.parent == USERIP_DATABASES_DIR_PATH and file_path.name in DEFAULT_USERIP_FILES_SETTINGS:
                 reset_default_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'refresh-cw.svg')), 'Reset', self)
                 reset_default_action.triggered.connect(lambda: self._reset_default_database(file_path))
                 menu.addAction(reset_default_action)
@@ -299,7 +296,7 @@ class TreeOperationsMixin(QDialog):
             if Settings.is_gta5_feature_set():
                 menu.addSeparator()
                 refresh_all_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'eye.svg')), 'Add Usernames in All Databases (Looky)', self)
-                refresh_all_action.triggered.connect(lambda: self._refresh_databases_looky(list(USERIP_DATABASES_DIR_PATH.rglob('*.ini'))))
+                refresh_all_action.triggered.connect(lambda: self._refresh_databases_looky(list(USERIP_DATABASES_DIR_PATH.rglob('*.json'))))
                 configure_looky_action(refresh_all_action, 'Look up all IPs across all UserIP databases via Looky System and add any new usernames.')
                 menu.addAction(refresh_all_action)
 
@@ -336,7 +333,7 @@ class TreeOperationsMixin(QDialog):
         return USERIP_DATABASES_DIR_PATH
 
     def _new_database(self, *, parent_dir: Path | None = None) -> None:
-        """Create a new UserIP database .ini file."""
+        """Create a new UserIP database .json file."""
         target_dir = parent_dir or self._get_selected_tree_directory()
 
         name, success = QInputDialog.getText(self, TITLE, 'New database name:')
@@ -344,19 +341,18 @@ class TreeOperationsMixin(QDialog):
             return
 
         name = name.strip()
-        if name.lower().endswith('.ini'):
-            name = name[:-4]
+        if name.lower().endswith('.json'):
+            name = name[:-5]
         if not name:
             return
-        name += '.ini'
+        name += '.json'
 
         new_path = target_dir / name
         if new_path.exists():
             QMessageBox.warning(self, TITLE, f'"{name}" already exists in that location.')
             return
 
-        new_path.parent.mkdir(parents=True, exist_ok=True)
-        new_path.write_text(NEW_DATABASE_TEMPLATE, encoding='utf-8')
+        save_userip_database_model(new_path, UserIPDatabaseFile(settings=NEW_DATABASE_SETTINGS))
 
         self._set_status(f'Created new database: {name}')
         self._refresh_stats()
@@ -449,18 +445,7 @@ class TreeOperationsMixin(QDialog):
         if result != QMessageBox.StandardButton.Yes:
             return
 
-        default_file_header = format_triple_quoted_text(
-            USERIP_DEFAULT_DB_HEADER_TEMPLATE.format(
-                title=TITLE,
-                configuration_guide_url=GITHUB_WIKI_USERIP_CONFIG_URL,
-            ),
-        )
-        default_file_footer = format_triple_quoted_text(USERIP_DEFAULT_DB_FOOTER_TEMPLATE, add_trailing_newline=True)
-        settings_block = DEFAULT_USERIP_FILES_SETTINGS_INI[path.name].strip()
-        path.write_text(
-            f'{default_file_header}\n\n{settings_block}\n\n{default_file_footer}',
-            encoding='utf-8',
-        )
+        save_userip_database_model(path, UserIPDatabaseFile(settings=DEFAULT_USERIP_FILES_SETTINGS[path.name]))
 
         if self._current_path == path:
             self._load_database(path)
@@ -479,11 +464,11 @@ class TreeOperationsMixin(QDialog):
 
         new_name = new_name.strip()
         if path.is_file():
-            if new_name.lower().endswith('.ini'):
-                new_name = new_name[:-4]
+            if new_name.lower().endswith('.json'):
+                new_name = new_name[:-5]
             if not new_name:
                 return
-            new_name += '.ini'
+            new_name += '.json'
 
         new_path = path.parent / new_name
         if new_path.exists():
@@ -535,18 +520,18 @@ class TreeOperationsMixin(QDialog):
         self._set_status(f'Moved "{path.name}" → {dest.relative_to(USERIP_DATABASES_DIR_PATH) or "root"}')
 
     def _reset_all_databases(self) -> None:
-        """Delete every .ini database file in the databases directory after user confirmation.
+        """Delete every .json database file in the databases directory after user confirmation.
 
         Default databases (Blacklist, Enemylist, etc.) are restored to their factory content
-        rather than deleted.  User-created .ini files and subdirectories are removed entirely.
+        rather than deleted.  User-created .json files and subdirectories are removed entirely.
         """
         USERIP_DATABASES_DIR_PATH.mkdir(parents=True, exist_ok=True)
-        ini_files = sorted(USERIP_DATABASES_DIR_PATH.rglob('*.ini'))
-        if not ini_files:
+        json_files = sorted(USERIP_DATABASES_DIR_PATH.rglob('*.json'))
+        if not json_files:
             QMessageBox.information(self, TITLE, 'There are no database files to reset.')
             return
 
-        count = len(ini_files)
+        count = len(json_files)
         result = QMessageBox.warning(
             self,
             TITLE,
@@ -560,31 +545,20 @@ class TreeOperationsMixin(QDialog):
         if result != QMessageBox.StandardButton.Yes:
             return
 
-        default_db_names: set[str] = set(DEFAULT_USERIP_FILES_SETTINGS_INI.keys())
-        default_file_header = format_triple_quoted_text(
-            USERIP_DEFAULT_DB_HEADER_TEMPLATE.format(
-                title=TITLE,
-                configuration_guide_url=GITHUB_WIKI_USERIP_CONFIG_URL,
-            ),
-        )
-        default_file_footer = format_triple_quoted_text(USERIP_DEFAULT_DB_FOOTER_TEMPLATE, add_trailing_newline=True)
+        default_db_names: set[str] = set(DEFAULT_USERIP_FILES_SETTINGS.keys())
 
         deleted = 0
         restored = 0
-        for ini_path in ini_files:
-            if ini_path.parent == USERIP_DATABASES_DIR_PATH and ini_path.name in default_db_names:
-                settings_block = DEFAULT_USERIP_FILES_SETTINGS_INI[ini_path.name].strip()
-                ini_path.write_text(
-                    f'{default_file_header}\n\n{settings_block}\n\n{default_file_footer}',
-                    encoding='utf-8',
-                )
+        for json_path in json_files:
+            if json_path.parent == USERIP_DATABASES_DIR_PATH and json_path.name in default_db_names:
+                save_userip_database_model(json_path, UserIPDatabaseFile(settings=DEFAULT_USERIP_FILES_SETTINGS[json_path.name]))
                 restored += 1
             else:
                 try:
-                    ini_path.unlink()
+                    json_path.unlink()
                     deleted += 1
                 except OSError as e:
-                    logger.warning('Failed to delete user database file %s: %s', ini_path, e)
+                    logger.warning('Failed to delete user database file %s: %s', json_path, e)
 
         # Remove user-created subdirectories
         for entry in USERIP_DATABASES_DIR_PATH.iterdir():

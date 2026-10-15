@@ -14,6 +14,12 @@ from session_sniffer.constants.local import USERIP_DATABASES_DIR_PATH
 from session_sniffer.error_messages import format_userip_ip_conflict_message
 from session_sniffer.guis.dialogs import create_nonmodal_warning
 from session_sniffer.guis.utils import find_main_window
+from session_sniffer.models.userip_settings_model import (
+    EntrySource,
+    UserIPEntryModel,
+    pick_earliest_iso,
+    pick_latest_iso,
+)
 from session_sniffer.networking.ip_range import IPRange, parse_ip_range
 from session_sniffer.player.registry import PlayersRegistry
 from session_sniffer.settings import Settings
@@ -69,12 +75,19 @@ class UserIPSettings(NamedTuple):
 
 
 class UserIP(NamedTuple):
-    """Class representing information associated with a specific IP, including settings and usernames."""
+    """Class representing information associated with a specific IP, including settings, usernames, notes, and metadata."""
 
     ip: str
     db_path: Path
     settings: UserIPSettings
     usernames: list[str]
+    notes: list[str]
+    sources: list[EntrySource]
+    detections_count: int = 0
+    added_at: str | None = None
+    updated_at: str | None = None
+    first_seen_at: str | None = None
+    last_seen_at: str | None = None
 
 
 class UserIPConflict(NamedTuple):
@@ -92,6 +105,28 @@ class _RangeEntry(NamedTuple):
     db_path: Path
     settings: UserIPSettings
     usernames: list[str]
+    notes: list[str]
+    sources: list[EntrySource]
+    detections_count: int = 0
+    added_at: str | None = None
+    updated_at: str | None = None
+    first_seen_at: str | None = None
+    last_seen_at: str | None = None
+
+
+class _UsernameMeta(NamedTuple):
+    """Aggregated metadata for a single non-ambiguous username across a UserIP database."""
+
+    db_path: Path
+    settings: UserIPSettings
+    canonical_name: str
+    notes: list[str]
+    sources: list[EntrySource]
+    detections_count: int
+    added_at: str | None
+    updated_at: str | None
+    first_seen_at: str | None
+    last_seen_at: str | None
 
 
 class _UserIPDatabaseEntry(NamedTuple):
@@ -99,8 +134,8 @@ class _UserIPDatabaseEntry(NamedTuple):
 
     db_path: Path
     settings: UserIPSettings
-    single_ips: dict[str, list[str]]
-    range_ips: dict[str, list[str]]
+    single_entries: list[UserIPEntryModel]
+    range_entries: list[UserIPEntryModel]
 
 
 @dataclasses.dataclass(slots=True)
@@ -123,7 +158,7 @@ class UserIPDatabases:
     _ip_to_userip: ClassVar[dict[str, UserIP]] = {}
     _range_entries: ClassVar[list[_RangeEntry]] = []
     _known_alts_clusters: ClassVar[dict[str, list[str]]] = {}
-    _username_to_meta: ClassVar[dict[str, tuple[Path, UserIPSettings, str]]] = {}
+    _username_to_meta: ClassVar[dict[str, _UsernameMeta]] = {}
     notified_ip_conflicts: ClassVar[set[str]] = set()
     _last_notified_conflicts: ClassVar[list[UserIPConflict]] = []
     _open_conflict_dialog: ClassVar[QMessageBox | None] = None
@@ -187,31 +222,30 @@ class UserIPDatabases:
             dlg.accept()
 
     @classmethod
-    def populate(cls, database_entries: list[tuple[Path, UserIPSettings, dict[str, list[str]]]]) -> None:
+    def populate(cls, database_entries: list[tuple[Path, UserIPSettings, list[UserIPEntryModel]]]) -> None:
         """Replace `cls.userip_databases` with a new set of databases.
 
         Args:
-            database_entries: A list of tuples containing db_path, settings, and user_ips.
+            database_entries: A list of tuples containing db_path, settings, and entries.
         """
         classified: list[_UserIPDatabaseEntry] = []
-        for db_path, settings, user_ips in database_entries:
+        for db_path, settings, entries in database_entries:
             if not settings.enabled:
                 continue
-            single_ips: dict[str, list[str]] = {}
-            range_ips: dict[str, list[str]] = {}
-            for username, entries in user_ips.items():
-                for entry in entries:
-                    try:
-                        IPv4Address(entry)
-                        single_ips.setdefault(username, []).append(entry)
-                    except ValueError:
-                        range_ips.setdefault(username, []).append(entry)
+            single_entries: list[UserIPEntryModel] = []
+            range_entries: list[UserIPEntryModel] = []
+            for entry in entries:
+                try:
+                    IPv4Address(entry.ip)
+                    single_entries.append(entry)
+                except ValueError:
+                    range_entries.append(entry)
             classified.append(
                 _UserIPDatabaseEntry(
                     db_path=db_path,
                     settings=settings,
-                    single_ips=single_ips,
-                    range_ips=range_ips,
+                    single_entries=single_entries,
+                    range_entries=range_entries,
                 ),
             )
         with cls._update_userip_database_lock:
@@ -220,12 +254,15 @@ class UserIPDatabases:
     @classmethod
     def _process_single_ip(
         cls,
-        entry: str,
-        username: str,
+        entry_model: UserIPEntryModel,
         db_entry: _UserIPDatabaseEntry,
         build_state: _BuildState,
     ) -> None:
         """Process a single IP entry during build."""
+        entry = entry_model.ip
+        username = entry_model.username
+        note = entry_model.notes.strip()
+
         if entry in build_state.ip_to_userip and build_state.ip_to_userip[entry].db_path != db_entry.db_path:
             existing_index = next(
                 (
@@ -261,32 +298,67 @@ class UserIPDatabases:
                 db_path=db_entry.db_path,
                 settings=db_entry.settings,
                 usernames=[username],
+                notes=[note] if note else [],
+                sources=[entry_model.source],
+                detections_count=entry_model.detections_count,
+                added_at=entry_model.added_at,
+                updated_at=entry_model.updated_at,
+                first_seen_at=entry_model.first_seen_at,
+                last_seen_at=entry_model.last_seen_at,
             )
-        elif username not in build_state.ip_to_userip[entry].usernames:
-            build_state.ip_to_userip[entry].usernames.append(username)
+        else:
+            existing_userip = build_state.ip_to_userip[entry]
+            if username not in existing_userip.usernames:
+                existing_userip.usernames.append(username)
+            if note and note not in existing_userip.notes:
+                existing_userip.notes.append(note)
+            if entry_model.source not in existing_userip.sources:
+                existing_userip.sources.append(entry_model.source)
+            build_state.ip_to_userip[entry] = existing_userip._replace(
+                detections_count=max(existing_userip.detections_count, entry_model.detections_count),
+                added_at=pick_earliest_iso(existing_userip.added_at, entry_model.added_at),
+                updated_at=pick_latest_iso(existing_userip.updated_at, entry_model.updated_at),
+                first_seen_at=pick_earliest_iso(existing_userip.first_seen_at, entry_model.first_seen_at),
+                last_seen_at=pick_latest_iso(existing_userip.last_seen_at, entry_model.last_seen_at),
+            )
 
     @staticmethod
     def _process_range_entry(
-        entry: str,
-        username: str,
+        entry_model: UserIPEntryModel,
         db_path: Path,
         settings: UserIPSettings,
         range_entries: list[_RangeEntry],
     ) -> None:
         """Process a range entry (CIDR, start-end, wildcard) during build."""
+        entry = entry_model.ip
+        username = entry_model.username
+        note = entry_model.notes.strip()
+
         try:
             ip_range = parse_ip_range(entry)
         except ValueError:
             logger.warning('Skipping unparseable UserIP range entry: %r', entry)
             return
 
-        existing = next(
-            (re for re in range_entries if re.ip_range.raw == entry and re.db_path == db_path),
+        existing_index = next(
+            (i for i, re in enumerate(range_entries) if re.ip_range.raw == entry and re.db_path == db_path),
             None,
         )
-        if existing is not None:
+        if existing_index is not None:
+            existing = range_entries[existing_index]
             if username not in existing.usernames:
                 existing.usernames.append(username)
+            if note and note not in existing.notes:
+                existing.notes.append(note)
+            if entry_model.source not in existing.sources:
+                existing.sources.append(entry_model.source)
+            range_entries[existing_index] = existing._replace(
+                detections_count=max(existing.detections_count, entry_model.detections_count),
+                added_at=pick_earliest_iso(existing.added_at, entry_model.added_at),
+                updated_at=pick_latest_iso(existing.updated_at, entry_model.updated_at),
+                first_seen_at=pick_earliest_iso(existing.first_seen_at, entry_model.first_seen_at),
+                last_seen_at=pick_latest_iso(existing.last_seen_at, entry_model.last_seen_at),
+            )
         else:
             range_entries.append(
                 _RangeEntry(
@@ -294,6 +366,13 @@ class UserIPDatabases:
                     db_path=db_path,
                     settings=settings,
                     usernames=[username],
+                    notes=[note] if note else [],
+                    sources=[entry_model.source],
+                    detections_count=entry_model.detections_count,
+                    added_at=entry_model.added_at,
+                    updated_at=entry_model.updated_at,
+                    first_seen_at=entry_model.first_seen_at,
+                    last_seen_at=entry_model.last_seen_at,
                 ),
             )
 
@@ -324,17 +403,112 @@ class UserIPDatabases:
         primary_settings = single_userip.settings if single_userip is not None else matching_ranges[0].settings
 
         combined_usernames: list[str] = []
+        combined_notes: list[str] = []
+        combined_sources: list[EntrySource] = []
+        detections_count = 0
+        added_at: str | None = None
+        updated_at: str | None = None
+        first_seen_at: str | None = None
+        last_seen_at: str | None = None
+
         if single_userip is not None:
             combined_usernames.extend(single_userip.usernames)
+            combined_notes.extend(single_userip.notes)
+            combined_sources.extend(single_userip.sources)
+            detections_count = max(detections_count, single_userip.detections_count)
+            added_at = pick_earliest_iso(added_at, single_userip.added_at)
+            updated_at = pick_latest_iso(updated_at, single_userip.updated_at)
+            first_seen_at = pick_earliest_iso(first_seen_at, single_userip.first_seen_at)
+            last_seen_at = pick_latest_iso(last_seen_at, single_userip.last_seen_at)
+
         for range_entry in matching_ranges:
             combined_usernames.extend(range_entry.usernames)
+            combined_notes.extend(range_entry.notes)
+            combined_sources.extend(range_entry.sources)
+            detections_count = max(detections_count, range_entry.detections_count)
+            added_at = pick_earliest_iso(added_at, range_entry.added_at)
+            updated_at = pick_latest_iso(updated_at, range_entry.updated_at)
+            first_seen_at = pick_earliest_iso(first_seen_at, range_entry.first_seen_at)
+            last_seen_at = pick_latest_iso(last_seen_at, range_entry.last_seen_at)
 
         return UserIP(
             ip=ip,
             db_path=primary_db_path,
             settings=primary_settings,
             usernames=dedup_preserve_order(combined_usernames),
+            notes=dedup_preserve_order(combined_notes),
+            sources=dedup_preserve_order(combined_sources),
+            detections_count=detections_count,
+            added_at=added_at,
+            updated_at=updated_at,
+            first_seen_at=first_seen_at,
+            last_seen_at=last_seen_at,
         )
+
+    @staticmethod
+    def _build_username_meta(
+        current_databases: list[_UserIPDatabaseEntry],
+        unresolved_conflicts: set[str],
+        ambiguous_usernames: set[str],
+        canonical_names: dict[str, str],
+        known_alts_clusters: dict[str, list[str]],
+    ) -> dict[str, _UsernameMeta]:
+        """Build a lookup table mapping non-ambiguous casefolded usernames to their aggregated metadata."""
+        username_to_meta: dict[str, _UsernameMeta] = {}
+        for db_entry in current_databases:
+            for is_single, entry_model in (
+                *((True, e) for e in db_entry.single_entries),
+                *((False, e) for e in db_entry.range_entries),
+            ):
+                if is_single and entry_model.ip in unresolved_conflicts:
+                    continue
+                stripped = entry_model.username.strip()
+                if not stripped:
+                    continue
+                cf = stripped.casefold()
+                if cf in ambiguous_usernames:
+                    continue
+                canonical = canonical_names.get(cf, stripped)
+                note = entry_model.notes.strip()
+                existing_meta = username_to_meta.get(cf)
+                if existing_meta is None:
+                    username_to_meta[cf] = _UsernameMeta(
+                        db_path=db_entry.db_path,
+                        settings=db_entry.settings,
+                        canonical_name=canonical,
+                        notes=[note] if note else [],
+                        sources=[entry_model.source],
+                        detections_count=entry_model.detections_count,
+                        added_at=entry_model.added_at,
+                        updated_at=entry_model.updated_at,
+                        first_seen_at=entry_model.first_seen_at,
+                        last_seen_at=entry_model.last_seen_at,
+                    )
+                else:
+                    if note and note not in existing_meta.notes:
+                        existing_meta.notes.append(note)
+                    if entry_model.source not in existing_meta.sources:
+                        existing_meta.sources.append(entry_model.source)
+                    username_to_meta[cf] = existing_meta._replace(
+                        detections_count=max(existing_meta.detections_count, entry_model.detections_count),
+                        added_at=pick_earliest_iso(existing_meta.added_at, entry_model.added_at),
+                        updated_at=pick_latest_iso(existing_meta.updated_at, entry_model.updated_at),
+                        first_seen_at=pick_earliest_iso(existing_meta.first_seen_at, entry_model.first_seen_at),
+                        last_seen_at=pick_latest_iso(existing_meta.last_seen_at, entry_model.last_seen_at),
+                    )
+
+        for cf, cluster in known_alts_clusters.items():
+            if cf in username_to_meta:
+                meta = username_to_meta[cf]
+                for alt_name in cluster:
+                    alt_cf = alt_name.casefold()
+                    if alt_cf not in ambiguous_usernames and alt_cf not in username_to_meta:
+                        username_to_meta[alt_cf] = meta._replace(
+                            canonical_name=alt_name,
+                            notes=list(meta.notes),
+                            sources=list(meta.sources),
+                        )
+        return username_to_meta
 
     @classmethod
     def build(cls) -> None:
@@ -361,12 +535,10 @@ class UserIPDatabases:
         )
 
         for db_entry in current_databases:
-            for username, ip_addresses in db_entry.single_ips.items():
-                for ip in ip_addresses:
-                    cls._process_single_ip(ip, username, db_entry, build_state)
-            for username, ranges in db_entry.range_ips.items():
-                for range_str in ranges:
-                    cls._process_range_entry(range_str, username, db_entry.db_path, db_entry.settings, range_entries)
+            for single_entry in db_entry.single_entries:
+                cls._process_single_ip(single_entry, db_entry, build_state)
+            for range_entry in db_entry.range_entries:
+                cls._process_range_entry(range_entry, db_entry.db_path, db_entry.settings, range_entries)
 
         # Strip conflicting IPs from the lookup structures so they are fully ignored.
         for conflict_ip in unresolved_conflicts:
@@ -376,18 +548,19 @@ class UserIPDatabases:
         conflicting_ip_usernames: set[str] = set()
         username_databases: dict[str, set[Path]] = {}
         for db_entry in current_databases:
-            for username, ip_addresses in db_entry.single_ips.items():
-                stripped = username.strip()
+            for single_entry in db_entry.single_entries:
+                stripped = single_entry.username.strip()
                 if not stripped:
                     continue
                 cf = stripped.casefold()
                 username_databases.setdefault(cf, set()).add(db_entry.db_path)
-                if any(ip in unresolved_conflicts for ip in ip_addresses):
+                if single_entry.ip in unresolved_conflicts:
                     conflicting_ip_usernames.add(cf)
-            for username in db_entry.range_ips:
-                stripped = username.strip()
+            for range_entry in db_entry.range_entries:
+                stripped = range_entry.username.strip()
                 if stripped:
-                    username_databases.setdefault(stripped.casefold(), set()).add(db_entry.db_path)
+                    cf = stripped.casefold()
+                    username_databases.setdefault(cf, set()).add(db_entry.db_path)
         ambiguous_usernames: set[str] = {cf for cf, paths in username_databases.items() if len(paths) > 1} | conflicting_ip_usernames
 
         # Build known alts clusters from all entries with multiple usernames
@@ -450,26 +623,13 @@ class UserIPDatabases:
             if player.userip is None:
                 player.userip_detection = None
 
-        username_to_meta: dict[str, tuple[Path, UserIPSettings, str]] = {}
-        for db_entry in current_databases:
-            for username in (*db_entry.single_ips.keys(), *db_entry.range_ips.keys()):
-                stripped = username.strip()
-                if not stripped:
-                    continue
-                cf = stripped.casefold()
-                if cf in ambiguous_usernames:
-                    continue
-                canonical = canonical_names.get(cf, stripped)
-                if cf not in username_to_meta:
-                    username_to_meta[cf] = (db_entry.db_path, db_entry.settings, canonical)
-
-        for cf, cluster in known_alts_clusters.items():
-            if cf in username_to_meta:
-                meta = username_to_meta[cf]
-                for alt_name in cluster:
-                    alt_cf = alt_name.casefold()
-                    if alt_cf not in ambiguous_usernames and alt_cf not in username_to_meta:
-                        username_to_meta[alt_cf] = (meta[0], meta[1], alt_name)
+        username_to_meta = cls._build_username_meta(
+            current_databases,
+            unresolved_conflicts,
+            ambiguous_usernames,
+            canonical_names,
+            known_alts_clusters,
+        )
 
         has_new_conflicts = bool(unresolved_conflicts - cls.notified_ip_conflicts)
         conflicts_changed = conflicts != cls._last_notified_conflicts
@@ -538,22 +698,28 @@ class UserIPDatabases:
             meta = cls._username_to_meta.get(cf)
             if meta is None:
                 return None
-            db_path, settings, canonical_name = meta
             clusters = cls._known_alts_clusters
 
         usernames = (
-            cls._expand_usernames_with_cluster_dict([canonical_name], clusters)
+            cls._expand_usernames_with_cluster_dict([meta.canonical_name], clusters)
             if Settings.userip_sync_known_alts
-            else [canonical_name]
+            else [meta.canonical_name]
         )
         return (
             UserIP(
                 ip=player_ip,
-                db_path=db_path,
-                settings=settings,
+                db_path=meta.db_path,
+                settings=meta.settings,
                 usernames=usernames,
+                notes=list(meta.notes),
+                sources=list(meta.sources),
+                detections_count=meta.detections_count,
+                added_at=meta.added_at,
+                updated_at=meta.updated_at,
+                first_seen_at=meta.first_seen_at,
+                last_seen_at=meta.last_seen_at,
             ),
-            canonical_name,
+            meta.canonical_name,
         )
 
     @classmethod

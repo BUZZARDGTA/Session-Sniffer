@@ -45,11 +45,12 @@ from session_sniffer.guis.stylesheets import (
 from session_sniffer.guis.table_column_resizing import setup_table_header_context_menu
 from session_sniffer.guis.tables_player_actions._player_info_dialog_mixin import PlayerInfoDialogMixin
 from session_sniffer.guis.tables_player_actions.looky_system._looky_helpers import build_looky_progress_widgets, check_looky_prerequisites
-from session_sniffer.guis.userip_manager_helpers import iter_userip_entries
+from session_sniffer.guis.userip_manager_helpers import append_userip_entries, load_userip_database_model
 from session_sniffer.guis.utils import (
     apply_search_icon,
     set_clipboard_text,
 )
+from session_sniffer.models.userip_settings_model import UserIPEntryModel
 from session_sniffer.networking.looky_system import (
     extract_rate_limit_message,
     extract_rate_limit_wait_seconds,
@@ -59,7 +60,6 @@ from session_sniffer.player.userip_loader import update_userip_databases
 from session_sniffer.rendering_core.events import wake_rendering_core
 from session_sniffer.settings.settings import Settings
 from session_sniffer.text_utils import pluralize
-from session_sniffer.utils import write_lines_to_file
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -136,16 +136,11 @@ def _collect_existing_usernames(db_path: Path) -> dict[str, list[str]]:
     """Return a mapping of IP → list of existing usernames in file order from the given database file."""
     ip_to_usernames: dict[str, list[str]] = {}
     ip_to_seen: dict[str, set[str]] = {}
-    try:
-        content = db_path.read_text(encoding='utf-8')
-    except OSError as e:
-        logger.warning('Failed to read database file %s: %s', db_path, e)
-        return ip_to_usernames
-    for username, ip in iter_userip_entries(content):
-        seen = ip_to_seen.setdefault(ip, set())
-        if username not in seen:
-            ip_to_usernames.setdefault(ip, []).append(username)
-            seen.add(username)
+    for entry in load_userip_database_model(db_path).entries:
+        seen = ip_to_seen.setdefault(entry.ip, set())
+        if entry.username not in seen:
+            ip_to_usernames.setdefault(entry.ip, []).append(entry.username)
+            seen.add(entry.username)
     return ip_to_usernames
 
 
@@ -634,9 +629,9 @@ def looky_refresh_userip_entries(
 
         total_added = 0
         for db_path, db_entries in by_db.items():
-            new_lines = [f'{entry.username}={entry.ip} ; looky\n' for entry in db_entries]
-            write_lines_to_file(db_path, 'a', new_lines)
-            total_added += len(new_lines)
+            new_models = [UserIPEntryModel(username=entry.username, ip=entry.ip, is_looky=True, source='Looky') for entry in db_entries]
+            append_userip_entries(db_path, new_models)
+            total_added += len(new_models)
 
         update_userip_databases()
         wake_rendering_core()

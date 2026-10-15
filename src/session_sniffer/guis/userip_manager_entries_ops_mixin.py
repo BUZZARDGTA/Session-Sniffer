@@ -6,7 +6,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from PySide6.QtCore import QItemSelectionModel, QModelIndex, QSignalBlocker, Qt
-from PySide6.QtGui import QBrush, QColor, QIcon, QStandardItem, QStandardItemModel
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QDialog,
@@ -24,18 +23,31 @@ from session_sniffer.guis.userip_manager_helpers import (
     DUPLICATE_HIGHLIGHT_BRUSH,
     INDEX_COLUMN,
     IP_COLUMN,
+    NOTES_COLUMN,
     RANGE_COLUMN,
-    SETTINGS_DEFAULTS,
-    SETTINGS_KEYS_ORDER,
     USERNAME_COLUMN,
     EntriesSortProxy,
     IPRangeBuilderDialog,
     append_userip_entries,
+    build_entry_row_items,
+    clear_row_looky_badge,
+    dedup_userip_entries,
+    extract_entry_model_from_row,
+    is_row_persisted,
     iter_userip_databases,
-    read_preserved_sections,
+    mark_row_persisted,
     rewrite_db_edit_entry_ip,
+    rewrite_db_edit_entry_note,
     rewrite_db_rename_entries,
     rewrite_db_without_entries,
+    save_userip_database_model,
+    set_row_updated_at,
+)
+from session_sniffer.models.userip_settings_model import (
+    UserIPDatabaseFile,
+    UserIPEntryModel,
+    UserIPSettingsModel,
+    get_current_iso_timestamp,
 )
 from session_sniffer.networking.ip_range import is_valid_ip_range_entry
 from session_sniffer.player.userip_loader import update_userip_databases
@@ -45,6 +57,8 @@ from session_sniffer.utils import dedup_preserve_order
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+
+    from PySide6.QtGui import QStandardItemModel
 
     from session_sniffer.guis.file_watch import DebouncedFileWatcher
 
@@ -73,13 +87,18 @@ class UserIPEntriesOperationsMixin(QDialog):
     _fs_watcher: DebouncedFileWatcher
     _saving: bool
     _disk_snapshot: str
-    _settings_snapshot: dict[str, str]
+    _settings_snapshot: UserIPSettingsModel
     _dirty: bool
     _search_input: QLineEdit
     _settings_container: QFrame
 
     def _append_row(
-        self, username: str, ip: str, *, index: int = 0, database: tuple[str, Path] | None = None, is_looky: bool = False,
+        self,
+        entry: UserIPEntryModel,
+        *,
+        index: int = 0,
+        database: tuple[str, Path] | None = None,
+        persisted: bool = True,
     ) -> None:
         raise NotImplementedError
 
@@ -104,7 +123,7 @@ class UserIPEntriesOperationsMixin(QDialog):
         raise NotImplementedError
 
     if TYPE_CHECKING:
-        read_settings_from_widgets: Callable[[], dict[str, str]]
+        read_settings_from_widgets: Callable[[], UserIPSettingsModel]
 
     # ------------------------------------------------------------------
     # Watch management
@@ -117,7 +136,7 @@ class UserIPEntriesOperationsMixin(QDialog):
 
         files: list[Path] = []
         if self._global_search_active:
-            files.extend(ini_path for ini_path in USERIP_DATABASES_DIR_PATH.rglob('*.ini') if ini_path.is_file())
+            files.extend(json_path for json_path in USERIP_DATABASES_DIR_PATH.rglob('*.json') if json_path.is_file())
         elif self._current_path is not None and self._current_path.is_file():
             files.append(self._current_path)
 
@@ -167,17 +186,21 @@ class UserIPEntriesOperationsMixin(QDialog):
     # ------------------------------------------------------------------
 
     def _load_all_databases(self) -> None:
-        """Parse all .ini files and populate the table with entries from every database."""
+        """Parse all .json files and populate the table with entries from every database."""
         self._model.removeRows(0, self._model.rowCount())
 
         total_entries = 0
         total_files = 0
 
-        for ini_path, entries in iter_userip_databases():
+        for json_path, entries in iter_userip_databases():
             total_files += 1
-            for username, ip, is_looky in entries:
+            for entry in entries:
                 total_entries += 1
-                self._append_row(username, ip, index=total_entries, database=(ini_path.stem, ini_path), is_looky=is_looky)
+                self._append_row(
+                    entry,
+                    index=total_entries,
+                    database=(json_path.stem, json_path),
+                )
 
         self._set_status(f'Global search: {total_entries} entries across {total_files} databases')
         self._proxy.setFilterFixedString(self._search_input.text())
@@ -200,7 +223,7 @@ class UserIPEntriesOperationsMixin(QDialog):
         if not ip_text:
             return
 
-        self._append_row('', ip_text, index=self._next_index)
+        self._append_row(UserIPEntryModel(username='', ip=ip_text), index=self._next_index, persisted=False)
         self._next_index += 1
         self._mark_entries_dirty()
         self._update_entry_counts()
@@ -266,6 +289,7 @@ class UserIPEntriesOperationsMixin(QDialog):
                 ip_item.setText(new_ip_text if is_single else '')
             if range_item:
                 range_item.setText('' if is_single else new_ip_text)
+            set_row_updated_at(self._model, source_row)
 
             self._highlight_duplicates()
             self._update_entry_counts()
@@ -280,6 +304,8 @@ class UserIPEntriesOperationsMixin(QDialog):
                     ip_item.setText(new_ip_text if is_single else '')
                 if range_item:
                     range_item.setText('' if is_single else new_ip_text)
+                if is_row_persisted(self._model, source_row):
+                    set_row_updated_at(self._model, source_row)
 
             self._mark_entries_dirty()
             self._highlight_duplicates()
@@ -288,17 +314,72 @@ class UserIPEntriesOperationsMixin(QDialog):
             if not self._dirty:
                 self._set_status(f'Updated entry to "{new_ip_text}".')
 
+    def _edit_entry_note(self, source_row: int) -> None:
+        """Open a text input dialog to edit the note of an existing entry."""
+        if not self._global_search_active and self._current_path is None:
+            return
+
+        notes_item = self._model.item(source_row, NOTES_COLUMN)
+        current_note = notes_item.text().strip() if notes_item else ''
+
+        new_note, accepted = QInputDialog.getText(
+            self,
+            'Edit Note',
+            'Enter the note for this entry (leave empty to clear):',
+            QLineEdit.EchoMode.Normal,
+            current_note,
+        )
+        if not accepted:
+            return
+        new_note = new_note.strip()
+        if new_note == current_note:
+            return
+
+        if self._global_search_active:
+            database_item = self._model.item(source_row, DATABASE_COLUMN)
+            database_path_str = database_item.data(Qt.ItemDataRole.UserRole) if database_item else None
+            username_item = self._model.item(source_row, USERNAME_COLUMN)
+            username = username_item.text().strip() if username_item else ''
+            entry_ip_or_range = self._get_row_entry_value(source_row).strip()
+            database_path = Path(database_path_str) if database_path_str else None
+            if not database_path or not database_path.is_file() or not username or not entry_ip_or_range:
+                return
+
+            with QSignalBlocker(self._fs_watcher):
+                success = rewrite_db_edit_entry_note(database_path, username, entry_ip_or_range, new_note)
+            self._rebuild_fs_watch()
+
+            if not success:
+                return
+
+            if notes_item:
+                notes_item.setText(new_note)
+            set_row_updated_at(self._model, source_row)
+
+            update_userip_databases()
+            wake_rendering_core()
+            self._set_status(f'Updated note for "{username}" in {database_path.name}.')
+        else:
+            with QSignalBlocker(self._model):
+                if notes_item:
+                    notes_item.setText(new_note)
+                if is_row_persisted(self._model, source_row):
+                    set_row_updated_at(self._model, source_row)
+
+            self._mark_entries_dirty()
+            self._save_database()
+            if not self._dirty:
+                self._set_status('Updated note.')
+
     def _insert_entry_at(self, source_row: int) -> None:
         """Insert a blank row at a specific position in the source model."""
         if self._current_path is None:
             return
 
-        index_item = QStandardItem('')
-        index_item.setData(0, Qt.ItemDataRole.UserRole)
-        index_item.setFlags(index_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
-        username_item = QStandardItem('')
-        db_item = QStandardItem('')
-        self._model.insertRow(source_row, [index_item, username_item, QStandardItem(''), QStandardItem(''), db_item])
+        self._model.insertRow(
+            source_row,
+            build_entry_row_items(UserIPEntryModel(username='', ip=''), persisted=False),
+        )
 
         self._renumber_indexes()
         self._mark_entries_dirty()
@@ -329,8 +410,12 @@ class UserIPEntriesOperationsMixin(QDialog):
         if not new_usernames:
             return
 
+        new_entry_models = [UserIPEntryModel(username=name, ip=entry_value) for name in new_usernames]
         with QSignalBlocker(self._fs_watcher):
-            added_pairs = append_userip_entries(database_path, [(name, entry_value, False) for name in new_usernames])
+            added_pairs = append_userip_entries(
+                database_path,
+                new_entry_models,
+            )
         self._rebuild_fs_watch()
 
         if not added_pairs:
@@ -343,18 +428,16 @@ class UserIPEntriesOperationsMixin(QDialog):
 
         database_label = database_item.text() if database_item else database_path.stem
         insert_at = source_row + 1
-        for added_name in new_usernames:
-            if (added_name, entry_value) not in added_pairs:
+        for entry_model in new_entry_models:
+            if (entry_model.username, entry_value) not in added_pairs:
                 continue
-            index_item = QStandardItem('')
-            index_item.setData(0, Qt.ItemDataRole.UserRole)
-            index_item.setFlags(index_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
-            username_item = QStandardItem(added_name)
-            new_db_item = QStandardItem(database_label)
-            new_db_item.setData(str(database_path), Qt.ItemDataRole.UserRole)
             self._model.insertRow(
                 insert_at,
-                [index_item, username_item, QStandardItem(ip_text), QStandardItem(range_text), new_db_item],
+                build_entry_row_items(
+                    entry_model,
+                    database=(database_label, database_path),
+                    persisted=True,
+                ),
             )
             insert_at += 1
 
@@ -382,14 +465,12 @@ class UserIPEntriesOperationsMixin(QDialog):
 
         insert_at = source_row + 1
         for added_name in new_usernames:
-            index_item = QStandardItem('')
-            index_item.setData(0, Qt.ItemDataRole.UserRole)
-            index_item.setFlags(index_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
-            username_item = QStandardItem(added_name)
-            db_item = QStandardItem('')
             self._model.insertRow(
                 insert_at,
-                [index_item, username_item, QStandardItem(ip_text), QStandardItem(range_text), db_item],
+                build_entry_row_items(
+                    UserIPEntryModel(username=added_name, ip=entry_value),
+                    persisted=True,
+                ),
             )
             insert_at += 1
 
@@ -422,15 +503,12 @@ class UserIPEntriesOperationsMixin(QDialog):
             self._add_username_filtered(source_row, ip_text, range_text)
             return
 
-        index_item = QStandardItem('')
-        index_item.setData(0, Qt.ItemDataRole.UserRole)
-        index_item.setFlags(index_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
-        username_item = QStandardItem('')
-        db_item = QStandardItem('')
-
         self._model.insertRow(
             source_row + 1,
-            [index_item, username_item, QStandardItem(ip_text), QStandardItem(range_text), db_item],
+            build_entry_row_items(
+                UserIPEntryModel(username='', ip=ip_text or range_text),
+                persisted=False,
+            ),
         )
 
         self._renumber_indexes()
@@ -575,9 +653,9 @@ class UserIPEntriesOperationsMixin(QDialog):
                 return
 
             for row in source_rows:
-                username_item = self._model.item(row, USERNAME_COLUMN)
-                if username_item:
-                    username_item.setText(new_username)
+                self._model.item(row, USERNAME_COLUMN).setText(new_username)
+                clear_row_looky_badge(self._model, row)
+                set_row_updated_at(self._model, row)
 
             self._highlight_duplicates()
             self._update_entry_counts()
@@ -587,14 +665,10 @@ class UserIPEntriesOperationsMixin(QDialog):
         else:
             with QSignalBlocker(self._model):
                 for row in source_rows:
-                    username_item = self._model.item(row, USERNAME_COLUMN)
-                    if username_item:
-                        username_item.setText(new_username)
-                        if username_item.data(Qt.ItemDataRole.UserRole):
-                            username_item.setData(None, Qt.ItemDataRole.UserRole)
-                            username_item.setIcon(QIcon())
-                            username_item.setForeground(QBrush())
-                            username_item.setToolTip('')
+                    self._model.item(row, USERNAME_COLUMN).setText(new_username)
+                    clear_row_looky_badge(self._model, row)
+                    if is_row_persisted(self._model, row):
+                        set_row_updated_at(self._model, row)
 
             self._mark_entries_dirty()
             self._highlight_duplicates()
@@ -686,16 +760,14 @@ class UserIPEntriesOperationsMixin(QDialog):
             return
 
         source_rows = sorted({self._proxy.mapToSource(i).row() for i in selected_indexes})
+        now_iso = get_current_iso_timestamp()
 
-        entries_to_move: list[tuple[str, str, bool, int]] = []
+        entries_to_move: list[tuple[UserIPEntryModel, int]] = []
         for row in source_rows:
-            u_item = self._model.item(row, USERNAME_COLUMN)
-            username = u_item.text().strip() if u_item else ''
-            ip_or_range = self._get_row_entry_value(row).strip()
-            if not username or not ip_or_range:
+            _, _, _, entry_model = extract_entry_model_from_row(self._model, row)
+            if entry_model is None:
                 continue
-            is_looky = bool(u_item.data(Qt.ItemDataRole.UserRole)) if u_item else False
-            entries_to_move.append((username, ip_or_range, is_looky, row))
+            entries_to_move.append((entry_model.model_copy(update={'updated_at': now_iso}), row))
 
         if not entries_to_move:
             QMessageBox.information(self, TITLE, 'No valid entries to move.')
@@ -706,9 +778,9 @@ class UserIPEntriesOperationsMixin(QDialog):
 
         if self._global_search_active:
             entries_by_src: dict[Path, set[tuple[str, str]]] = defaultdict(set)
-            valid_moves: list[tuple[str, str, bool, int]] = []
+            valid_moves: list[tuple[UserIPEntryModel, int]] = []
 
-            for username, ip_or_range, is_looky, row in entries_to_move:
+            for entry_model, row in entries_to_move:
                 db_item = self._model.item(row, DATABASE_COLUMN)
                 db_path_str = db_item.data(Qt.ItemDataRole.UserRole) if db_item else None
                 if not db_path_str:
@@ -716,29 +788,30 @@ class UserIPEntriesOperationsMixin(QDialog):
                 src_db_path = Path(db_path_str)
                 if src_db_path == target_db_path:
                     continue
-                entries_by_src[src_db_path].add((username, ip_or_range))
-                valid_moves.append((username, ip_or_range, is_looky, row))
+                entries_by_src[src_db_path].add((entry_model.username, entry_model.ip))
+                valid_moves.append((entry_model, row))
 
             if not valid_moves:
                 QMessageBox.information(self, TITLE, f'Selected {pluralize(count, "entry", "entries")} already belong to "{target_display_name}".')
                 return
 
             with QSignalBlocker(self._fs_watcher):
-                added_pairs = append_userip_entries(target_db_path, [(u, ip, lk) for u, ip, lk, _ in valid_moves])
+                added_pairs = append_userip_entries(target_db_path, [entry_model for entry_model, _ in valid_moves])
 
                 for src_db_path, to_remove in entries_by_src.items():
                     if src_db_path.is_file():
                         rewrite_db_without_entries(src_db_path, to_remove)
 
             rows_to_remove: list[int] = []
-            for username, ip_or_range, _is_looky, row in valid_moves:
-                pair = (username, ip_or_range)
+            for entry_model, row in valid_moves:
+                pair = (entry_model.username, entry_model.ip)
                 if pair in added_pairs:
                     added_pairs.discard(pair)
                     db_item = self._model.item(row, DATABASE_COLUMN)
                     if db_item:
                         db_item.setText(str(target_display_name))
                         db_item.setData(str(target_db_path), Qt.ItemDataRole.UserRole)
+                    set_row_updated_at(self._model, row, now_iso)
                 else:
                     rows_to_remove.append(row)
 
@@ -758,9 +831,9 @@ class UserIPEntriesOperationsMixin(QDialog):
             if self._dirty and not self._save_on_close():
                 return
 
-            append_userip_entries(target_db_path, [(u, ip, lk) for u, ip, lk, _ in entries_to_move])
+            append_userip_entries(target_db_path, [entry_model for entry_model, _ in entries_to_move])
 
-            for row in sorted({r for _, _, _, r in entries_to_move}, reverse=True):
+            for row in sorted({r for _, r in entries_to_move}, reverse=True):
                 self._model.removeRow(row)
 
             self._renumber_indexes()
@@ -786,17 +859,13 @@ class UserIPEntriesOperationsMixin(QDialog):
 
                 # --- Validate all entries ---
                 errors: list[str] = []
-                entries: list[tuple[str, str, bool]] = []
+                entries: list[UserIPEntryModel] = []
+                persisted_rows: list[int] = []
 
                 for row in range(self._model.rowCount()):
-                    username_item = self._model.item(row, USERNAME_COLUMN)
-                    if not username_item:
-                        continue
+                    username, ip, notes, entry_model = extract_entry_model_from_row(self._model, row)
 
-                    username = username_item.text().strip()
-                    ip = self._get_row_entry_value(row)
-
-                    if not username and not ip:
+                    if not username and not ip and not notes:
                         continue  # skip completely empty rows
 
                     if not username:
@@ -806,9 +875,9 @@ class UserIPEntriesOperationsMixin(QDialog):
                     elif not is_valid_ip_range_entry(ip):
                         errors.append(f'Row {row + 1}: "{ip}" is not a valid IP address or range.')
 
-                    if username and ip:
-                        is_looky = bool(username_item.data(Qt.ItemDataRole.UserRole))
-                        entries.append((username, ip, is_looky))
+                    if entry_model is not None and is_valid_ip_range_entry(ip):
+                        entries.append(entry_model)
+                        persisted_rows.append(row)
 
                 if errors:
                     if show_errors:
@@ -816,17 +885,9 @@ class UserIPEntriesOperationsMixin(QDialog):
                     return
 
                 # --- Deduplicate exact (username, ip) pairs ---
-                seen: set[tuple[str, str]] = set()
-                unique_entries: list[tuple[str, str, bool]] = []
-                duplicate_count = 0
-                for entry in entries:
-                    base_entry = (entry[0], entry[1])
-                    if base_entry in seen:
-                        duplicate_count += 1
-                        continue
-                    seen.add(base_entry)
-                    unique_entries.append(entry)
-                entries = unique_entries
+                total_before_dedup = len(entries)
+                entries = dedup_userip_entries(entries)
+                duplicate_count = total_before_dedup - len(entries)
 
                 if duplicate_count > 0:
                     QMessageBox.information(
@@ -835,37 +896,19 @@ class UserIPEntriesOperationsMixin(QDialog):
                         f'{duplicate_count} exact duplicate entr{pluralize(duplicate_count, "y was", "ies were")} removed before saving.',
                     )
 
-                # --- Read existing file to preserve header ---
-                header_lines, _ = read_preserved_sections(self._current_path)
+                with QSignalBlocker(self._model):
+                    for row in persisted_rows:
+                        mark_row_persisted(self._model, row)
 
                 # --- Build settings from widgets ---
-                settings_values = self.read_settings_from_widgets()
+                settings_model = self.read_settings_from_widgets()
 
-                # --- Validate COLOR ---
-                color_value = settings_values.get('COLOR', '')
-                if color_value and not QColor(color_value).isValid():
-                    if show_errors:
-                        QMessageBox.critical(self, TITLE, f'Invalid color value: "{color_value}"\n\nUse a Qt color name (e.g. RED, GREEN) or hex (e.g. #ff00ff).')
-                    return
-
-                # --- Build new file content ---
-                output_lines: list[str] = [*header_lines]
-
-                output_lines.append('[Settings]')
-                output_lines.extend(f'{key}={settings_values.get(key, SETTINGS_DEFAULTS[key])}' for key in SETTINGS_KEYS_ORDER)
-                output_lines.append('')
-
-                output_lines.append('[UserIP]')
-                for username, ip, is_looky in entries:
-                    suffix = ' ; looky' if is_looky else ''
-                    output_lines.append(f'{username}={ip}{suffix}')
-                output_lines.append('')  # trailing newline
-
-                written_content = '\r\n'.join(output_lines)
-                self._current_path.write_text(written_content, encoding='utf-8', newline='')
+                # --- Write new JSON file content ---
+                db_model = UserIPDatabaseFile(settings=settings_model, entries=entries)
+                save_userip_database_model(self._current_path, db_model)
                 self._disk_snapshot = self._current_path.read_text('utf-8')
 
-                self._settings_snapshot = settings_values.copy()
+                self._settings_snapshot = settings_model.model_copy()
                 self._clear_dirty_state()
                 self._update_file_info(self._current_path)
                 self._set_status(f'Saved {len(entries)} entries to {self._current_path.name}')

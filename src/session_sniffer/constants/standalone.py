@@ -14,8 +14,6 @@ GITHUB_VERSIONS_URL: str = 'https://raw.githubusercontent.com/BUZZARDGTA/Session
 GITHUB_WIKI_URL: str = 'https://github.com/BUZZARDGTA/Session-Sniffer/wiki'
 GITHUB_WIKI_TIPS_URL: str = 'https://github.com/BUZZARDGTA/Session-Sniffer/wiki/Tips-and-Tricks'
 GITHUB_LICENSE_URL: str = 'https://github.com/BUZZARDGTA/Session-Sniffer/blob/main/COPYING'
-GITHUB_WIKI_SCRIPT_CONFIG_URL: str = 'https://github.com/BUZZARDGTA/Session-Sniffer/wiki/Configuration-Guide#script-settings-configuration'
-GITHUB_WIKI_USERIP_CONFIG_URL: str = 'https://github.com/BUZZARDGTA/Session-Sniffer/wiki/Configuration-Guide#userip-ini-databases-configuration'
 
 # Port numbers used by protocol-specific capture filters.
 SSDPP_PORT: int = 1900

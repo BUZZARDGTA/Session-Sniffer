@@ -33,7 +33,7 @@ from session_sniffer.player.combo_rules import ComboRulesManager
 from session_sniffer.player.detections import GUIDetectionSettings
 from session_sniffer.player.registry import PlayersRegistry
 from session_sniffer.player.userip import UserIP, UserIPDatabases, gui_dispatcher
-from session_sniffer.player.userip_loader import append_userip_entry_if_missing, update_userip_databases
+from session_sniffer.player.userip_loader import append_userip_entry_if_missing, record_userip_detection, update_userip_databases
 from session_sniffer.rendering_core.events import wake_rendering_core
 from session_sniffer.rendering_core.types import CaptureState, CaptureStats
 from session_sniffer.settings import Settings
@@ -382,6 +382,13 @@ def process_userip_task(
             tts_candidate_path = TTS_DIR_PATH / tts_voice_name(voice_setting=userip.settings.voice_notifications) / 'userip' / f'{connection_type}.wav'
             queue_voice_notification(tts_candidate_path)
 
+        if connection_type == 'connected':
+            updated_userip = record_userip_detection(userip.db_path, player.ip)
+            if updated_userip is not None:
+                userip = updated_userip
+                player.userip = updated_userip
+                wake_rendering_core()
+
         if player.userip is None:
             player.userip = userip
         if userip.usernames:
@@ -458,6 +465,7 @@ def trigger_auto_username_userip(player: Player, detected_usernames: Sequence[st
     appended = append_userip_entry_if_missing(resolved_userip.db_path, matched_username, player.ip)
     if appended:
         update_userip_databases()
+        resolved_userip = UserIPDatabases.resolve_userip(player.ip) or resolved_userip
 
     if player.ip in UserIPDatabases.notified_ip_conflicts:
         return

@@ -1,5 +1,7 @@
 """Database settings panel mixin for the UserIP Databases Manager dialog."""
 
+from typing import Literal
+
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QIcon
 from PySide6.QtWidgets import (
@@ -31,6 +33,7 @@ from session_sniffer.guis.utils import (
     SUSPEND_TOOLTIP_DISABLED,
     SUSPEND_TOOLTIP_MANUAL,
 )
+from session_sniffer.models.userip_settings_model import UserIPSettingsModel
 from session_sniffer.rendering_core.types import CaptureState
 from session_sniffer.settings import Settings
 from session_sniffer.text_utils import DEFAULT_MANUAL_SUSPEND_DURATION_SECONDS
@@ -205,42 +208,33 @@ class SettingsPanelMixin(QDialog):
     # Populate / read
     # ------------------------------------------------------------------
 
-    def populate_settings_widgets(self, settings_dict: dict[str, str]) -> None:
-        """Populate settings widgets from a parsed settings dictionary, suppressing dirty signals."""
+    def populate_settings_widgets(self, settings: UserIPSettingsModel) -> None:
+        """Populate settings widgets from a `UserIPSettingsModel`, suppressing dirty signals."""
         self._settings_loading = True
 
-        self._setting_enabled.setChecked(settings_dict.get('ENABLED', 'True').strip().lower() == 'true')
-        raw_color = settings_dict.get('COLOR', '').strip()
+        self._setting_enabled.setChecked(settings.ENABLED)
+        raw_color = settings.COLOR.strip()
         self._current_color = QColor(raw_color) if raw_color and QColor(raw_color).isValid() else QColor()
         self._current_color_name = raw_color if self._current_color.isValid() else ''
         self._update_color_button()
-        self._setting_log.setChecked(settings_dict.get('LOG', 'True').strip().lower() == 'true')
-        self._setting_notifications.setChecked(settings_dict.get('NOTIFICATIONS', 'True').strip().lower() == 'true')
+        self._setting_log.setChecked(settings.LOG)
+        self._setting_notifications.setChecked(settings.NOTIFICATIONS)
 
-        voice_val = settings_dict.get('VOICE_NOTIFICATIONS', 'False').strip()
-        voice_map = {'false': 0, 'male': 1, 'female': 2}
-        self._setting_voice.setCurrentIndex(voice_map.get(voice_val.lower(), 0))
+        voice_map: dict[Literal['Male', 'Female', False], int] = {False: 0, 'Male': 1, 'Female': 2}
+        self._setting_voice.setCurrentIndex(voice_map.get(settings.VOICE_NOTIFICATIONS, 0))
 
-        prot_val = settings_dict.get('PROTECTION', 'False').strip()
-        suspend_val = settings_dict.get('PROTECTION_SUSPEND_PROCESS_MODE', 'Auto').strip()
-        if prot_val.lower() in ('false', '0', ''):
+        if not settings.PROTECTION:
             self._setting_suspend_mode.setCurrentIndex(0)  # Disabled
             self._setting_suspend_custom.setValue(DEFAULT_MANUAL_SUSPEND_DURATION_SECONDS)
             self._setting_suspend_custom.setVisible(False)
-        elif suspend_val.lower() == 'auto':
+        elif settings.PROTECTION_SUSPEND_PROCESS_MODE == 'Auto':
             self._setting_suspend_mode.setCurrentIndex(1)  # Auto
             self._setting_suspend_custom.setValue(DEFAULT_MANUAL_SUSPEND_DURATION_SECONDS)
             self._setting_suspend_custom.setVisible(False)
         else:
             self._setting_suspend_mode.setCurrentIndex(2)  # Manual
             self._setting_suspend_custom.setVisible(True)
-            try:
-                if suspend_val.startswith('Manual(') and suspend_val.endswith(')'):
-                    self._setting_suspend_custom.setValue(int(suspend_val.removeprefix('Manual(').removesuffix(')')))
-                else:
-                    self._setting_suspend_custom.setValue(int(suspend_val))
-            except ValueError:
-                self._setting_suspend_custom.setValue(DEFAULT_MANUAL_SUSPEND_DURATION_SECONDS)
+            self._setting_suspend_custom.setValue(max(1, settings.PROTECTION_SUSPEND_PROCESS_MODE))
 
         self._update_enabled_body_visible()
 
@@ -248,30 +242,27 @@ class SettingsPanelMixin(QDialog):
 
         self._settings_loading = False
 
-    def read_settings_from_widgets(self) -> dict[str, str]:
-        """Read current widget values and return a settings dictionary for serialization."""
-        settings: dict[str, str] = {}
-
-        settings['ENABLED'] = str(self._setting_enabled.isChecked())
-        settings['COLOR'] = self._current_color_name
-        settings['LOG'] = str(self._setting_log.isChecked())
-        settings['NOTIFICATIONS'] = str(self._setting_notifications.isChecked())
-
+    def read_settings_from_widgets(self) -> UserIPSettingsModel:
+        """Read current widget values and return a `UserIPSettingsModel` for serialization."""
         voice_index = self._setting_voice.currentIndex()
-        settings['VOICE_NOTIFICATIONS'] = ['False', 'Male', 'Female'][voice_index]
-
-        if not self._is_protection_supported():
-            settings['PROTECTION'] = 'False'
-        else:
-            settings['PROTECTION'] = 'Suspend_Process' if self._setting_suspend_mode.currentIndex() else 'False'
+        voice_values: tuple[Literal[False], Literal['Male'], Literal['Female']] = (False, 'Male', 'Female')
+        voice_notifications: Literal['Male', 'Female', False] = (
+            voice_values[voice_index] if 0 <= voice_index < len(voice_values) else False
+        )
 
         suspend_index = self._setting_suspend_mode.currentIndex()
-        if suspend_index <= 1:  # Disabled or Auto
-            settings['PROTECTION_SUSPEND_PROCESS_MODE'] = 'Auto'
-        else:
-            settings['PROTECTION_SUSPEND_PROCESS_MODE'] = f'Manual({self._setting_suspend_custom.value()})'
+        protection_enabled = bool(suspend_index) if self._is_protection_supported() else False
+        suspend_mode: int | Literal['Auto'] = 'Auto' if suspend_index <= 1 else self._setting_suspend_custom.value()
 
-        return settings
+        return UserIPSettingsModel(
+            ENABLED=self._setting_enabled.isChecked(),
+            COLOR=self._current_color_name,
+            LOG=self._setting_log.isChecked(),
+            NOTIFICATIONS=self._setting_notifications.isChecked(),
+            VOICE_NOTIFICATIONS=voice_notifications,
+            PROTECTION=protection_enabled,
+            PROTECTION_SUSPEND_PROCESS_MODE=suspend_mode,
+        )
 
     # ------------------------------------------------------------------
     # Signals

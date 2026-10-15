@@ -1,24 +1,17 @@
 """UserIP Databases Manager dialog for browsing, editing, and managing UserIP database files and entries."""
 
 from datetime import UTC, datetime
-from ipaddress import IPv4Address
 from typing import TYPE_CHECKING, ClassVar, override
-
-if TYPE_CHECKING:
-    from pathlib import Path
 
 from PySide6.QtCore import QByteArray, QModelIndex, QSignalBlocker, Qt, QUrl
 from PySide6.QtGui import (
-    QBrush,
     QCloseEvent,
-    QColor,
     QDesktopServices,
     QIcon,
     QKeySequence,
     QResizeEvent,
     QShortcut,
     QShowEvent,
-    QStandardItem,
     QStandardItemModel,
 )
 from PySide6.QtWidgets import (
@@ -50,17 +43,28 @@ from session_sniffer.guis.table_column_resizing import adjust_last_visible_colum
 from session_sniffer.guis.userip_manager_context_menu_mixin import EntriesContextMenuMixin
 from session_sniffer.guis.userip_manager_entries_ops_mixin import UserIPEntriesOperationsMixin
 from session_sniffer.guis.userip_manager_helpers import (
+    ADDED_AT_COLUMN,
     DATABASE_COLUMN,
+    DETECTIONS_COLUMN,
+    ENTRY_TABLE_HEADERS,
+    FIRST_SEEN_AT_COLUMN,
     INDEX_COLUMN,
     IP_COLUMN,
+    LAST_SEEN_AT_COLUMN,
+    NEW_DATABASE_SETTINGS,
+    NOTES_COLUMN,
     RANGE_COLUMN,
+    SOURCE_COLUMN,
+    UPDATED_AT_COLUMN,
     USERNAME_COLUMN,
     EntriesSortProxy,
+    build_entry_row_items,
+    clear_row_looky_badge,
     human_readable_size,
+    is_row_persisted,
     iter_userip_databases,
-    iter_userip_entries_with_metadata,
-    parse_settings_from_lines,
-    read_preserved_sections,
+    load_userip_database_model,
+    set_row_updated_at,
 )
 from session_sniffer.guis.userip_manager_import_export_mixin import UserIPImportExportMixin
 from session_sniffer.guis.userip_manager_settings_mixin import SettingsPanelMixin
@@ -77,6 +81,11 @@ from session_sniffer.guis.utils import (
 from session_sniffer.models import GUIState
 from session_sniffer.settings.settings import Settings
 from session_sniffer.text_utils import pluralize
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+    from session_sniffer.models.userip_settings_model import UserIPEntryModel, UserIPSettingsModel
 
 
 def _load_userip_manager_state() -> tuple[QByteArray | None, bool, QByteArray | None, dict[str, int] | None]:
@@ -160,7 +169,7 @@ class UserIPDatabasesManager(
         self._dirty = False
         self._entries_dirty = False
         self._settings_dirty = False
-        self._settings_snapshot: dict[str, str] = {}
+        self._settings_snapshot: UserIPSettingsModel = NEW_DATABASE_SETTINGS.model_copy()
         self._global_search_active = False
         self._next_index = 1
         self._disk_snapshot: str = ''
@@ -220,7 +229,7 @@ class UserIPDatabasesManager(
         self._fs_model = QFileSystemModel(self)
         self._fs_model.setRootPath(str(USERIP_DATABASES_DIR_PATH))
         self._fs_model.setReadOnly(False)
-        self._fs_model.setNameFilters(['*.ini'])
+        self._fs_model.setNameFilters(['*.json'])
         self._fs_model.setNameFilterDisables(False)
 
         self._tree = QTreeView()
@@ -256,7 +265,7 @@ class UserIPDatabasesManager(
         transfer_buttons = QHBoxLayout()
 
         import_menu = QMenu(self)
-        import_files_action = import_menu.addAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'folder.svg')), 'Import .ini file(s)…')
+        import_files_action = import_menu.addAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'folder.svg')), 'Import .json file(s)…')
         if import_files_action:
             import_files_action.triggered.connect(self._import_database_files)
         import_zip_action = import_menu.addAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'import.svg')), 'Import from ZIP…')
@@ -347,7 +356,7 @@ class UserIPDatabasesManager(
         search_bar.addWidget(QLabel('Search:'))
 
         self._search_input = QLineEdit()
-        self._search_input.setPlaceholderText('Filter entries by username or IP…')
+        self._search_input.setPlaceholderText('Filter entries by username, IP, or notes…')
         self._search_input.textChanged.connect(self._on_search_changed)
         self._search_input.returnPressed.connect(self._on_search_return_pressed)
         apply_search_icon(self._search_input)
@@ -365,8 +374,8 @@ class UserIPDatabasesManager(
         self.build_settings_panel(right_layout)
 
         # Entries table
-        self._model = QStandardItemModel(0, 5)
-        self._model.setHorizontalHeaderLabels(['#', 'Usernames', 'IP', 'Range', 'Database'])
+        self._model = QStandardItemModel(0, len(ENTRY_TABLE_HEADERS))
+        self._model.setHorizontalHeaderLabels(ENTRY_TABLE_HEADERS)
         self._model.dataChanged.connect(self._on_data_changed)
 
         self._proxy = EntriesSortProxy()
@@ -527,7 +536,7 @@ class UserIPDatabasesManager(
 
     def _capture_settings_snapshot(self) -> None:
         """Record the current serialized settings as the clean baseline."""
-        self._settings_snapshot = self.read_settings_from_widgets()
+        self._settings_snapshot = self.read_settings_from_widgets().model_copy()
         self._settings_dirty = False
         self._sync_dirty_state()
 
@@ -551,7 +560,7 @@ class UserIPDatabasesManager(
 
     @override
     def _load_database(self, path: Path) -> None:
-        """Parse the INI file and populate the entries table model and settings panel."""
+        """Parse the JSON database file and populate the entries table model and settings panel."""
         self._model.removeRows(0, self._model.rowCount())
         self._clear_dirty_state()
         self._search_input.clear()
@@ -563,19 +572,17 @@ class UserIPDatabasesManager(
             self._rebuild_fs_watch()
             return
 
-        content = path.read_text('utf-8')
-        self._disk_snapshot = content
+        self._disk_snapshot = path.read_text('utf-8')
+        db_model = load_userip_database_model(path)
 
         # Load settings panel
-        _, settings_lines = read_preserved_sections(path)
-        settings_dict = parse_settings_from_lines(settings_lines)
-        self.populate_settings_widgets(settings_dict)
+        self.populate_settings_widgets(db_model.settings)
         self._capture_settings_snapshot()
         self._settings_container.setVisible(True)
 
         entry_count = 0
-        for entry_count, (username, ip, is_looky) in enumerate(iter_userip_entries_with_metadata(content), start=1):
-            self._append_row(username, ip, index=entry_count, is_looky=is_looky)
+        for entry_count, entry in enumerate(db_model.entries, start=1):
+            self._append_row(entry, index=entry_count)
 
         self._next_index = entry_count + 1
         self._update_file_info(path)
@@ -587,38 +594,24 @@ class UserIPDatabasesManager(
         self._rebuild_fs_watch()
 
     @override
-    def _append_row(self, username: str, ip: str, *, index: int = 0, database: tuple[str, Path] | None = None, is_looky: bool = False) -> None:
+    def _append_row(
+        self,
+        entry: UserIPEntryModel,
+        *,
+        index: int = 0,
+        database: tuple[str, Path] | None = None,
+        persisted: bool = True,
+    ) -> None:
         """Add a single row to the entries model."""
-        index_item = QStandardItem(str(index))
-        index_item.setData(index, Qt.ItemDataRole.UserRole)
-        index_item.setFlags(index_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
-        username_item = QStandardItem(username)
-        if is_looky:
-            username_item.setIcon(self._looky_icon)
-            username_item.setForeground(QBrush(QColor('#a855f7')))
-            username_item.setToolTip('Added automatically by Looky System')
-            username_item.setData(is_looky, Qt.ItemDataRole.UserRole)
-
-        db_item = QStandardItem(database[0] if database else '')
-        if database is not None:
-            db_item.setData(str(database[1]), Qt.ItemDataRole.UserRole)
-
-        # Determine whether the value is a single IP or a range
-        is_single_ip = False
-        try:
-            IPv4Address(ip)
-            is_single_ip = True
-        except ValueError:
-            pass
-
-        if is_single_ip:
-            ip_item = QStandardItem(ip)
-            range_item = QStandardItem('')
-        else:
-            ip_item = QStandardItem('')
-            range_item = QStandardItem(ip)
-
-        self._model.appendRow([index_item, username_item, ip_item, range_item, db_item])
+        self._model.appendRow(
+            build_entry_row_items(
+                entry,
+                index=index,
+                database=database,
+                looky_icon=self._looky_icon,
+                persisted=persisted,
+            ),
+        )
 
     # ------------------------------------------------------------------
     # Search / filter
@@ -724,17 +717,14 @@ class UserIPDatabasesManager(
             return
         if roles and Qt.ItemDataRole.EditRole not in roles and Qt.ItemDataRole.DisplayRole not in roles:
             return
-        if top_left.column() <= USERNAME_COLUMN <= bottom_right.column():
-            with QSignalBlocker(self._model):
-                for row in range(top_left.row(), bottom_right.row() + 1):
-                    item = self._model.item(row, USERNAME_COLUMN)
-                    if item and item.data(Qt.ItemDataRole.UserRole):
-                        item.setData(None, Qt.ItemDataRole.UserRole)
-                        item.setIcon(QIcon())
-                        item.setForeground(QBrush())
-                        item.setToolTip('')
-        self._mark_entries_dirty()
+        with QSignalBlocker(self._model):
+            for row in range(top_left.row(), bottom_right.row() + 1):
+                if top_left.column() <= USERNAME_COLUMN <= bottom_right.column():
+                    clear_row_looky_badge(self._model, row)
+                if is_row_persisted(self._model, row):
+                    set_row_updated_at(self._model, row)
         self._highlight_duplicates()
+        self._mark_entries_dirty()
         self._save_database(show_errors=False)
 
     # ------------------------------------------------------------------
@@ -787,12 +777,12 @@ class UserIPDatabasesManager(
         unique_ips: set[str] = set()
         unique_usernames: set[str] = set()
 
-        for _ini_path, entries in iter_userip_databases():
+        for _json_path, entries in iter_userip_databases():
             total_files += 1
-            for username, ip, _is_looky in entries:
+            for entry in entries:
                 total_entries += 1
-                unique_ips.add(ip)
-                unique_usernames.add(username)
+                unique_ips.add(entry.ip)
+                unique_usernames.add(entry.username)
 
         parts = [
             f'<span style="color:#8a9bad;">Databases:</span> <b style="color:#e0e0e0;">{total_files}</b>',
@@ -935,9 +925,16 @@ class UserIPDatabasesManager(
                 header.setSectionResizeMode(column, QHeaderView.ResizeMode.Interactive)
 
             self._entries_table.setColumnWidth(INDEX_COLUMN, 50)
-            self._entries_table.setColumnWidth(IP_COLUMN, 125)
-            self._entries_table.setColumnWidth(RANGE_COLUMN, 210)
-            self._entries_table.setColumnWidth(DATABASE_COLUMN, 180)
+            self._entries_table.setColumnWidth(IP_COLUMN, 120)
+            self._entries_table.setColumnWidth(RANGE_COLUMN, 180)
+            self._entries_table.setColumnWidth(NOTES_COLUMN, 180)
+            self._entries_table.setColumnWidth(SOURCE_COLUMN, 85)
+            self._entries_table.setColumnWidth(DETECTIONS_COLUMN, 85)
+            self._entries_table.setColumnWidth(ADDED_AT_COLUMN, 145)
+            self._entries_table.setColumnWidth(UPDATED_AT_COLUMN, 145)
+            self._entries_table.setColumnWidth(FIRST_SEEN_AT_COLUMN, 145)
+            self._entries_table.setColumnWidth(LAST_SEEN_AT_COLUMN, 145)
+            self._entries_table.setColumnWidth(DATABASE_COLUMN, 160)
             self._adjust_username_column_width()
         finally:
             self._is_programmatic_resizing = False

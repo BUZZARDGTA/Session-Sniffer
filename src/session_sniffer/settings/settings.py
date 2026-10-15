@@ -1,8 +1,8 @@
 """Settings loading, validation, and persistence."""
 
+import json
 import logging
-import re
-from typing import TYPE_CHECKING, Any, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar, cast
 
 from session_sniffer import msgbox
 from session_sniffer.constants.local import SETTINGS_PATH
@@ -21,13 +21,12 @@ from session_sniffer.constants.tables import (
     SESSION_TRACKING_COLUMNS,
     STATUS_COLUMNS,
 )
-from session_sniffer.error_messages import ensure_instance, format_invalid_datetime_columns_settings_message
+from session_sniffer.error_messages import format_invalid_datetime_columns_settings_message
 from session_sniffer.logging_setup import clear_secret_cache
-from session_sniffer.models.settings_ini_model import SettingsIniModel, SettingsValidationConfig
+from session_sniffer.models.settings_model import SettingsModel, SettingsValidationConfig
 from session_sniffer.networking.ip_range import IPRange, parse_ip_range
 from session_sniffer.networking.third_party_servers import ALL_THIRD_PARTY_SERVER_NAMES
 from session_sniffer.settings.defaults import SETTING_DEFAULTS
-from session_sniffer.text_templates import build_settings_ini_header_text
 from session_sniffer.text_utils import format_triple_quoted_text
 from session_sniffer.utils import validate_file
 
@@ -36,8 +35,6 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 logger = logging.getLogger(__name__)
-
-RE_SETTINGS_INI_PARSER_PATTERN = re.compile(r'^(?![;#])(?P<key>[^=]+)=(?P<value>[^;#]+)')
 
 
 class Settings:
@@ -353,12 +350,18 @@ class Settings:
         cls.blocked_ip_ranges = ranges
 
     @classmethod
+    def serialize_to_json(cls) -> str:
+        """Serialize all current in-memory settings to a formatted JSON string."""
+        data: dict[str, Any] = {
+            setting_name: list(cast('tuple[object, ...]', setting_value)) if isinstance(setting_value, tuple) else setting_value
+            for setting_name, setting_value in cls.iterate_over_settings()
+        }
+        return json.dumps(data, indent=4, ensure_ascii=False) + '\n'
+
+    @classmethod
     def rewrite_settings_file(cls) -> None:
         """Rewrite the settings file from current in-memory values."""
-        text = build_settings_ini_header_text()
-
-        for setting_name, setting_value in cls.iterate_over_settings():
-            text += f'{setting_name}={setting_value}\n'
+        text = cls.serialize_to_json()
 
         tmp_path: Path = SETTINGS_PATH.with_suffix('.tmp')
         tmp_path.write_text(text, encoding='utf-8')
@@ -366,54 +369,44 @@ class Settings:
         clear_secret_cache()
 
     @staticmethod
-    def parse_settings_ini_file(ini_path: Path) -> tuple[dict[str, str], bool]:
-        """Parse the settings INI file and report whether it should be rewritten."""
+    def parse_settings_json_file(json_path: Path) -> tuple[dict[str, Any], bool]:
+        """Parse the settings JSON file and report whether it should be rewritten."""
+        validate_file(json_path)
 
-        def process_ini_line_output(line: str) -> str:
-            return line.rstrip('\n')
+        json_text = json_path.read_text('utf-8')
+        try:
+            parsed: object = json.loads(json_text)
+        except json.JSONDecodeError as e:
+            logger.warning('Failed to parse settings file %s: %s; resetting to defaults.', json_path, e)
+            return {}, True
 
-        validate_file(ini_path)
+        if not isinstance(parsed, dict):
+            logger.warning('Settings file %s root is not a JSON object; resetting to defaults.', json_path)
+            return {}, True
 
-        ini_data = ini_path.read_text('utf-8')
+        need_rewrite = False
+        settings_dict: dict[str, Any] = {}
 
-        need_rewrite_ini = False
-        ini_database: dict[str, str] = {}
-
-        for line in map(process_ini_line_output, ini_data.splitlines(keepends=False)):
-            if (corrected_line := line.strip()) != line:
-                need_rewrite_ini = True
-
-            if not (match := RE_SETTINGS_INI_PARSER_PATTERN.search(corrected_line)):
+        for raw_key, raw_value in cast('dict[object, Any]', parsed).items():
+            if not isinstance(raw_key, str):
+                need_rewrite = True
                 continue
-
-            setting_name = ensure_instance(match.group('key'), str)
-            setting_value = ensure_instance(match.group('value'), str)
-
-            if not (corrected_setting_name := setting_name.strip()):
+            corrected_key = raw_key.strip()
+            if not corrected_key:
+                need_rewrite = True
                 continue
+            upper_key = corrected_key.upper()
+            if upper_key != raw_key or upper_key in settings_dict:
+                need_rewrite = True
+            settings_dict[upper_key] = raw_value
 
-            if corrected_setting_name != setting_name:
-                need_rewrite_ini = True
-
-            if not (corrected_setting_value := setting_value.strip()):
-                continue
-
-            if corrected_setting_value != setting_value:
-                need_rewrite_ini = True
-
-            if corrected_setting_name in ini_database:
-                need_rewrite_ini = True  # Settings file needs to be rewritten as it contains duplicate settings
-                continue
-
-            ini_database[corrected_setting_name] = corrected_setting_value
-
-        return ini_database, need_rewrite_ini
+        return settings_dict, need_rewrite
 
     @classmethod
     def load_from_settings_file(cls, settings_path: Path) -> None:
         """Load settings from disk into `Settings` and rewrite when necessary."""
         try:
-            raw_settings, need_rewrite_settings = cls.parse_settings_ini_file(settings_path)
+            raw_settings, need_rewrite_settings = cls.parse_settings_json_file(settings_path)
         except FileNotFoundError:
             logger.info('Settings file not found at %s; initializing defaults.', settings_path)
             need_rewrite_settings = True
@@ -421,7 +414,7 @@ class Settings:
             # Build UPPER_CASE defaults dict for the model
             upper_defaults: dict[str, Any] = {key.upper(): value for key, value in SETTING_DEFAULTS.items()}
 
-            validated, _ini_rewrites, flags = SettingsIniModel.validate_and_get_rewrites(
+            validated, flags = SettingsModel.validate_and_get_rewrites(
                 raw_settings,
                 SettingsValidationConfig(
                     defaults=upper_defaults,

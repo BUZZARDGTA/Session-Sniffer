@@ -179,7 +179,7 @@ def main() -> None:
                 preload_executor.shutdown(wait=False)
                 sys.exit(0)
 
-    splash.update_status('Applying custom settings from Settings.ini')
+    splash.update_status('Applying custom settings from settings.json')
     register_secret_provider(lambda: Settings.discord_webhook_url)
     register_secret_provider(lambda: Settings.looky_api_key)
     register_secret_provider(lambda: Settings.webserver_password)

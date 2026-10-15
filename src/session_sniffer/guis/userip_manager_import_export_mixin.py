@@ -15,14 +15,11 @@ from PySide6.QtWidgets import QDialog, QFileDialog, QMessageBox
 from session_sniffer.constants.local import USERIP_DATABASES_BACKUP_DIR_PATH, USERIP_DATABASES_DIR_PATH
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.guis.userip_manager_helpers import (
-    SETTINGS_DEFAULTS,
-    SETTINGS_KEYS_ORDER,
-    iter_userip_entries,
-    iter_userip_entries_with_metadata,
-    parse_settings_from_content,
-    parse_settings_from_lines,
-    read_preserved_sections,
+    load_userip_database_model,
+    parse_userip_database_content,
+    save_userip_database_model,
 )
+from session_sniffer.models.userip_settings_model import UserIPDatabaseFile, UserIPEntryModel, UserIPSettingsModel
 from session_sniffer.player import backup_userip_databases
 from session_sniffer.text_utils import pluralize
 
@@ -46,7 +43,12 @@ class UserIPImportExportMixin(QDialog):
     def _mark_settings_dirty(self) -> None: ...
 
     def _append_row(
-        self, username: str, ip: str, *, index: int = 0, database: tuple[str, Path] | None = None, is_looky: bool = False,
+        self,
+        entry: UserIPEntryModel,
+        *,
+        index: int = 0,
+        database: tuple[str, Path] | None = None,
+        persisted: bool = True,
     ) -> None:
         raise NotImplementedError
 
@@ -57,8 +59,8 @@ class UserIPImportExportMixin(QDialog):
 
     if TYPE_CHECKING:
         _get_selected_tree_directory: Callable[[], Path]
-        read_settings_from_widgets: Callable[[], dict[str, str]]
-        populate_settings_widgets: Callable[[dict[str, str]], None]
+        read_settings_from_widgets: Callable[[], UserIPSettingsModel]
+        populate_settings_widgets: Callable[[UserIPSettingsModel], None]
         _highlight_duplicates: Callable[[], int]
 
     def _is_current_database_file(self, path: Path) -> bool:
@@ -79,7 +81,7 @@ class UserIPImportExportMixin(QDialog):
             self,
             'Export Database',
             path.name,
-            'INI files (*.ini);;All Files (*)',
+            'JSON files (*.json);;All Files (*)',
         )
         if not dest_path:
             return
@@ -97,8 +99,8 @@ class UserIPImportExportMixin(QDialog):
 
     def _export_all_as_zip(self) -> None:
         """Export all UserIP databases as a ZIP archive to a user-chosen destination."""
-        ini_files = sorted(USERIP_DATABASES_DIR_PATH.rglob('*.ini'))
-        if not ini_files:
+        json_files = sorted(USERIP_DATABASES_DIR_PATH.rglob('*.json'))
+        if not json_files:
             QMessageBox.information(self, TITLE, 'No database files found to export.')
             return
 
@@ -112,11 +114,11 @@ class UserIPImportExportMixin(QDialog):
             return
 
         with zipfile.ZipFile(dest_path, 'w', compression=zipfile.ZIP_DEFLATED) as zf:
-            for ini_path in ini_files:
-                arcname = ini_path.relative_to(USERIP_DATABASES_DIR_PATH)
-                zf.write(str(ini_path), str(arcname))
+            for json_path in json_files:
+                arcname = json_path.relative_to(USERIP_DATABASES_DIR_PATH)
+                zf.write(str(json_path), str(arcname))
 
-        self._set_status(f'Exported {len(ini_files)} database{pluralize(len(ini_files))} to {dest_path}')
+        self._set_status(f'Exported {len(json_files)} database{pluralize(len(json_files))} to {dest_path}')
 
     def _backup_databases_now(self) -> None:
         """Create a backup of all UserIP databases immediately."""
@@ -138,18 +140,17 @@ class UserIPImportExportMixin(QDialog):
     # ------------------------------------------------------------------
 
     def _merge_content_into_disk(self, src_content: str, dest_path: Path, src_name: str) -> int | None:
-        """Merge `[UserIP]` entries from *src_content* into an existing *dest_path* file on disk.
+        """Merge entries from *src_content* into an existing *dest_path* file on disk.
 
-        Shows a settings-conflict prompt when the two files have differing `[Settings]` values.
+        Shows a settings-conflict prompt when the two files have differing `settings` values.
         Returns the number of new entries added, or `None` if the user cancelled via the
         settings-conflict dialog (treated as "skipped" by callers).
         """
-        _, dest_settings_lines = read_preserved_sections(dest_path)
-        dest_settings = parse_settings_from_lines(dest_settings_lines)
-        src_settings = parse_settings_from_content(src_content)
+        dest_db = load_userip_database_model(dest_path)
+        src_db = parse_userip_database_content(src_content)
 
-        chosen_settings = dest_settings
-        if src_settings != dest_settings:
+        chosen_settings = dest_db.settings
+        if src_db.settings != dest_db.settings:
             msg_box = QMessageBox(self)
             msg_box.setWindowTitle(TITLE)
             msg_box.setText(
@@ -166,32 +167,22 @@ class UserIPImportExportMixin(QDialog):
             if not clicked or clicked is msg_box.button(QMessageBox.StandardButton.Cancel):
                 return None
             if clicked is use_button:
-                chosen_settings = src_settings
+                chosen_settings = src_db.settings
             _ = keep_button  # suppress unused-variable warning
 
-        dest_content = dest_path.read_text('utf-8')
-        existing_set: set[tuple[str, str]] = set(iter_userip_entries(dest_content))
-        existing_entries = list(iter_userip_entries(dest_content))
-        new_entries = [(username, ip) for username, ip in iter_userip_entries(src_content) if (username, ip) not in existing_set]
+        existing_set: set[tuple[str, str]] = {(entry.username, entry.ip) for entry in dest_db.entries}
+        new_entries = [
+            entry.model_copy(update={'source': 'Import'}) if entry.source == 'Manual' and not entry.is_looky else entry
+            for entry in src_db.entries
+            if (entry.username, entry.ip) not in existing_set
+        ]
 
-        header_lines, _ = read_preserved_sections(dest_path)
-
-        output_lines: list[str] = [*header_lines]
-        output_lines.append('[Settings]')
-        output_lines.extend(f'{key}={chosen_settings.get(key, SETTINGS_DEFAULTS.get(key, ""))}' for key in SETTINGS_KEYS_ORDER)
-        output_lines.append('')
-        output_lines.append('[UserIP]')
-        for username, ip in existing_entries:
-            output_lines.append(f'{username}={ip}')
-        for username, ip in new_entries:
-            output_lines.append(f'{username}={ip}')
-        output_lines.append('')
-
-        dest_path.write_text('\n'.join(output_lines), encoding='utf-8')
+        merged_db = UserIPDatabaseFile(settings=chosen_settings, entries=[*dest_db.entries, *new_entries])
+        save_userip_database_model(dest_path, merged_db)
         return len(new_entries)
 
     def _import_database_files(self) -> None:
-        """Copy external .ini database files into the databases directory, or merge into the current database."""
+        """Copy external .json database files into the databases directory, or merge into the current database."""
         merge_mode = False
         if self._current_path is not None:
             msg_box = QMessageBox(self)
@@ -214,7 +205,7 @@ class UserIPImportExportMixin(QDialog):
                 self,
                 'Choose a database file to merge from',
                 '',
-                'INI files (*.ini);;All Files (*)',
+                'JSON files (*.json);;All Files (*)',
             )
             if not src_path_str:
                 return
@@ -227,7 +218,7 @@ class UserIPImportExportMixin(QDialog):
             self,
             'Import Database Files',
             '',
-            'INI files (*.ini);;All Files (*)',
+            'JSON files (*.json);;All Files (*)',
         )
         if not file_paths:
             return
@@ -295,14 +286,12 @@ class UserIPImportExportMixin(QDialog):
             self._refresh_stats()
 
     def _merge_from_file(self, src_path: Path) -> None:
-        """Merge [UserIP] entries from src_path into the currently open database."""
+        """Merge entries from src_path into the currently open database."""
         if self._current_path is None:
             return
 
-        content = src_path.read_text('utf-8')
-
-        _, imported_settings_lines = read_preserved_sections(src_path)
-        imported_settings = parse_settings_from_lines(imported_settings_lines)
+        imported_db = load_userip_database_model(src_path)
+        imported_settings = imported_db.settings
         current_settings = self.read_settings_from_widgets()
 
         if imported_settings != current_settings:
@@ -327,8 +316,9 @@ class UserIPImportExportMixin(QDialog):
             _ = keep_button  # suppress unused-variable warning
 
         added = 0
-        for username, ip, is_looky in iter_userip_entries_with_metadata(content):
-            self._append_row(username, ip, index=self._next_index, is_looky=is_looky)
+        for entry in imported_db.entries:
+            merged_entry = entry.model_copy(update={'source': 'Import'}) if entry.source == 'Manual' and not entry.is_looky else entry
+            self._append_row(merged_entry, index=self._next_index)
             self._next_index += 1
             added += 1
 
@@ -342,7 +332,7 @@ class UserIPImportExportMixin(QDialog):
         )
 
     def _import_from_zip(self) -> None:
-        """Extract .ini database files from a ZIP archive into the databases directory."""
+        """Extract .json database files from a ZIP archive into the databases directory."""
         zip_path_str, _ = QFileDialog.getOpenFileName(
             self,
             'Import Databases from ZIP',
@@ -358,10 +348,10 @@ class UserIPImportExportMixin(QDialog):
 
         try:
             with zipfile.ZipFile(zip_path, 'r') as zf:
-                ini_members = [member for member in zf.infolist() if not member.is_dir() and member.filename.lower().endswith('.ini')]
+                json_members = [member for member in zf.infolist() if not member.is_dir() and member.filename.lower().endswith('.json')]
 
-                if not ini_members:
-                    QMessageBox.information(self, TITLE, 'No .ini database files found in the selected ZIP archive.')
+                if not json_members:
+                    QMessageBox.information(self, TITLE, 'No .json database files found in the selected ZIP archive.')
                     return
 
                 imported = 0
@@ -371,7 +361,7 @@ class UserIPImportExportMixin(QDialog):
                 merge_all = False
                 reload_current_view = False
 
-                for member in ini_members:
+                for member in json_members:
                     dest = USERIP_DATABASES_DIR_PATH / member.filename
                     member_bytes = zf.read(member.filename)
                     src_content = member_bytes.decode('utf-8', errors='replace')

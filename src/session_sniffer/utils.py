@@ -166,7 +166,7 @@ def get_app_dir(*, scope: Literal['roaming', 'local']) -> Path:
 
     Use `scope='roaming'` for user-owned, syncable data that should follow the user profile
     between machines (when applicable), such as:
-    - Configuration (e.g., `Settings.ini`)
+    - Configuration (e.g., `settings.json`)
     - User-managed databases/tags (e.g., UserIP databases)
     - User scripts
 
@@ -262,46 +262,6 @@ def dedup_preserve_order[T](*iterables: Iterable[T]) -> list[T]:
                 unique.append(item)
 
     return unique
-
-
-def is_file_need_newline_ending(file: Path) -> bool:
-    """Return whether the file exists and is missing a trailing newline."""
-    if not file.exists() or not file.stat().st_size:
-        return False
-
-    with file.open('rb') as opened_file:
-        opened_file.seek(-1, os.SEEK_END)
-        return opened_file.read(1) != b'\n'
-
-
-def write_lines_to_file(file: Path, mode: Literal['w', 'x', 'a'], lines: list[str]) -> None:
-    """Writes or appends a list of lines to a file, ensuring proper newline handling.
-
-    Args:
-        file: The path to the file.
-        mode: The file mode ('w', 'x' or 'a').
-        lines: A list of lines to write to the file.
-    """
-    # If the content list is empty, exit early without writing to the file
-    if not lines:
-        return
-
-    # Copy the input lines to avoid modifying the original list only when mutation is needed
-    need_leading_newline = mode == 'a' and is_file_need_newline_ending(file)
-    need_trailing_newline = not lines[-1].endswith('\n')
-
-    if need_leading_newline or need_trailing_newline:
-        content = lines[:]
-        if need_leading_newline:
-            content.insert(0, '\n')
-        if need_trailing_newline:
-            content[-1] += '\n'
-    else:
-        content = lines
-
-    # Write content to the file
-    with file.open(mode, encoding='utf-8') as opened_file:
-        opened_file.writelines(content)
 
 
 class ProcessEntry32W(ctypes.Structure):

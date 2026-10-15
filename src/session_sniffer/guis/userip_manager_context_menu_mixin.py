@@ -20,6 +20,7 @@ from session_sniffer.guis.tables_player_actions import (
 from session_sniffer.guis.tables_player_actions.looky_system._looky_refresh_userip import looky_refresh_userip_entries
 from session_sniffer.guis.userip_manager_helpers import (
     DATABASE_COLUMN,
+    NOTES_COLUMN,
     RANGE_COLUMN,
     USERNAME_COLUMN,
     EntriesSortProxy,
@@ -60,6 +61,9 @@ class EntriesContextMenuMixin(QDialog):
     def _rename_selected(self) -> None: ...
 
     def _edit_entry_ip(self, source_row: int) -> None:
+        raise NotImplementedError
+
+    def _edit_entry_note(self, source_row: int) -> None:
         raise NotImplementedError
 
     def _insert_entry_at(self, source_row: int) -> None:
@@ -121,7 +125,9 @@ class EntriesContextMenuMixin(QDialog):
         source_index = self._proxy.mapToSource(index)
         row = source_index.row()
         username_item = self._model.item(row, USERNAME_COLUMN)
+        notes_item = self._model.item(row, NOTES_COLUMN)
         username = username_item.text() if username_item else ''
+        note = notes_item.text().strip() if notes_item else ''
         ip_or_range = self._get_row_entry_value(row)
 
         selected_rows = self._entries_table.selectionModel().selectedRows() if self._entries_table.selectionModel() else []
@@ -153,6 +159,10 @@ class EntriesContextMenuMixin(QDialog):
                 copy_ip_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), f'Copy {label}', self)
                 copy_ip_action.triggered.connect(lambda: set_clipboard_text(ip_or_range))
                 menu.addAction(copy_ip_action)
+            if note:
+                copy_note_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), 'Copy Note', self)
+                copy_note_action.triggered.connect(lambda: set_clipboard_text(note))
+                menu.addAction(copy_note_action)
         else:
             all_usernames: list[str] = []
             all_ips_or_ranges: list[str] = []
@@ -257,6 +267,11 @@ class EntriesContextMenuMixin(QDialog):
             edit_ip_action.triggered.connect(lambda _checked=False, target_row=source_row: self._edit_entry_ip(target_row))
             menu.addAction(edit_ip_action)
 
+            edit_note_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square-pen.svg')), 'Edit Note…', self)
+            edit_note_action.setToolTip('Edit the note for this entry.')
+            edit_note_action.triggered.connect(lambda _checked=False, target_row=source_row: self._edit_entry_note(target_row))
+            menu.addAction(edit_note_action)
+
         menu.addSeparator()
 
         move_db_label = f'Move Selected to Database ({selected_count})' if selected_count > 1 else 'Move to Database'
@@ -264,7 +279,7 @@ class EntriesContextMenuMixin(QDialog):
         move_db_menu.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'box.svg')))
         move_db_menu.setStyleSheet(SVG_ICON_CONTEXT_MENU_STYLESHEET)
         move_db_menu.setToolTipsVisible(True)
-        all_db_paths = [ini_path for ini_path in USERIP_DATABASES_DIR_PATH.rglob('*.ini') if ini_path.is_file()]
+        all_db_paths = [json_path for json_path in USERIP_DATABASES_DIR_PATH.rglob('*.json') if json_path.is_file()]
         enabled_target_count = populate_userip_databases_menu(
             move_db_menu,
             all_db_paths,
@@ -324,8 +339,10 @@ class EntriesContextMenuMixin(QDialog):
         source_index = self._proxy.mapToSource(index)
         row = source_index.row()
         username_item = self._model.item(row, USERNAME_COLUMN)
+        notes_item = self._model.item(row, NOTES_COLUMN)
         db_item = self._model.item(row, DATABASE_COLUMN)
         username = username_item.text() if username_item else ''
+        note = notes_item.text().strip() if notes_item else ''
         ip_or_range = self._get_row_entry_value(row)
         db_path_str = db_item.data(Qt.ItemDataRole.UserRole) if db_item else None
 
@@ -359,6 +376,10 @@ class EntriesContextMenuMixin(QDialog):
                 copy_ip_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), f'Copy {label}', self)
                 copy_ip_action.triggered.connect(lambda: set_clipboard_text(ip_or_range))
                 menu.addAction(copy_ip_action)
+            if note:
+                copy_note_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), 'Copy Note', self)
+                copy_note_action.triggered.connect(lambda: set_clipboard_text(note))
+                menu.addAction(copy_note_action)
         else:
             all_usernames_gs: list[str] = []
             all_ips_or_ranges_gs: list[str] = []
@@ -429,12 +450,17 @@ class EntriesContextMenuMixin(QDialog):
             edit_gs_action.triggered.connect(lambda _checked=False, target_row=row: self._edit_entry_ip(target_row))
             menu.addAction(edit_gs_action)
 
+            edit_note_gs_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square-pen.svg')), 'Edit Note…', self)
+            edit_note_gs_action.setToolTip('Edit the note for this entry.')
+            edit_note_gs_action.triggered.connect(lambda _checked=False, target_row=row: self._edit_entry_note(target_row))
+            menu.addAction(edit_note_gs_action)
+
         move_gs_label = f'Move Selected to Database ({selected_count_gs})' if selected_count_gs > 1 else 'Move to Database'
         move_gs_menu = QMenu(move_gs_label, menu)
         move_gs_menu.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'box.svg')))
         move_gs_menu.setStyleSheet(SVG_ICON_CONTEXT_MENU_STYLESHEET)
         move_gs_menu.setToolTipsVisible(True)
-        all_db_paths_gs = [ini_path for ini_path in USERIP_DATABASES_DIR_PATH.rglob('*.ini') if ini_path.is_file()]
+        all_db_paths_gs = [json_path for json_path in USERIP_DATABASES_DIR_PATH.rglob('*.json') if json_path.is_file()]
         selected_db_paths = {
             self._model.item(self._proxy.mapToSource(i).row(), DATABASE_COLUMN).data(Qt.ItemDataRole.UserRole)
             for i in selected_rows_gs

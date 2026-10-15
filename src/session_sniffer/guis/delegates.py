@@ -3,11 +3,6 @@
 import html
 from typing import TYPE_CHECKING, cast, override
 
-if TYPE_CHECKING:
-    from collections.abc import Callable
-
-    from PySide6.QtGui import QFont
-
 from PySide6.QtCore import QEvent, QModelIndex, QPersistentModelIndex, QPointF, QRect, QSize, Qt
 from PySide6.QtGui import (
     QBrush,
@@ -34,7 +29,15 @@ from PySide6.QtWidgets import (
 )
 
 from session_sniffer.guis.colors import TableColors
-from session_sniffer.text_utils import split_usernames
+from session_sniffer.models.userip_settings_model import format_iso_timestamp_display
+from session_sniffer.text_utils import pluralize, split_usernames
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from PySide6.QtGui import QFont
+
+    from session_sniffer.player.userip import UserIP
 
 _STANDARD_ICON_SIZE = 16
 _DISCONNECTED_TEXT_COLOR = QColor(TableColors.DISCONNECTED_TEXT)
@@ -92,6 +95,31 @@ def _format_looky_tooltip_html(text: str, unregistered_looky_names: set[str], *,
     return f'<span>{", ".join(formatted_tokens)}</span>'
 
 
+def _format_userip_tooltip_lines(userip: UserIP) -> list[str]:
+    """Format HTML lines describing a player's UserIP metadata and timestamps for tooltips."""
+    lines: list[str] = []
+    if userip.notes:
+        notes_label = f'Note{pluralize(len(userip.notes))}'
+        lines.append(f'<span style="color: #9ca3af;">{notes_label}:</span> {html.escape(", ".join(userip.notes))}')
+    if userip.sources:
+        sources_label = f'Source{pluralize(len(userip.sources))}'
+        lines.append(f'<span style="color: #9ca3af;">{sources_label}:</span> {html.escape(", ".join(userip.sources))}')
+    lines.append(f'<span style="color: #9ca3af;">Detections:</span> {userip.detections_count}')
+    added_display = format_iso_timestamp_display(userip.added_at)
+    if added_display:
+        lines.append(f'<span style="color: #9ca3af;">Added:</span> {html.escape(added_display)}')
+    updated_display = format_iso_timestamp_display(userip.updated_at)
+    if updated_display:
+        lines.append(f'<span style="color: #9ca3af;">Updated:</span> {html.escape(updated_display)}')
+    first_seen_display = format_iso_timestamp_display(userip.first_seen_at)
+    if first_seen_display:
+        lines.append(f'<span style="color: #9ca3af;">First Seen:</span> {html.escape(first_seen_display)}')
+    last_seen_display = format_iso_timestamp_display(userip.last_seen_at)
+    if last_seen_display:
+        lines.append(f'<span style="color: #9ca3af;">Last Seen:</span> {html.escape(last_seen_display)}')
+    return lines
+
+
 class ElidedTextTooltipDelegate(QStyledItemDelegate):
     """Custom delegate that reliably shows a tooltip only if the text is horizontally truncated."""
 
@@ -114,6 +142,16 @@ class ElidedTextTooltipDelegate(QStyledItemDelegate):
         if not isinstance(text, str) or not text:
             return super().helpEvent(event, view, option, index)
 
+        model = index.model()
+        username_column = getattr(model, 'username_column_index', -1)
+        player_userip: UserIP | None = None
+        if 0 <= username_column == index.column():
+            get_userip = getattr(model, 'get_player_userip_for_row', None)
+            if callable(get_userip):
+                raw_userip = get_userip(index.row())
+                if raw_userip is not None:
+                    player_userip = cast('UserIP', raw_userip)
+
         opt = QStyleOptionViewItem(option)
         if not opt.rect.isValid():
             opt.rect = view.visualRect(index)
@@ -122,14 +160,24 @@ class ElidedTextTooltipDelegate(QStyledItemDelegate):
         text_rectangle = style.subElementRect(QStyle.SubElement.SE_ItemViewItemText, opt, view)
         text_margin = style.pixelMetric(QStyle.PixelMetric.PM_FocusFrameHMargin, opt, view) + 1
         usable_text_width = max(0, text_rectangle.width() - text_margin * 2)
-        if QFontMetrics(_get_option_font(opt)).horizontalAdvance(text) <= usable_text_width:
+        is_truncated = QFontMetrics(_get_option_font(opt)).horizontalAdvance(text) > usable_text_width
+        if not is_truncated and player_userip is None:
             return super().helpEvent(event, view, option, index)
 
         tooltip_text = text
         user_role_data = index.data(Qt.ItemDataRole.UserRole)
         unregistered_looky_names: set[str] | None = cast('set[str]', user_role_data) if isinstance(user_role_data, set) and user_role_data else None
-        if unregistered_looky_names is not None:
-            tooltip_text = _format_looky_tooltip_html(text, unregistered_looky_names, is_disconnected=_is_disconnected_cell(view, index))
+        if unregistered_looky_names is not None or player_userip is not None:
+            usernames_html = (
+                _format_looky_tooltip_html(text, unregistered_looky_names, is_disconnected=_is_disconnected_cell(view, index))
+                if unregistered_looky_names is not None
+                else f'<span>{html.escape(text)}</span>'
+            )
+            if player_userip is not None:
+                userip_lines = _format_userip_tooltip_lines(player_userip)
+                tooltip_text = '<br>'.join([usernames_html, *userip_lines])
+            else:
+                tooltip_text = usernames_html
 
         QToolTip.showText(event.globalPos(), tooltip_text, view)
         return True

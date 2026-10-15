@@ -21,6 +21,7 @@ from session_sniffer.guis.tables_userip_mixin import (
     userip_convert_to_ip,
     userip_convert_to_range,
     userip_delete,
+    userip_edit_note,
     userip_edit_range,
     userip_move,
     userip_remove_username,
@@ -236,6 +237,13 @@ def build_userip_menu(
         'Rename',
         tooltip='Rename all entries for this IP address by picking from existing usernames in its database.',
         handler=lambda: userip_rename(parent, ip_address, player),
+        icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square-pen.svg')),
+    )
+    add_action(
+        userip_menu,
+        'Edit Note…',
+        tooltip='Edit the note for this IP address in its UserIP database.',
+        handler=lambda: userip_edit_note(parent, ip_address, player),
         icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square-pen.svg')),
     )
     move_userip_menu = add_menu(

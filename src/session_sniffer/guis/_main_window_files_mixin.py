@@ -186,7 +186,7 @@ class FilesMixin(QMainWindow):
         self.open_directory(USER_SCRIPTS_DIR_PATH)
 
     def _open_settings_file(self) -> None:
-        """Open the Settings.ini file."""
+        """Open the settings.json file."""
         self.open_file(SETTINGS_PATH)
 
     def _open_logging_folder(self) -> None:
@@ -314,10 +314,10 @@ class FilesMixin(QMainWindow):
 
         data_menu.addSeparator()
 
-        open_settings_ini_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'file-cog.svg')), 'Open Settings.ini', self)
-        open_settings_ini_action.setToolTip('Open Roaming AppData\\Session Sniffer\\Settings.ini')
-        open_settings_ini_action.triggered.connect(self._open_settings_file)
-        data_menu.addAction(open_settings_ini_action)
+        open_settings_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'file-cog.svg')), 'Open settings.json', self)
+        open_settings_action.setToolTip('Open Roaming AppData\\Session Sniffer\\settings.json')
+        open_settings_action.triggered.connect(self._open_settings_file)
+        data_menu.addAction(open_settings_action)
 
     def _show_about_dialog(self) -> None:
         """Show the About dialog with version, build, and system info."""

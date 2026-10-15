@@ -66,7 +66,7 @@ class _CancelStreamError(Exception):
 class LookyState:
     """Runtime-only Looky System state derived from token verification.
 
-    Not persisted to `Settings.ini` — populated by the `looky_core` background thread
+    Not persisted to `settings.json` — populated by the `looky_core` background thread
     and read by the GUI to gate Looky-related actions.
     """
 

@@ -88,7 +88,6 @@ from session_sniffer.player import prune_old_backups, run_userip_backup_async
 from session_sniffer.rendering_core.types import CaptureState
 from session_sniffer.settings import SETTING_CATEGORIES_ORDER, SETTING_DEFAULTS, SETTING_METADATA, SettingMeta, SettingType
 from session_sniffer.settings.settings import Settings
-from session_sniffer.text_templates import build_settings_ini_header_text
 from session_sniffer.utils import validate_and_strip_balanced_outer_parens
 from session_sniffer.utils_exceptions import ParenthesisMismatchError
 from session_sniffer.webserver import WebServer, start_webserver_from_settings
@@ -105,7 +104,7 @@ SettingValue = bool | str | int | float | tuple[str, ...] | None
 
 
 class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, UnsavedChangesMixin, QDialog):
-    """Non-modal dialog exposing every Settings.ini option for viewing, editing, saving, and resetting."""
+    """Non-modal dialog exposing every settings.json option for viewing, editing, saving, and resetting."""
 
     def __init__(self, parent: QWidget | None, capture: PacketCapture, on_change_interface: Callable[[], None]) -> None:
         """Build the tabbed settings dialog from setting metadata.
@@ -172,13 +171,13 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
         button_row = QHBoxLayout()
 
         import_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'import.svg')), ' Import')
-        import_button.setToolTip('Import settings from a Settings.ini file')
+        import_button.setToolTip('Import settings from a settings.json file')
         import_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
         import_button.clicked.connect(self._import_settings)
         button_row.addWidget(import_button)
 
         export_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'upload.svg')), ' Export')
-        export_button.setToolTip('Export current settings to a Settings.ini file')
+        export_button.setToolTip('Export current settings to a settings.json file')
         export_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
         export_button.clicked.connect(self._export_settings)
         button_row.addWidget(export_button)
@@ -187,7 +186,7 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
         reset_button.setToolTip('Reset all settings across all tabs to their default values (review before saving)')
         reset_button.setStyleSheet(DIALOG_DANGER_BUTTON_STYLESHEET)
         save_button = setup_tab_dialog_buttons(button_row, reset_button, self._reset_to_defaults, self._reset_current_tab)
-        save_button.setToolTip('Validate and save all settings to Settings.ini')
+        save_button.setToolTip('Validate and save all settings to settings.json')
         save_button.clicked.connect(self._save_settings)
         button_row.addWidget(save_button)
 
@@ -796,28 +795,25 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
         self._update_restart_notice()
 
     def _export_settings(self) -> None:
-        """Export current in-memory settings to a user-chosen Settings.ini file."""
+        """Export current in-memory settings to a user-chosen settings.json file."""
         file_path, _ = QFileDialog.getSaveFileName(
             self,
             'Export Settings',
-            'Settings.ini',
-            'INI Files (*.ini);;All Files (*.*)',
+            'settings.json',
+            'JSON Files (*.json);;All Files (*.*)',
         )
         if not file_path:
             return
-        text = build_settings_ini_header_text()
-        for setting_name, setting_value in Settings.iterate_over_settings():
-            text += f'{setting_name}={setting_value}\n'
-        Path(file_path).write_text(text, encoding='utf-8')
+        Path(file_path).write_text(Settings.serialize_to_json(), encoding='utf-8')
         QMessageBox.information(self, TITLE, 'Settings exported successfully.')
 
     def _import_settings(self) -> None:
-        """Import settings from a user-chosen Settings.ini file and refresh widgets."""
+        """Import settings from a user-chosen settings.json file and refresh widgets."""
         file_path, _ = QFileDialog.getOpenFileName(
             self,
             'Import Settings',
             '',
-            'INI Files (*.ini);;All Files (*.*)',
+            'JSON Files (*.json);;All Files (*.*)',
         )
         if not file_path:
             return

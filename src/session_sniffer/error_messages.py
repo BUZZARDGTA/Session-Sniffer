@@ -61,11 +61,11 @@ def ensure_instance[T](obj: object, expected_types: type[T] | tuple[type[T], ...
 
 
 def format_invalid_datetime_columns_settings_message() -> str:
-    """Format the Settings.ini error shown when all datetime columns are disabled."""
+    """Format the settings.json error shown when all datetime columns are disabled."""
     return """
-        ERROR in your custom "Settings.ini" file:
+        ERROR in your custom "settings.json" file:
 
-        At least one of these settings must be set to "True" value:
+        At least one of these settings must be set to "true" value:
         <GUI_COLUMNS_DATETIME_SHOW_DATE>
         <GUI_COLUMNS_DATETIME_SHOW_TIME>
         <GUI_COLUMNS_DATETIME_SHOW_ELAPSED_TIME>
