@@ -148,53 +148,70 @@ class ElidedTextTooltipDelegate(QStyledItemDelegate):
                 if size.width() > _STANDARD_ICON_SIZE:
                     option.decorationSize = size
 
+    def _paint_cell_background(
+        self,
+        painter: QPainter,
+        option: QStyleOptionViewItem,
+        index: QModelIndex | QPersistentModelIndex,
+        *,
+        paint_selection: bool = False,
+    ) -> None:
+        """Paint custom cell background and hover/selection overlay."""
+        rect = _get_option_rect(option)
+        is_hovered = bool(option.state & QStyle.StateFlag.State_MouseOver)
+        is_selected = bool(option.state & QStyle.StateFlag.State_Selected)
+        background_brush = index.data(Qt.ItemDataRole.BackgroundRole)
+        has_background_brush = isinstance(background_brush, (QColor, QBrush))
+
+        if has_background_brush and not is_selected:
+            painter.save()
+            painter.fillRect(rect, background_brush)
+            painter.restore()
+        elif paint_selection and is_selected and not is_hovered:
+            painter.save()
+            painter.fillRect(rect, option.palette.highlight())
+            painter.restore()
+
+        if not is_hovered:
+            return
+
+        raw_is_connected = getattr(self.parent(), 'is_connected_table', None)
+        is_connected: bool | None = raw_is_connected if isinstance(raw_is_connected, bool) else None
+
+        if is_connected is None and has_background_brush and not is_selected:
+            return
+
+        painter.save()
+        grad = QLinearGradient(rect.topLeft(), rect.bottomLeft())
+        if is_connected is True:
+            if is_selected:
+                grad.setColorAt(0, _COLOR_CONNECTED_SEL_TOP)
+                grad.setColorAt(1, _COLOR_CONNECTED_SEL_BOTTOM)
+            else:
+                grad.setColorAt(0, _COLOR_CONNECTED_UNSEL_TOP)
+                grad.setColorAt(1, _COLOR_CONNECTED_UNSEL_BOTTOM)
+        elif is_connected is False:
+            if is_selected:
+                grad.setColorAt(0, _COLOR_DISCONNECTED_SEL_TOP)
+                grad.setColorAt(1, _COLOR_DISCONNECTED_SEL_BOTTOM)
+            else:
+                grad.setColorAt(0, _COLOR_DISCONNECTED_UNSEL_TOP)
+                grad.setColorAt(1, _COLOR_DISCONNECTED_UNSEL_BOTTOM)
+        elif is_selected:
+            grad.setColorAt(0, _COLOR_DEFAULT_SEL)
+            grad.setColorAt(1, _COLOR_DEFAULT_SEL)
+        else:
+            grad.setColorAt(0, _COLOR_DEFAULT_UNSEL)
+            grad.setColorAt(1, _COLOR_DEFAULT_UNSEL)
+
+        painter.fillRect(rect, grad)
+        painter.restore()
+
     @override
     def paint(self, painter: QPainter, option: QStyleOptionViewItem, index: QModelIndex | QPersistentModelIndex) -> None:
         """Paint table cell with hover gradient and preserve custom ForegroundRole/BackgroundRole."""
         if painter:
-            is_hovered = bool(option.state & QStyle.StateFlag.State_MouseOver)
-            is_selected = bool(option.state & QStyle.StateFlag.State_Selected)
-            rect = _get_option_rect(option)
-
-            if is_hovered:
-                raw_is_connected = getattr(self.parent(), 'is_connected_table', None)
-                is_connected: bool | None = raw_is_connected if isinstance(raw_is_connected, bool) else None
-
-                painter.save()
-
-                if is_connected is True:
-                    grad = QLinearGradient(rect.topLeft(), rect.bottomLeft())
-                    if is_selected:
-                        grad.setColorAt(0, _COLOR_CONNECTED_SEL_TOP)
-                        grad.setColorAt(1, _COLOR_CONNECTED_SEL_BOTTOM)
-                    else:
-                        grad.setColorAt(0, _COLOR_CONNECTED_UNSEL_TOP)
-                        grad.setColorAt(1, _COLOR_CONNECTED_UNSEL_BOTTOM)
-                elif is_connected is False:
-                    grad = QLinearGradient(rect.topLeft(), rect.bottomLeft())
-                    if is_selected:
-                        grad.setColorAt(0, _COLOR_DISCONNECTED_SEL_TOP)
-                        grad.setColorAt(1, _COLOR_DISCONNECTED_SEL_BOTTOM)
-                    else:
-                        grad.setColorAt(0, _COLOR_DISCONNECTED_UNSEL_TOP)
-                        grad.setColorAt(1, _COLOR_DISCONNECTED_UNSEL_BOTTOM)
-                else:
-                    grad = QLinearGradient(rect.topLeft(), rect.bottomLeft())
-                    if is_selected:
-                        grad.setColorAt(0, _COLOR_DEFAULT_SEL)
-                        grad.setColorAt(1, _COLOR_DEFAULT_SEL)
-                    else:
-                        grad.setColorAt(0, _COLOR_DEFAULT_UNSEL)
-                        grad.setColorAt(1, _COLOR_DEFAULT_UNSEL)
-
-                painter.fillRect(rect, grad)
-                painter.restore()
-            else:
-                background_brush = index.data(Qt.ItemDataRole.BackgroundRole)
-                if isinstance(background_brush, (QColor, QBrush)) and not is_selected:
-                    painter.save()
-                    painter.fillRect(rect, background_brush)
-                    painter.restore()
+            self._paint_cell_background(painter, option, index, paint_selection=False)
 
         opt = QStyleOptionViewItem(option)
         self.initStyleOption(opt, index)
@@ -239,7 +256,6 @@ class SearchHighlightDelegate(ElidedTextTooltipDelegate):
         text = index.data(Qt.ItemDataRole.DisplayRole)
         user_role_data = index.data(Qt.ItemDataRole.UserRole)
         unregistered_looky_names: set[str] | None = cast('set[str]', user_role_data) if isinstance(user_role_data, set) and user_role_data else None
-        background_brush = index.data(Qt.ItemDataRole.BackgroundRole)
 
         has_search_match = bool(search_column_matches and search_query and isinstance(text, str) and search_query.lower() in text.lower())
 
@@ -250,28 +266,7 @@ class SearchHighlightDelegate(ElidedTextTooltipDelegate):
         cell_rectangle = _get_option_rect(option)
 
         if painter:
-            is_hovered = bool(option.state & QStyle.StateFlag.State_MouseOver)
-            is_selected = bool(option.state & QStyle.StateFlag.State_Selected)
-
-            if is_hovered:
-                painter.save()
-                gradient = QLinearGradient(cell_rectangle.topLeft(), cell_rectangle.bottomLeft())
-                if is_selected:
-                    gradient.setColorAt(0, _COLOR_DEFAULT_SEL)
-                    gradient.setColorAt(1, _COLOR_DEFAULT_SEL)
-                else:
-                    gradient.setColorAt(0, _COLOR_DEFAULT_UNSEL)
-                    gradient.setColorAt(1, _COLOR_DEFAULT_UNSEL)
-                painter.fillRect(cell_rectangle, gradient)
-                painter.restore()
-            elif is_selected:
-                painter.save()
-                painter.fillRect(cell_rectangle, option.palette.highlight())
-                painter.restore()
-            elif isinstance(background_brush, (QColor, QBrush)):
-                painter.save()
-                painter.fillRect(cell_rectangle, background_brush)
-                painter.restore()
+            self._paint_cell_background(painter, option, index, paint_selection=True)
 
         style_option = QStyleOptionViewItem(option)
         self.initStyleOption(style_option, index)
