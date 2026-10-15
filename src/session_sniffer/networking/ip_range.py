@@ -154,3 +154,14 @@ def is_valid_ip_range_entry(entry: str) -> bool:
     except ValueError:
         return False
     return True
+
+
+def entry_ip_covers_ip(entry_ip: str, ip: str) -> bool:
+    """Return whether `entry_ip` (exact IP or range entry) covers `ip`."""
+    if entry_ip == ip:
+        return True
+    try:
+        ranges = parse_ip_range_entry(entry_ip)
+    except ValueError:
+        return False
+    return check_ip_against_ranges(ip, ranges) is not None

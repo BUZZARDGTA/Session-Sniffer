@@ -126,6 +126,7 @@ class UserIPDatabases:
     _username_to_meta: ClassVar[dict[str, tuple[Path, UserIPSettings, str]]] = {}
     notified_ip_conflicts: ClassVar[set[str]] = set()
     _open_conflict_dialog: ClassVar[QMessageBox | None] = None
+    build_version: ClassVar[int] = 0
 
     @classmethod
     def _notify_ip_conflicts(cls, conflicts: Sequence[UserIPConflict], *, newly_detected_ips: set[str] | None = None) -> None:
@@ -352,6 +353,14 @@ class UserIPDatabases:
             ips_set.discard(conflict_ip)
             ip_to_userip.pop(conflict_ip, None)
 
+        username_databases: dict[str, set[Path]] = {}
+        for db_entry in current_databases:
+            for username in (*db_entry.single_ips.keys(), *db_entry.range_ips.keys()):
+                stripped = username.strip()
+                if stripped:
+                    username_databases.setdefault(stripped.casefold(), set()).add(db_entry.db_path)
+        ambiguous_usernames: set[str] = {cf for cf, paths in username_databases.items() if len(paths) > 1}
+
         # Build known alts clusters from all entries with multiple usernames
         adj: dict[str, set[str]] = {}
         canonical_names: dict[str, str] = {}
@@ -363,7 +372,7 @@ class UserIPDatabases:
                 cf = name.casefold()
                 if cf not in canonical_names:
                     canonical_names[cf] = name
-                if cf not in unique_cfs:
+                if cf not in ambiguous_usernames and cf not in unique_cfs:
                     unique_cfs.append(cf)
             if len(unique_cfs) > 1:
                 first_cf = unique_cfs[0]
@@ -419,6 +428,8 @@ class UserIPDatabases:
                 if not stripped:
                     continue
                 cf = stripped.casefold()
+                if cf in ambiguous_usernames:
+                    continue
                 canonical = canonical_names.get(cf, stripped)
                 if cf not in username_to_meta:
                     username_to_meta[cf] = (db_entry.db_path, db_entry.settings, canonical)
@@ -428,7 +439,7 @@ class UserIPDatabases:
                 meta = username_to_meta[cf]
                 for alt_name in cluster:
                     alt_cf = alt_name.casefold()
-                    if alt_cf not in username_to_meta:
+                    if alt_cf not in ambiguous_usernames and alt_cf not in username_to_meta:
                         username_to_meta[alt_cf] = (meta[0], meta[1], alt_name)
 
         has_new_conflicts = bool(unresolved_conflicts - cls.notified_ip_conflicts)
@@ -448,6 +459,7 @@ class UserIPDatabases:
             cls._ip_to_userip = ip_to_userip
             cls._range_entries = range_entries
             cls._username_to_meta = username_to_meta
+            cls.build_version += 1
 
         if unresolved_conflicts and (has_new_conflicts or (conflicts_changed and cls._open_conflict_dialog is not None)):
             cls._notify_ip_conflicts(conflicts, newly_detected_ips=newly_detected_ips)

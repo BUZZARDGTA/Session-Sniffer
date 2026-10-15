@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 
 from session_sniffer.constants.local import USERIP_DATABASES_DIR_PATH
 from session_sniffer.constants.standalone import GITHUB_WIKI_USERIP_CONFIG_URL, TITLE
+from session_sniffer.networking.ip_range import entry_ip_covers_ip
 from session_sniffer.player.userip import UserIPDatabases
 from session_sniffer.rendering_core.userip_ini_parser import RE_USERIP_INI_PARSER_PATTERN, parse_userip_ini_file
 from session_sniffer.text_templates import (
@@ -129,7 +130,7 @@ def append_userip_entry_if_missing(db_path: Path, username: str, ip: str) -> boo
             if match:
                 entry_usernames = split_usernames(match.group('username'))
                 entry_ip = match.group('ip').strip()
-                if any(u.casefold() == cleaned_username.casefold() for u in entry_usernames) and entry_ip == cleaned_ip:
+                if any(u.casefold() == cleaned_username.casefold() for u in entry_usernames) and entry_ip_covers_ip(entry_ip, cleaned_ip):
                     return False
 
         lines = content.splitlines()

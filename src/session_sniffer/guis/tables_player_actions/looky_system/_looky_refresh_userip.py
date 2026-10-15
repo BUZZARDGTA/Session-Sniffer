@@ -55,6 +55,8 @@ from session_sniffer.networking.looky_system import (
     extract_rate_limit_wait_seconds,
     lookup_ip_batch,
 )
+from session_sniffer.player.userip_loader import update_userip_databases
+from session_sniffer.rendering_core.events import wake_rendering_core
 from session_sniffer.settings.settings import Settings
 from session_sniffer.text_utils import pluralize
 from session_sniffer.utils import write_lines_to_file
@@ -426,8 +428,8 @@ class LookyRefreshReviewDialog(PlayerInfoDialogMixin):
         self._accept_btn.clicked.connect(self.accept)
 
         button_layout.addStretch(1)
-        button_layout.addWidget(cancel_btn)
         button_layout.addWidget(self._accept_btn)
+        button_layout.addWidget(cancel_btn)
         outer_layout.addLayout(button_layout)
 
         self._update_counter()
@@ -635,6 +637,9 @@ def looky_refresh_userip_entries(
             new_lines = [f'{entry.username}={entry.ip} ; looky\n' for entry in db_entries]
             write_lines_to_file(db_path, 'a', new_lines)
             total_added += len(new_lines)
+
+        update_userip_databases()
+        wake_rendering_core()
 
         db_count = len(by_db)
         db_word = f'database{pluralize(db_count)}'

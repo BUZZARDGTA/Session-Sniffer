@@ -333,6 +333,7 @@ def rendering_core(
     disconnected_num_columns = 0
     connected_column_mapping: dict[str, int] = {}
     _userip_not_found: set[str] = set()
+    last_seen_userip_build_version: int = UserIPDatabases.build_version
 
     def _process_player_disconnections(connected: list[Player], disconnected: list[Player]) -> list[int]:
         to_disconnect: list[int] = []
@@ -372,8 +373,11 @@ def rendering_core(
         _poll_interval = 1.0 if _has_players_for_poll else 5.0
         if last_userip_parse_time is None or time.monotonic() - last_userip_parse_time >= _poll_interval:
             last_userip_parse_time, _userip_db_rebuilt = update_userip_databases()
-            if _userip_db_rebuilt:
-                _userip_not_found.clear()
+        if UserIPDatabases.build_version != last_seen_userip_build_version:
+            last_seen_userip_build_version = UserIPDatabases.build_version
+            _userip_db_rebuilt = True
+        if _userip_db_rebuilt:
+            _userip_not_found.clear()
 
         if Settings.is_gta5_feature_set():
             if last_modmenu_refresh_time is None or time.monotonic() - last_modmenu_refresh_time >= _poll_interval:
