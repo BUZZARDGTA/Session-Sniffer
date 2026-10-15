@@ -18,6 +18,7 @@ from session_sniffer.guis.tables_userip_mixin import (
     userip_add,
     userip_add_as_range,
     userip_add_username,
+    userip_convert_to_ip,
     userip_convert_to_range,
     userip_delete,
     userip_edit_range,
@@ -160,6 +161,15 @@ def build_userip_menu(
             tooltip='Add selected IP as a range to this UserIP database.',
             handler_factory=lambda db_path: lambda: userip_add_as_range(parent, ip_address, db_path, usernames=player_usernames),
         )
+        if ip_address in UserIPDatabases.notified_ip_conflicts:
+            userip_menu.addSeparator()
+            add_action(
+                userip_menu,
+                'Delete',
+                tooltip='Delete all conflicting entries for this IP address from all UserIP databases.',
+                handler=lambda: userip_delete(parent, [ip_address]),
+                icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')),
+            )
         return
 
     def _open_userip_database() -> None:
@@ -194,7 +204,9 @@ def build_userip_menu(
         configure_looky_action(refresh_action, default_tooltip=refresh_action.toolTip())
         userip_menu.addSeparator()
     entry_desc = _classify_userip_entry(ip_address)
-    if entry_desc == 'single IP':
+    matching_ranges = UserIPDatabases.get_matching_range_raws(ip_address)
+    is_single_ip = ip_address in UserIPDatabases.ips_set
+    if is_single_ip and not matching_ranges:
         add_action(
             userip_menu,
             'Convert to Range',
@@ -202,13 +214,22 @@ def build_userip_menu(
             handler=lambda: userip_convert_to_range(parent, ip_address, player),
             icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'refresh-cw.svg')),
         )
-    else:
+    if matching_ranges:
+        range_labels = {_classify_range_raw(raw) for raw in matching_ranges}
+        range_desc = range_labels.pop() if len(range_labels) == 1 else 'range'
         add_action(
             userip_menu,
             'Edit Range',
-            tooltip=f'Edit this {entry_desc} entry, or narrow it back to a single IP, keeping its username{pluralize(len(player.userip.usernames))}.',
+            tooltip=f'Edit this {range_desc} entry, or narrow it back to a single IP, keeping its username{pluralize(len(player.userip.usernames))}.',
             handler=lambda: userip_edit_range(parent, ip_address, player),
             icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square-pen.svg')),
+        )
+        add_action(
+            userip_menu,
+            'Convert to IP',
+            tooltip=f'Replace this {range_desc} entry with single IP {ip_address}, keeping its username{pluralize(len(player.userip.usernames))}.',
+            handler=lambda: userip_convert_to_ip(parent, ip_address, player),
+            icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'refresh-cw.svg')),
         )
     add_action(
         userip_menu,

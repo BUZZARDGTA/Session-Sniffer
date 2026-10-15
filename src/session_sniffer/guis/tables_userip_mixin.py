@@ -10,9 +10,11 @@ from session_sniffer.constants.local import USERIP_DATABASES_DIR_PATH
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.guis.select_usernames_dialog import SelectUsernamesDialog
 from session_sniffer.guis.userip_manager_helpers import IPRangeBuilderDialog, rewrite_db_edit_entry_ip
-from session_sniffer.networking.ip_range import check_ip_against_ranges, parse_ip_range_entry
+from session_sniffer.networking.ip_range import entry_ip_covers_ip
 from session_sniffer.player.registry import PlayersRegistry
 from session_sniffer.player.userip import UserIPDatabases
+from session_sniffer.player.userip_loader import update_userip_databases
+from session_sniffer.rendering_core.events import wake_rendering_core
 from session_sniffer.settings import Settings
 from session_sniffer.text_utils import pluralize, split_usernames
 from session_sniffer.utils import dedup_preserve_order, write_lines_to_file
@@ -23,6 +25,70 @@ if TYPE_CHECKING:
     from session_sniffer.models.player import Player
 
 RE_USERIP_INI_PARSER_PATTERN = re.compile(r'^(?![;#])(?P<username>[^=]+)=(?P<ip>[^;#]+)(?:[;#]\s*(?P<comment>.*))?')
+
+
+def _refresh_userip_and_wake_renderer() -> None:
+    """Rebuild UserIP lookup structures immediately and wake the rendering loop."""
+    update_userip_databases()
+    wake_rendering_core()
+
+
+def _collect_matching_entries_in_db(db_path: Path, ip_address: str, *, ranges_only: bool = False) -> list[str]:
+    """Return distinct `[UserIP]` entry IP/range strings in `db_path` that match `ip_address`."""
+    if not db_path.is_file():
+        return []
+    content = db_path.read_text('utf-8')
+    matching_entries: list[str] = []
+    in_userip_section = False
+    for raw_line in content.splitlines():
+        line = raw_line.strip()
+        if line.startswith('[') and line.endswith(']'):
+            in_userip_section = line == '[UserIP]'
+            continue
+        if not in_userip_section:
+            continue
+        match = RE_USERIP_INI_PARSER_PATTERN.search(line)
+        if match is None:
+            continue
+        ip_raw = match.group('ip')
+        if ip_raw is None:
+            continue
+        entry_ip = ip_raw.strip()
+        if ranges_only and entry_ip == ip_address:
+            continue
+        if entry_ip not in matching_entries and entry_ip_covers_ip(entry_ip, ip_address):
+            matching_entries.append(entry_ip)
+    return matching_entries
+
+
+def _remove_exact_ips_from_other_databases(selected_ips: list[str], target_database: Path) -> None:
+    """Remove exact single-IP lines for `selected_ips` from enabled UserIP databases other than `target_database`."""
+    selected_ip_set = set(selected_ips)
+    for db_path in UserIPDatabases.get_userip_database_filepaths():
+        if db_path == target_database or not db_path.is_file():
+            continue
+        lines = db_path.read_text(encoding='utf-8').splitlines(keepends=True)
+        if not lines:
+            continue
+        lines_to_keep: list[str] = []
+        modified = False
+        in_userip_section = False
+        for raw_line in lines:
+            stripped = raw_line.strip()
+            if stripped.startswith('[') and stripped.endswith(']'):
+                in_userip_section = stripped == '[UserIP]'
+                lines_to_keep.append(raw_line)
+                continue
+            if in_userip_section:
+                match = RE_USERIP_INI_PARSER_PATTERN.search(stripped)
+                if match is not None:
+                    ip_raw = match.group('ip')
+                    if isinstance(ip_raw, str) and ip_raw.strip() in selected_ip_set:
+                        modified = True
+                        continue
+            lines_to_keep.append(raw_line)
+        if modified:
+            write_lines_to_file(db_path, 'w', lines_to_keep)
 
 
 def _show_modal_info_on_top(parent: QWidget, title: str, text: str) -> None:
@@ -39,13 +105,7 @@ def _show_modal_info_on_top(parent: QWidget, title: str, text: str) -> None:
 
 def _entry_ip_matches_any(entry_ip: str, selected_ips: list[str]) -> bool:
     """Return True if *entry_ip* exactly matches or is a range containing any IP in *selected_ips*."""
-    if entry_ip in selected_ips:
-        return True
-    try:
-        ranges = parse_ip_range_entry(entry_ip)
-    except ValueError:
-        return False
-    return any(check_ip_against_ranges(selected_ip, ranges) is not None for selected_ip in selected_ips)
+    return any(entry_ip_covers_ip(entry_ip, selected_ip) for selected_ip in selected_ips)
 
 
 def resolve_usernames_for_player(player: Player) -> list[str]:
@@ -172,8 +232,35 @@ def userip_add(
     if Settings.userip_sync_known_alts:
         chosen_usernames = UserIPDatabases.expand_with_known_alts(chosen_usernames)
 
-    new_lines = [f'{username}={ip_address}\n' for username in chosen_usernames for ip_address in selected_ips]
-    write_lines_to_file(selected_database, 'a', new_lines)
+    _remove_exact_ips_from_other_databases(selected_ips, selected_database)
+
+    existing_pairs: set[tuple[str, str]] = set()
+    if selected_database.is_file():
+        in_userip_section = False
+        for raw_line in selected_database.read_text('utf-8').splitlines():
+            stripped = raw_line.strip()
+            if stripped.startswith('[') and stripped.endswith(']'):
+                in_userip_section = stripped == '[UserIP]'
+                continue
+            if not in_userip_section:
+                continue
+            match = RE_USERIP_INI_PARSER_PATTERN.search(stripped)
+            if match is None:
+                continue
+            username_raw, ip_raw = match.group('username', 'ip')
+            if isinstance(username_raw, str) and isinstance(ip_raw, str):
+                for existing_name in split_usernames(username_raw):
+                    existing_pairs.add((existing_name.casefold(), ip_raw.strip()))
+
+    new_lines = [
+        f'{username}={ip_address}\n'
+        for username in chosen_usernames
+        for ip_address in selected_ips
+        if (username.casefold(), ip_address) not in existing_pairs
+    ]
+    if new_lines:
+        write_lines_to_file(selected_database, 'a', new_lines)
+    _refresh_userip_and_wake_renderer()
 
     db_display = selected_database.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix('')
     usernames_display = ', '.join(f'"{name}"' for name in chosen_usernames)
@@ -221,6 +308,7 @@ def userip_add_as_range(
 
     new_lines = [f'{username}={range_input}\n' for username in chosen_usernames]
     write_lines_to_file(selected_database, 'a', new_lines)
+    _refresh_userip_and_wake_renderer()
 
     db_display = selected_database.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix('')
     usernames_display = ', '.join(f'"{name}"' for name in chosen_usernames)
@@ -257,11 +345,53 @@ def userip_convert_to_range(parent: QWidget, ip_address: str, player: Player) ->
         QMessageBox.information(parent, TITLE, f'No single-IP entries found for IP {ip_address} in the database.')
         return
 
+    _refresh_userip_and_wake_renderer()
     entry_word = pluralize(converted_count, 'entry', 'entries')
     _show_modal_info_on_top(
         parent,
         TITLE,
         f'Converted {converted_count} {entry_word} for IP {ip_address} to range "{range_input}" in UserIP database "{db_display}".',
+    )
+
+
+def userip_convert_to_ip(parent: QWidget, ip_address: str, player: Player) -> None:
+    """Convert a covering range UserIP entry into a single-IP entry in place, keeping its username(s)."""
+    if player.userip is None:
+        return
+
+    db_path = player.userip.db_path
+    db_display = player.userip.db_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix('')
+
+    matching_ranges = _collect_matching_entries_in_db(db_path, ip_address, ranges_only=True)
+    if not matching_ranges:
+        QMessageBox.information(parent, TITLE, f'No range entries found covering IP {ip_address} in the database.')
+        return
+
+    if len(matching_ranges) == 1:
+        old_range = matching_ranges[0]
+    else:
+        chosen, success = QInputDialog.getItem(
+            parent,
+            'Convert to IP',
+            f'Multiple ranges cover IP {ip_address}.\nSelect the range to convert to single IP {ip_address}:',
+            matching_ranges,
+            editable=False,
+        )
+        if not success or not chosen:
+            return
+        old_range = chosen
+
+    converted_count = rewrite_db_edit_entry_ip(db_path, old_range, ip_address)
+    if not converted_count:
+        QMessageBox.information(parent, TITLE, f'No entries found for range "{old_range}" in the database.')
+        return
+
+    _refresh_userip_and_wake_renderer()
+    entry_word = pluralize(converted_count, 'entry', 'entries')
+    _show_modal_info_on_top(
+        parent,
+        TITLE,
+        f'Converted {converted_count} {entry_word} from range "{old_range}" to single IP {ip_address} in UserIP database "{db_display}".',
     )
 
 
@@ -278,28 +408,7 @@ def userip_edit_range(parent: QWidget, ip_address: str, player: Player) -> None:
     db_path = player.userip.db_path
     db_display = player.userip.db_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix('')
 
-    content = db_path.read_text('utf-8')
-
-    # Collect the distinct range strings in this database that cover the player's IP.
-    matching_ranges: list[str] = []
-    in_userip_section = False
-    for raw_line in content.splitlines():
-        line = raw_line.strip()
-        if line.startswith('[') and line.endswith(']'):
-            in_userip_section = line == '[UserIP]'
-            continue
-        if not in_userip_section:
-            continue
-        match = RE_USERIP_INI_PARSER_PATTERN.search(line)
-        if match is None:
-            continue
-        ip_raw = match.group('ip')
-        if ip_raw is None:
-            continue
-        entry_ip = ip_raw.strip()
-        if entry_ip not in matching_ranges and _entry_ip_matches_any(entry_ip, [ip_address]):
-            matching_ranges.append(entry_ip)
-
+    matching_ranges = _collect_matching_entries_in_db(db_path, ip_address, ranges_only=True)
     if not matching_ranges:
         QMessageBox.information(parent, TITLE, f'No range entries found covering IP {ip_address} in the database.')
         return
@@ -332,6 +441,7 @@ def userip_edit_range(parent: QWidget, ip_address: str, player: Player) -> None:
         QMessageBox.information(parent, TITLE, f'No entries found for range "{old_range}" in the database.')
         return
 
+    _refresh_userip_and_wake_renderer()
     entry_word = pluralize(edited_count, 'entry', 'entries')
     QMessageBox.information(
         parent,
@@ -364,13 +474,7 @@ def userip_add_username(parent: QWidget, ip_address: str, player: Player) -> Non
     if Settings.userip_sync_known_alts:
         entered_usernames = UserIPDatabases.expand_with_known_alts(entered_usernames)
 
-    target_options: list[str] = []
-    if ip_address in UserIPDatabases.ips_set:
-        target_options.append(ip_address)
-    for range_raw in UserIPDatabases.get_matching_range_raws(ip_address):
-        if range_raw not in target_options:
-            target_options.append(range_raw)
-
+    target_options = _collect_matching_entries_in_db(db_path, ip_address, ranges_only=False)
     if not target_options:
         target_entry = ip_address
     elif len(target_options) == 1:
@@ -388,6 +492,7 @@ def userip_add_username(parent: QWidget, ip_address: str, player: Player) -> Non
         target_entry = chosen_target
 
     write_lines_to_file(db_path, 'a', [f'{username}={target_entry}\n' for username in entered_usernames])
+    _refresh_userip_and_wake_renderer()
 
     usernames_display = ', '.join(f'"{username}"' for username in entered_usernames)
     count = len(entered_usernames)
@@ -507,6 +612,7 @@ def userip_rename_multi(parent: QWidget, players: list[Player]) -> None:
         QMessageBox.information(parent, TITLE, f'No entries were found for the selected IP{pluralize(len(eligible))}.')
         return
 
+    _refresh_userip_and_wake_renderer()
     entry_word = pluralize(total_renamed, 'entry', 'entries')
     QMessageBox.information(parent, TITLE, f'Renamed {total_renamed} {entry_word} to "{new_username}".')
 
@@ -556,6 +662,7 @@ def userip_rename(parent: QWidget, ip_address: str, player: Player) -> None:
         QMessageBox.information(parent, TITLE, f'No entries found for IP {ip_address} in the database.')
         return
 
+    _refresh_userip_and_wake_renderer()
     entry_word = pluralize(renamed_count, 'entry', 'entries')
     QMessageBox.information(
         parent,
@@ -616,6 +723,7 @@ def userip_move(parent: QWidget, selected_ips: list[str], selected_database: Pat
 
     # After processing all databases, show a detailed report
     if deleted_entries_by_database:
+        _refresh_userip_and_wake_renderer()
         report = (
             f'<b>Selected IP{pluralize(len(selected_ips))} {selected_ips} moved from the following '
             f'UserIP database{pluralize(len(deleted_entries_by_database))} to UserIP database '
@@ -678,6 +786,7 @@ def userip_delete(parent: QWidget, selected_ips: list[str]) -> None:
 
     # After processing all databases, show a detailed report
     if deleted_entries_by_database:
+        _refresh_userip_and_wake_renderer()
         report = (
             f'<b>Selected IP{pluralize(len(selected_ips))} {selected_ips} removed from the following '
             f'UserIP database{pluralize(len(deleted_entries_by_database))}:</b><br><br><br>'
@@ -789,6 +898,7 @@ def _rewrite_database_removing_usernames(
         return
 
     write_lines_to_file(db_path, 'w', new_lines)
+    _refresh_userip_and_wake_renderer()
 
     db_display = db_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix('')
     entry_word = pluralize(removed_count, 'entry', 'entries')

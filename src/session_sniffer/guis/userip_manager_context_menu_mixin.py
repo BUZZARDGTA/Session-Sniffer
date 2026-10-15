@@ -492,17 +492,24 @@ class EntriesContextMenuMixin(QDialog):
             scan_ports_gs_action.triggered.connect(lambda _checked=False, target=scan_target_gs: scan_ports_ip(target))
             menu.addAction(scan_ports_gs_action)
 
-        # Looky System refresh (only for single IPs in GTA5 feature set)
-        if db_path_str and username and ip_or_range and Settings.is_gta5_feature_set() and is_single_ip_gs:
-            _db_refresh = Path(db_path_str)
-            _ip_refresh = ip_or_range
+        # Username additions (manual and Looky System)
+        if db_path_str and ip_or_range and selected_count_gs <= 1:
             menu.addSeparator()
-            refresh_gs_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'eye.svg')), 'Add Username (Looky System)', self)
-            refresh_gs_action.triggered.connect(
-                lambda _checked=False, database_path=_db_refresh, target_ip=_ip_refresh: looky_refresh_userip_entries(self, [(database_path, [target_ip])]),
-            )
-            configure_looky_action(refresh_gs_action, 'Look up this IP via Looky System and add any new usernames to its UserIP database.')
-            menu.addAction(refresh_gs_action)
+            add_username_gs_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'plus.svg')), 'Add Username', self)
+            add_username_gs_action.setToolTip('Add an additional username for this IP address or range in its UserIP database.')
+            add_username_gs_action.triggered.connect(lambda _checked=False, target_row=row: self._add_username(target_row))
+            menu.addAction(add_username_gs_action)
+
+            # Looky System refresh (only for single IPs in GTA5 feature set)
+            if username and Settings.is_gta5_feature_set() and is_single_ip_gs:
+                _db_refresh = Path(db_path_str)
+                _ip_refresh = ip_or_range
+                refresh_gs_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'eye.svg')), 'Add Username (Looky System)', self)
+                refresh_gs_action.triggered.connect(
+                    lambda _checked=False, database_path=_db_refresh, target_ip=_ip_refresh: looky_refresh_userip_entries(self, [(database_path, [target_ip])]),
+                )
+                configure_looky_action(refresh_gs_action, 'Look up this IP via Looky System and add any new usernames to its UserIP database.')
+                menu.addAction(refresh_gs_action)
 
         if username and ip_or_range:
             selected_count = len(self._entries_table.selectionModel().selectedRows()) if self._entries_table.selectionModel() else 1
