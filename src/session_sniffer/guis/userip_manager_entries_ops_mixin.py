@@ -6,8 +6,9 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from PySide6.QtCore import QItemSelectionModel, QModelIndex, QSignalBlocker, Qt
-from PySide6.QtGui import QColor, QStandardItem, QStandardItemModel
+from PySide6.QtGui import QBrush, QColor, QIcon, QStandardItem, QStandardItemModel
 from PySide6.QtWidgets import (
+    QAbstractItemView,
     QDialog,
     QFrame,
     QInputDialog,
@@ -272,17 +273,20 @@ class UserIPEntriesOperationsMixin(QDialog):
             wake_rendering_core()
             self._set_status(f'Updated entry to "{new_ip_text}" in {database_path.name}.')
         else:
-            ip_item = self._model.item(source_row, IP_COLUMN)
-            range_item = self._model.item(source_row, RANGE_COLUMN)
-            if ip_item:
-                ip_item.setText(new_ip_text if is_single else '')
-            if range_item:
-                range_item.setText('' if is_single else new_ip_text)
+            with QSignalBlocker(self._model):
+                ip_item = self._model.item(source_row, IP_COLUMN)
+                range_item = self._model.item(source_row, RANGE_COLUMN)
+                if ip_item:
+                    ip_item.setText(new_ip_text if is_single else '')
+                if range_item:
+                    range_item.setText('' if is_single else new_ip_text)
 
             self._mark_entries_dirty()
             self._highlight_duplicates()
             self._update_entry_counts()
-            self._set_status(f'Updated entry to "{new_ip_text}". Remember to save.')
+            self._save_database()
+            if not self._dirty:
+                self._set_status(f'Updated entry to "{new_ip_text}".')
 
     def _insert_entry_at(self, source_row: int) -> None:
         """Insert a blank row at a specific position in the source model."""
@@ -393,8 +397,10 @@ class UserIPEntriesOperationsMixin(QDialog):
         self._mark_entries_dirty()
         self._highlight_duplicates()
         self._update_entry_counts()
-        added_count = len(new_usernames)
-        self._set_status(f'Added {added_count} username{pluralize(added_count)} for {entry_value}. Remember to save.')
+        self._save_database()
+        if not self._dirty:
+            added_count = len(new_usernames)
+            self._set_status(f'Added {added_count} username{pluralize(added_count)} for {entry_value}.')
 
     def _add_username(self, source_row: int) -> None:
         """Insert a row below source_row with its IP or Range pre-filled, or prompt in global search / filtered view."""
@@ -471,6 +477,7 @@ class UserIPEntriesOperationsMixin(QDialog):
 
         self._renumber_indexes()
         self._mark_entries_dirty()
+        self._save_database(show_errors=False)
 
         # Reselect the moved rows
         new_source_rows = [row + direction for row in source_rows]
@@ -491,11 +498,12 @@ class UserIPEntriesOperationsMixin(QDialog):
 
     def _renumber_indexes(self) -> None:
         """Reassign sequential index numbers (1-based) to all rows in the source model."""
-        for row in range(self._model.rowCount()):
-            index_item = self._model.item(row, INDEX_COLUMN)
-            if index_item:
-                index_item.setText(str(row + 1))
-                index_item.setData(row + 1, Qt.ItemDataRole.UserRole)
+        with QSignalBlocker(self._model):
+            for row in range(self._model.rowCount()):
+                index_item = self._model.item(row, INDEX_COLUMN)
+                if index_item:
+                    index_item.setText(str(row + 1))
+                    index_item.setData(row + 1, Qt.ItemDataRole.UserRole)
         self._next_index = self._model.rowCount() + 1
 
     def _rename_selected(self) -> None:
@@ -577,15 +585,23 @@ class UserIPEntriesOperationsMixin(QDialog):
             wake_rendering_core()
             self._set_status(f'Renamed {renamed_count} {pluralize(renamed_count, "entry", "entries")} to "{new_username}" in database files.')
         else:
-            for row in source_rows:
-                username_item = self._model.item(row, USERNAME_COLUMN)
-                if username_item:
-                    username_item.setText(new_username)
+            with QSignalBlocker(self._model):
+                for row in source_rows:
+                    username_item = self._model.item(row, USERNAME_COLUMN)
+                    if username_item:
+                        username_item.setText(new_username)
+                        if username_item.data(Qt.ItemDataRole.UserRole):
+                            username_item.setData(None, Qt.ItemDataRole.UserRole)
+                            username_item.setIcon(QIcon())
+                            username_item.setForeground(QBrush())
+                            username_item.setToolTip('')
 
             self._mark_entries_dirty()
             self._highlight_duplicates()
             self._update_entry_counts()
-            self._set_status(f'Renamed {count} {pluralize(count, "entry", "entries")} to "{new_username}". Remember to save.')
+            self._save_database()
+            if not self._dirty:
+                self._set_status(f'Renamed {count} {pluralize(count, "entry", "entries")} to "{new_username}".')
 
     def _delete_selected(self) -> None:
         """Delete selected rows after confirmation."""
@@ -604,12 +620,11 @@ class UserIPEntriesOperationsMixin(QDialog):
             reverse=True,
         )
 
-        consequence = 'This will immediately write the changes to the database files.' if self._global_search_active else 'This action cannot be undone after saving.'
-
         result = QMessageBox.warning(
             self,
             TITLE,
-            f'Are you sure you want to delete {count} selected {pluralize(count, "entry", "entries")}?\n\n{consequence}',
+            f'Are you sure you want to delete {count} selected {pluralize(count, "entry", "entries")}?\n\n'
+            'This will immediately write the changes to the database files.',
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No,
         )
@@ -623,7 +638,9 @@ class UserIPEntriesOperationsMixin(QDialog):
                 self._model.removeRow(row)
             self._renumber_indexes()
             self._mark_entries_dirty()
-            self._set_status(f'Deleted {count} {pluralize(count, "entry", "entries")}. Remember to save.')
+            self._save_database()
+            if not self._dirty:
+                self._set_status(f'Deleted {count} {pluralize(count, "entry", "entries")}.')
 
     def _delete_global_search_rows(self, count: int, source_rows: list[int]) -> None:
         """Write deletions directly to database files and remove rows from the global search model."""
@@ -754,7 +771,7 @@ class UserIPEntriesOperationsMixin(QDialog):
     # Save
     # ------------------------------------------------------------------
 
-    def _save_database(self) -> None:
+    def _save_database(self, *, show_errors: bool = True) -> None:
         """Validate entries and write the database file back to disk."""
         if self._current_path is None or self._global_search_active:
             return
@@ -762,9 +779,10 @@ class UserIPEntriesOperationsMixin(QDialog):
         self._saving = True
         try:
             with QSignalBlocker(self._fs_watcher):
-                # Commit and close any active delegate editor before inspecting entries
-                self._entries_table.setCurrentIndex(QModelIndex())
-                self._entries_table.clearFocus()
+                if show_errors and self._entries_table.state() == QAbstractItemView.State.EditingState:
+                    # Commit and close any active delegate editor before inspecting entries
+                    self._entries_table.setCurrentIndex(QModelIndex())
+                    self._entries_table.clearFocus()
 
                 # --- Validate all entries ---
                 errors: list[str] = []
@@ -793,7 +811,8 @@ class UserIPEntriesOperationsMixin(QDialog):
                         entries.append((username, ip, is_looky))
 
                 if errors:
-                    QMessageBox.critical(self, TITLE, '\n'.join(errors))
+                    if show_errors:
+                        QMessageBox.critical(self, TITLE, '\n'.join(errors))
                     return
 
                 # --- Deduplicate exact (username, ip) pairs ---
@@ -825,7 +844,8 @@ class UserIPEntriesOperationsMixin(QDialog):
                 # --- Validate COLOR ---
                 color_value = settings_values.get('COLOR', '')
                 if color_value and not QColor(color_value).isValid():
-                    QMessageBox.critical(self, TITLE, f'Invalid color value: "{color_value}"\n\nUse a Qt color name (e.g. RED, GREEN) or hex (e.g. #ff00ff).')
+                    if show_errors:
+                        QMessageBox.critical(self, TITLE, f'Invalid color value: "{color_value}"\n\nUse a Qt color name (e.g. RED, GREEN) or hex (e.g. #ff00ff).')
                     return
 
                 # --- Build new file content ---

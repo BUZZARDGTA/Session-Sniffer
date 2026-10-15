@@ -560,13 +560,20 @@ class UserIPDatabases:
     def resolve_userip_by_usernames(cls, usernames: Sequence[str], player_ip: str) -> tuple[UserIP, str] | None:
         """Resolve a UserIP snapshot and matched username from a sequence of candidate usernames.
 
-        Returns the first matching database resolution, or None if none match.
+        Returns the first matching database resolution, or None if none match or if candidate
+        usernames resolve to multiple different databases.
         """
+        first_match: tuple[UserIP, str] | None = None
+        matched_db_path: Path | None = None
         for username in usernames:
             resolved = cls.resolve_userip_by_username(username, player_ip)
             if resolved is not None:
-                return resolved
-        return None
+                if first_match is None:
+                    first_match = resolved
+                    matched_db_path = resolved[0].db_path
+                elif resolved[0].db_path != matched_db_path:
+                    return None
+        return first_match
 
     @classmethod
     def get_matching_range_raws(cls, ip: str) -> list[str]:

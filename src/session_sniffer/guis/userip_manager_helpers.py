@@ -344,8 +344,6 @@ def rewrite_db_without_entries(db_path: Path, to_remove: set[tuple[str, str]]) -
             new_lines.append(raw_line)
             continue
 
-        for name in names_to_remove:
-            to_remove.discard((name, ip_val))
         remaining_usernames = [name for name in line_usernames if name not in names_to_remove]
         if remaining_usernames:
             equality_index = raw_line.find('=')
@@ -365,14 +363,14 @@ def rewrite_db_rename_entries(db_path: Path, pairs: list[tuple[str, str]], new_u
     new_lines: list[str] = []
     in_userip_section = False
     renamed_count = 0
-    remaining_pairs = list(pairs)
+    target_pairs = set(pairs)
 
     for raw_line in content.splitlines():
         stripped = raw_line.strip()
         is_header, in_userip_section = handle_ini_section_header(raw_line, stripped, new_lines, in_section=in_userip_section, section_name=SECTION_USERIP)
         if is_header:
             continue
-        if not in_userip_section or not remaining_pairs:
+        if not in_userip_section or not target_pairs:
             new_lines.append(raw_line)
             continue
 
@@ -384,13 +382,11 @@ def rewrite_db_rename_entries(db_path: Path, pairs: list[tuple[str, str]], new_u
         username_val = match.group('username').strip()
         ip_val = match.group('ip').strip()
         line_usernames = split_usernames(username_val)
-        matched_names = {pair[0] for pair in remaining_pairs if pair[0] in line_usernames and pair[1] == ip_val}
+        matched_names = {name for name in line_usernames if (name, ip_val) in target_pairs}
         if not matched_names:
             new_lines.append(raw_line)
             continue
 
-        for name in matched_names:
-            remaining_pairs.remove((name, ip_val))
         replaced_usernames = [new_username if name in matched_names else name for name in line_usernames]
         resulting_names = dedup_preserve_order(replaced_usernames)
         equality_index = raw_line.find('=')
@@ -437,7 +433,7 @@ def rewrite_db_edit_entry_ip(
         )
         if is_header:
             continue
-        if not in_userip_section or (username is not None and replaced_count > 0):
+        if not in_userip_section:
             new_lines.append(raw_line)
             continue
 

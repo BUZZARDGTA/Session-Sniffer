@@ -49,7 +49,6 @@ class TreeOperationsMixin(QDialog):
     _open_db_button: QPushButton
     _export_selected_action: QAction | None
     _settings_container: QFrame
-    _save_button: QPushButton
     _add_button: QPushButton
     _edit_ip_button: QPushButton
     _delete_button: QPushButton
@@ -59,6 +58,9 @@ class TreeOperationsMixin(QDialog):
     _global_search_checkbox: QCheckBox
 
     def _clear_dirty_state(self) -> None: ...
+
+    def _save_on_close(self) -> bool:
+        return True
 
     def _refresh_protection_visibility(self) -> None: ...
 
@@ -146,7 +148,6 @@ class TreeOperationsMixin(QDialog):
         self._load_database(path)
         self._open_db_button.setEnabled(True)
         self._add_button.setEnabled(True)
-        self._save_button.setEnabled(self._dirty)
         if self._export_selected_action is not None:
             self._export_selected_action.setEnabled(True)
 
@@ -177,15 +178,17 @@ class TreeOperationsMixin(QDialog):
     # ------------------------------------------------------------------
 
     def _confirm_discard(self) -> bool:
-        """Ask the user whether to discard unsaved changes."""
+        """Prompt the user to save or discard unsaved changes before switching views."""
         result = QMessageBox.warning(
             self,
             TITLE,
-            'You have unsaved changes. Discard them?',
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.No,
+            'You have unsaved changes. Save before switching?',
+            QMessageBox.StandardButton.Save | QMessageBox.StandardButton.Discard | QMessageBox.StandardButton.Cancel,
+            QMessageBox.StandardButton.Save,
         )
-        return result == QMessageBox.StandardButton.Yes
+        if result == QMessageBox.StandardButton.Save:
+            return self._save_on_close()
+        return result == QMessageBox.StandardButton.Discard
 
     # ------------------------------------------------------------------
     # Tree: context menu
@@ -605,7 +608,6 @@ class TreeOperationsMixin(QDialog):
             self._model.removeRows(0, self._model.rowCount())
             self._update_file_info(None)
             self._settings_container.setVisible(False)
-            self._save_button.setEnabled(False)
             self._add_button.setEnabled(False)
             self._edit_ip_button.setEnabled(False)
             self._delete_button.setEnabled(False)

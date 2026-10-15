@@ -725,16 +725,18 @@ def looky_core() -> None:
                             if pair not in seen_pairs:
                                 seen_pairs.add(pair)
                                 unique_players.append(looky_player)
+                        new_looky_usernames = [
+                            looky_player.name.strip() for looky_player in unique_players if looky_player.name and looky_player.name.strip()
+                        ]
                         with matched_player.looky_system.lock:
-                            matched_player.looky_system.usernames = [
-                                looky_player.name.strip() for looky_player in unique_players if looky_player.name and looky_player.name.strip()
-                            ]
+                            if new_looky_usernames != matched_player.looky_system.usernames:
+                                matched_player.looky_system.as_userip_checked = False
+                            matched_player.looky_system.usernames = new_looky_usernames
                             matched_player.looky_system.rockstarids = [looky_player.rockstarid for looky_player in unique_players]
                             matched_player.looky_system.last_seens = [looky_player.last_seen for looky_player in unique_players]
                             matched_player.looky_system.needs_refresh = False
                             matched_player.looky_system.last_fetched_at = time.monotonic()
                             matched_player.looky_system.is_initialized = True
-                            matched_player.looky_system.as_userip_checked = False
                             looky_usernames = list(matched_player.looky_system.usernames)
 
                         ps3_username = matched_player.ps3_username

@@ -52,6 +52,9 @@ class UserIPImportExportMixin(QDialog):
 
     def _mark_entries_dirty(self) -> None: ...
 
+    def _save_database(self, *, show_errors: bool = True) -> None:
+        raise NotImplementedError
+
     if TYPE_CHECKING:
         _get_selected_tree_directory: Callable[[], Path]
         read_settings_from_widgets: Callable[[], dict[str, str]]
@@ -332,9 +335,10 @@ class UserIPImportExportMixin(QDialog):
         if added:
             self._mark_entries_dirty()
             self._highlight_duplicates()
+            self._save_database()
 
         self._set_status(
-            f'Merged {added} entr{pluralize(added, "y", "ies")} from "{src_path.name}" into "{self._current_path.name}".' + (' Remember to save.' if added else ''),
+            f'Merged {added} entr{pluralize(added, "y", "ies")} from "{src_path.name}" into "{self._current_path.name}".',
         )
 
     def _import_from_zip(self) -> None:

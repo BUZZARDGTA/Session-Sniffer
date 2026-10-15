@@ -45,7 +45,7 @@ from session_sniffer.guis._dialog_mixins import prompt_unsaved_changes_close
 from session_sniffer.guis.delegates import ElidedTextTooltipDelegate, SearchHighlightDelegate
 from session_sniffer.guis.file_watch import DebouncedFileWatcher
 from session_sniffer.guis.logs_manager._helpers import human_readable_timestamp
-from session_sniffer.guis.stylesheets import DIALOG_BUTTON_STYLESHEET, DIALOG_DANGER_BUTTON_STYLESHEET, DIALOG_PRIMARY_BUTTON_STYLESHEET
+from session_sniffer.guis.stylesheets import DIALOG_BUTTON_STYLESHEET, DIALOG_DANGER_BUTTON_STYLESHEET
 from session_sniffer.guis.table_column_resizing import adjust_last_visible_column_to_viewport, setup_table_header_context_menu
 from session_sniffer.guis.userip_manager_context_menu_mixin import EntriesContextMenuMixin
 from session_sniffer.guis.userip_manager_entries_ops_mixin import UserIPEntriesOperationsMixin
@@ -472,15 +472,6 @@ class UserIPDatabasesManager(
 
         entry_buttons.addStretch()
 
-        self._save_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'save.svg')), ' Save')
-        self._save_button.setAutoDefault(False)
-        self._save_button.setMinimumWidth(120)
-        self._save_button.setToolTip('Save all changes to the current database file')
-        self._save_button.setStyleSheet(DIALOG_PRIMARY_BUTTON_STYLESHEET)
-        self._save_button.setEnabled(False)
-        self._save_button.clicked.connect(self._save_database)
-        entry_buttons.addWidget(self._save_button)
-
         right_layout.addLayout(entry_buttons)
 
         self._splitter.addWidget(right_panel)
@@ -513,9 +504,8 @@ class UserIPDatabasesManager(
         self._sync_dirty_state()
 
     def _sync_dirty_state(self) -> None:
-        """Recompute the aggregate dirty flag from the tracked sources and update the Save button."""
+        """Recompute the aggregate dirty flag from the tracked sources."""
         self._dirty = (self._entries_dirty or self._settings_dirty) and self._current_path is not None and not self._global_search_active
-        self._save_button.setEnabled(self._dirty)
 
     @override
     def _mark_entries_dirty(self) -> None:
@@ -527,11 +517,13 @@ class UserIPDatabasesManager(
 
     @override
     def _mark_settings_dirty(self) -> None:
-        """Re-evaluate settings dirtiness against the loaded snapshot."""
+        """Re-evaluate settings dirtiness against the loaded snapshot and auto-save."""
         if self._global_search_active or self._current_path is None:
             return
         self._settings_dirty = self.read_settings_from_widgets() != self._settings_snapshot
         self._sync_dirty_state()
+        if self._settings_dirty:
+            self._save_database(show_errors=False)
 
     def _capture_settings_snapshot(self) -> None:
         """Record the current serialized settings as the clean baseline."""
@@ -701,8 +693,6 @@ class UserIPDatabasesManager(
         self._edit_ip_button.setEnabled(False)  # driven by selection
         self._rename_button.setEnabled(False)  # driven by selection
         self._delete_button.setEnabled(False)  # driven by selection
-        self._save_button.setVisible(not self._global_search_active)
-        self._save_button.setEnabled(self._dirty)
         self._open_db_button.setEnabled(not self._global_search_active and self._current_path is not None)
         if self._export_selected_action is not None:
             self._export_selected_action.setEnabled(db_available)
@@ -729,21 +719,23 @@ class UserIPDatabasesManager(
     # ------------------------------------------------------------------
 
     def _on_data_changed(self, top_left: QModelIndex, bottom_right: QModelIndex, roles: list[int]) -> None:
-        """Mark the current database as having unsaved changes."""
+        """Mark the current database as dirty and auto-save when valid."""
         if self._global_search_active or self._current_path is None or self._saving:
             return
         if roles and Qt.ItemDataRole.EditRole not in roles and Qt.ItemDataRole.DisplayRole not in roles:
             return
         if top_left.column() <= USERNAME_COLUMN <= bottom_right.column():
-            for row in range(top_left.row(), bottom_right.row() + 1):
-                item = self._model.item(row, USERNAME_COLUMN)
-                if item and item.data(Qt.ItemDataRole.UserRole):
-                    item.setData(None, Qt.ItemDataRole.UserRole)
-                    item.setIcon(QIcon())
-                    item.setForeground(QBrush())
-                    item.setToolTip('')
+            with QSignalBlocker(self._model):
+                for row in range(top_left.row(), bottom_right.row() + 1):
+                    item = self._model.item(row, USERNAME_COLUMN)
+                    if item and item.data(Qt.ItemDataRole.UserRole):
+                        item.setData(None, Qt.ItemDataRole.UserRole)
+                        item.setIcon(QIcon())
+                        item.setForeground(QBrush())
+                        item.setToolTip('')
         self._mark_entries_dirty()
         self._highlight_duplicates()
+        self._save_database(show_errors=False)
 
     # ------------------------------------------------------------------
     # Helpers
