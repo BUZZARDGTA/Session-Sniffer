@@ -1,6 +1,5 @@
 """Session host detection, diagnostic snapshots, and candidate tracking."""
 
-import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from heapq import nsmallest
@@ -14,8 +13,6 @@ from session_sniffer.text_utils import format_elapsed_time, pluralize
 
 if TYPE_CHECKING:
     from session_sniffer.models.player import Player
-
-logger = logging.getLogger(__name__)
 
 MINIMUM_PACKETS_FOR_RELAY_SESSION_HOST = 9
 MAXIMUM_PACKETS_FOR_RELAY_SESSION_HOST = 40
@@ -522,7 +519,6 @@ class SessionHost:
                 )
             return None
 
-        logger.debug('[SessionHost] Host found: %s', potential_session_host_player.ip)
         cls.set_player(potential_session_host_player)
         cls.search_player = False
         cls.manual_redetect = False
