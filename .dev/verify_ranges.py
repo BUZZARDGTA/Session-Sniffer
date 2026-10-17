@@ -962,8 +962,6 @@ def main() -> None:
                     fallback_client=fallback_client,
                 ),
             )
-            if total_count > 0:
-                time.sleep(min(0.005, 1.0 / total_count))
 
     if isinstance(client, RateLimitClient):
         client.sleep_callback = None
