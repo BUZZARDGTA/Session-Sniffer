@@ -324,40 +324,43 @@ def _binary_search_transition(client: RateLimitClient | GeoLite2Client, owner: s
 
 
 def scan_network_geolite2(
-    client: GeoLite2Client, owner: str, network: ipaddress.IPv4Network,
+    client: GeoLite2Client, owner: str, network: ipaddress.IPv4Network, fallback_client: RateLimitClient | None = None,
 ) -> tuple[list[tuple[ipaddress.IPv4Address, ipaddress.IPv4Address, str]], list[ipaddress.IPv4Network]]:
     """Scan the entire IPv4 network block using GeoLite2 mmdb, returning mismatches and matching subnets."""
-    current_ip, end_ip = network.network_address, network.broadcast_address
+    current_ip, matching_ranges = network.network_address, cast('list[ipaddress.IPv4Network]', [])
     mismatches: list[tuple[ipaddress.IPv4Address, ipaddress.IPv4Address, str]] = []
-    unallocated_gaps: list[tuple[ipaddress.IPv4Address, ipaddress.IPv4Address, str]] = []
-    matching_ranges: list[ipaddress.IPv4Network] = []
+    unallocated_gaps: list[tuple[ipaddress.IPv4Address, ipaddress.IPv4Address]] = []
 
-    while current_ip <= end_ip:
+    while current_ip <= network.broadcast_address:
         try:
             record = client.reader.asn(str(current_ip))
-            org = record.autonomous_system_organization or ''
             db_network = record.network if isinstance(record.network, ipaddress.IPv4Network) else ipaddress.IPv4Network(f'{current_ip}/24', strict=False)
-            overlap_start, overlap_end = max(current_ip, db_network.network_address), min(end_ip, db_network.broadcast_address)
-            if not org:
-                unallocated_gaps.append((overlap_start, overlap_end, 'Unallocated in GeoLite2'))
+            overlap_start, overlap_end = max(current_ip, db_network.network_address), min(network.broadcast_address, db_network.broadcast_address)
+            if not (org := record.autonomous_system_organization or ''):
+                unallocated_gaps.append((overlap_start, overlap_end))
             elif owner_matches(owner, {'isp': org, 'org': org, 'asname': org, 'as': f'AS{record.autonomous_system_number}' if bool(record.autonomous_system_number) else ''}):
                 matching_ranges.extend(ipaddress.summarize_address_range(overlap_start, overlap_end))
             else:
                 mismatches.append((overlap_start, overlap_end, org))
-            if db_network.broadcast_address >= end_ip:
-                break
-            current_ip = db_network.broadcast_address + 1
         except geoip2.errors.AddressNotFoundError as e:
-            unallocated_end = e.network.broadcast_address if isinstance(e.network, ipaddress.IPv4Network) else current_ip
-            unallocated_gaps.append((current_ip, min(end_ip, unallocated_end), 'Unallocated in GeoLite2'))
-            if unallocated_end >= end_ip:
-                break
-            current_ip = unallocated_end + 1
+            overlap_end = min(network.broadcast_address, e.network.broadcast_address if isinstance(e.network, ipaddress.IPv4Network) else current_ip)
+            unallocated_gaps.append((current_ip, overlap_end))
         except geoip2.errors.GeoIP2Error as e:
+            overlap_end = current_ip
             mismatches.append((current_ip, current_ip, f'Error: {e}'))
-            current_ip += 1
+        if overlap_end >= network.broadcast_address:
+            break
+        current_ip = overlap_end + 1
 
-    return (mismatches + unallocated_gaps if matching_ranges or mismatches else mismatches), list(ipaddress.collapse_addresses(matching_ranges))
+    if (matching_ranges or mismatches) and unallocated_gaps and owner not in IP_API_SKIPPED_OWNERS:
+        gap_results = lookup_ips_batch(fallback_client, [str(ip) for gap in unallocated_gaps for ip in gap]) if fallback_client else {}
+        for overlap_start, overlap_end in unallocated_gaps:
+            if all((gap_results.get(str(ip)) or {}).get('status') == 'success' and owner_matches(owner, gap_results.get(str(ip)) or {}) for ip in (overlap_start, overlap_end)):
+                matching_ranges.extend(ipaddress.summarize_address_range(overlap_start, overlap_end))
+            else:
+                gap_owner = (gap_results.get(str(overlap_start)) or {}).get('org') or (gap_results.get(str(overlap_start)) or {}).get('isp') or 'Unallocated in GeoLite2'
+                mismatches.append((overlap_start, overlap_end, gap_owner))
+    return mismatches, list(ipaddress.collapse_addresses(matching_ranges))
 
 
 def _format_networks_table(title: str, networks: list[ipaddress.IPv4Network], action_prefix: str) -> tuple[RenderableType, str]:
@@ -649,7 +652,7 @@ def check_range(
     mismatch_lines, mismatches_raw, matching_networks = cast('list[str]', []), cast('list[str]', []), cast('list[ipaddress.IPv4Network]', [])
 
     if isinstance(client, GeoLite2Client):
-        mismatches, matching_networks = scan_network_geolite2(client, owner, network)
+        mismatches, matching_networks = scan_network_geolite2(client, owner, network, options.fallback_client)
         if mismatches:
             is_valid, has_mismatches = False, True
             for start_ip, end_ip, actual_owner in mismatches:
