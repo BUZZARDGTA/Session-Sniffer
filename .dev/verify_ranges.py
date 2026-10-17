@@ -52,7 +52,6 @@ STALE_CONNECTION_THRESHOLD = 10  # seconds; close pooled connections after sleep
 MAX_ERROR_BACKOFF = 120
 MAX_IP_API_SUBNET_PREFIX = 12  # Skip ranges <= /12 (>= 1M IPs) when using IP-API
 MAX_AUTO_FIX_PREFIX_LEN = 24  # Skip auto-fix for subnets smaller than /24
-MAX_SLASH_24_BLOCK_INDEX = 0xFFFFFF  # Maximum /24 block index in IPv4 address space
 MAX_IPV4_INT = 0xFFFFFFFF  # Maximum IPv4 32-bit integer address
 
 ALWAYS_SKIPPED_OWNERS: set[str] = {'BattlEye', 'Tellas Greece', 'Google LLC'}
@@ -463,38 +462,45 @@ def suggest_fix(
     return Text(f'[FIX SUGGESTION] {raw_text}', style='red'), raw_text
 
 
-def _search_expansion_boundary(client: RateLimitClient | GeoLite2Client, owner: str, start_block: int, direction: int, cache: dict[int, bool]) -> int:
-    """Search outward from start_block in direction (+1 or -1) to find the owner boundary."""
-    step, current, last_good_block = 1, start_block, start_block
-    while True:
-        probe_block = max(0, min(current + step * direction, MAX_SLASH_24_BLOCK_INDEX))
-        is_match = _check_block_owner(client, owner, probe_block, cache)
-        if probe_block in (0, MAX_SLASH_24_BLOCK_INDEX) and not is_match:
-            break
-        if is_match:
-            last_good_block = current = probe_block
-            if probe_block in (0, MAX_SLASH_24_BLOCK_INDEX):
-                break
-            step *= 2
-        else:
-            low_block, high_block = sorted((last_good_block, probe_block))
-            while high_block - low_block > 1:
-                mid = (low_block + high_block) // 2
-                if _check_block_owner(client, owner, mid, cache) == (direction > 0):
-                    low_block = mid
-                else:
-                    high_block = mid
-            last_good_block = low_block if direction > 0 else high_block
-            break
-    return last_good_block
-
-
 @dataclass(slots=True)
 class RangeContext:
     """Context information for a CIDR range being verified."""
 
     network: ipaddress.IPv4Network
     owner_networks: list[ipaddress.IPv4Network]
+
+
+def _search_expansion_boundary(client: GeoLite2Client, owner: str, context: RangeContext, *, is_backward: bool) -> ipaddress.IPv4Address:
+    """Search outward from context.network using GeoLite2 prefix boundaries to find the exact owner boundary."""
+    boundary_ip = context.network.network_address if is_backward else context.network.broadcast_address
+    while (int(boundary_ip) > 0) if is_backward else (int(boundary_ip) < MAX_IPV4_INT):
+        probe_ip = boundary_ip - 1 if is_backward else boundary_ip + 1
+        if any(probe_ip in known_network for known_network in context.owner_networks):
+            break
+        try:
+            record = client.reader.asn(str(probe_ip))
+        except geoip2.errors.GeoIP2Error:
+            break
+        org = record.autonomous_system_organization or ''
+        data = {'isp': org, 'org': org, 'asname': org, 'as': f'AS{record.autonomous_system_number}' if bool(record.autonomous_system_number) else ''}
+        if not org or not owner_matches(owner, data):
+            break
+        db_network = record.network if isinstance(record.network, ipaddress.IPv4Network) else ipaddress.IPv4Network(f'{probe_ip}/32')
+        if is_backward:
+            candidate_ip = db_network.network_address
+            overlaps = [known_network.broadcast_address + 1 for known_network in context.owner_networks if candidate_ip <= known_network.broadcast_address < boundary_ip]
+            if overlaps:
+                boundary_ip = max(overlaps)
+                break
+            boundary_ip = candidate_ip
+        else:
+            candidate_ip = db_network.broadcast_address
+            overlaps = [known_network.network_address - 1 for known_network in context.owner_networks if boundary_ip < known_network.network_address <= candidate_ip]
+            if overlaps:
+                boundary_ip = min(overlaps)
+                break
+            boundary_ip = candidate_ip
+    return boundary_ip
 
 
 def suggest_expansion(
@@ -504,39 +510,23 @@ def suggest_expansion(
     expandable_ip_addresses: list[str],
     status_callback: Callable[[str], None] | None = None,
 ) -> tuple[RenderableType | None, str]:
-    """Binary-search outward from expandable adjacent blocks to find the full owner boundary."""
+    """Search outward from expandable adjacent IPs to find the full owner boundary."""
     if isinstance(client, RateLimitClient):
         raw_text = f'Expandable adjacent IP{pluralize(len(expandable_ip_addresses))}: {", ".join(expandable_ip_addresses)}'
         return Text(f'[EXPAND SUGGESTION] {raw_text}', style='magenta'), raw_text
 
-    start_block = int(context.network.network_address) // SUBNET_BLOCK_SIZE
-    end_block = int(context.network.broadcast_address) // SUBNET_BLOCK_SIZE
-    cache: dict[int, bool] = {}
-    initial_cache_size, expanded_start, expanded_end = 0, start_block, end_block
-
+    first_ip, last_ip = context.network.network_address, context.network.broadcast_address
     for ip_address in expandable_ip_addresses:
-        block_index = _ip_to_block(ip_address)
-        cache[block_index] = True
-        is_backward = block_index < start_block
+        is_backward = ipaddress.IPv4Address(ip_address) < context.network.network_address
         if status_callback is not None:
-            status_callback(f'[magenta]\\[AUTO-EXPAND][/magenta] Searching {"backward" if is_backward else "forward"} from {_block_to_ip(block_index)}...')
-        initial_cache_size = len(cache)
-        boundary = _search_expansion_boundary(client, owner, block_index, -1 if is_backward else 1, cache)
-        for known_network in context.owner_networks:
-            if is_backward and boundary <= int(known_network.broadcast_address) // SUBNET_BLOCK_SIZE < block_index:
-                boundary = int(known_network.broadcast_address) // SUBNET_BLOCK_SIZE + 1
-            elif not is_backward and block_index < int(known_network.network_address) // SUBNET_BLOCK_SIZE <= boundary:
-                boundary = int(known_network.network_address) // SUBNET_BLOCK_SIZE - 1
+            status_callback(f'[magenta]\\[AUTO-EXPAND][/magenta] Searching {"backward" if is_backward else "forward"} from {ip_address}...')
+        boundary_ip = _search_expansion_boundary(client, owner, context, is_backward=is_backward)
         if is_backward:
-            expanded_start = min(expanded_start, boundary)
+            first_ip = min(first_ip, boundary_ip)
         else:
-            expanded_end = max(expanded_end, boundary)
+            last_ip = max(last_ip, boundary_ip)
 
-    extra_queries = len(cache) - initial_cache_size
-    title_suffix = f' ([dim]{extra_queries} API quer{pluralize(extra_queries, "y", "ies")} used[/dim])' if extra_queries > 0 else ''
-    first_ip = ipaddress.IPv4Address(expanded_start * SUBNET_BLOCK_SIZE)
-    last_ip = ipaddress.IPv4Address((expanded_end + 1) * SUBNET_BLOCK_SIZE - 1)
-    return _format_networks_table(f'[bold magenta]Expand Suggestion[/bold magenta]{title_suffix}', list(ipaddress.summarize_address_range(first_ip, last_ip)), 'Expand to')
+    return _format_networks_table('[bold magenta]Expand Suggestion[/bold magenta]', list(ipaddress.summarize_address_range(first_ip, last_ip)), 'Expand to')
 
 
 def _get_adjacent_ips(network: ipaddress.IPv4Network) -> list[str]:
