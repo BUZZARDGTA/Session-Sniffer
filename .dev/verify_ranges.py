@@ -380,9 +380,9 @@ def _format_networks_table(title: str, networks: list[ipaddress.IPv4Network], ac
     table.add_column('IP Coverage', style='cyan')
     for matching_network in networks:
         table.add_row(f"'{matching_network.with_prefixlen}',", f'({matching_network.network_address} - {matching_network.broadcast_address})')
-    total_ip_addresses = sum(matching_network.num_addresses for matching_network in networks)
+    total_count = sum(matching_network.num_addresses for matching_network in networks)
     table.add_section()
-    table.add_row('[bold]Total[/bold]', f'[bold]{networks[0].network_address} - {networks[-1].broadcast_address} ({total_ip_addresses:,} IPs)[/bold]')
+    table.add_row('[bold]Total[/bold]', f'[bold]{networks[0].network_address} - {networks[-1].broadcast_address} ({total_count:,} IP{pluralize(total_count)})[/bold]')
     raw_text = f'{action_prefix}: {", ".join(matching_network.with_prefixlen for matching_network in networks)}'
     return table, raw_text
 
@@ -406,9 +406,9 @@ def suggest_fix(
         status.update(f'[yellow]Range /{network.prefixlen} is smaller than /{MAX_AUTO_FIX_PREFIX_LEN} — skipping auto-fix[/yellow]')
         return None, f'Range /{network.prefixlen} is smaller than /{MAX_AUTO_FIX_PREFIX_LEN} — skipping auto-fix'
 
-    start_block = int(network.network_address) // SUBNET_BLOCK_SIZE
-    end_block = int(network.broadcast_address) // SUBNET_BLOCK_SIZE
-    status.update(f'[magenta]\\[AUTO-FIX][/magenta] Scanning {end_block - start_block + 1:,} /24 blocks for ownership boundaries...')
+    start_block, end_block = int(network.network_address) // SUBNET_BLOCK_SIZE, int(network.broadcast_address) // SUBNET_BLOCK_SIZE
+    block_count = end_block - start_block + 1
+    status.update(f'[magenta]\\[AUTO-FIX][/magenta] Scanning {block_count:,} /24 block{pluralize(block_count)} for ownership boundaries...')
 
     cache: dict[int, bool] = {}
     for ip_address in sample_ips(network):
@@ -428,7 +428,7 @@ def suggest_fix(
             block_index_1, block_index_2 = sorted_blocks[i], sorted_blocks[i + 1]
             if cache[block_index_1] != cache[block_index_2] and block_index_2 - block_index_1 > 1:
                 steps = (block_index_2 - block_index_1).bit_length()
-                status.update(f'[white]binary search[/white] {_block_to_ip(block_index_1)} .. {_block_to_ip(block_index_2)} (~{steps} queries)')
+                status.update(f'[white]binary search[/white] {_block_to_ip(block_index_1)} .. {_block_to_ip(block_index_2)} (~{steps} quer{pluralize(steps, "y", "ies")})')
                 _binary_search_transition(client, owner, block_index_1, block_index_2, cache)
                 found_unresolved = True
                 break
@@ -436,7 +436,7 @@ def suggest_fix(
             break
 
     extra_queries = len(cache) - initial_cache_size
-    title_suffix = f' ([dim]{extra_queries} API queries used[/dim])' if extra_queries > 0 else ''
+    title_suffix = f' ([dim]{extra_queries} API quer{pluralize(extra_queries, "y", "ies")} used[/dim])' if extra_queries > 0 else ''
 
     sorted_blocks = sorted(cache.keys())
     good_networks: list[ipaddress.IPv4Network] = []
@@ -528,7 +528,7 @@ def suggest_expansion(
             expanded_end = max(expanded_end, boundary)
 
     extra_queries = len(cache) - initial_cache_size
-    title_suffix = f' ([dim]{extra_queries} API queries used[/dim])' if extra_queries > 0 else ''
+    title_suffix = f' ([dim]{extra_queries} API quer{pluralize(extra_queries, "y", "ies")} used[/dim])' if extra_queries > 0 else ''
     first_ip = ipaddress.IPv4Address(expanded_start * SUBNET_BLOCK_SIZE)
     last_ip = ipaddress.IPv4Address((expanded_end + 1) * SUBNET_BLOCK_SIZE - 1)
     return _format_networks_table(f'[bold magenta]Expand Suggestion[/bold magenta]{title_suffix}', list(ipaddress.summarize_address_range(first_ip, last_ip)), 'Expand to')
@@ -742,7 +742,7 @@ def check_range(
         title = (
             f'[bold white]{owner}[/bold white]  •  [bold magenta]{network.with_prefixlen}[/bold magenta]  •  '
             f'[dim]{network.network_address} → {network.broadcast_address}[/dim]  •  '
-            f'[bold white]{network.num_addresses:,} IPs[/bold white]'
+            f'[bold white]{network.num_addresses:,} IP{pluralize(network.num_addresses)}[/bold white]'
         )
         if file_path and line_number is not None:
             title += f'  •  [blue]{clean_path}:{line_number}[/blue]'
@@ -761,10 +761,10 @@ def run_preflight_checks(
     table.add_column(justify='left', ratio=3)
 
     unsorted_owners = [owner for owner, networks in networks_by_owner.items() if networks != sorted(networks)]
+    unsorted_count = len(unsorted_owners)
     sort_text = (
-        f'[yellow]⚠ {len(unsorted_owners)} owners have unsorted ranges ({", ".join(unsorted_owners)})[/yellow]'
-        if unsorted_owners
-        else '[green]✓ All ranges correctly sorted[/green]'
+        f'[yellow]⚠ {unsorted_count} owner{pluralize(unsorted_count)} {pluralize(unsorted_count, "has", "have")} unsorted ranges ({", ".join(unsorted_owners)})[/yellow]'
+        if unsorted_owners else '[green]✓ All ranges correctly sorted[/green]'
     )
     table.add_row('CIDR Sorting', sort_text)
 
@@ -775,7 +775,10 @@ def run_preflight_checks(
         for j, (owner_2, network_2) in enumerate(all_networks)
         if i != j and network_1.subnet_of(network_2) and 'BattlEye' not in (owner_1, owner_2)
     ]
-    overlap_text = f'[yellow]⚠ {len(overlaps)} overlaps detected![/yellow]\n' + '\n'.join(overlaps) if overlaps else '[green]✓ No overlapping CIDRs found[/green]'
+    overlap_text = (
+        f'[yellow]⚠ {len(overlaps)} overlap{pluralize(len(overlaps))} detected![/yellow]\n' + '\n'.join(overlaps)
+        if overlaps else '[green]✓ No overlapping CIDRs found[/green]'
+    )
     table.add_row('Overlapping CIDRs', overlap_text)
 
     collapses: list[str] = []
@@ -785,19 +788,22 @@ def run_preflight_checks(
     for owner, networks in networks_by_owner.items():
         collapsed = list(ipaddress.collapse_addresses(networks))
         if len(collapsed) < len(networks):
-            collapses.append(f'[dim]• {owner}: {len(networks)} ranges → {len(collapsed)}[/dim]')
+            collapses.append(f'[dim]• {owner}: {len(networks)} range{pluralize(len(networks))} → {len(collapsed)}[/dim]')
             owner_line_numbers = [line for name, _, line in ranges if name == owner]
             link_str = f'  •  [blue]{clean_relative_path}:{min(owner_line_numbers)}[/blue]' if (owner_line_numbers and clean_relative_path) else ''
             to_delete = [f"    '{network.with_prefixlen}'," for network in networks if network not in collapsed]
             to_add = [f"    '{network.with_prefixlen}'," for network in collapsed if network not in networks]
-            lines = [f'[bold white]{owner}[/bold white] ({len(networks)} ranges → {len(collapsed)}){link_str}']
+            lines = [f'[bold white]{owner}[/bold white] ({len(networks)} range{pluralize(len(networks))} → {len(collapsed)}){link_str}']
             if to_delete:
-                lines.extend(['  [red]❌ Delete these ranges:[/red]', *to_delete])
+                lines.extend([f'  [red]❌ Delete {pluralize(len(to_delete), "this range", "these ranges")}:[/red]', *to_delete])
             if to_add:
-                lines.extend(['  [green]➕ Add these ranges instead:[/green]', *to_add])
+                lines.extend([f'  [green]➕ Add {pluralize(len(to_add), "this range", "these ranges")} instead:[/green]', *to_add])
             collapse_suggestions.append('\n'.join(lines))
 
-    collapse_text = f'[yellow]⚠ {len(collapses)} collapsible blocks found![/yellow]\n' + '\n'.join(collapses) if collapses else '[green]✓ No collapsible ranges found[/green]'
+    collapse_text = (
+        f'[yellow]⚠ {len(collapses)} collapsible block{pluralize(len(collapses))} found![/yellow]\n' + '\n'.join(collapses)
+        if collapses else '[green]✓ No collapsible ranges found[/green]'
+    )
     table.add_row('Collapsible CIDRs', collapse_text)
 
     renderables: list[Any] = [table]
@@ -881,7 +887,7 @@ def main() -> None:
                 networks_by_owner.setdefault(owner, []).append(network)
 
     console.rule('[bold cyan]Session Sniffer - Range Verification Engine[/bold cyan]')
-    console.print(f'  [cyan]Loaded [bold white]{len(raw_ranges)}[/bold white] ranges for processing.[/cyan]')
+    console.print(f'  [cyan]Loaded [bold white]{len(raw_ranges)}[/bold white] range{pluralize(len(raw_ranges))} for processing.[/cyan]')
     run_preflight_checks(raw_ranges, networks_by_owner, ranges_file=str(parsed_arguments.ranges_file))
 
     fallback_client: RateLimitClient | None = None
@@ -907,7 +913,7 @@ def main() -> None:
 
     if ip_to_owners:
         ips_list = list(ip_to_owners.keys())
-        prefetch_progress = _create_progress(f'Pre-fetching {len(ips_list):,} IPs{" (offline)" if parsed_arguments.geolite2 else ""}')
+        prefetch_progress = _create_progress(f'Pre-fetching {len(ips_list):,} IP{pluralize(len(ips_list))}{" (offline)" if parsed_arguments.geolite2 else ""}')
         with prefetch_progress:
             prefetch_task = prefetch_progress.add_task('', total=(len(ips_list) + API_BATCH_LIMIT - 1) // API_BATCH_LIMIT)
             if not parsed_arguments.geolite2 and isinstance(client, RateLimitClient):
@@ -973,9 +979,9 @@ def main() -> None:
     console.rule('[bold green]✓ Range Verification Complete[/bold green]')
     skipped_count = len(raw_ranges) - total_count
     time_str = format_duration(time.time() - start_time)
-    console.print(f'  [green]✓ Successfully verified [bold]{total_count}[/bold] ranges in [bold]{time_str}[/bold].[/green]')
+    console.print(f'  [green]✓ Successfully verified [bold]{total_count}[/bold] range{pluralize(total_count)} in [bold]{time_str}[/bold].[/green]')
     if skipped_count > 0:
-        console.print(f'  [dim]ℹ Skipped [bold]{skipped_count}[/bold] ranges (ignored owners / huge ranges).[/dim]')
+        console.print(f'  [dim]ℹ Skipped [bold]{skipped_count}[/bold] range{pluralize(skipped_count)} (ignored owners / huge ranges).[/dim]')
 
     if parsed_arguments.export:
         export_path = Path(parsed_arguments.export)
