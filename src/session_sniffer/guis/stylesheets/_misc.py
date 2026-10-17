@@ -1,5 +1,11 @@
 """Miscellaneous QSS: Discord popups, section headers, main window, settings labels, splash screen."""
 
+from session_sniffer.constants.local import RESOURCES_DIR_PATH
+
+_CHEVRON_RIGHT_PATH = (RESOURCES_DIR_PATH / 'icons' / 'branch_chevron_right.svg').as_posix()
+_CHEVRON_DOWN_PATH = (RESOURCES_DIR_PATH / 'icons' / 'branch_chevron_down.svg').as_posix()
+_CHECK_PATH = (RESOURCES_DIR_PATH / 'icons' / 'check.svg').as_posix()
+
 # =============================================================================
 # DISCORD DIALOG STYLES
 # =============================================================================
@@ -551,6 +557,42 @@ LOOKY_REVIEW_TABLE_STYLESHEET = (
     '    background-color: #4c1d95;'
     '    color: #ffffff;'
     '}'
+    'QTreeWidget::item:selected:hover {'
+    '    background-color: #5b21b6;'
+    '    color: #ffffff;'
+    '}'
+    'QTreeWidget::branch {'
+    '    background: transparent;'
+    '    border: none;'
+    '    border-image: none;'
+    '    image: none;'
+    '}'
+    'QTreeWidget::branch:hover {'
+    '    background-color: #1e1030;'
+    '}'
+    'QTreeWidget::branch:selected {'
+    '    background-color: #4c1d95;'
+    '}'
+    'QTreeWidget::branch:selected:hover {'
+    '    background-color: #5b21b6;'
+    '}'
+    'QTreeWidget::branch:has-siblings:!adjoins-item,'
+    'QTreeWidget::branch:has-siblings:adjoins-item,'
+    'QTreeWidget::branch:!has-children:!has-siblings:adjoins-item,'
+    'QTreeWidget::branch:!has-children:!has-siblings:!adjoins-item {'
+    '    border-image: none;'
+    '    image: none;'
+    '}'
+    'QTreeWidget::branch:has-children:!has-siblings:closed,'
+    'QTreeWidget::branch:closed:has-children:has-siblings {'
+    '    border-image: none;'
+    f'    image: url("{_CHEVRON_RIGHT_PATH}");'
+    '}'
+    'QTreeWidget::branch:has-children:!has-siblings:open,'
+    'QTreeWidget::branch:open:has-children:has-siblings {'
+    '    border-image: none;'
+    f'    image: url("{_CHEVRON_DOWN_PATH}");'
+    '}'
     'QTreeWidget::indicator {'
     '    width: 16px;'
     '    height: 16px;'
@@ -568,7 +610,7 @@ LOOKY_REVIEW_TABLE_STYLESHEET = (
     '    border: 1px solid #a855f7;'
     '    border-radius: 4px;'
     '    background-color: #7c3aed;'
-    '    image: none;'
+    f'    image: url("{_CHECK_PATH}");'
     '}'
     'QTreeWidget::indicator:checked:hover {'
     '    border: 1px solid #c084fc;'
@@ -611,5 +653,34 @@ LOOKY_REVIEW_SELECT_BUTTON_STYLESHEET = (
     '}'
     'QPushButton:pressed {'
     '    background-color: #4c1d95;'
+    '}'
+)
+
+LOOKY_REVIEW_MATCHES_TOGGLE_STYLESHEET = (
+    'QPushButton {'
+    '    background-color: #161024;'
+    '    color: #9ca3af;'
+    '    border: 1px dashed #4c3575;'
+    '    border-radius: 6px;'
+    '    padding: 4px 16px;'
+    '    font-weight: 700;'
+    '    font-size: 8pt;'
+    '}'
+    'QPushButton:hover {'
+    '    background-color: #22163a;'
+    '    color: #d8b4fe;'
+    '    border: 1px solid #7c3aed;'
+    '}'
+    'QPushButton:checked {'
+    '    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,'
+    '        stop:0 #0284c7, stop:0.5 #6d28d9, stop:1 #a855f7);'
+    '    color: #ffffff;'
+    '    border: 1px solid #38bdf8;'
+    '}'
+    'QPushButton:checked:hover {'
+    '    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,'
+    '        stop:0 #0ea5e9, stop:0.5 #7c3aed, stop:1 #c084fc);'
+    '    border: 1px solid #7dd3fc;'
+    '    color: #ffffff;'
     '}'
 )

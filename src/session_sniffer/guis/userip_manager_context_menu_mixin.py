@@ -8,16 +8,12 @@ from PySide6.QtGui import QAction, QDesktopServices, QIcon, QStandardItemModel
 from PySide6.QtWidgets import QAbstractItemView, QCheckBox, QDialog, QFileSystemModel, QLineEdit, QMenu, QPushButton, QTreeView
 
 from session_sniffer.constants.local import RESOURCES_DIR_PATH, USERIP_DATABASES_DIR_PATH
-from session_sniffer.guis.looky_text import (
-    configure_looky_action,
-)
 from session_sniffer.guis.stylesheets import SVG_ICON_CONTEXT_MENU_STYLESHEET
 from session_sniffer.guis.tables_player_actions import (
     create_ping_menu,
     scan_ports_ip,
     show_detailed_ip_lookup,
 )
-from session_sniffer.guis.tables_player_actions.looky_system._looky_refresh_userip import looky_refresh_userip_entries
 from session_sniffer.guis.userip_manager_helpers import (
     DATABASE_COLUMN,
     NOTES_COLUMN,
@@ -27,7 +23,6 @@ from session_sniffer.guis.userip_manager_helpers import (
     populate_userip_databases_menu,
 )
 from session_sniffer.guis.utils import copy_table_all_rows, copy_table_selection, open_file_location, set_clipboard_text
-from session_sniffer.settings.settings import Settings
 from session_sniffer.text_utils import pluralize
 
 
@@ -310,22 +305,13 @@ class EntriesContextMenuMixin(QDialog):
             scan_ports_action.triggered.connect(lambda _checked=False, target=scan_target: scan_ports_ip(target))
             menu.addAction(scan_ports_action)
 
-        # Username additions (manual and Looky System)
+        # Username additions
         if ip_or_range and self._current_path is not None and selected_count <= 1:
             menu.addSeparator()
             add_username_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'plus.svg')), 'Add Username', self)
             add_username_action.setToolTip('Add an additional username for this IP address or range in the current database.')
             add_username_action.triggered.connect(lambda: self._add_username(source_row))
             menu.addAction(add_username_action)
-
-            # Looky System refresh (only for single IPs in GTA5 feature set)
-            if Settings.is_gta5_feature_set() and is_single_ip:
-                refresh_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'eye.svg')), 'Add Username (Looky System)', self)
-                refresh_action.triggered.connect(
-                    lambda _checked=False, database_path=self._current_path, target_ip=ip_or_range: looky_refresh_userip_entries(self, [(database_path, [target_ip])]),
-                )
-                configure_looky_action(refresh_action, 'Look up this IP via Looky System and add any new usernames to its UserIP database.')
-                menu.addAction(refresh_action)
 
         selected_count = len(self._entries_table.selectionModel().selectedRows()) if self._entries_table.selectionModel() else 1
         delete_label = f'Delete Selected Row{pluralize(selected_count)}'
@@ -423,7 +409,7 @@ class EntriesContextMenuMixin(QDialog):
 
             go_to_db_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'arrow-right.svg')), 'Go to Database', self)
             go_to_db_action.setToolTip('Open this database and navigate to this entry.')
-            go_to_db_action.triggered.connect(lambda: self._navigate_to_database(db_path, username=username, ip_or_range=ip_or_range))
+            go_to_db_action.triggered.connect(lambda: self.navigate_to_database(db_path, username=username, ip_or_range=ip_or_range))
             menu.addAction(go_to_db_action)
 
             open_editor_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'file-text.svg')), 'Open in Text Editor', self)
@@ -518,24 +504,13 @@ class EntriesContextMenuMixin(QDialog):
             scan_ports_gs_action.triggered.connect(lambda _checked=False, target=scan_target_gs: scan_ports_ip(target))
             menu.addAction(scan_ports_gs_action)
 
-        # Username additions (manual and Looky System)
+        # Username additions
         if db_path_str and ip_or_range and selected_count_gs <= 1:
             menu.addSeparator()
             add_username_gs_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'plus.svg')), 'Add Username', self)
             add_username_gs_action.setToolTip('Add an additional username for this IP address or range in its UserIP database.')
             add_username_gs_action.triggered.connect(lambda _checked=False, target_row=row: self._add_username(target_row))
             menu.addAction(add_username_gs_action)
-
-            # Looky System refresh (only for single IPs in GTA5 feature set)
-            if username and Settings.is_gta5_feature_set() and is_single_ip_gs:
-                _db_refresh = Path(db_path_str)
-                _ip_refresh = ip_or_range
-                refresh_gs_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'eye.svg')), 'Add Username (Looky System)', self)
-                refresh_gs_action.triggered.connect(
-                    lambda _checked=False, database_path=_db_refresh, target_ip=_ip_refresh: looky_refresh_userip_entries(self, [(database_path, [target_ip])]),
-                )
-                configure_looky_action(refresh_gs_action, 'Look up this IP via Looky System and add any new usernames to its UserIP database.')
-                menu.addAction(refresh_gs_action)
 
         if username and ip_or_range:
             selected_count = len(self._entries_table.selectionModel().selectedRows()) if self._entries_table.selectionModel() else 1
@@ -572,7 +547,7 @@ class EntriesContextMenuMixin(QDialog):
         self._entries_table.setCurrentIndex(proxy_index)
         self._entries_table.scrollTo(proxy_index, QAbstractItemView.ScrollHint.PositionAtCenter)
 
-    def _navigate_to_database(self, db_path: Path, *, username: str = '', ip_or_range: str = '') -> None:
+    def navigate_to_database(self, db_path: Path, *, username: str = '', ip_or_range: str = '') -> None:
         """Exit global search mode, open the given database, and select the matching entry when available."""
         if self._search_input.text():
             self._search_input.clear()
@@ -592,10 +567,12 @@ class EntriesContextMenuMixin(QDialog):
         self._select_loaded_entry(username=username, ip_or_range=ip_or_range)
 
     def _select_loaded_entry(self, *, username: str, ip_or_range: str) -> None:
-        """Select the first row in the loaded database matching the given username and entry value."""
-        if not username or not ip_or_range:
+        """Select the first row matching `(username, ip_or_range)`, falling back to `ip_or_range` or `username`."""
+        if not username and not ip_or_range:
             return
 
+        fallback_row: int | None = None
+        username_cf = username.casefold()
         for row in range(self._model.rowCount()):
             username_item = self._model.item(row, USERNAME_COLUMN)
             if not username_item:
@@ -603,20 +580,14 @@ class EntriesContextMenuMixin(QDialog):
 
             row_username = username_item.text().strip()
             row_ip_or_range = self._get_row_entry_value(row).strip()
-            if row_username != username or row_ip_or_range != ip_or_range:
-                continue
+            if username and ip_or_range and row_username == username and row_ip_or_range == ip_or_range:
+                fallback_row = row
+                break
+            if fallback_row is None and ((ip_or_range and row_ip_or_range == ip_or_range) or (username_cf and row_username.casefold() == username_cf)):
+                fallback_row = row
 
-            source_index = self._model.index(row, USERNAME_COLUMN)
-            proxy_index = self._proxy.mapFromSource(source_index)
-            if not proxy_index.isValid():
-                return
-
-            selection = self._entries_table.selectionModel()
-            if selection:
-                selection.select(proxy_index, QItemSelectionModel.SelectionFlag.ClearAndSelect | QItemSelectionModel.SelectionFlag.Rows)
-            self._entries_table.setCurrentIndex(proxy_index)
-            self._entries_table.scrollTo(proxy_index, QAbstractItemView.ScrollHint.PositionAtCenter)
-            return
+        if fallback_row is not None:
+            self._go_to_entry(fallback_row)
 
     def on_entry_double_clicked(self, index: QModelIndex) -> None:
         """Handle double-click on an entry row in global search mode."""
@@ -632,4 +603,4 @@ class EntriesContextMenuMixin(QDialog):
         if db_path_str:
             username = username_item.text() if username_item else ''
             ip_or_range = self._get_row_entry_value(row)
-            self._navigate_to_database(Path(db_path_str), username=username, ip_or_range=ip_or_range)
+            self.navigate_to_database(Path(db_path_str), username=username, ip_or_range=ip_or_range)

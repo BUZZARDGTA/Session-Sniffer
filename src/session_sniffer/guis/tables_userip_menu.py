@@ -195,10 +195,15 @@ def build_userip_menu(
     )
     if Settings.is_gta5_feature_set():
         userip_menu.addSeparator()
+        is_searchlist = player.userip.db_path.stem.casefold() == 'searchlist'
         refresh_action = add_action(
             userip_menu,
-            'Add Username (Looky System)',
-            tooltip='Look up this IP via Looky System and add any new usernames to its UserIP database.',
+            'Verify IP (Looky System)' if is_searchlist else 'Refresh IP (Looky System)',
+            tooltip=(
+                'Verify this IP in Searchlist via Looky System to confirm matching usernames or remove wrong IPs.'
+                if is_searchlist
+                else 'Look up this IP via Looky System to confirm existing usernames and discover any additional usernames.'
+            ),
             handler=lambda: looky_refresh_userip_entries(parent, [(player.userip.db_path, [ip_address])]) if player.userip else None,
             icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'eye.svg')),
         )
@@ -329,10 +334,15 @@ def build_userip_menu_multi(
             if _refresh_by_db:
                 if rename_players:
                     userip_menu.addSeparator()
+                is_all_searchlist = all(db_path.stem.casefold() == 'searchlist' for db_path in _refresh_by_db)
                 refresh_multi_action = add_action(
                     userip_menu,
-                    'Add Usernames (Looky System)',
-                    tooltip=f'Look up {entries_phrase} via Looky System and add any new usernames to their UserIP databases.',
+                    'Verify IPs (Looky System)' if is_all_searchlist else 'Refresh IPs (Looky System)',
+                    tooltip=(
+                        f'Verify {entries_phrase} in Searchlist via Looky System to confirm matching usernames and remove wrong IPs.'
+                        if is_all_searchlist
+                        else f'Look up {entries_phrase} via Looky System to confirm existing usernames and discover any additional usernames.'
+                    ),
                     handler=lambda: looky_refresh_userip_entries(parent, list(_refresh_by_db.items())),
                     icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'eye.svg')),
                 )

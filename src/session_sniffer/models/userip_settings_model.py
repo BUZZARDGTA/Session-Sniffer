@@ -357,8 +357,12 @@ class UserIPEntryModel(BaseModel):
     def merge_duplicate(self, other: Self, *, sum_detections: bool = True) -> Self:
         """Merge metadata and timestamps from a duplicate `(username, ip)` entry into this entry."""
         merged_detections = self.detections_count + other.detections_count if sum_detections else max(self.detections_count, other.detections_count)
+        merged_is_looky = self.is_looky or other.is_looky
+        merged_source: EntrySource = 'Looky' if merged_is_looky else self.source
         return self.model_copy(
             update={
+                'is_looky': merged_is_looky,
+                'source': merged_source,
                 'notes': self.notes or other.notes,
                 'detections_count': merged_detections,
                 'added_at': pick_earliest_iso(self.added_at, other.added_at) or self.added_at,

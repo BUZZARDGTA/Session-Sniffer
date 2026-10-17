@@ -81,7 +81,7 @@ FILTERABLE_COLUMNS = (
     DATABASE_COLUMN,
 )
 
-ENTRY_TABLE_HEADERS = ['#', 'Usernames', 'IP', 'Range', 'Notes', 'Source', 'Detections', 'Added', 'Updated', 'First Seen', 'Last Seen', 'Database']
+ENTRY_TABLE_HEADERS = ['#', 'Username', 'IP', 'Range', 'Notes', 'Source', 'Detections', 'Added', 'Updated', 'First Seen', 'Last Seen', 'Database']
 
 IS_PERSISTED_ROLE = Qt.ItemDataRole.UserRole + 1
 
@@ -552,18 +552,18 @@ def rewrite_db_edit_ip_notes(
 
 
 def append_userip_entries(db_path: Path, entries: Sequence[UserIPEntryModel]) -> set[tuple[str, str]]:
-    """Append entries to a UserIP `.json` database file, avoiding exact duplicates.
+    """Add entries to a UserIP `.json` database file, inserting next to matching IPs and avoiding exact duplicates.
 
     Args:
         db_path: The target UserIP database file path.
-        entries: Sequence of `UserIPEntryModel` instances to append.
+        entries: Sequence of `UserIPEntryModel` instances to add.
 
     Returns:
         The set of `(username, ip_or_range)` pairs actually added (excluding exact duplicates already present).
     """
     db_model = load_userip_database_model(db_path)
-    existing_pairs: dict[tuple[str, str], int] = {
-        (entry.username.casefold(), entry.ip): i for i, entry in enumerate(db_model.entries)
+    existing_by_pair: dict[tuple[str, str], UserIPEntryModel] = {
+        (entry.username.casefold(), entry.ip): entry for entry in db_model.entries
     }
     added_pairs: set[tuple[str, str]] = set()
     modified = False
@@ -575,17 +575,33 @@ def append_userip_entries(db_path: Path, entries: Sequence[UserIPEntryModel]) ->
         if not username or not ip_or_range:
             continue
         cf_pair = (username.casefold(), ip_or_range)
-        if cf_pair not in existing_pairs:
-            existing_pairs[cf_pair] = len(db_model.entries)
+        existing_entry = existing_by_pair.get(cf_pair)
+        if existing_entry is None:
+            new_entry = entry.model_copy(update={'username': username, 'ip': ip_or_range, 'notes': entry.notes.strip()})
+            existing_by_pair[cf_pair] = new_entry
             added_pairs.add((username, ip_or_range))
-            db_model.entries.append(entry.model_copy(update={'username': username, 'ip': ip_or_range, 'notes': entry.notes.strip()}))
+            last_ip_index = next((i for i in range(len(db_model.entries) - 1, -1, -1) if db_model.entries[i].ip == ip_or_range), None)
+            if last_ip_index is not None:
+                db_model.entries.insert(last_ip_index + 1, new_entry)
+            else:
+                db_model.entries.append(new_entry)
             modified = True
-        elif entry.notes.strip():
-            existing_index = existing_pairs[cf_pair]
-            existing_entry = db_model.entries[existing_index]
-            if not existing_entry.notes:
-                db_model.entries[existing_index] = existing_entry.model_copy(update={'notes': entry.notes.strip(), 'updated_at': now_iso})
-                modified = True
+        elif (entry.is_looky and not existing_entry.is_looky) or (entry.notes.strip() and not existing_entry.notes):
+            existing_index = db_model.entries.index(existing_entry)
+            upgraded_looky = existing_entry.is_looky or entry.is_looky
+            updated_entry = existing_entry.model_copy(
+                update={
+                    'is_looky': upgraded_looky,
+                    'source': 'Looky' if upgraded_looky else existing_entry.source,
+                    'notes': existing_entry.notes or entry.notes.strip(),
+                    'updated_at': now_iso,
+                },
+            )
+            db_model.entries[existing_index] = updated_entry
+            existing_by_pair[cf_pair] = updated_entry
+            if entry.is_looky and not existing_entry.is_looky:
+                added_pairs.add((existing_entry.username, ip_or_range))
+            modified = True
 
     if modified:
         save_userip_database_model(db_path, db_model)
