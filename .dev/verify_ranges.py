@@ -329,6 +329,7 @@ def scan_network_geolite2(
     """Scan the entire IPv4 network block using GeoLite2 mmdb, returning mismatches and matching subnets."""
     current_ip, end_ip = network.network_address, network.broadcast_address
     mismatches: list[tuple[ipaddress.IPv4Address, ipaddress.IPv4Address, str]] = []
+    unallocated_gaps: list[tuple[ipaddress.IPv4Address, ipaddress.IPv4Address, str]] = []
     matching_ranges: list[ipaddress.IPv4Network] = []
 
     while current_ip <= end_ip:
@@ -336,18 +337,19 @@ def scan_network_geolite2(
             record = client.reader.asn(str(current_ip))
             org = record.autonomous_system_organization or ''
             db_network = record.network if isinstance(record.network, ipaddress.IPv4Network) else ipaddress.IPv4Network(f'{current_ip}/24', strict=False)
-            data = {'isp': org, 'org': org, 'asname': org, 'as': f'AS{record.autonomous_system_number}' if bool(record.autonomous_system_number) else ''}
             overlap_start, overlap_end = max(current_ip, db_network.network_address), min(end_ip, db_network.broadcast_address)
-            if org:
-                if owner_matches(owner, data):
-                    matching_ranges.extend(ipaddress.summarize_address_range(overlap_start, overlap_end))
-                else:
-                    mismatches.append((overlap_start, overlap_end, org))
+            if not org:
+                unallocated_gaps.append((overlap_start, overlap_end, 'Unallocated in GeoLite2'))
+            elif owner_matches(owner, {'isp': org, 'org': org, 'asname': org, 'as': f'AS{record.autonomous_system_number}' if bool(record.autonomous_system_number) else ''}):
+                matching_ranges.extend(ipaddress.summarize_address_range(overlap_start, overlap_end))
+            else:
+                mismatches.append((overlap_start, overlap_end, org))
             if db_network.broadcast_address >= end_ip:
                 break
             current_ip = db_network.broadcast_address + 1
         except geoip2.errors.AddressNotFoundError as e:
             unallocated_end = e.network.broadcast_address if isinstance(e.network, ipaddress.IPv4Network) else current_ip
+            unallocated_gaps.append((current_ip, min(end_ip, unallocated_end), 'Unallocated in GeoLite2'))
             if unallocated_end >= end_ip:
                 break
             current_ip = unallocated_end + 1
@@ -355,7 +357,7 @@ def scan_network_geolite2(
             mismatches.append((current_ip, current_ip, f'Error: {e}'))
             current_ip += 1
 
-    return mismatches, list(ipaddress.collapse_addresses(matching_ranges))
+    return (mismatches + unallocated_gaps if matching_ranges or mismatches else mismatches), list(ipaddress.collapse_addresses(matching_ranges))
 
 
 def _format_networks_table(title: str, networks: list[ipaddress.IPv4Network], action_prefix: str) -> tuple[RenderableType, str]:
