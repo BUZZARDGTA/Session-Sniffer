@@ -540,12 +540,12 @@ def suggest_expansion(
 
 
 def _get_adjacent_ips(network: ipaddress.IPv4Network) -> list[str]:
-    """Get the .0 IPs of the /24 blocks immediately adjacent to the network (before and after)."""
+    """Get the IP addresses immediately adjacent to the network (before and after)."""
     adjacent: list[str] = []
-    if (before_ip_int := int(network.network_address) - SUBNET_BLOCK_SIZE) >= 0:
-        adjacent.append(str(ipaddress.IPv4Address(before_ip_int)))
-    if (after_ip_int := int(network.broadcast_address) + 1) <= MAX_IPV4_INT:
-        adjacent.append(str(ipaddress.IPv4Address(after_ip_int - (after_ip_int % SUBNET_BLOCK_SIZE))))
+    if int(network.network_address) > 0:
+        adjacent.append(str(network.network_address - 1))
+    if int(network.broadcast_address) < MAX_IPV4_INT:
+        adjacent.append(str(network.broadcast_address + 1))
     return adjacent
 
 
