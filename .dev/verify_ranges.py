@@ -863,10 +863,14 @@ def main() -> None:
     parser.add_argument('--geolite2', action='store_true', help='Use local GeoLite2 database instead of IP-API.')
     parser.add_argument('--ip-api-fallback', action='store_true', help='Allow unknown GeoLite2 ranges to fallback to IP-API.')
     parser.add_argument('--only-detections', action='store_true', help='Only print blocks with mismatches or expansion opportunities.')
+    parser.add_argument('--owner', action='append', help='Only verify ranges matching the specified owner filter (can be specified multiple times).')
     parser.add_argument('--export', help='Export one-line detections to the specified text file.')
     parsed_arguments = parser.parse_args([arg for arg in sys.argv if arg][1:])
 
     raw_ranges = extract_ranges(str(parsed_arguments.ranges_file))
+    if parsed_arguments.owner:
+        owner_filters = [owner_filter.lower() for owner_filter in parsed_arguments.owner]
+        raw_ranges = [(owner, cidr_range, line_number) for owner, cidr_range, line_number in raw_ranges if any(owner_filter in owner.lower() for owner_filter in owner_filters)]
     parsed_ranges: list[tuple[str, str, ipaddress.IPv4Network, int]] = []
     networks_by_owner: dict[str, list[ipaddress.IPv4Network]] = {}
     for owner, cidr_range, line_number in raw_ranges:
