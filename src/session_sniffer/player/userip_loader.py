@@ -14,7 +14,8 @@ from session_sniffer.models.userip_settings_model import (
     UserIPDatabaseFile,
     UserIPEntryModel,
     UserIPSettingsModel,
-    get_current_iso_timestamp,
+    pick_earliest_iso,
+    pick_latest_iso,
 )
 from session_sniffer.networking.ip_range import entry_ip_covers_ip, is_valid_ip_range_entry
 from session_sniffer.player.userip import ProtectionSettings, UserIPDatabases, UserIPSettings
@@ -23,6 +24,7 @@ from session_sniffer.utils import custom_str_to_bool, validate_file
 from session_sniffer.utils_exceptions import InvalidBooleanValueError
 
 if TYPE_CHECKING:
+    from datetime import datetime
     from pathlib import Path
     from typing import Any
 
@@ -330,12 +332,13 @@ def append_userip_entry_if_missing(db_path: Path, username: str, ip: str) -> boo
         return True
 
 
-def record_userip_detection(db_path: Path, ip_address: str) -> UserIP | None:
+def record_userip_detection(db_path: Path, ip_address: str, seen_at: datetime) -> UserIP | None:
     """Increment `detections_count` and update `first_seen_at` / `last_seen_at` for entries matching `ip_address`.
 
     Args:
         db_path: Path to the matched UserIP `.json` database file.
         ip_address: The detected player's IPv4 address.
+        seen_at: When the player joined the current session; merged chronologically into the stored timestamps.
 
     Returns:
         The refreshed `UserIP` snapshot after updating the database, or `None` if unavailable.
@@ -344,7 +347,7 @@ def record_userip_detection(db_path: Path, ip_address: str) -> UserIP | None:
     if not cleaned_ip or not db_path.is_file():
         return None
 
-    timestamp = get_current_iso_timestamp()
+    timestamp = seen_at.isoformat(timespec='seconds')
     modified = False
 
     with _userip_file_append_lock:
@@ -379,8 +382,8 @@ def record_userip_detection(db_path: Path, ip_address: str) -> UserIP | None:
                 parsed_entry = parsed_entry.model_copy(
                     update={
                         'detections_count': parsed_entry.detections_count + 1,
-                        'first_seen_at': parsed_entry.first_seen_at or timestamp,
-                        'last_seen_at': timestamp,
+                        'first_seen_at': pick_earliest_iso(parsed_entry.first_seen_at, timestamp),
+                        'last_seen_at': pick_latest_iso(parsed_entry.last_seen_at, timestamp),
                     },
                 )
                 modified = True

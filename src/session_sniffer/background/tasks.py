@@ -383,7 +383,7 @@ def process_userip_task(
             queue_voice_notification(tts_candidate_path)
 
         if connection_type == 'connected':
-            updated_userip = record_userip_detection(userip.db_path, player.ip)
+            updated_userip = record_userip_detection(userip.db_path, player.ip, player.datetime.last_rejoin)
             if updated_userip is not None:
                 userip = updated_userip
                 player.userip = updated_userip
