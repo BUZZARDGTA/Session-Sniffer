@@ -330,13 +330,12 @@ def append_userip_entry_if_missing(db_path: Path, username: str, ip: str) -> boo
         return True
 
 
-def record_userip_detection(db_path: Path, ip_address: str, detected_iso: str | None = None) -> UserIP | None:
+def record_userip_detection(db_path: Path, ip_address: str) -> UserIP | None:
     """Increment `detections_count` and update `first_seen_at` / `last_seen_at` for entries matching `ip_address`.
 
     Args:
         db_path: Path to the matched UserIP `.json` database file.
         ip_address: The detected player's IPv4 address.
-        detected_iso: Optional ISO-8601 timestamp string; defaults to the current local timestamp.
 
     Returns:
         The refreshed `UserIP` snapshot after updating the database, or `None` if unavailable.
@@ -345,7 +344,7 @@ def record_userip_detection(db_path: Path, ip_address: str, detected_iso: str | 
     if not cleaned_ip or not db_path.is_file():
         return None
 
-    timestamp = detected_iso or get_current_iso_timestamp()
+    timestamp = get_current_iso_timestamp()
     modified = False
 
     with _userip_file_append_lock:

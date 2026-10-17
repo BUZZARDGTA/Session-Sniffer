@@ -46,27 +46,16 @@ def pluralize(count: int, singular: str = '', plural: str = 's') -> str:
     return singular if count == 1 else plural
 
 
-def format_triple_quoted_text(
-    text: str,
-    /,
-    *,
-    add_trailing_newline: bool = False,
-) -> str:
-    """Format a triple-quoted string by removing leading whitespace and optionally adding a trailing newline.
+def format_triple_quoted_text(text: str, /) -> str:
+    """Format a triple-quoted string by removing leading whitespace.
 
     Args:
         text: The text to format.
-        add_trailing_newline: Whether to add a trailing newline.
 
     Returns:
         The formatted text.
     """
-    formatted_text = textwrap.dedent(text).strip()
-
-    if add_trailing_newline:
-        formatted_text += '\n'
-
-    return formatted_text
+    return textwrap.dedent(text).strip()
 
 
 def parse_voice_notifications(value: str) -> Literal['Male', 'Female'] | bool:
