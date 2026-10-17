@@ -664,6 +664,10 @@ def check_range(
                     has_mismatches = True
                     mismatch_lines.extend(lines)
                     mismatches_raw.extend(raw)
+        if options.fallback_client and owner not in IP_API_SKIPPED_OWNERS:
+            missing_adjacent = [ip for ip in adjacent_ip_addresses if (results.get(ip) or {}).get('message') == 'address not found']
+            if missing_adjacent:
+                results.update(lookup_ips_batch(options.fallback_client, missing_adjacent))
     else:
         sample_valid, lines, raw = _collect_sample_mismatches(base_samples, results, owner, cidr_range)
         if not sample_valid:
@@ -678,10 +682,15 @@ def check_range(
 
     renderables: list[RenderableType] = [Panel(render_samples(all_ip_addresses), title='[cyan]Sampled IPs[/cyan]', border_style='cyan', box=box.ROUNDED), Text('')]
 
+    base_status = (
+        '[red]✗ Mismatches Found[/red]' if has_mismatches
+        else '[yellow]! Not in GeoLite2[/yellow]' if isinstance(active_client, GeoLite2Client) and not matching_networks
+        else '[green]✓ Pass[/green]'
+    )
     validation_table = Table.grid(padding=(0, 4))
     validation_table.add_column(style='cyan', justify='left')
     validation_table.add_column(justify='left')
-    validation_table.add_row('Base Check', '[red]✗ Mismatches Found[/red]' if has_mismatches else '[green]✓ Pass[/green]')
+    validation_table.add_row('Base Check', base_status)
     validation_table.add_row('Backward Expansion', backward_status)
     validation_table.add_row('Forward Expansion', forward_status)
 
