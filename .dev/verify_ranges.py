@@ -38,7 +38,6 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Generator, Mapping
 
     from rich.console import RenderableType
-    from rich.status import Status
 
 IP_API_BATCH_URL = 'http://ip-api.com/batch'
 COOLDOWN_HTTP_STATUS = 429
@@ -387,28 +386,31 @@ def _format_networks_table(title: str, networks: list[ipaddress.IPv4Network], ac
     return table, raw_text
 
 
+def _format_geolite2_fix(network: ipaddress.IPv4Network, matching_networks: list[ipaddress.IPv4Network]) -> tuple[RenderableType, str]:
+    """Format an offline GeoLite2 fix suggestion from already-scanned matching networks."""
+    if matching_networks:
+        return _format_networks_table('[bold magenta]Fix Suggestion[/bold magenta] (offline GeoLite2 scan)', matching_networks, 'Replace with')
+    raw_text = f'No matching blocks found — consider removing {network.with_prefixlen}'
+    return Text(f'[FIX SUGGESTION] {raw_text}', style='red'), raw_text
+
+
 def suggest_fix(
-    client: RateLimitClient | GeoLite2Client,
+    client: RateLimitClient,
     owner: str,
     network: ipaddress.IPv4Network,
     results: dict[str, dict[str, Any]],
-    status: Status,
+    status_callback: Callable[[str], None] | None = None,
 ) -> tuple[RenderableType | None, str]:
     """Binary-search /24 boundaries and suggest replacement CIDRs for a mismatched range."""
-    if isinstance(client, GeoLite2Client):
-        _, matching_networks = scan_network_geolite2(client, owner, network)
-        if matching_networks:
-            return _format_networks_table('[bold magenta]Fix Suggestion[/bold magenta] (offline GeoLite2 scan)', matching_networks, 'Replace with')
-        raw_text = f'No matching blocks found — consider removing {network.with_prefixlen}'
-        return Text(f'[FIX SUGGESTION] {raw_text}', style='red'), raw_text
-
     if network.prefixlen > MAX_AUTO_FIX_PREFIX_LEN:
-        status.update(f'[yellow]Range /{network.prefixlen} is smaller than /{MAX_AUTO_FIX_PREFIX_LEN} — skipping auto-fix[/yellow]')
+        if status_callback is not None:
+            status_callback(f'[yellow]Range /{network.prefixlen} is smaller than /{MAX_AUTO_FIX_PREFIX_LEN} — skipping auto-fix[/yellow]')
         return None, f'Range /{network.prefixlen} is smaller than /{MAX_AUTO_FIX_PREFIX_LEN} — skipping auto-fix'
 
     start_block, end_block = int(network.network_address) // SUBNET_BLOCK_SIZE, int(network.broadcast_address) // SUBNET_BLOCK_SIZE
     block_count = end_block - start_block + 1
-    status.update(f'[magenta]\\[AUTO-FIX][/magenta] Scanning {block_count:,} /24 block{pluralize(block_count)} for ownership boundaries...')
+    if status_callback is not None:
+        status_callback(f'[magenta]\\[AUTO-FIX][/magenta] Scanning {block_count:,} /24 block{pluralize(block_count)} for ownership boundaries...')
 
     cache: dict[int, bool] = {}
     for ip_address in sample_ips(network):
@@ -428,7 +430,9 @@ def suggest_fix(
             block_index_1, block_index_2 = sorted_blocks[i], sorted_blocks[i + 1]
             if cache[block_index_1] != cache[block_index_2] and block_index_2 - block_index_1 > 1:
                 steps = (block_index_2 - block_index_1).bit_length()
-                status.update(f'[white]binary search[/white] {_block_to_ip(block_index_1)} .. {_block_to_ip(block_index_2)} (~{steps} quer{pluralize(steps, "y", "ies")})')
+                if status_callback is not None:
+                    ip_1, ip_2 = _block_to_ip(block_index_1), _block_to_ip(block_index_2)
+                    status_callback(f'[white]binary search[/white] {ip_1} .. {ip_2} (~{steps} quer{pluralize(steps, "y", "ies")})')
                 _binary_search_transition(client, owner, block_index_1, block_index_2, cache)
                 found_unresolved = True
                 break
@@ -498,7 +502,7 @@ def suggest_expansion(
     owner: str,
     context: RangeContext,
     expandable_ip_addresses: list[str],
-    status: Status,
+    status_callback: Callable[[str], None] | None = None,
 ) -> tuple[RenderableType | None, str]:
     """Binary-search outward from expandable adjacent blocks to find the full owner boundary."""
     if isinstance(client, RateLimitClient):
@@ -514,7 +518,8 @@ def suggest_expansion(
         block_index = _ip_to_block(ip_address)
         cache[block_index] = True
         is_backward = block_index < start_block
-        status.update(f'[magenta]\\[AUTO-EXPAND][/magenta] Searching {"backward" if is_backward else "forward"} from {_block_to_ip(block_index)}...')
+        if status_callback is not None:
+            status_callback(f'[magenta]\\[AUTO-EXPAND][/magenta] Searching {"backward" if is_backward else "forward"} from {_block_to_ip(block_index)}...')
         initial_cache_size = len(cache)
         boundary = _search_expansion_boundary(client, owner, block_index, -1 if is_backward else 1, cache)
         for known_network in context.owner_networks:
@@ -614,10 +619,9 @@ class CheckRangeOptions:
 
     location: tuple[str, int | None] | None = None
     only_detections: bool = False
-    current_index: int = 0
-    total_count: int = 0
     detections: list[str] | None = None
     fallback_client: RateLimitClient | None = None
+    status_callback: Callable[[str], None] | None = None
 
 
 def check_range(
@@ -636,59 +640,51 @@ def check_range(
         message = f'Only IPv4 networks are supported: {cidr_range}'
         raise TypeError(message)
 
-    progress_prefix = f'[cyan][{int((options.current_index / options.total_count) * 100)}%][/cyan] ' if options.total_count > 0 and options.current_index > 0 else ''
-    status_message = (
-        f'{progress_prefix}[bold cyan]Scanning [/bold cyan][bold white]{owner}[/bold white] '
-        f'[bold cyan]([/bold cyan][bold magenta]{network.with_prefixlen}[/bold magenta][bold cyan])...[/bold cyan]'
+    base_samples = sample_ips(network)
+    adjacent_ip_addresses = _get_adjacent_ips(network)
+    all_ip_addresses = list(dict.fromkeys(base_samples + adjacent_ip_addresses))
+    results = lookup_ips_batch(client, adjacent_ip_addresses if isinstance(client, GeoLite2Client) else all_ip_addresses)
+
+    is_valid = True
+    has_mismatches = False
+    mismatch_lines: list[str] = []
+    mismatches_raw: list[str] = []
+    matching_networks: list[ipaddress.IPv4Network] = []
+    active_client = client
+
+    if isinstance(client, GeoLite2Client):
+        mismatches, matching_networks = scan_network_geolite2(client, owner, network)
+        if mismatches:
+            is_valid = False
+            has_mismatches = True
+            for start_ip, end_ip, actual_owner in mismatches:
+                ip_range_str = str(start_ip) if start_ip == end_ip else f'{start_ip} - {end_ip}'
+                mismatch_lines.append(f'[red]✗[/red] [magenta]{ip_range_str}[/magenta] → {actual_owner}')
+                mismatches_raw.append(f'✗ {cidr_range} ({ip_range_str}) → {actual_owner}')
+        elif not matching_networks and options.fallback_client:
+            if owner not in IP_API_SKIPPED_OWNERS and network.prefixlen > MAX_IP_API_SUBNET_PREFIX:
+                if options.status_callback is not None:
+                    options.status_callback(f'[white]{owner}[/white] [magenta]{network.with_prefixlen}[/magenta] [yellow]• Fallback to IP-API[/yellow]')
+                fallback_results = lookup_ips_batch(options.fallback_client, all_ip_addresses)
+                results.update(fallback_results)
+                active_client = options.fallback_client
+                sample_valid, lines, raw = _collect_sample_mismatches(base_samples, fallback_results, owner, cidr_range)
+                if not sample_valid:
+                    is_valid = False
+                    has_mismatches = True
+                    mismatch_lines.extend(lines)
+                    mismatches_raw.extend(raw)
+    else:
+        sample_valid, lines, raw = _collect_sample_mismatches(base_samples, results, owner, cidr_range)
+        if not sample_valid:
+            is_valid = False
+            has_mismatches = True
+            mismatch_lines.extend(lines)
+            mismatches_raw.extend(raw)
+
+    expansion_found, expandable_ip_addresses, backward_status, forward_status, backward_details, forward_details = _evaluate_expansion_boundary(
+        network, adjacent_ip_addresses, owner, owner_networks, results,
     )
-    with console.status(status_message) as status:
-        base_samples = sample_ips(network)
-        adjacent_ip_addresses = _get_adjacent_ips(network)
-        all_ip_addresses = list(dict.fromkeys(base_samples + adjacent_ip_addresses))
-        results = lookup_ips_batch(client, all_ip_addresses)
-
-        is_valid = True
-        has_mismatches = False
-        mismatch_lines: list[str] = []
-        mismatches_raw: list[str] = []
-        active_client = client
-
-        if isinstance(client, GeoLite2Client):
-            mismatches, matching_networks = scan_network_geolite2(client, owner, network)
-            if mismatches:
-                is_valid = False
-                has_mismatches = True
-                for start_ip, end_ip, actual_owner in mismatches:
-                    ip_range_str = str(start_ip) if start_ip == end_ip else f'{start_ip} - {end_ip}'
-                    mismatch_lines.append(f'[red]✗[/red] [magenta]{ip_range_str}[/magenta] → {actual_owner}')
-                    mismatches_raw.append(f'✗ {cidr_range} ({ip_range_str}) → {actual_owner}')
-            elif not matching_networks and options.fallback_client:
-                if owner not in IP_API_SKIPPED_OWNERS and network.prefixlen > MAX_IP_API_SUBNET_PREFIX:
-                    status.update(
-                        f'{progress_prefix}[bold cyan]Scanning [/bold cyan][bold white]{owner}[/bold white] '
-                        f'[bold cyan]([/bold cyan][bold magenta]{network.with_prefixlen}[/bold magenta]'
-                        f'[bold cyan])... [yellow]Fallback to IP-API[/yellow][/bold cyan]',
-                    )
-                    fallback_results = lookup_ips_batch(options.fallback_client, all_ip_addresses)
-                    results.update(fallback_results)
-                    active_client = options.fallback_client
-                    sample_valid, lines, raw = _collect_sample_mismatches(base_samples, fallback_results, owner, cidr_range)
-                    if not sample_valid:
-                        is_valid = False
-                        has_mismatches = True
-                        mismatch_lines.extend(lines)
-                        mismatches_raw.extend(raw)
-        else:
-            sample_valid, lines, raw = _collect_sample_mismatches(base_samples, results, owner, cidr_range)
-            if not sample_valid:
-                is_valid = False
-                has_mismatches = True
-                mismatch_lines.extend(lines)
-                mismatches_raw.extend(raw)
-
-        expansion_found, expandable_ip_addresses, backward_status, forward_status, backward_details, forward_details = _evaluate_expansion_boundary(
-            network, adjacent_ip_addresses, owner, owner_networks, results,
-        )
 
     renderables: list[RenderableType] = [Panel(render_samples(all_ip_addresses), title='[cyan]Sampled IPs[/cyan]', border_style='cyan', box=box.ROUNDED), Text('')]
 
@@ -721,13 +717,17 @@ def check_range(
     if has_mismatches:
         mismatch_panel = Panel('\n'.join(mismatch_lines), title='[red]Base Check Mismatches[/red]', border_style='red', box=box.ROUNDED)
         renderables.extend([Text(''), Rule('[bold white]Fix Suggestion[/bold white]'), mismatch_panel])
-        fix_renderable, fix_raw = suggest_fix(active_client, owner, network, results, status)
+        fix_renderable, fix_raw = (
+            _format_geolite2_fix(network, matching_networks)
+            if isinstance(active_client, GeoLite2Client)
+            else suggest_fix(active_client, owner, network, results, options.status_callback)
+        )
         if fix_renderable is not None:
             renderables.append(fix_renderable)
 
     expansion_raw = ''
     if expansion_found:
-        expansion_renderable, expansion_raw = suggest_expansion(active_client, owner, RangeContext(network, owner_networks), expandable_ip_addresses, status)
+        expansion_renderable, expansion_raw = suggest_expansion(active_client, owner, RangeContext(network, owner_networks), expandable_ip_addresses, options.status_callback)
         if expansion_renderable is not None:
             renderables.extend([Text(''), Rule('[bold white]Expansion Available[/bold white]'), expansion_renderable])
 
@@ -905,27 +905,26 @@ def main() -> None:
     else:
         client = RateLimitClient(_ip_api_session)
 
-    ip_to_owners: dict[str, set[str]] = {}
-    for owner, cidr_range, network, _ in parsed_ranges:
-        if not should_skip(owner, cidr_range, use_geolite2=parsed_arguments.geolite2):
-            for ip_address in sample_ips(network) + _get_adjacent_ips(network):
-                ip_to_owners.setdefault(ip_address, set()).add(owner)
+    if isinstance(client, RateLimitClient):
+        ip_to_owners: dict[str, set[str]] = {}
+        for owner, cidr_range, network, _ in parsed_ranges:
+            if not should_skip(owner, cidr_range, use_geolite2=parsed_arguments.geolite2):
+                for ip_address in sample_ips(network) + _get_adjacent_ips(network):
+                    ip_to_owners.setdefault(ip_address, set()).add(owner)
 
-    if ip_to_owners:
-        ips_list = list(ip_to_owners.keys())
-        prefetch_progress = _create_progress(f'Pre-fetching {len(ips_list):,} IP{pluralize(len(ips_list))}{" (offline)" if parsed_arguments.geolite2 else ""}')
-        with prefetch_progress:
-            prefetch_task = prefetch_progress.add_task('', total=(len(ips_list) + API_BATCH_LIMIT - 1) // API_BATCH_LIMIT)
-            if not parsed_arguments.geolite2 and isinstance(client, RateLimitClient):
+        if ip_to_owners:
+            ips_list = list(ip_to_owners.keys())
+            prefetch_progress = _create_progress(f'Pre-fetching {len(ips_list):,} IP{pluralize(len(ips_list))}')
+            with prefetch_progress:
+                prefetch_task = prefetch_progress.add_task('', total=(len(ips_list) + API_BATCH_LIMIT - 1) // API_BATCH_LIMIT)
                 client.sleep_callback = _make_sleep_callback(prefetch_progress, prefetch_task, prefix='[yellow]RATE[/yellow]')
-            for i, batch in enumerate(chunked(ips_list, API_BATCH_LIMIT), 1):
-                batch_owners = sorted({owner for ip in batch for owner in ip_to_owners[ip]})
-                extra_owners_count = len(batch_owners) - MAX_DISPLAYED_OWNERS
-                extra_owners_text = f' and {extra_owners_count} more' if extra_owners_count > 0 else ''
-                owners_str = f'{", ".join(batch_owners[:MAX_DISPLAYED_OWNERS])}{extra_owners_text}'
-                prefetch_progress.update(prefetch_task, completed=i, description=f'[white]{owners_str}[/white]')
-                lookup_ips_batch(client, batch)
-            if not parsed_arguments.geolite2 and isinstance(client, RateLimitClient):
+                for i, batch in enumerate(chunked(ips_list, API_BATCH_LIMIT), 1):
+                    batch_owners = sorted({owner for ip in batch for owner in ip_to_owners[ip]})
+                    extra_owners_count = len(batch_owners) - MAX_DISPLAYED_OWNERS
+                    extra_owners_text = f' and {extra_owners_count} more' if extra_owners_count > 0 else ''
+                    owners_str = f'{", ".join(batch_owners[:MAX_DISPLAYED_OWNERS])}{extra_owners_text}'
+                    prefetch_progress.update(prefetch_task, completed=i, description=f'[white]{owners_str}[/white]')
+                    lookup_ips_batch(client, batch)
                 client.sleep_callback = None
 
     if not parsed_arguments.only_detections:
@@ -944,6 +943,9 @@ def main() -> None:
         if fallback_client:
             fallback_client.sleep_callback = verification_callback
 
+        def _update_status(description: str) -> None:
+            progress.update(task_id, description=description)
+
         for owner, cidr_range, _, line_number in parsed_ranges:
             if should_skip(owner, cidr_range, use_geolite2=parsed_arguments.geolite2):
                 if not parsed_arguments.only_detections:
@@ -955,17 +957,10 @@ def main() -> None:
             current_index += 1
             progress.update(task_id, completed=current_index, description=f'[white]{owner}[/white] [magenta]{cidr_range}[/magenta]')
             check_range(
-                client,
-                owner,
-                cidr_range,
-                networks_by_owner.get(owner, []),
+                client, owner, cidr_range, networks_by_owner.get(owner, []),
                 CheckRangeOptions(
-                    location=(str(parsed_arguments.ranges_file), line_number),
-                    only_detections=parsed_arguments.only_detections,
-                    current_index=current_index,
-                    total_count=total_count,
-                    detections=detections,
-                    fallback_client=fallback_client,
+                    location=(str(parsed_arguments.ranges_file), line_number), only_detections=parsed_arguments.only_detections,
+                    detections=detections, fallback_client=fallback_client, status_callback=_update_status,
                 ),
             )
 
