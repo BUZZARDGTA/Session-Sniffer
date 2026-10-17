@@ -360,11 +360,11 @@ def scan_network_geolite2(
             if db_network.broadcast_address >= end_ip:
                 break
             current_ip = db_network.broadcast_address + 1
-        except geoip2.errors.AddressNotFoundError:
-            next_24_ip = ((int(current_ip) // 256) + 1) * 256
-            if ipaddress.IPv4Network(f'{current_ip}/24', strict=False).broadcast_address >= end_ip:
+        except geoip2.errors.AddressNotFoundError as e:
+            unallocated_end = e.network.broadcast_address if isinstance(e.network, ipaddress.IPv4Network) else current_ip
+            if unallocated_end >= end_ip:
                 break
-            current_ip = ipaddress.IPv4Address(next_24_ip)
+            current_ip = unallocated_end + 1
         except geoip2.errors.GeoIP2Error as e:
             mismatches.append((current_ip, current_ip, f'Error: {e}'))
             current_ip += 1
