@@ -326,7 +326,6 @@
                 "${workspaceFolder}/src/session_sniffer/networking/third_party_servers_ranges.py",
                 "${input:useGeoLite2}",
                 "${input:ipApiFallback}",
-                "--owner=${input:ownerFilter}",
                 "${input:exportDetections}"
             ],
             "options": {
@@ -375,12 +374,6 @@
                     "value": ""
                 }
             ],
-            "default": ""
-        },
-        {
-            "id": "ownerFilter",
-            "type": "promptString",
-            "description": "Filter by owner name (optional, comma-separated, leave empty for all):",
             "default": ""
         },
         {
