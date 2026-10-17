@@ -499,11 +499,10 @@ class InterfaceSelectionDialog(QDialog):
         select_button.setStyleSheet(interface_select_button_disabled_style(self._ui_scale))
         select_button.setEnabled(False)  # Initially disabled
         select_button.setMinimumSize(scale(330), scale(56))
-        _play_pad = scale(10)
-        _play_w, _play_h = scale(46), scale(28)
-        select_button.setIcon(make_padded_icon(render_svg_icon_from_resource('circle-play.svg', _play_w, _play_h, '#ffffff'), (_play_w, _play_h), _play_pad))
+        _play_size, _play_pad = scale(26), scale(10)
+        select_button.setIcon(make_padded_icon(render_svg_icon_from_resource('circle-play.svg', _play_size, _play_size, '#ffffff'), (_play_size, _play_size), _play_pad))
 
-        select_button.setIconSize(QSize(_play_w + _play_pad, _play_h))
+        select_button.setIconSize(QSize(_play_size + _play_pad, _play_size))
         select_button.clicked.connect(self.select_interface)
 
         self._controls: _FilterControls = _FilterControls(
