@@ -746,7 +746,7 @@ def run_preflight_checks(
     table.add_column(style='cyan', justify='left', ratio=1)
     table.add_column(justify='left', ratio=3)
     clean_path = os.path.relpath(ranges_file).replace('\\', '/') if ranges_file else ''
-    line_by_range = {(owner, cidr_range): line for owner, cidr_range, line in ranges}
+    line_by_range = {(owner, cidr_range): line for owner, cidr_range, line in reversed(ranges)}
 
     valid_pairs = {(owner, network.with_prefixlen) for owner, networks in networks_by_owner.items() for network in networks}
     if invalid_ranges := [(owner, cidr_range, line) for owner, cidr_range, line in ranges if (owner, cidr_range) not in valid_pairs]:
@@ -770,7 +770,7 @@ def run_preflight_checks(
     )
     table.add_row('CIDR Sorting', sort_text)
 
-    all_networks = [(owner, network, line_by_range.get((owner, network.with_prefixlen), 0)) for owner, networks in networks_by_owner.items() for network in networks]
+    all_networks = [(owner, ipaddress.IPv4Network(cidr_range), line) for owner, cidr_range, line in ranges if (owner, cidr_range) in valid_pairs]
     overlap_items = [
         (owner_1, network_1, line_1, owner_2, network_2) for i, (owner_1, network_1, line_1) in enumerate(all_networks)
         for j, (owner_2, network_2, _) in enumerate(all_networks)
