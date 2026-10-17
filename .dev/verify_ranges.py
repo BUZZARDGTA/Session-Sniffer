@@ -19,7 +19,7 @@ from rich import box
 from rich.columns import Columns
 from rich.console import Console, Group
 from rich.panel import Panel
-from rich.progress import BarColumn, MofNCompleteColumn, Progress, SpinnerColumn, TaskID, TextColumn, TimeElapsedColumn
+from rich.progress import BarColumn, MofNCompleteColumn, Progress, SpinnerColumn, TaskID, TaskProgressColumn, TextColumn, TimeElapsedColumn
 from rich.rule import Rule
 from rich.table import Table
 from rich.text import Text
@@ -644,7 +644,7 @@ def check_range(
                 mismatches_raw.append(f'✗ {cidr_range} ({ip_range_str}) → {actual_owner}')
         elif not matching_networks and options.fallback_client and owner not in IP_API_SKIPPED_OWNERS and network.prefixlen > MAX_IP_API_SUBNET_PREFIX:
             if options.status_callback is not None:
-                options.status_callback(f'[white]{owner}[/white] [magenta]{network.with_prefixlen}[/magenta] [yellow]• Fallback to IP-API[/yellow]')
+                options.status_callback('[yellow]Fallback to IP-API[/yellow]')
             fallback_results = lookup_ips_batch(options.fallback_client, all_ip_addresses)
             results.update(fallback_results)
             active_client = options.fallback_client
@@ -838,7 +838,7 @@ def _create_progress(description: str) -> Progress:
     """Create a standardized progress bar for prefetching or verification."""
     return Progress(
         SpinnerColumn(), TextColumn(f'[bold cyan]{description}[/bold cyan]'), BarColumn(bar_width=30),
-        MofNCompleteColumn(), TextColumn('[dim]•[/dim]'), TimeElapsedColumn(), TextColumn('[dim]•[/dim]'),
+        TaskProgressColumn(), MofNCompleteColumn(), TextColumn('[dim]•[/dim]'), TimeElapsedColumn(), TextColumn('[dim]•[/dim]'),
         TextColumn('{task.description}'), console=console, transient=True,
     )
 
@@ -935,7 +935,7 @@ def main() -> None:
         console.print()
 
     total_count = sum(1 for owner, cidr_range, _, _ in parsed_ranges if not should_skip(owner, cidr_range, use_geolite2=parsed_arguments.geolite2))
-    current_index = 0
+    current_index, base_status = 0, ''
     progress = _create_progress('Verifying')
 
     with progress:
@@ -947,7 +947,7 @@ def main() -> None:
             fallback_client.sleep_callback = verification_callback
 
         def _update_status(description: str) -> None:
-            progress.update(task_id, description=description)
+            progress.update(task_id, description=f'{base_status} [dim]•[/dim] {description}' if base_status else description)
 
         for owner, cidr_range, _, line_number in parsed_ranges:
             if should_skip(owner, cidr_range, use_geolite2=parsed_arguments.geolite2):
@@ -958,7 +958,8 @@ def main() -> None:
                 continue
 
             current_index += 1
-            progress.update(task_id, completed=current_index, description=f'[white]{owner}[/white] [magenta]{cidr_range}[/magenta]')
+            base_status = f'[white]{owner}[/white] [magenta]{cidr_range}[/magenta]'
+            progress.update(task_id, completed=current_index, description=base_status)
             check_range(
                 client, owner, cidr_range, networks_by_owner.get(owner, []),
                 CheckRangeOptions(
