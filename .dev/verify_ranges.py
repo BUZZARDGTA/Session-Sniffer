@@ -60,8 +60,8 @@ IP_API_SKIPPED_OWNERS: set[str] = {'Amazon.com, Inc.', 'Microsoft Corporation', 
 
 KNOWN_FALSE_POSITIVES: dict[str, list[str]] = {
     'Microsoft Corporation': ['digital highway corporation', 'dxc us latin america corporation', 'shanghai blue cloud technology'],
-    'Demonware Limited': ['datacamp limited', 'orbit telekom sanayi'],
-    'Take-Two Interactive Software, Inc.': ['frontier communications of america'],
+    'Demonware Limited': ['datacamp limited', 'orbit telekom sanayi'], 'G-Core Labs S.A.': ['northern data'],
+    'Take-Two Interactive Software, Inc.': ['frontier communications of america'], 'Zenlayer Inc': ['agora lab'],
 }
 
 KNOWN_ALIASES: dict[str, list[str]] = {
@@ -496,12 +496,15 @@ def _search_expansion_boundary(
         try:
             queries += 1
             record = client.reader.asn(str(probe_ip))
-        except geoip2.errors.AddressNotFoundError:
+        except geoip2.errors.AddressNotFoundError as e:
             if context.fallback_client and owner not in IP_API_SKIPPED_OWNERS and _check_block_owner(context.fallback_client, owner, _ip_to_block(str(probe_ip)), cache):
-                limit_ip, _ = _clamp_expansion_ip(ipaddress.IPv4Address(0 if is_backward else MAX_IPV4_INT), boundary_ip, context.owner_networks, is_backward=is_backward)
+                gap_end_ip = (e.network.network_address if is_backward else e.network.broadcast_address) if isinstance(e.network, ipaddress.IPv4Network) else probe_ip
+                limit_ip, clamped = _clamp_expansion_ip(gap_end_ip, boundary_ip, context.owner_networks, is_backward=is_backward)
                 end_block = _search_expansion_blocks(context.fallback_client, owner, _ip_to_block(str(probe_ip)), _ip_to_block(str(limit_ip)), cache)
                 candidate = ipaddress.IPv4Address(end_block * SUBNET_BLOCK_SIZE if is_backward else (end_block + 1) * SUBNET_BLOCK_SIZE - 1)
                 boundary_ip = max(limit_ip, candidate) if is_backward else min(limit_ip, candidate)
+                if not clamped and boundary_ip == gap_end_ip:
+                    continue
             break
         except geoip2.errors.GeoIP2Error:
             break
