@@ -40,6 +40,7 @@ if TYPE_CHECKING:
     from rich.console import RenderableType
 
 IP_API_BATCH_URL = 'http://ip-api.com/batch'
+THROTTLING_RATE_LIMIT_THRESHOLD = 3
 COOLDOWN_HTTP_STATUS = 429
 EXPECTED_ARGS_COUNT = 2
 MIN_WORD_LENGTH = 4
@@ -68,11 +69,7 @@ KNOWN_ALIASES: dict[str, list[str]] = {
         'Amazon.com, Inc.', 'Amazon Technologies Inc', 'Amazon.com, Inc. / Amazon Technologies Inc.',
         'Amazon.com, Inc. / Amazon Technologies Inc', 'Amazon Technologies Inc. / AWS EC2',
     ],
-    'The Constant Company, LLC': ['vultr', 'choopa'],
-    'OVH SAS': ['ovh'],
-    'Discord': ['i3d.net b.v'],
-    'i3D.net B.V': ['i3d.net', 'i3d'],
-    'Zenlayer Inc': ['zen'],
+    'The Constant Company, LLC': ['vultr', 'choopa'], 'OVH SAS': ['ovh'], 'Discord': ['i3d.net b.v'], 'i3D.net B.V': ['i3d.net', 'i3d'], 'Zenlayer Inc': ['zen'],
 }
 
 GENERIC_WORDS: set[str] = {
@@ -88,24 +85,19 @@ class RateLimitClient:
     def __init__(self, session: requests.Session) -> None:
         """Initialize the RateLimitClient."""
         self.session, self.min_interval = session, 60 / 14
-        self.last_request_time, self.cooldown_until = 0.0, 0.0
-        self.capacity, self.window = 14, 60
+        self.last_request_time, self.cooldown_until, self.window_reset_at = 0.0, 0.0, 0.0
+        self.last_rate_limit, self.capacity, self.window, self.consecutive_errors = cast('int | None', None), 14, 60, 0
         self.tokens, self.last_refill = float(self.capacity), time.time()
-        self.consecutive_errors = 0
-        self.cache: dict[str, dict[str, Any]] = {}
-        self.sleep_callback: Callable[[float, str], None] | None = None
+        self.cache, self.sleep_callback = cast('dict[str, dict[str, Any]]', {}), cast('Callable[[float, str], None] | None', None)
 
     def _refill(self) -> None:
         """Refill the token bucket gradually based on elapsed time."""
-        now = time.time()
-        if (elapsed_seconds := now - self.last_refill) > 0:
-            self.tokens = min(self.tokens + elapsed_seconds * (self.capacity / self.window), float(self.capacity))
-            self.last_refill = now
+        if (elapsed_seconds := (now := time.time()) - self.last_refill) > 0:
+            self.tokens, self.last_refill = min(self.tokens + elapsed_seconds * (self.capacity / self.window), float(self.capacity)), now
 
     def _reset_tokens(self) -> None:
         """Reset tokens to full capacity and update refill timestamp."""
-        self.tokens = float(self.capacity)
-        self.last_refill = time.time()
+        self.tokens, self.last_refill, self.last_rate_limit = float(self.capacity), time.time(), None
 
     def _wait_for_cooldown(self) -> None:
         """Block until any active cooldown period has expired."""
@@ -122,15 +114,22 @@ class RateLimitClient:
             self.session.close()
 
     def _respect_min_interval(self) -> None:
-        """Ensure requests are spaced out by at least the minimum interval."""
-        if (wait := self.min_interval - (time.time() - self.last_request_time)) > 0:
+        """Ensure requests are spaced out by at least the minimum interval (or paced when low on quota)."""
+        now, interval = time.time(), self.min_interval
+        if self.last_rate_limit is not None and 0 < self.last_rate_limit <= THROTTLING_RATE_LIMIT_THRESHOLD and self.window_reset_at > now:
+            interval = max(interval, (self.window_reset_at - now) / self.last_rate_limit)
+        if (wait := interval - (now - self.last_request_time)) > 0:
             self._sleep(wait, 'API spacing')
 
     def _apply_headers(self, headers: Mapping[str, str]) -> None:
-        """Apply rate limit headers from the API response."""
+        """Apply rate limit headers (`X-Rl` and `X-Ttl`) from the API response."""
+        now = time.time()
         with contextlib.suppress(ValueError, TypeError):
-            rate_limit_value = int(headers['X-Rl'])
-            self.tokens = min(float(rate_limit_value), float(self.capacity))
+            ttl_value = max(int(headers.get('X-Ttl', self.window)), 1)
+            self.window_reset_at, self.last_rate_limit = now + ttl_value, (rate_limit_value := int(headers['X-Rl']))
+            self.tokens, self.last_refill = min(float(rate_limit_value), float(self.capacity)), now
+            if rate_limit_value <= 0:
+                self.cooldown_until = max(self.cooldown_until, now + ttl_value + 1)
 
     def _sleep(self, seconds: float, reason: str) -> None:
         """Sleep for the specified duration, using the sleep callback if registered."""
@@ -159,15 +158,13 @@ class RateLimitClient:
         while True:
             try:
                 response = self.session.post(IP_API_BATCH_URL, json=payload, timeout=30)
-                self.last_request_time = time.time()
-                self.consecutive_errors = 0
+                self.last_request_time, self.consecutive_errors = time.time(), 0
                 if response.status_code == COOLDOWN_HTTP_STATUS:
                     try:
                         wait_time = max(int(response.headers.get('X-Ttl', '60')) + 1, 1)
                     except ValueError:
                         wait_time = 60
-                    self.cooldown_until = time.time() + wait_time
-                    self.tokens = 0.0
+                    self.cooldown_until, self.tokens = time.time() + wait_time, 0.0
                     console.print(f'[yellow]\\[429] cooldown[/yellow] → [yellow]sleeping {wait_time}s[/yellow]')
                     self._sleep(wait_time, '429 cooldown')
                     self._close_stale_connections(wait_time)
