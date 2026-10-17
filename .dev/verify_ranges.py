@@ -135,10 +135,9 @@ class RateLimitClient:
     def _sleep(self, seconds: float, reason: str) -> None:
         """Sleep for the specified duration, using the sleep callback if registered."""
         if self.sleep_callback is not None:
-            with contextlib.suppress(Exception):
-                self.sleep_callback(seconds, reason)
-                return
-        time.sleep(seconds)
+            self.sleep_callback(seconds, reason)
+        else:
+            time.sleep(seconds)
 
     def _consume(self) -> None:
         """Consume a token from the bucket, throttling if necessary."""
@@ -274,28 +273,18 @@ def normalize(text: str) -> str:
 
 def _tokenize_owner(owner: str) -> set[str]:
     """Extract distinctive match tokens from an owner name."""
-    text = re.sub(r'[.()/]', ' ', owner.lower()).replace(',', ' ').replace('-', ' ')
-    words = {word.strip('.,/') for word in text.split()}
-    return {word for word in words if len(word) >= MIN_WORD_LENGTH} - GENERIC_WORDS
+    words = {word for raw in re.sub(r'[.()/, -]', ' ', owner.lower()).split() if len(word := raw.strip('.,/')) >= MIN_WORD_LENGTH}
+    return (words - GENERIC_WORDS) or words
 
 
 def owner_matches(expected: str, data: dict[str, Any]) -> bool:
     """Check if the expected owner matches the IP API response data."""
     actual = normalize(f'{data.get("isp", "")} {data.get("org", "")} {data.get("asname", "")} {data.get("as", "")}')
-    for false_positive in KNOWN_FALSE_POSITIVES.get(expected, []):
-        if normalize(false_positive) in actual:
-            return False
-    for alias in KNOWN_ALIASES.get(expected, []):
-        if normalize(alias) in actual:
-            return True
-    words = _tokenize_owner(expected)
-    if not words:
-        text = re.sub(r'[.()/]', ' ', expected.lower()).replace(',', ' ').replace('-', ' ')
-        words = {word.strip('.,/') for word in text.split()}
-        words = {word for word in words if len(word) >= MIN_WORD_LENGTH}
-    if not words:
+    if any(normalize(false_positive) in actual for false_positive in KNOWN_FALSE_POSITIVES.get(expected, [])):
         return False
-    return any(bool(re.search(r'\b' + re.escape(word) + r'\b', actual)) for word in words)
+    if any(normalize(alias) in actual for alias in KNOWN_ALIASES.get(expected, [])):
+        return True
+    return any(bool(re.search(r'\b' + re.escape(word) + r'\b', actual)) for word in _tokenize_owner(expected))
 
 
 def chunked(list_to_chunk: list[Any], chunk_size: int) -> Generator[list[Any]]:
