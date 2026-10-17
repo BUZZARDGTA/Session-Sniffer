@@ -24,10 +24,10 @@ from rich.rule import Rule
 from rich.table import Table
 from rich.text import Text
 
+from session_sniffer.constants.local import GEOLITE2_DATABASES_DIR_PATH
 from session_sniffer.guis.utils import format_duration
 from session_sniffer.networking.http_session import HEADERS
 from session_sniffer.text_utils import pluralize
-from session_sniffer.utils import get_app_dir
 
 _ip_api_session = requests.Session()
 _ip_api_session.headers.update(HEADERS)
@@ -886,7 +886,7 @@ def main() -> None:
 
     fallback_client: RateLimitClient | None = None
     if parsed_arguments.geolite2:
-        database_path = get_app_dir(scope='local') / 'GeoLite2 Databases' / 'GeoLite2-ASN.mmdb'
+        database_path = GEOLITE2_DATABASES_DIR_PATH / 'GeoLite2-ASN.mmdb'
         if not database_path.exists():
             console.print(
                 f'[red]Error: GeoLite2-ASN database not found at {database_path.absolute()}[/red]\n'
