@@ -44,7 +44,7 @@ THROTTLING_RATE_LIMIT_THRESHOLD = 3
 COOLDOWN_HTTP_STATUS = 429
 EXPECTED_ARGS_COUNT = 2
 MIN_WORD_LENGTH = 4
-MAX_SAMPLES = 64
+MAX_SAMPLES = 16
 MAX_SAMPLE_IPS = 16
 API_BATCH_LIMIT = 100
 SUBNET_BLOCK_SIZE = 256  # /24 boundary alignment
@@ -53,7 +53,6 @@ STALE_CONNECTION_THRESHOLD = 10  # seconds; close pooled connections after sleep
 MAX_ERROR_BACKOFF = 120
 MAX_IP_API_SUBNET_PREFIX = 12  # Skip ranges <= /12 (>= 1M IPs) when using IP-API
 MAX_AUTO_FIX_PREFIX_LEN = 24  # Skip auto-fix for subnets smaller than /24
-MAX_SLASH_24_BLOCK_INDEX = 0xFFFFFF  # Maximum /24 block index in IPv4 address space
 MAX_IPV4_INT = 0xFFFFFFFF  # Maximum IPv4 32-bit integer address
 
 ALWAYS_SKIPPED_OWNERS: set[str] = {'BattlEye', 'Tellas Greece', 'Google LLC'}
@@ -324,27 +323,24 @@ def _binary_search_transition(client: RateLimitClient | GeoLite2Client, owner: s
 
 
 def scan_network_geolite2(
-    client: GeoLite2Client, owner: str, network: ipaddress.IPv4Network, fallback_client: RateLimitClient | None = None,
+    client: GeoLite2Client, owner: str, network: ipaddress.IPv4Network,
 ) -> tuple[list[tuple[ipaddress.IPv4Address, ipaddress.IPv4Address, str]], list[ipaddress.IPv4Network]]:
     """Scan the entire IPv4 network block using GeoLite2 mmdb, returning mismatches and matching subnets."""
     current_ip, matching_ranges = network.network_address, cast('list[ipaddress.IPv4Network]', [])
     mismatches: list[tuple[ipaddress.IPv4Address, ipaddress.IPv4Address, str]] = []
-    unallocated_gaps: list[tuple[ipaddress.IPv4Address, ipaddress.IPv4Address]] = []
 
     while current_ip <= network.broadcast_address:
         try:
             record = client.reader.asn(str(current_ip))
             db_network = record.network if isinstance(record.network, ipaddress.IPv4Network) else ipaddress.IPv4Network(f'{current_ip}/24', strict=False)
             overlap_start, overlap_end = max(current_ip, db_network.network_address), min(network.broadcast_address, db_network.broadcast_address)
-            if not (org := record.autonomous_system_organization or ''):
-                unallocated_gaps.append((overlap_start, overlap_end))
-            elif owner_matches(owner, {'isp': org, 'org': org, 'asname': org, 'as': f'AS{record.autonomous_system_number}' if bool(record.autonomous_system_number) else ''}):
-                matching_ranges.extend(ipaddress.summarize_address_range(overlap_start, overlap_end))
-            else:
-                mismatches.append((overlap_start, overlap_end, org))
+            if org := record.autonomous_system_organization or '':
+                if owner_matches(owner, {'isp': org, 'org': org, 'asname': org, 'as': f'AS{record.autonomous_system_number}' if bool(record.autonomous_system_number) else ''}):
+                    matching_ranges.extend(ipaddress.summarize_address_range(overlap_start, overlap_end))
+                else:
+                    mismatches.append((overlap_start, overlap_end, org))
         except geoip2.errors.AddressNotFoundError as e:
             overlap_end = min(network.broadcast_address, e.network.broadcast_address if isinstance(e.network, ipaddress.IPv4Network) else current_ip)
-            unallocated_gaps.append((current_ip, overlap_end))
         except geoip2.errors.GeoIP2Error as e:
             overlap_end = current_ip
             mismatches.append((current_ip, current_ip, f'Error: {e}'))
@@ -352,14 +348,6 @@ def scan_network_geolite2(
             break
         current_ip = overlap_end + 1
 
-    if (matching_ranges or mismatches) and unallocated_gaps and owner not in IP_API_SKIPPED_OWNERS:
-        gap_results = lookup_ips_batch(fallback_client, [str(ip) for gap in unallocated_gaps for ip in gap]) if fallback_client else {}
-        for overlap_start, overlap_end in unallocated_gaps:
-            if all((gap_results.get(str(ip)) or {}).get('status') == 'success' and owner_matches(owner, gap_results.get(str(ip)) or {}) for ip in (overlap_start, overlap_end)):
-                matching_ranges.extend(ipaddress.summarize_address_range(overlap_start, overlap_end))
-            else:
-                gap_owner = (gap_results.get(str(overlap_start)) or {}).get('org') or (gap_results.get(str(overlap_start)) or {}).get('isp') or 'Unallocated in GeoLite2'
-                mismatches.append((overlap_start, overlap_end, gap_owner))
     return mismatches, list(ipaddress.collapse_addresses(matching_ranges))
 
 
@@ -464,10 +452,10 @@ def _clamp_expansion_ip(
     return ((max(overlaps) if is_backward else min(overlaps)), True) if overlaps else (candidate, False)
 
 
-def _search_expansion_blocks(client: RateLimitClient, owner: str, start_block: int, direction: int, cache: dict[int, bool]) -> int:
-    """Search outward from start_block in direction (+1 or -1) using /24 exponential and binary search."""
-    step, last_good = 1, start_block
-    while (probe := max(0, min(last_good + step * direction, MAX_SLASH_24_BLOCK_INDEX))) != last_good:
+def _search_expansion_blocks(client: RateLimitClient, owner: str, start_block: int, limit_block: int, cache: dict[int, bool]) -> int:
+    """Search outward from start_block toward limit_block using /24 exponential and binary search."""
+    direction, step, last_good = (-1 if limit_block < start_block else 1), 1, start_block
+    while (probe := max(limit_block, last_good - step) if direction < 0 else min(limit_block, last_good + step)) != last_good:
         if _check_block_owner(client, owner, probe, cache):
             last_good, step = probe, step * 2
         else:
@@ -476,12 +464,16 @@ def _search_expansion_blocks(client: RateLimitClient, owner: str, start_block: i
             matching = [block for block, is_match in cache.items() if low <= block <= high and is_match]
             last_good = max(matching) if direction > 0 else min(matching)
             break
-    candidate_blocks = range(start_block, last_good + direction, direction)
-    if uncached_blocks := [block for block in candidate_blocks if block not in cache]:
+    candidate_blocks = list(range(start_block, last_good + direction, direction))
+    if uncached_blocks := [block for block in candidate_blocks[::max(len(candidate_blocks) // MAX_SAMPLES, 1)] if block not in cache]:
         batch_results = lookup_ips_batch(client, [_block_to_ip(block) for block in uncached_blocks])
         for block in uncached_blocks:
             cache[block] = bool((lookup_result := batch_results.get(_block_to_ip(block)) or {}).get('status') == 'success' and owner_matches(owner, lookup_result))
-    return next((block - direction for block in candidate_blocks if not cache.get(block, False)), last_good)
+    if (first_bad := next((block for block in candidate_blocks if cache.get(block) is False), None)) is not None:
+        prev_good = next(block for block in reversed(candidate_blocks[:candidate_blocks.index(first_bad)]) if cache.get(block, False))
+        _binary_search_transition(client, owner, min(prev_good, first_bad), max(prev_good, first_bad), cache)
+        return next(block - direction for block in candidate_blocks if cache.get(block) is False)
+    return last_good
 
 
 def _search_expansion_boundary(
@@ -498,9 +490,10 @@ def _search_expansion_boundary(
             record = client.reader.asn(str(probe_ip))
         except geoip2.errors.AddressNotFoundError:
             if context.fallback_client and owner not in IP_API_SKIPPED_OWNERS and _check_block_owner(context.fallback_client, owner, _ip_to_block(str(probe_ip)), cache):
-                end_block = _search_expansion_blocks(context.fallback_client, owner, _ip_to_block(str(probe_ip)), -1 if is_backward else 1, cache)
+                limit_ip, _ = _clamp_expansion_ip(ipaddress.IPv4Address(0 if is_backward else MAX_IPV4_INT), boundary_ip, context.owner_networks, is_backward=is_backward)
+                end_block = _search_expansion_blocks(context.fallback_client, owner, _ip_to_block(str(probe_ip)), _ip_to_block(str(limit_ip)), cache)
                 candidate = ipaddress.IPv4Address(end_block * SUBNET_BLOCK_SIZE if is_backward else (end_block + 1) * SUBNET_BLOCK_SIZE - 1)
-                boundary_ip, _ = _clamp_expansion_ip(candidate, boundary_ip, context.owner_networks, is_backward=is_backward)
+                boundary_ip = max(limit_ip, candidate) if is_backward else min(limit_ip, candidate)
             break
         except geoip2.errors.GeoIP2Error:
             break
@@ -535,9 +528,12 @@ def suggest_expansion(
             boundary_ip, queries = _search_expansion_boundary(client, owner, context, is_backward=is_backward, cache=cache)
             geolite_queries += queries
         else:
-            end_block = _search_expansion_blocks(client, owner, _ip_to_block(ip_address), -1 if is_backward else 1, cache)
+            limit_ip, _ = _clamp_expansion_ip(
+                ipaddress.IPv4Address(0 if is_backward else MAX_IPV4_INT), first_ip if is_backward else last_ip, context.owner_networks, is_backward=is_backward,
+            )
+            end_block = _search_expansion_blocks(client, owner, _ip_to_block(ip_address), _ip_to_block(str(limit_ip)), cache)
             candidate = ipaddress.IPv4Address(end_block * SUBNET_BLOCK_SIZE if is_backward else (end_block + 1) * SUBNET_BLOCK_SIZE - 1)
-            boundary_ip, _ = _clamp_expansion_ip(candidate, first_ip if is_backward else last_ip, context.owner_networks, is_backward=is_backward)
+            boundary_ip = max(limit_ip, candidate) if is_backward else min(limit_ip, candidate)
         if is_backward:
             first_ip = min(first_ip, boundary_ip)
         else:
@@ -652,7 +648,7 @@ def check_range(
     mismatch_lines, mismatches_raw, matching_networks = cast('list[str]', []), cast('list[str]', []), cast('list[ipaddress.IPv4Network]', [])
 
     if isinstance(client, GeoLite2Client):
-        mismatches, matching_networks = scan_network_geolite2(client, owner, network, options.fallback_client)
+        mismatches, matching_networks = scan_network_geolite2(client, owner, network)
         if mismatches:
             is_valid, has_mismatches = False, True
             for start_ip, end_ip, actual_owner in mismatches:
@@ -918,23 +914,25 @@ def main() -> None:
     else:
         client = RateLimitClient(_ip_api_session)
 
-    if isinstance(client, RateLimitClient):
+    if prefetch_client := client if isinstance(client, RateLimitClient) else fallback_client:
         ip_to_owners: dict[str, set[str]] = {}
         for owner, cidr_range, network, _ in parsed_ranges:
-            if not should_skip(owner, cidr_range, use_geolite2=parsed_arguments.geolite2):
-                for ip_address in sample_ips(network) + _get_adjacent_ips(network):
-                    ip_to_owners.setdefault(ip_address, set()).add(owner)
+            if not should_skip(owner, cidr_range, use_geolite2=False):
+                candidate_ips = _get_adjacent_ips(network) if isinstance(client, GeoLite2Client) else sample_ips(network) + _get_adjacent_ips(network)
+                for ip_address in candidate_ips:
+                    if not isinstance(client, GeoLite2Client) or (lookup_ips_batch(client, [ip_address]).get(ip_address) or {}).get('message') == 'address not found':
+                        ip_to_owners.setdefault(ip_address, set()).add(owner)
         if ip_to_owners:
             ips_list = list(ip_to_owners.keys())
             with (prefetch_progress := _create_progress(f'Pre-fetching {len(ips_list):,} IP{pluralize(len(ips_list))}')):
                 prefetch_task = prefetch_progress.add_task('', total=(len(ips_list) + API_BATCH_LIMIT - 1) // API_BATCH_LIMIT)
-                client.sleep_callback = _make_sleep_callback(prefetch_progress, prefetch_task, prefix='[yellow]RATE[/yellow]')
+                prefetch_client.sleep_callback = _make_sleep_callback(prefetch_progress, prefetch_task, prefix='[yellow]RATE[/yellow]')
                 for i, batch in enumerate(chunked(ips_list, API_BATCH_LIMIT), 1):
                     batch_owners = sorted({owner for ip in batch for owner in ip_to_owners[ip]})
                     extra_owners_text = f' and {len(batch_owners) - MAX_DISPLAYED_OWNERS} more' if len(batch_owners) > MAX_DISPLAYED_OWNERS else ''
                     prefetch_progress.update(prefetch_task, completed=i, description=f'[white]{", ".join(batch_owners[:MAX_DISPLAYED_OWNERS])}{extra_owners_text}[/white]')
-                    lookup_ips_batch(client, batch)
-                client.sleep_callback = None
+                    lookup_ips_batch(prefetch_client, batch)
+                prefetch_client.sleep_callback = None
 
     if not parsed_arguments.only_detections:
         console.print()
