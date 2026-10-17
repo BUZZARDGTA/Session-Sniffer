@@ -189,8 +189,7 @@ class GeoLite2Client:
 
     def __init__(self, database_path: Path) -> None:
         """Initialize the GeoLite2Client database reader."""
-        self.reader = geoip2.database.Reader(database_path)
-        self.cache: dict[str, dict[str, Any]] = {}
+        self.reader, self.cache = geoip2.database.Reader(database_path), cast('dict[str, dict[str, Any]]', {})
         self.sleep_callback: Callable[[float, str], None] | None = None
 
     def post_batch(self, payload: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -201,8 +200,7 @@ class GeoLite2Client:
             lookup_result: dict[str, Any] = {'query': ip_address, 'status': 'fail', 'message': 'address not found', 'isp': '', 'org': '', 'as': '', 'asname': ''}
             try:
                 record = self.reader.asn(ip_address)
-                org = record.autonomous_system_organization or ''
-                asn = f'AS{record.autonomous_system_number}' if bool(record.autonomous_system_number) else ''
+                org, asn = record.autonomous_system_organization or '', f'AS{record.autonomous_system_number}' if bool(record.autonomous_system_number) else ''
                 lookup_result.update({'status': 'success', 'message': '', 'isp': org, 'org': org, 'as': asn, 'asname': org})
             except geoip2.errors.AddressNotFoundError:
                 pass
@@ -242,11 +240,10 @@ def extract_ranges(file_path: str) -> list[tuple[str, str, int]]:
         elif isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == 'create_named_ranges' and len(node.args) >= EXPECTED_ARGS_COUNT:
             owner_node = node.args[0]
             if isinstance(owner_node, ast.Constant) and isinstance(owner_node.value, str):
-                owner = owner_node.value
-                for arg in node.args[1:]:
-                    if isinstance(arg, ast.Constant) and isinstance(arg.value, str):
-                        line_number = getattr(arg, 'lineno', None) or node.lineno
-                        extracted_ranges.append((owner, arg.value, line_number))
+                extracted_ranges.extend(
+                    (owner_node.value, arg.value, getattr(arg, 'lineno', None) or node.lineno)
+                    for arg in node.args[1:] if isinstance(arg, ast.Constant) and isinstance(arg.value, str)
+                )
     return extracted_ranges
 
 
@@ -305,8 +302,7 @@ def _ip_to_block(ip_address: str) -> int:
 def _check_block_owner(client: RateLimitClient | GeoLite2Client, owner: str, block_index: int, cache: dict[int, bool]) -> bool:
     """Check if a /24 block's .0 IP belongs to the expected owner. Results are cached."""
     if block_index not in cache:
-        ip_address = _block_to_ip(block_index)
-        lookup_result = lookup_ips_batch(client, [ip_address]).get(ip_address) or {}
+        lookup_result = lookup_ips_batch(client, [ip_address := _block_to_ip(block_index)]).get(ip_address) or {}
         cache[block_index] = bool(lookup_result.get('status') == 'success' and owner_matches(owner, lookup_result))
     return cache[block_index]
 
@@ -323,24 +319,27 @@ def _binary_search_transition(client: RateLimitClient | GeoLite2Client, owner: s
 
 
 def scan_network_geolite2(
-    client: GeoLite2Client, owner: str, network: ipaddress.IPv4Network,
-) -> tuple[list[tuple[ipaddress.IPv4Address, ipaddress.IPv4Address, str]], list[ipaddress.IPv4Network]]:
-    """Scan the entire IPv4 network block using GeoLite2 mmdb, returning mismatches and matching subnets."""
+    client: GeoLite2Client, owner: str, network: ipaddress.IPv4Network, fallback_client: RateLimitClient | None = None,
+) -> tuple[list[tuple[ipaddress.IPv4Address, ipaddress.IPv4Address, str]], list[ipaddress.IPv4Network], list[str]]:
+    """Scan the entire IPv4 network block using GeoLite2 mmdb, returning mismatches, matching subnets, and fallback IPs."""
     current_ip, matching_ranges = network.network_address, cast('list[ipaddress.IPv4Network]', [])
     mismatches: list[tuple[ipaddress.IPv4Address, ipaddress.IPv4Address, str]] = []
+    unallocated_gaps: list[tuple[ipaddress.IPv4Address, ipaddress.IPv4Address]] = []
 
     while current_ip <= network.broadcast_address:
         try:
             record = client.reader.asn(str(current_ip))
             db_network = record.network if isinstance(record.network, ipaddress.IPv4Network) else ipaddress.IPv4Network(f'{current_ip}/24', strict=False)
             overlap_start, overlap_end = max(current_ip, db_network.network_address), min(network.broadcast_address, db_network.broadcast_address)
-            if org := record.autonomous_system_organization or '':
-                if owner_matches(owner, {'isp': org, 'org': org, 'asname': org, 'as': f'AS{record.autonomous_system_number}' if bool(record.autonomous_system_number) else ''}):
-                    matching_ranges.extend(ipaddress.summarize_address_range(overlap_start, overlap_end))
-                else:
-                    mismatches.append((overlap_start, overlap_end, org))
+            if not (org := record.autonomous_system_organization or ''):
+                unallocated_gaps.append((overlap_start, overlap_end))
+            elif owner_matches(owner, {'isp': org, 'org': org, 'asname': org, 'as': f'AS{record.autonomous_system_number}' if bool(record.autonomous_system_number) else ''}):
+                matching_ranges.extend(ipaddress.summarize_address_range(overlap_start, overlap_end))
+            else:
+                mismatches.append((overlap_start, overlap_end, org))
         except geoip2.errors.AddressNotFoundError as e:
             overlap_end = min(network.broadcast_address, e.network.broadcast_address if isinstance(e.network, ipaddress.IPv4Network) else current_ip)
+            unallocated_gaps.append((current_ip, overlap_end))
         except geoip2.errors.GeoIP2Error as e:
             overlap_end = current_ip
             mismatches.append((current_ip, current_ip, f'Error: {e}'))
@@ -348,7 +347,16 @@ def scan_network_geolite2(
             break
         current_ip = overlap_end + 1
 
-    return mismatches, list(ipaddress.collapse_addresses(matching_ranges))
+    fallback_ips = [str(ip) for gap in unallocated_gaps for ip in gap] if (matching_ranges or mismatches) else sample_ips(network)
+    if fallback_client and (matching_ranges or mismatches) and unallocated_gaps and owner not in IP_API_SKIPPED_OWNERS:
+        gap_results = lookup_ips_batch(fallback_client, fallback_ips)
+        for overlap_start, overlap_end in unallocated_gaps:
+            if all((gap_results.get(str(ip)) or {}).get('status') == 'success' and owner_matches(owner, gap_results.get(str(ip)) or {}) for ip in (overlap_start, overlap_end)):
+                matching_ranges.extend(ipaddress.summarize_address_range(overlap_start, overlap_end))
+            else:
+                gap_owner = (gap_results.get(str(overlap_start)) or {}).get('org') or (gap_results.get(str(overlap_start)) or {}).get('isp') or 'Unallocated in GeoLite2'
+                mismatches.append((overlap_start, overlap_end, gap_owner))
+    return mismatches, list(ipaddress.collapse_addresses(matching_ranges)), fallback_ips
 
 
 def _format_networks_table(title: str, networks: list[ipaddress.IPv4Network], action_prefix: str) -> tuple[RenderableType, str]:
@@ -465,7 +473,7 @@ def _search_expansion_blocks(client: RateLimitClient, owner: str, start_block: i
             last_good = max(matching) if direction > 0 else min(matching)
             break
     candidate_blocks = list(range(start_block, last_good + direction, direction))
-    if uncached_blocks := [block for block in candidate_blocks[::max(len(candidate_blocks) // MAX_SAMPLES, 1)] if block not in cache]:
+    if uncached_blocks := [block for block in candidate_blocks[::max(len(candidate_blocks) // API_BATCH_LIMIT, 1)] if block not in cache]:
         batch_results = lookup_ips_batch(client, [_block_to_ip(block) for block in uncached_blocks])
         for block in uncached_blocks:
             cache[block] = bool((lookup_result := batch_results.get(_block_to_ip(block)) or {}).get('status') == 'success' and owner_matches(owner, lookup_result))
@@ -636,8 +644,7 @@ def check_range(
     """Check the validity of the CIDR range and look for potential expansion."""
     options = options or CheckRangeOptions()
     file_path, line_number = options.location or ('', None)
-    network = ipaddress.ip_network(cidr_range)
-    if not isinstance(network, ipaddress.IPv4Network):
+    if not isinstance(network := ipaddress.ip_network(cidr_range), ipaddress.IPv4Network):
         message = f'Only IPv4 networks are supported: {cidr_range}'
         raise TypeError(message)
 
@@ -648,7 +655,7 @@ def check_range(
     mismatch_lines, mismatches_raw, matching_networks = cast('list[str]', []), cast('list[str]', []), cast('list[ipaddress.IPv4Network]', [])
 
     if isinstance(client, GeoLite2Client):
-        mismatches, matching_networks = scan_network_geolite2(client, owner, network)
+        mismatches, matching_networks, _ = scan_network_geolite2(client, owner, network, options.fallback_client)
         if mismatches:
             is_valid, has_mismatches = False, True
             for start_ip, end_ip, actual_owner in mismatches:
@@ -688,9 +695,8 @@ def check_range(
     validation_table = Table.grid(padding=(0, 4))
     validation_table.add_column(style='cyan', justify='left')
     validation_table.add_column(justify='left')
-    validation_table.add_row('Base Check', base_status)
-    validation_table.add_row('Backward Expansion', backward_status)
-    validation_table.add_row('Forward Expansion', forward_status)
+    for label, status in (('Base Check', base_status), ('Backward Expansion', backward_status), ('Forward Expansion', forward_status)):
+        validation_table.add_row(label, status)
 
     details_table = Table.grid(padding=(0, 4), expand=True)
     for _ in range(4):
@@ -708,7 +714,7 @@ def check_range(
     )
     renderables.append(details_table)
 
-    fix_raw = ''
+    fix_raw, expansion_raw = '', ''
     if has_mismatches:
         mismatch_panel = Panel('\n'.join(mismatch_lines), title='[red]Base Check Mismatches[/red]', border_style='red', box=box.ROUNDED)
         renderables.extend([Text(''), Rule('[bold white]Fix Suggestion[/bold white]'), mismatch_panel])
@@ -719,7 +725,6 @@ def check_range(
         if fix_renderable is not None:
             renderables.append(fix_renderable)
 
-    expansion_raw = ''
     if expansion_found:
         context = RangeContext(network, owner_networks, options.fallback_client)
         expansion_renderable, expansion_raw = suggest_expansion(active_client, owner, context, expandable_ip_addresses, options.status_callback)
@@ -918,10 +923,13 @@ def main() -> None:
         ip_to_owners: dict[str, set[str]] = {}
         for owner, cidr_range, network, _ in parsed_ranges:
             if not should_skip(owner, cidr_range, use_geolite2=False):
-                candidate_ips = _get_adjacent_ips(network) if isinstance(client, GeoLite2Client) else sample_ips(network) + _get_adjacent_ips(network)
-                for ip_address in candidate_ips:
-                    if not isinstance(client, GeoLite2Client) or (lookup_ips_batch(client, [ip_address]).get(ip_address) or {}).get('message') == 'address not found':
-                        ip_to_owners.setdefault(ip_address, set()).add(owner)
+                extra_ips = scan_network_geolite2(client, owner, network)[2] if isinstance(client, GeoLite2Client) else sample_ips(network)
+                adjacent_ips = [
+                    ip for ip in _get_adjacent_ips(network)
+                    if not isinstance(client, GeoLite2Client) or (lookup_ips_batch(client, [ip]).get(ip) or {}).get('message') == 'address not found'
+                ]
+                for ip_address in extra_ips + adjacent_ips:
+                    ip_to_owners.setdefault(ip_address, set()).add(owner)
         if ip_to_owners:
             ips_list = list(ip_to_owners.keys())
             with (prefetch_progress := _create_progress(f'Pre-fetching {len(ips_list):,} IP{pluralize(len(ips_list))}')):
@@ -942,10 +950,9 @@ def main() -> None:
     with (progress := _create_progress('Verifying')):
         task_id = progress.add_task('', total=total_count)
         verification_callback = _make_sleep_callback(progress, task_id)
-        if isinstance(client, RateLimitClient):
-            client.sleep_callback = verification_callback
-        if fallback_client:
-            fallback_client.sleep_callback = verification_callback
+        for active in (client, fallback_client):
+            if isinstance(active, RateLimitClient):
+                active.sleep_callback = verification_callback
 
         def _update_status(description: str) -> None:
             progress.update(task_id, description=f'{base_status} [dim]•[/dim] {description}' if base_status else description)
@@ -966,22 +973,18 @@ def main() -> None:
                 detections=detections, fallback_client=fallback_client, status_callback=_update_status,
             ))
 
-    if isinstance(client, RateLimitClient):
-        client.sleep_callback = None
-    if fallback_client:
-        fallback_client.sleep_callback = None
+    for active in (client, fallback_client):
+        if isinstance(active, RateLimitClient):
+            active.sleep_callback = None
     if not parsed_arguments.only_detections:
         console.print()
     console.rule('[bold green]✓ Range Verification Complete[/bold green]')
-    skipped_count = len(raw_ranges) - total_count
-    console.print(
-        f'  [green]✓ Successfully verified [bold]{total_count}[/bold] range{pluralize(total_count)} in [bold]{format_duration(time.time() - start_time)}[/bold].[/green]',
-    )
+    skipped_count, duration = len(raw_ranges) - total_count, format_duration(time.time() - start_time)
+    console.print(f'  [green]✓ Successfully verified [bold]{total_count}[/bold] range{pluralize(total_count)} in [bold]{duration}[/bold].[/green]')
     if skipped_count > 0:
         console.print(f'  [dim]ℹ Skipped [bold]{skipped_count}[/bold] range{pluralize(skipped_count)} (ignored owners / huge ranges).[/dim]')
 
-    if parsed_arguments.export:
-        export_path = Path(parsed_arguments.export)
+    if parsed_arguments.export and (export_path := Path(parsed_arguments.export)):
         try:
             export_path.write_text('\n'.join(detections) + '\n' if detections else '', encoding='utf-8')
             console.print(f'\n[green]✓ Exported {len(detections)} detection{pluralize(len(detections))} to {export_path.resolve()}[/green]')
