@@ -542,7 +542,10 @@ def suggest_expansion(
         else f' ([dim]{geolite_queries} GeoLite2 lookup{pluralize(geolite_queries)} used[/dim])' if geolite_queries > 0
         else ''
     )
-    return _format_networks_table(f'[bold magenta]Expand Suggestion[/bold magenta]{title_suffix}', list(ipaddress.summarize_address_range(first_ip, last_ip)), 'Expand to')
+    expanded_networks = list(ipaddress.summarize_address_range(first_ip, last_ip))
+    context.owner_networks.extend(expanded_networks)
+    collapsed_networks = [network for network in ipaddress.collapse_addresses(context.owner_networks) if any(network.overlaps(expanded) for expanded in expanded_networks)]
+    return _format_networks_table(f'[bold magenta]Expand Suggestion[/bold magenta]{title_suffix}', collapsed_networks, 'Expand to')
 
 
 def _get_adjacent_ips(network: ipaddress.IPv4Network) -> list[str]:
