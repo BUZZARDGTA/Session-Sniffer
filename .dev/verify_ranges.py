@@ -461,20 +461,22 @@ def _clamp_expansion_ip(
 
 def _search_expansion_blocks(client: RateLimitClient, owner: str, start_block: int, direction: int, cache: dict[int, bool]) -> int:
     """Search outward from start_block in direction (+1 or -1) using /24 exponential and binary search."""
-    step, current, last_good = 1, start_block, start_block
-    while True:
-        probe = max(0, min(current + step * direction, MAX_SLASH_24_BLOCK_INDEX))
+    step, last_good = 1, start_block
+    while (probe := max(0, min(last_good + step * direction, MAX_SLASH_24_BLOCK_INDEX))) != last_good:
         if _check_block_owner(client, owner, probe, cache):
-            last_good = current = probe
-            if probe in (0, MAX_SLASH_24_BLOCK_INDEX):
-                break
-            step *= 2
+            last_good, step = probe, step * 2
         else:
             low, high = (last_good, probe) if direction > 0 else (probe, last_good)
             _binary_search_transition(client, owner, low, high, cache)
             matching = [block for block, is_match in cache.items() if low <= block <= high and is_match]
-            return max(matching) if direction > 0 else min(matching)
-    return last_good
+            last_good = max(matching) if direction > 0 else min(matching)
+            break
+    candidate_blocks = range(start_block, last_good + direction, direction)
+    if uncached_blocks := [block for block in candidate_blocks if block not in cache]:
+        batch_results = lookup_ips_batch(client, [_block_to_ip(block) for block in uncached_blocks])
+        for block in uncached_blocks:
+            cache[block] = bool((lookup_result := batch_results.get(_block_to_ip(block)) or {}).get('status') == 'success' and owner_matches(owner, lookup_result))
+    return next((block - direction for block in candidate_blocks if not cache.get(block, False)), last_good)
 
 
 def _search_expansion_boundary(
