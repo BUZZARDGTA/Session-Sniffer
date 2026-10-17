@@ -632,7 +632,6 @@ class CheckRangeOptions:
     """Optional configuration and state for checking a CIDR range."""
 
     location: tuple[str, int | None] | None = None
-    only_detections: bool = False
     detections: list[str] | None = None
     fallback_client: RateLimitClient | None = None
     status_callback: Callable[[str], None] | None = None
@@ -737,7 +736,7 @@ def check_range(
     if expansion_found and options.detections is not None:
         options.detections.append(f'{clean_path}:{line_number}: ({owner}) [EXPANSION] {cidr_range} is expandable | [EXPAND SUGGESTION] {expansion_raw}')
 
-    if not options.only_detections or not is_valid or expansion_found:
+    if not is_valid or expansion_found:
         title = (
             f'[bold white]{owner}[/bold white]  •  [bold magenta]{network.with_prefixlen}[/bold magenta]  •  '
             f'[dim]{network.network_address} → {network.broadcast_address}[/dim]  •  '
@@ -885,7 +884,6 @@ def main() -> None:
     parser.add_argument('ranges_file', help='Python file containing NamedRange definitions.')
     parser.add_argument('--geolite2', action='store_true', help='Use local GeoLite2 database instead of IP-API.')
     parser.add_argument('--ip-api-fallback', action='store_true', help='Allow unknown GeoLite2 ranges to fallback to IP-API.')
-    parser.add_argument('--only-detections', action='store_true', help='Only print blocks with mismatches or expansion opportunities.')
     parser.add_argument('-o', '--owner', action='append', help='Only verify ranges matching the specified owner filter (repeatable or comma-separated).')
     parser.add_argument('--export', help='Export one-line detections to the specified text file.')
     parsed_arguments = parser.parse_args([arg for arg in sys.argv if arg][1:])
@@ -942,9 +940,6 @@ def main() -> None:
                     lookup_ips_batch(prefetch_client, batch)
                 prefetch_client.sleep_callback = None
 
-    if not parsed_arguments.only_detections:
-        console.print()
-
     total_count = sum(1 for owner, cidr_range, _, _ in parsed_ranges if not should_skip(owner, cidr_range, use_geolite2=parsed_arguments.geolite2))
     current_index, base_status = 0, ''
     with (progress := _create_progress('Verifying')):
@@ -959,25 +954,19 @@ def main() -> None:
 
         for owner, cidr_range, _, line_number in parsed_ranges:
             if should_skip(owner, cidr_range, use_geolite2=parsed_arguments.geolite2):
-                if not parsed_arguments.only_detections:
-                    clean_path = os.path.relpath(str(parsed_arguments.ranges_file)).replace('\\', '/')
-                    link = f'  •  [blue]{clean_path}:{line_number}[/blue]' if clean_path else ''
-                    console.print(f'[dim]ℹ Skipping Range Verification for {owner} CIDR:[/dim] [magenta dim]{cidr_range}[/magenta dim]{link}')
                 continue
 
             current_index += 1
             base_status = f'[white]{owner}[/white] [magenta]{cidr_range}[/magenta]'
             progress.update(task_id, completed=current_index, description=base_status)
             check_range(client, owner, cidr_range, networks_by_owner.get(owner, []), CheckRangeOptions(
-                location=(str(parsed_arguments.ranges_file), line_number), only_detections=parsed_arguments.only_detections,
+                location=(str(parsed_arguments.ranges_file), line_number),
                 detections=detections, fallback_client=fallback_client, status_callback=_update_status,
             ))
 
     for active in (client, fallback_client):
         if isinstance(active, RateLimitClient):
             active.sleep_callback = None
-    if not parsed_arguments.only_detections:
-        console.print()
     console.rule('[bold green]✓ Range Verification Complete[/bold green]')
     skipped_count, duration = len(raw_ranges) - total_count, format_duration(time.time() - start_time)
     console.print(f'  [green]✓ Successfully verified [bold]{total_count}[/bold] range{pluralize(total_count)} in [bold]{duration}[/bold].[/green]')

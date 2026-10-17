@@ -326,7 +326,6 @@
                 "${workspaceFolder}/src/session_sniffer/networking/third_party_servers_ranges.py",
                 "${input:useGeoLite2}",
                 "${input:ipApiFallback}",
-                "${input:onlyDetections}",
                 "--owner=${input:ownerFilter}",
                 "${input:exportDetections}"
             ],
@@ -377,22 +376,6 @@
                 }
             ],
             "default": ""
-        },
-        {
-            "id": "onlyDetections",
-            "type": "pickString",
-            "description": "Only show actual detections (mismatches, expansions, warnings)?",
-            "options": [
-                {
-                    "label": "No (Show everything)",
-                    "value": ""
-                },
-                {
-                    "label": "Yes (Only show detections)",
-                    "value": "--only-detections"
-                }
-            ],
-            "default": "--only-detections"
         },
         {
             "id": "ownerFilter",
