@@ -327,6 +327,7 @@
                 "${input:useGeoLite2}",
                 "${input:ipApiFallback}",
                 "${input:onlyDetections}",
+                "--owner=${input:ownerFilter}",
                 "${input:exportDetections}"
             ],
             "options": {
@@ -392,6 +393,12 @@
                 }
             ],
             "default": "--only-detections"
+        },
+        {
+            "id": "ownerFilter",
+            "type": "promptString",
+            "description": "Filter by owner name (optional, comma-separated, leave empty for all):",
+            "default": ""
         },
         {
             "id": "exportDetections",

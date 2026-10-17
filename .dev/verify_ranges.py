@@ -883,9 +883,8 @@ def main() -> None:
     parsed_arguments = parser.parse_args([arg for arg in sys.argv if arg][1:])
 
     raw_ranges = extract_ranges(str(parsed_arguments.ranges_file))
-    if parsed_arguments.owner:
+    if parsed_arguments.owner and (owner_filters := [part.strip().lower() for raw_filter in parsed_arguments.owner for part in raw_filter.split(',') if part.strip()]):
         all_owners = sorted({owner for owner, _, _ in raw_ranges})
-        owner_filters = [part.strip().lower() for raw_filter in parsed_arguments.owner for part in raw_filter.split(',') if part.strip()]
         if not (raw_ranges := [(owner, cidr_range, line) for owner, cidr_range, line in raw_ranges if any(owner_filter in owner.lower() for owner_filter in owner_filters)]):
             console.print(f'[red]Error: No ranges matched --owner filter. Available owners: {", ".join(all_owners)}[/red]')
             sys.exit(1)
