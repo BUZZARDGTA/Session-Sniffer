@@ -33,7 +33,7 @@ from session_sniffer.player.combo_rules import ComboRulesManager
 from session_sniffer.player.detections import GUIDetectionSettings
 from session_sniffer.player.registry import PlayersRegistry
 from session_sniffer.player.userip import UserIP, UserIPDatabases, gui_dispatcher
-from session_sniffer.player.userip_loader import append_userip_entry_if_missing, record_userip_detection, update_userip_databases
+from session_sniffer.player.userip_loader import append_userip_entry_if_missing, record_userip_detection, record_userip_last_seen, update_userip_databases
 from session_sniffer.rendering_core.events import wake_rendering_core
 from session_sniffer.rendering_core.types import CaptureState, CaptureStats
 from session_sniffer.settings import Settings
@@ -384,10 +384,12 @@ def process_userip_task(
 
         if connection_type == 'connected':
             updated_userip = record_userip_detection(userip.db_path, player.ip, player.datetime.last_rejoin)
-            if updated_userip is not None:
-                userip = updated_userip
-                player.userip = updated_userip
-                wake_rendering_core()
+        else:
+            updated_userip = record_userip_last_seen(userip.db_path, player.ip, player.datetime.last_seen)
+        if updated_userip is not None:
+            userip = updated_userip
+            player.userip = updated_userip
+            wake_rendering_core()
 
         if player.userip is None:
             player.userip = userip

@@ -24,6 +24,7 @@ from session_sniffer.utils import custom_str_to_bool, validate_file
 from session_sniffer.utils_exceptions import InvalidBooleanValueError
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
     from datetime import datetime
     from pathlib import Path
     from typing import Any
@@ -332,13 +333,17 @@ def append_userip_entry_if_missing(db_path: Path, username: str, ip: str) -> boo
         return True
 
 
-def record_userip_detection(db_path: Path, ip_address: str, seen_at: datetime) -> UserIP | None:
-    """Increment `detections_count` and update `first_seen_at` / `last_seen_at` for entries matching `ip_address`.
+def _update_matching_userip_entries(
+    db_path: Path,
+    ip_address: str,
+    apply_update: Callable[[UserIPEntryModel], UserIPEntryModel],
+) -> UserIP | None:
+    """Rewrite every entry in `db_path` whose IP or range covers `ip_address` through `apply_update`.
 
     Args:
         db_path: Path to the matched UserIP `.json` database file.
-        ip_address: The detected player's IPv4 address.
-        seen_at: When the player joined the current session; merged chronologically into the stored timestamps.
+        ip_address: The player's IPv4 address.
+        apply_update: Returns the updated copy of a matching entry.
 
     Returns:
         The refreshed `UserIP` snapshot after updating the database, or `None` if unavailable.
@@ -347,14 +352,13 @@ def record_userip_detection(db_path: Path, ip_address: str, seen_at: datetime) -
     if not cleaned_ip or not db_path.is_file():
         return None
 
-    timestamp = seen_at.isoformat(timespec='seconds')
     modified = False
 
     with _userip_file_append_lock:
         try:
             raw_data: object = json.loads(db_path.read_text(encoding='utf-8'))
         except (OSError, json.JSONDecodeError) as e:
-            logger.warning('Failed to read UserIP database "%s" to record detection: %s', db_path, e)
+            logger.warning('Failed to read UserIP database "%s" to record player activity: %s', db_path, e)
             return None
 
         if not isinstance(raw_data, dict):
@@ -379,13 +383,7 @@ def record_userip_detection(db_path: Path, ip_address: str, seen_at: datetime) -
                 continue
             parsed_entry = _parse_existing_entry_dict(item_dict, entry_user, entry_ip)
             if entry_ip_covers_ip(entry_ip, cleaned_ip):
-                parsed_entry = parsed_entry.model_copy(
-                    update={
-                        'detections_count': parsed_entry.detections_count + 1,
-                        'first_seen_at': pick_earliest_iso(parsed_entry.first_seen_at, timestamp),
-                        'last_seen_at': pick_latest_iso(parsed_entry.last_seen_at, timestamp),
-                    },
-                )
+                parsed_entry = apply_update(parsed_entry)
                 modified = True
             entries.append(parsed_entry)
 
@@ -394,9 +392,53 @@ def record_userip_detection(db_path: Path, ip_address: str, seen_at: datetime) -
             try:
                 db_path.write_text(db_file.serialize_to_json(), encoding='utf-8')
             except OSError as e:
-                logger.warning('Failed to write UserIP database "%s" to record detection: %s', db_path, e)
+                logger.warning('Failed to write UserIP database "%s" to record player activity: %s', db_path, e)
                 return None
 
     if modified:
         update_userip_databases()
     return UserIPDatabases.resolve_userip(cleaned_ip)
+
+
+def record_userip_detection(db_path: Path, ip_address: str, joined_at: datetime) -> UserIP | None:
+    """Increment `detections_count` and merge `joined_at` into `first_seen_at` / `last_seen_at` for entries matching `ip_address`.
+
+    Args:
+        db_path: Path to the matched UserIP `.json` database file.
+        ip_address: The detected player's IPv4 address.
+        joined_at: When the player joined the current session.
+
+    Returns:
+        The refreshed `UserIP` snapshot after updating the database, or `None` if unavailable.
+    """
+    timestamp = joined_at.isoformat(timespec='seconds')
+    return _update_matching_userip_entries(
+        db_path,
+        ip_address,
+        lambda entry: entry.model_copy(
+            update={
+                'detections_count': entry.detections_count + 1,
+                'first_seen_at': pick_earliest_iso(entry.first_seen_at, timestamp),
+                'last_seen_at': pick_latest_iso(entry.last_seen_at, timestamp),
+            },
+        ),
+    )
+
+
+def record_userip_last_seen(db_path: Path, ip_address: str, last_seen: datetime) -> UserIP | None:
+    """Merge the player's last activity time into `last_seen_at` for entries matching `ip_address`.
+
+    Args:
+        db_path: Path to the matched UserIP `.json` database file.
+        ip_address: The departing player's IPv4 address.
+        last_seen: When the player was last active in the session they just left.
+
+    Returns:
+        The refreshed `UserIP` snapshot after updating the database, or `None` if unavailable.
+    """
+    timestamp = last_seen.isoformat(timespec='seconds')
+    return _update_matching_userip_entries(
+        db_path,
+        ip_address,
+        lambda entry: entry.model_copy(update={'last_seen_at': pick_latest_iso(entry.last_seen_at, timestamp)}),
+    )
