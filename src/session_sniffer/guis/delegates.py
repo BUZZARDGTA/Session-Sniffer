@@ -81,14 +81,14 @@ def _is_disconnected_cell(view: object, index: QModelIndex | QPersistentModelInd
     return resolved_foreground_color is not None and resolved_foreground_color == _DISCONNECTED_TEXT_COLOR
 
 
-def _format_looky_tooltip_html(text: str, unregistered_looky_names: set[str], *, is_disconnected: bool) -> str:
-    """Format elided username text for tooltip with HTML highlighting for unregistered Looky usernames."""
-    unregistered_looky_casefolded = {name.casefold() for name in unregistered_looky_names}
+def _format_looky_tooltip_html(text: str, looky_names: set[str], *, is_disconnected: bool) -> str:
+    """Format elided username text for tooltip with HTML highlighting for Looky-resolved usernames."""
+    looky_casefolded = {name.casefold() for name in looky_names}
     looky_color_hex = TableColors.DISCONNECTED_LOOKY_TEXT if is_disconnected else TableColors.LOOKY_TEXT
     formatted_tokens: list[str] = []
     for token in split_usernames(text):
         escaped_token = html.escape(token)
-        if token.casefold() in unregistered_looky_casefolded:
+        if token.casefold() in looky_casefolded:
             formatted_tokens.append(f'<span style="color: {looky_color_hex};">{escaped_token}</span>')
         else:
             formatted_tokens.append(escaped_token)
@@ -166,11 +166,11 @@ class ElidedTextTooltipDelegate(QStyledItemDelegate):
 
         tooltip_text = text
         user_role_data = index.data(Qt.ItemDataRole.UserRole)
-        unregistered_looky_names: set[str] | None = cast('set[str]', user_role_data) if isinstance(user_role_data, set) and user_role_data else None
-        if unregistered_looky_names is not None or player_userip is not None:
+        looky_names: set[str] | None = cast('set[str]', user_role_data) if isinstance(user_role_data, set) and user_role_data else None
+        if looky_names is not None or player_userip is not None:
             usernames_html = (
-                _format_looky_tooltip_html(text, unregistered_looky_names, is_disconnected=_is_disconnected_cell(view, index))
-                if unregistered_looky_names is not None
+                _format_looky_tooltip_html(text, looky_names, is_disconnected=_is_disconnected_cell(view, index))
+                if looky_names is not None
                 else f'<span>{html.escape(text)}</span>'
             )
             if player_userip is not None:
@@ -303,11 +303,11 @@ class SearchHighlightDelegate(ElidedTextTooltipDelegate):
         search_query = self._get_search_text().strip()
         text = index.data(Qt.ItemDataRole.DisplayRole)
         user_role_data = index.data(Qt.ItemDataRole.UserRole)
-        unregistered_looky_names: set[str] | None = cast('set[str]', user_role_data) if isinstance(user_role_data, set) and user_role_data else None
+        looky_names: set[str] | None = cast('set[str]', user_role_data) if isinstance(user_role_data, set) and user_role_data else None
 
         has_search_match = bool(search_column_matches and search_query and isinstance(text, str) and search_query.lower() in text.lower())
 
-        if not isinstance(text, str) or (not has_search_match and not bool(unregistered_looky_names)):
+        if not isinstance(text, str) or (not has_search_match and not bool(looky_names)):
             super().paint(painter, option, index)
             return
 
@@ -372,8 +372,8 @@ class SearchHighlightDelegate(ElidedTextTooltipDelegate):
             base_format.format = base_char_format
             formats.append(base_format)
 
-            if unregistered_looky_names is not None:
-                unregistered_looky_casefolded = {name.casefold() for name in unregistered_looky_names}
+            if looky_names is not None:
+                looky_casefolded = {name.casefold() for name in looky_names}
                 looky_format = QTextCharFormat()
                 is_disconnected = _is_disconnected_cell(self.parent(), index)
                 looky_color = _DISCONNECTED_LOOKY_TEXT_COLOR if is_disconnected else _LOOKY_TEXT_COLOR
@@ -387,7 +387,7 @@ class SearchHighlightDelegate(ElidedTextTooltipDelegate):
                     segment_position = display_text.find(segment, current_offset)
                     if segment_position == -1:
                         segment_position = current_offset
-                    if i < len(tokens) and tokens[i].casefold() in unregistered_looky_casefolded:
+                    if i < len(tokens) and tokens[i].casefold() in looky_casefolded:
                         format_range = QTextLayout.FormatRange()
                         format_range.start = segment_position
                         if i + 1 < len(display_segments):

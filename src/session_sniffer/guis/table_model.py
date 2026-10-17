@@ -396,14 +396,12 @@ class SessionTableModel(QAbstractTableModel):
             return player.looky_system.is_initialized and bool(player.looky_system.usernames or player.looky_system.rockstarids)
 
     @staticmethod
-    def _get_unregistered_looky_usernames(player: Player) -> set[str]:
-        """Return the set of Looky usernames for *player* that are not present in their local UserIP database."""
+    def _get_looky_usernames(player: Player) -> set[str]:
+        """Return the set of Looky-resolved usernames for *player*."""
         with player.looky_system.lock:
             if not player.looky_system.is_initialized or not player.looky_system.usernames:
                 return set()
-            looky_names = list(player.looky_system.usernames)
-        userip_names: set[str] = {name.strip().casefold() for name in player.userip.usernames if name.strip()} if player.userip and player.userip.usernames else set()
-        return {name.strip() for name in looky_names if name.strip() and name.strip().casefold() not in userip_names}
+            return {name.strip() for name in player.looky_system.usernames if name.strip()}
 
     # --------------------------------------------------------------------------
     # Public properties
@@ -510,7 +508,7 @@ class SessionTableModel(QAbstractTableModel):
                 ip = self._get_ip_from_data_safely(self._data[row_index])
                 matched_player = PlayersRegistry.get_player_by_ip(ip)
                 if matched_player is not None:
-                    return self._get_unregistered_looky_usernames(matched_player)
+                    return self._get_looky_usernames(matched_player)
             return None
         elif role == Qt.ItemDataRole.DisplayRole:
             # Return the cell's text
