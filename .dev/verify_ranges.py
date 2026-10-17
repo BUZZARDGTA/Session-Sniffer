@@ -615,73 +615,59 @@ class CheckRangeOptions:
 
 
 def check_range(
-    client: RateLimitClient | GeoLite2Client,
-    owner: str,
-    cidr_range: str,
-    owner_networks: list[ipaddress.IPv4Network],
-    options: CheckRangeOptions | None = None,
+    client: RateLimitClient | GeoLite2Client, owner: str, cidr_range: str, owner_networks: list[ipaddress.IPv4Network], options: CheckRangeOptions | None = None,
 ) -> bool:
     """Check the validity of the CIDR range and look for potential expansion."""
-    if options is None:
-        options = CheckRangeOptions()
+    options = options or CheckRangeOptions()
     file_path, line_number = options.location or ('', None)
     network = ipaddress.ip_network(cidr_range)
     if not isinstance(network, ipaddress.IPv4Network):
         message = f'Only IPv4 networks are supported: {cidr_range}'
         raise TypeError(message)
 
-    base_samples = sample_ips(network)
-    adjacent_ip_addresses = _get_adjacent_ips(network)
+    base_samples, adjacent_ip_addresses = sample_ips(network), _get_adjacent_ips(network)
     all_ip_addresses = list(dict.fromkeys(base_samples + adjacent_ip_addresses))
     results = lookup_ips_batch(client, adjacent_ip_addresses if isinstance(client, GeoLite2Client) else all_ip_addresses)
 
-    is_valid = True
-    has_mismatches = False
-    mismatch_lines: list[str] = []
-    mismatches_raw: list[str] = []
+    is_valid, has_mismatches = True, False
+    mismatch_lines, mismatches_raw = [], []
     matching_networks: list[ipaddress.IPv4Network] = []
     active_client = client
 
     if isinstance(client, GeoLite2Client):
         mismatches, matching_networks = scan_network_geolite2(client, owner, network)
         if mismatches:
-            is_valid = False
-            has_mismatches = True
+            is_valid, has_mismatches = False, True
             for start_ip, end_ip, actual_owner in mismatches:
                 ip_range_str = str(start_ip) if start_ip == end_ip else f'{start_ip} - {end_ip}'
                 mismatch_lines.append(f'[red]✗[/red] [magenta]{ip_range_str}[/magenta] → {actual_owner}')
                 mismatches_raw.append(f'✗ {cidr_range} ({ip_range_str}) → {actual_owner}')
-        elif not matching_networks and options.fallback_client:
-            if owner not in IP_API_SKIPPED_OWNERS and network.prefixlen > MAX_IP_API_SUBNET_PREFIX:
-                if options.status_callback is not None:
-                    options.status_callback(f'[white]{owner}[/white] [magenta]{network.with_prefixlen}[/magenta] [yellow]• Fallback to IP-API[/yellow]')
-                fallback_results = lookup_ips_batch(options.fallback_client, all_ip_addresses)
-                results.update(fallback_results)
-                active_client = options.fallback_client
-                sample_valid, lines, raw = _collect_sample_mismatches(base_samples, fallback_results, owner, cidr_range)
-                if not sample_valid:
-                    is_valid = False
-                    has_mismatches = True
-                    mismatch_lines.extend(lines)
-                    mismatches_raw.extend(raw)
-        if options.fallback_client and owner not in IP_API_SKIPPED_OWNERS:
-            missing_adjacent = [ip for ip in adjacent_ip_addresses if (results.get(ip) or {}).get('message') == 'address not found']
-            if missing_adjacent:
-                results.update(lookup_ips_batch(options.fallback_client, missing_adjacent))
+        elif not matching_networks and options.fallback_client and owner not in IP_API_SKIPPED_OWNERS and network.prefixlen > MAX_IP_API_SUBNET_PREFIX:
+            if options.status_callback is not None:
+                options.status_callback(f'[white]{owner}[/white] [magenta]{network.with_prefixlen}[/magenta] [yellow]• Fallback to IP-API[/yellow]')
+            fallback_results = lookup_ips_batch(options.fallback_client, all_ip_addresses)
+            results.update(fallback_results)
+            active_client = options.fallback_client
+            sample_valid, lines, raw = _collect_sample_mismatches(base_samples, fallback_results, owner, cidr_range)
+            if not sample_valid:
+                is_valid, has_mismatches = False, True
+                mismatch_lines.extend(lines)
+                mismatches_raw.extend(raw)
+        if options.fallback_client and owner not in IP_API_SKIPPED_OWNERS and (
+            missing_adjacent := [ip for ip in adjacent_ip_addresses if (results.get(ip) or {}).get('message') == 'address not found']
+        ):
+            results.update(lookup_ips_batch(options.fallback_client, missing_adjacent))
     else:
         sample_valid, lines, raw = _collect_sample_mismatches(base_samples, results, owner, cidr_range)
         if not sample_valid:
-            is_valid = False
-            has_mismatches = True
+            is_valid, has_mismatches = False, True
             mismatch_lines.extend(lines)
             mismatches_raw.extend(raw)
 
     expansion_found, expandable_ip_addresses, backward_status, forward_status, backward_details, forward_details = _evaluate_expansion_boundary(
         network, adjacent_ip_addresses, owner, owner_networks, results,
     )
-
     renderables: list[RenderableType] = [Panel(render_samples(all_ip_addresses), title='[cyan]Sampled IPs[/cyan]', border_style='cyan', box=box.ROUNDED), Text('')]
-
     base_status = (
         '[red]✗ Mismatches Found[/red]' if has_mismatches
         else '[yellow]! Not in GeoLite2[/yellow]' if isinstance(active_client, GeoLite2Client) and not matching_networks
@@ -697,9 +683,7 @@ def check_range(
     details_table = Table.grid(padding=(0, 4), expand=True)
     for _ in range(4):
         details_table.add_column()
-
-    backward_text = '\n'.join(backward_details) if backward_details else 'N/A'
-    forward_text = '\n'.join(forward_details) if forward_details else 'N/A'
+    backward_text, forward_text = '\n'.join(backward_details) if backward_details else 'N/A', '\n'.join(forward_details) if forward_details else 'N/A'
     summary_text = (
         ('[green]✓ Range Verified\n✓ Ownership Consistent[/green]' if is_valid else '[red]✗ Range Verification Failed\n✗ Ownership Inconsistent[/red]')
         + ('\n[green]✓ No Expansion Opportunities[/green]' if not expansion_found else '\n[yellow]! Expansion Opportunities Found[/yellow]')
@@ -717,8 +701,7 @@ def check_range(
         mismatch_panel = Panel('\n'.join(mismatch_lines), title='[red]Base Check Mismatches[/red]', border_style='red', box=box.ROUNDED)
         renderables.extend([Text(''), Rule('[bold white]Fix Suggestion[/bold white]'), mismatch_panel])
         fix_renderable, fix_raw = (
-            _format_geolite2_fix(network, matching_networks)
-            if isinstance(active_client, GeoLite2Client)
+            _format_geolite2_fix(network, matching_networks) if isinstance(active_client, GeoLite2Client)
             else suggest_fix(active_client, owner, network, results, options.status_callback)
         )
         if fix_renderable is not None:
@@ -732,8 +715,7 @@ def check_range(
 
     clean_path = os.path.relpath(file_path).replace('\\', '/') if file_path else ''
     if has_mismatches and options.detections is not None:
-        for mismatch in mismatches_raw:
-            options.detections.append(f'{clean_path}:{line_number}: ({owner}) {mismatch} | [FIX SUGGESTION] {fix_raw}')
+        options.detections.extend(f'{clean_path}:{line_number}: ({owner}) {mismatch} | [FIX SUGGESTION] {fix_raw}' for mismatch in mismatches_raw)
     if expansion_found and options.detections is not None:
         options.detections.append(f'{clean_path}:{line_number}: ({owner}) [EXPANSION] {cidr_range} is expandable | [EXPAND SUGGESTION] {expansion_raw}')
 
@@ -742,9 +724,7 @@ def check_range(
             f'[bold white]{owner}[/bold white]  •  [bold magenta]{network.with_prefixlen}[/bold magenta]  •  '
             f'[dim]{network.network_address} → {network.broadcast_address}[/dim]  •  '
             f'[bold white]{network.num_addresses:,} IP{pluralize(network.num_addresses)}[/bold white]'
-        )
-        if file_path and line_number is not None:
-            title += f'  •  [blue]{clean_path}:{line_number}[/blue]'
+        ) + (f'  •  [blue]{clean_path}:{line_number}[/blue]' if file_path and line_number is not None else '')
         console.print()
         console.print(Panel(Group(*renderables), title=title, border_style='cyan', box=box.ROUNDED))
 
@@ -752,14 +732,30 @@ def check_range(
 
 
 def run_preflight_checks(
-    ranges: list[tuple[str, str, int]], networks_by_owner: dict[str, list[ipaddress.IPv4Network]], *, ranges_file: str = '',
+    ranges: list[tuple[str, str, int]], networks_by_owner: dict[str, list[ipaddress.IPv4Network]], *, ranges_file: str = '', detections: list[str] | None = None,
 ) -> None:
     """Run all pre-flight checks and display them in a neat panel."""
     table = Table(show_header=False, expand=True, box=None, padding=(0, 2))
     table.add_column(style='cyan', justify='left', ratio=1)
     table.add_column(justify='left', ratio=3)
+    clean_path = os.path.relpath(ranges_file).replace('\\', '/') if ranges_file else ''
+    line_by_range = {(owner, cidr_range): line for owner, cidr_range, line in ranges}
 
-    unsorted_owners = [owner for owner, networks in networks_by_owner.items() if networks != sorted(networks)]
+    valid_pairs = {(owner, network.with_prefixlen) for owner, networks in networks_by_owner.items() for network in networks}
+    if invalid_ranges := [(owner, cidr_range, line) for owner, cidr_range, line in ranges if (owner, cidr_range) not in valid_pairs]:
+        invalid_lines = [f'[dim]• {cidr_range} ({owner})[/dim]' + (f'  [blue]{clean_path}:{line}[/blue]' if clean_path else '') for owner, cidr_range, line in invalid_ranges]
+        table.add_row('Invalid CIDRs', f'[red]✗ {len(invalid_ranges)} invalid CIDR{pluralize(len(invalid_ranges))}![/red]\n' + '\n'.join(invalid_lines))
+        if detections is not None:
+            detections.extend(f'{clean_path}:{line}: ({owner}) [INVALID CIDR] {cidr_range}' for owner, cidr_range, line in invalid_ranges)
+
+    unsorted_owners: list[str] = []
+    for owner, networks in networks_by_owner.items():
+        if networks != (sorted_networks := sorted(networks)):
+            first_unsorted = next(network for network, sorted_network in zip(networks, sorted_networks, strict=True) if network != sorted_network)
+            line = line_by_range.get((owner, first_unsorted.with_prefixlen), 0)
+            unsorted_owners.append(f'{owner} ([blue]{clean_path}:{line}[/blue])' if clean_path and line else owner)
+            if detections is not None:
+                detections.append(f'{clean_path}:{line}: ({owner}) [UNSORTED] {first_unsorted.with_prefixlen} is out of order')
     unsorted_count = len(unsorted_owners)
     sort_text = (
         f'[yellow]⚠ {unsorted_count} owner{pluralize(unsorted_count)} {pluralize(unsorted_count, "has", "have")} unsorted ranges ({", ".join(unsorted_owners)})[/yellow]'
@@ -767,13 +763,19 @@ def run_preflight_checks(
     )
     table.add_row('CIDR Sorting', sort_text)
 
-    all_networks = [(owner, network) for owner, networks in networks_by_owner.items() for network in networks]
-    overlaps = [
-        f'[dim]• {network_1} ({owner_1}) falls within {network_2} ({owner_2})[/dim]'
-        for i, (owner_1, network_1) in enumerate(all_networks)
-        for j, (owner_2, network_2) in enumerate(all_networks)
-        if i != j and network_1.subnet_of(network_2) and 'BattlEye' not in (owner_1, owner_2)
+    all_networks = [(owner, network, line_by_range.get((owner, network.with_prefixlen), 0)) for owner, networks in networks_by_owner.items() for network in networks]
+    overlap_items = [
+        (owner_1, network_1, line_1, owner_2, network_2)
+        for i, (owner_1, network_1, line_1) in enumerate(all_networks)
+        for j, (owner_2, network_2, _) in enumerate(all_networks)
+        if (i < j if network_1 == network_2 else i != j) and network_1.subnet_of(network_2) and 'BattlEye' not in (owner_1, owner_2)
     ]
+    overlaps = [
+        f'[dim]• {network_1} ({owner_1}) falls within {network_2} ({owner_2})[/dim]' + (f'  [blue]{clean_path}:{line_1}[/blue]' if clean_path and line_1 else '')
+        for owner_1, network_1, line_1, owner_2, network_2 in overlap_items
+    ]
+    if detections is not None:
+        detections.extend(f'{clean_path}:{item[2]}: ({item[0]}) [OVERLAP] {item[1]} falls within {item[4]} ({item[3]})' for item in overlap_items)
     overlap_text = (
         f'[yellow]⚠ {len(overlaps)} overlap{pluralize(len(overlaps))} detected![/yellow]\n' + '\n'.join(overlaps)
         if overlaps else '[green]✓ No overlapping CIDRs found[/green]'
@@ -782,15 +784,14 @@ def run_preflight_checks(
 
     collapses: list[str] = []
     collapse_suggestions: list[str] = []
-    clean_relative_path = os.path.relpath(ranges_file).replace('\\', '/') if ranges_file else ''
-
     for owner, networks in networks_by_owner.items():
         collapsed = list(ipaddress.collapse_addresses(networks))
         if len(collapsed) < len(networks):
             collapses.append(f'[dim]• {owner}: {len(networks)} range{pluralize(len(networks))} → {len(collapsed)}[/dim]')
-            owner_line_numbers = [line for name, _, line in ranges if name == owner]
-            link_str = f'  •  [blue]{clean_relative_path}:{min(owner_line_numbers)}[/blue]' if (owner_line_numbers and clean_relative_path) else ''
-            to_delete = [f"    '{network.with_prefixlen}'," for network in networks if network not in collapsed]
+            deleted_networks = [network for network in networks if network not in collapsed]
+            first_line = min((line_by_range.get((owner, network.with_prefixlen), 0) for network in deleted_networks), default=0)
+            link_str = f'  •  [blue]{clean_path}:{first_line}[/blue]' if (first_line and clean_path) else ''
+            to_delete = [f"    '{network.with_prefixlen}'," for network in deleted_networks]
             to_add = [f"    '{network.with_prefixlen}'," for network in collapsed if network not in networks]
             lines = [f'[bold white]{owner}[/bold white] ({len(networks)} range{pluralize(len(networks))} → {len(collapsed)}){link_str}']
             if to_delete:
@@ -798,6 +799,8 @@ def run_preflight_checks(
             if to_add:
                 lines.extend([f'  [green]➕ Add {pluralize(len(to_add), "this range", "these ranges")} instead:[/green]', *to_add])
             collapse_suggestions.append('\n'.join(lines))
+            if detections is not None:
+                detections.append(f'{clean_path}:{first_line}: ({owner}) [COLLAPSIBLE] {len(networks)} ranges -> {len(collapsed)}')
 
     collapse_text = (
         f'[yellow]⚠ {len(collapses)} collapsible block{pluralize(len(collapses))} found![/yellow]\n' + '\n'.join(collapses)
@@ -889,18 +892,16 @@ def main() -> None:
                 parsed_ranges.append((owner, cidr_range, network, line_number))
                 networks_by_owner.setdefault(owner, []).append(network)
 
+    detections: list[str] = []
     console.rule('[bold cyan]Session Sniffer - Range Verification Engine[/bold cyan]')
     console.print(f'  [cyan]Loaded [bold white]{len(raw_ranges)}[/bold white] range{pluralize(len(raw_ranges))} for processing.[/cyan]')
-    run_preflight_checks(raw_ranges, networks_by_owner, ranges_file=str(parsed_arguments.ranges_file))
+    run_preflight_checks(raw_ranges, networks_by_owner, ranges_file=str(parsed_arguments.ranges_file), detections=detections)
 
     fallback_client: RateLimitClient | None = None
     if parsed_arguments.geolite2:
         database_path = GEOLITE2_DATABASES_DIR_PATH / 'GeoLite2-ASN.mmdb'
         if not database_path.exists():
-            console.print(
-                f'[red]Error: GeoLite2-ASN database not found at {database_path.absolute()}[/red]\n'
-                '[yellow]Please download it or launch the main app first to download it automatically.[/yellow]',
-            )
+            console.print(f'[red]Error: GeoLite2-ASN database not found at {database_path.absolute()}[/red]\n[yellow]Please download it or launch the main app first.[/yellow]')
             sys.exit(1)
         client: GeoLite2Client | RateLimitClient = GeoLite2Client(database_path)
         if parsed_arguments.ip_api_fallback:
@@ -934,7 +935,6 @@ def main() -> None:
         console.print()
 
     total_count = sum(1 for owner, cidr_range, _, _ in parsed_ranges if not should_skip(owner, cidr_range, use_geolite2=parsed_arguments.geolite2))
-    detections: list[str] = []
     current_index = 0
     progress = _create_progress('Verifying')
 
