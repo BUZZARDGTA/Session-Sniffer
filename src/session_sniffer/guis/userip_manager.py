@@ -87,6 +87,24 @@ if TYPE_CHECKING:
 
     from session_sniffer.models.userip_settings_model import UserIPEntryModel, UserIPSettingsModel
 
+_ENTRY_TABLE_HEADER_TOOLTIPS: dict[str, str] = {
+    '#': 'The sequential row number of the entry in the database.',
+    'Username': (
+        'The username associated with this entry.\n'
+        'Purple entries with a Looky icon were automatically added or confirmed via Looky System.'
+    ),
+    'IP': 'The single IPv4 address matched by this entry.',
+    'Range': 'The IPv4 address range or CIDR subnet matched by this entry.',
+    'Notes': 'Optional user notes or comments attached to this entry.',
+    'Source': 'How this entry was added to the database (e.g., Manual, Looky, Sniffer, or Imported).',
+    'Detections': 'The number of times this entry has been matched across sessions.',
+    'Added': 'The date and time when this entry was first added to the database.',
+    'Updated': 'The date and time when this entry was last modified.',
+    'First Seen': 'The very first time a player matching this entry was observed in a session.',
+    'Last Seen': 'The most recent time a player matching this entry was active in a session.',
+    'Database': 'The UserIP database file that contains this entry (shown when searching across all databases).',
+}
+
 
 def _load_userip_manager_state() -> tuple[QByteArray | None, bool, QByteArray | None, dict[str, int] | None]:
     """Load saved window geometry, maximized state, splitter state, and table column widths from local app data."""
@@ -376,6 +394,9 @@ class UserIPDatabasesManager(
         # Entries table
         self._model = QStandardItemModel(0, len(ENTRY_TABLE_HEADERS))
         self._model.setHorizontalHeaderLabels(ENTRY_TABLE_HEADERS)
+        for column, header_label in enumerate(ENTRY_TABLE_HEADERS):
+            if (tooltip := _ENTRY_TABLE_HEADER_TOOLTIPS.get(header_label)) is not None:
+                self._model.setHeaderData(column, Qt.Orientation.Horizontal, tooltip, Qt.ItemDataRole.ToolTipRole)
         self._model.dataChanged.connect(self._on_data_changed)
 
         self._proxy = EntriesSortProxy()
