@@ -388,10 +388,11 @@ class LookyRefreshReviewDialog(PlayerInfoDialogMixin):
             controls_bar.addWidget(move_label)
             self._bulk_db_combo.setMinimumWidth(145)
             self._bulk_db_combo.setToolTip(
-                'Change the Target Database for all currently checked & visible usernames.\n'
-                'When you move a Searchlist player to another database, their confirmed IP is saved there and their candidate rows are removed from Searchlist.',
+                'Change the Target Database for all currently checked & visible usernames:\n'
+                '\u2022 Auto (Default): Restores each row\u2019s smart default Target Database (matched DB or Randomlist for Searchlist, or source DB).\n'
+                '\u2022 Specific DB: Moves all checked & visible usernames into the chosen database.',
             )
-            self._bulk_db_combo.addItem('Keep Current DB', None)
+            self._bulk_db_combo.addItem('Auto (Default)', None)
             for db_label, db_path in self._available_dbs:
                 self._bulk_db_combo.addItem(db_label, db_path)
             self._bulk_db_combo.currentIndexChanged.connect(self._on_bulk_db_changed)
