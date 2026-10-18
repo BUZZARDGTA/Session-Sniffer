@@ -796,9 +796,12 @@ def _build_pending_entries_for_database(
                 continue
             if (existing_info := existing_by_cf.get(name_cf)) is not None:
                 display_name, existing_is_looky, existing_det, existing_notes = existing_info
+                if is_searchlist and not existing_notes:
+                    existing_notes = snapshot.notes_by_cf.get(name_cf, '')
                 is_confirmation, is_known = True, True
             else:
-                display_name, existing_notes = snapshot.canonical_name_by_cf.get(name_cf, player_entry.name), snapshot.notes_by_cf.get(name_cf, '')
+                display_name = snapshot.canonical_name_by_cf.get(name_cf, player_entry.name)
+                existing_notes = snapshot.notes_by_cf.get(name_cf, '') if is_searchlist else ''
                 existing_is_looky, existing_det, is_confirmation, is_known = False, 0, False, name_cf in snapshot.all_usernames_cf
 
             if is_searchlist and not (is_confirmation or is_known):
