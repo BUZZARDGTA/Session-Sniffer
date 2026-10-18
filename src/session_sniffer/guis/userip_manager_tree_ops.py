@@ -196,18 +196,17 @@ class TreeOperationsMixin(QDialog):
     # ------------------------------------------------------------------
 
     def _refresh_databases_looky(self, db_paths: list[Path]) -> None:
-        """Collect all IPs from the given database files and refresh their usernames via Looky System."""
+        """Collect all entries from the given database files and refresh their IPs and usernames via Looky System."""
         entries: list[tuple[Path, list[str]]] = []
         for db_path in db_paths:
             if not db_path.is_file() or db_path.suffix.lower() != '.json':
                 continue
             db_model = load_userip_database_model(db_path)
-            ip_addresses = [entry.ip for entry in db_model.entries]
-            if ip_addresses:
-                entries.append((db_path, ip_addresses))
+            if db_model.entries:
+                entries.append((db_path, [entry.ip for entry in db_model.entries]))
 
         if not entries:
-            QMessageBox.information(self, TITLE, f'No IPs found in the selected database{pluralize(len(db_paths))}.')
+            QMessageBox.information(self, TITLE, f'No entries found in the selected database{pluralize(len(db_paths))}.')
             return
 
         looky_refresh_userip_entries(self, entries)
@@ -235,7 +234,10 @@ class TreeOperationsMixin(QDialog):
                     _dir_path = file_path
                     refresh_dir_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'eye.svg')), 'Refresh Folder (Looky System)', self)
                     refresh_dir_action.triggered.connect(lambda: self._refresh_databases_looky(list(_dir_path.rglob('*.json'))))
-                    configure_looky_action(refresh_dir_action, 'Scan all IPs in this folder via Looky System to confirm existing usernames and discover new ones.')
+                    configure_looky_action(
+                        refresh_dir_action,
+                        'Scan all IPs and usernames in this folder via Looky System to confirm existing entries and discover new IPs or usernames.',
+                    )
                     menu.addAction(refresh_dir_action)
 
                 menu.addSeparator()
@@ -267,9 +269,9 @@ class TreeOperationsMixin(QDialog):
                     is_searchlist = file_path.stem.casefold() == 'searchlist'
                     refresh_label = 'Verify && Clean Searchlist (Looky)' if is_searchlist else 'Refresh Database (Looky System)'
                     refresh_tooltip = (
-                        'Verify candidate IPs in Searchlist via Looky System, confirm matching usernames, and remove wrong IPs.'
+                        'Verify candidate IPs and usernames in Searchlist via Looky System, find real IPs, and remove wrong candidate IPs.'
                         if is_searchlist
-                        else 'Scan all IPs in this database via Looky System to confirm existing usernames and discover new ones.'
+                        else 'Scan all IPs and usernames in this database via Looky System to confirm existing entries and discover new IPs or usernames.'
                     )
                     refresh_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'eye.svg')), refresh_label, self)
                     refresh_action.triggered.connect(lambda: self._refresh_databases_looky([_file_path]))
@@ -304,7 +306,10 @@ class TreeOperationsMixin(QDialog):
                 menu.addSeparator()
                 refresh_all_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'eye.svg')), 'Refresh All Databases (Looky)', self)
                 refresh_all_action.triggered.connect(lambda: self._refresh_databases_looky(list(USERIP_DATABASES_DIR_PATH.rglob('*.json'))))
-                configure_looky_action(refresh_all_action, 'Scan all IPs across all UserIP databases via Looky System to confirm existing usernames and discover new ones.')
+                configure_looky_action(
+                    refresh_all_action,
+                    'Scan all IPs and usernames across all UserIP databases via Looky System to confirm existing entries and discover new IPs or usernames.',
+                )
                 menu.addAction(refresh_all_action)
 
             menu.addSeparator()

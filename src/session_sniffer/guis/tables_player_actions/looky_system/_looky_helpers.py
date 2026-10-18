@@ -25,6 +25,7 @@ from session_sniffer.guis.looky_text import (
 )
 from session_sniffer.guis.stylesheets import (
     LOOKY_ACTION_BUTTON_STYLESHEET,
+    LOOKY_CRAWLER_HEADER_STYLESHEET,
     LOOKY_PRIMARY_ACTION_BUTTON_STYLESHEET,
     LOOKY_PROGRESS_BAR_STYLESHEET,
     LOOKY_STATUS_LABEL_STYLESHEET,
@@ -82,6 +83,41 @@ def build_looky_progress_widgets(layout: QVBoxLayout, dialog: QDialog) -> LookyP
     layout.addWidget(button_box)
 
     return LookyProgressWidgets(progress_bar, status_label, try_again_button, button_box)
+
+
+class LookyRefreshLoadingDialog(QDialog):
+    """Modal dialog shown while batch-lookup is running in the background."""
+
+    def __init__(self, parent: QWidget) -> None:
+        super().__init__(parent)
+        self.setWindowTitle(LOOKY_TITLE)
+        self.setWindowModality(Qt.WindowModality.WindowModal)
+        self.setWindowFlag(Qt.WindowType.WindowContextHelpButtonHint, on=False)
+        self.setMinimumSize(360, 160)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(12, 12, 12, 12)
+        layout.setSpacing(8)
+        header = QLabel('\U0001f441  Looky \u2014 Fetching...')
+        header.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        header.setStyleSheet(LOOKY_CRAWLER_HEADER_STYLESHEET)
+        layout.addWidget(header)
+        self._widgets = build_looky_progress_widgets(layout, self)
+        self._widgets.status_label.setText('<span style="color: #d8b4fe;">Preparing Looky System lookup...</span>')
+        self._widgets.status_label.show()
+
+    def update_progress(self, status_text: str, current: int, total: int) -> None:
+        """Update the progress bar and status label with the active lookup phase and completion count."""
+        self._widgets.progress_bar.setRange(0, max(1, total))
+        self._widgets.progress_bar.setValue(current)
+        pct = round(current * 100 / total) if total > 0 else 0
+        self._widgets.status_label.setText(f'<span style="color: #d8b4fe;">{status_text}: <b>{current} / {total}</b> ({pct}%)</span>')
+        self._widgets.status_label.show()
+
+    def show_error(self, message: str) -> None:
+        """Hide the progress bar and show the error message."""
+        self._widgets.progress_bar.hide()
+        self._widgets.status_label.setText(f'<span style="color: #f87171; font-weight: 600;">\u2717 Failed: {message}</span>')
+        self._widgets.status_label.show()
 
 
 def check_looky_prerequisites(parent: QWidget, *, check_gta5_restriction: bool = False) -> str | None:

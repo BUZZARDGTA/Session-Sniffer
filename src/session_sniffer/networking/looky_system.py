@@ -3,10 +3,16 @@
 import logging
 import math
 import re
+import threading
 import time
+from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from datetime import UTC
+from http import HTTPStatus
+from ipaddress import IPv4Address
 from typing import TYPE_CHECKING, ClassVar, cast
+from urllib.parse import quote
 
 import requests
 from pydantic import TypeAdapter
@@ -18,9 +24,11 @@ from session_sniffer.models.looky_system import (
     LookyInstructionStatusInitialResponse,
     LookyIpBatchResult,
     LookyPlayer,
+    LookyPlayerProfile,
     LookyWhoAmI,
 )
 from session_sniffer.networking.http_session import session
+from session_sniffer.networking.third_party_servers import is_third_party_server_ip
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Generator
@@ -29,6 +37,7 @@ logger = logging.getLogger(__name__)
 
 LOOKY_SEARCH_URL = f'{LOOKY_BASE_HOST}/api/search'
 LOOKY_SEARCH_IP_BATCH_URL = f'{LOOKY_BASE_HOST}/api/search/ip-batch'
+LOOKY_PLAYER_URL = f'{LOOKY_BASE_HOST}/api/player'
 LOOKY_WHOAMI_URL = f'{LOOKY_BASE_HOST}/api/whoami'
 LOOKY_INSTRUCTION_URL = f'{LOOKY_BASE_HOST}/api/instruction'
 LOOKY_INSTRUCTION_STATUS_INITIAL_URL = f'{LOOKY_BASE_HOST}/api/instruction-status-initial'
@@ -202,6 +211,19 @@ def verify_token(api_key: str) -> LookyWhoAmI:
     return LookyWhoAmI.model_validate(response.json())
 
 
+_CACHE_LOCK = threading.Lock()
+_RID_BY_USERNAME_CF_CACHE: dict[str, int | None] = {}
+_PROFILE_BY_RID_CACHE: dict[int, LookyPlayerProfile | None] = {}
+
+
+def _cache_looky_players(players: list[LookyPlayer]) -> None:
+    """Populate `_RID_BY_USERNAME_CF_CACHE` with resolved `(username, rockstarid)` pairs."""
+    with _CACHE_LOCK:
+        for player in players:
+            if player.rockstarid > 0 and (stripped_name := player.name.strip()):
+                _RID_BY_USERNAME_CF_CACHE[stripped_name.casefold()] = player.rockstarid
+
+
 def lookup_ip(ip: str, api_key: str, version: str = 'both') -> list[LookyPlayer]:
     """Query the Looky System API for players associated with `ip`.
 
@@ -221,6 +243,7 @@ def lookup_ip(ip: str, api_key: str, version: str = 'both') -> list[LookyPlayer]
     response = session.get(f'{LOOKY_SEARCH_URL}/{ip}', headers=_auth_headers(api_key), params={'version': version}, timeout=(3.0, 10.0))
     response.raise_for_status()
     results = _RESPONSE_ADAPTER.validate_json(response.content)
+    _cache_looky_players(results)
     return _sort_looky_players(results)
 
 
@@ -258,7 +281,324 @@ def lookup_ip_batch(ip_addresses: list[str], api_key: str, version: str = 'both'
     )
     response.raise_for_status()
     parsed = _BATCH_RESPONSE_ADAPTER.validate_json(response.content)
+    for item in parsed:
+        _cache_looky_players(item.players)
     return {item.ip: _sort_looky_players(item.players) for item in parsed}
+
+
+_AUTH_HTTP_STATUSES = frozenset({HTTPStatus.UNAUTHORIZED, HTTPStatus.FORBIDDEN})
+_NOT_FOUND_SEARCH_STATUSES = frozenset({
+    HTTPStatus.BAD_REQUEST,
+    HTTPStatus.NOT_FOUND,
+    HTTPStatus.INTERNAL_SERVER_ERROR,
+})
+_MIN_USERNAME_SEARCH_LEN = 2
+
+
+def get_rid_by_username(username: str, api_key: str) -> int | None:
+    """Resolve `username` to its Rockstar ID via `GET /api/search/{username}` exact case-insensitive match.
+
+    Looky's `/api/scapi/getrid` endpoint is currently unavailable (`503`), whereas `/api/search/{username}`
+    queries Looky's indexed player database directly and returns `200` with `LookyPlayer` entries when found
+    (or `404`/`500` when no matching player exists in Looky).
+
+    Args:
+        username: The Rockstar Social Club username to look up.
+        api_key: Looky System Bearer API key.
+
+    Returns:
+        The integer Rockstar ID if found in Looky, or `None` if the username is not indexed.
+
+    Raises:
+        requests.HTTPError: On a non-2xx response other than 400/404/500 (e.g. 401, 403, 429, 502, 503).
+        requests.RequestException: On connection/timeout errors.
+    """
+    stripped = username.strip()
+    if len(stripped) < _MIN_USERNAME_SEARCH_LEN:
+        return None
+    name_cf = stripped.casefold()
+    with _CACHE_LOCK:
+        if name_cf in _RID_BY_USERNAME_CF_CACHE:
+            return _RID_BY_USERNAME_CF_CACHE[name_cf]
+    encoded_name = quote(stripped, safe='')
+    headers = _auth_headers(api_key)
+    headers['Referer'] = f'{LOOKY_BASE_HOST}/'
+    response = session.get(
+        f'{LOOKY_SEARCH_URL}/{encoded_name}',
+        headers=headers,
+        params={'version': 'both'},
+        timeout=(3.0, 6.0),
+    )
+    if response.status_code in _NOT_FOUND_SEARCH_STATUSES:
+        with _CACHE_LOCK:
+            _RID_BY_USERNAME_CF_CACHE[name_cf] = None
+        return None
+    response.raise_for_status()
+    results = _RESPONSE_ADAPTER.validate_json(response.content)
+    _cache_looky_players(results)
+    resolved_rid = next(
+        (player.rockstarid for player in results if player.name.strip().casefold() == name_cf and player.rockstarid > 0),
+        None,
+    )
+    with _CACHE_LOCK:
+        _RID_BY_USERNAME_CF_CACHE[name_cf] = resolved_rid
+    return resolved_rid
+
+
+def lookup_player_by_rid(rid: int, api_key: str) -> LookyPlayerProfile | None:
+    """Query `GET /api/player/{rid}` for a player's profile and session IP history.
+
+    Args:
+        rid: The integer Rockstar ID to look up.
+        api_key: Looky System Bearer API key.
+
+    Returns:
+        `LookyPlayerProfile` if found, or `None` if the player does not exist in Looky.
+
+    Raises:
+        requests.HTTPError: On a non-2xx/non-404 response (e.g. 401, 403, 429, 5xx).
+        requests.RequestException: On connection/timeout errors.
+        pydantic.ValidationError: If the response JSON shape is unexpected.
+    """
+    with _CACHE_LOCK:
+        if rid in _PROFILE_BY_RID_CACHE:
+            return _PROFILE_BY_RID_CACHE[rid]
+    headers = _auth_headers(api_key)
+    headers['Referer'] = get_looky_user_url(rid)
+    response = session.get(f'{LOOKY_PLAYER_URL}/{rid}', headers=headers, timeout=(3.0, 8.0))
+    if response.status_code == HTTPStatus.NOT_FOUND:
+        with _CACHE_LOCK:
+            _PROFILE_BY_RID_CACHE[rid] = None
+        return None
+    response.raise_for_status()
+    profile = LookyPlayerProfile.model_validate_json(response.content)
+    resolved_rid = profile.rockstarid or rid
+    with _CACHE_LOCK:
+        _PROFILE_BY_RID_CACHE[rid] = profile
+        if resolved_rid > 0:
+            for sighting in profile.users_by_rockstar_id:
+                if stripped_name := sighting.name.strip():
+                    _RID_BY_USERNAME_CF_CACHE[stripped_name.casefold()] = resolved_rid
+    return profile
+
+
+def _is_valid_player_ipv4(ip: str) -> bool:
+    """Return True if `ip` is a valid single IPv4 address that is not a third-party server."""
+    try:
+        IPv4Address(ip)
+    except ValueError:
+        return False
+    return not is_third_party_server_ip(ip)
+
+
+_USERNAME_LOOKUP_MAX_WORKERS = 16
+
+
+def _wait_for_rate_limit(deadline_holder: list[float], should_cancel: Callable[[], bool] | None) -> bool:
+    """Sleep until `deadline_holder[0]` passes, returning `False` if canceled."""
+    while (remaining := deadline_holder[0] - time.monotonic()) > 0:
+        if should_cancel is not None and should_cancel():
+            return False
+        time.sleep(min(0.2, remaining))
+    return should_cancel is None or not should_cancel()
+
+
+def _record_rate_limit(exc: requests.HTTPError, deadline_holder: list[float], lock: threading.Lock) -> None:
+    """Extend `deadline_holder[0]` using `Retry-After` from `exc`."""
+    wait_seconds = min(extract_rate_limit_wait_seconds(exc) or 4, 15)
+    with lock:
+        deadline_holder[0] = max(deadline_holder[0], time.monotonic() + wait_seconds + 0.25)
+
+
+def _resolve_usernames_to_rids(
+    usernames: list[str],
+    api_key: str,
+    *,
+    should_cancel: Callable[[], bool] | None = None,
+    on_progress: Callable[[str, int, int], None] | None = None,
+) -> dict[int, list[str]]:
+    """Resolve `usernames` to a mapping of `rid -> list[username]` using cache and `GET /api/search/{username}`."""
+    usernames_by_rid: dict[int, list[str]] = defaultdict(list)
+    seen_username_cfs: set[str] = set()
+    usernames_to_query: list[str] = []
+    with _CACHE_LOCK:
+        for raw_username in usernames:
+            stripped = raw_username.strip()
+            name_cf = stripped.casefold()
+            if len(stripped) < _MIN_USERNAME_SEARCH_LEN or name_cf == 'n/a' or name_cf in seen_username_cfs:
+                continue
+            seen_username_cfs.add(name_cf)
+            if name_cf in _RID_BY_USERNAME_CF_CACHE:
+                cached_rid = _RID_BY_USERNAME_CF_CACHE[name_cf]
+                if cached_rid is not None and cached_rid > 0:
+                    usernames_by_rid[cached_rid].append(stripped)
+            else:
+                usernames_to_query.append(stripped)
+
+    if not usernames_to_query:
+        return usernames_by_rid
+
+    total_to_query = len(usernames_to_query)
+    if on_progress is not None:
+        on_progress('Resolving usernames to Rockstar IDs', 0, total_to_query)
+    search_unavailable = threading.Event()
+    rate_limit_lock = threading.Lock()
+    rate_limit_deadline = [0.0]
+
+    def _resolve_one(name: str) -> tuple[str, int | None]:
+        for _ in range(4):
+            if not _wait_for_rate_limit(rate_limit_deadline, should_cancel) or search_unavailable.is_set():
+                return name, None
+            try:
+                return name, get_rid_by_username(name, api_key)
+            except requests.HTTPError as e:
+                if e.response is not None and e.response.status_code in _AUTH_HTTP_STATUSES:
+                    raise
+                if e.response is not None and e.response.status_code == HTTPStatus.TOO_MANY_REQUESTS:
+                    _record_rate_limit(e, rate_limit_deadline, rate_limit_lock)
+                    continue
+                search_unavailable.set()
+                logger.debug('Looky username search unavailable for username=%s: %s', name, e)
+                return name, None
+            except requests.RequestException as e:
+                logger.debug('Looky username search request failed for username=%s: %s', name, e)
+                return name, None
+        return name, None
+
+    completed = 0
+    with ThreadPoolExecutor(max_workers=min(_USERNAME_LOOKUP_MAX_WORKERS, total_to_query)) as executor:
+        futures = [executor.submit(_resolve_one, name) for name in usernames_to_query]
+        for future in as_completed(futures):
+            name, resolved_rid = future.result()
+            completed += 1
+            if on_progress is not None:
+                on_progress('Resolving usernames to Rockstar IDs', completed, total_to_query)
+            if should_cancel is not None and should_cancel():
+                return {}
+            if resolved_rid is not None and resolved_rid > 0:
+                usernames_by_rid[resolved_rid].append(name)
+    return usernames_by_rid
+
+
+def _fetch_profiles_by_rid(
+    rids: list[int],
+    api_key: str,
+    *,
+    should_cancel: Callable[[], bool] | None = None,
+    on_progress: Callable[[str, int, int], None] | None = None,
+) -> dict[int, LookyPlayerProfile]:
+    """Fetch `LookyPlayerProfile` objects for `rids` concurrently via `GET /api/player/{rid}`."""
+    if not rids:
+        return {}
+    total_rids = len(rids)
+    if on_progress is not None:
+        on_progress('Fetching player IP histories', 0, total_rids)
+    player_unavailable = threading.Event()
+    rate_limit_lock = threading.Lock()
+    rate_limit_deadline = [0.0]
+
+    def _fetch_one(target_rid: int) -> tuple[int, LookyPlayerProfile | None]:
+        for _ in range(4):
+            if not _wait_for_rate_limit(rate_limit_deadline, should_cancel) or player_unavailable.is_set():
+                return target_rid, None
+            try:
+                return target_rid, lookup_player_by_rid(target_rid, api_key)
+            except requests.HTTPError as e:
+                if e.response is not None and e.response.status_code in _AUTH_HTTP_STATUSES:
+                    raise
+                if e.response is not None and e.response.status_code == HTTPStatus.TOO_MANY_REQUESTS:
+                    _record_rate_limit(e, rate_limit_deadline, rate_limit_lock)
+                    continue
+                player_unavailable.set()
+                logger.debug('Looky player lookup unavailable for rid=%s: %s', target_rid, e)
+                return target_rid, None
+            except requests.RequestException as e:
+                logger.debug('Looky player lookup request failed for rid=%s: %s', target_rid, e)
+                return target_rid, None
+        return target_rid, None
+
+    profiles_by_rid: dict[int, LookyPlayerProfile] = {}
+    completed = 0
+    with ThreadPoolExecutor(max_workers=min(_USERNAME_LOOKUP_MAX_WORKERS, total_rids)) as executor:
+        futures = [executor.submit(_fetch_one, target_rid) for target_rid in rids]
+        for future in as_completed(futures):
+            target_rid, profile = future.result()
+            completed += 1
+            if on_progress is not None:
+                on_progress('Fetching player IP histories', completed, total_rids)
+            if should_cancel is not None and should_cancel():
+                return {}
+            if profile is not None:
+                profiles_by_rid[target_rid] = profile
+    return profiles_by_rid
+
+
+def lookup_username_ips(
+    usernames: list[str],
+    api_key: str,
+    version: str = 'both',
+    *,
+    should_cancel: Callable[[], bool] | None = None,
+    on_progress: Callable[[str, int, int], None] | None = None,
+) -> tuple[dict[str, list[LookyPlayer]], dict[str, list[str]]]:
+    """Resolve `usernames` to Rockstar IDs and fetch their recorded session IPs via `GET /api/player/{rid}`.
+
+    Returns:
+        A tuple `(players_by_ip, ips_by_username_cf)` where `players_by_ip` maps each discovered IP
+        to its `LookyPlayer` entries and `ips_by_username_cf` maps each lowercased username to its
+        ordered list of discovered IPv4 addresses (most recent first).
+    """
+    usernames_by_rid = _resolve_usernames_to_rids(usernames, api_key, should_cancel=should_cancel, on_progress=on_progress)
+    if (should_cancel is not None and should_cancel()) or not usernames_by_rid:
+        return {}, {}
+    profiles_by_rid = _fetch_profiles_by_rid(list(usernames_by_rid), api_key, should_cancel=should_cancel, on_progress=on_progress)
+    if should_cancel is not None and should_cancel():
+        return {}, {}
+
+    players_by_ip: dict[str, list[LookyPlayer]] = defaultdict(list)
+    seen_names_by_ip: dict[str, set[str]] = defaultdict(set)
+    ips_by_username_cf: dict[str, list[str]] = defaultdict(list)
+    seen_ips_by_username_cf: dict[str, set[str]] = defaultdict(set)
+
+    for rid, rid_usernames in usernames_by_rid.items():
+        profile = profiles_by_rid.get(rid)
+        if profile is None:
+            continue
+        sorted_sightings = sorted(
+            profile.users_by_rockstar_id,
+            key=lambda item: item.datetimestamp.astimezone(UTC) if item.datetimestamp.tzinfo is not None else item.datetimestamp.replace(tzinfo=UTC),
+            reverse=True,
+        )
+        resolved_rid = profile.rockstarid or rid
+        for sighting in sorted_sightings:
+            if sighting.relay or not _is_valid_player_ipv4(sighting.ip):
+                continue
+            if (version == 'enhanced' and not sighting.enhanced) or (version == 'legacy' and sighting.enhanced):
+                continue
+            candidate_names = [*rid_usernames, *([sighting.name.strip()] if sighting.name.strip() else [])]
+            for queried_name in rid_usernames:
+                queried_cf = queried_name.casefold()
+                if sighting.ip not in seen_ips_by_username_cf[queried_cf]:
+                    seen_ips_by_username_cf[queried_cf].add(sighting.ip)
+                    ips_by_username_cf[queried_cf].append(sighting.ip)
+            for candidate_name in candidate_names:
+                cand_cf = candidate_name.casefold()
+                if cand_cf not in seen_names_by_ip[sighting.ip]:
+                    seen_names_by_ip[sighting.ip].add(cand_cf)
+                    players_by_ip[sighting.ip].append(
+                        LookyPlayer(
+                            rockstarid=resolved_rid,
+                            name=candidate_name,
+                            last_seen=sighting.datetimestamp,
+                            last_country=sighting.country,
+                            is_modder=profile.is_modder,
+                            is_enhanced=sighting.enhanced,
+                            is_legacy=not sighting.enhanced,
+                            is_vpn=sighting.vpn,
+                        ),
+                    )
+
+    return dict(players_by_ip), dict(ips_by_username_cf)
 
 
 def send_crawlme_instruction(api_key: str, version: str) -> str:

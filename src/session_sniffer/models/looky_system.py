@@ -61,6 +61,35 @@ class LookyInstructionStatusInitialInstruction(BaseModel):
     result: str | None = None
 
 
+class LookyPlayerSighting(BaseModel):
+    """A single session sighting entry inside `LookyPlayerProfile.users_by_rockstar_id`."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    datetimestamp: datetime
+    rockstarid: int
+    name: str
+    ip: str
+    country: str = 'unknown'
+    vpn: bool = False
+    enhanced: bool = False
+    relay: bool = False
+
+
+class LookyPlayerProfile(BaseModel):
+    """Player profile and session IP history returned by `GET /api/player/{rid}`."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    rockstarid: int = 0
+    last_name: str = Field(default='', validation_alias='lastName')
+    last_seen: datetime | None = Field(default=None, validation_alias='lastSeen')
+    last_country: str = Field(default='unknown', validation_alias='lastCountry')
+    is_modder: bool = Field(default=False, validation_alias='isModder')
+    has_enhanced: bool = Field(default=False, validation_alias='hasEnhanced')
+    users_by_rockstar_id: list[LookyPlayerSighting] = Field(default_factory=list[LookyPlayerSighting], validation_alias='usersByRockstarId')
+
+
 class LookyInstructionStatusInitialResponse(BaseModel):
     """Raw response shape returned by `GET /api/instruction-status-initial/...`."""
 

@@ -2,6 +2,7 @@
 
 import logging
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from functools import partial
 from http import HTTPStatus
@@ -11,11 +12,10 @@ from typing import TYPE_CHECKING, Protocol, override, runtime_checkable
 
 import requests
 from pydantic import ValidationError
-from PySide6.QtCore import QPoint, QSize, Qt, Signal
+from PySide6.QtCore import QPoint, QSignalBlocker, QSize, Qt, Signal
 from PySide6.QtGui import QBrush, QColor, QFont, QIcon
 from PySide6.QtWidgets import (
     QComboBox,
-    QDialog,
     QFrame,
     QHBoxLayout,
     QHeaderView,
@@ -50,7 +50,7 @@ from session_sniffer.guis.stylesheets import (
 )
 from session_sniffer.guis.table_column_resizing import setup_table_header_context_menu
 from session_sniffer.guis.tables_player_actions._player_info_dialog_mixin import PlayerInfoDialogMixin
-from session_sniffer.guis.tables_player_actions.looky_system._looky_helpers import build_looky_progress_widgets, check_looky_prerequisites
+from session_sniffer.guis.tables_player_actions.looky_system._looky_helpers import LookyRefreshLoadingDialog, check_looky_prerequisites
 from session_sniffer.guis.userip_manager_helpers import append_userip_entries, load_userip_database_model, populate_userip_databases_menu, save_userip_database_model
 from session_sniffer.guis.utils import (
     activate_window,
@@ -61,7 +61,7 @@ from session_sniffer.guis.utils import (
     set_dialog_window_flags,
 )
 from session_sniffer.models.userip_settings_model import UserIPEntryModel
-from session_sniffer.networking.looky_system import extract_rate_limit_message, extract_rate_limit_wait_seconds, lookup_ip_batch
+from session_sniffer.networking.looky_system import extract_rate_limit_message, extract_rate_limit_wait_seconds, lookup_ip_batch, lookup_username_ips
 from session_sniffer.player.userip_loader import update_userip_databases
 from session_sniffer.rendering_core.events import wake_rendering_core
 from session_sniffer.settings.settings import Settings
@@ -73,12 +73,8 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 _BATCH_SIZE = 32
-_COLOR_CONFIRMED = QColor('#38bdf8')  # sky blue for confirmed existing suspects / moves
-_COLOR_MATCH_TAG = QColor('#fbbf24')  # amber accent for usernames already known in the database
-_COLOR_REMOVE_SUSPECT = QColor('#f87171')  # coral red for unconfirmed suspect IPs to remove
-_COLOR_NEW = QColor('#a855f7')  # bright purple for Looky entries
-_COLOR_NEW_TAG = QColor('#22c55e')  # green accent for "Add New Username"
-_COLOR_DB_LABEL = QColor('#9ca3af')  # muted grey for secondary columns
+_COLOR_CONFIRMED, _COLOR_MATCH_TAG, _COLOR_REMOVE_SUSPECT = QColor('#38bdf8'), QColor('#fbbf24'), QColor('#f87171')
+_COLOR_NEW, _COLOR_NEW_TAG, _COLOR_DB_LABEL = QColor('#a855f7'), QColor('#22c55e'), QColor('#9ca3af')
 
 _COMBO_STYLESHEET = (
     'QComboBox { background-color: #1a1325; color: #e9d5ff; border: 1px solid #3d2d6e; border-radius: 4px; padding: 2px 6px; font-size: 8.5pt; }'
@@ -102,46 +98,68 @@ def _list_available_databases(extra_paths: set[Path]) -> list[tuple[str, Path]]:
 
 
 class _LookyRefreshWorker(CrashingQThread):
-    """Background thread that batch-looks up IPs via the Looky System API."""
+    """Background thread that batch-looks up IPs and resolves usernames to IPs via the Looky System API."""
 
-    finished_ok: Signal = Signal(object)  # dict[str, list[LookyPlayer]]
+    finished_ok: Signal = Signal(object, object)  # dict[str, list[LookyPlayer]], dict[str, list[str]]
     finished_error: Signal = Signal(str)  # error message
+    progress_updated: Signal = Signal(str, int, int)  # status_text, current, total
 
-    def __init__(self, ip_addresses: list[str], api_key: str, version: str) -> None:
+    def __init__(self, ip_addresses: list[str], usernames: list[str], api_key: str, version: str) -> None:
         super().__init__()
-        self._ip_addresses, self._api_key, self._version = ip_addresses, api_key, version
+        self._ip_addresses, self._usernames, self._api_key, self._version = ip_addresses, usernames, api_key, version
+
+    def _emit_request_error(self, exc: Exception) -> None:
+        logger.warning('Looky System lookup failed: %s', exc)
+        if isinstance(exc, requests.HTTPError):
+            if exc.response is not None and exc.response.status_code == HTTPStatus.TOO_MANY_REQUESTS:
+                wait_seconds = extract_rate_limit_wait_seconds(exc)
+                self.finished_error.emit(f'Rate limited: {extract_rate_limit_message(exc)}. Try again in {wait_seconds} second{pluralize(wait_seconds or 0)}.')
+            else:
+                self.finished_error.emit(f'Looky System API error: HTTP {exc.response.status_code if exc.response is not None else "?"}')
+        elif isinstance(exc, requests.RequestException):
+            self.finished_error.emit(f'Looky System request failed: {exc}')
+        else:
+            self.finished_error.emit(f'Looky System response format unexpected: {exc}')
 
     @override
     def _run(self) -> None:
-        """Batch-lookup all IPs and emit the combined results."""
+        """Batch-lookup all IPs, resolve usernames to IPs, and emit the combined results."""
         combined: dict[str, list[LookyPlayer]] = {}
-        for batch_start in range(0, len(self._ip_addresses), _BATCH_SIZE):
-            if self.isInterruptionRequested():
-                return
-            batch = self._ip_addresses[batch_start : batch_start + _BATCH_SIZE]
-            try:
-                results = lookup_ip_batch(batch, self._api_key, self._version)
-            except requests.HTTPError as e:
-                logger.warning('Looky System batch lookup failed with HTTP error: %s', e)
-                if e.response is not None and e.response.status_code == HTTPStatus.TOO_MANY_REQUESTS:
-                    wait_seconds = extract_rate_limit_wait_seconds(e)
-                    self.finished_error.emit(f'Rate limited: {extract_rate_limit_message(e)}. Try again in {wait_seconds} second{pluralize(wait_seconds or 0)}.')
-                else:
-                    status_code = e.response.status_code if e.response is not None else '?'
-                    self.finished_error.emit(f'Looky System API error: HTTP {status_code}')
-                return
-            except requests.RequestException as e:
-                logger.warning('Looky System batch lookup failed with network error: %s', e)
-                self.finished_error.emit(f'Looky System request failed: {e}')
-                return
-            except ValidationError as e:
-                logger.warning('Looky System batch lookup failed with validation error: %s', e)
-                self.finished_error.emit(f'Looky System response format unexpected: {e}')
-                return
-            combined.update(results)
+        discovered_ips_by_cf: dict[str, list[str]] = {}
+        batches = [self._ip_addresses[i : i + _BATCH_SIZE] for i in range(0, len(self._ip_addresses), _BATCH_SIZE)]
+        try:
+            if batches:
+                self.progress_updated.emit('Checking IP batches', 0, len(batches))
+                with ThreadPoolExecutor(max_workers=min(8, len(batches))) as executor:
+                    futures = [executor.submit(lookup_ip_batch, batch, self._api_key, self._version) for batch in batches]
+                    for completed_idx, future in enumerate(as_completed(futures), start=1):
+                        if self.isInterruptionRequested():
+                            return
+                        combined.update(future.result())
+                        self.progress_updated.emit('Checking IP batches', completed_idx, len(batches))
+            if self._usernames and not self.isInterruptionRequested():
+                user_players_by_ip, discovered_ips_by_cf = lookup_username_ips(
+                    self._usernames, self._api_key, self._version, should_cancel=self.isInterruptionRequested, on_progress=self.progress_updated.emit,
+                )
+                for ip, players in user_players_by_ip.items():
+                    existing = combined.setdefault(ip, [])
+                    seen_cfs = {player.name.casefold() for player in existing}
+                    existing.extend(player for player in players if player.name.casefold() not in seen_cfs)
+        except (requests.RequestException, ValidationError) as e:
+            self._emit_request_error(e)
+            return
 
         if not self.isInterruptionRequested():
-            self.finished_ok.emit(combined)
+            self.finished_ok.emit(combined, discovered_ips_by_cf)
+
+
+def _is_single_ipv4(entry: str) -> bool:
+    """Return True if `entry` is a single IPv4 address (not a range, CIDR, or wildcard)."""
+    try:
+        IPv4Address(entry)
+    except ValueError:
+        return False
+    return True
 
 
 @dataclass(slots=True)
@@ -159,8 +177,7 @@ def _collect_existing_usernames(db_path: Path) -> _DbLookupSnapshot:
     """Build a `_DbLookupSnapshot` for the given database file."""
     ip_to_entries, ip_to_seen = dict[str, list[tuple[str, bool, int, str]]](), dict[str, dict[str, int]]()
     all_usernames_cf, canonical_name_by_cf, notes_by_cf = set[str](), dict[str, str](), dict[str, str]()
-    unconfirmed_ips_by_cf: dict[str, list[tuple[str, str]]] = defaultdict(list)
-    seen_unconfirmed_ips: dict[str, set[str]] = defaultdict(set)
+    unconfirmed_ips_by_cf, seen_unconfirmed_ips = defaultdict[str, list[tuple[str, str]]](list), defaultdict[str, set[str]](set)
 
     for entry in load_userip_database_model(db_path).entries:
         username_cf = entry.username.casefold()
@@ -168,7 +185,7 @@ def _collect_existing_usernames(db_path: Path) -> _DbLookupSnapshot:
         canonical_name_by_cf.setdefault(username_cf, entry.username)
         if entry.notes and username_cf not in notes_by_cf:
             notes_by_cf[username_cf] = entry.notes
-        if not entry.is_looky and not entry.detections_count and entry.ip not in seen_unconfirmed_ips[username_cf]:
+        if not entry.is_looky and not entry.detections_count and _is_single_ipv4(entry.ip) and entry.ip not in seen_unconfirmed_ips[username_cf]:
             seen_unconfirmed_ips[username_cf].add(entry.ip)
             unconfirmed_ips_by_cf[username_cf].append((entry.ip, entry.notes))
         seen_for_ip = ip_to_seen.setdefault(entry.ip, {})
@@ -183,40 +200,6 @@ def _collect_existing_usernames(db_path: Path) -> _DbLookupSnapshot:
             entries_for_ip[existing_idx] = (prev_name, prev_looky or entry.is_looky, max(prev_det, entry.detections_count), prev_notes or entry.notes)
 
     return _DbLookupSnapshot(ip_to_entries, all_usernames_cf, canonical_name_by_cf, notes_by_cf, unconfirmed_ips_by_cf)
-
-
-def _is_single_ipv4(entry: str) -> bool:
-    """Return True if `entry` is a single IPv4 address (not a range, CIDR, or wildcard)."""
-    try:
-        IPv4Address(entry)
-    except ValueError:
-        return False
-    return True
-
-
-class _LookyRefreshLoadingDialog(QDialog):
-    """Modal dialog shown while batch-lookup is running in the background."""
-
-    def __init__(self, parent: QWidget) -> None:
-        super().__init__(parent)
-        self.setWindowTitle(LOOKY_TITLE)
-        self.setWindowModality(Qt.WindowModality.WindowModal)
-        self.setWindowFlag(Qt.WindowType.WindowContextHelpButtonHint, on=False)
-        self.setMinimumSize(320, 150)
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(12, 12, 12, 12)
-        layout.setSpacing(8)
-        header = QLabel('\U0001f441  Looky \u2014 Fetching...')
-        header.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        header.setStyleSheet(LOOKY_CRAWLER_HEADER_STYLESHEET)
-        layout.addWidget(header)
-        self._widgets = build_looky_progress_widgets(layout, self)
-
-    def show_error(self, message: str) -> None:
-        """Hide the progress bar and show the error message."""
-        self._widgets.progress_bar.hide()
-        self._widgets.status_label.setText(f'<span style="color: #f87171; font-weight: 600;">\u2717 Failed: {message}</span>')
-        self._widgets.status_label.show()
 
 
 @dataclass(slots=True)
@@ -282,9 +265,8 @@ class _UserIPManagerProtocol(Protocol):
 def _set_row_tooltip(item: QTreeWidgetItem, db_path: Path, text: str) -> None:
     """Store *db_path* on *item* and assign *text* as the tooltip across all columns."""
     item.setData(_COL_TARGET_DB, Qt.ItemDataRole.UserRole, db_path)
-    full_text = f'{text}\n\nTip: Right-click this row to copy, change its Target Database, or jump to it in UserIP Databases Manager.'
     for col in range(len(_TREE_HEADERS)):
-        item.setToolTip(col, full_text)
+        item.setToolTip(col, f'{text}\n\nTip: Right-click this row to copy, change its Target Database, or jump to it in UserIP Databases Manager.')
 
 
 class LookyRefreshReviewDialog(PlayerInfoDialogMixin):
@@ -293,22 +275,20 @@ class LookyRefreshReviewDialog(PlayerInfoDialogMixin):
     def __init__(self, parent: QWidget, pending_entries: list[_PendingEntry], standalone_removals: list[_SuspectRemoval], *, ips_with_results_count: int) -> None:
         super().__init__(None)
         set_dialog_window_flags(self)
-        self._owner_window = parent
+        self._owner_window, self._updating_checks, self._updating_combos = parent, False, False
         parent.destroyed.connect(self.close)
         self.setWindowTitle(f'{LOOKY_TITLE} \u2014 UserIP Refresh Review')
-        self.setStyleSheet(LOOKY_REVIEW_DIALOG_STYLESHEET)
+        self.setStyleSheet(f'{LOOKY_REVIEW_DIALOG_STYLESHEET}{_COMBO_STYLESHEET}')
         apply_adaptive_window_size(self, min_size=(980, 560), size_1080p=(1280, 720), size_720p=(1040, 620))
 
-        self._updating_checks: bool = False
-        self._updating_combos: bool = False
         self._confirmed_icon = render_svg_icon_from_resource('user-round-check.svg', 16, 16, '#38bdf8')
+        self._move_icon = render_svg_icon_from_resource('box.svg', 16, 16, '#38bdf8')
         self._match_icon = render_svg_icon_from_resource('user-round-search.svg', 16, 16, '#fbbf24')
         self._new_icon = render_svg_icon_from_resource('user-plus.svg', 16, 16, '#22c55e')
-        self._move_icon = render_svg_icon_from_resource('box.svg', 16, 16, '#38bdf8')
         self._remove_icon = render_svg_icon_from_resource('remove.svg', 16, 16, '#f87171')
 
         unique_dbs = {entry.db_path for entry in pending_entries} | {rem.db_path for rem in standalone_removals}
-        self._available_dbs = _list_available_databases(unique_dbs)
+        self._available_dbs = _list_available_databases(unique_dbs | {entry.target_db_path for entry in pending_entries})
 
         outer_layout = QVBoxLayout(self)
         outer_layout.setContentsMargins(12, 12, 12, 12)
@@ -394,7 +374,7 @@ class LookyRefreshReviewDialog(PlayerInfoDialogMixin):
         self._search_input.setToolTip('Filter the table by username, IP address, notes, action, or target database.')
         self._search_input.setStyleSheet(
             'QLineEdit { background-color: #1a1325; color: #d4c8f0; border: 1px solid #3d2d6e; border-radius: 6px; padding: 4px 8px; font-size: 9pt; }'
-            'QLineEdit:focus { border: 1px solid #7c3aed; }',
+            ' QLineEdit:focus { border: 1px solid #7c3aed; }',
         )
         self._search_input.setMinimumWidth(200)
         apply_search_icon(self._search_input)
@@ -406,7 +386,6 @@ class LookyRefreshReviewDialog(PlayerInfoDialogMixin):
             move_label = QLabel('Target DB for Checked:')
             move_label.setStyleSheet('color: #d8b4fe; font-size: 8.5pt; font-weight: 600; background: transparent;')
             controls_bar.addWidget(move_label)
-            self._bulk_db_combo.setStyleSheet(_COMBO_STYLESHEET)
             self._bulk_db_combo.setMinimumWidth(145)
             self._bulk_db_combo.setToolTip(
                 'Change the Target Database for all currently checked & visible usernames.\n'
@@ -422,8 +401,7 @@ class LookyRefreshReviewDialog(PlayerInfoDialogMixin):
             ('Select All', 'check.svg', 'Check all currently visible Looky entries and wrong candidate IP removals.', True),
             ('Unselect All', 'x.svg', 'Uncheck all rows in the table.', False),
         ):
-            sel_btn = QPushButton(btn_text)
-            sel_btn.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / icon_name)))
+            sel_btn = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / icon_name)), btn_text)
             sel_btn.setStyleSheet(LOOKY_REVIEW_SELECT_BUTTON_STYLESHEET)
             sel_btn.setCursor(Qt.CursorShape.PointingHandCursor)
             sel_btn.setToolTip(tip_text)
@@ -434,11 +412,10 @@ class LookyRefreshReviewDialog(PlayerInfoDialogMixin):
         self._tree = QTreeWidget()
         self._tree.setColumnCount(len(_TREE_HEADERS))
         self._tree.setHeaderLabels(_TREE_HEADERS)
-        header_item = self._tree.headerItem()
         header_tooltips = (
             'The username in your database (or new Looky username). Click to sort.',
             'The IP address (real IP for Looky matches, or wrong candidate IP for deletions). Click to sort.',
-            'The username(s) that the Looky System resolved on this IP address. Click to sort.',
+            'The usernames that the Looky System resolved on this IP address. Click to sort.',
             'What will happen to this row when you click "Accept Selected". Click to sort.',
             'Notes attached to this username in your database (preserved when confirming or moving). Click to sort.',
             'Number of times Session Sniffer has detected this entry in your database. Click to sort.',
@@ -446,7 +423,7 @@ class LookyRefreshReviewDialog(PlayerInfoDialogMixin):
             'Database where this username will be saved/moved or deleted from. Click to sort.',
         )
         for col, tip in enumerate(header_tooltips):
-            header_item.setToolTip(col, tip)
+            self._tree.headerItem().setToolTip(col, tip)
         self._tree.setAlternatingRowColors(False)
         self._tree.setStyleSheet(LOOKY_REVIEW_TABLE_STYLESHEET)
         self._tree.setRootIsDecorated(any(bool(entry.suspect_removals) for entry in pending_entries))
@@ -459,7 +436,7 @@ class LookyRefreshReviewDialog(PlayerInfoDialogMixin):
         setup_table_header_context_menu(self._tree, on_reset=self._reset_column_sizes)
 
         self._new_items, self._removal_items = list[tuple[QTreeWidgetItem, _PendingEntry]](), list[tuple[QTreeWidgetItem, _SuspectRemoval]]()
-        self._entry_to_removal_children, self._item_to_db_combo = dict[int, list[QTreeWidgetItem]](), dict[int, QComboBox]()
+        self._entry_to_removal_children, self._item_to_db_combo = dict[int, list[QTreeWidgetItem]](), dict[int, tuple[QComboBox, Path]]()
         self._populate_tree_items(pending_entries, standalone_removals)
         self._reset_column_sizes()
         self._tree.itemChanged.connect(self._on_item_changed)
@@ -467,6 +444,7 @@ class LookyRefreshReviewDialog(PlayerInfoDialogMixin):
 
         button_layout = QHBoxLayout()
         button_layout.setSpacing(10)
+        button_layout.addStretch(1)
         self._accept_btn, cancel_btn = QPushButton('\u2713 Accept Selected'), QPushButton('Cancel')
         accept_tip = 'Apply only the checked rows: add/confirm/move checked Looky entries and delete checked wrong candidate IPs.'
         for btn, style, tip, slot in (
@@ -477,9 +455,7 @@ class LookyRefreshReviewDialog(PlayerInfoDialogMixin):
             btn.setCursor(Qt.CursorShape.PointingHandCursor)
             btn.setToolTip(tip)
             btn.clicked.connect(slot)
-        button_layout.addStretch(1)
-        button_layout.addWidget(self._accept_btn)
-        button_layout.addWidget(cancel_btn)
+            button_layout.addWidget(btn)
         outer_layout.addLayout(button_layout)
 
         self._apply_tree_visibility()
@@ -518,11 +494,10 @@ class LookyRefreshReviewDialog(PlayerInfoDialogMixin):
                 f'Looky returned "{entry.username}" on IP {entry.ip}. This username is not in "{source_label}" yet.\n\n'
                 f'\u2022 Checked: Adds "{entry.username} = {entry.ip}" (Source = Looky) to "{target_label}".\n\u2022 Unchecked: Ignores this username.'
             )
+        for col, text, color in ((0, entry.username, user_color), (_COL_ACTION, action_text, action_color), (_COL_DETAILS, details, _COLOR_DB_LABEL)):
+            item.setText(col, text)
+            item.setForeground(col, QBrush(color))
         item.setIcon(_COL_ACTION, icon)
-        item.setText(_COL_ACTION, action_text)
-        item.setForeground(0, QBrush(user_color))
-        item.setForeground(_COL_ACTION, QBrush(action_color))
-        item.setText(_COL_DETAILS, details)
         _set_row_tooltip(item, entry.target_db_path, tip)
 
     def _create_removal_item(self, rem: _SuspectRemoval, mono_font: QFont, bold_font: QFont) -> QTreeWidgetItem:
@@ -536,13 +511,12 @@ class LookyRefreshReviewDialog(PlayerInfoDialogMixin):
         for col in range(len(_TREE_HEADERS)):
             color = _COLOR_REMOVE_SUSPECT if col in (0, _COL_IP, _COL_ACTION) else (_COLOR_NEW if col == _COL_LOOKY_USER and rem.looky_username else _COLOR_DB_LABEL)
             rem_item.setForeground(col, QBrush(color))
-        _set_row_tooltip(
-            rem_item, rem.db_path,
+        rem_tip = (
             f'Why is this row here?\n\u2022 {rem.reason}.\n\u2022 Looky resolved on {rem.ip}: {rem.looky_username or "none"}.\n'
             f'\u2022 In {rem_db_label}, "{rem.username} = {rem.ip}" is an unconfirmed manual candidate (Source = Manual, Detections = 0).\n\n'
-            f'What does checking this box do?\n\u2022 Checked: Deletes "{rem.username} = {rem.ip}" from {rem_db_label}.\n'
-            f'\u2022 Unchecked: Keeps "{rem.username} = {rem.ip}" in {rem_db_label}.',
+            f'What does checking this box do?\n\u2022 Checked: Deletes "{rem.username} = {rem.ip}" from {rem_db_label}.\n\u2022 Unchecked: Keeps it in {rem_db_label}.'
         )
+        _set_row_tooltip(rem_item, rem.db_path, rem_tip)
         rem_item.setFlags(rem_item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
         rem_item.setCheckState(0, Qt.CheckState.Checked)
         return rem_item
@@ -565,14 +539,13 @@ class LookyRefreshReviewDialog(PlayerInfoDialogMixin):
             self._tree.addTopLevelItem(top_item)
 
             combo = QComboBox()
-            combo.setStyleSheet(_COMBO_STYLESHEET)
             combo.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
             for db_label, db_path in self._available_dbs:
                 combo.addItem(db_label, db_path)
-            combo.setCurrentIndex(max(0, combo.findData(entry.target_db_path)))
+            combo.setCurrentIndex(next((i for i, (_lbl, db_path) in enumerate(self._available_dbs) if db_path == entry.target_db_path), 0))
             combo.currentIndexChanged.connect(partial(self._on_row_combo_changed, top_item, entry, combo))
             self._tree.setItemWidget(top_item, _COL_TARGET_DB, combo)
-            self._item_to_db_combo[id(top_item)] = combo
+            self._item_to_db_combo[id(top_item)] = (combo, entry.target_db_path)
             self._new_items.append((top_item, entry))
 
             if entry.suspect_removals:
@@ -591,27 +564,26 @@ class LookyRefreshReviewDialog(PlayerInfoDialogMixin):
 
     def _on_row_combo_changed(self, item: QTreeWidgetItem, entry: _PendingEntry, combo: QComboBox, _index: int = 0) -> None:
         """Update *entry*'s target database when its per-row combo box selection changes."""
-        if self._updating_combos:
-            return
-        chosen_path = combo.currentData()
-        if isinstance(chosen_path, Path):
-            entry.target_db_path = chosen_path
-            self._refresh_entry_action_display(item, entry)
-            self._update_counter()
+        if not self._updating_combos and isinstance(chosen_path := combo.currentData(), Path):
+            self._apply_target_db([(item, entry)], chosen_path)
 
     def _apply_target_db(self, targets: list[tuple[QTreeWidgetItem, _PendingEntry]], chosen_data: object) -> None:
         """Set the target database for *targets*, sync their combo boxes, and refresh their action display."""
-        self._updating_combos = True
+        if not targets:
+            return
+        self._updating_combos = self._updating_checks = True
         try:
-            for item, entry in targets:
-                target_path = chosen_data if isinstance(chosen_data, Path) else entry.db_path
-                entry.target_db_path = target_path
-                combo = self._item_to_db_combo.get(id(item))
-                if combo is not None and (idx := combo.findData(target_path)) >= 0:
-                    combo.setCurrentIndex(idx)
-                self._refresh_entry_action_display(item, entry)
+            with QSignalBlocker(self._tree.model()):
+                for item, entry in targets:
+                    combo_and_default = self._item_to_db_combo.get(id(item))
+                    target_path = chosen_data if isinstance(chosen_data, Path) else (combo_and_default[1] if combo_and_default is not None else entry.db_path)
+                    entry.target_db_path = target_path
+                    if combo_and_default is not None:
+                        combo_and_default[0].setCurrentIndex(next((i for i, (_lbl, db_path) in enumerate(self._available_dbs) if db_path == target_path), 0))
+                    self._refresh_entry_action_display(item, entry)
         finally:
-            self._updating_combos = False
+            self._updating_combos = self._updating_checks = False
+        self._tree.viewport().update()
         self._update_counter()
 
     def _on_bulk_db_changed(self, _index: int) -> None:
@@ -637,12 +609,12 @@ class LookyRefreshReviewDialog(PlayerInfoDialogMixin):
             matches_only = self._matches_only_btn.isChecked()
             self._updating_checks = True
             try:
-                for item, entry in self._new_items:
-                    should_check = (entry.is_confirmation or entry.is_known_in_db) if matches_only else True
-                    state = Qt.CheckState.Checked if should_check else Qt.CheckState.Unchecked
-                    item.setCheckState(0, state)
-                    for rem_child in self._entry_to_removal_children.get(id(item), []):
-                        rem_child.setCheckState(0, state)
+                with QSignalBlocker(self._tree.model()):
+                    for item, entry in self._new_items:
+                        state = Qt.CheckState.Checked if (entry.is_confirmation or entry.is_known_in_db or not matches_only) else Qt.CheckState.Unchecked
+                        item.setCheckState(0, state)
+                        for rem_child in self._entry_to_removal_children.get(id(item), []):
+                            rem_child.setCheckState(0, state)
             finally:
                 self._updating_checks = False
         self._apply_tree_visibility()
@@ -652,15 +624,15 @@ class LookyRefreshReviewDialog(PlayerInfoDialogMixin):
         """Sync child suspect-removal checkboxes when a parent username checkbox is toggled."""
         if column or self._updating_checks:
             return
-        removal_children = self._entry_to_removal_children.get(id(item))
-        if removal_children is not None:
+        if (removal_children := self._entry_to_removal_children.get(id(item))) is not None:
             self._updating_checks = True
             try:
-                state = item.checkState(0)
-                for rem_child in removal_children:
-                    rem_child.setCheckState(0, state)
+                with QSignalBlocker(self._tree.model()):
+                    for rem_child in removal_children:
+                        rem_child.setCheckState(0, item.checkState(0))
             finally:
                 self._updating_checks = False
+            self._tree.viewport().update()
         self._update_counter()
 
     def _set_all_checked(self, *, checked: bool) -> None:
@@ -668,18 +640,20 @@ class LookyRefreshReviewDialog(PlayerInfoDialogMixin):
         state = Qt.CheckState.Checked if checked else Qt.CheckState.Unchecked
         self._updating_checks = True
         try:
-            for item, _entry in self._new_items:
-                if checked and item.isHidden():
-                    continue
-                item.setCheckState(0, state)
-                for rem_child in self._entry_to_removal_children.get(id(item), []):
-                    if not checked or not rem_child.isHidden():
-                        rem_child.setCheckState(0, state)
-            for rem_item, _rem in self._removal_items:
-                if not checked or (rem_item.parent() is None and not rem_item.isHidden()):
-                    rem_item.setCheckState(0, state)
+            with QSignalBlocker(self._tree.model()):
+                for item, _entry in self._new_items:
+                    if checked and item.isHidden():
+                        continue
+                    item.setCheckState(0, state)
+                    for rem_child in self._entry_to_removal_children.get(id(item), []):
+                        if not checked or not rem_child.isHidden():
+                            rem_child.setCheckState(0, state)
+                for rem_item, _rem in self._removal_items:
+                    if not checked or (rem_item.parent() is None and not rem_item.isHidden()):
+                        rem_item.setCheckState(0, state)
         finally:
             self._updating_checks = False
+        self._tree.viewport().update()
         self._update_counter()
 
     def _update_counter(self) -> None:
@@ -697,20 +671,14 @@ class LookyRefreshReviewDialog(PlayerInfoDialogMixin):
 
     def _apply_tree_visibility(self) -> None:
         """Filter top-level Username rows and removal rows according to Matches Only and search query."""
-        query = self._search_input.text().strip().lower()
-        matches_only = self._matches_only_btn is not None and self._matches_only_btn.isChecked()
+        query, matches_only = self._search_input.text().strip().lower(), self._matches_only_btn is not None and self._matches_only_btn.isChecked()
         for item, entry in self._new_items:
             if matches_only and not (entry.is_confirmation or entry.is_known_in_db):
                 item.setHidden(True)
                 continue
-            target_label = _format_db_label(entry.target_db_path).lower()
-            parent_matches = not query or any(query in item.text(col).lower() for col in range(_COL_TARGET_DB)) or query in target_label
-            any_child_matches = any(
-                (child := item.child(j)) is not None and (not query or any(query in child.text(col).lower() for col in range(len(_TREE_HEADERS))))
-                for j in range(item.childCount())
-            )
-            visible = parent_matches or any_child_matches
-            item.setHidden(not visible)
+            parent_matches = not query or any(query in item.text(col).lower() for col in range(_COL_TARGET_DB)) or query in _format_db_label(entry.target_db_path).lower()
+            any_child = any((child := item.child(j)) and any(query in child.text(col).lower() for col in range(len(_TREE_HEADERS))) for j in range(item.childCount()))
+            item.setHidden(not (visible := parent_matches or any_child))
             if query and visible and item.childCount() > 0:
                 item.setExpanded(True)
         for rem_item, _rem in self._removal_items:
@@ -728,23 +696,21 @@ class LookyRefreshReviewDialog(PlayerInfoDialogMixin):
 
     def _reset_column_sizes(self) -> None:
         """Reset column widths back to their initial default layout."""
-        header = self._tree.header()
-        if not header:
+        if not (header := self._tree.header()):
             return
-        for col in (0, _COL_IP, _COL_ACTION, _COL_DETECTIONS):
-            header.setSectionResizeMode(col, QHeaderView.ResizeMode.ResizeToContents)
-        for col, min_w, max_w in ((_COL_LOOKY_USER, 130, 220), (_COL_NOTES, 75, 145)):
+        col_bounds = (
+            (0, 140, 260), (_COL_IP, 115, 160), (_COL_LOOKY_USER, 130, 220), (_COL_ACTION, 185, 240),
+            (_COL_NOTES, 75, 145), (_COL_DETECTIONS, 85, 110), (_COL_TARGET_DB, 155, 155),
+        )
+        for col, min_w, max_w in col_bounds:
             header.setSectionResizeMode(col, QHeaderView.ResizeMode.Interactive)
             self._tree.setColumnWidth(col, min(max(self._tree.sizeHintForColumn(col) + 16, min_w), max_w))
         header.setSectionResizeMode(_COL_DETAILS, QHeaderView.ResizeMode.Stretch)
-        header.setSectionResizeMode(_COL_TARGET_DB, QHeaderView.ResizeMode.Interactive)
-        self._tree.setColumnWidth(_COL_TARGET_DB, 155)
         header.setMinimumSectionSize(30)
 
     def _show_context_menu(self, pos: QPoint) -> None:
         """Show a right-click context menu to copy IP/username, set Target Database, or jump to UserIP Databases Manager."""
-        item = self._tree.itemAt(pos)
-        if item is None:
+        if (item := self._tree.itemAt(pos)) is None:
             return
         menu = QMenu(self)
         menu.setStyleSheet(SVG_ICON_CONTEXT_MENU_STYLESHEET)
@@ -752,47 +718,49 @@ class LookyRefreshReviewDialog(PlayerInfoDialogMixin):
         goto_icon, box_icon = QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'arrow-right.svg')), QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'box.svg'))
         username_str, ip_or_range, looky_user_str = item.text(0).strip(), item.text(_COL_IP).strip(), item.text(_COL_LOOKY_USER).strip()
         db_path = item.data(_COL_TARGET_DB, Qt.ItemDataRole.UserRole)
-        if username_str:
-            menu.addAction(copy_icon, 'Copy Username', lambda: set_clipboard_text(username_str))
-        if looky_user_str and looky_user_str not in {'\u2014', username_str}:
-            menu.addAction(copy_icon, 'Copy Looky Username', lambda: set_clipboard_text(looky_user_str))
-        if ip_or_range:
-            menu.addAction(copy_icon, 'Copy IP Address', lambda: set_clipboard_text(ip_or_range))
+        looky_copy = '' if looky_user_str in {'\u2014', username_str} else looky_user_str
+        for label_text, copy_val in (('Copy Username', username_str), ('Copy Looky Username', looky_copy), ('Copy IP Address', ip_or_range)):
+            if copy_val:
+                menu.addAction(copy_icon, label_text, partial(set_clipboard_text, copy_val))
 
         matched_pair = next(((tree_item, entry) for tree_item, entry in self._new_items if tree_item is item), None)
         if matched_pair is not None:
             tree_item, pending_entry = matched_pair
             menu.addSeparator()
-            target_menu = QMenu('Set Target Database', menu)
-            target_menu.setIcon(box_icon)
+            target_menu = menu.addMenu(box_icon, 'Set Target Database')
             target_menu.setStyleSheet(SVG_ICON_CONTEXT_MENU_STYLESHEET)
             populate_userip_databases_menu(
-                target_menu, [path for _label, path in self._available_dbs],
-                tooltip='Save or move this username entry to this UserIP database when accepted.',
+                target_menu, [path for _label, path in self._available_dbs], tooltip='Save or move this username entry to this UserIP database when accepted.',
                 handler_factory=lambda target_path: lambda: self._apply_target_db([(tree_item, pending_entry)], target_path),
             )
-            menu.addMenu(target_menu)
 
         owner = self._owner_window
         if isValid(owner) and isinstance(owner, _UserIPManagerProtocol):
             menu.addSeparator()
-            if username_str:
-                act_user = menu.addAction(search_icon, f'Find "{username_str}" in All Databases')
-                act_user.triggered.connect(lambda: owner.search_global(username_str))
-                act_user.triggered.connect(lambda: activate_window(owner))
-            if ip_or_range:
-                act_ip = menu.addAction(search_icon, f'Find IP {ip_or_range} in All Databases')
-                act_ip.triggered.connect(lambda: owner.search_global(ip_or_range))
-                act_ip.triggered.connect(lambda: activate_window(owner))
-            source_db = matched_pair[1].db_path if matched_pair is not None else (db_path if isinstance(db_path, Path) else None)
-            if source_db is not None:
+            for act_label, query_val in ((f'Find "{username_str}" in All Databases', username_str), (f'Find IP {ip_or_range} in All Databases', ip_or_range)):
+                if query_val:
+                    act = menu.addAction(search_icon, act_label)
+                    act.triggered.connect(partial(owner.search_global, query_val))
+                    act.triggered.connect(lambda: activate_window(owner))
+            if (source_db := matched_pair[1].db_path if matched_pair is not None else (db_path if isinstance(db_path, Path) else None)) is not None:
                 act_db = menu.addAction(goto_icon, f'Go to Database ("{source_db.stem}")')
                 act_db.triggered.connect(lambda: owner.navigate_to_database(source_db, username=username_str, ip_or_range=ip_or_range))
                 act_db.triggered.connect(lambda: activate_window(owner))
 
-        viewport = self._tree.viewport()
-        if viewport:
+        if viewport := self._tree.viewport():
             menu.popup(viewport.mapToGlobal(pos))
+
+
+def _resolve_default_targets(db_path: Path, *, is_searchlist: bool) -> defaultdict[str, Path]:
+    """Return a `username_cf -> target_db_path` mapping (other DB if matched, else `Randomlist` for Searchlist)."""
+    other_dbs = [path for _label, path in _list_available_databases(set()) if path.stem.casefold() != 'searchlist'] if is_searchlist else []
+    fallback_db = next((path for path in other_dbs if path.stem.casefold() == 'randomlist'), db_path)
+    targets = defaultdict[str, Path](lambda: fallback_db)
+    for other_db in sorted(other_dbs, key=lambda path: path.stem.casefold() == 'randomlist'):
+        for entry in load_userip_database_model(other_db).entries:
+            if entry.username:
+                targets.setdefault(entry.username.casefold(), other_db)
+    return targets
 
 
 def _build_pending_entries_for_database(
@@ -800,6 +768,7 @@ def _build_pending_entries_for_database(
 ) -> tuple[list[_PendingEntry], list[_SuspectRemoval], int]:
     """Build sorted `_PendingEntry` and standalone `_SuspectRemoval` items for *db_path*."""
     snapshot, is_searchlist = _collect_existing_usernames(db_path), db_path.stem.casefold() == 'searchlist'
+    default_targets = _resolve_default_targets(db_path, is_searchlist=is_searchlist)
     looky_resolved_ips_by_cf: dict[str, set[str]] = defaultdict(set)
     for db_ip, db_entries in snapshot.ip_to_entries.items():
         for name, is_looky, _det, _notes in db_entries:
@@ -824,8 +793,7 @@ def _build_pending_entries_for_database(
             name_cf = player_entry.name.casefold()
             if name_cf in seen_new_cf:
                 continue
-            existing_info = existing_by_cf.get(name_cf)
-            if existing_info is not None:
+            if (existing_info := existing_by_cf.get(name_cf)) is not None:
                 display_name, existing_is_looky, existing_det, existing_notes = existing_info
                 is_confirmation, is_known = True, True
             else:
@@ -856,10 +824,10 @@ def _build_pending_entries_for_database(
                         reason = f'Belongs to "{display_name}" on Looky, not "{other_name}"'
                         removals.append(_SuspectRemoval(db_path, other_cf, other_name, ip, display_name, other_notes, reason))
 
-            if existing_is_looky and not removals:
+            if existing_is_looky and default_targets[name_cf] == db_path and not removals:
                 continue
             pending_entries.append(
-                _PendingEntry(db_path, db_path, ip, display_name, existing_notes, is_confirmation, is_known, existing_is_looky, existing_det, tuple(removals)),
+                _PendingEntry(db_path, default_targets[name_cf], ip, display_name, existing_notes, is_confirmation, is_known, existing_is_looky, existing_det, tuple(removals)),
             )
             seen_new_cf.add(name_cf)
             counted_ips_with_results.add(ip)
@@ -929,45 +897,50 @@ _active_review_dialogs: set[LookyRefreshReviewDialog] = set()
 
 
 def looky_refresh_userip_entries(parent: QWidget, entries: list[tuple[Path, list[str]]]) -> None:
-    """Look up IPs from UserIP databases via the Looky System and open the review dialog."""
-    api_key = check_looky_prerequisites(parent)
-    if api_key is None:
+    """Look up IPs and resolve usernames from UserIP databases via the Looky System and open the review dialog."""
+    if (api_key := check_looky_prerequisites(parent)) is None:
         return
     all_ips = list(dict.fromkeys(ip for _db_path, ip_addresses in entries for ip in ip_addresses if _is_single_ipv4(ip)))
-    if not all_ips:
-        QMessageBox.information(parent, LOOKY_TITLE, 'No single IP addresses found to look up.')
+    db_usernames_by_path = {db_path: list(dict.fromkeys(entry.username for entry in load_userip_database_model(db_path).entries if entry.username)) for db_path, _ in entries}
+    all_usernames = list(dict.fromkeys(username for usernames in db_usernames_by_path.values() for username in usernames))
+    if not all_ips and not all_usernames:
+        QMessageBox.information(parent, LOOKY_TITLE, 'No single IP addresses or usernames found to look up.')
         return
 
-    worker, loading_dialog = _LookyRefreshWorker(all_ips, api_key, Settings.looky_game_version.lower()), _LookyRefreshLoadingDialog(parent)
+    worker, loading_dialog = _LookyRefreshWorker(all_ips, all_usernames, api_key, Settings.looky_game_version.lower()), LookyRefreshLoadingDialog(parent)
 
-    def _on_finished_ok(results: dict[str, list[LookyPlayer]]) -> None:
+    def _on_finished_ok(results: dict[str, list[LookyPlayer]], discovered_ips_by_cf: dict[str, list[str]]) -> None:
         loading_dialog.accept()
         pending_entries, standalone_removals, total_ips_with_results = list[_PendingEntry](), list[_SuspectRemoval](), 0
         for db_path, ip_addresses in entries:
-            db_pending, db_removals, db_ips_count = _build_pending_entries_for_database(db_path, ip_addresses, results)
+            discovered_for_db = [ip for username in db_usernames_by_path.get(db_path, []) for ip in discovered_ips_by_cf.get(username.casefold(), [])]
+            db_pending, db_removals, db_ips_count = _build_pending_entries_for_database(db_path, [*ip_addresses, *discovered_for_db], results)
             pending_entries.extend(db_pending)
             standalone_removals.extend(db_removals)
             total_ips_with_results += db_ips_count
         if not pending_entries and not standalone_removals:
-            no_match_text = f'No new usernames or unconfirmed candidate IPs found.\n\nAll resolved usernames already exist in the database{pluralize(len(entries))}.'
-            QMessageBox.information(parent, TITLE, no_match_text)
+            QMessageBox.information(
+                parent, TITLE, f'No new usernames or unconfirmed candidate IPs found.\n\nAll resolved usernames already exist in the database{pluralize(len(entries))}.',
+            )
             return
 
         dialog = LookyRefreshReviewDialog(parent, pending_entries, standalone_removals, ips_with_results_count=total_ips_with_results)
 
         def _on_review_accepted() -> None:
             accepted_entries, accepted_removals = dialog.get_accepted_entries(), dialog.get_accepted_removals()
-            if not accepted_entries and not accepted_removals:
+            if not (accepted_entries or accepted_removals):
                 return
             total_added, total_moved, total_removed, db_count = _apply_accepted_changes(accepted_entries, accepted_removals)
-            if not total_added and not total_moved and not total_removed:
+            if not (total_added or total_moved or total_removed):
                 return
             update_userip_databases()
             wake_rendering_core()
             summary_parts = [
-                *([f'added or confirmed {total_added} username{pluralize(total_added)}'] if total_added else []),
-                *([f'moved {total_moved} username{pluralize(total_moved)}'] if total_moved else []),
-                *([f'deleted {total_removed} wrong candidate row{pluralize(total_removed)}'] if total_removed else []),
+                part for count, part in (
+                    (total_added, f'added or confirmed {total_added} username{pluralize(total_added)}'),
+                    (total_moved, f'moved {total_moved} username{pluralize(total_moved)}'),
+                    (total_removed, f'deleted {total_removed} wrong candidate row{pluralize(total_removed)}'),
+                ) if count
             ]
             QMessageBox.information(parent if isValid(parent) else None, TITLE, f'{", ".join(summary_parts).capitalize()} across {db_count} database{pluralize(db_count)}.')
 
@@ -976,15 +949,15 @@ def looky_refresh_userip_entries(parent: QWidget, entries: list[tuple[Path, list
         _active_review_dialogs.add(dialog)
         activate_window(dialog)
 
-    worker.finished_ok.connect(_on_finished_ok)
-    worker.finished_error.connect(loading_dialog.show_error)
+    for sig, slot in ((worker.finished_ok, _on_finished_ok), (worker.finished_error, loading_dialog.show_error), (worker.progress_updated, loading_dialog.update_progress)):
+        sig.connect(slot)
 
     def _on_rejected() -> None:
-        try:
-            worker.finished_ok.disconnect(_on_finished_ok)
-            worker.finished_error.disconnect(loading_dialog.show_error)
-        except TypeError as e:
-            logger.debug('Failed to disconnect worker signals: %s', e)
+        for sig, slot in ((worker.finished_ok, _on_finished_ok), (worker.finished_error, loading_dialog.show_error), (worker.progress_updated, loading_dialog.update_progress)):
+            try:
+                sig.disconnect(slot)
+            except TypeError as e:
+                logger.debug('Failed to disconnect worker signal: %s', e)
         worker.cancel()
 
     loading_dialog.rejected.connect(_on_rejected)
