@@ -1,8 +1,8 @@
 """Looky System → UserIP username refresh: batch-lookup IPs and append new usernames to database files."""
 
 import logging
+import time
 from collections import defaultdict
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from functools import partial
 from http import HTTPStatus
@@ -61,7 +61,8 @@ from session_sniffer.guis.utils import (
     set_dialog_window_flags,
 )
 from session_sniffer.models.userip_settings_model import UserIPEntryModel
-from session_sniffer.networking.looky_system import extract_rate_limit_message, extract_rate_limit_wait_seconds, lookup_ip_batch, lookup_username_ips
+from session_sniffer.networking.ip_range import entry_ip_covers_ip
+from session_sniffer.networking.looky_system import extract_rate_limit_message, extract_rate_limit_wait_seconds, lookup_ip_batches, lookup_username_ips
 from session_sniffer.player.userip_loader import update_userip_databases
 from session_sniffer.rendering_core.events import wake_rendering_core
 from session_sniffer.settings.settings import Settings
@@ -72,7 +73,6 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-_BATCH_SIZE = 32
 _COLOR_CONFIRMED, _COLOR_MATCH_TAG, _COLOR_REMOVE_SUSPECT = QColor('#38bdf8'), QColor('#fbbf24'), QColor('#f87171')
 _COLOR_NEW, _COLOR_NEW_TAG, _COLOR_DB_LABEL = QColor('#a855f7'), QColor('#22c55e'), QColor('#9ca3af')
 
@@ -124,19 +124,18 @@ class _LookyRefreshWorker(CrashingQThread):
     @override
     def _run(self) -> None:
         """Batch-lookup all IPs, resolve usernames to IPs, and emit the combined results."""
+        started_at = time.monotonic()
+        logger.info(
+            '[Looky System] Starting UserIP refresh worker: %d single IPv4%s, %d unique username%s (version=%s).',
+            len(self._ip_addresses), pluralize(len(self._ip_addresses)), len(self._usernames), pluralize(len(self._usernames)), self._version,
+        )
         combined: dict[str, list[LookyPlayer]] = {}
         discovered_ips_by_cf: dict[str, list[str]] = {}
-        batches = [self._ip_addresses[i : i + _BATCH_SIZE] for i in range(0, len(self._ip_addresses), _BATCH_SIZE)]
         try:
-            if batches:
-                self.progress_updated.emit('Checking IP batches', 0, len(batches))
-                with ThreadPoolExecutor(max_workers=min(8, len(batches))) as executor:
-                    futures = [executor.submit(lookup_ip_batch, batch, self._api_key, self._version) for batch in batches]
-                    for completed_idx, future in enumerate(as_completed(futures), start=1):
-                        if self.isInterruptionRequested():
-                            return
-                        combined.update(future.result())
-                        self.progress_updated.emit('Checking IP batches', completed_idx, len(batches))
+            if self._ip_addresses:
+                combined.update(
+                    lookup_ip_batches(self._ip_addresses, self._api_key, self._version, should_cancel=self.isInterruptionRequested, on_progress=self.progress_updated.emit),
+                )
             if self._usernames and not self.isInterruptionRequested():
                 user_players_by_ip, discovered_ips_by_cf = lookup_username_ips(
                     self._usernames, self._api_key, self._version, should_cancel=self.isInterruptionRequested, on_progress=self.progress_updated.emit,
@@ -149,8 +148,16 @@ class _LookyRefreshWorker(CrashingQThread):
             self._emit_request_error(e)
             return
 
-        if not self.isInterruptionRequested():
-            self.finished_ok.emit(combined, discovered_ips_by_cf)
+        if self.isInterruptionRequested():
+            logger.info('[Looky System] UserIP refresh worker canceled after %.2fs.', time.monotonic() - started_at)
+            return
+
+        matched_ips_count = sum(1 for players in combined.values() if players)
+        logger.info(
+            '[Looky System] UserIP refresh worker completed in %.2fs: %d IP%s with Looky players, %d username%s resolved to IPs.',
+            time.monotonic() - started_at, matched_ips_count, pluralize(matched_ips_count), len(discovered_ips_by_cf), pluralize(len(discovered_ips_by_cf)),
+        )
+        self.finished_ok.emit(combined, discovered_ips_by_cf)
 
 
 def _is_single_ipv4(entry: str) -> bool:
@@ -900,12 +907,27 @@ def _apply_accepted_changes(accepted_entries: list[_PendingEntry], accepted_remo
 _active_review_dialogs: set[LookyRefreshReviewDialog] = set()
 
 
+def _collect_usernames_for_requested_ips(db_path: Path, ip_addresses: list[str]) -> list[str]:
+    """Return unique usernames from *db_path* whose entry IP matches or covers any of *ip_addresses*."""
+    requested_set = set(ip_addresses)
+    requested_single_ips = [ip for ip in dict.fromkeys(ip_addresses) if _is_single_ipv4(ip)]
+    matched_usernames, seen_cfs = list[str](), set[str]()
+    for entry in load_userip_database_model(db_path).entries:
+        if (
+            entry.username and (username_cf := entry.username.casefold()) not in seen_cfs
+            and (entry.ip in requested_set or any(entry_ip_covers_ip(entry.ip, req_ip) for req_ip in requested_single_ips))
+        ):
+            seen_cfs.add(username_cf)
+            matched_usernames.append(entry.username)
+    return matched_usernames
+
+
 def looky_refresh_userip_entries(parent: QWidget, entries: list[tuple[Path, list[str]]]) -> None:
     """Look up IPs and resolve usernames from UserIP databases via the Looky System and open the review dialog."""
     if (api_key := check_looky_prerequisites(parent)) is None:
         return
     all_ips = list(dict.fromkeys(ip for _db_path, ip_addresses in entries for ip in ip_addresses if _is_single_ipv4(ip)))
-    db_usernames_by_path = {db_path: list(dict.fromkeys(entry.username for entry in load_userip_database_model(db_path).entries if entry.username)) for db_path, _ in entries}
+    db_usernames_by_path = {db_path: _collect_usernames_for_requested_ips(db_path, ip_addresses) for db_path, ip_addresses in entries}
     all_usernames = list(dict.fromkeys(username for usernames in db_usernames_by_path.values() for username in usernames))
     if not all_ips and not all_usernames:
         QMessageBox.information(parent, LOOKY_TITLE, 'No single IP addresses or usernames found to look up.')
@@ -922,6 +944,11 @@ def looky_refresh_userip_entries(parent: QWidget, entries: list[tuple[Path, list
             pending_entries.extend(db_pending)
             standalone_removals.extend(db_removals)
             total_ips_with_results += db_ips_count
+        logger.info(
+            '[Looky System] UserIP review prepared across %d database%s: %d pending entry change%s, %d standalone suspect removal%s, %d IP%s with Looky results.',
+            len(entries), pluralize(len(entries)), len(pending_entries), pluralize(len(pending_entries)),
+            len(standalone_removals), pluralize(len(standalone_removals)), total_ips_with_results, pluralize(total_ips_with_results),
+        )
         if not pending_entries and not standalone_removals:
             QMessageBox.information(
                 parent, TITLE, f'No new usernames or unconfirmed candidate IPs found.\n\nAll resolved usernames already exist in the database{pluralize(len(entries))}.',
@@ -931,10 +958,7 @@ def looky_refresh_userip_entries(parent: QWidget, entries: list[tuple[Path, list
         dialog = LookyRefreshReviewDialog(parent, pending_entries, standalone_removals, ips_with_results_count=total_ips_with_results)
 
         def _on_review_accepted() -> None:
-            accepted_entries, accepted_removals = dialog.get_accepted_entries(), dialog.get_accepted_removals()
-            if not (accepted_entries or accepted_removals):
-                return
-            total_added, total_moved, total_removed, db_count = _apply_accepted_changes(accepted_entries, accepted_removals)
+            total_added, total_moved, total_removed, db_count = _apply_accepted_changes(dialog.get_accepted_entries(), dialog.get_accepted_removals())
             if not (total_added or total_moved or total_removed):
                 return
             update_userip_databases()
