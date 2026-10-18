@@ -73,20 +73,17 @@ def terminate_script(
     """Terminate the application and optionally display crash information."""
     caller_thread = threading.current_thread()
     is_crash = exception_info is not None or terminate_method == 'THREAD_RAISED' or msgbox_crash_text is not None
-    if not is_crash:
-        caller_native_id = getattr(caller_thread, 'native_id', 'unknown')
-        logger.debug(
-            'terminate_script invoked: method=%s, caller_thread=%s (native_id=%s, ident=%s)',
-            terminate_method,
-            caller_thread.name,
-            caller_native_id,
-            caller_thread.ident,
-        )
-        active_thread_names = [f'{t.name} (native_id={getattr(t, "native_id", "unknown")})' for t in threading.enumerate()]
-        logger.debug('Active threads at terminate_script (%d): %s', len(active_thread_names), active_thread_names)
-
-    GTASuspendManager.shutdown()
-    ScriptControl.run_termination_hooks()
+    caller_native_id = getattr(caller_thread, 'native_id', 'unknown')
+    logger.debug(
+        'terminate_script invoked: method=%s, is_crash=%s, caller_thread=%s (native_id=%s, ident=%s)',
+        terminate_method,
+        is_crash,
+        caller_thread.name,
+        caller_native_id,
+        caller_thread.ident,
+    )
+    active_thread_names = [f'{t.name} (native_id={getattr(t, "native_id", "unknown")})' for t in threading.enumerate()]
+    logger.debug('Active threads at terminate_script (%d): %s', len(active_thread_names), active_thread_names)
 
     ScriptControl.set_crashed()
 
@@ -102,6 +99,9 @@ def terminate_script(
             else f'terminate_script (method={terminate_method}, thread={caller_thread.name})'
         )
         dump_crash_diagnostics(crash_reason)
+
+    GTASuspendManager.shutdown()
+    ScriptControl.run_termination_hooks()
 
     if msgbox_crash_text is not None:
         msgbox_title = TITLE

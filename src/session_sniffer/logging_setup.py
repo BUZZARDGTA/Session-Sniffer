@@ -98,7 +98,7 @@ def _win32_purecall_handler() -> None:
 
 def _win32_sigabrt_handler(sig: int) -> None:
     dump_crash_diagnostics('SIGABRT received (C runtime abort)')
-    if _state.prev_sigabrt_handler and _state.prev_sigabrt_handler not in (0, 1):
+    if _state.prev_sigabrt_handler and _state.prev_sigabrt_handler not in (0, 1, 0xFFFFFFFFFFFFFFFF):
         with contextlib.suppress(Exception):
             prev_fn = _SIGNAL_HANDLER_TYPE(_state.prev_sigabrt_handler)
             prev_fn(sig)
@@ -137,24 +137,39 @@ def _capture_win32_native_stack() -> list[str]:
 
 def _install_win32_crt_handlers() -> None:
     """Install Windows CRT diagnostic handlers to intercept and log low-level aborts and asserts."""
-    if sys.platform != 'win32' or _state.win32_crt_handlers_installed:
+    if sys.platform != 'win32':
         return
     try:
         ucrt = ctypes.cdll.ucrtbase
-        _state.c_invalid_param_handler = _INVALID_PARAM_HANDLER_TYPE(_win32_invalid_param_handler)
-        ucrt['_set_invalid_parameter_handler'](_state.c_invalid_param_handler)
+        if not _state.win32_crt_handlers_installed:
+            _state.c_invalid_param_handler = _INVALID_PARAM_HANDLER_TYPE(_win32_invalid_param_handler)
+            set_invalid_param = ucrt['_set_invalid_parameter_handler']
+            set_invalid_param.argtypes = [_INVALID_PARAM_HANDLER_TYPE]
+            set_invalid_param.restype = ctypes.c_void_p
+            set_invalid_param(_state.c_invalid_param_handler)
 
-        _state.c_purecall_handler = _PURECALL_HANDLER_TYPE(_win32_purecall_handler)
-        ucrt['_set_purecall_handler'](_state.c_purecall_handler)
+            _state.c_purecall_handler = _PURECALL_HANDLER_TYPE(_win32_purecall_handler)
+            set_purecall = ucrt['_set_purecall_handler']
+            set_purecall.argtypes = [_PURECALL_HANDLER_TYPE]
+            set_purecall.restype = ctypes.c_void_p
+            set_purecall(_state.c_purecall_handler)
 
-        with contextlib.suppress(AttributeError, OSError):
-            vcruntime_set_purecall_handler = ctypes.cdll.LoadLibrary('vcruntime140.dll')['_set_purecall_handler']
-            vcruntime_set_purecall_handler.argtypes = [_PURECALL_HANDLER_TYPE]
-            vcruntime_set_purecall_handler.restype = ctypes.c_void_p
-            vcruntime_set_purecall_handler(_state.c_purecall_handler)
+            with contextlib.suppress(AttributeError, OSError):
+                vcruntime_set_purecall_handler = ctypes.cdll.LoadLibrary('vcruntime140.dll')['_set_purecall_handler']
+                vcruntime_set_purecall_handler.argtypes = [_PURECALL_HANDLER_TYPE]
+                vcruntime_set_purecall_handler.restype = ctypes.c_void_p
+                vcruntime_set_purecall_handler(_state.c_purecall_handler)
 
-        _state.c_sigabrt_handler = _SIGNAL_HANDLER_TYPE(_win32_sigabrt_handler)
-        _state.prev_sigabrt_handler = int(ucrt.signal(22, _state.c_sigabrt_handler))
+            _state.c_sigabrt_handler = _SIGNAL_HANDLER_TYPE(_win32_sigabrt_handler)
+
+        ucrt_signal = ucrt.signal
+        ucrt_signal.argtypes = [ctypes.c_int, _SIGNAL_HANDLER_TYPE]
+        ucrt_signal.restype = ctypes.c_void_p
+        raw_prev_sigabrt = ucrt_signal(22, _state.c_sigabrt_handler)
+        prev_sigabrt_ptr = raw_prev_sigabrt if isinstance(raw_prev_sigabrt, int) else 0
+        our_sigabrt_ptr = ctypes.cast(_state.c_sigabrt_handler, ctypes.c_void_p).value or 0
+        if prev_sigabrt_ptr != our_sigabrt_ptr:
+            _state.prev_sigabrt_handler = prev_sigabrt_ptr
         _state.win32_crt_handlers_installed = True
     except (AttributeError, OSError) as e:
         logging.getLogger(_APP_LOGGER_NAME).debug('Failed to install Win32 CRT diagnostic handlers: %s', e)
