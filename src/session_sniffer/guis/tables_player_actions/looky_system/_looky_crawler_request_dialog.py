@@ -1,5 +1,6 @@
 """Crawler request progress dialog, worker thread, and RID picker for the Looky System."""
 
+import html
 import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -234,6 +235,7 @@ class _CrawlerRequestDialog(QDialog):
         self._watch_worker: _CrawlerWatchWorker | None = None
         self._send_worker: _CrawlerSendWorker | None = None
         self._retry_remaining = 0
+        self._rate_limit_message = ''
         self._cancel_button: QPushButton | None = None
         self._is_completed = False
         _CrawlerRequestDialog._open_dialogs[request.registry_key] = self
@@ -321,7 +323,7 @@ class _CrawlerRequestDialog(QDialog):
         """Send immediately, unless a local rate-limit cooldown is still active — then show its countdown."""
         remaining = LookyState.crawler_cooldown_remaining()
         if remaining > 0:
-            self._start_retry_countdown(remaining)
+            self._start_retry_countdown(remaining, 'Rate limit cooldown active')
         else:
             self._send_now()
 
@@ -370,11 +372,13 @@ class _CrawlerRequestDialog(QDialog):
         if wait_seconds is None:
             self._show_failed(f'Rate limited: {message}')
             return
+        self._append_log_line(f'Rate limited: {message} (retrying in {wait_seconds} second{pluralize(wait_seconds)})')
         LookyState.record_crawler_cooldown(wait_seconds)
-        self._start_retry_countdown(wait_seconds)
+        self._start_retry_countdown(wait_seconds, f'Rate limited: {message}')
 
-    def _start_retry_countdown(self, wait_seconds: int) -> None:
+    def _start_retry_countdown(self, wait_seconds: int, message: str) -> None:
         """Show the amber countdown UI and start the 1-second auto-retry timer."""
+        self._rate_limit_message = message
         self._retry_remaining = max(1, wait_seconds)
         self._widgets.progress_bar.hide()
         self._widgets.try_again_button.hide()
@@ -392,8 +396,9 @@ class _CrawlerRequestDialog(QDialog):
 
     def _update_retry_label(self) -> None:
         """Refresh the amber rate-limit countdown text."""
+        header_text = html.escape(self._rate_limit_message or 'Server rate limit active')
         self._widgets.status_label.setText(
-            '<span style="color: #fbbf24; font-weight: 600;">Server rate limit active<br>'
+            f'<span style="color: #fbbf24; font-weight: 600;">{header_text}<br>'
             f'Automatically retrying in {self._retry_remaining} second{pluralize(self._retry_remaining)}…</span>',
         )
 
@@ -408,6 +413,7 @@ class _CrawlerRequestDialog(QDialog):
 
     def _on_status_updated(self, status: str, result: object) -> None:
         """Append a friendly timestamped SSE status line to the log and update the live status label."""
+        status_lower = status.lower()
         status_labels = {
             'queued': 'Queued — waiting for a bot to pick up the request',
             'running': 'Running — bot is actively working',
@@ -415,9 +421,13 @@ class _CrawlerRequestDialog(QDialog):
             'failed': 'Failed — the bot encountered an error',
             'canceled': 'Canceled — the request was canceled',
         }
-        label = status_labels.get(status.lower(), status)
+        label = status_labels.get(status_lower, status)
         text = label if result is None else f'{label} — {result}'
         self._append_log_line(text)
+        if status_lower not in {'completed', 'failed', 'canceled'} and not is_terminal_failure_instruction_status(status_lower):
+            color = '#fbbf24' if status_lower == 'queued' else '#d8b4fe'
+            self._widgets.status_label.setText(f'<span style="color: {color}; font-weight: 600;">{html.escape(text)}</span>')
+            self._widgets.status_label.show()
 
     def _on_reconnect_triggered(self, attempt: int) -> None:
         """Show an amber log line indicating that the stream dropped and we are waiting to reconnect."""
