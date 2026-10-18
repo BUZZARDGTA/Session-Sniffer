@@ -67,6 +67,7 @@ class LookyPlayerSighting(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     datetimestamp: datetime
+    rockstarid: int
     name: str
     ip: str
     country: str = 'unknown'
@@ -81,7 +82,11 @@ class LookyPlayerProfile(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     rockstarid: int = 0
+    last_name: str = Field(default='', validation_alias='lastName')
+    last_seen: datetime | None = Field(default=None, validation_alias='lastSeen')
+    last_country: str = Field(default='unknown', validation_alias='lastCountry')
     is_modder: bool = Field(default=False, validation_alias='isModder')
+    has_enhanced: bool = Field(default=False, validation_alias='hasEnhanced')
     users_by_rockstar_id: list[LookyPlayerSighting] = Field(default_factory=list[LookyPlayerSighting], validation_alias='usersByRockstarId')
 
 
