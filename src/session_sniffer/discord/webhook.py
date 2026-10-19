@@ -267,20 +267,29 @@ def _build_multi_embed_payload(
         # Would this block overflow the current embed's description budget?
         desc_over = projected_desc_len > _MAX_EMBED_BODY_CHARS
         # Would the total-per-message char budget be exceeded?
-        # Estimate: existing total_chars_used + this embed's title + projected description.
-        total_over = (total_chars_used + title_len + projected_desc_len) > _DISCORD_EMBEDS_TOTAL_CHAR_LIMIT
+        # Estimate: existing total_chars_used + this embed's title + projected description + truncation reserve.
+        total_over = (total_chars_used + title_len + projected_desc_len + _TRUNCATION_NOTICE_RESERVE) > _DISCORD_EMBEDS_TOTAL_CHAR_LIMIT
 
         if (desc_over or total_over) and current_blocks:
+            next_cont_title_len = len(f'{title} · {embed_index + 1}')
+            can_fit_in_next_embed = (
+                not total_over
+                and len(embeds) + 1 < _DISCORD_MAX_EMBEDS_PER_MESSAGE
+                and block_len <= _MAX_EMBED_BODY_CHARS
+                and (total_chars_used + title_len + current_chars + next_cont_title_len + block_len + _TRUNCATION_NOTICE_RESERVE)
+                <= _DISCORD_EMBEDS_TOTAL_CHAR_LIMIT
+            )
+            if not can_fit_in_next_embed:
+                _flush(is_last=True, extra_removed=len(blocks) - block_index)
+                current_blocks = []
+                break
+
             # Flush the current embed and start a new one.
             _flush(is_last=False, extra_removed=0)
             embed_index += 1
             current_blocks = []
             current_chars = 0
-
-            if len(embeds) >= _DISCORD_MAX_EMBEDS_PER_MESSAGE:
-                # No more embed slots — count all remaining as removed.
-                total_removed += len(blocks) - block_index
-                break
+            sep = 0
 
         current_blocks.append(block)
         current_chars += sep + block_len
@@ -503,70 +512,71 @@ class DiscordWebhookSender:
                 ),
             )
 
-        for kind, table_text, count, label in kinds:
-            title = f'{label} ({count})'
-            if not payload.capture_running:
-                title += ' — capture stopped'
-            if not payload.capture_running:
-                empty_label = 'Capture stopped'
-            elif count > 0:
-                empty_label = 'All columns disabled — enable at least one column in webhook settings'
-            else:
-                empty_label = 'No players'
-
-            if Settings.discord_webhook_format == 'Mobile':
+        try:
+            for kind, table_text, count, label in kinds:
+                title = f'{label} ({count})'
                 if not payload.capture_running:
-                    color = _EMBED_COLOR_STOPPED
-                elif kind == 'connected':
-                    color = _EMBED_COLOR_CONNECTED
+                    title += ' — capture stopped'
+                if not payload.capture_running:
+                    empty_label = 'Capture stopped'
+                elif count > 0:
+                    empty_label = 'All columns disabled — enable at least one column in webhook settings'
                 else:
-                    color = _EMBED_COLOR_DISCONNECTED
-                embeds = _build_multi_embed_payload(
-                    title=title,
-                    table_text=table_text,
-                    style=_EmbedStyle(timestamp=payload.generated_at, color=color),
-                    max_rows=max_rows,
-                    empty_label=empty_label,
-                )
-                # Always include 'content' (empty string) so that if the
-                # message previously had a Desktop text body it is cleared.
-                request_payload: dict[str, object] = {
-                    'content': '',
-                    'embeds': embeds,
-                    'allowed_mentions': {'parse': []},
-                }
-            else:
-                content = _build_message_content(
-                    title=title,
-                    table_text=table_text,
-                    timestamp=payload.generated_at,
-                    max_rows=max_rows,
-                    empty_label=empty_label,
-                )
-                # Always include 'embeds': [] so that if the message previously
-                # had a Mobile embed it is removed when switching to Desktop.
-                request_payload = {
-                    'content': content,
-                    'embeds': [],
-                    # Disable @everyone/@here/role/user pings just in case a username contains them.
-                    'allowed_mentions': {'parse': []},
-                }
-            body = json.dumps(request_payload).encode('utf-8')
+                    empty_label = 'No players'
 
-            existing_id = message_ids.get(kind)
-            new_id = self._post_or_patch(url, existing_id, body)
-            if new_id is None:
-                # Permanent failure already logged in _post_or_patch
-                if kind in message_ids:
-                    del message_ids[kind]
+                if Settings.discord_webhook_format == 'Mobile':
+                    if not payload.capture_running:
+                        color = _EMBED_COLOR_STOPPED
+                    elif kind == 'connected':
+                        color = _EMBED_COLOR_CONNECTED
+                    else:
+                        color = _EMBED_COLOR_DISCONNECTED
+                    embeds = _build_multi_embed_payload(
+                        title=title,
+                        table_text=table_text,
+                        style=_EmbedStyle(timestamp=payload.generated_at, color=color),
+                        max_rows=max_rows,
+                        empty_label=empty_label,
+                    )
+                    # Always include 'content' (empty string) so that if the
+                    # message previously had a Desktop text body it is cleared.
+                    request_payload: dict[str, object] = {
+                        'content': '',
+                        'embeds': embeds,
+                        'allowed_mentions': {'parse': []},
+                    }
+                else:
+                    content = _build_message_content(
+                        title=title,
+                        table_text=table_text,
+                        timestamp=payload.generated_at,
+                        max_rows=max_rows,
+                        empty_label=empty_label,
+                    )
+                    # Always include 'embeds': [] so that if the message previously
+                    # had a Mobile embed it is removed when switching to Desktop.
+                    request_payload = {
+                        'content': content,
+                        'embeds': [],
+                        # Disable @everyone/@here/role/user pings just in case a username contains them.
+                        'allowed_mentions': {'parse': []},
+                    }
+                body = json.dumps(request_payload).encode('utf-8')
+
+                existing_id = message_ids.get(kind)
+                new_id = self._post_or_patch(url, existing_id, body)
+                if new_id is None:
+                    # Permanent failure already logged in _post_or_patch
+                    if kind in message_ids:
+                        del message_ids[kind]
+                        ids_changed = True
+                    continue
+                if new_id != existing_id:
+                    message_ids[kind] = new_id
                     ids_changed = True
-                continue
-            if new_id != existing_id:
-                message_ids[kind] = new_id
-                ids_changed = True
-
-        if ids_changed:
-            _save_message_ids(message_ids)
+        finally:
+            if ids_changed:
+                _save_message_ids(message_ids)
 
     def _post_or_patch(self, url: str, existing_id: str | None, body: bytes) -> str | None:
         """Post a new message or patch *existing_id*. Return the message id on success."""
