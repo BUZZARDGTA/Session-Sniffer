@@ -1,41 +1,14 @@
 """Pydantic models for detection action settings and detections.json persistence."""
 
-from typing import Literal
+from pydantic import BaseModel, ConfigDict, Field
 
-from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator
-
-from session_sniffer.models.combo_rules import ComboRule
-from session_sniffer.text_utils import format_suspend_duration_setting, parse_suspend_duration_setting, parse_voice_notifications
+from session_sniffer.models.combo_rules import ComboRule, DetectionActionBase
 
 
-class DetectionActionSettings(BaseModel):
+class DetectionActionSettings(DetectionActionBase):
     """Base settings for a detection type action."""
 
-    model_config = ConfigDict(extra='ignore')
-
     enabled: bool = False
-    duration: int | Literal['Auto'] = 'Auto'
-    voice_notifications: Literal['Male', 'Female'] | bool = False
-    logging: bool = False
-    message_box: bool = False
-
-    @field_validator('duration', mode='before')
-    @classmethod
-    def _validate_duration(cls, value: object) -> int | Literal['Auto']:
-        return parse_suspend_duration_setting(str(value) if value is not None else 'Auto')
-
-    @field_validator('voice_notifications', mode='before')
-    @classmethod
-    def _validate_voice(cls, value: object) -> Literal['Male', 'Female'] | bool:
-        return parse_voice_notifications(str(value) if value is not None else 'False')
-
-    @field_serializer('duration')
-    def _serialize_duration(self, duration: int | Literal['Auto']) -> str:
-        return format_suspend_duration_setting(duration)
-
-    @field_serializer('voice_notifications')
-    def _serialize_voice(self, voice: object) -> str:
-        return str(voice) if voice else 'False'
 
 
 class ListDetectionActionSettings(DetectionActionSettings):

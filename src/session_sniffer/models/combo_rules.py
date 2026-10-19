@@ -7,6 +7,36 @@ from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_valid
 from session_sniffer.networking.ip_range import is_valid_ip_range_entry
 from session_sniffer.text_utils import format_suspend_duration_setting, parse_suspend_duration_setting, parse_voice_notifications
 
+
+class DetectionActionBase(BaseModel):
+    """Shared action fields, validators, and serializers for detections and combo rules."""
+
+    model_config = ConfigDict(extra='ignore')
+
+    duration: int | Literal['Auto'] = 'Auto'
+    voice_notifications: Literal['Male', 'Female'] | bool = False
+    logging: bool = False
+    message_box: bool = False
+
+    @field_validator('duration', mode='before')
+    @classmethod
+    def _validate_duration(cls, value: object) -> int | Literal['Auto']:
+        return parse_suspend_duration_setting(str(value) if value is not None else 'Auto')
+
+    @field_validator('voice_notifications', mode='before')
+    @classmethod
+    def _validate_voice(cls, value: object) -> Literal['Male', 'Female'] | bool:
+        return parse_voice_notifications(str(value) if value is not None else 'False')
+
+    @field_serializer('duration')
+    def _serialize_duration(self, duration: int | Literal['Auto']) -> str:
+        return format_suspend_duration_setting(duration)
+
+    @field_serializer('voice_notifications')
+    def _serialize_voice(self, voice: object) -> str:
+        return str(voice) if voice else 'False'
+
+
 # Condition keys that accept a free-text string value
 _STRING_CONDITIONS: frozenset[str] = frozenset({'country', 'city', 'region', 'org', 'isp', 'asn', 'as_name', 'ip_range'})
 # Condition keys that are boolean flags
@@ -18,10 +48,8 @@ _VALID_EVENTS: frozenset[str] = frozenset({'join', 'rejoin', 'leave'})
 type ConditionValue = str | bool | list[str]
 
 
-class ComboRule(BaseModel):
+class ComboRule(DetectionActionBase):
     """A single combo detection rule with AND-combined conditions and per-rule action settings."""
-
-    model_config = ConfigDict(extra='ignore')
 
     name: str = 'Unnamed Rule'
     enabled: bool = True
@@ -29,10 +57,6 @@ class ComboRule(BaseModel):
 
     # Action settings
     protection_enabled: bool = False
-    duration: int | Literal['Auto'] = 'Auto'
-    voice_notifications: Literal['Male', 'Female'] | bool = False
-    logging: bool = False
-    message_box: bool = False
 
     @field_validator('conditions', mode='before')
     @classmethod
@@ -57,24 +81,6 @@ class ComboRule(BaseModel):
                 if valid_events:
                     conditions[key] = valid_events
         return conditions
-
-    @field_validator('duration', mode='before')
-    @classmethod
-    def _validate_duration(cls, value: object) -> int | Literal['Auto']:
-        return parse_suspend_duration_setting(str(value) if value is not None else 'Auto')
-
-    @field_validator('voice_notifications', mode='before')
-    @classmethod
-    def _validate_voice(cls, value: object) -> Literal['Male', 'Female'] | bool:
-        return parse_voice_notifications(str(value) if value is not None else 'False')
-
-    @field_serializer('duration')
-    def _serialize_duration(self, duration: int | Literal['Auto']) -> str:
-        return format_suspend_duration_setting(duration)
-
-    @field_serializer('voice_notifications')
-    def _serialize_voice(self, voice: object) -> str:
-        return str(voice) if voice else 'False'
 
     @property
     def has_event_condition(self) -> bool:
