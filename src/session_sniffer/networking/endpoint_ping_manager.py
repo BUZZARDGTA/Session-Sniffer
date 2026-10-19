@@ -193,14 +193,14 @@ def fetch_and_parse_ping(ip: str) -> PingResult:
     Limits to 10 concurrent requests per ip but prioritizes trying other available endpoints before waiting.
     """
     for endpoint_info in get_sorted_endpoints():
-        if ip in endpoint_info.failed_ips and endpoint_info.failed_ips[ip] >= MAX_RETRIES_PER_IP:
-            continue  # Skip this endpoint for this ip
-
-        if time.monotonic() < endpoint_info.cooldown_until:
-            continue  # Skip if still in cooldown
-
         with _endpoints_lock:
+            if ip in endpoint_info.failed_ips and endpoint_info.failed_ips[ip] >= MAX_RETRIES_PER_IP:
+                continue  # Skip this endpoint for this ip
+
             now = time.monotonic()
+            if now < endpoint_info.cooldown_until:
+                continue  # Skip if still in cooldown
+
             if now - endpoint_info.last_request_at < _MIN_REQUEST_INTERVAL:
                 continue  # Skip if this endpoint was used too recently
             endpoint_info.last_request_at = now
@@ -219,7 +219,7 @@ def fetch_and_parse_ping(ip: str) -> PingResult:
             if not isinstance(response.content, bytes):
                 raise TypeError(format_type_error(response.content, bytes))
 
-            unescaped_response_text = response.content.decode('utf-8').replace('\\/', '/')
+            unescaped_response_text = response.content.decode('utf-8', errors='replace').replace('\\/', '/')
 
             parsed = parse_ping_response(unescaped_response_text)
             if not parsed.is_invalid(unescaped_response_text):
@@ -231,7 +231,10 @@ def fetch_and_parse_ping(ip: str) -> PingResult:
             if e.response is not None:
                 retry_after = e.response.headers.get('Retry-After')
                 if retry_after is not None and retry_after:
-                    cooldown = float(retry_after)
+                    try:
+                        cooldown = float(retry_after)
+                    except ValueError:
+                        cooldown = DEFAULT_RETRY_COOLDOWN
 
             with _endpoints_lock:
                 endpoint_info.update_failure(time.monotonic() - request_start_time, cooldown, ip)

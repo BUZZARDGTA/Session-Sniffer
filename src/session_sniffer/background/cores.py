@@ -636,7 +636,7 @@ def looky_core() -> None:
                         or player.looky_system.needs_refresh
                         or (current_time - player.looky_system.last_fetched_at) >= _LOOKY_REFRESH_INTERVAL
                     )
-                    and _looky_queue.put(player.ip)
+                    and player.ip not in pending_ip_addresses
                 ):
                     pending_ip_addresses.append(player.ip)
                     if len(pending_ip_addresses) >= _batch_size:
@@ -647,7 +647,7 @@ def looky_core() -> None:
                     if (
                         is_looky_eligible(player)
                         and (not player.looky_system.is_initialized or player.looky_system.needs_refresh)
-                        and _looky_queue.put(player.ip)
+                        and player.ip not in pending_ip_addresses
                     ):
                         pending_ip_addresses.append(player.ip)
                         if len(pending_ip_addresses) >= _batch_size:

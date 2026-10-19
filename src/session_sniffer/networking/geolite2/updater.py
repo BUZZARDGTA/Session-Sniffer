@@ -236,13 +236,13 @@ def _persist_geolite2_database_bytes(*, database_name: str, file_bytes: bytes, d
         ):
             return desired_version
 
-        with tempfile.NamedTemporaryFile(delete=False) as tmp:
+        with tempfile.NamedTemporaryFile(delete=False, dir=GEOLITE2_DATABASES_DIR_PATH) as tmp:
             tmp.write(file_bytes)
             temp_path = Path(tmp.name)
 
         try:
             temp_path.replace(destination_file_path)
-        except PermissionError:
+        except OSError:
             logger.exception('Failed to replace GeoLite2 database at %s', destination_file_path)
             temp_path.unlink(missing_ok=True)
             return current_version

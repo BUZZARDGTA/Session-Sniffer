@@ -11,8 +11,12 @@ from session_sniffer.constants.local import GEOLITE2_DATABASES_DIR_PATH
 logger = logging.getLogger(__name__)
 
 
-def initialize_geolite2_readers() -> tuple[geoip2.errors.GeoIP2Error | None, geoip2.database.Reader | None, geoip2.database.Reader | None, geoip2.database.Reader | None]:
+@functools.cache
+def initialize_geolite2_readers() -> tuple[Exception | None, geoip2.database.Reader | None, geoip2.database.Reader | None, geoip2.database.Reader | None]:
     """Open the GeoLite2 databases and sanity-check them with a known IP."""
+    geolite2_asn_reader: geoip2.database.Reader | None = None
+    geolite2_city_reader: geoip2.database.Reader | None = None
+    geolite2_country_reader: geoip2.database.Reader | None = None
     try:
         geolite2_asn_reader = geoip2.database.Reader(GEOLITE2_DATABASES_DIR_PATH / 'GeoLite2-ASN.mmdb')
         geolite2_city_reader = geoip2.database.Reader(GEOLITE2_DATABASES_DIR_PATH / 'GeoLite2-City.mmdb')
@@ -22,9 +26,12 @@ def initialize_geolite2_readers() -> tuple[geoip2.errors.GeoIP2Error | None, geo
         geolite2_city_reader.city('1.1.1.1')
         geolite2_country_reader.country('1.1.1.1')
 
-        exception = None
-    except geoip2.errors.GeoIP2Error as e:
+        exception: Exception | None = None
+    except (geoip2.errors.GeoIP2Error, OSError, ValueError, RuntimeError) as e:
         logger.exception('Failed to initialize GeoLite2 readers')
+        for reader in (geolite2_asn_reader, geolite2_city_reader, geolite2_country_reader):
+            if reader is not None:
+                reader.close()
         geolite2_asn_reader = None
         geolite2_city_reader = None
         geolite2_country_reader = None
@@ -33,7 +40,6 @@ def initialize_geolite2_readers() -> tuple[geoip2.errors.GeoIP2Error | None, geo
     return exception, geolite2_asn_reader, geolite2_city_reader, geolite2_country_reader
 
 
-@functools.cache
 def get_cached_geolite2_readers() -> tuple[geoip2.database.Reader | None, geoip2.database.Reader | None, geoip2.database.Reader | None]:
     """Return cached GeoLite2 readers, initializing them on first call."""
     _, asn_reader, city_reader, country_reader = initialize_geolite2_readers()

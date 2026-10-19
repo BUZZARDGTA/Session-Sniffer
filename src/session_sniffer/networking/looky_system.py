@@ -125,12 +125,7 @@ def _json_auth_headers(api_key: str) -> dict[str, str]:
 
 def extract_rate_limit_message(exc: requests.HTTPError) -> str:
     """Return the API error message from a 429 `HTTPError` response, falling back to `'Too Many Requests'`."""
-    if exc.response is None:
-        return 'Too Many Requests'
-    try:
-        return str(exc.response.json().get('message', 'Too Many Requests'))
-    except requests.JSONDecodeError:
-        return 'Too Many Requests'
+    return extract_api_error_message(exc) or 'Too Many Requests'
 
 
 def extract_api_error_message(exc: requests.HTTPError) -> str | None:
@@ -168,14 +163,18 @@ def extract_rate_limit_wait_seconds(exc: requests.HTTPError) -> int | None:
         except ValueError:
             pass
     try:
-        body = exc.response.json()
+        body: object = exc.response.json()
     except requests.JSONDecodeError:
         return None
-    for field in ('retryAfter', 'waitSeconds', 'retry_after'):
-        if isinstance(value := body.get(field), (int, float)) and value > 0:
-            return max(1, int(value))
-    if match := re.search(r'(\d+)\s+second', str(body.get('message', ''))):
-        return max(1, int(match.group(1)))
+    if isinstance(body, dict):
+        typed_body = cast('dict[str, object]', body)
+        for field in ('retryAfter', 'waitSeconds', 'retry_after'):
+            value = typed_body.get(field)
+            if not isinstance(value, bool) and isinstance(value, (int, float)) and value > 0:
+                return max(1, int(value))
+        raw_message = typed_body.get('message')
+        if isinstance(raw_message, str) and (match := re.search(r'(\d+)\s+second', raw_message)):
+            return max(1, int(match.group(1)))
     return None
 
 
