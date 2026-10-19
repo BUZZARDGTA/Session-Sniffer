@@ -208,7 +208,11 @@ class _CrawlerWatchWorker(CrashingQThread):
             return
         if is_terminal_failure_instruction_status(last_status):
             logger.debug('Looky instruction %s ended with failure status=%r result=%r', self._tracking_id, last_status, last_result)
-            error_message = f'Instruction ended: {last_result}' if bool(last_result) else f'Instruction ended with status: {last_status}'
+            error_message = (
+                f'Instruction ended: {html.escape(last_result)}'
+                if last_result is not None and last_result
+                else f'Instruction ended with status: {html.escape(last_status)}'
+            )
             if self._rid is None and last_result == 'Unable to join target':
                 error_message += (
                     '<br><br><b>Tip:</b> Since you used "Crawl Current Session", ensure you are actively '
@@ -360,7 +364,7 @@ class _CrawlerRequestDialog(QDialog):
         worker.reconnect_triggered.connect(self._on_reconnect_triggered)
         worker.request_completed.connect(self._on_completed)
         worker.request_failed.connect(self._show_watch_stream_lost)
-        worker.instruction_failed.connect(self._show_failed)
+        worker.instruction_failed.connect(self._show_instruction_failed)
         self._watch_worker = worker
         worker.start()
 
@@ -463,12 +467,13 @@ class _CrawlerRequestDialog(QDialog):
             self._cancel_button.setText(f'Close ({self._auto_close_remaining}s)')
             self._cancel_button.setToolTip(f'Close this window (auto-closing in {self._auto_close_remaining}s).')
 
-    def _show_failed(self, message: str) -> None:
+    def _show_failed(self, message: str, *, is_html: bool = False) -> None:
         """Show a failure with a manual Try Again button (used for both send and instruction failures)."""
         self._retry_timer.stop()
         self._auto_close_timer.stop()
         self._widgets.progress_bar.hide()
-        self._widgets.status_label.setText(f'<span style="color: #f87171; font-weight: 600;">Failed: {message}</span>')
+        formatted_message = message if is_html else html.escape(message)
+        self._widgets.status_label.setText(f'<span style="color: #f87171; font-weight: 600;">Failed: {formatted_message}</span>')
         self._widgets.status_label.show()
         self._widgets.try_again_button.setText('Try Again')
         self._widgets.try_again_button.show()
@@ -476,6 +481,10 @@ class _CrawlerRequestDialog(QDialog):
             self._cancel_button.setText('Close')
             self._cancel_button.setToolTip('Close this window.')
         self._log.setPlaceholderText('')
+
+    def _show_instruction_failed(self, message: str) -> None:
+        """Show an HTML-formatted instruction failure message."""
+        self._show_failed(message, is_html=True)
 
     def _show_watch_stream_lost(self, message: str) -> None:
         """Show a connection loss error with a Try Again button."""

@@ -1,5 +1,6 @@
 """Shared Looky System pre-flight validation for player action dialogs."""
 
+import html
 from dataclasses import dataclass
 
 from PySide6.QtCore import Qt
@@ -110,13 +111,13 @@ class LookyRefreshLoadingDialog(QDialog):
         self._widgets.progress_bar.setRange(0, max(1, total))
         self._widgets.progress_bar.setValue(current)
         pct = round(current * 100 / total) if total > 0 else 0
-        self._widgets.status_label.setText(f'<span style="color: #d8b4fe;">{status_text}: <b>{current} / {total}</b> ({pct}%)</span>')
+        self._widgets.status_label.setText(f'<span style="color: #d8b4fe;">{html.escape(status_text)}: <b>{current} / {total}</b> ({pct}%)</span>')
         self._widgets.status_label.show()
 
     def show_error(self, message: str) -> None:
         """Hide the progress bar and show the error message."""
         self._widgets.progress_bar.hide()
-        self._widgets.status_label.setText(f'<span style="color: #f87171; font-weight: 600;">\u2717 Failed: {message}</span>')
+        self._widgets.status_label.setText(f'<span style="color: #f87171; font-weight: 600;">\u2717 Failed: {html.escape(message)}</span>')
         self._widgets.status_label.show()
 
 
