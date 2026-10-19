@@ -41,8 +41,11 @@ from session_sniffer.utils import dedup_preserve_order
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
+    from pathlib import Path
 
 _GTA5_RELAY_RANGES = ThirdPartyServers.get_ip_obj_ranges_for(['TAKETWO_INTERACTIVE', 'MICROSOFT'])
+_DETECTION_CSV_HEADERS = ('Detection', 'Usernames', 'IP', 'Date', 'Time', 'Country')
+_USERIP_CSV_HEADERS = ('Database', 'Usernames', 'IP', 'Date', 'Time', 'Country')
 
 
 class _DetectionSettings(NamedTuple):
@@ -65,17 +68,27 @@ _protection_logging_file_write_lock = Lock()
 _userip_logging_file_write_lock = Lock()
 
 
-def _log_to_protection_csv(detection: str, usernames: str, ip: str, country: str) -> None:
-    """Append a protection event entry to Protection_Logging.csv."""
-    with _protection_logging_file_write_lock:
-        now = datetime.now(tz=LOCAL_TZ)
-        PROTECTION_LOGGING_PATH.parent.mkdir(parents=True, exist_ok=True)
-        write_csv_header = not PROTECTION_LOGGING_PATH.exists() or not PROTECTION_LOGGING_PATH.stat().st_size
-        with PROTECTION_LOGGING_PATH.open('a', newline='', encoding='utf-8') as file:
+def _append_csv_log_row(lock: Lock, csv_path: Path, headers: Sequence[str], row: Sequence[str]) -> None:
+    """Thread-safely append a row to a CSV log file, writing headers if the file is new or empty."""
+    with lock:
+        csv_path.parent.mkdir(parents=True, exist_ok=True)
+        write_csv_header = not csv_path.exists() or not csv_path.stat().st_size
+        with csv_path.open('a', newline='', encoding='utf-8') as file:
             writer = csv.writer(file)
             if write_csv_header:
-                writer.writerow(['Detection', 'Usernames', 'IP', 'Date', 'Time', 'Country'])
-            writer.writerow([detection, usernames, ip, now.strftime('%Y-%m-%d'), now.strftime('%H:%M:%S'), country])
+                writer.writerow(headers)
+            writer.writerow(row)
+
+
+def _log_to_protection_csv(detection: str, usernames: str, ip: str, country: str) -> None:
+    """Append a protection event entry to Protection_Logging.csv."""
+    now = datetime.now(tz=LOCAL_TZ)
+    _append_csv_log_row(
+        _protection_logging_file_write_lock,
+        PROTECTION_LOGGING_PATH,
+        _DETECTION_CSV_HEADERS,
+        [detection, usernames, ip, now.strftime('%Y-%m-%d'), now.strftime('%H:%M:%S'), country],
+    )
 
 
 _active_userip_tasks: set[tuple[str, Literal['connected', 'disconnected']]] = set()
@@ -258,18 +271,13 @@ def handle_detection_notification(
 
             # Detection logging
             if logging_setting:
-                with _detection_logging_file_write_lock:
-                    now = datetime.now(tz=LOCAL_TZ)
-                    DETECTION_LOGGING_PATH.parent.mkdir(parents=True, exist_ok=True)
-                    write_csv_header = not DETECTION_LOGGING_PATH.exists() or not DETECTION_LOGGING_PATH.stat().st_size
-                    with DETECTION_LOGGING_PATH.open('a', newline='', encoding='utf-8') as file:
-                        writer = csv.writer(file)
-                        if write_csv_header:
-                            writer.writerow(['Detection', 'Usernames', 'IP', 'Date', 'Time', 'Country'])
-                        writer.writerow([
-                            config['title'], ', '.join(player.usernames), player.ip,
-                            now.strftime('%Y-%m-%d'), now.strftime('%H:%M:%S'), player.iplookup.geolite2.country,
-                        ])
+                now = datetime.now(tz=LOCAL_TZ)
+                _append_csv_log_row(
+                    _detection_logging_file_write_lock,
+                    DETECTION_LOGGING_PATH,
+                    _DETECTION_CSV_HEADERS,
+                    [config['title'], ', '.join(player.usernames), player.ip, now.strftime('%Y-%m-%d'), now.strftime('%H:%M:%S'), player.iplookup.geolite2.country],
+                )
 
             # Message box popup
             if msgbox_setting:
@@ -420,23 +428,19 @@ def process_userip_task(
                     )
 
                 if userip.settings.log:
-                    with _userip_logging_file_write_lock:
-                        USERIP_LOGGING_PATH.parent.mkdir(parents=True, exist_ok=True)
-                        write_csv_header = not USERIP_LOGGING_PATH.exists() or not USERIP_LOGGING_PATH.stat().st_size
-                        with USERIP_LOGGING_PATH.open('a', newline='', encoding='utf-8') as file:
-                            writer = csv.writer(file)
-                            if write_csv_header:
-                                writer.writerow(['Database', 'Usernames', 'IP', 'Date', 'Time', 'Country'])
-                            writer.writerow(
-                                [
-                                    str(relative_database_path),
-                                    ', '.join(userip.usernames),
-                                    player.ip,
-                                    date_part,
-                                    time_part,
-                                    player.iplookup.geolite2.country,
-                                ],
-                            )
+                    _append_csv_log_row(
+                        _userip_logging_file_write_lock,
+                        USERIP_LOGGING_PATH,
+                        _USERIP_CSV_HEADERS,
+                        [
+                            str(relative_database_path),
+                            ', '.join(userip.usernames),
+                            player.ip,
+                            date_part,
+                            time_part,
+                            player.iplookup.geolite2.country,
+                        ],
+                    )
     finally:
         with _active_userip_tasks_lock:
             _active_userip_tasks.discard(task_key)

@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 from session_sniffer.constants.standard import LOCAL_TZ
 from session_sniffer.models.player import Player, PlayerBandwidth
 from session_sniffer.rendering_core.session_table_renderer import (
+    format_player_boolean,
     format_player_continent,
     format_player_country,
     format_player_middle_ports,
@@ -79,10 +80,10 @@ def format_player_column_value(player: Player, column_name: str, now: datetime) 
         'ASN / ISP': lambda: player.iplookup.geolite2.asn,
         'AS': lambda: player.iplookup.ipapi.asn,
         'ASN': lambda: player.iplookup.ipapi.as_name,
-        'Mobile': lambda: '...' if not player.iplookup.ipapi.is_initialized else 'Yes' if player.iplookup.ipapi.mobile else 'No',
-        'VPN': lambda: '...' if not player.iplookup.ipapi.is_initialized else 'Yes' if player.iplookup.ipapi.proxy else 'No',
-        'Hosting': lambda: '...' if not player.iplookup.ipapi.is_initialized else 'Yes' if player.iplookup.ipapi.hosting else 'No',
-        'Pinging': lambda: '...' if not player.ping.is_initialized else 'Yes' if player.ping.is_pinging else 'No',
+        'Mobile': lambda: format_player_boolean(is_initialized=player.iplookup.ipapi.is_initialized, value=player.iplookup.ipapi.mobile),
+        'VPN': lambda: format_player_boolean(is_initialized=player.iplookup.ipapi.is_initialized, value=player.iplookup.ipapi.proxy),
+        'Hosting': lambda: format_player_boolean(is_initialized=player.iplookup.ipapi.is_initialized, value=player.iplookup.ipapi.hosting),
+        'Pinging': lambda: format_player_boolean(is_initialized=player.ping.is_initialized, value=player.ping.is_pinging),
     }
 
     formatter = formatters.get(column_name)

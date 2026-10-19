@@ -31,7 +31,6 @@ from session_sniffer.player.userip import gui_dispatcher
 from session_sniffer.rendering_core.events import wake_rendering_core
 from session_sniffer.rendering_core.types import CaptureState
 from session_sniffer.settings import Settings
-from session_sniffer.utils import dedup_preserve_order
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -739,22 +738,7 @@ def looky_core() -> None:
                             matched_player.looky_system.is_initialized = True
                             looky_usernames = list(matched_player.looky_system.usernames)
 
-                        ps3_username = matched_player.ps3_username
-                        has_usernames = bool(
-                            ps3_username
-                            or (matched_player.userip is not None and matched_player.userip.usernames)
-                            or (matched_player.mod_menus is not None and matched_player.mod_menus.usernames)
-                            or looky_usernames,
-                        )
-                        if not has_usernames:
-                            matched_player.usernames = []
-                        else:
-                            matched_player.usernames = dedup_preserve_order(
-                                (ps3_username,) if ps3_username is not None and ps3_username else (),
-                                matched_player.userip.usernames if matched_player.userip is not None else (),
-                                matched_player.mod_menus.usernames if matched_player.mod_menus is not None else (),
-                                looky_usernames,
-                            )
+                        matched_player.rebuild_usernames(looky_usernames=looky_usernames)
                 wake_rendering_core()
                 resolved_any = True
                 server_error_consecutive_failures = 0

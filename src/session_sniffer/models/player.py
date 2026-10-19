@@ -26,8 +26,10 @@ from session_sniffer.models.player_traffic import (
 from session_sniffer.networking.third_party_servers import is_third_party_server_ip
 from session_sniffer.player.registry import PlayersRegistry
 from session_sniffer.settings import Settings
+from session_sniffer.utils import dedup_preserve_order
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
     from datetime import datetime as datetime_type
 
     from session_sniffer.player.userip import UserIP
@@ -222,6 +224,26 @@ class Player:
             self.joins[-1].mark_as_left()
 
         PlayersRegistry.move_player_to_disconnected(self)
+
+    def rebuild_usernames(self, *, looky_usernames: Sequence[str] = ()) -> None:
+        """Rebuild deduplicated `usernames` from PS3, UserIP, mod menu, and Looky sources."""
+        ps3_username = self.ps3_username
+        has_usernames = bool(
+            ps3_username
+            or (self.userip is not None and self.userip.usernames)
+            or (self.mod_menus is not None and self.mod_menus.usernames)
+            or looky_usernames,
+        )
+        if not has_usernames:
+            if self.usernames:
+                self.usernames = []
+            return
+        self.usernames = dedup_preserve_order(
+            (ps3_username,) if ps3_username is not None and ps3_username else (),
+            self.userip.usernames if self.userip is not None else (),
+            self.mod_menus.usernames if self.mod_menus is not None else (),
+            looky_usernames,
+        )
 
     def snapshot(self, *, session_id: int | None = None) -> Self:
         """Create an immutable snapshot clone of this player for a given session."""

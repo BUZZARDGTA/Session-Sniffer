@@ -60,7 +60,7 @@ from session_sniffer.rendering_core.types import (
 from session_sniffer.rendering_core.webhook_text_renderer import build_webhook_mobile_text, build_webhook_table_text
 from session_sniffer.settings import Settings
 from session_sniffer.text_utils import format_elapsed_time, pluralize
-from session_sniffer.utils import dedup_preserve_order, get_session_log_path
+from session_sniffer.utils import get_session_log_path
 
 if TYPE_CHECKING:
     from session_sniffer.capture.packet_capture import CaptureHolder
@@ -471,29 +471,13 @@ def rendering_core(
             else:
                 player.mod_menus = None
 
-            ps3_username = player.ps3_username
             include_looky = Settings.looky_enabled and Settings.is_gta5_feature_set() and looky_initialized
             if include_looky and looky_usernames and not looky_userip_checked:
                 with player.looky_system.lock:
                     player.looky_system.as_userip_checked = True
                 trigger_auto_username_userip(player, looky_usernames)
 
-            has_usernames = bool(
-                ps3_username
-                or (player.userip is not None and player.userip.usernames)
-                or (player.mod_menus is not None and player.mod_menus.usernames)
-                or (include_looky and looky_usernames),
-            )
-            if not has_usernames:
-                if player.usernames:
-                    player.usernames = []
-            else:
-                player.usernames = dedup_preserve_order(
-                    (ps3_username,) if ps3_username is not None and ps3_username else (),
-                    player.userip.usernames if player.userip is not None else (),
-                    player.mod_menus.usernames if player.mod_menus is not None else (),
-                    looky_usernames if include_looky else (),
-                )
+            player.rebuild_usernames(looky_usernames=looky_usernames if include_looky else ())
 
             if not player.iplookup.geolite2.is_initialized:
                 player.iplookup.geolite2.country, player.iplookup.geolite2.country_code = get_country_info(player.ip)
