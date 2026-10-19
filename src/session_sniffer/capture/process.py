@@ -473,7 +473,7 @@ def suspend_process(pid: int) -> None:
     try:
         ntstatus = _ntdll.NtSuspendProcess(handle)
         if ntstatus:
-            error_message = f'NtSuspendProcess failed for PID {pid} with NTSTATUS {ntstatus:#x}'
+            error_message = f'NtSuspendProcess failed for PID {pid} with NTSTATUS {ntstatus & 0xFFFFFFFF:#x}'
             raise OSError(error_message)
     finally:
         _kernel32.CloseHandle(handle)
@@ -502,7 +502,7 @@ def resume_process(pid: int) -> None:
     try:
         ntstatus = _ntdll.NtResumeProcess(handle)
         if ntstatus:
-            error_message = f'NtResumeProcess failed for PID {pid} with NTSTATUS {ntstatus:#x}'
+            error_message = f'NtResumeProcess failed for PID {pid} with NTSTATUS {ntstatus & 0xFFFFFFFF:#x}'
             raise OSError(error_message)
     finally:
         _kernel32.CloseHandle(handle)

@@ -13,6 +13,7 @@ from session_sniffer import msgbox
 from session_sniffer.constants.standalone import GITHUB_ISSUES_URL, TITLE
 from session_sniffer.gta5.suspend_manager import GTASuspendManager
 from session_sniffer.logging_setup import dump_crash_diagnostics, flush_all_loggers
+from session_sniffer.rdr2.suspend_manager import RDR2SuspendManager
 from session_sniffer.utils import terminate_process_tree
 
 if TYPE_CHECKING:
@@ -101,6 +102,7 @@ def terminate_script(
         dump_crash_diagnostics(crash_reason)
 
     GTASuspendManager.shutdown()
+    RDR2SuspendManager.shutdown()
     ScriptControl.run_termination_hooks()
 
     if msgbox_crash_text is not None:

@@ -906,9 +906,10 @@ def main() -> None:
         wake_rendering_core()
         GUIRenderingState.wake()
         wake_all_player_cores()
-        if capture.is_running():
+        ArpSpoofingController.stop()
+        if capture_holder.is_running():
             logger.debug('Stopping packet capture during aboutToQuit')
-            capture.stop()
+            capture_holder.stop()
         if Settings.webserver_enabled:
             logger.debug('Stopping webserver during aboutToQuit')
             WebServer.stop_server()

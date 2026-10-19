@@ -102,6 +102,7 @@ def _load_pcap_library() -> ctypes.CDLL:
         else:
             library = ctypes.CDLL('wpcap.dll')
     else:
+        library: ctypes.CDLL | None = None
         candidates = ('libpcap.dylib', '/usr/lib/libpcap.dylib') if sys.platform == 'darwin' else ('libpcap.so.0.8', 'libpcap.so.1', 'libpcap.so')
         for lib_name in candidates:
             try:
@@ -337,7 +338,7 @@ class PcapHandle:
             if not 0 < captured_length <= self._snaplen:
                 return None
 
-            epoch_seconds = float(header.tv_sec) + (float(header.tv_usec) / 1_000_000.0)
+            epoch_seconds = float(header.tv_sec) + (float(header.tv_usec & 0xFFFFFFFF) / 1_000_000.0)
             packet_bytes = ctypes.string_at(self._data_pointer, captured_length)
 
             return RawCapturedPacket(
