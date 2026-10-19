@@ -576,16 +576,18 @@ class DiscordWebhookSender:
             if status in (http.HTTPStatus.OK, http.HTTPStatus.NO_CONTENT):
                 self.connection_status.set()
                 return existing_id
-            if status == http.HTTPStatus.NOT_FOUND:
-                # Message was deleted on Discord; fall through to re-create.
-                logger.info('Discord webhook message %s no longer exists, recreating.', existing_id)
-                existing_id = None
-            elif status == http.HTTPStatus.TOO_MANY_REQUESTS:
-                self._respect_retry_after(_headers, response_body)
-                return existing_id
-            elif status in (http.HTTPStatus.UNAUTHORIZED, http.HTTPStatus.FORBIDDEN):
+            if status in (http.HTTPStatus.UNAUTHORIZED, http.HTTPStatus.FORBIDDEN):
                 self._auto_disable(url, status, response_body)
                 return None
+            if status != http.HTTPStatus.NOT_FOUND:
+                if status == http.HTTPStatus.TOO_MANY_REQUESTS:
+                    self._respect_retry_after(_headers, response_body)
+                else:
+                    logger.warning('Discord webhook unexpected PATCH status %d: %s', status, response_body[:200])
+                return existing_id
+            # Message was deleted on Discord; fall through to re-create.
+            logger.info('Discord webhook message %s no longer exists, recreating.', existing_id)
+            existing_id = None
 
         # POST new message with ?wait=true to receive the message id back
         post_url = f'{url}{"&" if "?" in url else "?"}wait=true'

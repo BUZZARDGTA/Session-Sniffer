@@ -94,11 +94,12 @@ class _DiscordIPCConnection:
                 for socket_path in candidate_paths:
                     if not socket_path.exists():
                         continue
+                    unix_socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
                     try:
-                        unix_socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
                         unix_socket.connect(str(socket_path))
                         return cls(pipe_stream=unix_socket.makefile('r+b', buffering=0), unix_socket=unix_socket)
                     except OSError:
+                        unix_socket.close()
                         continue
 
         return None
@@ -281,9 +282,15 @@ def _run(client_id: int, queue: QueueType, connection_status: Event) -> None:
 
         try:
             active_connection.send(_OPCODE_FRAME, _build_activity_payload(update_payload))
-            active_connection.receive()
+            response = active_connection.receive()
+            if response is None or response.evt == 'ERROR':
+                logger.debug('Discord RPC pipe closed or returned error')
+                active_connection.close()
+                active_connection = None
+                connection_status.clear()
         except (OSError, ValidationError, struct.error) as e:
             logger.debug('Discord RPC pipe lost: %s: %s', type(e).__name__, e)
-            active_connection.close()
-            active_connection = None
+            if active_connection is not None:
+                active_connection.close()
+                active_connection = None
             connection_status.clear()
