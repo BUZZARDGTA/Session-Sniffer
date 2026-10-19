@@ -292,16 +292,7 @@ def build_userip_menu_multi(
         userip_menu = add_menu(context_menu, 'UserIP', icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'database.svg')))
         add_count = '' if len(ip_addresses) == 1 else f'{len(ip_addresses)} '
         add_userip_menu = add_menu(userip_menu, 'Add Selected', icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'plus.svg')))
-        all_usernames = dedup_preserve_order(
-            *(
-                ([player.ps3_username] if player.ps3_username is not None and player.ps3_username else [])
-                + (list(player.userip.usernames) if player.userip else [])
-                + (player.mod_menus.usernames if player.mod_menus else [])
-                + (player.looky_system.usernames if player.looky_system.is_initialized else [])
-                + player.usernames
-                for player in players
-            ),
-        )
+        all_usernames = dedup_preserve_order(*(resolve_usernames_for_player(player) for player in players))
         populate_userip_databases_menu(
             add_userip_menu,
             UserIPDatabases.get_userip_database_filepaths(),

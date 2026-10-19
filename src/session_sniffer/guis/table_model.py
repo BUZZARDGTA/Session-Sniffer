@@ -222,17 +222,23 @@ def sort_table_rows[T: Sequence[str], C: Sequence[CellColor]](
                 key=_datetime_sort_key,
                 reverse=not sort_order_bool,
             )
-    elif resolved_column_name == 'T. Session Time':
+    elif resolved_column_name in {'T. Session Time', 'Biggest Session Time', 'Lowest Session Time'}:
         if ip_column_index >= 0:
             ip_index = ip_column_index
             players_map = PlayersRegistry.get_players_map()
+            duration_getters: dict[str, Callable[[Player], timedelta]] = {
+                'T. Session Time': lambda player: player.datetime.get_total_session_time(),
+                'Biggest Session Time': lambda player: player.datetime.get_biggest_session_time(),
+                'Lowest Session Time': lambda player: player.datetime.get_lowest_session_time(),
+            }
+            duration_getter = duration_getters[resolved_column_name]
 
-            def _total_session_time_sort_key(row: tuple[T, C]) -> timedelta:
+            def _duration_sort_key(row: tuple[T, C]) -> timedelta:
                 matched_player = players_map.get(row[0][ip_index])
-                return matched_player.datetime.get_total_session_time() if matched_player is not None else _ZERO_TD
+                return duration_getter(matched_player) if matched_player is not None else _ZERO_TD
 
             sorted_rows.sort(
-                key=_total_session_time_sort_key,
+                key=_duration_sort_key,
                 reverse=sort_order_bool,
             )
     elif resolved_column_name == 'Session Time':
@@ -248,32 +254,6 @@ def sort_table_rows[T: Sequence[str], C: Sequence[CellColor]](
 
             sorted_rows.sort(
                 key=_session_time_sort_key,
-                reverse=sort_order_bool,
-            )
-    elif resolved_column_name == 'Biggest Session Time':
-        if ip_column_index >= 0:
-            ip_index = ip_column_index
-            players_map = PlayersRegistry.get_players_map()
-
-            def _biggest_session_time_sort_key(row: tuple[T, C]) -> timedelta:
-                matched_player = players_map.get(row[0][ip_index])
-                return matched_player.datetime.get_biggest_session_time() if matched_player is not None else _ZERO_TD
-
-            sorted_rows.sort(
-                key=_biggest_session_time_sort_key,
-                reverse=sort_order_bool,
-            )
-    elif resolved_column_name == 'Lowest Session Time':
-        if ip_column_index >= 0:
-            ip_index = ip_column_index
-            players_map = PlayersRegistry.get_players_map()
-
-            def _lowest_session_time_sort_key(row: tuple[T, C]) -> timedelta:
-                matched_player = players_map.get(row[0][ip_index])
-                return matched_player.datetime.get_lowest_session_time() if matched_player is not None else _ZERO_TD
-
-            sorted_rows.sort(
-                key=_lowest_session_time_sort_key,
                 reverse=sort_order_bool,
             )
     elif resolved_column_name in {

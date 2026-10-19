@@ -319,6 +319,33 @@ def userip_convert_to_range(parent: QWidget, ip_address: str, player: Player) ->
     )
 
 
+def _select_covering_range_in_db(
+    parent: QWidget,
+    db_path: Path,
+    ip_address: str,
+    *,
+    dialog_title: str,
+    prompt_action: str,
+) -> str | None:
+    """Return the single range covering `ip_address` in `db_path`, or prompt the user when multiple ranges match."""
+    matching_ranges = _collect_matching_entries_in_db(db_path, ip_address, ranges_only=True)
+    if not matching_ranges:
+        QMessageBox.information(parent, TITLE, f'No range entries found covering IP {ip_address} in the database.')
+        return None
+    if len(matching_ranges) == 1:
+        return matching_ranges[0]
+    chosen, success = QInputDialog.getItem(
+        parent,
+        dialog_title,
+        f'Multiple ranges cover IP {ip_address}.\nSelect the range to {prompt_action}:',
+        matching_ranges,
+        editable=False,
+    )
+    if not success or not chosen:
+        return None
+    return chosen
+
+
 def userip_convert_to_ip(parent: QWidget, ip_address: str, player: Player) -> None:
     """Convert a covering range UserIP entry into a single-IP entry in place, keeping its username(s)."""
     if player.userip is None:
@@ -327,24 +354,15 @@ def userip_convert_to_ip(parent: QWidget, ip_address: str, player: Player) -> No
     db_path = player.userip.db_path
     db_display = player.userip.db_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix('')
 
-    matching_ranges = _collect_matching_entries_in_db(db_path, ip_address, ranges_only=True)
-    if not matching_ranges:
-        QMessageBox.information(parent, TITLE, f'No range entries found covering IP {ip_address} in the database.')
+    old_range = _select_covering_range_in_db(
+        parent,
+        db_path,
+        ip_address,
+        dialog_title='Convert to IP',
+        prompt_action=f'convert to single IP {ip_address}',
+    )
+    if old_range is None:
         return
-
-    if len(matching_ranges) == 1:
-        old_range = matching_ranges[0]
-    else:
-        chosen, success = QInputDialog.getItem(
-            parent,
-            'Convert to IP',
-            f'Multiple ranges cover IP {ip_address}.\nSelect the range to convert to single IP {ip_address}:',
-            matching_ranges,
-            editable=False,
-        )
-        if not success or not chosen:
-            return
-        old_range = chosen
 
     converted_count = rewrite_db_edit_entry_ip(db_path, old_range, ip_address)
     if not converted_count:
@@ -373,24 +391,15 @@ def userip_edit_range(parent: QWidget, ip_address: str, player: Player) -> None:
     db_path = player.userip.db_path
     db_display = player.userip.db_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix('')
 
-    matching_ranges = _collect_matching_entries_in_db(db_path, ip_address, ranges_only=True)
-    if not matching_ranges:
-        QMessageBox.information(parent, TITLE, f'No range entries found covering IP {ip_address} in the database.')
+    old_range = _select_covering_range_in_db(
+        parent,
+        db_path,
+        ip_address,
+        dialog_title='Edit Range',
+        prompt_action='edit',
+    )
+    if old_range is None:
         return
-
-    if len(matching_ranges) == 1:
-        old_range = matching_ranges[0]
-    else:
-        chosen, success = QInputDialog.getItem(
-            parent,
-            'Edit Range',
-            f'Multiple ranges cover IP {ip_address}.\nSelect the range to edit:',
-            matching_ranges,
-            editable=False,
-        )
-        if not success or not chosen:
-            return
-        old_range = chosen
 
     # Single IP is allowed here so a range can be narrowed back down to one address.
     range_dlg = IPRangeBuilderDialog(parent, initial_entry=old_range)

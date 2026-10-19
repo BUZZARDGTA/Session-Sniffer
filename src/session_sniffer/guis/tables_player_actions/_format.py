@@ -129,16 +129,19 @@ def userip_database_text(player: Player) -> str:
     return format_userip_database(player.userip)
 
 
+def _looky_fallback_text(looky: PlayerLooky) -> str:
+    """Return '...' when Looky is enabled and pending initialization, otherwise 'N/A'."""
+    if not Settings.is_gta5_feature_set() or not Settings.looky_enabled or not bool(Settings.looky_api_key):
+        return 'N/A'
+    return '...' if not looky.is_initialized else 'N/A'
+
+
 def format_looky_usernames(looky: PlayerLooky) -> str:
     """Format Looky System usernames for display."""
     with looky.lock:
         if looky.usernames:
             return ', '.join(looky.usernames)
-        if not Settings.is_gta5_feature_set() or not Settings.looky_enabled or not bool(Settings.looky_api_key):
-            return 'N/A'
-        if not looky.is_initialized:
-            return '...'
-        return 'N/A'
+        return _looky_fallback_text(looky)
 
 
 def format_looky_rockstarids(looky: PlayerLooky) -> str:
@@ -146,22 +149,14 @@ def format_looky_rockstarids(looky: PlayerLooky) -> str:
     with looky.lock:
         if looky.rockstarids:
             return ', '.join(map(str, looky.rockstarids))
-        if not Settings.is_gta5_feature_set() or not Settings.looky_enabled or not bool(Settings.looky_api_key):
-            return 'N/A'
-        if not looky.is_initialized:
-            return '...'
-        return 'N/A'
+        return _looky_fallback_text(looky)
 
 
 def format_looky_last_seens(looky: PlayerLooky) -> str:
     """Format Looky System last seen timestamps for display."""
     with looky.lock:
         if not looky.last_seens:
-            if not Settings.is_gta5_feature_set() or not Settings.looky_enabled or not bool(Settings.looky_api_key):
-                return 'N/A'
-            if not looky.is_initialized:
-                return '...'
-            return 'N/A'
+            return _looky_fallback_text(looky)
         if len(looky.last_seens) == 1:
             last_seen = looky.last_seens[0]
             last_seen_dt = last_seen if last_seen.tzinfo is None else last_seen.astimezone(UTC)

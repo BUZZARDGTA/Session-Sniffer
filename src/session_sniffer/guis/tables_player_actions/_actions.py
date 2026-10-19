@@ -34,7 +34,7 @@ from session_sniffer.settings.settings import Settings
 from session_sniffer.text_utils import pluralize
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Callable, Sequence
 
     from session_sniffer.models.player import Player
 
@@ -167,38 +167,52 @@ def tcp_port_ping(parent: QWidget, target: str | list[str]) -> None:
     _prompt_port_ping(parent, target, mode=PingMode.TCP, prompt_label='Enter the port number to check TCP connectivity:')
 
 
+def _create_multi_port_ping_menu(
+    parent: QWidget,
+    ip_addresses: list[str],
+    ping_menu: QMenu,
+    *,
+    protocol_label: str,
+    ping_fn: Callable[[QWidget, str | list[str]], None],
+) -> None:
+    """Create and attach a protocol port ping submenu for multiple IP addresses to `ping_menu`."""
+    submenu = QMenu(f'{protocol_label} Port Ping', ping_menu)
+    icon = QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'radio-tower.svg'))
+    submenu.setIcon(icon)
+    submenu.setStyleSheet(SVG_ICON_CONTEXT_MENU_STYLESHEET)
+    submenu.setToolTipsVisible(True)
+
+    one_action = QAction(icon, 'One Port for All', submenu)
+    one_action.setToolTip(f'Ask for a port once, then {protocol_label} ping all selected IPs on that port.')
+    one_action.triggered.connect(lambda: ping_fn(parent, ip_addresses))
+    submenu.addAction(one_action)
+
+    individual_action = QAction(icon, 'Individual Port per IP', submenu)
+    individual_action.setToolTip('Ask for a separate port for each selected IP.')
+
+    def _do_ping_individual() -> None:
+        for ip_address in ip_addresses:
+            ping_fn(parent, ip_address)
+
+    individual_action.triggered.connect(_do_ping_individual)
+    submenu.addAction(individual_action)
+
+    ping_menu.addMenu(submenu)
+
+
 def create_multi_tcp_ping_menu(
     parent: QWidget,
     ip_addresses: list[str],
     ping_menu: QMenu,
 ) -> None:
     """Create and attach a 'TCP Port Ping' submenu for multiple IP addresses to *ping_menu*."""
-    tcp_menu = QMenu('TCP Port Ping', ping_menu)
-    icon = QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'radio-tower.svg'))
-    tcp_menu.setIcon(icon)
-    tcp_menu.setStyleSheet(SVG_ICON_CONTEXT_MENU_STYLESHEET)
-    tcp_menu.setToolTipsVisible(True)
-
-    tcp_one_action = QAction(icon, 'One Port for All', tcp_menu)
-    tcp_one_action.setToolTip('Ask for a port once, then TCP ping all selected IPs on that port.')
-
-    def _do_tcp_ping_multi() -> None:
-        tcp_port_ping(parent, ip_addresses)
-
-    tcp_one_action.triggered.connect(_do_tcp_ping_multi)
-    tcp_menu.addAction(tcp_one_action)
-
-    tcp_individual_action = QAction(icon, 'Individual Port per IP', tcp_menu)
-    tcp_individual_action.setToolTip('Ask for a separate port for each selected IP.')
-
-    def _do_tcp_ping_individual() -> None:
-        for ip_address in ip_addresses:
-            tcp_port_ping(parent, ip_address)
-
-    tcp_individual_action.triggered.connect(_do_tcp_ping_individual)
-    tcp_menu.addAction(tcp_individual_action)
-
-    ping_menu.addMenu(tcp_menu)
+    _create_multi_port_ping_menu(
+        parent,
+        ip_addresses,
+        ping_menu,
+        protocol_label='TCP',
+        ping_fn=tcp_port_ping,
+    )
 
 
 def udp_port_ping(parent: QWidget, target: str | list[str]) -> None:
@@ -212,32 +226,13 @@ def create_multi_udp_ping_menu(
     ping_menu: QMenu,
 ) -> None:
     """Create and attach a 'UDP Port Ping' submenu for multiple IP addresses to *ping_menu*."""
-    udp_menu = QMenu('UDP Port Ping', ping_menu)
-    icon = QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'radio-tower.svg'))
-    udp_menu.setIcon(icon)
-    udp_menu.setStyleSheet(SVG_ICON_CONTEXT_MENU_STYLESHEET)
-    udp_menu.setToolTipsVisible(True)
-
-    udp_one_action = QAction(icon, 'One Port for All', udp_menu)
-    udp_one_action.setToolTip('Ask for a port once, then UDP ping all selected IPs on that port.')
-
-    def _do_udp_ping_multi() -> None:
-        udp_port_ping(parent, ip_addresses)
-
-    udp_one_action.triggered.connect(_do_udp_ping_multi)
-    udp_menu.addAction(udp_one_action)
-
-    udp_individual_action = QAction(icon, 'Individual Port per IP', udp_menu)
-    udp_individual_action.setToolTip('Ask for a separate port for each selected IP.')
-
-    def _do_udp_ping_individual() -> None:
-        for ip_address in ip_addresses:
-            udp_port_ping(parent, ip_address)
-
-    udp_individual_action.triggered.connect(_do_udp_ping_individual)
-    udp_menu.addAction(udp_individual_action)
-
-    ping_menu.addMenu(udp_menu)
+    _create_multi_port_ping_menu(
+        parent,
+        ip_addresses,
+        ping_menu,
+        protocol_label='UDP',
+        ping_fn=udp_port_ping,
+    )
 
 
 def create_ping_menu(

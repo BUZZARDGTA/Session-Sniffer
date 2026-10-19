@@ -662,7 +662,12 @@ def open_combo_rule_editor_for_player(parent: QWidget, player: Player) -> None:
         conditions['hosting'] = player.iplookup.ipapi.hosting
 
     prefilled = ComboRule(name=f'Rule for {player.ip}', conditions=conditions) if conditions else None
-    dialog = ComboRuleEditorDialog(parent, prefilled)
+    _exec_and_save_combo_rule(parent, prefilled)
+
+
+def _exec_and_save_combo_rule(parent: QWidget, initial_rule: ComboRule | None = None) -> None:
+    """Open the combo rule editor dialog and persist the rule on accept."""
+    dialog = ComboRuleEditorDialog(parent, initial_rule)
     if dialog.exec() == QDialog.DialogCode.Accepted:
         ComboRulesManager.rules.append(dialog.get_rule())
         ComboRulesManager.save_to_file(COMBO_RULES_PATH)
@@ -670,7 +675,4 @@ def open_combo_rule_editor_for_player(parent: QWidget, player: Player) -> None:
 
 def open_combo_rule_editor(parent: QWidget) -> None:
     """Open a blank combo rule editor and save the new rule on accept."""
-    dialog = ComboRuleEditorDialog(parent)
-    if dialog.exec() == QDialog.DialogCode.Accepted:
-        ComboRulesManager.rules.append(dialog.get_rule())
-        ComboRulesManager.save_to_file(COMBO_RULES_PATH)
+    _exec_and_save_combo_rule(parent)
