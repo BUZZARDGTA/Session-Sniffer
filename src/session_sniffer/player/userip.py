@@ -422,6 +422,8 @@ class UserIPDatabases:
             last_seen_at = pick_latest_iso(last_seen_at, single_userip.last_seen_at)
 
         for range_entry in matching_ranges:
+            if range_entry.db_path != primary_db_path:
+                continue
             combined_usernames.extend(range_entry.usernames)
             combined_notes.extend(range_entry.notes)
             combined_sources.extend(range_entry.sources)

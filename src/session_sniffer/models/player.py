@@ -236,5 +236,5 @@ class Player:
         clone.packets = self.packets.snapshot()
         clone.bandwidth = self.bandwidth.snapshot()
         clone.ports = self.ports.snapshot()
-        clone.joins = list(self.joins)
+        clone.joins = [join.snapshot() for join in self.joins]
         return clone

@@ -6,6 +6,8 @@ from typing import TYPE_CHECKING
 from session_sniffer.constants.standard import LOCAL_TZ
 from session_sniffer.models.player import Player, PlayerBandwidth
 from session_sniffer.rendering_core.session_table_renderer import (
+    format_player_continent,
+    format_player_country,
     format_player_middle_ports,
     format_player_ports,
     format_player_usernames,
@@ -38,6 +40,12 @@ def format_player_column_value(player: Player, column_name: str, now: datetime) 
         'Packets Received': lambda: str(player.packets.received),
         'T. Packets Sent': lambda: str(player.packets.total_sent),
         'Packets Sent': lambda: str(player.packets.sent),
+        'T. Min Packet Length': lambda: str(player.packets.total_min_len),
+        'Min Packet Length': lambda: str(player.packets.min_len),
+        'T. Avg Packet Length': lambda: f'{player.packets.total_avg_len:.1f}',
+        'Avg Packet Length': lambda: f'{player.packets.avg_len:.1f}',
+        'T. Max Packet Length': lambda: str(player.packets.total_max_len),
+        'Max Packet Length': lambda: str(player.packets.max_len),
         'PPS': lambda: str(player.packets.pps.calculated_rate),
         'PPM': lambda: str(player.packets.ppm.calculated_rate),
         'T. Bandwidth': lambda: PlayerBandwidth.format_bytes(player.bandwidth.total_exchanged),
@@ -54,8 +62,8 @@ def format_player_column_value(player: Player, column_name: str, now: datetime) 
         'Last Port': lambda: str(player.ports.last),
         'Middle Ports': lambda: format_player_middle_ports(player),
         'First Port': lambda: str(player.ports.first),
-        'Continent': lambda: f'{player.iplookup.ipapi.continent} ({player.iplookup.ipapi.continent_code})',
-        'Country': lambda: f'{player.iplookup.geolite2.country} ({player.iplookup.geolite2.country_code})',
+        'Continent': lambda: format_player_continent(player),
+        'Country': lambda: format_player_country(player),
         'Region': lambda: player.iplookup.ipapi.region,
         'R. Code': lambda: player.iplookup.ipapi.region_code,
         'City': lambda: player.iplookup.geolite2.city,

@@ -541,8 +541,8 @@ class PlayerDateTime:
             last_seen=self.last_seen,
             total_session_time=self.total_session_time,
             session_time=self.get_session_time(),
-            biggest_session_time=self.biggest_session_time,
-            lowest_session_time=self.lowest_session_time,
+            biggest_session_time=self.get_biggest_session_time(),
+            lowest_session_time=self.get_lowest_session_time(),
         )
 
     @classmethod
@@ -609,6 +609,19 @@ class PlayerJoin:
         self.is_active = False
         self.last_seen = max(self.last_seen, self.joined_at)
         self.session_time = self.last_seen - self.joined_at
+
+    def snapshot(self) -> Self:
+        """Create a frozen snapshot copy of this join entry."""
+        return self.__class__(
+            join_index=self.join_index,
+            joined_at=self.joined_at,
+            last_seen=self.last_seen,
+            ports=self.ports.snapshot(),
+            packets=self.packets.snapshot(),
+            bandwidth=self.bandwidth.snapshot(),
+            session_time=self.get_session_time(),
+            is_active=False,
+        )
 
 
 class PacketInfo(NamedTuple):

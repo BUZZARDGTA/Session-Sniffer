@@ -225,7 +225,7 @@ def build_disconnected_player_row(
     _past_server_disconnected_cell = CellColor(foreground=_DISCONNECTED_PAST_SESSION_USERIP_TEXT_COLOR, background=server_bg_color)
     _past_server_disconnected_row_colors = (_past_server_disconnected_cell,) * context.disconnected_num_columns
 
-    if player.userip:
+    if player.userip and player.userip.usernames:
         userip_fg = _DISCONNECTED_USERIP_TEXT_COLOR if is_current_session else _DISCONNECTED_PAST_SESSION_USERIP_TEXT_COLOR
         disconnected_row_colors = (CellColor(foreground=userip_fg, background=player.userip.settings.color),) * context.disconnected_num_columns
     elif Settings.gui_servers_color_enabled and player.is_third_party_server:

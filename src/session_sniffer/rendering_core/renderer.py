@@ -109,10 +109,16 @@ def rendering_core(
         def _format_lookup_text(value: object) -> str:
             return str(value)
 
+        def _resolve_country_pair(player: Player) -> tuple[str, str]:
+            if player.iplookup.geolite2.country_code not in {'...', 'N/A'}:
+                return player.iplookup.geolite2.country, player.iplookup.geolite2.country_code
+            return player.iplookup.ipapi.country, player.iplookup.ipapi.country_code
+
         def _player_columns(player: Player) -> dict[str, object]:
             mobile_value = None if not player.iplookup.ipapi.is_initialized else player.iplookup.ipapi.mobile
             vpn_value = None if not player.iplookup.ipapi.is_initialized else player.iplookup.ipapi.proxy
             hosting_value = None if not player.iplookup.ipapi.is_initialized else player.iplookup.ipapi.hosting
+            country_name, _ = _resolve_country_pair(player)
 
             return {
                 'Usernames': format_player_usernames(player),
@@ -153,7 +159,7 @@ def rendering_core(
                 'Middle Ports': format_player_middle_ports(player),
                 'First Port': player.ports.first,
                 'Continent': _format_lookup_text(player.iplookup.ipapi.continent),
-                'Country': _format_lookup_text(player.iplookup.geolite2.country),
+                'Country': _format_lookup_text(country_name),
                 'Region': _format_lookup_text(player.iplookup.ipapi.region),
                 'R. Code': _format_lookup_text(player.iplookup.ipapi.region_code),
                 'City': _format_lookup_text(player.iplookup.geolite2.city),
@@ -177,6 +183,7 @@ def rendering_core(
 
         def _player_to_json_dict(player: Player) -> dict[str, object]:
             columns = _player_columns(player)
+            country_name, country_code = _resolve_country_pair(player)
             return {
                 'Usernames': player.usernames,
                 'First Seen': player.datetime.first_seen.isoformat(),
@@ -216,8 +223,8 @@ def rendering_core(
                 'Middle Ports': format_player_middle_ports(player),
                 'First Port': player.ports.first,
                 'Continent': player.iplookup.ipapi.continent,
-                'Country': player.iplookup.geolite2.country,
-                'Country Code': player.iplookup.geolite2.country_code,
+                'Country': country_name,
+                'Country Code': country_code,
                 'Region': player.iplookup.ipapi.region,
                 'R. Code': player.iplookup.ipapi.region_code,
                 'City': player.iplookup.geolite2.city,
@@ -244,10 +251,13 @@ def rendering_core(
             if player.left_event.is_set():
                 lookup_key = (
                     player.rejoins,
+                    tuple(player.usernames),
                     player.iplookup.geolite2.is_initialized,
                     player.iplookup.ipapi.is_initialized,
                     player.reverse_dns.is_initialized,
                     player.looky_system.is_initialized,
+                    player.ping.is_initialized,
+                    player.ping.is_pinging,
                 )
                 cached = _disconnected_json_cache.get(player.ip)
                 if cached is not None and cached[0] == lookup_key:
@@ -261,6 +271,11 @@ def rendering_core(
             if _session_logging_writing:
                 return
             _session_logging_writing = True
+
+        active_disconnected_ips = {player.ip for player in session_disconnected}
+        for cached_ip in list(_disconnected_json_cache):
+            if cached_ip not in active_disconnected_ips:
+                del _disconnected_json_cache[cached_ip]
 
         snapshot_model = SessionLogFile(
             connected={player.ip: _get_player_json_dict(player) for player in session_connected},
@@ -635,7 +650,7 @@ def rendering_core(
             last_webhook_submit_time is None or (time.monotonic() - last_webhook_submit_time) >= DISCORD_WEBHOOK_UPDATE_INTERVAL_SECONDS
         ):
             last_webhook_submit_time = time.monotonic()
-            use_mobile_text = Settings.discord_webhook_format in ('Mobile', 'Embed')
+            use_mobile_text = Settings.discord_webhook_format == 'Mobile'
             webhook_connected = session_connected[: Settings.discord_webhook_max_connected_players] if Settings.discord_webhook_max_connected_players > 0 else session_connected
             webhook_disconnected = (
                 session_disconnected[: Settings.discord_webhook_max_disconnected_players] if Settings.discord_webhook_max_disconnected_players > 0 else session_disconnected

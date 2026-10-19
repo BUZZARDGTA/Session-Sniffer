@@ -225,7 +225,7 @@ def format_userip_ip_conflict_message(
 
     preview_block = '\n\n'.join(preview_lines)
     remaining_count = count - preview_count
-    remaining_suffix = f'\n\n            ... and {remaining_count} more conflicts (see "Show Details...").' if remaining_count > 0 else ''
+    remaining_suffix = f'\n\n            ... and {remaining_count} more conflict{pluralize(remaining_count)} (see "Show Details...").' if remaining_count > 0 else ''
 
     summary = f"""
         ERROR:
@@ -253,7 +253,8 @@ def format_userip_ip_conflict_message(
             f'    "{db2_name}": {conflict.conflicting_username}\n',
         )
     if count > max_detailed:
-        detailed_lines.append(f'... and {count - max_detailed} more conflicts (see application logs).\n')
+        remaining_detailed_count = count - max_detailed
+        detailed_lines.append(f'... and {remaining_detailed_count} more conflict{pluralize(remaining_detailed_count)} (see application logs).\n')
 
     detailed_text = '\n'.join(detailed_lines)
     return summary, detailed_text

@@ -126,7 +126,7 @@ def _parse_and_repair_single_raw_entry(
         if was_split:
             logger.info('Auto-repaired split username entry "%s=%s" in "%s".', split_name, ip, json_name)
         candidate = base_entry if split_name == base_entry.username else base_entry.model_copy(update={'username': split_name})
-        pair_key = (split_name, ip)
+        pair_key = (split_name.casefold(), ip)
         if pair_key in seen_pairs:
             need_rewrite = True
             existing_idx = seen_pairs[pair_key]
@@ -259,15 +259,54 @@ def update_userip_databases() -> tuple[float, bool]:
         return time.monotonic(), True
 
 
-_userip_file_append_lock: Lock = Lock()
-
-
 def _parse_existing_entry_dict(item_dict: dict[str, Any], entry_user: str, entry_ip: str) -> UserIPEntryModel:
     """Construct a `UserIPEntryModel` from a raw dictionary while preserving all metadata."""
-    is_looky = bool(item_dict.get('is_looky', False))
-    notes = str(item_dict.get('notes', '')).strip()
+    raw_is_looky: object = item_dict.get('is_looky', False)
+    is_looky = False
+    if isinstance(raw_is_looky, bool):
+        is_looky = raw_is_looky
+    elif isinstance(raw_is_looky, str):
+        try:
+            is_looky, _ = custom_str_to_bool(raw_is_looky.strip())
+        except InvalidBooleanValueError:
+            is_looky = False
+    raw_notes: object = item_dict.get('notes', '')
+    notes = raw_notes.strip() if isinstance(raw_notes, str) else ''
     entry, _ = UserIPEntryModel.from_raw_entry_dict(item_dict, username=entry_user, ip=entry_ip, is_looky=is_looky, notes=notes)
     return entry
+
+
+def _load_raw_userip_db(db_path: Path, *, action_label: str) -> tuple[UserIPSettingsModel, list[object]] | None:
+    """Read and validate the settings and raw entries list from a UserIP database file."""
+    try:
+        raw_data: object = json.loads(db_path.read_text(encoding='utf-8'))
+    except (OSError, json.JSONDecodeError) as e:
+        logger.warning('Failed to read UserIP database "%s" for %s: %s', db_path, action_label, e)
+        return None
+
+    if not isinstance(raw_data, dict):
+        return None
+
+    typed_data = cast('dict[str, Any]', raw_data)
+    raw_settings_obj: object = typed_data.get('settings')
+    raw_settings = cast('dict[str, Any]', raw_settings_obj) if isinstance(raw_settings_obj, dict) else {}
+    validated_settings, _ = UserIPSettingsModel.validate_settings(raw_settings)
+
+    raw_entries_obj: object = typed_data.get('entries')
+    raw_entries = cast('list[object]', raw_entries_obj) if isinstance(raw_entries_obj, list) else []
+    return validated_settings, raw_entries
+
+
+def _write_userip_db(db_path: Path, settings: UserIPSettingsModel, entries: list[UserIPEntryModel], *, action_label: str) -> bool:
+    """Serialize and write a UserIP database file, invalidating its cached mtime."""
+    db_file = UserIPDatabaseFile(settings=settings, entries=entries)
+    try:
+        db_path.write_text(db_file.serialize_to_json(), encoding='utf-8')
+    except OSError as e:
+        logger.warning('Failed to write UserIP database "%s" for %s: %s', db_path, action_label, e)
+        return False
+    _last_userip_db_mod_times.pop(db_path, None)
+    return True
 
 
 def append_userip_entry_if_missing(db_path: Path, username: str, ip: str) -> bool:
@@ -281,23 +320,11 @@ def append_userip_entry_if_missing(db_path: Path, username: str, ip: str) -> boo
     if not cleaned_username or not cleaned_ip or not db_path.is_file():
         return False
 
-    with _userip_file_append_lock:
-        try:
-            raw_data: object = json.loads(db_path.read_text(encoding='utf-8'))
-        except (OSError, json.JSONDecodeError) as e:
-            logger.warning('Failed to read UserIP database "%s" for auto-feed: %s', db_path, e)
+    with _update_userip_databases_lock:
+        loaded = _load_raw_userip_db(db_path, action_label='auto-feed')
+        if loaded is None:
             return False
-
-        if not isinstance(raw_data, dict):
-            return False
-
-        typed_data = cast('dict[str, Any]', raw_data)
-        raw_settings_obj: object = typed_data.get('settings')
-        raw_settings = cast('dict[str, Any]', raw_settings_obj) if isinstance(raw_settings_obj, dict) else {}
-        validated_settings, _ = UserIPSettingsModel.validate_settings(raw_settings)
-
-        raw_entries_obj: object = typed_data.get('entries')
-        raw_entries = cast('list[object]', raw_entries_obj) if isinstance(raw_entries_obj, list) else []
+        validated_settings, raw_entries = loaded
 
         entries: list[UserIPEntryModel] = []
         username_cf = cleaned_username.casefold()
@@ -305,8 +332,10 @@ def append_userip_entry_if_missing(db_path: Path, username: str, ip: str) -> boo
             if not isinstance(item, dict):
                 continue
             item_dict = cast('dict[str, Any]', item)
-            entry_user = str(item_dict.get('username', '')).strip()
-            entry_ip = str(item_dict.get('ip', '')).strip()
+            raw_user: object = item_dict.get('username')
+            raw_ip: object = item_dict.get('ip')
+            entry_user = raw_user.strip() if isinstance(raw_user, str) else ''
+            entry_ip = raw_ip.strip() if isinstance(raw_ip, str) else ''
             if not entry_user or not entry_ip:
                 continue
             if entry_user.casefold() == username_cf and entry_ip_covers_ip(entry_ip, cleaned_ip):
@@ -322,15 +351,7 @@ def append_userip_entry_if_missing(db_path: Path, username: str, ip: str) -> boo
                 source='Auto-IP',
             ),
         )
-        db_file = UserIPDatabaseFile(settings=validated_settings, entries=entries)
-
-        try:
-            db_path.write_text(db_file.serialize_to_json(), encoding='utf-8')
-        except OSError as e:
-            logger.warning('Failed to write UserIP database "%s" for auto-feed: %s', db_path, e)
-            return False
-
-        return True
+        return _write_userip_db(db_path, validated_settings, entries, action_label='auto-feed')
 
 
 def _update_matching_userip_entries(
@@ -354,31 +375,21 @@ def _update_matching_userip_entries(
 
     modified = False
 
-    with _userip_file_append_lock:
-        try:
-            raw_data: object = json.loads(db_path.read_text(encoding='utf-8'))
-        except (OSError, json.JSONDecodeError) as e:
-            logger.warning('Failed to read UserIP database "%s" to record player activity: %s', db_path, e)
+    with _update_userip_databases_lock:
+        loaded = _load_raw_userip_db(db_path, action_label='player activity')
+        if loaded is None:
             return None
-
-        if not isinstance(raw_data, dict):
-            return None
-
-        typed_data = cast('dict[str, Any]', raw_data)
-        raw_settings_obj: object = typed_data.get('settings')
-        raw_settings = cast('dict[str, Any]', raw_settings_obj) if isinstance(raw_settings_obj, dict) else {}
-        validated_settings, _ = UserIPSettingsModel.validate_settings(raw_settings)
-
-        raw_entries_obj: object = typed_data.get('entries')
-        raw_entries = cast('list[object]', raw_entries_obj) if isinstance(raw_entries_obj, list) else []
+        validated_settings, raw_entries = loaded
 
         entries: list[UserIPEntryModel] = []
         for item in raw_entries:
             if not isinstance(item, dict):
                 continue
             item_dict = cast('dict[str, Any]', item)
-            entry_user = str(item_dict.get('username', '')).strip()
-            entry_ip = str(item_dict.get('ip', '')).strip()
+            raw_user: object = item_dict.get('username')
+            raw_ip: object = item_dict.get('ip')
+            entry_user = raw_user.strip() if isinstance(raw_user, str) else ''
+            entry_ip = raw_ip.strip() if isinstance(raw_ip, str) else ''
             if not entry_user or not entry_ip:
                 continue
             parsed_entry = _parse_existing_entry_dict(item_dict, entry_user, entry_ip)
@@ -387,13 +398,8 @@ def _update_matching_userip_entries(
                 modified = True
             entries.append(parsed_entry)
 
-        if modified:
-            db_file = UserIPDatabaseFile(settings=validated_settings, entries=entries)
-            try:
-                db_path.write_text(db_file.serialize_to_json(), encoding='utf-8')
-            except OSError as e:
-                logger.warning('Failed to write UserIP database "%s" to record player activity: %s', db_path, e)
-                return None
+        if modified and not _write_userip_db(db_path, validated_settings, entries, action_label='player activity'):
+            return None
 
     if modified:
         update_userip_databases()
