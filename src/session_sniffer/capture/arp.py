@@ -13,7 +13,7 @@ import sys
 import time
 from ctypes import wintypes
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, TypeGuard
 
 from session_sniffer.capture.exceptions import ArpResolutionError
 from session_sniffer.networking.ctypes_adapters_info import iterate_ipv4_neighbors
@@ -35,6 +35,7 @@ _ETHERNET_MINIMUM_FRAME_LENGTH = 60
 
 _ETHERTYPE_IPV4_BYTES = b'\x08\x00'
 _MINIMUM_IPV4_FRAME_LENGTH = 34
+_INVALID_UNICAST_MACS = frozenset({'00:00:00:00:00:00', 'FF:FF:FF:FF:FF:FF'})
 
 
 @dataclass(frozen=True, slots=True)
@@ -45,6 +46,11 @@ class ArpSpoofTargets:
     target_mac: str
     gateway_ip: str
     gateway_mac: str
+
+
+def is_valid_unicast_mac(mac_address: str | None) -> TypeGuard[str]:
+    """Return True if `mac_address` is a non-empty, non-zero, non-broadcast MAC string."""
+    return mac_address is not None and bool(mac_address) and mac_address.upper() not in _INVALID_UNICAST_MACS
 
 
 def mac_string_to_bytes(mac_string: str) -> bytes:
@@ -60,7 +66,7 @@ def _mac_bytes_to_string(mac_bytes: bytes) -> str:
 def _resolve_mac_address_unix(ip_address: str) -> str:
     """Resolve an IPv4 address to its MAC address on Linux and macOS."""
     for _interface_index, cached_ip, cached_mac in iterate_ipv4_neighbors():
-        if cached_ip == ip_address and cached_mac is not None and cached_mac and cached_mac.upper() not in {'00:00:00:00:00:00', 'FF:FF:FF:FF:FF:FF'}:
+        if cached_ip == ip_address and is_valid_unicast_mac(cached_mac):
             return cached_mac.lower()
 
     try:
@@ -73,7 +79,7 @@ def _resolve_mac_address_unix(ip_address: str) -> str:
     time.sleep(0.1)
 
     for _interface_index, cached_ip, cached_mac in iterate_ipv4_neighbors():
-        if cached_ip == ip_address and cached_mac is not None and cached_mac and cached_mac.upper() not in {'00:00:00:00:00:00', 'FF:FF:FF:FF:FF:FF'}:
+        if cached_ip == ip_address and is_valid_unicast_mac(cached_mac):
             return cached_mac.lower()
 
     raise ArpResolutionError(ip_address, 'Host not found in ARP table')

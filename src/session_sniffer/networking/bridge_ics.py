@@ -14,9 +14,12 @@ import logging
 import sys
 from ctypes import wintypes
 from pathlib import Path
-from typing import Literal, cast
+from typing import TYPE_CHECKING, Literal, cast
 
 from session_sniffer.ctypes_windows import WindowsGuid, release_com_interface
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 if sys.platform == 'win32':
     import winreg
@@ -69,40 +72,8 @@ def _get_bridge_member_guids() -> set[str]:
     return members
 
 
-def _find_bridge_device_guid() -> str | None:
-    """Find the NetCfgInstanceId of the Network Bridge adapter, if one exists."""
-    if sys.platform == 'win32':
-        try:
-            network_key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, _NETWORK_CONNECTIONS_KEY)
-        except OSError:
-            return None
-
-        with network_key:
-            index = 0
-            while True:
-                try:
-                    subkey_name = winreg.EnumKey(network_key, index)
-                except OSError:
-                    break
-                index += 1
-
-                if not (subkey_name.startswith('{') and subkey_name.endswith('}')):
-                    continue
-
-                try:
-                    with winreg.OpenKey(network_key, rf'{subkey_name}\Connection') as conn_key:
-                        name, _ = winreg.QueryValueEx(conn_key, 'Name')
-                except OSError:
-                    continue
-
-                if isinstance(name, str) and name == 'Network Bridge':
-                    return _normalize_guid(subkey_name)
-
-    return None
-
-
-def _find_bridge_device_guid_from_pnp() -> str | None:
-    """Find the NetCfgInstanceId of the Network Bridge by checking PnpInstanceID."""
+def _find_connection_guid_by_value(value_name: str, predicate: Callable[[str], bool]) -> str | None:
+    """Find the first network connection subkey GUID whose `Connection` `value_name` string satisfies `predicate`."""
     if sys.platform == 'win32':
         try:
             connections_key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, _NETWORK_CONNECTIONS_KEY)
@@ -122,12 +93,12 @@ def _find_bridge_device_guid_from_pnp() -> str | None:
                     continue
 
                 try:
-                    with winreg.OpenKey(connections_key, rf'{subkey_name}\Connection') as conn_key:
-                        pnp_id, _ = winreg.QueryValueEx(conn_key, 'PnpInstanceID')
+                    with winreg.OpenKey(connections_key, rf'{subkey_name}\Connection') as connection_key:
+                        raw_value, _ = winreg.QueryValueEx(connection_key, value_name)
                 except OSError:
                     continue
 
-                if isinstance(pnp_id, str) and 'BRIDGEMP' in pnp_id.upper():
+                if isinstance(raw_value, str) and predicate(raw_value):
                     return _normalize_guid(subkey_name)
 
     return None
@@ -135,7 +106,10 @@ def _find_bridge_device_guid_from_pnp() -> str | None:
 
 def _get_bridge_host_guid() -> str | None:
     """Return the GUID of the MAC Bridge Miniport adapter itself, if present."""
-    return _find_bridge_device_guid() or _find_bridge_device_guid_from_pnp()
+    return (
+        _find_connection_guid_by_value('Name', lambda name: name == 'Network Bridge')
+        or _find_connection_guid_by_value('PnpInstanceID', lambda pnp_id: 'BRIDGEMP' in pnp_id.upper())
+    )
 
 
 def _extract_bstr_guid(props_ptr: wintypes.LPVOID, oleaut32: ctypes.WinDLL) -> str | None:

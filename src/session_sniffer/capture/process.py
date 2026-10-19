@@ -4,7 +4,6 @@ import ctypes
 import logging
 import os
 import shutil
-import signal
 import socket
 import subprocess
 import sys
@@ -15,6 +14,9 @@ from pathlib import Path
 
 from session_sniffer.ctypes_wintrust import has_valid_authenticode_signature
 from session_sniffer.utils import ProcessEntry32W
+
+if sys.platform != 'win32':
+    import signal
 
 logger = logging.getLogger(__name__)
 
@@ -450,13 +452,13 @@ def iter_running_processes() -> list[tuple[int, str]]:
         _kernel32.CloseHandle(snapshot_handle)
 
 
-def suspend_process(pid: int) -> None:
-    """Suspend execution of the process with the given PID."""
+def _set_process_suspended(pid: int, *, suspend: bool) -> None:
+    """Suspend or resume execution of the process with the given PID."""
     if pid <= 0:
         error_message = f'Invalid process ID: {pid}'
         raise ProcessLookupError(error_message)
     if sys.platform != 'win32':
-        os.kill(pid, signal.SIGSTOP)
+        os.kill(pid, signal.SIGSTOP if suspend else signal.SIGCONT)
         return
 
     handle = _kernel32.OpenProcess(_PROCESS_SUSPEND_RESUME | _PROCESS_QUERY_LIMITED_INFORMATION, 0, pid)
@@ -466,46 +468,29 @@ def suspend_process(pid: int) -> None:
             error_message = f'Process {pid} does not exist'
             raise ProcessLookupError(error_message)
         if last_error == _ERROR_ACCESS_DENIED:
-            error_message = f'Access denied to suspend process {pid}'
+            action = 'suspend' if suspend else 'resume'
+            error_message = f'Access denied to {action} process {pid}'
             raise PermissionError(error_message)
         error_message = f'Failed to open process {pid}: Win32 error {last_error}'
         raise OSError(error_message)
     try:
-        ntstatus = _ntdll.NtSuspendProcess(handle)
+        nt_fn, fn_name = (_ntdll.NtSuspendProcess, 'NtSuspendProcess') if suspend else (_ntdll.NtResumeProcess, 'NtResumeProcess')
+        ntstatus = nt_fn(handle)
         if ntstatus:
-            error_message = f'NtSuspendProcess failed for PID {pid} with NTSTATUS {ntstatus & 0xFFFFFFFF:#x}'
+            error_message = f'{fn_name} failed for PID {pid} with NTSTATUS {ntstatus & 0xFFFFFFFF:#x}'
             raise OSError(error_message)
     finally:
         _kernel32.CloseHandle(handle)
+
+
+def suspend_process(pid: int) -> None:
+    """Suspend execution of the process with the given PID."""
+    _set_process_suspended(pid, suspend=True)
 
 
 def resume_process(pid: int) -> None:
     """Resume execution of the process with the given PID."""
-    if pid <= 0:
-        error_message = f'Invalid process ID: {pid}'
-        raise ProcessLookupError(error_message)
-    if sys.platform != 'win32':
-        os.kill(pid, signal.SIGCONT)
-        return
-
-    handle = _kernel32.OpenProcess(_PROCESS_SUSPEND_RESUME | _PROCESS_QUERY_LIMITED_INFORMATION, 0, pid)
-    if not handle:
-        last_error = ctypes.get_last_error()
-        if last_error in (2, 87, 1168):
-            error_message = f'Process {pid} does not exist'
-            raise ProcessLookupError(error_message)
-        if last_error == _ERROR_ACCESS_DENIED:
-            error_message = f'Access denied to resume process {pid}'
-            raise PermissionError(error_message)
-        error_message = f'Failed to open process {pid}: Win32 error {last_error}'
-        raise OSError(error_message)
-    try:
-        ntstatus = _ntdll.NtResumeProcess(handle)
-        if ntstatus:
-            error_message = f'NtResumeProcess failed for PID {pid} with NTSTATUS {ntstatus & 0xFFFFFFFF:#x}'
-            raise OSError(error_message)
-    finally:
-        _kernel32.CloseHandle(handle)
+    _set_process_suspended(pid, suspend=False)
 
 
 def _is_process_suspended_linux(pid: int) -> bool:

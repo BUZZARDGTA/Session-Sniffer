@@ -128,7 +128,6 @@ def arp_spoofing_task(
         *,
         error_details: str | None,
         msgbox_style: msgbox.Style,
-        spawn_msgbox_thread: bool,
     ) -> None:
         """Log, notify, and terminate the ARP spoofing task on failure."""
         logger.error('%s.', stage.capitalize())
@@ -147,15 +146,23 @@ def arp_spoofing_task(
                 style=msgbox_style,
             )
 
-        if spawn_msgbox_thread:
-            Thread(
-                target=show_msgbox,
-                name=f'ARPSpoof-{stage}-msgbox',
-                daemon=True,
-            ).start()
-        else:
-            show_msgbox()
+        Thread(
+            target=show_msgbox,
+            name=f'ARPSpoof-{stage}-msgbox',
+            daemon=True,
+        ).start()
         logger.info('Task terminated due to %s.', stage)
+
+    def _restore_and_close_handle(handle: PcapHandle, spoof_targets: ArpSpoofTargets | None) -> None:
+        if spoof_targets is not None:
+            try:
+                send_arp_restore_packets(
+                    handle,
+                    targets=spoof_targets,
+                )
+            except PcapSendError as exception:
+                logger.warning('Failed sending ARP restore packets: %s', exception)
+        handle.close()
 
     def _should_exit() -> bool:
         return gui_closed__event.is_set() or stop_event.is_set()
@@ -184,7 +191,6 @@ def arp_spoofing_task(
                     'startup failure',
                     error_details=str(exception),
                     msgbox_style=msgbox.Style.MB_OK | msgbox.Style.MB_ICONERROR | msgbox.Style.MB_TOPMOST,
-                    spawn_msgbox_thread=False,
                 )
                 on_failed()
                 return
@@ -201,7 +207,6 @@ def arp_spoofing_task(
                         'gateway MAC resolution failure',
                         error_details=str(exception),
                         msgbox_style=msgbox.Style.MB_OK | msgbox.Style.MB_ICONERROR | msgbox.Style.MB_TOPMOST,
-                        spawn_msgbox_thread=False,
                     )
                     on_failed()
                     return
@@ -260,7 +265,6 @@ def arp_spoofing_task(
                             'unexpected packet injection error',
                             error_details=str(exception),
                             msgbox_style=msgbox.Style.MB_OK | msgbox.Style.MB_ICONWARNING | msgbox.Style.MB_TOPMOST,
-                            spawn_msgbox_thread=False,
                         )
                         on_failed()
                         return
@@ -274,7 +278,6 @@ def arp_spoofing_task(
                         'capture read error',
                         error_details=str(exception),
                         msgbox_style=msgbox.Style.MB_OK | msgbox.Style.MB_ICONWARNING | msgbox.Style.MB_TOPMOST,
-                        spawn_msgbox_thread=False,
                     )
                     on_failed()
                     return
@@ -296,26 +299,10 @@ def arp_spoofing_task(
                         logger.debug('Failed to forward frame: %s', exception)
 
             # Capture stopped; restore ARP tables and close handle
-            if targets is not None:
-                try:
-                    send_arp_restore_packets(
-                        pcap_handle,
-                        targets=targets,
-                    )
-                except PcapSendError as exception:
-                    logger.warning('Failed sending ARP restore packets: %s', exception)
-            pcap_handle.close()
+            _restore_and_close_handle(pcap_handle, targets)
             pcap_handle = None
             logger.info('Stopped spoofing.')
     finally:
         if pcap_handle is not None:
-            if targets is not None:
-                try:
-                    send_arp_restore_packets(
-                        pcap_handle,
-                        targets=targets,
-                    )
-                except PcapSendError as exception:
-                    logger.warning('Failed sending ARP restore packets: %s', exception)
-            pcap_handle.close()
+            _restore_and_close_handle(pcap_handle, targets)
         logger.info('Task terminated.')

@@ -3,6 +3,7 @@
 import logging
 import sys
 
+from session_sniffer.capture.arp import is_valid_unicast_mac
 from session_sniffer.networking.bridge_ics import get_adapter_classification
 from session_sniffer.networking.ctypes_adapters_info import get_adapters_info
 from session_sniffer.networking.interface import (
@@ -74,11 +75,7 @@ def populate_network_interfaces_info() -> None:
         )
 
         for neighbor_ip, neighbor_mac in adapter.neighbors:
-            if neighbor_ip is None or neighbor_mac is None:
-                continue
-            if not neighbor_ip or not neighbor_mac:
-                continue
-            if neighbor_mac.upper() in {'00:00:00:00:00:00', 'FF:FF:FF:FF:FF:FF'} or not is_valid_private_ipv4(neighbor_ip):
+            if neighbor_ip is None or not neighbor_ip or not is_valid_unicast_mac(neighbor_mac) or not is_valid_private_ipv4(neighbor_ip):
                 continue
 
             vendor_name = MacLookup.get_vendor_name(neighbor_mac)
