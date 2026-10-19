@@ -37,15 +37,20 @@ def _get_player_from_session(
     return session_log.disconnected.get(ip)
 
 
-def _parse_first_seen(player_info: dict[str, Any]) -> datetime | None:
-    """Extract and parse the 'First Seen' ISO datetime from a player entry."""
-    raw = player_info.get('First Seen')
+def _parse_iso_datetime(player_info: dict[str, Any], key: str) -> datetime | None:
+    """Extract and parse an ISO datetime field from a player entry."""
+    raw = player_info.get(key)
     if not isinstance(raw, str):
         return None
     try:
         return datetime.fromisoformat(raw)
     except ValueError:
         return None
+
+
+def _parse_first_seen(player_info: dict[str, Any]) -> datetime | None:
+    """Extract and parse the 'First Seen' ISO datetime from a player entry."""
+    return _parse_iso_datetime(player_info, 'First Seen')
 
 
 def _update_stats(first_seen: datetime, stats: SeenStats, now: datetime) -> None:
@@ -151,38 +156,39 @@ def _to_str_list(raw: list[object]) -> list[str]:
 _UNRESOLVED_LOOKUP = '...'
 
 
-def _update_entry_metadata(entry: LeaderboardEntry, player_info: dict[str, Any]) -> None:
+def _update_entry_metadata(entry: LeaderboardEntry, player_info: dict[str, Any], *, overwrite: bool = True) -> None:
     """Update display metadata from a player entry."""
     raw_usernames = player_info.get('Usernames')
-    if isinstance(raw_usernames, list) and raw_usernames:
+    if isinstance(raw_usernames, list) and raw_usernames and (overwrite or not entry.usernames):
         entry.usernames = _to_str_list(cast('list[object]', raw_usernames))
 
     raw_country = player_info.get('Country')
-    if isinstance(raw_country, str) and raw_country != _UNRESOLVED_LOOKUP:
+    if isinstance(raw_country, str) and raw_country != _UNRESOLVED_LOOKUP and (overwrite or not entry.country):
         entry.country = raw_country
 
     raw_country_code = player_info.get('Country Code')
-    if isinstance(raw_country_code, str) and raw_country_code != _UNRESOLVED_LOOKUP:
+    if isinstance(raw_country_code, str) and raw_country_code != _UNRESOLVED_LOOKUP and (overwrite or not entry.country_code):
         entry.country_code = raw_country_code
 
-    raw_asn_isp = player_info.get('ASN / ISP')
-    if isinstance(raw_asn_isp, str) and raw_asn_isp not in {_UNRESOLVED_LOOKUP, 'N/A'}:
-        entry.isp = raw_asn_isp
-    else:
-        raw_isp = player_info.get('ISP')
-        if isinstance(raw_isp, str) and raw_isp != _UNRESOLVED_LOOKUP:
-            entry.isp = raw_isp
+    if overwrite or not entry.isp:
+        raw_asn_isp = player_info.get('ASN / ISP')
+        if isinstance(raw_asn_isp, str) and raw_asn_isp not in {_UNRESOLVED_LOOKUP, 'N/A'}:
+            entry.isp = raw_asn_isp
+        else:
+            raw_isp = player_info.get('ISP')
+            if isinstance(raw_isp, str) and raw_isp != _UNRESOLVED_LOOKUP:
+                entry.isp = raw_isp
 
     raw_mobile = player_info.get('Mobile')
-    if isinstance(raw_mobile, bool):
+    if isinstance(raw_mobile, bool) and (overwrite or entry.mobile is None):
         entry.mobile = raw_mobile
 
     raw_vpn = player_info.get('VPN')
-    if isinstance(raw_vpn, bool):
+    if isinstance(raw_vpn, bool) and (overwrite or entry.vpn is None):
         entry.vpn = raw_vpn
 
     raw_hosting = player_info.get('Hosting')
-    if isinstance(raw_hosting, bool):
+    if isinstance(raw_hosting, bool) and (overwrite or entry.hosting is None):
         entry.hosting = raw_hosting
 
 
@@ -239,11 +245,13 @@ def _accumulate_session(
         if entry.first_seen is None or first_seen < entry.first_seen:
             entry.first_seen = first_seen
 
-        if entry.last_seen is not None and first_seen <= entry.last_seen:
+        session_last_seen = _parse_iso_datetime(player_info, 'Last Seen') or first_seen
+        if entry.last_seen is not None and session_last_seen <= entry.last_seen:
+            _update_entry_metadata(entry, player_info, overwrite=False)
             continue
 
-        entry.last_seen = first_seen
-        _update_entry_metadata(entry, player_info)
+        entry.last_seen = session_last_seen
+        _update_entry_metadata(entry, player_info, overwrite=True)
 
 
 def _finalize_days(

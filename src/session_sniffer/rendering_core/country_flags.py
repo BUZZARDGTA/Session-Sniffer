@@ -41,14 +41,11 @@ def preload_country_flags() -> None:
 def get_country_flag(country_code: str) -> PlayerCountryFlag | None:
     """Return the cached PlayerCountryFlag for the given country code, loading on demand if not cached."""
     country_code = country_code.strip().upper()
-    if not country_code:
+    if not country_code or country_code in _missing_country_flag_codes:
         return None
 
     if country_code in _country_flag_cache:
         return _country_flag_cache[country_code]
-
-    if country_code in _missing_country_flag_codes:
-        return None
 
     flag_path = COUNTRY_FLAGS_DIR_PATH / f'{country_code}.png'
     if not flag_path.exists():
@@ -56,8 +53,14 @@ def get_country_flag(country_code: str) -> PlayerCountryFlag | None:
         _missing_country_flag_codes.add(country_code)
         return None
 
-    image = QImage()
-    image.loadFromData(flag_path.read_bytes())
+    try:
+        image = QImage()
+        image.loadFromData(flag_path.read_bytes())
+    except OSError as e:
+        logger.debug('Failed to load country flag "%s": %s', flag_path, e)
+        _missing_country_flag_codes.add(country_code)
+        return None
+
     if image.isNull():
         _missing_country_flag_codes.add(country_code)
         return None

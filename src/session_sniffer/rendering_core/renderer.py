@@ -423,7 +423,7 @@ def rendering_core(
             del session_connected[i]
 
         for player in chain(session_connected, session_disconnected):
-            has_geo = player.country_flag is not None or player.iplookup.ipapi.is_initialized
+            has_geo = player.country_flag is not None or (player.iplookup.ipapi.is_initialized and player.iplookup.ipapi.country_code in {'...', 'N/A'})
             with player.looky_system.lock:
                 looky_usernames = list(player.looky_system.usernames)
                 looky_initialized = player.looky_system.is_initialized

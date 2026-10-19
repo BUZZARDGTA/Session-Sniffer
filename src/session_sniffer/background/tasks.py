@@ -718,7 +718,7 @@ def check_global_detections(player: Player) -> None:
         )
 
     # ISP Detection
-    if GUIDetectionSettings.isp_detection_list and player.iplookup.ipapi.is_initialized:
+    if GUIDetectionSettings.isp_detection_list and (player.iplookup.ipapi.is_initialized or player.iplookup.geolite2.is_initialized):
         matched_isp = None
         for block_entry in GUIDetectionSettings.isp_detection_list:
             block_entry_upper = block_entry.upper().strip()
@@ -733,6 +733,9 @@ def check_global_detections(player: Player) -> None:
                 matched_isp = block_entry
                 break
             if player.iplookup.ipapi.isp and player.iplookup.ipapi.isp not in ('...', 'N/A') and block_entry_upper in player.iplookup.ipapi.isp.upper():
+                matched_isp = block_entry
+                break
+            if player.iplookup.geolite2.asn and player.iplookup.geolite2.asn not in ('...', 'N/A') and block_entry_upper in player.iplookup.geolite2.asn.upper():
                 matched_isp = block_entry
                 break
 
@@ -768,7 +771,8 @@ def check_global_detections(player: Player) -> None:
                 block_entry_upper = block_entry.upper().strip()
                 normalized_asn = block_entry_upper if block_entry_upper.startswith('AS') else f'AS{block_entry_upper}'
                 for asn in asns_to_check:
-                    if asn.upper() == normalized_asn:
+                    asn_upper = asn.upper()
+                    if asn_upper in (block_entry_upper, normalized_asn) or (asn_upper.split() and asn_upper.split()[0] == normalized_asn):
                         matched_asn = asn
                         break
                 if matched_asn is not None:
