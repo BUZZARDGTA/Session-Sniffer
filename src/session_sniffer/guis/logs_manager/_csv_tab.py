@@ -302,11 +302,12 @@ class CsvLogTab(QWidget):
         if self._initial_loaded:
             if scrollbar:
                 scrollbar.setValue(min(previous_scroll, scrollbar.maximum()))
+            self._adjust_stretch_column_width()
         else:
             self._apply_default_sort()
             self._initial_loaded = True
+            self._reset_column_sizes()
         self._update_counts()
-        self._reset_column_sizes()
         self._metadata_label.setText(file_metadata_text(self._file_path))
 
     def _apply_default_sort(self) -> None:
@@ -399,35 +400,26 @@ class CsvLogTab(QWidget):
     def showEvent(self, event: QShowEvent) -> None:
         """Adjust column widths when the log tab is shown."""
         super().showEvent(event)
-        self._reset_column_sizes()
+        self._adjust_stretch_column_width()
 
     @override
     def resizeEvent(self, event: QResizeEvent) -> None:
         """Adjust column widths when the log tab is resized."""
         super().resizeEvent(event)
-        self._reset_column_sizes()
+        self._adjust_stretch_column_width()
 
-    def _reset_column_sizes(self) -> None:
-        """Reset column widths back to their initial default layout and stretch flexible column."""
+    def _adjust_stretch_column_width(self) -> None:
+        """Stretch the configured stretch column (or last visible column) to fill the remaining viewport width."""
         horizontal_header = self._table.horizontalHeader()
         if not horizontal_header:
             return
         total_columns = self._model.columnCount()
         if not total_columns:
             return
-        for column_index in range(total_columns):
-            horizontal_header.setSectionResizeMode(column_index, QHeaderView.ResizeMode.Interactive)
-            if column_index in self._column_min_widths:
-                horizontal_header.resizeSection(column_index, self._column_min_widths[column_index])
-            else:
-                header_name = str(self._model.headerData(column_index, Qt.Orientation.Horizontal) or '')
-                base_width = _DEFAULT_HEADER_BASE_WIDTHS.get(header_name, 100)
-                horizontal_header.resizeSection(column_index, base_width)
-
         viewport = self._table.viewport()
         available_width = viewport.width() if viewport and viewport.width() > 0 else self._table.width()
 
-        if self._stretch_column is not None and 0 <= self._stretch_column < total_columns:
+        if self._stretch_column is not None and 0 <= self._stretch_column < total_columns and not horizontal_header.isSectionHidden(self._stretch_column):
             configured_widths = sum(
                 self._table.columnWidth(column_index)
                 for column_index in range(total_columns)
@@ -448,6 +440,24 @@ class CsvLogTab(QWidget):
                 )
                 last_width = max(100, available_width - other_widths)
                 horizontal_header.resizeSection(last_visible_column, last_width)
+
+    def _reset_column_sizes(self) -> None:
+        """Reset column widths back to their initial default layout and stretch flexible column."""
+        horizontal_header = self._table.horizontalHeader()
+        if not horizontal_header:
+            return
+        total_columns = self._model.columnCount()
+        if not total_columns:
+            return
+        for column_index in range(total_columns):
+            horizontal_header.setSectionResizeMode(column_index, QHeaderView.ResizeMode.Interactive)
+            if column_index in self._column_min_widths:
+                horizontal_header.resizeSection(column_index, self._column_min_widths[column_index])
+            else:
+                header_name = str(self._model.headerData(column_index, Qt.Orientation.Horizontal) or '')
+                base_width = _DEFAULT_HEADER_BASE_WIDTHS.get(header_name, 100)
+                horizontal_header.resizeSection(column_index, base_width)
+        self._adjust_stretch_column_width()
 
     # ------------------------------------------------------------------
     # Column visibility & Context Menus
@@ -526,6 +536,11 @@ class CsvLogTab(QWidget):
             menu.addAction(lookup_action)
 
             create_ping_menu(self, menu, selected_ips)
+
+            scan_ports_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'radar.svg')), 'Scan Ports…', menu)
+            scan_ports_action.setToolTip('Scan TCP and UDP ports on this host.')
+            scan_ports_action.triggered.connect(lambda _checked=False, ip_address=selected_ips[0]: scan_ports_ip(ip_address))
+            menu.addAction(scan_ports_action)
         elif len(selected_ips) > 1:
             menu.addSeparator()
             _target_ips = list(selected_ips)
@@ -584,7 +599,7 @@ class CsvLogTab(QWidget):
         if isinstance(action, QAction):
             column = action.data()
             self._table.setColumnHidden(column, not action.isChecked())
-            self._reset_column_sizes()
+            self._adjust_stretch_column_width()
 
     # ------------------------------------------------------------------
     # Actions

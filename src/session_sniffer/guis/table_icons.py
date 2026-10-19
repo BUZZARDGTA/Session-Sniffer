@@ -53,7 +53,7 @@ def get_ip_column_composite_icon(
     is_identified: bool,
 ) -> QIcon | None:
     """Return a composite QIcon for active IP status indicators, or None if no indicators apply."""
-    effective_host = is_host and Settings.is_gta5_feature_set()
+    effective_host = is_host and Settings.is_session_host_feature_set()
     if not (effective_host or is_high_rate or is_identified):
         return None
     paths: list[str] = []

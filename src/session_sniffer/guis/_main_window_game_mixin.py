@@ -91,6 +91,7 @@ class GameMixin(QMainWindow):
     _game_externally_suspended: bool
     _game_process_detected: bool
     _last_game_status_key: tuple[object, ...]
+    _last_feature_set: str | None
     _player_resolver_window: PlayerResolverWindow
 
     if TYPE_CHECKING:
@@ -245,6 +246,7 @@ class GameMixin(QMainWindow):
         self._game_externally_suspended = False
         self._game_process_detected = False
         self._last_game_status_key = ()
+        self._last_feature_set = Settings.capture_feature_set
 
     def toggle_manual_game_suspend(self) -> None:
         """Toggle manual process suspend on or off for the active game."""
@@ -497,11 +499,17 @@ Process is currently suspended',
         """Show, hide, or rename the Game menu and its actions based on the active feature set."""
         has_feature_set = Settings.is_gta5_feature_set() or Settings.is_rdr2_feature_set()
         is_gta5 = Settings.is_gta5_feature_set()
-        SessionHost.clear_session_host_data()
+        current_feature_set = Settings.capture_feature_set
+        if current_feature_set != self._last_feature_set or not has_feature_set:
+            SessionHost.clear_session_host_data()
+        self._last_feature_set = current_feature_set
 
         game_menu_action = self._game_menu.menuAction()
         if game_menu_action:
             game_menu_action.setVisible(has_feature_set)
+
+        self._update_looky_actions()
+        self._refresh_runtime_capability_windows()
 
         if not has_feature_set:
             if SessionFilterState.get_selected_session() != SessionFilterState.FILTER_ALL:
@@ -526,10 +534,6 @@ Process is currently suspended',
         if looky_action:
             looky_action.setVisible(is_gta5 and local_only)
         self._game_menu_gta5_separator.setVisible(is_gta5 and local_only)
-
-        if is_gta5:
-            self._update_looky_actions()
-            self._refresh_runtime_capability_windows()
 
         self._update_game_status_label()
         self._sync_game_process_button()

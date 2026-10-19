@@ -774,6 +774,11 @@ class PlayerLeaderboardWindow(ToggleAlwaysOnTopMixin):
 
             create_ping_menu(self, menu, [entry.ip])
 
+            scan_ports_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'radar.svg')), 'Scan Ports…', self)
+            scan_ports_action.setToolTip('Scan TCP and UDP ports on this host.')
+            scan_ports_action.triggered.connect(lambda _checked=False, ip_address=entry.ip: scan_ports_ip(ip_address))
+            menu.addAction(scan_ports_action)
+
             menu.addSeparator()
 
             seen_stats_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'info.svg')), 'View Seen Stats', self)

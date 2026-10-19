@@ -288,6 +288,9 @@ class CaptureStatisticsWindow(RateGraphWindowMixin):
         self._latency_buffer = deque(self._latency_buffer, maxlen=self._max_history)
         self._pps_buffer = deque(self._pps_buffer, maxlen=self._max_history)
         self._bps_buffer = deque(self._bps_buffer, maxlen=self._max_history)
+        self._latency_running_sum = sum(self._latency_buffer)
+        self._pps_running_sum = int(sum(self._pps_buffer))
+        self._bps_running_sum = sum(self._bps_buffer)
 
     # Public API —————————————————————————————————————————————————————————————
 

@@ -66,6 +66,7 @@ class SingleRateGraphBase(RateGraphWindowMixin):
         """Re-allocate the sliding buffer when Max History is changed."""
         self._max_history = new_max_history
         self._buffer = deque(self._buffer, maxlen=self._max_history)
+        self._buffer_running_sum = sum(self._buffer)
 
     def _setup_single_history_buffers(self) -> None:
         """Initialise pre-allocated sliding-window buffers."""
@@ -158,6 +159,8 @@ class DualRateGraphBase(RateGraphWindowMixin):
         self._max_history = new_max_history
         self._pps_buffer = deque(self._pps_buffer, maxlen=self._max_history)
         self._bps_buffer = deque(self._bps_buffer, maxlen=self._max_history)
+        self._pps_running_sum = int(sum(self._pps_buffer))
+        self._bps_running_sum = sum(self._bps_buffer)
 
     def _setup_history_buffers(self) -> None:
         """Initialise pre-allocated sliding-window buffers."""
@@ -245,6 +248,16 @@ class PlayerRateGraphWindow(DualRateGraphBase):
         self._bps_widget.threshold_color = QColor('#4dd0e1')
         self.set_bps_threshold(self._initial_bps_threshold)
 
+    @override
+    def _on_pps_rendered(self, pps_data: list[float]) -> None:
+        pps_visible_max = max(pps_data[-VISIBLE_WINDOW:]) if pps_data else 0.0
+        self._pps_widget.set_y_range(0, max(pps_visible_max * 1.2, 100.0))
+
+    @override
+    def _on_bps_rendered(self, bps_data: list[float]) -> None:
+        bps_visible_max = max(bps_data[-VISIBLE_WINDOW:]) if bps_data else 0.0
+        self._bps_widget.set_y_range(0, max(bps_visible_max * 1.2, 50.0))
+
     def update_usernames(self, usernames: list[str]) -> None:
         """Update the window title to reflect current usernames."""
         self.setWindowTitle(f'Rate Graph — {format_player_display(self.ip, usernames)}')
@@ -282,7 +295,9 @@ class PlayerRateGraphWindow(DualRateGraphBase):
         bps_list = list(self._bps_buffer)
 
         self._pps_widget.set_data(pps_list)
+        self._on_pps_rendered(pps_list)
         self._pps_widget.set_average(self._pps_running_sum / len(self._pps_buffer) if self._pps_buffer else 0)
 
         self._bps_widget.set_data(bps_list)
+        self._on_bps_rendered(bps_list)
         self._bps_widget.set_average(self._bps_running_sum / len(self._bps_buffer) if self._bps_buffer else 0)

@@ -598,6 +598,7 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
             logger.debug('MainWindow closeEvent: stopping packet capture')
             self.capture.stop()
         GTASuspendManager.shutdown()
+        RDR2SuspendManager.shutdown()
         logger.debug('MainWindow closeEvent: stopping all active CrashingQThreads')
         CrashingQThread.stop_all_active_threads()
         logger.debug('MainWindow closeEvent: all active threads stopped, terminating script')

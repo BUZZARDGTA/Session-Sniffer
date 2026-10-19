@@ -146,17 +146,22 @@ class CountrySelectionDialog(QDialog):
 
     def selected_country(self) -> str | None:
         """Return the selected country name, or None if nothing valid is selected."""
-        index = self._combo.currentIndex()
-        if index >= 0:
-            data = self._combo.itemData(index, Qt.ItemDataRole.UserRole)
-            if isinstance(data, str):
-                return data
-        text = self._combo.currentText().strip()
-        text_upper = text.upper()
-        for country_code, country_name in COUNTRY_NAMES.items():
-            if text_upper == country_code or text_upper == f'{country_code} - {country_name}'.upper() or text_upper == country_name.upper():
-                return country_name
-        return None
+        return _extract_country_from_combo(self._combo)
+
+
+def _extract_country_from_combo(combo: QComboBox) -> str | None:
+    """Extract the resolved country name from a country QComboBox."""
+    index = combo.currentIndex()
+    if index >= 0:
+        data = combo.itemData(index, Qt.ItemDataRole.UserRole)
+        if isinstance(data, str) and data:
+            return data
+    text = combo.currentText().strip()
+    text_upper = text.upper()
+    for country_code, country_name in COUNTRY_NAMES.items():
+        if text_upper == country_code or text_upper == f'{country_code} - {country_name}'.upper() or text_upper == country_name.upper():
+            return country_name
+    return None
 
 
 class ComboRuleEditorDialog(QDialog):
@@ -591,11 +596,7 @@ class ComboRuleEditorDialog(QDialog):
         country_combo_widget: QComboBox | None = value_stack.findChild(QComboBox)
         if country_combo_widget is None:
             return None
-        index = country_combo_widget.currentIndex()
-        if index < 0:
-            return None
-        data = country_combo_widget.itemData(index, Qt.ItemDataRole.UserRole)
-        return data if isinstance(data, str) and data else None
+        return _extract_country_from_combo(country_combo_widget)
 
     def get_rule(self) -> ComboRule:
         """Build a ComboRule from dialog state."""

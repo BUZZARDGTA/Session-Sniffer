@@ -624,6 +624,8 @@ class PortScannerTabWidget(QWidget):
         """Clear all stored scan results and empty the table."""
         self._results.clear()
         self._results_table.setRowCount(0)
+        self._progress_bar.setValue(0)
+        self._metrics_label.setText('Results cleared.')
 
     @override
     def resizeEvent(self, a0: QResizeEvent) -> None:
@@ -644,8 +646,6 @@ class PortScannerTabWidget(QWidget):
     def _reset_column_sizes(self) -> None:
         """Reset column widths back to their initial default layout."""
         self._column_resizer.reset_column_sizes()
-        self._progress_bar.setValue(0)
-        self._metrics_label.setText('Results cleared.')
 
     def _show_table_context_menu(self, position: QPoint) -> None:
         """Display right-click context menu on table items."""
