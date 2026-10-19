@@ -394,7 +394,7 @@ def iplookup_core() -> None:
             matched_player.iplookup.ipapi.update_fields(iplookup.model_dump(exclude={'status', 'query'}))
             matched_player.iplookup.ipapi.is_initialized = True
 
-        if requests_remaining <= 1:
+        if requests_remaining <= 0:
             gui_closed__event.wait(max(ttl_seconds, 1))
             requests_remaining = _IPAPI_MAX_REQUESTS
             ttl_seconds = _IPAPI_MAX_THROTTLE_TIME

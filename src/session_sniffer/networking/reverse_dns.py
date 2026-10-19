@@ -19,6 +19,7 @@ PUBLIC_DNS_SERVERS: tuple[str, ...] = ('1.1.1.1', '8.8.8.8')
 
 _DNS_HEADER_LENGTH = 12
 _DNS_PTR_RECORD_TYPE = 12
+_DNS_RCODE_NXDOMAIN = 3
 _DNS_COMPRESSION_MASK = 0xC0
 _MAX_DNS_LABEL_HOPS = 16
 
@@ -40,9 +41,9 @@ class _ResolverState:
                 return self.public_dns_available
 
             probe_pointer = '1.1.1.1.in-addr.arpa'
-            is_reachable = (
-                _query_udp_dns('1.1.1.1', probe_pointer, timeout_seconds=1.0) is not None
-                or _query_udp_dns('8.8.8.8', probe_pointer, timeout_seconds=1.0) is not None
+            is_reachable = bool(
+                _query_udp_dns('1.1.1.1', probe_pointer, timeout_seconds=1.0)
+                or _query_udp_dns('8.8.8.8', probe_pointer, timeout_seconds=1.0),
             )
             self.public_dns_available = is_reachable
             return self.public_dns_available
@@ -124,28 +125,30 @@ def _query_udp_dns(server_ip: str, reverse_pointer: str, timeout_seconds: float 
         return None
 
     response_transaction_id, flags, question_count, answer_count, _, _ = struct.unpack('!HHHHHH', response_bytes[:_DNS_HEADER_LENGTH])
-    if response_transaction_id != transaction_id or not (flags & 0x8000) or (flags & 0x000F) or not answer_count:
+    rcode = flags & 0x000F
+    if response_transaction_id != transaction_id or not flags & 0x8000 or rcode not in (0, _DNS_RCODE_NXDOMAIN):
         return None
 
-    offset = _DNS_HEADER_LENGTH
-    for _ in range(question_count):
-        _, offset = _parse_dns_name(response_bytes, offset)
-        offset += 4
+    if not rcode and answer_count:
+        offset = _DNS_HEADER_LENGTH
+        for _ in range(question_count):
+            _, offset = _parse_dns_name(response_bytes, offset)
+            offset += 4
 
-    for _ in range(answer_count):
-        if offset + 10 > len(response_bytes):
-            break
-        _, offset = _parse_dns_name(response_bytes, offset)
-        if offset + 10 > len(response_bytes):
-            break
-        record_type, _, _, resource_data_length = struct.unpack('!HHIH', response_bytes[offset : offset + 10])
-        offset += 10
-        if record_type == _DNS_PTR_RECORD_TYPE:
-            resolved_name, _ = _parse_dns_name(response_bytes, offset)
-            return resolved_name
-        offset += resource_data_length
+        for _ in range(answer_count):
+            if offset + 10 > len(response_bytes):
+                break
+            _, offset = _parse_dns_name(response_bytes, offset)
+            if offset + 10 > len(response_bytes):
+                break
+            record_type, _, _, resource_data_length = struct.unpack('!HHIH', response_bytes[offset : offset + 10])
+            offset += 10
+            if record_type == _DNS_PTR_RECORD_TYPE:
+                resolved_name, _ = _parse_dns_name(response_bytes, offset)
+                return resolved_name
+            offset += resource_data_length
 
-    return None
+    return ''
 
 
 def reset_resolver_cache() -> None:
@@ -170,14 +173,19 @@ def reverse_dns_lookup(target_ip: str) -> str:
     except ValueError:
         ip_object = None
 
-    if ip_object is not None and not ip_object.is_private and not ip_object.is_loopback and _resolver_state.is_public_dns_reachable():
+    if ip_object is not None and ip_object.is_global and _resolver_state.is_public_dns_reachable():
+        had_definitive_negative = False
         for public_server in PUBLIC_DNS_SERVERS:
             resolved_hostname = _query_udp_dns(public_server, ip_object.reverse_pointer, timeout_seconds=0.5)
-            if resolved_hostname is not None and resolved_hostname:
+            if resolved_hostname is None:
+                continue
+            if resolved_hostname:
                 cleaned_hostname = resolved_hostname.rstrip('.')
                 if cleaned_hostname:
                     return cleaned_hostname
-        return target_ip
+            had_definitive_negative = True
+        if had_definitive_negative:
+            return target_ip
 
     try:
         system_hostname, _ = socket.getnameinfo((target_ip, 0), 0)

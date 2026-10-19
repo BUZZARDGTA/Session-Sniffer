@@ -835,7 +835,7 @@ def _post_instruction(url: str, api_key: str, referer: str, payload: dict[str, o
         text = e.response.text if e.response is not None else ''
         logger.debug('Looky %s HTTP error: HTTP %s (response: %s)', context_desc, status_code, text)
         raise
-    except Exception as e:
+    except (requests.RequestException, ValueError, KeyError) as e:
         logger.debug('Looky %s request error: %s', context_desc, e)
         raise
 
@@ -886,7 +886,7 @@ def watch_instruction_status(
             text = e.response.text if e.response is not None else ''
             logger.debug('Looky initial status HTTP error for %s: HTTP %s (response: %s)', context.tracking_id, status_code, text)
             raise
-        except Exception as e:
+        except requests.RequestException as e:
             logger.debug('Looky initial status request error for %s: %s', context.tracking_id, e)
             raise
 
@@ -901,7 +901,8 @@ def watch_instruction_status(
             if attempt > 0:
                 if on_reconnect is not None:
                     on_reconnect(attempt)
-                time.sleep(reconnect_delay)
+                if not _sleep_with_cancel(reconnect_delay, should_cancel):
+                    return
             reconnect_delay, completed = 2, False
             try:
                 sse_headers = {**headers, 'Accept': 'text/event-stream', 'Cache-Control': 'no-cache', 'Pragma': 'no-cache', 'Priority': 'u=4'}

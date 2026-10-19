@@ -371,6 +371,7 @@ class IcmpEchoEngine:
                 payload_bytes=payload_bytes,
             )
 
+        resolved_ip = target_ip
         try:
             destination_address = int.from_bytes(socket.inet_aton(target_ip), 'little')
         except OSError:
@@ -409,7 +410,7 @@ class IcmpEchoEngine:
             return PingProbeResult(
                 sequence=sequence,
                 target_host=target_ip,
-                target_ip=target_ip,
+                target_ip=resolved_ip,
                 port=None,
                 is_successful=False,
                 round_trip_time_ms=None,
@@ -426,7 +427,7 @@ class IcmpEchoEngine:
             return PingProbeResult(
                 sequence=sequence,
                 target_host=target_ip,
-                target_ip=target_ip,
+                target_ip=resolved_ip,
                 port=None,
                 is_successful=True,
                 round_trip_time_ms=float(reply.RoundTripTime),
@@ -438,7 +439,7 @@ class IcmpEchoEngine:
         return PingProbeResult(
             sequence=sequence,
             target_host=target_ip,
-            target_ip=target_ip,
+            target_ip=resolved_ip,
             port=None,
             is_successful=False,
             round_trip_time_ms=None,
