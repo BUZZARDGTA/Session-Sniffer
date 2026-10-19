@@ -289,6 +289,7 @@ class UserIPEntriesOperationsMixin(QDialog):
                 ip_item.setText(new_ip_text if is_single else '')
             if range_item:
                 range_item.setText('' if is_single else new_ip_text)
+            clear_row_looky_badge(self._model, source_row)
             set_row_updated_at(self._model, source_row)
 
             self._highlight_duplicates()
@@ -304,6 +305,7 @@ class UserIPEntriesOperationsMixin(QDialog):
                     ip_item.setText(new_ip_text if is_single else '')
                 if range_item:
                     range_item.setText('' if is_single else new_ip_text)
+                clear_row_looky_badge(self._model, source_row)
                 if is_row_persisted(self._model, source_row):
                     set_row_updated_at(self._model, source_row)
 

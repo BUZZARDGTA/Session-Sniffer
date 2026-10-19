@@ -1,5 +1,6 @@
 """Unified dialog for selecting username(s) for adding, renaming, or removing UserIP entries."""
 
+import html
 from dataclasses import dataclass
 from typing import Self
 
@@ -71,15 +72,15 @@ class SelectUsernamesDialog(QDialog):
         layout = QVBoxLayout(self)
 
         if dialog_config.database is not None:
-            layout.addWidget(QLabel(f'Database:  <b>{dialog_config.database}</b>'))
+            layout.addWidget(QLabel(f'Database:  <b>{html.escape(dialog_config.database)}</b>'))
 
         if dialog_config.selected_ips is not None and dialog_config.selected_ips:
-            ips = dialog_config.selected_ips
-            ips_text = ', '.join(ips) if len(ips) <= _MAX_DISPLAY_SELECTED_IPS else f'{len(ips)} selected IPs'
-            layout.addWidget(QLabel(f'IP address{pluralize(len(ips), plural="es")}:  <b>{ips_text}</b>'))
+            ip_addresses = dialog_config.selected_ips
+            ips_text = ', '.join(ip_addresses) if len(ip_addresses) <= _MAX_DISPLAY_SELECTED_IPS else f'{len(ip_addresses)} selected IPs'
+            layout.addWidget(QLabel(f'IP address{pluralize(len(ip_addresses), plural="es")}:  <b>{html.escape(ips_text)}</b>'))
 
         if dialog_config.current_username is not None:
-            layout.addWidget(QLabel(f'Current:  <b>{dialog_config.current_username}</b>'))
+            layout.addWidget(QLabel(f'Current:  <b>{html.escape(dialog_config.current_username)}</b>'))
 
         instructions = dialog_config.instructions if dialog_config.instructions is not None else f'Select username{pluralize(len(usernames))}:'
         layout.addWidget(QLabel(instructions))

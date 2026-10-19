@@ -21,6 +21,8 @@ from session_sniffer.guis.userip_manager_helpers import (
 )
 from session_sniffer.models.userip_settings_model import UserIPDatabaseFile, UserIPEntryModel, UserIPSettingsModel
 from session_sniffer.player import backup_userip_databases
+from session_sniffer.player.userip_loader import update_userip_databases
+from session_sniffer.rendering_core.events import wake_rendering_core
 from session_sniffer.text_utils import pluralize
 
 
@@ -37,6 +39,8 @@ class UserIPImportExportMixin(QDialog):
 
     def _load_database(self, path: Path) -> None:
         raise NotImplementedError
+
+    def _load_all_databases(self) -> None: ...
 
     def _refresh_stats(self) -> None: ...
 
@@ -271,8 +275,13 @@ class UserIPImportExportMixin(QDialog):
             shutil.copy2(str(src), str(dest))
             imported += 1
 
-        if reload_current_view and self._current_path is not None:
-            self._load_database(self._current_path)
+        if imported or merged:
+            update_userip_databases()
+            wake_rendering_core()
+            if self._global_search_active:
+                self._load_all_databases()
+            elif reload_current_view and self._current_path is not None:
+                self._load_database(self._current_path)
 
         parts: list[str] = []
         if imported:
@@ -346,6 +355,8 @@ class UserIPImportExportMixin(QDialog):
         if not zip_path.is_file():
             return
 
+        databases_root = USERIP_DATABASES_DIR_PATH.resolve()
+
         try:
             with zipfile.ZipFile(zip_path, 'r') as zf:
                 json_members = [member for member in zf.infolist() if not member.is_dir() and member.filename.lower().endswith('.json')]
@@ -362,7 +373,10 @@ class UserIPImportExportMixin(QDialog):
                 reload_current_view = False
 
                 for member in json_members:
-                    dest = USERIP_DATABASES_DIR_PATH / member.filename
+                    dest = (USERIP_DATABASES_DIR_PATH / member.filename).resolve()
+                    if not dest.is_relative_to(databases_root):
+                        skipped += 1
+                        continue
                     member_bytes = zf.read(member.filename)
                     src_content = member_bytes.decode('utf-8', errors='replace')
 
@@ -422,8 +436,13 @@ class UserIPImportExportMixin(QDialog):
             QMessageBox.critical(self, TITLE, f'"{zip_path.name}" is not a valid ZIP archive.')
             return
 
-        if reload_current_view and self._current_path is not None:
-            self._load_database(self._current_path)
+        if imported or merged:
+            update_userip_databases()
+            wake_rendering_core()
+            if self._global_search_active:
+                self._load_all_databases()
+            elif reload_current_view and self._current_path is not None:
+                self._load_database(self._current_path)
 
         parts: list[str] = []
         if imported:

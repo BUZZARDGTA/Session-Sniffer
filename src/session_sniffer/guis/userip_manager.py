@@ -1,5 +1,6 @@
 """UserIP Databases Manager dialog for browsing, editing, and managing UserIP database files and entries."""
 
+import html
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, ClassVar, override
 
@@ -747,7 +748,7 @@ class UserIPDatabasesManager(
             return
         with QSignalBlocker(self._model):
             for row in range(top_left.row(), bottom_right.row() + 1):
-                if top_left.column() <= USERNAME_COLUMN <= bottom_right.column():
+                if top_left.column() <= RANGE_COLUMN and bottom_right.column() >= USERNAME_COLUMN:
                     clear_row_looky_badge(self._model, row)
                 if is_row_persisted(self._model, row):
                     set_row_updated_at(self._model, row)
@@ -762,7 +763,7 @@ class UserIPDatabasesManager(
     @override
     def _set_status(self, text: str) -> None:
         """Update the status label at the bottom of the right panel."""
-        self._status_label.setText(f'<i style="color:#50c878;">{text}</i>')
+        self._status_label.setText(f'<i style="color:#50c878;">{html.escape(text)}</i>')
 
     @override
     def _update_entry_counts(self) -> None:
@@ -792,7 +793,7 @@ class UserIPDatabasesManager(
         modified = datetime.fromtimestamp(stat.st_mtime, tz=UTC).astimezone()
 
         self._file_info_label.setText(
-            f'<span style="color:#8a9bad;">File:</span> <b style="color:#6db3f2;">{path.name}</b><br>'
+            f'<span style="color:#8a9bad;">File:</span> <b style="color:#6db3f2;">{html.escape(path.name)}</b><br>'
             f'<span style="color:#8a9bad;">Size:</span> <b style="color:#e0e0e0;">{size}</b><br>'
             f'<span style="color:#8a9bad;">Modified:</span> <span style="color:#a0b0c0;">{human_readable_timestamp(modified)}</span>',
         )

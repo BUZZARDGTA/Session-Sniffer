@@ -488,7 +488,10 @@ def rewrite_db_edit_entry_ip(
     for entry in db_model.entries:
         if entry.ip == old_ip_or_range and (username is None or entry.username == username):
             replaced_count += 1
-            updated_entries.append(entry.model_copy(update={'ip': new_ip_or_range, 'updated_at': now_iso}))
+            new_source = 'Manual' if entry.source == 'Looky' else entry.source
+            updated_entries.append(
+                entry.model_copy(update={'ip': new_ip_or_range, 'is_looky': False, 'source': new_source, 'updated_at': now_iso}),
+            )
         else:
             updated_entries.append(entry)
 

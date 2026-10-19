@@ -23,6 +23,8 @@ from session_sniffer.guis.userip_manager_helpers import (
 )
 from session_sniffer.guis.utils import open_file_location
 from session_sniffer.models.userip_settings_model import DEFAULT_USERIP_FILES_SETTINGS, UserIPDatabaseFile
+from session_sniffer.player.userip_loader import update_userip_databases
+from session_sniffer.rendering_core.events import wake_rendering_core
 from session_sniffer.settings.settings import Settings
 from session_sniffer.text_utils import pluralize
 
@@ -30,6 +32,12 @@ if TYPE_CHECKING:
     from session_sniffer.guis.file_watch import DebouncedFileWatcher
 
 logger = logging.getLogger(__name__)
+
+
+def _refresh_userip_and_wake_renderer() -> None:
+    """Rebuild UserIP lookup structures immediately and wake the rendering loop."""
+    update_userip_databases()
+    wake_rendering_core()
 
 
 class TreeOperationsMixin(QDialog):
@@ -72,6 +80,8 @@ class TreeOperationsMixin(QDialog):
 
     def _load_database(self, path: Path) -> None:
         raise NotImplementedError
+
+    def _load_all_databases(self) -> None: ...
 
     def _update_file_info(self, path: Path | None) -> None:
         raise NotImplementedError
@@ -365,6 +375,7 @@ class TreeOperationsMixin(QDialog):
             return
 
         save_userip_database_model(new_path, UserIPDatabaseFile(settings=NEW_DATABASE_SETTINGS))
+        _refresh_userip_and_wake_renderer()
 
         self._set_status(f'Created new database: {name}')
         self._refresh_stats()
@@ -433,6 +444,8 @@ class TreeOperationsMixin(QDialog):
         else:
             path.unlink()
 
+        _refresh_userip_and_wake_renderer()
+
         if self._current_path is not None and (self._current_path == path or path in self._current_path.parents):
             self._model.removeRows(0, self._model.rowCount())
             self._current_path = None
@@ -458,6 +471,7 @@ class TreeOperationsMixin(QDialog):
             return
 
         save_userip_database_model(path, UserIPDatabaseFile(settings=DEFAULT_USERIP_FILES_SETTINGS[path.name]))
+        _refresh_userip_and_wake_renderer()
 
         if self._current_path == path:
             self._load_database(path)
@@ -496,6 +510,7 @@ class TreeOperationsMixin(QDialog):
         if self._current_path == path:
             self._current_path = new_path
 
+        _refresh_userip_and_wake_renderer()
         self._set_status(f'Renamed "{path.name}" → "{new_name}"')
 
     def _move_tree_item(self, path: Path) -> None:
@@ -529,6 +544,7 @@ class TreeOperationsMixin(QDialog):
         if self._current_path == path:
             self._current_path = new_path
 
+        _refresh_userip_and_wake_renderer()
         self._set_status(f'Moved "{path.name}" → {dest.relative_to(USERIP_DATABASES_DIR_PATH) or "root"}')
 
     def _reset_all_databases(self) -> None:
@@ -581,6 +597,7 @@ class TreeOperationsMixin(QDialog):
                 except OSError as e:
                     logger.warning('Failed to remove user database directory %s: %s', entry, e)
 
+        _refresh_userip_and_wake_renderer()
         self._set_status(
             'Reset complete'
             + (f'  |  Restored {restored} default file{pluralize(restored)}' if restored else '')
@@ -588,15 +605,20 @@ class TreeOperationsMixin(QDialog):
         )
         self._refresh_stats()
 
-        if deleted > 0:
-            self._current_path = None
-            self._clear_dirty_state()
-            self._model.removeRows(0, self._model.rowCount())
-            self._update_file_info(None)
-            self._settings_container.setVisible(False)
-            self._add_button.setEnabled(False)
-            self._edit_ip_button.setEnabled(False)
-            self._delete_button.setEnabled(False)
-            self._open_db_button.setEnabled(False)
-            if self._export_selected_action is not None:
-                self._export_selected_action.setEnabled(False)
+        if self._global_search_active:
+            self._load_all_databases()
+        elif self._current_path is not None:
+            if self._current_path.is_file():
+                self._load_database(self._current_path)
+            else:
+                self._current_path = None
+                self._clear_dirty_state()
+                self._model.removeRows(0, self._model.rowCount())
+                self._update_file_info(None)
+                self._settings_container.setVisible(False)
+                self._add_button.setEnabled(False)
+                self._edit_ip_button.setEnabled(False)
+                self._delete_button.setEnabled(False)
+                self._open_db_button.setEnabled(False)
+                if self._export_selected_action is not None:
+                    self._export_selected_action.setEnabled(False)

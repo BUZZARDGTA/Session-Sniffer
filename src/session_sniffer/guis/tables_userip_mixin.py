@@ -1,5 +1,6 @@
 """UserIP database operations for the session table context menu."""
 
+import html
 from typing import TYPE_CHECKING
 
 from PySide6.QtCore import Qt
@@ -635,17 +636,19 @@ def userip_move(parent: QWidget, selected_ips: list[str], selected_database: Pat
         if moved_entries:
             save_userip_database_model(db_path, UserIPDatabaseFile(settings=db_model.settings, entries=kept_entries))
             append_userip_entries(selected_database, moved_entries)
-            deleted_entries_by_database[db_path] = [f'{entry.username}={entry.ip}' for entry in moved_entries]
+            deleted_entries_by_database[db_path] = [f'{html.escape(entry.username)}={html.escape(entry.ip)}' for entry in moved_entries]
 
     if deleted_entries_by_database:
         _refresh_userip_and_wake_renderer()
+        target_db_display = html.escape(str(selected_database.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix('')))
         report = (
-            f'<b>Selected IP{pluralize(len(selected_ips))} {selected_ips} moved from the following '
+            f'<b>Selected IP{pluralize(len(selected_ips))} {html.escape(str(selected_ips))} moved from the following '
             f'UserIP database{pluralize(len(deleted_entries_by_database))} to UserIP database '
-            f'"{selected_database.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix("")}":</b><br><br><br>'
+            f'"{target_db_display}":</b><br><br><br>'
         )
         for db_path, removed_labels in deleted_entries_by_database.items():
-            report += f'<b>{db_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix("")}:</b><br>'
+            db_display = html.escape(str(db_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix('')))
+            report += f'<b>{db_display}:</b><br>'
             report += '<ul>'
             for removed_label in removed_labels:
                 report += f'<li>{removed_label}</li>'
@@ -678,16 +681,17 @@ def userip_delete(parent: QWidget, selected_ips: list[str]) -> None:
 
         if deleted_entries:
             save_userip_database_model(db_path, UserIPDatabaseFile(settings=db_model.settings, entries=kept_entries))
-            deleted_entries_by_database[db_path] = [f'{entry.username}={entry.ip}' for entry in deleted_entries]
+            deleted_entries_by_database[db_path] = [f'{html.escape(entry.username)}={html.escape(entry.ip)}' for entry in deleted_entries]
 
     if deleted_entries_by_database:
         _refresh_userip_and_wake_renderer()
         report = (
-            f'<b>Selected IP{pluralize(len(selected_ips))} {selected_ips} removed from the following '
+            f'<b>Selected IP{pluralize(len(selected_ips))} {html.escape(str(selected_ips))} removed from the following '
             f'UserIP database{pluralize(len(deleted_entries_by_database))}:</b><br><br><br>'
         )
         for db_path, removed_labels in deleted_entries_by_database.items():
-            report += f'<b>{db_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix("")}:</b><br>'
+            db_display = html.escape(str(db_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix('')))
+            report += f'<b>{db_display}:</b><br>'
             report += '<ul>'
             for removed_label in removed_labels:
                 report += f'<li>{removed_label}</li>'
