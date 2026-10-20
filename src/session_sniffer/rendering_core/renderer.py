@@ -10,7 +10,12 @@ from threading import Thread
 from typing import TYPE_CHECKING
 
 from session_sniffer.background.events import gui_closed__event
-from session_sniffer.background.tasks import handle_detection_notification, process_userip_task, trigger_auto_username_userip
+from session_sniffer.background.tasks import (
+    handle_detection_notification,
+    process_userip_task,
+    spawn_connected_userip_detection,
+    trigger_auto_username_userip,
+)
 from session_sniffer.constants.local import SESSIONS_LOGGING_DIR_PATH
 from session_sniffer.constants.standard import LOCAL_TZ
 from session_sniffer.core import ScriptControl
@@ -347,6 +352,7 @@ def rendering_core(
     connected_column_mapping: dict[str, int] = {}
     _userip_not_found: set[str] = set()
     last_seen_userip_build_version: int = UserIPDatabases.build_version
+    _last_userip_auto_feed: bool = Settings.userip_auto_feed_from_usernames
 
     def _process_player_disconnections(connected: list[Player], disconnected: list[Player]) -> list[int]:
         to_disconnect: list[int] = []
@@ -391,6 +397,9 @@ def rendering_core(
             _userip_db_rebuilt = True
         if _userip_db_rebuilt:
             _userip_not_found.clear()
+        _newly_resolvable_usernames = UserIPDatabases.consume_newly_resolvable_usernames()
+        _auto_feed_retriggered = Settings.userip_auto_feed_from_usernames and not _last_userip_auto_feed
+        _last_userip_auto_feed = Settings.userip_auto_feed_from_usernames
 
         if Settings.is_gta5_feature_set():
             if last_modmenu_refresh_time is None or time.monotonic() - last_modmenu_refresh_time >= _poll_interval:
@@ -457,6 +466,13 @@ def rendering_core(
                 else:
                     player.userip = resolved
 
+            if (
+                not player.left_event.is_set()
+                and player.userip is not None
+                and (player.userip_detection is None or not player.userip_detection.as_processed_task)
+            ):
+                spawn_connected_userip_detection(player, player.userip)
+
             modmenu_usernames_for_player = all_modmenu_usernames.get(player.ip)
             if modmenu_usernames_for_player is not None and modmenu_usernames_for_player:
                 modmenu_changed = player.mod_menus is None or player.mod_menus.usernames != modmenu_usernames_for_player
@@ -478,6 +494,12 @@ def rendering_core(
                 trigger_auto_username_userip(player, looky_usernames)
 
             player.rebuild_usernames(looky_usernames=looky_usernames if include_looky else ())
+
+            should_recheck_usernames = _auto_feed_retriggered or bool(
+                _newly_resolvable_usernames and any(name.casefold() in _newly_resolvable_usernames for name in player.usernames),
+            )
+            if not player.left_event.is_set() and player.userip is None and player.usernames and should_recheck_usernames:
+                trigger_auto_username_userip(player, list(player.usernames))
 
             if not player.iplookup.geolite2.is_initialized:
                 player.iplookup.geolite2.country, player.iplookup.geolite2.country_code = get_country_info(player.ip)

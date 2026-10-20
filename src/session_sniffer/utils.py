@@ -246,6 +246,15 @@ def validate_file(file_path: Path) -> Path:
     return file_path
 
 
+def get_file_signature(file_path: Path) -> tuple[int, int] | None:
+    """Return `(st_mtime_ns, st_size)` for *file_path*, or `None` if unavailable."""
+    try:
+        stat = file_path.stat()
+    except OSError:
+        return None
+    return stat.st_mtime_ns, stat.st_size
+
+
 def format_project_version(version: Version) -> str:
     """Format the project version for display."""
     if version.local is not None:

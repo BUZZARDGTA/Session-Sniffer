@@ -19,9 +19,9 @@ from PySide6.QtWidgets import (
 )
 from shiboken6 import isValid
 
-from session_sniffer.background import clear_resolution_queues, wake_all_player_cores
+from session_sniffer.background import clear_resolution_queues, retrigger_detections_scan, wake_all_player_cores
 from session_sniffer.background.events import gui_closed__event
-from session_sniffer.constants.local import RESOURCES_DIR_PATH
+from session_sniffer.constants.local import APP_DIR_ROAMING, COMBO_RULES_PATH, DETECTIONS_JSON_PATH, RESOURCES_DIR_PATH, SETTINGS_PATH
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.core import terminate_script
 from session_sniffer.gta5.suspend_manager import GTASuspendManager
@@ -33,10 +33,11 @@ from session_sniffer.guis._main_window_looky_mixin import LookyMixin
 from session_sniffer.guis._main_window_stats_mixin import StatsMixin
 from session_sniffer.guis._session_table_section import SessionStatusBar, SessionTableSection
 from session_sniffer.guis.discord_intro import DiscordIntro
+from session_sniffer.guis.file_watch import DebouncedFileWatcher
 from session_sniffer.guis.ping_window import PingWindow
 from session_sniffer.guis.player_resolver import PlayerResolverWindow
 from session_sniffer.guis.port_scanner_window import PortScannerWindow
-from session_sniffer.guis.settings_dialog import SettingsDialog
+from session_sniffer.guis.settings_dialog import SettingsDialog, SettingValue, apply_runtime_settings_changes
 from session_sniffer.guis.stylesheets import MENU_BAR_STYLESHEET
 from session_sniffer.guis.tables_player_actions.looky_system._looky_crawler_request_dialog import close_all_crawler_dialogs
 from session_sniffer.guis.tables_player_actions.looky_system._looky_lookup_dialog import close_all_lookup_dialogs
@@ -50,6 +51,8 @@ from session_sniffer.guis.utils import (
 )
 from session_sniffer.guis.worker_thread import GUIWorkerThread
 from session_sniffer.models import GUIState
+from session_sniffer.player.combo_rules import ComboRulesManager
+from session_sniffer.player.detections import GUIDetectionSettings
 from session_sniffer.player.registry import PlayersRegistry, SessionTracker
 from session_sniffer.player.session_host import SessionHost
 from session_sniffer.player.userip import UserIPDatabases
@@ -373,6 +376,7 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
         self._stats_timer = QTimer(self)
         self._stats_timer.setInterval(1_000)
         self._stats_timer.timeout.connect(self._tick_stats)
+        self._stats_timer.timeout.connect(self._poll_config_files_if_needed)
         self._stats_timer.start()
 
         self._thread_health_timer = QTimer(self)
@@ -380,6 +384,9 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
         self._thread_health_timer.timeout.connect(self._log_thread_health)
         self._thread_health_timer.start()
         self._last_thread_health_state: tuple[int, int, tuple[tuple[str, str], ...]] | None = None
+
+        self._config_watcher = DebouncedFileWatcher(self, on_change=self._on_config_files_changed)
+        self._rebuild_config_watch()
 
         self._apply_always_on_top()
 
@@ -549,6 +556,7 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
         """Handle the main window close event and terminate background work."""
         self._thread_health_timer.stop()
         self._stats_timer.stop()
+        self._config_watcher.stop()
         if Settings.gui_remember_window_layout:
             gui_state = GUIState.load()
             selected_session = SessionFilterState.get_selected_session()
@@ -691,9 +699,10 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
         """Apply the always-on-top setting to the main window."""
         apply_always_on_top(self, checked=Settings.gui_always_on_top)
 
-    def _apply_table_settings(self) -> None:
+    def _apply_table_settings(self, changed: set[str] | None = None) -> None:
         """Apply configured table sort, pagination, and column settings to connected and disconnected tables."""
-        changed = self._settings_dialog_window.changed_settings if self._settings_dialog_window is not None else None
+        if changed is None and self._settings_dialog_window is not None:
+            changed = self._settings_dialog_window.changed_settings
         self._connected.apply_sort_from_settings()
         self._disconnected.apply_sort_from_settings()
         self._connected.apply_pagination_from_settings()
@@ -712,14 +721,70 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
         self._connected.table_view.viewport().update()
         self._disconnected.table_view.viewport().update()
 
-    def _apply_userip_settings(self) -> None:
+    def _apply_userip_settings(self, changed: set[str] | None = None) -> None:
         """Apply UserIP settings changes such as known alts synchronization."""
-        changed = self._settings_dialog_window.changed_settings if self._settings_dialog_window is not None else None
-        if changed is None or 'USERIP_SYNC_KNOWN_ALTS' in changed:
+        if changed is None and self._settings_dialog_window is not None:
+            changed = self._settings_dialog_window.changed_settings
+        if changed is None or 'userip_sync_known_alts' in changed:
             UserIPDatabases.build()
             self._connected.table_view.viewport().update()
             self._disconnected.table_view.viewport().update()
-        if changed is None or 'USERIP_AUTO_FEED_FROM_USERNAMES' in changed:
+        if changed is None or 'userip_auto_feed_from_usernames' in changed:
+            wake_rendering_core()
+
+    def _rebuild_config_watch(self) -> None:
+        """Point the configuration file watcher at settings.json, detections.json, and combo_rules.json."""
+        files = [path for path in (SETTINGS_PATH, DETECTIONS_JSON_PATH, COMBO_RULES_PATH) if path.is_file()]
+        directories = [APP_DIR_ROAMING] if APP_DIR_ROAMING.is_dir() else []
+        self._config_watcher.watch(files=files, directories=directories)
+
+    def _poll_config_files_if_needed(self) -> None:
+        """Fallback periodic check for external changes to configuration files."""
+        if (
+            Settings.has_external_file_change(SETTINGS_PATH)
+            or GUIDetectionSettings.has_external_file_change(DETECTIONS_JSON_PATH)
+            or ComboRulesManager.has_external_file_change(COMBO_RULES_PATH)
+        ):
+            self._on_config_files_changed()
+
+    def _on_config_files_changed(self) -> None:
+        """Reload externally modified settings.json, detections.json, or combo_rules.json and re-trigger scans."""
+        self._rebuild_config_watch()
+
+        if Settings.has_external_file_change(SETTINGS_PATH):
+            old_values: dict[str, SettingValue] = {name.lower(): value for name, value in Settings.iterate_over_settings()}
+            Settings.load_from_settings_file(SETTINGS_PATH)
+            new_values: dict[str, SettingValue] = {name.lower(): value for name, value in Settings.iterate_over_settings()}
+            changed = {key for key, value in new_values.items() if value != old_values.get(key)}
+            if changed:
+                logger.info('Detected external settings.json modification; applying changed settings: %s', sorted(changed))
+                apply_runtime_settings_changes(self.capture.get(), old_values, new_values)
+                TableMergeState.reset_override()
+                self._update_game_toolbar_visibility()
+                self._apply_always_on_top()
+                self._update_splitter_visibility()
+                self._apply_table_settings(changed)
+                self._sync_player_resolver_settings()
+                self._apply_userip_settings(changed)
+                if self._settings_dialog_window is not None:
+                    self._settings_dialog_window.refresh_from_external_settings()
+                wake_rendering_core()
+
+        detections_changed = False
+        if GUIDetectionSettings.has_external_file_change(DETECTIONS_JSON_PATH):
+            logger.info('Detected external detections.json modification; reloading detection settings.')
+            GUIDetectionSettings.load_from_file_or_defaults(DETECTIONS_JSON_PATH)
+            detections_changed = True
+
+        if ComboRulesManager.has_external_file_change(COMBO_RULES_PATH):
+            logger.info('Detected external combo_rules.json modification; reloading combo rules.')
+            ComboRulesManager.load_from_file(COMBO_RULES_PATH)
+            detections_changed = True
+
+        if detections_changed:
+            if self._detections_manager_window is not None and self._detections_manager_window.isVisible():
+                self._detections_manager_window.load_current_settings()
+            retrigger_detections_scan()
             wake_rendering_core()
 
     def _open_settings_dialog(self) -> None:

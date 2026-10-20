@@ -12,6 +12,7 @@ from pydantic import TypeAdapter, ValidationError
 from session_sniffer.models.combo_rules import EVENT_CONDITION, ComboRule, ConditionValue
 from session_sniffer.models.player import Player
 from session_sniffer.networking.ip_range import IPRange, check_ip_against_ranges, parse_ip_range_entry
+from session_sniffer.utils import get_file_signature
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -189,6 +190,12 @@ class ComboRulesManager:
     """Singleton manager for combo detection rules."""
 
     rules: ClassVar[list[ComboRule]] = []
+    _last_file_signature: ClassVar[tuple[int, int] | None] = None
+
+    @classmethod
+    def has_external_file_change(cls, file_path: Path) -> bool:
+        """Return whether `file_path` on disk differs from the last loaded/written signature."""
+        return get_file_signature(file_path) != cls._last_file_signature
 
     @classmethod
     def load_from_file(cls, file_path: Path) -> None:
@@ -196,6 +203,7 @@ class ComboRulesManager:
         cls.rules = []
 
         if not file_path.exists():
+            cls._last_file_signature = None
             return
 
         try:
@@ -204,6 +212,7 @@ class ComboRulesManager:
         except ValidationError, json.JSONDecodeError, OSError:
             logger.exception('Failed to load combo rules from %s, starting with empty rules', file_path)
             cls.rules = []
+        cls._last_file_signature = get_file_signature(file_path)
 
     @classmethod
     def save_to_file(cls, file_path: Path) -> None:
@@ -214,6 +223,7 @@ class ComboRulesManager:
         tmp_path = file_path.with_suffix('.tmp')
         tmp_path.write_text(json_str, encoding='utf-8')
         tmp_path.replace(file_path)
+        cls._last_file_signature = get_file_signature(file_path)
 
     @classmethod
     def evaluate(cls, player: Player, event_type: str | None = None) -> list[ComboRule]:

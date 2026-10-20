@@ -30,7 +30,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from session_sniffer.background import clear_voice_notification_queue, ensure_looky_core_running, wake_looky_core
+from session_sniffer.background import clear_voice_notification_queue, ensure_looky_core_running, retrigger_detections_scan, wake_looky_core
 from session_sniffer.capture.arp_spoofing import ArpSpoofingController
 from session_sniffer.capture.filters import build_capture_filters
 from session_sniffer.capture.process_monitor import ensure_process_monitor_running
@@ -101,6 +101,74 @@ _NONE_PLACEHOLDER = 'None'
 _DISCORD_PRESENCE_TITLE_MIN_LEN = 2
 
 SettingValue = bool | str | int | float | tuple[str, ...] | None
+
+
+def apply_runtime_settings_changes(
+    capture: PacketCapture,
+    old_values: dict[str, SettingValue],
+    new_values: dict[str, SettingValue],
+    *,
+    dialog_parent: QWidget | None = None,
+) -> None:
+    """Apply runtime side effects after `Settings` attributes have been updated from `old_values` to `new_values`."""
+    Settings.rebuild_blocked_ip_ranges()
+
+    ensure_process_monitor_running()
+    ensure_looky_core_running()
+    if Settings.looky_enabled and Settings.is_gta5_feature_set():
+        wake_looky_core()
+
+    capture_settings_changed = any(
+        value != old_values.get(key)
+        for key, value in new_values.items()
+        if key in SETTING_METADATA and SETTING_METADATA[key].requires_capture_restart
+    )
+    if capture_settings_changed and capture.is_running():
+        capture_filter_str, display_filter_fn = build_capture_filters(
+            capture_ip_address=capture.config.interface.ip_address,
+            broadcast_support=capture.config.broadcast_support,
+            multicast_support=capture.config.multicast_support,
+        )
+        capture.config = replace(
+            capture.config,
+            capture_filter=capture_filter_str,
+            display_filter_fn=display_filter_fn,
+        )
+        capture.request_restart()
+
+    webserver_enabled_changed = new_values.get('webserver_enabled') != old_values.get('webserver_enabled')
+    webserver_host_changed = new_values.get('webserver_host') != old_values.get('webserver_host')
+    webserver_port_changed = new_values.get('webserver_port') != old_values.get('webserver_port')
+    webserver_credentials_changed = (
+        new_values.get('webserver_username') != old_values.get('webserver_username')
+        or new_values.get('webserver_password') != old_values.get('webserver_password')
+    )
+
+    if webserver_enabled_changed:
+        if Settings.webserver_enabled:
+            start_webserver_from_settings()
+        else:
+            WebServer.stop_server()
+    elif Settings.webserver_enabled and (webserver_host_changed or webserver_port_changed):
+        start_webserver_from_settings()
+    elif Settings.webserver_enabled and webserver_credentials_changed:
+        WebServer.update_auth_credentials(
+            auth_username=Settings.webserver_username,
+            auth_password=Settings.webserver_password,
+        )
+
+    if not Settings.voice_notifications_enabled:
+        clear_voice_notification_queue()
+
+    if dialog_parent is not None:
+        prompt_to_disable_gta5_relay_if_filtered(dialog_parent, context='settings')
+
+    if Settings.userip_backup_frequency != 'Disabled':
+        run_userip_backup_async()
+    else:
+        prune_old_backups()
+
+    retrigger_detections_scan()
 
 
 class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, UnsavedChangesMixin, QDialog):
@@ -703,60 +771,20 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
             Settings.capture_mac_address = self._capture.config.interface.mac_address
 
         Settings.rewrite_settings_file()
-        Settings.rebuild_blocked_ip_ranges()
-
-        ensure_process_monitor_running()
-        ensure_looky_core_running()
-        if Settings.looky_enabled and Settings.is_gta5_feature_set():
-            wake_looky_core()
-
-        capture_settings_changed = any(value != self._old_values.get(key) for key, value in new_values.items() if SETTING_METADATA[key].requires_capture_restart)
-        if capture_settings_changed and self._capture.is_running():
-            capture_filter_str, display_filter_fn = build_capture_filters(
-                capture_ip_address=self._capture.config.interface.ip_address,
-                broadcast_support=self._capture.config.broadcast_support,
-                multicast_support=self._capture.config.multicast_support,
-            )
-            self._capture.config = replace(
-                self._capture.config,
-                capture_filter=capture_filter_str,
-                display_filter_fn=display_filter_fn,
-            )
-            self._capture.request_restart()
-
-        webserver_enabled_changed = new_values['webserver_enabled'] != self._old_values.get('webserver_enabled')
-        webserver_host_changed = new_values['webserver_host'] != self._old_values.get('webserver_host')
-        webserver_port_changed = new_values['webserver_port'] != self._old_values.get('webserver_port')
-        webserver_credentials_changed = new_values['webserver_username'] != self._old_values.get('webserver_username') or new_values[
-            'webserver_password'
-        ] != self._old_values.get('webserver_password')
-
-        if webserver_enabled_changed:
-            if Settings.webserver_enabled:
-                start_webserver_from_settings()
-            else:
-                WebServer.stop_server()
-        elif Settings.webserver_enabled and (webserver_host_changed or webserver_port_changed):
-            start_webserver_from_settings()
-        elif Settings.webserver_enabled and webserver_credentials_changed:
-            WebServer.update_auth_credentials(
-                auth_username=Settings.webserver_username,
-                auth_password=Settings.webserver_password,
-            )
-
-        if not Settings.voice_notifications_enabled:
-            clear_voice_notification_queue()
-
-        prompt_to_disable_gta5_relay_if_filtered(self, context='settings')
-
-        if Settings.userip_backup_frequency != 'Disabled':
-            run_userip_backup_async()
-        else:
-            prune_old_backups()
+        apply_runtime_settings_changes(self._capture, self._old_values, new_values, dialog_parent=self)
 
         self._changed_settings = {key for key, value in new_values.items() if value != self._initial_values.get(key)}
         self._saved = True
         self.accept()
+
+    def refresh_from_external_settings(self) -> None:
+        """Reload widget values from `Settings` when `settings.json` changes externally and there are no unsaved edits."""
+        if not self.isVisible() or self._has_unsaved_changes_for_close():
+            return
+        self._old_values = {key: getattr(Settings, key) for key in SETTING_METADATA}
+        self._initial_values = dict(self._old_values)
+        self._load_current_values()
+        self._update_restart_notice()
 
     @property
     def changed_settings(self) -> set[str]:

@@ -42,7 +42,7 @@ from session_sniffer.models.userip_settings_model import (
     get_current_iso_timestamp,
 )
 from session_sniffer.networking.ip_range import entry_ip_covers_ip
-from session_sniffer.player.userip_loader import enrich_userip_entry_from_logs
+from session_sniffer.player.userip_loader import enrich_userip_entry_from_logs, invalidate_userip_db_mtime
 from session_sniffer.text_utils import pluralize, split_usernames
 from session_sniffer.utils import custom_str_to_bool
 from session_sniffer.utils_exceptions import InvalidBooleanValueError
@@ -384,6 +384,7 @@ def save_userip_database_model(path: Path, db_model: UserIPDatabaseFile) -> None
     """Serialize and write a `UserIPDatabaseFile` model to *path*."""
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(db_model.serialize_to_json(), encoding='utf-8')
+    invalidate_userip_db_mtime(path)
 
 
 def iter_userip_databases() -> Iterator[tuple[Path, list[UserIPEntryModel]]]:

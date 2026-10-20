@@ -25,7 +25,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from session_sniffer.background import clear_voice_notification_queue
+from session_sniffer.background import clear_voice_notification_queue, retrigger_detections_scan
 from session_sniffer.constants.local import COMBO_RULES_PATH, RESOURCES_DIR_PATH
 from session_sniffer.constants.standalone import MAX_SUSPEND_DURATION_SECONDS, TITLE
 from session_sniffer.guis._combo_rule_editor import ComboRuleEditorDialog, CountrySelectionDialog
@@ -412,6 +412,7 @@ class DetectionsManagerTabsMixin(QDialog):
             ComboRulesManager.rules.append(dialog.get_rule())
             ComboRulesManager.save_to_file(COMBO_RULES_PATH)
             self.refresh_combo_rules_list()
+            retrigger_detections_scan()
 
     def _on_combo_item_activated(self, _item: QListWidgetItem) -> None:
         """Handle double-click/activation on a combo rule list item."""
@@ -432,6 +433,7 @@ class DetectionsManagerTabsMixin(QDialog):
             ComboRulesManager.rules[index] = new_rule
             ComboRulesManager.save_to_file(COMBO_RULES_PATH)
             self.refresh_combo_rules_list()
+            retrigger_detections_scan()
 
     def _toggle_combo_rule(self) -> None:
         """Toggle the enabled state of the selected combo rule."""
@@ -444,6 +446,8 @@ class DetectionsManagerTabsMixin(QDialog):
             clear_voice_notification_queue()
         ComboRulesManager.save_to_file(COMBO_RULES_PATH)
         self.refresh_combo_rules_list()
+        if rule.enabled:
+            retrigger_detections_scan()
 
     def _duplicate_combo_rule(self) -> None:
         """Duplicate the selected combo rule."""
@@ -465,6 +469,8 @@ class DetectionsManagerTabsMixin(QDialog):
         ComboRulesManager.rules.append(copy)
         ComboRulesManager.save_to_file(COMBO_RULES_PATH)
         self.refresh_combo_rules_list()
+        if copy.enabled:
+            retrigger_detections_scan()
 
     def _remove_combo_rule(self) -> None:
         """Remove the selected combo rule."""

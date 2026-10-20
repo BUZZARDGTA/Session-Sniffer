@@ -23,7 +23,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from session_sniffer.background import clear_voice_notification_queue
+from session_sniffer.background import clear_voice_notification_queue, retrigger_detections_scan
 from session_sniffer.constants.local import COMBO_RULES_PATH, DETECTIONS_JSON_PATH, RESOURCES_DIR_PATH
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.guis._combo_rule_editor import (
@@ -390,6 +390,7 @@ class DetectionsManagerDialog(DetectionsManagerTabsMixin, QDialog):
 
         self._save_widgets_to_singleton()
         GUIDetectionSettings.export_to_file(DETECTIONS_JSON_PATH)
+        retrigger_detections_scan()
 
     def _export_detections(self) -> None:
         """Export current detection settings (including combo rules) to a JSON file."""
@@ -432,6 +433,7 @@ class DetectionsManagerDialog(DetectionsManagerTabsMixin, QDialog):
                 QMessageBox.critical(self, 'Import Error', f'Failed to import settings:\n{e}')
                 return
             self.load_current_settings()
+            retrigger_detections_scan()
             QMessageBox.information(self, TITLE, 'Detection settings imported successfully.')
 
     def _reset_tab_to_defaults(self, prefixes: tuple[str, ...]) -> None:
@@ -639,6 +641,7 @@ def _exec_and_save_combo_rule(parent: QWidget, initial_rule: ComboRule | None = 
         ComboRulesManager.rules.append(dialog.get_rule())
         ComboRulesManager.save_to_file(COMBO_RULES_PATH)
         DetectionsManagerDialog.refresh_if_open()
+        retrigger_detections_scan()
 
 
 def open_combo_rule_editor(parent: QWidget) -> None:

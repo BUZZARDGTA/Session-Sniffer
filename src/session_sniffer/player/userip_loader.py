@@ -26,7 +26,7 @@ from session_sniffer.networking.ip_range import entry_ip_covers_ip, is_valid_ip_
 from session_sniffer.player.registry import PlayersRegistry
 from session_sniffer.player.userip import ProtectionSettings, UserIPDatabases, UserIPSettings
 from session_sniffer.text_utils import split_usernames
-from session_sniffer.utils import custom_str_to_bool, validate_file
+from session_sniffer.utils import custom_str_to_bool, get_file_signature, validate_file
 from session_sniffer.utils_exceptions import InvalidBooleanValueError
 
 if TYPE_CHECKING:
@@ -40,7 +40,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 _update_userip_databases_lock = Lock()
-_last_userip_db_mod_times: dict[Path, float] = {}
+_last_userip_db_mod_times: dict[Path, tuple[int, int]] = {}
 
 DEFAULT_USERIP_FILES_SETTINGS_BY_PATH: dict[Path, UserIPSettingsModel] = {
     USERIP_DATABASES_DIR_PATH / json_name: settings for json_name, settings in DEFAULT_USERIP_FILES_SETTINGS.items()
@@ -627,23 +627,41 @@ def parse_userip_json_file(json_path: Path) -> tuple[UserIPSettings | None, list
     return runtime_settings, repaired_entries
 
 
-def _snapshot_db_mod_times() -> dict[Path, float]:
-    """Return a fresh `{path: mtime}` snapshot for every `.json` file under the databases directory."""
+def invalidate_userip_db_mtime(db_path: Path | None = None) -> None:
+    """Invalidate cached UserIP database modification signatures so the next poll forces a rebuild."""
+    if db_path is None:
+        _last_userip_db_mod_times.clear()
+    else:
+        _last_userip_db_mod_times.pop(db_path, None)
+
+
+def _snapshot_db_mod_times() -> dict[Path, tuple[int, int]]:
+    """Return a fresh `{path: (st_mtime_ns, st_size)}` snapshot for every `.json` file under the databases directory."""
     if not USERIP_DATABASES_DIR_PATH.exists():
         return {}
-    return {path: path.stat().st_mtime for path in USERIP_DATABASES_DIR_PATH.rglob('*.json') if path.is_file()}
-
-
-def _collect_userip_json_files() -> tuple[list[Path], dict[Path, float]]:
-    if not USERIP_DATABASES_DIR_PATH.exists():
-        return [], {}
-    files: list[Path] = []
-    mod_times: dict[Path, float] = {}
+    snapshot: dict[Path, tuple[int, int]] = {}
     for path in USERIP_DATABASES_DIR_PATH.rglob('*.json'):
         if not path.is_file():
             continue
+        sig = get_file_signature(path)
+        if sig is not None:
+            snapshot[path] = sig
+    return snapshot
+
+
+def _collect_userip_json_files() -> tuple[list[Path], dict[Path, tuple[int, int]]]:
+    if not USERIP_DATABASES_DIR_PATH.exists():
+        return [], {}
+    files: list[Path] = []
+    mod_times: dict[Path, tuple[int, int]] = {}
+    for path in USERIP_DATABASES_DIR_PATH.rglob('*.json'):
+        if not path.is_file():
+            continue
+        sig = get_file_signature(path)
+        if sig is None:
+            continue
         files.append(path)
-        mod_times[path] = path.stat().st_mtime
+        mod_times[path] = sig
     return files, mod_times
 
 
@@ -728,7 +746,7 @@ def _write_userip_db(db_path: Path, settings: UserIPSettingsModel, entries: list
     except OSError as e:
         logger.warning('Failed to write UserIP database "%s" for %s: %s', db_path, action_label, e)
         return False
-    _last_userip_db_mod_times.pop(db_path, None)
+    invalidate_userip_db_mtime(db_path)
     return True
 
 

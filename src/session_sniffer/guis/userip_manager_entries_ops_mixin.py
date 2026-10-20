@@ -130,34 +130,27 @@ class UserIPEntriesOperationsMixin(QDialog):
     # ------------------------------------------------------------------
 
     def _rebuild_fs_watch(self) -> None:
-        """Point the filesystem watcher at the databases directory and the active file(s)."""
+        """Point the filesystem watcher at the databases directory and all database files."""
         directories: list[Path] = [USERIP_DATABASES_DIR_PATH]
         directories.extend(directory for directory in USERIP_DATABASES_DIR_PATH.rglob('*') if directory.is_dir())
-
-        files: list[Path] = []
-        if self._global_search_active:
-            files.extend(json_path for json_path in USERIP_DATABASES_DIR_PATH.rglob('*.json') if json_path.is_file())
-        elif self._current_path is not None and self._current_path.is_file():
-            files.append(self._current_path)
-
+        files = [json_path for json_path in USERIP_DATABASES_DIR_PATH.rglob('*.json') if json_path.is_file()]
         self._fs_watcher.watch(files=files, directories=directories)
 
     def _sync_from_disk(self) -> None:
         """Reconcile the entries view and stats with the current on-disk state."""
+        update_userip_databases()
+        wake_rendering_core()
+        self._rebuild_fs_watch()
+        self._refresh_stats()
+
         if self._global_search_active:
-            self._rebuild_fs_watch()
-            self._refresh_stats()
             self._load_all_databases()
             return
 
         if self._current_path is None:
-            self._rebuild_fs_watch()
-            self._refresh_stats()
             return
 
         if not self._current_path.is_file():
-            self._rebuild_fs_watch()
-            self._refresh_stats()
             self._model.removeRows(0, self._model.rowCount())
             self._settings_container.setVisible(False)
             self._clear_dirty_state()
@@ -166,12 +159,12 @@ class UserIPEntriesOperationsMixin(QDialog):
             self._update_file_info(None)
             return
 
-        current_text = self._current_path.read_text('utf-8')
+        try:
+            current_text = self._current_path.read_text('utf-8')
+        except OSError:
+            return
         if current_text == self._disk_snapshot:
             return  # No real change (or our own write).
-
-        self._rebuild_fs_watch()
-        self._refresh_stats()
 
         if self._dirty:
             self._update_file_info(self._current_path)

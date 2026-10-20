@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 
 from PySide6.QtGui import QIcon
 
+from session_sniffer.background import retrigger_detections_scan
 from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.guis.detections_manager import DetectionsManagerDialog, open_combo_rule_editor, open_combo_rule_editor_for_player
 from session_sniffer.player.detections import GUIDetectionSettings
@@ -25,6 +26,7 @@ def _persist_and_refresh_detections() -> None:
     """Persist GUIDetectionSettings to disk and refresh DetectionsManagerDialog if open."""
     GUIDetectionSettings.save_to_settings()
     DetectionsManagerDialog.refresh_if_open()
+    retrigger_detections_scan()
 
 
 def _toggle_detection_list(target_list: list[str], value: str, *, add: bool) -> None:

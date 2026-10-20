@@ -554,12 +554,14 @@ def looky_core() -> None:
                 LookyState.reset()
             if not Settings.is_gta5_feature_set():
                 return
-            gui_closed__event.wait(5)
+            _looky_wakeup_event.wait(5)
+            _looky_wakeup_event.clear()
             continue
 
         if Settings.looky_api_key == _failed_verification_api_key:
             LookyState.reset()
-            gui_closed__event.wait(30)
+            _looky_wakeup_event.wait(30)
+            _looky_wakeup_event.clear()
             continue
 
         if _failed_verification_api_key is not None and Settings.looky_api_key != _failed_verification_api_key:

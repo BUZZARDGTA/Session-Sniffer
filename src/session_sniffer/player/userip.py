@@ -168,6 +168,7 @@ class UserIPDatabases:
     _range_entries: ClassVar[list[_RangeEntry]] = []
     _known_alts_clusters: ClassVar[dict[str, list[str]]] = {}
     _username_to_meta: ClassVar[dict[str, _UsernameMeta]] = {}
+    _pending_resolvable_usernames: ClassVar[set[str]] = set()
     notified_ip_conflicts: ClassVar[set[str]] = set()
     _conflicting_ips: ClassVar[set[str]] = set()
     _conflicting_ranges: ClassVar[list[IPRange]] = []
@@ -740,15 +741,24 @@ class UserIPDatabases:
 
         # Assign or refresh UserIP for all players in a single pass.
         for player in PlayersRegistry.get_all_players():
-            player.userip = cls._resolve_from_built_structures(
+            prev_userip = player.userip
+            new_userip = cls._resolve_from_built_structures(
                 player.ip,
                 ip_to_userip,
                 range_entries,
                 conflicting_ips,
                 conflicting_ranges,
             )
-            if player.userip is None:
+            player.userip = new_userip
+            if new_userip is None:
                 player.userip_detection = None
+            elif (
+                prev_userip is not None
+                and player.userip_detection is not None
+                and player.userip_detection.as_processed_task
+                and cls._should_retrigger_userip_detection(prev_userip, new_userip)
+            ):
+                player.userip_detection.as_processed_task = False
 
         username_to_meta = cls._build_username_meta(
             current_databases,
@@ -772,6 +782,11 @@ class UserIPDatabases:
             cls._conflicting_ranges = list(conflicting_ranges)
             cls._last_notified_conflicts = list(conflicts)
 
+            old_username_targets = {cf: (meta.db_path, meta.canonical_name) for cf, meta in cls._username_to_meta.items()}
+            for cf, meta in username_to_meta.items():
+                if old_username_targets.get(cf) != (meta.db_path, meta.canonical_name):
+                    cls._pending_resolvable_usernames.add(cf)
+
             cls._known_alts_clusters = known_alts_clusters
             cls.ips_set = ips_set
             cls._ip_to_userip = ip_to_userip
@@ -781,6 +796,32 @@ class UserIPDatabases:
 
         if unresolved_conflicts and (has_new_conflicts or (conflicts_changed and cls._open_conflict_dialog is not None)):
             cls._notify_ip_conflicts(conflicts, newly_detected_ips=newly_detected_ips)
+
+    @staticmethod
+    def _should_retrigger_userip_detection(prev_userip: UserIP, new_userip: UserIP) -> bool:
+        """Return whether a change between `prev_userip` and `new_userip` warrants re-running connected detection actions."""
+        if prev_userip.db_path != new_userip.db_path:
+            return True
+        prev_settings = prev_userip.settings
+        new_settings = new_userip.settings
+        return (
+            (not prev_settings.protection.enabled and new_settings.protection.enabled)
+            or (
+                new_settings.protection.enabled
+                and prev_settings.protection.suspend_process_mode != new_settings.protection.suspend_process_mode
+            )
+            or (not prev_settings.notifications and new_settings.notifications)
+            or (prev_settings.voice_notifications != new_settings.voice_notifications and bool(new_settings.voice_notifications))
+            or (not prev_settings.log and new_settings.log)
+        )
+
+    @classmethod
+    def consume_newly_resolvable_usernames(cls) -> frozenset[str]:
+        """Return and clear the set of casefolded usernames whose target database/canonical mapping was added or changed."""
+        with cls._update_userip_database_lock:
+            result = frozenset(cls._pending_resolvable_usernames)
+            cls._pending_resolvable_usernames.clear()
+            return result
 
     @classmethod
     def is_conflicting_ip(cls, ip: str) -> bool:

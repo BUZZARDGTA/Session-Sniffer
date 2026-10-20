@@ -13,6 +13,7 @@ from session_sniffer.models.detections import (
     Gta5RelayDetectionActionSettings,
     ListDetectionActionSettings,
 )
+from session_sniffer.utils import get_file_signature
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -96,6 +97,12 @@ class GUIDetectionSettings:
     gta5_relay_voice_notifications: ClassVar[Literal['Male', 'Female'] | bool] = False
     gta5_relay_logging: ClassVar[bool] = False
     gta5_relay_message_box: ClassVar[bool] = False
+    _last_file_signature: ClassVar[tuple[int, int] | None] = None
+
+    @classmethod
+    def has_external_file_change(cls, file_path: Path = DETECTIONS_JSON_PATH) -> bool:
+        """Return whether `file_path` on disk differs from the last loaded/written signature."""
+        return get_file_signature(file_path) != cls._last_file_signature
 
     @classmethod
     def to_model(cls) -> DetectionsFile:
@@ -246,13 +253,18 @@ class GUIDetectionSettings:
 
     @classmethod
     def load_from_file_or_defaults(cls, file_path: Path) -> None:
-        """Load detection settings from JSON if the file exists, otherwise keep class defaults."""
+        """Load detection settings from JSON if the file exists, otherwise apply defaults."""
         if not file_path.is_file():
+            cls.apply_model(DetectionsFile())
+            if file_path == DETECTIONS_JSON_PATH:
+                cls._last_file_signature = None
             return
         try:
             cls.import_from_file(file_path)
         except (ValidationError, json.JSONDecodeError, OSError):
             logger.exception('Failed to load detection settings from %s, keeping defaults', file_path)
+            if file_path == DETECTIONS_JSON_PATH:
+                cls._last_file_signature = get_file_signature(file_path)
 
     @classmethod
     def export_to_file(cls, file_path: Path) -> None:
@@ -263,6 +275,8 @@ class GUIDetectionSettings:
         tmp_path = file_path.with_suffix('.tmp')
         tmp_path.write_text(json_str, encoding='utf-8')
         tmp_path.replace(file_path)
+        if file_path == DETECTIONS_JSON_PATH:
+            cls._last_file_signature = get_file_signature(file_path)
 
     @classmethod
     def import_from_file(cls, file_path: Path) -> None:
@@ -270,6 +284,8 @@ class GUIDetectionSettings:
         content = file_path.read_text(encoding='utf-8')
         model = DetectionsFile.model_validate_json(content)
         cls.apply_model(model)
+        if file_path == DETECTIONS_JSON_PATH:
+            cls._last_file_signature = get_file_signature(file_path)
 
     @classmethod
     def save_to_settings(cls) -> None:

@@ -18,6 +18,7 @@ from session_sniffer.background.tasks import (
     monitor_gta5_relay_task,
     player_rates_core,
     process_userip_task,
+    retrigger_detections_scan,
     submit_global_detections_check,
 )
 from session_sniffer.background.voice_notifications import clear_voice_notification_queue
@@ -36,6 +37,7 @@ __all__ = [
     'pinger_core',
     'player_rates_core',
     'process_userip_task',
+    'retrigger_detections_scan',
     'submit_global_detections_check',
     'trigger_looky_rescan_all_players',
     'wake_all_player_cores',

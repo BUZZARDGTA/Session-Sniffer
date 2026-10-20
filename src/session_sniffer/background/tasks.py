@@ -53,6 +53,9 @@ class _DetectionSettings(NamedTuple):
     log: bool
     msgbox: bool
     tts_filename: str
+    suspend_enabled: bool = False
+    suspend_duration: int | Literal['Auto'] = 'Auto'
+    suspension_name: str = ''
 
 
 def _on_pool_task_done(future: Future[None]) -> None:
@@ -93,6 +96,8 @@ def _log_to_protection_csv(detection: str, usernames: str, ip: str, country: str
 
 _active_userip_tasks: set[tuple[str, Literal['connected', 'disconnected']]] = set()
 _active_userip_tasks_lock = Lock()
+_fired_detections: dict[tuple[str, int], set[object]] = {}
+_fired_detections_lock = Lock()
 _MINUTE_INTERVAL_SECONDS = 60.0
 _ONE_SECOND_TD = timedelta(seconds=1)
 _notification_pool = ThreadPoolExecutor(max_workers=20, thread_name_prefix='Notification')
@@ -361,8 +366,9 @@ def process_userip_task(
             which may be temporarily `None` during a database re-parse.
         connection_type: Either `'connected'` or `'disconnected'`.
     """
-    if player.userip_detection is None:
-        raise TypeError(format_type_error(player.userip_detection, PlayerUserIPDetection))
+    userip_detection = player.userip_detection
+    if userip_detection is None:
+        raise TypeError(format_type_error(userip_detection, PlayerUserIPDetection))
 
     task_key: tuple[str, Literal['connected', 'disconnected']] = (player.ip, connection_type)
     with _active_userip_tasks_lock:
@@ -416,7 +422,7 @@ def process_userip_task(
                 wait_for_player_data_ready(player, data_fields=('userip.usernames', 'iplookup.geolite2'), timeout=10.0)
 
                 relative_database_path = userip.db_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix('')
-                date_part, time_part = player.userip_detection.date_time.split('_', maxsplit=1)
+                date_part, time_part = userip_detection.date_time.split('_', maxsplit=1)
                 usernames_display = ', '.join(player.usernames) or ', '.join(userip.usernames)
 
                 if protection_triggered:
@@ -444,6 +450,35 @@ def process_userip_task(
     finally:
         with _active_userip_tasks_lock:
             _active_userip_tasks.discard(task_key)
+
+
+def spawn_connected_userip_detection(
+    player: Player,
+    userip: UserIP,
+    *,
+    detection_type: Literal['Static IP', 'Username'] | None = None,
+) -> None:
+    """Assign `userip` and `userip_detection` on `player` and start `process_userip_task`."""
+    now = datetime.now(tz=LOCAL_TZ)
+    effective_type: Literal['Static IP', 'Username'] = (
+        detection_type
+        if detection_type is not None
+        else (player.userip_detection.type if player.userip_detection is not None else 'Static IP')
+    )
+    player.userip = userip
+    if userip.usernames:
+        player.usernames = dedup_preserve_order(player.usernames, userip.usernames)
+    player.userip_detection = PlayerUserIPDetection(
+        time=now.strftime('%H:%M:%S'),
+        date_time=now.strftime('%Y-%m-%d_%H:%M:%S'),
+        type=effective_type,
+    )
+    Thread(
+        target=process_userip_task,
+        name=f'ProcessUserIPTask-{player.ip}-connected',
+        args=(player, userip, 'connected'),
+        daemon=True,
+    ).start()
 
 
 def trigger_auto_username_userip(player: Player, detected_usernames: Sequence[str]) -> None:
@@ -479,21 +514,7 @@ def trigger_auto_username_userip(player: Player, detected_usernames: Sequence[st
     # Immediate detection if not already processed
     should_trigger_detection = player.userip_detection is None or not player.userip_detection.as_processed_task
     if should_trigger_detection:
-        now = datetime.now(tz=LOCAL_TZ)
-        player.userip = resolved_userip
-        if resolved_userip.usernames:
-            player.usernames = dedup_preserve_order(player.usernames, resolved_userip.usernames)
-        player.userip_detection = PlayerUserIPDetection(
-            time=now.strftime('%H:%M:%S'),
-            date_time=now.strftime('%Y-%m-%d_%H:%M:%S'),
-            type='Username',
-        )
-        Thread(
-            target=process_userip_task,
-            name=f'ProcessUserIPTask-{player.ip}-connected',
-            args=(player, player.userip, 'connected'),
-            daemon=True,
-        ).start()
+        spawn_connected_userip_detection(player, resolved_userip, detection_type='Username')
     elif resolved_userip.usernames:
         player.usernames = dedup_preserve_order(player.usernames, resolved_userip.usernames)
 
@@ -604,6 +625,16 @@ def check_global_detections(player: Player) -> None:
     Args:
         player: The player object to check detections against.
     """
+    # Wait for IP lookup data to be ready
+    wait_for_player_data_ready(player, data_fields=('iplookup.ipapi', 'iplookup.geolite2'), timeout=10.0)
+    if player.left_event.is_set() or not PlayersRegistry.is_player_connected(player):
+        return
+
+    join_key = (player.ip, player.rejoins)
+    with _fired_detections_lock:
+        for stale_key in [key for key in _fired_detections if key[0] == player.ip and key[1] != player.rejoins]:
+            del _fired_detections[stale_key]
+        fired_set = _fired_detections.setdefault(join_key, set())
 
     def execute_suspension_action(
         duration: int | Literal['Auto'],
@@ -624,7 +655,25 @@ def check_global_detections(player: Player) -> None:
         extra_detection_fields: list[tuple[str, str]],
         settings: _DetectionSettings,
     ) -> None:
-        """Handle voice, logging, and message box for a detection."""
+        """Handle per-join deduplication, suspension, voice, logging, and message box for a detection."""
+        if not (settings.suspend_enabled or bool(settings.voice) or settings.log or settings.msgbox):
+            return
+        signature = (
+            detection_title,
+            settings.suspend_enabled,
+            settings.suspend_duration,
+            settings.voice,
+            settings.log,
+            settings.msgbox,
+        )
+        with _fired_detections_lock:
+            if signature in fired_set:
+                return
+            fired_set.add(signature)
+
+        if settings.suspend_enabled and settings.suspension_name:
+            execute_suspension_action(settings.suspend_duration, settings.suspension_name)
+
         if Settings.voice_notifications_enabled and settings.voice:
             tts_candidate_path = TTS_DIR_PATH / tts_voice_name(voice_setting=settings.voice) / 'detection' / f'{settings.tts_filename}.wav'
             queue_voice_notification(tts_candidate_path)
@@ -649,15 +698,10 @@ def check_global_detections(player: Player) -> None:
 
             gui_dispatcher.invoke(_show_detection_notif)
 
-    # Wait for IP lookup data to be ready
-    wait_for_player_data_ready(player, data_fields=('iplookup.ipapi', 'iplookup.geolite2'), timeout=10.0)
-
     is_server_ip = player.is_third_party_server
 
     # Mobile Connection Detection
     if player.iplookup.ipapi.is_initialized and player.iplookup.ipapi.mobile is True:
-        if GUIDetectionSettings.mobile_suspend_enabled:
-            execute_suspension_action(GUIDetectionSettings.mobile_suspend_duration, 'MobileDetection')
         handle_detection_notifications(
             detection_title='MOBILE CONNECTION DETECTED!',
             display_title='Mobile Connection Detected',
@@ -667,13 +711,14 @@ def check_global_detections(player: Player) -> None:
                 log=GUIDetectionSettings.mobile_logging,
                 msgbox=GUIDetectionSettings.mobile_message_box,
                 tts_filename='mobile_connection_detected',
+                suspend_enabled=GUIDetectionSettings.mobile_suspend_enabled,
+                suspend_duration=GUIDetectionSettings.mobile_suspend_duration,
+                suspension_name='MobileDetection',
             ),
         )
 
     # VPN/Proxy/Tor Detection
     if player.iplookup.ipapi.is_initialized and player.iplookup.ipapi.proxy is True:
-        if GUIDetectionSettings.vpn_suspend_enabled:
-            execute_suspension_action(GUIDetectionSettings.vpn_suspend_duration, 'VPNDetection')
         handle_detection_notifications(
             detection_title='VPN/PROXY/TOR CONNECTION DETECTED!',
             display_title='VPN/Proxy/Tor Connection Detected',
@@ -683,13 +728,14 @@ def check_global_detections(player: Player) -> None:
                 log=GUIDetectionSettings.vpn_logging,
                 msgbox=GUIDetectionSettings.vpn_message_box,
                 tts_filename='vpn_connection_detected',
+                suspend_enabled=GUIDetectionSettings.vpn_suspend_enabled,
+                suspend_duration=GUIDetectionSettings.vpn_suspend_duration,
+                suspension_name='VPNDetection',
             ),
         )
 
     # Hosting/Data Center Detection
     if player.iplookup.ipapi.is_initialized and player.iplookup.ipapi.hosting is True:
-        if GUIDetectionSettings.hosting_suspend_enabled:
-            execute_suspension_action(GUIDetectionSettings.hosting_suspend_duration, 'HostingDetection')
         handle_detection_notifications(
             detection_title='HOSTING/DATA CENTER CONNECTION DETECTED!',
             display_title='Hosting/Data Center Connection Detected',
@@ -699,6 +745,9 @@ def check_global_detections(player: Player) -> None:
                 log=GUIDetectionSettings.hosting_logging,
                 msgbox=GUIDetectionSettings.hosting_message_box,
                 tts_filename='hosting_connection_detected',
+                suspend_enabled=GUIDetectionSettings.hosting_suspend_enabled,
+                suspend_duration=GUIDetectionSettings.hosting_suspend_duration,
+                suspension_name='HostingDetection',
             ),
         )
 
@@ -707,8 +756,6 @@ def check_global_detections(player: Player) -> None:
         GUIDetectionSettings.country_detection_list and player.iplookup.geolite2.is_initialized
         and player.iplookup.geolite2.country not in ('...', 'N/A') and player.iplookup.geolite2.country in GUIDetectionSettings.country_detection_list
     ):
-        if GUIDetectionSettings.country_suspend_enabled:
-            execute_suspension_action('Auto', 'CountryDetection')
         handle_detection_notifications(
             detection_title='BLOCKED COUNTRY DETECTED!',
             display_title='Blocked Country Detected',
@@ -718,6 +765,8 @@ def check_global_detections(player: Player) -> None:
                 log=GUIDetectionSettings.country_logging,
                 msgbox=GUIDetectionSettings.country_message_box,
                 tts_filename='country_detected',
+                suspend_enabled=GUIDetectionSettings.country_suspend_enabled,
+                suspension_name='CountryDetection',
             ),
         )
 
@@ -744,11 +793,6 @@ def check_global_detections(player: Player) -> None:
                 break
 
         if matched_isp is not None:
-            if GUIDetectionSettings.isp_suspend_enabled:
-                execute_suspension_action(
-                    'Auto',
-                    'ISPDetection',
-                )
             handle_detection_notifications(
                 detection_title='BLOCKED ISP DETECTED!',
                 display_title='Blocked ISP Detected',
@@ -758,6 +802,8 @@ def check_global_detections(player: Player) -> None:
                     log=GUIDetectionSettings.isp_logging,
                     msgbox=GUIDetectionSettings.isp_message_box,
                     tts_filename='isp_detected',
+                    suspend_enabled=GUIDetectionSettings.isp_suspend_enabled,
+                    suspension_name='ISPDetection',
                 ),
             )
 
@@ -783,11 +829,6 @@ def check_global_detections(player: Player) -> None:
                     break
 
             if matched_asn is not None:
-                if GUIDetectionSettings.asn_suspend_enabled:
-                    execute_suspension_action(
-                        'Auto',
-                        'ASNDetection',
-                    )
                 if player.iplookup.ipapi.is_initialized and player.iplookup.geolite2.is_initialized:
                     asn_display = (
                         f'IP-API: {player.iplookup.ipapi.asn}, GeoLite2: {player.iplookup.geolite2.asn}'
@@ -805,17 +846,14 @@ def check_global_detections(player: Player) -> None:
                         log=GUIDetectionSettings.asn_logging,
                         msgbox=GUIDetectionSettings.asn_message_box,
                         tts_filename='asn_detected',
+                        suspend_enabled=GUIDetectionSettings.asn_suspend_enabled,
+                        suspension_name='ASNDetection',
                     ),
                 )
 
     # Combo Rules evaluation (rules without event condition fire here at join-time)
     matched_combo_rules = ComboRulesManager.evaluate(player, event_type=None)
     for rule in matched_combo_rules:
-        if rule.protection_enabled:
-            execute_suspension_action(
-                rule.duration,
-                f'ComboRule:{rule.name}',
-            )
         conditions_summary = ', '.join(f'{key}={value}' for key, value in rule.conditions.items() if key != 'event')
         handle_detection_notifications(
             detection_title=f'COMBO RULE MATCHED: {rule.name}',
@@ -826,6 +864,9 @@ def check_global_detections(player: Player) -> None:
                 log=rule.logging,
                 msgbox=rule.message_box,
                 tts_filename='combo_rule_detected',
+                suspend_enabled=rule.protection_enabled,
+                suspend_duration=rule.duration,
+                suspension_name=f'ComboRule:{rule.name}',
             ),
         )
 
@@ -837,6 +878,24 @@ def submit_global_detections_check(player: Player) -> None:
     if not GUIDetectionSettings.has_any_global_detection_enabled() and not has_non_event_combo_rules:
         return
     _detection_check_pool.submit(check_global_detections, player).add_done_callback(_on_pool_task_done)
+
+
+def retrigger_detections_scan() -> None:
+    """Re-evaluate global detections, combo rules, and GTA5 relay monitoring for all connected players."""
+    relay_active = is_gta5_relay_monitoring_active() and (CaptureState.gta5_is_running or not CaptureState.is_local_capture())
+    for player in PlayersRegistry.get_connected_players():
+        if player.left_event.is_set():
+            continue
+        player.detection_checked = True
+        submit_global_detections_check(player)
+        if relay_active and is_gta5_relay_ip(player.ip) and not player.relay_monitor_started:
+            player.relay_monitor_started = True
+            Thread(
+                target=monitor_gta5_relay_task,
+                name=f'GTA5RelayMonitor-{player.ip}',
+                args=(player,),
+                daemon=True,
+            ).start()
 
 
 def player_rates_core() -> None:

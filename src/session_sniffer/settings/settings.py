@@ -28,7 +28,7 @@ from session_sniffer.networking.ip_range import IPRange, parse_ip_range
 from session_sniffer.networking.third_party_servers import ALL_THIRD_PARTY_SERVER_NAMES
 from session_sniffer.settings.defaults import SETTING_DEFAULTS
 from session_sniffer.text_utils import format_triple_quoted_text
-from session_sniffer.utils import validate_file
+from session_sniffer.utils import get_file_signature, validate_file
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -254,6 +254,7 @@ class Settings:
     )
 
     GUI_FORCED_COLUMNS: ClassVar[tuple[str, ...]] = ('Usernames', 'First Seen', 'Last Rejoin', 'Last Seen', 'Rejoins', 'IP Address')
+    _last_file_signature: ClassVar[tuple[int, int] | None] = None
     ALL_THIRD_PARTY_SERVERS: ClassVar[tuple[str, ...]] = ALL_THIRD_PARTY_SERVER_NAMES
     GUI_TOGGLEABLE_CONNECTED_COLUMNS: ClassVar[tuple[str, ...]] = (
         'T. Session Time',
@@ -359,6 +360,11 @@ class Settings:
         return json.dumps(data, indent=4, ensure_ascii=False) + '\n'
 
     @classmethod
+    def has_external_file_change(cls, settings_path: Path = SETTINGS_PATH) -> bool:
+        """Return whether `settings_path` on disk differs from the last loaded/written signature."""
+        return get_file_signature(settings_path) != cls._last_file_signature
+
+    @classmethod
     def rewrite_settings_file(cls) -> None:
         """Rewrite the settings file from current in-memory values."""
         text = cls.serialize_to_json()
@@ -366,6 +372,7 @@ class Settings:
         tmp_path: Path = SETTINGS_PATH.with_suffix('.tmp')
         tmp_path.write_text(text, encoding='utf-8')
         tmp_path.replace(SETTINGS_PATH)
+        cls._last_file_signature = get_file_signature(SETTINGS_PATH)
         clear_secret_cache()
 
     @staticmethod
@@ -446,3 +453,5 @@ class Settings:
 
         if rewrite_if_needed and need_rewrite_settings:
             cls.rewrite_settings_file()
+        else:
+            cls._last_file_signature = get_file_signature(settings_path)
