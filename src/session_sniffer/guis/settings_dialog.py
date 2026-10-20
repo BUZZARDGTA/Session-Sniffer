@@ -171,7 +171,7 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
         button_row = QHBoxLayout()
 
         import_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'import.svg')), ' Import')
-        import_button.setToolTip('Import settings from a settings.json file')
+        import_button.setToolTip('Import settings from a settings.json file (review before saving)')
         import_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
         import_button.clicked.connect(self._import_settings)
         button_row.addWidget(import_button)
@@ -817,17 +817,15 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
         )
         if not file_path:
             return
-        previous_process_name = Settings.capture_filter_process_name
-        Settings.load_from_settings_file(Path(file_path))
+        previous_settings = {name.lower(): value for name, value in Settings.iterate_over_settings()}
+        Settings.load_from_settings_file(Path(file_path), rewrite_if_needed=False)
         if self._capture.is_running():
             Settings.capture_interface_name = self._capture.config.interface.name
             Settings.capture_ip_address = self._capture.config.interface.ip_address
             Settings.capture_mac_address = self._capture.config.interface.mac_address
         self._load_current_values()
-        for key, value in self._old_values.items():
+        for key, value in previous_settings.items():
             setattr(Settings, key, value)
-        Settings.capture_filter_process_name = previous_process_name
-        Settings.rebuild_blocked_ip_ranges()
         self._update_restart_notice()
         QMessageBox.information(self, TITLE, 'Settings imported successfully.')
 

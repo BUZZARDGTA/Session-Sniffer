@@ -403,7 +403,7 @@ class Settings:
         return settings_dict, need_rewrite
 
     @classmethod
-    def load_from_settings_file(cls, settings_path: Path) -> None:
+    def load_from_settings_file(cls, settings_path: Path, *, rewrite_if_needed: bool = True) -> None:
         """Load settings from disk into `Settings` and rewrite when necessary."""
         try:
             raw_settings, need_rewrite_settings = cls.parse_settings_json_file(settings_path)
@@ -444,5 +444,5 @@ class Settings:
                     style=msgbox.Style.MB_OK | msgbox.Style.MB_ICONEXCLAMATION | msgbox.Style.MB_SETFOREGROUND,
                 )
 
-        if need_rewrite_settings:
+        if rewrite_if_needed and need_rewrite_settings:
             cls.rewrite_settings_file()
