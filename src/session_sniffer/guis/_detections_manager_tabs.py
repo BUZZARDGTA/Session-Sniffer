@@ -25,7 +25,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from session_sniffer.constants.local import RESOURCES_DIR_PATH
+from session_sniffer.background import clear_voice_notification_queue
+from session_sniffer.constants.local import COMBO_RULES_PATH, RESOURCES_DIR_PATH
 from session_sniffer.constants.standalone import MAX_SUSPEND_DURATION_SECONDS, TITLE
 from session_sniffer.guis._combo_rule_editor import ComboRuleEditorDialog, CountrySelectionDialog
 from session_sniffer.guis.country_data import get_country_flag_code
@@ -56,6 +57,7 @@ class DetectionsManagerTabsMixin(QDialog):
     """Mixin that adds tab-building, group-factory, and combo-rule management to DetectionsManagerDialog."""
 
     if TYPE_CHECKING:
+        _loading_settings: bool
         _relay_filter_warning: QWidget
         gta5_relay_packet_threshold_spin: QSpinBox
         _combo_rules_list: QListWidget
@@ -66,6 +68,8 @@ class DetectionsManagerTabsMixin(QDialog):
         country_list: QListWidget
         isp_list: QListWidget
         asn_list: QListWidget
+
+        def _auto_save_detections(self) -> None: ...
 
     # ------------------------------------------------------------------
     # Tab creation
@@ -351,7 +355,7 @@ class DetectionsManagerTabsMixin(QDialog):
 
     def _on_gta5_relay_suspend_mode_changed(self, text: str) -> None:
         """Warn the user when enabling relay detection while relay IPs are still being filtered."""
-        if text == 'Disabled':
+        if self._loading_settings or text == 'Disabled':
             return
         if 'TAKETWO_INTERACTIVE' not in Settings.capture_block_third_party_servers:
             return
@@ -431,6 +435,7 @@ class DetectionsManagerTabsMixin(QDialog):
         dialog = ComboRuleEditorDialog(self)
         if dialog.exec() == QDialog.DialogCode.Accepted:
             ComboRulesManager.rules.append(dialog.get_rule())
+            ComboRulesManager.save_to_file(COMBO_RULES_PATH)
             self.refresh_combo_rules_list()
 
     def _on_combo_item_activated(self, _item: QListWidgetItem) -> None:
@@ -446,7 +451,11 @@ class DetectionsManagerTabsMixin(QDialog):
         existing_rule = ComboRulesManager.rules[index]
         dialog = ComboRuleEditorDialog(self, rule=existing_rule)
         if dialog.exec() == QDialog.DialogCode.Accepted:
-            ComboRulesManager.rules[index] = dialog.get_rule()
+            new_rule = dialog.get_rule()
+            if existing_rule.enabled and existing_rule.voice_notifications and (not new_rule.enabled or not new_rule.voice_notifications):
+                clear_voice_notification_queue()
+            ComboRulesManager.rules[index] = new_rule
+            ComboRulesManager.save_to_file(COMBO_RULES_PATH)
             self.refresh_combo_rules_list()
 
     def _toggle_combo_rule(self) -> None:
@@ -456,6 +465,9 @@ class DetectionsManagerTabsMixin(QDialog):
             return
         rule = ComboRulesManager.rules[index]
         rule.enabled = not rule.enabled
+        if not rule.enabled and rule.voice_notifications:
+            clear_voice_notification_queue()
+        ComboRulesManager.save_to_file(COMBO_RULES_PATH)
         self.refresh_combo_rules_list()
 
     def _duplicate_combo_rule(self) -> None:
@@ -476,6 +488,7 @@ class DetectionsManagerTabsMixin(QDialog):
             message_box=original.message_box,
         )
         ComboRulesManager.rules.append(copy)
+        ComboRulesManager.save_to_file(COMBO_RULES_PATH)
         self.refresh_combo_rules_list()
 
     def _remove_combo_rule(self) -> None:
@@ -492,7 +505,10 @@ class DetectionsManagerTabsMixin(QDialog):
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
         )
         if reply == QMessageBox.StandardButton.Yes:
+            if rule.enabled and rule.voice_notifications:
+                clear_voice_notification_queue()
             del ComboRulesManager.rules[index]
+            ComboRulesManager.save_to_file(COMBO_RULES_PATH)
             self.refresh_combo_rules_list()
 
     def _clear_combo_rules(self) -> None:
@@ -506,7 +522,10 @@ class DetectionsManagerTabsMixin(QDialog):
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
         )
         if reply == QMessageBox.StandardButton.Yes:
+            if any(rule.enabled and rule.voice_notifications for rule in ComboRulesManager.rules):
+                clear_voice_notification_queue()
             ComboRulesManager.rules.clear()
+            ComboRulesManager.save_to_file(COMBO_RULES_PATH)
             self.refresh_combo_rules_list()
 
     # ------------------------------------------------------------------
@@ -610,9 +629,14 @@ class DetectionsManagerTabsMixin(QDialog):
         remove_button.clicked.connect(on_remove)
         buttons_layout.addWidget(remove_button)
 
+        def _on_clear_list() -> None:
+            if list_widget.count() > 0:
+                list_widget.clear()
+                self._auto_save_detections()
+
         clear_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')), ' Clear All')
         clear_button.setCursor(Qt.CursorShape.PointingHandCursor)
-        clear_button.clicked.connect(list_widget.clear)
+        clear_button.clicked.connect(_on_clear_list)
         buttons_layout.addWidget(clear_button)
 
         buttons_layout.addStretch()
@@ -720,6 +744,7 @@ class DetectionsManagerTabsMixin(QDialog):
             country = dialog.selected_country()
             if country is not None and country:
                 self._add_country_item(country)
+                self._auto_save_detections()
 
     def _add_country_item(self, country_name: str) -> None:
         """Add a country list item with an icon and display name."""
@@ -737,6 +762,7 @@ class DetectionsManagerTabsMixin(QDialog):
         current_item = self.country_list.currentItem()
         if current_item:
             self.country_list.takeItem(self.country_list.row(current_item))
+            self._auto_save_detections()
 
     def _add_isp(self) -> None:
         """Add an ISP/company name to the list."""
@@ -749,12 +775,14 @@ class DetectionsManagerTabsMixin(QDialog):
             stripped = text.strip()
             if stripped and not self._list_contains(self.isp_list, stripped):
                 self.isp_list.addItem(stripped)
+                self._auto_save_detections()
 
     def _remove_isp(self) -> None:
         """Remove selected ISP from the list."""
         current_item = self.isp_list.currentItem()
         if current_item:
             self.isp_list.takeItem(self.isp_list.row(current_item))
+            self._auto_save_detections()
 
     def _add_asn(self) -> None:
         """Add an ASN to the list."""
@@ -769,9 +797,11 @@ class DetectionsManagerTabsMixin(QDialog):
                 asn = f'AS{asn}'
             if not self._list_contains(self.asn_list, asn):
                 self.asn_list.addItem(asn)
+                self._auto_save_detections()
 
     def _remove_asn(self) -> None:
         """Remove selected ASN from the list."""
         current_item = self.asn_list.currentItem()
         if current_item:
             self.asn_list.takeItem(self.asn_list.row(current_item))
+            self._auto_save_detections()

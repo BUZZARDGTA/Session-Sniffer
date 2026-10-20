@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 from PySide6.QtGui import QIcon
 
 from session_sniffer.constants.local import RESOURCES_DIR_PATH
-from session_sniffer.guis.detections_manager import open_combo_rule_editor, open_combo_rule_editor_for_player
+from session_sniffer.guis.detections_manager import DetectionsManagerDialog, open_combo_rule_editor, open_combo_rule_editor_for_player
 from session_sniffer.player.detections import GUIDetectionSettings
 from session_sniffer.text_utils import pluralize
 
@@ -21,6 +21,12 @@ if TYPE_CHECKING:
 _PLACEHOLDER = '...'
 
 
+def _persist_and_refresh_detections() -> None:
+    """Persist GUIDetectionSettings to disk and refresh DetectionsManagerDialog if open."""
+    GUIDetectionSettings.save_to_settings()
+    DetectionsManagerDialog.refresh_if_open()
+
+
 def _toggle_detection_list(target_list: list[str], value: str, *, add: bool) -> None:
     """Add or remove *value* from a GUIDetectionSettings list and persist."""
     if add:
@@ -29,7 +35,7 @@ def _toggle_detection_list(target_list: list[str], value: str, *, add: bool) -> 
     else:
         with suppress(ValueError):
             target_list.remove(value)
-    GUIDetectionSettings.save_to_settings()
+    _persist_and_refresh_detections()
 
 
 def _safe_str(value: str) -> str | None:
@@ -153,7 +159,7 @@ def build_detections_menu_multi(
             for country_name in country_names:
                 if country_name not in GUIDetectionSettings.country_detection_list:
                     GUIDetectionSettings.country_detection_list.append(country_name)
-            GUIDetectionSettings.save_to_settings()
+            _persist_and_refresh_detections()
 
         add_action(
             menu,
@@ -168,7 +174,7 @@ def build_detections_menu_multi(
             for country_name in country_names:
                 with suppress(ValueError):
                     GUIDetectionSettings.country_detection_list.remove(country_name)
-            GUIDetectionSettings.save_to_settings()
+            _persist_and_refresh_detections()
 
         add_action(
             menu,
@@ -191,7 +197,7 @@ def build_detections_menu_multi(
             for isp in isp_list:
                 if isp not in GUIDetectionSettings.isp_detection_list:
                     GUIDetectionSettings.isp_detection_list.append(isp)
-            GUIDetectionSettings.save_to_settings()
+            _persist_and_refresh_detections()
 
         add_action(
             menu,
@@ -206,7 +212,7 @@ def build_detections_menu_multi(
             for isp in isp_list:
                 with suppress(ValueError):
                     GUIDetectionSettings.isp_detection_list.remove(isp)
-            GUIDetectionSettings.save_to_settings()
+            _persist_and_refresh_detections()
 
         add_action(
             menu,
@@ -227,7 +233,7 @@ def build_detections_menu_multi(
             for asn in asn_list:
                 if asn not in GUIDetectionSettings.asn_detection_list:
                     GUIDetectionSettings.asn_detection_list.append(asn)
-            GUIDetectionSettings.save_to_settings()
+            _persist_and_refresh_detections()
 
         add_action(
             menu,
@@ -242,7 +248,7 @@ def build_detections_menu_multi(
             for asn in asn_list:
                 with suppress(ValueError):
                     GUIDetectionSettings.asn_detection_list.remove(asn)
-            GUIDetectionSettings.save_to_settings()
+            _persist_and_refresh_detections()
 
         add_action(
             menu,

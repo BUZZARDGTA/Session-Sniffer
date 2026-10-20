@@ -229,6 +229,7 @@ class PingTabWidget(QWidget):
         self._count_spinbox.setRange(0, 10000)
         self._count_spinbox.setSpecialValueText('Continuous (0)')
         self._count_spinbox.setValue(Settings.ping_count)
+        self._count_spinbox.valueChanged.connect(self._save_settings)
 
         interval_label = QLabel('Interval:')
         self._interval_spinbox = QSpinBox()
@@ -236,6 +237,7 @@ class PingTabWidget(QWidget):
         self._interval_spinbox.setSingleStep(50)
         self._interval_spinbox.setValue(Settings.ping_interval_ms)
         self._interval_spinbox.setSuffix(' ms')
+        self._interval_spinbox.valueChanged.connect(self._save_settings)
 
         timeout_label = QLabel('Timeout:')
         self._timeout_spinbox = QSpinBox()
@@ -243,6 +245,7 @@ class PingTabWidget(QWidget):
         self._timeout_spinbox.setSingleStep(100)
         self._timeout_spinbox.setValue(Settings.ping_timeout_ms)
         self._timeout_spinbox.setSuffix(' ms')
+        self._timeout_spinbox.valueChanged.connect(self._save_settings)
 
         self._payload_label = QLabel('Payload:')
         self._payload_spinbox = QSpinBox()
@@ -250,11 +253,7 @@ class PingTabWidget(QWidget):
         self._payload_spinbox.setSingleStep(32)
         self._payload_spinbox.setValue(Settings.ping_payload_bytes)
         self._payload_spinbox.setSuffix(' bytes')
-
-        self._save_settings_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'save.svg')), ' Save Settings')
-        self._save_settings_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
-        self._save_settings_button.setToolTip('Save current Count, Interval, Timeout, and Payload settings as defaults.')
-        self._save_settings_button.clicked.connect(self._save_settings)
+        self._payload_spinbox.valueChanged.connect(self._save_settings)
 
         row2_layout.addWidget(count_label)
         row2_layout.addWidget(self._count_spinbox)
@@ -264,7 +263,6 @@ class PingTabWidget(QWidget):
         row2_layout.addWidget(self._timeout_spinbox)
         row2_layout.addWidget(self._payload_label)
         row2_layout.addWidget(self._payload_spinbox)
-        row2_layout.addWidget(self._save_settings_button)
         row2_layout.addStretch()
 
         self._hint_label = QLabel()
@@ -366,7 +364,6 @@ class PingTabWidget(QWidget):
         self._interval_spinbox.setEnabled(False)
         self._timeout_spinbox.setEnabled(False)
         self._payload_spinbox.setEnabled(False)
-        self._save_settings_button.setEnabled(False)
 
         header_message = f'Starting {current_mode.value} ping to {target_host}'
         if port_value is not None:
@@ -410,11 +407,6 @@ class PingTabWidget(QWidget):
         Settings.ping_timeout_ms = self._timeout_spinbox.value()
         Settings.ping_payload_bytes = self._payload_spinbox.value()
         Settings.rewrite_settings_file()
-        animate_button_feedback(
-            self._save_settings_button,
-            feedback_text=' Saved!',
-            feedback_tooltip='Probe configuration saved to Settings!',
-        )
 
     def _on_worker_finished(self) -> None:
         """Handle worker thread termination."""
@@ -428,7 +420,6 @@ class PingTabWidget(QWidget):
         self._interval_spinbox.setEnabled(True)
         self._timeout_spinbox.setEnabled(True)
         self._payload_spinbox.setEnabled(True)
-        self._save_settings_button.setEnabled(True)
         self._on_mode_changed()
 
     def _on_mode_changed(self) -> None:

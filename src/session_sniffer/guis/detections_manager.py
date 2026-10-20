@@ -2,7 +2,7 @@
 
 import json
 from pathlib import Path
-from typing import TYPE_CHECKING, cast, override
+from typing import TYPE_CHECKING, ClassVar, cast, override
 
 from pydantic import ValidationError
 from PySide6.QtCore import Qt
@@ -35,9 +35,8 @@ from session_sniffer.guis._combo_rule_editor import (
 )
 from session_sniffer.guis._detections_manager_tabs import DetectionsManagerTabsMixin
 from session_sniffer.guis._dialog_mixins import (
-    UnsavedChangesMixin,
     equalize_button_sizes,
-    setup_tab_dialog_buttons,
+    setup_tab_reset_buttons,
 )
 from session_sniffer.guis.stylesheets import DETECTIONS_MANAGER_HEADER_STYLESHEET, DIALOG_BUTTON_STYLESHEET
 from session_sniffer.guis.utils import (
@@ -60,12 +59,20 @@ if TYPE_CHECKING:
     from session_sniffer.models.player import Player
 
 
-class DetectionsManagerDialog(UnsavedChangesMixin, DetectionsManagerTabsMixin, QDialog):
+_COMBO_RULES_TAB_INDEX = 3
+
+
+class DetectionsManagerDialog(DetectionsManagerTabsMixin, QDialog):
     """Comprehensive detections manager with VPN, IP range, and advanced threat detection capabilities."""
+
+    _instance: ClassVar[DetectionsManagerDialog | None] = None
 
     def __init__(self, parent: QWidget | None = None) -> None:
         """Initialize the Detections Manager dialog."""
         super().__init__(parent)
+        DetectionsManagerDialog._instance = self
+        self.destroyed.connect(lambda: setattr(DetectionsManagerDialog, '_instance', None) if DetectionsManagerDialog._instance is self else None)
+        self._loading_settings = False
         self.setWindowTitle(f'{TITLE} - Detections Manager')
         set_dialog_window_flags(self)
         self.setMinimumSize(scale_by_ui(720), scale_by_ui(500))
@@ -170,25 +177,29 @@ class DetectionsManagerDialog(UnsavedChangesMixin, DetectionsManagerTabsMixin, Q
 
         reset_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'rotate-ccw.svg')), ' Reset all…')
         reset_button.setToolTip('Reset all detection settings to defaults')
-        save_button = setup_tab_dialog_buttons(button_row, reset_button, self._reset_to_defaults, self._reset_current_tab)
-        save_button.setToolTip('Save all detection settings')
-        save_button.clicked.connect(self._save_and_apply)
-        button_row.addWidget(save_button)
+        setup_tab_reset_buttons(button_row, reset_button, self._reset_to_defaults, self._reset_current_tab)
 
-        cancel_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'x.svg')), ' Cancel')
-        cancel_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
-        cancel_button.clicked.connect(self.reject)
-        button_row.addWidget(cancel_button)
+        close_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'x.svg')), ' Close')
+        close_button.setToolTip('Close the Detections Manager')
+        close_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
+        close_button.clicked.connect(self.close)
+        button_row.addWidget(close_button)
 
         equalize_button_sizes(button_row)
 
         layout.addLayout(button_row)
 
-        self._load_current_settings()
+        self.load_current_settings()
         self.refresh_detection_availability()
         if hasattr(self, 'gta5_relay_duration_combo'):
             self.gta5_relay_duration_combo.currentTextChanged.connect(self._on_gta5_relay_suspend_mode_changed)
-        self._snapshot = self._read_all_widget_values()
+        self._connect_auto_save_signals()
+
+    @classmethod
+    def refresh_if_open(cls) -> None:
+        """Reload widget state if a DetectionsManagerDialog instance is currently visible."""
+        if cls._instance is not None and cls._instance.isVisible():
+            cls._instance.load_current_settings()
 
     # ------------------------------------------------------------------
     # Detection support restrictions
@@ -221,133 +232,156 @@ class DetectionsManagerDialog(UnsavedChangesMixin, DetectionsManagerTabsMixin, Q
     # Settings load / save
     # ------------------------------------------------------------------
 
-    def _load_current_settings(self) -> None:
+    def load_current_settings(self) -> None:
         """Read GUIDetectionSettings and populate all widgets."""
-        # Mobile
-        set_duration_widgets_helper(
-            self.mobile_duration_combo,
-            self.mobile_duration_spin,
-            GUIDetectionSettings.mobile_suspend_duration if GUIDetectionSettings.mobile_suspend_enabled else 'Disabled',
-        )
-        set_voice_combo_helper(self.mobile_voice_combo, value=GUIDetectionSettings.mobile_voice_notifications)
-        self.mobile_logging_checkbox.setChecked(GUIDetectionSettings.mobile_logging)
-        self.mobile_msgbox_checkbox.setChecked(GUIDetectionSettings.mobile_message_box)
-
-        # VPN
-        set_duration_widgets_helper(
-            self.vpn_duration_combo,
-            self.vpn_duration_spin,
-            GUIDetectionSettings.vpn_suspend_duration if GUIDetectionSettings.vpn_suspend_enabled else 'Disabled',
-        )
-        set_voice_combo_helper(self.vpn_voice_combo, value=GUIDetectionSettings.vpn_voice_notifications)
-        self.vpn_logging_checkbox.setChecked(GUIDetectionSettings.vpn_logging)
-        self.vpn_msgbox_checkbox.setChecked(GUIDetectionSettings.vpn_message_box)
-
-        # Hosting
-        set_duration_widgets_helper(
-            self.hosting_duration_combo,
-            self.hosting_duration_spin,
-            GUIDetectionSettings.hosting_suspend_duration if GUIDetectionSettings.hosting_suspend_enabled else 'Disabled',
-        )
-        set_voice_combo_helper(self.hosting_voice_combo, value=GUIDetectionSettings.hosting_voice_notifications)
-        self.hosting_logging_checkbox.setChecked(GUIDetectionSettings.hosting_logging)
-        self.hosting_msgbox_checkbox.setChecked(GUIDetectionSettings.hosting_message_box)
-
-        # Country
-        self.country_list.clear()
-        seen_countries: set[str] = set()
-        for country in GUIDetectionSettings.country_detection_list:
-            if country not in seen_countries:
-                seen_countries.add(country)
-                self._add_country_item(country)
-        set_duration_widgets_helper(
-            self.country_duration_combo,
-            self.country_duration_spin,
-            GUIDetectionSettings.country_suspend_duration if GUIDetectionSettings.country_suspend_enabled else 'Disabled',
-        )
-        set_voice_combo_helper(self.country_voice_combo, value=GUIDetectionSettings.country_voice_notifications)
-        self.country_logging_checkbox.setChecked(GUIDetectionSettings.country_logging)
-        self.country_msgbox_checkbox.setChecked(GUIDetectionSettings.country_message_box)
-
-        # ISP
-        self.isp_list.clear()
-        seen_isps: set[str] = set()
-        for isp in GUIDetectionSettings.isp_detection_list:
-            if isp not in seen_isps:
-                seen_isps.add(isp)
-                self.isp_list.addItem(isp)
-        set_duration_widgets_helper(
-            self.isp_duration_combo,
-            self.isp_duration_spin,
-            GUIDetectionSettings.isp_suspend_duration if GUIDetectionSettings.isp_suspend_enabled else 'Disabled',
-        )
-        set_voice_combo_helper(self.isp_voice_combo, value=GUIDetectionSettings.isp_voice_notifications)
-        self.isp_logging_checkbox.setChecked(GUIDetectionSettings.isp_logging)
-        self.isp_msgbox_checkbox.setChecked(GUIDetectionSettings.isp_message_box)
-
-        # ASN
-        self.asn_list.clear()
-        seen_asns: set[str] = set()
-        for asn in GUIDetectionSettings.asn_detection_list:
-            if asn not in seen_asns:
-                seen_asns.add(asn)
-                self.asn_list.addItem(asn)
-        set_duration_widgets_helper(
-            self.asn_duration_combo,
-            self.asn_duration_spin,
-            GUIDetectionSettings.asn_suspend_duration if GUIDetectionSettings.asn_suspend_enabled else 'Disabled',
-        )
-        set_voice_combo_helper(self.asn_voice_combo, value=GUIDetectionSettings.asn_voice_notifications)
-        self.asn_logging_checkbox.setChecked(GUIDetectionSettings.asn_logging)
-        self.asn_msgbox_checkbox.setChecked(GUIDetectionSettings.asn_message_box)
-
-        # Player Join
-        set_duration_widgets_helper(
-            self.player_join_duration_combo,
-            self.player_join_duration_spin,
-            GUIDetectionSettings.player_join_duration if GUIDetectionSettings.player_join_enabled else 'Disabled',
-        )
-        set_voice_combo_helper(self.player_join_voice_combo, value=GUIDetectionSettings.player_join_voice_notifications)
-        self.player_join_logging_checkbox.setChecked(GUIDetectionSettings.player_join_logging)
-        self.player_join_msgbox_checkbox.setChecked(GUIDetectionSettings.player_join_message_box)
-
-        # Player Rejoin
-        set_duration_widgets_helper(
-            self.player_rejoin_duration_combo,
-            self.player_rejoin_duration_spin,
-            GUIDetectionSettings.player_rejoin_duration if GUIDetectionSettings.player_rejoin_enabled else 'Disabled',
-        )
-        set_voice_combo_helper(self.player_rejoin_voice_combo, value=GUIDetectionSettings.player_rejoin_voice_notifications)
-        self.player_rejoin_logging_checkbox.setChecked(GUIDetectionSettings.player_rejoin_logging)
-        self.player_rejoin_msgbox_checkbox.setChecked(GUIDetectionSettings.player_rejoin_message_box)
-
-        # Player Leave
-        set_duration_widgets_helper(
-            self.player_leave_duration_combo,
-            self.player_leave_duration_spin,
-            GUIDetectionSettings.player_leave_duration if GUIDetectionSettings.player_leave_enabled else 'Disabled',
-        )
-        set_voice_combo_helper(self.player_leave_voice_combo, value=GUIDetectionSettings.player_leave_voice_notifications)
-        self.player_leave_logging_checkbox.setChecked(GUIDetectionSettings.player_leave_logging)
-        self.player_leave_msgbox_checkbox.setChecked(GUIDetectionSettings.player_leave_message_box)
-
-        # GTA5 Relay (only when the tab is present)
-        if hasattr(self, 'gta5_relay_duration_combo'):
-            self.gta5_relay_packet_threshold_spin.setValue(GUIDetectionSettings.gta5_relay_packet_threshold)
+        self._loading_settings = True
+        try:
+            # Mobile
             set_duration_widgets_helper(
-                self.gta5_relay_duration_combo,
-                self.gta5_relay_duration_spin,
-                GUIDetectionSettings.gta5_relay_duration if GUIDetectionSettings.gta5_relay_enabled else 'Disabled',
+                self.mobile_duration_combo,
+                self.mobile_duration_spin,
+                GUIDetectionSettings.mobile_suspend_duration if GUIDetectionSettings.mobile_suspend_enabled else 'Disabled',
             )
-            set_voice_combo_helper(self.gta5_relay_voice_combo, value=GUIDetectionSettings.gta5_relay_voice_notifications)
-            self.gta5_relay_logging_checkbox.setChecked(GUIDetectionSettings.gta5_relay_logging)
-            self.gta5_relay_msgbox_checkbox.setChecked(GUIDetectionSettings.gta5_relay_message_box)
+            set_voice_combo_helper(self.mobile_voice_combo, value=GUIDetectionSettings.mobile_voice_notifications)
+            self.mobile_logging_checkbox.setChecked(GUIDetectionSettings.mobile_logging)
+            self.mobile_msgbox_checkbox.setChecked(GUIDetectionSettings.mobile_message_box)
 
-        # Combo Rules
-        self.refresh_combo_rules_list()
+            # VPN
+            set_duration_widgets_helper(
+                self.vpn_duration_combo,
+                self.vpn_duration_spin,
+                GUIDetectionSettings.vpn_suspend_duration if GUIDetectionSettings.vpn_suspend_enabled else 'Disabled',
+            )
+            set_voice_combo_helper(self.vpn_voice_combo, value=GUIDetectionSettings.vpn_voice_notifications)
+            self.vpn_logging_checkbox.setChecked(GUIDetectionSettings.vpn_logging)
+            self.vpn_msgbox_checkbox.setChecked(GUIDetectionSettings.vpn_message_box)
 
-    def _save_and_apply(self) -> None:
-        """Read widgets, write GUIDetectionSettings, persist to detections.json, and close."""
+            # Hosting
+            set_duration_widgets_helper(
+                self.hosting_duration_combo,
+                self.hosting_duration_spin,
+                GUIDetectionSettings.hosting_suspend_duration if GUIDetectionSettings.hosting_suspend_enabled else 'Disabled',
+            )
+            set_voice_combo_helper(self.hosting_voice_combo, value=GUIDetectionSettings.hosting_voice_notifications)
+            self.hosting_logging_checkbox.setChecked(GUIDetectionSettings.hosting_logging)
+            self.hosting_msgbox_checkbox.setChecked(GUIDetectionSettings.hosting_message_box)
+
+            # Country
+            self.country_list.clear()
+            seen_countries: set[str] = set()
+            for country in GUIDetectionSettings.country_detection_list:
+                if country not in seen_countries:
+                    seen_countries.add(country)
+                    self._add_country_item(country)
+            set_duration_widgets_helper(
+                self.country_duration_combo,
+                self.country_duration_spin,
+                GUIDetectionSettings.country_suspend_duration if GUIDetectionSettings.country_suspend_enabled else 'Disabled',
+            )
+            set_voice_combo_helper(self.country_voice_combo, value=GUIDetectionSettings.country_voice_notifications)
+            self.country_logging_checkbox.setChecked(GUIDetectionSettings.country_logging)
+            self.country_msgbox_checkbox.setChecked(GUIDetectionSettings.country_message_box)
+
+            # ISP
+            self.isp_list.clear()
+            seen_isps: set[str] = set()
+            for isp in GUIDetectionSettings.isp_detection_list:
+                if isp not in seen_isps:
+                    seen_isps.add(isp)
+                    self.isp_list.addItem(isp)
+            set_duration_widgets_helper(
+                self.isp_duration_combo,
+                self.isp_duration_spin,
+                GUIDetectionSettings.isp_suspend_duration if GUIDetectionSettings.isp_suspend_enabled else 'Disabled',
+            )
+            set_voice_combo_helper(self.isp_voice_combo, value=GUIDetectionSettings.isp_voice_notifications)
+            self.isp_logging_checkbox.setChecked(GUIDetectionSettings.isp_logging)
+            self.isp_msgbox_checkbox.setChecked(GUIDetectionSettings.isp_message_box)
+
+            # ASN
+            self.asn_list.clear()
+            seen_asns: set[str] = set()
+            for asn in GUIDetectionSettings.asn_detection_list:
+                if asn not in seen_asns:
+                    seen_asns.add(asn)
+                    self.asn_list.addItem(asn)
+            set_duration_widgets_helper(
+                self.asn_duration_combo,
+                self.asn_duration_spin,
+                GUIDetectionSettings.asn_suspend_duration if GUIDetectionSettings.asn_suspend_enabled else 'Disabled',
+            )
+            set_voice_combo_helper(self.asn_voice_combo, value=GUIDetectionSettings.asn_voice_notifications)
+            self.asn_logging_checkbox.setChecked(GUIDetectionSettings.asn_logging)
+            self.asn_msgbox_checkbox.setChecked(GUIDetectionSettings.asn_message_box)
+
+            # Player Join
+            set_duration_widgets_helper(
+                self.player_join_duration_combo,
+                self.player_join_duration_spin,
+                GUIDetectionSettings.player_join_duration if GUIDetectionSettings.player_join_enabled else 'Disabled',
+            )
+            set_voice_combo_helper(self.player_join_voice_combo, value=GUIDetectionSettings.player_join_voice_notifications)
+            self.player_join_logging_checkbox.setChecked(GUIDetectionSettings.player_join_logging)
+            self.player_join_msgbox_checkbox.setChecked(GUIDetectionSettings.player_join_message_box)
+
+            # Player Rejoin
+            set_duration_widgets_helper(
+                self.player_rejoin_duration_combo,
+                self.player_rejoin_duration_spin,
+                GUIDetectionSettings.player_rejoin_duration if GUIDetectionSettings.player_rejoin_enabled else 'Disabled',
+            )
+            set_voice_combo_helper(self.player_rejoin_voice_combo, value=GUIDetectionSettings.player_rejoin_voice_notifications)
+            self.player_rejoin_logging_checkbox.setChecked(GUIDetectionSettings.player_rejoin_logging)
+            self.player_rejoin_msgbox_checkbox.setChecked(GUIDetectionSettings.player_rejoin_message_box)
+
+            # Player Leave
+            set_duration_widgets_helper(
+                self.player_leave_duration_combo,
+                self.player_leave_duration_spin,
+                GUIDetectionSettings.player_leave_duration if GUIDetectionSettings.player_leave_enabled else 'Disabled',
+            )
+            set_voice_combo_helper(self.player_leave_voice_combo, value=GUIDetectionSettings.player_leave_voice_notifications)
+            self.player_leave_logging_checkbox.setChecked(GUIDetectionSettings.player_leave_logging)
+            self.player_leave_msgbox_checkbox.setChecked(GUIDetectionSettings.player_leave_message_box)
+
+            # GTA5 Relay (only when the tab is present)
+            if hasattr(self, 'gta5_relay_duration_combo'):
+                self._relay_filter_warning.setVisible('TAKETWO_INTERACTIVE' in Settings.capture_block_third_party_servers)
+                self.gta5_relay_packet_threshold_spin.setValue(GUIDetectionSettings.gta5_relay_packet_threshold)
+                set_duration_widgets_helper(
+                    self.gta5_relay_duration_combo,
+                    self.gta5_relay_duration_spin,
+                    GUIDetectionSettings.gta5_relay_duration if GUIDetectionSettings.gta5_relay_enabled else 'Disabled',
+                )
+                set_voice_combo_helper(self.gta5_relay_voice_combo, value=GUIDetectionSettings.gta5_relay_voice_notifications)
+                self.gta5_relay_logging_checkbox.setChecked(GUIDetectionSettings.gta5_relay_logging)
+                self.gta5_relay_msgbox_checkbox.setChecked(GUIDetectionSettings.gta5_relay_message_box)
+
+            # Combo Rules
+            self.refresh_combo_rules_list()
+        finally:
+            self._loading_settings = False
+
+    def _connect_auto_save_signals(self) -> None:
+        """Connect all detection widget change signals to auto-save."""
+        prefixes: tuple[str, ...] = ('mobile', 'vpn', 'hosting', 'country', 'isp', 'asn', 'player_join', 'player_rejoin', 'player_leave')
+        if hasattr(self, 'gta5_relay_duration_combo'):
+            prefixes = (*prefixes, 'gta5_relay')
+            self.gta5_relay_packet_threshold_spin.valueChanged.connect(self._auto_save_detections)
+
+        for prefix in prefixes:
+            cast('QComboBox', getattr(self, f'{prefix}_duration_combo')).currentTextChanged.connect(self._auto_save_detections)
+            cast('QSpinBox', getattr(self, f'{prefix}_duration_spin')).valueChanged.connect(self._auto_save_detections)
+            cast('QComboBox', getattr(self, f'{prefix}_voice_combo')).currentTextChanged.connect(self._auto_save_detections)
+            cast('QCheckBox', getattr(self, f'{prefix}_logging_checkbox')).toggled.connect(self._auto_save_detections)
+            cast('QCheckBox', getattr(self, f'{prefix}_msgbox_checkbox')).toggled.connect(self._auto_save_detections)
+
+    @override
+    def _auto_save_detections(self) -> None:
+        """Read widgets, write GUIDetectionSettings, and persist to detections.json in real time."""
+        if self._loading_settings:
+            return
+
         # Clear voice queue if any detection's voice notification was newly disabled
         checkbox_prefixes = (
             'mobile',
@@ -369,10 +403,7 @@ class DetectionsManagerDialog(UnsavedChangesMixin, DetectionsManagerTabsMixin, Q
                 break
 
         self._save_widgets_to_singleton()
-
         GUIDetectionSettings.export_to_file(DETECTIONS_JSON_PATH)
-        ComboRulesManager.save_to_file(COMBO_RULES_PATH)
-        self.accept()
 
     def _export_detections(self) -> None:
         """Export current detection settings (including combo rules) to a JSON file."""
@@ -406,42 +437,65 @@ class DetectionsManagerDialog(UnsavedChangesMixin, DetectionsManagerTabsMixin, Q
                 content = Path(file_path).read_text(encoding='utf-8')
                 model = DetectionsFile.model_validate_json(content)
                 GUIDetectionSettings.apply_model(model)
+                GUIDetectionSettings.export_to_file(DETECTIONS_JSON_PATH)
                 # Import combo rules if present
                 if model.combo_rules is not None:
                     ComboRulesManager.rules = list(model.combo_rules)
+                    ComboRulesManager.save_to_file(COMBO_RULES_PATH)
             except (ValidationError, OSError, json.JSONDecodeError) as e:
                 QMessageBox.critical(self, 'Import Error', f'Failed to import settings:\n{e}')
                 return
-            self._load_current_settings()
+            self.load_current_settings()
             QMessageBox.information(self, TITLE, 'Detection settings imported successfully.')
 
     def _reset_tab_to_defaults(self, prefixes: tuple[str, ...]) -> None:
-        """Reset all detection widgets for the given *prefixes* to their default values without saving."""
-        for prefix in prefixes:
-            set_duration_widgets_helper(
-                getattr(self, f'{prefix}_duration_combo'),
-                getattr(self, f'{prefix}_duration_spin'),
-                'Disabled',
-            )
-            getattr(self, f'{prefix}_duration_spin').setValue(DEFAULT_MANUAL_SUSPEND_DURATION_SECONDS)
-            set_voice_combo_helper(getattr(self, f'{prefix}_voice_combo'), value=False)
-            getattr(self, f'{prefix}_logging_checkbox').setChecked(False)
-            getattr(self, f'{prefix}_msgbox_checkbox').setChecked(False)
-            if hasattr(self, f'{prefix}_list'):
-                getattr(self, f'{prefix}_list').clear()
-            if prefix == 'gta5_relay':
-                self.gta5_relay_packet_threshold_spin.setValue(40)
+        """Reset all detection widgets for the given *prefixes* to their default values and persist."""
+        self._loading_settings = True
+        try:
+            for prefix in prefixes:
+                set_duration_widgets_helper(
+                    getattr(self, f'{prefix}_duration_combo'),
+                    getattr(self, f'{prefix}_duration_spin'),
+                    'Disabled',
+                )
+                getattr(self, f'{prefix}_duration_spin').setValue(DEFAULT_MANUAL_SUSPEND_DURATION_SECONDS)
+                duration_attr = f'{prefix}_duration' if prefix in ('player_join', 'player_rejoin', 'player_leave', 'gta5_relay') else f'{prefix}_suspend_duration'
+                setattr(GUIDetectionSettings, duration_attr, 'Auto')
+                set_voice_combo_helper(getattr(self, f'{prefix}_voice_combo'), value=False)
+                getattr(self, f'{prefix}_logging_checkbox').setChecked(False)
+                getattr(self, f'{prefix}_msgbox_checkbox').setChecked(False)
+                if hasattr(self, f'{prefix}_list'):
+                    getattr(self, f'{prefix}_list').clear()
+                if prefix == 'gta5_relay':
+                    self.gta5_relay_packet_threshold_spin.setValue(40)
+        finally:
+            self._loading_settings = False
+        self._auto_save_detections()
 
     def _reset_current_tab(self) -> None:
-        """Reset the current tab's detection widgets to their default values."""
+        """Reset the current tab's detection widgets to their default values after confirmation."""
+        current_index = self._tabs.currentIndex()
+        if current_index == _COMBO_RULES_TAB_INDEX:
+            self._clear_combo_rules()
+            return
         index_to_prefixes: dict[int, tuple[str, ...]] = {
             0: ('player_join', 'player_rejoin', 'player_leave'),
             1: ('mobile', 'vpn', 'hosting'),
             2: ('country', 'isp', 'asn'),
             4: ('gta5_relay',),
         }
-        prefixes = index_to_prefixes.get(self._tabs.currentIndex())
+        prefixes = index_to_prefixes.get(current_index)
         if prefixes is None:
+            return
+        tab_name = self._tabs.tabText(current_index)
+        result = QMessageBox.question(
+            self,
+            TITLE,
+            f'Reset {tab_name} detection settings to defaults?',
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if result != QMessageBox.StandardButton.Yes:
             return
         self._reset_tab_to_defaults(prefixes)
 
@@ -549,68 +603,6 @@ class DetectionsManagerDialog(UnsavedChangesMixin, DetectionsManagerTabsMixin, Q
             GUIDetectionSettings.gta5_relay_logging = self.gta5_relay_logging_checkbox.isChecked()
             GUIDetectionSettings.gta5_relay_message_box = self.gta5_relay_msgbox_checkbox.isChecked()
 
-    def _read_all_widget_values(self) -> dict[str, object]:
-        """Capture a comparable snapshot of all widget values."""
-        values: dict[str, object] = {
-            'mobile_enabled': self.mobile_duration_combo.currentText() != 'Disabled',
-            'mobile_duration': read_duration_widgets_helper(self.mobile_duration_combo, self.mobile_duration_spin),
-            'mobile_voice': read_voice_combo_helper(self.mobile_voice_combo),
-            'mobile_logging': self.mobile_logging_checkbox.isChecked(),
-            'mobile_msgbox': self.mobile_msgbox_checkbox.isChecked(),
-            'vpn_enabled': self.vpn_duration_combo.currentText() != 'Disabled',
-            'vpn_duration': read_duration_widgets_helper(self.vpn_duration_combo, self.vpn_duration_spin),
-            'vpn_voice': read_voice_combo_helper(self.vpn_voice_combo),
-            'vpn_logging': self.vpn_logging_checkbox.isChecked(),
-            'vpn_msgbox': self.vpn_msgbox_checkbox.isChecked(),
-            'hosting_enabled': self.hosting_duration_combo.currentText() != 'Disabled',
-            'hosting_duration': read_duration_widgets_helper(self.hosting_duration_combo, self.hosting_duration_spin),
-            'hosting_voice': read_voice_combo_helper(self.hosting_voice_combo),
-            'hosting_logging': self.hosting_logging_checkbox.isChecked(),
-            'hosting_msgbox': self.hosting_msgbox_checkbox.isChecked(),
-            'country_enabled': self.country_duration_combo.currentText() != 'Disabled',
-            'country_list': tuple(item.data(Qt.ItemDataRole.UserRole) for i in range(self.country_list.count()) if (item := self.country_list.item(i))),
-            'country_duration': read_duration_widgets_helper(self.country_duration_combo, self.country_duration_spin),
-            'country_voice': read_voice_combo_helper(self.country_voice_combo),
-            'country_logging': self.country_logging_checkbox.isChecked(),
-            'country_msgbox': self.country_msgbox_checkbox.isChecked(),
-            'isp_enabled': self.isp_duration_combo.currentText() != 'Disabled',
-            'isp_list': tuple(item.text() for i in range(self.isp_list.count()) if (item := self.isp_list.item(i))),
-            'isp_duration': read_duration_widgets_helper(self.isp_duration_combo, self.isp_duration_spin),
-            'isp_voice': read_voice_combo_helper(self.isp_voice_combo),
-            'isp_logging': self.isp_logging_checkbox.isChecked(),
-            'isp_msgbox': self.isp_msgbox_checkbox.isChecked(),
-            'asn_enabled': self.asn_duration_combo.currentText() != 'Disabled',
-            'asn_list': tuple(item.text() for i in range(self.asn_list.count()) if (item := self.asn_list.item(i))),
-            'asn_duration': read_duration_widgets_helper(self.asn_duration_combo, self.asn_duration_spin),
-            'asn_voice': read_voice_combo_helper(self.asn_voice_combo),
-            'asn_logging': self.asn_logging_checkbox.isChecked(),
-            'asn_msgbox': self.asn_msgbox_checkbox.isChecked(),
-            'player_join_enabled': self.player_join_duration_combo.currentText() != 'Disabled',
-            'player_join_duration': read_duration_widgets_helper(self.player_join_duration_combo, self.player_join_duration_spin),
-            'player_join_voice': read_voice_combo_helper(self.player_join_voice_combo),
-            'player_join_logging': self.player_join_logging_checkbox.isChecked(),
-            'player_join_msgbox': self.player_join_msgbox_checkbox.isChecked(),
-            'player_rejoin_enabled': self.player_rejoin_duration_combo.currentText() != 'Disabled',
-            'player_rejoin_duration': read_duration_widgets_helper(self.player_rejoin_duration_combo, self.player_rejoin_duration_spin),
-            'player_rejoin_voice': read_voice_combo_helper(self.player_rejoin_voice_combo),
-            'player_rejoin_logging': self.player_rejoin_logging_checkbox.isChecked(),
-            'player_rejoin_msgbox': self.player_rejoin_msgbox_checkbox.isChecked(),
-            'player_leave_enabled': self.player_leave_duration_combo.currentText() != 'Disabled',
-            'player_leave_duration': read_duration_widgets_helper(self.player_leave_duration_combo, self.player_leave_duration_spin),
-            'player_leave_voice': read_voice_combo_helper(self.player_leave_voice_combo),
-            'player_leave_logging': self.player_leave_logging_checkbox.isChecked(),
-            'player_leave_msgbox': self.player_leave_msgbox_checkbox.isChecked(),
-            'combo_rules': [rule.to_dict() for rule in ComboRulesManager.rules],
-        }
-        if hasattr(self, 'gta5_relay_duration_combo'):
-            values['gta5_relay_enabled'] = self.gta5_relay_duration_combo.currentText() != 'Disabled'
-            values['gta5_relay_packet_threshold'] = self.gta5_relay_packet_threshold_spin.value()
-            values['gta5_relay_duration'] = read_duration_widgets_helper(self.gta5_relay_duration_combo, self.gta5_relay_duration_spin)
-            values['gta5_relay_voice'] = read_voice_combo_helper(self.gta5_relay_voice_combo)
-            values['gta5_relay_logging'] = self.gta5_relay_logging_checkbox.isChecked()
-            values['gta5_relay_msgbox'] = self.gta5_relay_msgbox_checkbox.isChecked()
-        return values
-
     @override
     def keyPressEvent(self, event: QKeyEvent) -> None:
         """Consume Enter/Return when the combo rules list has focus to prevent triggering the default button."""
@@ -619,19 +611,10 @@ class DetectionsManagerDialog(UnsavedChangesMixin, DetectionsManagerTabsMixin, Q
         super().keyPressEvent(event)
 
     @override
-    def _has_unsaved_changes_for_close(self) -> bool:
-        """Return `True` if there are unsaved changes that should be saved before closing."""
-        return self._read_all_widget_values() != self._snapshot
-
-    @override
-    def _save_on_close(self) -> bool:
-        """Save and apply detection settings; always succeeds."""
-        self._save_and_apply()
-        return True
-
-    @override
     def showEvent(self, a0: QShowEvent) -> None:
-        """Handle the window show event and maximize if required."""
+        """Handle the window show event, reload current settings, and maximize if required."""
+        self.load_current_settings()
+        self.refresh_detection_availability()
         super().showEvent(a0)
         if consume_maximize_on_show(self):
             self.showMaximized()
@@ -671,6 +654,7 @@ def _exec_and_save_combo_rule(parent: QWidget, initial_rule: ComboRule | None = 
     if dialog.exec() == QDialog.DialogCode.Accepted:
         ComboRulesManager.rules.append(dialog.get_rule())
         ComboRulesManager.save_to_file(COMBO_RULES_PATH)
+        DetectionsManagerDialog.refresh_if_open()
 
 
 def open_combo_rule_editor(parent: QWidget) -> None:

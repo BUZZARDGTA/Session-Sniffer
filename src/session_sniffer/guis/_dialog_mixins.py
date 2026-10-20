@@ -106,6 +106,28 @@ class UnsavedChangesMixin(QDialog):
         )
 
 
+def setup_tab_reset_buttons(
+    button_row: QHBoxLayout,
+    reset_button: QPushButton,
+    reset_to_defaults: Callable[[], None],
+    reset_current_tab: Callable[[], None],
+    *,
+    reset_tab_tooltip: str = 'Reset current tab settings to their default values',
+) -> None:
+    """Finalize *reset_button*, add a stretch, and add the per-tab reset button to *button_row*."""
+    button_row.addStretch()
+
+    reset_button.setStyleSheet(DIALOG_DANGER_BUTTON_STYLESHEET)
+    reset_button.clicked.connect(reset_to_defaults)
+    button_row.addWidget(reset_button)
+
+    reset_tab_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'refresh-cw.svg')), ' Reset')
+    reset_tab_button.setToolTip(reset_tab_tooltip)
+    reset_tab_button.setStyleSheet(DIALOG_DANGER_BUTTON_STYLESHEET)
+    reset_tab_button.clicked.connect(reset_current_tab)
+    button_row.addWidget(reset_tab_button)
+
+
 def setup_tab_dialog_buttons(
     button_row: QHBoxLayout,
     reset_button: QPushButton,
@@ -117,17 +139,13 @@ def setup_tab_dialog_buttons(
     The caller is responsible for setting the Save button's tooltip, connecting its clicked signal,
     and adding it (plus any Cancel button) to *button_row*.
     """
-    button_row.addStretch()
-
-    reset_button.setStyleSheet(DIALOG_DANGER_BUTTON_STYLESHEET)
-    reset_button.clicked.connect(reset_to_defaults)
-    button_row.addWidget(reset_button)
-
-    reset_tab_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'refresh-cw.svg')), ' Reset')
-    reset_tab_button.setToolTip('Reset current tab settings to their default values (review before saving)')
-    reset_tab_button.setStyleSheet(DIALOG_DANGER_BUTTON_STYLESHEET)
-    reset_tab_button.clicked.connect(reset_current_tab)
-    button_row.addWidget(reset_tab_button)
+    setup_tab_reset_buttons(
+        button_row,
+        reset_button,
+        reset_to_defaults,
+        reset_current_tab,
+        reset_tab_tooltip='Reset current tab settings to their default values (review before saving)',
+    )
 
     save_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'save.svg')), ' Save')
     save_button.setStyleSheet(DIALOG_PRIMARY_BUTTON_STYLESHEET)
