@@ -281,7 +281,7 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
         for group_name, items in grouped.items():
             # The Discord Webhook group has a custom layout (masked URL, enable
             # cascade, reset-messages, automod warning).
-            if category == 'Discord' and group_name == 'Server Webhook':
+            if category == 'Discord' and group_name == 'Webhook':
                 outer_layout.addWidget(self._build_discord_webhook_group(items, self._add_setting_row))
                 continue
             if category == 'GTA V' and group_name == 'Looky System':

@@ -55,7 +55,7 @@ class SettingsDialogDiscordMixin(QDialog):
         add_setting_row: Callable[[QFormLayout, str, SettingMeta], None],
     ) -> QGroupBox:
         """Build the custom Discord Webhook group with masked URL and enable cascade."""
-        group_box = QGroupBox('Server Webhook')
+        group_box = QGroupBox('Webhook')
         outer = QVBoxLayout(group_box)
         outer.setSpacing(8)
 
