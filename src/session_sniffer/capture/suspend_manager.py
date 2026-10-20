@@ -105,11 +105,12 @@ class BaseSuspendManager:
                 if reason_key in cls._state.reasons:
                     logger.warning('Overwriting suspend reason: %s', reason_key)
 
-                cls._state.reasons[reason_key] = reason
-
                 if not cls._state.suspended:
-                    cls._try_suspend_pid(cls._state.pid, f'reason added: {reason_key}')
+                    if not cls._try_suspend_pid(cls._state.pid, f'reason added: {reason_key}'):
+                        return
                     cls._state.suspended = True
+
+                cls._state.reasons[reason_key] = reason
 
                 cls._publish_snapshot_locked()
                 cls._condition.notify_all()
