@@ -107,44 +107,38 @@ class TreeOperationsMixin(QDialog):
     # Tree selection
     # ------------------------------------------------------------------
 
-    def _on_tree_selection_changed(self) -> None:
-        """Load the selected database when a .json file is clicked in the tree."""
-        indexes = self._tree.selectedIndexes()
-
-        if not indexes:
-            self._delete_tree_button.setEnabled(False)
-            self._delete_tree_button.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')))
-            self._delete_tree_button.setText(' Delete')
-            self._delete_tree_button.setToolTip('Delete the selected database or folder')
-            self._delete_tree_button.clicked.disconnect()
-            self._delete_tree_button.clicked.connect(self._delete_tree_item)
-            return
-
-        file_path_str = self._fs_model.filePath(indexes[0])
-        if not file_path_str:
-            self._delete_tree_button.setEnabled(True)
-            self._delete_tree_button.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')))
-            self._delete_tree_button.setText(' Delete')
-            self._delete_tree_button.setToolTip('Delete the selected database or folder')
-            self._delete_tree_button.clicked.disconnect()
-            self._delete_tree_button.clicked.connect(self._delete_tree_item)
-            return
-
-        path = Path(file_path_str)
-        if path.parent == USERIP_DATABASES_DIR_PATH and path.name in DEFAULT_USERIP_FILES_SETTINGS:
-            self._delete_tree_button.setEnabled(True)
+    def _configure_delete_tree_button(self, *, enabled: bool, is_reset: bool = False) -> None:
+        """Configure the tree toolbar Delete/Reset button state, icon, text, tooltip, and click handler."""
+        self._delete_tree_button.setEnabled(enabled)
+        if is_reset:
             self._delete_tree_button.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'refresh-cw.svg')))
             self._delete_tree_button.setText(' Reset')
             self._delete_tree_button.setToolTip('Reset this default database to factory content')
             self._delete_tree_button.clicked.disconnect()
             self._delete_tree_button.clicked.connect(self._reset_tree_item)
         else:
-            self._delete_tree_button.setEnabled(True)
             self._delete_tree_button.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')))
             self._delete_tree_button.setText(' Delete')
             self._delete_tree_button.setToolTip('Delete the selected database or folder')
             self._delete_tree_button.clicked.disconnect()
             self._delete_tree_button.clicked.connect(self._delete_tree_item)
+
+    def _on_tree_selection_changed(self) -> None:
+        """Load the selected database when a .json file is clicked in the tree."""
+        indexes = self._tree.selectedIndexes()
+
+        if not indexes:
+            self._configure_delete_tree_button(enabled=False)
+            return
+
+        file_path_str = self._fs_model.filePath(indexes[0])
+        if not file_path_str:
+            self._configure_delete_tree_button(enabled=True)
+            return
+
+        path = Path(file_path_str)
+        is_default_database = path.parent == USERIP_DATABASES_DIR_PATH and path.name in DEFAULT_USERIP_FILES_SETTINGS
+        self._configure_delete_tree_button(enabled=True, is_reset=is_default_database)
 
         if not path.is_file() or path.suffix.lower() != '.json':
             return

@@ -71,8 +71,6 @@ from session_sniffer.text_utils import pluralize
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from PySide6.QtGui import QCloseEvent
-
     from session_sniffer.models.looky_system import LookyPlayer
     from session_sniffer.models.player import Player
 
@@ -445,25 +443,10 @@ class IPLookupDetailsDialog(PlayerInfoDialogMixin):
                     label_widget.setText(new_label)
 
     @override
-    def done(self, r: int) -> None:
-        """Stop the refresh timer and live ping worker when the dialog is finalized."""
+    def _on_dialog_closing(self) -> None:
+        """Stop the refresh timer and live ping worker when the dialog is closing."""
         self._closed_event.set()
-        self._timer.stop()
-        super().done(r)
-
-    @override
-    def reject(self) -> None:
-        """Stop the refresh timer and live ping worker and reject the dialog."""
-        self._closed_event.set()
-        self._timer.stop()
-        super().reject()
-
-    @override
-    def closeEvent(self, event: QCloseEvent) -> None:
-        """Stop the refresh timer and live ping worker when the dialog is closed."""
-        self._closed_event.set()
-        self._timer.stop()
-        super().closeEvent(event)
+        super()._on_dialog_closing()
 
 
 _active_dialogs: ActiveDialogRegistry[str, IPLookupDetailsDialog] = ActiveDialogRegistry()

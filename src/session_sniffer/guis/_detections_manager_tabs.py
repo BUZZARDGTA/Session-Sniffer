@@ -75,18 +75,25 @@ class DetectionsManagerTabsMixin(QDialog):
     # Tab creation
     # ------------------------------------------------------------------
 
-    def create_player_events_tab(self) -> QWidget:
-        """Create the player events tab with detection groups for join/rejoin/leave."""
-        widget = QWidget()
-        layout = QVBoxLayout(widget)
-        layout.setSpacing(15)
-
+    @staticmethod
+    def _add_scrollable_section(parent_layout: QVBoxLayout) -> QVBoxLayout:
+        """Create a frameless scroll area inside *parent_layout* and return its inner vertical layout."""
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QScrollArea.Shape.NoFrame)
         scroll_content = QWidget()
         scroll_layout = QVBoxLayout(scroll_content)
         scroll_layout.setSpacing(20)
+        scroll.setWidget(scroll_content)
+        parent_layout.addWidget(scroll)
+        return scroll_layout
+
+    def create_player_events_tab(self) -> QWidget:
+        """Create the player events tab with detection groups for join/rejoin/leave."""
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        layout.setSpacing(15)
+        scroll_layout = self._add_scrollable_section(layout)
 
         join_group = self._create_detection_group(
             'Player Join',
@@ -110,9 +117,6 @@ class DetectionsManagerTabsMixin(QDialog):
         scroll_layout.addWidget(leave_group)
 
         scroll_layout.addStretch()
-        scroll.setWidget(scroll_content)
-        layout.addWidget(scroll)
-
         return widget
 
     def create_network_based_tab(self) -> QWidget:
@@ -120,13 +124,7 @@ class DetectionsManagerTabsMixin(QDialog):
         widget = QWidget()
         layout = QVBoxLayout(widget)
         layout.setSpacing(15)
-
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setFrameShape(QScrollArea.Shape.NoFrame)
-        scroll_content = QWidget()
-        scroll_layout = QVBoxLayout(scroll_content)
-        scroll_layout.setSpacing(20)
+        scroll_layout = self._add_scrollable_section(layout)
 
         mobile_group = self._create_detection_group(
             'Mobile Connection',
@@ -150,9 +148,6 @@ class DetectionsManagerTabsMixin(QDialog):
         scroll_layout.addWidget(hosting_group)
 
         scroll_layout.addStretch()
-        scroll.setWidget(scroll_content)
-        layout.addWidget(scroll)
-
         return widget
 
     def create_geo_based_tab(self) -> QWidget:
@@ -160,20 +155,13 @@ class DetectionsManagerTabsMixin(QDialog):
         widget = QWidget()
         layout = QVBoxLayout(widget)
         layout.setSpacing(15)
-
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setFrameShape(QScrollArea.Shape.NoFrame)
-        scroll_content = QWidget()
-        scroll_layout = QVBoxLayout(scroll_content)
-        scroll_layout.setSpacing(20)
+        scroll_layout = self._add_scrollable_section(layout)
 
         country_group = self._create_list_detection_group(
             'Country Detection',
             "Triggers when a player's country is in the detection list.",
             'country',
             on_add=self._add_country,
-            on_remove=self._remove_country,
         )
         scroll_layout.addWidget(country_group)
 
@@ -182,7 +170,6 @@ class DetectionsManagerTabsMixin(QDialog):
             "Triggers when a player's ISP or company is in the detection list (e.g., Vodafone, Orange, Cloudflare).",
             'isp',
             on_add=self._add_isp,
-            on_remove=self._remove_isp,
         )
         scroll_layout.addWidget(isp_group)
 
@@ -191,14 +178,10 @@ class DetectionsManagerTabsMixin(QDialog):
             "Triggers when a player's ASN is in the detection list (e.g., AS15169, AS13335, or just 15169, 13335).",
             'asn',
             on_add=self._add_asn,
-            on_remove=self._remove_asn,
         )
         scroll_layout.addWidget(asn_group)
 
         scroll_layout.addStretch()
-        scroll.setWidget(scroll_content)
-        layout.addWidget(scroll)
-
         return widget
 
     def create_gta5_relays_tab(self) -> QWidget:
@@ -236,12 +219,7 @@ class DetectionsManagerTabsMixin(QDialog):
         filter_warning.setVisible('TAKETWO_INTERACTIVE' in Settings.capture_block_third_party_servers)
         layout.addWidget(filter_warning)
 
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setFrameShape(QScrollArea.Shape.NoFrame)
-        scroll_content = QWidget()
-        scroll_layout = QVBoxLayout(scroll_content)
-        scroll_layout.setSpacing(20)
+        scroll_layout = self._add_scrollable_section(layout)
 
         relay_group = self._create_detection_group(
             'GTA5 Relay',
@@ -274,9 +252,6 @@ class DetectionsManagerTabsMixin(QDialog):
         scroll_layout.addWidget(relay_group)
 
         scroll_layout.addStretch()
-        scroll.setWidget(scroll_content)
-        layout.addWidget(scroll)
-
         return widget
 
     def create_combo_rules_tab(self) -> QWidget:
@@ -532,8 +507,9 @@ class DetectionsManagerTabsMixin(QDialog):
     # Group factories
     # ------------------------------------------------------------------
 
-    def _create_detection_group(self, title: str, description: str, detection_type: str) -> QGroupBox:
-        """Create a detection group with duration and notification settings."""
+    @staticmethod
+    def _create_base_group(title: str, description: str) -> tuple[QGroupBox, QVBoxLayout]:
+        """Create a styled `QGroupBox` with a description label and return `(group, group_layout)`."""
         group = QGroupBox(title)
         group.setStyleSheet(GROUPBOX_STYLE)
         group_layout = QVBoxLayout()
@@ -542,8 +518,10 @@ class DetectionsManagerTabsMixin(QDialog):
         desc_label.setWordWrap(True)
         desc_label.setStyleSheet(DESC_LABEL_STYLESHEET)
         group_layout.addWidget(desc_label)
+        return group, group_layout
 
-        # -- Detection section container (hideable when detection is not supported) --
+    def _append_detection_and_notification_sections(self, group_layout: QVBoxLayout, detection_type: str) -> None:
+        """Append the hideable detection suspend section and notification controls to *group_layout*."""
         detection_section = QWidget()
         detection_section_layout = QVBoxLayout(detection_section)
         detection_section_layout.setContentsMargins(0, 0, 0, 0)
@@ -552,7 +530,6 @@ class DetectionsManagerTabsMixin(QDialog):
         detection_separator = create_section_separator('Detection Settings')
         detection_section_layout.addWidget(detection_separator)
 
-        # Suspend duration
         duration_layout = QHBoxLayout()
         duration_label = QLabel('Suspend Mode:')
         duration_layout.addWidget(duration_label)
@@ -581,11 +558,13 @@ class DetectionsManagerTabsMixin(QDialog):
         duration_layout.addStretch()
         detection_section_layout.addLayout(duration_layout)
 
-        # Notification controls
         self._create_notification_controls(group_layout, detection_type)
-
         group_layout.addWidget(detection_section)
 
+    def _create_detection_group(self, title: str, description: str, detection_type: str) -> QGroupBox:
+        """Create a detection group with duration and notification settings."""
+        group, group_layout = self._create_base_group(title, description)
+        self._append_detection_and_notification_sections(group_layout, detection_type)
         group.setLayout(group_layout)
         return group
 
@@ -596,17 +575,9 @@ class DetectionsManagerTabsMixin(QDialog):
         detection_type: str,
         *,
         on_add: Callable[[], None],
-        on_remove: Callable[[], None],
     ) -> QGroupBox:
         """Create a detection group with enable, list, action, process path, and notification settings."""
-        group = QGroupBox(title)
-        group.setStyleSheet(GROUPBOX_STYLE)
-        group_layout = QVBoxLayout()
-
-        desc_label = QLabel(description)
-        desc_label.setWordWrap(True)
-        desc_label.setStyleSheet(DESC_LABEL_STYLESHEET)
-        group_layout.addWidget(desc_label)
+        group, group_layout = self._create_base_group(title, description)
 
         # List widget
         list_layout = QHBoxLayout()
@@ -624,9 +595,15 @@ class DetectionsManagerTabsMixin(QDialog):
         add_button.clicked.connect(on_add)
         buttons_layout.addWidget(add_button)
 
+        def _on_remove_selected() -> None:
+            current_item = list_widget.currentItem()
+            if current_item:
+                list_widget.takeItem(list_widget.row(current_item))
+                self._auto_save_detections()
+
         remove_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')), ' Remove')
         remove_button.setCursor(Qt.CursorShape.PointingHandCursor)
-        remove_button.clicked.connect(on_remove)
+        remove_button.clicked.connect(_on_remove_selected)
         buttons_layout.addWidget(remove_button)
 
         def _on_clear_list() -> None:
@@ -643,49 +620,7 @@ class DetectionsManagerTabsMixin(QDialog):
         list_layout.addLayout(buttons_layout)
         group_layout.addLayout(list_layout)
 
-        # -- Detection section container (hideable when detection is not supported) --
-        detection_section = QWidget()
-        detection_section_layout = QVBoxLayout(detection_section)
-        detection_section_layout.setContentsMargins(0, 0, 0, 0)
-        setattr(self, f'{detection_type}_detection_section', detection_section)
-
-        detection_separator = create_section_separator('Detection Settings')
-        detection_section_layout.addWidget(detection_separator)
-
-        # Suspend duration
-        duration_layout = QHBoxLayout()
-        duration_label = QLabel('Suspend Mode:')
-        duration_layout.addWidget(duration_label)
-
-        duration_combo = QComboBox()
-        duration_combo.addItems(['Disabled', 'Auto', 'Manual'])
-        duration_combo.setItemData(0, SUSPEND_TOOLTIP_DISABLED, Qt.ItemDataRole.ToolTipRole)
-        duration_combo.setItemData(1, SUSPEND_TOOLTIP_AUTO, Qt.ItemDataRole.ToolTipRole)
-        duration_combo.setItemData(2, SUSPEND_TOOLTIP_MANUAL, Qt.ItemDataRole.ToolTipRole)
-        setattr(self, f'{detection_type}_duration_combo', duration_combo)
-        duration_layout.addWidget(duration_combo)
-
-        duration_spin = QSpinBox()
-        duration_spin.setRange(1, MAX_SUSPEND_DURATION_SECONDS)
-        duration_spin.setValue(DEFAULT_MANUAL_SUSPEND_DURATION_SECONDS)
-        duration_spin.setSuffix(' seconds')
-        duration_spin.setVisible(False)
-
-        def _on_duration_text_changed(text: str) -> None:
-            duration_spin.setVisible(text == 'Manual')
-
-        duration_combo.currentTextChanged.connect(_on_duration_text_changed)
-        setattr(self, f'{detection_type}_duration_spin', duration_spin)
-        duration_layout.addWidget(duration_spin)
-
-        duration_layout.addStretch()
-        detection_section_layout.addLayout(duration_layout)
-
-        # Notification controls
-        self._create_notification_controls(group_layout, detection_type)
-
-        group_layout.addWidget(detection_section)
-
+        self._append_detection_and_notification_sections(group_layout, detection_type)
         group.setLayout(group_layout)
         return group
 
@@ -757,13 +692,6 @@ class DetectionsManagerTabsMixin(QDialog):
                 item.setIcon(flag_icon)
         self.country_list.addItem(item)
 
-    def _remove_country(self) -> None:
-        """Remove selected country from the list."""
-        current_item = self.country_list.currentItem()
-        if current_item:
-            self.country_list.takeItem(self.country_list.row(current_item))
-            self._auto_save_detections()
-
     def _add_isp(self) -> None:
         """Add an ISP/company name to the list."""
         text, success = QInputDialog.getText(
@@ -776,13 +704,6 @@ class DetectionsManagerTabsMixin(QDialog):
             if stripped and not self._list_contains(self.isp_list, stripped):
                 self.isp_list.addItem(stripped)
                 self._auto_save_detections()
-
-    def _remove_isp(self) -> None:
-        """Remove selected ISP from the list."""
-        current_item = self.isp_list.currentItem()
-        if current_item:
-            self.isp_list.takeItem(self.isp_list.row(current_item))
-            self._auto_save_detections()
 
     def _add_asn(self) -> None:
         """Add an ASN to the list."""
@@ -798,10 +719,3 @@ class DetectionsManagerTabsMixin(QDialog):
             if not self._list_contains(self.asn_list, asn):
                 self.asn_list.addItem(asn)
                 self._auto_save_detections()
-
-    def _remove_asn(self) -> None:
-        """Remove selected ASN from the list."""
-        current_item = self.asn_list.currentItem()
-        if current_item:
-            self.asn_list.takeItem(self.asn_list.row(current_item))
-            self._auto_save_detections()

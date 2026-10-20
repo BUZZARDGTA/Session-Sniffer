@@ -620,6 +620,16 @@ def userip_rename(parent: QWidget, ip_address: str, player: Player) -> None:
     )
 
 
+def _format_database_entries_html_list(entries_by_database: dict[Path, list[str]]) -> str:
+    """Format a mapping of database paths to HTML-escaped entry strings as an HTML list."""
+    sections: list[str] = []
+    for db_path, entry_labels in entries_by_database.items():
+        db_display = html.escape(str(db_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix('')))
+        items_html = ''.join(f'<li>{entry_label}</li>' for entry_label in entry_labels)
+        sections.append(f'<b>{db_display}:</b><br><ul>{items_html}</ul>')
+    return '<br>'.join(sections)
+
+
 def userip_move(parent: QWidget, selected_ips: list[str], selected_database: Path) -> None:
     """Move the selected IP address(es) to the chosen UserIP database."""
     deleted_entries_by_database: dict[Path, list[str]] = {}
@@ -650,21 +660,12 @@ def userip_move(parent: QWidget, selected_ips: list[str], selected_database: Pat
     if deleted_entries_by_database:
         _refresh_userip_and_wake_renderer()
         target_db_display = html.escape(str(selected_database.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix('')))
-        report = (
+        header = (
             f'<b>Selected IP{pluralize(len(selected_ips))} {html.escape(str(selected_ips))} moved from the following '
             f'UserIP database{pluralize(len(deleted_entries_by_database))} to UserIP database '
             f'"{target_db_display}":</b><br><br><br>'
         )
-        for db_path, removed_labels in deleted_entries_by_database.items():
-            db_display = html.escape(str(db_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix('')))
-            report += f'<b>{db_display}:</b><br>'
-            report += '<ul>'
-            for removed_label in removed_labels:
-                report += f'<li>{removed_label}</li>'
-            report += '</ul><br>'
-        report = report.removesuffix('<br>')
-
-        QMessageBox.information(parent, TITLE, report)
+        QMessageBox.information(parent, TITLE, header + _format_database_entries_html_list(deleted_entries_by_database))
 
 
 def userip_delete(parent: QWidget, selected_ips: list[str]) -> None:
@@ -694,20 +695,11 @@ def userip_delete(parent: QWidget, selected_ips: list[str]) -> None:
 
     if deleted_entries_by_database:
         _refresh_userip_and_wake_renderer()
-        report = (
+        header = (
             f'<b>Selected IP{pluralize(len(selected_ips))} {html.escape(str(selected_ips))} removed from the following '
             f'UserIP database{pluralize(len(deleted_entries_by_database))}:</b><br><br><br>'
         )
-        for db_path, removed_labels in deleted_entries_by_database.items():
-            db_display = html.escape(str(db_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix('')))
-            report += f'<b>{db_display}:</b><br>'
-            report += '<ul>'
-            for removed_label in removed_labels:
-                report += f'<li>{removed_label}</li>'
-            report += '</ul><br>'
-        report = report.removesuffix('<br>')
-
-        QMessageBox.information(parent, TITLE, report)
+        QMessageBox.information(parent, TITLE, header + _format_database_entries_html_list(deleted_entries_by_database))
 
 
 MIN_USERNAMES_FOR_REMOVAL = 2

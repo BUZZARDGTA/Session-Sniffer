@@ -3,7 +3,7 @@
 import shutil
 import zipfile
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -143,6 +143,25 @@ class UserIPImportExportMixin(QDialog):
     # Import
     # ------------------------------------------------------------------
 
+    def _prompt_settings_conflict(self, src_name: str, target_description: str) -> Literal['keep', 'use'] | None:
+        """Prompt whether to keep existing settings or use imported settings when merging."""
+        message_box = QMessageBox(self)
+        message_box.setWindowTitle(TITLE)
+        message_box.setText(
+            f'The settings in "{src_name}" differ from {target_description}.\n\nWhich settings would you like to keep?',
+        )
+        message_box.addButton('Keep existing settings', QMessageBox.ButtonRole.AcceptRole)
+        use_button = message_box.addButton('Use imported settings', QMessageBox.ButtonRole.AcceptRole)
+        message_box.addButton(QMessageBox.StandardButton.Cancel)
+        for button in message_box.buttons():
+            button.setMinimumWidth(160)
+            button.setCursor(Qt.CursorShape.PointingHandCursor)
+        message_box.exec()
+        clicked = message_box.clickedButton()
+        if not clicked or clicked is message_box.button(QMessageBox.StandardButton.Cancel):
+            return None
+        return 'use' if clicked is use_button else 'keep'
+
     def _merge_content_into_disk(self, src_content: str, dest_path: Path, src_name: str) -> int | None:
         """Merge entries from *src_content* into an existing *dest_path* file on disk.
 
@@ -155,24 +174,11 @@ class UserIPImportExportMixin(QDialog):
 
         chosen_settings = dest_db.settings
         if src_db.settings != dest_db.settings:
-            msg_box = QMessageBox(self)
-            msg_box.setWindowTitle(TITLE)
-            msg_box.setText(
-                f'The settings in "{src_name}" differ from "{dest_path.name}".\n\nWhich settings would you like to keep?',
-            )
-            keep_button = msg_box.addButton('Keep existing settings', QMessageBox.ButtonRole.AcceptRole)
-            use_button = msg_box.addButton('Use imported settings', QMessageBox.ButtonRole.AcceptRole)
-            msg_box.addButton(QMessageBox.StandardButton.Cancel)
-            for _button in msg_box.buttons():
-                _button.setMinimumWidth(160)
-                _button.setCursor(Qt.CursorShape.PointingHandCursor)
-            msg_box.exec()
-            clicked = msg_box.clickedButton()
-            if not clicked or clicked is msg_box.button(QMessageBox.StandardButton.Cancel):
+            choice = self._prompt_settings_conflict(src_name, f'"{dest_path.name}"')
+            if choice is None:
                 return None
-            if clicked is use_button:
+            if choice == 'use':
                 chosen_settings = src_db.settings
-            _ = keep_button  # suppress unused-variable warning
 
         existing_set: set[tuple[str, str]] = {(entry.username, entry.ip) for entry in dest_db.entries}
         new_entries = [
@@ -304,25 +310,12 @@ class UserIPImportExportMixin(QDialog):
         current_settings = self.read_settings_from_widgets()
 
         if imported_settings != current_settings:
-            msg_box = QMessageBox(self)
-            msg_box.setWindowTitle(TITLE)
-            msg_box.setText(
-                f'The settings in "{src_path.name}" differ from the current database\'s settings.\n\nWhich settings would you like to keep?',
-            )
-            keep_button = msg_box.addButton('Keep existing settings', QMessageBox.ButtonRole.AcceptRole)
-            use_button = msg_box.addButton('Use imported settings', QMessageBox.ButtonRole.AcceptRole)
-            msg_box.addButton(QMessageBox.StandardButton.Cancel)
-            for _button in msg_box.buttons():
-                _button.setMinimumWidth(160)
-                _button.setCursor(Qt.CursorShape.PointingHandCursor)
-            msg_box.exec()
-            clicked = msg_box.clickedButton()
-            if not clicked or clicked is msg_box.button(QMessageBox.StandardButton.Cancel):
+            choice = self._prompt_settings_conflict(src_path.name, "the current database's settings")
+            if choice is None:
                 return
-            if clicked is use_button:
+            if choice == 'use':
                 self.populate_settings_widgets(imported_settings)
                 self._mark_settings_dirty()
-            _ = keep_button  # suppress unused-variable warning
 
         added = 0
         for entry in imported_db.entries:

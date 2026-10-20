@@ -467,13 +467,12 @@ class _CrawlerRequestDialog(QDialog):
             self._cancel_button.setText(f'Close ({self._auto_close_remaining}s)')
             self._cancel_button.setToolTip(f'Close this window (auto-closing in {self._auto_close_remaining}s).')
 
-    def _show_failed(self, message: str, *, is_html: bool = False) -> None:
-        """Show a failure with a manual Try Again button (used for both send and instruction failures)."""
+    def _enter_retryable_stop_state(self, status_html: str) -> None:
+        """Stop timers, hide progress bar, display *status_html*, and show the Try Again / Close controls."""
         self._retry_timer.stop()
         self._auto_close_timer.stop()
         self._widgets.progress_bar.hide()
-        formatted_message = message if is_html else html.escape(message)
-        self._widgets.status_label.setText(f'<span style="color: #f87171; font-weight: 600;">Failed: {formatted_message}</span>')
+        self._widgets.status_label.setText(status_html)
         self._widgets.status_label.show()
         self._widgets.try_again_button.setText('Try Again')
         self._widgets.try_again_button.show()
@@ -481,6 +480,11 @@ class _CrawlerRequestDialog(QDialog):
             self._cancel_button.setText('Close')
             self._cancel_button.setToolTip('Close this window.')
         self._log.setPlaceholderText('')
+
+    def _show_failed(self, message: str, *, is_html: bool = False) -> None:
+        """Show a failure with a manual Try Again button (used for both send and instruction failures)."""
+        formatted_message = message if is_html else html.escape(message)
+        self._enter_retryable_stop_state(f'<span style="color: #f87171; font-weight: 600;">Failed: {formatted_message}</span>')
 
     def _show_instruction_failed(self, message: str) -> None:
         """Show an HTML-formatted instruction failure message."""
@@ -489,23 +493,24 @@ class _CrawlerRequestDialog(QDialog):
     def _show_watch_stream_lost(self, message: str) -> None:
         """Show a connection loss error with a Try Again button."""
         self._append_log_line(f'Status stream lost: {message}')
-        self._retry_timer.stop()
-        self._auto_close_timer.stop()
-        self._widgets.progress_bar.hide()
-        self._widgets.status_label.setText(
-            '<span style="color: #fbbf24; font-weight: 600;">Status stream lost</span>',
-        )
-        self._widgets.status_label.show()
-        self._widgets.try_again_button.setText('Try Again')
-        self._widgets.try_again_button.show()
-        if self._cancel_button is not None:
-            self._cancel_button.setText('Close')
-            self._cancel_button.setToolTip('Close this window.')
-        self._log.setPlaceholderText('')
+        self._enter_retryable_stop_state('<span style="color: #fbbf24; font-weight: 600;">Status stream lost</span>')
 
     # ------------------------------------------------------------------
     # Lifetime / cleanup
     # ------------------------------------------------------------------
+
+    @staticmethod
+    def _detach_and_cancel_worker(worker: _CrawlerWatchWorker | _CrawlerSendWorker | None) -> None:
+        """Cancel *worker* non-blockingly and retain a reference in `_detaching_workers` until finished."""
+        if worker is None or not worker.isRunning():
+            return
+        worker.cancel(timeout_ms=0)
+        _CrawlerRequestDialog._detaching_workers.add(worker)
+
+        def _remove_detached_worker(detached_worker: _CrawlerWatchWorker | _CrawlerSendWorker = worker) -> None:
+            _CrawlerRequestDialog._detaching_workers.discard(detached_worker)
+
+        worker.finished.connect(_remove_detached_worker)
 
     def _cancel_workers_async(self) -> None:
         """Signal workers to stop without blocking the GUI thread.
@@ -516,26 +521,10 @@ class _CrawlerRequestDialog(QDialog):
         """
         self._retry_timer.stop()
         self._auto_close_timer.stop()
-        if self._watch_worker is not None:
-            watch_worker = self._watch_worker
-            self._watch_worker = None
-            if watch_worker.isRunning():
-                watch_worker.cancel(timeout_ms=0)
-                _CrawlerRequestDialog._detaching_workers.add(watch_worker)
-
-                def _remove_watch_worker(detached_worker: _CrawlerWatchWorker = watch_worker) -> None:
-                    _CrawlerRequestDialog._detaching_workers.discard(detached_worker)
-                watch_worker.finished.connect(_remove_watch_worker)
-        if self._send_worker is not None:
-            send_worker = self._send_worker
-            self._send_worker = None
-            if send_worker.isRunning():
-                send_worker.cancel(timeout_ms=0)
-                _CrawlerRequestDialog._detaching_workers.add(send_worker)
-
-                def _remove_send_worker(detached_worker: _CrawlerSendWorker = send_worker) -> None:
-                    _CrawlerRequestDialog._detaching_workers.discard(detached_worker)
-                send_worker.finished.connect(_remove_send_worker)
+        watch_worker, self._watch_worker = self._watch_worker, None
+        send_worker, self._send_worker = self._send_worker, None
+        self._detach_and_cancel_worker(watch_worker)
+        self._detach_and_cancel_worker(send_worker)
 
     @override
     def closeEvent(self, event: QCloseEvent) -> None:
@@ -683,14 +672,40 @@ def get_crawler_game_version() -> str:
     return 'legacy'
 
 
-def show_crawler_by_rid(
+@dataclass(frozen=True, slots=True)
+class _InstructionSpec:
+    """Static metadata for a Looky RID-based instruction (crawler or proxy join)."""
+
+    registry_prefix: str
+    instruction_fn: Callable[[int, str, str], str]
+    title_prefix: str
+    action_verb: str
+
+
+_CRAWLER_SPEC = _InstructionSpec(
+    registry_prefix='crawler',
+    instruction_fn=send_crawler_instruction,
+    title_prefix='Crawler Request',
+    action_verb='request the crawler',
+)
+
+_PROXY_JOIN_SPEC = _InstructionSpec(
+    registry_prefix='proxy_join',
+    instruction_fn=send_proxy_join_instruction,
+    title_prefix='Proxy Join',
+    action_verb='proxy join',
+)
+
+
+def _show_rid_instruction_request(
     parent: QWidget,
     rid: int,
     display_name: str,
+    spec: _InstructionSpec,
     *,
     check_gta5_restriction: bool = False,
 ) -> None:
-    """Validate and start a Looky System crawler instruction for `rid`; open a request dialog on success."""
+    """Validate prerequisites and start a Looky instruction request for *rid*."""
     api_key = check_looky_prerequisites(parent, check_gta5_restriction=check_gta5_restriction)
     if api_key is None:
         return
@@ -700,18 +715,22 @@ def show_crawler_by_rid(
         _CrawlerRequest(
             display_name=display_name,
             api_key=api_key,
-            registry_key=f'crawler:{rid}',
+            registry_key=f'{spec.registry_prefix}:{rid}',
             version=version,
             rid=rid,
-            send_fn=lambda: send_crawler_instruction(rid, api_key, version),
-            title_prefix='Crawler Request',
+            send_fn=lambda: spec.instruction_fn(rid, api_key, version),
+            title_prefix=spec.title_prefix,
             on_completed=trigger_looky_rescan_all_players,
         ),
     )
 
 
-def show_crawler_request(parent: QWidget, player: Player) -> None:
-    """Validate and start a Looky System crawler instruction for `player`; open a crawler request dialog on success."""
+def _show_player_instruction_request(
+    parent: QWidget,
+    player: Player,
+    spec: _InstructionSpec,
+) -> None:
+    """Resolve or prompt for a Rockstar ID on *player* and start a Looky instruction request."""
     api_key = check_looky_prerequisites(parent, check_gta5_restriction=not player.is_gta5_process)
     if api_key is None:
         return
@@ -728,13 +747,41 @@ def show_crawler_request(parent: QWidget, player: Player) -> None:
     rid = (
         player.looky_system.rockstarids[0]
         if len(player.looky_system.rockstarids) == 1
-        else _RIDPickerDialog.pick_rid(parent, entries, title_prefix='Crawler Request', action_verb='request the crawler')
+        else _RIDPickerDialog.pick_rid(parent, entries, title_prefix=spec.title_prefix, action_verb=spec.action_verb)
     )
     if rid is None:
         return
 
     display_name = next((name for name, rockstar_id in entries if rockstar_id == rid), player.ip)
-    show_crawler_by_rid(parent, rid=rid, display_name=display_name, check_gta5_restriction=not player.is_gta5_process)
+    _show_rid_instruction_request(
+        parent,
+        rid,
+        display_name,
+        spec,
+        check_gta5_restriction=not player.is_gta5_process,
+    )
+
+
+def show_crawler_by_rid(
+    parent: QWidget,
+    rid: int,
+    display_name: str,
+    *,
+    check_gta5_restriction: bool = False,
+) -> None:
+    """Validate and start a Looky System crawler instruction for `rid`; open a request dialog on success."""
+    _show_rid_instruction_request(
+        parent,
+        rid,
+        display_name,
+        _CRAWLER_SPEC,
+        check_gta5_restriction=check_gta5_restriction,
+    )
+
+
+def show_crawler_request(parent: QWidget, player: Player) -> None:
+    """Validate and start a Looky System crawler instruction for `player`; open a crawler request dialog on success."""
+    _show_player_instruction_request(parent, player, _CRAWLER_SPEC)
 
 
 def show_proxy_join_by_rid(
@@ -745,50 +792,18 @@ def show_proxy_join_by_rid(
     check_gta5_restriction: bool = False,
 ) -> None:
     """Validate and start a Looky System proxy join instruction for `rid`; open a request dialog on success."""
-    api_key = check_looky_prerequisites(parent, check_gta5_restriction=check_gta5_restriction)
-    if api_key is None:
-        return
-
-    version = get_crawler_game_version()
-    _start_crawler_send(
-        _CrawlerRequest(
-            display_name=display_name,
-            api_key=api_key,
-            registry_key=f'proxy_join:{rid}',
-            version=version,
-            rid=rid,
-            send_fn=lambda: send_proxy_join_instruction(rid, api_key, version),
-            title_prefix='Proxy Join',
-            on_completed=trigger_looky_rescan_all_players,
-        ),
+    _show_rid_instruction_request(
+        parent,
+        rid,
+        display_name,
+        _PROXY_JOIN_SPEC,
+        check_gta5_restriction=check_gta5_restriction,
     )
 
 
 def show_proxy_join_request(parent: QWidget, player: Player) -> None:
     """Validate and start a Looky System proxy join instruction for `player`; open a proxy join request dialog on success."""
-    api_key = check_looky_prerequisites(parent, check_gta5_restriction=not player.is_gta5_process)
-    if api_key is None:
-        return
-
-    if not player.looky_system.rockstarids:
-        QMessageBox.warning(
-            parent,
-            LOOKY_TITLE,
-            'No Rockstar ID found for this IP address.\nThe Looky System has not resolved any players for this IP yet.',
-        )
-        return
-
-    entries = list(zip(player.looky_system.usernames, player.looky_system.rockstarids, strict=False))
-    rid = (
-        player.looky_system.rockstarids[0]
-        if len(player.looky_system.rockstarids) == 1
-        else _RIDPickerDialog.pick_rid(parent, entries, title_prefix='Proxy Join', action_verb='proxy join')
-    )
-    if rid is None:
-        return
-
-    display_name = next((name for name, rockstar_id in entries if rockstar_id == rid), player.ip)
-    show_proxy_join_by_rid(parent, rid=rid, display_name=display_name, check_gta5_restriction=not player.is_gta5_process)
+    _show_player_instruction_request(parent, player, _PROXY_JOIN_SPEC)
 
 
 def show_crawlme_request(parent: QWidget) -> None:

@@ -1,6 +1,6 @@
 """Shared base mixin for player-info dialogs (group boxes, form rows, layout helpers)."""
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, override
 
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (
@@ -26,6 +26,8 @@ from session_sniffer.guis.utils import apply_adaptive_window_size
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+    from PySide6.QtGui import QCloseEvent
+
 
 class PlayerInfoDialogMixin(QDialog):
     """Base class providing shared layout helpers for player-info dialogs.
@@ -38,6 +40,7 @@ class PlayerInfoDialogMixin(QDialog):
     def __init__(self, parent: QWidget | None = None) -> None:
         """Initialize the dialog with the top-level parent window."""
         super().__init__(parent.window() if parent is not None else None)
+        self._timer: QTimer | None = None
 
     @staticmethod
     def _make_group(title: str, *, accent: str) -> tuple[QGroupBox, QFormLayout]:
@@ -99,7 +102,31 @@ class PlayerInfoDialogMixin(QDialog):
         timer.setInterval(interval_ms)
         timer.timeout.connect(callback)
         timer.start()
+        self._timer = timer
         return timer
+
+    def _on_dialog_closing(self) -> None:
+        """Stop the periodic refresh timer when the dialog is closing or finalized."""
+        if self._timer is not None:
+            self._timer.stop()
+
+    @override
+    def done(self, r: int) -> None:
+        """Stop background refresh and finalize the dialog."""
+        self._on_dialog_closing()
+        super().done(r)
+
+    @override
+    def reject(self) -> None:
+        """Stop background refresh and reject the dialog."""
+        self._on_dialog_closing()
+        super().reject()
+
+    @override
+    def closeEvent(self, event: QCloseEvent) -> None:
+        """Stop background refresh when the dialog is closed."""
+        self._on_dialog_closing()
+        super().closeEvent(event)
 
     def _apply_standard_dialog_size(self) -> None:
         """Apply a scaled minimum size and an adaptive resize based on the available screen resolution."""

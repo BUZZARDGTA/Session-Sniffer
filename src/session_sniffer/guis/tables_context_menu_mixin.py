@@ -105,14 +105,17 @@ class TableContextMenuMixin(QTableView):
         def get_matched_players(ip_addresses: list[str]) -> list[Player]:
             return [player for ip in ip_addresses if (player := PlayersRegistry.get_player_by_ip(ip)) is not None]
 
-        def remove_blocked_players_from_tables() -> None:
+        def remove_matching_players_from_tables(predicate: Callable[[Player], bool]) -> None:
             main_window = cast('MainWindow', self.window())
             for player in PlayersRegistry.get_default_sorted_players():
-                if check_ip_against_ranges(player.ip, Settings.blocked_ip_ranges):
+                if predicate(player):
                     if not PlayersRegistry.is_player_connected(player):
                         main_window.remove_player_from_disconnected(player.ip)
                     else:
                         main_window.remove_player_from_connected(player.ip)
+
+        def remove_blocked_players_from_tables() -> None:
+            remove_matching_players_from_tables(lambda player: check_ip_against_ranges(player.ip, Settings.blocked_ip_ranges) is not None)
 
         def add_copy_for_discord_action(players: list[Player]) -> None:
             if not players:
@@ -192,13 +195,7 @@ class TableContextMenuMixin(QTableView):
             )
 
         def remove_isp_filtered_players_from_tables() -> None:
-            main_window = cast('MainWindow', self.window())
-            for player in PlayersRegistry.get_default_sorted_players():
-                if is_player_isp_filtered(player, Settings.capture_filtered_isps):
-                    if not PlayersRegistry.is_player_connected(player):
-                        main_window.remove_player_from_disconnected(player.ip)
-                    else:
-                        main_window.remove_player_from_connected(player.ip)
+            remove_matching_players_from_tables(lambda player: is_player_isp_filtered(player, Settings.capture_filtered_isps))
 
         def create_filter_isp_handler(target_isp: str) -> Callable[[], None]:
             def _filter() -> None:
@@ -244,30 +241,51 @@ class TableContextMenuMixin(QTableView):
                     icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'globe.svg')),
                 )
 
-        def add_ip_lookup_action(players: list[Player]) -> None:
-            if not players:
+        def add_per_item_action[T](
+            items: list[T],
+            *,
+            label: str,
+            tooltips: tuple[str, str],
+            icon_name: str,
+            item_handler: Callable[[T], None],
+        ) -> None:
+            if not items:
                 return
 
-            if len(players) == 1:
+            single_tooltip, multi_tooltip = tooltips
+            icon = QIcon(str(RESOURCES_DIR_PATH / 'icons' / icon_name))
+            if len(items) == 1:
                 add_action(
                     context_menu,
-                    'IP Lookup Details',
-                    tooltip='Displays a notification with a detailed IP lookup report for selected player.',
-                    handler=lambda: show_detailed_ip_lookup(players[0]),
-                    icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'search.svg')),
+                    label,
+                    tooltip=single_tooltip,
+                    handler=lambda: item_handler(items[0]),
+                    icon=icon,
                 )
                 return
 
-            def _show_all_lookups() -> None:
-                for player in players:
-                    show_detailed_ip_lookup(player)
+            def _run_for_all() -> None:
+                for item in items:
+                    item_handler(item)
 
             add_action(
                 context_menu,
-                'IP Lookup Details',
-                tooltip='Displays a detailed IP lookup report for each selected player.',
-                handler=_show_all_lookups,
-                icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'search.svg')),
+                label,
+                tooltip=multi_tooltip,
+                handler=_run_for_all,
+                icon=icon,
+            )
+
+        def add_ip_lookup_action(players: list[Player]) -> None:
+            add_per_item_action(
+                players,
+                label='IP Lookup Details',
+                tooltips=(
+                    'Displays a notification with a detailed IP lookup report for selected player.',
+                    'Displays a detailed IP lookup report for each selected player.',
+                ),
+                icon_name='search.svg',
+                item_handler=show_detailed_ip_lookup,
             )
 
         def add_rate_graph_action(ip_addresses: list[str]) -> None:
@@ -275,27 +293,15 @@ class TableContextMenuMixin(QTableView):
                 return
 
             open_rate_graph_callback = self.open_rate_graph_callback
-
-            if len(ip_addresses) == 1:
-                add_action(
-                    context_menu,
-                    'Rate Graph',
-                    tooltip='Open a live PPS/BPS graph for this player.',
-                    handler=lambda: open_rate_graph_callback(ip_addresses[0]),
-                    icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'chart-line.svg')),
-                )
-                return
-
-            def _open_multi_graphs() -> None:
-                for ip in ip_addresses:
-                    open_rate_graph_callback(ip)
-
-            add_action(
-                context_menu,
-                'Rate Graph',
-                tooltip='Open a live PPS/BPS graph for each selected player.',
-                handler=_open_multi_graphs,
-                icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'chart-line.svg')),
+            add_per_item_action(
+                ip_addresses,
+                label='Rate Graph',
+                tooltips=(
+                    'Open a live PPS/BPS graph for this player.',
+                    'Open a live PPS/BPS graph for each selected player.',
+                ),
+                icon_name='chart-line.svg',
+                item_handler=open_rate_graph_callback,
             )
 
         def add_high_rate_blacklist_action(ip_addresses: list[str]) -> None:
@@ -381,55 +387,27 @@ class TableContextMenuMixin(QTableView):
                 )
 
         def add_player_joins_action(players: list[Player]) -> None:
-            if not players:
-                return
-
-            if len(players) == 1:
-                add_action(
-                    context_menu,
-                    'Player Joins',
-                    tooltip='Shows session join and rejoin history for this player.',
-                    handler=lambda: show_player_joins(self, players[0]),
-                    icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'rotate-ccw-clock.svg')),
-                )
-                return
-
-            def _show_all_player_joins() -> None:
-                for player in players:
-                    show_player_joins(self, player)
-
-            add_action(
-                context_menu,
-                'Player Joins',
-                tooltip=f'Shows session join and rejoin history for {len(players)} selected player{pluralize(len(players))}.',
-                handler=_show_all_player_joins,
-                icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'rotate-ccw-clock.svg')),
+            add_per_item_action(
+                players,
+                label='Player Joins',
+                tooltips=(
+                    'Shows session join and rejoin history for this player.',
+                    f'Shows session join and rejoin history for {len(players)} selected player{pluralize(len(players))}.',
+                ),
+                icon_name='rotate-ccw-clock.svg',
+                item_handler=lambda player: show_player_joins(self, player),
             )
 
         def add_seen_stats_action(players: list[Player]) -> None:
-            if not players:
-                return
-
-            if len(players) == 1:
-                add_action(
-                    context_menu,
-                    'Seen Stats',
-                    tooltip='Shows how many sessions this IP appeared in (today, week, month, year, total).',
-                    handler=lambda: show_seen_stats(self, players[0]),
-                    icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'calendar-days.svg')),
-                )
-                return
-
-            def _show_all_seen_stats() -> None:
-                for player in players:
-                    show_seen_stats(self, player)
-
-            add_action(
-                context_menu,
-                'Seen Stats',
-                tooltip='Shows session appearance stats for each selected player.',
-                handler=_show_all_seen_stats,
-                icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'calendar-days.svg')),
+            add_per_item_action(
+                players,
+                label='Seen Stats',
+                tooltips=(
+                    'Shows how many sessions this IP appeared in (today, week, month, year, total).',
+                    'Shows session appearance stats for each selected player.',
+                ),
+                icon_name='calendar-days.svg',
+                item_handler=lambda player: show_seen_stats(self, player),
             )
 
         def add_looky_system_menu(parent_menu: QMenu, players: list[Player]) -> None:
@@ -709,20 +687,13 @@ class TableContextMenuMixin(QTableView):
 
             main_window = cast('MainWindow', self.window())
 
-            def _search_userip_all_databases() -> None:
-                search_query = _resolve_search_text()
-                if search_query is not None and search_query:
-                    main_window.open_userip_manager_and_search(search_query)
+            def _make_search_handler(search_fn: Callable[[str], None]) -> Callable[[], None]:
+                def _run_search() -> None:
+                    search_query = _resolve_search_text()
+                    if search_query is not None and search_query:
+                        search_fn(search_query)
 
-            def _search_userip_logging() -> None:
-                search_query = _resolve_search_text()
-                if search_query is not None and search_query:
-                    main_window.open_logs_manager_and_search_userip(search_query)
-
-            def _search_sessions_logging() -> None:
-                search_query = _resolve_search_text()
-                if search_query is not None and search_query:
-                    main_window.open_logs_manager_and_search_sessions(search_query)
+                return _run_search
 
             search_menu = add_menu(
                 context_menu,
@@ -734,21 +705,21 @@ class TableContextMenuMixin(QTableView):
                 search_menu,
                 'UserIP All Databases',
                 tooltip='Open the UserIP Manager searching across all databases with this text pre-filled.',
-                handler=_search_userip_all_databases,
+                handler=_make_search_handler(main_window.open_userip_manager_and_search),
                 icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'database.svg')),
             )
             add_action(
                 search_menu,
                 'UserIP Logging',
                 tooltip='Open the Logs Manager on the UserIP Logging tab and filter by this text.',
-                handler=_search_userip_logging,
+                handler=_make_search_handler(main_window.open_logs_manager_and_search_userip),
                 icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'file-text.svg')),
             )
             add_action(
                 search_menu,
                 'Sessions Logging',
                 tooltip='Open the Logs Manager on the Sessions Logging tab and search across all session files for this text.',
-                handler=_search_sessions_logging,
+                handler=_make_search_handler(main_window.open_logs_manager_and_search_sessions),
                 icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'folder.svg')),
             )
 

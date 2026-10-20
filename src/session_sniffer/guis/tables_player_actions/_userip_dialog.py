@@ -1,6 +1,6 @@
 """UserIPDetectedDialog and show_userip_detected_dialog helper."""
 
-from typing import TYPE_CHECKING, override
+from typing import TYPE_CHECKING
 
 from PySide6.QtWidgets import (
     QFormLayout,
@@ -23,8 +23,6 @@ from session_sniffer.utils import dedup_preserve_order
 
 if TYPE_CHECKING:
     from collections.abc import Callable
-
-    from PySide6.QtGui import QCloseEvent
 
     from session_sniffer.models.player import Player
 
@@ -216,24 +214,6 @@ class UserIPDetectedDialog(PlayerInfoDialogMixin):
                 new_label = f'{label_provider()}:'
                 if label_widget.text() != new_label:
                     label_widget.setText(new_label)
-
-    @override
-    def done(self, r: int) -> None:
-        """Stop the refresh timer and finalize the dialog."""
-        self._timer.stop()
-        super().done(r)
-
-    @override
-    def reject(self) -> None:
-        """Stop the refresh timer and reject the dialog."""
-        self._timer.stop()
-        super().reject()
-
-    @override
-    def closeEvent(self, event: QCloseEvent) -> None:
-        """Stop the refresh timer when the dialog is closed."""
-        self._timer.stop()
-        super().closeEvent(event)
 
 
 _active_dialogs: ActiveDialogRegistry[str, UserIPDetectedDialog] = ActiveDialogRegistry()

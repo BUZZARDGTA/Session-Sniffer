@@ -738,24 +738,15 @@ class IPRangeBuilderDialog(QDialog):
 
         # Single IP fields
         self._single_label = QLabel('IP Address:')
-        self._single_input = QLineEdit()
-        self._single_input.setPlaceholderText('e.g. 192.168.1.1')
-        self._single_input.setMaxLength(15)
-        self._single_input.setValidator(QRegularExpressionValidator(QRegularExpression(r'[0-9.]{0,15}')))
+        self._single_input = self._create_ip_input('e.g. 192.168.1.1')
         input_layout.addWidget(self._single_label, 0, 0)
         input_layout.addWidget(self._single_input, 0, 1)
 
         # Range fields
         self._range_from_label = QLabel('From:')
-        self._range_from_input = QLineEdit()
-        self._range_from_input.setPlaceholderText('e.g. 192.168.1.100')
-        self._range_from_input.setMaxLength(15)
-        self._range_from_input.setValidator(QRegularExpressionValidator(QRegularExpression(r'[0-9.]{0,15}')))
+        self._range_from_input = self._create_ip_input('e.g. 192.168.1.100')
         self._range_to_label = QLabel('To:')
-        self._range_to_input = QLineEdit()
-        self._range_to_input.setPlaceholderText('e.g. 192.168.1.200')
-        self._range_to_input.setMaxLength(15)
-        self._range_to_input.setValidator(QRegularExpressionValidator(QRegularExpression(r'[0-9.]{0,15}')))
+        self._range_to_input = self._create_ip_input('e.g. 192.168.1.200')
         input_layout.addWidget(self._range_from_label, 1, 0)
         input_layout.addWidget(self._range_from_input, 1, 1)
         input_layout.addWidget(self._range_to_label, 2, 0)
@@ -763,10 +754,7 @@ class IPRangeBuilderDialog(QDialog):
 
         # Subnet fields
         self._subnet_ip_label = QLabel('Base IP:')
-        self._subnet_ip_input = QLineEdit()
-        self._subnet_ip_input.setPlaceholderText('e.g. 192.168.1.0')
-        self._subnet_ip_input.setMaxLength(15)
-        self._subnet_ip_input.setValidator(QRegularExpressionValidator(QRegularExpression(r'[0-9.]{0,15}')))
+        self._subnet_ip_input = self._create_ip_input('e.g. 192.168.1.0')
         input_layout.addWidget(self._subnet_ip_label, 3, 0)
         input_layout.addWidget(self._subnet_ip_input, 3, 1)
 
@@ -855,6 +843,15 @@ class IPRangeBuilderDialog(QDialog):
             else:
                 self._single_input.setText(initial_entry)
                 self._radio_single.setChecked(True)
+
+    @staticmethod
+    def _create_ip_input(placeholder: str) -> QLineEdit:
+        """Create a QLineEdit configured for IPv4 address entry."""
+        line_edit = QLineEdit()
+        line_edit.setPlaceholderText(placeholder)
+        line_edit.setMaxLength(15)
+        line_edit.setValidator(QRegularExpressionValidator(QRegularExpression(r'[0-9.]{0,15}')))
+        return line_edit
 
     def _on_mode_changed(self, *_args: object) -> None:
         """Show/hide input fields based on the selected mode."""

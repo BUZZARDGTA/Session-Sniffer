@@ -60,6 +60,18 @@ if TYPE_CHECKING:
 
 
 _COMBO_RULES_TAB_INDEX = 3
+_STANDARD_DETECTION_PREFIXES: tuple[str, ...] = (
+    'mobile',
+    'vpn',
+    'hosting',
+    'country',
+    'isp',
+    'asn',
+    'player_join',
+    'player_rejoin',
+    'player_leave',
+)
+_ALL_DETECTION_PREFIXES: tuple[str, ...] = (*_STANDARD_DETECTION_PREFIXES, 'gta5_relay')
 
 
 class DetectionsManagerDialog(DetectionsManagerTabsMixin, QDialog):
@@ -207,30 +219,26 @@ class DetectionsManagerDialog(DetectionsManagerTabsMixin, QDialog):
 
     def refresh_detection_availability(self) -> None:
         """Refresh detection action visibility based on current runtime support."""
-        if not Settings.is_gta5_feature_set() or not CaptureState.is_local_capture():
-            self._apply_detection_restrictions()
-        else:
-            self._remove_detection_restrictions()
-
-    def _apply_detection_restrictions(self) -> None:
-        """Hide all detection action widgets when detection is not supported (non-GTA5 feature set or neighbour interface)."""
-        for prefix in ('mobile', 'vpn', 'hosting', 'country', 'isp', 'asn', 'player_join', 'player_rejoin', 'player_leave', 'gta5_relay'):
+        is_supported = Settings.is_gta5_feature_set() and CaptureState.is_local_capture()
+        for prefix in _ALL_DETECTION_PREFIXES:
             if not hasattr(self, f'{prefix}_detection_section'):
                 continue
             detection_section = cast('QWidget', getattr(self, f'{prefix}_detection_section'))
-            detection_section.setVisible(False)
-
-    def _remove_detection_restrictions(self) -> None:
-        """Show all detection action widgets when detection is supported."""
-        for prefix in ('mobile', 'vpn', 'hosting', 'country', 'isp', 'asn', 'player_join', 'player_rejoin', 'player_leave', 'gta5_relay'):
-            if not hasattr(self, f'{prefix}_detection_section'):
-                continue
-            detection_section = cast('QWidget', getattr(self, f'{prefix}_detection_section'))
-            detection_section.setVisible(True)
+            detection_section.setVisible(is_supported)
 
     # ------------------------------------------------------------------
     # Settings load / save
     # ------------------------------------------------------------------
+
+    @staticmethod
+    def _populate_unique_text_list(list_widget: QListWidget, values: list[str]) -> None:
+        """Clear *list_widget* and populate it with unique strings from *values* preserving order."""
+        list_widget.clear()
+        seen: set[str] = set()
+        for value in values:
+            if value not in seen:
+                seen.add(value)
+                list_widget.addItem(value)
 
     def load_current_settings(self) -> None:
         """Read GUIDetectionSettings and populate all widgets."""
@@ -283,12 +291,7 @@ class DetectionsManagerDialog(DetectionsManagerTabsMixin, QDialog):
             self.country_msgbox_checkbox.setChecked(GUIDetectionSettings.country_message_box)
 
             # ISP
-            self.isp_list.clear()
-            seen_isps: set[str] = set()
-            for isp in GUIDetectionSettings.isp_detection_list:
-                if isp not in seen_isps:
-                    seen_isps.add(isp)
-                    self.isp_list.addItem(isp)
+            self._populate_unique_text_list(self.isp_list, GUIDetectionSettings.isp_detection_list)
             set_duration_widgets_helper(
                 self.isp_duration_combo,
                 self.isp_duration_spin,
@@ -299,12 +302,7 @@ class DetectionsManagerDialog(DetectionsManagerTabsMixin, QDialog):
             self.isp_msgbox_checkbox.setChecked(GUIDetectionSettings.isp_message_box)
 
             # ASN
-            self.asn_list.clear()
-            seen_asns: set[str] = set()
-            for asn in GUIDetectionSettings.asn_detection_list:
-                if asn not in seen_asns:
-                    seen_asns.add(asn)
-                    self.asn_list.addItem(asn)
+            self._populate_unique_text_list(self.asn_list, GUIDetectionSettings.asn_detection_list)
             set_duration_widgets_helper(
                 self.asn_duration_combo,
                 self.asn_duration_spin,
@@ -364,9 +362,9 @@ class DetectionsManagerDialog(DetectionsManagerTabsMixin, QDialog):
 
     def _connect_auto_save_signals(self) -> None:
         """Connect all detection widget change signals to auto-save."""
-        prefixes: tuple[str, ...] = ('mobile', 'vpn', 'hosting', 'country', 'isp', 'asn', 'player_join', 'player_rejoin', 'player_leave')
+        prefixes: tuple[str, ...] = _STANDARD_DETECTION_PREFIXES
         if hasattr(self, 'gta5_relay_duration_combo'):
-            prefixes = (*prefixes, 'gta5_relay')
+            prefixes = _ALL_DETECTION_PREFIXES
             self.gta5_relay_packet_threshold_spin.valueChanged.connect(self._auto_save_detections)
 
         for prefix in prefixes:
@@ -383,19 +381,7 @@ class DetectionsManagerDialog(DetectionsManagerTabsMixin, QDialog):
             return
 
         # Clear voice queue if any detection's voice notification was newly disabled
-        checkbox_prefixes = (
-            'mobile',
-            'vpn',
-            'hosting',
-            'country',
-            'isp',
-            'asn',
-            'player_join',
-            'player_rejoin',
-            'player_leave',
-            'gta5_relay',
-        )
-        for prefix in checkbox_prefixes:
+        for prefix in _ALL_DETECTION_PREFIXES:
             if not hasattr(self, f'{prefix}_voice_combo'):
                 continue
             if getattr(GUIDetectionSettings, f'{prefix}_voice_notifications') and getattr(self, f'{prefix}_voice_combo').currentText() == 'Disabled':
@@ -511,9 +497,7 @@ class DetectionsManagerDialog(DetectionsManagerTabsMixin, QDialog):
         if result != QMessageBox.StandardButton.Yes:
             return
 
-        prefixes: tuple[str, ...] = ('mobile', 'vpn', 'hosting', 'country', 'isp', 'asn', 'player_join', 'player_rejoin', 'player_leave')
-        if hasattr(self, 'gta5_relay_duration_combo'):
-            prefixes = (*prefixes, 'gta5_relay')
+        prefixes: tuple[str, ...] = _ALL_DETECTION_PREFIXES if hasattr(self, 'gta5_relay_duration_combo') else _STANDARD_DETECTION_PREFIXES
         self._reset_tab_to_defaults(prefixes)
 
     def _save_widgets_to_singleton(self) -> None:
