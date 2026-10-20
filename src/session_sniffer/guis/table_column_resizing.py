@@ -29,6 +29,89 @@ def _get_horizontal_header(table: QTableView | QTreeView | QTableWidget) -> QHea
     return table.header()
 
 
+def _get_column_min_width(
+    horizontal_header: QHeaderView,
+    column_index: int,
+    column_label: str,
+    widths_map: dict[str, int],
+) -> int:
+    """Return the minimum allowed pixel width for *column_index*."""
+    return max(
+        scale_by_ui(widths_map.get(column_label, DEFAULT_MIN_COLUMN_WIDTH)),
+        horizontal_header.sectionSizeFromContents(column_index).width(),
+    )
+
+
+def _distribute_deficit_to_preceding_columns(
+    horizontal_header: QHeaderView,
+    preceding_columns: list[tuple[int, str]],
+    deficit: int,
+    custom_widths: dict[str, int] | None,
+) -> None:
+    """Distribute *deficit* pixels across flexible (or immediately preceding) columns."""
+    if not preceding_columns or deficit <= 0:
+        return
+
+    target_columns = [(col, label) for col, label in preceding_columns if label in FLEXIBLE_STRETCH_COLUMNS]
+    if not target_columns:
+        target_columns = [preceding_columns[-1]]
+
+    total_weight = sum(FLEXIBLE_COLUMN_WEIGHTS.get(label, 1) for _, label in target_columns)
+    if total_weight <= 0:
+        total_weight = len(target_columns)
+
+    allocated = 0
+    new_widths: dict[int, int] = {col: horizontal_header.sectionSize(col) for col, _ in target_columns}
+    for col, label in target_columns:
+        weight = FLEXIBLE_COLUMN_WEIGHTS.get(label, 1)
+        share = (deficit * weight) // total_weight
+        new_widths[col] += share
+        allocated += share
+
+    remainder = deficit - allocated
+    if remainder > 0:
+        top_column = max(target_columns, key=lambda item: FLEXIBLE_COLUMN_WEIGHTS.get(item[1], 1))[0]
+        new_widths[top_column] += remainder
+
+    for col, label in target_columns:
+        width = new_widths[col]
+        horizontal_header.setSectionResizeMode(col, QHeaderView.ResizeMode.Interactive)
+        if horizontal_header.sectionSize(col) != width:
+            horizontal_header.resizeSection(col, width)
+        if custom_widths is not None and label:
+            custom_widths[label] = width
+
+
+def _reclaim_overflow_from_preceding_columns(
+    horizontal_header: QHeaderView,
+    preceding_columns: list[tuple[int, str]],
+    overflow: int,
+    widths_map: dict[str, int],
+    custom_widths: dict[str, int] | None,
+) -> None:
+    """Reclaim up to *overflow* pixels from preceding columns sitting above their minimum widths."""
+    if not preceding_columns or overflow <= 0:
+        return
+
+    flexible_candidates = [(col, label) for col, label in preceding_columns if label in FLEXIBLE_STRETCH_COLUMNS]
+    other_candidates = [(col, label) for col, label in reversed(preceding_columns) if label not in FLEXIBLE_STRETCH_COLUMNS]
+    remaining_overflow = overflow
+
+    for col, label in (*flexible_candidates, *other_candidates):
+        if remaining_overflow <= 0:
+            break
+        current_width = horizontal_header.sectionSize(col)
+        min_width = _get_column_min_width(horizontal_header, col, label, widths_map)
+        if current_width > min_width:
+            reclaimed = min(current_width - min_width, remaining_overflow)
+            new_width = current_width - reclaimed
+            horizontal_header.setSectionResizeMode(col, QHeaderView.ResizeMode.Interactive)
+            horizontal_header.resizeSection(col, new_width)
+            if custom_widths is not None and label:
+                custom_widths[label] = new_width
+            remaining_overflow -= reclaimed
+
+
 def adjust_last_visible_column_to_viewport(
     table: QTableView | QTreeView,
     *,
@@ -59,24 +142,48 @@ def adjust_last_visible_column_to_viewport(
     last_column = visible_logical_columns[-1]
     last_label = str(table_model.headerData(last_column, Qt.Orientation.Horizontal) or '')
     widths_map = min_column_widths or {}
-    last_min_width = max(
-        scale_by_ui(widths_map.get(last_label, DEFAULT_MIN_COLUMN_WIDTH)),
-        horizontal_header.sectionSizeFromContents(last_column).width(),
-    )
+    last_min_width = _get_column_min_width(horizontal_header, last_column, last_label, widths_map)
 
-    other_widths = sum(horizontal_header.sectionSize(column) for column in visible_logical_columns[:-1])
+    preceding_columns = [
+        (column, str(table_model.headerData(column, Qt.Orientation.Horizontal) or ''))
+        for column in visible_logical_columns[:-1]
+    ]
+    other_widths = sum(horizontal_header.sectionSize(column) for column, _ in preceding_columns)
     current_last_width = horizontal_header.sectionSize(last_column)
-    ideal_last_width = max(last_min_width, viewport_width - other_widths)
 
-    target_last_width = current_last_width
-    if other_widths + current_last_width < viewport_width or (
-        resized_column != last_column and other_widths + current_last_width > viewport_width and current_last_width > ideal_last_width
-    ):
-        target_last_width = ideal_last_width
+    if resized_column == last_column:
+        target_last_width = max(last_min_width, current_last_width)
+        if target_last_width != current_last_width:
+            horizontal_header.setSectionResizeMode(last_column, QHeaderView.ResizeMode.Interactive)
+            horizontal_header.resizeSection(last_column, target_last_width)
+            current_last_width = target_last_width
 
-    if target_last_width != current_last_width:
-        horizontal_header.setSectionResizeMode(last_column, QHeaderView.ResizeMode.Interactive)
-        horizontal_header.resizeSection(last_column, target_last_width)
+        if other_widths + current_last_width < viewport_width:
+            _distribute_deficit_to_preceding_columns(
+                horizontal_header,
+                preceding_columns,
+                viewport_width - (other_widths + current_last_width),
+                custom_widths,
+            )
+        elif not horizontal_header.offset() and other_widths + current_last_width > viewport_width:
+            _reclaim_overflow_from_preceding_columns(
+                horizontal_header,
+                preceding_columns,
+                (other_widths + current_last_width) - viewport_width,
+                widths_map,
+                custom_widths,
+            )
+    else:
+        ideal_last_width = max(last_min_width, viewport_width - other_widths)
+        target_last_width = current_last_width
+        if other_widths + current_last_width < viewport_width or (
+            other_widths + current_last_width > viewport_width and current_last_width > ideal_last_width
+        ):
+            target_last_width = ideal_last_width
+
+        if target_last_width != current_last_width:
+            horizontal_header.setSectionResizeMode(last_column, QHeaderView.ResizeMode.Interactive)
+            horizontal_header.resizeSection(last_column, target_last_width)
 
     if custom_widths is not None and last_label:
         custom_widths[last_label] = horizontal_header.sectionSize(last_column)
