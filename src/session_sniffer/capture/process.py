@@ -47,7 +47,7 @@ _MIN_LSOF_UDP_FIELDS = 9
 _DARWIN_LSOF_EXECUTABLE = '/usr/sbin/lsof'
 
 if sys.platform == 'win32':
-    _kernel32 = ctypes.windll.kernel32
+    _kernel32 = ctypes.WinDLL('kernel32', use_last_error=True)
     _ntdll = ctypes.windll.ntdll
     _psapi = ctypes.windll.psapi
     _iphlpapi = ctypes.windll.iphlpapi
@@ -461,7 +461,7 @@ def suspend_process(pid: int) -> None:
 
     handle = _kernel32.OpenProcess(_PROCESS_SUSPEND_RESUME | _PROCESS_QUERY_LIMITED_INFORMATION, 0, pid)
     if not handle:
-        last_error = _kernel32.GetLastError()
+        last_error = ctypes.get_last_error()
         if last_error in (2, 87, 1168):
             error_message = f'Process {pid} does not exist'
             raise ProcessLookupError(error_message)
@@ -490,7 +490,7 @@ def resume_process(pid: int) -> None:
 
     handle = _kernel32.OpenProcess(_PROCESS_SUSPEND_RESUME | _PROCESS_QUERY_LIMITED_INFORMATION, 0, pid)
     if not handle:
-        last_error = _kernel32.GetLastError()
+        last_error = ctypes.get_last_error()
         if last_error in (2, 87, 1168):
             error_message = f'Process {pid} does not exist'
             raise ProcessLookupError(error_message)

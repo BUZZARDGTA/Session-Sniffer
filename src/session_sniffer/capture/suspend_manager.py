@@ -261,36 +261,36 @@ class BaseSuspendManager:
 
     @classmethod
     def _monitor(cls) -> None:
-        try:
-            while True:
-                with cls._condition:
-                    if cls._shutdown_event.is_set() or cls._state is None:
-                        return
+        while True:
+            with cls._condition:
+                if cls._shutdown_event.is_set() or cls._state is None:
+                    cls._monitor_thread = None
+                    return
 
-                    # Stale-PID check (process exited -> None, or restarted -> new PID).
-                    current_process_id = cls._get_target_pid()
-                    if current_process_id != cls._state.pid:
-                        logger.warning('%s PID changed (%s -> %s); clearing suspend state', cls._game_name, cls._state.pid, current_process_id)
-                        cls._state = None
-                        cls._publish_snapshot_locked()
-                        return
+                # Stale-PID check (process exited -> None, or restarted -> new PID).
+                current_process_id = cls._get_target_pid()
+                if current_process_id != cls._state.pid:
+                    logger.warning('%s PID changed (%s -> %s); clearing suspend state', cls._game_name, cls._state.pid, current_process_id)
+                    cls._state = None
+                    cls._publish_snapshot_locked()
+                    cls._monitor_thread = None
+                    return
 
-                    # all reasons satisfied
-                    now = time.monotonic()
-                    if all(cls._reason_ok(reason, now) for reason in cls._state.reasons.values()):
-                        process_id_to_resume = cls._state.pid
-                        cls._state = None
-                        cls._publish_snapshot_locked()
-                    else:
-                        timeout = cls._next_timeout(cls._state, now)
-                        cls._condition.wait(timeout=timeout)
-                        continue
+                # all reasons satisfied
+                now = time.monotonic()
+                if all(cls._reason_ok(reason, now) for reason in cls._state.reasons.values()):
+                    process_id_to_resume = cls._state.pid
+                    cls._state = None
+                    cls._publish_snapshot_locked()
+                    cls._monitor_thread = None
+                else:
+                    process_id_to_resume = None
+                    timeout = cls._next_timeout(cls._state, now)
+                    cls._condition.wait(timeout=timeout)
 
+            if process_id_to_resume is not None:
                 cls._try_resume_pid(process_id_to_resume)
                 return
-
-        finally:
-            cls._monitor_thread = None
 
     # ------------------------------------------------------------
     # Logic helpers

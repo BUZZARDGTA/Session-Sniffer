@@ -299,8 +299,8 @@ def terminate_process_tree() -> None:
             for proc_entry in proc_path.iterdir():
                 if proc_entry.name.isdigit():
                     try:
-                        stat_content = (proc_entry / 'stat').read_text().split()
-                        parent_process_id = int(stat_content[3])
+                        _, _, stat_after_comm = (proc_entry / 'stat').read_text().rpartition(')')
+                        parent_process_id = int(stat_after_comm.split()[1])
                         child_pid = int(proc_entry.name)
                         children_by_parent.setdefault(parent_process_id, []).append(child_pid)
                     except (OSError, ValueError, IndexError):

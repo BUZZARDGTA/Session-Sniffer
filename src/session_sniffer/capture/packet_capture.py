@@ -329,8 +329,9 @@ class PacketCapture:
 
             try:
                 self._capture_and_process()
-            except (CaptureExitError, PcapError, Exception) as e:
-                error_detail = e.cause if isinstance(e, CaptureExitError) and e.cause is not None else e
+            except (CaptureError, OSError) as e:
+                cause = getattr(e, 'cause', None)
+                error_detail = cause if cause is not None else e
                 error_string = str(error_detail)
                 has_monitored_adapter_guid = (
                     not self.config.interface.is_neighbour

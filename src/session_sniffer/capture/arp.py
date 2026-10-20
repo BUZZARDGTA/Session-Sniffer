@@ -64,10 +64,9 @@ def _resolve_mac_address_unix(ip_address: str) -> str:
             return cached_mac.lower()
 
     try:
-        probe_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        probe_socket.settimeout(0.5)
-        probe_socket.sendto(b'', (ip_address, 80))
-        probe_socket.close()
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as probe_socket:
+            probe_socket.settimeout(0.5)
+            probe_socket.sendto(b'', (ip_address, 80))
     except OSError as e:
         logger.debug('UDP probe to %s failed: %s', ip_address, e)
 
