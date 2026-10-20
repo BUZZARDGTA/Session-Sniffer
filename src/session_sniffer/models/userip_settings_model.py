@@ -347,6 +347,11 @@ class UserIPEntryModel(BaseModel):
         updated_at, updated_clean = normalize_iso_timestamp(entry_dict.get('updated_at'))
         first_seen_at, first_seen_clean = normalize_iso_timestamp(entry_dict.get('first_seen_at'))
         last_seen_at, last_seen_clean = normalize_iso_timestamp(entry_dict.get('last_seen_at'))
+        earliest_seen = pick_earliest_iso(first_seen_at, last_seen_at)
+        clamped_added_at = pick_earliest_iso(added_at, earliest_seen) or added_at
+        if clamped_added_at != added_at:
+            added_at = clamped_added_at
+            added_clean = False
 
         keys_clean = list(entry_dict.keys()) == list(USERIP_ENTRY_KEYS)
         is_canonical = keys_clean and source_clean and detections_clean and added_clean and updated_clean and first_seen_clean and last_seen_clean
@@ -356,21 +361,25 @@ class UserIPEntryModel(BaseModel):
         )
         return entry, is_canonical
 
-    def merge_duplicate(self, other: Self, *, sum_detections: bool = True) -> Self:
+    def merge_duplicate(self, other: Self) -> Self:
         """Merge metadata and timestamps from a duplicate `(username, ip)` entry into this entry."""
-        merged_detections = self.detections_count + other.detections_count if sum_detections else max(self.detections_count, other.detections_count)
+        merged_detections = max(self.detections_count, other.detections_count)
         merged_is_looky = self.is_looky or other.is_looky
         merged_source: EntrySource = 'Looky' if merged_is_looky else self.source
+        first_seen_at = pick_earliest_iso(self.first_seen_at, other.first_seen_at)
+        last_seen_at = pick_latest_iso(self.last_seen_at, other.last_seen_at)
+        earliest_seen = pick_earliest_iso(first_seen_at, last_seen_at)
+        added_at = pick_earliest_iso(pick_earliest_iso(self.added_at, other.added_at), earliest_seen) or self.added_at
         return self.model_copy(
             update={
                 'is_looky': merged_is_looky,
                 'source': merged_source,
                 'notes': self.notes or other.notes,
                 'detections_count': merged_detections,
-                'added_at': pick_earliest_iso(self.added_at, other.added_at) or self.added_at,
+                'added_at': added_at,
                 'updated_at': pick_latest_iso(self.updated_at, other.updated_at),
-                'first_seen_at': pick_earliest_iso(self.first_seen_at, other.first_seen_at),
-                'last_seen_at': pick_latest_iso(self.last_seen_at, other.last_seen_at),
+                'first_seen_at': first_seen_at,
+                'last_seen_at': last_seen_at,
             },
         )
 

@@ -291,6 +291,7 @@ class UserIPEntriesOperationsMixin(QDialog):
                 range_item.setText('' if is_single else new_ip_text)
             clear_row_looky_badge(self._model, source_row)
             set_row_updated_at(self._model, source_row)
+            extract_entry_model_from_row(self._model, source_row)
 
             self._highlight_duplicates()
             self._update_entry_counts()

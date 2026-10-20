@@ -8,7 +8,7 @@ from datetime import datetime
 from ipaddress import IPv4Address
 from typing import TYPE_CHECKING, cast, override
 
-from PySide6.QtCore import QModelIndex, QPersistentModelIndex, QRegularExpression, QSortFilterProxyModel, Qt
+from PySide6.QtCore import QModelIndex, QPersistentModelIndex, QRegularExpression, QSignalBlocker, QSortFilterProxyModel, Qt
 from PySide6.QtGui import QBrush, QColor, QIcon, QRegularExpressionValidator, QStandardItem, QStandardItemModel
 from PySide6.QtWidgets import (
     QButtonGroup,
@@ -42,6 +42,7 @@ from session_sniffer.models.userip_settings_model import (
     get_current_iso_timestamp,
 )
 from session_sniffer.networking.ip_range import entry_ip_covers_ip
+from session_sniffer.player.userip_loader import enrich_userip_entry_from_logs
 from session_sniffer.text_utils import pluralize, split_usernames
 from session_sniffer.utils import custom_str_to_bool
 from session_sniffer.utils_exceptions import InvalidBooleanValueError
@@ -195,6 +196,8 @@ def build_entry_row_items(
     persisted: bool = True,
 ) -> list[QStandardItem]:
     """Construct the 12 `QStandardItem` instances for a single `UserIPEntryModel` row."""
+    if entry.ip:
+        entry, _ = enrich_userip_entry_from_logs(entry)
     index_item = _make_readonly_item(str(index) if index > 0 else '', index)
     index_item.setData(1 if persisted else 0, IS_PERSISTED_ROLE)
 
@@ -276,13 +279,18 @@ def extract_entry_model_from_row(model: QStandardItemModel, row: int) -> tuple[s
         'first_seen_at': model.item(row, FIRST_SEEN_AT_COLUMN).data(Qt.ItemDataRole.UserRole),
         'last_seen_at': model.item(row, LAST_SEEN_AT_COLUMN).data(Qt.ItemDataRole.UserRole),
     }
-    entry_model, _ = UserIPEntryModel.from_raw_entry_dict(
-        raw_meta,
-        username=username,
-        ip=ip_text,
-        is_looky=bool(username_item.data(Qt.ItemDataRole.UserRole)),
-        notes=notes,
-    )
+    entry_model, _ = UserIPEntryModel.from_raw_entry_dict(raw_meta, username=username, ip=ip_text, is_looky=bool(username_item.data(Qt.ItemDataRole.UserRole)), notes=notes)
+    entry_model, was_enriched = enrich_userip_entry_from_logs(entry_model)
+    if was_enriched:
+        with QSignalBlocker(model):
+            det_item = model.item(row, DETECTIONS_COLUMN)
+            det_item.setText(str(entry_model.detections_count))
+            det_item.setData(entry_model.detections_count, Qt.ItemDataRole.UserRole)
+            for col, iso_val in ((ADDED_AT_COLUMN, entry_model.added_at), (FIRST_SEEN_AT_COLUMN, entry_model.first_seen_at), (LAST_SEEN_AT_COLUMN, entry_model.last_seen_at)):
+                ts_item = model.item(row, col)
+                ts_item.setText(format_iso_timestamp_display(iso_val))
+                ts_item.setData(iso_val, Qt.ItemDataRole.UserRole)
+                ts_item.setToolTip(iso_val or '')
     return username, ip_text, notes, entry_model
 
 
@@ -350,13 +358,8 @@ def parse_userip_database_content(
 
         raw_notes = entry_dict.get('notes', '')
         notes_str = raw_notes.strip() if isinstance(raw_notes, str) else ''
-        base_entry, _ = UserIPEntryModel.from_raw_entry_dict(
-            entry_dict,
-            username=username_str,
-            ip=ip_str,
-            is_looky=is_looky,
-            notes=notes_str,
-        )
+        base_entry, _ = UserIPEntryModel.from_raw_entry_dict(entry_dict, username=username_str, ip=ip_str, is_looky=is_looky, notes=notes_str)
+        base_entry, _ = enrich_userip_entry_from_logs(base_entry)
         entries.extend(base_entry.model_copy(update={'username': individual_username}) for individual_username in split_usernames(username_str))
 
     return UserIPDatabaseFile(settings=validated_settings, entries=entries)
@@ -489,7 +492,7 @@ def rewrite_db_edit_entry_ip(
             replaced_count += 1
             new_source = 'Manual' if entry.source == 'Looky' else entry.source
             updated_entries.append(
-                entry.model_copy(update={'ip': new_ip_or_range, 'is_looky': False, 'source': new_source, 'updated_at': now_iso}),
+                enrich_userip_entry_from_logs(entry.model_copy(update={'ip': new_ip_or_range, 'is_looky': False, 'source': new_source, 'updated_at': now_iso}))[0],
             )
         else:
             updated_entries.append(entry)
@@ -579,7 +582,7 @@ def append_userip_entries(db_path: Path, entries: Sequence[UserIPEntryModel]) ->
         cf_pair = (username.casefold(), ip_or_range)
         existing_entry = existing_by_pair.get(cf_pair)
         if existing_entry is None:
-            new_entry = entry.model_copy(update={'username': username, 'ip': ip_or_range, 'notes': entry.notes.strip()})
+            new_entry, _ = enrich_userip_entry_from_logs(entry.model_copy(update={'username': username, 'ip': ip_or_range, 'notes': entry.notes.strip()}))
             existing_by_pair[cf_pair] = new_entry
             added_pairs.add((username, ip_or_range))
             last_ip_index = next((i for i in range(len(db_model.entries) - 1, -1, -1) if db_model.entries[i].ip == ip_or_range), None)
@@ -591,13 +594,13 @@ def append_userip_entries(db_path: Path, entries: Sequence[UserIPEntryModel]) ->
         elif (entry.is_looky and not existing_entry.is_looky) or (entry.notes.strip() and not existing_entry.notes):
             existing_index = db_model.entries.index(existing_entry)
             upgraded_looky = existing_entry.is_looky or entry.is_looky
-            updated_entry = existing_entry.model_copy(
-                update={
-                    'is_looky': upgraded_looky,
-                    'source': 'Looky' if upgraded_looky else existing_entry.source,
-                    'notes': existing_entry.notes or entry.notes.strip(),
-                    'updated_at': now_iso,
-                },
+            updated_entry, _ = enrich_userip_entry_from_logs(
+                existing_entry.model_copy(
+                    update={
+                        'is_looky': upgraded_looky, 'source': 'Looky' if upgraded_looky else existing_entry.source,
+                        'notes': existing_entry.notes or entry.notes.strip(), 'updated_at': now_iso,
+                    },
+                ),
             )
             db_model.entries[existing_index] = updated_entry
             existing_by_pair[cf_pair] = updated_entry
