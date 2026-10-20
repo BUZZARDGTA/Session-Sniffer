@@ -218,3 +218,4 @@ __marimo__/
 /Session_Sniffer_macOS
 detections.txt
 .dev/sonar.png
+.dev/Migrate-SessionSnifferIniToJson.ps1
