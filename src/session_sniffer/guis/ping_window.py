@@ -227,7 +227,7 @@ class PingTabWidget(QWidget):
         count_label = QLabel('Count:')
         self._count_spinbox = QSpinBox()
         self._count_spinbox.setRange(0, 10000)
-        self._count_spinbox.setSpecialValueText('Continuous (0)')
+        self._count_spinbox.setSpecialValueText('Continuous')
         self._count_spinbox.setValue(Settings.ping_count)
         self._count_spinbox.valueChanged.connect(self._save_settings)
 

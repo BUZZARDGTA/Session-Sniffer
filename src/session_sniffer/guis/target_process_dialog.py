@@ -133,7 +133,7 @@ class TargetProcessDialog(QDialog):
         manual_label = QLabel('Manual PID Entry (Advanced):')
         self._pid_spinbox = QSpinBox()
         self._pid_spinbox.setRange(0, 4194304)
-        self._pid_spinbox.setSpecialValueText('Disabled (0)')
+        self._pid_spinbox.setSpecialValueText('Disabled')
         self._pid_spinbox.setValue(Settings.capture_filter_process_pid)
         self._pid_spinbox.valueChanged.connect(self._on_manual_pid_changed)
         manual_layout.addWidget(manual_label)

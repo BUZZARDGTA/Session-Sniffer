@@ -177,11 +177,7 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         setting_type=SettingType.ENUM,
         tooltip='Unlock specific tools and exclusive features tailored for the selected software/game.',
         requires_capture_restart=True,
-        allowed_values=(
-            'None',
-            'GTA V',
-            'RDR2',
-        ),
+        allowed_values=('None', 'GTA V', 'RDR2'),
     ),
     'capture_filter_process_pid': SettingMeta(
         category='Capture',
@@ -244,6 +240,7 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         requires_capture_restart=False,
         min_value=0,
         step=1,
+        suffix=' seconds',
         special_value_text='Disabled',
     ),
     'capture_ps3_name_resolver': SettingMeta(
@@ -527,6 +524,7 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         tooltip='Seconds of inactivity before a player is marked disconnected.',
         min_value=3,
         step=1,
+        suffix=' seconds',
     ),
     'gui_disconnected_players_limit': SettingMeta(
         category='Session',
@@ -561,7 +559,7 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         min_value=0,
         max_value=10000,
         step=1,
-        special_value_text='Continuous (0)',
+        special_value_text='Continuous',
         tooltip='Default number of ping requests to send per target in the Ping Diagnostics window. Set to 0 for continuous.',
     ),
     'ping_interval_ms': SettingMeta(
@@ -644,12 +642,13 @@ SETTING_METADATA: dict[str, SettingMeta] = {
     'discord_webhook_refresh_interval': SettingMeta(
         category='Discord',
         group='Webhook',
-        display_label='Refresh Interval (s)',
+        display_label='Refresh Interval',
         setting_type=SettingType.INTEGER,
         tooltip='Seconds between webhook updates. Lower values risk Discord rate limits (minimum 5).',
         min_value=5,
         max_value=300,
         step=1,
+        suffix=' seconds',
     ),
     'discord_webhook_include_connected': SettingMeta(
         category='Discord',
@@ -832,6 +831,7 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         min_value=6,
         max_value=60,
         step=1,
+        suffix=' seconds',
     ),
     'high_rate_monitor_mode': SettingMeta(
         category='GTA V',
@@ -878,6 +878,7 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         min_value=20,
         max_value=50,
         step=1,
+        suffix=' PPS',
     ),
     'high_rate_monitor_bps_threshold': SettingMeta(
         category='GTA V',
@@ -888,6 +889,7 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         min_value=3,
         max_value=500,
         step=1,
+        suffix=' KB/s',
     ),
     'high_rate_monitor_duration_threshold': SettingMeta(
         category='GTA V',
@@ -898,6 +900,7 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         min_value=1,
         max_value=10,
         step=1,
+        suffix=' seconds',
     ),
     'player_identifier_icon': SettingMeta(
         category='GTA V',
@@ -925,6 +928,7 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         min_value=1,
         max_value=30,
         step=1,
+        suffix=' seconds',
     ),
     'player_identifier_baseline_seconds': SettingMeta(
         category='GTA V',
@@ -935,6 +939,7 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         min_value=5,
         max_value=120,
         step=1,
+        suffix=' seconds',
     ),
     'player_identifier_contamination_zscore': SettingMeta(
         category='GTA V',
@@ -955,6 +960,7 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         min_value=1,
         max_value=30,
         step=1,
+        suffix=' seconds',
     ),
     'player_identifier_contamination_min_samples': SettingMeta(
         category='GTA V',
@@ -965,6 +971,7 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         min_value=5,
         max_value=60,
         step=1,
+        suffix=' samples',
     ),
     'player_identifier_baseline_timeout': SettingMeta(
         category='GTA V',
@@ -975,6 +982,7 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         min_value=10,
         max_value=300,
         step=1,
+        suffix=' seconds',
     ),
     'player_identifier_session_drift_zscore': SettingMeta(
         category='GTA V',
