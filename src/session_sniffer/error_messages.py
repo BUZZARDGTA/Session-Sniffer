@@ -314,6 +314,16 @@ def format_capture_interrupted_message() -> str:
     )
 
 
+def format_npcap_adapter_binding_disabled_message(interface_name: str) -> str:
+    """Format the warning shown when the Npcap driver binding is disabled on the selected adapter."""
+    return (
+        f'Packet capture could not open network adapter "{interface_name}".\n\n'
+        'The "Npcap Packet Driver (NPCAP)" binding is currently disabled on this network adapter in Windows.\n\n'
+        f'Enable "Npcap Packet Driver (NPCAP)" in the adapter properties for "{interface_name}" '
+        '(or accept the administrator prompt when selecting the interface), or choose another network interface.'
+    )
+
+
 def format_npcap_required_message() -> str:
     """Format the initial NPCAP-required notification shown when Npcap is missing."""
     return 'Session Sniffer requires the Npcap packet capture driver to monitor and analyze network traffic on Windows.'

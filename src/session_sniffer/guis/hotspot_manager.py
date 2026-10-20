@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from session_sniffer.capture.utils.ctypes_win32 import is_admin
 from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.guis._crashing_qthread import CrashingQThread
 from session_sniffer.guis.hotspot_setup_guide import HotspotSetupGuideDialog
@@ -63,7 +64,6 @@ from session_sniffer.networking.hotspot import (
     get_hotspot_info,
     get_ics_status,
     has_wifi_adapter,
-    is_admin,
     start_hotspot,
     stop_hotspot,
 )
@@ -231,8 +231,11 @@ class HotspotManagerWidget(QWidget):
         layout.addStretch()
 
         if not is_admin():
-            admin_badge = QLabel('ADMIN REQUIRED FOR ICS')
-            admin_badge.setToolTip('Session Sniffer is running without administrator rights. Hotspot works, but Windows ICS sharing requires admin rights.')
+            admin_badge = QLabel('UAC PROMPT FOR ICS')
+            admin_badge.setToolTip(
+                'Session Sniffer is running without administrator rights. '
+                'Enabling or resetting Windows ICS sharing will prompt for administrator permission (UAC).',
+            )
             admin_badge.setStyleSheet(
                 'color: #f59e0b; background: rgba(245, 158, 11, 0.12); border: 1px solid rgba(245, 158, 11, 0.35); '
                 'border-radius: 4px; padding: 3px 8px; font-size: 7.5pt; font-weight: 800;',
@@ -765,15 +768,6 @@ class HotspotManagerWidget(QWidget):
             QMessageBox.warning(self, 'Invalid Selection', 'Public and Private adapters cannot be the same interface.')
             return
 
-        if not is_admin():
-            QMessageBox.critical(
-                self,
-                'Administrator Privileges Required',
-                'Enabling Internet Connection Sharing (ICS) requires administrative elevation.\n\n'
-                'Please restart Session Sniffer by right-clicking and selecting "Run as administrator".',
-            )
-            return
-
         self._status_bar_label.setText(f'Enabling sharing from {public_name} to {private_name}...')
         self._enable_sharing_button.setEnabled(False)
 
@@ -785,13 +779,6 @@ class HotspotManagerWidget(QWidget):
     def _disable_sharing_action(self) -> None:
         """Disable Internet Connection Sharing on all adapters."""
         if self._action_worker is not None and self._action_worker.isRunning():
-            return
-        if not is_admin():
-            QMessageBox.critical(
-                self,
-                'Administrator Privileges Required',
-                'Modifying Internet Connection Sharing requires administrative elevation.\n\nPlease run Session Sniffer as administrator.',
-            )
             return
 
         self._status_bar_label.setText('Disabling sharing...')

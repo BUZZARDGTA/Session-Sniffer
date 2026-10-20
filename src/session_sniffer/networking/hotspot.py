@@ -13,8 +13,10 @@ import sys
 import tempfile
 from ctypes import wintypes
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Final, cast
 
+from session_sniffer.capture.utils.ctypes_win32 import is_admin, run_elevated_powershell_command
 from session_sniffer.networking.bridge_ics import get_adapter_classification
 from session_sniffer.networking.interface import AllInterfaces
 from session_sniffer.networking.manuf_lookup import MacLookup
@@ -322,16 +324,6 @@ class ConnectedDevice:
     connection_type: str
 
 
-def is_admin() -> bool:
-    """Return whether the current process is running with administrative elevation."""
-    if sys.platform == 'win32':
-        try:
-            return bool(ctypes.windll.shell32.IsUserAnAdmin())
-        except AttributeError, OSError:
-            return False
-    return False
-
-
 def has_wifi_adapter() -> bool:
     """Return whether a wireless LAN adapter is present and enabled on the system."""
     if sys.platform != 'win32':
@@ -375,36 +367,56 @@ def _decode_stream(raw_bytes: bytes) -> str:
             return raw_bytes.decode('utf-8', errors='replace')
 
 
-def _run_powershell_script(script_text: str, *arguments: str) -> dict[str, object]:
+def _run_elevated_powershell_script(script_text: str) -> tuple[str, str]:
+    """Execute a PowerShell script via UAC elevation and return `(stdout_text, stderr_text)`."""
+    with tempfile.TemporaryDirectory(prefix='session_sniffer_ics_') as temp_dir:
+        temp_dir_path = Path(temp_dir)
+        script_path = temp_dir_path / 'script.ps1'
+        output_path = temp_dir_path / 'output.json'
+        script_path.write_text(script_text, encoding='utf-8')
+        escaped_script = str(script_path).replace("'", "''")
+        escaped_output = str(output_path).replace("'", "''")
+        ps_command = f"& '{escaped_script}' | Out-File -FilePath '{escaped_output}' -Encoding utf8"
+        if not run_elevated_powershell_command(ps_command, timeout_ms=int(_SUBPROCESS_TIMEOUT_SECONDS * 1000)):
+            return '', 'Administrator elevation was declined or failed.'
+        if not output_path.is_file():
+            return '', 'Elevated PowerShell command produced no output.'
+        return output_path.read_text(encoding='utf-8-sig').strip(), ''
+
+
+def _run_powershell_script(script_text: str, *arguments: str, elevate: bool = False) -> dict[str, object]:
     """Execute a PowerShell command string safely and return decoded JSON output."""
     if sys.platform != 'win32':
         return {'Success': False, 'Error': 'Hotspot and ICS management is only supported on Windows.'}
 
-    command_args = ['powershell.exe', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', script_text]
-    if arguments:
-        command_args.extend(arguments)
+    if elevate and not is_admin():
+        stdout_text, stderr_text = _run_elevated_powershell_script(script_text)
+    else:
+        command_args = ['powershell.exe', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', script_text]
+        if arguments:
+            command_args.extend(arguments)
 
-    creation_flags = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
-    try:
-        with (
-            tempfile.TemporaryFile(mode='w+b') as stdout_file,
-            tempfile.TemporaryFile(mode='w+b') as stderr_file,
-        ):
-            subprocess.run(
-                command_args,
-                stdout=stdout_file,
-                stderr=stderr_file,
-                timeout=_SUBPROCESS_TIMEOUT_SECONDS,
-                creationflags=creation_flags,
-                check=False,
-            )
-            stdout_file.seek(0)
-            stderr_file.seek(0)
-            stdout_text = _decode_stream(stdout_file.read()).strip()
-            stderr_text = _decode_stream(stderr_file.read()).strip()
-    except (subprocess.TimeoutExpired, OSError) as e:
-        logger.warning('PowerShell script execution failed: %s', e)
-        return {'Success': False, 'Error': str(e)}
+        creation_flags = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
+        try:
+            with (
+                tempfile.TemporaryFile(mode='w+b') as stdout_file,
+                tempfile.TemporaryFile(mode='w+b') as stderr_file,
+            ):
+                subprocess.run(
+                    command_args,
+                    stdout=stdout_file,
+                    stderr=stderr_file,
+                    timeout=_SUBPROCESS_TIMEOUT_SECONDS,
+                    creationflags=creation_flags,
+                    check=False,
+                )
+                stdout_file.seek(0)
+                stderr_file.seek(0)
+                stdout_text = _decode_stream(stdout_file.read()).strip()
+                stderr_text = _decode_stream(stderr_file.read()).strip()
+        except (subprocess.TimeoutExpired, OSError) as e:
+            logger.warning('PowerShell script execution failed: %s', e)
+            return {'Success': False, 'Error': str(e)}
 
     if not stdout_text:
         logger.warning('PowerShell returned empty stdout. Stderr: %s', stderr_text)
@@ -613,14 +625,11 @@ def enable_ics(public_adapter_name: str, private_adapter_name: str) -> tuple[boo
     Returns:
         Tuple of (success_boolean, optional_error_message).
     """
-    if not is_admin():
-        return False, 'Administrator permissions are required to configure Windows Internet Connection Sharing. Please run Session Sniffer as administrator.'
-
     escaped_public = public_adapter_name.replace("'", "''")
     escaped_private = private_adapter_name.replace("'", "''")
     script = f"& {{ {_ICS_ENABLE_SCRIPT} }} -PublicAdapterName '{escaped_public}' -PrivateAdapterName '{escaped_private}'"
 
-    response = _run_powershell_script(script)
+    response = _run_powershell_script(script, elevate=True)
     if response.get('Success', False):
         return True, None
 
@@ -634,10 +643,7 @@ def disable_ics() -> tuple[bool, str | None]:
     Returns:
         Tuple of (success_boolean, optional_error_message).
     """
-    if not is_admin():
-        return False, 'Administrator permissions are required to modify Windows Internet Connection Sharing. Please run Session Sniffer as administrator.'
-
-    response = _run_powershell_script(_ICS_DISABLE_SCRIPT)
+    response = _run_powershell_script(_ICS_DISABLE_SCRIPT, elevate=True)
     if response.get('Success', False):
         return True, None
 

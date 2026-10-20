@@ -348,7 +348,13 @@ class PacketCapture:
                     or 'operation not permitted' in error_string.lower()
                     or 'cap_net_raw' in error_string.lower()
                 )
-                if has_monitored_adapter_guid and (is_device_removed or is_open_error) and not is_permission_error:
+                is_binding_disabled = 'npcap packet driver (npcap)' in error_string.lower()
+                if (
+                    has_monitored_adapter_guid
+                    and (is_device_removed or is_open_error)
+                    and not is_permission_error
+                    and not is_binding_disabled
+                ):
                     logger.info('Capture interface "%s" temporarily disconnected — pausing capture.', self.config.interface.name)
                     logger.debug('Capture interface "%s" disconnection detail: %s', self.config.interface.name, error_detail)
                 else:
