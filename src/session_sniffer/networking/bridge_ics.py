@@ -9,14 +9,12 @@ Detection is best-effort: any failure results in the adapter being omitted from
 the classification rather than raising.
 """
 
-import ctypes
 import logging
 import sys
-from ctypes import wintypes
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal, cast
 
-from session_sniffer.ctypes_windows import WindowsGuid, release_com_interface
+from session_sniffer.networking.ctypes_adapters_info import query_ics_sharing_types
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -39,10 +37,6 @@ _DEVICE_PREFIX = '\\Device\\'
 # https://learn.microsoft.com/en-us/windows/win32/api/netcon/ne-netcon-sharingconnectiontype
 _ICSSHARINGTYPE_PUBLIC = 0  # Adapter is the public (upstream) connection being shared.
 _ICSSHARINGTYPE_PRIVATE = 1  # Adapter is the private (LAN) connection serving clients.
-
-
-_IID_INET_SHARING_MANAGER = WindowsGuid(0xC08956B7, 0x1CD3, 0x11D1, (ctypes.c_ubyte * 8)(0xB1, 0xC5, 0x00, 0x80, 0x5F, 0xC1, 0x27, 0x0E))
-_IID_IENUM_VARIANT = WindowsGuid(0x00020404, 0x0000, 0x0000, (ctypes.c_ubyte * 8)(0xC0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x46))
 
 
 def _normalize_guid(guid_string: str) -> str:
@@ -112,168 +106,6 @@ def _get_bridge_host_guid() -> str | None:
     )
 
 
-def _extract_bstr_guid(props_ptr: wintypes.LPVOID, oleaut32: ctypes.WinDLL) -> str | None:
-    props_vtable = ctypes.cast(props_ptr, ctypes.POINTER(ctypes.POINTER(ctypes.c_void_p))).contents
-    get_guid = ctypes.WINFUNCTYPE(
-        wintypes.HRESULT,
-        wintypes.LPVOID,
-        ctypes.POINTER(ctypes.c_wchar_p),
-    )(props_vtable[7])
-    bstr_guid = ctypes.c_wchar_p()
-    if get_guid(props_ptr, ctypes.byref(bstr_guid)):
-        return None
-    try:
-        return bstr_guid.value
-    finally:
-        if bstr_guid:
-            oleaut32.SysFreeString(bstr_guid)
-
-
-def _classify_connection(
-    manager_ptr: wintypes.LPVOID,
-    connection_ptr: wintypes.LPVOID,
-    oleaut32: ctypes.WinDLL,
-) -> tuple[str, AdapterClassification] | None:
-    """Extracts ICS role and adapter GUID for a single connection, if sharing is enabled."""
-    manager_vtable = ctypes.cast(manager_ptr, ctypes.POINTER(ctypes.POINTER(ctypes.c_void_p))).contents
-    get_configuration_for_connection = ctypes.WINFUNCTYPE(
-        wintypes.HRESULT,
-        wintypes.LPVOID,
-        wintypes.LPVOID,
-        ctypes.POINTER(wintypes.LPVOID),
-    )(manager_vtable[10])
-    get_connection_props = ctypes.WINFUNCTYPE(wintypes.HRESULT, wintypes.LPVOID, wintypes.LPVOID, ctypes.POINTER(wintypes.LPVOID))(manager_vtable[12])
-
-    config_ptr = wintypes.LPVOID()
-    if get_configuration_for_connection(manager_ptr, connection_ptr, ctypes.byref(config_ptr)) or not config_ptr:
-        return None
-
-    try:
-        config_vtable = ctypes.cast(config_ptr, ctypes.POINTER(ctypes.POINTER(ctypes.c_void_p))).contents
-        get_sharing_enabled = ctypes.WINFUNCTYPE(
-            wintypes.HRESULT,
-            wintypes.LPVOID,
-            ctypes.POINTER(wintypes.SHORT),
-        )(config_vtable[7])
-        get_sharing_type = ctypes.WINFUNCTYPE(
-            wintypes.HRESULT,
-            wintypes.LPVOID,
-            ctypes.POINTER(ctypes.c_int),
-        )(config_vtable[8])
-
-        sharing_enabled = wintypes.SHORT()
-        if get_sharing_enabled(config_ptr, ctypes.byref(sharing_enabled)) or not sharing_enabled.value:
-            return None
-
-        sharing_type = ctypes.c_int()
-        get_sharing_type(config_ptr, ctypes.byref(sharing_type))
-
-        props_ptr = wintypes.LPVOID()
-        if get_connection_props(manager_ptr, connection_ptr, ctypes.byref(props_ptr)) or not props_ptr:
-            return None
-
-        try:
-            guid_value = _extract_bstr_guid(props_ptr, oleaut32)
-            if guid_value is not None and guid_value:
-                guid_normalized = _normalize_guid(guid_value)
-                role: AdapterClassification | None = None
-                if sharing_type.value == _ICSSHARINGTYPE_PUBLIC:
-                    role = 'sharing'
-                elif sharing_type.value == _ICSSHARINGTYPE_PRIVATE:
-                    role = 'shared'
-                if role:
-                    return (guid_normalized, role)
-        finally:
-            release_com_interface(props_ptr)
-    finally:
-        release_com_interface(config_ptr)
-
-    return None
-
-
-def _get_enum_variant(manager_ptr: wintypes.LPVOID) -> wintypes.LPVOID:
-    """Obtains the IEnumVARIANT interface for all network connections."""
-    manager_vtable = ctypes.cast(manager_ptr, ctypes.POINTER(ctypes.POINTER(ctypes.c_void_p))).contents
-    get_enum_every_connection = ctypes.WINFUNCTYPE(wintypes.HRESULT, wintypes.LPVOID, ctypes.POINTER(wintypes.LPVOID))(manager_vtable[11])
-
-    collection_ptr = wintypes.LPVOID()
-    if get_enum_every_connection(manager_ptr, ctypes.byref(collection_ptr)) or not collection_ptr:
-        return wintypes.LPVOID()
-
-    try:
-        collection_vtable = ctypes.cast(collection_ptr, ctypes.POINTER(ctypes.POINTER(ctypes.c_void_p))).contents
-        get_new_enum = ctypes.WINFUNCTYPE(wintypes.HRESULT, wintypes.LPVOID, ctypes.POINTER(wintypes.LPVOID))(collection_vtable[7])
-
-        unknown_enum_ptr = wintypes.LPVOID()
-        if get_new_enum(collection_ptr, ctypes.byref(unknown_enum_ptr)) or not unknown_enum_ptr:
-            return wintypes.LPVOID()
-
-        try:
-            unknown_vtable = ctypes.cast(unknown_enum_ptr, ctypes.POINTER(ctypes.POINTER(ctypes.c_void_p))).contents
-            query_interface_unknown = ctypes.WINFUNCTYPE(
-                wintypes.HRESULT,
-                wintypes.LPVOID,
-                ctypes.POINTER(WindowsGuid),
-                ctypes.POINTER(wintypes.LPVOID),
-            )(unknown_vtable[0])
-
-            enum_variant_ptr = wintypes.LPVOID()
-            if query_interface_unknown(unknown_enum_ptr, ctypes.byref(_IID_IENUM_VARIANT), ctypes.byref(enum_variant_ptr)) or not enum_variant_ptr:
-                return wintypes.LPVOID()
-
-            return enum_variant_ptr
-        finally:
-            release_com_interface(unknown_enum_ptr)
-    finally:
-        release_com_interface(collection_ptr)
-
-
-def _enumerate_ics_connections(
-    manager_ptr: wintypes.LPVOID,
-    oleaut32: ctypes.WinDLL,
-) -> dict[str, AdapterClassification]:
-    """Enumerates connections from INetSharingManager and classifies sharing adapters."""
-    result: dict[str, AdapterClassification] = {}
-    enum_variant_ptr = _get_enum_variant(manager_ptr)
-    if not enum_variant_ptr:
-        return result
-
-    variant_clear = oleaut32.VariantClear
-    variant_clear.argtypes = [ctypes.c_void_p]
-    variant_clear.restype = wintypes.HRESULT
-
-    try:
-        enum_vtable = ctypes.cast(enum_variant_ptr, ctypes.POINTER(ctypes.POINTER(ctypes.c_void_p))).contents
-        next_enum = ctypes.WINFUNCTYPE(
-            wintypes.HRESULT,
-            wintypes.LPVOID,
-            wintypes.ULONG,
-            wintypes.LPVOID,
-            ctypes.POINTER(wintypes.ULONG),
-        )(enum_vtable[3])
-
-        variant_buffer = (ctypes.c_byte * 24)()
-        fetched_count = wintypes.ULONG()
-        while not next_enum(enum_variant_ptr, 1, ctypes.byref(variant_buffer), ctypes.byref(fetched_count)) and fetched_count.value == 1:
-            try:
-                connection_val = (ctypes.c_void_p.from_buffer(variant_buffer, 8)).value
-                if not bool(connection_val):
-                    continue
-                connection_ptr = wintypes.LPVOID(connection_val)
-                try:
-                    classified = _classify_connection(manager_ptr, connection_ptr, oleaut32)
-                    if classified is not None:
-                        result[classified[0]] = classified[1]
-                except OSError as e:
-                    logger.debug('Failed to classify ICS connection: %s', e)
-            finally:
-                variant_clear(ctypes.byref(variant_buffer))
-    finally:
-        release_com_interface(enum_variant_ptr)
-
-    return result
-
-
 def _get_ics_classification() -> dict[str, AdapterClassification]:
     """Return ICS classifications via `INetSharingManager` COM interface.
 
@@ -281,37 +113,12 @@ def _get_ics_classification() -> dict[str, AdapterClassification]:
     initialization issues, missing dependencies).
     """
     result: dict[str, AdapterClassification] = {}
-    ole32 = ctypes.windll.ole32
-    oleaut32 = ctypes.windll.oleaut32
-
-    hr_init = ole32.CoInitializeEx(None, 2)
-    need_uninit = hr_init in (0, 1)
-
-    try:
-        clsid = WindowsGuid()
-        manager_ptr = wintypes.LPVOID()
-        if (
-            not ole32.CLSIDFromProgID('HNetCfg.HNetShare', ctypes.byref(clsid))
-            and not ole32.CoCreateInstance(ctypes.byref(clsid), None, 5, ctypes.byref(_IID_INET_SHARING_MANAGER), ctypes.byref(manager_ptr))
-            and manager_ptr
-        ):
-            try:
-                manager_vtable = ctypes.cast(manager_ptr, ctypes.POINTER(ctypes.POINTER(ctypes.c_void_p))).contents
-                get_sharing_installed = ctypes.WINFUNCTYPE(wintypes.HRESULT, wintypes.LPVOID, ctypes.POINTER(wintypes.SHORT))(manager_vtable[7])
-
-                installed = wintypes.SHORT()
-                if not get_sharing_installed(manager_ptr, ctypes.byref(installed)) and installed.value:
-                    result = _enumerate_ics_connections(manager_ptr, oleaut32)
-            except OSError as e:
-                logger.debug('ICS COM query encountered error: %s', e)
-            finally:
-                release_com_interface(manager_ptr)
-    except OSError as e:
-        logger.debug('Failed to initialize ICS COM interface: %s', e)
-    finally:
-        if need_uninit:
-            ole32.CoUninitialize()
-
+    for raw_guid, sharing_type in query_ics_sharing_types():
+        guid_normalized = _normalize_guid(raw_guid)
+        if sharing_type == _ICSSHARINGTYPE_PUBLIC:
+            result[guid_normalized] = 'sharing'
+        elif sharing_type == _ICSSHARINGTYPE_PRIVATE:
+            result[guid_normalized] = 'shared'
     return result
 
 

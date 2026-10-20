@@ -24,8 +24,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from session_sniffer.capture.utils.ctypes_win32 import is_admin
 from session_sniffer.constants.local import RESOURCES_DIR_PATH
+from session_sniffer.ctypes_windows import is_admin
 from session_sniffer.guis._crashing_qthread import CrashingQThread
 from session_sniffer.guis.hotspot_setup_guide import HotspotSetupGuideDialog
 from session_sniffer.guis.ping_window import PingWindow

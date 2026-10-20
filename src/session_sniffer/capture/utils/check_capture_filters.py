@@ -2,6 +2,7 @@
 
 from session_sniffer.capture.exceptions import PcapOpenError
 from session_sniffer.capture.pcap import PcapHandle
+from session_sniffer.capture.utils.npcap_checker import ensure_npcap_adapter_bound
 
 
 def check_broadcast_multicast_support(device_name: str) -> tuple[bool, bool]:
@@ -17,6 +18,7 @@ def check_broadcast_multicast_support(device_name: str) -> tuple[bool, bool]:
         A tuple where the first value indicates support for `broadcast` and the
         second indicates support for `multicast` BPF filters.
     """
+    ensure_npcap_adapter_bound(device_name)
     try:
         pcap_handle = PcapHandle.open_live(
             device_name,

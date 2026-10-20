@@ -5,18 +5,17 @@ frames and resolving IP addresses to MAC addresses using SendARP on Windows or
 the ARP cache on Linux.
 """
 
-import ctypes
 import logging
 import socket
 import struct
 import sys
 import time
-from ctypes import wintypes
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, TypeGuard
 
 from session_sniffer.capture.exceptions import ArpResolutionError
-from session_sniffer.networking.ctypes_adapters_info import iterate_ipv4_neighbors
+from session_sniffer.capture.utils.ctypes_win32 import send_arp_win32
+from session_sniffer.networking.adapters_info import iterate_ipv4_neighbors
 
 if TYPE_CHECKING:
     from session_sniffer.capture.pcap import PcapHandle
@@ -101,47 +100,28 @@ def resolve_mac_address(ip_address: str, source_ip: str | None = None) -> str:
     if sys.platform != 'win32':
         return _resolve_mac_address_unix(ip_address)
     try:
-        destination_ip = wintypes.DWORD(struct.unpack('<I', socket.inet_aton(ip_address))[0])
+        destination_ip = int(struct.unpack('<I', socket.inet_aton(ip_address))[0])
     except OSError as e:
         raise ArpResolutionError(ip_address, f'Invalid IP address: {e}') from e
 
-    source_ip_dword = wintypes.DWORD(0)
+    source_ip_dword = 0
     if source_ip is not None:
         try:
-            source_ip_dword = wintypes.DWORD(struct.unpack('<I', socket.inet_aton(source_ip))[0])
+            source_ip_dword = int(struct.unpack('<I', socket.inet_aton(source_ip))[0])
         except OSError as e:
             logger.debug('Failed to convert source IP %s: %s', source_ip, e)
-            source_ip_dword = wintypes.DWORD(0)
-
-    # Allocate 8 bytes for physical address buffer as mandated by MSDN (at least two ULONGs)
-    mac_address_buffer = (ctypes.c_ubyte * 8)()
-    mac_address_length = wintypes.DWORD(6)
-
-    iphlpapi = ctypes.windll.iphlpapi
-    iphlpapi.SendARP.argtypes = [
-        wintypes.DWORD,
-        wintypes.DWORD,
-        ctypes.c_void_p,
-        ctypes.POINTER(wintypes.DWORD),
-    ]
-    iphlpapi.SendARP.restype = wintypes.DWORD
+            source_ip_dword = 0
 
     last_error_code = 0
     for attempt in range(3):
-        mac_address_length.value = 6
-        result = iphlpapi.SendARP(
-            destination_ip,
-            source_ip_dword,
-            ctypes.byref(mac_address_buffer),
-            ctypes.byref(mac_address_length),
-        )
+        result, raw_mac = send_arp_win32(destination_ip, source_ip_dword)
         if not result:
-            return _mac_bytes_to_string(bytes(mac_address_buffer[:6]))
+            return _mac_bytes_to_string(raw_mac)
 
         last_error_code = result
         # If source_ip_dword was non-zero and failed, try falling back to 0 on subsequent attempts
-        if source_ip_dword.value and not attempt:
-            source_ip_dword = wintypes.DWORD(0)
+        if source_ip_dword and not attempt:
+            source_ip_dword = 0
         time.sleep(0.2)
 
     # Fallback to local ARP cache if SendARP was unable to resolve

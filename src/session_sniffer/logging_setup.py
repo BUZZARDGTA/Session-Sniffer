@@ -7,7 +7,6 @@ Supports rotating log files, stderr capture, and safe flushing.
 
 import atexit
 import contextlib
-import ctypes
 import faulthandler
 import logging
 import os
@@ -17,11 +16,11 @@ import time
 import traceback
 from dataclasses import dataclass
 from logging.handlers import RotatingFileHandler
-from pathlib import Path
 from threading import Event, RLock, local
-from typing import TYPE_CHECKING, Any, Self, TextIO, cast, override
+from typing import TYPE_CHECKING, Self, TextIO, cast, override
 
 from session_sniffer.constants.local import CRASH_LOG_PATH, CURRENT_VERSION, DEBUG_LOG_PATH
+from session_sniffer.ctypes_windows import capture_win32_native_stack, install_win32_crt_handlers
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping, Sequence
@@ -54,125 +53,9 @@ class _LoggingState:
     crash_log_file: TextIO | None = None
     cached_secrets: tuple[str, ...] = ()
     cached_secrets_expiry: float = 0.0
-    win32_crt_handlers_installed: bool = False
-    # CRT callback objects must stay referenced for the process lifetime so ctypes does not free them.
-    c_invalid_param_handler: Any = None
-    c_purecall_handler: Any = None
-    c_sigabrt_handler: Any = None
-    prev_sigabrt_handler: int = 0
 
 
 _state = _LoggingState()
-
-if sys.platform == 'win32':
-    _INVALID_PARAM_HANDLER_TYPE = ctypes.CFUNCTYPE(
-        None,
-        ctypes.c_wchar_p,  # expression
-        ctypes.c_wchar_p,  # function
-        ctypes.c_wchar_p,  # file
-        ctypes.c_uint,     # line
-        ctypes.c_void_p,   # pReserved
-    )
-    _PURECALL_HANDLER_TYPE = ctypes.CFUNCTYPE(None)
-    _SIGNAL_HANDLER_TYPE = ctypes.CFUNCTYPE(None, ctypes.c_int)
-else:
-    _INVALID_PARAM_HANDLER_TYPE = None
-    _PURECALL_HANDLER_TYPE = None
-    _SIGNAL_HANDLER_TYPE = None
-
-
-def _win32_invalid_param_handler(
-    expression: str | None,
-    function: str | None,
-    file: str | None,
-    line: int,
-    _reserved: int | None,
-) -> None:
-    msg = f'CRT invalid parameter detected: function={function}, file={file}:{line}, expression={expression}'
-    dump_crash_diagnostics(msg)
-
-
-def _win32_purecall_handler() -> None:
-    dump_crash_diagnostics('CRT pure virtual function call detected')
-
-
-def _win32_sigabrt_handler(sig: int) -> None:
-    dump_crash_diagnostics('SIGABRT received (C runtime abort)')
-    if _state.prev_sigabrt_handler and _state.prev_sigabrt_handler not in (0, 1, 0xFFFFFFFFFFFFFFFF):
-        with contextlib.suppress(Exception):
-            prev_fn = _SIGNAL_HANDLER_TYPE(_state.prev_sigabrt_handler)
-            prev_fn(sig)
-
-
-def _capture_win32_native_stack() -> list[str]:
-    """Capture native C/C++ return addresses and module offsets for the current thread."""
-    lines: list[str] = []
-    if sys.platform != 'win32':
-        return lines
-    try:
-        max_frames = 32
-        kernel32 = ctypes.windll.kernel32
-        frames = (ctypes.c_void_p * max_frames)()
-        captured_count: int = int(kernel32.RtlCaptureStackBackTrace(0, max_frames, frames, None))
-        module_handle_flag = 0x00000004  # GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS
-        buffer = ctypes.create_unicode_buffer(512)
-        h_module = ctypes.c_void_p()
-        lines.append(f'Native C/C++ stack trace ({captured_count} frames):')
-        for index in range(captured_count):
-            address = frames[index]
-            if not address:
-                continue
-            if kernel32.GetModuleHandleExW(module_handle_flag, ctypes.c_void_p(address), ctypes.byref(h_module)):
-                kernel32.GetModuleFileNameW(h_module, buffer, 512)
-                module_name = Path(buffer.value).name
-                base_address = h_module.value or 0
-                offset = address - base_address
-                lines.append(f'  #{index:02d}: 0x{address:016x} -> {module_name}+0x{offset:x}')
-            else:
-                lines.append(f'  #{index:02d}: 0x{address:016x}')
-    except (AttributeError, OSError, ctypes.ArgumentError) as e:
-        lines.append(f'  Failed to capture native stack: {e}')
-    return lines
-
-
-def _install_win32_crt_handlers() -> None:
-    """Install Windows CRT diagnostic handlers to intercept and log low-level aborts and asserts."""
-    if sys.platform != 'win32':
-        return
-    try:
-        ucrt = ctypes.cdll.ucrtbase
-        if not _state.win32_crt_handlers_installed:
-            _state.c_invalid_param_handler = _INVALID_PARAM_HANDLER_TYPE(_win32_invalid_param_handler)
-            set_invalid_param = ucrt['_set_invalid_parameter_handler']
-            set_invalid_param.argtypes = [_INVALID_PARAM_HANDLER_TYPE]
-            set_invalid_param.restype = ctypes.c_void_p
-            set_invalid_param(_state.c_invalid_param_handler)
-
-            _state.c_purecall_handler = _PURECALL_HANDLER_TYPE(_win32_purecall_handler)
-            set_purecall = ucrt['_set_purecall_handler']
-            set_purecall.argtypes = [_PURECALL_HANDLER_TYPE]
-            set_purecall.restype = ctypes.c_void_p
-            set_purecall(_state.c_purecall_handler)
-
-            with contextlib.suppress(AttributeError, OSError):
-                vcruntime_set_purecall_handler = ctypes.cdll.LoadLibrary('vcruntime140.dll')['_set_purecall_handler']
-                vcruntime_set_purecall_handler.argtypes = [_PURECALL_HANDLER_TYPE]
-                vcruntime_set_purecall_handler.restype = ctypes.c_void_p
-                vcruntime_set_purecall_handler(_state.c_purecall_handler)
-
-            _state.c_sigabrt_handler = _SIGNAL_HANDLER_TYPE(_win32_sigabrt_handler)
-
-        ucrt_signal = ucrt.signal
-        ucrt_signal.argtypes = [ctypes.c_int, _SIGNAL_HANDLER_TYPE]
-        ucrt_signal.restype = ctypes.c_void_p
-        raw_prev_sigabrt = ucrt_signal(22, _state.c_sigabrt_handler)
-        prev_sigabrt_ptr = raw_prev_sigabrt if isinstance(raw_prev_sigabrt, int) else 0
-        our_sigabrt_ptr = ctypes.cast(_state.c_sigabrt_handler, ctypes.c_void_p).value or 0
-        if prev_sigabrt_ptr != our_sigabrt_ptr:
-            _state.prev_sigabrt_handler = prev_sigabrt_ptr
-        _state.win32_crt_handlers_installed = True
-    except (AttributeError, OSError) as e:
-        logging.getLogger(_APP_LOGGER_NAME).debug('Failed to install Win32 CRT diagnostic handlers: %s', e)
 
 
 # --- Suppress noisy third-party retry spam ---
@@ -384,7 +267,7 @@ def dump_crash_diagnostics(
             except (RuntimeError, OSError, ValueError, TypeError) as e:
                 lines.append(f'Diagnostic provider error: {e}')
         if sys.platform == 'win32':
-            lines.extend(_capture_win32_native_stack())
+            lines.extend(capture_win32_native_stack())
     except (RuntimeError, OSError) as e:
         lines.append(f'Failed to collect thread diagnostics: {e}')
 
@@ -658,8 +541,8 @@ def setup_logging(
             CRASH_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
             _state.crash_log_file = CRASH_LOG_PATH.open('a', encoding='utf-8')
             faulthandler.enable(file=_state.crash_log_file, all_threads=True)
-            if sys.platform == 'win32':
-                _install_win32_crt_handlers()
+            if sys.platform == 'win32' and not install_win32_crt_handlers(dump_crash_diagnostics):
+                logging.getLogger(_APP_LOGGER_NAME).debug('Failed to install Win32 CRT diagnostic handlers')
 
 
 def purge_debug_log() -> None:
@@ -692,4 +575,4 @@ def purge_crash_log() -> None:
     _state.crash_log_file = CRASH_LOG_PATH.open('a', encoding='utf-8')
     faulthandler.enable(file=_state.crash_log_file, all_threads=True)
     if sys.platform == 'win32':
-        _install_win32_crt_handlers()
+        install_win32_crt_handlers(dump_crash_diagnostics)

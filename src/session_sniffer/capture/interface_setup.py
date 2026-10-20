@@ -4,8 +4,8 @@ import logging
 import sys
 
 from session_sniffer.capture.arp import is_valid_unicast_mac
+from session_sniffer.networking.adapters_info import get_adapters_info
 from session_sniffer.networking.bridge_ics import get_adapter_classification
-from session_sniffer.networking.ctypes_adapters_info import get_adapters_info
 from session_sniffer.networking.interface import (
     INTERFACE_TYPE_BRIDGED,
     INTERFACE_TYPE_INTERFACE,

@@ -31,6 +31,7 @@ from session_sniffer.capture.exceptions import (
     PcapOpenError,
 )
 from session_sniffer.capture.pcap import DLT_EN10MB, DLT_NULL, DLT_RAW, PcapHandle
+from session_sniffer.capture.utils.npcap_checker import ensure_npcap_adapter_bound, is_npcap_adapter_bound
 from session_sniffer.constants.standalone import MAX_PORT, MIN_PORT
 from session_sniffer.constants.standard import LOCAL_TZ
 
@@ -333,10 +334,8 @@ class PacketCapture:
                 cause = getattr(e, 'cause', None)
                 error_detail = cause if cause is not None else e
                 error_string = str(error_detail)
-                has_monitored_adapter_guid = (
-                    not self.config.interface.is_neighbour
-                    and self.config.interface.interface.identity.adapter_guid is not None
-                )
+                adapter_guid = self.config.interface.interface.identity.adapter_guid
+                has_monitored_adapter_guid = not self.config.interface.is_neighbour and adapter_guid is not None
                 is_device_removed = (
                     'ERROR_DEVICE_REMOVED' in error_string
                     or 'STATUS_DEVICE_REMOVED' in error_string
@@ -348,7 +347,7 @@ class PacketCapture:
                     or 'operation not permitted' in error_string.lower()
                     or 'cap_net_raw' in error_string.lower()
                 )
-                is_binding_disabled = 'npcap packet driver (npcap)' in error_string.lower()
+                is_binding_disabled = adapter_guid is not None and not is_npcap_adapter_bound(adapter_guid)
                 if (
                     has_monitored_adapter_guid
                     and (is_device_removed or is_open_error)
@@ -357,6 +356,12 @@ class PacketCapture:
                 ):
                     logger.info('Capture interface "%s" temporarily disconnected — pausing capture.', self.config.interface.name)
                     logger.debug('Capture interface "%s" disconnection detail: %s', self.config.interface.name, error_detail)
+                elif is_binding_disabled:
+                    logger.warning(
+                        'Packet capture stopped unexpectedly: %s (Npcap driver binding is disabled on adapter "%s")',
+                        error_detail,
+                        self.config.interface.name,
+                    )
                 else:
                     logger.warning('Packet capture stopped unexpectedly: %s', error_detail)
 
@@ -373,6 +378,7 @@ class PacketCapture:
             message = f'Interface "{self.config.interface.name}" has no device name; cannot open pcap handle'
             raise CaptureError(message)
 
+        ensure_npcap_adapter_bound(self.config.interface.device_name)
         try:
             pcap_handle = PcapHandle.open_live(
                 self.config.interface.device_name,

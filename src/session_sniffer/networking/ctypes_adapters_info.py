@@ -1,30 +1,28 @@
-"""Network adapter information retrieval for Windows, Linux, and macOS."""
+"""Low-level ctypes structures and bindings for network adapters, neighbors, WLAN, ICS COM, and ICMP."""
 
 import ctypes
-import re
-import shutil
+import logging
 import socket
-import subprocess
 import sys
 from ctypes import wintypes
-from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Final, cast
 
-from session_sniffer.networking.adapter_types import AdapterData, AdapterIdentity, AdapterStatus, AdapterTraffic, GetAdaptersAddressesError
+from session_sniffer.ctypes_windows import WindowsGuid, release_com_interface
+from session_sniffer.networking.adapter_types import GetAdaptersAddressesError
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
 
+logger = logging.getLogger(__name__)
 
-# Constants
 WORKING_BUFFER_SIZE = 15000
 AF_INET = 2
 
-GAA_FLAG_SKIP_ANYCAST = 0x0002  # Do not return IPv6 anycast addresses.
-GAA_FLAG_SKIP_MULTICAST = 0x0004  # Do not return multicast addresses.
-GAA_FLAG_SKIP_DNS_SERVER = 0x0008  # Do not return addresses of DNS servers.
-GAA_FLAG_INCLUDE_GATEWAYS = 0x0080  # Include gateway addresses in results.
-IP_ADAPTER_IPV4_ENABLED = 0x0080  # IPv4 is enabled on this adapter
+GAA_FLAG_SKIP_ANYCAST = 0x0002
+GAA_FLAG_SKIP_MULTICAST = 0x0004
+GAA_FLAG_SKIP_DNS_SERVER = 0x0008
+GAA_FLAG_INCLUDE_GATEWAYS = 0x0080
+IP_ADAPTER_IPV4_ENABLED = 0x0080
 MAX_ADAPTER_ADDRESS_LENGTH = 8
 ERROR_BUFFER_OVERFLOW = 111
 ERROR_SUCCESS = 0
@@ -32,34 +30,18 @@ IF_MAX_STRING_SIZE = 256
 IF_MAX_PHYS_ADDRESS_LENGTH = 32
 ERROR_INSUFFICIENT_BUFFER = 122
 ERROR_NO_DATA = 232
+MEDIA_CONNECT_STATE_UNKNOWN = 0
 
-# OperStatus values (export only what's used externally)
-IF_OPER_STATUS_UP = 1  # Interface is up and operational
-IF_OPER_STATUS_NOT_PRESENT = 6  # Interface is not present
-
-# MediaConnectState values
-MEDIA_CONNECT_STATE_UNKNOWN = 0  # Unknown connection state
-MEDIA_CONNECT_STATE_CONNECTED = 1  # Media is connected
-MEDIA_CONNECT_STATE_DISCONNECTED = 2  # Media is disconnected
-
-_ARP_MIN_FIELD_COUNT = 6
-_ROUTE_MIN_FIELD_COUNT = 3
 _MAC_OCTETS_COUNT = 6
-_MIN_NETSTAT_ROUTE_FIELDS = 4
-
-_DARWIN_ARP_REGEX = re.compile(r'^\S+\s+\((?P<ip>[0-9.]+)\)\s+at\s+(?P<mac>[0-9a-fA-F:]+)\s+on\s+(?P<interface>[a-zA-Z0-9]+)')
 _DARWIN_AF_LINK = 18
 _DARWIN_AF_INET = 2
-_DARWIN_ARP_EXECUTABLE = '/usr/sbin/arp'
-_DARWIN_NETSTAT_EXECUTABLE = '/usr/sbin/netstat'
 _IFF_UP = 0x1
 
-# Windows Network Adapter State constant
-# https://learn.microsoft.com/en-us/previous-versions/windows/desktop/legacy/hh968170(v=vs.85)
-NETWORK_ADAPTER_DISABLED = 3
+_IID_INET_SHARING_MANAGER = WindowsGuid(0xC08956B7, 0x1CD3, 0x11D1, (ctypes.c_ubyte * 8)(0xB1, 0xC5, 0x00, 0x80, 0x5F, 0xC1, 0x27, 0x0E))
+_IID_IENUM_VARIANT = WindowsGuid(0x00020404, 0x0000, 0x0000, (ctypes.c_ubyte * 8)(0xC0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x46))
+_INVALID_HANDLE_VALUE: Final[int] = cast('int', ctypes.c_void_p(-1).value)
 
 
-# Structures
 class IP_ADAPTER_UNICAST_ADDRESS(ctypes.Structure):
     """ctypes definition for a Windows IP_ADAPTER_UNICAST_ADDRESS structure."""
 
@@ -98,15 +80,12 @@ LP_IP_ADAPTER_UNICAST_ADDRESS = ctypes.POINTER(IP_ADAPTER_UNICAST_ADDRESS)
 LP_IP_ADAPTER_GATEWAY_ADDRESS = ctypes.POINTER(IP_ADAPTER_GATEWAY_ADDRESS)
 LP_IP_ADAPTER_ADDRESSES = ctypes.POINTER(IP_ADAPTER_ADDRESSES)
 
-
 IP_ADAPTER_UNICAST_ADDRESS._fields_ = [
     ('Length', wintypes.ULONG),
     ('Flags', wintypes.DWORD),
     ('Next', LP_IP_ADAPTER_UNICAST_ADDRESS),
     ('Address', SOCKET_ADDRESS),
-    # ... skipping the rest for brevity
 ]
-
 
 IP_ADAPTER_GATEWAY_ADDRESS._fields_ = [
     ('Length', wintypes.ULONG),
@@ -114,7 +93,6 @@ IP_ADAPTER_GATEWAY_ADDRESS._fields_ = [
     ('Next', LP_IP_ADAPTER_GATEWAY_ADDRESS),
     ('Address', SOCKET_ADDRESS),
 ]
-
 
 IP_ADAPTER_ADDRESSES._fields_ = [
     ('Length', wintypes.ULONG),
@@ -129,19 +107,18 @@ IP_ADAPTER_ADDRESSES._fields_ = [
     ('Description', wintypes.LPWSTR),
     ('FriendlyName', wintypes.LPWSTR),
     ('PhysicalAddress', ctypes.c_ubyte * MAX_ADAPTER_ADDRESS_LENGTH),
-    ('PhysicalAddressLength', wintypes.DWORD),
-    ('Flags', wintypes.DWORD),
+    ('PhysicalAddressLength', wintypes.ULONG),
+    ('Flags', wintypes.ULONG),
     ('Mtu', wintypes.DWORD),
     ('IfType', wintypes.DWORD),
     ('OperStatus', wintypes.DWORD),
     ('Ipv6IfIndex', wintypes.DWORD),
-    ('ZoneIndices', wintypes.ULONG * 16),
+    ('ZoneIndices', wintypes.DWORD * 16),
     ('FirstPrefix', ctypes.c_void_p),
     ('TransmitLinkSpeed', ctypes.c_uint64),
     ('ReceiveLinkSpeed', ctypes.c_uint64),
     ('FirstWinsServerAddress', ctypes.c_void_p),
     ('FirstGatewayAddress', LP_IP_ADAPTER_GATEWAY_ADDRESS),
-    # ... skipping the rest for brevity
 ]
 
 
@@ -150,7 +127,7 @@ class MIB_IF_ROW2(ctypes.Structure):
 
     _fields_ = [
         ('InterfaceLuid', ctypes.c_uint64),
-        ('InterfaceIndex', wintypes.DWORD),
+        ('InterfaceIndex', wintypes.ULONG),
         ('InterfaceGuid', ctypes.c_byte * 16),
         ('Alias', wintypes.WCHAR * (IF_MAX_STRING_SIZE + 1)),
         ('Description', wintypes.WCHAR * (IF_MAX_STRING_SIZE + 1)),
@@ -194,7 +171,7 @@ class MIB_IF_ROW2(ctypes.Structure):
 
 
 class SOCKADDR_IN(ctypes.Structure):
-    """ctypes definition for a Windows IPv4 sockaddr_in structure."""
+    """ctypes definition for an IPv4 socket address structure."""
 
     _fields_ = [
         ('sin_family', wintypes.USHORT),
@@ -202,28 +179,6 @@ class SOCKADDR_IN(ctypes.Structure):
         ('sin_addr', ctypes.c_uint32),
         ('sin_zero', ctypes.c_char * 8),
     ]
-
-
-if sys.platform == 'win32':
-    # Windows API
-    GetAdaptersAddresses = ctypes.windll.iphlpapi.GetAdaptersAddresses
-    GetAdaptersAddresses.argtypes = [
-        wintypes.ULONG,
-        wintypes.ULONG,
-        ctypes.c_void_p,
-        LP_IP_ADAPTER_ADDRESSES,
-        ctypes.POINTER(wintypes.ULONG),
-    ]
-    GetAdaptersAddresses.restype = wintypes.ULONG
-
-    GetIfEntry2 = ctypes.windll.Iphlpapi.GetIfEntry2
-    GetIfEntry2.argtypes = [ctypes.POINTER(MIB_IF_ROW2)]
-    GetIfEntry2.restype = wintypes.ULONG
-
-
-# =========================
-# Neighbor / Neighborhood
-# =========================
 
 
 class MIB_IPNETROW(ctypes.Structure):
@@ -238,162 +193,30 @@ class MIB_IPNETROW(ctypes.Structure):
     ]
 
 
-if sys.platform == 'win32':
-    # GetIpNetTable returns a buffer with a DWORD count followed by an array of MIB_IPNETROW
-    GetIpNetTable = ctypes.windll.iphlpapi.GetIpNetTable
-    GetIpNetTable.argtypes = [ctypes.c_void_p, ctypes.POINTER(wintypes.ULONG), wintypes.BOOL]
-    GetIpNetTable.restype = wintypes.ULONG
+class _IPOptionInformation(ctypes.Structure):
+    """ctypes definition for IP_OPTION_INFORMATION structure."""
+
+    _fields_ = [
+        ('Ttl', ctypes.c_ubyte),
+        ('Tos', ctypes.c_ubyte),
+        ('Flags', ctypes.c_ubyte),
+        ('OptionsSize', ctypes.c_ubyte),
+        ('OptionsData', ctypes.c_void_p),
+    ]
 
 
-def _get_ip_net_table(buf: object, size_ptr: object) -> int:
-    """Call GetIpNetTable with required BOOL positional argument.
+class _IcmpEchoReply(ctypes.Structure):
+    """ctypes definition for ICMP_ECHO_REPLY structure."""
 
-    Using a wrapper avoids false-positive lints about boolean positional args.
-    """
-    order_flag = wintypes.BOOL(0)
-    return int(GetIpNetTable(buf, size_ptr, order_flag))
-
-
-def _sockaddr_to_ipv4(sockaddr_ptr: int | None) -> str | None:
-    """Converts a sockaddr pointer to an IPv4 address if applicable.
-
-    Args:
-        sockaddr_ptr: A pointer to a sockaddr_in structure.
-
-    Returns:
-        The IPv4 address as a string, or `None` if the sockaddr is not IPv4.
-    """
-    if sockaddr_ptr is None or not sockaddr_ptr:
-        return None
-
-    # Explicitly cast sockaddr_ptr to a ctypes pointer of SOCKADDR_IN
-    sockaddr = ctypes.cast(sockaddr_ptr, ctypes.POINTER(SOCKADDR_IN)).contents
-
-    if sockaddr.sin_family == socket.AF_INET:
-        return socket.inet_ntoa(sockaddr.sin_addr.to_bytes(4, 'little'))
-    return None
-
-
-def _iterate_ipv4_neighbors_darwin() -> Iterator[tuple[int, str | None, str | None]]:
-    """Yield IPv4 neighbor entries on macOS by querying the ARP table."""
-    try:
-        arp_executable = shutil.which('arp') or _DARWIN_ARP_EXECUTABLE
-        process = subprocess.run(
-            [arp_executable, '-an'],
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=5.0,
-        )
-    except (OSError, subprocess.TimeoutExpired):
-        return
-
-    for line in process.stdout.splitlines():
-        match = _DARWIN_ARP_REGEX.search(line.strip())
-        if not match:
-            continue
-        ip_address = str(match.group('ip'))
-        raw_mac = str(match.group('mac'))
-        interface_name = str(match.group('interface'))
-
-        mac_parts = raw_mac.split(':')
-        if len(mac_parts) != _MAC_OCTETS_COUNT:
-            continue
-        try:
-            mac_address = ':'.join(f'{int(part, 16):02X}' for part in mac_parts)
-        except ValueError:
-            continue
-
-        try:
-            interface_index = socket.if_nametoindex(interface_name)
-        except OSError:
-            interface_index = 0
-
-        yield interface_index, ip_address, mac_address
-
-
-def _iterate_ipv4_neighbors_linux() -> Iterator[tuple[int, str | None, str | None]]:
-    try:
-        with Path('/proc/net/arp').open(encoding='ascii') as arp_file:
-            arp_lines = arp_file.readlines()
-    except OSError:
-        return
-
-    for line in arp_lines[1:]:
-        parts = line.split()
-        if len(parts) >= _ARP_MIN_FIELD_COUNT:
-            ip_address, _hw_type, flags, mac_address, _mask, device_name = parts[:6]
-            if flags != '0x0' and mac_address != '00:00:00:00:00:00':
-                try:
-                    interface_index = socket.if_nametoindex(device_name)
-                except OSError:
-                    interface_index = 0
-                yield interface_index, ip_address, mac_address.upper()
-
-
-def _iterate_ipv4_neighbors_windows() -> Iterator[tuple[int, str | None, str | None]]:
-    size = wintypes.ULONG(0)
-    ret = _get_ip_net_table(None, ctypes.byref(size))
-    if ret not in (ERROR_INSUFFICIENT_BUFFER, ERROR_SUCCESS):
-        return
-
-    if not size.value:
-        return
-
-    buf = ctypes.create_string_buffer(size.value)
-    ret = _get_ip_net_table(buf, ctypes.byref(size))
-    if ret != ERROR_SUCCESS:
-        return
-
-    num_entries = ctypes.cast(buf, ctypes.POINTER(wintypes.DWORD)).contents.value
-    if not num_entries:
-        return
-
-    base = ctypes.addressof(buf)
-    header_size = ctypes.sizeof(wintypes.DWORD)
-    row_size = ctypes.sizeof(MIB_IPNETROW)
-    max_entries = (size.value - header_size) // row_size
-    valid_entries = min(num_entries, max_entries)
-
-    for i in range(valid_entries):
-        row_ptr = ctypes.cast(base + header_size + i * row_size, ctypes.POINTER(MIB_IPNETROW))
-        row = row_ptr.contents
-        ipv4 = socket.inet_ntoa(int(row.dwAddr).to_bytes(4, 'little'))
-        mac_address = None if not row.dwPhysAddrLen else ':'.join(f'{byte:02X}' for byte in row.bPhysAddr[: row.dwPhysAddrLen])
-        yield int(row.dwIndex), ipv4, mac_address
-
-
-def iterate_ipv4_neighbors() -> Iterator[tuple[int, str | None, str | None]]:
-    """Yield IPv4 neighbor entries (interface index, IPv4, link-layer MAC).
-
-    This uses Windows IP Helper API `GetIpNetTable` on Windows, `/proc/net/arp` on Linux,
-    or `arp -an` on macOS, and returns tuples of:
-        - InterfaceIndex (int)
-        - IPv4Address (str | None)
-        - MacAddress (str | None)
-
-    Returns an empty iterator if the table cannot be retrieved.
-    """
-    if sys.platform == 'darwin':
-        yield from _iterate_ipv4_neighbors_darwin()
-    elif sys.platform == 'win32':
-        yield from _iterate_ipv4_neighbors_windows()
-    else:
-        yield from _iterate_ipv4_neighbors_linux()
-
-
-def _read_sys_file(path: Path) -> str:
-    try:
-        return path.read_text(encoding='ascii').strip()
-    except OSError:
-        return ''
-
-
-def _read_sys_int(path: Path) -> int:
-    try:
-        return int(path.read_text(encoding='ascii').strip())
-    except (OSError, ValueError):
-        return 0
+    _fields_ = [
+        ('Address', ctypes.c_ulong),
+        ('Status', ctypes.c_ulong),
+        ('RoundTripTime', ctypes.c_ulong),
+        ('DataSize', ctypes.c_ushort),
+        ('Reserved', ctypes.c_ushort),
+        ('Data', ctypes.c_void_p),
+        ('Options', _IPOptionInformation),
+    ]
 
 
 class _LinuxSockaddr(ctypes.Structure):
@@ -417,102 +240,6 @@ _LinuxIfAddrs._fields_ = [
     ('ifa_ifu', ctypes.c_void_p),
     ('ifa_data', ctypes.c_void_p),
 ]
-
-
-def _get_linux_adapters_info() -> Iterator[AdapterData]:
-    """Retrieve network adapter information on Linux systems."""
-    neighbors_by_interface_index: dict[int, list[tuple[str | None, str | None]]] = {}
-    for interface_index, ip_address, mac_address in iterate_ipv4_neighbors():
-        neighbors_by_interface_index.setdefault(interface_index, []).append((ip_address, mac_address))
-
-    gateways_by_interface_name: dict[str, list[str]] = {}
-    try:
-        with Path('/proc/net/route').open(encoding='ascii') as route_file:
-            for line in route_file.readlines()[1:]:
-                fields = line.strip().split()
-                if len(fields) >= _ROUTE_MIN_FIELD_COUNT and fields[1] == '00000000':
-                    gateway_hex = fields[2]
-                    try:
-                        gateway_integer = int(gateway_hex, 16)
-                        if gateway_integer:
-                            gateway_ip = socket.inet_ntoa(gateway_integer.to_bytes(4, 'little'))
-                            gateways_by_interface_name.setdefault(fields[0], []).append(gateway_ip)
-                    except (ValueError, OSError):
-                        pass
-    except OSError:
-        pass
-
-    ipv4_by_interface_name: dict[str, list[str]] = {}
-    try:
-        libc = ctypes.CDLL(None)
-        libc.getifaddrs.argtypes = [ctypes.POINTER(ctypes.POINTER(_LinuxIfAddrs))]
-        libc.getifaddrs.restype = ctypes.c_int
-        libc.freeifaddrs.argtypes = [ctypes.POINTER(_LinuxIfAddrs)]
-        libc.freeifaddrs.restype = None
-
-        ifaddrs_pointer = ctypes.POINTER(_LinuxIfAddrs)()
-        if not libc.getifaddrs(ctypes.byref(ifaddrs_pointer)):
-            current_address = ifaddrs_pointer
-            while current_address:
-                address_entry = current_address.contents
-                if address_entry.ifa_name:
-                    interface_name_str = address_entry.ifa_name.decode('utf-8', errors='replace')
-                    if address_entry.ifa_addr and address_entry.ifa_addr.contents.sa_family == socket.AF_INET:
-                        sockaddr_in = ctypes.cast(address_entry.ifa_addr, ctypes.POINTER(_LinuxSockaddrIn)).contents
-                        ip_string = socket.inet_ntoa(sockaddr_in.sin_addr.to_bytes(4, 'little'))
-                        ipv4_by_interface_name.setdefault(interface_name_str, []).append(ip_string)
-                current_address = address_entry.ifa_next
-            libc.freeifaddrs(ifaddrs_pointer)
-    except (OSError, AttributeError):
-        pass
-
-    try:
-        interface_list = socket.if_nameindex()
-    except OSError:
-        return
-
-    net_path = Path('/sys/class/net')
-    for interface_index, interface_name in interface_list:
-        interface_sys_dir = net_path / interface_name
-
-        mac_text = _read_sys_file(interface_sys_dir / 'address')
-        mac_address = mac_text.upper() if mac_text and mac_text != '00:00:00:00:00:00' else None
-
-        operstate = _read_sys_file(interface_sys_dir / 'operstate').lower()
-        is_up = operstate == 'up'
-
-        packets_sent = _read_sys_int(interface_sys_dir / 'statistics' / 'tx_packets')
-        packets_recv = _read_sys_int(interface_sys_dir / 'statistics' / 'rx_packets')
-        link_speed_mbps = _read_sys_int(interface_sys_dir / 'speed')
-        link_speed_bps = link_speed_mbps * 1_000_000 if link_speed_mbps > 0 else 0
-
-        interface_ipv4_list = ipv4_by_interface_name.get(interface_name, [])
-        interface_gateways = gateways_by_interface_name.get(interface_name, [])
-        interface_neighbors = neighbors_by_interface_index.get(interface_index, [])
-
-        yield AdapterData(
-            identity=AdapterIdentity(
-                interface_index=interface_index,
-                friendly_name=interface_name,
-                description=interface_name,
-                mac_address=mac_address,
-                adapter_guid=interface_name,
-            ),
-            status=AdapterStatus(
-                operational_status=IF_OPER_STATUS_UP if is_up else IF_OPER_STATUS_NOT_PRESENT,
-                ip_enabled=bool(interface_ipv4_list),
-                media_connect_state=MEDIA_CONNECT_STATE_CONNECTED if is_up else MEDIA_CONNECT_STATE_DISCONNECTED,
-            ),
-            traffic=AdapterTraffic(
-                packets_sent=packets_sent,
-                packets_recv=packets_recv,
-                transmit_link_speed=link_speed_bps,
-                receive_link_speed=link_speed_bps,
-            ),
-            ipv4_addresses=interface_ipv4_list,
-            gateway_addresses=interface_gateways,
-            neighbors=interface_neighbors,
-        )
 
 
 class _DarwinSockaddr(ctypes.Structure):
@@ -584,33 +311,123 @@ _DarwinIfAddrs._fields_ = [
 ]
 
 
-def _get_darwin_gateways_by_interface() -> dict[str, list[str]]:
-    """Retrieve default IPv4 gateways grouped by interface name on macOS."""
-    gateways_by_interface_name: dict[str, list[str]] = {}
+if sys.platform == 'win32':
+    _iphlpapi = ctypes.windll.iphlpapi
+
+    GetAdaptersAddresses = _iphlpapi.GetAdaptersAddresses
+    GetAdaptersAddresses.argtypes = [
+        wintypes.ULONG,
+        wintypes.ULONG,
+        ctypes.c_void_p,
+        LP_IP_ADAPTER_ADDRESSES,
+        ctypes.POINTER(wintypes.ULONG),
+    ]
+    GetAdaptersAddresses.restype = wintypes.ULONG
+
+    GetIfEntry2 = ctypes.windll.Iphlpapi.GetIfEntry2
+    GetIfEntry2.argtypes = [ctypes.POINTER(MIB_IF_ROW2)]
+    GetIfEntry2.restype = wintypes.ULONG
+
+    GetIpNetTable = _iphlpapi.GetIpNetTable
+    GetIpNetTable.argtypes = [ctypes.c_void_p, ctypes.POINTER(wintypes.ULONG), wintypes.BOOL]
+    GetIpNetTable.restype = wintypes.ULONG
+
+    _IcmpCreateFile = _iphlpapi.IcmpCreateFile
+    _IcmpCreateFile.argtypes = []
+    _IcmpCreateFile.restype = ctypes.c_void_p
+
+    _IcmpCloseHandle = _iphlpapi.IcmpCloseHandle
+    _IcmpCloseHandle.argtypes = [ctypes.c_void_p]
+    _IcmpCloseHandle.restype = wintypes.BOOL
+
+    _IcmpSendEcho = _iphlpapi.IcmpSendEcho
+    _IcmpSendEcho.argtypes = [
+        ctypes.c_void_p,
+        ctypes.c_ulong,
+        ctypes.c_char_p,
+        ctypes.c_ushort,
+        ctypes.c_void_p,
+        ctypes.c_void_p,
+        wintypes.DWORD,
+        wintypes.DWORD,
+    ]
+    _IcmpSendEcho.restype = wintypes.DWORD
+
+
+def _get_ip_net_table(buf: object, size_ptr: object) -> int:
+    """Call GetIpNetTable with required BOOL positional argument."""
+    order_flag = wintypes.BOOL(0)
+    return int(GetIpNetTable(buf, size_ptr, order_flag))
+
+
+def _sockaddr_to_ipv4(sockaddr_ptr: int | None) -> str | None:
+    """Convert a sockaddr pointer to an IPv4 address string if applicable."""
+    if sockaddr_ptr is None or not sockaddr_ptr:
+        return None
+    sockaddr = ctypes.cast(sockaddr_ptr, ctypes.POINTER(SOCKADDR_IN)).contents
+    if sockaddr.sin_family == socket.AF_INET:
+        return socket.inet_ntoa(sockaddr.sin_addr.to_bytes(4, 'little'))
+    return None
+
+
+def iter_win32_ip_net_table() -> Iterator[tuple[int, str | None, str | None]]:
+    """Yield (interface_index, ipv4_address, mac_address) from the Windows GetIpNetTable API."""
+    if sys.platform != 'win32':
+        return
+    size = wintypes.ULONG(0)
+    ret = _get_ip_net_table(None, ctypes.byref(size))
+    if ret not in (ERROR_INSUFFICIENT_BUFFER, ERROR_SUCCESS) or not size.value:
+        return
+
+    buf = ctypes.create_string_buffer(size.value)
+    ret = _get_ip_net_table(buf, ctypes.byref(size))
+    if ret != ERROR_SUCCESS:
+        return
+
+    num_entries = ctypes.cast(buf, ctypes.POINTER(wintypes.DWORD)).contents.value
+    if not num_entries:
+        return
+
+    base = ctypes.addressof(buf)
+    header_size = ctypes.sizeof(wintypes.DWORD)
+    row_size = ctypes.sizeof(MIB_IPNETROW)
+    max_entries = (size.value - header_size) // row_size
+    valid_entries = min(num_entries, max_entries)
+
+    for i in range(valid_entries):
+        row_ptr = ctypes.cast(base + header_size + i * row_size, ctypes.POINTER(MIB_IPNETROW))
+        row = row_ptr.contents
+        ipv4 = socket.inet_ntoa(int(row.dwAddr).to_bytes(4, 'little'))
+        mac_address = None if not row.dwPhysAddrLen else ':'.join(f'{byte:02X}' for byte in row.bPhysAddr[: row.dwPhysAddrLen])
+        yield int(row.dwIndex), ipv4, mac_address
+
+
+def query_linux_ifaddrs() -> dict[str, list[str]]:
+    """Return a mapping of interface name -> IPv4 addresses on Linux via libc getifaddrs."""
+    ipv4_by_interface_name: dict[str, list[str]] = {}
     try:
-        netstat_executable = shutil.which('netstat') or _DARWIN_NETSTAT_EXECUTABLE
-        process = subprocess.run(
-            [netstat_executable, '-rn', '-f', 'inet'],
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=5.0,
-        )
-    except (OSError, subprocess.TimeoutExpired):
-        return gateways_by_interface_name
+        libc = ctypes.CDLL(None)
+        libc.getifaddrs.argtypes = [ctypes.POINTER(ctypes.POINTER(_LinuxIfAddrs))]
+        libc.getifaddrs.restype = ctypes.c_int
+        libc.freeifaddrs.argtypes = [ctypes.POINTER(_LinuxIfAddrs)]
+        libc.freeifaddrs.restype = None
 
-    for line in process.stdout.splitlines():
-        fields = line.strip().split()
-        if len(fields) >= _MIN_NETSTAT_ROUTE_FIELDS and fields[0] == 'default':
-            gateway_ip = fields[1]
-            interface_name = fields[3]
-            try:
-                socket.inet_aton(gateway_ip)
-            except OSError:
-                continue
-            gateways_by_interface_name.setdefault(interface_name, []).append(gateway_ip)
-
-    return gateways_by_interface_name
+        ifaddrs_pointer = ctypes.POINTER(_LinuxIfAddrs)()
+        if not libc.getifaddrs(ctypes.byref(ifaddrs_pointer)):
+            current_address = ifaddrs_pointer
+            while current_address:
+                address_entry = current_address.contents
+                if address_entry.ifa_name:
+                    interface_name_str = address_entry.ifa_name.decode('utf-8', errors='replace')
+                    if address_entry.ifa_addr and address_entry.ifa_addr.contents.sa_family == socket.AF_INET:
+                        sockaddr_in = ctypes.cast(address_entry.ifa_addr, ctypes.POINTER(_LinuxSockaddrIn)).contents
+                        ip_string = socket.inet_ntoa(sockaddr_in.sin_addr.to_bytes(4, 'little'))
+                        ipv4_by_interface_name.setdefault(interface_name_str, []).append(ip_string)
+                current_address = address_entry.ifa_next
+            libc.freeifaddrs(ifaddrs_pointer)
+    except (OSError, AttributeError):
+        pass
+    return ipv4_by_interface_name
 
 
 def _populate_darwin_ifaddr(
@@ -647,14 +464,13 @@ def _populate_darwin_ifaddr(
                 )
 
 
-def _get_darwin_adapters_info() -> Iterator[AdapterData]:
-    """Retrieve network adapter information on macOS systems."""
-    neighbors_by_interface_index: dict[int, list[tuple[str | None, str | None]]] = {}
-    for interface_index, ip_address, mac_address in _iterate_ipv4_neighbors_darwin():
-        neighbors_by_interface_index.setdefault(interface_index, []).append((ip_address, mac_address))
-
-    gateways_by_interface_name = _get_darwin_gateways_by_interface()
-
+def query_darwin_ifaddrs() -> tuple[
+    dict[str, list[str]],
+    dict[str, str | None],
+    dict[str, bool],
+    dict[str, tuple[int, int, int]],
+]:
+    """Query interface IPv4, MAC, up-status, and traffic counters on macOS via libc getifaddrs."""
     ipv4_by_interface_name: dict[str, list[str]] = {}
     mac_by_interface_name: dict[str, str | None] = {}
     status_by_interface_name: dict[str, bool] = {}
@@ -683,64 +499,35 @@ def _get_darwin_adapters_info() -> Iterator[AdapterData]:
     except (OSError, AttributeError):
         pass
 
-    try:
-        interface_list = socket.if_nameindex()
-    except OSError:
-        return
-
-    for interface_index, interface_name in interface_list:
-        mac_address = mac_by_interface_name.get(interface_name)
-        is_up = status_by_interface_name.get(interface_name, False)
-        packets_sent, packets_recv, link_speed_bps = traffic_by_interface_name.get(interface_name, (0, 0, 0))
-
-        interface_ipv4_list = ipv4_by_interface_name.get(interface_name, [])
-        interface_gateways = gateways_by_interface_name.get(interface_name, [])
-        interface_neighbors = neighbors_by_interface_index.get(interface_index, [])
-
-        yield AdapterData(
-            identity=AdapterIdentity(
-                interface_index=interface_index,
-                friendly_name=interface_name,
-                description=interface_name,
-                mac_address=mac_address,
-                adapter_guid=interface_name,
-            ),
-            status=AdapterStatus(
-                operational_status=IF_OPER_STATUS_UP if is_up else IF_OPER_STATUS_NOT_PRESENT,
-                ip_enabled=bool(interface_ipv4_list),
-                media_connect_state=MEDIA_CONNECT_STATE_CONNECTED if is_up else MEDIA_CONNECT_STATE_DISCONNECTED,
-            ),
-            traffic=AdapterTraffic(
-                packets_sent=packets_sent,
-                packets_recv=packets_recv,
-                transmit_link_speed=link_speed_bps,
-                receive_link_speed=link_speed_bps,
-            ),
-            ipv4_addresses=interface_ipv4_list,
-            gateway_addresses=interface_gateways,
-            neighbors=interface_neighbors,
-        )
+    return (
+        ipv4_by_interface_name,
+        mac_by_interface_name,
+        status_by_interface_name,
+        traffic_by_interface_name,
+    )
 
 
-def get_adapters_info() -> Iterator[AdapterData]:
-    """Retrieves information for all network adapters.
-
-    Returns:
-        An iterator of `AdapterData` objects containing network adapter information.
-    """
-    if sys.platform == 'darwin':
-        yield from _get_darwin_adapters_info()
-        return
+def iter_win32_adapters_addresses() -> Iterator[
+    tuple[
+        int,
+        str,
+        str,
+        str | None,
+        str | None,
+        int,
+        bool,
+        int,
+        int,
+        int,
+        int,
+        int,
+        list[str],
+        list[str],
+    ]
+]:
+    """Yield raw adapter tuples on Windows via GetAdaptersAddresses and GetIfEntry2."""
     if sys.platform != 'win32':
-        yield from _get_linux_adapters_info()
         return
-
-    # Build neighbor map once to attach per adapter
-    neighbors_by_if: dict[int, list[tuple[str | None, str | None]]] = {}
-
-    for if_index, ip, mac in iterate_ipv4_neighbors():
-        neighbors_by_if.setdefault(if_index, []).append((ip, mac))
-
     size = wintypes.ULONG(WORKING_BUFFER_SIZE)
     while True:
         buf = ctypes.create_string_buffer(size.value)
@@ -762,12 +549,9 @@ def get_adapters_info() -> Iterator[AdapterData]:
     adapter = ctypes.cast(buf, LP_IP_ADAPTER_ADDRESSES)
     while adapter:
         addr = adapter.contents
-
-        # Handle multiple MAC addresses (if any)
         mac_address = None if not addr.PhysicalAddressLength else ':'.join(f'{byte:02X}' for byte in addr.PhysicalAddress[: addr.PhysicalAddressLength])
         ipv4_list: list[str] = []
 
-        # Handle multiple IPv4 addresses
         uni = addr.FirstUnicastAddress
         while uni:
             ip = _sockaddr_to_ipv4(uni.contents.Address.lpSockaddr)
@@ -775,7 +559,6 @@ def get_adapters_info() -> Iterator[AdapterData]:
                 ipv4_list.append(ip)
             uni = uni.contents.Next
 
-        # Handle gateway addresses
         gateway_list: list[str] = []
         gw = addr.FirstGatewayAddress
         while gw:
@@ -784,7 +567,6 @@ def get_adapters_info() -> Iterator[AdapterData]:
                 gateway_list.append(gw_ip)
             gw = gw.contents.Next
 
-        # Query MIB_IF_ROW2 by index
         row = MIB_IF_ROW2(InterfaceIndex=addr.IfIndex)
         if GetIfEntry2(ctypes.byref(row)) != ERROR_SUCCESS:
             packets_sent = packets_recv = 0
@@ -792,37 +574,318 @@ def get_adapters_info() -> Iterator[AdapterData]:
             transmit_link_speed = 0
             receive_link_speed = 0
         else:
-            packets_sent = row.OutUcastPkts + row.OutNUcastPkts
-            packets_recv = row.InUcastPkts + row.InNUcastPkts
-            media_connect_state = row.MediaConnectState
-            transmit_link_speed = row.TransmitLinkSpeed
-            receive_link_speed = row.ReceiveLinkSpeed
+            packets_sent = int(row.OutUcastPkts + row.OutNUcastPkts)
+            packets_recv = int(row.InUcastPkts + row.InNUcastPkts)
+            media_connect_state = int(row.MediaConnectState)
+            transmit_link_speed = int(row.TransmitLinkSpeed)
+            receive_link_speed = int(row.ReceiveLinkSpeed)
 
         adapter_guid_raw = addr.AdapterName.decode('ascii', errors='ignore') if addr.AdapterName else None
-        adapter_guid = adapter_guid_raw.upper() if adapter_guid_raw else None
+        adapter_guid: str | None = str(adapter_guid_raw).upper() if adapter_guid_raw else None
 
-        yield AdapterData(
-            identity=AdapterIdentity(
-                interface_index=addr.IfIndex,
-                friendly_name=addr.FriendlyName,
-                description=addr.Description,
-                mac_address=mac_address,
-                adapter_guid=adapter_guid,
-            ),
-            status=AdapterStatus(
-                operational_status=addr.OperStatus,
-                ip_enabled=bool(addr.Flags & IP_ADAPTER_IPV4_ENABLED),
-                media_connect_state=media_connect_state,
-            ),
-            traffic=AdapterTraffic(
-                packets_sent=packets_sent,
-                packets_recv=packets_recv,
-                transmit_link_speed=transmit_link_speed,
-                receive_link_speed=receive_link_speed,
-            ),
-            ipv4_addresses=ipv4_list,
-            gateway_addresses=gateway_list,
-            neighbors=neighbors_by_if.get(int(addr.IfIndex), []),
+        yield (
+            int(addr.IfIndex),
+            str(addr.FriendlyName or ''),
+            str(addr.Description or ''),
+            mac_address,
+            adapter_guid,
+            int(addr.OperStatus),
+            bool(addr.Flags & IP_ADAPTER_IPV4_ENABLED),
+            media_connect_state,
+            packets_sent,
+            packets_recv,
+            transmit_link_speed,
+            receive_link_speed,
+            ipv4_list,
+            gateway_list,
         )
 
         adapter = ctypes.cast(addr.Next, LP_IP_ADAPTER_ADDRESSES)
+
+
+def has_wlan_interfaces() -> bool:
+    """Return whether at least one wireless LAN interface is enumerated by Win32 wlanapi."""
+    if sys.platform != 'win32':
+        return False
+
+    try:
+        wlanapi = ctypes.windll.wlanapi
+    except (AttributeError, OSError):
+        return False
+
+    negotiated_version = wintypes.DWORD()
+    client_handle = wintypes.HANDLE()
+    open_result = wlanapi.WlanOpenHandle(2, None, ctypes.byref(negotiated_version), ctypes.byref(client_handle))
+    if open_result or not bool(client_handle.value):
+        return False
+
+    interface_list_ptr = ctypes.c_void_p()
+    try:
+        enum_result = wlanapi.WlanEnumInterfaces(client_handle, None, ctypes.byref(interface_list_ptr))
+        if enum_result or not bool(interface_list_ptr.value):
+            return False
+        try:
+            num_items = ctypes.cast(interface_list_ptr, ctypes.POINTER(wintypes.DWORD)).contents.value
+            return num_items > 0
+        finally:
+            wlanapi.WlanFreeMemory(interface_list_ptr)
+    finally:
+        wlanapi.WlanCloseHandle(client_handle, None)
+
+
+def _extract_bstr_guid(props_ptr: wintypes.LPVOID, oleaut32: ctypes.WinDLL) -> str | None:
+    props_vtable = ctypes.cast(props_ptr, ctypes.POINTER(ctypes.POINTER(ctypes.c_void_p))).contents
+    get_guid = ctypes.WINFUNCTYPE(
+        wintypes.HRESULT,
+        wintypes.LPVOID,
+        ctypes.POINTER(ctypes.c_wchar_p),
+    )(props_vtable[7])
+    bstr_guid = ctypes.c_wchar_p()
+    if get_guid(props_ptr, ctypes.byref(bstr_guid)):
+        return None
+    try:
+        return bstr_guid.value
+    finally:
+        if bstr_guid:
+            oleaut32.SysFreeString(bstr_guid)
+
+
+def _query_connection_sharing_type(
+    manager_ptr: wintypes.LPVOID,
+    connection_ptr: wintypes.LPVOID,
+    oleaut32: ctypes.WinDLL,
+) -> tuple[str, int] | None:
+    """Extract (raw_guid, sharing_type) for a single COM connection if sharing is enabled."""
+    manager_vtable = ctypes.cast(manager_ptr, ctypes.POINTER(ctypes.POINTER(ctypes.c_void_p))).contents
+    get_configuration_for_connection = ctypes.WINFUNCTYPE(
+        wintypes.HRESULT,
+        wintypes.LPVOID,
+        wintypes.LPVOID,
+        ctypes.POINTER(wintypes.LPVOID),
+    )(manager_vtable[10])
+    get_connection_props = ctypes.WINFUNCTYPE(
+        wintypes.HRESULT,
+        wintypes.LPVOID,
+        wintypes.LPVOID,
+        ctypes.POINTER(wintypes.LPVOID),
+    )(manager_vtable[12])
+
+    config_ptr = wintypes.LPVOID()
+    if get_configuration_for_connection(manager_ptr, connection_ptr, ctypes.byref(config_ptr)) or not config_ptr:
+        return None
+
+    try:
+        config_vtable = ctypes.cast(config_ptr, ctypes.POINTER(ctypes.POINTER(ctypes.c_void_p))).contents
+        get_sharing_enabled = ctypes.WINFUNCTYPE(
+            wintypes.HRESULT,
+            wintypes.LPVOID,
+            ctypes.POINTER(wintypes.SHORT),
+        )(config_vtable[7])
+        get_sharing_type = ctypes.WINFUNCTYPE(
+            wintypes.HRESULT,
+            wintypes.LPVOID,
+            ctypes.POINTER(ctypes.c_int),
+        )(config_vtable[8])
+
+        sharing_enabled = wintypes.SHORT()
+        if get_sharing_enabled(config_ptr, ctypes.byref(sharing_enabled)) or not sharing_enabled.value:
+            return None
+
+        sharing_type = ctypes.c_int()
+        get_sharing_type(config_ptr, ctypes.byref(sharing_type))
+
+        props_ptr = wintypes.LPVOID()
+        if get_connection_props(manager_ptr, connection_ptr, ctypes.byref(props_ptr)) or not props_ptr:
+            return None
+
+        try:
+            guid_value = _extract_bstr_guid(props_ptr, oleaut32)
+            if guid_value is not None and guid_value:
+                return (guid_value, sharing_type.value)
+        finally:
+            release_com_interface(props_ptr)
+    finally:
+        release_com_interface(config_ptr)
+
+    return None
+
+
+def _get_enum_variant(manager_ptr: wintypes.LPVOID) -> wintypes.LPVOID:
+    """Obtain the IEnumVARIANT interface for all network connections."""
+    manager_vtable = ctypes.cast(manager_ptr, ctypes.POINTER(ctypes.POINTER(ctypes.c_void_p))).contents
+    get_enum_every_connection = ctypes.WINFUNCTYPE(
+        wintypes.HRESULT,
+        wintypes.LPVOID,
+        ctypes.POINTER(wintypes.LPVOID),
+    )(manager_vtable[11])
+
+    collection_ptr = wintypes.LPVOID()
+    if get_enum_every_connection(manager_ptr, ctypes.byref(collection_ptr)) or not collection_ptr:
+        return wintypes.LPVOID()
+
+    try:
+        collection_vtable = ctypes.cast(collection_ptr, ctypes.POINTER(ctypes.POINTER(ctypes.c_void_p))).contents
+        get_new_enum = ctypes.WINFUNCTYPE(
+            wintypes.HRESULT,
+            wintypes.LPVOID,
+            ctypes.POINTER(wintypes.LPVOID),
+        )(collection_vtable[7])
+
+        unknown_enum_ptr = wintypes.LPVOID()
+        if get_new_enum(collection_ptr, ctypes.byref(unknown_enum_ptr)) or not unknown_enum_ptr:
+            return wintypes.LPVOID()
+
+        try:
+            unknown_vtable = ctypes.cast(unknown_enum_ptr, ctypes.POINTER(ctypes.POINTER(ctypes.c_void_p))).contents
+            query_interface_unknown = ctypes.WINFUNCTYPE(
+                wintypes.HRESULT,
+                wintypes.LPVOID,
+                ctypes.POINTER(WindowsGuid),
+                ctypes.POINTER(wintypes.LPVOID),
+            )(unknown_vtable[0])
+
+            enum_variant_ptr = wintypes.LPVOID()
+            if query_interface_unknown(unknown_enum_ptr, ctypes.byref(_IID_IENUM_VARIANT), ctypes.byref(enum_variant_ptr)) or not enum_variant_ptr:
+                return wintypes.LPVOID()
+
+            return enum_variant_ptr
+        finally:
+            release_com_interface(unknown_enum_ptr)
+    finally:
+        release_com_interface(collection_ptr)
+
+
+def _collect_ics_sharing_entries(
+    manager_ptr: wintypes.LPVOID,
+    oleaut32: ctypes.WinDLL,
+) -> list[tuple[str, int]]:
+    """Query `manager_ptr` for ICS installation and collect `(guid, sharing_type)` pairs."""
+    manager_vtable = ctypes.cast(manager_ptr, ctypes.POINTER(ctypes.POINTER(ctypes.c_void_p))).contents
+    get_sharing_installed = ctypes.WINFUNCTYPE(
+        wintypes.HRESULT,
+        wintypes.LPVOID,
+        ctypes.POINTER(wintypes.SHORT),
+    )(manager_vtable[7])
+
+    installed = wintypes.SHORT()
+    if get_sharing_installed(manager_ptr, ctypes.byref(installed)) or not installed.value:
+        return []
+
+    enum_variant_ptr = _get_enum_variant(manager_ptr)
+    if not enum_variant_ptr:
+        return []
+
+    entries: list[tuple[str, int]] = []
+    variant_clear = oleaut32.VariantClear
+    variant_clear.argtypes = [ctypes.c_void_p]
+    variant_clear.restype = wintypes.HRESULT
+
+    try:
+        enum_vtable = ctypes.cast(enum_variant_ptr, ctypes.POINTER(ctypes.POINTER(ctypes.c_void_p))).contents
+        next_enum = ctypes.WINFUNCTYPE(
+            wintypes.HRESULT,
+            wintypes.LPVOID,
+            wintypes.ULONG,
+            wintypes.LPVOID,
+            ctypes.POINTER(wintypes.ULONG),
+        )(enum_vtable[3])
+
+        variant_buffer = (ctypes.c_byte * 24)()
+        fetched_count = wintypes.ULONG()
+        while not next_enum(enum_variant_ptr, 1, ctypes.byref(variant_buffer), ctypes.byref(fetched_count)) and fetched_count.value == 1:
+            try:
+                connection_val = (ctypes.c_void_p.from_buffer(variant_buffer, 8)).value
+                if not bool(connection_val):
+                    continue
+                connection_ptr = wintypes.LPVOID(connection_val)
+                try:
+                    entry = _query_connection_sharing_type(manager_ptr, connection_ptr, oleaut32)
+                    if entry is not None:
+                        entries.append(entry)
+                except OSError as e:
+                    logger.debug('Failed to classify ICS connection: %s', e)
+            finally:
+                variant_clear(ctypes.byref(variant_buffer))
+    finally:
+        release_com_interface(enum_variant_ptr)
+    return entries
+
+
+def query_ics_sharing_types() -> list[tuple[str, int]]:
+    """Return a list of (raw_guid, sharing_type) pairs from INetSharingManager COM interface."""
+    if sys.platform != 'win32':
+        return []
+    entries: list[tuple[str, int]] = []
+    ole32 = ctypes.windll.ole32
+    oleaut32 = ctypes.windll.oleaut32
+
+    hr_init = ole32.CoInitializeEx(None, 2)
+    need_uninit = hr_init in (0, 1)
+
+    try:
+        clsid = WindowsGuid()
+        manager_ptr = wintypes.LPVOID()
+        if (
+            not ole32.CLSIDFromProgID('HNetCfg.HNetShare', ctypes.byref(clsid))
+            and not ole32.CoCreateInstance(ctypes.byref(clsid), None, 5, ctypes.byref(_IID_INET_SHARING_MANAGER), ctypes.byref(manager_ptr))
+            and manager_ptr
+        ):
+            try:
+                entries = _collect_ics_sharing_entries(manager_ptr, oleaut32)
+            except OSError as e:
+                logger.debug('ICS COM query encountered error: %s', e)
+            finally:
+                release_com_interface(manager_ptr)
+    except OSError as e:
+        logger.debug('Failed to initialize ICS COM interface: %s', e)
+    finally:
+        if need_uninit:
+            ole32.CoUninitialize()
+
+    return entries
+
+
+def create_icmp_handle() -> int | None:
+    """Create a Win32 ICMP handle via IcmpCreateFile, returning None on failure."""
+    if sys.platform != 'win32':
+        return None
+    handle = _IcmpCreateFile()
+    if not handle or handle == _INVALID_HANDLE_VALUE:
+        return None
+    return int(handle)
+
+
+def close_icmp_handle(handle: int) -> None:
+    """Close a Win32 ICMP handle created by create_icmp_handle()."""
+    if sys.platform == 'win32' and handle != _INVALID_HANDLE_VALUE:
+        _IcmpCloseHandle(handle)
+
+
+def send_icmp_echo(
+    handle: int,
+    destination_address: int,
+    payload_data: bytes,
+    timeout_milliseconds: int,
+) -> tuple[int, int, int, int]:
+    """Send a Win32 ICMP echo request and return (reply_count, status_code, rtt_ms, ttl)."""
+    reply_buffer_size = max(512, ctypes.sizeof(_IcmpEchoReply) + len(payload_data) + 64)
+    reply_buffer = ctypes.create_string_buffer(reply_buffer_size)
+    return_value = int(
+        _IcmpSendEcho(
+            handle,
+            destination_address,
+            payload_data,
+            len(payload_data),
+            None,
+            reply_buffer,
+            reply_buffer_size,
+            timeout_milliseconds,
+        ),
+    )
+    reply = _IcmpEchoReply.from_buffer_copy(reply_buffer)
+    return (
+        return_value,
+        int(reply.Status),
+        int(reply.RoundTripTime),
+        int(reply.Options.Ttl),
+    )

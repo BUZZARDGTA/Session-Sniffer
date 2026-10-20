@@ -4,7 +4,6 @@ This module contains a variety of helper functions and custom exceptions used ac
 """
 
 import contextlib
-import ctypes
 import json
 import logging
 import os
@@ -12,7 +11,6 @@ import shutil
 import signal
 import subprocess
 import sys
-from ctypes import wintypes
 from datetime import UTC, datetime, tzinfo
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal
@@ -28,7 +26,14 @@ with contextlib.suppress(ImportError):
 
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.constants.standard import CMD_EXE
-from session_sniffer.ctypes_windows import WindowsGuid, release_com_interface
+from session_sniffer.ctypes_windows import (
+    get_system32_dir,
+    is_admin,
+    iter_win32_toolhelp_processes,
+    resolve_lnk_win32,
+    shell_execute_runas,
+    terminate_win32_process,
+)
 from session_sniffer.error_messages import format_type_error
 from session_sniffer.utils_exceptions import (
     InvalidBooleanValueError,
@@ -264,26 +269,54 @@ def dedup_preserve_order[T](*iterables: Iterable[T]) -> list[T]:
     return unique
 
 
-class ProcessEntry32W(ctypes.Structure):
-    """ctypes definition for PROCESSENTRY32W structure."""
+def _collect_children_by_parent() -> dict[int, list[int]]:
+    """Return a mapping of parent PID to child PIDs for all currently running processes."""
+    children_by_parent: dict[int, list[int]] = {}
+    if sys.platform == 'win32':
+        for child_pid, parent_pid, _name in iter_win32_toolhelp_processes():
+            children_by_parent.setdefault(parent_pid, []).append(child_pid)
+        return children_by_parent
 
-    _fields_ = [
-        ('dwSize', wintypes.DWORD),
-        ('cntUsage', wintypes.DWORD),
-        ('th32ProcessID', wintypes.DWORD),
-        ('th32DefaultHeapID', ctypes.c_size_t),
-        ('th32ModuleID', wintypes.DWORD),
-        ('cntThreads', wintypes.DWORD),
-        ('th32ParentProcessID', wintypes.DWORD),
-        ('pcPriClassBase', wintypes.LONG),
-        ('dwFlags', wintypes.DWORD),
-        ('szExeFile', wintypes.WCHAR * 260),
-    ]
+    proc_path = Path('/proc')
+    if proc_path.is_dir():
+        for proc_entry in proc_path.iterdir():
+            if proc_entry.name.isdigit():
+                try:
+                    _, _, stat_after_comm = (proc_entry / 'stat').read_text().rpartition(')')
+                    parent_process_id = int(stat_after_comm.split()[1])
+                    child_pid = int(proc_entry.name)
+                    children_by_parent.setdefault(parent_process_id, []).append(child_pid)
+                except (OSError, ValueError, IndexError):
+                    continue
+    elif sys.platform == 'darwin':
+        try:
+            ps_executable = shutil.which('ps') or '/bin/ps'
+            ps_process = subprocess.run(
+                [ps_executable, '-A', '-o', 'pid=,ppid='],
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=2.0,
+            )
+            min_ps_output_parts = 2
+            for line in ps_process.stdout.splitlines():
+                parts = line.strip().split()
+                if len(parts) >= min_ps_output_parts and parts[0].isdigit() and parts[1].isdigit():
+                    children_by_parent.setdefault(int(parts[1]), []).append(int(parts[0]))
+        except (subprocess.TimeoutExpired, OSError):
+            pass
+    return children_by_parent
 
-    def __init__(self, *args: object, **kwargs: object) -> None:
-        """Initialize the PROCESSENTRY32W structure with its byte size."""
-        super().__init__(*args, **kwargs)
-        self.dwSize = ctypes.sizeof(self)
+
+def _kill_single_process(pid: int) -> None:
+    """Forcefully terminate a single process by *pid*."""
+    if sys.platform != 'win32':
+        try:
+            os.kill(pid, signal.SIGKILL)
+        except (ProcessLookupError, PermissionError) as e:
+            logger.debug('Failed to kill PID %d: %s', pid, e)
+        return
+    terminate_win32_process(pid)
 
 
 def terminate_process_tree() -> None:
@@ -292,91 +325,18 @@ def terminate_process_tree() -> None:
     if target_pid <= 0:
         return
 
-    if sys.platform != 'win32':
-        children_by_parent: dict[int, list[int]] = {}
-        proc_path = Path('/proc')
-        if proc_path.is_dir():
-            for proc_entry in proc_path.iterdir():
-                if proc_entry.name.isdigit():
-                    try:
-                        _, _, stat_after_comm = (proc_entry / 'stat').read_text().rpartition(')')
-                        parent_process_id = int(stat_after_comm.split()[1])
-                        child_pid = int(proc_entry.name)
-                        children_by_parent.setdefault(parent_process_id, []).append(child_pid)
-                    except (OSError, ValueError, IndexError):
-                        continue
-        elif sys.platform == 'darwin':
-            try:
-                ps_executable = shutil.which('ps') or '/bin/ps'
-                ps_process = subprocess.run(
-                    [ps_executable, '-A', '-o', 'pid=,ppid='],
-                    capture_output=True,
-                    text=True,
-                    check=False,
-                    timeout=2.0,
-                )
-                min_ps_output_parts = 2
-                for line in ps_process.stdout.splitlines():
-                    parts = line.strip().split()
-                    if len(parts) >= min_ps_output_parts and parts[0].isdigit() and parts[1].isdigit():
-                        child_pid = int(parts[0])
-                        parent_pid = int(parts[1])
-                        children_by_parent.setdefault(parent_pid, []).append(child_pid)
-            except (subprocess.TimeoutExpired, OSError):
-                pass
+    children_by_parent = _collect_children_by_parent()
+    descendant_pids: list[int] = []
+    queue: list[int] = [target_pid]
+    while queue:
+        parent_pid = queue.pop(0)
+        for child_pid in children_by_parent.get(parent_pid, []):
+            descendant_pids.append(child_pid)
+            queue.append(child_pid)
 
-        descendant_pids: list[int] = []
-        queue: list[int] = [target_pid]
-        while queue:
-            parent_pid = queue.pop(0)
-            for child_pid in children_by_parent.get(parent_pid, []):
-                descendant_pids.append(child_pid)
-                queue.append(child_pid)
-
-        for child_pid in reversed(descendant_pids):
-            try:
-                os.kill(child_pid, signal.SIGKILL)
-            except (ProcessLookupError, PermissionError) as e:
-                logger.debug('Failed to kill child PID %d: %s', child_pid, e)
-
-        try:
-            os.kill(target_pid, signal.SIGKILL)
-        except (ProcessLookupError, PermissionError) as e:
-            logger.debug('Failed to kill process %d: %s', target_pid, e)
-        return
-
-    kernel32 = ctypes.windll.kernel32
-    snapshot_handle = kernel32.CreateToolhelp32Snapshot(0x00000002, 0)
-    if snapshot_handle and snapshot_handle != wintypes.HANDLE(-1).value:
-        try:
-            entry = ProcessEntry32W()
-            if kernel32.Process32FirstW(snapshot_handle, ctypes.byref(entry)):
-                children_by_parent: dict[int, list[int]] = {}
-                while True:
-                    children_by_parent.setdefault(entry.th32ParentProcessID, []).append(entry.th32ProcessID)
-                    if not kernel32.Process32NextW(snapshot_handle, ctypes.byref(entry)):
-                        break
-
-                descendant_pids: list[int] = []
-                queue: list[int] = [target_pid]
-                while queue:
-                    parent_pid = queue.pop(0)
-                    for child_pid in children_by_parent.get(parent_pid, []):
-                        descendant_pids.append(child_pid)
-                        queue.append(child_pid)
-
-                for child_pid in reversed(descendant_pids):
-                    child_handle = kernel32.OpenProcess(0x0001, 0, child_pid)
-                    if child_handle:
-                        kernel32.TerminateProcess(child_handle, 1)
-                        kernel32.CloseHandle(child_handle)
-        finally:
-            kernel32.CloseHandle(snapshot_handle)
-
-    target_handle = kernel32.OpenProcess(0x0001, 0, target_pid)
-    if target_handle:
-        kernel32.TerminateProcess(target_handle, 1)
-        kernel32.CloseHandle(target_handle)
+    for child_pid in reversed(descendant_pids):
+        _kill_single_process(child_pid)
+    _kill_single_process(target_pid)
 
 
 def check_case_insensitive_and_exact_match(input_value: str, custom_values_tuple: tuple[str, ...]) -> tuple[bool, str]:
@@ -498,56 +458,9 @@ def validate_and_strip_balanced_outer_parens(expr: str) -> str:
     return expr
 
 
-_CLSID_SHELL_LINK = WindowsGuid(0x00021401, 0x0000, 0x0000, (ctypes.c_ubyte * 8)(0xC0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x46))
-_IID_ISHELL_LINK_W = WindowsGuid(0x000214F9, 0x0000, 0x0000, (ctypes.c_ubyte * 8)(0xC0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x46))
-_IID_IPERSIST_FILE = WindowsGuid(0x0000010B, 0x0000, 0x0000, (ctypes.c_ubyte * 8)(0xC0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x46))
-
-
 def resolve_lnk(shortcut_path: Path) -> Path:
     """Resolves a Windows shortcut (.lnk) to its target path."""
-    if sys.platform != 'win32':
-        return shortcut_path
-
-    ole32 = ctypes.windll.ole32
-    hr_init = ole32.CoInitializeEx(None, 2)
-    need_uninit = hr_init in (0, 1)
-
-    shell_link_ptr = wintypes.LPVOID()
-    hr_create = ole32.CoCreateInstance(
-        ctypes.byref(_CLSID_SHELL_LINK),
-        None,
-        1,
-        ctypes.byref(_IID_ISHELL_LINK_W),
-        ctypes.byref(shell_link_ptr),
-    )
-    if hr_create or not shell_link_ptr:
-        if need_uninit:
-            ole32.CoUninitialize()
-        return shortcut_path
-
-    try:
-        link_vtable = ctypes.cast(shell_link_ptr, ctypes.POINTER(ctypes.POINTER(ctypes.c_void_p))).contents
-        query_interface = ctypes.WINFUNCTYPE(wintypes.HRESULT, wintypes.LPVOID, ctypes.POINTER(WindowsGuid), ctypes.POINTER(wintypes.LPVOID))(link_vtable[0])
-        get_path = ctypes.WINFUNCTYPE(wintypes.HRESULT, wintypes.LPVOID, wintypes.LPWSTR, ctypes.c_int, wintypes.LPVOID, wintypes.DWORD)(link_vtable[3])
-
-        persist_file_ptr = wintypes.LPVOID()
-        if not query_interface(shell_link_ptr, ctypes.byref(_IID_IPERSIST_FILE), ctypes.byref(persist_file_ptr)) and persist_file_ptr:
-            try:
-                persist_vtable = ctypes.cast(persist_file_ptr, ctypes.POINTER(ctypes.POINTER(ctypes.c_void_p))).contents
-                load = ctypes.WINFUNCTYPE(wintypes.HRESULT, wintypes.LPVOID, wintypes.LPCWSTR, wintypes.DWORD)(persist_vtable[5])
-
-                if not load(persist_file_ptr, str(shortcut_path), 0):
-                    path_buffer = ctypes.create_unicode_buffer(1024)
-                    if not get_path(shell_link_ptr, path_buffer, 1024, None, 0) and path_buffer.value:
-                        return Path(path_buffer.value)
-            finally:
-                release_com_interface(persist_file_ptr)
-    finally:
-        release_com_interface(shell_link_ptr)
-        if need_uninit:
-            ole32.CoUninitialize()
-
-    return shortcut_path
+    return resolve_lnk_win32(shortcut_path)
 
 
 def _launch_detached_command(command: list[str]) -> subprocess.Popen[bytes]:
@@ -585,6 +498,45 @@ def run_cmd_script(script: Path, args: list[str] | None = None) -> None:
         full_command.extend(args)
 
     subprocess.run([str(CMD_EXE), '/c', 'start', '', *full_command], check=False)
+
+
+def run_elevated_powershell_command(ps_command: str, *, timeout_ms: int = 15_000) -> bool:
+    """Execute a PowerShell command with administrative privileges, requesting UAC elevation if needed."""
+    if sys.platform != 'win32':
+        return False
+    ps_exe = get_system32_dir() / 'WindowsPowerShell' / 'v1.0' / 'powershell.exe'
+    if not ps_exe.is_file():
+        return False
+
+    if is_admin():
+        try:
+            subprocess.run(
+                [
+                    str(ps_exe),
+                    '-NoProfile',
+                    '-NonInteractive',
+                    '-ExecutionPolicy',
+                    'Bypass',
+                    '-WindowStyle',
+                    'Hidden',
+                    '-Command',
+                    ps_command,
+                ],
+                check=False,
+                capture_output=True,
+                timeout=max(1.0, timeout_ms / 1000.0),
+                creationflags=subprocess.CREATE_NO_WINDOW,
+            )
+        except (OSError, subprocess.SubprocessError):
+            logger.debug('Failed to execute elevated PowerShell subprocess', exc_info=True)
+            return False
+        return True
+
+    params = f'-NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -Command "{ps_command}"'
+    if not shell_execute_runas(str(ps_exe), params, timeout_ms=timeout_ms):
+        logger.debug('User declined or failed UAC elevation for PowerShell command')
+        return False
+    return True
 
 
 _MAX_EMPTY_SESSION_LOG_SIZE_BYTES: int = 512

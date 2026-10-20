@@ -7,12 +7,12 @@ It defines two main components:
 The msgbox.show() method can be used to display a message box with custom buttons, and behavior.
 """
 
-import ctypes
 import enum
 import sys
 
 from PySide6.QtWidgets import QMessageBox
 
+from session_sniffer.ctypes_windows import show_win32_message_box
 from session_sniffer.error_messages import ensure_instance
 from session_sniffer.guis.app import app
 
@@ -134,5 +134,5 @@ def show(title: str, text: str, style: Style) -> ReturnValues:
     if sys.platform != 'win32':
         return _show_qt(title, text, style)
 
-    result = ctypes.windll.user32.MessageBoxW(_state['owner_hwnd'], text, title, style)
+    result = show_win32_message_box(_state['owner_hwnd'], text, title, int(style))
     return ReturnValues(ensure_instance(result, int))

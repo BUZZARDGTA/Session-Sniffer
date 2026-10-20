@@ -39,8 +39,11 @@ from session_sniffer.capture.packet_capture import CaptureConfig, CaptureHolder,
 from session_sniffer.capture.pcap import can_open_pcap_device
 from session_sniffer.capture.process_monitor import ensure_process_monitor_running
 from session_sniffer.capture.utils.check_capture_filters import check_broadcast_multicast_support
-from session_sniffer.capture.utils.ctypes_win32 import is_npcap_adapter_bound, reset_npcap_binding_repair_attempts
-from session_sniffer.capture.utils.npcap_checker import ensure_npcap_installed
+from session_sniffer.capture.utils.npcap_checker import (
+    ensure_npcap_installed,
+    is_npcap_adapter_bound,
+    reset_npcap_binding_repair_attempts,
+)
 from session_sniffer.constants.local import (
     APP_DIR_LOCAL,
     APP_DIR_ROAMING,
@@ -75,7 +78,7 @@ from session_sniffer.launcher.cache_preloader import preload_application_caches,
 from session_sniffer.launcher.package_checker import check_packages_version, get_dependencies_from_pyproject
 from session_sniffer.logging_setup import register_secret_provider, setup_logging
 from session_sniffer.models.player import PacketInfo, Player, PlayerUserIPDetection
-from session_sniffer.networking.ctypes_adapters_info import get_adapters_info
+from session_sniffer.networking.adapters_info import get_adapters_info
 from session_sniffer.networking.geolite2.service import update_and_initialize_geolite2_readers
 from session_sniffer.networking.interface import AllInterfaces, Interface, SelectedInterfaceRow
 from session_sniffer.networking.ip_range import check_ip_against_ranges

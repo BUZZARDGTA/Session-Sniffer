@@ -17,15 +17,21 @@ from pathlib import Path
 if sys.platform == 'win32':
     import winreg
 
-from session_sniffer.capture.pcap import is_pcap_library_available
+from session_sniffer.capture.pcap import can_open_pcap_device, is_pcap_library_available
 from session_sniffer.capture.process import iter_running_processes
 from session_sniffer.capture.utils.ctypes_win32 import is_npcap_setup_window_visible, is_service_running
 from session_sniffer.error_messages import format_npcap_required_message
 from session_sniffer.guis.dependency_prompt_dialog import show_dependency_prompt
+from session_sniffer.utils import run_elevated_powershell_command
 
 logger = logging.getLogger(__name__)
 
 NPCAP_DOWNLOAD_URL = 'https://npcap.com/#download'
+_NPCAP_ADAPTERS_KEY = r'SYSTEM\CurrentControlSet\Services\npcap\Parameters\Adapters'
+_NPCAP_NDIS_ADAPTERS_KEY = r'SYSTEM\CurrentControlSet\Services\npcap\Parameters\NdisAdapters'
+_GUID_BODY_LENGTH = 36
+_HEX_GUID_CHARS = frozenset('0123456789ABCDEF-')
+_attempted_binding_guids: set[str] = set()
 
 LIBPCAP_REQUIRED_MESSAGE = (
     'Session Sniffer requires libpcap on Linux to capture packets.\n\n'
@@ -361,3 +367,101 @@ def ensure_npcap_installed() -> None:
         action=('Open Download Page', open_npcap_download_page),
     ):
         sys.exit(1)
+
+
+def _normalize_adapter_guid(adapter_guid: str) -> str | None:
+    """Validate and normalize an adapter GUID string to uppercase '{...}' format."""
+    cleaned = adapter_guid.strip().strip('{}').upper()
+    if len(cleaned) != _GUID_BODY_LENGTH or any(ch not in _HEX_GUID_CHARS for ch in cleaned):
+        return None
+    return f'{{{cleaned}}}'
+
+
+def extract_npcap_device_guid(device_name: str) -> str | None:
+    r"""Extract the normalized '{GUID}' from an Npcap device name such as '\Device\NPF_{...}'."""
+    prefix = '\\Device\\NPF_'
+    idx = device_name.find(prefix)
+    if idx != -1:
+        return _normalize_adapter_guid(device_name[idx + len(prefix) :])
+    return _normalize_adapter_guid(device_name)
+
+
+def _has_registry_subkey(parent_key_path: str, subkey_name: str) -> bool:
+    r"""Return whether a subkey exists under HKLM\<parent_key_path>."""
+    if sys.platform == 'win32':
+        try:
+            with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, f'{parent_key_path}\\{subkey_name}'):
+                return True
+        except OSError:
+            return False
+    return False
+
+
+def is_npcap_adapter_bound(adapter_guid: str) -> bool:
+    """Return whether the Npcap NDIS filter driver is currently bound to the given adapter GUID."""
+    if sys.platform != 'win32':
+        return True
+    normalized = _normalize_adapter_guid(adapter_guid)
+    if normalized is None:
+        return True
+    return _has_registry_subkey(_NPCAP_ADAPTERS_KEY, normalized)
+
+
+def is_ndis_adapter_registered(adapter_guid: str) -> bool:
+    """Return whether the adapter GUID is registered in Npcap's known NDIS adapters list."""
+    if sys.platform != 'win32':
+        return False
+    normalized = _normalize_adapter_guid(adapter_guid)
+    if normalized is None:
+        return False
+    return _has_registry_subkey(_NPCAP_NDIS_ADAPTERS_KEY, normalized)
+
+
+def reset_npcap_binding_repair_attempts() -> None:
+    """Clear the set of adapter GUIDs for which automatic Npcap binding repair was already attempted."""
+    _attempted_binding_guids.clear()
+
+
+def try_enable_npcap_adapter_binding(adapter_guid: str, *, device_name: str | None = None) -> bool:
+    """Attempt to enable the 'INSECURE_NPCAP' NDIS filter binding on the given adapter GUID.
+
+    When the current process is already elevated, runs the PowerShell cmdlet directly.
+    Otherwise, requests elevation via ShellExecuteExW ('runas') at most once per adapter GUID
+    until reset_npcap_binding_repair_attempts() is called.
+    """
+    if sys.platform != 'win32':
+        return False
+    normalized = _normalize_adapter_guid(adapter_guid)
+    if normalized is None or normalized in _attempted_binding_guids:
+        return False
+
+    _attempted_binding_guids.add(normalized)
+    logger.info(
+        'Npcap driver binding is disabled on adapter %s (%s) — attempting to enable INSECURE_NPCAP binding...',
+        device_name or normalized,
+        normalized,
+    )
+    ps_command = (
+        f"Get-NetAdapter -IncludeHidden | Where-Object {{ $_.InterfaceGuid -eq '{normalized}' }} "
+        "| Enable-NetAdapterBinding -ComponentID 'INSECURE_NPCAP' -Confirm:$false -ErrorAction Stop"
+    )
+    if not run_elevated_powershell_command(ps_command):
+        return False
+
+    deadline = time.monotonic() + 3.0
+    while time.monotonic() < deadline:
+        if is_npcap_adapter_bound(normalized) and (device_name is None or can_open_pcap_device(device_name)):
+            logger.info('Successfully enabled Npcap driver binding on capture adapter %s.', device_name or normalized)
+            return True
+        time.sleep(0.1)
+    return is_npcap_adapter_bound(normalized)
+
+
+def ensure_npcap_adapter_bound(device_name: str) -> bool:
+    """Ensure the Npcap NDIS filter driver is bound to the adapter for *device_name*, attempting repair if disabled."""
+    if sys.platform != 'win32':
+        return True
+    adapter_guid = extract_npcap_device_guid(device_name)
+    if adapter_guid is None or is_npcap_adapter_bound(adapter_guid) or not is_ndis_adapter_registered(adapter_guid):
+        return True
+    return try_enable_npcap_adapter_binding(adapter_guid, device_name=device_name)

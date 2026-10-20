@@ -15,7 +15,7 @@ from ipaddress import AddressValueError, IPv4Address, IPv4Network
 from threading import Lock
 from typing import TYPE_CHECKING
 
-from session_sniffer.capture.utils.ctypes_win32 import get_system32_dir
+from session_sniffer.ctypes_windows import get_system32_dir
 from session_sniffer.networking.utils import is_valid_private_ipv4
 
 if TYPE_CHECKING:

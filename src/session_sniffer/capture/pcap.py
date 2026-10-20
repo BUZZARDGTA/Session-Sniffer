@@ -11,7 +11,6 @@ import logging
 import os
 import sys
 import threading
-import time
 from ctypes import byref, c_char_p, c_int, c_long, c_ubyte, c_uint, c_uint32, c_void_p
 from dataclasses import dataclass
 from pathlib import Path
@@ -23,12 +22,6 @@ from session_sniffer.capture.exceptions import (
     PcapOpenError,
     PcapReadError,
     PcapSendError,
-)
-from session_sniffer.capture.utils.ctypes_win32 import (
-    extract_npcap_device_guid,
-    is_ndis_adapter_registered,
-    is_npcap_adapter_bound,
-    try_enable_npcap_adapter_binding,
 )
 
 PCAP_ERRBUF_SIZE = 256
@@ -205,45 +198,6 @@ def can_open_pcap_device(device_name: str) -> bool:
     return True
 
 
-def _try_reopen_after_npcap_binding(
-    library: ctypes.CDLL,
-    device_name: str,
-    snaplen: int,
-    timeout_milliseconds: int,
-    *,
-    promiscuous: bool,
-) -> c_void_p | None:
-    """Attempt to repair a missing Npcap adapter binding on Windows and reopen the handle."""
-    adapter_guid = extract_npcap_device_guid(device_name)
-    if adapter_guid is None or is_npcap_adapter_bound(adapter_guid) or not is_ndis_adapter_registered(adapter_guid):
-        return None
-
-    logger.info(
-        'Npcap driver binding is disabled on adapter %s (%s) — attempting to enable INSECURE_NPCAP binding...',
-        device_name,
-        adapter_guid,
-    )
-    if not try_enable_npcap_adapter_binding(adapter_guid):
-        return None
-
-    error_buffer = ctypes.create_string_buffer(PCAP_ERRBUF_SIZE)
-    device_bytes = device_name.encode('utf-8')
-    deadline = time.monotonic() + 2.0
-    while time.monotonic() < deadline:
-        handle = library.pcap_open_live(
-            device_bytes,
-            c_int(snaplen),
-            c_int(1 if promiscuous else 0),
-            c_int(timeout_milliseconds),
-            error_buffer,
-        )
-        if handle:
-            logger.info('Successfully enabled Npcap driver binding and opened capture adapter %s.', device_name)
-            return c_void_p(handle)
-        time.sleep(0.1)
-    return None
-
-
 @final
 class PcapHandle:
     """Wrapper managing a live pcap handle lifecycle."""
@@ -292,24 +246,9 @@ class PcapHandle:
             error_buffer,
         )
 
-        if not handle and sys.platform == 'win32':
-            reopened = _try_reopen_after_npcap_binding(
-                library,
-                device_name,
-                snaplen,
-                timeout_milliseconds,
-                promiscuous=promiscuous,
-            )
-            if reopened is not None:
-                handle = reopened
-
         if not handle:
             error_message = error_buffer.value.decode('utf-8', errors='replace')
-            if sys.platform == 'win32':
-                adapter_guid = extract_npcap_device_guid(device_name)
-                if adapter_guid is not None and not is_npcap_adapter_bound(adapter_guid) and is_ndis_adapter_registered(adapter_guid):
-                    error_message += ' (The "Npcap Packet Driver (NPCAP)" binding is disabled on this network adapter in Windows)'
-            elif 'Operation not permitted' in error_message or 'permission' in error_message.lower():
+            if sys.platform != 'win32' and ('Operation not permitted' in error_message or 'permission' in error_message.lower()):
                 permission_hint = (
                     ' (Session Sniffer requires root privileges or CAP_NET_RAW capability: '
                     'try running with sudo or setcap cap_net_raw,cap_net_admin=eip on the python executable)'

@@ -5,21 +5,21 @@ the Windows Mobile Hotspot via WinRT NetworkOperatorTetheringManager, as well as
 Internet Connection Sharing (ICS) configuration via HNetCfg.HNetShare COM interfaces.
 """
 
-import ctypes
 import json
 import logging
 import subprocess
 import sys
 import tempfile
-from ctypes import wintypes
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Final, cast
 
-from session_sniffer.capture.utils.ctypes_win32 import is_admin, run_elevated_powershell_command
+from session_sniffer.ctypes_windows import is_admin
 from session_sniffer.networking.bridge_ics import get_adapter_classification
+from session_sniffer.networking.ctypes_adapters_info import has_wlan_interfaces
 from session_sniffer.networking.interface import AllInterfaces
 from session_sniffer.networking.manuf_lookup import MacLookup
+from session_sniffer.utils import run_elevated_powershell_command
 
 logger = logging.getLogger(__name__)
 
@@ -326,32 +326,7 @@ class ConnectedDevice:
 
 def has_wifi_adapter() -> bool:
     """Return whether a wireless LAN adapter is present and enabled on the system."""
-    if sys.platform != 'win32':
-        return False
-
-    try:
-        wlanapi = ctypes.windll.wlanapi
-    except AttributeError, OSError:
-        return False
-
-    negotiated_version = wintypes.DWORD()
-    client_handle = wintypes.HANDLE()
-    open_result = wlanapi.WlanOpenHandle(2, None, ctypes.byref(negotiated_version), ctypes.byref(client_handle))
-    if open_result or not bool(client_handle.value):
-        return False
-
-    interface_list_ptr = ctypes.c_void_p()
-    try:
-        enum_result = wlanapi.WlanEnumInterfaces(client_handle, None, ctypes.byref(interface_list_ptr))
-        if enum_result or not bool(interface_list_ptr.value):
-            return False
-        try:
-            num_items = ctypes.cast(interface_list_ptr, ctypes.POINTER(wintypes.DWORD)).contents.value
-            return num_items > 0
-        finally:
-            wlanapi.WlanFreeMemory(interface_list_ptr)
-    finally:
-        wlanapi.WlanCloseHandle(client_handle, None)
+    return has_wlan_interfaces()
 
 
 def _decode_stream(raw_bytes: bytes) -> str:

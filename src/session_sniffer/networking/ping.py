@@ -1,7 +1,5 @@
 """Native network diagnostics engine for ICMP, TCP port, and web pings."""
 
-import ctypes
-import ctypes.wintypes
 import enum
 import logging
 import math
@@ -12,6 +10,11 @@ import time
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Final, Self, cast
 
+from session_sniffer.networking.ctypes_adapters_info import (
+    close_icmp_handle,
+    create_icmp_handle,
+    send_icmp_echo,
+)
 from session_sniffer.networking.endpoint_ping_manager import PingResult, fetch_and_parse_ping
 from session_sniffer.networking.http_session import session
 from session_sniffer.settings import Settings
@@ -21,7 +24,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# --- Windows ICMP Echo API Definitions ---
+# --- Windows ICMP Echo Status Descriptions ---
 _IP_STATUS_DESCRIPTIONS: Final[dict[int, str]] = {
     0: 'Success',
     11001: 'Buffer too small',
@@ -45,55 +48,6 @@ _IP_STATUS_DESCRIPTIONS: Final[dict[int, str]] = {
     11050: 'General failure',
 }
 _MIN_SAMPLES_FOR_MDEV: Final[int] = 2
-
-
-class _IPOptionInformation(ctypes.Structure):
-    _fields_ = [
-        ('Ttl', ctypes.c_ubyte),
-        ('Tos', ctypes.c_ubyte),
-        ('Flags', ctypes.c_ubyte),
-        ('OptionsSize', ctypes.c_ubyte),
-        ('OptionsData', ctypes.c_void_p),
-    ]
-
-
-class _IcmpEchoReply(ctypes.Structure):
-    _fields_ = [
-        ('Address', ctypes.c_ulong),
-        ('Status', ctypes.c_ulong),
-        ('RoundTripTime', ctypes.c_ulong),
-        ('DataSize', ctypes.c_ushort),
-        ('Reserved', ctypes.c_ushort),
-        ('Data', ctypes.c_void_p),
-        ('Options', _IPOptionInformation),
-    ]
-
-
-_INVALID_HANDLE_VALUE: Final[int] = cast('int', ctypes.c_void_p(-1).value)
-
-if sys.platform == 'win32':
-    _iphlpapi = ctypes.windll.iphlpapi
-
-    _IcmpCreateFile = _iphlpapi.IcmpCreateFile
-    _IcmpCreateFile.argtypes = []
-    _IcmpCreateFile.restype = ctypes.c_void_p
-
-    _IcmpCloseHandle = _iphlpapi.IcmpCloseHandle
-    _IcmpCloseHandle.argtypes = [ctypes.c_void_p]
-    _IcmpCloseHandle.restype = ctypes.wintypes.BOOL
-
-    _IcmpSendEcho = _iphlpapi.IcmpSendEcho
-    _IcmpSendEcho.argtypes = [
-        ctypes.c_void_p,
-        ctypes.c_ulong,
-        ctypes.c_char_p,
-        ctypes.c_ushort,
-        ctypes.c_void_p,
-        ctypes.c_void_p,
-        ctypes.wintypes.DWORD,
-        ctypes.wintypes.DWORD,
-    ]
-    _IcmpSendEcho.restype = ctypes.wintypes.DWORD
 
 
 class PingMode(enum.StrEnum):
@@ -200,8 +154,8 @@ class IcmpEchoEngine:
 
         if self._is_windows:
             try:
-                handle = _IcmpCreateFile()
-                if not handle or handle == _INVALID_HANDLE_VALUE:
+                handle = create_icmp_handle()
+                if handle is None:
                     self._handle = None
                     logger.error('Failed to create Win32 ICMP handle')
                 else:
@@ -234,9 +188,9 @@ class IcmpEchoEngine:
     def close(self) -> None:
         """Close the native ICMP handle or socket."""
         if self._is_windows:
-            if self._handle is not None and self._handle != _INVALID_HANDLE_VALUE:
+            if self._handle is not None:
                 try:
-                    _IcmpCloseHandle(self._handle)
+                    close_icmp_handle(self._handle)
                 except OSError as e:
                     logger.debug('Failed to close Win32 ICMP handle: %s', e)
                 finally:
@@ -391,19 +345,13 @@ class IcmpEchoEngine:
                     payload_bytes=payload_bytes,
                 )
 
-        reply_buffer_size = max(512, ctypes.sizeof(_IcmpEchoReply) + len(payload_data) + 64)
-        reply_buffer = ctypes.create_string_buffer(reply_buffer_size)
         timeout_milliseconds = max(100, int(timeout_seconds * 1000))
 
         try:
-            return_value = _IcmpSendEcho(
+            return_value, status_code, rtt_ms, ttl = send_icmp_echo(
                 self._handle,
                 destination_address,
                 payload_data,
-                len(payload_data),
-                None,
-                reply_buffer,
-                reply_buffer_size,
                 timeout_milliseconds,
             )
         except OSError as e:
@@ -419,8 +367,6 @@ class IcmpEchoEngine:
                 payload_bytes=payload_bytes,
             )
 
-        reply = _IcmpEchoReply.from_buffer_copy(reply_buffer)
-        status_code = int(reply.Status)
         status_description = _IP_STATUS_DESCRIPTIONS.get(status_code, f'Error {status_code}')
 
         if return_value > 0 and not status_code:
@@ -430,8 +376,8 @@ class IcmpEchoEngine:
                 target_ip=resolved_ip,
                 port=None,
                 is_successful=True,
-                round_trip_time_ms=float(reply.RoundTripTime),
-                time_to_live=int(reply.Options.Ttl),
+                round_trip_time_ms=float(rtt_ms),
+                time_to_live=ttl,
                 status_message=status_description,
                 payload_bytes=payload_bytes,
             )
