@@ -928,8 +928,11 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
         for widget in self._widgets.values():
             if isinstance(widget, QLineEdit):
                 act = widget.property('secret_action')
+                show_button = widget.property('show_button')
                 if isinstance(act, QAction) and act.isChecked():
                     act.setChecked(False)
+                elif isinstance(show_button, QPushButton) and show_button.isChecked():
+                    show_button.setChecked(False)
                 elif isinstance(widget, SecretLineEdit) and widget.is_revealed:
                     widget.set_revealed(revealed=False)
 

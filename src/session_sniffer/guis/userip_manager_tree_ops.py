@@ -78,6 +78,10 @@ class TreeOperationsMixin(QDialog):
 
     def _refresh_stats(self) -> None: ...
 
+    def _update_entry_counts(self) -> None: ...
+
+    def _rebuild_fs_watch(self) -> None: ...
+
     def _load_database(self, path: Path) -> None:
         raise NotImplementedError
 
@@ -148,19 +152,19 @@ class TreeOperationsMixin(QDialog):
         if path == self._current_path and not self._global_search_active:
             return
 
-        if self._global_search_active:
-            self._global_search_checkbox.setChecked(False)
-
         if self._dirty and not self._confirm_discard():
             self._reselect_current_path()
             return
 
         self._current_path = path
-        self._load_database(path)
-        self._open_db_button.setEnabled(True)
-        self._add_button.setEnabled(True)
-        if self._export_selected_action is not None:
-            self._export_selected_action.setEnabled(True)
+        if self._global_search_active:
+            self._global_search_checkbox.setChecked(False)
+        else:
+            self._load_database(path)
+            self._open_db_button.setEnabled(True)
+            self._add_button.setEnabled(True)
+            if self._export_selected_action is not None:
+                self._export_selected_action.setEnabled(True)
 
     def refresh_runtime_capabilities(self) -> None:
         """Refresh capability-gated controls after runtime feature set / interface changes."""
@@ -450,11 +454,15 @@ class TreeOperationsMixin(QDialog):
             self._model.removeRows(0, self._model.rowCount())
             self._current_path = None
             self._open_db_button.setEnabled(False)
+            self._add_button.setEnabled(False)
             if self._export_selected_action is not None:
                 self._export_selected_action.setEnabled(False)
+            self._settings_container.setVisible(False)
             self._clear_dirty_state()
             self._update_file_info(None)
+            self._update_entry_counts()
 
+        self._rebuild_fs_watch()
         self._set_status(f'Deleted: {path.name}')
         self._refresh_stats()
 
@@ -507,9 +515,15 @@ class TreeOperationsMixin(QDialog):
             QMessageBox.critical(self, TITLE, f'Failed to rename "{path.name}".')
             return
 
-        if self._current_path == path:
-            self._current_path = new_path
+        if self._current_path is not None:
+            if self._current_path == path:
+                self._current_path = new_path
+                self._update_file_info(self._current_path)
+            elif path in self._current_path.parents:
+                self._current_path = new_path / self._current_path.relative_to(path)
+                self._update_file_info(self._current_path)
 
+        self._rebuild_fs_watch()
         _refresh_userip_and_wake_renderer()
         self._set_status(f'Renamed "{path.name}" → "{new_name}"')
 
@@ -527,7 +541,7 @@ class TreeOperationsMixin(QDialog):
 
         # Ensure the destination is within the databases root
         try:
-            dest.relative_to(USERIP_DATABASES_DIR_PATH)
+            rel_dest = dest.relative_to(USERIP_DATABASES_DIR_PATH)
         except ValueError:
             QMessageBox.warning(self, TITLE, 'Destination must be within the UserIP Databases directory.')
             return
@@ -541,11 +555,18 @@ class TreeOperationsMixin(QDialog):
 
         shutil.move(str(path), str(new_path))
 
-        if self._current_path == path:
-            self._current_path = new_path
+        if self._current_path is not None:
+            if self._current_path == path:
+                self._current_path = new_path
+                self._update_file_info(self._current_path)
+            elif path in self._current_path.parents:
+                self._current_path = new_path / self._current_path.relative_to(path)
+                self._update_file_info(self._current_path)
 
+        self._rebuild_fs_watch()
         _refresh_userip_and_wake_renderer()
-        self._set_status(f'Moved "{path.name}" → {dest.relative_to(USERIP_DATABASES_DIR_PATH) or "root"}')
+        dest_label = 'root' if rel_dest == Path() else str(rel_dest)
+        self._set_status(f'Moved "{path.name}" → {dest_label}')
 
     def _reset_all_databases(self) -> None:
         """Delete every .json database file in the databases directory after user confirmation.

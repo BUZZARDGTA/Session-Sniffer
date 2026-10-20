@@ -157,6 +157,7 @@ class HotspotManagerWidget(QWidget):
         self._current_devices: list[ConnectedDevice] = []
         self._is_password_revealed: bool = False
         self._active_worker: HotspotActionWorker | None = None
+        self._action_worker: HotspotActionWorker | None = None
 
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(0, 0, 0, 0)
@@ -198,6 +199,9 @@ class HotspotManagerWidget(QWidget):
         if self._active_worker is not None and self._active_worker.isRunning():
             self._active_worker.cancel()
         self._active_worker = None
+        if self._action_worker is not None and self._action_worker.isRunning():
+            self._action_worker.cancel()
+        self._action_worker = None
 
     @override
     def showEvent(self, event: QShowEvent) -> None:
@@ -539,7 +543,7 @@ class HotspotManagerWidget(QWidget):
 
     def _start_refresh_task(self) -> None:
         """Launch background task to refresh hotspot state, ICS state, and connected devices."""
-        if self._active_worker and self._active_worker.isRunning():
+        if (self._active_worker and self._active_worker.isRunning()) or (self._action_worker and self._action_worker.isRunning()):
             return
         worker = HotspotActionWorker('refresh_all')
         worker.info_ready.connect(self._on_hotspot_info_ready)
@@ -594,6 +598,8 @@ class HotspotManagerWidget(QWidget):
     def _on_hotspot_info_ready(self, info_object: object) -> None:
         """Handle updated HotspotInfo received from worker thread."""
         if not isinstance(info_object, HotspotInfo):
+            return
+        if self._action_worker is not None and self._action_worker.isRunning():
             return
         self._current_hotspot_info = info_object
         self._apply_hotspot_availability(
@@ -673,6 +679,8 @@ class HotspotManagerWidget(QWidget):
         """Handle updated ICS status received from worker thread."""
         if not isinstance(status_object, tuple):
             return
+        if self._action_worker is not None and self._action_worker.isRunning():
+            return
         status_tuple = cast('tuple[object, ...]', status_object)
         if len(status_tuple) != _EXPECTED_ICS_STATUS_TUPLE_LENGTH:
             return
@@ -707,6 +715,8 @@ class HotspotManagerWidget(QWidget):
 
     def _save_hotspot_credentials(self) -> None:
         """Validate and dispatch credential updates in background worker."""
+        if self._action_worker is not None and self._action_worker.isRunning():
+            return
         ssid = self._ssid_input.text().strip()
         passphrase = self._password_input.text().strip()
 
@@ -722,11 +732,13 @@ class HotspotManagerWidget(QWidget):
 
         worker = HotspotActionWorker('configure_credentials', ssid=ssid, passphrase=passphrase)
         worker.action_completed.connect(self._on_action_finished)
-        self._active_worker = worker
+        self._action_worker = worker
         worker.start()
 
     def _toggle_hotspot_state(self) -> None:
         """Start or stop the mobile hotspot."""
+        if self._action_worker is not None and self._action_worker.isRunning():
+            return
         is_active = self._current_hotspot_info is not None and self._current_hotspot_info.operational_state == 'On'
         task = 'stop_hotspot' if is_active else 'start_hotspot'
 
@@ -735,11 +747,13 @@ class HotspotManagerWidget(QWidget):
 
         worker = HotspotActionWorker(task)
         worker.action_completed.connect(self._on_action_finished)
-        self._active_worker = worker
+        self._action_worker = worker
         worker.start()
 
     def _enable_sharing_action(self) -> None:
         """Enable Windows Internet Connection Sharing between selected adapters."""
+        if self._action_worker is not None and self._action_worker.isRunning():
+            return
         public_name = self._public_combo.currentData()
         private_name = self._private_combo.currentData()
 
@@ -765,11 +779,13 @@ class HotspotManagerWidget(QWidget):
 
         worker = HotspotActionWorker('enable_ics', public_adapter=public_name, private_adapter=private_name)
         worker.action_completed.connect(self._on_action_finished)
-        self._active_worker = worker
+        self._action_worker = worker
         worker.start()
 
     def _disable_sharing_action(self) -> None:
         """Disable Internet Connection Sharing on all adapters."""
+        if self._action_worker is not None and self._action_worker.isRunning():
+            return
         if not is_admin():
             QMessageBox.critical(
                 self,
@@ -783,11 +799,12 @@ class HotspotManagerWidget(QWidget):
 
         worker = HotspotActionWorker('disable_ics')
         worker.action_completed.connect(self._on_action_finished)
-        self._active_worker = worker
+        self._action_worker = worker
         worker.start()
 
     def _on_action_finished(self, result: HotspotActionResult) -> None:
         """Handle completion of background worker tasks."""
+        self._action_worker = None
         hotspot_available = self._current_hotspot_info.is_available if self._current_hotspot_info is not None else has_wifi_adapter()
         self._save_hotspot_button.setEnabled(hotspot_available)
         self._toggle_hotspot_button.setEnabled(hotspot_available)

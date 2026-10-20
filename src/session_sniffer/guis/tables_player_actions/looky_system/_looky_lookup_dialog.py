@@ -249,11 +249,11 @@ def show_looky_lookup(parent: QWidget, player: Player | StandaloneIPLookup) -> N
         if not isValid(parent):
             return
 
-        if not worker.results:
+        if not unique_results:
             QMessageBox.information(parent, LOOKY_TITLE, 'No players found for this IP on Looky System.')
             return
 
-        _active_dialogs.show_or_focus(player.ip, lambda: LookyLookupDialog(player, worker.results))
+        _active_dialogs.show_or_focus(player.ip, lambda: LookyLookupDialog(player, unique_results))
 
     def _on_fetch_not_found() -> None:
         if isValid(parent):

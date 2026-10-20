@@ -91,6 +91,7 @@ class GameMixin(QMainWindow):
     _game_externally_suspended: bool
     _game_process_detected: bool
     _last_game_status_key: tuple[object, ...]
+    _last_game_process_button_key: tuple[object, ...]
     _last_feature_set: str | None
     _player_resolver_window: PlayerResolverWindow
 
@@ -246,6 +247,7 @@ class GameMixin(QMainWindow):
         self._game_externally_suspended = False
         self._game_process_detected = False
         self._last_game_status_key = ()
+        self._last_game_process_button_key = ()
         self._last_feature_set = Settings.capture_feature_set
 
     def toggle_manual_game_suspend(self) -> None:
@@ -343,10 +345,11 @@ class GameMixin(QMainWindow):
             self._game_externally_suspended,
             self._game_process_detected,
             game_label,
+            Settings.solo_session_duration,
         )
-        if status_key == self._last_game_status_key:
+        if status_key == self._last_game_process_button_key:
             return
-        self._last_game_status_key = status_key
+        self._last_game_process_button_key = status_key
 
         self._game_process_submenu.setEnabled(can_act)
         if not can_act:

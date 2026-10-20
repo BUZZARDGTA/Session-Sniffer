@@ -107,8 +107,9 @@ class EntriesSortProxy(QSortFilterProxyModel):
     @staticmethod
     def _ip_sort_key(value: str) -> tuple[int, ...]:
         """Return a numeric tuple for valid IPs so they sort numerically."""
+        lead = value.split('/', 1)[0].split('-', 1)[0].strip()
         try:
-            return tuple(ipaddress.ip_address(value).packed)
+            return tuple(ipaddress.ip_address(lead).packed)
         except ValueError:
             return tuple(byte_val for char_val in value.encode() for byte_val in (char_val,))
 
@@ -148,25 +149,23 @@ class EntriesSortProxy(QSortFilterProxyModel):
                 if isinstance(left_val, int) and isinstance(right_val, int) and left_val != right_val:
                     return left_val < right_val
             elif sort_col in (IP_COLUMN, RANGE_COLUMN):
-                left_ip = model.data(left)
-                right_ip = model.data(right)
-                if left_ip is not None and right_ip is not None:
-                    return self._ip_sort_key(left_ip) < self._ip_sort_key(right_ip)
+                left_key = self._ip_sort_key(str(model.data(left) or ''))
+                right_key = self._ip_sort_key(str(model.data(right) or ''))
+                if left_key != right_key:
+                    return left_key < right_key
             elif sort_col in TIMESTAMP_COLUMNS:
                 left_ts = self._timestamp_sort_key(model.data(left, Qt.ItemDataRole.UserRole))
                 right_ts = self._timestamp_sort_key(model.data(right, Qt.ItemDataRole.UserRole))
                 if left_ts != right_ts:
                     return left_ts < right_ts
-            else:
-                left_data = model.data(left)
-                right_data = model.data(right)
-                if left_data != right_data:
-                    return super().lessThan(left, right)
+            elif model.data(left) != model.data(right):
+                return super().lessThan(left, right)
 
-            left_ip = model.data(cast('QModelIndex', left).siblingAtColumn(IP_COLUMN))
-            right_ip = model.data(cast('QModelIndex', right).siblingAtColumn(IP_COLUMN))
-            if left_ip is not None and right_ip is not None:
-                return self._ip_sort_key(left_ip) < self._ip_sort_key(right_ip)
+            left_idx = cast('QModelIndex', left)
+            right_idx = cast('QModelIndex', right)
+            left_ip = str(model.data(left_idx.siblingAtColumn(IP_COLUMN)) or model.data(left_idx.siblingAtColumn(RANGE_COLUMN)) or '')
+            right_ip = str(model.data(right_idx.siblingAtColumn(IP_COLUMN)) or model.data(right_idx.siblingAtColumn(RANGE_COLUMN)) or '')
+            return self._ip_sort_key(left_ip) < self._ip_sort_key(right_ip)
         return super().lessThan(left, right)
 
 

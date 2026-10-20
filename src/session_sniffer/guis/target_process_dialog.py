@@ -1,5 +1,6 @@
 """User-friendly dialog for selecting a running game or application to sniff."""
 
+import html
 import re
 from typing import override
 
@@ -134,6 +135,7 @@ class TargetProcessDialog(QDialog):
         self._pid_spinbox.setRange(0, 4194304)
         self._pid_spinbox.setSpecialValueText('Disabled (0)')
         self._pid_spinbox.setValue(Settings.capture_filter_process_pid)
+        self._pid_spinbox.valueChanged.connect(self._on_manual_pid_changed)
         manual_layout.addWidget(manual_label)
         manual_layout.addWidget(self._pid_spinbox)
         manual_layout.addStretch()
@@ -196,7 +198,7 @@ class TargetProcessDialog(QDialog):
         tracked_name = Settings.capture_filter_process_name
 
         is_running = CaptureState.target_process_running
-        process_name = CaptureState.target_process_name or tracked_name or 'Unknown Process'
+        process_name = html.escape(CaptureState.target_process_name or tracked_name or 'Unknown Process')
 
         if is_running:
             status_badge = '<span style="color: #4CAF50; font-weight: bold;">● RUNNING</span>'
@@ -207,7 +209,7 @@ class TargetProcessDialog(QDialog):
             status_badge = '<span style="color: #f44336; font-weight: bold;">● NOT RUNNING</span>'
             if track_by_name and tracked_name is not None:
                 self._status_label.setText(
-                    f'<b>Status:</b> Exclusively tracking <b>{tracked_name}</b> by name — {status_badge} (waiting to launch)',
+                    f'<b>Status:</b> Exclusively tracking <b>{html.escape(tracked_name)}</b> by name — {status_badge} (waiting to launch)',
                 )
             else:
                 pid_info = f' (PID: {current_pid})' if current_pid > 0 else ''
@@ -328,22 +330,29 @@ class TargetProcessDialog(QDialog):
                 self._table.scrollToItem(scroll_target)
 
         has_selection = bool(self._table.selectedItems())
-        self._sniff_selected_button.setEnabled(has_selection)
+        self._sniff_selected_button.setEnabled((has_selection or self._pid_spinbox.value() > 0) and CaptureState.is_local_capture())
         if has_selection:
             selected_row = self._table.selectedItems()[0].row()
             selected_name_item = self._table.item(selected_row, 0)
             if selected_name_item is not None:
                 pid_value = selected_name_item.data(Qt.ItemDataRole.UserRole)
                 if isinstance(pid_value, int):
-                    self._pid_spinbox.setValue(pid_value)
+                    with QSignalBlocker(self._pid_spinbox):
+                        self._pid_spinbox.setValue(pid_value)
 
         self._table.viewport().update()
+
+    def _on_manual_pid_changed(self, pid_value: int) -> None:
+        """Clear table selection and update button state when a manual PID is entered."""
+        with QSignalBlocker(self._table):
+            self._table.clearSelection()
+        self._sniff_selected_button.setEnabled(pid_value > 0 and CaptureState.is_local_capture())
 
     def _on_table_selection_changed(self) -> None:
         """Handle row selection change to update buttons and spinbox."""
         selected_items = self._table.selectedItems()
         has_selection = bool(selected_items)
-        self._sniff_selected_button.setEnabled(has_selection)
+        self._sniff_selected_button.setEnabled((has_selection or self._pid_spinbox.value() > 0) and CaptureState.is_local_capture())
 
         if has_selection:
             selected_row = selected_items[0].row()
@@ -351,7 +360,8 @@ class TargetProcessDialog(QDialog):
             if name_item is not None:
                 pid_value = name_item.data(Qt.ItemDataRole.UserRole)
                 if isinstance(pid_value, int):
-                    self._pid_spinbox.setValue(pid_value)
+                    with QSignalBlocker(self._pid_spinbox):
+                        self._pid_spinbox.setValue(pid_value)
 
     def _on_table_row_double_clicked(self, item: QTableWidgetItem) -> None:
         """Double-clicking any process selects it immediately."""

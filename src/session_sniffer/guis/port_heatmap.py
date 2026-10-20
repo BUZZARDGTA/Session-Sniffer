@@ -1,7 +1,7 @@
 """Port heatmap statistics window."""
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QTableWidget, QTableWidgetItem
+from PySide6.QtWidgets import QTableWidget
 
 from session_sniffer.constants.tables import PORT_HEATMAP_TABLE_MIN_COLUMN_WIDTHS
 from session_sniffer.guis.table_context_menu import StatTableWindowMixin, skip_if_menu_open
@@ -25,6 +25,7 @@ class PortHeatmapWindow(StatTableWindowMixin):
         setup_stat_table(self._table, layout)
         self.setup_stat_table_controls(layout, always_on_top=always_on_top, min_column_widths=PORT_HEATMAP_TABLE_MIN_COLUMN_WIDTHS)
         self._reset_column_sizes()
+        self._table.sortByColumn(1, Qt.SortOrder.DescendingOrder)
 
     @skip_if_menu_open
     def refresh(self) -> None:
@@ -44,12 +45,12 @@ class PortHeatmapWindow(StatTableWindowMixin):
             port_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             count_item = NumericTableWidgetItem(count)
             count_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            pct = f'{count / total * 100:.1f}%' if total else '0.0%'
-            pct_item = QTableWidgetItem(pct)
+            ratio = count / total if total else 0.0
+            pct_item = NumericTableWidgetItem(f'{ratio * 100:.1f}%')
+            pct_item.setData(Qt.ItemDataRole.UserRole, ratio)
             pct_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             self._table.setItem(row, 0, port_item)
             self._table.setItem(row, 1, count_item)
             self._table.setItem(row, 2, pct_item)
         self._table.setSortingEnabled(True)
-        self._table.sortByColumn(1, Qt.SortOrder.DescendingOrder)
         self._apply_initial_column_resizing()

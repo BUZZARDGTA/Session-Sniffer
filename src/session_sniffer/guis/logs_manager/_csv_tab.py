@@ -3,7 +3,7 @@
 import csv
 import shutil
 from dataclasses import dataclass, field
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
 from ipaddress import IPv4Address
 from typing import TYPE_CHECKING, override
 
@@ -36,6 +36,7 @@ from PySide6.QtWidgets import (
 
 from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.constants.standalone import TITLE
+from session_sniffer.constants.standard import LOCAL_TZ
 from session_sniffer.guis.delegates import SearchHighlightDelegate
 from session_sniffer.guis.file_watch import DebouncedFileWatcher
 from session_sniffer.guis.logs_manager._helpers import (
@@ -375,7 +376,7 @@ class CsvLogTab(QWidget):
                 break
 
         cutoff: datetime | None = None
-        now = datetime.now(tz=UTC)
+        now = datetime.now(tz=LOCAL_TZ)
         if choice == DATE_FILTER_TODAY:
             cutoff = now.replace(hour=0, minute=0, second=0, microsecond=0)
         elif choice == DATE_FILTER_7_DAYS:
@@ -676,9 +677,13 @@ class CsvLogTab(QWidget):
         for row in source_rows:
             self._model.removeRow(row)
 
+        was_truncated = self._truncated
         self._rewrite_csv_from_model()
-        self._update_counts()
-        self._metadata_label.setText(file_metadata_text(self._file_path))
+        if was_truncated:
+            self.load_data()
+        else:
+            self._update_counts()
+            self._metadata_label.setText(file_metadata_text(self._file_path))
 
     def _purge_file(self) -> None:
         message = purge_log_file(self, self._file_path, item_label='entries')
@@ -688,6 +693,13 @@ class CsvLogTab(QWidget):
 
     def _rewrite_csv_from_model(self) -> None:
         """Rewrite the CSV file from the current model contents."""
+        overflow_rows: list[list[str]] = []
+        if self._truncated and self._file_path.exists():
+            with self._file_path.open(newline='', encoding='utf-8') as file:
+                reader = csv.reader(file)
+                next(reader, None)
+                overflow_rows = [row for row_num, row in enumerate(reader) if row_num >= MAX_CSV_ROWS]
+
         headers = [self._model.headerData(i, Qt.Orientation.Horizontal) for i in range(self._model.columnCount())]
         with self._file_path.open('w', newline='', encoding='utf-8') as file:
             writer = csv.writer(file)
@@ -698,6 +710,8 @@ class CsvLogTab(QWidget):
                     item = self._model.item(row_index, column)
                     cells.append(item.text() if item else '')
                 writer.writerow(cells)
+            if overflow_rows:
+                writer.writerows(overflow_rows)
 
     def _show_status(self, message: str) -> None:
         QMessageBox.information(self, TITLE, message)

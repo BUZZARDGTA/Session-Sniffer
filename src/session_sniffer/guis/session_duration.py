@@ -29,6 +29,7 @@ class SessionDurationWindow(StatTableWindowMixin):
         setup_stat_table(self._table, layout)
         self.setup_stat_table_controls(layout, always_on_top=always_on_top, min_column_widths=SESSION_DURATION_TABLE_MIN_COLUMN_WIDTHS)
         self._reset_column_sizes()
+        self._table.sortByColumn(0, Qt.SortOrder.DescendingOrder)
 
     @skip_if_menu_open
     def refresh(self) -> None:
@@ -54,5 +55,4 @@ class SessionDurationWindow(StatTableWindowMixin):
             self._table.setItem(row, 1, ip_item)
             self._table.setItem(row, 2, usernames_item)
         self._table.setSortingEnabled(True)
-        self._table.sortByColumn(0, Qt.SortOrder.DescendingOrder)
         self._apply_initial_column_resizing()

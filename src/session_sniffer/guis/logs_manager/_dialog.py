@@ -181,12 +181,16 @@ class LogsManager(QDialog):
             if not path.exists():
                 continue
             backup_file(path)
-            if path == DEBUG_LOG_PATH:
-                purge_debug_log()
-            elif path == CRASH_LOG_PATH:
-                purge_crash_log()
-            else:
-                path.write_text('', encoding='utf-8')
+            try:
+                if path == DEBUG_LOG_PATH:
+                    purge_debug_log()
+                elif path == CRASH_LOG_PATH:
+                    purge_crash_log()
+                else:
+                    path.write_text('', encoding='utf-8')
+            except OSError as e:
+                errors.append(f'{path.name} ({e.strerror or e})')
+                continue
             purged.append(path.name)
 
         self._userip_tab.load_data()

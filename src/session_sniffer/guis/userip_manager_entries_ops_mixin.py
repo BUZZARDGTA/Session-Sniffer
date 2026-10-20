@@ -713,6 +713,8 @@ class UserIPEntriesOperationsMixin(QDialog):
             for row in source_rows:
                 self._model.removeRow(row)
             self._renumber_indexes()
+            self._highlight_duplicates()
+            self._update_entry_counts()
             self._mark_entries_dirty()
             self._save_database()
             if not self._dirty:
@@ -744,6 +746,8 @@ class UserIPEntriesOperationsMixin(QDialog):
 
         for row in source_rows:
             self._model.removeRow(row)
+        self._renumber_indexes()
+        self._highlight_duplicates()
         self._refresh_stats()
         self._update_entry_counts()
         update_userip_databases()
@@ -820,6 +824,9 @@ class UserIPEntriesOperationsMixin(QDialog):
             for row in sorted(rows_to_remove, reverse=True):
                 self._model.removeRow(row)
 
+            if rows_to_remove:
+                self._renumber_indexes()
+                self._update_entry_counts()
             self._highlight_duplicates()
             self._refresh_stats()
             self._set_status(f'Moved {len(valid_moves)} {pluralize(len(valid_moves), "entry", "entries")} to "{target_display_name}".')
@@ -839,6 +846,8 @@ class UserIPEntriesOperationsMixin(QDialog):
                 self._model.removeRow(row)
 
             self._renumber_indexes()
+            self._highlight_duplicates()
+            self._update_entry_counts()
             self._save_database()
             self._set_status(f'Moved {count} {pluralize(count, "entry", "entries")} to "{target_display_name}".')
 

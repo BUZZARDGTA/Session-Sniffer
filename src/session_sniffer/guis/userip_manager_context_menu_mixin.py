@@ -3,7 +3,7 @@
 from ipaddress import IPv4Address
 from pathlib import Path
 
-from PySide6.QtCore import QItemSelectionModel, QModelIndex, QPoint, Qt, QUrl
+from PySide6.QtCore import QItemSelectionModel, QModelIndex, QPoint, QSignalBlocker, Qt, QUrl
 from PySide6.QtGui import QAction, QDesktopServices, QIcon, QStandardItemModel
 from PySide6.QtWidgets import QAbstractItemView, QCheckBox, QDialog, QFileSystemModel, QLineEdit, QMenu, QPushButton, QTreeView
 
@@ -551,17 +551,21 @@ class EntriesContextMenuMixin(QDialog):
         """Exit global search mode, open the given database, and select the matching entry when available."""
         if self._search_input.text():
             self._search_input.clear()
-        self._global_search_checkbox.setChecked(False)
         self._current_path = db_path
-        self._load_database(db_path)
-        self._open_db_button.setEnabled(True)
+        if self._global_search_active:
+            self._global_search_checkbox.setChecked(False)
+        else:
+            self._load_database(db_path)
+            self._open_db_button.setEnabled(True)
 
         # Select the database in the tree
         tree_index = self._fs_model.index(str(db_path))
         if tree_index.isValid():
             selection = self._tree.selectionModel()
             if selection:
-                selection.select(tree_index, QItemSelectionModel.SelectionFlag.ClearAndSelect | QItemSelectionModel.SelectionFlag.Rows)
+                with QSignalBlocker(selection):
+                    selection.select(tree_index, QItemSelectionModel.SelectionFlag.ClearAndSelect | QItemSelectionModel.SelectionFlag.Rows)
+                    self._tree.setCurrentIndex(tree_index)
                 self._tree.scrollTo(tree_index)
 
         self._select_loaded_entry(username=username, ip_or_range=ip_or_range)

@@ -25,6 +25,7 @@ class ReconnectFrequencyWindow(StatTableWindowMixin):
         setup_stat_table(self._table, layout)
         self.setup_stat_table_controls(layout, always_on_top=always_on_top, min_column_widths=RECONNECT_FREQUENCY_TABLE_MIN_COLUMN_WIDTHS)
         self._reset_column_sizes()
+        self._table.sortByColumn(0, Qt.SortOrder.DescendingOrder)
 
     @skip_if_menu_open
     def refresh(self) -> None:
@@ -46,5 +47,4 @@ class ReconnectFrequencyWindow(StatTableWindowMixin):
             for column_index, item in enumerate((rejoins_item, ip_item, QTableWidgetItem(usernames))):
                 self._table.setItem(row, column_index, item)
         self._table.setSortingEnabled(True)
-        self._table.sortByColumn(0, Qt.SortOrder.DescendingOrder)
         self._apply_initial_column_resizing()

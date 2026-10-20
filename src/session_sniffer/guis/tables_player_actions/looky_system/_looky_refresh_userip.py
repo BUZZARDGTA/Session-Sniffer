@@ -874,7 +874,10 @@ def _apply_accepted_changes(accepted_entries: list[_PendingEntry], accepted_remo
 
     total_added, total_moved, total_removed = 0, 0, 0
     for target_db_path, db_entries in by_target_db.items():
-        new_models = [UserIPEntryModel(username=entry.username, ip=entry.ip, is_looky=True, source='Looky', notes=entry.notes) for entry in db_entries]
+        new_models = [
+            UserIPEntryModel(username=entry.username, ip=entry.ip, is_looky=True, source='Looky', detections_count=entry.detections_count, notes=entry.notes)
+            for entry in db_entries
+        ]
         added_pairs, moved_in_batch = append_userip_entries(target_db_path, new_models), sum(1 for entry in db_entries if entry.target_db_path != entry.db_path)
         if added_pairs or moved_in_batch:
             total_added += max(0, len(added_pairs) - moved_in_batch)

@@ -1,5 +1,6 @@
 """Player Identifier — baseline PPS/BPS profiles then detect spikes to correlate IPs to players."""
 
+import html
 from math import sqrt
 from typing import TYPE_CHECKING, ClassVar, override
 
@@ -569,10 +570,14 @@ class PlayerIdentifierWidget(QWidget):
         """Stop the current phase because too many players disconnected."""
         self._timer.stop()
         self._phase = Phase.IDLE
+        if self._currently_selected_ips and self._deselect_ips is not None:
+            self._deselect_ips(list(self._currently_selected_ips))
+        self._currently_selected_ips.clear()
+        self._identified_ips.clear()
         PlayerIdentifierTracker.set_identified_ips(set())
         self._update_baseline_button_state()
         self._resolve_button.setEnabled(False)
-        self._reset_button.setEnabled(False)
+        self._reset_button.setEnabled(True)
         self._select_button.setEnabled(False)
         self._deselect_button.setEnabled(False)
         self._stability_bar.setValue(0)
@@ -590,10 +595,14 @@ class PlayerIdentifierWidget(QWidget):
         """Stop the baseline because a dramatic traffic spike was detected (contamination)."""
         self._timer.stop()
         self._phase = Phase.IDLE
+        if self._currently_selected_ips and self._deselect_ips is not None:
+            self._deselect_ips(list(self._currently_selected_ips))
+        self._currently_selected_ips.clear()
+        self._identified_ips.clear()
         PlayerIdentifierTracker.set_identified_ips(set())
         self._update_baseline_button_state()
         self._resolve_button.setEnabled(False)
-        self._reset_button.setEnabled(False)
+        self._reset_button.setEnabled(True)
         self._select_button.setEnabled(False)
         self._deselect_button.setEnabled(False)
         self._stability_bar.setValue(0)
@@ -614,10 +623,14 @@ class PlayerIdentifierWidget(QWidget):
         """Stop the current phase because overall session traffic drifted too far from the baseline."""
         self._timer.stop()
         self._phase = Phase.IDLE
+        if self._currently_selected_ips and self._deselect_ips is not None:
+            self._deselect_ips(list(self._currently_selected_ips))
+        self._currently_selected_ips.clear()
+        self._identified_ips.clear()
         PlayerIdentifierTracker.set_identified_ips(set())
         self._update_baseline_button_state()
         self._resolve_button.setEnabled(False)
-        self._reset_button.setEnabled(False)
+        self._reset_button.setEnabled(True)
         self._select_button.setEnabled(False)
         self._deselect_button.setEnabled(False)
         self._stability_bar.setValue(0)
@@ -804,7 +817,7 @@ class PlayerIdentifierWidget(QWidget):
             num_identified = len(identified_players)
             lines.append(f'<b style="color:#27ae60;">{num_identified} player{pluralize(num_identified)} identified:</b>')
             for player in identified_players:
-                name_part = f' ({", ".join(player.usernames)})' if player.usernames else ''
+                name_part = f' ({html.escape(", ".join(player.usernames))})' if player.usernames else ''
                 formatted_bps = PlayerBandwidth.format_bytes(player.bandwidth.bps.calculated_rate)
                 streak = self._spike_streak.get(player.ip, 0)
                 total_duration = self._total_spike_duration.get(player.ip, 0)
@@ -815,7 +828,7 @@ class PlayerIdentifierWidget(QWidget):
             num_candidates = len(candidate_players)
             lines.append(f'<b style="color:#f39c12;">{num_candidates} candidate{pluralize(num_candidates)} spiking:</b>')
             for player in candidate_players:
-                name_part = f' ({", ".join(player.usernames)})' if player.usernames else ''
+                name_part = f' ({html.escape(", ".join(player.usernames))})' if player.usernames else ''
                 formatted_bps = PlayerBandwidth.format_bytes(player.bandwidth.bps.calculated_rate)
                 streak = self._spike_streak.get(player.ip, 0)
                 total_duration = self._total_spike_duration.get(player.ip, 0)

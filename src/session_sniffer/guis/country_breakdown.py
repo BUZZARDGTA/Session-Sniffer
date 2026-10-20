@@ -22,9 +22,10 @@ class CountryBreakdownWindow(StatTableWindowMixin):
 
         self._table = QTableWidget(0, 2)
         self._table.setHorizontalHeaderLabels(['Country', 'Players'])
-        setup_stat_table(self._table, layout, sorting=False)
+        setup_stat_table(self._table, layout)
         self.setup_stat_table_controls(layout, always_on_top=always_on_top, min_column_widths=COUNTRY_BREAKDOWN_TABLE_MIN_COLUMN_WIDTHS)
         self._reset_column_sizes()
+        self._table.sortByColumn(1, Qt.SortOrder.DescendingOrder)
 
     @skip_if_menu_open
     def refresh(self) -> None:
@@ -49,5 +50,4 @@ class CountryBreakdownWindow(StatTableWindowMixin):
             self._table.setItem(row, 0, country_item)
             self._table.setItem(row, 1, count_item)
         self._table.setSortingEnabled(True)
-        self._table.sortByColumn(1, Qt.SortOrder.DescendingOrder)
         self._apply_initial_column_resizing()

@@ -327,6 +327,8 @@ class SessionsLogTab(QWidget):
             self._open_file_button.setEnabled(False)
             return
         selected = Path(self._fs_model.filePath(index))
+        if selected == self._selected_path:
+            return
         self._selected_path = selected
         if selected.is_file():
             self._load_file(selected)
@@ -820,10 +822,14 @@ class SessionsLogTab(QWidget):
         copy_viewer_text_to_clipboard(self._viewer)
 
     def _save_as(self) -> None:
-        if self._current_file is None:
+        if self._current_file is None and not (self._global_search_active and self._current_rendered_text):
             QMessageBox.information(self, TITLE, 'No file selected.')
             return
-        default_name = str(self._current_file.with_suffix('.export.log'))
+        default_name = (
+            str(self._current_file.with_suffix('.export.log'))
+            if self._current_file is not None
+            else str(self._sessions_dir / 'global_search.export.log')
+        )
         path, _ = QFileDialog.getSaveFileName(
             self,
             'Save Session Log As',

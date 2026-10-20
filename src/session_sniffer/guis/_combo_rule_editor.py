@@ -527,6 +527,13 @@ class ComboRuleEditorDialog(QDialog):
         if not conditions:
             QMessageBox.warning(self, 'Validation Error', 'At least one condition is required.')
             return
+        if len(conditions) < len(self._condition_rows):
+            QMessageBox.warning(
+                self,
+                'Validation Error',
+                'All condition rows must have a valid value, and each condition type may only be used once.',
+            )
+            return
 
         ip_range_val = conditions.get('ip_range')
         if ip_range_val is not None and (not isinstance(ip_range_val, str) or not is_valid_ip_range_entry(ip_range_val)):

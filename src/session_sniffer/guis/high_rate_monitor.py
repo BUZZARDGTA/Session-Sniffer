@@ -1,5 +1,6 @@
 """High Rate Monitor — tracks players exceeding configurable PPS and BPS thresholds."""
 
+import html
 from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -50,10 +51,10 @@ class _PlayerRateData:
     bps_history: deque[int] = field(default_factory=_make_rate_history)
 
     # PPS tracking
-    first_high_pps_time: datetime | None = None
     newer_high_pps_time: datetime | None = None
     is_high_pps: bool = False
     current_pps_duration: int = 0
+    accumulated_pps_duration: int = 0
     total_pps_duration: int = 0
 
     # BPS tracking
@@ -66,18 +67,18 @@ class _PlayerRateData:
         self.pps = pps
         self.pps_history.append(pps)
         if pps < threshold:
+            self.accumulated_pps_duration += self.current_pps_duration
             self.is_high_pps = False
             self.newer_high_pps_time = None
             self.current_pps_duration = 0
+            self.total_pps_duration = self.accumulated_pps_duration
             return
 
-        if self.first_high_pps_time is None:
-            self.first_high_pps_time = now
         if self.newer_high_pps_time is None:
             self.newer_high_pps_time = now
 
         self.current_pps_duration = int((now - self.newer_high_pps_time).total_seconds())
-        self.total_pps_duration = int((now - self.first_high_pps_time).total_seconds())
+        self.total_pps_duration = self.accumulated_pps_duration + self.current_pps_duration
 
         if self.current_pps_duration >= required_duration:
             self.is_high_pps = True
@@ -160,14 +161,14 @@ class HighRateMonitorWidget(QWidget):
         self._select_button.setToolTip('Select and scroll to all currently flagged high-rate players in the connected players table.')
         self._select_button.setFixedWidth(140)
         self._select_button.clicked.connect(self._select_flagged)
-        self._select_button.setEnabled(False)
+        self._select_button.setEnabled(not self._auto_select)
         selection_layout.addWidget(self._select_button)
 
         self._deselect_button = QPushButton('Deselect in Table')
         self._deselect_button.setToolTip('Deselect all currently flagged high-rate players in the connected players table.')
         self._deselect_button.setFixedWidth(140)
         self._deselect_button.clicked.connect(self._deselect_flagged)
-        self._deselect_button.setEnabled(False)
+        self._deselect_button.setEnabled(not self._auto_select)
         selection_layout.addWidget(self._deselect_button)
 
         self._auto_select_checkbox = QCheckBox('Auto-select in Table')
@@ -323,7 +324,7 @@ class HighRateMonitorWidget(QWidget):
             f'<b style="color:#e74c3c;">{num_flagged} player{pluralize(num_flagged)} currently exceeding {threshold_text}:</b> <small>({mode_info})</small>',
         ]
         for player in flagged_players:
-            name_part = f' ({", ".join(player.usernames)})' if player.usernames else ''
+            name_part = f' ({html.escape(", ".join(player.usernames))})' if player.usernames else ''
             formatted_bps = PlayerBandwidth.format_bytes(player.bps)
             lines.append(
                 f'• <b>{player.ip}</b>{name_part} — {player.pps} PPS · {formatted_bps} · streak: {player.current_pps_duration}s (total: {player.total_pps_duration}s)',

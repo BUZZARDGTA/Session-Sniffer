@@ -348,20 +348,8 @@ class DetectionsManagerDialog(UnsavedChangesMixin, DetectionsManagerTabsMixin, Q
 
     def _save_and_apply(self) -> None:
         """Read widgets, write GUIDetectionSettings, persist to detections.json, and close."""
-        # Clear voice queue if any detection was newly disabled
-        enabled_fields = [
-            'mobile_suspend_enabled',
-            'vpn_suspend_enabled',
-            'hosting_suspend_enabled',
-            'country_suspend_enabled',
-            'isp_suspend_enabled',
-            'asn_suspend_enabled',
-            'player_join_enabled',
-            'player_rejoin_enabled',
-            'player_leave_enabled',
-            'gta5_relay_enabled',
-        ]
-        checkbox_prefixes = [
+        # Clear voice queue if any detection's voice notification was newly disabled
+        checkbox_prefixes = (
             'mobile',
             'vpn',
             'hosting',
@@ -372,11 +360,11 @@ class DetectionsManagerDialog(UnsavedChangesMixin, DetectionsManagerTabsMixin, Q
             'player_rejoin',
             'player_leave',
             'gta5_relay',
-        ]
-        for field, prefix in zip(enabled_fields, checkbox_prefixes, strict=True):
-            if not hasattr(self, f'{prefix}_duration_combo'):
+        )
+        for prefix in checkbox_prefixes:
+            if not hasattr(self, f'{prefix}_voice_combo'):
                 continue
-            if getattr(GUIDetectionSettings, field) and getattr(self, f'{prefix}_duration_combo').currentText() == 'Disabled':
+            if getattr(GUIDetectionSettings, f'{prefix}_voice_notifications') and getattr(self, f'{prefix}_voice_combo').currentText() == 'Disabled':
                 clear_voice_notification_queue()
                 break
 

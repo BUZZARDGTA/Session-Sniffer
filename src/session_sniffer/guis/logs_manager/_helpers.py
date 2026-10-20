@@ -10,6 +10,7 @@ from PySide6.QtWidgets import QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPlai
 
 from session_sniffer.constants.local import CRASH_LOG_PATH, DEBUG_LOG_PATH, RESOURCES_DIR_PATH
 from session_sniffer.constants.standalone import TITLE
+from session_sniffer.constants.standard import LOCAL_TZ
 from session_sniffer.guis.fonts import get_monospace_font
 from session_sniffer.guis.stylesheets import DIALOG_BUTTON_STYLESHEET, DIALOG_DANGER_BUTTON_STYLESHEET
 from session_sniffer.guis.userip_manager_helpers import BYTES_PER_UNIT, human_readable_size
@@ -76,7 +77,10 @@ def backup_file(file_path: Path) -> Path | None:
     if not file_path.exists():
         return None
     backup_path = file_path.with_suffix(file_path.suffix + '.bak')
-    shutil.copy2(file_path, backup_path)
+    try:
+        shutil.copy2(file_path, backup_path)
+    except OSError:
+        return None
     return backup_path
 
 
@@ -159,7 +163,7 @@ class MultiColumnFilterProxy(QSortFilterProxyModel):
             date_item = model.item(source_row, self._date_column)
             if date_item:
                 try:
-                    row_date = datetime.strptime(date_item.text(), '%Y-%m-%d').replace(tzinfo=UTC)
+                    row_date = datetime.strptime(date_item.text(), '%Y-%m-%d').replace(tzinfo=LOCAL_TZ)
                     if row_date < self._date_cutoff:
                         return False
                 except ValueError:
@@ -255,12 +259,16 @@ def purge_log_file(
     if reply != QMessageBox.StandardButton.Yes:
         return None
     bak = backup_file(file_path)
-    if file_path == DEBUG_LOG_PATH:
-        purge_debug_log()
-    elif file_path == CRASH_LOG_PATH:
-        purge_crash_log()
-    else:
-        file_path.write_text('', encoding='utf-8')
+    try:
+        if file_path == DEBUG_LOG_PATH:
+            purge_debug_log()
+        elif file_path == CRASH_LOG_PATH:
+            purge_crash_log()
+        else:
+            file_path.write_text('', encoding='utf-8')
+    except OSError as e:
+        QMessageBox.warning(parent, TITLE, f'Failed to purge {file_path.name}:\n{e}')
+        return None
     message = f'Purged {file_path.name}.'
     if bak:
         message += f'\nBackup saved to {bak.name}'
