@@ -1,6 +1,6 @@
 ---
 trigger: model_decision
-description: Use when working on settings, configuration, persistence, AppData paths, logs, databases, user scripts, stored user data, or settings documentation.
+description: Use when working on settings, configuration, persistence, GUI settings/manager dialogs, spinboxes, AppData paths, logs, databases, user scripts, stored user data, or settings documentation.
 ---
 
 # Data and Settings Rules
@@ -37,6 +37,26 @@ Do not repeatedly reconstruct settings for individual changes when several chang
 Follow existing setting names, structures, defaults, and persistence patterns.
 
 Feature toggles and other persisted settings must continue to use the established persistence flow. Do not rely only on transient in-memory state when the feature is expected to survive application restarts.
+
+## Dialog Persistence: Auto-Save vs. Explicit Save
+
+Follow the established split between real-time auto-saving tool windows and the main `SettingsDialog`:
+
+* **Live tool and manager windows auto-save in real time (`Close` button only, no `Save` / `Cancel` buttons):**
+  * Windows such as `UserIPManagerDialog`, `DetectionsManagerDialog`, `PingWindow`, `TargetProcessDialog`, `PlayerResolverWindow`, and `PlayerLeaderboardWindow` must persist changes immediately when controls, lists, or rules are modified.
+  * Do not add `Save` or `Cancel` buttons to these windows; use a `Close` button instead.
+  * When an open manager window's underlying data can also be modified from outside the window (such as session table context menus or background auto-feed), keep the open window synchronized in real time.
+  * Destructive bulk actions in auto-saving windows (such as `Reset` or `Reset all…` in `DetectionsManagerDialog`) must prompt for confirmation before immediately persisting defaults.
+
+* **Main `SettingsDialog` batches all changes behind `Save` and `Cancel`:**
+  * `SettingsDialog` intentionally retains `Save` and `Cancel` buttons (with `UnsavedChangesMixin`) because its settings trigger heavy runtime side effects such as restarting live packet capture and rebinding the Web Server.
+  * Every action inside `SettingsDialog` — manual widget edits, `Import`, `Reset` (current tab), and `Reset all…` — must **only populate the dialog widgets for review** (and update the capture-restart notice banner) without mutating live in-memory `Settings` or writing to `settings.json` on disk until the user clicks `Save`.
+  * Calling `Settings.load_from_settings_file(..., rewrite_if_needed=False)` during `Import` must never overwrite `settings.json` on disk or leak un-saved state into `Settings` if the user clicks `Cancel`.
+
+## Spinbox Unit Suffixes and Special Value Labels
+
+* Always provide explicit unit suffixes (such as `' seconds'`, `' ms'`, `' bytes'`, `' PPS'`, `' KB/s'`, `' samples'`, `' packets'`) on spinboxes (`QSpinBox` / `SettingMeta.suffix`) that represent time durations, sizes, rates, or sample/packet counts.
+* Use clean, concise labels for zero/special spinbox values (`'Unlimited'`, `'Continuous'`, `'Disabled'`, `'All'`, `'Keep All'`) via `setSpecialValueText` / `SettingMeta.special_value_text` without appending redundant `'(0)'` text.
 
 ## No Backward Compatibility
 
