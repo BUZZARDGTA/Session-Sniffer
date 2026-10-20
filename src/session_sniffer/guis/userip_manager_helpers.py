@@ -196,8 +196,6 @@ def build_entry_row_items(
     persisted: bool = True,
 ) -> list[QStandardItem]:
     """Construct the 12 `QStandardItem` instances for a single `UserIPEntryModel` row."""
-    if entry.ip:
-        entry, _ = enrich_userip_entry_from_logs(entry)
     index_item = _make_readonly_item(str(index) if index > 0 else '', index)
     index_item.setData(1 if persisted else 0, IS_PERSISTED_ROLE)
 
