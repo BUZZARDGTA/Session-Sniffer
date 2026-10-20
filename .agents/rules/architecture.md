@@ -38,6 +38,13 @@ Do not move capture or network processing into GUI components.
 
 Do not make background components directly manipulate Qt widgets.
 
+## Low-Level vs High-Level Separation
+
+Enforce a strict architectural separation between low-level native bindings and high-level Python logic:
+
+* **Low-level native binding modules (`ctypes_*.py` and `capture/pcap.py`)** are restricted to `ctypes` / `ctypes.wintypes` definitions, `ctypes.Structure` layouts, COM vtable definitions, DLL/`CDLL` loading, and thin wrapper functions/handles that translate between C ABI calls and Python values. They must not contain `subprocess` calls, `winreg` queries, regex parsing, `/proc` or `/sys` file readers, or business logic.
+* **High-level modules** own domain models, cross-platform dispatch, `/proc` and `/sys` file parsing, `subprocess` / `winreg` / `re` logic, workers, and UI integration. High-level modules must never import `ctypes` or `ctypes.wintypes` directly; they must call into the dedicated low-level modules (`session_sniffer.ctypes_windows`, `session_sniffer.ctypes_console`, `session_sniffer.ctypes_wintrust`, `session_sniffer.capture.ctypes_process`, `session_sniffer.capture.pcap`, `session_sniffer.capture.utils.ctypes_win32`, or `session_sniffer.networking.ctypes_adapters_info`).
+
 ## Abstractions
 
 Prefer existing abstractions over introducing new ones.

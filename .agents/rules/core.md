@@ -31,6 +31,17 @@ When replacing, renaming, or removing something:
 - Do not add aliases, migration code, compatibility shims, fallback lookups, transitional validators, or dual code paths.
 - Delete unused assets (such as SVG icons, images, or resource files) outright. Never leave orphaned or unreferenced assets in the repository.
 
+## Low-Level vs High-Level Separation
+
+Maintain a strict boundary between low-level C ABI / native bindings and high-level Pythonic code across the entire codebase:
+
+- **Low-level modules (`ctypes_*.py` and `capture/pcap.py`):**
+  - Must contain **exclusively** `ctypes` structures (`ctypes.Structure`), C types (`wintypes`), shared library / DLL loaders (`WinDLL`, `OleDLL`, `CDLL`), COM `vtbl` pointer definitions, `CFUNCTYPE` callbacks, low-level constants, and thin Python wrapper functions/handles that marshal arguments to/from native C/Win32/POSIX/libpcap calls.
+  - Must **never** contain `subprocess` execution, `winreg` registry access, regular expressions (`re`), `/proc` or `/sys` filesystem parsing, HTTP/network client calls, or UI logic.
+- **High-level modules (all other `.py` files):**
+  - Must **never** import `ctypes` or `ctypes.wintypes`, define `ctypes.Structure` classes, load native DLLs/shared libraries, or invoke raw C/Win32/COM APIs directly.
+  - Whenever high-level code needs native OS or C library functionality, place the `ctypes` binding in the appropriate low-level module (`ctypes_windows.py`, `ctypes_console.py`, `ctypes_wintrust.py`, `capture/ctypes_process.py`, `capture/pcap.py`, `capture/utils/ctypes_win32.py`, or `networking/ctypes_adapters_info.py`) and import the thin wrapper function from there.
+
 ## Line Endings
 
 - Always use CRLF (`\r\n`) line endings for all files in the repository, including SVG assets, Python source files, configuration, documentation, and lockfiles (such as `uv.lock`). Never use or commit LF line endings.
