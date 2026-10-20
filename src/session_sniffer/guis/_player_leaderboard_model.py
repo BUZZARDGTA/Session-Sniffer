@@ -351,12 +351,13 @@ class LeaderboardTableModel(QAbstractTableModel):
         self._index_by_ip = {entry.ip: i for i, entry in enumerate(entries)}
         self.endResetModel()
 
-    def apply_live_update(self, entries: list[LeaderboardEntry]) -> None:
+    def apply_live_update(self, entries: list[LeaderboardEntry]) -> bool:
         """Refresh in place from a live overlay: update only changed rows and append newly-seen players.
 
         Row positions are kept stable so the sort proxy re-sorts and the user's selection and scroll
         position survive. Only rows whose values actually changed emit `dataChanged`, so identical
         ticks (the common case within a run) cost nothing and never trigger a full re-sort.
+        Returns `True` if any row was updated or inserted.
         """
         updated_by_ip = {entry.ip: entry for entry in entries}
 
@@ -380,6 +381,8 @@ class LeaderboardTableModel(QAbstractTableModel):
             top_left = self.index(row, 0)
             bottom_right = self.index(row, self.columnCount() - 1)
             self.dataChanged.emit(top_left, bottom_right)
+
+        return bool(changed_rows or new_entries)
 
     def set_scope(self, scope: str) -> None:
         """Change the active time scope and refresh the model."""
@@ -422,10 +425,14 @@ class LeaderboardTableModel(QAbstractTableModel):
 
 
 class LeaderboardSortProxy(QSortFilterProxyModel):
-    """Proxy that filters out zero-session entries and supports custom sorting."""
+    """Proxy that filters entries across the full history, sorts them, and caps visible rows to the top limit."""
 
     def __init__(self) -> None:
         super().__init__()
+        self._limit: int = 1000
+        self._sort_column: int = COLUMN_SESSIONS
+        self._sort_order: Qt.SortOrder = Qt.SortOrder.DescendingOrder
+        self._accepted_ips: frozenset[str] = frozenset()
         self._search_text: str = ''
         self._search_column: str = SEARCH_COLUMN_ALL
         self._hide_servers: bool = False
@@ -435,6 +442,16 @@ class LeaderboardSortProxy(QSortFilterProxyModel):
         self._current_session_only: bool = False
         self._connected_ips: frozenset[str] = frozenset()
         self._disconnected_ips: frozenset[str] = frozenset()
+
+    @property
+    def connected_ips(self) -> frozenset[str]:
+        """Return the set of connected IPs in the active session."""
+        return self._connected_ips
+
+    @property
+    def disconnected_ips(self) -> frozenset[str]:
+        """Return the set of disconnected IPs in the active session."""
+        return self._disconnected_ips
 
     @property
     def current_session_ips(self) -> frozenset[str]:
@@ -448,20 +465,27 @@ class LeaderboardSortProxy(QSortFilterProxyModel):
             return index.row() + 1
         return super().data(index, role)
 
+    def set_limit(self, limit: int) -> None:
+        """Update the maximum number of visible rows and re-evaluate the top-N filter."""
+        if limit == self._limit:
+            return
+        self._limit = limit
+        self.refresh_accepted_ips(force_invalidate=True)
+
     def set_search_text(self, text: str) -> None:
         """Update the search filter text and re-evaluate visible rows."""
         self._search_text = text.strip().lower()
-        self.invalidateFilter()
+        self.refresh_accepted_ips(force_invalidate=True)
 
     def set_search_column(self, column: str) -> None:
         """Update which column is searched and re-evaluate visible rows."""
         self._search_column = column
-        self.invalidateFilter()
+        self.refresh_accepted_ips(force_invalidate=True)
 
     def set_hide_servers(self, *, hide: bool) -> None:
         """Toggle hiding of known third-party game/relay server IPs."""
         self._hide_servers = hide
-        self.invalidateFilter()
+        self.refresh_accepted_ips(force_invalidate=True)
 
     def set_server_ips(self, server_ips: frozenset[str]) -> None:
         """Update the set of known server IPs; re-filter only if it changed while hiding is active."""
@@ -469,22 +493,22 @@ class LeaderboardSortProxy(QSortFilterProxyModel):
             return
         self._server_ips = server_ips
         if self._hide_servers:
-            self.invalidateFilter()
+            self.refresh_accepted_ips(force_invalidate=True)
 
     def set_hide_vpns(self, *, hide: bool) -> None:
         """Toggle hiding of IPs flagged as VPNs/proxies."""
         self._hide_vpns = hide
-        self.invalidateFilter()
+        self.refresh_accepted_ips(force_invalidate=True)
 
     def set_hide_hosting(self, *, hide: bool) -> None:
         """Toggle hiding of IPs flagged as hosting/datacenter providers."""
         self._hide_hosting = hide
-        self.invalidateFilter()
+        self.refresh_accepted_ips(force_invalidate=True)
 
     def set_current_session_only(self, *, enabled: bool) -> None:
         """Toggle filtering to only players in the active session."""
         self._current_session_only = enabled
-        self.invalidateFilter()
+        self.refresh_accepted_ips(force_invalidate=True)
 
     def set_current_session_ips(self, connected_ips: frozenset[str], disconnected_ips: frozenset[str]) -> None:
         """Update active session IPs and invalidate filter if filtering is active."""
@@ -492,8 +516,8 @@ class LeaderboardSortProxy(QSortFilterProxyModel):
             return
         self._connected_ips = connected_ips
         self._disconnected_ips = disconnected_ips
-        if self._current_session_only:
-            self.invalidateFilter()
+        if self._current_session_only or self._sort_column == COLUMN_STATUS:
+            self.refresh_accepted_ips(force_invalidate=True)
 
     def _entry_matches_search(self, entry: LeaderboardEntry, text: str) -> bool:
         """Return True if *entry* contains *text* within the active search column."""
@@ -516,14 +540,8 @@ class LeaderboardSortProxy(QSortFilterProxyModel):
             return True
         return self._hide_hosting and entry.hosting is True
 
-    @override
-    def filterAcceptsRow(self, source_row: int, source_parent: QModelIndex | QPersistentModelIndex) -> bool:
-        """Reject rows with hidden servers/VPNs/hosting, outside active session, zero count, or search mismatch."""
-        _ = source_parent
-        model = self.sourceModel()
-        if not isinstance(model, LeaderboardTableModel):
-            return True
-        entry = model.entries[source_row]
+    def _entry_passes_filters(self, model: LeaderboardTableModel, entry: LeaderboardEntry) -> bool:
+        """Return True if *entry* passes active session, time-scope count, server/VPN/hosting, and search filters."""
         if self._current_session_only and entry.ip not in self.current_session_ips:
             return False
         if not model.get_session_count(entry):
@@ -534,21 +552,69 @@ class LeaderboardSortProxy(QSortFilterProxyModel):
             return self._entry_matches_search(entry, self._search_text)
         return True
 
+    def _entry_sort_key(self, model: LeaderboardTableModel, entry: LeaderboardEntry, column: int) -> tuple[float, str, int, str]:
+        """Return a uniform comparable sort key `(primary_num, primary_str, secondary_num, ip)` for *column*."""
+        session_count = model.get_session_count(entry)
+        if column in (COLUMN_RANK, COLUMN_SESSIONS):
+            return (float(session_count), '', entry.sessions_total, entry.ip)
+        if column == COLUMN_STATUS:
+            status_rank = 0.0 if entry.ip in self._connected_ips else (1.0 if entry.ip in self._disconnected_ips else 2.0)
+            return (status_rank, '', session_count, entry.ip)
+        if column in (COLUMN_FIRST_SEEN, COLUMN_LAST_SEEN):
+            dt_val = entry.first_seen if column == COLUMN_FIRST_SEEN else entry.last_seen
+            timestamp = dt_val.timestamp() if dt_val is not None else float('-inf')
+            return (timestamp, '', session_count, entry.ip)
+        text_by_col: dict[int, str] = {
+            COLUMN_USERNAMES: ', '.join(entry.usernames).lower(),
+            COLUMN_IP: entry.ip,
+            COLUMN_COUNTRY: (entry.country or 'N/A').lower(),
+            COLUMN_ISP: (entry.isp or 'N/A').lower(),
+            COLUMN_MOBILE: format_bool(entry.mobile),
+            COLUMN_VPN: format_bool(entry.vpn),
+            COLUMN_HOSTING: format_bool(entry.hosting),
+        }
+        return (0.0, text_by_col.get(column, ''), session_count, entry.ip)
+
+    def refresh_accepted_ips(self, *, force_invalidate: bool = True) -> None:
+        """Recompute the filtered and top-N-capped set of accepted IPs from the source model."""
+        model = self.sourceModel()
+        if not isinstance(model, LeaderboardTableModel):
+            return
+        matching = [entry for entry in model.entries if self._entry_passes_filters(model, entry)]
+        if 0 < self._limit < len(matching):
+            reverse = self._sort_order == Qt.SortOrder.DescendingOrder
+            matching.sort(key=lambda entry: self._entry_sort_key(model, entry, self._sort_column), reverse=reverse)
+            matching = matching[: self._limit]
+        new_accepted = frozenset(entry.ip for entry in matching)
+        if force_invalidate or new_accepted != self._accepted_ips:
+            self._accepted_ips = new_accepted
+            self.invalidateFilter()
+
+    @override
+    def sort(self, column: int, order: Qt.SortOrder = Qt.SortOrder.AscendingOrder) -> None:
+        """Update the active sort column and order, recompute the top-N set, and sort visible rows."""
+        if column >= 0:
+            self._sort_column = column
+            self._sort_order = order
+            self.refresh_accepted_ips(force_invalidate=False)
+        super().sort(column, order)
+
+    @override
+    def filterAcceptsRow(self, source_row: int, source_parent: QModelIndex | QPersistentModelIndex) -> bool:
+        """Accept rows that belong to the current filtered and top-N-capped set."""
+        _ = source_parent
+        model = self.sourceModel()
+        if not isinstance(model, LeaderboardTableModel):
+            return True
+        return model.entries[source_row].ip in self._accepted_ips
+
     @override
     def lessThan(self, left: QModelIndex | QPersistentModelIndex, right: QModelIndex | QPersistentModelIndex) -> bool:
-        """Sort integers numerically and status by priority instead of lexicographically."""
+        """Compare rows using the typed sort key for the active column."""
         model = self.sourceModel()
-        if not model:
+        if not isinstance(model, LeaderboardTableModel):
             return super().lessThan(left, right)
-        left_data = model.data(left, Qt.ItemDataRole.DisplayRole)
-        right_data = model.data(right, Qt.ItemDataRole.DisplayRole)
-
-        if left.column() == COLUMN_STATUS:
-            status_order: dict[str, int] = {'Connected': 0, 'Disconnected': 1, '—': 2}
-            left_rank = status_order.get(str(left_data), 3)
-            right_rank = status_order.get(str(right_data), 3)
-            return left_rank < right_rank
-
-        if isinstance(left_data, int) and isinstance(right_data, int):
-            return left_data < right_data
-        return super().lessThan(left, right)
+        column = left.column()
+        left_entry = model.entries[left.row()]
+        right_entry = model.entries[right.row()]
+        return self._entry_sort_key(model, left_entry, column) < self._entry_sort_key(model, right_entry, column)

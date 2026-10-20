@@ -56,6 +56,9 @@ class LeaderboardBaselineWorker(CrashingQThread):
         )
         if self.isInterruptionRequested():
             return
+        server_ips_for(list(baseline.entries.values()))
+        if self.isInterruptionRequested():
+            return
         self.finished_ok.emit(baseline)
 
 
@@ -137,7 +140,6 @@ class LeaderboardOverlayWorker(CrashingQThread):
         self,
         baseline: LeaderboardBaseline,
         live_file: Path,
-        limit: int,
         *,
         connected_ips: frozenset[str] = frozenset(),
         disconnected_ips: frozenset[str] = frozenset(),
@@ -145,7 +147,6 @@ class LeaderboardOverlayWorker(CrashingQThread):
         super().__init__()
         self._baseline = baseline
         self._live_file = live_file
-        self._limit = limit
         self._connected_ips = connected_ips
         self._disconnected_ips = disconnected_ips
 
@@ -153,7 +154,7 @@ class LeaderboardOverlayWorker(CrashingQThread):
     def _run(self) -> None:
         """Overlay the live session onto the baseline and emit the resulting leaderboard."""
         preserve_ips = self._connected_ips | self._disconnected_ips
-        entries = overlay_live_session(self._baseline, self._live_file, limit=self._limit, preserve_ips=preserve_ips)
+        entries = overlay_live_session(self._baseline, self._live_file, preserve_ips=preserve_ips)
         if self.isInterruptionRequested():
             return
         server_ips = server_ips_for(entries)

@@ -361,8 +361,8 @@ class PlayerLeaderboardWindow(ToggleAlwaysOnTopMixin):
         self._cap_spinbox.setRange(50, 10000)
         self._cap_spinbox.setSingleStep(50)
         self._cap_spinbox.setValue(1000)
-        self._cap_spinbox.setToolTip('Maximum number of players to load from session logs')
-        self._cap_spinbox.editingFinished.connect(self._on_cap_changed)
+        self._cap_spinbox.setToolTip('Maximum number of players to display in the leaderboard')
+        self._cap_spinbox.valueChanged.connect(self._on_cap_changed)
         filters_layout.addWidget(self._cap_spinbox)
 
         filters_layout.addStretch()
@@ -556,13 +556,14 @@ class PlayerLeaderboardWindow(ToggleAlwaysOnTopMixin):
         connected_ips = frozenset(player.ip for player in connected_players)
         disconnected_ips = frozenset(player.ip for player in disconnected_players)
         preserve_ips = connected_ips | disconnected_ips
-        entries = overlay_live_session(baseline, self._live_session_file, limit=self._cap_spinbox.value(), preserve_ips=preserve_ips)
+        entries = overlay_live_session(baseline, self._live_session_file, preserve_ips=preserve_ips)
         self._all_entries = entries
         self._proxy.set_server_ips(server_ips_for(entries))
         self._proxy.set_current_session_ips(connected_ips, disconnected_ips)
         self._model.set_current_session_ips(connected_ips, disconnected_ips)
         self._model.load_data(entries)
-        self._proxy.invalidateFilter()
+        self._proxy.set_limit(self._cap_spinbox.value())
+        self._proxy.refresh_accepted_ips(force_invalidate=True)
         self._update_count_label()
         if not self._live_timer.isActive():
             self._live_timer.start()
@@ -579,7 +580,6 @@ class PlayerLeaderboardWindow(ToggleAlwaysOnTopMixin):
         worker = LeaderboardOverlayWorker(
             self._baseline,
             self._live_session_file,
-            self._cap_spinbox.value(),
             connected_ips=connected_ips,
             disconnected_ips=disconnected_ips,
         )
@@ -592,9 +592,15 @@ class PlayerLeaderboardWindow(ToggleAlwaysOnTopMixin):
         """Apply a completed background overlay to the model on the GUI thread."""
         self._all_entries = result.entries
         self._proxy.set_server_ips(result.server_ips)
+        session_changed = (
+            result.connected_ips != self._proxy.connected_ips
+            or result.disconnected_ips != self._proxy.disconnected_ips
+        )
         self._proxy.set_current_session_ips(result.connected_ips, result.disconnected_ips)
         self._model.set_current_session_ips(result.connected_ips, result.disconnected_ips)
-        self._model.apply_live_update(result.entries)
+        data_changed = self._model.apply_live_update(result.entries)
+        if data_changed or session_changed:
+            self._proxy.refresh_accepted_ips(force_invalidate=False)
         self._update_count_label()
 
     def _on_overlay_finished(self) -> None:
@@ -602,21 +608,19 @@ class PlayerLeaderboardWindow(ToggleAlwaysOnTopMixin):
         self._overlay_worker = None
 
     def _on_cap_changed(self) -> None:
-        """Re-apply the display limit, re-scanning from disk only if no baseline is loaded yet."""
-        if self._baseline is None:
-            self._start_load()
-            return
-        self._apply_baseline(self._baseline)
+        """Re-apply the display limit to the leaderboard proxy."""
+        self._proxy.set_limit(self._cap_spinbox.value())
+        self._update_count_label()
 
     def _on_mode_changed(self, mode: str) -> None:
         self._model.set_mode(mode)
-        self._proxy.invalidateFilter()
+        self._proxy.refresh_accepted_ips(force_invalidate=True)
         self._proxy.sort(self._proxy.sortColumn(), self._proxy.sortOrder())
         self._update_count_label()
 
     def _on_scope_changed(self, scope: str) -> None:
         self._model.set_scope(scope)
-        self._proxy.invalidateFilter()
+        self._proxy.refresh_accepted_ips(force_invalidate=True)
         self._proxy.sort(self._proxy.sortColumn(), self._proxy.sortOrder())
         self._update_count_label()
 
