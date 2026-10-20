@@ -817,13 +817,18 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
         )
         if not file_path:
             return
+        previous_process_name = Settings.capture_filter_process_name
         Settings.load_from_settings_file(Path(file_path))
         if self._capture.is_running():
             Settings.capture_interface_name = self._capture.config.interface.name
             Settings.capture_ip_address = self._capture.config.interface.ip_address
             Settings.capture_mac_address = self._capture.config.interface.mac_address
-        self._old_values = {key: getattr(Settings, key) for key in SETTING_METADATA}
         self._load_current_values()
+        for key, value in self._old_values.items():
+            setattr(Settings, key, value)
+        Settings.capture_filter_process_name = previous_process_name
+        Settings.rebuild_blocked_ip_ranges()
+        self._update_restart_notice()
         QMessageBox.information(self, TITLE, 'Settings imported successfully.')
 
     def _connect_widget_change_signals(self) -> None:
