@@ -457,7 +457,7 @@ def trigger_auto_username_userip(player: Player, detected_usernames: Sequence[st
     if not detected_usernames:
         return
 
-    if player.userip is not None or UserIPDatabases.is_known_ip(player.ip) or player.ip in UserIPDatabases.notified_ip_conflicts:
+    if player.userip is not None or UserIPDatabases.is_known_ip(player.ip) or UserIPDatabases.is_conflicting_ip(player.ip):
         return
 
     candidate_usernames = dedup_preserve_order(detected_usernames, player.usernames)
@@ -473,7 +473,7 @@ def trigger_auto_username_userip(player: Player, detected_usernames: Sequence[st
         update_userip_databases()
         resolved_userip = UserIPDatabases.resolve_userip(player.ip) or resolved_userip
 
-    if player.ip in UserIPDatabases.notified_ip_conflicts:
+    if UserIPDatabases.is_conflicting_ip(player.ip):
         return
 
     # Immediate detection if not already processed

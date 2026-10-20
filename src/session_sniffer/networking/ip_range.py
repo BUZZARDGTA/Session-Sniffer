@@ -32,6 +32,23 @@ class IPRange:
             return self.start <= addr <= self.end
         return False
 
+    @property
+    def bounds(self) -> tuple[IPv4Address, IPv4Address] | None:
+        """Return the inclusive `(start, end)` address bounds for this range."""
+        if self.network is not None:
+            return self.network.network_address, self.network.broadcast_address
+        if self.start is not None and self.end is not None:
+            return self.start, self.end
+        return None
+
+    def overlaps(self, other: IPRange) -> bool:
+        """Return whether this range shares at least one IPv4 address with `other`."""
+        self_bounds = self.bounds
+        other_bounds = other.bounds
+        if self_bounds is None or other_bounds is None:
+            return False
+        return self_bounds[0] <= other_bounds[1] and other_bounds[0] <= self_bounds[1]
+
 
 def parse_ip_range(raw: str) -> IPRange:
     """Parse a single IP range string into an `IPRange`.

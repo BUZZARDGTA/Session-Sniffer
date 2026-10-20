@@ -208,7 +208,7 @@ def format_userip_ip_conflict_message(
                 {usernames1}={conflict.existing_userip.ip}
 
                 "{db2_name}":
-                {conflict.conflicting_username}={conflict.existing_userip.ip}
+                {conflict.conflicting_username}={conflict.conflicting_ip}
         """
         return msg, None
 
@@ -220,7 +220,7 @@ def format_userip_ip_conflict_message(
         usernames1 = ', '.join(conflict.existing_userip.usernames)
         preview_lines.append(
             f'            "{db1_name}" ({usernames1}={conflict.existing_userip.ip})\n'
-            f'            "{db2_name}" ({conflict.conflicting_username}={conflict.existing_userip.ip})',
+            f'            "{db2_name}" ({conflict.conflicting_username}={conflict.conflicting_ip})',
         )
 
     preview_block = '\n\n'.join(preview_lines)
@@ -247,8 +247,13 @@ def format_userip_ip_conflict_message(
         db1_name = conflict.existing_userip.db_path.relative_to(userip_databases_dir).with_suffix('')
         db2_name = conflict.conflicting_database_path.relative_to(userip_databases_dir).with_suffix('')
         usernames1 = ', '.join(conflict.existing_userip.usernames)
+        ip_label = (
+            conflict.existing_userip.ip
+            if conflict.existing_userip.ip == conflict.conflicting_ip
+            else f'{conflict.existing_userip.ip} vs {conflict.conflicting_ip}'
+        )
         detailed_lines.append(
-            f'[{i}] IP: {conflict.existing_userip.ip}\n'
+            f'[{i}] IP: {ip_label}\n'
             f'    "{db1_name}": {usernames1}\n'
             f'    "{db2_name}": {conflict.conflicting_username}\n',
         )

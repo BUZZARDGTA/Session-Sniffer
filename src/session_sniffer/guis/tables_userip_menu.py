@@ -162,7 +162,7 @@ def build_userip_menu(
             tooltip='Add selected IP as a range to this UserIP database.',
             handler_factory=lambda db_path: lambda: userip_add_as_range(parent, ip_address, db_path, usernames=player_usernames),
         )
-        if ip_address in UserIPDatabases.notified_ip_conflicts:
+        if UserIPDatabases.is_conflicting_ip(ip_address):
             userip_menu.addSeparator()
             add_action(
                 userip_menu,
