@@ -818,7 +818,11 @@ class UserIPDatabases:
     @classmethod
     def consume_newly_resolvable_usernames(cls) -> frozenset[str]:
         """Return and clear the set of casefolded usernames whose target database/canonical mapping was added or changed."""
+        if not cls._pending_resolvable_usernames:
+            return frozenset(())
         with cls._update_userip_database_lock:
+            if not cls._pending_resolvable_usernames:
+                return frozenset(())
             result = frozenset(cls._pending_resolvable_usernames)
             cls._pending_resolvable_usernames.clear()
             return result

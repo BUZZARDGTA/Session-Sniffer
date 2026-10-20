@@ -163,10 +163,15 @@ def apply_runtime_settings_changes(
     if dialog_parent is not None:
         prompt_to_disable_gta5_relay_if_filtered(dialog_parent, context='settings')
 
-    if Settings.userip_backup_frequency != 'Disabled':
-        run_userip_backup_async()
-    else:
-        prune_old_backups()
+    backup_settings_changed = (
+        new_values.get('userip_backup_frequency') != old_values.get('userip_backup_frequency')
+        or new_values.get('userip_backup_retention_limit') != old_values.get('userip_backup_retention_limit')
+    )
+    if backup_settings_changed:
+        if Settings.userip_backup_frequency != 'Disabled':
+            run_userip_backup_async()
+        else:
+            prune_old_backups()
 
     retrigger_detections_scan()
 

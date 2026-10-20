@@ -138,8 +138,9 @@ class UserIPEntriesOperationsMixin(QDialog):
 
     def _sync_from_disk(self) -> None:
         """Reconcile the entries view and stats with the current on-disk state."""
-        update_userip_databases()
-        wake_rendering_core()
+        _, databases_rebuilt = update_userip_databases()
+        if databases_rebuilt:
+            wake_rendering_core()
         self._rebuild_fs_watch()
         self._refresh_stats()
 
@@ -824,8 +825,8 @@ class UserIPEntriesOperationsMixin(QDialog):
             self._highlight_duplicates()
             self._refresh_stats()
             self._set_status(f'Moved {len(valid_moves)} {pluralize(len(valid_moves), "entry", "entries")} to "{target_display_name}".')
-            self._rebuild_fs_watch()
             update_userip_databases()
+            self._rebuild_fs_watch()
             wake_rendering_core()
         else:
             if self._current_path is None or target_db_path == self._current_path:
@@ -918,8 +919,8 @@ class UserIPEntriesOperationsMixin(QDialog):
                 self._update_file_info(self._current_path)
                 self._set_status(f'Saved {len(entries)} entries to {self._current_path.name}')
                 self._refresh_stats()
-                self._rebuild_fs_watch()
                 update_userip_databases()
+                self._rebuild_fs_watch()
                 wake_rendering_core()
                 if duplicate_count > 0:
                     self._load_database(self._current_path)

@@ -21,7 +21,7 @@ from shiboken6 import isValid
 
 from session_sniffer.background import clear_resolution_queues, retrigger_detections_scan, wake_all_player_cores
 from session_sniffer.background.events import gui_closed__event
-from session_sniffer.constants.local import APP_DIR_ROAMING, COMBO_RULES_PATH, DETECTIONS_JSON_PATH, RESOURCES_DIR_PATH, SETTINGS_PATH
+from session_sniffer.constants.local import COMBO_RULES_PATH, DETECTIONS_JSON_PATH, RESOURCES_DIR_PATH, SETTINGS_PATH
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.core import terminate_script
 from session_sniffer.gta5.suspend_manager import GTASuspendManager
@@ -376,7 +376,6 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
         self._stats_timer = QTimer(self)
         self._stats_timer.setInterval(1_000)
         self._stats_timer.timeout.connect(self._tick_stats)
-        self._stats_timer.timeout.connect(self._poll_config_files_if_needed)
         self._stats_timer.start()
 
         self._thread_health_timer = QTimer(self)
@@ -385,8 +384,8 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
         self._thread_health_timer.start()
         self._last_thread_health_state: tuple[int, int, tuple[tuple[str, str], ...]] | None = None
 
-        self._config_watcher = DebouncedFileWatcher(self, on_change=self._on_config_files_changed)
-        self._rebuild_config_watch()
+        self._config_watcher = DebouncedFileWatcher(self, on_change=self._on_config_files_changed, poll_interval_ms=1_000)
+        self._config_watcher.watch(files=(SETTINGS_PATH, DETECTIONS_JSON_PATH, COMBO_RULES_PATH))
 
         self._apply_always_on_top()
 
@@ -732,25 +731,8 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
         if changed is None or 'userip_auto_feed_from_usernames' in changed:
             wake_rendering_core()
 
-    def _rebuild_config_watch(self) -> None:
-        """Point the configuration file watcher at settings.json, detections.json, and combo_rules.json."""
-        files = [path for path in (SETTINGS_PATH, DETECTIONS_JSON_PATH, COMBO_RULES_PATH) if path.is_file()]
-        directories = [APP_DIR_ROAMING] if APP_DIR_ROAMING.is_dir() else []
-        self._config_watcher.watch(files=files, directories=directories)
-
-    def _poll_config_files_if_needed(self) -> None:
-        """Fallback periodic check for external changes to configuration files."""
-        if (
-            Settings.has_external_file_change(SETTINGS_PATH)
-            or GUIDetectionSettings.has_external_file_change(DETECTIONS_JSON_PATH)
-            or ComboRulesManager.has_external_file_change(COMBO_RULES_PATH)
-        ):
-            self._on_config_files_changed()
-
     def _on_config_files_changed(self) -> None:
         """Reload externally modified settings.json, detections.json, or combo_rules.json and re-trigger scans."""
-        self._rebuild_config_watch()
-
         if Settings.has_external_file_change(SETTINGS_PATH):
             old_values: dict[str, SettingValue] = {name.lower(): value for name, value in Settings.iterate_over_settings()}
             Settings.load_from_settings_file(SETTINGS_PATH)
@@ -759,7 +741,8 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
             if changed:
                 logger.info('Detected external settings.json modification; applying changed settings: %s', sorted(changed))
                 apply_runtime_settings_changes(self.capture.get(), old_values, new_values)
-                TableMergeState.reset_override()
+                if 'gui_disconnected_players_enabled' in changed:
+                    TableMergeState.reset_override()
                 self._update_game_toolbar_visibility()
                 self._apply_always_on_top()
                 self._update_splitter_visibility()

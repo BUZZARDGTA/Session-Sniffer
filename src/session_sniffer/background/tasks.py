@@ -96,6 +96,9 @@ def _log_to_protection_csv(detection: str, usernames: str, ip: str, country: str
 
 _active_userip_tasks: set[tuple[str, Literal['connected', 'disconnected']]] = set()
 _active_userip_tasks_lock = Lock()
+_active_detection_check_ips: set[str] = set()
+_pending_detection_rescan_ips: set[str] = set()
+_detection_check_lock = Lock()
 _fired_detections: dict[tuple[str, int], set[object]] = {}
 _fired_detections_lock = Lock()
 _MINUTE_INTERVAL_SECONDS = 60.0
@@ -871,13 +874,37 @@ def check_global_detections(player: Player) -> None:
         )
 
 
+def _run_global_detections_check(player: Player) -> None:
+    """Run `check_global_detections(player)`, re-running once if a rescan was requested while active."""
+    try:
+        while True:
+            check_global_detections(player)
+            with _detection_check_lock:
+                if player.ip in _pending_detection_rescan_ips and not player.left_event.is_set() and PlayersRegistry.is_player_connected(player):
+                    _pending_detection_rescan_ips.discard(player.ip)
+                    continue
+                _pending_detection_rescan_ips.discard(player.ip)
+                _active_detection_check_ips.discard(player.ip)
+                return
+    except BaseException:
+        with _detection_check_lock:
+            _pending_detection_rescan_ips.discard(player.ip)
+            _active_detection_check_ips.discard(player.ip)
+        raise
+
+
 def submit_global_detections_check(player: Player) -> None:
     """Submit global detection checks to the background detection worker pool."""
     enqueue_player_for_resolution(player)
     has_non_event_combo_rules = any(not rule.has_event_condition for rule in ComboRulesManager.rules if rule.enabled)
     if not GUIDetectionSettings.has_any_global_detection_enabled() and not has_non_event_combo_rules:
         return
-    _detection_check_pool.submit(check_global_detections, player).add_done_callback(_on_pool_task_done)
+    with _detection_check_lock:
+        if player.ip in _active_detection_check_ips:
+            _pending_detection_rescan_ips.add(player.ip)
+            return
+        _active_detection_check_ips.add(player.ip)
+    _detection_check_pool.submit(_run_global_detections_check, player).add_done_callback(_on_pool_task_done)
 
 
 def retrigger_detections_scan() -> None:
