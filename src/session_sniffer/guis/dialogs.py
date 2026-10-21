@@ -17,8 +17,10 @@ from session_sniffer.constants.standalone import TITLE
 from session_sniffer.guis.utils import (
     ActiveDialogRegistry,
     activate_window,
+    animate_button_feedback,
     find_main_window,
     scale_by_ui,
+    set_clipboard_text,
     set_dialog_window_flags,
 )
 
@@ -29,8 +31,22 @@ def create_nonmodal_warning(parent: QWidget | None, text: str) -> QMessageBox:
     dlg.setWindowModality(Qt.WindowModality.NonModal)
     dlg.setWindowTitle(TITLE)
     dlg.setText(text)
+    dlg.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse | Qt.TextInteractionFlag.LinksAccessibleByMouse)
     dlg.setIcon(QMessageBox.Icon.Warning)
     dlg.setStandardButtons(QMessageBox.StandardButton.Ok)
+
+    copy_button = dlg.addButton('Copy', QMessageBox.ButtonRole.ActionRole)
+    copy_button.setCursor(Qt.CursorShape.PointingHandCursor)
+    copy_button.clicked.disconnect()
+
+    def _on_copy() -> None:
+        copy_text = (dlg.detailedText() or dlg.text()).strip()
+        if copy_text:
+            set_clipboard_text(copy_text)
+            animate_button_feedback(copy_button)
+
+    copy_button.clicked.connect(_on_copy)
+
     return dlg
 
 
