@@ -242,8 +242,8 @@ def wake_all_player_cores() -> None:
     _pinger_wakeup_event.set()
     _looky_wakeup_event.set()
 
-    for p in chain(PlayersRegistry.get_connected_players(), PlayersRegistry.get_disconnected_players()):
-        enqueue_player_for_resolution(p)
+    for player in chain(PlayersRegistry.get_connected_players(), PlayersRegistry.get_disconnected_players()):
+        enqueue_player_for_resolution(player)
 
 
 def iplookup_core() -> None:
@@ -659,96 +659,84 @@ def looky_core() -> None:
             _looky_wakeup_event.clear()
             continue
 
-        resolved_any = False
-        rate_limited = False
-        cooldown_active = False
+        if gui_closed__event.is_set():
+            return
 
-        for batch_start in range(0, len(pending_ip_addresses), _batch_size):
-            if gui_closed__event.is_set():
-                return
-            if batch_start > 0:
-                gui_closed__event.wait(0.5)
+        batch = pending_ip_addresses
 
-            batch = pending_ip_addresses[batch_start : batch_start + _batch_size]
-
-            try:
-                results = looky_lookup_ip_batch(batch, Settings.looky_api_key, Settings.looky_game_version.lower())
-            except requests.HTTPError as e:
-                if e.response is not None and e.response.status_code == HTTPStatus.TOO_MANY_REQUESTS:
-                    _looky_queue.requeue_front(batch)
-                    wait_seconds = extract_rate_limit_wait_seconds(e)
-                    logger.warning('[Looky System] Rate limited — waiting %s seconds', wait_seconds)
-                    gui_closed__event.wait(wait_seconds)
-                    rate_limited = True
-                    break
-                if e.response is not None and HTTPStatus(e.response.status_code).is_server_error:
-                    _looky_queue.requeue_front(batch)
-                    server_error_consecutive_failures += 1
-                    cooldown_duration = min(30 * (2 ** (server_error_consecutive_failures - 1)), 300)
-                    logger.warning('[Looky System] Server error for batch %s: %s. Entering %ss cooldown.', batch, e, cooldown_duration)
-                    gui_closed__event.wait(cooldown_duration)
-                    cooldown_active = True
-                    break
-                logger.debug('[Looky System] HTTP error for batch %s: %s', batch, e)
-                for ip in batch:
-                    matched_player = PlayersRegistry.get_player_by_ip(ip)
-                    if matched_player is not None:
-                        with matched_player.looky_system.lock:
-                            matched_player.looky_system.needs_refresh = False
-                            matched_player.looky_system.last_fetched_at = time.monotonic()
-                            matched_player.looky_system.is_initialized = True
-            except requests.RequestException as e:
+        try:
+            results = looky_lookup_ip_batch(batch, Settings.looky_api_key, Settings.looky_game_version.lower())
+        except requests.HTTPError as e:
+            if e.response is not None and e.response.status_code == HTTPStatus.TOO_MANY_REQUESTS:
+                _looky_queue.requeue_front(batch)
+                wait_seconds = extract_rate_limit_wait_seconds(e)
+                logger.warning('[Looky System] Rate limited — waiting %s seconds', wait_seconds)
+                gui_closed__event.wait(wait_seconds)
+                continue
+            if e.response is not None and HTTPStatus(e.response.status_code).is_server_error:
                 _looky_queue.requeue_front(batch)
                 server_error_consecutive_failures += 1
                 cooldown_duration = min(30 * (2 ** (server_error_consecutive_failures - 1)), 300)
-                logger.warning('[Looky System] Request error for batch %s: %s. Entering %ss cooldown.', batch, e, cooldown_duration)
+                logger.warning('[Looky System] Server error for batch %s: %s. Entering %ss cooldown.', batch, e, cooldown_duration)
                 gui_closed__event.wait(cooldown_duration)
-                cooldown_active = True
-                break
-            except ValidationError as e:
-                logger.warning('[Looky System] Validation error for batch %s: %s', batch, e)
-                for ip in batch:
-                    matched_player = PlayersRegistry.get_player_by_ip(ip)
-                    if matched_player is not None:
-                        with matched_player.looky_system.lock:
-                            matched_player.looky_system.needs_refresh = False
-                            matched_player.looky_system.last_fetched_at = time.monotonic()
-                            matched_player.looky_system.is_initialized = True
-            else:
-                for ip in batch:
-                    matched_player = PlayersRegistry.get_player_by_ip(ip)
-                    if matched_player is not None:
-                        players = results.get(ip, [])
-                        unique_players: list[LookyPlayer] = []
-                        seen_pairs: set[tuple[str, int]] = set()
-                        for looky_player in players:
-                            pair = (looky_player.name, looky_player.rockstarid)
-                            if pair not in seen_pairs:
-                                seen_pairs.add(pair)
-                                unique_players.append(looky_player)
-                        new_looky_usernames = [
-                            looky_player.name.strip() for looky_player in unique_players if looky_player.name and looky_player.name.strip()
-                        ]
-                        with matched_player.looky_system.lock:
-                            if new_looky_usernames != matched_player.looky_system.usernames:
-                                matched_player.looky_system.as_userip_checked = False
-                            matched_player.looky_system.usernames = new_looky_usernames
-                            matched_player.looky_system.rockstarids = [looky_player.rockstarid for looky_player in unique_players]
-                            matched_player.looky_system.last_seens = [looky_player.last_seen for looky_player in unique_players]
-                            matched_player.looky_system.needs_refresh = False
-                            matched_player.looky_system.last_fetched_at = time.monotonic()
-                            matched_player.looky_system.is_initialized = True
-                            looky_usernames = list(matched_player.looky_system.usernames)
-
-                        matched_player.rebuild_usernames(looky_usernames=looky_usernames)
-                wake_rendering_core()
-                resolved_any = True
-                server_error_consecutive_failures = 0
-
-        if not resolved_any and not rate_limited and not cooldown_active:
+                continue
+            logger.debug('[Looky System] HTTP error for batch %s: %s', batch, e)
+            for ip in batch:
+                matched_player = PlayersRegistry.get_player_by_ip(ip)
+                if matched_player is not None:
+                    with matched_player.looky_system.lock:
+                        matched_player.looky_system.needs_refresh = False
+                        matched_player.looky_system.last_fetched_at = time.monotonic()
+                        matched_player.looky_system.is_initialized = True
+            _looky_wakeup_event.wait(1)
+            _looky_wakeup_event.clear()
+        except requests.RequestException as e:
+            _looky_queue.requeue_front(batch)
+            server_error_consecutive_failures += 1
+            cooldown_duration = min(30 * (2 ** (server_error_consecutive_failures - 1)), 300)
+            logger.warning('[Looky System] Request error for batch %s: %s. Entering %ss cooldown.', batch, e, cooldown_duration)
+            gui_closed__event.wait(cooldown_duration)
+            continue
+        except ValidationError as e:
+            logger.warning('[Looky System] Validation error for batch %s: %s', batch, e)
+            for ip in batch:
+                matched_player = PlayersRegistry.get_player_by_ip(ip)
+                if matched_player is not None:
+                    with matched_player.looky_system.lock:
+                        matched_player.looky_system.needs_refresh = False
+                        matched_player.looky_system.last_fetched_at = time.monotonic()
+                        matched_player.looky_system.is_initialized = True
             _looky_wakeup_event.wait(1)
             _looky_wakeup_event.clear()
         else:
+            for ip in batch:
+                matched_player = PlayersRegistry.get_player_by_ip(ip)
+                if matched_player is not None:
+                    players = results.get(ip, [])
+                    unique_players: list[LookyPlayer] = []
+                    seen_pairs: set[tuple[str, int]] = set()
+                    for looky_player in players:
+                        pair = (looky_player.name, looky_player.rockstarid)
+                        if pair not in seen_pairs:
+                            seen_pairs.add(pair)
+                            unique_players.append(looky_player)
+                    new_looky_usernames = [
+                        looky_player.name.strip() for looky_player in unique_players if looky_player.name and looky_player.name.strip()
+                    ]
+                    with matched_player.looky_system.lock:
+                        if new_looky_usernames != matched_player.looky_system.usernames:
+                            matched_player.looky_system.as_userip_checked = False
+                        matched_player.looky_system.usernames = new_looky_usernames
+                        matched_player.looky_system.rockstarids = [looky_player.rockstarid for looky_player in unique_players]
+                        matched_player.looky_system.last_seens = [looky_player.last_seen for looky_player in unique_players]
+                        matched_player.looky_system.needs_refresh = False
+                        matched_player.looky_system.last_fetched_at = time.monotonic()
+                        matched_player.looky_system.is_initialized = True
+                        looky_usernames = list(matched_player.looky_system.usernames)
+
+                    matched_player.rebuild_usernames(looky_usernames=looky_usernames)
+            wake_rendering_core()
+            server_error_consecutive_failures = 0
             gui_closed__event.wait(0.1)
 
 

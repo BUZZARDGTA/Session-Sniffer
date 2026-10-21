@@ -171,12 +171,7 @@ class DiscordIntro(QDialog):
     def open_discord(self) -> None:
         """Open the Discord invite URL and disable future popup reminders."""
         webbrowser.open(DISCORD_INVITE_URL)
-
-        if Settings.show_discord_popup:
-            Settings.show_discord_popup = False
-            Settings.rewrite_settings_file()
-
-        self.close_popup()
+        self.dont_remind_me()
 
     def dont_remind_me(self) -> None:
         """Disable future Discord popup reminders and close the dialog."""

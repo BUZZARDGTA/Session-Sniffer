@@ -447,18 +447,8 @@ def rendering_core(
                 continue
 
             if _userip_db_rebuilt:
-                if not UserIPDatabases.is_known_ip(player.ip):
-                    player.userip = None
-                    player.userip_detection = None
-                    _userip_not_found.discard(player.ip)
-                else:
-                    resolved = UserIPDatabases.resolve_userip(player.ip)
-                    if resolved is not None:
-                        player.userip = resolved
-                        _userip_not_found.discard(player.ip)
-                    else:
-                        player.userip = None
-                        _userip_not_found.add(player.ip)
+                if player.userip is None:
+                    _userip_not_found.add(player.ip)
             elif player.userip is None and player.ip not in _userip_not_found:
                 resolved = UserIPDatabases.resolve_userip(player.ip)
                 if resolved is None:

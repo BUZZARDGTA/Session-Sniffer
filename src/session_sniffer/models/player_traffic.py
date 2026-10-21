@@ -50,12 +50,21 @@ class PlayerPackets:
             self.accumulated_packets = 0
             self.last_update_time = time.monotonic() if now is None else now
 
-        def reset(self) -> None:
+        def reset(self, *, initial_packets: int = 0) -> None:
             """Reset the packet rate calculator to its initial state."""
             self.is_first_calculation = True
             self.last_update_time = time.monotonic()
-            self.accumulated_packets = 0
+            self.accumulated_packets = initial_packets
             self.calculated_rate = 0
+
+        def snapshot(self) -> Self:
+            """Create a frozen snapshot copy of this packet rate calculator."""
+            return self.__class__(
+                is_first_calculation=self.is_first_calculation,
+                last_update_time=self.last_update_time,
+                accumulated_packets=self.accumulated_packets,
+                calculated_rate=self.calculated_rate,
+            )
 
     exchanged: int = 1
 
@@ -164,10 +173,8 @@ class PlayerPackets:
             self.total_received += 1
             self.received = 1
 
-        self.pps.reset()
-        self.pps.accumulated_packets = 1
-        self.ppm.reset()
-        self.ppm.accumulated_packets = 1
+        self.pps.reset(initial_packets=1)
+        self.ppm.reset(initial_packets=1)
 
         self.min_len = packet_length
         self.max_len = packet_length
@@ -185,18 +192,8 @@ class PlayerPackets:
             received=self.received,
             total_sent=self.total_sent,
             sent=self.sent,
-            pps=self.PacketRate(
-                is_first_calculation=self.pps.is_first_calculation,
-                last_update_time=self.pps.last_update_time,
-                accumulated_packets=self.pps.accumulated_packets,
-                calculated_rate=self.pps.calculated_rate,
-            ),
-            ppm=self.PacketRate(
-                is_first_calculation=self.ppm.is_first_calculation,
-                last_update_time=self.ppm.last_update_time,
-                accumulated_packets=self.ppm.accumulated_packets,
-                calculated_rate=self.ppm.calculated_rate,
-            ),
+            pps=self.pps.snapshot(),
+            ppm=self.ppm.snapshot(),
             min_len=self.min_len,
             max_len=self.max_len,
             session_sum_len=self.session_sum_len,
@@ -244,12 +241,21 @@ class PlayerBandwidth:
             self.accumulated_bytes = 0
             self.last_update_time = time.monotonic() if now is None else now
 
-        def reset(self) -> None:
+        def reset(self, *, initial_bytes: int = 0) -> None:
             """Reset the byte rate calculator to its initial state."""
             self.is_first_calculation = True
             self.last_update_time = time.monotonic()
-            self.accumulated_bytes = 0
+            self.accumulated_bytes = initial_bytes
             self.calculated_rate = 0
+
+        def snapshot(self) -> Self:
+            """Create a frozen snapshot copy of this byte rate calculator."""
+            return self.__class__(
+                is_first_calculation=self.is_first_calculation,
+                last_update_time=self.last_update_time,
+                accumulated_bytes=self.accumulated_bytes,
+                calculated_rate=self.calculated_rate,
+            )
 
     exchanged: int = 0
 
@@ -326,10 +332,8 @@ class PlayerBandwidth:
             self.upload = 0
             self.download = packet_length
 
-        self.bps.reset()
-        self.bps.accumulated_bytes = packet_length
-        self.bpm.reset()
-        self.bpm.accumulated_bytes = packet_length
+        self.bps.reset(initial_bytes=packet_length)
+        self.bpm.reset(initial_bytes=packet_length)
 
     def snapshot(self) -> Self:
         """Create a frozen snapshot copy of this bandwidth tracking state."""
@@ -339,18 +343,8 @@ class PlayerBandwidth:
             download=self.download,
             total_upload=self.total_upload,
             upload=self.upload,
-            bps=self.ByteRate(
-                is_first_calculation=self.bps.is_first_calculation,
-                last_update_time=self.bps.last_update_time,
-                accumulated_bytes=self.bps.accumulated_bytes,
-                calculated_rate=self.bps.calculated_rate,
-            ),
-            bpm=self.ByteRate(
-                is_first_calculation=self.bpm.is_first_calculation,
-                last_update_time=self.bpm.last_update_time,
-                accumulated_bytes=self.bpm.accumulated_bytes,
-                calculated_rate=self.bpm.calculated_rate,
-            ),
+            bps=self.bps.snapshot(),
+            bpm=self.bpm.snapshot(),
         )
 
     @staticmethod

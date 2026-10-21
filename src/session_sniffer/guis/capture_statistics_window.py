@@ -442,10 +442,10 @@ class CaptureStatisticsWindow(RateGraphWindowMixin):
         self._latency_buffer.clear()
         self._pps_buffer.clear()
         self._bps_buffer.clear()
-        for _ in range(VISIBLE_WINDOW):
-            self._latency_buffer.append(0.0)
-            self._pps_buffer.append(0.0)
-            self._bps_buffer.append(0.0)
+        zeros = [0.0] * VISIBLE_WINDOW
+        self._latency_buffer.extend(zeros)
+        self._pps_buffer.extend(zeros)
+        self._bps_buffer.extend(zeros)
 
         self._latency_running_sum = 0.0
         self._pps_running_sum = 0
@@ -455,8 +455,6 @@ class CaptureStatisticsWindow(RateGraphWindowMixin):
         self._peak_ppm = 0
         self._last_latency_ms = 0.0
         self._last_latency_ts = 0.0
-
-        zeros = [0.0] * VISIBLE_WINDOW
 
         self._latency_widget.set_data(zeros)
         self._latency_widget.set_y_range(0, _FLOOR_MS)

@@ -125,18 +125,15 @@ def _format_userip_tooltip_lines(
         sources_label = f'Source{pluralize(len(userip.sources))}'
         lines.append(f'<span style="color: #9ca3af;">{sources_label}:</span> {html.escape(", ".join(userip.sources))}')
     lines.append(f'<span style="color: #9ca3af;">Detections:</span> {userip.detections_count}')
-    added_display = format_iso_timestamp_display(userip.added_at)
-    if added_display:
-        lines.append(f'<span style="color: #9ca3af;">Added:</span> {html.escape(added_display)}')
-    updated_display = format_iso_timestamp_display(userip.updated_at)
-    if updated_display:
-        lines.append(f'<span style="color: #9ca3af;">Updated:</span> {html.escape(updated_display)}')
-    first_seen_display = format_iso_timestamp_display(userip.first_seen_at)
-    if first_seen_display:
-        lines.append(f'<span style="color: #9ca3af;">First Seen:</span> {html.escape(first_seen_display)}')
-    last_seen_display = format_iso_timestamp_display(userip.last_seen_at)
-    if last_seen_display:
-        lines.append(f'<span style="color: #9ca3af;">Last Seen:</span> {html.escape(last_seen_display)}')
+    for label_text, raw_timestamp in (
+        ('Added', userip.added_at),
+        ('Updated', userip.updated_at),
+        ('First Seen', userip.first_seen_at),
+        ('Last Seen', userip.last_seen_at),
+    ):
+        formatted_display = format_iso_timestamp_display(raw_timestamp)
+        if formatted_display:
+            lines.append(f'<span style="color: #9ca3af;">{label_text}:</span> {html.escape(formatted_display)}')
     return lines
 
 

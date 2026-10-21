@@ -4,7 +4,7 @@ import dataclasses
 from dataclasses import dataclass
 from datetime import datetime
 from threading import Lock
-from typing import ClassVar, Literal, override
+from typing import Literal
 
 from PySide6.QtGui import QIcon, QImage, QPixmap
 
@@ -28,23 +28,6 @@ class PlayerGeoLite2:
     country_code: str = '...'
     city: str = '...'
     asn: str = '...'
-
-
-def _default_ping_values() -> dict[str, object]:
-    """Return default placeholder values for ping lookup fields."""
-    return {
-        'is_pinging': '...',
-        'ping_times': '...',
-        'packets_transmitted': '...',
-        'packets_received': '...',
-        'packet_duplicates': '...',
-        'packet_loss': '...',
-        'packet_errors': '...',
-        'rtt_min': '...',
-        'rtt_avg': '...',
-        'rtt_max': '...',
-        'rtt_mdev': '...',
-    }
 
 
 @dataclass(kw_only=True, slots=True)
@@ -123,32 +106,24 @@ class PlayerIPLookup:
 class PlayerPing:
     """Store ping lookup state and cached RTT/packet stats for a player."""
 
-    _FIELD_NAMES: ClassVar[frozenset[str]] = frozenset(_default_ping_values())
-
     is_initialized: bool = False
 
-    _values: dict[str, object] = dataclasses.field(default_factory=_default_ping_values)
-
-    def __getattr__(self, name: str) -> object:
-        """Provide backward-compatible dotted attribute access for ping fields."""
-        if name in self._FIELD_NAMES:
-            return self._values[name]
-        raise AttributeError(name)
-
-    @override
-    def __setattr__(self, name: str, value: object) -> None:
-        """Provide backward-compatible dotted attribute assignment for ping fields."""
-        if name in {'is_initialized', '_values'}:
-            object.__setattr__(self, name, value)
-            return
-        if name in self._FIELD_NAMES:
-            self._values[name] = value
-            return
-        object.__setattr__(self, name, value)
+    is_pinging: bool | str = '...'
+    ping_times: list[float] | str = '...'
+    packets_transmitted: int | str | None = '...'
+    packets_received: int | str | None = '...'
+    packet_duplicates: int | str | None = '...'
+    packet_loss: float | str | None = '...'
+    packet_errors: int | str | None = '...'
+    rtt_min: float | str | None = '...'
+    rtt_avg: float | str | None = '...'
+    rtt_max: float | str | None = '...'
+    rtt_mdev: float | str | None = '...'
 
     def update_fields(self, data: dict[str, object]) -> None:
         """Batch-update ping lookup fields from a pre-validated mapping."""
-        self._values.update(data)
+        for key, value in data.items():
+            setattr(self, key, value)
 
 
 @dataclass(kw_only=True, slots=True)
