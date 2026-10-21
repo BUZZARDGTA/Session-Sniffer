@@ -326,16 +326,15 @@ class _UserIPLogHistoryCache:
 
         if not full_tree and cls._latest_leaf_dir is not None:
             with contextlib.suppress(OSError):
-                if SESSIONS_LOGGING_DIR_PATH.stat().st_mtime == cls._dir_mtimes.get(root_str):
-                    leaf = cls._latest_leaf_dir
-                    leaf_files: dict[str, tuple[float, int]] = {}
-                    with os.scandir(leaf) as it:
-                        for entry in it:
-                            if entry.name.endswith('.json') and entry.is_file(follow_symlinks=False):
-                                st = entry.stat(follow_symlinks=False)
-                                leaf_files[entry.path] = (st.st_mtime, st.st_size)
-                    cls._files_by_dir[leaf] = leaf_files
-                    return {fpath: sig for dir_files in cls._files_by_dir.values() for fpath, sig in dir_files.items()}
+                leaf = cls._latest_leaf_dir
+                leaf_files: dict[str, tuple[float, int]] = {}
+                with os.scandir(leaf) as it:
+                    for entry in it:
+                        if entry.name.endswith('.json') and entry.is_file(follow_symlinks=False):
+                            st = entry.stat(follow_symlinks=False)
+                            leaf_files[entry.path] = (st.st_mtime, st.st_size)
+                cls._files_by_dir[leaf] = leaf_files
+                return {fpath: sig for dir_files in cls._files_by_dir.values() for fpath, sig in dir_files.items()}
 
         seen_dirs: set[str] = set()
         newest_leaf: str | None = None
@@ -347,31 +346,33 @@ class _UserIPLogHistoryCache:
             except OSError:
                 continue
             seen_dirs.add(cur_dir)
-            if cls._dir_mtimes.get(cur_dir) == st_dir.st_mtime and cur_dir != cls._latest_leaf_dir and cur_dir in cls._files_by_dir:
-                for sub_dir in list(cls._dir_mtimes):
-                    if sub_dir != cur_dir and sub_dir.startswith(cur_dir + os.sep):
-                        seen_dirs.add(sub_dir)
-                        if bool(cls._files_by_dir.get(sub_dir)) and (newest_leaf is None or sub_dir > newest_leaf):
-                            newest_leaf = sub_dir
+            if cur_dir != cls._latest_leaf_dir and cls._dir_mtimes.get(cur_dir) == st_dir.st_mtime and cur_dir in cls._files_by_dir:
+                if bool(cls._files_by_dir.get(cur_dir)) and (newest_leaf is None or cur_dir > newest_leaf):
+                    newest_leaf = cur_dir
                 continue
 
             dir_files: dict[str, tuple[float, int]] = {}
+            has_subdirs = False
             try:
                 with os.scandir(cur_dir) as it:
                     for entry in it:
                         if entry.is_dir(follow_symlinks=False):
+                            has_subdirs = True
                             stack.append(entry.path)
                         elif entry.name.endswith('.json') and entry.is_file(follow_symlinks=False):
                             st = entry.stat(follow_symlinks=False)
                             dir_files[entry.path] = (st.st_mtime, st.st_size)
             except OSError:
                 continue
-            cls._dir_mtimes[cur_dir] = st_dir.st_mtime
+            if not has_subdirs:
+                cls._dir_mtimes[cur_dir] = st_dir.st_mtime
+            else:
+                cls._dir_mtimes.pop(cur_dir, None)
             cls._files_by_dir[cur_dir] = dir_files
             if dir_files and (newest_leaf is None or cur_dir > newest_leaf):
                 newest_leaf = cur_dir
 
-        for stale_dir in set(cls._dir_mtimes) - seen_dirs:
+        for stale_dir in set(cls._files_by_dir) - seen_dirs:
             cls._dir_mtimes.pop(stale_dir, None)
             cls._files_by_dir.pop(stale_dir, None)
 
