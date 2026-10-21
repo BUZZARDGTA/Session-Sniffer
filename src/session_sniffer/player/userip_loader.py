@@ -793,14 +793,10 @@ def update_userip_databases() -> tuple[float, bool]:
 def _parse_existing_entry_dict(item_dict: dict[str, Any], entry_user: str, entry_ip: str) -> UserIPEntryModel:
     """Construct a `UserIPEntryModel` from a raw dictionary while preserving all metadata."""
     raw_is_looky: object = item_dict.get('is_looky', False)
-    is_looky = False
-    if isinstance(raw_is_looky, bool):
-        is_looky = raw_is_looky
-    elif isinstance(raw_is_looky, str):
-        try:
+    is_looky = raw_is_looky if isinstance(raw_is_looky, bool) else False
+    if isinstance(raw_is_looky, str):
+        with contextlib.suppress(InvalidBooleanValueError):
             is_looky, _ = custom_str_to_bool(raw_is_looky.strip())
-        except InvalidBooleanValueError:
-            is_looky = False
     raw_notes: object = item_dict.get('notes', '')
     notes = raw_notes.strip() if isinstance(raw_notes, str) else ''
     entry, _ = UserIPEntryModel.from_raw_entry_dict(item_dict, username=entry_user, ip=entry_ip, is_looky=is_looky, notes=notes)
@@ -840,6 +836,21 @@ def _write_userip_db(db_path: Path, settings: UserIPSettingsModel, entries: list
     return True
 
 
+def find_userip_insert_index(entries: Sequence[UserIPEntryModel], username: str, ip_or_range: str, *, anchor_username: str = '') -> int:
+    """Return the index in *entries* immediately after the last matching IP, username, or covering range."""
+    username_cf, anchor_cf = username.casefold(), anchor_username.casefold()
+    rev_indices = range(len(entries) - 1, -1, -1)
+    for match_idx in (
+        next((i for i in rev_indices if entries[i].ip == ip_or_range), None),
+        next((i for i in rev_indices if entries[i].username.casefold() == username_cf), None),
+        next((i for i in rev_indices if anchor_cf and entries[i].username.casefold() == anchor_cf), None),
+        next((i for i in rev_indices if entry_ip_covers_ip(entries[i].ip, ip_or_range)), None),
+    ):
+        if match_idx is not None:
+            return match_idx + 1
+    return len(entries)
+
+
 def append_userip_entry_if_missing(db_path: Path, username: str, ip: str) -> bool:
     """Append a `{username, ip}` entry to the UserIP `.json` database file if not already covered.
 
@@ -874,7 +885,7 @@ def append_userip_entry_if_missing(db_path: Path, username: str, ip: str) -> boo
             entries.append(_parse_existing_entry_dict(item_dict, entry_user, entry_ip))
 
         new_entry, _ = enrich_userip_entry_from_logs(UserIPEntryModel(username=cleaned_username, ip=cleaned_ip, is_looky=False, notes='', source='Auto-IP'))
-        entries.append(new_entry)
+        entries.insert(find_userip_insert_index(entries, cleaned_username, cleaned_ip), new_entry)
         return _write_userip_db(db_path, validated_settings, entries, action_label='auto-feed')
 
 

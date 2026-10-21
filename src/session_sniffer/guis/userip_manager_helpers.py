@@ -42,13 +42,13 @@ from session_sniffer.models.userip_settings_model import (
     get_current_iso_timestamp,
 )
 from session_sniffer.networking.ip_range import entry_ip_covers_ip
-from session_sniffer.player.userip_loader import enrich_userip_entry_from_logs, invalidate_userip_db_mtime
+from session_sniffer.player.userip_loader import enrich_userip_entry_from_logs, find_userip_insert_index, invalidate_userip_db_mtime
 from session_sniffer.text_utils import pluralize, split_usernames
 from session_sniffer.utils import custom_str_to_bool
 from session_sniffer.utils_exceptions import InvalidBooleanValueError
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Iterable, Iterator, Sequence
+    from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
     from pathlib import Path
     from typing import Any
 
@@ -557,16 +557,13 @@ def rewrite_db_edit_ip_notes(
     return matched_count
 
 
-def append_userip_entries(db_path: Path, entries: Sequence[UserIPEntryModel]) -> set[tuple[str, str]]:
-    """Add entries to a UserIP `.json` database file, inserting next to matching IPs and avoiding exact duplicates.
-
-    Args:
-        db_path: The target UserIP database file path.
-        entries: Sequence of `UserIPEntryModel` instances to add.
-
-    Returns:
-        The set of `(username, ip_or_range)` pairs actually added (excluding exact duplicates already present).
-    """
+def append_userip_entries(
+    db_path: Path,
+    entries: Sequence[UserIPEntryModel],
+    *,
+    anchor_usernames_by_ip: Mapping[str, str] | None = None,
+) -> set[tuple[str, str]]:
+    """Add entries to a UserIP `.json` database file, inserting next to matching IPs or usernames and avoiding duplicates."""
     db_model = load_userip_database_model(db_path)
     existing_by_pair: dict[tuple[str, str], UserIPEntryModel] = {
         (entry.username.casefold(), entry.ip): entry for entry in db_model.entries
@@ -586,11 +583,8 @@ def append_userip_entries(db_path: Path, entries: Sequence[UserIPEntryModel]) ->
             new_entry, _ = enrich_userip_entry_from_logs(entry.model_copy(update={'username': username, 'ip': ip_or_range, 'notes': entry.notes.strip()}))
             existing_by_pair[cf_pair] = new_entry
             added_pairs.add((username, ip_or_range))
-            last_ip_index = next((i for i in range(len(db_model.entries) - 1, -1, -1) if db_model.entries[i].ip == ip_or_range), None)
-            if last_ip_index is not None:
-                db_model.entries.insert(last_ip_index + 1, new_entry)
-            else:
-                db_model.entries.append(new_entry)
+            anchor_user = anchor_usernames_by_ip.get(ip_or_range, '') if anchor_usernames_by_ip is not None else ''
+            db_model.entries.insert(find_userip_insert_index(db_model.entries, username, ip_or_range, anchor_username=anchor_user), new_entry)
             modified = True
         elif (entry.is_looky and not existing_entry.is_looky) or (entry.notes.strip() and not existing_entry.notes):
             existing_index = db_model.entries.index(existing_entry)

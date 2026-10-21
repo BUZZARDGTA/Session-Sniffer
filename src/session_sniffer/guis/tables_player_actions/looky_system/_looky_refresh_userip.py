@@ -236,6 +236,7 @@ class _PendingEntry:
     already_looky: bool = False
     detections_count: int = 0
     suspect_removals: tuple[_SuspectRemoval, ...] = ()
+    anchor_username: str = ''
 
 
 _TREE_HEADERS = ['Username', 'IP', 'Looky Username', 'Action', 'Notes', 'Detections', 'Why / Details', 'Target Database']
@@ -299,7 +300,6 @@ class LookyRefreshReviewDialog(PlayerInfoDialogMixin):
 
         outer_layout = QVBoxLayout(self)
         outer_layout.setContentsMargins(12, 12, 12, 12)
-        outer_layout.setSpacing(10)
         self._add_header_label(outer_layout, '\U0001f441  Looky \u2014 UserIP Refresh Review', '#1c0a38', '#2e1065').setStyleSheet(LOOKY_CRAWLER_HEADER_STYLESHEET)
 
         total_new = sum(1 for entry in pending_entries if not entry.is_confirmation and not entry.is_known_in_db)
@@ -772,7 +772,7 @@ def _resolve_default_targets(db_path: Path, *, is_searchlist: bool) -> defaultdi
 
 
 def _build_pending_entries_for_database(
-    db_path: Path, ip_addresses: list[str], results: dict[str, list[LookyPlayer]],
+    db_path: Path, ip_addresses: list[str], results: dict[str, list[LookyPlayer]], *, anchor_by_ip: dict[str, str] | None = None,
 ) -> tuple[list[_PendingEntry], list[_SuspectRemoval], int]:
     """Build sorted `_PendingEntry` and standalone `_SuspectRemoval` items for *db_path*."""
     snapshot, is_searchlist = _collect_existing_usernames(db_path), db_path.stem.casefold() == 'searchlist'
@@ -782,10 +782,9 @@ def _build_pending_entries_for_database(
         for name, is_looky, _det, _notes in db_entries:
             if is_looky:
                 looky_resolved_ips_by_cf[name.casefold()].add(db_ip)
-    for ip in ip_addresses:
-        if _is_single_ipv4(ip):
-            for player_entry in results.get(ip, []):
-                looky_resolved_ips_by_cf[player_entry.name.casefold()].add(ip)
+    for ip in (addr for addr in ip_addresses if _is_single_ipv4(addr)):
+        for player_entry in results.get(ip, []):
+            looky_resolved_ips_by_cf[player_entry.name.casefold()].add(ip)
 
     assigned_user_cleanup_cf, seen_ips_for_db, counted_ips_with_results = set[str](), set[str](), set[str]()
     assigned_removal_pairs, pending_entries, standalone_removals = set[tuple[str, str]](), list[_PendingEntry](), list[_SuspectRemoval]()
@@ -837,9 +836,11 @@ def _build_pending_entries_for_database(
 
             if existing_is_looky and default_targets[name_cf] == db_path and not removals:
                 continue
-            pending_entries.append(
-                _PendingEntry(db_path, default_targets[name_cf], ip, display_name, existing_notes, is_confirmation, is_known, existing_is_looky, existing_det, tuple(removals)),
-            )
+            anchor_user = anchor_by_ip.get(ip, display_name) if anchor_by_ip is not None else display_name
+            pending_entries.append(_PendingEntry(
+                db_path, default_targets[name_cf], ip, display_name, existing_notes,
+                is_confirmation, is_known, existing_is_looky, existing_det, tuple(removals), anchor_user,
+            ))
             seen_new_cf.add(name_cf)
             counted_ips_with_results.add(ip)
 
@@ -857,7 +858,7 @@ def _build_pending_entries_for_database(
                     counted_ips_with_results.add(ip)
 
     pending_entries.sort(
-        key=lambda item: (not (item.is_confirmation or item.is_known_in_db), not bool(item.suspect_removals), not item.is_confirmation, item.username.casefold()),
+        key=lambda item: (not (item.is_confirmation or item.is_known_in_db), item.username.casefold(), not item.is_confirmation, not bool(item.suspect_removals)),
     )
     standalone_removals.sort(key=lambda item: (item.username.casefold(), item.ip))
     return pending_entries, standalone_removals, len(counted_ips_with_results)
@@ -874,11 +875,14 @@ def _apply_accepted_changes(accepted_entries: list[_PendingEntry], accepted_remo
 
     total_added, total_moved, total_removed = 0, 0, 0
     for target_db_path, db_entries in by_target_db.items():
+        ordered_entries = sorted(db_entries, key=lambda item: not (item.is_confirmation or item.is_known_in_db))
         new_models = [
             UserIPEntryModel(username=entry.username, ip=entry.ip, is_looky=True, source='Looky', detections_count=entry.detections_count, notes=entry.notes)
-            for entry in db_entries
+            for entry in ordered_entries
         ]
-        added_pairs, moved_in_batch = append_userip_entries(target_db_path, new_models), sum(1 for entry in db_entries if entry.target_db_path != entry.db_path)
+        anchors = {entry.ip: entry.anchor_username for entry in ordered_entries if entry.anchor_username}
+        added_pairs = append_userip_entries(target_db_path, new_models, anchor_usernames_by_ip=anchors)
+        moved_in_batch = sum(1 for entry in ordered_entries if entry.target_db_path != entry.db_path)
         if added_pairs or moved_in_batch:
             total_added += max(0, len(added_pairs) - moved_in_batch)
             total_moved += moved_in_batch
@@ -912,15 +916,11 @@ _active_review_dialogs: set[LookyRefreshReviewDialog] = set()
 
 def _collect_usernames_for_requested_ips(db_path: Path, ip_addresses: list[str]) -> list[str]:
     """Return unique usernames from *db_path* whose entry IP matches or covers any of *ip_addresses*."""
-    requested_set = set(ip_addresses)
-    requested_single_ips = [ip for ip in dict.fromkeys(ip_addresses) if _is_single_ipv4(ip)]
+    req_set, single_ips = set(ip_addresses), [ip for ip in dict.fromkeys(ip_addresses) if _is_single_ipv4(ip)]
     matched_usernames, seen_cfs = list[str](), set[str]()
     for entry in load_userip_database_model(db_path).entries:
-        if (
-            entry.username and (username_cf := entry.username.casefold()) not in seen_cfs
-            and (entry.ip in requested_set or any(entry_ip_covers_ip(entry.ip, req_ip) for req_ip in requested_single_ips))
-        ):
-            seen_cfs.add(username_cf)
+        if entry.username and (u_cf := entry.username.casefold()) not in seen_cfs and (entry.ip in req_set or any(entry_ip_covers_ip(entry.ip, r) for r in single_ips)):
+            seen_cfs.add(u_cf)
             matched_usernames.append(entry.username)
     return matched_usernames
 
@@ -942,8 +942,9 @@ def looky_refresh_userip_entries(parent: QWidget, entries: list[tuple[Path, list
         loading_dialog.accept()
         pending_entries, standalone_removals, total_ips_with_results = list[_PendingEntry](), list[_SuspectRemoval](), 0
         for db_path, ip_addresses in entries:
+            anchor_by_ip = {ip: username for username in reversed(db_usernames_by_path.get(db_path, [])) for ip in discovered_ips_by_cf.get(username.casefold(), [])}
             discovered_for_db = [ip for username in db_usernames_by_path.get(db_path, []) for ip in discovered_ips_by_cf.get(username.casefold(), [])]
-            db_pending, db_removals, db_ips_count = _build_pending_entries_for_database(db_path, [*ip_addresses, *discovered_for_db], results)
+            db_pending, db_removals, db_ips_count = _build_pending_entries_for_database(db_path, [*ip_addresses, *discovered_for_db], results, anchor_by_ip=anchor_by_ip)
             pending_entries.extend(db_pending)
             standalone_removals.extend(db_removals)
             total_ips_with_results += db_ips_count
@@ -953,9 +954,8 @@ def looky_refresh_userip_entries(parent: QWidget, entries: list[tuple[Path, list
             len(standalone_removals), pluralize(len(standalone_removals)), total_ips_with_results, pluralize(total_ips_with_results),
         )
         if not pending_entries and not standalone_removals:
-            QMessageBox.information(
-                parent, TITLE, f'No new usernames or unconfirmed candidate IPs found.\n\nAll resolved usernames already exist in the database{pluralize(len(entries))}.',
-            )
+            msg = f'No new usernames or unconfirmed candidate IPs found.\n\nAll resolved usernames already exist in the database{pluralize(len(entries))}.'
+            QMessageBox.information(parent, TITLE, msg)
             return
 
         dialog = LookyRefreshReviewDialog(parent, pending_entries, standalone_removals, ips_with_results_count=total_ips_with_results)
@@ -967,11 +967,9 @@ def looky_refresh_userip_entries(parent: QWidget, entries: list[tuple[Path, list
             update_userip_databases()
             wake_rendering_core()
             summary_parts = [
-                part for count, part in (
-                    (total_added, f'added or confirmed {total_added} username{pluralize(total_added)}'),
-                    (total_moved, f'moved {total_moved} username{pluralize(total_moved)}'),
-                    (total_removed, f'deleted {total_removed} wrong candidate row{pluralize(total_removed)}'),
-                ) if count
+                f'{verb} {cnt} {noun}{pluralize(cnt)}' for cnt, verb, noun in (
+                    (total_added, 'added or confirmed', 'username'), (total_moved, 'moved', 'username'), (total_removed, 'deleted', 'wrong candidate row'),
+                ) if cnt
             ]
             QMessageBox.information(parent if isValid(parent) else None, TITLE, f'{", ".join(summary_parts).capitalize()} across {db_count} database{pluralize(db_count)}.')
 
@@ -980,11 +978,12 @@ def looky_refresh_userip_entries(parent: QWidget, entries: list[tuple[Path, list
         _active_review_dialogs.add(dialog)
         activate_window(dialog)
 
-    for sig, slot in ((worker.finished_ok, _on_finished_ok), (worker.finished_error, loading_dialog.show_error), (worker.progress_updated, loading_dialog.update_progress)):
+    worker_links = ((worker.finished_ok, _on_finished_ok), (worker.finished_error, loading_dialog.show_error), (worker.progress_updated, loading_dialog.update_progress))
+    for sig, slot in worker_links:
         sig.connect(slot)
 
     def _on_rejected() -> None:
-        for sig, slot in ((worker.finished_ok, _on_finished_ok), (worker.finished_error, loading_dialog.show_error), (worker.progress_updated, loading_dialog.update_progress)):
+        for sig, slot in worker_links:
             try:
                 sig.disconnect(slot)
             except TypeError as e:

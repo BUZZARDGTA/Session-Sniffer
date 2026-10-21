@@ -24,7 +24,7 @@ from session_sniffer.guis.userip_manager_helpers import (
 )
 from session_sniffer.models.userip_settings_model import UserIPDatabaseFile, UserIPEntryModel, UserIPSettingsModel
 from session_sniffer.player import backup_userip_databases
-from session_sniffer.player.userip_loader import invalidate_userip_db_mtime, update_userip_databases
+from session_sniffer.player.userip_loader import find_userip_insert_index, invalidate_userip_db_mtime, update_userip_databases
 from session_sniffer.rendering_core.events import wake_rendering_core
 from session_sniffer.text_utils import pluralize
 
@@ -193,7 +193,10 @@ class UserIPImportExportMixin(QDialog):
             if (entry.username, entry.ip) not in existing_set
         ]
 
-        merged_db = UserIPDatabaseFile(settings=chosen_settings, entries=[*dest_db.entries, *new_entries])
+        merged_entries = list(dest_db.entries)
+        for entry in new_entries:
+            merged_entries.insert(find_userip_insert_index(merged_entries, entry.username, entry.ip), entry)
+        merged_db = UserIPDatabaseFile(settings=chosen_settings, entries=merged_entries)
         save_userip_database_model(dest_path, merged_db)
         return len(new_entries)
 
