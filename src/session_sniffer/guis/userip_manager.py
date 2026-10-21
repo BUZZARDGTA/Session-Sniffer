@@ -96,6 +96,7 @@ _ENTRY_TABLE_HEADER_TOOLTIPS: dict[str, str] = {
     ),
     'IP': 'The single IPv4 address matched by this entry.',
     'Range': 'The IPv4 address range or CIDR subnet matched by this entry.',
+    'Database': 'The UserIP database file that contains this entry (shown when searching across all databases).',
     'Notes': 'Optional user notes or comments attached to this entry.',
     'Source': 'How this entry was added to the database (e.g., Manual, Looky, Sniffer, or Imported).',
     'Detections': 'The number of times this entry has been matched across sessions.',
@@ -103,7 +104,21 @@ _ENTRY_TABLE_HEADER_TOOLTIPS: dict[str, str] = {
     'Updated': 'The date and time when this entry was last modified.',
     'First Seen': 'The very first time a player matching this entry was observed in a session.',
     'Last Seen': 'The most recent time a player matching this entry was active in a session.',
-    'Database': 'The UserIP database file that contains this entry (shown when searching across all databases).',
+}
+
+_DEFAULT_ENTRY_COLUMN_WIDTHS: dict[str, int] = {
+    '#': 50,
+    'Username': 180,
+    'IP': 120,
+    'Range': 180,
+    'Database': 160,
+    'Notes': 180,
+    'Source': 85,
+    'Detections': 85,
+    'Added': 145,
+    'Updated': 145,
+    'First Seen': 145,
+    'Last Seen': 145,
 }
 
 
@@ -889,6 +904,7 @@ class UserIPDatabasesManager(
                 adjust_last_visible_column_to_viewport(
                     self._entries_table,
                     resized_column=logical_index,
+                    min_column_widths=_DEFAULT_ENTRY_COLUMN_WIDTHS,
                     custom_widths=self._custom_column_widths,
                 )
             finally:
@@ -920,25 +936,16 @@ class UserIPDatabasesManager(
             self._is_programmatic_resizing = False
 
     def _adjust_username_column_width(self) -> None:
-        """Adjust the Username column width so all entries columns fit the viewport without trailing blank space."""
-        if self._custom_column_widths is not None:
-            self._is_programmatic_resizing = True
-            try:
-                adjust_last_visible_column_to_viewport(
-                    self._entries_table,
-                    custom_widths=self._custom_column_widths,
-                )
-            finally:
-                self._is_programmatic_resizing = False
-            return
-        viewport = self._entries_table.viewport()
-        available_width = viewport.width() if viewport and viewport.width() > 0 else self._entries_table.width()
-        other_widths = sum(
-            self._entries_table.columnWidth(column)
-            for column in range(self._model.columnCount())
-            if column != USERNAME_COLUMN and not self._entries_table.isColumnHidden(column)
-        )
-        self._entries_table.setColumnWidth(USERNAME_COLUMN, max(180, available_width - other_widths))
+        """Adjust the last visible column width so the entries table fits the viewport without trailing blank space."""
+        self._is_programmatic_resizing = True
+        try:
+            adjust_last_visible_column_to_viewport(
+                self._entries_table,
+                min_column_widths=_DEFAULT_ENTRY_COLUMN_WIDTHS,
+                custom_widths=self._custom_column_widths,
+            )
+        finally:
+            self._is_programmatic_resizing = False
 
     def _reset_column_sizes(self) -> None:
         """Reset column widths back to their initial default layout."""
@@ -954,8 +961,10 @@ class UserIPDatabasesManager(
                 header.setSectionResizeMode(column, QHeaderView.ResizeMode.Interactive)
 
             self._entries_table.setColumnWidth(INDEX_COLUMN, 50)
+            self._entries_table.setColumnWidth(USERNAME_COLUMN, 180)
             self._entries_table.setColumnWidth(IP_COLUMN, 120)
             self._entries_table.setColumnWidth(RANGE_COLUMN, 180)
+            self._entries_table.setColumnWidth(DATABASE_COLUMN, 160)
             self._entries_table.setColumnWidth(NOTES_COLUMN, 180)
             self._entries_table.setColumnWidth(SOURCE_COLUMN, 85)
             self._entries_table.setColumnWidth(DETECTIONS_COLUMN, 85)
@@ -963,7 +972,6 @@ class UserIPDatabasesManager(
             self._entries_table.setColumnWidth(UPDATED_AT_COLUMN, 145)
             self._entries_table.setColumnWidth(FIRST_SEEN_AT_COLUMN, 145)
             self._entries_table.setColumnWidth(LAST_SEEN_AT_COLUMN, 145)
-            self._entries_table.setColumnWidth(DATABASE_COLUMN, 160)
             self._adjust_username_column_width()
         finally:
             self._is_programmatic_resizing = False

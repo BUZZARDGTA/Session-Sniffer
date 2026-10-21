@@ -959,7 +959,7 @@ class UserIPEntriesOperationsMixin(QDialog):
 
         with QSignalBlocker(self._model):
             for row in range(self._model.rowCount()):
-                for column in range(DATABASE_COLUMN):
+                for column in range(self._model.columnCount()):
                     item = self._model.item(row, column)
                     if not item:
                         continue

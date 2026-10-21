@@ -58,14 +58,14 @@ INDEX_COLUMN = 0
 USERNAME_COLUMN = 1
 IP_COLUMN = 2
 RANGE_COLUMN = 3
-NOTES_COLUMN = 4
-SOURCE_COLUMN = 5
-DETECTIONS_COLUMN = 6
-ADDED_AT_COLUMN = 7
-UPDATED_AT_COLUMN = 8
-FIRST_SEEN_AT_COLUMN = 9
-LAST_SEEN_AT_COLUMN = 10
-DATABASE_COLUMN = 11
+DATABASE_COLUMN = 4
+NOTES_COLUMN = 5
+SOURCE_COLUMN = 6
+DETECTIONS_COLUMN = 7
+ADDED_AT_COLUMN = 8
+UPDATED_AT_COLUMN = 9
+FIRST_SEEN_AT_COLUMN = 10
+LAST_SEEN_AT_COLUMN = 11
 
 TIMESTAMP_COLUMNS = (ADDED_AT_COLUMN, UPDATED_AT_COLUMN, FIRST_SEEN_AT_COLUMN, LAST_SEEN_AT_COLUMN)
 
@@ -73,16 +73,16 @@ FILTERABLE_COLUMNS = (
     USERNAME_COLUMN,
     IP_COLUMN,
     RANGE_COLUMN,
+    DATABASE_COLUMN,
     NOTES_COLUMN,
     SOURCE_COLUMN,
     ADDED_AT_COLUMN,
     UPDATED_AT_COLUMN,
     FIRST_SEEN_AT_COLUMN,
     LAST_SEEN_AT_COLUMN,
-    DATABASE_COLUMN,
 )
 
-ENTRY_TABLE_HEADERS = ['#', 'Username', 'IP', 'Range', 'Notes', 'Source', 'Detections', 'Added', 'Updated', 'First Seen', 'Last Seen', 'Database']
+ENTRY_TABLE_HEADERS = ['#', 'Username', 'IP', 'Range', 'Database', 'Notes', 'Source', 'Detections', 'Added', 'Updated', 'First Seen', 'Last Seen']
 
 IS_PERSISTED_ROLE = Qt.ItemDataRole.UserRole + 1
 
@@ -217,6 +217,7 @@ def build_entry_row_items(
 
     ip_item = QStandardItem(entry.ip if is_single_ip else '')
     range_item = QStandardItem('' if is_single_ip else entry.ip)
+    db_item = _make_readonly_item(database[0] if database else '', str(database[1]) if database is not None else None)
     notes_item = QStandardItem(entry.notes)
     source_item = _make_readonly_item(entry.source, entry.source)
     detections_item = _make_readonly_item(str(entry.detections_count), entry.detections_count)
@@ -224,8 +225,7 @@ def build_entry_row_items(
     updated_item = _make_timestamp_item(entry.updated_at)
     first_seen_item = _make_timestamp_item(entry.first_seen_at)
     last_seen_item = _make_timestamp_item(entry.last_seen_at)
-    db_item = _make_readonly_item(database[0] if database else '', str(database[1]) if database is not None else None)
-    return [index_item, username_item, ip_item, range_item, notes_item, source_item, detections_item, added_item, updated_item, first_seen_item, last_seen_item, db_item]
+    return [index_item, username_item, ip_item, range_item, db_item, notes_item, source_item, detections_item, added_item, updated_item, first_seen_item, last_seen_item]
 
 
 def is_row_persisted(model: QStandardItemModel, row: int) -> bool:
