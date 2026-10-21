@@ -28,6 +28,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from session_sniffer.constants.local import USERIP_DATABASES_DIR_PATH
 from session_sniffer.guis.colors import TableColors
 from session_sniffer.models.userip_settings_model import format_iso_timestamp_display
 from session_sniffer.text_utils import pluralize, split_usernames
@@ -95,9 +96,28 @@ def _format_looky_tooltip_html(text: str, looky_names: set[str], *, is_disconnec
     return f'<span>{", ".join(formatted_tokens)}</span>'
 
 
-def _format_userip_tooltip_lines(userip: UserIP) -> list[str]:
+def _format_userip_tooltip_lines(
+    userip: UserIP,
+    *,
+    looky_names: set[str] | None = None,
+    is_disconnected: bool = False,
+) -> list[str]:
     """Format HTML lines describing a player's UserIP metadata and timestamps for tooltips."""
     lines: list[str] = []
+    try:
+        db_display = str(userip.db_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix(''))
+    except ValueError:
+        db_display = str(userip.db_path)
+    lines.append(f'<span style="color: #9ca3af;">Database:</span> {html.escape(db_display)}')
+    if userip.usernames:
+        usernames_label = f'DB Username{pluralize(len(userip.usernames))}'
+        db_usernames_text = ', '.join(userip.usernames)
+        db_usernames_html = (
+            _format_looky_tooltip_html(db_usernames_text, looky_names, is_disconnected=is_disconnected)
+            if looky_names is not None
+            else html.escape(db_usernames_text)
+        )
+        lines.append(f'<span style="color: #9ca3af;">{usernames_label}:</span> {db_usernames_html}')
     if userip.notes:
         notes_label = f'Note{pluralize(len(userip.notes))}'
         lines.append(f'<span style="color: #9ca3af;">{notes_label}:</span> {html.escape(", ".join(userip.notes))}')
@@ -168,13 +188,18 @@ class ElidedTextTooltipDelegate(QStyledItemDelegate):
         user_role_data = index.data(Qt.ItemDataRole.UserRole)
         looky_names: set[str] | None = cast('set[str]', user_role_data) if isinstance(user_role_data, set) and user_role_data else None
         if looky_names is not None or player_userip is not None:
+            is_disconnected = _is_disconnected_cell(view, index)
             usernames_html = (
-                _format_looky_tooltip_html(text, looky_names, is_disconnected=_is_disconnected_cell(view, index))
+                _format_looky_tooltip_html(text, looky_names, is_disconnected=is_disconnected)
                 if looky_names is not None
                 else f'<span>{html.escape(text)}</span>'
             )
             if player_userip is not None:
-                userip_lines = _format_userip_tooltip_lines(player_userip)
+                userip_lines = _format_userip_tooltip_lines(
+                    player_userip,
+                    looky_names=looky_names,
+                    is_disconnected=is_disconnected,
+                )
                 tooltip_text = '<br>'.join([usernames_html, *userip_lines])
             else:
                 tooltip_text = usernames_html
