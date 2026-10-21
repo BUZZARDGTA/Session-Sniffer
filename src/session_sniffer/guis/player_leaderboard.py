@@ -361,6 +361,7 @@ class PlayerLeaderboardWindow(ToggleAlwaysOnTopMixin):
         self._cap_spinbox.setRange(50, 10000)
         self._cap_spinbox.setSingleStep(50)
         self._cap_spinbox.setValue(1000)
+        self._cap_spinbox.setSuffix(' players')
         self._cap_spinbox.setToolTip('Maximum number of players to display in the leaderboard')
         self._cap_spinbox.valueChanged.connect(self._on_cap_changed)
         filters_layout.addWidget(self._cap_spinbox)

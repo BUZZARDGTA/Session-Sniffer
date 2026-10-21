@@ -357,6 +357,7 @@ class PortScannerTabWidget(QWidget):
         self._threads_spinbox.setRange(1, MAX_SCAN_THREADS)
         self._threads_spinbox.setSingleStep(32)
         self._threads_spinbox.setValue(DEFAULT_SCAN_THREADS)
+        self._threads_spinbox.setSuffix(' threads')
 
         timeout_label = QLabel('Timeout:')
         self._timeout_spinbox = QSpinBox()

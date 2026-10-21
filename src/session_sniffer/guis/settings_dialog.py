@@ -632,10 +632,9 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
 
             case SettingType.INTEGER | SettingType.INTEGER_OR_ALL:
                 if key == 'capture_filter_process_pid':
-                    cast('ProcessSelectorWidget', widget).set_value(
-                        int(value) if isinstance(value, (int, float)) else 0,
-                        Settings.capture_filter_process_name,
-                    )
+                    pid_value = int(value) if isinstance(value, (int, float)) else 0
+                    process_name = Settings.capture_filter_process_name if self._loading_settings else None
+                    cast('ProcessSelectorWidget', widget).set_value(pid_value, process_name)
                 else:
                     cast('QSpinBox', widget).setValue(int(value) if isinstance(value, (int, float)) else 0)
 
@@ -768,7 +767,9 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
 
         if 'capture_filter_process_pid' in self._widgets:
             selector = cast('ProcessSelectorWidget', self._widgets['capture_filter_process_pid'])
-            Settings.capture_filter_process_name = selector.process_name()
+            selected_process_name = selector.process_name()
+            new_values['capture_filter_process_name'] = selected_process_name
+            Settings.capture_filter_process_name = selected_process_name
 
         if self._capture.is_running():
             Settings.capture_interface_name = self._capture.config.interface.name
@@ -879,6 +880,7 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
                     combo = widget.findChild(QComboBox)
                     if combo is not None:
                         combo.currentIndexChanged.connect(self._update_restart_notice)
+                    widget.process_selection_applied.connect(self._on_process_selection_applied)
                 case _:
                     if meta.setting_type in (SettingType.COLUMN_TUPLE, SettingType.THIRD_PARTY_SERVERS_TUPLE):
                         for checkbox in widget.findChildren(QCheckBox):
@@ -933,10 +935,23 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
             return
         self._restart_notice_banner.setVisible(self._has_unsaved_restart_changes())
 
+    def _on_process_selection_applied(self) -> None:
+        """Synchronize dialog widgets and baseline values after TargetProcessDialog persists process selection."""
+        track_by_name_widget = self._widgets.get('capture_filter_process_track_by_name')
+        if isinstance(track_by_name_widget, QCheckBox):
+            with QSignalBlocker(track_by_name_widget):
+                track_by_name_widget.setChecked(Settings.capture_filter_process_track_by_name)
+        self._old_values['capture_filter_process_pid'] = Settings.capture_filter_process_pid
+        self._old_values['capture_filter_process_name'] = Settings.capture_filter_process_name
+        self._old_values['capture_filter_process_track_by_name'] = Settings.capture_filter_process_track_by_name
+        self._update_restart_notice()
+
     def _is_setting_modified(self, key: str, widget: QWidget) -> bool:
         """Return `True` if *widget*'s current value for *key* differs from its initial value."""
         current_value = self._read_widget_value(key, widget)
         original_value = self._old_values.get(key)
+        if key == 'capture_filter_process_pid' and isinstance(widget, ProcessSelectorWidget):
+            return current_value != original_value or widget.process_name() != self._old_values.get('capture_filter_process_name')
         if SETTING_METADATA[key].setting_type in (SettingType.IP_RANGE_TUPLE, SettingType.STRING_TUPLE):
             return sorted(current_value if isinstance(current_value, tuple) else ()) != sorted(original_value if isinstance(original_value, tuple) else ())
         return current_value != original_value

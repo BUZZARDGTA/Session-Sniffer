@@ -2,7 +2,7 @@
 
 from typing import override
 
-from PySide6.QtCore import QEvent, QObject, QSignalBlocker, Qt
+from PySide6.QtCore import QEvent, QObject, QSignalBlocker, Qt, Signal
 from PySide6.QtGui import QIcon, QKeyEvent
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -59,10 +59,13 @@ class _ProcessComboBox(QComboBox):
 class ProcessSelectorWidget(QWidget):
     """Composite widget combining a friendly process dropdown with a browse dialog button."""
 
+    process_selection_applied = Signal()
+
     def __init__(self, parent: QWidget | None = None, meta: SettingMeta | None = None) -> None:
         """Initialize the process selector widget."""
         super().__init__(parent)
         self._setting_tooltip: str | None = format_setting_tooltip(meta) if meta is not None else None
+        self._selected_name: str | None = Settings.capture_filter_process_name
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -70,7 +73,7 @@ class ProcessSelectorWidget(QWidget):
 
         self._combo = _ProcessComboBox(self)
         self._combo.setMinimumWidth(240)
-        self._combo.currentIndexChanged.connect(self._update_combo_tooltip)
+        self._combo.currentIndexChanged.connect(self._on_combo_index_changed)
         layout.addWidget(self._combo, 1)
 
         browse_icon = QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'target.svg'))
@@ -98,6 +101,11 @@ class ProcessSelectorWidget(QWidget):
 
         self.refresh_process_list()
 
+    def _on_combo_index_changed(self) -> None:
+        """Sync tracked process name and update tooltip when combo box index changes."""
+        self._selected_name = self.process_name()
+        self._update_combo_tooltip()
+
     def _update_combo_tooltip(self) -> None:
         """Update the combo box tooltip to reflect the selected process details and setting explanation."""
         current_index = self._combo.currentIndex()
@@ -124,7 +132,8 @@ class ProcessSelectorWidget(QWidget):
             self._combo.setToolTip(disabled_tooltip)
             return
 
-        current_pid = self.value()
+        current_pid = self.value() if self._combo.count() > 0 else Settings.capture_filter_process_pid
+        current_name = self._selected_name
         globe_icon = QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'globe.svg'))
         warning_icon = render_svg_icon_from_resource('triangle-alert.svg', 16, 16, '#f59e0b')
 
@@ -151,22 +160,20 @@ class ProcessSelectorWidget(QWidget):
 
             # If current PID was set to a process that is not running right now, append it so setting is preserved
             if not found_current and current_pid > 0:
-                tracked_name = Settings.capture_filter_process_name
-                display_text = f'{tracked_name} (PID: {current_pid} - Not Running)' if tracked_name is not None else f'Process PID {current_pid} (Not Running)'
+                display_text = f'{current_name} (PID: {current_pid} - Not Running)' if current_name is not None else f'Process PID {current_pid} (Not Running)'
                 self._combo.addItem(warning_icon, display_text, current_pid)
                 not_running_index = self._combo.count() - 1
                 self._combo.setItemData(not_running_index, display_text, Qt.ItemDataRole.ToolTipRole)
-                if tracked_name is not None:
-                    self._combo.setItemData(not_running_index, tracked_name, Qt.ItemDataRole.UserRole + 1)
-            elif not found_current and current_pid <= 0 and Settings.capture_filter_process_track_by_name and Settings.capture_filter_process_name is not None:
-                tracked_name = Settings.capture_filter_process_name
-                display_text = f'{tracked_name} (Not Running)'
+                if current_name is not None:
+                    self._combo.setItemData(not_running_index, current_name, Qt.ItemDataRole.UserRole + 1)
+            elif not found_current and current_pid <= 0 and Settings.capture_filter_process_track_by_name and current_name is not None:
+                display_text = f'{current_name} (Not Running)'
                 self._combo.addItem(warning_icon, display_text, 0)
                 not_running_index = self._combo.count() - 1
-                self._combo.setItemData(not_running_index, f'{tracked_name} (Waiting to launch)', Qt.ItemDataRole.ToolTipRole)
-                self._combo.setItemData(not_running_index, tracked_name, Qt.ItemDataRole.UserRole + 1)
+                self._combo.setItemData(not_running_index, f'{current_name} (Waiting to launch)', Qt.ItemDataRole.ToolTipRole)
+                self._combo.setItemData(not_running_index, current_name, Qt.ItemDataRole.UserRole + 1)
 
-            self.set_value(current_pid)
+            self.set_value(current_pid, current_name)
 
         self._update_combo_tooltip()
 
@@ -185,16 +192,22 @@ class ProcessSelectorWidget(QWidget):
 
     def set_value(self, pid: int, process_name: str | None = None) -> None:
         """Set the selected PID in the combo box."""
-        target_name = process_name or Settings.capture_filter_process_name
+        target_name = process_name
+        self._selected_name = target_name
         for index in range(self._combo.count()):
             if self._combo.itemData(index) == pid:
-                if not pid and index > 0:
-                    if target_name is not None and self._combo.itemData(index, Qt.ItemDataRole.UserRole + 1) == target_name:
+                if not pid:
+                    if not index and target_name is None:
+                        self._combo.setCurrentIndex(0)
+                        self._update_combo_tooltip()
+                        return
+                    if index > 0 and target_name is not None and self._combo.itemData(index, Qt.ItemDataRole.UserRole + 1) == target_name:
                         self._combo.setCurrentIndex(index)
                         self._update_combo_tooltip()
                         return
                     continue
                 self._combo.setCurrentIndex(index)
+                self._selected_name = self.process_name()
                 self._update_combo_tooltip()
                 return
 
@@ -218,6 +231,7 @@ class ProcessSelectorWidget(QWidget):
             self._combo.setCurrentIndex(item_index)
         else:
             self._combo.setCurrentIndex(0)
+        self._selected_name = self.process_name()
         self._update_combo_tooltip()
 
     def _on_browse_clicked(self) -> None:
@@ -230,6 +244,8 @@ class ProcessSelectorWidget(QWidget):
             selected_name = dialog.selected_process_name
             Settings.capture_filter_process_pid = selected_pid
             Settings.capture_filter_process_name = selected_name
+            self._selected_name = selected_name
             ensure_process_monitor_running()
             self.refresh_process_list()
             self.set_value(selected_pid, selected_name)
+        self.process_selection_applied.emit()

@@ -8,6 +8,8 @@ from typing import TYPE_CHECKING, Literal
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+    from PySide6.QtGui import QStandardItemModel
+
 from PySide6.QtCore import Qt, QUrl
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import QDialog, QFileDialog, QMessageBox
@@ -15,6 +17,7 @@ from PySide6.QtWidgets import QDialog, QFileDialog, QMessageBox
 from session_sniffer.constants.local import USERIP_DATABASES_BACKUP_DIR_PATH, USERIP_DATABASES_DIR_PATH
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.guis.userip_manager_helpers import (
+    extract_entry_model_from_row,
     load_userip_database_model,
     parse_userip_database_content,
     save_userip_database_model,
@@ -62,6 +65,7 @@ class UserIPImportExportMixin(QDialog):
         raise NotImplementedError
 
     if TYPE_CHECKING:
+        _model: QStandardItemModel
         _get_selected_tree_directory: Callable[[], Path]
         read_settings_from_widgets: Callable[[], UserIPSettingsModel]
         populate_settings_widgets: Callable[[UserIPSettingsModel], None]
@@ -309,6 +313,7 @@ class UserIPImportExportMixin(QDialog):
         imported_settings = imported_db.settings
         current_settings = self.read_settings_from_widgets()
 
+        settings_changed = False
         if imported_settings != current_settings:
             choice = self._prompt_settings_conflict(src_path.name, "the current database's settings")
             if choice is None:
@@ -316,15 +321,26 @@ class UserIPImportExportMixin(QDialog):
             if choice == 'use':
                 self.populate_settings_widgets(imported_settings)
                 self._mark_settings_dirty()
+                settings_changed = True
+
+        existing_set: set[tuple[str, str]] = set()
+        for row in range(self._model.rowCount()):
+            username, ip, _notes, _entry_model = extract_entry_model_from_row(self._model, row)
+            if username and ip:
+                existing_set.add((username, ip))
 
         added = 0
         for entry in imported_db.entries:
+            key = (entry.username, entry.ip)
+            if key in existing_set:
+                continue
+            existing_set.add(key)
             merged_entry = entry.model_copy(update={'source': 'Import'}) if entry.source == 'Manual' and not entry.is_looky else entry
             self._append_row(merged_entry, index=self._next_index)
             self._next_index += 1
             added += 1
 
-        if added:
+        if added or settings_changed:
             self._mark_entries_dirty()
             self._highlight_duplicates()
             self._save_database()

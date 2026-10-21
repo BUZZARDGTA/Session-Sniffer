@@ -382,6 +382,9 @@ class HighRateMonitorWidget(QWidget):
     def _on_auto_select_toggled(self) -> None:
         checked = self._auto_select_checkbox.isChecked()
         self._auto_select = checked
+        if Settings.high_rate_monitor_auto_select != checked:
+            Settings.high_rate_monitor_auto_select = checked
+            Settings.rewrite_settings_file()
         self._select_button.setEnabled(not checked)
         self._deselect_button.setEnabled(not checked)
         if checked:

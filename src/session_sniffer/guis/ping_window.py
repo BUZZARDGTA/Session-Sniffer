@@ -335,6 +335,21 @@ class PingTabWidget(QWidget):
         """Return True if this tab is currently running a ping worker thread."""
         return self._worker_thread is not None and self._worker_thread.isRunning()
 
+    def configure_probe(self, *, mode: PingMode, port: int | None = None) -> None:
+        """Update the tab's protocol mode and port, stopping any active probe if parameters changed."""
+        mode_data = self._mode_combo.currentData()
+        current_mode = PingMode(str(mode_data)) if mode_data is not None else PingMode.ICMP
+        target_port = port if port is not None else self._port_spinbox.value()
+        has_port = mode in (PingMode.TCP, PingMode.UDP)
+        if self.is_running and (current_mode != mode or (has_port and self._port_spinbox.value() != target_port)):
+            self.stop_ping()
+        if not self.is_running:
+            mode_index = self._mode_combo.findData(mode)
+            if mode_index >= 0:
+                self._mode_combo.setCurrentIndex(mode_index)
+            if port is not None:
+                self._port_spinbox.setValue(port)
+
     def start_ping(self) -> None:
         """Start the ping worker if not already running."""
         if self.is_running:
@@ -638,6 +653,7 @@ class PingWindow(QWidget):
             tab = self._tab_widget.widget(i)
             if isinstance(tab, PingTabWidget) and tab.target_ip == effective_ip:
                 self._tab_widget.setCurrentIndex(i)
+                tab.configure_probe(mode=mode, port=port)
                 if auto_start and not tab.is_running:
                     tab.start_ping()
                 return

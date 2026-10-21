@@ -918,8 +918,11 @@ class PlayerIdentifierWidget(QWidget):
         """Apply updated detection parameters from `Settings`."""
         self._update_baseline_button_state()
         self._resolve_button.setToolTip(
-            'Step 2: Start moving, jumping, or generating traffic while keeping other players still.\n\n'
-            'The tool compares each IP against its baseline to find whose traffic spikes significantly.\n\n'
+            'Step 2: Starts watching for traffic spikes.\n\n'
+            'After clicking this, spectate the player you want to identify using '
+            'the Orbital Cannon, a CCTV camera, or by physically approaching them.\n'
+            'When your game loads that player, it sends more data to/from their IP, '
+            'causing a spike compared to the baseline.\n\n'
             f'An IP must spike for {self._spike_sustained_seconds} consecutive seconds to be confirmed.\n\n'
             'Tip: Detection works best when the target player is moving — '
             'a moving player generates significantly more traffic than a stationary one.',

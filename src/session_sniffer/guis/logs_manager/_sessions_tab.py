@@ -106,6 +106,7 @@ class SessionsLogTab(QWidget):
         super().__init__(parent)
         self._sessions_dir = sessions_dir
         self._current_file: Path | None = None
+        self._saved_file_before_global_search: Path | None = None
         self._selected_path: Path | None = None
         self._global_search_active = False
         self._current_rendered_text = ''
@@ -446,6 +447,7 @@ class SessionsLogTab(QWidget):
         """Switch between single-file view mode and global search mode."""
         if self._global_search_checkbox.isChecked():
             self._file_watcher.stop()
+            self._saved_file_before_global_search = self._current_file
             self._global_search_active = True
             self._clear_tree_selection()
             self._tree_container.setVisible(False)
@@ -461,8 +463,14 @@ class SessionsLogTab(QWidget):
             self._viewer.setPlaceholderText(_SINGLE_FILE_VIEWER_PLACEHOLDER)
             self._tree.setEnabled(True)
             self._viewer.setExtraSelections([])
-            if self._current_file is not None:
-                self._load_file(self._current_file)
+            restored_file = getattr(self, '_saved_file_before_global_search', None)
+            self._saved_file_before_global_search = None
+            if isinstance(restored_file, Path) and restored_file.is_file():
+                index = self._fs_model.index(str(restored_file))
+                if index.isValid():
+                    self._tree.setCurrentIndex(index)
+                self._selected_path = restored_file
+                self._load_file(restored_file)
             else:
                 self._viewer.setPlainText('')
                 self._match_label.setText('')
@@ -628,7 +636,9 @@ class SessionsLogTab(QWidget):
             return
 
         self._stop_loading_animation()
-        self._viewer.setPlainText('\n'.join(result_lines))
+        rendered_text = '\n'.join(result_lines)
+        self._current_rendered_text = rendered_text
+        self._viewer.setPlainText(rendered_text)
         self._match_label.setText(f'{total_matches} match{pluralize(total_matches, "", "es")}' if total_matches else 'No matches')
         self._file_info_label.setText(
             f'Search across all files  |  {files_with_matches} file{pluralize(files_with_matches)} matched' if total_matches else '',

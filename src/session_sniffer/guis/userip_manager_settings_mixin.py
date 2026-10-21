@@ -251,7 +251,7 @@ class SettingsPanelMixin(QDialog):
         )
 
         suspend_index = self._setting_suspend_mode.currentIndex()
-        protection_enabled = bool(suspend_index) if self._is_protection_supported() else False
+        protection_enabled = bool(suspend_index)
         suspend_mode: int | Literal['Auto'] = 'Auto' if suspend_index <= 1 else self._setting_suspend_custom.value()
 
         return UserIPSettingsModel(

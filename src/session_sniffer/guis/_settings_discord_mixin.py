@@ -48,6 +48,7 @@ class SettingsDialogDiscordMixin(QDialog):
     """
 
     _widgets: dict[str, QWidget]
+    _old_values: dict[str, bool | str | int | float | tuple[str, ...] | None]
 
     def _build_discord_webhook_group(
         self,
@@ -215,6 +216,7 @@ class SettingsDialogDiscordMixin(QDialog):
         if confirm != QMessageBox.StandardButton.Yes:
             return
         Settings.discord_webhook_message_ids = None
+        self._old_values['discord_webhook_message_ids'] = None
         Settings.rewrite_settings_file()
         QMessageBox.information(self, TITLE, 'Stored Discord message IDs cleared.')
 
