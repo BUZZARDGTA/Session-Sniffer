@@ -82,13 +82,13 @@ class MalformedProtocolError(MalformedPacketError):
 class MissingRequiredPacketFieldError(MalformedPacketError):
     """Raised when a required packet field is missing/empty."""
 
-    message_template = 'Missing required packet field(s)'
+    message_template = 'Missing required packet field'
 
 
 class MissingPortError(MalformedPacketError):
     """Raised when source or destination port is missing/empty."""
 
-    message_template = 'Missing port(s)'
+    message_template = 'Missing port'
 
 
 class InvalidPortNumberError(MalformedPacketError):

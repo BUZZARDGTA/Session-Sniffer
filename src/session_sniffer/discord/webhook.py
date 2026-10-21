@@ -623,11 +623,11 @@ class DiscordWebhookSender:
     def _parse_posted_id(response_body: bytes) -> str | None:
         """Extract the message id from a POST ?wait=true response body."""
         try:
-            msg = DiscordMessageResponse.model_validate_json(response_body)
+            message = DiscordMessageResponse.model_validate_json(response_body)
         except ValidationError as e:
             logger.warning('Failed to parse Discord message response: %s', e)
             return None
-        return str(msg.id) if msg.id is not None else None
+        return str(message.id) if message.id is not None else None
 
     @staticmethod
     def _send(url: str, *, method: str, body: bytes) -> tuple[int, dict[str, str], bytes]:

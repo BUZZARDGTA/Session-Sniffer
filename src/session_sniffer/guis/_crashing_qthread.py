@@ -17,6 +17,7 @@ from PySide6.QtCore import QCoreApplication, QObject, QThread, QTimer
 from session_sniffer.background.events import gui_closed__event
 from session_sniffer.core import terminate_on_uncaught_exception
 from session_sniffer.logging_setup import register_diagnostic_provider
+from session_sniffer.text_utils import pluralize
 
 logger = logging.getLogger(__name__)
 
@@ -94,7 +95,7 @@ class CrashingQThread(QThread):
         logger.debug(
             'CrashingQThread stop_all_active_threads: stopping %d active threads: %s',
             len(active_threads),
-            [(t.thread_name, t.cpp_ptr) for t in active_threads],
+            [(thread.thread_name, thread.cpp_ptr) for thread in active_threads],
         )
         for thread in active_threads:
             thread.requestInterruption()
@@ -114,10 +115,12 @@ class CrashingQThread(QThread):
             time.sleep(0.05)
         cls._active_threads = {thread for thread in cls._active_threads if thread.isRunning() or not thread.wait(50)}
         if cls._active_threads:
+            remaining_count = len(cls._active_threads)
             logger.warning(
-                'CrashingQThread stop_all_active_threads: %d thread(s) still running after wait, retaining references to prevent crash: %s',
-                len(cls._active_threads),
-                [(t.thread_name, t.cpp_ptr) for t in cls._active_threads],
+                'CrashingQThread stop_all_active_threads: %d %s still running after wait, retaining references to prevent crash: %s',
+                remaining_count,
+                f'thread{pluralize(remaining_count)}',
+                [(thread.thread_name, thread.cpp_ptr) for thread in cls._active_threads],
             )
         logger.debug('CrashingQThread stop_all_active_threads completed')
 

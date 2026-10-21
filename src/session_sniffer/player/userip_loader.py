@@ -132,7 +132,7 @@ def _merge_overlapping_windows(windows: Sequence[_SessionWindow]) -> tuple[_Sess
     """Sort and merge overlapping or adjacent session windows for a single IP."""
     if not windows:
         return ()
-    sorted_windows = sorted(windows, key=lambda w: (w.start_ts, w.end_ts))
+    sorted_windows = sorted(windows, key=lambda window: (window.start_ts, window.end_ts))
     merged: list[_SessionWindow] = [sorted_windows[0]]
     for current in sorted_windows[1:]:
         prev = merged[-1]
@@ -153,7 +153,11 @@ def _compute_ip_log_stats(merged_windows: Sequence[_SessionWindow], csv_events: 
     unmatched_csv_count = 0
     for _csv_iso, csv_ts in csv_events:
         matched_idx = next(
-            (idx for idx, w in enumerate(merged_windows) if w.start_ts - _CSV_SESSION_MATCH_TOLERANCE_SECONDS <= csv_ts <= w.end_ts + _CSV_SESSION_MATCH_TOLERANCE_SECONDS),
+            (
+                idx
+                for idx, window in enumerate(merged_windows)
+                if window.start_ts - _CSV_SESSION_MATCH_TOLERANCE_SECONDS <= csv_ts <= window.end_ts + _CSV_SESSION_MATCH_TOLERANCE_SECONDS
+            ),
             None,
         )
         if matched_idx is not None:
@@ -161,11 +165,11 @@ def _compute_ip_log_stats(merged_windows: Sequence[_SessionWindow], csv_events: 
         else:
             unmatched_csv_count += 1
 
-    detections_count = sum(max(w.encounters, matched_csv_counts[i]) for i, w in enumerate(merged_windows)) + unmatched_csv_count
+    detections_count = sum(max(window.encounters, matched_csv_counts[i]) for i, window in enumerate(merged_windows)) + unmatched_csv_count
     if detections_count <= 0:
         return None
     first_seen_at = merged_windows[0].first_seen_iso if merged_windows else None
-    last_seen_at = max(merged_windows, key=lambda w: w.end_ts).last_seen_iso if merged_windows else None
+    last_seen_at = max(merged_windows, key=lambda window: window.end_ts).last_seen_iso if merged_windows else None
     if csv_events:
         first_seen_at = pick_earliest_iso(first_seen_at, csv_events[0][0])
         last_seen_at = pick_latest_iso(last_seen_at, csv_events[-1][0])
@@ -453,7 +457,7 @@ class _UserIPLogHistoryCache:
         if raw_records is None or not raw_records:
             cls._merged_windows_by_ip[ip_str] = ()
             return ()
-        windows = [w for rec in raw_records if (w := _raw_record_to_window(rec)) is not None]
+        windows = [window for rec in raw_records if (window := _raw_record_to_window(rec)) is not None]
         merged = _merge_overlapping_windows(windows)
         cls._merged_windows_by_ip[ip_str] = merged
         return merged

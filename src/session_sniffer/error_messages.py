@@ -193,7 +193,7 @@ def format_userip_ip_conflict_message(
         db1_name = conflict.existing_userip.db_path.relative_to(userip_databases_dir).with_suffix('')
         db2_name = conflict.conflicting_database_path.relative_to(userip_databases_dir).with_suffix('')
         usernames1 = ', '.join(conflict.existing_userip.usernames)
-        msg = f"""
+        conflict_message = f"""
             ERROR:
                 UserIP databases IP conflict
 
@@ -210,7 +210,7 @@ def format_userip_ip_conflict_message(
                 "{db2_name}":
                 {conflict.conflicting_username}={conflict.conflicting_ip}
         """
-        return msg, None
+        return conflict_message, None
 
     preview_lines: list[str] = []
     preview_count = min(count, 5)

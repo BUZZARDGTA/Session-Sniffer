@@ -83,7 +83,7 @@ def terminate_script(
         caller_native_id,
         caller_thread.ident,
     )
-    active_thread_names = [f'{t.name} (native_id={getattr(t, "native_id", "unknown")})' for t in threading.enumerate()]
+    active_thread_names = [f'{thread.name} (native_id={getattr(thread, "native_id", "unknown")})' for thread in threading.enumerate()]
     logger.debug('Active threads at terminate_script (%d): %s', len(active_thread_names), active_thread_names)
 
     ScriptControl.set_crashed()

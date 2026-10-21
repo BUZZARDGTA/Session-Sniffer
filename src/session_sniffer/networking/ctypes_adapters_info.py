@@ -453,7 +453,7 @@ def _populate_darwin_ifaddr(
             if sockaddr_dl.sdl_alen == _MAC_OCTETS_COUNT:
                 raw_bytes = bytes(sockaddr_dl.sdl_data)[sockaddr_dl.sdl_nlen : sockaddr_dl.sdl_nlen + _MAC_OCTETS_COUNT]
                 if any(raw_bytes):
-                    mac_by_interface_name[interface_name_string] = ':'.join(f'{b:02X}' for b in raw_bytes)
+                    mac_by_interface_name[interface_name_string] = ':'.join(f'{byte:02X}' for byte in raw_bytes)
 
             if address_entry.ifa_data:
                 if_data = ctypes.cast(address_entry.ifa_data, ctypes.POINTER(_DarwinIfData)).contents
