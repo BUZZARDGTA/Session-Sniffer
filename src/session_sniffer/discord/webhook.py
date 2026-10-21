@@ -565,6 +565,9 @@ class DiscordWebhookSender:
 
                 existing_id = message_ids.get(kind)
                 new_id = self._post_or_patch(url, existing_id, body)
+                if self._auto_disabled_url == url:
+                    ids_changed = False
+                    break
                 if new_id is None:
                     # Permanent failure already logged in _post_or_patch
                     if kind in message_ids:

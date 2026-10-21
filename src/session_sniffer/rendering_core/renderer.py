@@ -657,9 +657,17 @@ def rendering_core(
         ):
             last_webhook_submit_time = time.monotonic()
             use_mobile_text = Settings.discord_webhook_format == 'Mobile'
-            webhook_connected = session_connected[: Settings.discord_webhook_max_connected_players] if Settings.discord_webhook_max_connected_players > 0 else session_connected
+            sorted_webhook_connected = sorted(session_connected, key=lambda player: player.datetime.last_rejoin)
+            sorted_webhook_disconnected = sorted(session_disconnected, key=lambda player: player.datetime.last_seen, reverse=True)
+            webhook_connected = (
+                sorted_webhook_connected[: Settings.discord_webhook_max_connected_players]
+                if Settings.discord_webhook_max_connected_players > 0
+                else sorted_webhook_connected
+            )
             webhook_disconnected = (
-                session_disconnected[: Settings.discord_webhook_max_disconnected_players] if Settings.discord_webhook_max_disconnected_players > 0 else session_disconnected
+                sorted_webhook_disconnected[: Settings.discord_webhook_max_disconnected_players]
+                if Settings.discord_webhook_max_disconnected_players > 0
+                else sorted_webhook_disconnected
             )
             if Settings.discord_webhook_include_connected:
                 connected_text = (
