@@ -12,6 +12,7 @@ from PySide6.QtGui import QColor
 
 from session_sniffer.constants.local import USERIP_DATABASES_DIR_PATH
 from session_sniffer.error_messages import format_userip_ip_conflict_message
+from session_sniffer.gta5.suspend_manager import GTASuspendManager
 from session_sniffer.guis.dialogs import create_nonmodal_warning
 from session_sniffer.guis.utils import find_main_window
 from session_sniffer.models.userip_settings_model import (
@@ -21,7 +22,7 @@ from session_sniffer.models.userip_settings_model import (
     pick_latest_iso,
 )
 from session_sniffer.networking.ip_range import IPRange, parse_ip_range_entry
-from session_sniffer.player.registry import PlayersRegistry
+from session_sniffer.player.registry import PlayersRegistry, SessionTracker
 from session_sniffer.settings import Settings
 from session_sniffer.text_utils import format_triple_quoted_text, split_usernames
 from session_sniffer.utils import dedup_preserve_order
@@ -743,30 +744,37 @@ class UserIPDatabases:
         # Assign or refresh UserIP for all players in a single pass.
         for player in PlayersRegistry.get_all_players():
             prev_userip = player.userip
-            new_userip = cls._resolve_from_built_structures(
-                player.ip,
-                ip_to_userip,
-                range_entries,
-                conflicting_ips,
-                conflicting_ranges,
-            )
+            new_userip = cls._resolve_from_built_structures(player.ip, ip_to_userip, range_entries, conflicting_ips, conflicting_ranges)
             player.userip = new_userip
             if new_userip is None:
                 player.userip_detection = None
-            elif (
-                prev_userip is not None
-                and player.userip_detection is not None
-                and player.userip_detection.as_processed_task
-                and cls._should_retrigger_userip_detection(prev_userip, new_userip)
-            ):
-                player.userip_detection.as_processed_task = False
+                if prev_userip is not None:
+                    GTASuspendManager.release_reason_global(f'userip:{player.ip}')
+                    if not player.left_event.is_set():
+                        player.detection_checked = False
+            else:
+                if prev_userip is not None and prev_userip.settings.protection.enabled and not new_userip.settings.protection.enabled:
+                    GTASuspendManager.release_reason_global(f'userip:{player.ip}')
+                if (
+                    prev_userip is not None
+                    and player.userip_detection is not None
+                    and player.userip_detection.as_processed_task
+                    and cls._should_retrigger_userip_detection(prev_userip, new_userip)
+                ):
+                    player.userip_detection.as_processed_task = False
 
-        username_to_meta = cls._build_username_meta(
-            current_databases,
-            ambiguous_usernames,
-            canonical_names,
-            known_alts_clusters,
-        )
+        include_looky_for_snapshots = Settings.looky_enabled and Settings.is_gta5_feature_set()
+        for snapshot_player in SessionTracker.get_all_snapshot_players():
+            snapshot_player.userip = cls._resolve_from_built_structures(snapshot_player.ip, ip_to_userip, range_entries, conflicting_ips, conflicting_ranges)
+            with snapshot_player.looky_system.lock:
+                snapshot_looky_usernames = (
+                    list(snapshot_player.looky_system.usernames)
+                    if include_looky_for_snapshots and snapshot_player.looky_system.is_initialized
+                    else ()
+                )
+            snapshot_player.rebuild_usernames(looky_usernames=snapshot_looky_usernames)
+
+        username_to_meta = cls._build_username_meta(current_databases, ambiguous_usernames, canonical_names, known_alts_clusters)
 
         has_new_conflicts = bool(unresolved_conflicts - cls.notified_ip_conflicts)
         conflicts_changed = conflicts != cls._last_notified_conflicts

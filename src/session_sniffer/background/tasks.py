@@ -100,7 +100,8 @@ _active_userip_tasks_lock = Lock()
 _active_detection_check_ips: set[str] = set()
 _pending_detection_rescan_ips: set[str] = set()
 _detection_check_lock = Lock()
-_fired_detections: dict[tuple[str, int], set[object]] = {}
+_fired_detections: dict[tuple[str, int], dict[str, tuple[object, ...]]] = {}
+_active_global_suspend_reasons: dict[str, set[str]] = {}
 _fired_detections_lock = Lock()
 _MINUTE_INTERVAL_SECONDS = 60.0
 _ONE_SECOND_TD = timedelta(seconds=1)
@@ -642,20 +643,15 @@ def check_global_detections(player: Player) -> None:
     with _fired_detections_lock:
         for stale_key in [key for key in _fired_detections if key[0] == player.ip and key[1] != player.rejoins]:
             del _fired_detections[stale_key]
-        fired_set = _fired_detections.setdefault(join_key, set())
+        fired_map = _fired_detections.setdefault(join_key, {})
+    current_active_titles: set[str] = set()
+    current_suspend_reasons: set[str] = set()
 
-    def execute_suspension_action(
-        duration: int | Literal['Auto'],
-        suspension_name: str,
-    ) -> None:
+    def execute_suspension_action(duration: int | Literal['Auto'], suspension_name: str) -> None:
         """Execute a suspension action."""
         if not Settings.is_gta5_feature_set() or not CaptureState.is_local_capture():
             return
-        GTASuspendManager.request_suspend(
-            reason_key=f'global:{suspension_name}:{player.ip}',
-            left_event=player.left_event,
-            duration=duration,
-        )
+        GTASuspendManager.request_suspend(reason_key=f'global:{suspension_name}:{player.ip}', left_event=player.left_event, duration=duration)
 
     def handle_detection_notifications(
         detection_title: str,
@@ -664,45 +660,37 @@ def check_global_detections(player: Player) -> None:
         settings: _DetectionSettings,
     ) -> None:
         """Handle per-join deduplication, suspension, voice, logging, and message box for a detection."""
-        if not (settings.suspend_enabled or bool(settings.voice) or settings.log or settings.msgbox):
+        effective_suspend = settings.suspend_enabled and bool(settings.suspension_name) and Settings.is_gta5_feature_set() and CaptureState.is_local_capture()
+        effective_voice: Literal['Male', 'Female'] | bool = settings.voice if Settings.voice_notifications_enabled and settings.voice else False
+        effective_log = settings.log
+        effective_msgbox = settings.msgbox and player.userip is None
+        if not (effective_suspend or bool(effective_voice) or effective_log or effective_msgbox):
             return
-        signature = (
-            detection_title,
-            settings.suspend_enabled,
-            settings.suspend_duration,
-            settings.voice,
-            settings.log,
-            settings.msgbox,
-        )
+        current_active_titles.add(detection_title)
+        if effective_suspend:
+            current_suspend_reasons.add(f'global:{settings.suspension_name}:{player.ip}')
+        signature = (detection_title, effective_suspend, settings.suspend_duration if effective_suspend else None, effective_voice, effective_log, effective_msgbox)
         with _fired_detections_lock:
-            if signature in fired_set:
+            if fired_map.get(detection_title) == signature:
                 return
-            fired_set.add(signature)
+            fired_map[detection_title] = signature
 
-        if settings.suspend_enabled and settings.suspension_name:
+        if effective_suspend:
             execute_suspension_action(settings.suspend_duration, settings.suspension_name)
 
-        if Settings.voice_notifications_enabled and settings.voice:
-            tts_candidate_path = TTS_DIR_PATH / tts_voice_name(voice_setting=settings.voice) / 'detection' / f'{settings.tts_filename}.wav'
+        if effective_voice:
+            tts_candidate_path = TTS_DIR_PATH / tts_voice_name(voice_setting=effective_voice) / 'detection' / f'{settings.tts_filename}.wav'
             queue_voice_notification(tts_candidate_path)
 
-        if settings.log:
-            _log_to_protection_csv(
-                detection_title,
-                ', '.join(player.usernames),
-                player.ip,
-                player.iplookup.geolite2.country,
-            )
+        if effective_log:
+            _log_to_protection_csv(detection_title, ', '.join(player.usernames), player.ip, player.iplookup.geolite2.country)
 
-        if settings.msgbox and player.userip is None:
+        if effective_msgbox:
             _event_time = datetime.now(tz=LOCAL_TZ).strftime('%H:%M:%S')
 
             def _show_detection_notif() -> None:
-                show_detection_notification_dialog(
-                    find_main_window(),
-                    player,
-                    DetectionNotificationInfo(display_title=display_title, extra_detection_fields=extra_detection_fields, event_time=_event_time),
-                )
+                info = DetectionNotificationInfo(display_title=display_title, extra_detection_fields=extra_detection_fields, event_time=_event_time)
+                show_detection_notification_dialog(find_main_window(), player, info)
 
             gui_dispatcher.invoke(_show_detection_notif)
 
@@ -881,6 +869,18 @@ def check_global_detections(player: Player) -> None:
             ),
         )
 
+    with _fired_detections_lock:
+        for stale_title in [title for title in fired_map if title not in current_active_titles]:
+            del fired_map[stale_title]
+        prev_suspend_reasons = _active_global_suspend_reasons.get(player.ip, set())
+        stale_suspend_reasons = prev_suspend_reasons - current_suspend_reasons
+        if current_suspend_reasons:
+            _active_global_suspend_reasons[player.ip] = current_suspend_reasons
+        else:
+            _active_global_suspend_reasons.pop(player.ip, None)
+    for stale_reason in stale_suspend_reasons:
+        GTASuspendManager.release_reason_global(stale_reason)
+
 
 def _run_global_detections_check(player: Player) -> None:
     """Run `check_global_detections(player)`, re-running once if a rescan was requested while active."""
@@ -906,6 +906,11 @@ def submit_global_detections_check(player: Player) -> None:
     enqueue_player_for_resolution(player)
     has_non_event_combo_rules = any(not rule.has_event_condition for rule in ComboRulesManager.rules if rule.enabled)
     if not GUIDetectionSettings.has_any_global_detection_enabled() and not has_non_event_combo_rules:
+        with _fired_detections_lock:
+            _fired_detections.pop((player.ip, player.rejoins), None)
+            stale_reasons = _active_global_suspend_reasons.pop(player.ip, set())
+        for stale_reason in stale_reasons:
+            GTASuspendManager.release_reason_global(stale_reason)
         return
     with _detection_check_lock:
         if player.ip in _active_detection_check_ips:

@@ -24,7 +24,7 @@ from session_sniffer.guis.userip_manager_helpers import (
 )
 from session_sniffer.models.userip_settings_model import UserIPDatabaseFile, UserIPEntryModel, UserIPSettingsModel
 from session_sniffer.player import backup_userip_databases
-from session_sniffer.player.userip_loader import update_userip_databases
+from session_sniffer.player.userip_loader import invalidate_userip_db_mtime, update_userip_databases
 from session_sniffer.rendering_core.events import wake_rendering_core
 from session_sniffer.text_utils import pluralize
 
@@ -44,6 +44,8 @@ class UserIPImportExportMixin(QDialog):
         raise NotImplementedError
 
     def _load_all_databases(self) -> None: ...
+
+    def _rebuild_fs_watch(self) -> None: ...
 
     def _refresh_stats(self) -> None: ...
 
@@ -241,6 +243,7 @@ class UserIPImportExportMixin(QDialog):
         imported = 0
         merged = 0
         skipped = 0
+        modified_on_disk = False
         reload_current_view = False
 
         for file_path_str in file_paths:
@@ -271,6 +274,7 @@ class UserIPImportExportMixin(QDialog):
                         skipped += 1
                     else:
                         merged += result
+                        modified_on_disk = True
                         if self._is_current_database_file(dest):
                             reload_current_view = True
                     continue
@@ -283,10 +287,13 @@ class UserIPImportExportMixin(QDialog):
             if self._is_current_database_file(dest):
                 reload_current_view = True
             shutil.copy2(str(src), str(dest))
+            invalidate_userip_db_mtime(dest)
+            modified_on_disk = True
             imported += 1
 
-        if imported or merged:
+        if modified_on_disk:
             update_userip_databases()
+            self._rebuild_fs_watch()
             wake_rendering_core()
             if self._global_search_active:
                 self._load_all_databases()
@@ -379,6 +386,7 @@ class UserIPImportExportMixin(QDialog):
                 skipped = 0
                 overwrite_all = False
                 merge_all = False
+                modified_on_disk = False
                 reload_current_view = False
 
                 for member in json_members:
@@ -396,6 +404,7 @@ class UserIPImportExportMixin(QDialog):
                                 skipped += 1
                             else:
                                 merged += result
+                                modified_on_disk = True
                                 if self._is_current_database_file(dest):
                                     reload_current_view = True
                             continue
@@ -430,6 +439,7 @@ class UserIPImportExportMixin(QDialog):
                                 skipped += 1
                             else:
                                 merged += result
+                                modified_on_disk = True
                                 if self._is_current_database_file(dest):
                                     reload_current_view = True
                             continue
@@ -439,14 +449,17 @@ class UserIPImportExportMixin(QDialog):
                     if self._is_current_database_file(dest):
                         reload_current_view = True
                     dest.write_bytes(member_bytes)
+                    invalidate_userip_db_mtime(dest)
+                    modified_on_disk = True
                     imported += 1
 
         except zipfile.BadZipFile:
             QMessageBox.critical(self, TITLE, f'"{zip_path.name}" is not a valid ZIP archive.')
             return
 
-        if imported or merged:
+        if modified_on_disk:
             update_userip_databases()
+            self._rebuild_fs_watch()
             wake_rendering_core()
             if self._global_search_active:
                 self._load_all_databases()

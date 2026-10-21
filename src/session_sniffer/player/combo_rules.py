@@ -13,7 +13,7 @@ from session_sniffer.guis.country_data import matches_country
 from session_sniffer.models.combo_rules import EVENT_CONDITION, ComboRule, ConditionValue
 from session_sniffer.models.player import Player
 from session_sniffer.networking.ip_range import IPRange, check_ip_against_ranges, parse_ip_range_entry
-from session_sniffer.utils import get_file_signature
+from session_sniffer.utils import FileSignature, get_file_signature
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -193,7 +193,7 @@ class ComboRulesManager:
     """Singleton manager for combo detection rules."""
 
     rules: ClassVar[list[ComboRule]] = []
-    _last_file_signature: ClassVar[tuple[int, int] | None] = None
+    _last_file_signature: ClassVar[FileSignature | None] = None
 
     @classmethod
     def has_external_file_change(cls, file_path: Path) -> bool:

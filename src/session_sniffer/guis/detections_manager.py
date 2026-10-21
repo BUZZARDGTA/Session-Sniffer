@@ -47,7 +47,6 @@ from session_sniffer.guis.utils import (
     set_dialog_window_flags,
 )
 from session_sniffer.models.combo_rules import ComboRule
-from session_sniffer.models.detections import DetectionsFile
 from session_sniffer.player.combo_rules import ComboRulesManager
 from session_sniffer.player.detections import GUIDetectionSettings
 from session_sniffer.rendering_core.types import CaptureState
@@ -422,14 +421,8 @@ class DetectionsManagerDialog(DetectionsManagerTabsMixin, QDialog):
         )
         if file_path:
             try:
-                content = Path(file_path).read_text(encoding='utf-8')
-                model = DetectionsFile.model_validate_json(content)
-                GUIDetectionSettings.apply_model(model)
+                GUIDetectionSettings.import_from_file(Path(file_path))
                 GUIDetectionSettings.export_to_file(DETECTIONS_JSON_PATH)
-                # Import combo rules if present
-                if model.combo_rules is not None:
-                    ComboRulesManager.rules = list(model.combo_rules)
-                    ComboRulesManager.save_to_file(COMBO_RULES_PATH)
             except (ValidationError, OSError, json.JSONDecodeError) as e:
                 QMessageBox.critical(self, 'Import Error', f'Failed to import settings:\n{e}')
                 return

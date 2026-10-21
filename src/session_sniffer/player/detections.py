@@ -6,14 +6,15 @@ from typing import TYPE_CHECKING, ClassVar, Literal
 
 from pydantic import ValidationError
 
-from session_sniffer.constants.local import DETECTIONS_JSON_PATH
+from session_sniffer.constants.local import COMBO_RULES_PATH, DETECTIONS_JSON_PATH
 from session_sniffer.models.detections import (
     DetectionActionSettings,
     DetectionsFile,
     Gta5RelayDetectionActionSettings,
     ListDetectionActionSettings,
 )
-from session_sniffer.utils import get_file_signature
+from session_sniffer.player.combo_rules import ComboRulesManager
+from session_sniffer.utils import FileSignature, get_file_signature
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -97,7 +98,7 @@ class GUIDetectionSettings:
     gta5_relay_voice_notifications: ClassVar[Literal['Male', 'Female'] | bool] = False
     gta5_relay_logging: ClassVar[bool] = False
     gta5_relay_message_box: ClassVar[bool] = False
-    _last_file_signature: ClassVar[tuple[int, int] | None] = None
+    _last_file_signature: ClassVar[FileSignature | None] = None
 
     @classmethod
     def has_external_file_change(cls, file_path: Path = DETECTIONS_JSON_PATH) -> bool:
@@ -263,6 +264,7 @@ class GUIDetectionSettings:
             cls.import_from_file(file_path)
         except (ValidationError, json.JSONDecodeError, OSError):
             logger.exception('Failed to load detection settings from %s, keeping defaults', file_path)
+            cls.apply_model(DetectionsFile())
             if file_path == DETECTIONS_JSON_PATH:
                 cls._last_file_signature = get_file_signature(file_path)
 
@@ -284,8 +286,14 @@ class GUIDetectionSettings:
         content = file_path.read_text(encoding='utf-8')
         model = DetectionsFile.model_validate_json(content)
         cls.apply_model(model)
+        if model.combo_rules is not None:
+            ComboRulesManager.rules = list(model.combo_rules)
+            ComboRulesManager.save_to_file(COMBO_RULES_PATH)
         if file_path == DETECTIONS_JSON_PATH:
-            cls._last_file_signature = get_file_signature(file_path)
+            if model.combo_rules is not None:
+                cls.export_to_file(DETECTIONS_JSON_PATH)
+            else:
+                cls._last_file_signature = get_file_signature(file_path)
 
     @classmethod
     def save_to_settings(cls) -> None:

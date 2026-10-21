@@ -30,7 +30,7 @@ from session_sniffer.networking.ip_range import entry_ip_covers_ip, is_valid_ip_
 from session_sniffer.player.registry import PlayersRegistry
 from session_sniffer.player.userip import ProtectionSettings, UserIPDatabases, UserIPSettings
 from session_sniffer.text_utils import split_usernames
-from session_sniffer.utils import custom_str_to_bool, get_file_signature, validate_file
+from session_sniffer.utils import FileSignature, custom_str_to_bool, get_file_signature, validate_file
 from session_sniffer.utils_exceptions import InvalidBooleanValueError
 
 if TYPE_CHECKING:
@@ -43,7 +43,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 _update_userip_databases_lock = Lock()
-_last_userip_db_mod_times: dict[Path, tuple[int, int]] = {}
+_last_userip_db_mod_times: dict[Path, FileSignature] = {}
 
 DEFAULT_USERIP_FILES_SETTINGS_BY_PATH: dict[Path, UserIPSettingsModel] = {
     USERIP_DATABASES_DIR_PATH / json_name: settings for json_name, settings in DEFAULT_USERIP_FILES_SETTINGS.items()
@@ -725,11 +725,11 @@ def invalidate_userip_db_mtime(db_path: Path | None = None) -> None:
         _last_userip_db_mod_times.pop(db_path, None)
 
 
-def _snapshot_db_mod_times() -> dict[Path, tuple[int, int]]:
-    """Return a fresh `{path: (st_mtime_ns, st_size)}` snapshot for every `.json` file under the databases directory."""
+def _snapshot_db_mod_times() -> dict[Path, FileSignature]:
+    """Return a fresh `{path: FileSignature}` snapshot for every `.json` file under the databases directory."""
     if not USERIP_DATABASES_DIR_PATH.exists():
         return {}
-    snapshot: dict[Path, tuple[int, int]] = {}
+    snapshot: dict[Path, FileSignature] = {}
     for path in USERIP_DATABASES_DIR_PATH.rglob('*.json'):
         if not path.is_file():
             continue
@@ -739,11 +739,11 @@ def _snapshot_db_mod_times() -> dict[Path, tuple[int, int]]:
     return snapshot
 
 
-def _collect_userip_json_files() -> tuple[list[Path], dict[Path, tuple[int, int]]]:
+def _collect_userip_json_files() -> tuple[list[Path], dict[Path, FileSignature]]:
     if not USERIP_DATABASES_DIR_PATH.exists():
         return [], {}
     files: list[Path] = []
-    mod_times: dict[Path, tuple[int, int]] = {}
+    mod_times: dict[Path, FileSignature] = {}
     for path in USERIP_DATABASES_DIR_PATH.rglob('*.json'):
         if not path.is_file():
             continue

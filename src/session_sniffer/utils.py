@@ -246,13 +246,16 @@ def validate_file(file_path: Path) -> Path:
     return file_path
 
 
-def get_file_signature(file_path: Path) -> tuple[int, int] | None:
-    """Return `(st_mtime_ns, st_size)` for *file_path*, or `None` if unavailable."""
+type FileSignature = tuple[int, int, int, int]
+
+
+def get_file_signature(file_path: Path) -> FileSignature | None:
+    """Return `(st_mtime_ns, st_ctime_ns, st_size, st_ino)` for *file_path*, or `None` if unavailable."""
     try:
         stat = file_path.stat()
     except OSError:
         return None
-    return stat.st_mtime_ns, stat.st_size
+    return stat.st_mtime_ns, stat.st_ctime_ns, stat.st_size, stat.st_ino
 
 
 def format_project_version(version: Version) -> str:

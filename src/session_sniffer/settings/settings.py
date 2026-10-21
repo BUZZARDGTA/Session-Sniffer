@@ -28,7 +28,7 @@ from session_sniffer.networking.ip_range import IPRange, parse_ip_range
 from session_sniffer.networking.third_party_servers import ALL_THIRD_PARTY_SERVER_NAMES
 from session_sniffer.settings.defaults import SETTING_DEFAULTS
 from session_sniffer.text_utils import format_triple_quoted_text
-from session_sniffer.utils import get_file_signature, validate_file
+from session_sniffer.utils import FileSignature, get_file_signature, validate_file
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -254,7 +254,7 @@ class Settings:
     )
 
     GUI_FORCED_COLUMNS: ClassVar[tuple[str, ...]] = ('Usernames', 'First Seen', 'Last Rejoin', 'Last Seen', 'Rejoins', 'IP Address')
-    _last_file_signature: ClassVar[tuple[int, int] | None] = None
+    _last_file_signature: ClassVar[FileSignature | None] = None
     ALL_THIRD_PARTY_SERVERS: ClassVar[tuple[str, ...]] = ALL_THIRD_PARTY_SERVER_NAMES
     GUI_TOGGLEABLE_CONNECTED_COLUMNS: ClassVar[tuple[str, ...]] = (
         'T. Session Time',
@@ -416,42 +416,43 @@ class Settings:
             raw_settings, need_rewrite_settings = cls.parse_settings_json_file(settings_path)
         except FileNotFoundError:
             logger.info('Settings file not found at %s; initializing defaults.', settings_path)
+            raw_settings = {}
             need_rewrite_settings = True
-        else:
-            # Build UPPER_CASE defaults dict for the model
-            upper_defaults: dict[str, Any] = {key.upper(): value for key, value in SETTING_DEFAULTS.items()}
 
-            validated, flags = SettingsModel.validate_and_get_rewrites(
-                raw_settings,
-                SettingsValidationConfig(
-                    defaults=upper_defaults,
-                    all_setting_names=cls.ALL_SETTINGS,
-                    toggleable_connected_columns=cls.GUI_TOGGLEABLE_CONNECTED_COLUMNS,
-                    toggleable_disconnected_columns=cls.GUI_TOGGLEABLE_DISCONNECTED_COLUMNS,
-                    all_connected_columns=cls.GUI_ALL_CONNECTED_COLUMNS,
-                    all_disconnected_columns=cls.GUI_ALL_DISCONNECTED_COLUMNS,
-                    all_third_party_servers=ALL_THIRD_PARTY_SERVER_NAMES,
-                    max_gui_table_rows_per_page=cls.MAX_GUI_TABLE_ROWS_PER_PAGE,
-                    min_gui_disconnected_players_timer=cls.MIN_GUI_DISCONNECTED_PLAYERS_TIMER_SECONDS,
-                    max_gui_disconnected_players_limit=cls.MAX_GUI_DISCONNECTED_PLAYERS_LIMIT,
-                ),
+        # Build UPPER_CASE defaults dict for the model
+        upper_defaults: dict[str, Any] = {key.upper(): value for key, value in SETTING_DEFAULTS.items()}
+
+        validated, flags = SettingsModel.validate_and_get_rewrites(
+            raw_settings,
+            SettingsValidationConfig(
+                defaults=upper_defaults,
+                all_setting_names=cls.ALL_SETTINGS,
+                toggleable_connected_columns=cls.GUI_TOGGLEABLE_CONNECTED_COLUMNS,
+                toggleable_disconnected_columns=cls.GUI_TOGGLEABLE_DISCONNECTED_COLUMNS,
+                all_connected_columns=cls.GUI_ALL_CONNECTED_COLUMNS,
+                all_disconnected_columns=cls.GUI_ALL_DISCONNECTED_COLUMNS,
+                all_third_party_servers=ALL_THIRD_PARTY_SERVER_NAMES,
+                max_gui_table_rows_per_page=cls.MAX_GUI_TABLE_ROWS_PER_PAGE,
+                min_gui_disconnected_players_timer=cls.MIN_GUI_DISCONNECTED_PLAYERS_TIMER_SECONDS,
+                max_gui_disconnected_players_limit=cls.MAX_GUI_DISCONNECTED_PLAYERS_LIMIT,
+            ),
+        )
+
+        # Apply all validated fields to Settings class attrs (UPPER model field → lower class attr)
+        for field_name in cls.ALL_SETTINGS:
+            setattr(cls, field_name.lower(), getattr(validated, field_name))
+
+        if flags.get('should_rewrite'):
+            need_rewrite_settings = True
+
+        if flags.get('invalid_datetime_columns_corrected'):
+            msgbox.show(
+                title=TITLE,
+                text=format_triple_quoted_text(format_invalid_datetime_columns_settings_message()),
+                style=msgbox.Style.MB_OK | msgbox.Style.MB_ICONEXCLAMATION | msgbox.Style.MB_SETFOREGROUND,
             )
-
-            # Apply all validated fields to Settings class attrs (UPPER model field → lower class attr)
-            for field_name in cls.ALL_SETTINGS:
-                setattr(cls, field_name.lower(), getattr(validated, field_name))
-
-            if flags.get('should_rewrite'):
-                need_rewrite_settings = True
-
-            if flags.get('invalid_datetime_columns_corrected'):
-                msgbox.show(
-                    title=TITLE,
-                    text=format_triple_quoted_text(format_invalid_datetime_columns_settings_message()),
-                    style=msgbox.Style.MB_OK | msgbox.Style.MB_ICONEXCLAMATION | msgbox.Style.MB_SETFOREGROUND,
-                )
 
         if rewrite_if_needed and need_rewrite_settings:
             cls.rewrite_settings_file()
-        else:
+        elif settings_path == SETTINGS_PATH:
             cls._last_file_signature = get_file_signature(settings_path)

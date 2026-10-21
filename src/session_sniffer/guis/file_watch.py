@@ -5,6 +5,8 @@ from typing import TYPE_CHECKING
 
 from PySide6.QtCore import QObject, QTimer
 
+from session_sniffer.utils import FileSignature, get_file_signature
+
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable
 
@@ -33,7 +35,7 @@ class DebouncedFileWatcher(QObject):
         self._on_change = on_change
         self._files: set[str] = set()
         self._directories: set[str] = set()
-        self._path_snapshots: dict[str, tuple[bool, int, int]] = {}
+        self._path_snapshots: dict[str, FileSignature | None] = {}
 
         self._timer = QTimer(self)
         self._timer.setSingleShot(True)
@@ -72,13 +74,9 @@ class DebouncedFileWatcher(QObject):
         self._path_snapshots.clear()
 
     @staticmethod
-    def _get_path_snapshot(path_str: str) -> tuple[bool, int, int]:
-        """Return existence, size, and modification timestamp for a path."""
-        try:
-            stat_result = Path(path_str).stat()
-        except OSError:
-            return False, 0, 0
-        return True, stat_result.st_size, stat_result.st_mtime_ns
+    def _get_path_snapshot(path_str: str) -> FileSignature | None:
+        """Return the file/directory signature for a path, or `None` if it does not exist."""
+        return get_file_signature(Path(path_str))
 
     def _check_polling(self) -> None:
         """Poll watched files and directories for size, modification time, or existence changes."""

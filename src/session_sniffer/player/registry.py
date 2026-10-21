@@ -332,6 +332,12 @@ class SessionTracker:
             return list(cls._session_snapshots.get(session_id, []))
 
     @classmethod
+    def get_all_snapshot_players(cls) -> list[Player]:
+        """Return a flat list of all player snapshots across all past sessions."""
+        with cls._lock:
+            return [player for snapshots in cls._session_snapshots.values() for player in snapshots]
+
+    @classmethod
     def get_session_players(cls, session_id: int, *, include_servers: bool = False) -> list[Player]:
         """Return all players belonging to the specified session sequence number."""
         with cls._lock:

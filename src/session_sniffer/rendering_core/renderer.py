@@ -14,6 +14,7 @@ from session_sniffer.background.tasks import (
     handle_detection_notification,
     process_userip_task,
     spawn_connected_userip_detection,
+    submit_global_detections_check,
     trigger_auto_username_userip,
 )
 from session_sniffer.constants.local import SESSIONS_LOGGING_DIR_PATH
@@ -352,7 +353,9 @@ def rendering_core(
     connected_column_mapping: dict[str, int] = {}
     _userip_not_found: set[str] = set()
     last_seen_userip_build_version: int = UserIPDatabases.build_version
-    _last_userip_auto_feed: bool = Settings.userip_auto_feed_from_usernames
+    _last_userip_auto_feed: bool = (
+        Settings.userip_auto_feed_from_usernames and Settings.is_gta5_feature_set() and CaptureState.is_local_capture()
+    )
 
     def _process_player_disconnections(connected: list[Player], disconnected: list[Player]) -> list[int]:
         to_disconnect: list[int] = []
@@ -390,7 +393,7 @@ def rendering_core(
 
         _userip_db_rebuilt = False
         _poll_interval = 1.0 if _has_players_for_poll else 5.0
-        if last_userip_parse_time is None or time.monotonic() - last_userip_parse_time >= _poll_interval:
+        if last_userip_parse_time is None or time.monotonic() - last_userip_parse_time >= 1.0:
             last_userip_parse_time, _userip_db_rebuilt = update_userip_databases()
         if UserIPDatabases.build_version != last_seen_userip_build_version:
             last_seen_userip_build_version = UserIPDatabases.build_version
@@ -398,8 +401,11 @@ def rendering_core(
         if _userip_db_rebuilt:
             _userip_not_found.clear()
         _newly_resolvable_usernames = UserIPDatabases.consume_newly_resolvable_usernames()
-        _auto_feed_retriggered = Settings.userip_auto_feed_from_usernames and not _last_userip_auto_feed
-        _last_userip_auto_feed = Settings.userip_auto_feed_from_usernames
+        _current_auto_feed_active = (
+            Settings.userip_auto_feed_from_usernames and Settings.is_gta5_feature_set() and CaptureState.is_local_capture()
+        )
+        _auto_feed_retriggered = _current_auto_feed_active and not _last_userip_auto_feed
+        _last_userip_auto_feed = _current_auto_feed_active
 
         if Settings.is_gta5_feature_set():
             if last_modmenu_refresh_time is None or time.monotonic() - last_modmenu_refresh_time >= _poll_interval:
@@ -449,6 +455,9 @@ def rendering_core(
             if _userip_db_rebuilt:
                 if player.userip is None:
                     _userip_not_found.add(player.ip)
+                    if not player.left_event.is_set() and not player.detection_checked:
+                        player.detection_checked = True
+                        submit_global_detections_check(player)
             elif player.userip is None and player.ip not in _userip_not_found:
                 resolved = UserIPDatabases.resolve_userip(player.ip)
                 if resolved is None:
