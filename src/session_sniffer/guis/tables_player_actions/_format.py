@@ -4,6 +4,8 @@ from datetime import UTC
 from typing import TYPE_CHECKING, cast
 
 from session_sniffer.constants.local import USERIP_DATABASES_DIR_PATH
+from session_sniffer.networking.looky_system import LookyState
+from session_sniffer.rendering_core.types import CaptureState
 from session_sniffer.settings.settings import Settings
 
 if TYPE_CHECKING:
@@ -131,7 +133,13 @@ def userip_database_text(player: Player) -> str:
 
 def _looky_fallback_text(looky: PlayerLooky) -> str:
     """Return '...' when Looky is enabled and pending initialization, otherwise 'N/A'."""
-    if not Settings.is_gta5_feature_set() or not Settings.looky_enabled or not bool(Settings.looky_api_key):
+    if (
+        not Settings.is_gta5_feature_set()
+        or not Settings.looky_enabled
+        or not bool(Settings.looky_api_key)
+        or not LookyState.api_access
+        or not CaptureState.is_local_capture()
+    ):
         return 'N/A'
     return '...' if not looky.is_initialized else 'N/A'
 

@@ -60,7 +60,7 @@ from session_sniffer.networking.geolite2 import (
     query_geolite2_country,
 )
 from session_sniffer.networking.http_session import session
-from session_sniffer.networking.looky_system import get_looky_user_url, lookup_ip
+from session_sniffer.networking.looky_system import LookyState, get_looky_user_url, lookup_ip
 from session_sniffer.networking.ping import ping_player
 from session_sniffer.networking.reverse_dns import reverse_dns_lookup
 from session_sniffer.player.registry import PlayersRegistry
@@ -168,7 +168,8 @@ def _resolve_standalone_lookup(lookup: StandaloneIPLookup) -> None:
 
     # 6. Looky System
     api_key = Settings.looky_api_key or ''
-    if bool(api_key) and not lookup.looky_system.is_initialized and Settings.looky_enabled and Settings.is_gta5_feature_set() and not is_looky_gta5_restricted():
+    can_lookup_looky = bool(api_key) and Settings.looky_enabled and LookyState.api_access and Settings.is_gta5_feature_set()
+    if can_lookup_looky and not lookup.looky_system.is_initialized and not is_looky_gta5_restricted():
         try:
             looky_players = lookup_ip(lookup.ip, api_key, Settings.looky_game_version.lower())
             unique_results: list[LookyPlayer] = []

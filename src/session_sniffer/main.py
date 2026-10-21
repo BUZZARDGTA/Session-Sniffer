@@ -355,18 +355,19 @@ def main() -> None:
 
         matched_player = PlayersRegistry.get_player_by_ip(target_ip)
         if matched_player is None:
-            matched_player = PlayersRegistry.add_connected_player(
-                Player(
-                    ip=target_ip,
-                    packet=PacketInfo(
-                        datetime=packet.datetime,
-                        length=packet.length,
-                        port=target_port,
-                        sent_by_local_host=sent_by_local_host,
-                    ),
-                    session_id=SessionTracker.get_current_session_id(),
+            player = Player(
+                ip=target_ip,
+                packet=PacketInfo(
+                    datetime=packet.datetime,
+                    length=packet.length,
+                    port=target_port,
+                    sent_by_local_host=sent_by_local_host,
                 ),
+                session_id=SessionTracker.get_current_session_id(),
             )
+            if is_gta5_packet:
+                player.is_gta5_process = True
+            matched_player = PlayersRegistry.add_connected_player(player)
             wake_rendering_core()
 
             handle_detection_notification(matched_player, 'player_joined_session')
@@ -380,6 +381,8 @@ def main() -> None:
                 sent_by_local_host=sent_by_local_host,
                 session_id=SessionTracker.get_current_session_id(),
             )
+            if is_gta5_packet:
+                matched_player.is_gta5_process = True
             PlayersRegistry.move_player_to_connected(matched_player)
             wake_rendering_core()
 
@@ -392,9 +395,9 @@ def main() -> None:
                 packet_length=packet.length,
                 sent_by_local_host=sent_by_local_host,
             )
-
-        if is_gta5_packet and not matched_player.is_gta5_process:
-            matched_player.is_gta5_process = True
+            if is_gta5_packet and not matched_player.is_gta5_process:
+                matched_player.is_gta5_process = True
+                enqueue_player_for_resolution(matched_player)
 
         if (
             matched_player.ps3_username is None

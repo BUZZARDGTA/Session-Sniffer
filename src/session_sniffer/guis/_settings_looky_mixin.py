@@ -121,7 +121,7 @@ class SettingsDialogLookyMixin(QDialog):
             f'<a href="{LOOKY_BASE_HOST}" title="{LOOKY_BASE_HOST}" style="color: #a78bfa; text-decoration: underline;">{LOOKY_BASE_HOST}</a>.<br><br>'
             'Once you have your key, paste it in the <b>API Key</b> field below.<br><br>'
             'Player names will be resolved automatically in the background and shown in the <b>Usernames</b> column.<br><br>'
-            '<i>Note: Looky System features are only active when the <b>Feature Set</b> under <b>Capture → General</b> is set to <b>GTA5</b>.</i>',
+            '<i>Note: Looky System features are only active when the <b>Feature Set</b> under <b>Capture → General</b> is set to <b>GTA V</b>.</i>',
         )
         info_label.setWordWrap(True)
         info_label.setTextFormat(Qt.TextFormat.RichText)
