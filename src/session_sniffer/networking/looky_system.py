@@ -497,6 +497,10 @@ class _LookyRateLimiter:
 
 _RATE_LIMITER = _LookyRateLimiter()
 
+LOOKY_PHASE_IP_BATCHES = 'Looking up database IPs'
+LOOKY_PHASE_RESOLVE_USERNAMES = 'Resolving usernames to Rockstar IDs'
+LOOKY_PHASE_PLAYER_PROFILES = 'Looking up IPs & usernames for resolved Rockstar IDs'
+
 
 def lookup_ip_batches(
     ip_addresses: list[str],
@@ -536,15 +540,15 @@ def lookup_ip_batches(
 
     if not batches:
         if on_progress is not None:
-            on_progress('Checking IP batches', 1, 1)
+            on_progress(LOOKY_PHASE_IP_BATCHES, 1, 1)
         return combined_results
 
     if on_progress is not None:
-        on_progress('Checking IP batches', 0, total_batches)
+        on_progress(LOOKY_PHASE_IP_BATCHES, 0, total_batches)
 
     started_at = time.monotonic()
     completed_holder = [0]
-    phase = _RateLimitPhase('Checking IP batches', _IP_BATCH_MIN_INTERVAL, total_batches, should_cancel, on_progress, raise_on_exhaustion=True)
+    phase = _RateLimitPhase(LOOKY_PHASE_IP_BATCHES, _IP_BATCH_MIN_INTERVAL, total_batches, should_cancel, on_progress, raise_on_exhaustion=True)
 
     def _lookup_one_batch(batch_index: int, batch_ips: list[str]) -> dict[str, list[LookyPlayer]]:
         status, batch_result, elapsed = _RATE_LIMITER.execute_with_retry(
@@ -569,7 +573,7 @@ def lookup_ip_batches(
             completed_holder[0] += 1
             completed = completed_holder[0]
             if on_progress is not None:
-                on_progress('Checking IP batches', completed, total_batches)
+                on_progress(LOOKY_PHASE_IP_BATCHES, completed, total_batches)
             if should_cancel is not None and should_cancel():
                 return {}
             combined_results.update({ip: players for ip, players in batch_result.items() if players})
@@ -629,14 +633,14 @@ def _resolve_usernames_to_rids(
         return usernames_by_rid
 
     if on_progress is not None:
-        on_progress('Resolving usernames to Rockstar IDs', 0, total_to_query)
+        on_progress(LOOKY_PHASE_RESOLVE_USERNAMES, 0, total_to_query)
 
     started_at = time.monotonic()
     completed_holder = [0]
     api_resolved_count = 0
     api_not_found_count = 0
     api_failed_count = 0
-    phase = _RateLimitPhase('Resolving usernames to Rockstar IDs', _USERNAME_SEARCH_MIN_INTERVAL, total_to_query, should_cancel, on_progress)
+    phase = _RateLimitPhase(LOOKY_PHASE_RESOLVE_USERNAMES, _USERNAME_SEARCH_MIN_INTERVAL, total_to_query, should_cancel, on_progress)
 
     def _resolve_one(name: str) -> tuple[str, int | None, bool]:
         status, resolved_rid, elapsed = _RATE_LIMITER.execute_with_retry(
@@ -659,7 +663,7 @@ def _resolve_usernames_to_rids(
             completed_holder[0] += 1
             completed = completed_holder[0]
             if on_progress is not None:
-                on_progress('Resolving usernames to Rockstar IDs', completed, total_to_query)
+                on_progress(LOOKY_PHASE_RESOLVE_USERNAMES, completed, total_to_query)
             if should_cancel is not None and should_cancel():
                 return {}
             if resolved_rid is not None and resolved_rid > 0:
@@ -718,15 +722,15 @@ def _fetch_profiles_by_rid(
 
     if not rids_to_query:
         if on_progress is not None:
-            on_progress('Fetching player IP histories', 1, 1)
+            on_progress(LOOKY_PHASE_PLAYER_PROFILES, 1, 1)
         return profiles_by_rid
 
     if on_progress is not None:
-        on_progress('Fetching player IP histories', 0, total_to_query)
+        on_progress(LOOKY_PHASE_PLAYER_PROFILES, 0, total_to_query)
 
     started_at = time.monotonic()
     completed_holder = [0]
-    phase = _RateLimitPhase('Fetching player IP histories', _PROFILE_FETCH_MIN_INTERVAL, total_to_query, should_cancel, on_progress)
+    phase = _RateLimitPhase(LOOKY_PHASE_PLAYER_PROFILES, _PROFILE_FETCH_MIN_INTERVAL, total_to_query, should_cancel, on_progress)
 
     def _fetch_one(target_rid: int) -> tuple[int, LookyPlayerProfile | None]:
         status, profile, elapsed = _RATE_LIMITER.execute_with_retry(
@@ -753,7 +757,7 @@ def _fetch_profiles_by_rid(
             completed_holder[0] += 1
             completed = completed_holder[0]
             if on_progress is not None:
-                on_progress('Fetching player IP histories', completed, total_to_query)
+                on_progress(LOOKY_PHASE_PLAYER_PROFILES, completed, total_to_query)
             if should_cancel is not None and should_cancel():
                 return {}
             if profile is not None:

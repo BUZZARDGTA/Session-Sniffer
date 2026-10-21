@@ -31,9 +31,20 @@ from session_sniffer.guis.stylesheets import (
     LOOKY_PROGRESS_BAR_STYLESHEET,
     LOOKY_STATUS_LABEL_STYLESHEET,
 )
-from session_sniffer.networking.looky_system import LookyState
+from session_sniffer.networking.looky_system import (
+    LOOKY_PHASE_IP_BATCHES,
+    LOOKY_PHASE_PLAYER_PROFILES,
+    LOOKY_PHASE_RESOLVE_USERNAMES,
+    LookyState,
+)
 from session_sniffer.rendering_core.types import CaptureState
 from session_sniffer.settings.settings import Settings
+
+_PHASE_DETAILS: dict[str, str] = {
+    LOOKY_PHASE_IP_BATCHES: 'Checking which usernames Looky has recorded on your database IP addresses.',
+    LOOKY_PHASE_RESOLVE_USERNAMES: 'Finding the Rockstar ID for each username in your database.',
+    LOOKY_PHASE_PLAYER_PROFILES: 'Finding all IP addresses and usernames linked to those Rockstar IDs.',
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -94,7 +105,7 @@ class LookyRefreshLoadingDialog(QDialog):
         self.setWindowTitle(LOOKY_TITLE)
         self.setWindowModality(Qt.WindowModality.WindowModal)
         self.setWindowFlag(Qt.WindowType.WindowContextHelpButtonHint, on=False)
-        self.setMinimumSize(360, 160)
+        self.setMinimumSize(420, 175)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(12, 12, 12, 12)
         layout.setSpacing(8)
@@ -103,7 +114,10 @@ class LookyRefreshLoadingDialog(QDialog):
         header.setStyleSheet(LOOKY_CRAWLER_HEADER_STYLESHEET)
         layout.addWidget(header)
         self._widgets = build_looky_progress_widgets(layout, self)
-        self._widgets.status_label.setText('<span style="color: #d8b4fe;">Preparing Looky System lookup...</span>')
+        self._widgets.status_label.setText(
+            '<span style="color: #d8b4fe; font-weight: 600;">Preparing Looky System lookup...</span>'
+            '<br><span style="color: #9ca3af; font-size: 8.5pt;">Collecting database IP addresses and usernames to query.</span>',
+        )
         self._widgets.status_label.show()
 
     def update_progress(self, status_text: str, current: int, total: int) -> None:
@@ -111,7 +125,11 @@ class LookyRefreshLoadingDialog(QDialog):
         self._widgets.progress_bar.setRange(0, max(1, total))
         self._widgets.progress_bar.setValue(current)
         pct = round(current * 100 / total) if total > 0 else 0
-        self._widgets.status_label.setText(f'<span style="color: #d8b4fe;">{html.escape(status_text)}: <b>{current} / {total}</b> ({pct}%)</span>')
+        detail_text = next((detail for phase_label, detail in _PHASE_DETAILS.items() if status_text.startswith(phase_label)), '')
+        detail_html = f'<br><span style="color: #9ca3af; font-size: 8.5pt;">{html.escape(detail_text)}</span>' if detail_text else ''
+        self._widgets.status_label.setText(
+            f'<span style="color: #d8b4fe; font-weight: 600;">{html.escape(status_text)}: <b>{current} / {total}</b> ({pct}%)</span>{detail_html}',
+        )
         self._widgets.status_label.show()
 
     def show_error(self, message: str) -> None:
