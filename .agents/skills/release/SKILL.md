@@ -1,6 +1,6 @@
 ---
 name: release
-description: Prepare and commit a Session Sniffer release by updating the version in pyproject.toml with the current UTC build timestamp, incrementing the RC or final version as requested, synchronizing uv.lock via uv lock, validating the change, and creating the release commit.
+description: Prepare and commit a Session Sniffer release by updating the version in pyproject.toml with the current UTC build timestamp, incrementing the RC or final version as requested, synchronizing uv.lock via uv lock, validating the change, creating the release commit, and generating a synthesized user-facing changelog since the previous release.
 ---
 
 # Session Sniffer Release
@@ -30,17 +30,34 @@ Use this skill when the user wants to prepare and commit a new Session Sniffer r
 8. Review the resulting diff (both `pyproject.toml` and `uv.lock` should reflect the new version).
 9. Run the release-specific validation before committing. For version-only changes, use `uv lock --check` and CRLF line-ending verification for `pyproject.toml` and `uv.lock`; do not run the full `python code_quality_checks.py` suite unless the release also includes significant code, dependency, resource, or packaging changes.
 10. Verify CRLF (`\r\n`) line endings on all modified files, especially `uv.lock` and `pyproject.toml`.
-11. Show the user:
-    - previous version,
-    - new version,
-    - changed files (`pyproject.toml`, `uv.lock`),
-    - validation performed.
-12. Create exactly one version-bump commit containing both `pyproject.toml` and `uv.lock` using:
+11. Create exactly one version-bump commit containing both `pyproject.toml` and `uv.lock` using:
 
    `build: bump version to <new-version>`
 
+12. Show the user:
+    - previous version,
+    - new version,
+    - changed files (`pyproject.toml`, `uv.lock`),
+    - validation performed,
+    - a synthesized **user-facing changelog** from the previous release to `HEAD` (following the **User Changelog** rules below).
 13. Ensure the version-bump commit is pushed before creating any GitHub tag or release. The release tag MUST match `version` in `pyproject.toml` exactly.
 14. Do not amend, reset, rebase, force-push, or otherwise rewrite Git history.
+
+## User Changelog
+
+Always include a concise, well-structured user-facing changelog covering all net changes between the previous published release tag (or previous `build: bump version` commit) and `HEAD`.
+
+### Synthesizing the Net Final State (Not Commit-by-Commit)
+
+Do **not** mechanically list or paraphrase every commit one by one. Instead, inspect both the commit history (`git log <prev-release>..HEAD`) and the net code diff (`git diff <prev-release>..HEAD`) to represent the **actual final state at the end of the release cycle**:
+
+- **Consolidate multi-commit work**: If a feature or change was introduced in one commit and later refined, fixed, reworked, or optimized in subsequent commits during the same release cycle, merge them into a single cohesive entry describing the final behavior.
+- **Drop transient intermediate bugs**: If a commit fixed a bug or regression that was introduced earlier *after* the previous release (within the same `<prev-release>..HEAD` range), do not list that fix as a standalone bug fix—only the net outcome compared to `<prev-release>` matters.
+- **Drop reverted or removed experiments**: If a feature, change, or refactor was added and later reverted or removed before `HEAD`, omit it completely when the net change vs. `<prev-release>` is zero.
+- **Filter internal noise**: Omit purely internal housekeeping commits (e.g. `.gitignore` tweaks, agent/skill config edits, version bumps, or pure code formatting) that have no user-visible behavior, stability, or performance impact.
+- **Verify exact filenames, paths, and data sources from the code**: Never guess or rely on outdated conventions (e.g. all settings and UserIP databases use `.json`, not `.ini`). Check the actual diff/source to cite exact file formats, log paths, and data sources.
+- **Group by category**: Organize entries under relevant headings such as `### Added`, `### Changed`, `### Fixed`, `### Performance`, or `### Removed` (include only categories that have entries).
+- **Clickable GitHub commit links**: Format every referenced commit hash as a clickable Markdown link to the repository commit on GitHub: `` [`<short-sha>`](https://github.com/BUZZARDGTA/Session-Sniffer/commit/<full-sha>) ``. When a consolidated entry spans multiple commits, link each contributing commit (e.g. ``([`7c0bab5`](https://github.com/BUZZARDGTA/Session-Sniffer/commit/7c0bab5f80a2b7b824883b713801af53921d6303), [`6841708`](https://github.com/BUZZARDGTA/Session-Sniffer/commit/68417080625ab90e9fb92ae4902736c05b318e8d))``).
 
 ## Version Format
 
