@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, ClassVar
 
 from pydantic import TypeAdapter, ValidationError
 
+from session_sniffer.guis.country_data import matches_country
 from session_sniffer.models.combo_rules import EVENT_CONDITION, ComboRule, ConditionValue
 from session_sniffer.models.player import Player
 from session_sniffer.networking.ip_range import IPRange, check_ip_against_ranges, parse_ip_range_entry
@@ -76,11 +77,13 @@ def _match_as_name_condition(value: ConditionValue, player: Player) -> bool:
 
 
 def _match_country_condition(value: ConditionValue, player: Player) -> bool:
-    """Match country condition against GeoLite2 and ip-api country values."""
-    return isinstance(value, str) and _match_exact_lookup(
+    """Match country condition against GeoLite2 and ip-api country names and ISO codes."""
+    return isinstance(value, str) and matches_country(
         value,
         player.iplookup.geolite2.country,
+        player.iplookup.geolite2.country_code,
         player.iplookup.ipapi.country,
+        player.iplookup.ipapi.country_code,
     )
 
 
@@ -229,3 +232,12 @@ class ComboRulesManager:
     def evaluate(cls, player: Player, event_type: str | None = None) -> list[ComboRule]:
         """Return all enabled combo rules whose conditions match the given player and event."""
         return [rule for rule in cls.rules if _evaluate_rule(rule, player, event_type)]
+
+    @classmethod
+    def needs_ipapi(cls, *, event_rules: bool, geo_country_missing: bool) -> bool:
+        """Return True if any enabled combo rule of the requested kind requires ip-api.com data."""
+        return any(
+            bool(rule.conditions.keys() - {'event', 'country', 'ip_range'}) or ('country' in rule.conditions and geo_country_missing)
+            for rule in cls.rules
+            if rule.enabled and rule.has_event_condition == event_rules
+        )

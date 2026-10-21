@@ -255,7 +255,70 @@ COUNTRY_NAMES: dict[str, str] = {
 
 COUNTRY_CODES: dict[str, str] = {country_name: country_code for country_code, country_name in COUNTRY_NAMES.items()}
 
+# Alternative English country names returned by GeoLite2-Country.mmdb that differ from COUNTRY_NAMES.
+_GEOLITE2_COUNTRY_ALIASES: dict[str, str] = {
+    'Bonaire, Sint Eustatius and Saba': 'BQ',
+    'Congo (DRC)': 'CD',
+    'Congo Republic': 'CG',
+    'Ivory Coast': 'CI',
+    'Cabo Verde': 'CV',
+    'Federated States of Micronesia': 'FM',
+    'Heard and McDonald Islands': 'HM',
+    'Macao': 'MO',
+    'The Netherlands': 'NL',
+    'St. Helena': 'SH',
+    'Türkiye': 'TR',
+    'U.S. Virgin Islands': 'VI',
+}
+
+_COUNTRY_CODES_CASEFOLDED: dict[str, str] = {
+    **{country_name.casefold(): country_code for country_code, country_name in COUNTRY_NAMES.items()},
+    **{alias.casefold(): country_code for alias, country_code in _GEOLITE2_COUNTRY_ALIASES.items()},
+}
+
 
 def get_country_flag_code(country_name: str) -> str | None:
-    """Return the 2-letter flag file code for a country name, or None if unknown."""
-    return COUNTRY_CODES.get(country_name)
+    """Return the 2-letter flag file code for a country name, alias, or ISO code, or None if unknown."""
+    code = COUNTRY_CODES.get(country_name)
+    if code is not None:
+        return code
+    stripped = country_name.strip()
+    if not stripped:
+        return None
+    upper = stripped.upper()
+    if upper in COUNTRY_NAMES:
+        return upper
+    code = _COUNTRY_CODES_CASEFOLDED.get(stripped.casefold())
+    if code is not None:
+        return code
+    if ' - ' in stripped:
+        prefix, _, suffix = stripped.partition(' - ')
+        prefix_upper = prefix.strip().upper()
+        if prefix_upper in COUNTRY_NAMES and _COUNTRY_CODES_CASEFOLDED.get(suffix.strip().casefold()) == prefix_upper:
+            return prefix_upper
+    return None
+
+
+def normalize_country_name(country_name: str) -> str | None:
+    """Resolve a country name, GeoLite2 alias, or ISO code to its canonical COUNTRY_NAMES display name."""
+    code = get_country_flag_code(country_name)
+    if code is not None:
+        return COUNTRY_NAMES.get(code)
+    return None
+
+
+def matches_country(target: str, *candidates: object) -> bool:
+    """Return True if any lookup candidate (country name or ISO code) matches *target*."""
+    target_stripped = target.strip()
+    if not target_stripped:
+        return False
+    target_code = get_country_flag_code(target_stripped)
+    target_folded = target_stripped.casefold()
+    for candidate in candidates:
+        if not isinstance(candidate, str) or candidate in ('', '...', 'N/A'):
+            continue
+        if target_code is not None and get_country_flag_code(candidate) == target_code:
+            return True
+        if candidate.strip().casefold() == target_folded:
+            return True
+    return False

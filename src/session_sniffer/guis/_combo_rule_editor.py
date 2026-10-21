@@ -26,7 +26,7 @@ from PySide6.QtWidgets import (
 
 from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.constants.standalone import MAX_SUSPEND_DURATION_SECONDS
-from session_sniffer.guis.country_data import COUNTRY_NAMES
+from session_sniffer.guis.country_data import COUNTRY_NAMES, normalize_country_name
 from session_sniffer.guis.stylesheets import COUNTRY_SELECTOR_COMBO_STYLESHEET, GROUPBOX_STYLE, HINT_LABEL_STYLESHEET
 from session_sniffer.guis.userip_manager_helpers import IPRangeBuilderDialog
 from session_sniffer.guis.utils import (
@@ -151,17 +151,13 @@ class CountrySelectionDialog(QDialog):
 
 def _extract_country_from_combo(combo: QComboBox) -> str | None:
     """Extract the resolved country name from a country QComboBox."""
+    text = combo.currentText().strip()
     index = combo.currentIndex()
-    if index >= 0:
+    if index >= 0 and text == combo.itemText(index):
         data = combo.itemData(index, Qt.ItemDataRole.UserRole)
         if isinstance(data, str) and data:
             return data
-    text = combo.currentText().strip()
-    text_upper = text.upper()
-    for country_code, country_name in COUNTRY_NAMES.items():
-        if text_upper == country_code or text_upper == f'{country_code} - {country_name}'.upper() or text_upper == country_name.upper():
-            return country_name
-    return None
+    return normalize_country_name(text)
 
 
 class ComboRuleEditorDialog(QDialog):
@@ -505,10 +501,11 @@ class ComboRuleEditorDialog(QDialog):
             elif preset_key == 'country' and isinstance(preset_value, str):
                 country_combo_widget: QComboBox | None = value_stack.findChild(QComboBox)
                 if country_combo_widget is not None:
+                    canonical_preset = normalize_country_name(preset_value) or preset_value
                     # Find the matching country entry
                     for i in range(country_combo_widget.count()):
                         data = country_combo_widget.itemData(i, Qt.ItemDataRole.UserRole)
-                        if data == preset_value:
+                        if data in (preset_value, canonical_preset):
                             country_combo_widget.setCurrentIndex(i)
                             break
             elif isinstance(preset_value, str):

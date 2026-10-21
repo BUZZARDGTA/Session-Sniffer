@@ -293,8 +293,8 @@ class GUIDetectionSettings:
         cls.export_to_file(DETECTIONS_JSON_PATH)
 
     @classmethod
-    def has_any_global_detection_enabled(cls) -> bool:
-        """Return True if any global IP or network-based detection is active."""
+    def has_any_ipapi_detection_enabled(cls, *, geo_country_missing: bool = False) -> bool:
+        """Return True if any active global detection requires ip-api.com lookup data."""
         return (
             cls.mobile_suspend_enabled
             or bool(cls.mobile_voice_notifications)
@@ -308,10 +308,15 @@ class GUIDetectionSettings:
             or bool(cls.hosting_voice_notifications)
             or cls.hosting_logging
             or cls.hosting_message_box
-            or bool(cls.country_detection_list)
             or bool(cls.isp_detection_list)
             or bool(cls.asn_detection_list)
+            or (geo_country_missing and bool(cls.country_detection_list))
         )
+
+    @classmethod
+    def has_any_global_detection_enabled(cls) -> bool:
+        """Return True if any global IP or network-based detection is active."""
+        return cls.has_any_ipapi_detection_enabled(geo_country_missing=True)
 
     @classmethod
     def has_any_gta5_relay_action_enabled(cls) -> bool:

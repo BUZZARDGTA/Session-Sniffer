@@ -38,6 +38,7 @@ from session_sniffer.guis._dialog_mixins import (
     equalize_button_sizes,
     setup_tab_reset_buttons,
 )
+from session_sniffer.guis.country_data import normalize_country_name
 from session_sniffer.guis.stylesheets import DETECTIONS_MANAGER_HEADER_STYLESHEET, DIALOG_BUTTON_STYLESHEET
 from session_sniffer.guis.utils import (
     consume_maximize_on_show,
@@ -614,8 +615,8 @@ def open_combo_rule_editor_for_player(parent: QWidget, player: Player) -> None:
         return value if isinstance(value, str) and value and value != _placeholder else None
 
     conditions: dict[str, str | bool | list[str]] = {}
-    if (country := _safe(player.iplookup.geolite2.country)) is not None:
-        conditions['country'] = country
+    if (country := _safe(player.iplookup.geolite2.country) or _safe(player.iplookup.ipapi.country)) is not None:
+        conditions['country'] = normalize_country_name(country) or country
     if (isp := _safe(player.iplookup.ipapi.isp)) is not None:
         conditions['isp'] = isp
     as_name = _safe(player.iplookup.ipapi.as_name)

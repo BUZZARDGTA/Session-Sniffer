@@ -7,6 +7,7 @@ from PySide6.QtGui import QIcon
 
 from session_sniffer.background import retrigger_detections_scan
 from session_sniffer.constants.local import RESOURCES_DIR_PATH
+from session_sniffer.guis.country_data import matches_country, normalize_country_name
 from session_sniffer.guis.detections_manager import DetectionsManagerDialog, open_combo_rule_editor, open_combo_rule_editor_for_player
 from session_sniffer.player.detections import GUIDetectionSettings
 from session_sniffer.text_utils import pluralize
@@ -42,9 +43,34 @@ def _toggle_detection_list(target_list: list[str], value: str, *, add: bool) -> 
 
 def _safe_str(value: str) -> str | None:
     """Return `value` if it is a non-empty, non-placeholder string, else `None`."""
-    if value and value != _PLACEHOLDER:
+    if value and value not in {_PLACEHOLDER, 'N/A'}:
         return value
     return None
+
+
+def _player_country_name(player: Player) -> str | None:
+    """Return the canonical country name for *player*, or None if unresolved."""
+    raw_country = _safe_str(player.iplookup.geolite2.country) or _safe_str(player.iplookup.ipapi.country)
+    if raw_country is None:
+        return None
+    return normalize_country_name(raw_country) or raw_country
+
+
+def _is_country_in_detection_list(country_name: str) -> bool:
+    """Return True if *country_name* (or a known alias) is in the country detection list."""
+    return any(matches_country(country_name, entry) for entry in GUIDetectionSettings.country_detection_list)
+
+
+def _toggle_country_detection(country_name: str, *, add: bool) -> None:
+    """Add or remove *country_name* (and any alias) from the country detection list and persist."""
+    if add:
+        if not _is_country_in_detection_list(country_name):
+            GUIDetectionSettings.country_detection_list.append(country_name)
+    else:
+        GUIDetectionSettings.country_detection_list[:] = [
+            entry for entry in GUIDetectionSettings.country_detection_list if not matches_country(country_name, entry)
+        ]
+    _persist_and_refresh_detections()
 
 
 def build_detections_menu(
@@ -54,20 +80,20 @@ def build_detections_menu(
     parent: QWidget,
 ) -> None:
     """Build a Detections submenu for a single player."""
-    country_name = _safe_str(player.iplookup.geolite2.country)
+    country_name = _player_country_name(player)
     isp = _safe_str(player.iplookup.ipapi.isp)
     as_name = _safe_str(player.iplookup.ipapi.as_name)
     asn_geolite2 = _safe_str(player.iplookup.geolite2.asn)
 
     # --- Country ---
     if country_name is not None:
-        country_in_list = country_name in GUIDetectionSettings.country_detection_list
+        country_in_list = _is_country_in_detection_list(country_name)
         if country_in_list:
             add_action(
                 menu,
                 f'Remove Country ({country_name})',
                 tooltip=f'Remove {country_name} from the country detection list.',
-                handler=lambda: _toggle_detection_list(GUIDetectionSettings.country_detection_list, country_name, add=False),
+                handler=lambda: _toggle_country_detection(country_name, add=False),
                 icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')),
             )
         else:
@@ -75,7 +101,7 @@ def build_detections_menu(
                 menu,
                 f'Add Country ({country_name})',
                 tooltip=f'Add {country_name} to the country detection list.',
-                handler=lambda: _toggle_detection_list(GUIDetectionSettings.country_detection_list, country_name, add=True),
+                handler=lambda: _toggle_country_detection(country_name, add=True),
                 icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'plus.svg')),
             )
 
@@ -137,7 +163,7 @@ def build_detections_menu_multi(
     parent: QWidget,
 ) -> None:
     """Build a Detections submenu for multiple selected players."""
-    countries: list[str] = sorted({country for player in players if (country := _safe_str(player.iplookup.geolite2.country)) is not None})
+    countries: list[str] = sorted({country for player in players if (country := _player_country_name(player)) is not None})
     isps: list[str] = sorted({isp for player in players if (isp := _safe_str(player.iplookup.ipapi.isp)) is not None})
     asns_set: set[str] = set()
     for player in players:
@@ -151,15 +177,15 @@ def build_detections_menu_multi(
     has_items = False
 
     # --- Country ---
-    new_countries = [country for country in countries if country not in GUIDetectionSettings.country_detection_list]
-    existing_countries = [country for country in countries if country in GUIDetectionSettings.country_detection_list]
+    new_countries = [country for country in countries if not _is_country_in_detection_list(country)]
+    existing_countries = [country for country in countries if _is_country_in_detection_list(country)]
     if new_countries or existing_countries:
         has_items = True
     if new_countries:
 
         def _add_countries(country_names: list[str] = new_countries) -> None:
             for country_name in country_names:
-                if country_name not in GUIDetectionSettings.country_detection_list:
+                if not _is_country_in_detection_list(country_name):
                     GUIDetectionSettings.country_detection_list.append(country_name)
             _persist_and_refresh_detections()
 
@@ -173,9 +199,9 @@ def build_detections_menu_multi(
     if existing_countries:
 
         def _remove_countries(country_names: list[str] = existing_countries) -> None:
-            for country_name in country_names:
-                with suppress(ValueError):
-                    GUIDetectionSettings.country_detection_list.remove(country_name)
+            GUIDetectionSettings.country_detection_list[:] = [
+                entry for entry in GUIDetectionSettings.country_detection_list if not any(matches_country(c, entry) for c in country_names)
+            ]
             _persist_and_refresh_detections()
 
         add_action(

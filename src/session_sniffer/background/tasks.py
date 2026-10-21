@@ -17,6 +17,7 @@ from session_sniffer.constants.standard import LOCAL_TZ
 from session_sniffer.core import ScriptControl, terminate_on_uncaught_exception
 from session_sniffer.error_messages import format_type_error
 from session_sniffer.gta5.suspend_manager import GTASuspendManager
+from session_sniffer.guis.country_data import matches_country
 from session_sniffer.guis.tables_player_actions._detection_dialogs import (
     DetectionNotificationInfo,
     NotificationType,
@@ -275,7 +276,7 @@ def handle_detection_notification(
                 tts_candidate_path = TTS_DIR_PATH / tts_voice_name(voice_setting=voice_setting) / 'event' / f'{notification_type}.wav'
                 queue_voice_notification(tts_candidate_path)
 
-            data_ready = wait_for_player_data_ready(player, data_fields=('reverse_dns.hostname', 'iplookup.geolite2', 'iplookup.ipapi'), timeout=3.0)
+            data_ready = wait_for_player_data_ready(player, data_fields=('iplookup.geolite2', 'reverse_dns.hostname', 'iplookup.ipapi'), timeout=3.0)
 
             # Detection logging
             if logging_setting:
@@ -305,8 +306,8 @@ def handle_detection_notification(
         # Combo Rules evaluation (rules WITH event condition fire here)
         combo_event = _NOTIFICATION_TO_EVENT.get(notification_type)
         if combo_event is not None:
-            # Ensure IP lookup data is ready (may already be loaded above)
-            if not data_ready:
+            _check_iplookup_geolite2(player)
+            if not data_ready and ComboRulesManager.needs_ipapi(event_rules=True, geo_country_missing=player.iplookup.geolite2.country_code in ('...', 'N/A')):
                 wait_for_player_data_ready(player, data_fields=('iplookup.geolite2', 'iplookup.ipapi'), timeout=10.0)
 
             matched_combo_rules = ComboRulesManager.evaluate(player, event_type=combo_event)
@@ -598,7 +599,7 @@ def monitor_gta5_relay_task(player: Player) -> None:
             reason_key=f'gta5_relay:{player.ip}', left_event=player.left_event, duration=GUIDetectionSettings.gta5_relay_duration,
         )
 
-    wait_for_player_data_ready(player, data_fields=('reverse_dns.hostname', 'iplookup.geolite2', 'iplookup.ipapi'), timeout=10.0)
+    wait_for_player_data_ready(player, data_fields=('iplookup.geolite2', 'reverse_dns.hostname', 'iplookup.ipapi'), timeout=10.0)
 
     if Settings.voice_notifications_enabled and GUIDetectionSettings.gta5_relay_voice_notifications:
         tts_candidate_path = TTS_DIR_PATH / tts_voice_name(voice_setting=GUIDetectionSettings.gta5_relay_voice_notifications) / 'detection' / 'gta5_relay_detected.wav'
@@ -628,8 +629,12 @@ def check_global_detections(player: Player) -> None:
     Args:
         player: The player object to check detections against.
     """
-    # Wait for IP lookup data to be ready
-    wait_for_player_data_ready(player, data_fields=('iplookup.ipapi', 'iplookup.geolite2'), timeout=10.0)
+    _check_iplookup_geolite2(player)
+    geo_missing = player.iplookup.geolite2.country_code in ('...', 'N/A')
+    if GUIDetectionSettings.has_any_ipapi_detection_enabled(geo_country_missing=geo_missing) or ComboRulesManager.needs_ipapi(
+        event_rules=False, geo_country_missing=geo_missing,
+    ):
+        wait_for_player_data_ready(player, data_fields=('iplookup.geolite2', 'iplookup.ipapi'), timeout=10.0)
     if player.left_event.is_set() or not PlayersRegistry.is_player_connected(player):
         return
 
@@ -755,9 +760,9 @@ def check_global_detections(player: Player) -> None:
         )
 
     # Country Detection
-    if (
-        GUIDetectionSettings.country_detection_list and player.iplookup.geolite2.is_initialized
-        and player.iplookup.geolite2.country not in ('...', 'N/A') and player.iplookup.geolite2.country in GUIDetectionSettings.country_detection_list
+    if GUIDetectionSettings.country_detection_list and any(
+        matches_country(country, player.iplookup.geolite2.country, player.iplookup.geolite2.country_code, player.iplookup.ipapi.country, player.iplookup.ipapi.country_code)
+        for country in GUIDetectionSettings.country_detection_list
     ):
         handle_detection_notifications(
             detection_title='BLOCKED COUNTRY DETECTED!',

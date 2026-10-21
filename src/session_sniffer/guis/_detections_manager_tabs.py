@@ -29,7 +29,7 @@ from session_sniffer.background import clear_voice_notification_queue, retrigger
 from session_sniffer.constants.local import COMBO_RULES_PATH, RESOURCES_DIR_PATH
 from session_sniffer.constants.standalone import MAX_SUSPEND_DURATION_SECONDS, TITLE
 from session_sniffer.guis._combo_rule_editor import ComboRuleEditorDialog, CountrySelectionDialog
-from session_sniffer.guis.country_data import get_country_flag_code
+from session_sniffer.guis.country_data import get_country_flag_code, normalize_country_name
 from session_sniffer.guis.delegates import ElidedTextTooltipDelegate
 from session_sniffer.guis.stylesheets import (
     DESC_LABEL_STYLESHEET,
@@ -678,7 +678,7 @@ class DetectionsManagerTabsMixin(QDialog):
             if item:
                 country = item.data(Qt.ItemDataRole.UserRole)
                 if isinstance(country, str):
-                    existing_countries.add(country)
+                    existing_countries.add(normalize_country_name(country) or country)
 
         dialog = CountrySelectionDialog(self, existing_countries)
         if dialog.exec() == QDialog.DialogCode.Accepted:
