@@ -34,10 +34,11 @@ from session_sniffer.models.userip_settings_model import format_iso_timestamp_di
 from session_sniffer.text_utils import pluralize, split_usernames
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Sequence
 
     from PySide6.QtGui import QFont
 
+    from session_sniffer.models.player import Player
     from session_sniffer.player.userip import UserIP
 
 _STANDARD_ICON_SIZE = 16
@@ -96,7 +97,54 @@ def _format_looky_tooltip_html(text: str, looky_names: set[str], *, is_disconnec
     return f'<span>{", ".join(formatted_tokens)}</span>'
 
 
+def _format_username_source_lines(
+    player: Player,
+    *,
+    looky_names: set[str] | None = None,
+    is_disconnected: bool = False,
+) -> list[str]:
+    """Format deduplicated per-source username HTML lines for a player tooltip."""
+    lines: list[str] = []
+    seen_casefolded: set[str] = set()
+
+    def _append_source_line(label_prefix: str, raw_names: Sequence[str]) -> None:
+        unique_names: list[str] = []
+        for raw_name in raw_names:
+            cleaned = raw_name.strip()
+            if not cleaned:
+                continue
+            folded = cleaned.casefold()
+            if folded not in seen_casefolded:
+                seen_casefolded.add(folded)
+                unique_names.append(cleaned)
+        if not unique_names:
+            return
+        label = f'{label_prefix}{pluralize(len(unique_names))}'
+        joined_text = ', '.join(unique_names)
+        value_html = (
+            _format_looky_tooltip_html(joined_text, looky_names, is_disconnected=is_disconnected)
+            if looky_names is not None
+            else html.escape(joined_text)
+        )
+        lines.append(f'<span style="color: #9ca3af;">{label}:</span> {value_html}')
+
+    if player.userip is not None and player.userip.usernames:
+        _append_source_line('DB Username', player.userip.usernames)
+    if player.ps3_username is not None and player.ps3_username:
+        _append_source_line('PS3 Username', (player.ps3_username,))
+    if player.mod_menus is not None and player.mod_menus.usernames:
+        _append_source_line('Mod Menu Username', player.mod_menus.usernames)
+    if looky_names is not None:
+        with player.looky_system.lock:
+            looky_list = list(player.looky_system.usernames) if player.looky_system.is_initialized else []
+        if looky_list:
+            _append_source_line('Looky Username', looky_list)
+
+    return lines
+
+
 def _format_userip_tooltip_lines(
+    player: Player,
     userip: UserIP,
     *,
     looky_names: set[str] | None = None,
@@ -109,15 +157,13 @@ def _format_userip_tooltip_lines(
     except ValueError:
         db_display = str(userip.db_path)
     lines.append(f'<span style="color: #9ca3af;">Database:</span> {html.escape(db_display)}')
-    if userip.usernames:
-        usernames_label = f'DB Username{pluralize(len(userip.usernames))}'
-        db_usernames_text = ', '.join(userip.usernames)
-        db_usernames_html = (
-            _format_looky_tooltip_html(db_usernames_text, looky_names, is_disconnected=is_disconnected)
-            if looky_names is not None
-            else html.escape(db_usernames_text)
-        )
-        lines.append(f'<span style="color: #9ca3af;">{usernames_label}:</span> {db_usernames_html}')
+    lines.extend(
+        _format_username_source_lines(
+            player,
+            looky_names=looky_names,
+            is_disconnected=is_disconnected,
+        ),
+    )
     if userip.notes:
         notes_label = f'Note{pluralize(len(userip.notes))}'
         lines.append(f'<span style="color: #9ca3af;">{notes_label}:</span> {html.escape(", ".join(userip.notes))}')
@@ -161,13 +207,14 @@ class ElidedTextTooltipDelegate(QStyledItemDelegate):
 
         model = index.model()
         username_column = getattr(model, 'username_column_index', -1)
-        player_userip: UserIP | None = None
+        matched_player: Player | None = None
         if 0 <= username_column == index.column():
-            get_userip = getattr(model, 'get_player_userip_for_row', None)
-            if callable(get_userip):
-                raw_userip = get_userip(index.row())
-                if raw_userip is not None:
-                    player_userip = cast('UserIP', raw_userip)
+            get_player = getattr(model, 'get_player_for_row', None)
+            if callable(get_player):
+                raw_player = get_player(index.row())
+                if raw_player is not None:
+                    matched_player = cast('Player', raw_player)
+        player_userip: UserIP | None = matched_player.userip if matched_player is not None else None
 
         opt = QStyleOptionViewItem(option)
         if not opt.rect.isValid():
@@ -184,22 +231,25 @@ class ElidedTextTooltipDelegate(QStyledItemDelegate):
         tooltip_text = text
         user_role_data = index.data(Qt.ItemDataRole.UserRole)
         looky_names: set[str] | None = cast('set[str]', user_role_data) if isinstance(user_role_data, set) and user_role_data else None
-        if looky_names is not None or player_userip is not None:
+        if matched_player is not None or looky_names is not None:
             is_disconnected = _is_disconnected_cell(view, index)
-            usernames_html = (
-                _format_looky_tooltip_html(text, looky_names, is_disconnected=is_disconnected)
-                if looky_names is not None
-                else f'<span>{html.escape(text)}</span>'
-            )
-            if player_userip is not None:
+            if matched_player is not None and player_userip is not None:
                 userip_lines = _format_userip_tooltip_lines(
+                    matched_player,
                     player_userip,
                     looky_names=looky_names,
                     is_disconnected=is_disconnected,
                 )
-                tooltip_text = '<br>'.join([usernames_html, *userip_lines])
-            else:
-                tooltip_text = usernames_html
+                tooltip_text = '<br>'.join(userip_lines)
+            elif matched_player is not None:
+                source_lines = _format_username_source_lines(
+                    matched_player,
+                    looky_names=looky_names,
+                    is_disconnected=is_disconnected,
+                )
+                tooltip_text = '<br>'.join(source_lines) if source_lines else f'<span>{html.escape(text)}</span>'
+            elif looky_names is not None:
+                tooltip_text = _format_looky_tooltip_html(text, looky_names, is_disconnected=is_disconnected)
 
         QToolTip.showText(event.globalPos(), tooltip_text, view)
         return True
