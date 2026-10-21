@@ -101,6 +101,7 @@ class PlayersRegistry:
             cls._disconnected_players_registry.pop(player.ip)
             cls._connected_players_registry[player.ip] = player
             cls._all_players_by_ip[player.ip] = player
+            SessionTracker.record_session_player_activity(player.session_id, player.datetime.last_rejoin)
 
     @classmethod
     def move_player_to_disconnected(cls, player: Player) -> None:
@@ -363,14 +364,13 @@ class SessionTracker:
         """Return the start timestamp for the specified session sequence number."""
         with cls._lock:
             recorded_start = cls._session_start_times.get(session_id)
+        if recorded_start is not None:
+            return recorded_start
         players = cls.get_session_players(session_id, include_servers=True)
-        player_starts = [player.datetime.first_seen for player in players]
+        player_starts = [player.datetime.last_rejoin if session_id > 1 else player.datetime.first_seen for player in players]
         if player_starts:
-            earliest_player = min(player_starts)
-            if recorded_start is not None:
-                return min(recorded_start, earliest_player)
-            return earliest_player
-        return recorded_start
+            return min(player_starts)
+        return None
 
     @classmethod
     def get_session_end_time(cls, session_id: int) -> datetime | None:
@@ -457,13 +457,15 @@ class SessionTracker:
     @classmethod
     def advance_session(cls, *, players: Iterable[Player] | None = None) -> None:
         """Advance to the next session identifier and update player session IDs."""
+        carried_players = list(players) if players is not None else []
+        carried_ips = {player.ip for player in carried_players}
         with cls._lock:
             now = datetime.now(tz=LOCAL_TZ)
             old_session_id = cls._current_session_id
             cls._session_end_times[old_session_id] = now
             if old_session_id not in cls._session_start_times:
                 old_players = cls.get_session_players(old_session_id, include_servers=True)
-                player_starts = [player.datetime.first_seen for player in old_players]
+                player_starts = [player.datetime.last_rejoin if old_session_id > 1 else player.datetime.first_seen for player in old_players]
                 if player_starts:
                     cls._session_start_times[old_session_id] = min(player_starts)
             cls._current_session_id += 1
@@ -471,17 +473,20 @@ class SessionTracker:
             cls._session_start_times[cls._current_session_id] = now
             new_session_id = cls._current_session_id
             if old_session_id not in cls._session_snapshots:
-                session_players = [player.snapshot(session_id=old_session_id) for player in PlayersRegistry.get_connected_players()]
+                session_players = [
+                    player.snapshot(session_id=old_session_id)
+                    for player in PlayersRegistry.get_connected_players()
+                    if player.ip not in carried_ips
+                ]
                 session_players.extend(
                     player.snapshot(session_id=old_session_id)
                     for player in PlayersRegistry.get_disconnected_players()
-                    if player.session_id == old_session_id
+                    if player.session_id == old_session_id and player.ip not in carried_ips
                 )
                 cls._session_snapshots[old_session_id] = session_players
-            logger.debug('[SessionTracker] Advanced to session %d', cls._current_session_id)
-        if players is not None:
-            for player in players:
+            for player in carried_players:
                 player.session_id = new_session_id
+            logger.debug('[SessionTracker] Advanced to session %d', cls._current_session_id)
 
     @classmethod
     def delete_session(cls, session_id: int) -> None:
