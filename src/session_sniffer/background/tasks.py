@@ -769,6 +769,7 @@ def check_global_detections(player: Player) -> None:
                 msgbox=GUIDetectionSettings.country_message_box,
                 tts_filename='country_detected',
                 suspend_enabled=GUIDetectionSettings.country_suspend_enabled,
+                suspend_duration=GUIDetectionSettings.country_suspend_duration,
                 suspension_name='CountryDetection',
             ),
         )
@@ -806,6 +807,7 @@ def check_global_detections(player: Player) -> None:
                     msgbox=GUIDetectionSettings.isp_message_box,
                     tts_filename='isp_detected',
                     suspend_enabled=GUIDetectionSettings.isp_suspend_enabled,
+                    suspend_duration=GUIDetectionSettings.isp_suspend_duration,
                     suspension_name='ISPDetection',
                 ),
             )
@@ -850,6 +852,7 @@ def check_global_detections(player: Player) -> None:
                         msgbox=GUIDetectionSettings.asn_message_box,
                         tts_filename='asn_detected',
                         suspend_enabled=GUIDetectionSettings.asn_suspend_enabled,
+                        suspend_duration=GUIDetectionSettings.asn_suspend_duration,
                         suspension_name='ASNDetection',
                     ),
                 )
