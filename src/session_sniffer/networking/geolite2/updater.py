@@ -112,9 +112,14 @@ def _load_geolite2_current_versions(*, geolite2_version_file_path: Path, geolite
         logger.warning('Corrupted or invalid GeoLite2 JSON version file at %s, re-downloading databases', geolite2_version_file_path)
         return
 
-    geolite2_databases['GeoLite2-ASN.mmdb'].set_current_version_from_datetime(version_file.GeoLite2_ASN.version)
-    geolite2_databases['GeoLite2-City.mmdb'].set_current_version_from_datetime(version_file.GeoLite2_City.version)
-    geolite2_databases['GeoLite2-Country.mmdb'].set_current_version_from_datetime(version_file.GeoLite2_Country.version)
+    database_entries: tuple[tuple[GeoLite2DatabaseKey, GeoLite2VersionEntry], ...] = (
+        ('GeoLite2-ASN.mmdb', version_file.GeoLite2_ASN),
+        ('GeoLite2-City.mmdb', version_file.GeoLite2_City),
+        ('GeoLite2-Country.mmdb', version_file.GeoLite2_Country),
+    )
+    for database_name, version_entry in database_entries:
+        if (GEOLITE2_DATABASES_DIR_PATH / database_name).is_file():
+            geolite2_databases[database_name].set_current_version_from_datetime(version_entry.version)
 
 
 def _geolite2_update_result_from_exception(*, exception: requests.exceptions.RequestException, url: str) -> GeoLite2UpdateResult:

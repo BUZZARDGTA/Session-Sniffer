@@ -140,11 +140,10 @@ def parse_ip_range_entry(entry: str) -> list[IPRange]:
     results: list[IPRange] = []
     for raw_part in entry.split(','):
         stripped = raw_part.strip()
-        if stripped:
-            results.append(parse_ip_range(stripped))
-    if not results:
-        message = f'No valid IP ranges found in: {entry}'
-        raise ValueError(message)
+        if not stripped:
+            message = f'Empty IP range segment in: {entry}'
+            raise ValueError(message)
+        results.append(parse_ip_range(stripped))
     return results
 
 
