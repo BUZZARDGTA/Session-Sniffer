@@ -220,11 +220,11 @@ def trigger_looky_rescan_all_players() -> int:
     Returns:
         The number of players queued for rescan.
     """
+    if not Settings.looky_enabled or not Settings.is_gta5_feature_set() or not CaptureState.is_local_capture():
+        return 0
     count = 0
     for player in PlayersRegistry.get_default_sorted_players():
-        if player.is_third_party_server:
-            continue
-        if Settings.looky_exclusive_gta5_process and not CaptureState.is_scanning_gta5_process() and not player.is_gta5_process:
+        if not is_looky_eligible(player):
             continue
         with player.looky_system.lock:
             player.looky_system.last_fetched_at = 0.0
