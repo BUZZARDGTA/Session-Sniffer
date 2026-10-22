@@ -42,21 +42,21 @@ def validate_webhook_url(webhook_url: str) -> str:
     return webhook_url
 
 
-def validate_release_type(
+def validate_release_tag(
     parser: argparse.ArgumentParser,
     tag: str,
-    version: Version,
     *,
     prerelease: bool,
 ) -> None:
-    """Validate that the GitHub release type matches the parsed version."""
-    if version.is_prerelease and not prerelease:
-        message = f'Release tag "{tag}" is a prerelease, but the GitHub release is not marked as prerelease.'
-        parser.error(message)
+    """Validate that the release tag is a valid PEP 440 version matching the prerelease flag."""
+    try:
+        version = Version(tag)
+    except InvalidVersion:
+        parser.error(f'Invalid release tag version: {tag!r}.')
 
-    if prerelease and not version.is_prerelease:
-        message = f'Release tag "{tag}" is not a prerelease, but the GitHub release is marked as prerelease.'
-        parser.error(message)
+    if version.is_prerelease != prerelease:
+        expected_state = 'marked as prerelease' if version.is_prerelease else 'not marked as prerelease'
+        parser.error(f'Release tag "{tag}" prerelease state mismatch: expected GitHub release to be {expected_state}.')
 
 
 def validate_positive_int(value: str) -> int:
@@ -172,13 +172,7 @@ def main() -> None:
     parser.add_argument('--darwin-file-size', required=True, type=validate_positive_int, help='The size of the macOS release binary in bytes')
 
     args = parser.parse_args()
-
-    try:
-        version = Version(args.tag)
-    except InvalidVersion:
-        parser.error(f'Release tag must be a valid version: {args.tag!r}.')
-
-    validate_release_type(parser, args.tag, version, prerelease=args.prerelease)
+    validate_release_tag(parser, args.tag, prerelease=args.prerelease)
 
     webhook_url = validate_webhook_url(os.environ.get('DISCORD_WEBHOOK_URL', '').strip())
     payload = build_discord_payload(args)

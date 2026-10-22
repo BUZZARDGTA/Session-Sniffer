@@ -355,13 +355,13 @@ jobs:
           python '.github/workflows/scripts/send_discord_release_notification.py' \
             "$RELEASE_TAG" \
             "${prerelease_arg[@]}" \
-            --release-name "$RELEASE_NAME" \
-            --release-url "$RELEASE_URL" \
-            --release-body "$RELEASE_BODY" \
-            --published-at "$RELEASE_PUBLISHED_AT" \
-            --download-url "$DOWNLOAD_URL" \
-            --file-size "$FILE_SIZE" \
-            --linux-download-url "$LINUX_DOWNLOAD_URL" \
-            --linux-file-size "$LINUX_FILE_SIZE" \
-            --darwin-download-url "$DARWIN_DOWNLOAD_URL" \
-            --darwin-file-size "$DARWIN_FILE_SIZE"
+            --release-name="$RELEASE_NAME" \
+            --release-url="$RELEASE_URL" \
+            --release-body="$RELEASE_BODY" \
+            --published-at="$RELEASE_PUBLISHED_AT" \
+            --download-url="$DOWNLOAD_URL" \
+            --file-size="$FILE_SIZE" \
+            --linux-download-url="$LINUX_DOWNLOAD_URL" \
+            --linux-file-size="$LINUX_FILE_SIZE" \
+            --darwin-download-url="$DARWIN_DOWNLOAD_URL" \
+            --darwin-file-size="$DARWIN_FILE_SIZE"
