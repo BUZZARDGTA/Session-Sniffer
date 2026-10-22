@@ -26,7 +26,7 @@ from session_sniffer.models.userip_settings_model import (
     pick_earliest_iso,
     pick_latest_iso,
 )
-from session_sniffer.networking.ip_range import entry_ip_covers_ip, is_valid_ip_range_entry, parse_ip_range_entry
+from session_sniffer.networking.ip_range import entry_ip_covers_ip, is_valid_ip_range_entry, parse_ip_range
 from session_sniffer.player.registry import PlayersRegistry
 from session_sniffer.player.userip import ProtectionSettings, UserIPDatabases, UserIPSettings
 from session_sniffer.text_utils import split_usernames
@@ -507,20 +507,19 @@ class _UserIPLogHistoryCache:
         if _ipv4_to_u32(cleaned) is not None:
             return cls.get_single_ip_stats(cleaned)
         try:
-            ip_ranges = parse_ip_range_entry(cleaned)
+            ip_range = parse_ip_range(cleaned)
         except ValueError:
             return None
 
         covered_ips: set[str] = set()
         with cls._cache_lock:
             sorted_ints, sorted_strs = cls._ensure_sorted_ips_locked()
-            for ip_range in ip_ranges:
-                if (bounds := ip_range.bounds) is not None:
-                    covered_ips.update(sorted_strs[bisect_left(sorted_ints, int(bounds[0])) : bisect_right(sorted_ints, int(bounds[1]))])
+            if (bounds := ip_range.bounds) is not None:
+                covered_ips.update(sorted_strs[bisect_left(sorted_ints, int(bounds[0])) : bisect_right(sorted_ints, int(bounds[1]))])
 
         live_by_ip: dict[str, Player] = {}
         for player in PlayersRegistry.get_all_players():
-            if any(player.ip in ip_range for ip_range in ip_ranges):
+            if player.ip in ip_range:
                 covered_ips.add(player.ip)
                 live_by_ip[player.ip] = player
         if not covered_ips:

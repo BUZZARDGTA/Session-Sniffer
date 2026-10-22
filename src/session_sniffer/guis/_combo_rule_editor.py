@@ -433,7 +433,7 @@ class ComboRuleEditorDialog(QDialog):
                 ip_layout.setSpacing(6)
 
                 ip_edit = QLineEdit()
-                ip_edit.setPlaceholderText('e.g. 192.168.1.0/24, 10.0.0.1-10.0.0.50, 1.2.3.*')
+                ip_edit.setPlaceholderText('e.g. 192.168.1.0/24 or 10.0.0.1-10.0.0.50 or 1.2.3.*')
                 ip_layout.addWidget(ip_edit, stretch=1)
 
                 builder_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square-pen.svg')), '')

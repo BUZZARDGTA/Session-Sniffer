@@ -12,7 +12,7 @@ from pydantic import TypeAdapter, ValidationError
 from session_sniffer.guis.country_data import matches_country
 from session_sniffer.models.combo_rules import EVENT_CONDITION, ComboRule, ConditionValue
 from session_sniffer.models.player import Player
-from session_sniffer.networking.ip_range import IPRange, check_ip_against_ranges, parse_ip_range_entry
+from session_sniffer.networking.ip_range import IPRange, parse_ip_range
 from session_sniffer.utils import FileSignature, get_file_signature
 
 if TYPE_CHECKING:
@@ -125,9 +125,9 @@ def _match_hosting_condition(value: ConditionValue, player: Player) -> bool:
 
 
 @lru_cache(maxsize=256)
-def _parse_ip_ranges_cached(raw_range: str) -> tuple[IPRange, ...]:
-    """Parse comma-separated IP ranges with caching."""
-    return tuple(parse_ip_range_entry(raw_range))
+def _parse_ip_range_cached(raw_range: str) -> IPRange:
+    """Parse an IP range string with caching."""
+    return parse_ip_range(raw_range)
 
 
 def _match_ip_range_condition(value: ConditionValue, player: Player) -> bool:
@@ -135,10 +135,10 @@ def _match_ip_range_condition(value: ConditionValue, player: Player) -> bool:
     if not isinstance(value, str):
         return False
     try:
-        ranges = _parse_ip_ranges_cached(value)
+        ip_range = _parse_ip_range_cached(value)
     except ValueError:
         return False
-    return check_ip_against_ranges(player.ip, ranges) is not None
+    return player.ip in ip_range
 
 
 _CONDITION_MATCHERS: dict[str, ConditionMatcher] = {

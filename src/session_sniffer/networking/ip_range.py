@@ -128,25 +128,6 @@ def _parse_start_end(raw: str) -> IPRange:
     return IPRange(raw=raw, start=start, end=end)
 
 
-def parse_ip_range_entry(entry: str) -> list[IPRange]:
-    """Parse an entry that may contain comma-separated IP ranges.
-
-    Returns:
-        A list of parsed `IPRange` objects.
-
-    Raises:
-        ValueError: If any sub-entry cannot be parsed.
-    """
-    results: list[IPRange] = []
-    for raw_part in entry.split(','):
-        stripped = raw_part.strip()
-        if not stripped:
-            message = f'Empty IP range segment in: {entry}'
-            raise ValueError(message)
-        results.append(parse_ip_range(stripped))
-    return results
-
-
 def check_ip_against_ranges(ip: str, ranges: Sequence[IPRange]) -> IPRange | None:
     """Check if an IP address matches any of the given ranges.
 
@@ -166,7 +147,7 @@ def check_ip_against_ranges(ip: str, ranges: Sequence[IPRange]) -> IPRange | Non
 def is_valid_ip_range_entry(entry: str) -> bool:
     """Return whether the entry string is a valid IP range (any supported format)."""
     try:
-        parse_ip_range_entry(entry)
+        parse_ip_range(entry)
     except ValueError:
         return False
     return True
@@ -177,7 +158,7 @@ def entry_ip_covers_ip(entry_ip: str, ip: str) -> bool:
     if entry_ip == ip:
         return True
     try:
-        ranges = parse_ip_range_entry(entry_ip)
+        ip_range = parse_ip_range(entry_ip)
     except ValueError:
         return False
-    return check_ip_against_ranges(ip, ranges) is not None
+    return ip in ip_range

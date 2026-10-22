@@ -21,7 +21,7 @@ from session_sniffer.models.userip_settings_model import (
     pick_earliest_iso,
     pick_latest_iso,
 )
-from session_sniffer.networking.ip_range import IPRange, parse_ip_range_entry
+from session_sniffer.networking.ip_range import IPRange, parse_ip_range
 from session_sniffer.player.registry import PlayersRegistry, SessionTracker
 from session_sniffer.settings import Settings
 from session_sniffer.text_utils import format_triple_quoted_text, split_usernames
@@ -449,47 +449,46 @@ class UserIPDatabases:
         note = entry_model.notes.strip()
 
         try:
-            parsed_ranges = parse_ip_range_entry(entry)
+            ip_range = parse_ip_range(entry)
         except ValueError:
             logger.warning('Skipping unparseable UserIP range entry: %r', entry)
             return
 
-        for ip_range in parsed_ranges:
-            existing_index = next(
-                (i for i, re in enumerate(range_entries) if re.ip_range.raw == ip_range.raw and re.db_path == db_path),
-                None,
+        existing_index = next(
+            (i for i, re in enumerate(range_entries) if re.ip_range.raw == entry and re.db_path == db_path),
+            None,
+        )
+        if existing_index is not None:
+            existing = range_entries[existing_index]
+            if username not in existing.usernames:
+                existing.usernames.append(username)
+            if note and note not in existing.notes:
+                existing.notes.append(note)
+            if entry_model.source not in existing.sources:
+                existing.sources.append(entry_model.source)
+            range_entries[existing_index] = existing._replace(
+                detections_count=max(existing.detections_count, entry_model.detections_count),
+                added_at=pick_earliest_iso(existing.added_at, entry_model.added_at),
+                updated_at=pick_latest_iso(existing.updated_at, entry_model.updated_at),
+                first_seen_at=pick_earliest_iso(existing.first_seen_at, entry_model.first_seen_at),
+                last_seen_at=pick_latest_iso(existing.last_seen_at, entry_model.last_seen_at),
             )
-            if existing_index is not None:
-                existing = range_entries[existing_index]
-                if username not in existing.usernames:
-                    existing.usernames.append(username)
-                if note and note not in existing.notes:
-                    existing.notes.append(note)
-                if entry_model.source not in existing.sources:
-                    existing.sources.append(entry_model.source)
-                range_entries[existing_index] = existing._replace(
-                    detections_count=max(existing.detections_count, entry_model.detections_count),
-                    added_at=pick_earliest_iso(existing.added_at, entry_model.added_at),
-                    updated_at=pick_latest_iso(existing.updated_at, entry_model.updated_at),
-                    first_seen_at=pick_earliest_iso(existing.first_seen_at, entry_model.first_seen_at),
-                    last_seen_at=pick_latest_iso(existing.last_seen_at, entry_model.last_seen_at),
-                )
-            else:
-                range_entries.append(
-                    _RangeEntry(
-                        ip_range=ip_range,
-                        db_path=db_path,
-                        settings=settings,
-                        usernames=[username],
-                        notes=[note] if note else [],
-                        sources=[entry_model.source],
-                        detections_count=entry_model.detections_count,
-                        added_at=entry_model.added_at,
-                        updated_at=entry_model.updated_at,
-                        first_seen_at=entry_model.first_seen_at,
-                        last_seen_at=entry_model.last_seen_at,
-                    ),
-                )
+        else:
+            range_entries.append(
+                _RangeEntry(
+                    ip_range=ip_range,
+                    db_path=db_path,
+                    settings=settings,
+                    usernames=[username],
+                    notes=[note] if note else [],
+                    sources=[entry_model.source],
+                    detections_count=entry_model.detections_count,
+                    added_at=entry_model.added_at,
+                    updated_at=entry_model.updated_at,
+                    first_seen_at=entry_model.first_seen_at,
+                    last_seen_at=entry_model.last_seen_at,
+                ),
+            )
 
     @staticmethod
     def _resolve_from_built_structures(
