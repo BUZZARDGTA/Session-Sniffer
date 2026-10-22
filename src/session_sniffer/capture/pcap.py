@@ -249,10 +249,18 @@ class PcapHandle:
         if not handle:
             error_message = error_buffer.value.decode('utf-8', errors='replace')
             if sys.platform != 'win32' and ('Operation not permitted' in error_message or 'permission' in error_message.lower()):
-                permission_hint = (
-                    ' (Session Sniffer requires root privileges or CAP_NET_RAW capability: '
-                    'try running with sudo or setcap cap_net_raw,cap_net_admin=eip on the python executable)'
-                )
+                if sys.platform == 'darwin':
+                    permission_hint = ' (Session Sniffer requires read/write permissions to /dev/bpf*: try running "sudo chmod 666 /dev/bpf*" or running with sudo)'
+                elif getattr(sys, 'frozen', False):
+                    permission_hint = (
+                        ' (Session Sniffer requires root privileges or capture capabilities: '
+                        'try running with sudo or setcap cap_net_raw,cap_net_admin,cap_sys_ptrace=eip on the executable)'
+                    )
+                else:
+                    permission_hint = (
+                        ' (Session Sniffer requires root privileges or CAP_NET_RAW capability: '
+                        'try running with sudo or setcap cap_net_raw,cap_net_admin=eip on the python executable)'
+                    )
                 error_message += permission_hint
             raise PcapOpenError(device_name, error_message)
 

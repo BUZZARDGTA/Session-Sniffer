@@ -183,6 +183,7 @@ class DependencyPromptDialog(DraggableDialogMixin, QDialog):
 
         msg_label = QLabel(message)
         msg_label.setWordWrap(True)
+        msg_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         msg_label.setFont(get_ui_font(scale_by_ui(9)))
         msg_label.setStyleSheet(DEPENDENCY_PROMPT_MESSAGE_LABEL_STYLESHEET)
         card_layout.addWidget(msg_label)

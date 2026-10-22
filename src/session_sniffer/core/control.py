@@ -10,11 +10,12 @@ from types import TracebackType
 from typing import TYPE_CHECKING, ClassVar, Literal, NamedTuple
 
 from session_sniffer import msgbox
+from session_sniffer.constants.local import APP_DIR_LOCAL, APP_DIR_ROAMING
 from session_sniffer.constants.standalone import GITHUB_ISSUES_URL, TITLE
 from session_sniffer.gta5.suspend_manager import GTASuspendManager
 from session_sniffer.logging_setup import dump_crash_diagnostics, flush_all_loggers
 from session_sniffer.rdr2.suspend_manager import RDR2SuspendManager
-from session_sniffer.utils import terminate_process_tree
+from session_sniffer.utils import ensure_app_dir_ownership, terminate_process_tree
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -121,6 +122,8 @@ def terminate_script(
         time.sleep(3)
 
     flush_all_loggers()
+    ensure_app_dir_ownership(APP_DIR_LOCAL)
+    ensure_app_dir_ownership(APP_DIR_ROAMING)
     terminate_process_tree()
 
 

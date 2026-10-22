@@ -4,10 +4,14 @@ This module provides a utility function to check whether Npcap is installed on t
 Npcap is required for network packet capturing in Windows environments.
 """
 
+import contextlib
 import enum
 import logging
 import os
+import shlex
 import socket
+import struct
+import subprocess
 import sys
 import time
 import webbrowser
@@ -17,12 +21,15 @@ from pathlib import Path
 if sys.platform == 'win32':
     import winreg
 
+with contextlib.suppress(ImportError):
+    import posix
+
 from session_sniffer.capture.pcap import can_open_pcap_device, is_pcap_library_available
 from session_sniffer.capture.process import iter_running_processes
 from session_sniffer.capture.utils.ctypes_win32 import is_npcap_setup_window_visible, is_service_running
 from session_sniffer.error_messages import format_npcap_required_message
 from session_sniffer.guis.dependency_prompt_dialog import show_dependency_prompt
-from session_sniffer.utils import run_elevated_powershell_command
+from session_sniffer.utils import is_pyinstaller_compiled, run_elevated_powershell_command
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +53,12 @@ def is_libpcap_installed() -> bool:
 
 
 _AF_PACKET = getattr(socket, 'AF_PACKET', 17)
+_LINUX_CAP_XATTR_NAME = 'security.capability'
+_LINUX_VFS_CAP_FLAGS_EFFECTIVE = 0x000001
+_LINUX_CAP_NET_ADMIN_BIT = 1 << 12
+_LINUX_CAP_NET_RAW_BIT = 1 << 13
+_LINUX_CAP_SYS_PTRACE_BIT = 1 << 19
+_LINUX_VFS_CAP_MIN_HEADER_SIZE = 8
 
 
 def can_capture_packets_on_linux() -> bool:
@@ -61,13 +74,59 @@ def can_capture_packets_on_linux() -> bool:
     return True
 
 
+def _has_linux_executable_file_capabilities() -> bool:
+    """Return whether the executable on disk has the required Linux file capabilities set."""
+    if sys.platform == 'win32':
+        return False
+    real_executable = os.path.realpath(sys.executable)
+    cap_bytes = b''
+    try:
+        cap_bytes = posix.getxattr(real_executable, _LINUX_CAP_XATTR_NAME)
+    except (AttributeError, OSError):
+        return False
+    if len(cap_bytes) < _LINUX_VFS_CAP_MIN_HEADER_SIZE:
+        return False
+    magic_etc, permitted_low = struct.unpack_from('<II', cap_bytes)
+    if not magic_etc & _LINUX_VFS_CAP_FLAGS_EFFECTIVE:
+        return False
+    required_mask = _LINUX_CAP_NET_RAW_BIT | _LINUX_CAP_NET_ADMIN_BIT
+    if is_pyinstaller_compiled():
+        required_mask |= _LINUX_CAP_SYS_PTRACE_BIT
+    return bool((permitted_low & required_mask) == required_mask)
+
+
+def _spawn_relaunch_process() -> subprocess.Popen[bytes]:
+    """Spawn a detached process for relaunching with newly granted Linux file capabilities."""
+    command = [sys.executable, *sys.argv[1:]] if is_pyinstaller_compiled() else (sys.orig_argv or [sys.executable, *sys.argv])
+    return subprocess.Popen(
+        command,
+        cwd=str(Path(sys.executable).parent) if is_pyinstaller_compiled() else None,
+        env={**os.environ, 'PYINSTALLER_RESET_ENVIRONMENT': '1'},
+        close_fds=True,
+    )
+
+
+def _relaunch_with_linux_capabilities() -> None:
+    """Relaunch the current process so newly granted Linux file capabilities take effect."""
+    _spawn_relaunch_process()
+    os._exit(0)
+
+
 def get_linux_permissions_required_message() -> str:
     """Format the message explaining the required packet capture capabilities on Linux."""
-    real_python_executable = os.path.realpath(sys.executable)
+    real_executable = shlex.quote(os.path.realpath(sys.executable))
+    if is_pyinstaller_compiled():
+        return (
+            'Session Sniffer requires root privileges or packet capture capabilities to capture network traffic on Linux.\n\n'
+            'To grant the required capabilities to the executable without running as root, execute:\n'
+            f'  sudo setcap cap_net_raw,cap_net_admin,cap_sys_ptrace=eip {real_executable}\n\n'
+            'Alternatively, run Session Sniffer with root privileges:\n'
+            f'  sudo {real_executable}'
+        )
     return (
         'Session Sniffer requires root privileges or the CAP_NET_RAW capability to capture network traffic on Linux.\n\n'
         'To grant the required capability to Python without running as root, execute:\n'
-        f'  sudo setcap cap_net_raw,cap_net_admin=eip {real_python_executable}\n\n'
+        f'  sudo setcap cap_net_raw,cap_net_admin=eip {real_executable}\n\n'
         'Alternatively, run Session Sniffer with root privileges:\n'
         '  sudo -E env PATH=$PATH python3 -m session_sniffer'
     )
@@ -123,13 +182,31 @@ def ensure_libpcap_installed() -> None:
     ):
         sys.exit(1)
 
-    if not can_capture_packets_on_linux() and not show_dependency_prompt(
+    if can_capture_packets_on_linux():
+        return
+
+    had_file_caps_initially = _has_linux_executable_file_capabilities()
+
+    def _is_linux_capture_ready() -> bool:
+        return can_capture_packets_on_linux() or (not had_file_caps_initially and _has_linux_executable_file_capabilities())
+
+    def _get_status() -> tuple[str, str]:
+        if can_capture_packets_on_linux():
+            return 'Capture permissions verified!', 'Resuming Session Sniffer…'
+        if not had_file_caps_initially and _has_linux_executable_file_capabilities():
+            return 'Capture permissions verified!', 'Restarting Session Sniffer…'
+        return _get_linux_permissions_status()
+
+    if not show_dependency_prompt(
         title='Capture Permissions Required',
         message=get_linux_permissions_required_message(),
-        condition=can_capture_packets_on_linux,
-        status_callback=_get_linux_permissions_status,
+        condition=_is_linux_capture_ready,
+        status_callback=_get_status,
     ):
         sys.exit(1)
+
+    if not can_capture_packets_on_linux():
+        _relaunch_with_linux_capabilities()
 
 
 def _is_npcap_setup_in_progress() -> bool:

@@ -191,8 +191,6 @@ def _download_geolite2_asset_bytes(
 
 
 def _write_geolite2_version_file(geolite2_version_file_path: Path, geolite2_databases: GeoLite2Databases, /) -> None:
-    geolite2_version_file_path.parent.mkdir(parents=True, exist_ok=True)
-
     asn_version = geolite2_databases['GeoLite2-ASN.mmdb'].current_version
     city_version = geolite2_databases['GeoLite2-City.mmdb'].current_version
     country_version = geolite2_databases['GeoLite2-Country.mmdb'].current_version
@@ -206,7 +204,11 @@ def _write_geolite2_version_file(geolite2_version_file_path: Path, geolite2_data
         GeoLite2_City=GeoLite2VersionEntry(version=datetime.fromisoformat(city_version)),
         GeoLite2_Country=GeoLite2VersionEntry(version=datetime.fromisoformat(country_version)),
     )
-    geolite2_version_file_path.write_text(version_file.model_dump_json(indent=4, by_alias=True), encoding='utf-8')
+    try:
+        geolite2_version_file_path.parent.mkdir(parents=True, exist_ok=True)
+        geolite2_version_file_path.write_text(version_file.model_dump_json(indent=4, by_alias=True), encoding='utf-8')
+    except OSError:
+        logger.exception('Failed to write GeoLite2 version file at %s', geolite2_version_file_path)
 
 
 def _notify_geolite2_download_flags_failed(failed_flags: list[str], /) -> None:
@@ -228,33 +230,33 @@ def _notify_geolite2_download_flags_failed(failed_flags: list[str], /) -> None:
 
 
 def _persist_geolite2_database_bytes(*, database_name: str, file_bytes: bytes, desired_version: str, current_version: str | None) -> str | None:
-    GEOLITE2_DATABASES_DIR_PATH.mkdir(parents=True, exist_ok=True)
     destination_file_path = GEOLITE2_DATABASES_DIR_PATH / database_name
+    temp_path: Path | None = None
 
-    if destination_file_path.is_file():
-        existing_size = destination_file_path.stat().st_size
-        new_size = len(file_bytes)
+    try:
+        GEOLITE2_DATABASES_DIR_PATH.mkdir(parents=True, exist_ok=True)
 
-        if (
-            existing_size == new_size
-            and hashlib.sha256(destination_file_path.read_bytes()).digest() == hashlib.sha256(file_bytes).digest()  # Only compare hashes if file sizes match
-        ):
-            return desired_version
+        if destination_file_path.is_file():
+            existing_size = destination_file_path.stat().st_size
+            new_size = len(file_bytes)
+
+            if (
+                existing_size == new_size
+                and hashlib.sha256(destination_file_path.read_bytes()).digest() == hashlib.sha256(file_bytes).digest()  # Only compare hashes if file sizes match
+            ):
+                return desired_version
 
         with tempfile.NamedTemporaryFile(delete=False, dir=GEOLITE2_DATABASES_DIR_PATH) as tmp:
             tmp.write(file_bytes)
             temp_path = Path(tmp.name)
 
-        try:
-            temp_path.replace(destination_file_path)
-        except OSError:
-            logger.exception('Failed to replace GeoLite2 database at %s', destination_file_path)
+        temp_path.replace(destination_file_path)
+    except OSError:
+        logger.exception('Failed to persist GeoLite2 database at %s', destination_file_path)
+        if temp_path is not None:
             temp_path.unlink(missing_ok=True)
-            return current_version
+        return current_version
 
-        return desired_version
-
-    destination_file_path.write_bytes(file_bytes)
     return desired_version
 
 
@@ -325,12 +327,15 @@ def update_geolite2_databases(*, progress_callback: Callable[[str], None] | None
             failed_fetching_flag_list.append(database_name)
             continue
 
-        database_info.current_version = _persist_geolite2_database_bytes(
+        persisted_version = _persist_geolite2_database_bytes(
             database_name=database_name,
             file_bytes=file_bytes,
             desired_version=last_version,
             current_version=database_info.current_version,
         )
+        database_info.current_version = persisted_version
+        if persisted_version != last_version:
+            failed_fetching_flag_list.append(database_name)
 
     _notify_geolite2_download_flags_failed(failed_fetching_flag_list)
     _write_geolite2_version_file(geolite2_version_file_path, geolite2_databases)
