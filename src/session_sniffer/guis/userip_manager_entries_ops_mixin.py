@@ -50,6 +50,7 @@ from session_sniffer.models.userip_settings_model import (
     get_current_iso_timestamp,
 )
 from session_sniffer.networking.ip_range import is_valid_ip_range_entry
+from session_sniffer.player.userip import UserIPDatabases
 from session_sniffer.player.userip_loader import update_userip_databases
 from session_sniffer.rendering_core.events import wake_rendering_core
 from session_sniffer.text_utils import pluralize, split_usernames
@@ -310,6 +311,7 @@ class UserIPEntriesOperationsMixin(QDialog):
             self._save_database()
             if not self._dirty:
                 self._set_status(f'Updated entry to "{new_ip_text}".')
+        UserIPDatabases.renotify_if_conflicting([new_ip_text])
 
     def _edit_entry_note(self, source_row: int) -> None:
         """Open a text input dialog to edit the note of an existing entry."""
@@ -845,6 +847,7 @@ class UserIPEntriesOperationsMixin(QDialog):
             self._update_entry_counts()
             self._save_database()
             self._set_status(f'Moved {count} {pluralize(count, "entry", "entries")} to "{target_display_name}".')
+        UserIPDatabases.renotify_if_conflicting([entry_model.ip for entry_model, _ in entries_to_move])
 
     # ------------------------------------------------------------------
     # Save

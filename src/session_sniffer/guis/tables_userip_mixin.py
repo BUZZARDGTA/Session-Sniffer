@@ -55,18 +55,6 @@ def _collect_matching_entries_in_db(db_path: Path, ip_address: str, *, ranges_on
     return matching_entries
 
 
-def _remove_exact_ips_from_other_databases(selected_ips: list[str], target_database: Path) -> None:
-    """Remove exact single-IP entries for `selected_ips` from enabled UserIP databases other than `target_database`."""
-    selected_ip_set = set(selected_ips)
-    for db_path in UserIPDatabases.get_userip_database_filepaths():
-        if db_path == target_database or not db_path.is_file():
-            continue
-        db_model = load_userip_database_model(db_path)
-        kept_entries = [entry for entry in db_model.entries if entry.ip not in selected_ip_set]
-        if len(kept_entries) != len(db_model.entries):
-            save_userip_database_model(db_path, UserIPDatabaseFile(settings=db_model.settings, entries=kept_entries))
-
-
 def _show_modal_info_on_top(parent: QWidget, title: str, text: str) -> None:
     """Show a modal information message box that stays on top of other windows."""
     message_box = QMessageBox(parent)
@@ -208,8 +196,6 @@ def userip_add(
     if Settings.userip_sync_known_alts:
         chosen_usernames = UserIPDatabases.expand_with_known_alts(chosen_usernames)
 
-    _remove_exact_ips_from_other_databases(selected_ips, selected_database)
-
     existing_pairs: set[tuple[str, str]] = set()
     if selected_database.is_file():
         db_model = load_userip_database_model(selected_database)
@@ -236,6 +222,7 @@ def userip_add(
             f'{usernames_display} to UserIP database "{db_display}".'
         ),
     )
+    UserIPDatabases.renotify_if_conflicting(selected_ips)
 
 
 def userip_add_as_range(
@@ -282,6 +269,7 @@ def userip_add_as_range(
         TITLE,
         f'Range "{range_input}" has been added with username{pluralize(len(chosen_usernames))} {usernames_display} to UserIP database "{db_display}".',
     )
+    UserIPDatabases.renotify_if_conflicting([range_input])
 
 
 def userip_convert_to_range(parent: QWidget, ip_address: str, player: Player) -> None:
@@ -317,6 +305,7 @@ def userip_convert_to_range(parent: QWidget, ip_address: str, player: Player) ->
         TITLE,
         f'Converted {converted_count} {entry_word} for IP {ip_address} to range "{range_input}" in UserIP database "{db_display}".',
     )
+    UserIPDatabases.renotify_if_conflicting([range_input])
 
 
 def _select_covering_range_in_db(
@@ -376,6 +365,7 @@ def userip_convert_to_ip(parent: QWidget, ip_address: str, player: Player) -> No
         TITLE,
         f'Converted {converted_count} {entry_word} from range "{old_range}" to single IP {ip_address} in UserIP database "{db_display}".',
     )
+    UserIPDatabases.renotify_if_conflicting([ip_address])
 
 
 def userip_edit_range(parent: QWidget, ip_address: str, player: Player) -> None:
@@ -417,11 +407,12 @@ def userip_edit_range(parent: QWidget, ip_address: str, player: Player) -> None:
 
     _refresh_userip_and_wake_renderer()
     entry_word = pluralize(edited_count, 'entry', 'entries')
-    QMessageBox.information(
+    _show_modal_info_on_top(
         parent,
         TITLE,
         f'Updated {edited_count} {entry_word} from range "{old_range}" to "{new_range}" in UserIP database "{db_display}".',
     )
+    UserIPDatabases.renotify_if_conflicting([new_range])
 
 
 def userip_edit_note(parent: QWidget, ip_address: str, player: Player) -> None:
@@ -516,6 +507,7 @@ def userip_add_username(parent: QWidget, ip_address: str, player: Player) -> Non
         TITLE,
         f'Username{pluralize(count)} {usernames_display} {has_or_have} been added for {entry_label} in UserIP database "{db_display}".',
     )
+    UserIPDatabases.renotify_if_conflicting([target_entry])
 
 
 def userip_rename_multi(parent: QWidget, players: list[Player]) -> None:
@@ -633,6 +625,7 @@ def _format_database_entries_html_list(entries_by_database: dict[Path, list[str]
 def userip_move(parent: QWidget, selected_ips: list[str], selected_database: Path) -> None:
     """Move the selected IP address(es) to the chosen UserIP database."""
     deleted_entries_by_database: dict[Path, list[str]] = {}
+    moved_entry_ips: list[str] = []
     now_iso = get_current_iso_timestamp()
 
     for db_path in UserIPDatabases.get_userip_database_filepaths():
@@ -655,6 +648,7 @@ def userip_move(parent: QWidget, selected_ips: list[str], selected_database: Pat
         if moved_entries:
             save_userip_database_model(db_path, UserIPDatabaseFile(settings=db_model.settings, entries=kept_entries))
             append_userip_entries(selected_database, moved_entries)
+            moved_entry_ips.extend(entry.ip for entry in moved_entries)
             deleted_entries_by_database[db_path] = [f'{html.escape(entry.username)}={html.escape(entry.ip)}' for entry in moved_entries]
 
     if deleted_entries_by_database:
@@ -666,6 +660,7 @@ def userip_move(parent: QWidget, selected_ips: list[str], selected_database: Pat
             f'"{target_db_display}":</b><br><br><br>'
         )
         QMessageBox.information(parent, TITLE, header + _format_database_entries_html_list(deleted_entries_by_database))
+        UserIPDatabases.renotify_if_conflicting([*selected_ips, *moved_entry_ips])
 
 
 def userip_delete(parent: QWidget, selected_ips: list[str]) -> None:

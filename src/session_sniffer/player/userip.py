@@ -15,12 +15,7 @@ from session_sniffer.error_messages import format_userip_ip_conflict_message
 from session_sniffer.gta5.suspend_manager import GTASuspendManager
 from session_sniffer.guis.dialogs import create_nonmodal_warning
 from session_sniffer.guis.utils import find_main_window
-from session_sniffer.models.userip_settings_model import (
-    EntrySource,
-    UserIPEntryModel,
-    pick_earliest_iso,
-    pick_latest_iso,
-)
+from session_sniffer.models.userip_settings_model import EntrySource, UserIPEntryModel, pick_earliest_iso, pick_latest_iso
 from session_sniffer.networking.ip_range import IPRange, parse_ip_range
 from session_sniffer.player.registry import PlayersRegistry, SessionTracker
 from session_sniffer.settings import Settings
@@ -100,11 +95,16 @@ class UserIPConflict(NamedTuple):
     conflicting_ip: str
 
 
-def _conflict_key(conflict: UserIPConflict) -> str:
-    """Return a unique identifier string for a `UserIPConflict`."""
+def _conflict_ip_label(conflict: UserIPConflict) -> str:
+    """Return a human-readable IP or range label for a `UserIPConflict`."""
     if conflict.existing_userip.ip == conflict.conflicting_ip:
         return conflict.existing_userip.ip
     return f'{conflict.existing_userip.ip} vs {conflict.conflicting_ip}'
+
+
+def _conflict_key(conflict: UserIPConflict) -> str:
+    """Return a unique identifier string for a `UserIPConflict`."""
+    return f'{conflict.existing_userip.db_path}:{conflict.existing_userip.ip} vs {conflict.conflicting_database_path}:{conflict.conflicting_ip}'
 
 
 class _RangeEntry(NamedTuple):
@@ -182,10 +182,7 @@ class UserIPDatabases:
         if not conflicts:
             return
 
-        summary_template, detailed_text = format_userip_ip_conflict_message(
-            conflicts=conflicts,
-            userip_databases_dir=USERIP_DATABASES_DIR_PATH,
-        )
+        summary_template, detailed_text = format_userip_ip_conflict_message(conflicts=conflicts, userip_databases_dir=USERIP_DATABASES_DIR_PATH)
         text = format_triple_quoted_text(summary_template)
 
         for conflict in conflicts:
@@ -193,7 +190,7 @@ class UserIPDatabases:
             if newly_detected_ips is None or conflict_key in newly_detected_ips:
                 logger.warning(
                     'UserIP IP conflict for %s: "%s" (%s) vs "%s" (%s)',
-                    conflict_key,
+                    _conflict_ip_label(conflict),
                     conflict.existing_userip.db_path.name,
                     ', '.join(conflict.existing_userip.usernames),
                     conflict.conflicting_database_path.name,
@@ -254,23 +251,12 @@ class UserIPDatabases:
                     single_entries.append(entry)
                 except ValueError:
                     range_entries.append(entry)
-            classified.append(
-                _UserIPDatabaseEntry(
-                    db_path=db_path,
-                    settings=settings,
-                    single_entries=single_entries,
-                    range_entries=range_entries,
-                ),
-            )
+            classified.append(_UserIPDatabaseEntry(db_path=db_path, settings=settings, single_entries=single_entries, range_entries=range_entries))
         with cls._update_userip_database_lock:
             cls.userip_databases = classified
 
     @staticmethod
-    def _merge_single_entry_into_userip(
-        existing: UserIP | None,
-        entry_model: UserIPEntryModel,
-        db_entry: _UserIPDatabaseEntry,
-    ) -> UserIP:
+    def _merge_single_entry_into_userip(existing: UserIP | None, entry_model: UserIPEntryModel, db_entry: _UserIPDatabaseEntry) -> UserIP:
         """Create or update a `UserIP` by merging `entry_model` into `existing`."""
         entry = entry_model.ip
         username = entry_model.username
@@ -304,21 +290,12 @@ class UserIPDatabases:
         )
 
     @classmethod
-    def _process_single_ip(
-        cls,
-        entry_model: UserIPEntryModel,
-        db_entry: _UserIPDatabaseEntry,
-        build_state: _BuildState,
-    ) -> None:
+    def _process_single_ip(cls, entry_model: UserIPEntryModel, db_entry: _UserIPDatabaseEntry, build_state: _BuildState) -> None:
         """Process a single IP entry during build."""
         entry = entry_model.ip
         username = entry_model.username
         db_key = (db_entry.db_path, entry)
-        merged_db_userip = cls._merge_single_entry_into_userip(
-            build_state.single_userips_by_db.get(db_key),
-            entry_model,
-            db_entry,
-        )
+        merged_db_userip = cls._merge_single_entry_into_userip(build_state.single_userips_by_db.get(db_key), entry_model, db_entry)
         build_state.single_userips_by_db[db_key] = merged_db_userip
 
         if entry in build_state.ip_to_userip and build_state.ip_to_userip[entry].db_path != db_entry.db_path:
@@ -342,10 +319,7 @@ class UserIPDatabases:
             else:
                 build_state.conflicts.append(
                     UserIPConflict(
-                        existing_userip=build_state.ip_to_userip[entry],
-                        conflicting_database_path=db_entry.db_path,
-                        conflicting_username=username,
-                        conflicting_ip=entry,
+                        existing_userip=build_state.ip_to_userip[entry], conflicting_database_path=db_entry.db_path, conflicting_username=username, conflicting_ip=entry,
                     ),
                 )
             build_state.conflicting_ips.add(entry)
@@ -437,12 +411,7 @@ class UserIPDatabases:
         return conflicting_range_keys
 
     @staticmethod
-    def _process_range_entry(
-        entry_model: UserIPEntryModel,
-        db_path: Path,
-        settings: UserIPSettings,
-        range_entries: list[_RangeEntry],
-    ) -> None:
+    def _process_range_entry(entry_model: UserIPEntryModel, db_path: Path, settings: UserIPSettings, range_entries: list[_RangeEntry]) -> None:
         """Process a range entry (CIDR, start-end, wildcard) during build."""
         entry = entry_model.ip
         username = entry_model.username
@@ -640,13 +609,7 @@ class UserIPDatabases:
         conflicting_ips: set[str] = set()
         conflicts: list[UserIPConflict] = []
 
-        build_state = _BuildState(
-            ips_set=ips_set,
-            ip_to_userip=ip_to_userip,
-            single_userips_by_db=single_userips_by_db,
-            conflicting_ips=conflicting_ips,
-            conflicts=conflicts,
-        )
+        build_state = _BuildState(ips_set=ips_set, ip_to_userip=ip_to_userip, single_userips_by_db=single_userips_by_db, conflicting_ips=conflicting_ips, conflicts=conflicts)
 
         for db_entry in current_databases:
             for single_entry in db_entry.single_entries:
@@ -775,9 +738,9 @@ class UserIPDatabases:
 
         username_to_meta = cls._build_username_meta(current_databases, ambiguous_usernames, canonical_names, known_alts_clusters)
 
-        has_new_conflicts = bool(unresolved_conflicts - cls.notified_ip_conflicts)
+        newly_detected_ips = cls._find_newly_detected_conflict_keys(conflicts, cls._last_notified_conflicts)
+        has_new_conflicts = bool(newly_detected_ips)
         conflicts_changed = conflicts != cls._last_notified_conflicts
-        newly_detected_ips = unresolved_conflicts - cls.notified_ip_conflicts
 
         with cls._update_userip_database_lock:
             # Auto-close the open dialog when all conflicts are resolved
@@ -835,10 +798,30 @@ class UserIPDatabases:
             cls._pending_resolvable_usernames.clear()
             return result
 
+    @staticmethod
+    def _find_newly_detected_conflict_keys(conflicts: Sequence[UserIPConflict], previous_conflicts: Sequence[UserIPConflict]) -> set[str]:
+        """Return conflict keys for conflicts that are newly introduced or have newly added usernames."""
+        prev_usernames: dict[tuple[Path, str], set[str]] = {}
+        for prev in previous_conflicts:
+            prev_usernames.setdefault((prev.existing_userip.db_path, prev.existing_userip.ip), set()).update(prev.existing_userip.usernames)
+            prev_usernames.setdefault((prev.conflicting_database_path, prev.conflicting_ip), set()).update(split_usernames(prev.conflicting_username))
+        newly_detected: set[str] = set()
+        for conflict in conflicts:
+            key_a = (conflict.existing_userip.db_path, conflict.existing_userip.ip)
+            key_b = (conflict.conflicting_database_path, conflict.conflicting_ip)
+            if (
+                key_a not in prev_usernames
+                or key_b not in prev_usernames
+                or not set(conflict.existing_userip.usernames).issubset(prev_usernames[key_a])
+                or not set(split_usernames(conflict.conflicting_username)).issubset(prev_usernames[key_b])
+            ):
+                newly_detected.add(_conflict_key(conflict))
+        return newly_detected
+
     @classmethod
     def is_conflicting_ip(cls, ip: str) -> bool:
         """Return whether `ip` matches any conflicting single-IP or range entry."""
-        if ip in cls._conflicting_ips or ip in cls.notified_ip_conflicts:
+        if ip in cls._conflicting_ips:
             return True
         if not cls._conflicting_ranges:
             return False
@@ -847,6 +830,33 @@ class UserIPDatabases:
         except ValueError:
             return False
         return any(address in ip_range for ip_range in cls._conflicting_ranges)
+
+    @classmethod
+    def is_conflicting_entry(cls, entry: str) -> bool:
+        """Return whether a single-IP or range entry string is currently involved in a conflict."""
+        try:
+            IPv4Address(entry)
+        except ValueError:
+            try:
+                ip_range = parse_ip_range(entry)
+            except ValueError:
+                return False
+            for conflict_ip in cls._conflicting_ips:
+                try:
+                    if IPv4Address(conflict_ip) in ip_range:
+                        return True
+                except ValueError:
+                    continue
+            return any(ip_range.overlaps(conflict_range) for conflict_range in cls._conflicting_ranges)
+        return cls.is_conflicting_ip(entry)
+
+    @classmethod
+    def renotify_if_conflicting(cls, entries: Sequence[str]) -> None:
+        """Re-show the conflict warning dialog if any entry in `entries` is currently in conflict."""
+        if not cls._last_notified_conflicts:
+            return
+        if any(cls.is_conflicting_entry(entry) for entry in entries):
+            cls._notify_ip_conflicts(cls._last_notified_conflicts, newly_detected_ips=set())
 
     @classmethod
     def is_known_ip(cls, ip: str) -> bool:
@@ -869,13 +879,7 @@ class UserIPDatabases:
     @classmethod
     def resolve_userip(cls, ip: str) -> UserIP | None:
         """Look up a single IP against the already-built structures without triggering a rebuild."""
-        return cls._resolve_from_built_structures(
-            ip,
-            cls._ip_to_userip,
-            cls._range_entries,
-            cls._conflicting_ips,
-            cls._conflicting_ranges,
-        )
+        return cls._resolve_from_built_structures(ip, cls._ip_to_userip, cls._range_entries, cls._conflicting_ips, cls._conflicting_ranges)
 
     @classmethod
     def resolve_userip_by_username(cls, username: str, player_ip: str) -> tuple[UserIP, str] | None:
@@ -957,10 +961,7 @@ class UserIPDatabases:
             return [db_entry.db_path for db_entry in cls.userip_databases]
 
     @staticmethod
-    def _expand_usernames_with_cluster_dict(
-        usernames: Sequence[str],
-        clusters: dict[str, list[str]],
-    ) -> list[str]:
+    def _expand_usernames_with_cluster_dict(usernames: Sequence[str], clusters: dict[str, list[str]]) -> list[str]:
         """Expand usernames using a cluster mapping, preserving original order and casing."""
         expanded: list[str] = []
         seen: set[str] = set()
