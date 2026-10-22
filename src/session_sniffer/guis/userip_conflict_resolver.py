@@ -223,7 +223,8 @@ class UserIPConflictResolverDialog(QDialog):
         previous_selection = self._selected_side()
         previous_side = previous_selection[1] if previous_selection is not None else None
 
-        self._groups = _build_conflict_groups(UserIPDatabases.get_conflicts())
+        conflicts = UserIPDatabases.get_conflicts()
+        self._groups = _build_conflict_groups(conflicts)
         self._side_rows = [(group, side) for group in self._groups for side in group.sides]
         self._usernames_by_side = _collect_side_usernames([side for group in self._groups for side in group.sides])
 
@@ -257,10 +258,12 @@ class UserIPConflictResolverDialog(QDialog):
             self._tree.setCurrentItem(item_to_select)
             self._tree.scrollToItem(item_to_select)
 
-        conflict_count = len(self._groups)
-        if conflict_count:
+        conflict_group_count = len(self._groups)
+        if conflict_group_count:
+            conflict_pair_count = len(conflicts)
             self._summary_label.setText(
-                f'{conflict_count} UserIP conflict{pluralize(conflict_count)} found. '
+                f'{conflict_group_count} UserIP conflict group{pluralize(conflict_group_count)} '
+                f'({conflict_pair_count} conflicting pair{pluralize(conflict_pair_count)}) found. '
                 'An IP or range claimed by several databases is ignored until only one database claims it.\n'
                 'Select an entry, then keep it (deletes the entries that conflict with it) or delete it.',
             )
