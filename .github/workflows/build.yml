@@ -309,3 +309,59 @@ jobs:
 
           git commit -m "Update release_versions.json for ${{ github.event.release.tag_name }}"
           git push origin version
+
+  notify-discord:
+    needs: [upload-release-artifact, update-version-info]
+    runs-on: ubuntu-24.04
+    name: Notify Discord
+    steps:
+      - name: Checkout release source
+        uses: actions/checkout@v7.0.1
+
+      - name: Setup Python
+        uses: actions/setup-python@v7.1.0
+        with:
+          python-version: '3.14'
+
+      - name: Install notification dependencies
+        run: python -m pip install packaging requests
+
+      - name: Verify Discord notification script
+        run: python -m py_compile '.github/workflows/scripts/send_discord_release_notification.py'
+
+      - name: Send Discord release notification
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          RELEASE_NAME: ${{ github.event.release.name }}
+          RELEASE_URL: ${{ github.event.release.html_url }}
+          RELEASE_BODY: ${{ github.event.release.body }}
+          RELEASE_PUBLISHED_AT: ${{ github.event.release.published_at }}
+          IS_PRERELEASE: ${{ github.event.release.prerelease }}
+          DOWNLOAD_URL: ${{ needs.upload-release-artifact.outputs.download_url }}
+          FILE_SIZE: ${{ needs.upload-release-artifact.outputs.file_size }}
+          LINUX_DOWNLOAD_URL: ${{ needs.upload-release-artifact.outputs.linux_download_url }}
+          LINUX_FILE_SIZE: ${{ needs.upload-release-artifact.outputs.linux_file_size }}
+          DARWIN_DOWNLOAD_URL: ${{ needs.upload-release-artifact.outputs.darwin_download_url }}
+          DARWIN_FILE_SIZE: ${{ needs.upload-release-artifact.outputs.darwin_file_size }}
+        run: |
+          set -euo pipefail
+
+          prerelease_arg=()
+          if [[ "$IS_PRERELEASE" == 'true' ]]; then
+            prerelease_arg+=(--prerelease)
+          fi
+
+          python '.github/workflows/scripts/send_discord_release_notification.py' \
+            "$RELEASE_TAG" \
+            "${prerelease_arg[@]}" \
+            --release-name "$RELEASE_NAME" \
+            --release-url "$RELEASE_URL" \
+            --release-body "$RELEASE_BODY" \
+            --published-at "$RELEASE_PUBLISHED_AT" \
+            --download-url "$DOWNLOAD_URL" \
+            --file-size "$FILE_SIZE" \
+            --linux-download-url "$LINUX_DOWNLOAD_URL" \
+            --linux-file-size "$LINUX_FILE_SIZE" \
+            --darwin-download-url "$DARWIN_DOWNLOAD_URL" \
+            --darwin-file-size "$DARWIN_FILE_SIZE"

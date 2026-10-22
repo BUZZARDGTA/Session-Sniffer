@@ -58,6 +58,7 @@ Do **not** mechanically list or paraphrase every commit one by one. Instead, ins
 - **Verify exact filenames, paths, and data sources from the code**: Never guess or rely on outdated conventions (e.g. all settings and UserIP databases use `.json`, not `.ini`). Check the actual diff/source to cite exact file formats, log paths, and data sources.
 - **Group by category**: Organize entries under relevant headings such as `### Added`, `### Changed`, `### Fixed`, `### Performance`, or `### Removed` (include only categories that have entries).
 - **Clickable GitHub commit links**: Format every referenced commit hash as a clickable Markdown link to the repository commit on GitHub: `` [`<short-sha>`](https://github.com/BUZZARDGTA/Session-Sniffer/commit/<full-sha>) ``. When a consolidated entry spans multiple commits, link each contributing commit (e.g. ``([`7c0bab5`](https://github.com/BUZZARDGTA/Session-Sniffer/commit/7c0bab5f80a2b7b824883b713801af53921d6303), [`6841708`](https://github.com/BUZZARDGTA/Session-Sniffer/commit/68417080625ab90e9fb92ae4902736c05b318e8d))``).
+- **Copy-ready raw Markdown block**: Provide the changelog in a fenced ````markdown` code block so it can be copied in one click into the GitHub Release notes, where `.github/workflows/build.yml` (`notify-discord`) automatically forwards it to the Discord release webhook once the Windows, Linux, and macOS binaries finish compiling.
 
 ## Version Format
 
