@@ -335,7 +335,6 @@ jobs:
           RELEASE_TAG: ${{ github.event.release.tag_name }}
           RELEASE_NAME: ${{ github.event.release.name }}
           RELEASE_URL: ${{ github.event.release.html_url }}
-          RELEASE_BODY: ${{ github.event.release.body }}
           RELEASE_PUBLISHED_AT: ${{ github.event.release.published_at }}
           IS_PRERELEASE: ${{ github.event.release.prerelease }}
           DOWNLOAD_URL: ${{ needs.upload-release-artifact.outputs.download_url }}
@@ -357,7 +356,6 @@ jobs:
             "${prerelease_arg[@]}" \
             --release-name="$RELEASE_NAME" \
             --release-url="$RELEASE_URL" \
-            --release-body="$RELEASE_BODY" \
             --published-at="$RELEASE_PUBLISHED_AT" \
             --download-url="$DOWNLOAD_URL" \
             --file-size="$FILE_SIZE" \

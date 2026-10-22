@@ -1,7 +1,9 @@
 """Send a Discord webhook notification for a published GitHub release."""
 
 import argparse
+import json
 import os
+from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
 
@@ -40,6 +42,18 @@ def validate_webhook_url(webhook_url: str) -> str:
         raise ValueError(message)
 
     return webhook_url
+
+
+def read_release_body_from_event() -> str:
+    """Read the release changelog body from the GitHub Actions event payload file."""
+    event_path = os.environ.get('GITHUB_EVENT_PATH', '').strip()
+    if not event_path:
+        message = 'Environment variable GITHUB_EVENT_PATH is not set or empty.'
+        raise ValueError(message)
+
+    event_payload = json.loads(Path(event_path).read_text(encoding='utf-8'))
+    release_body = event_payload.get('release', {}).get('body')
+    return release_body if isinstance(release_body, str) else ''
 
 
 def validate_release_tag(
@@ -107,7 +121,7 @@ def format_changelog_description(release_body: str, release_url: str) -> str:
     return '\n'.join(kept_lines).rstrip() + truncation_suffix
 
 
-def build_discord_payload(args: argparse.Namespace) -> dict[str, Any]:
+def build_discord_payload(args: argparse.Namespace, release_body: str) -> dict[str, Any]:
     """Build the Discord webhook JSON payload with a rich release embed."""
     release_label = args.release_name.strip() or args.tag
     title = release_label if release_label.lower().startswith('session sniffer') else f'Session Sniffer {release_label}'
@@ -115,7 +129,7 @@ def build_discord_payload(args: argparse.Namespace) -> dict[str, Any]:
     embed: dict[str, Any] = {
         'title': title,
         'url': args.release_url,
-        'description': format_changelog_description(args.release_body, args.release_url),
+        'description': format_changelog_description(release_body, args.release_url),
         'color': PRERELEASE_EMBED_COLOR if args.prerelease else STABLE_EMBED_COLOR,
         'fields': [
             {
@@ -162,7 +176,6 @@ def main() -> None:
     parser.add_argument('--prerelease', action='store_true', help='Mark the release as a prerelease')
     parser.add_argument('--release-name', default='', help='The display name/title of the GitHub release')
     parser.add_argument('--release-url', required=True, help='The URL of the GitHub release page')
-    parser.add_argument('--release-body', default='', help='The Markdown body/changelog of the GitHub release')
     parser.add_argument('--published-at', default='', help='The ISO-8601 publication timestamp of the GitHub release')
     parser.add_argument('--download-url', required=True, help='The direct download URL for the Windows release executable')
     parser.add_argument('--file-size', required=True, type=validate_positive_int, help='The size of the Windows release executable in bytes')
@@ -175,7 +188,7 @@ def main() -> None:
     validate_release_tag(parser, args.tag, prerelease=args.prerelease)
 
     webhook_url = validate_webhook_url(os.environ.get('DISCORD_WEBHOOK_URL', '').strip())
-    payload = build_discord_payload(args)
+    payload = build_discord_payload(args, read_release_body_from_event())
 
     try:
         response = requests.post(
