@@ -45,7 +45,7 @@ jobs:
           fetch-depth: 0
 
       - name: Setup Python
-        uses: actions/setup-python@v7.0.0
+        uses: actions/setup-python@v7.1.0
         with:
           python-version: '3.14'
           architecture: ${{ matrix.architecture }}
@@ -209,7 +209,7 @@ jobs:
           git show origin/main:.github/workflows/scripts/update_release_versions.py > .github/workflows/scripts/update_release_versions.py
 
       - name: Setup Python
-        uses: actions/setup-python@v7.0.0
+        uses: actions/setup-python@v7.1.0
         with:
           python-version: '3.14'
 
