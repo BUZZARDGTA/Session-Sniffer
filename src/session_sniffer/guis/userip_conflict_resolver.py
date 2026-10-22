@@ -24,7 +24,7 @@ from session_sniffer.constants.standalone import TITLE
 from session_sniffer.guis.stylesheets import DIALOG_BUTTON_STYLESHEET, DIALOG_DANGER_BUTTON_STYLESHEET
 from session_sniffer.guis.userip_manager_helpers import load_userip_database_model, save_userip_database_model
 from session_sniffer.guis.utils import ActiveDialogRegistry, find_main_window, scale_by_ui, set_dialog_window_flags
-from session_sniffer.networking.ip_range import entry_ip_covers_ip
+from session_sniffer.networking.ip_range import entry_ip_covers_ip, parse_ip_range
 from session_sniffer.player.userip import UserIPDatabases
 from session_sniffer.player.userip_loader import update_userip_databases
 from session_sniffer.rendering_core.events import wake_rendering_core
@@ -47,16 +47,14 @@ class _ConflictSide(NamedTuple):
 
 
 class _ConflictGroup(NamedTuple):
-    """A connected set of conflicting entries, and which entries directly conflict with each other."""
+    """A connected set of conflicting entries."""
 
     sides: list[_ConflictSide]
-    opponents: dict[_ConflictSide, list[_ConflictSide]]
 
 
 def _build_conflict_groups(conflicts: Sequence[UserIPConflict]) -> list[_ConflictGroup]:
     """Group conflicts into connected sets of entries so each set can be resolved together."""
     parents: dict[_ConflictSide, _ConflictSide] = {}
-    opponents: dict[_ConflictSide, list[_ConflictSide]] = {}
 
     def _find(side: _ConflictSide) -> _ConflictSide:
         while parents[side] != side:
@@ -69,11 +67,6 @@ def _build_conflict_groups(conflicts: Sequence[UserIPConflict]) -> list[_Conflic
         side_b = _ConflictSide(conflict.conflicting_database_path, conflict.conflicting_ip)
         for side in (side_a, side_b):
             parents.setdefault(side, side)
-            opponents.setdefault(side, [])
-        if side_b not in opponents[side_a]:
-            opponents[side_a].append(side_b)
-        if side_a not in opponents[side_b]:
-            opponents[side_b].append(side_a)
         root_a, root_b = _find(side_a), _find(side_b)
         if root_a != root_b:
             parents[root_b] = root_a
@@ -81,7 +74,17 @@ def _build_conflict_groups(conflicts: Sequence[UserIPConflict]) -> list[_Conflic
     sides_by_root: dict[_ConflictSide, list[_ConflictSide]] = {}
     for side in parents:
         sides_by_root.setdefault(_find(side), []).append(side)
-    return [_ConflictGroup(sides=sides, opponents={side: opponents[side] for side in sides}) for sides in sides_by_root.values()]
+    return [_ConflictGroup(sides=sides) for sides in sides_by_root.values()]
+
+
+def _find_sides_conflicting_with(group: _ConflictGroup, kept_side: _ConflictSide) -> list[_ConflictSide]:
+    """Return every entry from another database in `group` whose IP or range overlaps `kept_side`.
+
+    Conflicts are only reported against the first claiming database, so the same IP in three databases yields
+    two pairs; using overlap instead of reported pairs ensures keeping an entry resolves all of its conflicts at once.
+    """
+    kept_range = parse_ip_range(kept_side.entry)
+    return [side for side in group.sides if side.db_path != kept_side.db_path and parse_ip_range(side.entry).overlaps(kept_range)]
 
 
 def _format_database_name(db_path: Path) -> str:
@@ -283,7 +286,7 @@ class UserIPConflictResolverDialog(QDialog):
         if selection is None:
             return
         group, kept_side = selection
-        sides_to_delete = group.opponents.get(kept_side, [])
+        sides_to_delete = _find_sides_conflicting_with(group, kept_side)
         if not sides_to_delete:
             return
         kept_html = html.escape(f'{kept_side.entry} in "{_format_database_name(kept_side.db_path)}"')
