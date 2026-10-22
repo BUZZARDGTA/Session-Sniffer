@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, ClassVar, Literal, NamedTuple
 
 from PySide6.QtCore import QObject, QTimer, Signal
 from PySide6.QtGui import QColor
+from PySide6.QtWidgets import QMessageBox
 
 from session_sniffer.constants.local import USERIP_DATABASES_DIR_PATH
 from session_sniffer.error_messages import format_userip_ip_conflict_message
@@ -25,8 +26,6 @@ from session_sniffer.utils import dedup_preserve_order
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
 
-    from PySide6.QtWidgets import QMessageBox
-
 logger = logging.getLogger(__name__)
 
 
@@ -34,6 +33,7 @@ class _GUIThreadDispatcher(QObject):
     """Schedule callables on the GUI thread from any thread via Qt's auto-queued connection."""
 
     _call: ClassVar[Signal] = Signal(object)
+    conflict_resolver_requested: ClassVar[Signal] = Signal()  # Emitted by the conflict warning; the GUI opens the UserIP Conflict Resolver
 
     def __init__(self) -> None:
         super().__init__()
@@ -215,6 +215,7 @@ class UserIPDatabases:
             dlg = create_nonmodal_warning(parent, text)
             if detailed_text is not None:
                 dlg.setDetailedText(detailed_text)
+            dlg.addButton('Resolve Conflicts…', QMessageBox.ButtonRole.ActionRole).clicked.connect(gui_dispatcher.conflict_resolver_requested)
 
             def _on_finished(_result: int) -> None:
                 UserIPDatabases._open_conflict_dialog = None
@@ -226,6 +227,11 @@ class UserIPDatabases:
             dlg.activateWindow()
 
         gui_dispatcher.invoke(_show_on_gui)
+
+    @classmethod
+    def get_conflicts(cls) -> list[UserIPConflict]:
+        """Return a copy of the UserIP conflicts detected by the most recent build."""
+        return list(cls._last_notified_conflicts)
 
     @classmethod
     def _close_conflict_dialog(cls) -> None:

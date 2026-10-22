@@ -41,6 +41,7 @@ from session_sniffer.guis.settings_dialog import SettingsDialog, SettingValue, a
 from session_sniffer.guis.stylesheets import MENU_BAR_STYLESHEET
 from session_sniffer.guis.tables_player_actions.looky_system._looky_crawler_request_dialog import close_all_crawler_dialogs
 from session_sniffer.guis.tables_player_actions.looky_system._looky_lookup_dialog import close_all_lookup_dialogs
+from session_sniffer.guis.userip_conflict_resolver import open_userip_conflict_resolver
 from session_sniffer.guis.utils import (
     apply_always_on_top,
     consume_maximize_on_show,
@@ -55,7 +56,7 @@ from session_sniffer.player.combo_rules import ComboRulesManager
 from session_sniffer.player.detections import GUIDetectionSettings
 from session_sniffer.player.registry import PlayersRegistry, SessionTracker
 from session_sniffer.player.session_host import SessionHost
-from session_sniffer.player.userip import UserIPDatabases
+from session_sniffer.player.userip import UserIPDatabases, gui_dispatcher
 from session_sniffer.rdr2.suspend_manager import RDR2SuspendManager
 from session_sniffer.rendering_core.events import wake_rendering_core
 from session_sniffer.rendering_core.status_bar_renderer import build_gui_status_text, reset_status_bar_latency
@@ -235,6 +236,7 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
         self._logs_manager_window = None
         self._settings_dialog_window: SettingsDialog | None = None
         self._userip_manager_window = None
+        gui_dispatcher.conflict_resolver_requested.connect(lambda: open_userip_conflict_resolver(None))
         self._discord_intro_window = None
         self._leaderboard_window = None
         self._session_rate_graph_window = None

@@ -41,6 +41,7 @@ from session_sniffer.guis.file_watch import DebouncedFileWatcher
 from session_sniffer.guis.logs_manager._helpers import human_readable_timestamp
 from session_sniffer.guis.stylesheets import DIALOG_BUTTON_STYLESHEET, DIALOG_DANGER_BUTTON_STYLESHEET
 from session_sniffer.guis.table_column_resizing import adjust_last_visible_column_to_viewport, setup_table_header_context_menu
+from session_sniffer.guis.userip_conflict_resolver import open_userip_conflict_resolver
 from session_sniffer.guis.userip_manager_context_menu_mixin import EntriesContextMenuMixin
 from session_sniffer.guis.userip_manager_entries_ops_mixin import UserIPEntriesOperationsMixin
 from session_sniffer.guis.userip_manager_helpers import (
@@ -338,6 +339,13 @@ class UserIPDatabasesManager(
         export_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
         export_button.setMenu(export_menu)
         transfer_buttons.addWidget(export_button)
+
+        resolve_conflicts_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'scale.svg')), ' Resolve Conflicts…')
+        resolve_conflicts_button.setAutoDefault(False)
+        resolve_conflicts_button.setToolTip('Open the UserIP Conflict Resolver to fix IPs or ranges claimed by multiple databases')
+        resolve_conflicts_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
+        resolve_conflicts_button.clicked.connect(lambda: open_userip_conflict_resolver(None))
+        transfer_buttons.addWidget(resolve_conflicts_button)
 
         left_layout.addLayout(transfer_buttons)
 

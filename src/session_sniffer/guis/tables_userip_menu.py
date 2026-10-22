@@ -28,6 +28,7 @@ from session_sniffer.guis.tables_userip_mixin import (
     userip_rename,
     userip_rename_multi,
 )
+from session_sniffer.guis.userip_conflict_resolver import open_userip_conflict_resolver
 from session_sniffer.guis.userip_manager_helpers import populate_userip_databases_menu
 from session_sniffer.player.userip import UserIPDatabases
 from session_sniffer.settings.settings import Settings
@@ -131,6 +132,17 @@ def _describe_selected_userip_entries(ip_addresses: list[str]) -> str:
     return f'the {total_prefix}selected {noun_label}'
 
 
+def _add_resolve_conflict_action(userip_menu: QMenu, ip_address: str) -> None:
+    """Add the single action offered for conflicting IPs: opening the UserIP Conflict Resolver on that IP."""
+    add_action(
+        userip_menu,
+        'Resolve Conflict…',
+        tooltip='This IP is claimed by multiple UserIP databases. Open the UserIP Conflict Resolver to fix it.',
+        handler=lambda: open_userip_conflict_resolver(ip_address),
+        icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'scale.svg')),
+    )
+
+
 def build_userip_menu(
     context_menu: QMenu,
     ip_address: str,
@@ -139,6 +151,10 @@ def build_userip_menu(
 ) -> None:
     """Build the UserIP submenu for a single selected player."""
     userip_menu = add_menu(context_menu, 'UserIP', icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'database.svg')))
+
+    if UserIPDatabases.is_conflicting_ip(ip_address):
+        _add_resolve_conflict_action(userip_menu, ip_address)
+        return
 
     if player.userip is None:
         database_paths = UserIPDatabases.get_userip_database_filepaths()
@@ -162,15 +178,6 @@ def build_userip_menu(
             tooltip='Add selected IP as a range to this UserIP database.',
             handler_factory=lambda db_path: lambda: userip_add_as_range(parent, ip_address, db_path, usernames=player_usernames),
         )
-        if UserIPDatabases.is_conflicting_ip(ip_address):
-            userip_menu.addSeparator()
-            add_action(
-                userip_menu,
-                'Delete',
-                tooltip='Delete all conflicting entries for this IP address from all UserIP databases.',
-                handler=lambda: userip_delete(parent, [ip_address]),
-                icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')),
-            )
         return
 
     def _open_userip_database() -> None:
@@ -288,6 +295,12 @@ def build_userip_menu_multi(
     parent: QWidget,
 ) -> None:
     """Build the UserIP submenu for multiple selected players."""
+    conflicting_ip = next((ip for ip in ip_addresses if UserIPDatabases.is_conflicting_ip(ip)), None)
+    if conflicting_ip is not None:
+        userip_menu = add_menu(context_menu, 'UserIP', icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'database.svg')))
+        _add_resolve_conflict_action(userip_menu, conflicting_ip)
+        return
+
     if all(not UserIPDatabases.is_known_ip(ip) for ip in ip_addresses):
         userip_menu = add_menu(context_menu, 'UserIP', icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'database.svg')))
         add_count = '' if len(ip_addresses) == 1 else f'{len(ip_addresses)} '
