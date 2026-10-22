@@ -1,11 +1,14 @@
 """Pydantic model for combo detection rules."""
 
+import logging
 from typing import Literal, cast
 
 from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator
 
 from session_sniffer.networking.ip_range import is_valid_ip_range_entry
 from session_sniffer.text_utils import format_suspend_duration_setting, parse_suspend_duration_setting, parse_voice_notifications
+
+logger = logging.getLogger(__name__)
 
 
 class DetectionActionBase(BaseModel):
@@ -68,11 +71,10 @@ class ComboRule(DetectionActionBase):
         for key, raw_val in cast('dict[str, object]', value).items():
             if key in _STRING_CONDITIONS:
                 if isinstance(raw_val, str) and raw_val.strip():
-                    if key == 'ip_range':
-                        if is_valid_ip_range_entry(raw_val.strip()):
-                            conditions[key] = raw_val.strip()
-                    else:
-                        conditions[key] = raw_val.strip()
+                    # Keep invalid IP ranges so the rule never matches instead of silently dropping the condition and broadening it.
+                    if key == 'ip_range' and not is_valid_ip_range_entry(raw_val.strip()):
+                        logger.warning('Invalid combo rule IP range %r: the rule will never match until it is fixed', raw_val.strip())
+                    conditions[key] = raw_val.strip()
             elif key in _BOOL_CONDITIONS:
                 if isinstance(raw_val, bool):
                     conditions[key] = raw_val
