@@ -448,6 +448,7 @@ class UserIPEntriesOperationsMixin(QDialog):
         wake_rendering_core()
         added_count = len(added_pairs)
         self._set_status(f'Added {added_count} username{pluralize(added_count)} for {entry_value} in {database_path.name}.')
+        UserIPDatabases.renotify_if_conflicting([entry_value])
 
     def _add_username_filtered(self, source_row: int, ip_text: str, range_text: str) -> None:
         """Prompt for usernames and insert rows into the single-DB model when a search filter is active."""
@@ -481,6 +482,7 @@ class UserIPEntriesOperationsMixin(QDialog):
         if not self._dirty:
             added_count = len(new_usernames)
             self._set_status(f'Added {added_count} username{pluralize(added_count)} for {entry_value}.')
+            UserIPDatabases.renotify_if_conflicting([entry_value])
 
     def _add_username(self, source_row: int) -> None:
         """Insert a row below source_row with its IP or Range pre-filled, or prompt in global search / filtered view."""
@@ -627,6 +629,7 @@ class UserIPEntriesOperationsMixin(QDialog):
         if count == 1 and new_username == initial_name:
             return
 
+        renamed_entries = [val for row in source_rows if (val := self._get_row_entry_value(row))]
         if self._global_search_active:
             rows_by_database: dict[Path, list[tuple[int, str, str]]] = defaultdict(list)
             for row in source_rows:
@@ -675,6 +678,7 @@ class UserIPEntriesOperationsMixin(QDialog):
             self._save_database()
             if not self._dirty:
                 self._set_status(f'Renamed {count} {pluralize(count, "entry", "entries")} to "{new_username}".')
+        UserIPDatabases.renotify_if_conflicting(renamed_entries)
 
     def _delete_selected(self) -> None:
         """Delete selected rows after confirmation."""

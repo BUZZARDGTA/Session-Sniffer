@@ -502,7 +502,7 @@ def userip_add_username(parent: QWidget, ip_address: str, player: Player) -> Non
     count = len(entered_usernames)
     has_or_have = pluralize(count, 'has', 'have')
     entry_label = f'IP {target_entry}' if target_entry == ip_address else f'range {target_entry}'
-    QMessageBox.information(
+    _show_modal_info_on_top(
         parent,
         TITLE,
         f'Username{pluralize(count)} {usernames_display} {has_or_have} been added for {entry_label} in UserIP database "{db_display}".',
@@ -659,7 +659,7 @@ def userip_move(parent: QWidget, selected_ips: list[str], selected_database: Pat
             f'UserIP database{pluralize(len(deleted_entries_by_database))} to UserIP database '
             f'"{target_db_display}":</b><br><br><br>'
         )
-        QMessageBox.information(parent, TITLE, header + _format_database_entries_html_list(deleted_entries_by_database))
+        _show_modal_info_on_top(parent, TITLE, header + _format_database_entries_html_list(deleted_entries_by_database))
         UserIPDatabases.renotify_if_conflicting([*selected_ips, *moved_entry_ips])
 
 

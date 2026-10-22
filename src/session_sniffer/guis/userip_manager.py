@@ -80,6 +80,7 @@ from session_sniffer.guis.utils import (
     set_maximize_on_show,
 )
 from session_sniffer.models import GUIState
+from session_sniffer.player.userip import UserIPDatabases
 from session_sniffer.settings.settings import Settings
 from session_sniffer.text_utils import pluralize
 
@@ -761,15 +762,21 @@ class UserIPDatabasesManager(
             return
         if roles and Qt.ItemDataRole.EditRole not in roles and Qt.ItemDataRole.DisplayRole not in roles:
             return
+        is_identity_edit = top_left.column() <= RANGE_COLUMN and bottom_right.column() >= USERNAME_COLUMN
+        modified_entries: list[str] = []
         with QSignalBlocker(self._model):
             for row in range(top_left.row(), bottom_right.row() + 1):
-                if top_left.column() <= RANGE_COLUMN and bottom_right.column() >= USERNAME_COLUMN:
+                if is_identity_edit:
                     clear_row_looky_badge(self._model, row)
+                    if entry_val := self._get_row_entry_value(row):
+                        modified_entries.append(entry_val)
                 if is_row_persisted(self._model, row):
                     set_row_updated_at(self._model, row)
         self._highlight_duplicates()
         self._mark_entries_dirty()
         self._save_database(show_errors=False)
+        if is_identity_edit and not self._dirty and modified_entries:
+            UserIPDatabases.renotify_if_conflicting(modified_entries)
 
     # ------------------------------------------------------------------
     # Helpers

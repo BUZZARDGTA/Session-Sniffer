@@ -222,6 +222,8 @@ class UserIPDatabases:
             dlg.finished.connect(_on_finished)
             UserIPDatabases._open_conflict_dialog = dlg
             dlg.show()
+            dlg.raise_()
+            dlg.activateWindow()
 
         gui_dispatcher.invoke(_show_on_gui)
 
