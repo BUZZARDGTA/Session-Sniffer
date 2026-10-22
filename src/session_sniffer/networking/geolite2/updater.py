@@ -1,7 +1,9 @@
 """GeoLite2 database updater (download and persist)."""
 
+import contextlib
 import hashlib
 import logging
+import sys
 import tempfile
 import time
 from dataclasses import dataclass
@@ -190,6 +192,24 @@ def _download_geolite2_asset_bytes(
     return None, b''.join(downloaded_chunks)
 
 
+def _atomic_write_bytes(destination_file_path: Path, data: bytes, /) -> None:
+    """Atomically write *data* to *destination_file_path* via a temporary file in the same directory."""
+    destination_file_path.parent.mkdir(parents=True, exist_ok=True)
+    temp_path: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(delete=False, dir=destination_file_path.parent) as tmp:
+            temp_path = Path(tmp.name)
+            tmp.write(data)
+        if sys.platform != 'win32':
+            temp_path.chmod(0o644)
+        temp_path.replace(destination_file_path)
+    except OSError:
+        if temp_path is not None:
+            with contextlib.suppress(OSError):
+                temp_path.unlink(missing_ok=True)
+        raise
+
+
 def _write_geolite2_version_file(geolite2_version_file_path: Path, geolite2_databases: GeoLite2Databases, /) -> None:
     asn_version = geolite2_databases['GeoLite2-ASN.mmdb'].current_version
     city_version = geolite2_databases['GeoLite2-City.mmdb'].current_version
@@ -205,8 +225,7 @@ def _write_geolite2_version_file(geolite2_version_file_path: Path, geolite2_data
         GeoLite2_Country=GeoLite2VersionEntry(version=datetime.fromisoformat(country_version)),
     )
     try:
-        geolite2_version_file_path.parent.mkdir(parents=True, exist_ok=True)
-        geolite2_version_file_path.write_text(version_file.model_dump_json(indent=4, by_alias=True), encoding='utf-8')
+        _atomic_write_bytes(geolite2_version_file_path, version_file.model_dump_json(indent=4, by_alias=True).encode('utf-8'))
     except OSError:
         logger.exception('Failed to write GeoLite2 version file at %s', geolite2_version_file_path)
 
@@ -231,11 +250,8 @@ def _notify_geolite2_download_flags_failed(failed_flags: list[str], /) -> None:
 
 def _persist_geolite2_database_bytes(*, database_name: str, file_bytes: bytes, desired_version: str, current_version: str | None) -> str | None:
     destination_file_path = GEOLITE2_DATABASES_DIR_PATH / database_name
-    temp_path: Path | None = None
 
     try:
-        GEOLITE2_DATABASES_DIR_PATH.mkdir(parents=True, exist_ok=True)
-
         if destination_file_path.is_file():
             existing_size = destination_file_path.stat().st_size
             new_size = len(file_bytes)
@@ -246,15 +262,9 @@ def _persist_geolite2_database_bytes(*, database_name: str, file_bytes: bytes, d
             ):
                 return desired_version
 
-        with tempfile.NamedTemporaryFile(delete=False, dir=GEOLITE2_DATABASES_DIR_PATH) as tmp:
-            tmp.write(file_bytes)
-            temp_path = Path(tmp.name)
-
-        temp_path.replace(destination_file_path)
+        _atomic_write_bytes(destination_file_path, file_bytes)
     except OSError:
         logger.exception('Failed to persist GeoLite2 database at %s', destination_file_path)
-        if temp_path is not None:
-            temp_path.unlink(missing_ok=True)
         return current_version
 
     return desired_version

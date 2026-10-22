@@ -161,9 +161,8 @@ def main() -> None:
     # Own splash msgboxes so they appear above it without being globally topmost
     msgbox.set_owner_hwnd(splash.winId())
 
-    preload_executor = ThreadPoolExecutor(max_workers=6, thread_name_prefix='Preload')
+    preload_executor = ThreadPoolExecutor(max_workers=5, thread_name_prefix='Preload')
     update_check_future = preload_executor.submit(check_for_updates, updater_channel=Settings.updater_channel)
-    npcap_future = preload_executor.submit(ensure_npcap_installed)
     geolite2_future = preload_executor.submit(
         update_and_initialize_geolite2_readers,
         progress_callback=functools.partial(splash.update_progress, target_message='Initializing GeoLite2 databases'),
@@ -217,7 +216,11 @@ def main() -> None:
         pending_download()
 
     splash.update_status('Verifying capture driver' if sys.platform != 'win32' else 'Verifying Npcap driver')
-    splash.run_with_spinner(npcap_future.result)
+    try:
+        splash.run_with_spinner(ensure_npcap_installed)
+    except SystemExit:
+        preload_executor.shutdown(wait=False, cancel_futures=True)
+        raise
 
     splash.update_status('Initializing GeoLite2 databases')
     geoip2_enabled, geolite2_asn_reader, geolite2_city_reader, geolite2_country_reader = splash.run_with_spinner(geolite2_future.result)

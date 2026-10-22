@@ -29,6 +29,7 @@ from session_sniffer.capture.process import iter_running_processes
 from session_sniffer.capture.utils.ctypes_win32 import is_npcap_setup_window_visible, is_service_running
 from session_sniffer.error_messages import format_npcap_required_message
 from session_sniffer.guis.dependency_prompt_dialog import show_dependency_prompt
+from session_sniffer.logging_setup import flush_all_loggers
 from session_sniffer.utils import is_pyinstaller_compiled, run_elevated_powershell_command
 
 logger = logging.getLogger(__name__)
@@ -97,7 +98,12 @@ def _has_linux_executable_file_capabilities() -> bool:
 
 def _spawn_relaunch_process() -> subprocess.Popen[bytes]:
     """Spawn a detached process for relaunching with newly granted Linux file capabilities."""
-    command = [sys.executable, *sys.argv[1:]] if is_pyinstaller_compiled() else (sys.orig_argv or [sys.executable, *sys.argv])
+    if is_pyinstaller_compiled():
+        command = [sys.executable, *sys.argv[1:]]
+    elif sys.orig_argv:
+        command = [sys.executable, *sys.orig_argv[1:]]
+    else:
+        command = [sys.executable, *sys.argv]
     return subprocess.Popen(
         command,
         cwd=str(Path(sys.executable).parent) if is_pyinstaller_compiled() else None,
@@ -108,7 +114,13 @@ def _spawn_relaunch_process() -> subprocess.Popen[bytes]:
 
 def _relaunch_with_linux_capabilities() -> None:
     """Relaunch the current process so newly granted Linux file capabilities take effect."""
-    _spawn_relaunch_process()
+    flush_all_loggers()
+    try:
+        _spawn_relaunch_process()
+    except OSError:
+        logger.exception('Failed to relaunch process with Linux capabilities')
+        flush_all_loggers()
+        sys.exit(1)
     os._exit(0)
 
 
