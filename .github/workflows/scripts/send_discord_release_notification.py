@@ -177,11 +177,15 @@ def main() -> None:
     webhook_url = validate_webhook_url(os.environ.get('DISCORD_WEBHOOK_URL', '').strip())
     payload = build_discord_payload(args)
 
-    response = requests.post(
-        webhook_url,
-        json=payload,
-        timeout=REQUEST_TIMEOUT_SECONDS,
-    )
+    try:
+        response = requests.post(
+            webhook_url,
+            json=payload,
+            timeout=REQUEST_TIMEOUT_SECONDS,
+        )
+    except requests.RequestException as err:
+        message = f'Discord webhook request failed ({type(err).__name__}).'
+        raise RuntimeError(message) from None
     if not response.ok:
         message = f'Discord webhook request failed with HTTP status {response.status_code}.'
         raise RuntimeError(message)
