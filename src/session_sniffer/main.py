@@ -161,8 +161,44 @@ def main() -> None:
     # Own splash msgboxes so they appear above it without being globally topmost
     msgbox.set_owner_hwnd(splash.winId())
 
-    preload_executor = ThreadPoolExecutor(max_workers=5, thread_name_prefix='Preload')
-    update_check_future = preload_executor.submit(check_for_updates, updater_channel=Settings.updater_channel)
+    if not is_pyinstaller_compiled():
+        splash.update_status('Checking Python package versions')
+        dependencies = get_dependencies_from_pyproject()
+        outdated_packages = check_packages_version(dependencies)
+        if outdated_packages:
+            msgbox_message = format_outdated_packages_message(
+                app_title=TITLE,
+                outdated_packages=outdated_packages,
+            )
+
+            msgbox_style = msgbox.Style.MB_YESNO | msgbox.Style.MB_ICONEXCLAMATION | msgbox.Style.MB_SETFOREGROUND
+            msgbox_title = TITLE
+            errorlevel = msgbox.show(msgbox_title, msgbox_message, msgbox_style)
+            if errorlevel != msgbox.ReturnValues.IDYES:
+                sys.exit(0)
+
+    splash.update_status('Applying custom settings from settings.json')
+    register_secret_provider(lambda: Settings.discord_webhook_url)
+    register_secret_provider(lambda: Settings.looky_api_key)
+    register_secret_provider(lambda: Settings.webserver_password)
+    Settings.rebuild_blocked_ip_ranges()
+    CaptureStats.resize_history_deques(DEFAULT_MAX_HISTORY)
+
+    GUIDetectionSettings.load_from_file_or_defaults(DETECTIONS_JSON_PATH)
+    ComboRulesManager.load_from_file(COMBO_RULES_PATH)
+
+    splash.update_status('Checking for updates')
+    outcome, pending_download = splash.run_with_spinner(check_for_updates, updater_channel=Settings.updater_channel)
+    if outcome is UpdateCheckOutcome.ABORT:
+        sys.exit(0)
+    if pending_download is not None:
+        splash.lower_to_back()
+        pending_download()
+
+    splash.update_status('Verifying capture driver' if sys.platform != 'win32' else 'Verifying Npcap driver')
+    splash.run_with_spinner(ensure_npcap_installed)
+
+    preload_executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix='Preload')
     geolite2_future = preload_executor.submit(
         update_and_initialize_geolite2_readers,
         progress_callback=functools.partial(splash.update_progress, target_message='Initializing GeoLite2 databases'),
@@ -178,49 +214,6 @@ def main() -> None:
         populate_network_interfaces_info()
 
     network_interfaces_future = preload_executor.submit(_populate_interfaces_after_mac)
-
-    if not is_pyinstaller_compiled():
-        splash.update_status('Checking Python package versions')
-        dependencies = get_dependencies_from_pyproject()
-        outdated_packages = check_packages_version(dependencies)
-        if outdated_packages:
-            msgbox_message = format_outdated_packages_message(
-                app_title=TITLE,
-                outdated_packages=outdated_packages,
-            )
-
-            msgbox_style = msgbox.Style.MB_YESNO | msgbox.Style.MB_ICONEXCLAMATION | msgbox.Style.MB_SETFOREGROUND
-            msgbox_title = TITLE
-            errorlevel = msgbox.show(msgbox_title, msgbox_message, msgbox_style)
-            if errorlevel != msgbox.ReturnValues.IDYES:
-                preload_executor.shutdown(wait=False)
-                sys.exit(0)
-
-    splash.update_status('Applying custom settings from settings.json')
-    register_secret_provider(lambda: Settings.discord_webhook_url)
-    register_secret_provider(lambda: Settings.looky_api_key)
-    register_secret_provider(lambda: Settings.webserver_password)
-    Settings.rebuild_blocked_ip_ranges()
-    CaptureStats.resize_history_deques(DEFAULT_MAX_HISTORY)
-
-    GUIDetectionSettings.load_from_file_or_defaults(DETECTIONS_JSON_PATH)
-    ComboRulesManager.load_from_file(COMBO_RULES_PATH)
-
-    splash.update_status('Checking for updates')
-    outcome, pending_download = splash.run_with_spinner(update_check_future.result)
-    if outcome is UpdateCheckOutcome.ABORT:
-        preload_executor.shutdown(wait=False)
-        sys.exit(0)
-    if pending_download is not None:
-        splash.lower_to_back()
-        pending_download()
-
-    splash.update_status('Verifying capture driver' if sys.platform != 'win32' else 'Verifying Npcap driver')
-    try:
-        splash.run_with_spinner(ensure_npcap_installed)
-    except SystemExit:
-        preload_executor.shutdown(wait=False, cancel_futures=True)
-        raise
 
     splash.update_status('Initializing GeoLite2 databases')
     geoip2_enabled, geolite2_asn_reader, geolite2_city_reader, geolite2_country_reader = splash.run_with_spinner(geolite2_future.result)

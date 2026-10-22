@@ -98,12 +98,7 @@ def _has_linux_executable_file_capabilities() -> bool:
 
 def _spawn_relaunch_process() -> subprocess.Popen[bytes]:
     """Spawn a detached process for relaunching with newly granted Linux file capabilities."""
-    if is_pyinstaller_compiled():
-        command = [sys.executable, *sys.argv[1:]]
-    elif sys.orig_argv:
-        command = [sys.executable, *sys.orig_argv[1:]]
-    else:
-        command = [sys.executable, *sys.argv]
+    command = [sys.executable, *sys.argv[1:]] if is_pyinstaller_compiled() else [sys.executable, '-m', 'session_sniffer', *sys.argv[1:]]
     return subprocess.Popen(
         command,
         cwd=str(Path(sys.executable).parent) if is_pyinstaller_compiled() else None,

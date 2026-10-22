@@ -23,6 +23,7 @@ from session_sniffer.models import GithubReleaseResponse
 from session_sniffer.models.player_traffic import PlayerBandwidth
 from session_sniffer.networking.http_session import session
 from session_sniffer.text_utils import format_triple_quoted_text
+from session_sniffer.utils import ensure_app_dir_ownership
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -208,6 +209,7 @@ def _atomic_write_bytes(destination_file_path: Path, data: bytes, /) -> None:
             with contextlib.suppress(OSError):
                 temp_path.unlink(missing_ok=True)
         raise
+    ensure_app_dir_ownership(destination_file_path.parent)
 
 
 def _write_geolite2_version_file(geolite2_version_file_path: Path, geolite2_databases: GeoLite2Databases, /) -> None:
@@ -224,8 +226,11 @@ def _write_geolite2_version_file(geolite2_version_file_path: Path, geolite2_data
         GeoLite2_City=GeoLite2VersionEntry(version=datetime.fromisoformat(city_version)),
         GeoLite2_Country=GeoLite2VersionEntry(version=datetime.fromisoformat(country_version)),
     )
+    serialized_bytes = version_file.model_dump_json(indent=4, by_alias=True).encode('utf-8')
     try:
-        _atomic_write_bytes(geolite2_version_file_path, version_file.model_dump_json(indent=4, by_alias=True).encode('utf-8'))
+        if geolite2_version_file_path.is_file() and geolite2_version_file_path.read_bytes() == serialized_bytes:
+            return
+        _atomic_write_bytes(geolite2_version_file_path, serialized_bytes)
     except OSError:
         logger.exception('Failed to write GeoLite2 version file at %s', geolite2_version_file_path)
 

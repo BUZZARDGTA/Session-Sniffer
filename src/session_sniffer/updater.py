@@ -17,7 +17,7 @@ import requests
 from packaging.version import InvalidVersion, Version
 
 from session_sniffer import msgbox
-from session_sniffer.constants.local import CURRENT_VERSION
+from session_sniffer.constants.local import APP_DIR_LOCAL, APP_DIR_ROAMING, CURRENT_VERSION
 from session_sniffer.constants.standalone import (
     GITHUB_RELEASES_URL,
     GITHUB_VERSIONS_URL,
@@ -25,11 +25,12 @@ from session_sniffer.constants.standalone import (
 )
 from session_sniffer.error_messages import format_failed_check_for_updates_message
 from session_sniffer.guis.update_download_dialog import UpdateCandidate, UpdateDownloadDialog
+from session_sniffer.logging_setup import flush_all_loggers
 from session_sniffer.models import GithubVersionsResponse, VersionInfo
 from session_sniffer.networking.http_session import session
 from session_sniffer.settings import Settings
 from session_sniffer.text_utils import format_triple_quoted_text
-from session_sniffer.utils import format_project_version, is_pyinstaller_compiled
+from session_sniffer.utils import ensure_app_dir_ownership, format_project_version, is_pyinstaller_compiled
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -222,6 +223,9 @@ def _apply_update(new_exe: Path) -> None:
         return
 
     _remove_file_if_possible(new_exe)
+    flush_all_loggers()
+    ensure_app_dir_ownership(APP_DIR_LOCAL)
+    ensure_app_dir_ownership(APP_DIR_ROAMING)
     # PyInstaller 6.10+ changed sub-process detection: a child process that inherits
     # _PYI_APPLICATION_HOME_DIR / _PYI_ARCHIVE_FILE env vars is treated as a worker
     # sub-process of the same app instance and reuses the parent's _MEI temp dir.
