@@ -9,10 +9,9 @@ from session_sniffer.background import trigger_looky_rescan_all_players
 from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.guis.looky_text import (
     LOOKY_TITLE,
-    LOOKY_WARNING_RESTRICTED_GTA5_NOT_RUNNING,
     LOOKY_WARNING_RESTRICTED_NOT_LOCAL,
     configure_looky_action,
-    is_looky_gta5_restricted,
+    get_looky_restriction,
 )
 from session_sniffer.guis.tables_player_actions import show_crawlme_request
 from session_sniffer.player.registry import PlayersRegistry
@@ -75,17 +74,20 @@ class LookyMixin(QMainWindow):
             self._looky_crawler_join_own_session_action,
             'Call the crawler bot to resolve usernames for players in your current session.',
             is_gta5_running=CaptureState.gta5_is_running,
-            check_gta5_restriction=True,
-        )
-        has_eligible_players = any(
-            player.is_gta5_process if is_looky_gta5_restricted() else True
-            for player in PlayersRegistry.get_default_sorted_players()
         )
         configure_looky_action(
             self._looky_rescan_all_action,
             'Immediately refresh Looky System data for all players without waiting for the next automatic update.',
-            check_gta5_restriction=not has_eligible_players,
+            restriction=self._get_rescan_all_restriction(),
         )
+
+    @staticmethod
+    def _get_rescan_all_restriction() -> str | None:
+        """Return why no player may be rescanned with Looky System, or `None` when at least one is allowed."""
+        players = PlayersRegistry.get_default_sorted_players()
+        if any(get_looky_restriction([player]) is None for player in players):
+            return None
+        return get_looky_restriction(players)
 
     def _request_crawler_own_session(self) -> None:
         """Request the Looky System crawler bot to join the current session."""
@@ -97,9 +99,9 @@ class LookyMixin(QMainWindow):
             QMessageBox.warning(self, LOOKY_TITLE, LOOKY_WARNING_RESTRICTED_NOT_LOCAL)
             return
 
-        players = PlayersRegistry.get_default_sorted_players()
-        if is_looky_gta5_restricted() and not any(player.is_gta5_process for player in players):
-            QMessageBox.warning(self, LOOKY_TITLE, LOOKY_WARNING_RESTRICTED_GTA5_NOT_RUNNING)
+        restriction = self._get_rescan_all_restriction()
+        if restriction is not None:
+            QMessageBox.warning(self, LOOKY_TITLE, restriction)
             return
 
         count = trigger_looky_rescan_all_players()

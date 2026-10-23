@@ -22,7 +22,6 @@ from session_sniffer.guis.looky_text import (
     LOOKY_WARNING_DISABLED,
     LOOKY_WARNING_RESTRICTED_GTA5_NOT_RUNNING,
     LOOKY_WARNING_RESTRICTED_NOT_LOCAL,
-    is_looky_gta5_restricted,
 )
 from session_sniffer.guis.stylesheets import (
     LOOKY_ACTION_BUTTON_STYLESHEET,
@@ -139,7 +138,7 @@ class LookyRefreshLoadingDialog(QDialog):
         self._widgets.status_label.show()
 
 
-def check_looky_prerequisites(parent: QWidget, *, check_gta5_restriction: bool = False) -> str | None:
+def check_looky_prerequisites(parent: QWidget, *, restriction: str | None = None) -> str | None:
     """Validate Looky System prerequisites and return the API key on success.
 
     Checks (in order):
@@ -148,7 +147,7 @@ def check_looky_prerequisites(parent: QWidget, *, check_gta5_restriction: bool =
     - Looky System is enabled
     - API access is granted
     - Local capture is active
-    - GTA V process scanning restriction (if `check_gta5_restriction` is True)
+    - Target restriction (`restriction`, as returned by `get_looky_restriction`)
 
     Returns the API key string when all prerequisites are met, or None after
     displaying a warning for the first unmet prerequisite.
@@ -164,8 +163,8 @@ def check_looky_prerequisites(parent: QWidget, *, check_gta5_restriction: bool =
         warning_message = LOOKY_WARNING_API_ACCESS_MISSING
     elif not CaptureState.is_local_capture():
         warning_message = LOOKY_WARNING_RESTRICTED_NOT_LOCAL
-    elif check_gta5_restriction and is_looky_gta5_restricted():
-        warning_message = LOOKY_WARNING_RESTRICTED_GTA5_NOT_RUNNING
+    elif restriction is not None:
+        warning_message = restriction
 
     if warning_message is not None:
         QMessageBox.warning(parent, LOOKY_TITLE, warning_message)

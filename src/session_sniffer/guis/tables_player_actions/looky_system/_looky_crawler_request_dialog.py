@@ -29,6 +29,7 @@ from session_sniffer.guis.delegates import ElidedTextTooltipDelegate
 from session_sniffer.guis.looky_text import (
     LOOKY_MENU_TOOLTIP_GTA5_NOT_RUNNING,
     LOOKY_TITLE,
+    get_looky_restriction,
 )
 from session_sniffer.guis.stylesheets import (
     LOOKY_ACTION_BUTTON_STYLESHEET,
@@ -703,10 +704,10 @@ def _show_rid_instruction_request(
     display_name: str,
     spec: _InstructionSpec,
     *,
-    check_gta5_restriction: bool = False,
+    restriction: str | None = None,
 ) -> None:
     """Validate prerequisites and start a Looky instruction request for *rid*."""
-    api_key = check_looky_prerequisites(parent, check_gta5_restriction=check_gta5_restriction)
+    api_key = check_looky_prerequisites(parent, restriction=restriction)
     if api_key is None:
         return
 
@@ -731,7 +732,8 @@ def _show_player_instruction_request(
     spec: _InstructionSpec,
 ) -> None:
     """Resolve or prompt for a Rockstar ID on *player* and start a Looky instruction request."""
-    api_key = check_looky_prerequisites(parent, check_gta5_restriction=not player.is_gta5_process)
+    restriction = get_looky_restriction([player])
+    api_key = check_looky_prerequisites(parent, restriction=restriction)
     if api_key is None:
         return
 
@@ -758,7 +760,7 @@ def _show_player_instruction_request(
         rid,
         display_name,
         spec,
-        check_gta5_restriction=not player.is_gta5_process,
+        restriction=restriction,
     )
 
 
@@ -767,7 +769,7 @@ def show_crawler_by_rid(
     rid: int,
     display_name: str,
     *,
-    check_gta5_restriction: bool = False,
+    restriction: str | None = None,
 ) -> None:
     """Validate and start a Looky System crawler instruction for `rid`; open a request dialog on success."""
     _show_rid_instruction_request(
@@ -775,7 +777,7 @@ def show_crawler_by_rid(
         rid,
         display_name,
         _CRAWLER_SPEC,
-        check_gta5_restriction=check_gta5_restriction,
+        restriction=restriction,
     )
 
 
@@ -789,7 +791,7 @@ def show_proxy_join_by_rid(
     rid: int,
     display_name: str,
     *,
-    check_gta5_restriction: bool = False,
+    restriction: str | None = None,
 ) -> None:
     """Validate and start a Looky System proxy join instruction for `rid`; open a request dialog on success."""
     _show_rid_instruction_request(
@@ -797,7 +799,7 @@ def show_proxy_join_by_rid(
         rid,
         display_name,
         _PROXY_JOIN_SPEC,
-        check_gta5_restriction=check_gta5_restriction,
+        restriction=restriction,
     )
 
 
@@ -808,7 +810,7 @@ def show_proxy_join_request(parent: QWidget, player: Player) -> None:
 
 def show_crawlme_request(parent: QWidget) -> None:
     """Validate and start a Looky System crawlme instruction; open a crawler request dialog on success."""
-    api_key = check_looky_prerequisites(parent, check_gta5_restriction=True)
+    api_key = check_looky_prerequisites(parent)
     if api_key is None:
         return
 

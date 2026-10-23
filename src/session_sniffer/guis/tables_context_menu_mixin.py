@@ -11,7 +11,7 @@ from session_sniffer.constants.local import BUILTIN_SCRIPTS_DIR_PATH, RESOURCES_
 from session_sniffer.constants.standalone import LOOKY_BASE_HOST
 from session_sniffer.constants.standard import LOCAL_TZ
 from session_sniffer.error_messages import ensure_instance
-from session_sniffer.guis.looky_text import configure_looky_action
+from session_sniffer.guis.looky_text import configure_looky_action, get_looky_restriction
 from session_sniffer.guis.session_host_diagnostics_dialog import show_session_host_diagnostics_dialog
 from session_sniffer.guis.table_model import SessionTableModel
 from session_sniffer.guis.tables_detections_mixin import build_detections_menu, build_detections_menu_multi
@@ -418,7 +418,7 @@ class TableContextMenuMixin(QTableView):
                 configure_looky_action(
                     action,
                     default_tooltip=action.toolTip(),
-                    check_gta5_restriction=any(not player.is_gta5_process for player in players),
+                    restriction=get_looky_restriction(players),
                 )
 
             looky_menu = add_menu(

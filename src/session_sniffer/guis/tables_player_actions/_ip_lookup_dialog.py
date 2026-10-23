@@ -23,7 +23,7 @@ from shiboken6 import isValid
 
 from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.constants.standalone import LOOKY_BASE_HOST, TITLE
-from session_sniffer.guis.looky_text import configure_looky_action, is_looky_gta5_restricted
+from session_sniffer.guis.looky_text import configure_looky_action, get_looky_restriction
 from session_sniffer.guis.stylesheets import PLAYER_INFO_FORM_LABEL_STYLESHEET
 from session_sniffer.guis.tables_player_actions._actions import ping_ip, tcp_port_ping, web_ping
 from session_sniffer.guis.tables_player_actions._format import (
@@ -65,6 +65,7 @@ from session_sniffer.networking.ping import ping_player
 from session_sniffer.networking.reverse_dns import reverse_dns_lookup
 from session_sniffer.player.registry import PlayersRegistry
 from session_sniffer.player.userip import UserIP, UserIPDatabases
+from session_sniffer.rendering_core.types import CaptureState
 from session_sniffer.settings.settings import Settings
 from session_sniffer.text_utils import pluralize
 
@@ -168,8 +169,14 @@ def _resolve_standalone_lookup(lookup: StandaloneIPLookup) -> None:
 
     # 6. Looky System
     api_key = Settings.looky_api_key or ''
-    can_lookup_looky = bool(api_key) and Settings.looky_enabled and LookyState.api_access and Settings.is_gta5_feature_set()
-    if can_lookup_looky and not lookup.looky_system.is_initialized and not is_looky_gta5_restricted():
+    can_lookup_looky = (
+        bool(api_key)
+        and Settings.looky_enabled
+        and LookyState.api_access
+        and Settings.is_gta5_feature_set()
+        and CaptureState.is_local_capture()
+    )
+    if can_lookup_looky and not lookup.looky_system.is_initialized and get_looky_restriction([lookup]) is None:
         try:
             looky_players = lookup_ip(lookup.ip, api_key, Settings.looky_game_version.lower())
             unique_results: list[LookyPlayer] = []
@@ -318,7 +325,7 @@ class IPLookupDetailsDialog(PlayerInfoDialogMixin):
         configure_looky_action(
             lookup_button,
             default_tooltip='Query the Looky System API to view full player details for this IP.',
-            check_gta5_restriction=isinstance(self._target, StandaloneIPLookup) or not self._target.is_gta5_process,
+            restriction=get_looky_restriction([self._target]),
         )
         buttons_layout.addWidget(lookup_button)
 

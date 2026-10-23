@@ -345,7 +345,6 @@ def main() -> None:
         is_gta5_packet = (
             Settings.is_gta5_feature_set()
             and CaptureState.is_local_capture()
-            and CaptureState.gta5_is_running
             and local_port in CaptureState.gta5_udp_ports
         )
 

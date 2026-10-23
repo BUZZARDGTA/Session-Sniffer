@@ -780,10 +780,12 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         display_label='Restrict to GTA5 Process',
         setting_type=SettingType.BOOLEAN,
         tooltip=(
-            'Only perform Looky System auto-resolve queries when capture is actively\n'
-            'filtering traffic on the running GTA V process (PID).\n\n'
-            'When disabled, queries run continuously regardless of GTA V process filter and include\n'
-            'all captured non-third-party player IPs.'
+            'Only send captured player IPs to Looky System when they are confirmed GTA V traffic,\n'
+            "meaning the packets went through the GTA V process's own UDP sockets.\n"
+            'This works whether the Target Process is GTA V or set to sniff all traffic.\n\n'
+            'IP lookups opened outside the session tables (Leaderboard, Logs, UserIP Manager)\n'
+            'still require the Target Process to be GTA V.\n\n'
+            'When disabled, all captured non-third-party player IPs are sent.'
         ),
     ),
     'looky_game_version': SettingMeta(

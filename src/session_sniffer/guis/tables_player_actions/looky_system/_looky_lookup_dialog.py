@@ -22,7 +22,7 @@ from shiboken6 import isValid
 
 from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.guis._crashing_qthread import CrashingQThread
-from session_sniffer.guis.looky_text import LOOKY_TITLE
+from session_sniffer.guis.looky_text import LOOKY_TITLE, get_looky_restriction
 from session_sniffer.guis.stylesheets import (
     LOOKY_ACTION_BUTTON_STYLESHEET,
     LOOKY_CRAWLER_HEADER_STYLESHEET,
@@ -34,7 +34,6 @@ from session_sniffer.guis.tables_player_actions.looky_system._looky_crawler_requ
 )
 from session_sniffer.guis.tables_player_actions.looky_system._looky_helpers import check_looky_prerequisites
 from session_sniffer.guis.utils import ActiveDialogRegistry, set_dialog_window_flags
-from session_sniffer.models.player import Player
 from session_sniffer.networking.looky_system import (
     extract_rate_limit_message,
     extract_rate_limit_wait_seconds,
@@ -51,6 +50,7 @@ if TYPE_CHECKING:
 
     from session_sniffer.guis.tables_player_actions._ip_lookup_dialog import StandaloneIPLookup
     from session_sniffer.models.looky_system import LookyPlayer
+    from session_sniffer.models.player import Player
 
 logger = logging.getLogger(__name__)
 
@@ -158,8 +158,7 @@ class LookyLookupDialog(PlayerInfoDialogMixin):
 
             def _make_crawler_slot(target_rid: int, name: str) -> Callable[[], None]:
                 def _call_crawler() -> None:
-                    check_restriction = not isinstance(player, Player) or not player.is_gta5_process
-                    show_crawler_by_rid(self, target_rid, name, check_gta5_restriction=check_restriction)
+                    show_crawler_by_rid(self, target_rid, name, restriction=get_looky_restriction([player]))
 
                 return _call_crawler
 
@@ -172,8 +171,7 @@ class LookyLookupDialog(PlayerInfoDialogMixin):
 
             def _make_proxy_join_slot(target_rid: int, name: str) -> Callable[[], None]:
                 def _proxy_join() -> None:
-                    check_restriction = not isinstance(player, Player) or not player.is_gta5_process
-                    show_proxy_join_by_rid(self, target_rid, name, check_gta5_restriction=check_restriction)
+                    show_proxy_join_by_rid(self, target_rid, name, restriction=get_looky_restriction([player]))
 
                 return _proxy_join
 
@@ -216,8 +214,7 @@ def show_looky_lookup(parent: QWidget, player: Player | StandaloneIPLookup) -> N
     if _active_dialogs.focus(player.ip):
         return
 
-    check_gta5_restriction = not isinstance(player, Player) or not player.is_gta5_process
-    api_key = check_looky_prerequisites(parent, check_gta5_restriction=check_gta5_restriction)
+    api_key = check_looky_prerequisites(parent, restriction=get_looky_restriction([player]))
     if api_key is None:
         return
 

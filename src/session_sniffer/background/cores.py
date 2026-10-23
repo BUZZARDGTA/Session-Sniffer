@@ -16,7 +16,7 @@ from pydantic import ValidationError
 from session_sniffer.background.events import gui_closed__event
 from session_sniffer.core import ScriptControl
 from session_sniffer.guis.dialogs import show_ipapi_unavailable_dialog
-from session_sniffer.guis.looky_text import LOOKY_LOG_API_KEY_INVALID, LOOKY_LOG_VERIFICATION_HTTP_FAILED_TEMPLATE
+from session_sniffer.guis.looky_text import LOOKY_LOG_API_KEY_INVALID, LOOKY_LOG_VERIFICATION_HTTP_FAILED_TEMPLATE, get_looky_restriction
 from session_sniffer.models import IpApiResponse
 from session_sniffer.networking.exceptions import AllEndpointsExhaustedError
 from session_sniffer.networking.http_session import session
@@ -151,11 +151,7 @@ def is_looky_eligible(player: Player) -> bool:
         return False
     if not CaptureState.is_local_capture():
         return False
-    return not (
-        Settings.looky_exclusive_gta5_process
-        and not CaptureState.is_scanning_gta5_process()
-        and not (player.is_gta5_process and (not player.looky_system.is_initialized or player.looky_system.needs_refresh))
-    )
+    return get_looky_restriction([player]) is None
 
 
 def enqueue_player_for_resolution(player: Player) -> None:
@@ -220,8 +216,6 @@ def trigger_looky_rescan_all_players() -> int:
     Returns:
         The number of players queued for rescan.
     """
-    if not Settings.looky_enabled or not Settings.is_gta5_feature_set() or not CaptureState.is_local_capture():
-        return 0
     count = 0
     for player in PlayersRegistry.get_default_sorted_players():
         if not is_looky_eligible(player):
@@ -626,7 +620,7 @@ def looky_core() -> None:
             ):
                 pending_ip_addresses.append(target_ip)
 
-        if not pending_ip_addresses and CaptureState.is_local_capture() and (CaptureState.is_scanning_gta5_process() or not Settings.looky_exclusive_gta5_process):
+        if not pending_ip_addresses:
             # Check if any connected players need initial lookup or periodic refresh
             current_time = time.monotonic()
             for player in PlayersRegistry.get_connected_players():
