@@ -98,7 +98,6 @@ class SettingDefaults(TypedDict):
     userip_sync_known_alts: bool
     userip_auto_feed_from_usernames: bool
     looky_enabled: bool
-    looky_exclusive_gta5_process: bool
     looky_game_version: str
     looky_api_key: str | None
     high_rate_monitor_mode: str
@@ -250,7 +249,6 @@ SETTING_DEFAULTS: SettingDefaults = {
     'userip_sync_known_alts': True,
     'userip_auto_feed_from_usernames': True,
     'looky_enabled': True,
-    'looky_exclusive_gta5_process': True,
     'looky_game_version': 'Both',
     'looky_api_key': None,
     'high_rate_monitor_mode': 'Smart',

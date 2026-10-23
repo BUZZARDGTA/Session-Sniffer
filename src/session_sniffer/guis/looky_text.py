@@ -44,12 +44,10 @@ LOOKY_LOG_VERIFICATION_HTTP_FAILED_TEMPLATE = '[Looky System] Token verification
 def get_looky_restriction(targets: Iterable[Player | StandaloneIPLookup]) -> str | None:
     """Return why Looky System may not be used for `targets`, or `None` when all of them are allowed.
 
-    With `Settings.looky_exclusive_gta5_process` enabled, captured players must be confirmed GTA V traffic
-    (`Player.is_gta5_process`, set when a packet uses one of the GTA V process's own UDP socket ports), and
-    standalone IPs (not part of the session tables) require capture to be filtering on the GTA V process.
+    Captured players must be confirmed GTA V traffic (`Player.is_gta5_process`, set when a packet uses
+    one of the GTA V process's own UDP socket ports), and standalone IPs (not part of the session tables)
+    require capture to be filtering on the GTA V process.
     """
-    if not Settings.looky_exclusive_gta5_process:
-        return None
     for target in targets:
         if isinstance(target, Player):
             if not target.is_gta5_process:

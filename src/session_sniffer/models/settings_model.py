@@ -177,7 +177,6 @@ class SettingsModel(BaseModel):
     USERIP_SYNC_KNOWN_ALTS: bool
     USERIP_AUTO_FEED_FROM_USERNAMES: bool
     LOOKY_ENABLED: bool
-    LOOKY_EXCLUSIVE_GTA5_PROCESS: bool
     LOOKY_GAME_VERSION: str
     LOOKY_API_KEY: str | None
     PINGER_LOCAL: bool
@@ -236,7 +235,6 @@ class SettingsModel(BaseModel):
             'GUI_DISCONNECTED_PLAYERS_ENABLED',
             'GUI_IGNORE_SCREEN_RESOLUTION_WARNING',
             'LOOKY_ENABLED',
-            'LOOKY_EXCLUSIVE_GTA5_PROCESS',
             'PINGER_LOCAL',
             'SHOW_DISCORD_POPUP',
             'VOICE_NOTIFICATIONS_ENABLED',

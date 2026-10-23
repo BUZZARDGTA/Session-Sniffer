@@ -774,20 +774,6 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         setting_type=SettingType.BOOLEAN,
         tooltip='Master toggle for all Looky System features. Disabling this prevents any Looky System API calls.',
     ),
-    'looky_exclusive_gta5_process': SettingMeta(
-        category='GTA V',
-        group='Looky System',
-        display_label='Restrict to GTA5 Process',
-        setting_type=SettingType.BOOLEAN,
-        tooltip=(
-            'Only send captured player IPs to Looky System when they are confirmed GTA V traffic,\n'
-            "meaning the packets went through the GTA V process's own UDP sockets.\n"
-            'This works whether the Target Process is GTA V or set to sniff all traffic.\n\n'
-            'IP lookups opened outside the session tables (Leaderboard, Logs, UserIP Manager)\n'
-            'still require the Target Process to be GTA V.\n\n'
-            'When disabled, all captured non-third-party player IPs are sent.'
-        ),
-    ),
     'looky_game_version': SettingMeta(
         category='GTA V',
         group='Looky System',
