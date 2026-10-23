@@ -96,9 +96,9 @@ class GameMixin(QMainWindow):
     _player_resolver_window: PlayerResolverWindow
 
     if TYPE_CHECKING:
-        _update_looky_actions: Callable[[], None]
-        _build_looky_submenu: Callable[[QMenu], None]
-        _select_ips: Callable[[list[str]], None]
+        def _update_looky_actions(self) -> None: ...
+        def _build_looky_submenu(self, gta5_menu: QMenu) -> None: ...
+        def _select_ips(self, ip_addresses: list[str]) -> None: ...
         _detections_manager_window: DetectionsManagerDialog | None
         _userip_manager_window: UserIPDatabasesManager | None
         _disconnected: SessionTableSection

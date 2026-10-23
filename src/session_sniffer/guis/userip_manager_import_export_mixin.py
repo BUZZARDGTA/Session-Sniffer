@@ -70,8 +70,12 @@ class UserIPImportExportMixin(QDialog):
         _model: QStandardItemModel
         _get_selected_tree_directory: Callable[[], Path]
         read_settings_from_widgets: Callable[[], UserIPSettingsModel]
-        populate_settings_widgets: Callable[[UserIPSettingsModel], None]
-        _highlight_duplicates: Callable[[], int]
+
+        def populate_settings_widgets(self, settings: UserIPSettingsModel) -> None:
+            """Populate the settings widgets from a model."""
+            ...
+
+        def _highlight_duplicates(self) -> int: ...
 
     def _is_current_database_file(self, path: Path) -> bool:
         """Return True if *path* refers to the database currently open in the entries view."""
