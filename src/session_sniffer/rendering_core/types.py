@@ -10,6 +10,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
 
 from session_sniffer.background.events import gui_closed__event
+from session_sniffer.capture.process import GTA5_PROCESS_NAMES
 from session_sniffer.networking.interface import INTERFACE_TYPE_BRIDGED, INTERFACE_TYPE_SHARING
 from session_sniffer.player.registry import PlayersRegistry
 from session_sniffer.rendering_core.events import wake_rendering_core
@@ -297,24 +298,28 @@ class CaptureState:
         machine's traffic). `Shared` is treated as local — it captures this host's traffic.
         """
         with cls._lock:
-            return not (Settings.capture_arp_spoofing or cls.is_neighbour_interface or cls.interface_type in (INTERFACE_TYPE_BRIDGED, INTERFACE_TYPE_SHARING))
+            return cls._is_local_capture_locked()
+
+    @classmethod
+    def _is_local_capture_locked(cls) -> bool:
+        """Return the `is_local_capture` result; the caller must hold `_lock`."""
+        return not (Settings.capture_arp_spoofing or cls.is_neighbour_interface or cls.interface_type in (INTERFACE_TYPE_BRIDGED, INTERFACE_TYPE_SHARING))
 
     @classmethod
     def is_scanning_gta5_process(cls) -> bool:
         """Return `True` if local capture is actively filtering traffic on the running GTA V process."""
         with cls._lock:
-            is_local = not (Settings.capture_arp_spoofing or cls.is_neighbour_interface or cls.interface_type in (INTERFACE_TYPE_BRIDGED, INTERFACE_TYPE_SHARING))
             tracked_name = Settings.capture_filter_process_name
             is_targeting_gta5 = (
                 Settings.capture_filter_process_pid == cls.gta5_pid
                 or (
                     Settings.capture_filter_process_track_by_name
                     and tracked_name is not None
-                    and tracked_name.lower() in ('gta5.exe', 'gta5_enhanced.exe')
+                    and tracked_name.lower() in GTA5_PROCESS_NAMES
                 )
             )
             return (
-                is_local
+                cls._is_local_capture_locked()
                 and cls.gta5_is_running
                 and cls.gta5_pid is not None
                 and is_targeting_gta5
