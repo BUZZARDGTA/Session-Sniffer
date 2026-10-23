@@ -22,7 +22,12 @@ from PySide6.QtWidgets import (
 from session_sniffer.constants.local import RESOURCES_DIR_PATH, USERIP_DATABASES_DIR_PATH
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.guis.stylesheets import DIALOG_BUTTON_STYLESHEET, DIALOG_DANGER_BUTTON_STYLESHEET
-from session_sniffer.guis.userip_manager_helpers import load_userip_database_model, save_userip_database_model
+from session_sniffer.guis.userip_manager_helpers import (
+    IPRangeBuilderDialog,
+    load_userip_database_model,
+    rewrite_db_edit_entry_ip,
+    save_userip_database_model,
+)
 from session_sniffer.guis.utils import ActiveDialogRegistry, find_main_window, scale_by_ui, set_dialog_window_flags
 from session_sniffer.networking.ip_range import entry_ip_covers_ip, parse_ip_range
 from session_sniffer.player.userip import UserIPDatabases
@@ -133,7 +138,7 @@ def _format_side_html(side: _ConflictSide, usernames: Sequence[str]) -> str:
 
 
 class UserIPConflictResolverDialog(QDialog):
-    """Non-modal window listing UserIP conflicts and letting the user keep or delete the conflicting entries."""
+    """Non-modal window listing UserIP conflicts and letting the user keep, edit, or delete the conflicting entries."""
 
     def __init__(self, parent: QWidget | None = None) -> None:
         """Build the UserIP Conflict Resolver dialog."""
@@ -172,6 +177,13 @@ class UserIPConflictResolverDialog(QDialog):
         self._keep_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
         self._keep_button.clicked.connect(self._keep_selected)
         buttons_layout.addWidget(self._keep_button)
+
+        self._edit_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square-pen.svg')), ' Edit Entry…')
+        self._edit_button.setAutoDefault(False)
+        self._edit_button.setToolTip('Change the IP or range of the selected entry using the builder')
+        self._edit_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
+        self._edit_button.clicked.connect(self._edit_selected)
+        buttons_layout.addWidget(self._edit_button)
 
         self._delete_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')), ' Delete This Entry…')
         self._delete_button.setAutoDefault(False)
@@ -265,7 +277,7 @@ class UserIPConflictResolverDialog(QDialog):
                 f'{conflict_group_count} UserIP conflict group{pluralize(conflict_group_count)} '
                 f'({conflict_pair_count} conflicting pair{pluralize(conflict_pair_count)}) found. '
                 'An IP or range claimed by several databases is ignored until only one database claims it.\n'
-                'Select an entry, then keep it (deletes the entries that conflict with it) or delete it.',
+                'Select an entry, then keep it (deletes the entries that conflict with it), edit its IP or range, or delete it.',
             )
         else:
             self._summary_label.setText('No UserIP conflicts. Every IP and range belongs to a single database.')
@@ -274,6 +286,7 @@ class UserIPConflictResolverDialog(QDialog):
     def _update_buttons(self) -> None:
         has_side = self._selected_side() is not None
         self._keep_button.setEnabled(has_side)
+        self._edit_button.setEnabled(has_side)
         self._delete_button.setEnabled(has_side)
 
     def _confirm_deletion(self, header: str, sides: Sequence[_ConflictSide]) -> bool:
@@ -297,6 +310,25 @@ class UserIPConflictResolverDialog(QDialog):
         if not self._confirm_deletion(f'Keep <b>{kept_html}</b> and delete the following conflicting {entry_word}?', sides_to_delete):
             return
         _delete_sides(sides_to_delete)
+        self._refresh()
+
+    def _edit_selected(self) -> None:
+        selection = self._selected_side()
+        if selection is None:
+            return
+        _, side = selection
+        dialog = IPRangeBuilderDialog(self, initial_entry=side.entry)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        new_entry = dialog.result_entry()
+        if not new_entry or new_entry == side.entry:
+            return
+        if not rewrite_db_edit_entry_ip(side.db_path, side.entry, new_entry):
+            QMessageBox.warning(self, TITLE, 'The selected entry no longer exists in its database, nothing was changed.')
+            self._refresh()
+            return
+        update_userip_databases()
+        wake_rendering_core()
         self._refresh()
 
     def _delete_selected(self) -> None:
