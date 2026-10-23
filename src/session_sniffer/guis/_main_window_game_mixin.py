@@ -97,8 +97,13 @@ class GameMixin(QMainWindow):
 
     if TYPE_CHECKING:
         def _update_looky_actions(self) -> None: ...
-        def _build_looky_submenu(self, gta5_menu: QMenu) -> None: ...
-        def _select_ips(self, ip_addresses: list[str]) -> None: ...
+
+        def _build_looky_submenu(self, gta5_menu: QMenu) -> None:
+            del gta5_menu
+
+        def _select_ips(self, ip_addresses: list[str]) -> None:
+            del ip_addresses
+
         _detections_manager_window: DetectionsManagerDialog | None
         _userip_manager_window: UserIPDatabasesManager | None
         _disconnected: SessionTableSection

@@ -73,9 +73,10 @@ class UserIPImportExportMixin(QDialog):
 
         def populate_settings_widgets(self, settings: UserIPSettingsModel) -> None:
             """Populate the settings widgets from a model."""
-            ...
+            del settings
 
-        def _highlight_duplicates(self) -> int: ...
+        def _highlight_duplicates(self) -> int:
+            raise NotImplementedError
 
     def _is_current_database_file(self, path: Path) -> bool:
         """Return True if *path* refers to the database currently open in the entries view."""
