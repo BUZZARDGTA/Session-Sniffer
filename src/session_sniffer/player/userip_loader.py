@@ -52,6 +52,7 @@ DEFAULT_USERIP_FILES_SETTINGS_BY_PATH: dict[Path, UserIPSettingsModel] = {
 _CSV_SESSION_MATCH_TOLERANCE_SECONDS = 60.0
 _WINDOW_MERGE_TOLERANCE_SECONDS = 1.0
 _SESSION_SCAN_WORKERS = 16
+_IPV4_DOTTED_QUAD_SEPARATOR_COUNT = 3
 
 _RE_SESSION_PLAYER_RECORD = re.compile(
     rb'"First Seen"\s*:\s*"(\d{4}-[^"]+)"\s*,\s*'
@@ -89,7 +90,7 @@ def _ipv4_to_u32(ip_str: str) -> int | None:
         packed = socket.inet_aton(ip_str)
     except OSError:
         return None
-    if ip_str.count('.') != 3:  # noqa: PLR2004
+    if ip_str.count('.') != _IPV4_DOTTED_QUAD_SEPARATOR_COUNT:
         return None
     return int.from_bytes(packed, 'big')
 
