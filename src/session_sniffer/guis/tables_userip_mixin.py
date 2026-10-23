@@ -424,10 +424,11 @@ def userip_edit_note(parent: QWidget, ip_address: str, player: Player) -> None:
     db_display = str(db_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix(''))
     current_note = ', '.join(player.userip.notes) if player.userip.notes else ''
 
+    dialog_title = 'Edit Note' if current_note else 'Add Note'
     new_note, success = QInputDialog.getText(
         parent,
-        'Edit Note',
-        f'Editing note for IP {ip_address}.\nDatabase: {db_display}\n\nEnter the note (leave empty to clear):',
+        dialog_title,
+        f'Note for IP {ip_address}.\nDatabase: {db_display}\n\nEnter the note (leave empty to clear):',
         QLineEdit.EchoMode.Normal,
         current_note,
     )

@@ -251,10 +251,12 @@ def build_userip_menu(
         handler=lambda: userip_rename(parent, ip_address, player),
         icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square-pen.svg')),
     )
+    note_action = 'Edit' if player.userip.notes else 'Add'
+    note_label = f'{note_action} Note…'
     add_action(
         userip_menu,
-        'Edit Note…',
-        tooltip='Edit the note for this IP address in its UserIP database.',
+        note_label,
+        tooltip=f'{note_action} the note for this IP address in its UserIP database.',
         handler=lambda: userip_edit_note(parent, ip_address, player),
         icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square-pen.svg')),
     )

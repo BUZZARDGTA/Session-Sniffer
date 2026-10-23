@@ -257,8 +257,13 @@ class EntriesContextMenuMixin(QDialog):
             edit_ip_action.triggered.connect(lambda _checked=False, row=target_row: self._edit_entry_ip(row))
             menu.addAction(edit_ip_action)
 
-            edit_note_action = QAction(pen_icon, 'Edit Note…', self)
-            edit_note_action.setToolTip('Edit the note for this entry.')
+            notes_item = self._model.item(target_row, NOTES_COLUMN)
+            has_note = bool(notes_item and notes_item.text().strip())
+            note_action = 'Edit' if has_note else 'Add'
+            note_label = f'{note_action} Note…'
+            edit_note_action = QAction(pen_icon, note_label, self)
+            tooltip = 'Edit the note for this entry.' if has_note else 'Add a note to this entry.'
+            edit_note_action.setToolTip(tooltip)
             edit_note_action.triggered.connect(lambda _checked=False, row=target_row: self._edit_entry_note(row))
             menu.addAction(edit_note_action)
 

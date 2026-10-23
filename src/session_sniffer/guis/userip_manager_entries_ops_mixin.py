@@ -321,10 +321,12 @@ class UserIPEntriesOperationsMixin(QDialog):
         notes_item = self._model.item(source_row, NOTES_COLUMN)
         current_note = notes_item.text().strip() if notes_item else ''
 
+        dialog_title = 'Edit Note' if current_note else 'Add Note'
+        note_prompt = 'Enter the note' if current_note else 'Enter a note'
         new_note, accepted = QInputDialog.getText(
             self,
-            'Edit Note',
-            'Enter the note for this entry (leave empty to clear):',
+            dialog_title,
+            f'{note_prompt} for this entry (leave empty to clear):',
             QLineEdit.EchoMode.Normal,
             current_note,
         )
