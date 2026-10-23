@@ -3,9 +3,11 @@
 from functools import partial
 from typing import TYPE_CHECKING, cast
 
+from PySide6.QtCore import Qt
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (
     QDialog,
+    QFormLayout,
     QGroupBox,
     QHBoxLayout,
     QLabel,
@@ -21,12 +23,12 @@ from session_sniffer.constants.standalone import TITLE
 from session_sniffer.discord.webhook import send_test_message
 from session_sniffer.guis._settings_widget_builders import (
     create_boolean_widget,
+    create_setting_label,
     create_standard_form_layout,
+    create_text_widget,
     format_setting_tooltip,
 )
-from session_sniffer.guis.secret_line_edit import SecretLineEdit
 from session_sniffer.guis.stylesheets import (
-    DIALOG_BUTTON_STYLESHEET,
     DIALOG_DANGER_BUTTON_STYLESHEET,
     WEBHOOK_NOTE_LABEL_STYLESHEET,
 )
@@ -35,7 +37,7 @@ from session_sniffer.settings.settings import Settings
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from PySide6.QtWidgets import QCheckBox, QFormLayout
+    from PySide6.QtWidgets import QCheckBox
 
     from session_sniffer.settings import SettingMeta
 
@@ -62,7 +64,7 @@ class SettingsDialogDiscordMixin(QDialog):
 
         meta_by_key = dict(items)
 
-        # Top form: Enabled + Webhook URL row (with Show + Test buttons).
+        # Top form: Enabled + Webhook URL row.
         top_form = create_standard_form_layout()
 
         # Enabled checkbox
@@ -76,17 +78,14 @@ class SettingsDialogDiscordMixin(QDialog):
                 enabled_label.setToolTip(enabled_tooltip)
             top_form.addRow(enabled_label, enabled_widget)
 
-        # URL row: QLineEdit (masked) + 'Show' toggle + 'Test' button
+        # Use the standard text-field widget directly in the form row so its label
+        # aligns the same way as other settings, such as Presence Title.
         url_meta = meta_by_key.get('discord_webhook_url')
         url_line: QLineEdit | None = None
-        show_button: QPushButton | None = None
         test_button: QPushButton | None = None
         if url_meta is not None:
-            url_line = SecretLineEdit()
+            url_line = create_text_widget(url_meta)
             url_line.setPlaceholderText('https://discord.com/api/webhooks/<id>/<token>')
-            url_line.setToolTip(
-                url_meta.tooltip or 'Discord channel webhook URL. Treat this like a password — anyone with it can post to the channel.',
-            )
             self._widgets['discord_webhook_url'] = url_line
 
             url_row = QWidget()
@@ -95,24 +94,13 @@ class SettingsDialogDiscordMixin(QDialog):
             url_row_layout.setSpacing(6)
             url_row_layout.addWidget(url_line, 1)
 
-            show_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'eye.svg')), ' Show')
-            show_button.setCheckable(True)
-            show_button.setToolTip('Reveal or hide the webhook URL')
-            url_line.setProperty('show_button', show_button)
-
-            def _on_toggle_visibility() -> None:
-                self._toggle_url_visibility(url_line, show_button)
-
-            show_button.toggled.connect(_on_toggle_visibility)
-            url_row_layout.addWidget(show_button)
-
             test_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'settings.svg')), ' Test')
+            test_button.setFixedHeight(url_line.sizeHint().height())
             test_button.setToolTip('Send a one-time test message to this webhook URL')
-            test_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
             test_button.clicked.connect(partial(self._test_webhook, url_line))
             url_row_layout.addWidget(test_button)
 
-            url_label = QLabel(url_meta.display_label + ':')
+            url_label = create_setting_label(url_meta)
             url_label.setToolTip(url_line.toolTip())
             top_form.addRow(url_label, url_row)
 
@@ -128,6 +116,19 @@ class SettingsDialogDiscordMixin(QDialog):
             if key in ('discord_webhook_enabled', 'discord_webhook_url'):
                 continue
             add_setting_row(details_form, key, meta)
+
+        form_labels: list[QLabel] = []
+        for form in (top_form, details_form):
+            for row in range(form.rowCount()):
+                label_item = form.itemAt(row, QFormLayout.ItemRole.LabelRole)
+                label = label_item.widget() if label_item is not None else None
+                if isinstance(label, QLabel):
+                    form_labels.append(label)
+        if form_labels:
+            label_width = max(label.sizeHint().width() for label in form_labels)
+            for label in form_labels:
+                label.setMinimumWidth(label_width)
+                label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
 
         outer.addWidget(details_widget)
 
@@ -161,7 +162,6 @@ class SettingsDialogDiscordMixin(QDialog):
                 self._on_webhook_enabled_toggled(
                     details_widget,
                     url_line,
-                    show_button,
                     test_button,
                     reset_messages_button,
                 )
@@ -174,7 +174,6 @@ class SettingsDialogDiscordMixin(QDialog):
         self,
         details_widget: QWidget,
         url_line: QLineEdit | None,
-        show_button: QPushButton | None = None,
         test_button: QPushButton | None = None,
         reset_messages_button: QPushButton | None = None,
     ) -> None:
@@ -184,22 +183,10 @@ class SettingsDialogDiscordMixin(QDialog):
         details_widget.setEnabled(checked)
         if url_line is not None:
             url_line.setEnabled(checked)
-        if show_button is not None:
-            show_button.setEnabled(checked)
         if test_button is not None:
             test_button.setEnabled(checked)
         if reset_messages_button is not None:
             reset_messages_button.setEnabled(checked)
-
-    def _toggle_url_visibility(self, url_line: QLineEdit, show_button: QPushButton) -> None:
-        """Toggle masked/plain echo for the webhook URL."""
-        checked = show_button.isChecked()
-        if isinstance(url_line, SecretLineEdit):
-            url_line.set_revealed(revealed=checked)
-        else:
-            url_line.setEchoMode(QLineEdit.EchoMode.Normal if checked else QLineEdit.EchoMode.Password)
-        show_button.setText(' Hide' if checked else ' Show')
-        show_button.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / ('eye-off.svg' if checked else 'eye.svg'))))
 
     def _reset_stored_messages(self) -> None:
         """Clear persisted Discord webhook message IDs so the next post creates new messages."""
