@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, ClassVar
 from session_sniffer.constants.standard import LOCAL_TZ
 from session_sniffer.exceptions import UnexpectedPlayerCountError
 from session_sniffer.player.registry import PlayersRegistry, SessionTracker
+from session_sniffer.settings import Settings
 from session_sniffer.text_utils import format_elapsed_time, pluralize
 
 if TYPE_CHECKING:
@@ -298,10 +299,20 @@ class SessionHost:
     def is_relay_host_candidate(cls, player: Player) -> bool:
         """Return True if the player matches the criteria for a relay session host."""
         return (
-            not player.is_third_party_server
+            cls.is_game_packet_confirmed(player)
+            and not player.is_third_party_server
             and not player.packets.received
             and MINIMUM_PACKETS_FOR_RELAY_SESSION_HOST <= player.packets.sent <= MAXIMUM_PACKETS_FOR_RELAY_SESSION_HOST
         )
+
+    @staticmethod
+    def is_game_packet_confirmed(player: Player) -> bool:
+        """Return True when the player was seen on a UDP port owned by the active game."""
+        if Settings.is_gta5_feature_set():
+            return player.is_gta5_process
+        if Settings.is_rdr2_feature_set():
+            return player.is_rdr2_process
+        return False
 
     @classmethod
     def clear_session_host_data(cls) -> None:
@@ -358,20 +369,29 @@ class SessionHost:
     @classmethod
     def get_host_player(cls, session_connected: list[Player]) -> Player | None:
         """Infer and cache the session host from currently connected players and eligible relay candidates."""
-        if not session_connected:
-            cls.last_rejection_reason = 'No other players are currently connected in your session.'
+        # Only consider IPs confirmed by traffic on the active game's UDP port. Other captured
+        # traffic can still appear in the session tables, but must not influence host selection.
+        confirmed_session_players = [player for player in session_connected if cls.is_game_packet_confirmed(player)]
+        if not session_connected or not confirmed_session_players:
+            if session_connected:
+                game_name = 'GTA V' if Settings.is_gta5_feature_set() else 'RDR2'
+                cls.last_rejection_reason = f'No connected players have been confirmed by packets on a {game_name} UDP port.'
+                outcome = f'No {game_name} UDP-port-confirmed players found in current session.'
+            else:
+                cls.last_rejection_reason = 'No other players are currently connected in your session.'
+                outcome = 'No connected players found in current session.'
             cls.last_diagnostics = _build_host_diagnostics_snapshot(
-                session_players=[],
+                session_players=session_connected,
                 candidates=[],
                 result=_DetectionEvaluationResult(
-                    outcome='No connected players found in current session.',
+                    outcome=outcome,
                     rejection_reason=cls.last_rejection_reason,
                 ),
             )
             return None
 
-        candidates = list(session_connected)
-        p2p_connected = [player for player in session_connected if not player.is_third_party_server]
+        candidates = list(confirmed_session_players)
+        p2p_connected = [player for player in confirmed_session_players if not player.is_third_party_server]
         if p2p_connected:
             earliest_connected_time = min(player.datetime.last_rejoin for player in p2p_connected)
             for disconnected_player in PlayersRegistry.get_disconnected_players():

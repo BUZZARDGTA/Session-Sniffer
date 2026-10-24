@@ -278,6 +278,7 @@ class CaptureState:
     rdr2_path: ClassVar[Path | None] = None
     rdr2_pid: ClassVar[int | None] = None
     rdr2_is_suspended: ClassVar[bool] = False
+    rdr2_udp_ports: ClassVar[frozenset[int]] = frozenset[int]()
 
     @classmethod
     def apply_interface_names(cls, *, is_neighbour: bool, name: str, ip: str, interface_type: str) -> None:
@@ -353,6 +354,7 @@ class CaptureState:
             cls.rdr2_path = status.path
             cls.rdr2_pid = status.pid
             cls.rdr2_is_suspended = status.is_suspended
+            cls.rdr2_udp_ports = status.udp_ports
 
 
 class CaptureStats:

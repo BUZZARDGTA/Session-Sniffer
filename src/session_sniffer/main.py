@@ -347,6 +347,11 @@ def main() -> None:
             and CaptureState.is_local_capture()
             and local_port in CaptureState.gta5_udp_ports
         )
+        is_rdr2_packet = (
+            Settings.is_rdr2_feature_set()
+            and CaptureState.is_local_capture()
+            and local_port in CaptureState.rdr2_udp_ports
+        )
 
         matched_player = PlayersRegistry.get_player_by_ip(target_ip)
         if matched_player is None:
@@ -362,6 +367,8 @@ def main() -> None:
             )
             if is_gta5_packet:
                 player.is_gta5_process = True
+            if is_rdr2_packet:
+                player.is_rdr2_process = True
             matched_player = PlayersRegistry.add_connected_player(player)
             wake_rendering_core()
 
@@ -378,6 +385,8 @@ def main() -> None:
             )
             if is_gta5_packet:
                 matched_player.is_gta5_process = True
+            if is_rdr2_packet:
+                matched_player.is_rdr2_process = True
             PlayersRegistry.move_player_to_connected(matched_player)
             wake_rendering_core()
 
@@ -392,6 +401,9 @@ def main() -> None:
             )
             if is_gta5_packet and not matched_player.is_gta5_process:
                 matched_player.is_gta5_process = True
+                enqueue_player_for_resolution(matched_player)
+            if is_rdr2_packet and not matched_player.is_rdr2_process:
+                matched_player.is_rdr2_process = True
                 enqueue_player_for_resolution(matched_player)
 
         if (
