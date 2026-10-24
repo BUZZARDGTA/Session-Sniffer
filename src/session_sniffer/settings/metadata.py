@@ -182,16 +182,15 @@ SETTING_METADATA: dict[str, SettingMeta] = {
     'capture_filter_process_pid': SettingMeta(
         category='Capture',
         group='General',
-        display_label='Target Process',
+        display_label='Capture Scope',
         setting_type=SettingType.INTEGER_OR_ALL,
         special_value_text='Disabled',
         min_value=0,
         max_value=4194304,
         step=1,
         tooltip=(
-            'When running locally on this PC, restrict the packet sniffer to only capture\n'
-            'network traffic belonging directly to the selected target process PID by matching\n'
-            'its active local UDP socket ports.\n\n'
+            'Choose to capture all traffic or restrict the packet sniffer to a specific process.\n'
+            "Process filtering matches the selected process's active local UDP socket ports.\n\n"
             'All background noise and other applications on your computer (such as Discord,\n'
             'browsers, Steam, or other software) will be completely ignored.\n\n'
             'When disabled (0), all UDP network traffic is captured without process filtering.\n\n'

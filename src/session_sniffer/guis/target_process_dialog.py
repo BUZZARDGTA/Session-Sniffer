@@ -150,12 +150,6 @@ class TargetProcessDialog(QDialog):
         # Bottom action buttons
         action_layout = QHBoxLayout()
 
-        globe_icon = QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'globe.svg'))
-        disable_button = QPushButton(globe_icon, ' Sniff All Traffic (Disable Filter)')
-        disable_button.setToolTip('Remove process filtering and capture all network traffic on the adapter')
-        disable_button.clicked.connect(self._on_disable_clicked)
-        action_layout.addWidget(disable_button)
-
         action_layout.addStretch()
 
         target_icon = QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'target.svg'))
@@ -395,11 +389,6 @@ class TargetProcessDialog(QDialog):
 
         # Fallback to spinbox value
         self._apply_selection(self._pid_spinbox.value())
-        self.accept()
-
-    def _on_disable_clicked(self) -> None:
-        """Disable process filtering and capture all traffic."""
-        self._apply_selection(0)
         self.accept()
 
     def _apply_selection(self, pid: int, process_name: str | None = None) -> None:

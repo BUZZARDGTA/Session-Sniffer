@@ -876,6 +876,12 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
             match widget:
                 case QCheckBox():
                     widget.toggled.connect(self._update_restart_notice)
+                    if key == 'capture_filter_process_track_by_name':
+                        process_selector = self._widgets.get('capture_filter_process_pid')
+                        if isinstance(process_selector, ProcessSelectorWidget):
+                            widget.toggled.connect(
+                                lambda checked, selector=process_selector: selector.sync_scope_state(track_by_name=checked),
+                            )
                 case ColorPickerButton():
                     widget.color_changed.connect(self._update_restart_notice)
                 case QSpinBox() | QDoubleSpinBox():
@@ -883,9 +889,7 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
                 case QComboBox():
                     widget.currentIndexChanged.connect(self._update_restart_notice)
                 case ProcessSelectorWidget():
-                    combo = widget.findChild(QComboBox)
-                    if combo is not None:
-                        combo.currentIndexChanged.connect(self._update_restart_notice)
+                    widget.process_target_changed.connect(self._update_restart_notice)
                     widget.process_selection_applied.connect(self._on_process_selection_applied)
                 case _:
                     if meta.setting_type in (SettingType.COLUMN_TUPLE, SettingType.THIRD_PARTY_SERVERS_TUPLE):
@@ -947,6 +951,9 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
         if isinstance(track_by_name_widget, QCheckBox):
             with QSignalBlocker(track_by_name_widget):
                 track_by_name_widget.setChecked(Settings.capture_filter_process_track_by_name)
+        process_selector = self._widgets.get('capture_filter_process_pid')
+        if isinstance(process_selector, ProcessSelectorWidget):
+            process_selector.sync_scope_state(track_by_name=Settings.capture_filter_process_track_by_name)
         self._old_values['capture_filter_process_pid'] = Settings.capture_filter_process_pid
         self._old_values['capture_filter_process_name'] = Settings.capture_filter_process_name
         self._old_values['capture_filter_process_track_by_name'] = Settings.capture_filter_process_track_by_name
