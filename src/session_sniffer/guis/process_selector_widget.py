@@ -46,6 +46,8 @@ class _ProcessComboBox(QComboBox):
         super().__init__(parent)
         self._view_filter = _ProcessComboBoxViewFilter(self.view())
         self.view().installEventFilter(self._view_filter)
+        self.view().setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
+        self.view().setVerticalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
 
     @override
     def showPopup(self) -> None:

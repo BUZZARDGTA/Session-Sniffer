@@ -110,6 +110,7 @@ class TargetProcessDialog(QDialog):
         self._table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self._table.setVerticalScrollMode(QTableWidget.ScrollMode.ScrollPerPixel)
         self._table.setHorizontalScrollMode(QTableWidget.ScrollMode.ScrollPerPixel)
+        self._table.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
         self._table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self._table.customContextMenuRequested.connect(self._show_table_context_menu)
         self._column_resizer: TableColumnResizeController = TableColumnResizeController(
