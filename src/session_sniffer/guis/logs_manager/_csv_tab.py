@@ -701,7 +701,7 @@ class CsvLogTab(QWidget):
             self.purge_state_changed.emit()
 
     def _purge_file(self) -> None:
-        if self._model.rowCount() == 0:
+        if not self._model.rowCount():
             self._purge_button.setEnabled(False)
             return
         message = purge_log_file(self, self._file_path, item_label='entries')

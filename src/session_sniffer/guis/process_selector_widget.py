@@ -248,7 +248,7 @@ class ProcessSelectorWidget(QWidget):
         if pid <= 0:
             if target_name is not None and self._track_by_name:
                 for index in range(self._combo.count()):
-                    if self._combo.itemData(index) == 0 and self._combo.itemData(index, Qt.ItemDataRole.UserRole + 1) == target_name:
+                    if not self._combo.itemData(index) and self._combo.itemData(index, Qt.ItemDataRole.UserRole + 1) == target_name:
                         self._combo.setCurrentIndex(index)
                         self._specific_process_requested = True
                         self.sync_scope_state()

@@ -253,7 +253,7 @@ def purge_log_file(
     if not file_path.exists():
         QMessageBox.information(parent, TITLE, f'{file_path.name} does not exist.')
         return None
-    if file_path.is_file() and file_path.stat().st_size == 0:
+    if file_path.is_file() and not file_path.stat().st_size:
         return None
     reply = QMessageBox.warning(
         parent,
