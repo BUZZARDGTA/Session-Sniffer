@@ -387,7 +387,7 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
 
         label = create_setting_label(meta)
         self._labels[key] = label
-        if (tooltip := label.toolTip()):
+        if tooltip := label.toolTip():
             widget.setToolTip(tooltip)
 
         if key == 'capture_filter_process_pid' and not CaptureState.is_local_capture():
@@ -792,9 +792,16 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
                     if key == 'capture_filter_process_track_by_name':
                         process_selector = self._widgets.get('capture_filter_process_pid')
                         if isinstance(process_selector, ProcessSelectorWidget):
-                            widget.toggled.connect(
-                                lambda checked, selector=process_selector: selector.sync_scope_state(track_by_name=checked),
-                            )
+                            def _make_process_scope_sync_handler(
+                                selector: ProcessSelectorWidget,
+                                track_by_name_checkbox: QCheckBox,
+                            ) -> Callable[[], None]:
+                                def _sync_process_scope() -> None:
+                                    selector.sync_scope_state(track_by_name=track_by_name_checkbox.isChecked())
+
+                                return _sync_process_scope
+
+                            widget.toggled.connect(_make_process_scope_sync_handler(process_selector, widget))
                 case ColorPickerButton():
                     widget.color_changed.connect(self._update_restart_notice)
                 case QSpinBox() | QDoubleSpinBox():
@@ -884,10 +891,7 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
 
     def _has_unsaved_restart_changes(self) -> bool:
         """Return `True` if any modified setting requires a packet capture restart."""
-        return any(
-            SETTING_METADATA[key].requires_capture_restart and self._is_setting_modified(key, widget)
-            for key, widget in self._widgets.items()
-        )
+        return any(SETTING_METADATA[key].requires_capture_restart and self._is_setting_modified(key, widget) for key, widget in self._widgets.items())
 
     @override
     def _has_unsaved_changes_for_close(self) -> bool:

@@ -175,7 +175,7 @@ class ProcessSelectorWidget(QWidget):
         tooltip_parts: list[str] = []
         if isinstance(item_tooltip, str) and item_tooltip:
             tooltip_parts.append(item_tooltip)
-        if self._setting_tooltip:
+        if self._setting_tooltip is not None and self._setting_tooltip:
             tooltip_parts.append(self._setting_tooltip)
         self._combo.setToolTip('\n\n'.join(tooltip_parts))
 
@@ -207,13 +207,13 @@ class ProcessSelectorWidget(QWidget):
                     found_current = True
 
             if not found_current and current_pid > 0:
-                display_text = f'{current_name} (PID: {current_pid} - Not Running)' if current_name else f'Process PID {current_pid} (Not Running)'
+                display_text = f'{current_name} (PID: {current_pid} - Not Running)' if bool(current_name) else f'Process PID {current_pid} (Not Running)'
                 self._combo.addItem(warning_icon, display_text, current_pid)
                 index = self._combo.count() - 1
                 self._combo.setItemData(index, display_text, Qt.ItemDataRole.ToolTipRole)
-                if current_name:
+                if bool(current_name):
                     self._combo.setItemData(index, current_name, Qt.ItemDataRole.UserRole + 1)
-            elif not found_current and current_pid <= 0 and Settings.capture_filter_process_track_by_name and current_name:
+            elif not found_current and current_pid <= 0 and Settings.capture_filter_process_track_by_name and bool(current_name):
                 self._combo.addItem(warning_icon, f'{current_name} (Not Running)', 0)
                 index = self._combo.count() - 1
                 self._combo.setItemData(index, f'{current_name} (Waiting to launch)', Qt.ItemDataRole.ToolTipRole)

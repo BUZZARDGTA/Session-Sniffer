@@ -32,12 +32,13 @@ from session_sniffer.guis._main_window_game_mixin import GameMixin
 from session_sniffer.guis._main_window_looky_mixin import LookyMixin
 from session_sniffer.guis._main_window_stats_mixin import StatsMixin
 from session_sniffer.guis._session_table_section import SessionStatusBar, SessionTableSection
+from session_sniffer.guis._settings_runtime import SettingValue, apply_runtime_settings_changes
 from session_sniffer.guis.discord_intro import DiscordIntro
 from session_sniffer.guis.file_watch import DebouncedFileWatcher
 from session_sniffer.guis.ping_window import PingWindow
 from session_sniffer.guis.player_resolver import PlayerResolverWindow
 from session_sniffer.guis.port_scanner_window import PortScannerWindow
-from session_sniffer.guis.settings_dialog import SettingsDialog, SettingValue, apply_runtime_settings_changes
+from session_sniffer.guis.settings_dialog import SettingsDialog
 from session_sniffer.guis.stylesheets import MENU_BAR_STYLESHEET
 from session_sniffer.guis.tables_player_actions.looky_system._looky_crawler_request_dialog import close_all_crawler_dialogs
 from session_sniffer.guis.tables_player_actions.looky_system._looky_lookup_dialog import close_all_lookup_dialogs

@@ -3,8 +3,6 @@
 from dataclasses import replace
 from typing import TYPE_CHECKING
 
-from PySide6.QtWidgets import QWidget
-
 from session_sniffer.background import clear_voice_notification_queue, ensure_looky_core_running, retrigger_detections_scan, wake_looky_core
 from session_sniffer.capture.filters import build_capture_filters
 from session_sniffer.capture.process_monitor import ensure_process_monitor_running
@@ -17,6 +15,8 @@ from session_sniffer.settings import SETTING_METADATA, Settings
 from session_sniffer.webserver import WebServer, start_webserver_from_settings
 
 if TYPE_CHECKING:
+    from PySide6.QtWidgets import QWidget
+
     from session_sniffer.capture.packet_capture import PacketCapture
 
 SettingValue = bool | str | int | float | tuple[str, ...] | None
