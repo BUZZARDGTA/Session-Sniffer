@@ -112,6 +112,19 @@ def get_stylesheet(ui_scale: float = 1.0) -> str:
         border-radius: 4px;
         padding: 6px 16px;
     }
+    QPushButton:default {
+        background-color: #2d2d30;
+        color: #ffffff;
+        border: 1px solid #0078d4;
+    }
+    QPushButton:default:hover {
+        background-color: #3e3e42;
+        border-color: #168bd2;
+    }
+    QPushButton:default:pressed {
+        background-color: #1e1e1e;
+        border-color: #168bd2;
+    }
     QPushButton:hover {
         background-color: #3e3e42;
         border-color: #007acc;
