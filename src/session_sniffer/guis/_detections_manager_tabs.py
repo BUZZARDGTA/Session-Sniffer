@@ -616,11 +616,18 @@ class DetectionsManagerTabsMixin(QDialog):
             if list_widget.count() > 0:
                 list_widget.clear()
                 self._auto_save_detections()
+            clear_button.setEnabled(list_widget.count() > 0)
 
         clear_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')), ' Clear All')
+        clear_button.setEnabled(list_widget.count() > 0)
         clear_button.setCursor(Qt.CursorShape.PointingHandCursor)
         clear_button.clicked.connect(_on_clear_list)
         buttons_layout.addWidget(clear_button)
+        list_model = list_widget.model()
+        if list_model:
+            list_model.rowsInserted.connect(lambda *_: clear_button.setEnabled(list_widget.count() > 0))
+            list_model.rowsRemoved.connect(lambda *_: clear_button.setEnabled(list_widget.count() > 0))
+            list_model.modelReset.connect(lambda: clear_button.setEnabled(list_widget.count() > 0))
 
         buttons_layout.addStretch()
         list_layout.addLayout(buttons_layout)

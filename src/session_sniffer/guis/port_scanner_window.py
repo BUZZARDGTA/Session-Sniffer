@@ -267,7 +267,9 @@ class PortScannerTabWidget(QWidget):
 
         clear_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'trash.svg')), ' Clear')
         clear_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
+        clear_button.setEnabled(False)
         clear_button.clicked.connect(self._clear_results)
+        self._clear_results_button = clear_button
 
         toolbar_layout.addWidget(self._show_open_only_checkbox)
         toolbar_layout.addStretch()
@@ -504,6 +506,7 @@ class PortScannerTabWidget(QWidget):
         """Append a newly discovered port probe result to the table."""
         result = ensure_instance(result_object, PortScanResult)
         self._results.append(result)
+        self._clear_results_button.setEnabled(True)
 
         if self._show_open_only_checkbox.isChecked() and result.state != PortScanState.OPEN:
             return
@@ -627,6 +630,7 @@ class PortScannerTabWidget(QWidget):
         self._results_table.setRowCount(0)
         self._progress_bar.setValue(0)
         self._metrics_label.setText('Results cleared.')
+        self._clear_results_button.setEnabled(False)
 
     @override
     def resizeEvent(self, a0: QResizeEvent) -> None:

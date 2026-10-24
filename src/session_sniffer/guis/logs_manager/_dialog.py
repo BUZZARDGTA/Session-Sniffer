@@ -104,6 +104,10 @@ class LogsManager(QDialog):
         purge_all_button.setToolTip('Clear ALL log files at once (creates backups first)')
         purge_all_button.clicked.connect(self.purge_all_logs)
         button_row.addWidget(purge_all_button)
+        self._purge_all_button = purge_all_button
+        for tab in (self._userip_tab, self._detection_tab, self._protection_tab, self._debug_tab, self._crash_tab):
+            tab.purge_state_changed.connect(self._update_purge_all_button)
+        self._update_purge_all_button()
 
         clean_empty_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'trash.svg')), ' Clean Empty Sessions')
         clean_empty_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
@@ -156,8 +160,15 @@ class LogsManager(QDialog):
     # Purge all
     # ------------------------------------------------------------------
 
+    def _update_purge_all_button(self) -> None:
+        """Enable the bulk purge action only when at least one log has content."""
+        tabs = (self._userip_tab, self._detection_tab, self._protection_tab, self._debug_tab, self._crash_tab)
+        self._purge_all_button.setEnabled(any(tab.can_purge for tab in tabs))
+
     def purge_all_logs(self) -> None:
         """Purge all CSV log files, debug.log, and crash.log after strong confirmation."""
+        if not self._purge_all_button.isEnabled():
+            return
         reply = QMessageBox.warning(
             self,
             TITLE,
@@ -177,7 +188,16 @@ class LogsManager(QDialog):
         purged: list[str] = []
         errors: list[str] = []
 
-        for path in (USERIP_LOGGING_PATH, DETECTION_LOGGING_PATH, PROTECTION_LOGGING_PATH, DEBUG_LOG_PATH, CRASH_LOG_PATH):
+        log_tabs_and_paths = (
+            (USERIP_LOGGING_PATH, self._userip_tab),
+            (DETECTION_LOGGING_PATH, self._detection_tab),
+            (PROTECTION_LOGGING_PATH, self._protection_tab),
+            (DEBUG_LOG_PATH, self._debug_tab),
+            (CRASH_LOG_PATH, self._crash_tab),
+        )
+        for path, tab in log_tabs_and_paths:
+            if not tab.can_purge:
+                continue
             if not path.exists():
                 continue
             backup_file(path)

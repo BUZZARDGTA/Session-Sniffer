@@ -205,6 +205,7 @@ class HighRateMonitorWidget(QWidget):
         actions_layout.addWidget(reset_button)
 
         clear_bl_button = QPushButton('Clear Blacklist')
+        clear_bl_button.setEnabled(False)
         clear_bl_button.setToolTip(
             'Removes all IPs from the blacklist so they can be tracked again.\n\n'
             'Blacklisted IPs are excluded from high-rate detection.',
@@ -212,6 +213,7 @@ class HighRateMonitorWidget(QWidget):
         clear_bl_button.setFixedWidth(130)
         clear_bl_button.clicked.connect(self._clear_blacklist)
         actions_layout.addWidget(clear_bl_button)
+        self._clear_blacklist_button = clear_bl_button
 
         layout.addLayout(actions_layout)
 
@@ -422,7 +424,11 @@ class HighRateMonitorWidget(QWidget):
         self._status_label.setText('<b>Status:</b> Scan reset. Collecting data…')
 
     def _clear_blacklist(self) -> None:
+        if not self._blacklisted_ips:
+            self._clear_blacklist_button.setEnabled(False)
+            return
         self._blacklisted_ips.clear()
+        self._clear_blacklist_button.setEnabled(False)
         if self._timer.isActive():
             self._scan_players()
 
@@ -433,6 +439,7 @@ class HighRateMonitorWidget(QWidget):
         for ip_address in ip_addresses:
             self._blacklisted_ips.add(ip_address)
             self._tracked.pop(ip_address, None)
+        self._clear_blacklist_button.setEnabled(bool(self._blacklisted_ips))
         if HighRateTracker.flagged_ips.intersection(ip_addresses):
             HighRateTracker.set_flagged_ips(HighRateTracker.flagged_ips - set(ip_addresses))
         if self._timer.isActive():
@@ -444,6 +451,7 @@ class HighRateMonitorWidget(QWidget):
             return
         for ip_address in ip_addresses:
             self._blacklisted_ips.discard(ip_address)
+        self._clear_blacklist_button.setEnabled(bool(self._blacklisted_ips))
         if self._timer.isActive():
             self._scan_players()
 

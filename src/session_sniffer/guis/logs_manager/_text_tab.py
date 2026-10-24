@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, cast, override
 
+from PySide6.QtCore import Signal
 from PySide6.QtGui import QColor, QIcon, QShowEvent, QTextCharFormat, QTextCursor
 from PySide6.QtWidgets import (
     QComboBox,
@@ -63,6 +64,8 @@ class _LogEntry:
 
 class TextLogTab(QWidget):
     """Plain-text log viewer with search highlighting, severity filtering, auto-refresh, and log-level coloring."""
+
+    purge_state_changed = Signal()
 
     def __init__(
         self,
@@ -147,7 +150,7 @@ class TextLogTab(QWidget):
             save_tooltip='Save the log to a new file',
         )
 
-        add_purge_and_location_buttons(button_row, self._purge_file, self._file_path)
+        self._purge_button = add_purge_and_location_buttons(button_row, self._purge_file, self._file_path)
 
         # --- Auto-refresh from disk ---
         self._watcher = DebouncedFileWatcher(self, self.load_data)
@@ -213,6 +216,11 @@ class TextLogTab(QWidget):
         """Stop auto-refresh watcher from disk."""
         self._watcher.stop()
 
+    @property
+    def can_purge(self) -> bool:
+        """Return whether this log currently contains content to purge."""
+        return self._purge_button.isEnabled()
+
     @override
     def showEvent(self, a0: QShowEvent) -> None:
         """Scroll to the bottom on first display if no manual scroll occurred."""
@@ -229,6 +237,8 @@ class TextLogTab(QWidget):
 
     def load_data(self) -> None:
         """Read the text file and display its contents."""
+        self._purge_button.setEnabled(self._file_path.is_file() and self._file_path.stat().st_size > 0)
+        self.purge_state_changed.emit()
         if not self._file_path.exists():
             self._raw_text = ''
             self._prefix = ''

@@ -179,6 +179,7 @@ class SessionTableSection(QWidget):
 
         self._clear_button = QPushButton('CLEAR')
         self._clear_button.setObjectName('sectionClearButton')
+        self._clear_button.setEnabled(False)
         self._clear_button.setToolTip(clear_tooltip)
         self._clear_button.clicked.connect(clear_slot)
 
@@ -536,6 +537,7 @@ class SessionTableSection(QWidget):
     def update_current_count(self, count: int) -> None:
         """Update the player count, refresh the header, and sync the expand button text."""
         self.last_count = count
+        self._clear_button.setEnabled(count > 0)
         self._update_header_label()
         if not self.is_expanded:
             self.expand_button.setText(
@@ -547,6 +549,7 @@ class SessionTableSection(QWidget):
         self.table_model.reset_columns()
         self._selected_count = 0
         self.last_count = 0
+        self._clear_button.setEnabled(False)
         self._update_header_label()
         self.table_view.reset_initial_data_sizing()
         self.table_view.setup_static_column_resizing()

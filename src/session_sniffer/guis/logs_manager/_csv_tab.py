@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 from ipaddress import IPv4Address
 from typing import TYPE_CHECKING, override
 
-from PySide6.QtCore import QItemSelectionModel, QModelIndex, QPoint, QSignalBlocker, Qt, QUrl
+from PySide6.QtCore import QItemSelectionModel, QModelIndex, QPoint, QSignalBlocker, Qt, QUrl, Signal
 from PySide6.QtGui import (
     QAction,
     QDesktopServices,
@@ -90,6 +90,8 @@ class CsvLogTabConfig:
 
 class CsvLogTab(QWidget):
     """Structured CSV log viewer with table, search, filter, sort, and management actions."""
+
+    purge_state_changed = Signal()
 
     def __init__(
         self,
@@ -219,6 +221,7 @@ class CsvLogTab(QWidget):
         purge_button.setToolTip('Clear all entries from this log file (creates a backup first)')
         purge_button.clicked.connect(self._purge_file)
         button_row.addWidget(purge_button)
+        self._purge_button = purge_button
 
         label = ' Open Folder Location' if self._file_path.is_dir() else ' Open File Location'
         open_location_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'folder.svg')), label)
@@ -249,12 +252,18 @@ class CsvLogTab(QWidget):
         """Stop auto-refresh watcher from disk."""
         self._watcher.stop()
 
+    @property
+    def can_purge(self) -> bool:
+        """Return whether this log currently contains entries to purge."""
+        return self._purge_button.isEnabled()
+
     # ------------------------------------------------------------------
     # Data loading
     # ------------------------------------------------------------------
 
     def load_data(self) -> None:
         """Read the CSV file and populate the table model."""
+        self._purge_button.setEnabled(False)
         scrollbar = self._table.verticalScrollBar()
         previous_scroll = scrollbar.value() if scrollbar else 0
 
@@ -265,6 +274,7 @@ class CsvLogTab(QWidget):
             self._update_counts()
             self._metadata_label.setText(file_metadata_text(self._file_path))
             self._initial_loaded = True
+            self.purge_state_changed.emit()
             return
 
         with self._file_path.open(newline='', encoding='utf-8') as file:
@@ -274,6 +284,7 @@ class CsvLogTab(QWidget):
                 self._update_counts()
                 self._metadata_label.setText(file_metadata_text(self._file_path))
                 self._initial_loaded = True
+                self.purge_state_changed.emit()
                 return
 
             self._model.setHorizontalHeaderLabels(file_headers)
@@ -310,6 +321,8 @@ class CsvLogTab(QWidget):
             self._reset_column_sizes()
         self._update_counts()
         self._metadata_label.setText(file_metadata_text(self._file_path))
+        self._purge_button.setEnabled(self._model.rowCount() > 0)
+        self.purge_state_changed.emit()
 
     def _apply_default_sort(self) -> None:
         """Apply the default sort using stable-sort chaining."""
@@ -684,8 +697,13 @@ class CsvLogTab(QWidget):
         else:
             self._update_counts()
             self._metadata_label.setText(file_metadata_text(self._file_path))
+            self._purge_button.setEnabled(self._model.rowCount() > 0)
+            self.purge_state_changed.emit()
 
     def _purge_file(self) -> None:
+        if self._model.rowCount() == 0:
+            self._purge_button.setEnabled(False)
+            return
         message = purge_log_file(self, self._file_path, item_label='entries')
         if message is not None:
             self._show_status(message)

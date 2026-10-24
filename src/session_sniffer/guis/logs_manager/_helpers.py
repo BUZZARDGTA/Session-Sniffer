@@ -216,13 +216,14 @@ def add_purge_and_location_buttons(
     layout: QHBoxLayout,
     purge_fn: Callable[[], None],
     file_path: Path,
-) -> None:
+) -> QPushButton:
     """Append addStretch → Purge File → Open File Location buttons to *layout*."""
     layout.addStretch()
 
     purge_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')), ' Purge File')
     purge_button.setStyleSheet(DIALOG_DANGER_BUTTON_STYLESHEET)
     purge_button.setToolTip('Clear all contents from this log file (creates a backup first)')
+    purge_button.setEnabled(file_path.is_file() and file_path.stat().st_size > 0)
     purge_button.clicked.connect(purge_fn)
     layout.addWidget(purge_button)
 
@@ -239,6 +240,8 @@ def add_purge_and_location_buttons(
     open_file_button.clicked.connect(lambda: QDesktopServices.openUrl(QUrl.fromLocalFile(str(file_path))))
     layout.addWidget(open_file_button)
 
+    return purge_button
+
 
 def purge_log_file(
     parent: QWidget,
@@ -249,6 +252,8 @@ def purge_log_file(
     """Confirm and purge *file_path*; return a status message or None if cancelled/missing."""
     if not file_path.exists():
         QMessageBox.information(parent, TITLE, f'{file_path.name} does not exist.')
+        return None
+    if file_path.is_file() and file_path.stat().st_size == 0:
         return None
     reply = QMessageBox.warning(
         parent,

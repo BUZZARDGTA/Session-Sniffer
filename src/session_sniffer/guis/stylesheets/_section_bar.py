@@ -49,6 +49,11 @@ def section_bar_qss(accent: str) -> str:
         border-color: rgba(255, 255, 255, 0.25);
         color: #ffffff;
     }}
+    QPushButton:disabled {{
+        background: rgba(255, 255, 255, 0.02);
+        border-color: rgba(255, 255, 255, 0.05);
+        color: #4b5563;
+    }}
     QPushButton:pressed {{
         background: rgba(255, 255, 255, 0.03);
     }}

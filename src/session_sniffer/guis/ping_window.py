@@ -303,7 +303,9 @@ class PingTabWidget(QWidget):
 
         clear_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'trash.svg')), ' Clear')
         clear_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
+        clear_button.setEnabled(False)
         clear_button.clicked.connect(self._clear_log)
+        self._clear_log_button = clear_button
 
         bottom_layout.addWidget(self._stats_label, stretch=1)
         bottom_layout.addWidget(self._autoscroll_checkbox)
@@ -521,6 +523,7 @@ class PingTabWidget(QWidget):
     def _append_log_line(self, html_line: str) -> None:
         """Append a formatted HTML line to the console log."""
         self._console_log.append(html_line)
+        self._clear_log_button.setEnabled(True)
         if self._autoscroll_checkbox.isChecked():
             cursor = self._console_log.textCursor()
             cursor.movePosition(QTextCursor.MoveOperation.End)
@@ -535,7 +538,11 @@ class PingTabWidget(QWidget):
 
     def _clear_log(self) -> None:
         """Clear the console log and reset statistics."""
+        if not self._console_log.toPlainText():
+            self._clear_log_button.setEnabled(False)
+            return
         self._console_log.clear()
+        self._clear_log_button.setEnabled(False)
         self._statistics = PingStatistics()
         self._stats_label.setText('Log cleared. Statistics reset.')
 
