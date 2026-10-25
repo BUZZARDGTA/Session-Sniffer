@@ -10,8 +10,8 @@ from types import TracebackType
 from typing import TYPE_CHECKING, ClassVar, Literal, NamedTuple
 
 from session_sniffer import msgbox
-from session_sniffer.constants.local import APP_DIR_LOCAL, APP_DIR_ROAMING
-from session_sniffer.constants.standalone import GITHUB_ISSUES_URL, TITLE
+from session_sniffer.constants.local import APP_DIR_LOCAL, APP_DIR_ROAMING, CRASH_LOG_PATH, DEBUG_LOG_PATH
+from session_sniffer.constants.standalone import DISCORD_INVITE_URL, GITHUB_ISSUES_URL, TITLE
 from session_sniffer.gta5.suspend_manager import GTASuspendManager
 from session_sniffer.logging_setup import dump_crash_diagnostics, flush_all_loggers
 from session_sniffer.rdr2.suspend_manager import RDR2SuspendManager
@@ -22,6 +22,16 @@ if TYPE_CHECKING:
     from types import FrameType
 
 logger = logging.getLogger(__name__)
+
+_UNCAUGHT_ERROR_MESSAGE: str = (
+    'An unexpected (uncaught) error occurred.\n\n'
+    'Please kindly report it on GitHub Issues or our Discord server:\n'
+    f'• GitHub Issues: {GITHUB_ISSUES_URL}\n'
+    f'• Discord Server: {DISCORD_INVITE_URL}\n\n'
+    'IMPORTANT: Please attach the following log files with your report so the issue can be diagnosed and fixed:\n'
+    f'• {CRASH_LOG_PATH}\n'
+    f'• {DEBUG_LOG_PATH}'
+)
 
 
 class ExceptionInfo(NamedTuple):
@@ -135,7 +145,7 @@ def handle_exception(exc_type: type[BaseException], exc_value: BaseException, ex
     exception_info = ExceptionInfo(exc_type, exc_value, exc_traceback)
     terminate_script(
         'EXIT',
-        f'An unexpected (uncaught) error occurred.\n\nPlease kindly report it to:\n{GITHUB_ISSUES_URL}',
+        _UNCAUGHT_ERROR_MESSAGE,
         exception_info=exception_info,
     )
 
@@ -151,12 +161,12 @@ def handle_sigint(_sig: int, _frame: FrameType | None) -> None:
 def terminate_on_uncaught_exception(exc: BaseException) -> None:
     """Crash the app with the standard uncaught-thread-exception message.
 
-    Shared helper used by pool-task callbacks and QThread wrappers so the
-    crash call is not duplicated across modules.
+    Shared helper used by pool-task callbacks, QThread wrappers, and asyncio
+    exception handlers so the crash call is not duplicated across modules.
     """
     terminate_script(
         'THREAD_RAISED',
-        f'An unexpected (uncaught) error occurred.\n\nPlease kindly report it to:\n{GITHUB_ISSUES_URL}',
+        _UNCAUGHT_ERROR_MESSAGE,
         exception_info=ExceptionInfo(type(exc), exc, exc.__traceback__),
     )
 
@@ -170,7 +180,7 @@ def _handle_thread_exception(args: threading.ExceptHookArgs) -> None:
     exception_info = ExceptionInfo(args.exc_type, exc_value, args.exc_traceback)
     terminate_script(
         'THREAD_RAISED',
-        (f'An unexpected (uncaught) error occurred.\n\nPlease kindly report it to:\n{GITHUB_ISSUES_URL}'),
+        _UNCAUGHT_ERROR_MESSAGE,
         exception_info=exception_info,
     )
 

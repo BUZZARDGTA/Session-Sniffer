@@ -13,8 +13,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, cast
 
 import aiohttp.web
 
-from session_sniffer.constants.standalone import GITHUB_ISSUES_URL
-from session_sniffer.core import ExceptionInfo, terminate_script
+from session_sniffer.core import terminate_on_uncaught_exception
 from session_sniffer.rendering_core.types import GUIRenderingSnapshot, GUIRenderingState
 
 if TYPE_CHECKING:
@@ -40,11 +39,7 @@ def _handle_asyncio_exception(_loop: asyncio.AbstractEventLoop, context: dict[st
     if isinstance(exc, (ConnectionResetError, ConnectionAbortedError, BrokenPipeError)):
         logger.debug('Ignored benign asyncio transport error: %s: %s', type(exc).__name__, exc)
         return
-    terminate_script(
-        'THREAD_RAISED',
-        f'An unexpected (uncaught) error occurred.\n\nPlease kindly report it to:\n{GITHUB_ISSUES_URL}',
-        exception_info=ExceptionInfo(type(exc), exc, exc.__traceback__),
-    )
+    terminate_on_uncaught_exception(exc)
 
 
 @dataclass(slots=True, frozen=True)
