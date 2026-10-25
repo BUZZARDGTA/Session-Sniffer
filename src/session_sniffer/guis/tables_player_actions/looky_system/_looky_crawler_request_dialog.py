@@ -247,8 +247,7 @@ class _CrawlerRequestDialog(QDialog):
 
         set_dialog_window_flags(self)
         self.setWindowTitle(LOOKY_TITLE)
-        self.setMinimumSize(600, 250)
-        self.resize(750, 350)
+        self.setMinimumSize(500, 360)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(12, 12, 12, 12)
