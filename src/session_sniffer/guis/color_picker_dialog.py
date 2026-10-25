@@ -321,8 +321,9 @@ class ColorPickerButton(QPushButton):
 
     def set_color(self, color_name: str) -> None:
         """Set the button's color and update its visual swatch."""
-        self._color_name = color_name
-        self._color = QColor(color_name) if color_name and QColor(color_name).isValid() else QColor()
+        cleaned = color_name.strip()
+        self._color = QColor(cleaned) if cleaned and QColor(cleaned).isValid() else QColor()
+        self._color_name = cleaned if self._color.isValid() else ''
         self._update_style()
 
     def _update_style(self) -> None:

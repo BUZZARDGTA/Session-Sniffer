@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, cast, override
 
 from PySide6.QtCore import Signal
-from PySide6.QtGui import QColor, QIcon, QShowEvent, QTextCharFormat, QTextCursor
+from PySide6.QtGui import QIcon, QShowEvent
 from PySide6.QtWidgets import (
     QComboBox,
     QFileDialog,
@@ -14,7 +14,6 @@ from PySide6.QtWidgets import (
     QLabel,
     QMessageBox,
     QPushButton,
-    QTextEdit,
     QVBoxLayout,
     QWidget,
 )
@@ -30,6 +29,7 @@ from session_sniffer.guis.logs_manager._helpers import (
     create_log_viewer,
     create_search_input,
     file_metadata_text,
+    find_and_highlight_matches,
     prepare_search,
     purge_log_file,
     setup_copy_save_button_row,
@@ -39,7 +39,7 @@ from session_sniffer.guis.userip_manager_helpers import human_readable_size
 from session_sniffer.text_utils import pluralize
 
 if TYPE_CHECKING:
-    from typing import Any
+    from PySide6.QtGui import QTextCursor
 
 _LOG_ENTRY_HEADER_REGEX = re.compile(r'^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} - ([A-Z]+) - ')
 
@@ -343,30 +343,11 @@ class TextLogTab(QWidget):
         document = prepare_search(text, self._match_label, self._viewer)
         if document is None:
             return
-        cursor = document.find(text)
-        while not cursor.isNull():
-            self._search_matches.append(QTextCursor(cursor))
-            cursor = document.find(text, cursor)
-
-        self._highlight_all_matches()
+        self._search_matches = find_and_highlight_matches(document, text, self._viewer)
         if self._search_matches:
             self._current_match_index = 0
             self._go_to_match(0)
         self._update_match_label()
-
-    def _highlight_all_matches(self) -> None:
-        selections: list[Any] = []
-        highlight_format = QTextCharFormat()
-        highlight_format.setBackground(QColor('#e3b341'))
-        highlight_format.setForeground(QColor('#000000'))
-
-        for cursor in self._search_matches:
-            selection = cast('Any', QTextEdit.ExtraSelection())
-            selection.cursor = cursor
-            selection.format = highlight_format
-            selections.append(selection)
-
-        self._viewer.setExtraSelections(selections)
 
     def _go_to_match(self, index: int) -> None:
         if 0 <= index < len(self._search_matches):

@@ -116,6 +116,8 @@ class SingleRateGraphBase(RateGraphWindowMixin):
 class DualRateGraphBase(RateGraphWindowMixin):
     """Base class for dual PPS+BPS graph windows."""
 
+    PPS_Y_FLOOR: float = 10.0
+    BPS_Y_FLOOR: float = 1.0
     _max_history: int
     _dual_graph_idle: bool
     _BYTES_TO_KBS: int = 1024
@@ -130,11 +132,13 @@ class DualRateGraphBase(RateGraphWindowMixin):
         """Create PPS and BPS PlotWidgets and add them to *layout*."""
         # ── PPS graph (top) — lime green tones ──────────────────────────
         self._pps_widget = RateGraphWidget.create_pps_widget(visible_window=VISIBLE_WINDOW)
+        self._pps_widget.set_y_range(0, self.PPS_Y_FLOOR)
         self._configure_pps_widget()
         layout.addWidget(self._pps_widget)
 
         # ── BPS graph (bottom) — cyan/teal tones ────────────────────────
         self._bps_widget = RateGraphWidget.create_bps_widget(visible_window=VISIBLE_WINDOW)
+        self._bps_widget.set_y_range(0, self.BPS_Y_FLOOR)
         self._configure_bps_widget()
         layout.addWidget(self._bps_widget)
 
@@ -191,16 +195,7 @@ class DualRateGraphBase(RateGraphWindowMixin):
         if not pps and not bps and self._dual_graph_idle:
             return
 
-        pps_list = list(self._pps_buffer)
-        bps_list = list(self._bps_buffer)
-
-        self._pps_widget.set_data(pps_list)
-        self._on_pps_rendered(pps_list)
-        self._pps_widget.set_average(self._pps_running_sum / len(self._pps_buffer))
-
-        self._bps_widget.set_data(bps_list)
-        self._on_bps_rendered(bps_list)
-        self._bps_widget.set_average(self._bps_running_sum / len(self._bps_buffer))
+        pps_list, bps_list = self._render_buffers()
 
         if not pps and not bps:
             _pps_visible_max = max(pps_list[-VISIBLE_WINDOW:]) if pps_list else 0.0
@@ -209,15 +204,29 @@ class DualRateGraphBase(RateGraphWindowMixin):
         else:
             self._dual_graph_idle = False
 
-    def _on_pps_rendered(self, pps_data: list[float]) -> None:
-        """Hook called after PPS graph is updated. Override to add auto-scaling."""
+    def _render_buffers(self) -> tuple[list[float], list[float]]:
+        """Render the current PPS and BPS history buffers and update auto-scaled Y ranges and averages."""
+        pps_list = list(self._pps_buffer)
+        bps_list = list(self._bps_buffer)
 
-    def _on_bps_rendered(self, bps_data: list[float]) -> None:
-        """Hook called after BPS graph is updated. Override to add auto-scaling."""
+        self._pps_widget.set_data(pps_list)
+        pps_visible_max = max(pps_list[-VISIBLE_WINDOW:]) if pps_list else 0.0
+        self._pps_widget.set_y_range(0, max(pps_visible_max * 1.2, self.PPS_Y_FLOOR))
+        self._pps_widget.set_average(self._pps_running_sum / len(self._pps_buffer) if self._pps_buffer else 0.0)
+
+        self._bps_widget.set_data(bps_list)
+        bps_visible_max = max(bps_list[-VISIBLE_WINDOW:]) if bps_list else 0.0
+        self._bps_widget.set_y_range(0, max(bps_visible_max * 1.2, self.BPS_Y_FLOOR))
+        self._bps_widget.set_average(self._bps_running_sum / len(self._bps_buffer) if self._bps_buffer else 0.0)
+
+        return pps_list, bps_list
 
 
 class PlayerRateGraphWindow(DualRateGraphBase):
     """A standalone window with separate PPS and BPS graphs stacked vertically."""
+
+    PPS_Y_FLOOR = 100.0
+    BPS_Y_FLOOR = 50.0
 
     def __init__(
         self,
@@ -238,25 +247,13 @@ class PlayerRateGraphWindow(DualRateGraphBase):
 
     @override
     def _configure_pps_widget(self) -> None:
-        self._pps_widget.set_y_range(0, 100)
         self._pps_widget.threshold_color = QColor('#66bb6a')
         self.set_pps_threshold(self._initial_pps_threshold)
 
     @override
     def _configure_bps_widget(self) -> None:
-        self._bps_widget.set_y_range(0, 50)
         self._bps_widget.threshold_color = QColor('#4dd0e1')
         self.set_bps_threshold(self._initial_bps_threshold)
-
-    @override
-    def _on_pps_rendered(self, pps_data: list[float]) -> None:
-        pps_visible_max = max(pps_data[-VISIBLE_WINDOW:]) if pps_data else 0.0
-        self._pps_widget.set_y_range(0, max(pps_visible_max * 1.2, 100.0))
-
-    @override
-    def _on_bps_rendered(self, bps_data: list[float]) -> None:
-        bps_visible_max = max(bps_data[-VISIBLE_WINDOW:]) if bps_data else 0.0
-        self._bps_widget.set_y_range(0, max(bps_visible_max * 1.2, 50.0))
 
     def update_usernames(self, usernames: list[str]) -> None:
         """Update the window title to reflect current usernames."""
@@ -291,13 +288,4 @@ class PlayerRateGraphWindow(DualRateGraphBase):
         self._pps_running_sum = int(sum(self._pps_buffer))
         self._bps_running_sum = sum(self._bps_buffer)
 
-        pps_list = list(self._pps_buffer)
-        bps_list = list(self._bps_buffer)
-
-        self._pps_widget.set_data(pps_list)
-        self._on_pps_rendered(pps_list)
-        self._pps_widget.set_average(self._pps_running_sum / len(self._pps_buffer) if self._pps_buffer else 0)
-
-        self._bps_widget.set_data(bps_list)
-        self._on_bps_rendered(bps_list)
-        self._bps_widget.set_average(self._bps_running_sum / len(self._bps_buffer) if self._bps_buffer else 0)
+        self._render_buffers()

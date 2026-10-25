@@ -2,7 +2,7 @@
 
 from typing import TYPE_CHECKING
 
-from PySide6.QtGui import QAction, QClipboard, QIcon
+from PySide6.QtGui import QAction, QIcon
 from PySide6.QtWidgets import (
     QDialog,
     QInputDialog,
@@ -14,8 +14,6 @@ from PySide6.QtWidgets import (
 
 from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.constants.standalone import MAX_PORT, MIN_PORT
-from session_sniffer.error_messages import ensure_instance
-from session_sniffer.guis.app import app
 from session_sniffer.guis.ping_window import PingWindow
 from session_sniffer.guis.port_scanner_window import PortScannerWindow
 from session_sniffer.guis.stylesheets import SVG_ICON_CONTEXT_MENU_STYLESHEET
@@ -24,9 +22,11 @@ from session_sniffer.guis.tables_player_actions._format import (
     format_loss_pct,
     format_ms,
     format_text,
+    format_with_code,
     userip_database_text,
 )
 from session_sniffer.guis.userip_manager_helpers import IPRangeBuilderDialog
+from session_sniffer.guis.utils import set_clipboard_text
 from session_sniffer.networking.ping import PingMode
 from session_sniffer.player.registry import SessionTracker
 from session_sniffer.rendering_core.types import SessionFilterState
@@ -65,14 +65,12 @@ def build_discord_player_report(player: Player) -> str:
     lines.append('')
 
     # Location
-    country = format_text(player.iplookup.geolite2.country)
-    country_code = format_text(player.iplookup.geolite2.country_code)
     continent = format_text(player.iplookup.ipapi.continent)
     region = format_text(player.iplookup.ipapi.region)
     city = format_text(player.iplookup.geolite2.city)
     timezone = format_text(player.iplookup.ipapi.time_zone)
     lines.append('**Location**')
-    country_display = f'{country} ({country_code})' if country != 'N/A' and country_code != 'N/A' else country
+    country_display = format_with_code(player.iplookup.geolite2.country, player.iplookup.geolite2.country_code)
     lines.append(f'> **Country:** {country_display}')
     if continent != 'N/A':
         lines.append(f'> **Continent:** {continent}')
@@ -88,7 +86,6 @@ def build_discord_player_report(player: Player) -> str:
     isp = format_text(player.iplookup.ipapi.isp)
     org = format_text(player.iplookup.ipapi.org)
     asn = format_text(player.iplookup.ipapi.asn)
-    as_name = format_text(player.iplookup.ipapi.as_name)
     mobile = format_bool(player.iplookup.ipapi.mobile)
     proxy = format_bool(player.iplookup.ipapi.proxy)
     hosting = format_bool(player.iplookup.ipapi.hosting)
@@ -98,8 +95,7 @@ def build_discord_player_report(player: Player) -> str:
     if org not in {'N/A', isp}:
         lines.append(f'> **Organization:** {org}')
     if asn != 'N/A':
-        as_display = f'{asn} ({as_name})' if as_name != 'N/A' else asn
-        lines.append(f'> **AS:** {as_display}')
+        lines.append(f'> **AS:** {format_with_code(asn, player.iplookup.ipapi.as_name)}')
     lines.append(f'> **Mobile:** {mobile}  |  **Proxy/VPN/Tor:** {proxy}  |  **Hosting:** {hosting}')
     lines.append('')
 
@@ -114,15 +110,13 @@ def build_discord_player_report(player: Player) -> str:
 
 def copy_player_info_for_discord(player: Player) -> None:
     """Copy a Discord-formatted player info report to the system clipboard."""
-    clipboard = ensure_instance(app.clipboard(), QClipboard)
-    clipboard.setText(build_discord_player_report(player))
+    set_clipboard_text(build_discord_player_report(player))
 
 
 def copy_players_info_for_discord(players: list[Player]) -> None:
     """Copy Discord-formatted reports for multiple players, separated by a divider."""
-    clipboard = ensure_instance(app.clipboard(), QClipboard)
     separator = '\n\n---\n\n'
-    clipboard.setText(separator.join(build_discord_player_report(player) for player in players))
+    set_clipboard_text(separator.join(build_discord_player_report(player) for player in players))
 
 
 def ping_ip(target: str | list[str]) -> None:

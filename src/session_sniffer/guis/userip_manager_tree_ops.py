@@ -19,12 +19,11 @@ from session_sniffer.guis.tables_player_actions.looky_system._looky_refresh_user
 from session_sniffer.guis.userip_manager_helpers import (
     NEW_DATABASE_SETTINGS,
     load_userip_database_model,
+    refresh_userip_and_wake_renderer,
     save_userip_database_model,
 )
 from session_sniffer.guis.utils import open_file_location
 from session_sniffer.models.userip_settings_model import DEFAULT_USERIP_FILES_SETTINGS, UserIPDatabaseFile
-from session_sniffer.player.userip_loader import update_userip_databases
-from session_sniffer.rendering_core.events import wake_rendering_core
 from session_sniffer.settings.settings import Settings
 from session_sniffer.text_utils import pluralize
 
@@ -32,12 +31,6 @@ if TYPE_CHECKING:
     from session_sniffer.guis.file_watch import DebouncedFileWatcher
 
 logger = logging.getLogger(__name__)
-
-
-def _refresh_userip_and_wake_renderer() -> None:
-    """Rebuild UserIP lookup structures immediately and wake the rendering loop."""
-    update_userip_databases()
-    wake_rendering_core()
 
 
 class TreeOperationsMixin(QDialog):
@@ -373,7 +366,7 @@ class TreeOperationsMixin(QDialog):
             return
 
         save_userip_database_model(new_path, UserIPDatabaseFile(settings=NEW_DATABASE_SETTINGS))
-        _refresh_userip_and_wake_renderer()
+        refresh_userip_and_wake_renderer()
 
         self._set_status(f'Created new database: {name}')
         self._refresh_stats()
@@ -442,7 +435,7 @@ class TreeOperationsMixin(QDialog):
         else:
             path.unlink()
 
-        _refresh_userip_and_wake_renderer()
+        refresh_userip_and_wake_renderer()
 
         if self._current_path is not None and (self._current_path == path or path in self._current_path.parents):
             self._model.removeRows(0, self._model.rowCount())
@@ -473,7 +466,7 @@ class TreeOperationsMixin(QDialog):
             return
 
         save_userip_database_model(path, UserIPDatabaseFile(settings=DEFAULT_USERIP_FILES_SETTINGS[path.name]))
-        _refresh_userip_and_wake_renderer()
+        refresh_userip_and_wake_renderer()
 
         if self._current_path == path:
             self._load_database(path)
@@ -517,8 +510,8 @@ class TreeOperationsMixin(QDialog):
                 self._current_path = new_path / self._current_path.relative_to(path)
                 self._update_file_info(self._current_path)
 
+        refresh_userip_and_wake_renderer()
         self._rebuild_fs_watch()
-        _refresh_userip_and_wake_renderer()
         self._set_status(f'Renamed "{path.name}" → "{new_name}"')
 
     def _move_tree_item(self, path: Path) -> None:
@@ -557,8 +550,8 @@ class TreeOperationsMixin(QDialog):
                 self._current_path = new_path / self._current_path.relative_to(path)
                 self._update_file_info(self._current_path)
 
+        refresh_userip_and_wake_renderer()
         self._rebuild_fs_watch()
-        _refresh_userip_and_wake_renderer()
         dest_label = 'root' if rel_dest == Path() else str(rel_dest)
         self._set_status(f'Moved "{path.name}" → {dest_label}')
 
@@ -612,7 +605,7 @@ class TreeOperationsMixin(QDialog):
                 except OSError as e:
                     logger.warning('Failed to remove user database directory %s: %s', entry, e)
 
-        _refresh_userip_and_wake_renderer()
+        refresh_userip_and_wake_renderer()
         self._set_status(
             'Reset complete'
             + (f'  |  Restored {restored} default file{pluralize(restored)}' if restored else '')

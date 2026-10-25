@@ -213,18 +213,9 @@ def create_integer_widget(meta: SettingMeta) -> QSpinBox:
 
 def create_integer_or_all_widget(meta: SettingMeta) -> QSpinBox:
     """Create a spin-box widget for an integer-or-all setting (0 displays as special text)."""
-    spin = QSpinBox()
-    spin.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
-    spin.setSingleStep(int(meta.step) if meta.step is not None else 1)
+    spin = create_integer_widget(meta)
     spin.setMinimum(0)
-    spin.setMaximum(int(meta.max_value) if meta.max_value is not None else 99999)
     spin.setSpecialValueText(meta.special_value_text)
-    if meta.suffix is not None:
-        spin.setSuffix(meta.suffix)
-    spin.lineEdit().setTextMargins(scale_by_ui(5), 0, 0, 0)
-    tooltip = format_setting_tooltip(meta)
-    if tooltip is not None and tooltip:
-        spin.setToolTip(tooltip)
     return spin
 
 
@@ -245,6 +236,42 @@ def create_enum_widget(meta: SettingMeta) -> QComboBox:
     if tooltip is not None and tooltip:
         combo.setToolTip(tooltip)
     return combo
+
+
+def _create_checklist_button_row(
+    *,
+    reset_tooltip: str,
+    on_select_all: Callable[[], None] | None = None,
+    on_deselect_all: Callable[[], None] | None = None,
+    on_reset: Callable[[], None] | None = None,
+) -> tuple[QHBoxLayout, QPushButton, QPushButton, QPushButton]:
+    """Create a compact 'Select All' / 'Unselect All' / 'Reset to Default' button row."""
+    button_select_all = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square-check.svg')), ' Select All')
+    button_deselect_all = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square.svg')), ' Unselect All')
+    button_reset = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'undo.svg')), ' Reset to Default')
+    button_reset.setToolTip(reset_tooltip)
+    for button in (button_select_all, button_deselect_all):
+        button.setStyleSheet(COMPACT_BUTTON_STYLESHEET)
+        button.setCursor(Qt.CursorShape.PointingHandCursor)
+        button.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
+    button_reset.setStyleSheet(COMPACT_DANGER_BUTTON_STYLESHEET)
+    button_reset.setCursor(Qt.CursorShape.PointingHandCursor)
+    button_reset.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
+    if on_select_all is not None:
+        button_select_all.clicked.connect(on_select_all)
+    if on_deselect_all is not None:
+        button_deselect_all.clicked.connect(on_deselect_all)
+    if on_reset is not None:
+        button_reset.clicked.connect(on_reset)
+
+    button_row = QHBoxLayout()
+    button_row.setContentsMargins(0, 0, 0, 0)
+    button_row.setSpacing(6)
+    button_row.addWidget(button_select_all)
+    button_row.addWidget(button_deselect_all)
+    button_row.addStretch()
+    button_row.addWidget(button_reset)
+    return button_row, button_select_all, button_deselect_all, button_reset
 
 
 def create_column_tuple_widget(key: str, meta: SettingMeta) -> QGroupBox:
@@ -271,28 +298,12 @@ def create_column_tuple_widget(key: str, meta: SettingMeta) -> QGroupBox:
         grid.addWidget(checkbox, i // column_count, i % column_count)
     grid.setRowStretch(grid.rowCount(), 1)
 
-    button_select_all = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square-check.svg')), ' Select All')
-    button_deselect_all = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square.svg')), ' Unselect All')
-    button_reset = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'undo.svg')), ' Reset to Default')
-    button_reset.setToolTip('Reset to default selected columns')
-    for button in (button_select_all, button_deselect_all):
-        button.setStyleSheet(COMPACT_BUTTON_STYLESHEET)
-        button.setCursor(Qt.CursorShape.PointingHandCursor)
-        button.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
-    button_reset.setStyleSheet(COMPACT_DANGER_BUTTON_STYLESHEET)
-    button_reset.setCursor(Qt.CursorShape.PointingHandCursor)
-    button_reset.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
-    button_select_all.clicked.connect(lambda: set_all_checkboxes(inner, checked=True))
-    button_deselect_all.clicked.connect(lambda: set_all_checkboxes(inner, checked=False))
-    button_reset.clicked.connect(lambda: set_checkboxes_to(inner, default_columns))
-
-    button_row = QHBoxLayout()
-    button_row.setContentsMargins(0, 0, 0, 0)
-    button_row.setSpacing(6)
-    button_row.addWidget(button_select_all)
-    button_row.addWidget(button_deselect_all)
-    button_row.addStretch()
-    button_row.addWidget(button_reset)
+    button_row, _, _, _ = _create_checklist_button_row(
+        reset_tooltip='Reset to default selected columns',
+        on_select_all=lambda: set_all_checkboxes(inner, checked=True),
+        on_deselect_all=lambda: set_all_checkboxes(inner, checked=False),
+        on_reset=lambda: set_checkboxes_to(inner, default_columns),
+    )
 
     outer = QVBoxLayout(group)
     outer.setSpacing(4)
@@ -380,25 +391,9 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
         presets_grid.addWidget(checkbox, i // presets_num_columns, i % presets_num_columns)
     presets_grid.setRowStretch(presets_grid.rowCount(), 1)
 
-    preset_button_select_all = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square-check.svg')), ' Select All')
-    preset_button_deselect_all = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square.svg')), ' Unselect All')
-    preset_button_reset = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'undo.svg')), ' Reset to Default')
-    preset_button_reset.setToolTip('Reset to default presets')
-    for button in (preset_button_select_all, preset_button_deselect_all):
-        button.setStyleSheet(COMPACT_BUTTON_STYLESHEET)
-        button.setCursor(Qt.CursorShape.PointingHandCursor)
-        button.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
-    preset_button_reset.setStyleSheet(COMPACT_DANGER_BUTTON_STYLESHEET)
-    preset_button_reset.setCursor(Qt.CursorShape.PointingHandCursor)
-    preset_button_reset.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
-
-    preset_button_row = QHBoxLayout()
-    preset_button_row.setContentsMargins(0, 0, 0, 0)
-    preset_button_row.setSpacing(6)
-    preset_button_row.addWidget(preset_button_select_all)
-    preset_button_row.addWidget(preset_button_deselect_all)
-    preset_button_row.addStretch()
-    preset_button_row.addWidget(preset_button_reset)
+    preset_button_row, preset_button_select_all, preset_button_deselect_all, preset_button_reset = _create_checklist_button_row(
+        reset_tooltip='Reset to default presets',
+    )
 
     presets_layout = QVBoxLayout(presets_group)
     presets_layout.setSpacing(4)
@@ -426,29 +421,12 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
         grid.addWidget(checkbox, i // column_count, i % column_count)
     grid.setRowStretch(grid.rowCount(), 1)
 
-    button_select_all = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square-check.svg')), ' Select All')
-    button_deselect_all = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square.svg')), ' Unselect All')
-    button_reset = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'undo.svg')), ' Reset to Default')
-    button_reset.setToolTip('Reset to default selected options')
-    for button in (button_select_all, button_deselect_all):
-        button.setStyleSheet(COMPACT_BUTTON_STYLESHEET)
-        button.setCursor(Qt.CursorShape.PointingHandCursor)
-        button.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
-    button_reset.setStyleSheet(COMPACT_DANGER_BUTTON_STYLESHEET)
-    button_reset.setCursor(Qt.CursorShape.PointingHandCursor)
-    button_reset.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
-
-    button_select_all.clicked.connect(lambda: set_all_checkboxes(grid_container, checked=True))
-    button_deselect_all.clicked.connect(lambda: set_all_checkboxes(grid_container, checked=False))
-    button_reset.clicked.connect(lambda: set_checkboxes_to(grid_container, default_columns))
-
-    button_row = QHBoxLayout()
-    button_row.setContentsMargins(0, 0, 0, 0)
-    button_row.setSpacing(6)
-    button_row.addWidget(button_select_all)
-    button_row.addWidget(button_deselect_all)
-    button_row.addStretch()
-    button_row.addWidget(button_reset)
+    button_row, _, _, _ = _create_checklist_button_row(
+        reset_tooltip='Reset to default selected options',
+        on_select_all=lambda: set_all_checkboxes(grid_container, checked=True),
+        on_deselect_all=lambda: set_all_checkboxes(grid_container, checked=False),
+        on_reset=lambda: set_checkboxes_to(grid_container, default_columns),
+    )
 
     group_layout = QVBoxLayout(checklist_group)
     group_layout.setSpacing(4)
@@ -782,8 +760,13 @@ class _AutoFitListWidget(QListWidget):
         return QSize(hint.width(), hint.height() + 10)
 
 
-def create_ip_range_tuple_widget(meta: SettingMeta, parent: QWidget) -> QGroupBox:
-    """Create an add/remove list widget for managing a tuple of IP addresses and ranges."""
+def _create_editable_list_group(
+    meta: SettingMeta,
+    *,
+    add_tooltip: str,
+    prompt_entry: Callable[[], str | None],
+) -> QGroupBox:
+    """Create an add/remove `_AutoFitListWidget` group box for a string-tuple setting."""
     group = QGroupBox(meta.display_label.replace('&', '&&'))
     tooltip = format_setting_tooltip(meta)
     if tooltip is not None and tooltip:
@@ -800,7 +783,7 @@ def create_ip_range_tuple_widget(meta: SettingMeta, parent: QWidget) -> QGroupBo
     list_widget.setSortingEnabled(True)
 
     add_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'plus.svg')), ' Add')
-    add_button.setToolTip('Add a new blocked IP address, range, or subnet')
+    add_button.setToolTip(add_tooltip)
     add_button.setStyleSheet(COMPACT_BUTTON_STYLESHEET)
     add_button.setCursor(Qt.CursorShape.PointingHandCursor)
     add_button.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
@@ -814,11 +797,8 @@ def create_ip_range_tuple_widget(meta: SettingMeta, parent: QWidget) -> QGroupBo
     list_widget.itemSelectionChanged.connect(lambda: remove_button.setEnabled(bool(list_widget.selectedItems())))
 
     def _add_entry() -> None:
-        dialog = IPRangeBuilderDialog(parent)
-        if dialog.exec() != QDialog.DialogCode.Accepted:
-            return
-        entry = dialog.result_entry()
-        if not entry:
+        entry = prompt_entry()
+        if entry is None or not entry:
             return
         existing = {item.text() for i in range(list_widget.count()) if (item := list_widget.item(i))}
         if entry not in existing:
@@ -843,6 +823,22 @@ def create_ip_range_tuple_widget(meta: SettingMeta, parent: QWidget) -> QGroupBo
     outer_layout.addLayout(button_row)
     outer_layout.addWidget(list_widget, 1)
     return group
+
+
+def create_ip_range_tuple_widget(meta: SettingMeta, parent: QWidget) -> QGroupBox:
+    """Create an add/remove list widget for managing a tuple of IP addresses and ranges."""
+
+    def _prompt_ip_range() -> str | None:
+        dialog = IPRangeBuilderDialog(parent)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return None
+        return dialog.result_entry() or None
+
+    return _create_editable_list_group(
+        meta,
+        add_tooltip='Add a new blocked IP address, range, or subnet',
+        prompt_entry=_prompt_ip_range,
+    )
 
 
 def create_string_tuple_widget(
@@ -853,62 +849,18 @@ def create_string_tuple_widget(
     input_dialog_label: str = 'Enter ISP or ASN name (e.g. Take-Two, Amazon, Hetzner, AS15169):',
 ) -> QGroupBox:
     """Create an add/remove list widget for managing a tuple of strings."""
-    group = QGroupBox(meta.display_label.replace('&', '&&'))
-    tooltip = format_setting_tooltip(meta)
-    if tooltip is not None and tooltip:
-        group.setToolTip(tooltip)
 
-    list_widget = _AutoFitListWidget()
-    list_widget.setSizeAdjustPolicy(QListWidget.SizeAdjustPolicy.AdjustToContents)
-    list_widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-    list_widget.setMaximumHeight(250)
-    list_widget.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-    list_widget.setItemDelegate(ElidedTextTooltipDelegate(list_widget))
-    list_widget.setWordWrap(False)
-    list_widget.setSelectionMode(QListWidget.SelectionMode.ExtendedSelection)
-    list_widget.setSortingEnabled(True)
-
-    add_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'plus.svg')), ' Add')
-    add_button.setToolTip('Add a new entry to the list')
-    add_button.setStyleSheet(COMPACT_BUTTON_STYLESHEET)
-    add_button.setCursor(Qt.CursorShape.PointingHandCursor)
-    add_button.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
-
-    remove_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')), ' Remove')
-    remove_button.setToolTip('Remove the selected entries')
-    remove_button.setStyleSheet(COMPACT_DANGER_BUTTON_STYLESHEET)
-    remove_button.setCursor(Qt.CursorShape.PointingHandCursor)
-    remove_button.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
-    remove_button.setEnabled(False)
-    list_widget.itemSelectionChanged.connect(lambda: remove_button.setEnabled(bool(list_widget.selectedItems())))
-
-    def _add_entry() -> None:
+    def _prompt_string() -> str | None:
         text, success = QInputDialog.getText(parent, input_dialog_title, input_dialog_label)
         if not success or not (entry := text.strip()):
-            return
-        existing = {item.text() for i in range(list_widget.count()) if (item := list_widget.item(i))}
-        if entry not in existing:
-            list_widget.addItem(entry)
+            return None
+        return entry
 
-    def _remove_entries() -> None:
-        for item in list_widget.selectedItems():
-            list_widget.takeItem(list_widget.row(item))
-
-    add_button.clicked.connect(_add_entry)
-    remove_button.clicked.connect(_remove_entries)
-
-    button_row = QHBoxLayout()
-    button_row.setContentsMargins(0, 0, 0, 0)
-    button_row.setSpacing(6)
-    button_row.addWidget(add_button)
-    button_row.addWidget(remove_button)
-    button_row.addStretch()
-
-    outer_layout = QVBoxLayout(group)
-    outer_layout.setSpacing(4)
-    outer_layout.addLayout(button_row)
-    outer_layout.addWidget(list_widget, 1)
-    return group
+    return _create_editable_list_group(
+        meta,
+        add_tooltip='Add a new entry to the list',
+        prompt_entry=_prompt_string,
+    )
 
 
 def set_all_checkboxes(container: QWidget, *, checked: bool) -> None:

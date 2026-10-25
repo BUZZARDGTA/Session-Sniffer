@@ -3,8 +3,6 @@
 from typing import TYPE_CHECKING
 
 from PySide6.QtWidgets import (
-    QFormLayout,
-    QLabel,
     QVBoxLayout,
     QWidget,
 )
@@ -12,7 +10,6 @@ from shiboken6 import isValid
 
 from session_sniffer.constants.local import USERIP_DATABASES_DIR_PATH
 from session_sniffer.constants.standalone import TITLE
-from session_sniffer.guis.stylesheets import PLAYER_INFO_FORM_LABEL_STYLESHEET
 from session_sniffer.guis.tables_player_actions._format import format_bool, format_text
 from session_sniffer.guis.tables_player_actions._player_info_dialog_mixin import PlayerInfoDialogMixin
 from session_sniffer.guis.utils import ActiveDialogRegistry, format_player_display, set_dialog_window_flags
@@ -22,8 +19,6 @@ from session_sniffer.text_utils import pluralize
 from session_sniffer.utils import dedup_preserve_order
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
-
     from session_sniffer.models.player import Player
 
 
@@ -42,7 +37,6 @@ class UserIPDetectedDialog(PlayerInfoDialogMixin):
             self._player.userip = self._userip
         if self._userip is not None and self._userip.usernames:
             self._player.usernames = dedup_preserve_order(self._player.usernames, self._userip.usernames)
-        self._rows: list[tuple[QLabel, Callable[[], str], QLabel, Callable[[], str] | None]] = []
 
         initial_usernames = self._get_usernames()
         display = format_player_display(player.ip, initial_usernames)
@@ -104,25 +98,6 @@ class UserIPDetectedDialog(PlayerInfoDialogMixin):
             except ValueError:
                 return str(userip.db_path)
         return 'N/A'
-
-    def _add_live_row(
-        self,
-        form: QFormLayout,
-        label: str | Callable[[], str],
-        provider: Callable[[], str],
-    ) -> None:
-        """Append a label / copyable-value row to *form* and register it for refresh."""
-        if isinstance(label, str):
-            initial_label = label
-            label_provider = None
-        else:
-            initial_label = label()
-            label_provider = label
-        label_widget = QLabel(f'{initial_label}:')
-        label_widget.setStyleSheet(PLAYER_INFO_FORM_LABEL_STYLESHEET)
-        value_widget = self._make_value_label(provider())
-        form.addRow(label_widget, value_widget)
-        self._rows.append((value_widget, provider, label_widget, label_provider))
 
     def _build_detection_group(self, parent_layout: QVBoxLayout, player: Player) -> None:
         """Add the 'Detection Details' section to the scroll layout."""
@@ -206,14 +181,7 @@ class UserIPDetectedDialog(PlayerInfoDialogMixin):
         if self._header_label.text() != new_header:
             self._header_label.setText(new_header)
 
-        for value_widget, provider, label_widget, label_provider in self._rows:
-            text = provider()
-            if value_widget.text() != text:
-                value_widget.setText(text)
-            if label_provider is not None:
-                new_label = f'{label_provider()}:'
-                if label_widget.text() != new_label:
-                    label_widget.setText(new_label)
+        self._refresh_live_rows()
 
 
 _active_dialogs: ActiveDialogRegistry[str, UserIPDetectedDialog] = ActiveDialogRegistry()

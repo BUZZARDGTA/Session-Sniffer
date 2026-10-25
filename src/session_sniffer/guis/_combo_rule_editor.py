@@ -47,13 +47,15 @@ def set_duration_widgets_helper(combo: QComboBox, spin: QSpinBox, duration: int 
     """Set duration combo and spin box from a stored duration value."""
     if isinstance(duration, int):
         combo.setCurrentText('Manual')
-        spin.setValue(duration)
+        spin.setValue(max(1, duration))
         spin.setVisible(True)
     elif duration == 'Disabled':
         combo.setCurrentText('Disabled')
+        spin.setValue(DEFAULT_MANUAL_SUSPEND_DURATION_SECONDS)
         spin.setVisible(False)
     else:
         combo.setCurrentText('Auto')
+        spin.setValue(DEFAULT_MANUAL_SUSPEND_DURATION_SECONDS)
         spin.setVisible(False)
 
 
@@ -75,7 +77,7 @@ def set_voice_combo_helper(combo: QComboBox, *, value: Literal['Male', 'Female']
         combo.setCurrentText('Disabled')
 
 
-def read_voice_combo_helper(combo: QComboBox) -> Literal['Male', 'Female'] | bool:
+def read_voice_combo_helper(combo: QComboBox) -> Literal['Male', 'Female', False]:
     """Read voice notification value from a combo widget."""
     text = combo.currentText()
     if text == 'Male':
@@ -83,6 +85,52 @@ def read_voice_combo_helper(combo: QComboBox) -> Literal['Male', 'Female'] | boo
     if text == 'Female':
         return 'Female'
     return False
+
+
+def _create_country_combo(
+    *,
+    existing_countries: set[str] | None = None,
+    placeholder: str = 'Search country...',
+    max_visible_items: int | None = None,
+) -> QComboBox:
+    """Create an editable country-selector `QComboBox` with flag icons and a substring completer."""
+    combo = QComboBox()
+    combo.setEditable(True)
+    combo.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
+    if max_visible_items is not None:
+        combo.setMaxVisibleItems(max_visible_items)
+
+    model = QStandardItemModel(combo)
+    for country_code in sorted(COUNTRY_NAMES, key=lambda code: COUNTRY_NAMES[code]):
+        country_name = COUNTRY_NAMES[country_code]
+        if existing_countries is not None and country_name in existing_countries:
+            continue
+        display = f'{country_code} - {country_name}'
+        item = QStandardItem(display)
+        item.setData(country_name, Qt.ItemDataRole.UserRole)
+        flag_icon = load_country_flag_icon(country_code)
+        if flag_icon is not None:
+            item.setIcon(flag_icon)
+        model.appendRow(item)
+
+    combo.setModel(model)
+    combo.setCurrentIndex(-1)
+    line_edit = combo.lineEdit()
+    if line_edit is not None:
+        line_edit.setPlaceholderText(placeholder)
+
+    proxy = QSortFilterProxyModel(combo)
+    proxy.setSourceModel(model)
+    proxy.setFilterCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+
+    completer = QCompleter(proxy, combo)
+    completer.setCompletionMode(QCompleter.CompletionMode.PopupCompletion)
+    completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+    completer.setFilterMode(Qt.MatchFlag.MatchContains)
+    if max_visible_items is not None:
+        completer.setMaxVisibleItems(max_visible_items)
+    combo.setCompleter(completer)
+    return combo
 
 
 class CountrySelectionDialog(QDialog):
@@ -101,41 +149,12 @@ class CountrySelectionDialog(QDialog):
         hint.setStyleSheet(HINT_LABEL_STYLESHEET)
         layout.addWidget(hint)
 
-        self._combo = QComboBox()
-        self._combo.setEditable(True)
-        self._combo.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
+        self._combo = _create_country_combo(
+            existing_countries=existing_countries,
+            placeholder='e.g. Switzerland, US, Russia…',
+            max_visible_items=15,
+        )
         self._combo.setStyleSheet(COUNTRY_SELECTOR_COMBO_STYLESHEET)
-        self._combo.setMaxVisibleItems(15)
-
-        model = QStandardItemModel(self._combo)
-        for country_code in sorted(COUNTRY_NAMES, key=lambda country_code: COUNTRY_NAMES[country_code]):
-            country_name = COUNTRY_NAMES[country_code]
-            if country_name in existing_countries:
-                continue
-            display = f'{country_code} - {country_name}'
-            item = QStandardItem(display)
-            item.setData(country_name, Qt.ItemDataRole.UserRole)
-            flag_icon = load_country_flag_icon(country_code)
-            if flag_icon is not None:
-                item.setIcon(flag_icon)
-            model.appendRow(item)
-
-        self._combo.setModel(model)
-        self._combo.setCurrentIndex(-1)
-        line_edit = self._combo.lineEdit()
-        if line_edit is not None:
-            line_edit.setPlaceholderText('e.g. Switzerland, US, Russia…')
-
-        proxy = QSortFilterProxyModel(self._combo)
-        proxy.setSourceModel(model)
-        proxy.setFilterCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
-
-        completer = QCompleter(proxy, self._combo)
-        completer.setCompletionMode(QCompleter.CompletionMode.PopupCompletion)
-        completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
-        completer.setFilterMode(Qt.MatchFlag.MatchContains)
-        completer.setMaxVisibleItems(15)
-        self._combo.setCompleter(completer)
 
         layout.addWidget(self._combo)
 
@@ -398,33 +417,8 @@ class ComboRuleEditorDialog(QDialog):
 
                 value_layout.addWidget(events_widget)
             elif key == 'country':
-                country_combo = QComboBox()
+                country_combo = _create_country_combo(placeholder='Search country...')
                 country_combo.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-                country_combo.setEditable(True)
-                country_combo.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
-                model = QStandardItemModel(country_combo)
-                for country_code in sorted(COUNTRY_NAMES, key=lambda country_code: COUNTRY_NAMES[country_code]):
-                    country_name = COUNTRY_NAMES[country_code]
-                    display = f'{country_code} - {country_name}'
-                    item = QStandardItem(display)
-                    item.setData(country_name, Qt.ItemDataRole.UserRole)
-                    flag_icon = load_country_flag_icon(country_code)
-                    if flag_icon is not None:
-                        item.setIcon(flag_icon)
-                    model.appendRow(item)
-                country_combo.setModel(model)
-                country_combo.setCurrentIndex(-1)
-                line_edit = country_combo.lineEdit()
-                if line_edit is not None:
-                    line_edit.setPlaceholderText('Search country...')
-                proxy = QSortFilterProxyModel(country_combo)
-                proxy.setSourceModel(model)
-                proxy.setFilterCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
-                completer = QCompleter(proxy, country_combo)
-                completer.setCompletionMode(QCompleter.CompletionMode.PopupCompletion)
-                completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
-                completer.setFilterMode(Qt.MatchFlag.MatchContains)
-                country_combo.setCompleter(completer)
                 value_layout.addWidget(country_combo)
             elif key == 'ip_range':
                 ip_widget = QWidget()

@@ -36,6 +36,7 @@ from session_sniffer.guis.userip_manager_helpers import (
     is_row_persisted,
     iter_userip_databases,
     mark_row_persisted,
+    refresh_userip_and_wake_renderer,
     rewrite_db_edit_entry_ip,
     rewrite_db_edit_entry_note,
     rewrite_db_rename_entries,
@@ -290,8 +291,7 @@ class UserIPEntriesOperationsMixin(QDialog):
 
             self._highlight_duplicates()
             self._update_entry_counts()
-            update_userip_databases()
-            wake_rendering_core()
+            refresh_userip_and_wake_renderer()
             self._set_status(f'Updated entry to "{new_ip_text}" in {database_path.name}.')
         else:
             with QSignalBlocker(self._model):
@@ -357,8 +357,7 @@ class UserIPEntriesOperationsMixin(QDialog):
                 notes_item.setText(new_note)
             set_row_updated_at(self._model, source_row)
 
-            update_userip_databases()
-            wake_rendering_core()
+            refresh_userip_and_wake_renderer()
             self._set_status(f'Updated note for "{username}" in {database_path.name}.')
         else:
             with QSignalBlocker(self._model):
@@ -446,8 +445,7 @@ class UserIPEntriesOperationsMixin(QDialog):
         self._highlight_duplicates()
         self._refresh_stats()
         self._update_entry_counts()
-        update_userip_databases()
-        wake_rendering_core()
+        refresh_userip_and_wake_renderer()
         added_count = len(added_pairs)
         self._set_status(f'Added {added_count} username{pluralize(added_count)} for {entry_value} in {database_path.name}.')
         UserIPDatabases.renotify_if_conflicting([entry_value])
@@ -663,8 +661,7 @@ class UserIPEntriesOperationsMixin(QDialog):
 
             self._highlight_duplicates()
             self._update_entry_counts()
-            update_userip_databases()
-            wake_rendering_core()
+            refresh_userip_and_wake_renderer()
             self._set_status(f'Renamed {renamed_count} {pluralize(renamed_count, "entry", "entries")} to "{new_username}" in database files.')
         else:
             with QSignalBlocker(self._model):
@@ -753,8 +750,7 @@ class UserIPEntriesOperationsMixin(QDialog):
         self._highlight_duplicates()
         self._refresh_stats()
         self._update_entry_counts()
-        update_userip_databases()
-        wake_rendering_core()
+        refresh_userip_and_wake_renderer()
         self._set_status(f'Deleted {count} {pluralize(count, "entry", "entries")} from database files.')
 
     def _move_selected_to_database(self, target_db_path: Path) -> None:
@@ -833,9 +829,8 @@ class UserIPEntriesOperationsMixin(QDialog):
             self._highlight_duplicates()
             self._refresh_stats()
             self._set_status(f'Moved {len(valid_moves)} {pluralize(len(valid_moves), "entry", "entries")} to "{target_display_name}".')
-            update_userip_databases()
+            refresh_userip_and_wake_renderer()
             self._rebuild_fs_watch()
-            wake_rendering_core()
         else:
             if self._current_path is None or target_db_path == self._current_path:
                 return
@@ -928,9 +923,8 @@ class UserIPEntriesOperationsMixin(QDialog):
                 self._update_file_info(self._current_path)
                 self._set_status(f'Saved {len(entries)} entries to {self._current_path.name}')
                 self._refresh_stats()
-                update_userip_databases()
+                refresh_userip_and_wake_renderer()
                 self._rebuild_fs_watch()
-                wake_rendering_core()
                 if duplicate_count > 0:
                     self._load_database(self._current_path)
         finally:

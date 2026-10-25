@@ -40,17 +40,11 @@ class PortHeatmapWindow(StatTableWindowMixin):
 
         self._table.setSortingEnabled(False)
         self._table.setRowCount(len(sorted_ports))
+        center = Qt.AlignmentFlag.AlignCenter
         for row, (port, count) in enumerate(sorted_ports):
-            port_item = NumericTableWidgetItem(port)
-            port_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            count_item = NumericTableWidgetItem(count)
-            count_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             ratio = count / total if total else 0.0
-            pct_item = NumericTableWidgetItem(f'{ratio * 100:.1f}%')
-            pct_item.setData(Qt.ItemDataRole.UserRole, ratio)
-            pct_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            self._table.setItem(row, 0, port_item)
-            self._table.setItem(row, 1, count_item)
-            self._table.setItem(row, 2, pct_item)
+            self._table.setItem(row, 0, NumericTableWidgetItem(port, align=center))
+            self._table.setItem(row, 1, NumericTableWidgetItem(count, align=center))
+            self._table.setItem(row, 2, NumericTableWidgetItem(f'{ratio * 100:.1f}%', sort_value=ratio, align=center))
         self._table.setSortingEnabled(True)
         self._apply_initial_column_resizing()

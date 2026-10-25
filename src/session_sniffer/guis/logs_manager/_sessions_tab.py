@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, cast
 
 from pydantic import ValidationError
 from PySide6.QtCore import QItemSelectionModel, QModelIndex, QPoint, QSignalBlocker, Qt, QTimer, QUrl
-from PySide6.QtGui import QColor, QDesktopServices, QIcon, QTextCharFormat, QTextCursor
+from PySide6.QtGui import QDesktopServices, QIcon
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -24,7 +24,6 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QPushButton,
     QSplitter,
-    QTextEdit,
     QTreeView,
     QVBoxLayout,
     QWidget,
@@ -39,6 +38,7 @@ from session_sniffer.guis.logs_manager._helpers import (
     copy_viewer_text_to_clipboard,
     create_log_viewer,
     create_search_input,
+    find_and_highlight_matches,
     prepare_search,
     setup_copy_save_button_row,
     setup_metadata_label,
@@ -453,23 +453,7 @@ class SessionsLogTab(QWidget):
         document = prepare_search(text, self._match_label, self._viewer)
         if document is None:
             return
-        matched_cursors: list[QTextCursor] = []
-        cursor = document.find(text)
-        while not cursor.isNull():
-            matched_cursors.append(QTextCursor(cursor))
-            cursor = document.find(text, cursor)
-
-        highlight_format = QTextCharFormat()
-        highlight_format.setBackground(QColor('#e3b341'))
-        highlight_format.setForeground(QColor('#000000'))
-
-        selections: list[Any] = []
-        for match_cursor in matched_cursors:
-            selection = cast('Any', QTextEdit.ExtraSelection())
-            selection.cursor = match_cursor
-            selection.format = highlight_format
-            selections.append(selection)
-        self._viewer.setExtraSelections(selections)
+        matched_cursors = find_and_highlight_matches(document, text, self._viewer)
 
         if matched_cursors:
             self._viewer.setTextCursor(matched_cursors[0])

@@ -225,86 +225,58 @@ class TableHeaderMenuMixin(QTableView):
 
         menu.popup(horizontal_header.mapToGlobal(pos))
 
+    def _get_shown_columns_set(self) -> set[str]:
+        """Return the set of currently visible toggleable columns for this table."""
+        return set(Settings.gui_columns_connected_shown if self.is_connected_table else Settings.gui_columns_disconnected_shown)
+
+    def _apply_shown_columns(self, new_shown: tuple[str, ...]) -> None:
+        """Persist `new_shown` columns to `Settings` and refresh column sizing."""
+        if self.is_connected_table:
+            Settings.gui_columns_connected_shown = new_shown
+        else:
+            Settings.gui_columns_disconnected_shown = new_shown
+        Settings.rewrite_settings_file()
+        self.setup_static_column_resizing()
+
+    def _apply_shown_columns_set(self, shown: set[str]) -> None:
+        """Order `shown` by the table's toggleable columns tuple, persist, and resize."""
+        toggleable = Settings.GUI_TOGGLEABLE_CONNECTED_COLUMNS if self.is_connected_table else Settings.GUI_TOGGLEABLE_DISCONNECTED_COLUMNS
+        self._apply_shown_columns(tuple(column for column in toggleable if column in shown))
+
     def _toggle_column_visibility(self, column_name: str, *, checked: bool) -> None:
         """Toggle a column's visibility and persist the change to settings."""
-        shown = set(Settings.gui_columns_connected_shown) if self.is_connected_table else set(Settings.gui_columns_disconnected_shown)
-
+        shown = self._get_shown_columns_set()
         if checked:
             shown.add(column_name)
         else:
             shown.discard(column_name)
-
-        # Preserve ordering from the toggleable columns tuple
-        new_shown = tuple(
-            column for column in (Settings.GUI_TOGGLEABLE_CONNECTED_COLUMNS if self.is_connected_table else Settings.GUI_TOGGLEABLE_DISCONNECTED_COLUMNS) if column in shown
-        )
-
-        if self.is_connected_table:
-            Settings.gui_columns_connected_shown = new_shown
-        else:
-            Settings.gui_columns_disconnected_shown = new_shown
-
-        Settings.rewrite_settings_file()
-        self.setup_static_column_resizing()
+        self._apply_shown_columns_set(shown)
 
     def _reset_to_default_columns(self) -> None:
         """Restore the default column visibility and persist the change to settings."""
-        if self.is_connected_table:
-            Settings.gui_columns_connected_shown = SETTING_DEFAULTS['gui_columns_connected_shown']
-        else:
-            Settings.gui_columns_disconnected_shown = SETTING_DEFAULTS['gui_columns_disconnected_shown']
-        Settings.rewrite_settings_file()
-        self.setup_static_column_resizing()
+        defaults = SETTING_DEFAULTS['gui_columns_connected_shown'] if self.is_connected_table else SETTING_DEFAULTS['gui_columns_disconnected_shown']
+        self._apply_shown_columns(defaults)
 
     def _select_all_columns(self) -> None:
         """Show all toggleable columns and persist the change to settings."""
-        if self.is_connected_table:
-            Settings.gui_columns_connected_shown = Settings.GUI_TOGGLEABLE_CONNECTED_COLUMNS
-        else:
-            Settings.gui_columns_disconnected_shown = Settings.GUI_TOGGLEABLE_DISCONNECTED_COLUMNS
-        Settings.rewrite_settings_file()
-        self.setup_static_column_resizing()
+        all_columns = Settings.GUI_TOGGLEABLE_CONNECTED_COLUMNS if self.is_connected_table else Settings.GUI_TOGGLEABLE_DISCONNECTED_COLUMNS
+        self._apply_shown_columns(all_columns)
 
     def _deselect_all_columns(self) -> None:
         """Hide all toggleable columns and persist the change to settings."""
-        if self.is_connected_table:
-            Settings.gui_columns_connected_shown = ()
-        else:
-            Settings.gui_columns_disconnected_shown = ()
-        Settings.rewrite_settings_file()
-        self.setup_static_column_resizing()
+        self._apply_shown_columns(())
 
     def _select_category_columns(self, columns: list[str]) -> None:
         """Show a specific subset of columns and persist the change to settings."""
-        shown = set(Settings.gui_columns_connected_shown) if self.is_connected_table else set(Settings.gui_columns_disconnected_shown)
-
+        shown = self._get_shown_columns_set()
         shown.update(columns)
-        new_shown = tuple(
-            column for column in (Settings.GUI_TOGGLEABLE_CONNECTED_COLUMNS if self.is_connected_table else Settings.GUI_TOGGLEABLE_DISCONNECTED_COLUMNS) if column in shown
-        )
-
-        if self.is_connected_table:
-            Settings.gui_columns_connected_shown = new_shown
-        else:
-            Settings.gui_columns_disconnected_shown = new_shown
-        Settings.rewrite_settings_file()
-        self.setup_static_column_resizing()
+        self._apply_shown_columns_set(shown)
 
     def _deselect_category_columns(self, columns: list[str]) -> None:
         """Hide a specific subset of columns and persist the change to settings."""
-        shown = set(Settings.gui_columns_connected_shown) if self.is_connected_table else set(Settings.gui_columns_disconnected_shown)
-
+        shown = self._get_shown_columns_set()
         shown.difference_update(columns)
-        new_shown = tuple(
-            column for column in (Settings.GUI_TOGGLEABLE_CONNECTED_COLUMNS if self.is_connected_table else Settings.GUI_TOGGLEABLE_DISCONNECTED_COLUMNS) if column in shown
-        )
-
-        if self.is_connected_table:
-            Settings.gui_columns_connected_shown = new_shown
-        else:
-            Settings.gui_columns_disconnected_shown = new_shown
-        Settings.rewrite_settings_file()
-        self.setup_static_column_resizing()
+        self._apply_shown_columns_set(shown)
 
     @property
     def has_custom_column_widths(self) -> bool:

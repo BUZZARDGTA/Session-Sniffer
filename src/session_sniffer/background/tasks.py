@@ -30,7 +30,7 @@ from session_sniffer.guis.utils import find_main_window
 from session_sniffer.models.player import Player, PlayerUserIPDetection
 from session_sniffer.networking.geolite2 import query_geolite2_asn, query_geolite2_city, query_geolite2_country
 from session_sniffer.networking.third_party_servers import ThirdPartyServers, is_ip_in_ranges
-from session_sniffer.player.combo_rules import ComboRulesManager
+from session_sniffer.player.combo_rules import ComboRulesManager, matches_asn_entry, matches_player_isp
 from session_sniffer.player.detections import GUIDetectionSettings
 from session_sniffer.player.registry import PlayersRegistry
 from session_sniffer.player.userip import UserIP, UserIPDatabases, gui_dispatcher
@@ -769,25 +769,7 @@ def check_global_detections(player: Player) -> None:
 
     # ISP Detection
     if GUIDetectionSettings.isp_detection_list and (player.iplookup.ipapi.is_initialized or player.iplookup.geolite2.is_initialized):
-        matched_isp = None
-        for block_entry in GUIDetectionSettings.isp_detection_list:
-            block_entry_upper = block_entry.upper().strip()
-
-            as_name_clean = (
-                player.iplookup.ipapi.as_name.upper().replace('AS', '', 1).strip()
-                if player.iplookup.ipapi.as_name and player.iplookup.ipapi.as_name not in ('...', 'N/A')
-                else ''
-            )
-
-            if as_name_clean and block_entry_upper in as_name_clean:
-                matched_isp = block_entry
-                break
-            if player.iplookup.ipapi.isp and player.iplookup.ipapi.isp not in ('...', 'N/A') and block_entry_upper in player.iplookup.ipapi.isp.upper():
-                matched_isp = block_entry
-                break
-            if player.iplookup.geolite2.asn and player.iplookup.geolite2.asn not in ('...', 'N/A') and block_entry_upper in player.iplookup.geolite2.asn.upper():
-                matched_isp = block_entry
-                break
+        matched_isp = next((block_entry for block_entry in GUIDetectionSettings.isp_detection_list if matches_player_isp(block_entry, player)), None)
 
         if matched_isp is not None:
             handle_detection_notifications(
@@ -816,11 +798,8 @@ def check_global_detections(player: Player) -> None:
         if asns_to_check:
             matched_asn = None
             for block_entry in GUIDetectionSettings.asn_detection_list:
-                block_entry_upper = block_entry.upper().strip()
-                normalized_asn = block_entry_upper if block_entry_upper.startswith('AS') else f'AS{block_entry_upper}'
                 for asn in asns_to_check:
-                    asn_upper = asn.upper()
-                    if asn_upper in (block_entry_upper, normalized_asn) or (asn_upper.split() and asn_upper.split()[0] == normalized_asn):
+                    if matches_asn_entry(block_entry, asn):
                         matched_asn = asn
                         break
                 if matched_asn is not None:

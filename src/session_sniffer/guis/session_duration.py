@@ -44,12 +44,11 @@ class SessionDurationWindow(StatTableWindowMixin):
 
         self._table.setSortingEnabled(False)
         self._table.setRowCount(len(entries))
+        center = Qt.AlignmentFlag.AlignCenter
         for row, (duration_seconds, ip, usernames) in enumerate(entries):
-            duration_item = NumericTableWidgetItem(format_duration(duration_seconds))
-            duration_item.setData(Qt.ItemDataRole.UserRole, duration_seconds)
-            duration_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            duration_item = NumericTableWidgetItem(format_duration(duration_seconds), sort_value=duration_seconds, align=center)
             ip_item = QTableWidgetItem(ip)
-            ip_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            ip_item.setTextAlignment(center)
             usernames_item = QTableWidgetItem(usernames)
             self._table.setItem(row, 0, duration_item)
             self._table.setItem(row, 1, ip_item)

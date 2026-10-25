@@ -28,6 +28,15 @@ def format_text(value: object) -> str:
     return str(value)
 
 
+def format_with_code(primary: object, code: object) -> str:
+    """Format a primary lookup value with an optional parenthesized code when both are set."""
+    primary_text = format_text(primary)
+    code_text = format_text(code)
+    if primary_text != 'N/A' and code_text != 'N/A':
+        return f'{primary_text} ({code_text})'
+    return primary_text
+
+
 def format_bool(value: object) -> str:
     """Format a boolean-ish lookup field as Yes / No / N/A."""
     if _is_unset(value):

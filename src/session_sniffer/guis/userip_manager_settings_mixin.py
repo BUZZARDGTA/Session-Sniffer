@@ -1,9 +1,7 @@
 """Database settings panel mixin for the UserIP Databases Manager dialog."""
 
-from typing import Literal
-
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QColor, QIcon
+from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -19,14 +17,18 @@ from PySide6.QtWidgets import (
 
 from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.constants.standalone import MAX_SUSPEND_DURATION_SECONDS
-from session_sniffer.guis.color_picker_dialog import SVGColorPickerDialog
+from session_sniffer.guis._combo_rule_editor import (
+    read_duration_widgets_helper,
+    read_voice_combo_helper,
+    set_duration_widgets_helper,
+    set_voice_combo_helper,
+)
+from session_sniffer.guis.color_picker_dialog import ColorPickerButton
 from session_sniffer.guis.stylesheets import (
-    COLOR_BUTTON_EMPTY_STYLESHEET,
     SETTINGS_SEPARATOR_STYLESHEET,
     USERIP_SETTINGS_BODY_STYLESHEET,
     USERIP_SETTINGS_CONTAINER_STYLESHEET,
     USERIP_SETTINGS_TOGGLE_STYLESHEET,
-    color_button_filled_stylesheet,
 )
 from session_sniffer.guis.utils import (
     SUSPEND_TOOLTIP_AUTO,
@@ -53,9 +55,7 @@ class SettingsPanelMixin(QDialog):
     _settings_content: QWidget
     _settings_body: QWidget
     _setting_enabled: QCheckBox
-    _setting_color: QPushButton
-    _current_color: QColor
-    _current_color_name: str
+    _setting_color: ColorPickerButton
     _setting_log: QCheckBox
     _setting_notifications: QCheckBox
     _setting_voice: QComboBox
@@ -127,16 +127,10 @@ class SettingsPanelMixin(QDialog):
         color_lbl = QLabel('Color:')
         row_cln.addWidget(color_lbl)
 
-        self._current_color = QColor()
-        self._current_color_name = ''
-        self._setting_color = QPushButton()
+        self._setting_color = ColorPickerButton(self)
         self._setting_color.setObjectName('DatabaseColorButton')
-        self._setting_color.setFixedSize(52, 26)
         self._setting_color.setToolTip('Click to choose a display color for entries from this database')
-        self._setting_color.setAutoDefault(False)
-        self._setting_color.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._setting_color.clicked.connect(self._on_color_button_clicked)
-        self._update_color_button()
+        self._setting_color.color_changed.connect(self._on_setting_changed)
         row_cln.addWidget(self._setting_color)
 
         self._setting_log = QCheckBox('Log')
@@ -213,28 +207,16 @@ class SettingsPanelMixin(QDialog):
         self._settings_loading = True
 
         self._setting_enabled.setChecked(settings.ENABLED)
-        raw_color = settings.COLOR.strip()
-        self._current_color = QColor(raw_color) if raw_color and QColor(raw_color).isValid() else QColor()
-        self._current_color_name = raw_color if self._current_color.isValid() else ''
-        self._update_color_button()
+        self._setting_color.set_color(settings.COLOR)
         self._setting_log.setChecked(settings.LOG)
         self._setting_notifications.setChecked(settings.NOTIFICATIONS)
 
-        voice_map: dict[Literal['Male', 'Female', False], int] = {False: 0, 'Male': 1, 'Female': 2}
-        self._setting_voice.setCurrentIndex(voice_map.get(settings.VOICE_NOTIFICATIONS, 0))
-
-        if not settings.PROTECTION:
-            self._setting_suspend_mode.setCurrentIndex(0)  # Disabled
-            self._setting_suspend_custom.setValue(DEFAULT_MANUAL_SUSPEND_DURATION_SECONDS)
-            self._setting_suspend_custom.setVisible(False)
-        elif settings.PROTECTION_SUSPEND_PROCESS_MODE == 'Auto':
-            self._setting_suspend_mode.setCurrentIndex(1)  # Auto
-            self._setting_suspend_custom.setValue(DEFAULT_MANUAL_SUSPEND_DURATION_SECONDS)
-            self._setting_suspend_custom.setVisible(False)
-        else:
-            self._setting_suspend_mode.setCurrentIndex(2)  # Manual
-            self._setting_suspend_custom.setVisible(True)
-            self._setting_suspend_custom.setValue(max(1, settings.PROTECTION_SUSPEND_PROCESS_MODE))
+        set_voice_combo_helper(self._setting_voice, value=settings.VOICE_NOTIFICATIONS)
+        set_duration_widgets_helper(
+            self._setting_suspend_mode,
+            self._setting_suspend_custom,
+            settings.PROTECTION_SUSPEND_PROCESS_MODE if settings.PROTECTION else 'Disabled',
+        )
 
         self._update_enabled_body_visible()
 
@@ -244,19 +226,13 @@ class SettingsPanelMixin(QDialog):
 
     def read_settings_from_widgets(self) -> UserIPSettingsModel:
         """Read current widget values and return a `UserIPSettingsModel` for serialization."""
-        voice_index = self._setting_voice.currentIndex()
-        voice_values: tuple[Literal[False], Literal['Male'], Literal['Female']] = (False, 'Male', 'Female')
-        voice_notifications: Literal['Male', 'Female', False] = (
-            voice_values[voice_index] if 0 <= voice_index < len(voice_values) else False
-        )
-
-        suspend_index = self._setting_suspend_mode.currentIndex()
-        protection_enabled = bool(suspend_index)
-        suspend_mode: int | Literal['Auto'] = 'Auto' if suspend_index <= 1 else self._setting_suspend_custom.value()
+        voice_notifications = read_voice_combo_helper(self._setting_voice)
+        protection_enabled = self._setting_suspend_mode.currentText() != 'Disabled'
+        suspend_mode = read_duration_widgets_helper(self._setting_suspend_mode, self._setting_suspend_custom) if protection_enabled else 'Auto'
 
         return UserIPSettingsModel(
             ENABLED=self._setting_enabled.isChecked(),
-            COLOR=self._current_color_name,
+            COLOR=self._setting_color.color(),
             LOG=self._setting_log.isChecked(),
             NOTIFICATIONS=self._setting_notifications.isChecked(),
             VOICE_NOTIFICATIONS=voice_notifications,
@@ -277,24 +253,6 @@ class SettingsPanelMixin(QDialog):
         """Show/hide all settings below Enabled based on the checkbox state."""
         self._update_enabled_body_visible()
         self._on_setting_changed()
-
-    def _on_color_button_clicked(self) -> None:
-        """Open the SVG color palette and update the stored color."""
-        accepted, chosen, name = SVGColorPickerDialog.get_color(self._current_color, self)
-        if accepted:
-            self._current_color = chosen
-            self._current_color_name = name
-            self._update_color_button()
-            self._on_setting_changed()
-
-    def _update_color_button(self) -> None:
-        """Refresh the color button's background to reflect the current color."""
-        if self._current_color.isValid():
-            self._setting_color.setStyleSheet(
-                color_button_filled_stylesheet(self._current_color.name()),
-            )
-        else:
-            self._setting_color.setStyleSheet(COLOR_BUTTON_EMPTY_STYLESHEET)
 
     def _on_suspend_mode_changed(self, text: str) -> None:
         """Show/hide the custom duration spin box based on suspend mode selection."""

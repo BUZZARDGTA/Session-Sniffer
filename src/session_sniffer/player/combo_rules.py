@@ -33,10 +33,8 @@ def _match_exact_lookup(value: str, *candidates: object) -> bool:
     return any(_valid_lookup_value(candidate) and candidate == value for candidate in candidates)
 
 
-def _match_isp_condition(value: ConditionValue, player: Player) -> bool:
-    """Match ISP condition using the same logic as the existing ISP detection."""
-    if not isinstance(value, str):
-        return False
+def matches_player_isp(value: str, player: Player) -> bool:
+    """Return True if *value* matches the player's IP-API AS name, ISP, or GeoLite2 ASN."""
     value_upper = value.upper().strip()
 
     if player.iplookup.ipapi.as_name and player.iplookup.ipapi.as_name not in ('...', 'N/A'):
@@ -50,22 +48,31 @@ def _match_isp_condition(value: ConditionValue, player: Player) -> bool:
     return bool(player.iplookup.geolite2.asn and player.iplookup.geolite2.asn not in ('...', 'N/A') and value_upper in player.iplookup.geolite2.asn.upper())
 
 
+def _match_isp_condition(value: ConditionValue, player: Player) -> bool:
+    """Match ISP condition using the same logic as the existing ISP detection."""
+    return isinstance(value, str) and matches_player_isp(value, player)
+
+
+def matches_asn_entry(value: str, asn_candidate: str) -> bool:
+    """Return True if *value* matches *asn_candidate* using normalized ASN matching."""
+    value_upper = value.upper().strip()
+    normalized = value_upper if value_upper.startswith('AS') else f'AS{value_upper}'
+    asn_upper = asn_candidate.upper()
+    return asn_upper in (value_upper, normalized) or bool(asn_upper.split() and asn_upper.split()[0] == normalized)
+
+
 def _match_asn_condition(value: ConditionValue, player: Player) -> bool:
     """Match ASN condition using normalized exact match."""
     if not isinstance(value, str):
         return False
-    value_upper = value.upper().strip()
-    normalized = value_upper if value_upper.startswith('AS') else f'AS{value_upper}'
 
-    if player.iplookup.ipapi.asn and player.iplookup.ipapi.asn not in ('...', 'N/A'):
-        ipapi_asn_upper = player.iplookup.ipapi.asn.upper()
-        if ipapi_asn_upper in (value_upper, normalized) or (ipapi_asn_upper.split() and ipapi_asn_upper.split()[0] == normalized):
-            return True
+    if player.iplookup.ipapi.asn and player.iplookup.ipapi.asn not in ('...', 'N/A') and matches_asn_entry(value, player.iplookup.ipapi.asn):
+        return True
 
     return bool(
         player.iplookup.geolite2.asn
         and player.iplookup.geolite2.asn not in ('...', 'N/A')
-        and player.iplookup.geolite2.asn.upper() in (value_upper, normalized),
+        and matches_asn_entry(value, player.iplookup.geolite2.asn),
     )
 
 

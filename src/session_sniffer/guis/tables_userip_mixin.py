@@ -13,6 +13,7 @@ from session_sniffer.guis.userip_manager_helpers import (
     IPRangeBuilderDialog,
     append_userip_entries,
     load_userip_database_model,
+    refresh_userip_and_wake_renderer,
     rewrite_db_edit_entry_ip,
     rewrite_db_edit_ip_notes,
     rewrite_db_rename_entries,
@@ -22,8 +23,6 @@ from session_sniffer.models.userip_settings_model import UserIPDatabaseFile, Use
 from session_sniffer.networking.ip_range import entry_ip_covers_ip
 from session_sniffer.player.registry import PlayersRegistry, SessionTracker
 from session_sniffer.player.userip import UserIPDatabases
-from session_sniffer.player.userip_loader import update_userip_databases
-from session_sniffer.rendering_core.events import wake_rendering_core
 from session_sniffer.rendering_core.types import SessionFilterState
 from session_sniffer.settings import Settings
 from session_sniffer.text_utils import pluralize, split_usernames
@@ -33,12 +32,6 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     from session_sniffer.models.player import Player
-
-
-def _refresh_userip_and_wake_renderer() -> None:
-    """Rebuild UserIP lookup structures immediately and wake the rendering loop."""
-    update_userip_databases()
-    wake_rendering_core()
 
 
 def _collect_matching_entries_in_db(db_path: Path, ip_address: str, *, ranges_only: bool = False) -> list[str]:
@@ -216,7 +209,7 @@ def userip_add(
     ]
     if new_entries:
         append_userip_entries(selected_database, new_entries)
-    _refresh_userip_and_wake_renderer()
+    refresh_userip_and_wake_renderer()
 
     db_display = selected_database.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix('')
     usernames_display = ', '.join(f'"{name}"' for name in chosen_usernames)
@@ -267,7 +260,7 @@ def userip_add_as_range(
         selected_database,
         [UserIPEntryModel(username=username, ip=range_input, source='Session') for username in chosen_usernames],
     )
-    _refresh_userip_and_wake_renderer()
+    refresh_userip_and_wake_renderer()
 
     db_display = selected_database.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix('')
     usernames_display = ', '.join(f'"{name}"' for name in chosen_usernames)
@@ -305,7 +298,7 @@ def userip_convert_to_range(parent: QWidget, ip_address: str, player: Player) ->
         QMessageBox.information(parent, TITLE, f'No single-IP entries found for IP {ip_address} in the database.')
         return
 
-    _refresh_userip_and_wake_renderer()
+    refresh_userip_and_wake_renderer()
     entry_word = pluralize(converted_count, 'entry', 'entries')
     _show_modal_info_on_top(
         parent,
@@ -365,7 +358,7 @@ def userip_convert_to_ip(parent: QWidget, ip_address: str, player: Player) -> No
         QMessageBox.information(parent, TITLE, f'No entries found for range "{old_range}" in the database.')
         return
 
-    _refresh_userip_and_wake_renderer()
+    refresh_userip_and_wake_renderer()
     entry_word = pluralize(converted_count, 'entry', 'entries')
     _show_modal_info_on_top(
         parent,
@@ -412,7 +405,7 @@ def userip_edit_range(parent: QWidget, ip_address: str, player: Player) -> None:
         QMessageBox.information(parent, TITLE, f'No entries found for range "{old_range}" in the database.')
         return
 
-    _refresh_userip_and_wake_renderer()
+    refresh_userip_and_wake_renderer()
     entry_word = pluralize(edited_count, 'entry', 'entries')
     _show_modal_info_on_top(
         parent,
@@ -451,7 +444,7 @@ def userip_edit_note(parent: QWidget, ip_address: str, player: Player) -> None:
         QMessageBox.information(parent, TITLE, f'No entries found covering IP {ip_address} in the database.')
         return
 
-    _refresh_userip_and_wake_renderer()
+    refresh_userip_and_wake_renderer()
     if new_note:
         QMessageBox.information(parent, TITLE, f'Updated note for IP {ip_address} in UserIP database "{db_display}".')
     else:
@@ -504,7 +497,7 @@ def userip_add_username(parent: QWidget, ip_address: str, player: Player) -> Non
         db_path,
         [UserIPEntryModel(username=username, ip=target_entry, notes=existing_note, source='Session') for username in entered_usernames],
     )
-    _refresh_userip_and_wake_renderer()
+    refresh_userip_and_wake_renderer()
 
     usernames_display = ', '.join(f'"{username}"' for username in entered_usernames)
     count = len(entered_usernames)
@@ -561,7 +554,7 @@ def userip_rename_multi(parent: QWidget, players: list[Player]) -> None:
         QMessageBox.information(parent, TITLE, f'No entries were found for the selected IP{pluralize(len(eligible))}.')
         return
 
-    _refresh_userip_and_wake_renderer()
+    refresh_userip_and_wake_renderer()
     entry_word = pluralize(total_renamed, 'entry', 'entries')
     QMessageBox.information(parent, TITLE, f'Renamed {total_renamed} {entry_word} to "{new_username}".')
 
@@ -611,7 +604,7 @@ def userip_rename(parent: QWidget, ip_address: str, player: Player) -> None:
         QMessageBox.information(parent, TITLE, f'No entries found for IP {ip_address} in the database.')
         return
 
-    _refresh_userip_and_wake_renderer()
+    refresh_userip_and_wake_renderer()
     entry_word = pluralize(renamed_count, 'entry', 'entries')
     QMessageBox.information(
         parent,
@@ -660,7 +653,7 @@ def userip_move(parent: QWidget, selected_ips: list[str], selected_database: Pat
             deleted_entries_by_database[db_path] = [f'{html.escape(entry.username)}={html.escape(entry.ip)}' for entry in moved_entries]
 
     if deleted_entries_by_database:
-        _refresh_userip_and_wake_renderer()
+        refresh_userip_and_wake_renderer()
         target_db_display = html.escape(str(selected_database.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix('')))
         header = (
             f'<b>Selected IP{pluralize(len(selected_ips))} {html.escape(str(selected_ips))} moved from the following '
@@ -697,7 +690,7 @@ def userip_delete(parent: QWidget, selected_ips: list[str]) -> None:
             deleted_entries_by_database[db_path] = [f'{html.escape(entry.username)}={html.escape(entry.ip)}' for entry in deleted_entries]
 
     if deleted_entries_by_database:
-        _refresh_userip_and_wake_renderer()
+        refresh_userip_and_wake_renderer()
         header = (
             f'<b>Selected IP{pluralize(len(selected_ips))} {html.escape(str(selected_ips))} removed from the following '
             f'UserIP database{pluralize(len(deleted_entries_by_database))}:</b><br><br><br>'
@@ -774,7 +767,7 @@ def _rewrite_database_removing_usernames(
         return
 
     save_userip_database_model(db_path, UserIPDatabaseFile(settings=db_model.settings, entries=kept_entries))
-    _refresh_userip_and_wake_renderer()
+    refresh_userip_and_wake_renderer()
 
     db_display = db_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix('')
     entry_word = pluralize(removed_count, 'entry', 'entries')

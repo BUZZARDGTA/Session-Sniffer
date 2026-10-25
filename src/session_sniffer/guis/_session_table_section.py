@@ -41,7 +41,7 @@ from session_sniffer.settings import Settings
 from session_sniffer.text_utils import pluralize
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Sequence
 
 
 class SessionStatusBar(QStatusBar):
@@ -150,13 +150,7 @@ class SessionTableSection(QWidget):
             clear_tooltip = 'Clear all disconnected players'
             expand_tooltip = 'Show the disconnected players table'
 
-        configured_column = Settings.gui_connected_table_sort_column if is_connected else Settings.gui_disconnected_table_sort_column
-        sort_setting = Settings.gui_connected_table_sort_order if is_connected else Settings.gui_disconnected_table_sort_order
-        sort_order = Qt.SortOrder.AscendingOrder if sort_setting == 'Ascending' else Qt.SortOrder.DescendingOrder
-        fallback_column = 'Last Rejoin' if is_connected else 'Last Seen'
-        sort_column_name = (
-            configured_column if configured_column in column_names else (fallback_column if fallback_column in column_names else (column_names[0] if column_names else ''))
-        )
+        sort_column_name, sort_order = self._resolve_sort_from_settings(column_names)
 
         # Header container
         header_container = QFrame()
@@ -554,25 +548,24 @@ class SessionTableSection(QWidget):
         self.table_view.reset_initial_data_sizing()
         self.table_view.setup_static_column_resizing()
 
+    def _resolve_sort_from_settings(self, column_names: Sequence[str] | None = None) -> tuple[str | None, Qt.SortOrder]:
+        """Resolve the configured sort column and order for this section."""
+        is_connected = self._section_name == 'Connected'
+        configured_column = Settings.gui_connected_table_sort_column if is_connected else Settings.gui_disconnected_table_sort_column
+        sort_setting = Settings.gui_connected_table_sort_order if is_connected else Settings.gui_disconnected_table_sort_order
+        sort_order = Qt.SortOrder.AscendingOrder if sort_setting == 'Ascending' else Qt.SortOrder.DescendingOrder
+        if column_names is None:
+            return configured_column, sort_order
+        fallback_column = 'Last Rejoin' if is_connected else 'Last Seen'
+        if configured_column in column_names:
+            return configured_column, sort_order
+        if fallback_column in column_names:
+            return fallback_column, sort_order
+        return (column_names[0] if column_names else None), sort_order
+
     def update_columns(self, column_names: list[str]) -> None:
         """Replace the column set at runtime and reconfigure the view."""
-        if self._section_name == 'Connected':
-            configured_column = Settings.gui_connected_table_sort_column
-            sort_order = Qt.SortOrder.AscendingOrder if Settings.gui_connected_table_sort_order == 'Ascending' else Qt.SortOrder.DescendingOrder
-            fallback = 'Last Rejoin'
-        else:
-            configured_column = Settings.gui_disconnected_table_sort_column
-            sort_order = Qt.SortOrder.AscendingOrder if Settings.gui_disconnected_table_sort_order == 'Ascending' else Qt.SortOrder.DescendingOrder
-            fallback = 'Last Seen'
-
-        if configured_column in column_names:
-            sort_column_name = configured_column
-        elif fallback in column_names:
-            sort_column_name = fallback
-        elif column_names:
-            sort_column_name = column_names[0]
-        else:
-            sort_column_name = None
+        sort_column_name, sort_order = self._resolve_sort_from_settings(column_names)
 
         old_columns = set(self.table_model.column_names)
         new_columns = set(column_names)
@@ -588,13 +581,9 @@ class SessionTableSection(QWidget):
 
     def apply_sort_from_settings(self) -> None:
         """Apply sort column and order from current Settings."""
-        if self._section_name == 'Connected':
-            target_column = Settings.gui_connected_table_sort_column
-            target_order = Qt.SortOrder.AscendingOrder if Settings.gui_connected_table_sort_order == 'Ascending' else Qt.SortOrder.DescendingOrder
-        else:
-            target_column = Settings.gui_disconnected_table_sort_column
-            target_order = Qt.SortOrder.AscendingOrder if Settings.gui_disconnected_table_sort_order == 'Ascending' else Qt.SortOrder.DescendingOrder
-        self.table_view.apply_sort(target_column, target_order)
+        target_column, target_order = self._resolve_sort_from_settings()
+        if target_column is not None:
+            self.table_view.apply_sort(target_column, target_order)
 
     def set_all_enabled(self, *, enabled: bool) -> None:
         """Enable or disable all interactive child widgets."""

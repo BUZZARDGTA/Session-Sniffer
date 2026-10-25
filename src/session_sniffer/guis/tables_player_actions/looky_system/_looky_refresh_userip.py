@@ -5,7 +5,6 @@ import time
 from collections import defaultdict
 from dataclasses import dataclass
 from functools import partial
-from http import HTTPStatus
 from ipaddress import IPv4Address
 from pathlib import Path
 from typing import TYPE_CHECKING, Protocol, override, runtime_checkable
@@ -50,8 +49,18 @@ from session_sniffer.guis.stylesheets import (
 )
 from session_sniffer.guis.table_column_resizing import setup_table_header_context_menu
 from session_sniffer.guis.tables_player_actions._player_info_dialog_mixin import PlayerInfoDialogMixin
-from session_sniffer.guis.tables_player_actions.looky_system._looky_helpers import LookyRefreshLoadingDialog, check_looky_prerequisites
-from session_sniffer.guis.userip_manager_helpers import append_userip_entries, load_userip_database_model, populate_userip_databases_menu, save_userip_database_model
+from session_sniffer.guis.tables_player_actions.looky_system._looky_helpers import (
+    LookyRefreshLoadingDialog,
+    check_looky_prerequisites,
+    format_looky_request_error,
+)
+from session_sniffer.guis.userip_manager_helpers import (
+    append_userip_entries,
+    load_userip_database_model,
+    populate_userip_databases_menu,
+    refresh_userip_and_wake_renderer,
+    save_userip_database_model,
+)
 from session_sniffer.guis.utils import (
     activate_window,
     apply_adaptive_window_size,
@@ -62,9 +71,7 @@ from session_sniffer.guis.utils import (
 )
 from session_sniffer.models.userip_settings_model import UserIPEntryModel
 from session_sniffer.networking.ip_range import entry_ip_covers_ip
-from session_sniffer.networking.looky_system import extract_rate_limit_message, extract_rate_limit_wait_seconds, lookup_ip_batches, lookup_username_ips
-from session_sniffer.player.userip_loader import update_userip_databases
-from session_sniffer.rendering_core.events import wake_rendering_core
+from session_sniffer.networking.looky_system import lookup_ip_batches, lookup_username_ips
 from session_sniffer.settings.settings import Settings
 from session_sniffer.text_utils import pluralize
 
@@ -110,16 +117,7 @@ class _LookyRefreshWorker(CrashingQThread):
 
     def _emit_request_error(self, exc: Exception) -> None:
         logger.warning('Looky System lookup failed: %s', exc)
-        if isinstance(exc, requests.HTTPError):
-            if exc.response is not None and exc.response.status_code == HTTPStatus.TOO_MANY_REQUESTS:
-                wait_seconds = extract_rate_limit_wait_seconds(exc)
-                self.finished_error.emit(f'Rate limited: {extract_rate_limit_message(exc)}. Try again in {wait_seconds} second{pluralize(wait_seconds or 0)}.')
-            else:
-                self.finished_error.emit(f'Looky System API error: HTTP {exc.response.status_code if exc.response is not None else "?"}')
-        elif isinstance(exc, requests.RequestException):
-            self.finished_error.emit(f'Looky System request failed: {exc}')
-        else:
-            self.finished_error.emit(f'Looky System response format unexpected: {exc}')
+        self.finished_error.emit(format_looky_request_error(exc))
 
     @override
     def _run(self) -> None:
@@ -964,8 +962,7 @@ def looky_refresh_userip_entries(parent: QWidget, entries: list[tuple[Path, list
             total_added, total_moved, total_removed, db_count = _apply_accepted_changes(dialog.get_accepted_entries(), dialog.get_accepted_removals())
             if not (total_added or total_moved or total_removed):
                 return
-            update_userip_databases()
-            wake_rendering_core()
+            refresh_userip_and_wake_renderer()
             summary_parts = [
                 f'{verb} {cnt} {noun}{pluralize(cnt)}' for cnt, verb, noun in (
                     (total_added, 'added or confirmed', 'username'), (total_moved, 'moved', 'username'), (total_removed, 'deleted', 'wrong candidate row'),

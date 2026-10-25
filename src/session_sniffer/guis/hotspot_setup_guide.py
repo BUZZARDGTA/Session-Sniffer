@@ -243,8 +243,15 @@ class HotspotSetupGuideDialog(DraggableDialogMixin, QDialog):
 
         return page
 
-    def _build_wifi_guide_page(self) -> QWidget:
-        """Construct the step-by-step walkthrough for Wi-Fi Hotspot."""
+    def _build_guide_page(
+        self,
+        *,
+        icon_name: str,
+        pill_stylesheet: str,
+        title_text: str,
+        steps: list[str],
+    ) -> QWidget:
+        """Construct a step-by-step walkthrough guide page."""
         page = QWidget()
         page.setStyleSheet('background: transparent; background-color: transparent;')
         layout = QVBoxLayout(page)
@@ -256,25 +263,19 @@ class HotspotSetupGuideDialog(DraggableDialogMixin, QDialog):
         pill = QLabel()
         pill.setFixedSize(scale_by_ui(46), scale_by_ui(46))
         pill.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        pill.setPixmap(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'wifi.svg')).pixmap(scale_by_ui(26), scale_by_ui(26)))
-        pill.setStyleSheet('padding: 10px; background: rgba(61, 142, 201, 0.18); border-radius: 10px; border: 1px solid rgba(61, 142, 201, 0.4);')
+        pill.setPixmap(QIcon(str(RESOURCES_DIR_PATH / 'icons' / icon_name)).pixmap(scale_by_ui(26), scale_by_ui(26)))
+        pill.setStyleSheet(pill_stylesheet)
         icon_row.addWidget(pill)
         icon_row.addStretch()
         layout.addLayout(icon_row)
 
-        title = QLabel('Setting up Wi-Fi Hotspot')
+        title = QLabel(title_text)
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         title.setStyleSheet('color: #f0f4fa; font-size: 13.5pt; font-weight: 700;')
         layout.addWidget(title)
 
         steps_container = QVBoxLayout()
         steps_container.setSpacing(scale_by_ui(12))
-
-        steps = [
-            'Enter an SSID (network name) and password in the Hotspot panel, then click Save.',
-            'Click Start Hotspot to enable the network. On your console (PlayStation, Xbox, Switch), connect to the Wi-Fi network.',
-            'Once connected, start a capture in Session Sniffer — all console game traffic will flow through your PC.',
-        ]
 
         for index, step_text in enumerate(steps, start=1):
             step_row = QHBoxLayout()
@@ -291,7 +292,6 @@ class HotspotSetupGuideDialog(DraggableDialogMixin, QDialog):
         layout.addLayout(steps_container)
         layout.addStretch()
 
-        # Footer buttons
         footer_layout = QHBoxLayout()
         back_button = QPushButton('Back')
         back_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
@@ -305,67 +305,30 @@ class HotspotSetupGuideDialog(DraggableDialogMixin, QDialog):
         layout.addLayout(footer_layout)
 
         return page
+
+    def _build_wifi_guide_page(self) -> QWidget:
+        """Construct the step-by-step walkthrough for Wi-Fi Hotspot."""
+        return self._build_guide_page(
+            icon_name='wifi.svg',
+            pill_stylesheet='padding: 10px; background: rgba(61, 142, 201, 0.18); border-radius: 10px; border: 1px solid rgba(61, 142, 201, 0.4);',
+            title_text='Setting up Wi-Fi Hotspot',
+            steps=[
+                'Enter an SSID (network name) and password in the Hotspot panel, then click Save.',
+                'Click Start Hotspot to enable the network. On your console (PlayStation, Xbox, Switch), connect to the Wi-Fi network.',
+                'Once connected, start a capture in Session Sniffer — all console game traffic will flow through your PC.',
+            ],
+        )
 
     def _build_ethernet_guide_page(self) -> QWidget:
         """Construct the step-by-step walkthrough for Ethernet Bridge (ICS)."""
-        page = QWidget()
-        page.setStyleSheet('background: transparent; background-color: transparent;')
-        layout = QVBoxLayout(page)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(scale_by_ui(14))
-
-        icon_row = QHBoxLayout()
-        icon_row.addStretch()
-        pill = QLabel()
-        pill.setFixedSize(scale_by_ui(46), scale_by_ui(46))
-        pill.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        pill.setPixmap(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'ethernet-port.svg')).pixmap(scale_by_ui(26), scale_by_ui(26)))
-        pill.setStyleSheet('padding: 10px; background: rgba(167, 139, 250, 0.18); border-radius: 10px; border: 1px solid rgba(167, 139, 250, 0.4);')
-        icon_row.addWidget(pill)
-        icon_row.addStretch()
-        layout.addLayout(icon_row)
-
-        title = QLabel('Setting up Ethernet Bridge')
-        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        title.setStyleSheet('color: #f0f4fa; font-size: 13.5pt; font-weight: 700;')
-        layout.addWidget(title)
-
-        steps_container = QVBoxLayout()
-        steps_container.setSpacing(scale_by_ui(12))
-
-        steps = [
-            'Make sure your PC is connected to the internet (over Wi-Fi or a VPN).',
-            'Plug an Ethernet cable from your PC directly into your console.',
-            'In the Sharing section, select your internet source as Public and the Ethernet adapter as Private, then click Enable Sharing.',
-            'Start a capture in Session Sniffer on the Ethernet adapter — all console traffic will flow through the Ethernet bridge.',
-        ]
-
-        for index, step_text in enumerate(steps, start=1):
-            step_row = QHBoxLayout()
-            step_row.setSpacing(scale_by_ui(12))
-            num_label = QLabel(str(index))
-            num_label.setStyleSheet(HOTSPOT_STEP_NUMBER_STYLESHEET)
-            text_label = QLabel(step_text)
-            text_label.setWordWrap(True)
-            text_label.setStyleSheet('color: #d0dbe8; font-size: 9pt; line-height: 1.35;')
-            step_row.addWidget(num_label, 0, Qt.AlignmentFlag.AlignTop)
-            step_row.addWidget(text_label, 1)
-            steps_container.addLayout(step_row)
-
-        layout.addLayout(steps_container)
-        layout.addStretch()
-
-        # Footer buttons
-        footer_layout = QHBoxLayout()
-        back_button = QPushButton('Back')
-        back_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
-        back_button.clicked.connect(lambda: self._stacked_widget.setCurrentIndex(0))
-        footer_layout.addWidget(back_button)
-        footer_layout.addStretch()
-        got_it_button = QPushButton('Got it')
-        got_it_button.setStyleSheet(DIALOG_PRIMARY_BUTTON_STYLESHEET)
-        got_it_button.clicked.connect(self.accept)
-        footer_layout.addWidget(got_it_button)
-        layout.addLayout(footer_layout)
-
-        return page
+        return self._build_guide_page(
+            icon_name='ethernet-port.svg',
+            pill_stylesheet='padding: 10px; background: rgba(167, 139, 250, 0.18); border-radius: 10px; border: 1px solid rgba(167, 139, 250, 0.4);',
+            title_text='Setting up Ethernet Bridge',
+            steps=[
+                'Make sure your PC is connected to the internet (over Wi-Fi or a VPN).',
+                'Plug an Ethernet cable from your PC directly into your console.',
+                'In the Sharing section, select your internet source as Public and the Ethernet adapter as Private, then click Enable Sharing.',
+                'Start a capture in Session Sniffer on the Ethernet adapter — all console traffic will flow through the Ethernet bridge.',
+            ],
+        )

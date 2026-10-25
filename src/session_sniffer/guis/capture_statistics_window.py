@@ -3,17 +3,17 @@
 import os
 import time
 from collections import deque
-from typing import override
+from typing import TYPE_CHECKING, override
 
 from PySide6.QtCore import QSize, Qt, Signal
-from PySide6.QtGui import QColor, QIcon
+from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QCheckBox, QFormLayout, QGroupBox, QHBoxLayout, QLabel, QPushButton, QVBoxLayout
 
 from session_sniffer.capture.arp_spoofing import ArpSpoofingController
 from session_sniffer.capture.process import get_process_creation_time
 from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.guis.player_rate_graph import DEFAULT_MAX_HISTORY, HISTORY_OPTIONS, VISIBLE_WINDOW
-from session_sniffer.guis.rate_graph_widget import RateGraphTheme, RateGraphWidget
+from session_sniffer.guis.rate_graph_widget import RateGraphWidget
 from session_sniffer.guis.stylesheets import (
     GRAPH_BPS_POPOUT_BUTTON_STYLESHEET,
     GRAPH_LATENCY_POPOUT_BUTTON_STYLESHEET,
@@ -24,6 +24,9 @@ from session_sniffer.models.player import PlayerBandwidth
 from session_sniffer.player.registry import PlayersRegistry
 from session_sniffer.rendering_core.types import CaptureState, CaptureStats
 from session_sniffer.settings import Settings
+
+if TYPE_CHECKING:
+    from PySide6.QtCore import SignalInstance
 
 _FLOOR_MS = 1.0
 _FLOOR_PPS = 10
@@ -190,70 +193,41 @@ class CaptureStatisticsWindow(RateGraphWindowMixin):
         right_column = QVBoxLayout()
         right_column.setSpacing(6)
 
-        bps_graph_group = QGroupBox('Bandwidth (KB/s)')
-        bps_graph_layout = QVBoxLayout(bps_graph_group)
         self._bps_widget = RateGraphWidget.create_bps_widget(visible_window=VISIBLE_WINDOW)
         self._bps_widget.set_y_range(0, _FLOOR_KBS)
-        bps_popout_row = QHBoxLayout()
-        bps_popout_row.setContentsMargins(0, 0, 0, 0)
-        bps_popout_row.addStretch()
-        bps_popout_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'external-link.svg')), ' Pop Out')
-        bps_popout_button.setToolTip('Open BPS Graph in a separate window')
-        bps_popout_button.setCursor(Qt.CursorShape.PointingHandCursor)
-        bps_popout_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-        bps_popout_button.setIconSize(QSize(13, 13))
-        bps_popout_button.setStyleSheet(GRAPH_BPS_POPOUT_BUTTON_STYLESHEET)
-        bps_popout_button.clicked.connect(self.open_session_bps_graph_requested)
-        bps_popout_row.addWidget(bps_popout_button)
-        bps_graph_layout.addLayout(bps_popout_row)
-        bps_graph_layout.addWidget(self._bps_widget)
-        right_column.addWidget(bps_graph_group)
+        right_column.addWidget(
+            self._create_graph_group(
+                title='Bandwidth (KB/s)',
+                widget=self._bps_widget,
+                popout_tooltip='Open BPS Graph in a separate window',
+                popout_stylesheet=GRAPH_BPS_POPOUT_BUTTON_STYLESHEET,
+                popout_signal=self.open_session_bps_graph_requested,
+            ),
+        )
 
-        pps_graph_group = QGroupBox('Packets per Second (PPS)')
-        pps_graph_layout = QVBoxLayout(pps_graph_group)
         self._pps_widget = RateGraphWidget.create_pps_widget(visible_window=VISIBLE_WINDOW)
         self._pps_widget.set_y_range(0, _FLOOR_PPS)
-        pps_popout_row = QHBoxLayout()
-        pps_popout_row.setContentsMargins(0, 0, 0, 0)
-        pps_popout_row.addStretch()
-        pps_popout_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'external-link.svg')), ' Pop Out')
-        pps_popout_button.setToolTip('Open PPS Graph in a separate window')
-        pps_popout_button.setCursor(Qt.CursorShape.PointingHandCursor)
-        pps_popout_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-        pps_popout_button.setIconSize(QSize(13, 13))
-        pps_popout_button.setStyleSheet(GRAPH_PPS_POPOUT_BUTTON_STYLESHEET)
-        pps_popout_button.clicked.connect(self.open_session_pps_graph_requested)
-        pps_popout_row.addWidget(pps_popout_button)
-        pps_graph_layout.addLayout(pps_popout_row)
-        pps_graph_layout.addWidget(self._pps_widget)
-        right_column.addWidget(pps_graph_group)
-
-        latency_graph_group = QGroupBox('Latency (ms/s)')
-        latency_graph_layout = QVBoxLayout(latency_graph_group)
-        self._latency_widget = RateGraphWidget(
-            left_label='Latency (ms/s)',
-            theme=RateGraphTheme(
-                line_color='#ff9800',
-                fill_color=QColor(255, 152, 0, 60),
-                avg_color='#e65100',
+        right_column.addWidget(
+            self._create_graph_group(
+                title='Packets per Second (PPS)',
+                widget=self._pps_widget,
+                popout_tooltip='Open PPS Graph in a separate window',
+                popout_stylesheet=GRAPH_PPS_POPOUT_BUTTON_STYLESHEET,
+                popout_signal=self.open_session_pps_graph_requested,
             ),
-            visible_window=VISIBLE_WINDOW,
         )
+
+        self._latency_widget = RateGraphWidget.create_latency_widget(visible_window=VISIBLE_WINDOW)
         self._latency_widget.set_y_range(0, _FLOOR_MS)
-        latency_popout_row = QHBoxLayout()
-        latency_popout_row.setContentsMargins(0, 0, 0, 0)
-        latency_popout_row.addStretch()
-        latency_popout_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'external-link.svg')), ' Pop Out')
-        latency_popout_button.setToolTip('Open Packets Latency Graph in a separate window')
-        latency_popout_button.setCursor(Qt.CursorShape.PointingHandCursor)
-        latency_popout_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-        latency_popout_button.setIconSize(QSize(13, 13))
-        latency_popout_button.setStyleSheet(GRAPH_LATENCY_POPOUT_BUTTON_STYLESHEET)
-        latency_popout_button.clicked.connect(self.open_packets_latency_graph_requested)
-        latency_popout_row.addWidget(latency_popout_button)
-        latency_graph_layout.addLayout(latency_popout_row)
-        latency_graph_layout.addWidget(self._latency_widget)
-        right_column.addWidget(latency_graph_group)
+        right_column.addWidget(
+            self._create_graph_group(
+                title='Latency (ms/s)',
+                widget=self._latency_widget,
+                popout_tooltip='Open Packets Latency Graph in a separate window',
+                popout_stylesheet=GRAPH_LATENCY_POPOUT_BUTTON_STYLESHEET,
+                popout_signal=self.open_packets_latency_graph_requested,
+            ),
+        )
 
         body_layout.addLayout(left_column)
         body_layout.addLayout(right_column, 1)
@@ -280,6 +254,33 @@ class CaptureStatisticsWindow(RateGraphWindowMixin):
         self._graphs_all_zero: bool = False
 
         self._load_history()
+
+    @staticmethod
+    def _create_graph_group(
+        *,
+        title: str,
+        widget: RateGraphWidget,
+        popout_tooltip: str,
+        popout_stylesheet: str,
+        popout_signal: SignalInstance,
+    ) -> QGroupBox:
+        """Create a graph group box with a top-right Pop Out button and configured rate graph widget."""
+        group = QGroupBox(title)
+        layout = QVBoxLayout(group)
+        popout_row = QHBoxLayout()
+        popout_row.setContentsMargins(0, 0, 0, 0)
+        popout_row.addStretch()
+        popout_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'external-link.svg')), ' Pop Out')
+        popout_button.setToolTip(popout_tooltip)
+        popout_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        popout_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        popout_button.setIconSize(QSize(13, 13))
+        popout_button.setStyleSheet(popout_stylesheet)
+        popout_button.clicked.connect(popout_signal)
+        popout_row.addWidget(popout_button)
+        layout.addLayout(popout_row)
+        layout.addWidget(widget)
+        return group
 
     @override
     def _on_max_history_changed(self, new_max_history: int) -> None:

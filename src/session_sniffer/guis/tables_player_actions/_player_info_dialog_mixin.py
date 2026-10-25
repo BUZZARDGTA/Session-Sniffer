@@ -41,6 +41,7 @@ class PlayerInfoDialogMixin(QDialog):
         """Initialize the dialog with the top-level parent window."""
         super().__init__(parent.window() if parent is not None else None)
         self._timer: QTimer | None = None
+        self._rows: list[tuple[QLabel, Callable[[], str], QLabel, Callable[[], str] | None]] = []
 
     @staticmethod
     def _make_group(title: str, *, accent: str) -> tuple[QGroupBox, QFormLayout]:
@@ -62,6 +63,36 @@ class PlayerInfoDialogMixin(QDialog):
         label_widget = QLabel(f'{label_text}:')
         label_widget.setStyleSheet(PLAYER_INFO_FORM_LABEL_STYLESHEET)
         form.addRow(label_widget, PlayerInfoDialogMixin._make_value_label(value))
+
+    def _add_live_row(
+        self,
+        form: QFormLayout,
+        label: str | Callable[[], str],
+        provider: Callable[[], str],
+    ) -> None:
+        """Append a label / copyable-value row to *form* and register it for periodic refresh."""
+        if isinstance(label, str):
+            initial_label = label
+            label_provider = None
+        else:
+            initial_label = label()
+            label_provider = label
+        label_widget = QLabel(f'{initial_label}:')
+        label_widget.setStyleSheet(PLAYER_INFO_FORM_LABEL_STYLESHEET)
+        value_widget = self._make_value_label(provider())
+        form.addRow(label_widget, value_widget)
+        self._rows.append((value_widget, provider, label_widget, label_provider))
+
+    def _refresh_live_rows(self) -> None:
+        """Re-evaluate dynamic row providers and update label/value widget text."""
+        for value_widget, provider, label_widget, label_provider in self._rows:
+            text = provider()
+            if value_widget.text() != text:
+                value_widget.setText(text)
+            if label_provider is not None:
+                new_label = f'{label_provider()}:'
+                if label_widget.text() != new_label:
+                    label_widget.setText(new_label)
 
     @staticmethod
     def _make_value_label(text: str = '') -> QLabel:

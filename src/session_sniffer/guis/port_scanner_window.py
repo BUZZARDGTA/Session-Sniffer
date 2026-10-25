@@ -49,6 +49,7 @@ from session_sniffer.guis.stylesheets import (
 )
 from session_sniffer.guis.table_column_resizing import TableColumnResizeController, setup_table_header_context_menu
 from session_sniffer.guis.utils import (
+    activate_window,
     animate_button_feedback,
     scale_by_ui,
     set_clipboard_text,
@@ -788,9 +789,7 @@ class PortScannerWindow(QWidget):
             for target_host in targets_list:
                 active_window.add_target_tab(target_host)
 
-        active_window.show()
-        active_window.raise_()
-        active_window.activateWindow()
+        activate_window(active_window)
         return active_window
 
     @classmethod

@@ -216,85 +216,36 @@ class PlayerJoinsWindow(StatTableWindowMixin):
         status_str = 'Connected' if is_join_connected else 'Disconnected'
         status_color = _COLOR_CONNECTED if is_join_connected else _COLOR_DISCONNECTED
 
-        index_item = NumericTableWidgetItem(join.join_index)
-        index_item.setData(Qt.ItemDataRole.UserRole, join.join_index)
-        index_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+        center = Qt.AlignmentFlag.AlignCenter
+        index_item = NumericTableWidgetItem(join.join_index, align=center)
 
         status_item = QTableWidgetItem(status_str)
         status_item.setForeground(status_color)
-        status_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+        status_item.setTextAlignment(center)
 
-        rejoin_time_str = join.joined_at.strftime('%Y-%m-%d %H:%M:%S')
-        rejoin_item = NumericTableWidgetItem(rejoin_time_str)
-        rejoin_item.setData(Qt.ItemDataRole.UserRole, join.joined_at.timestamp())
-        rejoin_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-
-        seen_time_str = join.last_seen.strftime('%Y-%m-%d %H:%M:%S')
-        seen_item = NumericTableWidgetItem(seen_time_str)
-        seen_item.setData(Qt.ItemDataRole.UserRole, join.last_seen.timestamp())
-        seen_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+        rejoin_item = NumericTableWidgetItem(join.joined_at.strftime('%Y-%m-%d %H:%M:%S'), sort_value=join.joined_at.timestamp(), align=center)
+        seen_item = NumericTableWidgetItem(join.last_seen.strftime('%Y-%m-%d %H:%M:%S'), sort_value=join.last_seen.timestamp(), align=center)
 
         session_seconds = join.get_session_time().total_seconds()
-        session_item = NumericTableWidgetItem(format_duration(session_seconds))
-        session_item.setData(Qt.ItemDataRole.UserRole, session_seconds)
-        session_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+        session_item = NumericTableWidgetItem(format_duration(session_seconds), sort_value=session_seconds, align=center)
 
-        first_port_item = NumericTableWidgetItem(join.ports.first)
-        first_port_item.setData(Qt.ItemDataRole.UserRole, join.ports.first)
-        first_port_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+        first_port_item = NumericTableWidgetItem(join.ports.first, align=center)
 
         middle_ports_str = ', '.join(map(str, reversed(join.ports.middle))) or '—'
         middle_item = QTableWidgetItem(middle_ports_str)
-        middle_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+        middle_item.setTextAlignment(center)
 
-        last_port_item = NumericTableWidgetItem(join.ports.last)
-        last_port_item.setData(Qt.ItemDataRole.UserRole, join.ports.last)
-        last_port_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-
-        ports_str = ', '.join(map(str, join.ports.all))
-        ports_item = NumericTableWidgetItem(ports_str)
-        ports_item.setData(Qt.ItemDataRole.UserRole, len(join.ports.all))
-        ports_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-
-        packets_item = NumericTableWidgetItem(join.packets.exchanged)
-        packets_item.setData(Qt.ItemDataRole.UserRole, join.packets.exchanged)
-        packets_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-
-        recv_item = NumericTableWidgetItem(join.packets.received)
-        recv_item.setData(Qt.ItemDataRole.UserRole, join.packets.received)
-        recv_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-
-        sent_item = NumericTableWidgetItem(join.packets.sent)
-        sent_item.setData(Qt.ItemDataRole.UserRole, join.packets.sent)
-        sent_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-
-        min_len_item = NumericTableWidgetItem(join.packets.min_len)
-        min_len_item.setData(Qt.ItemDataRole.UserRole, join.packets.min_len)
-        min_len_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-
-        avg_len_str = f'{join.packets.avg_len:.1f} B'
-        avg_len_item = NumericTableWidgetItem(avg_len_str)
-        avg_len_item.setData(Qt.ItemDataRole.UserRole, join.packets.avg_len)
-        avg_len_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-
-        max_len_item = NumericTableWidgetItem(join.packets.max_len)
-        max_len_item.setData(Qt.ItemDataRole.UserRole, join.packets.max_len)
-        max_len_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-
-        bandwidth_str = PlayerBandwidth.format_bytes(join.bandwidth.exchanged)
-        bandwidth_item = NumericTableWidgetItem(bandwidth_str)
-        bandwidth_item.setData(Qt.ItemDataRole.UserRole, join.bandwidth.exchanged)
-        bandwidth_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-
-        download_str = PlayerBandwidth.format_bytes(join.bandwidth.download)
-        download_item = NumericTableWidgetItem(download_str)
-        download_item.setData(Qt.ItemDataRole.UserRole, join.bandwidth.download)
-        download_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-
-        upload_str = PlayerBandwidth.format_bytes(join.bandwidth.upload)
-        upload_item = NumericTableWidgetItem(upload_str)
-        upload_item.setData(Qt.ItemDataRole.UserRole, join.bandwidth.upload)
-        upload_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+        last_port_item = NumericTableWidgetItem(join.ports.last, align=center)
+        ports_item = NumericTableWidgetItem(', '.join(map(str, join.ports.all)), sort_value=len(join.ports.all), align=center)
+        packets_item = NumericTableWidgetItem(join.packets.exchanged, align=center)
+        recv_item = NumericTableWidgetItem(join.packets.received, align=center)
+        sent_item = NumericTableWidgetItem(join.packets.sent, align=center)
+        min_len_item = NumericTableWidgetItem(join.packets.min_len, align=center)
+        avg_len_item = NumericTableWidgetItem(f'{join.packets.avg_len:.1f} B', sort_value=join.packets.avg_len, align=center)
+        max_len_item = NumericTableWidgetItem(join.packets.max_len, align=center)
+        bandwidth_item = NumericTableWidgetItem(PlayerBandwidth.format_bytes(join.bandwidth.exchanged), sort_value=join.bandwidth.exchanged, align=center)
+        download_item = NumericTableWidgetItem(PlayerBandwidth.format_bytes(join.bandwidth.download), sort_value=join.bandwidth.download, align=center)
+        upload_item = NumericTableWidgetItem(PlayerBandwidth.format_bytes(join.bandwidth.upload), sort_value=join.bandwidth.upload, align=center)
 
         items = (
             index_item,
@@ -334,103 +285,29 @@ class PlayerJoinsWindow(StatTableWindowMixin):
                 status_item.setText(status_str)
             status_item.setForeground(status_color)
 
-        seen_item = self._table.item(row, _COLUMN_LAST_SEEN)
-        if seen_item is not None:
-            seen_time_str = join.last_seen.strftime('%Y-%m-%d %H:%M:%S')
-            if seen_item.text() != seen_time_str:
-                seen_item.setText(seen_time_str)
-                seen_item.setData(Qt.ItemDataRole.UserRole, join.last_seen.timestamp())
-
-        session_item = self._table.item(row, _COLUMN_SESSION_TIME)
-        if session_item is not None:
-            session_seconds = join.get_session_time().total_seconds()
-            duration_str = format_duration(session_seconds)
-            if session_item.text() != duration_str:
-                session_item.setText(duration_str)
-                session_item.setData(Qt.ItemDataRole.UserRole, session_seconds)
-
-        middle_item = self._table.item(row, _COLUMN_MIDDLE_PORTS)
-        if middle_item is not None:
-            middle_ports_str = ', '.join(map(str, reversed(join.ports.middle))) or '—'
-            if middle_item.text() != middle_ports_str:
-                middle_item.setText(middle_ports_str)
-
-        last_port_item = self._table.item(row, _COLUMN_LAST_PORT)
-        if last_port_item is not None:
-            last_port_str = str(join.ports.last)
-            if last_port_item.text() != last_port_str:
-                last_port_item.setText(last_port_str)
-                last_port_item.setData(Qt.ItemDataRole.UserRole, join.ports.last)
-
-        ports_item = self._table.item(row, _COLUMN_PORTS)
-        if ports_item is not None:
-            ports_str = ', '.join(map(str, join.ports.all))
-            if ports_item.text() != ports_str:
-                ports_item.setText(ports_str)
-                ports_item.setData(Qt.ItemDataRole.UserRole, len(join.ports.all))
-
-        packets_item = self._table.item(row, _COLUMN_PACKETS)
-        if packets_item is not None:
-            packets_str = str(join.packets.exchanged)
-            if packets_item.text() != packets_str:
-                packets_item.setText(packets_str)
-                packets_item.setData(Qt.ItemDataRole.UserRole, join.packets.exchanged)
-
-        recv_item = self._table.item(row, _COLUMN_PACKETS_RECEIVED)
-        if recv_item is not None:
-            recv_str = str(join.packets.received)
-            if recv_item.text() != recv_str:
-                recv_item.setText(recv_str)
-                recv_item.setData(Qt.ItemDataRole.UserRole, join.packets.received)
-
-        sent_item = self._table.item(row, _COLUMN_PACKETS_SENT)
-        if sent_item is not None:
-            sent_str = str(join.packets.sent)
-            if sent_item.text() != sent_str:
-                sent_item.setText(sent_str)
-                sent_item.setData(Qt.ItemDataRole.UserRole, join.packets.sent)
-
-        min_len_item = self._table.item(row, _COLUMN_MIN_PACKET_LENGTH)
-        if min_len_item is not None:
-            min_len_str = str(join.packets.min_len)
-            if min_len_item.text() != min_len_str:
-                min_len_item.setText(min_len_str)
-                min_len_item.setData(Qt.ItemDataRole.UserRole, join.packets.min_len)
-
-        avg_len_item = self._table.item(row, _COLUMN_AVG_PACKET_LENGTH)
-        if avg_len_item is not None:
-            avg_len_str = f'{join.packets.avg_len:.1f} B'
-            if avg_len_item.text() != avg_len_str:
-                avg_len_item.setText(avg_len_str)
-                avg_len_item.setData(Qt.ItemDataRole.UserRole, join.packets.avg_len)
-
-        max_len_item = self._table.item(row, _COLUMN_MAX_PACKET_LENGTH)
-        if max_len_item is not None:
-            max_len_str = str(join.packets.max_len)
-            if max_len_item.text() != max_len_str:
-                max_len_item.setText(max_len_str)
-                max_len_item.setData(Qt.ItemDataRole.UserRole, join.packets.max_len)
-
-        bandwidth_item = self._table.item(row, _COLUMN_BANDWIDTH)
-        if bandwidth_item is not None:
-            bandwidth_str = PlayerBandwidth.format_bytes(join.bandwidth.exchanged)
-            if bandwidth_item.text() != bandwidth_str:
-                bandwidth_item.setText(bandwidth_str)
-                bandwidth_item.setData(Qt.ItemDataRole.UserRole, join.bandwidth.exchanged)
-
-        download_item = self._table.item(row, _COLUMN_DOWNLOAD)
-        if download_item is not None:
-            download_str = PlayerBandwidth.format_bytes(join.bandwidth.download)
-            if download_item.text() != download_str:
-                download_item.setText(download_str)
-                download_item.setData(Qt.ItemDataRole.UserRole, join.bandwidth.download)
-
-        upload_item = self._table.item(row, _COLUMN_UPLOAD)
-        if upload_item is not None:
-            upload_str = PlayerBandwidth.format_bytes(join.bandwidth.upload)
-            if upload_item.text() != upload_str:
-                upload_item.setText(upload_str)
-                upload_item.setData(Qt.ItemDataRole.UserRole, join.bandwidth.upload)
+        session_seconds = join.get_session_time().total_seconds()
+        cell_updates: tuple[tuple[int, str, float | None], ...] = (
+            (_COLUMN_LAST_SEEN, join.last_seen.strftime('%Y-%m-%d %H:%M:%S'), join.last_seen.timestamp()),
+            (_COLUMN_SESSION_TIME, format_duration(session_seconds), session_seconds),
+            (_COLUMN_MIDDLE_PORTS, ', '.join(map(str, reversed(join.ports.middle))) or '—', None),
+            (_COLUMN_LAST_PORT, str(join.ports.last), join.ports.last),
+            (_COLUMN_PORTS, ', '.join(map(str, join.ports.all)), len(join.ports.all)),
+            (_COLUMN_PACKETS, str(join.packets.exchanged), join.packets.exchanged),
+            (_COLUMN_PACKETS_RECEIVED, str(join.packets.received), join.packets.received),
+            (_COLUMN_PACKETS_SENT, str(join.packets.sent), join.packets.sent),
+            (_COLUMN_MIN_PACKET_LENGTH, str(join.packets.min_len), join.packets.min_len),
+            (_COLUMN_AVG_PACKET_LENGTH, f'{join.packets.avg_len:.1f} B', join.packets.avg_len),
+            (_COLUMN_MAX_PACKET_LENGTH, str(join.packets.max_len), join.packets.max_len),
+            (_COLUMN_BANDWIDTH, PlayerBandwidth.format_bytes(join.bandwidth.exchanged), join.bandwidth.exchanged),
+            (_COLUMN_DOWNLOAD, PlayerBandwidth.format_bytes(join.bandwidth.download), join.bandwidth.download),
+            (_COLUMN_UPLOAD, PlayerBandwidth.format_bytes(join.bandwidth.upload), join.bandwidth.upload),
+        )
+        for column, text, sort_value in cell_updates:
+            cell_item = self._table.item(row, column)
+            if cell_item is not None and cell_item.text() != text:
+                cell_item.setText(text)
+                if sort_value is not None:
+                    cell_item.setData(Qt.ItemDataRole.UserRole, sort_value)
 
     @override
     def closeEvent(self, event: QCloseEvent) -> None:

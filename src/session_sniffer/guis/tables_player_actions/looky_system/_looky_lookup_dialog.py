@@ -1,7 +1,6 @@
 """LookyLookupDialog and show_looky_lookup helper."""
 
 import logging
-import time
 from datetime import UTC
 from http import HTTPStatus
 from typing import TYPE_CHECKING, override
@@ -32,19 +31,19 @@ from session_sniffer.guis.tables_player_actions.looky_system._looky_crawler_requ
     show_crawler_by_rid,
     show_proxy_join_by_rid,
 )
-from session_sniffer.guis.tables_player_actions.looky_system._looky_helpers import check_looky_prerequisites
+from session_sniffer.guis.tables_player_actions.looky_system._looky_helpers import (
+    check_looky_prerequisites,
+    format_looky_request_error,
+)
 from session_sniffer.guis.utils import ActiveDialogRegistry, set_dialog_window_flags
 from session_sniffer.models.player import Player
 from session_sniffer.networking.looky_system import (
-    extract_rate_limit_message,
-    extract_rate_limit_wait_seconds,
     get_looky_user_url,
     lookup_ip,
 )
 from session_sniffer.player.registry import PlayersRegistry, SessionTracker
 from session_sniffer.rendering_core.events import wake_rendering_core
 from session_sniffer.settings.settings import Settings
-from session_sniffer.text_utils import pluralize
 from session_sniffer.utils import dedup_preserve_order
 
 if TYPE_CHECKING:
@@ -78,21 +77,16 @@ class _LookyFetchWorker(CrashingQThread):
             logger.warning('Looky System IP lookup failed with HTTP error: %s', e)
             if e.response is not None and e.response.status_code == HTTPStatus.NOT_FOUND:
                 self.fetch_not_found.emit()
-            elif e.response is not None and e.response.status_code == HTTPStatus.TOO_MANY_REQUESTS:
-                message = extract_rate_limit_message(e)
-                wait_seconds = extract_rate_limit_wait_seconds(e)
-                self.fetch_failed.emit(f'Rate limited: {message}. Try again in {wait_seconds} second{pluralize(wait_seconds or 0)}.')
             else:
-                status_code = e.response.status_code if e.response is not None else '?'
-                self.fetch_failed.emit(f'Looky System API error: HTTP {status_code}')
+                self.fetch_failed.emit(format_looky_request_error(e))
             return
         except requests.RequestException as e:
             logger.warning('Looky System IP lookup failed with network error: %s', e)
-            self.fetch_failed.emit(f'Looky System request failed: {e}')
+            self.fetch_failed.emit(format_looky_request_error(e))
             return
         except ValidationError as e:
             logger.warning('Looky System IP lookup failed with validation error: %s', e)
-            self.fetch_failed.emit(f'Looky System response format unexpected: {e}')
+            self.fetch_failed.emit(format_looky_request_error(e))
             return
         if self.isInterruptionRequested():
             return
@@ -225,34 +219,13 @@ def show_looky_lookup(parent: QWidget, player: Player | StandaloneIPLookup) -> N
     worker = _LookyFetchWorker(player.ip, api_key)
 
     def _on_fetch_succeeded() -> None:
-        unique_results: list[LookyPlayer] = []
-        seen_pairs: set[tuple[str, int]] = set()
-        for entry in worker.results:
-            pair = (entry.name, entry.rockstarid)
-            if pair not in seen_pairs:
-                seen_pairs.add(pair)
-                unique_results.append(entry)
-        with player.looky_system.lock:
-            player.looky_system.usernames = [entry.name.strip() for entry in unique_results if entry.name and entry.name.strip()]
-            player.looky_system.rockstarids = [entry.rockstarid for entry in unique_results]
-            player.looky_system.last_seens = [entry.last_seen for entry in unique_results]
-            player.looky_system.needs_refresh = False
-            player.looky_system.last_fetched_at = time.monotonic()
-            player.looky_system.is_initialized = True
-            player.looky_system.as_userip_checked = False
+        unique_results = player.looky_system.apply_results(worker.results, force_reset_userip_checked=True)
         if player.looky_system.usernames:
             player.usernames = dedup_preserve_order(player.usernames, player.looky_system.usernames)
             if isinstance(player, Player):
                 live_player = PlayersRegistry.get_player_by_ip(player.ip)
                 if live_player is not None and live_player is not player:
-                    with live_player.looky_system.lock:
-                        live_player.looky_system.usernames = list(player.looky_system.usernames)
-                        live_player.looky_system.rockstarids = list(player.looky_system.rockstarids)
-                        live_player.looky_system.last_seens = list(player.looky_system.last_seens)
-                        live_player.looky_system.needs_refresh = False
-                        live_player.looky_system.last_fetched_at = player.looky_system.last_fetched_at
-                        live_player.looky_system.is_initialized = True
-                        live_player.looky_system.as_userip_checked = False
+                    live_player.looky_system.apply_results(worker.results, force_reset_userip_checked=True)
                     live_player.usernames = dedup_preserve_order(live_player.usernames, live_player.looky_system.usernames)
                 SessionTracker.update_session_player_snapshot(player, metadata_only=True)
             wake_rendering_core()

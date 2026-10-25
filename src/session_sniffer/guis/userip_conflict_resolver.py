@@ -25,14 +25,13 @@ from session_sniffer.guis.stylesheets import DIALOG_BUTTON_STYLESHEET, DIALOG_DA
 from session_sniffer.guis.userip_manager_helpers import (
     IPRangeBuilderDialog,
     load_userip_database_model,
+    refresh_userip_and_wake_renderer,
     rewrite_db_edit_entry_ip,
     save_userip_database_model,
 )
 from session_sniffer.guis.utils import ActiveDialogRegistry, find_main_window, scale_by_ui, set_dialog_window_flags
 from session_sniffer.networking.ip_range import entry_ip_covers_ip, parse_ip_range
 from session_sniffer.player.userip import UserIPDatabases
-from session_sniffer.player.userip_loader import update_userip_databases
-from session_sniffer.rendering_core.events import wake_rendering_core
 from session_sniffer.text_utils import pluralize
 
 if TYPE_CHECKING:
@@ -127,8 +126,7 @@ def _delete_sides(sides: Sequence[_ConflictSide]) -> None:
             db_model.entries = kept_entries
             save_userip_database_model(db_path, db_model)
 
-    update_userip_databases()
-    wake_rendering_core()
+    refresh_userip_and_wake_renderer()
 
 
 def _format_side_html(side: _ConflictSide, usernames: Sequence[str]) -> str:
@@ -327,8 +325,7 @@ class UserIPConflictResolverDialog(QDialog):
             QMessageBox.warning(self, TITLE, 'The selected entry no longer exists in its database, nothing was changed.')
             self._refresh()
             return
-        update_userip_databases()
-        wake_rendering_core()
+        refresh_userip_and_wake_renderer()
         self._refresh()
 
     def _delete_selected(self) -> None:

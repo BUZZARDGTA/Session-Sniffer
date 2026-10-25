@@ -2,11 +2,31 @@
 
 import shutil
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, override
+from typing import TYPE_CHECKING, cast, override
 
 from PySide6.QtCore import QModelIndex, QPersistentModelIndex, QSortFilterProxyModel, QUrl
-from PySide6.QtGui import QColor, QDesktopServices, QFont, QIcon, QStandardItemModel, QSyntaxHighlighter, QTextCharFormat, QTextDocument
-from PySide6.QtWidgets import QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPlainTextEdit, QPushButton, QVBoxLayout, QWidget
+from PySide6.QtGui import (
+    QColor,
+    QDesktopServices,
+    QFont,
+    QIcon,
+    QStandardItemModel,
+    QSyntaxHighlighter,
+    QTextCharFormat,
+    QTextCursor,
+    QTextDocument,
+)
+from PySide6.QtWidgets import (
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QMessageBox,
+    QPlainTextEdit,
+    QPushButton,
+    QTextEdit,
+    QVBoxLayout,
+    QWidget,
+)
 
 from session_sniffer.constants.local import CRASH_LOG_PATH, DEBUG_LOG_PATH, RESOURCES_DIR_PATH
 from session_sniffer.constants.standalone import TITLE
@@ -25,6 +45,7 @@ from session_sniffer.logging_setup import purge_crash_log, purge_debug_log
 if TYPE_CHECKING:
     from collections.abc import Callable
     from pathlib import Path
+    from typing import Any
 
 MAX_CSV_ROWS = 50_000
 LARGE_TEXT_FILE_LIMIT = 5 * BYTES_PER_UNIT * BYTES_PER_UNIT  # 5 MB
@@ -346,3 +367,25 @@ def prepare_search(text: str, match_label: QLabel, viewer: QPlainTextEdit) -> QT
         return None
     document = viewer.document()
     return document or None
+
+
+def find_and_highlight_matches(document: QTextDocument, text: str, viewer: QPlainTextEdit) -> list[QTextCursor]:
+    """Find all occurrences of *text* in *document*, apply yellow highlight selections to *viewer*, and return the match cursors."""
+    matched_cursors: list[QTextCursor] = []
+    cursor = document.find(text)
+    while not cursor.isNull():
+        matched_cursors.append(QTextCursor(cursor))
+        cursor = document.find(text, cursor)
+
+    highlight_format = QTextCharFormat()
+    highlight_format.setBackground(QColor('#e3b341'))
+    highlight_format.setForeground(QColor('#000000'))
+
+    selections: list[Any] = []
+    for match_cursor in matched_cursors:
+        selection = cast('Any', QTextEdit.ExtraSelection())
+        selection.cursor = match_cursor
+        selection.format = highlight_format
+        selections.append(selection)
+    viewer.setExtraSelections(selections)
+    return matched_cursors

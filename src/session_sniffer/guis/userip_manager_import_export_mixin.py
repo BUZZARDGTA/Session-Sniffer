@@ -20,12 +20,12 @@ from session_sniffer.guis.userip_manager_helpers import (
     extract_entry_model_from_row,
     load_userip_database_model,
     parse_userip_database_content,
+    refresh_userip_and_wake_renderer,
     save_userip_database_model,
 )
 from session_sniffer.models.userip_settings_model import UserIPDatabaseFile, UserIPEntryModel, UserIPSettingsModel
 from session_sniffer.player import backup_userip_databases
-from session_sniffer.player.userip_loader import find_userip_insert_index, invalidate_userip_db_mtime, update_userip_databases
-from session_sniffer.rendering_core.events import wake_rendering_core
+from session_sniffer.player.userip_loader import find_userip_insert_index, invalidate_userip_db_mtime
 from session_sniffer.text_utils import pluralize
 
 
@@ -300,9 +300,8 @@ class UserIPImportExportMixin(QDialog):
             imported += 1
 
         if modified_on_disk:
-            update_userip_databases()
+            refresh_userip_and_wake_renderer()
             self._rebuild_fs_watch()
-            wake_rendering_core()
             if self._global_search_active:
                 self._load_all_databases()
             elif reload_current_view and self._current_path is not None:
@@ -466,9 +465,8 @@ class UserIPImportExportMixin(QDialog):
             return
 
         if modified_on_disk:
-            update_userip_databases()
+            refresh_userip_and_wake_renderer()
             self._rebuild_fs_watch()
-            wake_rendering_core()
             if self._global_search_active:
                 self._load_all_databases()
             elif reload_current_view and self._current_path is not None:

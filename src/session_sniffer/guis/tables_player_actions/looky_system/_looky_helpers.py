@@ -2,7 +2,9 @@
 
 import html
 from dataclasses import dataclass
+from http import HTTPStatus
 
+import requests
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QDialog,
@@ -35,9 +37,12 @@ from session_sniffer.networking.looky_system import (
     LOOKY_PHASE_PLAYER_PROFILES,
     LOOKY_PHASE_RESOLVE_USERNAMES,
     LookyState,
+    extract_rate_limit_message,
+    extract_rate_limit_wait_seconds,
 )
 from session_sniffer.rendering_core.types import CaptureState
 from session_sniffer.settings.settings import Settings
+from session_sniffer.text_utils import pluralize
 
 _PHASE_DETAILS: dict[str, str] = {
     LOOKY_PHASE_IP_BATCHES: 'Checking which usernames Looky has recorded on your database IP addresses.',
@@ -171,3 +176,16 @@ def check_looky_prerequisites(parent: QWidget, *, restriction: str | None = None
         return None
 
     return Settings.looky_api_key
+
+
+def format_looky_request_error(exc: Exception) -> str:
+    """Format a user-facing error message for a Looky System HTTP, network, or validation failure."""
+    if isinstance(exc, requests.HTTPError):
+        if exc.response is not None and exc.response.status_code == HTTPStatus.TOO_MANY_REQUESTS:
+            wait_seconds = extract_rate_limit_wait_seconds(exc)
+            return f'Rate limited: {extract_rate_limit_message(exc)}. Try again in {wait_seconds} second{pluralize(wait_seconds or 0)}.'
+        status_code = exc.response.status_code if exc.response is not None else '?'
+        return f'Looky System API error: HTTP {status_code}'
+    if isinstance(exc, requests.RequestException):
+        return f'Looky System request failed: {exc}'
+    return f'Looky System response format unexpected: {exc}'

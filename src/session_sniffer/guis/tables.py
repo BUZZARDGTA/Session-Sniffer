@@ -4,7 +4,6 @@ from typing import TYPE_CHECKING, override
 
 from PySide6.QtCore import QAbstractItemModel, QEvent, QItemSelection, QItemSelectionModel, QModelIndex, QObject, QRect, QRectF, QSize, Qt
 from PySide6.QtGui import (
-    QClipboard,
     QColor,
     QFont,
     QFontMetrics,
@@ -33,13 +32,12 @@ from session_sniffer.constants.tables import (
     SESSION_TABLE_MIN_COLUMN_WIDTHS,
 )
 from session_sniffer.error_messages import ensure_instance, format_type_error
-from session_sniffer.guis.app import app
 from session_sniffer.guis.delegates import ElidedTextTooltipDelegate
 from session_sniffer.guis.fonts import get_ui_font
 from session_sniffer.guis.table_model import SessionTableModel
 from session_sniffer.guis.tables_context_menu_mixin import TableContextMenuMixin
 from session_sniffer.guis.tables_header_menu_mixin import TableHeaderMenuMixin
-from session_sniffer.guis.utils import scale_by_ui
+from session_sniffer.guis.utils import scale_by_ui, set_clipboard_text
 from session_sniffer.player.registry import PlayersRegistry, SessionTracker
 from session_sniffer.rendering_core.types import PaginationState, SearchState, SessionFilterState, SortState, TableMergeState
 
@@ -519,29 +517,33 @@ class SessionTableView(TableHeaderMenuMixin, TableContextMenuMixin, QTableView):
     @override
     def copy_selected_cells(self, selected_model: SessionTableModel, selected_indexes: list[QModelIndex]) -> None:
         """Copy the selected cells data from the table to the clipboard."""
-        # Access the system clipboard from the centralized app instance
-        clipboard = ensure_instance(app.clipboard(), QClipboard)
-
-        # Prepare a list to store text data from selected cells
-        selected_texts: list[str] = []
-
-        # Iterate over each selected index and retrieve its display data
-        for model_index in selected_indexes:
-            cell_text = selected_model.get_display_text(model_index)
-            if cell_text is None:
-                continue  # Skip if no valid display text is available
-
-            selected_texts.append(cell_text)
-
-        # Return if no text was selected
+        selected_texts = [
+            cell_text
+            for model_index in selected_indexes
+            if (cell_text := selected_model.get_display_text(model_index)) is not None
+        ]
         if not selected_texts:
             return
+        set_clipboard_text('\n'.join(selected_texts))
 
-        # Join all selected text entries with a newline to format for copying
-        clipboard_content = '\n'.join(selected_texts)
-
-        # Set the formatted text in the system clipboard
-        clipboard.setText(clipboard_content)
+    def _set_cell_range_selected(
+        self,
+        top_row: int,
+        left_column: int,
+        bottom_row: int,
+        right_column: int,
+        *,
+        select: bool,
+    ) -> None:
+        """Select or deselect a rectangular range of cells in the table."""
+        selected_model = self.model()
+        if not selected_model.rowCount():
+            return
+        top_left = selected_model.createIndex(top_row, left_column)
+        bottom_right = selected_model.createIndex(bottom_row, right_column)
+        selection = QItemSelection(top_left, bottom_right)
+        flag = QItemSelectionModel.SelectionFlag.Select if select else QItemSelectionModel.SelectionFlag.Deselect
+        self.selectionModel().select(selection, flag)
 
     @override
     def _select_all_cells_helper(self, *, select: bool) -> None:
@@ -551,25 +553,7 @@ class SessionTableView(TableHeaderMenuMixin, TableContextMenuMixin, QTableView):
             select: If True, select all cells; if False, deselect them.
         """
         selected_model = self.model()
-        selection_model = self.selectionModel()
-
-        # Early return if no rows exist in the table
-        if not selected_model.rowCount():
-            return
-
-        # Get the top-left and bottom-right QModelIndex for the entire table
-        top_left = selected_model.createIndex(0, 0)  # Top-left item (first row, first column)
-        bottom_right = selected_model.createIndex(
-            selected_model.rowCount() - 1,
-            selected_model.columnCount() - 1,
-        )  # Bottom-right item (last row, last column)
-
-        # Create a selection range from top-left to bottom-right
-        selection = QItemSelection(top_left, bottom_right)
-
-        # Use the appropriate selection flag based on the `select` argument
-        flag = QItemSelectionModel.SelectionFlag.Select if select else QItemSelectionModel.SelectionFlag.Deselect
-        selection_model.select(selection, flag)
+        self._set_cell_range_selected(0, 0, selected_model.rowCount() - 1, selected_model.columnCount() - 1, select=select)
 
     @override
     def _select_row_cells_helper(self, row: int, *, select: bool) -> None:
@@ -580,21 +564,7 @@ class SessionTableView(TableHeaderMenuMixin, TableContextMenuMixin, QTableView):
             select: If True, select the row; if False, unselect it.
         """
         selected_model = self.model()
-        selection_model = self.selectionModel()
-
-        # Early return if no rows exist in the table
-        if not selected_model.rowCount():
-            return
-
-        top_index = selected_model.createIndex(row, 0)  # First column of the specified row
-        bottom_index = selected_model.createIndex(row, selected_model.columnCount() - 1)  # Last column of the specified row
-
-        # Create a selection range for the entire row
-        selection = QItemSelection(top_index, bottom_index)
-
-        # Use the appropriate selection flag based on the `select` argument
-        flag = QItemSelectionModel.SelectionFlag.Select if select else QItemSelectionModel.SelectionFlag.Deselect
-        selection_model.select(selection, flag)
+        self._set_cell_range_selected(row, 0, row, selected_model.columnCount() - 1, select=select)
 
     @override
     def _select_column_cells_helper(self, column: int, *, select: bool) -> None:
@@ -605,18 +575,4 @@ class SessionTableView(TableHeaderMenuMixin, TableContextMenuMixin, QTableView):
             select: If True, select the column; if False, unselect it.
         """
         selected_model = self.model()
-        selection_model = self.selectionModel()
-
-        # Early return if no rows exist in the table
-        if not selected_model.rowCount():
-            return
-
-        top_index = selected_model.createIndex(0, column)  # First row of the specified column
-        bottom_index = selected_model.createIndex(selected_model.rowCount() - 1, column)  # Last row of the specified column
-
-        # Create a selection range for the entire column
-        selection = QItemSelection(top_index, bottom_index)
-
-        # Use the appropriate selection flag based on the `select` argument
-        flag = QItemSelectionModel.SelectionFlag.Select if select else QItemSelectionModel.SelectionFlag.Deselect
-        selection_model.select(selection, flag)
+        self._set_cell_range_selected(0, column, selected_model.rowCount() - 1, column, select=select)

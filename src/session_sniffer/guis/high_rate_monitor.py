@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
 
 from session_sniffer.constants.standard import LOCAL_TZ
 from session_sniffer.guis.player_rate_graph import DEFAULT_MAX_HISTORY, PlayerRateGraphWindow
+from session_sniffer.guis.utils import activate_window
 from session_sniffer.models.player import PlayerBandwidth
 from session_sniffer.player.registry import PlayersRegistry
 from session_sniffer.settings import Settings
@@ -354,9 +355,7 @@ class HighRateMonitorWidget(QWidget):
         """Open or focus a live rate graph window for the given player IP."""
         existing = self._graph_windows.get(ip)
         if existing:
-            existing.show()
-            existing.raise_()
-            existing.activateWindow()
+            activate_window(existing)
             return
 
         active_pps_threshold = self._current_smart_threshold if self.mode == 'Smart' else self.pps_threshold

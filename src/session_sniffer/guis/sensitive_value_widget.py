@@ -5,7 +5,6 @@ from typing import Final, override
 from PySide6.QtCore import QEvent, QObject, QSize, Qt, QTimer
 from PySide6.QtGui import QIcon, QMouseEvent
 from PySide6.QtWidgets import (
-    QApplication,
     QGraphicsBlurEffect,
     QHBoxLayout,
     QLabel,
@@ -16,6 +15,7 @@ from PySide6.QtWidgets import (
 
 from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.guis.fonts import get_monospace_font
+from session_sniffer.guis.utils import set_clipboard_text
 
 _SENSITIVE_BLUR_RADIUS: Final[float] = 10.0
 _SENSITIVE_CONTAINER_WIDTH: Final[int] = 240
@@ -132,8 +132,7 @@ class SensitiveValueWidget(QWidget):
 
     def _copy_to_clipboard(self) -> None:
         """Copy the underlying text to clipboard and briefly acknowledge."""
-        clipboard = QApplication.clipboard()
-        clipboard.setText(self._text)
+        set_clipboard_text(self._text)
         self._copy_button.setIcon(self._icon_check)
         self._copy_button.setToolTip('Copied!')
         QTimer.singleShot(1200, self, self._reset_copy_button)

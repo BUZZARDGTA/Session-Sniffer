@@ -12,7 +12,7 @@ from PySide6.QtWidgets import (
 
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.guis.stylesheets import DETECTION_WARN_LABEL_STYLESHEET
-from session_sniffer.guis.tables_player_actions._format import format_bool, format_text
+from session_sniffer.guis.tables_player_actions._format import format_bool, format_text, format_with_code
 from session_sniffer.guis.tables_player_actions._player_info_dialog_mixin import PlayerInfoDialogMixin
 from session_sniffer.guis.utils import ActiveDialogRegistry, format_player_display, set_dialog_window_flags
 from session_sniffer.text_utils import pluralize
@@ -44,10 +44,7 @@ class _BaseDetectionDialog(PlayerInfoDialogMixin):
         group, form = self._make_group('Network Details', accent='#d69e2e')
         self._add_row(form, 'ISP', format_text(player.iplookup.ipapi.isp))
         self._add_row(form, 'Organization', format_text(player.iplookup.ipapi.org))
-        asn = format_text(player.iplookup.ipapi.asn)
-        as_name = format_text(player.iplookup.ipapi.as_name)
-        asn_display = f'{asn} ({as_name})' if asn != 'N/A' and as_name != 'N/A' else asn
-        self._add_row(form, 'ASN', asn_display)
+        self._add_row(form, 'ASN', format_with_code(player.iplookup.ipapi.asn, player.iplookup.ipapi.as_name))
         parent_layout.addWidget(group)
 
     def _build_flags_group(self, parent_layout: QVBoxLayout, player: Player) -> None:
@@ -213,18 +210,9 @@ class PlayerDetectionDialog(_BaseDetectionDialog):
     def _build_location_group(self, parent_layout: QVBoxLayout, player: Player) -> None:
         """Add the 'Location Details' section."""
         group, form = self._make_group('Location Details', accent='#38a169')
-        continent = format_text(player.iplookup.ipapi.continent)
-        continent_code = format_text(player.iplookup.ipapi.continent_code)
-        continent_display = f'{continent} ({continent_code})' if continent != 'N/A' and continent_code != 'N/A' else continent
-        country = format_text(player.iplookup.ipapi.country)
-        country_code = format_text(player.iplookup.ipapi.country_code)
-        country_display = f'{country} ({country_code})' if country != 'N/A' and country_code != 'N/A' else country
-        region = format_text(player.iplookup.ipapi.region)
-        region_code = format_text(player.iplookup.ipapi.region_code)
-        region_display = f'{region} ({region_code})' if region != 'N/A' and region_code != 'N/A' else region
-        self._add_row(form, 'Continent', continent_display)
-        self._add_row(form, 'Country', country_display)
-        self._add_row(form, 'Region', region_display)
+        self._add_row(form, 'Continent', format_with_code(player.iplookup.ipapi.continent, player.iplookup.ipapi.continent_code))
+        self._add_row(form, 'Country', format_with_code(player.iplookup.ipapi.country, player.iplookup.ipapi.country_code))
+        self._add_row(form, 'Region', format_with_code(player.iplookup.ipapi.region, player.iplookup.ipapi.region_code))
         parent_layout.addWidget(group)
 
 

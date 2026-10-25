@@ -330,21 +330,6 @@ class SettingsModel(BaseModel):
         default_value = cls._get_default_for_field(info)
         return default_value if isinstance(default_value, bool) else False
 
-    @field_validator('CAPTURE_INTERFACE_NAME', mode='before')
-    @classmethod
-    def _parse_interface_name(cls, value: object, info: ValidationInfo) -> str | None:
-        if value is None:
-            return None
-        if isinstance(value, str):
-            try:
-                none_value, _ = custom_str_to_nonetype(value)
-            except InvalidNoneTypeValueError:
-                return value
-            cls._set_flag(info, 'should_rewrite', value=True)
-            return none_value
-        cls._set_flag(info, 'should_rewrite', value=True)
-        return cast('str | None', cls._get_default_for_field(info))
-
     @field_validator('CAPTURE_IP_ADDRESS', mode='before')
     @classmethod
     def _parse_ip_address(cls, value: object, info: ValidationInfo) -> str | None:
@@ -634,7 +619,15 @@ class SettingsModel(BaseModel):
         default_value = cls._get_default_for_field(info)
         return str(default_value) if default_value is not None else DEFAULT_DETECTED_SERVER_COLOR
 
-    @field_validator('DISCORD_WEBHOOK_URL', 'DISCORD_WEBHOOK_MESSAGE_IDS', 'WEBSERVER_USERNAME', 'WEBSERVER_PASSWORD', 'LOOKY_API_KEY', mode='before')
+    @field_validator(
+        'CAPTURE_INTERFACE_NAME',
+        'DISCORD_WEBHOOK_URL',
+        'DISCORD_WEBHOOK_MESSAGE_IDS',
+        'WEBSERVER_USERNAME',
+        'WEBSERVER_PASSWORD',
+        'LOOKY_API_KEY',
+        mode='before',
+    )
     @classmethod
     def _parse_optional_string(cls, value: object, info: ValidationInfo) -> str | None:
         if value is None:

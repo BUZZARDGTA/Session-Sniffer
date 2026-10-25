@@ -5,7 +5,6 @@ from typing import TYPE_CHECKING, override
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QCloseEvent, QIcon, QShowEvent
 from PySide6.QtWidgets import (
-    QCheckBox,
     QTabWidget,
     QVBoxLayout,
 )
@@ -13,7 +12,7 @@ from PySide6.QtWidgets import (
 from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.guis.high_rate_monitor import HighRateMonitorWidget
 from session_sniffer.guis.player_identifier import PlayerIdentifierWidget
-from session_sniffer.guis.utils import ToggleAlwaysOnTopMixin
+from session_sniffer.guis.utils import ToggleAlwaysOnTopMixin, activate_window
 from session_sniffer.settings import Settings
 
 if TYPE_CHECKING:
@@ -59,18 +58,11 @@ class PlayerResolverWindow(ToggleAlwaysOnTopMixin):
         self._tabs.addTab(self.player_identifier, QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'user-round-search.svg')), 'Player Identifier')
 
         # Always on top checkbox (shared across tabs)
-        always_on_top_checkbox = QCheckBox('Always on Top')
-        always_on_top_checkbox.setToolTip('Keep this window visible on top of all other applications and games.')
-        always_on_top_checkbox.setChecked(False)
-        always_on_top_checkbox.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-        always_on_top_checkbox.toggled.connect(self.toggle_always_on_top)
-        layout.addWidget(always_on_top_checkbox, alignment=Qt.AlignmentFlag.AlignHCenter)
+        self.add_always_on_top_checkbox(layout, always_on_top=False, alignment=Qt.AlignmentFlag.AlignHCenter)
 
     def show_and_focus(self) -> None:
         """Show the window, bring it to the front, and activate it."""
-        self.show()
-        self.raise_()
-        self.activateWindow()
+        activate_window(self)
 
     @override
     def showEvent(self, event: QShowEvent) -> None:

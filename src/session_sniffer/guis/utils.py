@@ -315,11 +315,21 @@ def compute_ui_scale(screen_size: tuple[int, int]) -> float:
 class NumericTableWidgetItem(QTableWidgetItem):
     """QTableWidgetItem that sorts numerically."""
 
-    def __init__(self, value: float | str) -> None:
+    def __init__(
+        self,
+        value: float | str,
+        *,
+        sort_value: float | None = None,
+        align: Qt.AlignmentFlag | None = None,
+    ) -> None:
         """Create an item displaying *str(value)*; store numeric values as UserRole data for sorting."""
         super().__init__(str(value))
-        if isinstance(value, (int, float)):
+        if sort_value is not None:
+            self.setData(Qt.ItemDataRole.UserRole, sort_value)
+        elif isinstance(value, (int, float)):
             self.setData(Qt.ItemDataRole.UserRole, value)
+        if align is not None:
+            self.setTextAlignment(align)
 
     @staticmethod
     def _extract_numeric_value(item: QTableWidgetItem) -> float | None:
@@ -362,14 +372,23 @@ class ToggleAlwaysOnTopMixin(QWidget):
         layout.setSpacing(spacing)
         return layout
 
-    def add_always_on_top_checkbox(self, layout: QBoxLayout, *, always_on_top: bool) -> None:
+    def add_always_on_top_checkbox(
+        self,
+        layout: QBoxLayout,
+        *,
+        always_on_top: bool,
+        alignment: Qt.AlignmentFlag | None = None,
+    ) -> None:
         """Create and add the standard 'Always on Top' checkbox to *layout*."""
         checkbox = QCheckBox('Always on Top')
         checkbox.setToolTip('Keep this window visible on top of all other applications and games.')
         checkbox.setChecked(always_on_top)
         checkbox.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         checkbox.toggled.connect(self.toggle_always_on_top)
-        layout.addWidget(checkbox)
+        if alignment is not None:
+            layout.addWidget(checkbox, alignment=alignment)
+        else:
+            layout.addWidget(checkbox)
 
     def toggle_always_on_top(self, *, checked: bool | None = None) -> None:
         """Apply or remove the always-on-top window flag based on *checked*."""

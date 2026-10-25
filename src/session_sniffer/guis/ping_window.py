@@ -35,7 +35,7 @@ from session_sniffer.guis.stylesheets import (
     DIALOG_DANGER_BUTTON_STYLESHEET,
     DIALOG_PRIMARY_BUTTON_STYLESHEET,
 )
-from session_sniffer.guis.utils import animate_button_feedback, scale_by_ui
+from session_sniffer.guis.utils import activate_window, animate_button_feedback, scale_by_ui
 from session_sniffer.networking.ping import (
     IcmpEchoEngine,
     PingMode,
@@ -633,9 +633,7 @@ class PingWindow(QWidget):
                 should_auto_start = target.strip() != _DEFAULT_TARGET
                 cls._instance.add_target_tab(target, mode=mode, port=port, auto_start=should_auto_start)
 
-        cls._instance.show()
-        cls._instance.raise_()
-        cls._instance.activateWindow()
+        activate_window(cls._instance)
         return cls._instance
 
     @classmethod

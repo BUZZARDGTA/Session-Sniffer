@@ -35,7 +35,6 @@ from session_sniffer.settings import Settings
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from session_sniffer.models.looky_system import LookyPlayer
     from session_sniffer.models.player import Player
     from session_sniffer.networking.endpoint_ping_manager import PingResult
 
@@ -490,10 +489,7 @@ def pinger_core() -> None:
 
     def apply_result(player: Player, ping_result: PingResult) -> None:
         exhausted_ip_addresses.pop(player.ip, None)
-
-        player.ping.update_fields(ping_result._asdict())
-        player.ping.is_pinging = ping_result.packets_received is not None and ping_result.packets_received > 0
-        player.ping.is_initialized = True
+        player.ping.apply_result(ping_result)
         SessionTracker.update_session_player_snapshot(player, metadata_only=True)
 
     def handle_exception(ip_address: str, exception: Exception) -> bool:
@@ -679,10 +675,7 @@ def looky_core() -> None:
             for ip in batch:
                 matched_player = PlayersRegistry.get_player_by_ip(ip)
                 if matched_player is not None:
-                    with matched_player.looky_system.lock:
-                        matched_player.looky_system.needs_refresh = False
-                        matched_player.looky_system.last_fetched_at = time.monotonic()
-                        matched_player.looky_system.is_initialized = True
+                    matched_player.looky_system.mark_fetched()
             _looky_wakeup_event.wait(1)
             _looky_wakeup_event.clear()
         except requests.RequestException as e:
@@ -697,36 +690,15 @@ def looky_core() -> None:
             for ip in batch:
                 matched_player = PlayersRegistry.get_player_by_ip(ip)
                 if matched_player is not None:
-                    with matched_player.looky_system.lock:
-                        matched_player.looky_system.needs_refresh = False
-                        matched_player.looky_system.last_fetched_at = time.monotonic()
-                        matched_player.looky_system.is_initialized = True
+                    matched_player.looky_system.mark_fetched()
             _looky_wakeup_event.wait(1)
             _looky_wakeup_event.clear()
         else:
             for ip in batch:
                 matched_player = PlayersRegistry.get_player_by_ip(ip)
                 if matched_player is not None:
-                    players = results.get(ip, [])
-                    unique_players: list[LookyPlayer] = []
-                    seen_pairs: set[tuple[str, int]] = set()
-                    for looky_player in players:
-                        pair = (looky_player.name, looky_player.rockstarid)
-                        if pair not in seen_pairs:
-                            seen_pairs.add(pair)
-                            unique_players.append(looky_player)
-                    new_looky_usernames = [
-                        looky_player.name.strip() for looky_player in unique_players if looky_player.name and looky_player.name.strip()
-                    ]
+                    matched_player.looky_system.apply_results(results.get(ip, []))
                     with matched_player.looky_system.lock:
-                        if new_looky_usernames != matched_player.looky_system.usernames:
-                            matched_player.looky_system.as_userip_checked = False
-                        matched_player.looky_system.usernames = new_looky_usernames
-                        matched_player.looky_system.rockstarids = [looky_player.rockstarid for looky_player in unique_players]
-                        matched_player.looky_system.last_seens = [looky_player.last_seen for looky_player in unique_players]
-                        matched_player.looky_system.needs_refresh = False
-                        matched_player.looky_system.last_fetched_at = time.monotonic()
-                        matched_player.looky_system.is_initialized = True
                         looky_usernames = list(matched_player.looky_system.usernames)
 
                     matched_player.rebuild_usernames(looky_usernames=looky_usernames)

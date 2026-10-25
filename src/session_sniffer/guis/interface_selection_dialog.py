@@ -948,9 +948,8 @@ class InterfaceSelectionDialog(QDialog):
                 self._arp_refresh_progress_timer.stop()
             self.accept()  # Close the dialog and set its result to QDialog.Accepted
 
-    @override
-    def accept(self) -> None:
-        """Accept the dialog and cancel any running ARP refresh."""
+    def _cleanup_dialog(self) -> None:
+        """Stop timers, cancel any running ARP refresh, clean up hotspot widget, and clear singleton."""
         self._arp_refresh_cancelled = True
         self._refresh_timer.stop()
         if self._arp_refresh_progress_timer is not None:
@@ -958,30 +957,23 @@ class InterfaceSelectionDialog(QDialog):
         self._hotspot_widget.cleanup()
         if InterfaceSelectionDialog._instance is self:
             InterfaceSelectionDialog._instance = None
+
+    @override
+    def accept(self) -> None:
+        """Accept the dialog and cancel any running ARP refresh."""
+        self._cleanup_dialog()
         super().accept()
 
     @override
     def reject(self) -> None:
         """Stop timers, cancel any running ARP refresh, and reject the dialog."""
-        self._arp_refresh_cancelled = True
-        self._refresh_timer.stop()
-        if self._arp_refresh_progress_timer is not None:
-            self._arp_refresh_progress_timer.stop()
-        self._hotspot_widget.cleanup()
-        if InterfaceSelectionDialog._instance is self:
-            InterfaceSelectionDialog._instance = None
+        self._cleanup_dialog()
         super().reject()
 
     @override
     def closeEvent(self, event: QCloseEvent) -> None:
         """Clean up background workers and timers on close."""
-        self._arp_refresh_cancelled = True
-        self._refresh_timer.stop()
-        if self._arp_refresh_progress_timer is not None:
-            self._arp_refresh_progress_timer.stop()
-        self._hotspot_widget.cleanup()
-        if InterfaceSelectionDialog._instance is self:
-            InterfaceSelectionDialog._instance = None
+        self._cleanup_dialog()
         super().closeEvent(event)
 
     @override

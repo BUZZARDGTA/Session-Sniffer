@@ -95,6 +95,19 @@ class RateGraphWidget(QWidget):
             visible_window=visible_window,
         )
 
+    @classmethod
+    def create_latency_widget(cls, visible_window: int = 60) -> RateGraphWidget:
+        """Create a RateGraphWidget configured for packet latency (ms/s)."""
+        return cls(
+            left_label='Latency (ms/s)',
+            theme=RateGraphTheme(
+                line_color='#ff9800',
+                fill_color=QColor(255, 152, 0, 60),
+                avg_color='#e65100',
+            ),
+            visible_window=visible_window,
+        )
+
     @override
     def paintEvent(self, a0: QPaintEvent | None) -> None:
         """Paint the graph."""

@@ -646,31 +646,26 @@ class UpdateDownloadDialog(DraggableDialogMixin, QDialog):
                 self._status_label.setText(f'Download failed: {result.message}')
             self.reject()
 
-    def _on_cancel(self) -> None:
-        """Cancel the in-progress download."""
+    def _cleanup_download(self) -> None:
+        """Stop any running download worker and delete any partial destination file."""
         if self._worker is not None and self._worker.isRunning():
             self._worker.cancel()
             self._worker.wait()
         if self._dest_path.exists():
             self._dest_path.unlink(missing_ok=True)
+
+    def _on_cancel(self) -> None:
+        """Cancel the in-progress download."""
         self.reject()
 
     @override
     def reject(self) -> None:
         """Handle dialog rejection (Skip, Cancel, or Escape)."""
-        if self._worker is not None and self._worker.isRunning():
-            self._worker.cancel()
-            self._worker.wait()
-        if self._dest_path.exists():
-            self._dest_path.unlink(missing_ok=True)
+        self._cleanup_download()
         super().reject()
 
     @override
     def closeEvent(self, event: QCloseEvent) -> None:
         """Cancel the download if the dialog is closed via the window chrome."""
-        if self._worker is not None and self._worker.isRunning():
-            self._worker.cancel()
-            self._worker.wait()
-        if self._dest_path.exists():
-            self._dest_path.unlink(missing_ok=True)
+        self._cleanup_download()
         super().closeEvent(event)
