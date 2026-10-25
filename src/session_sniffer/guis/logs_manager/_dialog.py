@@ -150,6 +150,7 @@ class LogsManager(QDialog):
             gui_sessions_logging=Settings.gui_sessions_logging,
             active_session_path=SESSIONS_LOGGING_PATH.with_suffix('.json'),
         )
+        self._sessions_tab.update_dir_metadata()
         QMessageBox.information(
             self,
             TITLE,

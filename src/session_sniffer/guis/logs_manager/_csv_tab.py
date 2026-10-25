@@ -7,10 +7,9 @@ from datetime import datetime, timedelta
 from ipaddress import IPv4Address
 from typing import TYPE_CHECKING, override
 
-from PySide6.QtCore import QItemSelectionModel, QModelIndex, QPoint, QSignalBlocker, Qt, QUrl, Signal
+from PySide6.QtCore import QItemSelectionModel, QModelIndex, QPoint, QSignalBlocker, Qt, Signal
 from PySide6.QtGui import (
     QAction,
-    QDesktopServices,
     QIcon,
     QKeySequence,
     QResizeEvent,
@@ -47,6 +46,7 @@ from session_sniffer.guis.logs_manager._helpers import (
     DATE_FILTER_TODAY,
     MAX_CSV_ROWS,
     MultiColumnFilterProxy,
+    add_purge_and_location_buttons,
     create_search_input,
     file_metadata_text,
     purge_log_file,
@@ -58,7 +58,7 @@ from session_sniffer.guis.tables_player_actions import (
     scan_ports_ip,
     show_detailed_ip_lookup,
 )
-from session_sniffer.guis.utils import animate_button_feedback, open_file_location, set_clipboard_text
+from session_sniffer.guis.utils import animate_button_feedback, set_clipboard_text
 from session_sniffer.text_utils import pluralize
 
 if TYPE_CHECKING:
@@ -198,6 +198,7 @@ class CsvLogTab(QWidget):
         copy_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), ' Copy Selected')
         copy_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
         copy_button.setToolTip('Copy selected rows to clipboard')
+        copy_button.setEnabled(False)
         copy_button.clicked.connect(self._copy_selected)
         button_row.addWidget(copy_button)
         self._copy_button = copy_button
@@ -205,41 +206,36 @@ class CsvLogTab(QWidget):
         export_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'upload.svg')), ' Export As...')
         export_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
         export_button.setToolTip('Export the full log to a new CSV file')
+        export_button.setEnabled(False)
         export_button.clicked.connect(self._export_as)
         button_row.addWidget(export_button)
+        self._export_button = export_button
 
         button_row.addStretch()
 
         delete_rows_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')), ' Delete Selected Rows')
         delete_rows_button.setStyleSheet(DIALOG_DANGER_BUTTON_STYLESHEET)
         delete_rows_button.setToolTip('Remove selected rows from the log file')
+        delete_rows_button.setEnabled(False)
         delete_rows_button.clicked.connect(self._delete_selected_rows)
         button_row.addWidget(delete_rows_button)
+        self._delete_rows_button = delete_rows_button
 
-        purge_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')), ' Purge File')
-        purge_button.setStyleSheet(DIALOG_DANGER_BUTTON_STYLESHEET)
-        purge_button.setToolTip('Clear all entries from this log file (creates a backup first)')
-        purge_button.clicked.connect(self._purge_file)
-        button_row.addWidget(purge_button)
-        self._purge_button = purge_button
+        self._purge_button, self._open_file_button = add_purge_and_location_buttons(
+            button_row,
+            self._purge_file,
+            self._file_path,
+            add_stretch=False,
+        )
 
-        label = ' Open Folder Location' if self._file_path.is_dir() else ' Open File Location'
-        open_location_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'folder.svg')), label)
-        open_location_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
-        open_location_button.setToolTip('Open the containing folder in Windows Explorer')
-        open_location_button.clicked.connect(lambda: open_file_location(self._file_path))
-        button_row.addWidget(open_location_button)
-
-        open_file_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'file-text.svg')), ' Open File')
-        open_file_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
-        open_file_button.setToolTip('Open the log file in the default text editor')
-        open_file_button.clicked.connect(lambda: QDesktopServices.openUrl(QUrl.fromLocalFile(str(self._file_path))))
-        button_row.addWidget(open_file_button)
+        if selection_model := self._table.selectionModel():
+            selection_model.selectionChanged.connect(self._update_selection_buttons)
 
         layout.addLayout(button_row)
 
         # --- Auto-refresh from disk ---
         self._watcher = DebouncedFileWatcher(self, self.load_data)
+        self._watching_stopped = False
 
         # Initial load
         self.load_data()
@@ -247,9 +243,13 @@ class CsvLogTab(QWidget):
     def start_watching(self) -> None:
         """Start auto-refresh watcher from disk."""
         self._watcher.watch(files=[self._file_path], directories=[self._file_path.parent])
+        if self._watching_stopped:
+            self._watching_stopped = False
+            self.load_data()
 
     def stop_watching(self) -> None:
         """Stop auto-refresh watcher from disk."""
+        self._watching_stopped = True
         self._watcher.stop()
 
     @property
@@ -264,6 +264,7 @@ class CsvLogTab(QWidget):
     def load_data(self) -> None:
         """Read the CSV file and populate the table model."""
         self._purge_button.setEnabled(False)
+        self._open_file_button.setEnabled(self._file_path.is_file())
         scrollbar = self._table.verticalScrollBar()
         previous_scroll = scrollbar.value() if scrollbar else 0
 
@@ -273,7 +274,6 @@ class CsvLogTab(QWidget):
         if not self._file_path.exists():
             self._update_counts()
             self._metadata_label.setText(file_metadata_text(self._file_path))
-            self._initial_loaded = True
             self.purge_state_changed.emit()
             return
 
@@ -283,7 +283,6 @@ class CsvLogTab(QWidget):
             if file_headers is None:
                 self._update_counts()
                 self._metadata_label.setText(file_metadata_text(self._file_path))
-                self._initial_loaded = True
                 self.purge_state_changed.emit()
                 return
 
@@ -348,11 +347,18 @@ class CsvLogTab(QWidget):
 
     def _rebuild_column_combo(self, headers: list[str]) -> None:
         """Rebuild the column filter combo box from actual file headers."""
+        previous_text = self._column_combo.currentText()
+        previous_data = self._column_combo.currentData()
         with QSignalBlocker(self._column_combo):
             self._column_combo.clear()
             self._column_combo.addItem('All Columns', -1)
             for i, header in enumerate(headers):
                 self._column_combo.addItem(header, i)
+            if previous_data != -1 and previous_text in headers:
+                restored_index = self._column_combo.findText(previous_text)
+                if restored_index >= 0:
+                    self._column_combo.setCurrentIndex(restored_index)
+        self._proxy.set_filter_column(self._get_active_search_column())
 
     def _get_active_search_column(self) -> int:
         column_data = self._column_combo.currentData()
@@ -400,6 +406,12 @@ class CsvLogTab(QWidget):
         self._proxy.set_date_filter(date_column, cutoff)
         self._update_counts()
 
+    def _update_selection_buttons(self, *_args: object) -> None:
+        selection_model = self._table.selectionModel()
+        has_selection = bool(selection_model and selection_model.selectedRows())
+        self._copy_button.setEnabled(has_selection)
+        self._delete_rows_button.setEnabled(has_selection)
+
     def _update_counts(self) -> None:
         total = self._model.rowCount()
         visible = self._proxy.rowCount()
@@ -409,6 +421,8 @@ class CsvLogTab(QWidget):
         if self._truncated:
             parts.append(f'(display limited to {MAX_CSV_ROWS:,} rows)')
         self._count_label.setText('  |  '.join(parts))
+        self._export_button.setEnabled(total > 0 and self._file_path.is_file())
+        self._update_selection_buttons()
 
     @override
     def showEvent(self, event: QShowEvent) -> None:
@@ -657,6 +671,8 @@ class CsvLogTab(QWidget):
         set_clipboard_text('\n'.join(lines))
 
     def _export_as(self) -> None:
+        if not self._file_path.is_file():
+            return
         path, _ = QFileDialog.getSaveFileName(
             self,
             'Export Log As',

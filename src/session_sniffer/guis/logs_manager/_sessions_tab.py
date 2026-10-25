@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
 from pydantic import ValidationError
-from PySide6.QtCore import QItemSelectionModel, QModelIndex, QPoint, Qt, QTimer, QUrl
+from PySide6.QtCore import QItemSelectionModel, QModelIndex, QPoint, QSignalBlocker, Qt, QTimer, QUrl
 from PySide6.QtGui import QColor, QDesktopServices, QIcon, QTextCharFormat, QTextCursor
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -60,17 +60,6 @@ if TYPE_CHECKING:
     from typing import Any
 
 _SEARCH_ALL = 'All Searchable Columns'
-_SEARCH_COLUMN_USERNAMES = 'Usernames'
-_SEARCH_COLUMN_IP = 'IP Address'
-_SEARCH_COLUMN_HOSTNAME = 'Hostname'
-_SEARCH_COLUMN_COUNTRY = 'Country'
-_SEARCH_COLUMN_CITY = 'City'
-_SEARCH_COLUMN_ISP = 'ISP'
-_SEARCH_COLUMN_ASN = 'ASN'
-_SEARCH_COLUMN_PORTS = 'Ports'
-_SEARCH_COLUMN_LAST_PORT = 'Last Port'
-_SEARCH_COLUMN_MIDDLE_PORTS = 'Middle Ports'
-_SEARCH_COLUMN_FIRST_PORT = 'First Port'
 _SINGLE_FILE_VIEWER_PLACEHOLDER = 'Select a session JSON file from the tree to view its contents.'
 _GLOBAL_SEARCH_VIEWER_PLACEHOLDER = 'Press Enter to search across all session JSON files.'
 
@@ -206,7 +195,7 @@ class SessionsLogTab(QWidget):
         # --- Directory metadata ---
         self._metadata_label = setup_metadata_label(layout)
 
-        button_row = setup_copy_save_button_row(
+        button_row, self._copy_button, self._save_button = setup_copy_save_button_row(
             layout, self._copy_all, self._save_as,
             save_tooltip='Save the displayed file to a new location',
         )
@@ -216,6 +205,7 @@ class SessionsLogTab(QWidget):
         self._delete_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')), ' Delete')
         self._delete_button.setStyleSheet(DIALOG_DANGER_BUTTON_STYLESHEET)
         self._delete_button.setToolTip('Delete the currently selected file or folder')
+        self._delete_button.setEnabled(False)
         self._delete_button.clicked.connect(self._delete_selected)
         button_row.addWidget(self._delete_button)
 
@@ -233,6 +223,7 @@ class SessionsLogTab(QWidget):
         button_row.addWidget(self._open_file_button)
 
         # Live-refresh the currently displayed session file when it changes on disk.
+        self._watching_stopped: bool = False
         self._file_watcher = DebouncedFileWatcher(self, self._on_current_file_changed)
 
         # Initial metadata
@@ -240,28 +231,47 @@ class SessionsLogTab(QWidget):
 
     def start_watching(self) -> None:
         """Resume watching the currently selected session file."""
-        if self._selected_path is not None and self._selected_path.is_file():
-            self._file_watcher.watch(files=[self._selected_path])
+        if self._watching_stopped:
+            self._watching_stopped = False
+            self.update_dir_metadata()
+            if self._selected_path is not None and self._selected_path.is_file():
+                self._file_watcher.watch(files=[self._selected_path])
+                self._on_current_file_changed()
 
     def stop_watching(self) -> None:
         """Stop watching session files."""
+        self._watching_stopped = True
         self._file_watcher.stop()
 
     # ------------------------------------------------------------------
     # Directory metadata
     # ------------------------------------------------------------------
 
-    def update_dir_metadata(self) -> None:
-        """Update the metadata label with total size and file count of the sessions directory."""
-        if not self._sessions_dir.exists():
-            self._metadata_label.setText(f'{self._sessions_dir.name}  —  Directory not found')
-            return
+    @staticmethod
+    def _count_json_files_and_size(directory: Path) -> tuple[int, int]:
+        """Return `(total_bytes, file_count)` for all `.json` files under *directory*."""
         total_size = 0
         file_count = 0
-        for json_file in self._sessions_dir.rglob('*.json'):
+        for json_file in directory.rglob('*.json'):
             if json_file.is_file():
                 total_size += json_file.stat().st_size
                 file_count += 1
+        return total_size, file_count
+
+    def update_dir_metadata(self) -> None:
+        """Update the metadata label with total size and file count of the sessions directory."""
+        if self._selected_path is not None:
+            if not self._selected_path.exists():
+                self._clear_tree_selection()
+            elif self._selected_path.is_dir() and not self._global_search_active:
+                folder_size, folder_count = self._count_json_files_and_size(self._selected_path)
+                self._file_info_label.setText(
+                    f'{self._selected_path.name}  (folder)  |  {human_readable_size(folder_size)}  |  {folder_count} json file{pluralize(folder_count)}',
+                )
+        if not self._sessions_dir.exists():
+            self._metadata_label.setText(f'{self._sessions_dir.name}  —  Directory not found')
+            return
+        total_size, file_count = self._count_json_files_and_size(self._sessions_dir)
         self._metadata_label.setText(
             f'{self._sessions_dir.name}  |  {human_readable_size(total_size)}  |  {file_count} json file{pluralize(file_count)}',
         )
@@ -314,72 +324,102 @@ class SessionsLogTab(QWidget):
 
     def _handle_tree_selection(self, index: QModelIndex) -> None:
         if not index.isValid():
-            self._selected_path = None
             self._file_watcher.stop()
-            self._current_file = None
-            self._current_rendered_text = ''
-            self._viewer.setPlainText('')
-            self._file_info_label.setText('')
-            self._match_label.setText('')
-            self._viewer.setExtraSelections([])
-            self._delete_button.setText(' Delete')
-            self._delete_button.setToolTip('Delete the currently selected file or folder')
-            self._open_location_button.setText(' Open Folder Location')
-            self._open_file_button.setEnabled(False)
+            self._reset_selection_display()
             return
         selected = Path(self._fs_model.filePath(index))
         if selected == self._selected_path:
             return
-        self._selected_path = selected
         if selected.is_file():
-            self._load_file(selected)
-            self._delete_button.setText(' Delete File')
-            self._delete_button.setToolTip('Delete the currently selected session JSON file')
-            self._open_location_button.setText(' Open File Location')
-            self._open_file_button.setEnabled(True)
+            self._apply_file_selection(selected)
         elif selected.is_dir():
-            self._file_watcher.stop()
-            self._current_file = None
-            self._current_rendered_text = ''
-            self._viewer.setPlainText('')
-            total_size = 0
-            file_count = 0
-            for json_file in selected.rglob('*.json'):
-                if json_file.is_file():
-                    total_size += json_file.stat().st_size
-                    file_count += 1
-            self._file_info_label.setText(
-                f'{selected.name}  (folder)  |  {human_readable_size(total_size)}  |  {file_count} json file{pluralize(file_count)}',
-            )
-            self._match_label.setText('')
+            self._apply_folder_selection(selected)
+
+    def _set_viewer_content(self, text: str, placeholder_text: str) -> None:
+        """Update the viewer content, placeholder text, and Copy/Save button states."""
+        self._current_rendered_text = text
+        self._viewer.setPlaceholderText(placeholder_text)
+        self._viewer.setPlainText(text)
+        if not text:
             self._viewer.setExtraSelections([])
-            self._delete_button.setText(' Delete Folder')
-            self._delete_button.setToolTip('Delete the currently selected folder and all its contents')
-            self._open_location_button.setText(' Open Folder Location')
-            self._open_file_button.setEnabled(False)
+        has_text = bool(text)
+        self._copy_button.setEnabled(has_text)
+        self._save_button.setEnabled(has_text)
+
+    def _reset_selection_display(self) -> None:
+        """Clear the selected path, viewer state, and disable file/folder action buttons."""
+        self._selected_path = None
+        self._current_file = None
+        self._file_info_label.setText('')
+        self._match_label.setText('')
+        placeholder = _GLOBAL_SEARCH_VIEWER_PLACEHOLDER if self._global_search_active else _SINGLE_FILE_VIEWER_PLACEHOLDER
+        self._set_viewer_content('', placeholder)
+        self._delete_button.setText(' Delete')
+        self._delete_button.setToolTip('Delete the currently selected file or folder')
+        self._delete_button.setEnabled(False)
+        self._open_location_button.setText(' Open Folder Location')
+        self._open_file_button.setEnabled(False)
+
+    def _apply_file_selection(self, file_path: Path) -> None:
+        """Select *file_path*, render its contents, and enable file action buttons."""
+        self._selected_path = file_path
+        self._load_file(file_path)
+        self._delete_button.setText(' Delete File')
+        self._delete_button.setToolTip('Delete the currently selected session JSON file')
+        self._delete_button.setEnabled(True)
+        self._open_location_button.setText(' Open File Location')
+        self._open_file_button.setEnabled(file_path.is_file())
+
+    def _apply_folder_selection(self, folder_path: Path) -> None:
+        """Select *folder_path*, display its folder summary, and update folder action buttons."""
+        self._selected_path = folder_path
+        self._file_watcher.stop()
+        self._current_file = None
+        self._set_viewer_content('', _SINGLE_FILE_VIEWER_PLACEHOLDER)
+        total_size, file_count = self._count_json_files_and_size(folder_path)
+        self._file_info_label.setText(f'{folder_path.name}  (folder)  |  {human_readable_size(total_size)}  |  {file_count} json file{pluralize(file_count)}')
+        self._match_label.setText('')
+        self._delete_button.setText(' Delete Folder')
+        self._delete_button.setToolTip('Delete the currently selected folder and all its contents')
+        self._delete_button.setEnabled(True)
+        self._open_location_button.setText(' Open Folder Location')
+        self._open_file_button.setEnabled(False)
 
     def _load_file(self, file_path: Path) -> None:
         self._current_file = file_path
         self._file_watcher.watch(files=[file_path])
         text = self._render_session_file(file_path)
-        self._current_rendered_text = text
-        self._viewer.setPlainText(text)
+        if text is None:
+            self._current_file = None
+            self._set_viewer_content('', f'[Failed to parse JSON session file: {file_path.name}]')
+            self._file_info_label.setText(f'{file_path.name}  |  Failed to parse')
+            self._match_label.setText('')
+            return
+        self._set_viewer_content(text, _SINGLE_FILE_VIEWER_PLACEHOLDER)
         line_count = text.count('\n') + (1 if text and not text.endswith('\n') else 0)
-        self._file_info_label.setText(
-            f'{file_path.name}  |  {human_readable_size(file_path.stat().st_size)}  |  {line_count:,} rendered lines',
-        )
+        self._file_info_label.setText(f'{file_path.name}  |  {human_readable_size(file_path.stat().st_size)}  |  {line_count:,} rendered lines')
 
         if self._search_input.text():
             self._on_search_changed(self._search_input.text())
+        else:
+            self._match_label.setText('')
+            self._viewer.setExtraSelections([])
 
     def _on_current_file_changed(self) -> None:
         """Re-render the displayed session file after it changes on disk."""
-        if self._global_search_active or self._current_file is None or not self._current_file.is_file():
+        target_file = self._current_file or (
+            self._selected_path if self._selected_path is not None and not self._selected_path.is_dir() else None
+        )
+        if self._global_search_active or target_file is None:
+            return
+        if not target_file.is_file():
+            self._clear_tree_selection()
+            self.update_dir_metadata()
             return
         scrollbar = self._viewer.verticalScrollBar()
         previous_scroll = scrollbar.value() if scrollbar else 0
         at_bottom = scrollbar and previous_scroll >= scrollbar.maximum() - 5
-        self._load_file(self._current_file)
+        self._load_file(target_file)
         if scrollbar:
             scrollbar.setValue(scrollbar.maximum() if at_bottom else min(previous_scroll, scrollbar.maximum()))
 
@@ -388,15 +428,24 @@ class SessionsLogTab(QWidget):
     # ------------------------------------------------------------------
 
     def _on_search_column_changed(self, _value: str) -> None:
+        if self._global_search_active:
+            self._start_global_search(self._search_input.text())
+            return
         self._on_search_changed(self._search_input.text())
 
     def _on_search_changed(self, text: str) -> None:
         if self._global_search_active:
+            if not text:
+                self._start_global_search('')
             # Global search is expensive; only triggered on Enter, not per-keystroke.
+            return
+        if self._current_file is None:
+            self._viewer.setExtraSelections([])
+            self._match_label.setText('')
             return
 
         selected_column = self._search_column_combo.currentText()
-        if text and self._current_file is not None and not self._file_has_search_match(self._current_file, text, selected_column):
+        if text and not self._file_has_search_match(self._current_file, text, selected_column):
             self._viewer.setExtraSelections([])
             self._match_label.setText('No matches')
             return
@@ -430,8 +479,9 @@ class SessionsLogTab(QWidget):
 
     def set_search_global(self, text: str) -> None:
         """Programmatically activate global search mode with the given text and start the search."""
-        self._search_input.setText(text)
-        if self._global_search_active:
+        with QSignalBlocker(self._search_input):
+            self._search_input.setText(text)
+        if self._global_search_checkbox.isChecked():
             self._start_global_search(text)
         else:
             self._global_search_checkbox.setChecked(True)
@@ -447,7 +497,7 @@ class SessionsLogTab(QWidget):
         """Switch between single-file view mode and global search mode."""
         if self._global_search_checkbox.isChecked():
             self._file_watcher.stop()
-            self._saved_file_before_global_search = self._current_file
+            self._saved_file_before_global_search = self._selected_path
             self._global_search_active = True
             self._clear_tree_selection()
             self._tree_container.setVisible(False)
@@ -457,25 +507,26 @@ class SessionsLogTab(QWidget):
             self._start_global_search(self._search_input.text())
         else:
             self._global_search_active = False
+            self._global_search_generation += 1
             self._stop_loading_animation()
             self._tree_container.setVisible(True)
             self._search_input.setPlaceholderText('Search in displayed file…')
             self._viewer.setPlaceholderText(_SINGLE_FILE_VIEWER_PLACEHOLDER)
             self._tree.setEnabled(True)
             self._viewer.setExtraSelections([])
-            restored_file = getattr(self, '_saved_file_before_global_search', None)
+            restored_path = self._saved_file_before_global_search
             self._saved_file_before_global_search = None
-            if isinstance(restored_file, Path) and restored_file.is_file():
-                index = self._fs_model.index(str(restored_file))
+            if isinstance(restored_path, Path) and restored_path.exists():
+                index = self._fs_model.index(str(restored_path))
                 if index.isValid():
                     self._tree.setCurrentIndex(index)
-                self._selected_path = restored_file
-                self._load_file(restored_file)
+                if self._selected_path != restored_path:
+                    if restored_path.is_file():
+                        self._apply_file_selection(restored_path)
+                    elif restored_path.is_dir():
+                        self._apply_folder_selection(restored_path)
             else:
-                self._viewer.setPlainText('')
-                self._match_label.setText('')
-                self._file_info_label.setText('')
-                self._current_rendered_text = ''
+                self._reset_selection_display()
 
     def _clear_tree_selection(self) -> None:
         selection_model = self._tree.selectionModel()
@@ -484,22 +535,12 @@ class SessionsLogTab(QWidget):
             selection_model.setCurrentIndex(QModelIndex(), QItemSelectionModel.SelectionFlag.Clear)
         self._tree.setCurrentIndex(QModelIndex())
         self._file_watcher.stop()
-        self._selected_path = None
-        self._current_file = None
-        self._current_rendered_text = ''
-        self._file_info_label.setText('')
-        self._match_label.setText('')
-        self._viewer.setPlainText('')
+        self._reset_selection_display()
 
     def _start_global_search(self, text: str) -> None:
         """Clear the display and start an animated background search across all JSON files."""
-        self._viewer.setExtraSelections([])
-        self._current_rendered_text = ''
-        self._selected_path = None
-        self._current_file = None
-        self._file_info_label.setText('')
-        self._match_label.setText('')
-        self._viewer.setPlainText('')
+        self._global_search_generation += 1
+        self._reset_selection_display()
 
         if not text:
             self._loading_label.setVisible(False)
@@ -507,7 +548,6 @@ class SessionsLogTab(QWidget):
             self._search_poll_timer.stop()
             return
 
-        self._global_search_generation += 1
         generation = self._global_search_generation
         selected_column = self._search_column_combo.currentText()
 
@@ -554,7 +594,10 @@ class SessionsLogTab(QWidget):
             if not structured_matches:
                 continue
 
-            lines = self._render_session_file(json_path).splitlines()
+            rendered_text = self._render_session_file(json_path)
+            if rendered_text is None:
+                continue
+            lines = rendered_text.splitlines()
             line_number_width = len(str(len(lines)))
 
             relative = json_path.relative_to(self._sessions_dir)
@@ -627,7 +670,7 @@ class SessionsLogTab(QWidget):
                 self._stop_loading_animation()
                 self._match_label.setText('Search failed')
                 if not self._viewer.toPlainText():
-                    self._viewer.setPlainText('Search did not return results. Please try again.')
+                    self._set_viewer_content('', 'Search did not return results. Please try again.')
             return
 
         generation, result_lines, total_matches, files_with_matches = latest_result
@@ -637,8 +680,10 @@ class SessionsLogTab(QWidget):
 
         self._stop_loading_animation()
         rendered_text = '\n'.join(result_lines)
-        self._current_rendered_text = rendered_text
-        self._viewer.setPlainText(rendered_text)
+        if total_matches > 0:
+            self._set_viewer_content(rendered_text, _GLOBAL_SEARCH_VIEWER_PLACEHOLDER)
+        else:
+            self._set_viewer_content('', rendered_text or _GLOBAL_SEARCH_VIEWER_PLACEHOLDER)
         self._match_label.setText(f'{total_matches} match{pluralize(total_matches, "", "es")}' if total_matches else 'No matches')
         self._file_info_label.setText(
             f'Search across all files  |  {files_with_matches} file{pluralize(files_with_matches)} matched' if total_matches else '',
@@ -665,7 +710,8 @@ class SessionsLogTab(QWidget):
             return ', '.join(str(item) for item in values)
         if value is None:
             return ''
-        return str(value)
+        text = str(value)
+        return '' if text in {'N/A', '...'} else text
 
     @staticmethod
     def _try_parse_table_row(line: str) -> list[str] | None:
@@ -758,37 +804,21 @@ class SessionsLogTab(QWidget):
 
     @classmethod
     def _build_player_search_fields(cls, ip: str, info: dict[str, Any]) -> dict[str, str]:
+        columns = cls._get_column_snapshot(info)
         return {
-            _SEARCH_COLUMN_USERNAMES: cls._normalize_search_value(info.get('Usernames')),
-            _SEARCH_COLUMN_IP: ip,
-            _SEARCH_COLUMN_HOSTNAME: cls._normalize_search_value(info.get('Hostname')),
-            _SEARCH_COLUMN_COUNTRY: cls._normalize_search_value(info.get('Country')),
-            _SEARCH_COLUMN_CITY: cls._normalize_search_value(info.get('City')),
-            _SEARCH_COLUMN_ISP: cls._normalize_search_value(info.get('ISP')),
-            _SEARCH_COLUMN_ASN: cls._normalize_search_value(info.get('ASN')),
-            _SEARCH_COLUMN_PORTS: cls._normalize_search_value(info.get('Ports')),
-            _SEARCH_COLUMN_LAST_PORT: cls._normalize_search_value(info.get('Last Port')),
-            _SEARCH_COLUMN_MIDDLE_PORTS: cls._normalize_search_value(info.get('Middle Ports')),
-            _SEARCH_COLUMN_FIRST_PORT: cls._normalize_search_value(info.get('First Port')),
+            column: ip if column == 'IP Address' else cls._normalize_search_value(columns.get(column, info.get(column)))
+            for column in _SEARCHABLE_COLUMNS[1:]
         }
 
     @classmethod
     def _iter_json_text_values(cls, value: object) -> list[str]:
         if isinstance(value, dict):
             mapping = cast('dict[object, object]', value)
-            texts: list[str] = []
-            for item in mapping.values():
-                texts.extend(cls._iter_json_text_values(item))
-            return texts
+            return [text for item in mapping.values() for text in cls._iter_json_text_values(item)]
         if isinstance(value, list):
             values = cast('list[object]', value)
-            texts = []
-            for item in values:
-                texts.extend(cls._iter_json_text_values(item))
-            return texts
-        if value is None:
-            return []
-        return [str(value)]
+            return [text for item in values for text in cls._iter_json_text_values(item)]
+        return [] if value is None else [str(value)]
 
     @staticmethod
     def _load_session_log_file(file_path: Path) -> SessionLogFile:
@@ -807,10 +837,11 @@ class SessionsLogTab(QWidget):
             for ip, info in players.items():
                 fields = self._build_player_search_fields(ip, info)
                 if selected_column == _SEARCH_ALL:
-                    matched_columns = []
-                    all_text = ' '.join(self._iter_json_text_values(info))
-                    if search_lower in all_text.lower():
-                        matched_columns = list(fields)
+                    matched_columns = [column for column, value in fields.items() if search_lower in value.lower()]
+                    if not matched_columns:
+                        all_text = ' '.join((ip, *self._iter_json_text_values(info)))
+                        if search_lower in all_text.lower():
+                            matched_columns = [column for column, value in fields.items() if value]
                 else:
                     selected_value = fields.get(selected_column, '')
                     matched_columns = [selected_column] if search_lower in selected_value.lower() else []
@@ -828,24 +859,15 @@ class SessionsLogTab(QWidget):
     # Actions
     # ------------------------------------------------------------------
 
-    def _copy_all(self) -> None:
-        copy_viewer_text_to_clipboard(self._viewer)
+    def _copy_all(self) -> bool:
+        return copy_viewer_text_to_clipboard(self._viewer)
 
     def _save_as(self) -> None:
         if self._current_file is None and not (self._global_search_active and self._current_rendered_text):
             QMessageBox.information(self, TITLE, 'No file selected.')
             return
-        default_name = (
-            str(self._current_file.with_suffix('.export.log'))
-            if self._current_file is not None
-            else str(self._sessions_dir / 'global_search.export.log')
-        )
-        path, _ = QFileDialog.getSaveFileName(
-            self,
-            'Save Session Log As',
-            default_name,
-            'Log Files (*.log);;Text Files (*.txt);;All Files (*)',
-        )
+        default_name = str(self._current_file.with_suffix('.export.log')) if self._current_file is not None else str(self._sessions_dir / 'global_search.export.log')
+        path, _ = QFileDialog.getSaveFileName(self, 'Save Session Log As', default_name, 'Log Files (*.log);;Text Files (*.txt);;All Files (*)')
         if not path:
             return
         Path(path).write_text(self._current_rendered_text or self._viewer.toPlainText(), encoding='utf-8')
@@ -938,16 +960,13 @@ class SessionsLogTab(QWidget):
             ),
         )
 
-    def _render_session_file(self, file_path: Path) -> str:
+    def _render_session_file(self, file_path: Path) -> str | None:
         try:
             session_log = self._load_session_log_file(file_path)
         except (OSError, ValidationError) as e:
             logger.warning('Failed to load session log from %s: %s', file_path, e)
-            return f'[Failed to parse JSON session file: {file_path.name}]\n{e}'
-
-        connected_table = self._build_connected_table(session_log.connected)
-        disconnected_table = self._build_disconnected_table(session_log.disconnected)
-        return f'{connected_table}\n{disconnected_table}'
+            return None
+        return f'{self._build_connected_table(session_log.connected)}\n{self._build_disconnected_table(session_log.disconnected)}'
 
     def _delete_selected(self) -> None:
         if self._selected_path is None or not self._selected_path.exists():
@@ -969,16 +988,8 @@ class SessionsLogTab(QWidget):
             shutil.rmtree(self._selected_path)
         else:
             self._selected_path.unlink()
-        self._viewer.clear()
-        self._file_info_label.setText('')
-        self._current_file = None
-        self._selected_path = None
-        self._current_rendered_text = ''
+        self._clear_tree_selection()
         self.update_dir_metadata()
-        self._delete_button.setText(' Delete')
-        self._delete_button.setToolTip('Delete the currently selected file or folder')
-        self._open_location_button.setText(' Open Folder Location')
-        self._open_file_button.setEnabled(False)
 
     def _open_location(self) -> None:
         if self._selected_path and self._selected_path.exists():

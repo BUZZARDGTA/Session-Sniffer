@@ -12,7 +12,6 @@ from PySide6.QtWidgets import (
     QFileDialog,
     QHBoxLayout,
     QLabel,
-    QLineEdit,
     QMessageBox,
     QPushButton,
     QTextEdit,
@@ -29,6 +28,7 @@ from session_sniffer.guis.logs_manager._helpers import (
     add_purge_and_location_buttons,
     copy_viewer_text_to_clipboard,
     create_log_viewer,
+    create_search_input,
     file_metadata_text,
     prepare_search,
     purge_log_file,
@@ -92,12 +92,8 @@ class TextLogTab(QWidget):
         # --- Top bar ---
         top_bar = QHBoxLayout()
 
-        top_bar.addWidget(QLabel('Search:'))
-        self._search_input = QLineEdit()
-        self._search_input.setPlaceholderText('Search in log…')
+        self._search_input = create_search_input(top_bar, 'Search in log…', self._on_search_changed)
         self._search_input.returnPressed.connect(self._find_next)
-        self._search_input.textChanged.connect(self._on_search_changed)
-        top_bar.addWidget(self._search_input, stretch=1)
 
         prev_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'arrow-left.svg')), '')
         prev_button.setToolTip('Previous match')
@@ -142,7 +138,7 @@ class TextLogTab(QWidget):
         self._metadata_label = setup_metadata_label(layout)
 
         # --- Bottom buttons ---
-        button_row = setup_copy_save_button_row(
+        button_row, self._copy_button, self._save_button = setup_copy_save_button_row(
             layout,
             self._copy_all,
             self._save_as,
@@ -150,9 +146,10 @@ class TextLogTab(QWidget):
             save_tooltip='Save the log to a new file',
         )
 
-        self._purge_button = add_purge_and_location_buttons(button_row, self._purge_file, self._file_path)
+        self._purge_button, self._open_file_button = add_purge_and_location_buttons(button_row, self._purge_file, self._file_path)
 
         # --- Auto-refresh from disk ---
+        self._watching_stopped: bool = False
         self._watcher = DebouncedFileWatcher(self, self.load_data)
 
         # Initial load
@@ -207,20 +204,6 @@ class TextLogTab(QWidget):
 
         return entries
 
-    def start_watching(self) -> None:
-        """Start auto-refresh watcher from disk."""
-        self._watcher.watch(files=[self._file_path], directories=[self._file_path.parent])
-        self.load_data()
-
-    def stop_watching(self) -> None:
-        """Stop auto-refresh watcher from disk."""
-        self._watcher.stop()
-
-    @property
-    def can_purge(self) -> bool:
-        """Return whether this log currently contains content to purge."""
-        return self._purge_button.isEnabled()
-
     @override
     def showEvent(self, a0: QShowEvent) -> None:
         """Scroll to the bottom on first display if no manual scroll occurred."""
@@ -231,21 +214,51 @@ class TextLogTab(QWidget):
             if scrollbar:
                 scrollbar.setValue(scrollbar.maximum())
 
+    @property
+    def can_purge(self) -> bool:
+        """Return whether this log currently contains content to purge."""
+        return self._purge_button.isEnabled()
+
+    def stop_watching(self) -> None:
+        """Stop auto-refresh watcher from disk."""
+        self._watching_stopped = True
+        self._watcher.stop()
+
+    def start_watching(self) -> None:
+        """Start auto-refresh watcher from disk."""
+        self._watcher.watch(files=[self._file_path], directories=[self._file_path.parent])
+        if self._watching_stopped:
+            self._watching_stopped = False
+            self.load_data()
+
     # ------------------------------------------------------------------
     # Data loading and filtering
     # ------------------------------------------------------------------
 
+    def _clear_viewer_state(self, placeholder_text: str) -> None:
+        """Reset the loaded text, search state, and viewer contents with *placeholder_text*."""
+        self._raw_text = ''
+        self._prefix = ''
+        self._entries = []
+        self._total_line_count = 0
+        self._truncated = False
+        self._search_matches.clear()
+        self._current_match_index = -1
+        self._match_label.setText('')
+        self._viewer.setExtraSelections([])
+        self._viewer.setPlainText('')
+        self._viewer.setPlaceholderText(placeholder_text)
+        self._copy_button.setEnabled(False)
+        self._save_button.setEnabled(False)
+
     def load_data(self) -> None:
         """Read the text file and display its contents."""
-        self._purge_button.setEnabled(self._file_path.is_file() and self._file_path.stat().st_size > 0)
+        file_exists = self._file_path.is_file()
+        self._open_file_button.setEnabled(file_exists)
+        self._purge_button.setEnabled(file_exists and self._file_path.stat().st_size > 0)
         self.purge_state_changed.emit()
         if not self._file_path.exists():
-            self._raw_text = ''
-            self._prefix = ''
-            self._entries = []
-            self._total_line_count = 0
-            self._truncated = False
-            self._viewer.setPlainText(f'[{self._file_path.name} not found]')
+            self._clear_viewer_state(f'[{self._file_path.name} not found]')
             self._line_count_label.setText('0 lines')
             self._metadata_label.setText(file_metadata_text(self._file_path))
             return
@@ -269,10 +282,11 @@ class TextLogTab(QWidget):
             else:
                 self._entries = []
 
+            self._viewer.setPlaceholderText('')
             self._apply_filter(preserve_scroll=True)
 
         except PermissionError:
-            self._viewer.setPlainText(f'[Cannot read {self._file_path.name}: file is locked]')
+            self._clear_viewer_state(f'[Cannot read {self._file_path.name}: file is locked]')
             self._line_count_label.setText('')
 
         self._metadata_label.setText(file_metadata_text(self._file_path))
@@ -297,6 +311,9 @@ class TextLogTab(QWidget):
 
         full_display_text = (self._prefix + filtered_text) if self._prefix else filtered_text
         self._viewer.setPlainText(full_display_text)
+        has_display_text = bool(full_display_text)
+        self._copy_button.setEnabled(has_display_text)
+        self._save_button.setEnabled(has_display_text)
 
         if scrollbar and preserve_scroll:
             if not self._initial_shown or (old_max > 0 and old_scroll >= old_max - 5):
@@ -381,10 +398,13 @@ class TextLogTab(QWidget):
     # Actions
     # ------------------------------------------------------------------
 
-    def _copy_all(self) -> None:
-        copy_viewer_text_to_clipboard(self._viewer)
+    def _copy_all(self) -> bool:
+        return copy_viewer_text_to_clipboard(self._viewer)
 
     def _save_as(self) -> None:
+        text = self._viewer.toPlainText()
+        if not text:
+            return
         path, _ = QFileDialog.getSaveFileName(
             self,
             'Save Log As',
@@ -393,7 +413,7 @@ class TextLogTab(QWidget):
         )
         if not path:
             return
-        Path(path).write_text(self._viewer.toPlainText(), encoding='utf-8')
+        Path(path).write_text(text, encoding='utf-8')
         QMessageBox.information(self, TITLE, f'Saved to {path}')
 
     def _purge_file(self) -> None:

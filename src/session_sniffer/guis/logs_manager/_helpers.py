@@ -216,9 +216,12 @@ def add_purge_and_location_buttons(
     layout: QHBoxLayout,
     purge_fn: Callable[[], None],
     file_path: Path,
-) -> QPushButton:
-    """Append addStretch → Purge File → Open File Location buttons to *layout*."""
-    layout.addStretch()
+    *,
+    add_stretch: bool = True,
+) -> tuple[QPushButton, QPushButton]:
+    """Append Purge File → Open File Location → Open File buttons to *layout*."""
+    if add_stretch:
+        layout.addStretch()
 
     purge_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')), ' Purge File')
     purge_button.setStyleSheet(DIALOG_DANGER_BUTTON_STYLESHEET)
@@ -237,10 +240,11 @@ def add_purge_and_location_buttons(
     open_file_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'file-text.svg')), ' Open File')
     open_file_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
     open_file_button.setToolTip('Open the log file in the default text editor')
+    open_file_button.setEnabled(file_path.is_file())
     open_file_button.clicked.connect(lambda: QDesktopServices.openUrl(QUrl.fromLocalFile(str(file_path))))
     layout.addWidget(open_file_button)
 
-    return purge_button
+    return purge_button, open_file_button
 
 
 def purge_log_file(
@@ -280,12 +284,13 @@ def purge_log_file(
     return message
 
 
-def copy_viewer_text_to_clipboard(viewer: QPlainTextEdit) -> None:
-    """Copy the plain text from *viewer* to the clipboard."""
+def copy_viewer_text_to_clipboard(viewer: QPlainTextEdit) -> bool:
+    """Copy the plain text from *viewer* to the clipboard and return whether text was copied."""
     text = viewer.toPlainText()
     if not text:
-        return
+        return False
     set_clipboard_text(text)
+    return True
 
 
 def setup_metadata_label(layout: QVBoxLayout) -> QLabel:
@@ -297,22 +302,23 @@ def setup_metadata_label(layout: QVBoxLayout) -> QLabel:
 
 def setup_copy_save_button_row(
     layout: QVBoxLayout,
-    copy_fn: Callable[[], None],
+    copy_fn: Callable[[], bool],
     save_fn: Callable[[], None],
     *,
     copy_tooltip: str = 'Copy all displayed text to clipboard',
     save_tooltip: str = 'Save the displayed content to a new file',
-) -> QHBoxLayout:
-    """Create a button row with Copy All and Save As buttons, add it to *layout*, and return it."""
+) -> tuple[QHBoxLayout, QPushButton, QPushButton]:
+    """Create a button row with Copy All and Save As buttons, add it to *layout*, and return it with the buttons."""
     button_row = QHBoxLayout()
 
     copy_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), ' Copy All')
     copy_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
     copy_button.setToolTip(copy_tooltip)
+    copy_button.setEnabled(False)
 
     def _on_copy_clicked() -> None:
-        copy_fn()
-        animate_button_feedback(copy_button)
+        if copy_fn():
+            animate_button_feedback(copy_button)
 
     copy_button.clicked.connect(_on_copy_clicked)
     button_row.addWidget(copy_button)
@@ -320,11 +326,12 @@ def setup_copy_save_button_row(
     save_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'save.svg')), ' Save As...')
     save_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
     save_button.setToolTip(save_tooltip)
+    save_button.setEnabled(False)
     save_button.clicked.connect(save_fn)
     button_row.addWidget(save_button)
 
     layout.addLayout(button_row)
-    return button_row
+    return button_row, copy_button, save_button
 
 
 def prepare_search(text: str, match_label: QLabel, viewer: QPlainTextEdit) -> QTextDocument | None:
