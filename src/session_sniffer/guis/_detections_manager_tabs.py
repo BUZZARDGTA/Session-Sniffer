@@ -492,22 +492,25 @@ class DetectionsManagerTabsMixin(QDialog):
             ComboRulesManager.save_to_file(COMBO_RULES_PATH)
             self.refresh_combo_rules_list()
 
-    def _clear_combo_rules(self) -> None:
+    def _clear_combo_rules(self, *, confirm: bool = True) -> None:
         """Remove all combo rules."""
         if not ComboRulesManager.rules:
             return
-        reply = QMessageBox.question(
-            self,
-            TITLE,
-            'Remove all combo rules?',
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-        )
-        if reply == QMessageBox.StandardButton.Yes:
-            if any(rule.enabled and rule.voice_notifications for rule in ComboRulesManager.rules):
-                clear_voice_notification_queue()
-            ComboRulesManager.rules.clear()
-            ComboRulesManager.save_to_file(COMBO_RULES_PATH)
-            self.refresh_combo_rules_list()
+        if confirm:
+            reply = QMessageBox.question(
+                self,
+                TITLE,
+                'Remove all combo rules?',
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            )
+            if reply != QMessageBox.StandardButton.Yes:
+                return
+        if any(rule.enabled and rule.voice_notifications for rule in ComboRulesManager.rules):
+            clear_voice_notification_queue()
+        ComboRulesManager.rules.clear()
+        ComboRulesManager.save_to_file(COMBO_RULES_PATH)
+        self.refresh_combo_rules_list()
+        retrigger_detections_scan()
 
     # ------------------------------------------------------------------
     # Group factories

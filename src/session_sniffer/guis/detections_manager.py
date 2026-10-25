@@ -493,6 +493,7 @@ class DetectionsManagerDialog(DetectionsManagerTabsMixin, QDialog):
         if result != QMessageBox.StandardButton.Yes:
             return
 
+        self._clear_combo_rules(confirm=False)
         prefixes: tuple[str, ...] = _ALL_DETECTION_PREFIXES if hasattr(self, 'gta5_relay_duration_combo') else _STANDARD_DETECTION_PREFIXES
         self._reset_tab_to_defaults(prefixes)
 
