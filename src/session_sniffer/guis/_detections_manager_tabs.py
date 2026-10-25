@@ -446,8 +446,7 @@ class DetectionsManagerTabsMixin(QDialog):
             clear_voice_notification_queue()
         ComboRulesManager.save_to_file(COMBO_RULES_PATH)
         self.refresh_combo_rules_list()
-        if rule.enabled:
-            retrigger_detections_scan()
+        retrigger_detections_scan()
 
     def _duplicate_combo_rule(self) -> None:
         """Duplicate the selected combo rule."""
@@ -491,6 +490,7 @@ class DetectionsManagerTabsMixin(QDialog):
             del ComboRulesManager.rules[index]
             ComboRulesManager.save_to_file(COMBO_RULES_PATH)
             self.refresh_combo_rules_list()
+            retrigger_detections_scan()
 
     def _clear_combo_rules(self, *, confirm: bool = True) -> None:
         """Remove all combo rules."""

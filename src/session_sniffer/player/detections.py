@@ -186,6 +186,11 @@ class GUIDetectionSettings:
         )
 
     @classmethod
+    def reset_to_defaults(cls) -> None:
+        """Reset all runtime detection settings to their default values."""
+        cls.apply_model(DetectionsFile())
+
+    @classmethod
     def apply_model(cls, model: DetectionsFile) -> None:
         """Apply a validated DetectionsFile model to runtime detection settings."""
         cls.mobile_suspend_enabled = model.mobile.enabled

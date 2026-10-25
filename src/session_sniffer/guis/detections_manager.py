@@ -434,7 +434,10 @@ class DetectionsManagerDialog(DetectionsManagerTabsMixin, QDialog):
         if result != QMessageBox.StandardButton.Yes:
             return
 
+        if any(getattr(GUIDetectionSettings, f'{prefix}_voice_notifications') for prefix in _ALL_DETECTION_PREFIXES):
+            clear_voice_notification_queue()
         self._clear_combo_rules(confirm=False)
+        GUIDetectionSettings.reset_to_defaults()
         prefixes: tuple[str, ...] = _ALL_DETECTION_PREFIXES if hasattr(self, 'gta5_relay_duration_combo') else _STANDARD_DETECTION_PREFIXES
         self._reset_tab_to_defaults(prefixes)
 
@@ -473,7 +476,7 @@ def open_combo_rule_editor_for_player(parent: QWidget, player: Player) -> None:
     _placeholder = '...'
 
     def _safe(value: object) -> str | None:
-        return value if isinstance(value, str) and value and value != _placeholder else None
+        return value if isinstance(value, str) and value and value not in {_placeholder, 'N/A'} else None
 
     conditions: dict[str, str | bool | list[str]] = {}
     if (country := _safe(player.iplookup.geolite2.country) or _safe(player.iplookup.ipapi.country)) is not None:

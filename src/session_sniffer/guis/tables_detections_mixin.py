@@ -82,7 +82,7 @@ def build_detections_menu(
     """Build a Detections submenu for a single player."""
     country_name = _player_country_name(player)
     isp = _safe_str(player.iplookup.ipapi.isp)
-    as_name = _safe_str(player.iplookup.ipapi.as_name)
+    asn_ipapi = _safe_str(player.iplookup.ipapi.asn)
     asn_geolite2 = _safe_str(player.iplookup.geolite2.asn)
 
     # --- Country ---
@@ -126,7 +126,7 @@ def build_detections_menu(
             )
 
     # --- ASN ---
-    asn_value = as_name if as_name is not None else asn_geolite2
+    asn_value = asn_ipapi if asn_ipapi is not None else asn_geolite2
     if asn_value is not None:
         asn_in_list = asn_value in GUIDetectionSettings.asn_detection_list
         if asn_in_list:
@@ -167,7 +167,7 @@ def build_detections_menu_multi(
     isps: list[str] = sorted({isp for player in players if (isp := _safe_str(player.iplookup.ipapi.isp)) is not None})
     asns_set: set[str] = set()
     for player in players:
-        asn = _safe_str(player.iplookup.ipapi.as_name)
+        asn = _safe_str(player.iplookup.ipapi.asn)
         if asn is None:
             asn = _safe_str(player.iplookup.geolite2.asn)
         if asn is not None:

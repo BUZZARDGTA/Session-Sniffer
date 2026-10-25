@@ -82,6 +82,9 @@ class ComboRule(DetectionActionBase):
                 valid_events = [event for event in cast('list[object]', raw_val) if isinstance(event, str) and event in _VALID_EVENTS]
                 if valid_events:
                     conditions[key] = valid_events
+        if EVENT_CONDITION in conditions and len(conditions) == 1:
+            msg = 'ComboRule with an event condition must include at least one IP-based condition'
+            raise ValueError(msg)
         return conditions
 
     @property
