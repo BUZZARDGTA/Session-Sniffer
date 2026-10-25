@@ -12,7 +12,7 @@ from bisect import bisect_left, bisect_right
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from pathlib import Path
-from threading import Lock
+from threading import Lock, RLock
 from typing import TYPE_CHECKING, ClassVar, NamedTuple, cast
 
 from PySide6.QtGui import QColor
@@ -30,8 +30,7 @@ from session_sniffer.networking.ip_range import entry_ip_covers_ip, is_valid_ip_
 from session_sniffer.player.registry import PlayersRegistry
 from session_sniffer.player.userip import ProtectionSettings, UserIPDatabases, UserIPSettings
 from session_sniffer.text_utils import split_usernames
-from session_sniffer.utils import FileSignature, custom_str_to_bool, get_file_signature, validate_file
-from session_sniffer.utils_exceptions import InvalidBooleanValueError
+from session_sniffer.utils import FileSignature, get_file_signature, validate_file
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
@@ -42,8 +41,9 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-_update_userip_databases_lock = Lock()
+_update_userip_databases_lock = RLock()
 _last_userip_db_mod_times: dict[Path, FileSignature] = {}
+_parsed_userip_databases: dict[Path, tuple[UserIPSettings, list[UserIPEntryModel]]] = {}
 
 DEFAULT_USERIP_FILES_SETTINGS_BY_PATH: dict[Path, UserIPSettingsModel] = {
     USERIP_DATABASES_DIR_PATH / json_name: settings for json_name, settings in DEFAULT_USERIP_FILES_SETTINGS.items()
@@ -573,67 +573,27 @@ def _parse_and_repair_single_raw_entry(
     Returns:
         `True` if the entry required auto-repair (meaning the file should be rewritten).
     """
-    if not isinstance(raw_entry, dict):
+    parsed = UserIPEntryModel.parse_raw_entry(raw_entry)
+    if parsed is None:
         return True
 
-    entry_dict = cast('dict[str, Any]', raw_entry)
-    raw_username: object = entry_dict.get('username')
-    raw_ip: object = entry_dict.get('ip')
-    raw_is_looky: object = entry_dict.get('is_looky', False)
-    raw_notes: object = entry_dict.get('notes', '')
-
-    if not isinstance(raw_username, str) or not isinstance(raw_ip, str):
-        return True
-
-    username = raw_username.strip()
-    ip = raw_ip.strip()
-    need_rewrite = username != raw_username or ip != raw_ip
-
-    if not username or not ip:
-        return True
-
+    base_entry, entry_clean = parsed
+    ip = base_entry.ip
     if not is_valid_ip_range_entry(ip):
-        logger.info('Auto-removed invalid IP entry "%s=%s" from "%s".', username, ip, json_name)
+        logger.info('Auto-removed invalid IP entry "%s=%s" from "%s".', base_entry.username, ip, json_name)
         return True
 
-    is_looky = False
-    if isinstance(raw_is_looky, bool):
-        is_looky = raw_is_looky
-    elif isinstance(raw_is_looky, str):
-        need_rewrite = True
-        try:
-            is_looky, _ = custom_str_to_bool(raw_is_looky.strip())
-        except InvalidBooleanValueError:
-            is_looky = False
-    else:
-        need_rewrite = True
-
-    notes = ''
-    if isinstance(raw_notes, str):
-        notes = raw_notes.strip()
-        if notes != raw_notes:
-            need_rewrite = True
-    else:
-        need_rewrite = True
-
-    split_names = split_usernames(username)
+    split_names = split_usernames(base_entry.username)
     if not split_names:
         return True
 
     was_split = len(split_names) > 1
-    if was_split:
-        need_rewrite = True
+    username_repaired = split_names[0] != base_entry.username
+    if username_repaired:
+        base_entry = base_entry.model_copy(update={'username': split_names[0]})
 
-    base_entry, metadata_clean = UserIPEntryModel.from_raw_entry_dict(
-        entry_dict,
-        username=split_names[0],
-        ip=ip,
-        is_looky=is_looky,
-        notes=notes,
-    )
     base_entry, log_enriched = enrich_userip_entry_from_logs(base_entry)
-    if not metadata_clean or log_enriched:
-        need_rewrite = True
+    need_rewrite = not entry_clean or was_split or username_repaired or log_enriched
 
     for split_name in split_names:
         if was_split:
@@ -719,10 +679,13 @@ def parse_userip_json_file(json_path: Path) -> tuple[UserIPSettings | None, list
 
 def invalidate_userip_db_mtime(db_path: Path | None = None) -> None:
     """Invalidate cached UserIP database modification signatures so the next poll forces a rebuild."""
-    if db_path is None:
-        _last_userip_db_mod_times.clear()
-    else:
-        _last_userip_db_mod_times.pop(db_path, None)
+    with _update_userip_databases_lock:
+        if db_path is None:
+            _last_userip_db_mod_times.clear()
+            _parsed_userip_databases.clear()
+        else:
+            _last_userip_db_mod_times.pop(db_path, None)
+            _parsed_userip_databases.pop(db_path, None)
 
 
 def _snapshot_db_mod_times() -> dict[Path, FileSignature]:
@@ -739,22 +702,6 @@ def _snapshot_db_mod_times() -> dict[Path, FileSignature]:
     return snapshot
 
 
-def _collect_userip_json_files() -> tuple[list[Path], dict[Path, FileSignature]]:
-    if not USERIP_DATABASES_DIR_PATH.exists():
-        return [], {}
-    files: list[Path] = []
-    mod_times: dict[Path, FileSignature] = {}
-    for path in USERIP_DATABASES_DIR_PATH.rglob('*.json'):
-        if not path.is_file():
-            continue
-        sig = get_file_signature(path)
-        if sig is None:
-            continue
-        files.append(path)
-        mod_times[path] = sig
-    return files, mod_times
-
-
 def update_userip_databases() -> tuple[float, bool]:
     """Check for changes in UserIP database files, re-parsing and rebuilding when modified.
 
@@ -764,47 +711,49 @@ def update_userip_databases() -> tuple[float, bool]:
     with _update_userip_databases_lock:
         _ensure_default_userip_files()
 
-        current_json_files, current_userip_db_mod_times = _collect_userip_json_files()
+        current_userip_db_mod_times = _snapshot_db_mod_times()
         if current_userip_db_mod_times == _last_userip_db_mod_times:
             return time.monotonic(), False
 
         if _last_userip_db_mod_times:
             logger.debug('Detected changes in UserIP databases, re-parsing...')
 
-        new_databases: list[tuple[Path, UserIPSettings, list[UserIPEntryModel]]] = []
-        for userip_path in current_json_files:
-            parsed_settings, parsed_entries = parse_userip_json_file(userip_path)
-            if parsed_settings is None or parsed_entries is None:
-                continue
+        for removed_path in set(_parsed_userip_databases) - set(current_userip_db_mod_times):
+            _parsed_userip_databases.pop(removed_path, None)
 
-            new_databases.append((userip_path, parsed_settings, parsed_entries))
+        new_databases: list[tuple[Path, UserIPSettings, list[UserIPEntryModel]]] = []
+        parsed_mod_times: dict[Path, FileSignature] = {}
+        for userip_path, file_sig in current_userip_db_mod_times.items():
+            cached = _parsed_userip_databases.get(userip_path)
+            if cached is None or _last_userip_db_mod_times.get(userip_path) != file_sig:
+                parsed_settings, parsed_entries = parse_userip_json_file(userip_path)
+                if parsed_settings is None or parsed_entries is None:
+                    _parsed_userip_databases.pop(userip_path, None)
+                    post_parse_sig = get_file_signature(userip_path)
+                    if post_parse_sig is not None:
+                        parsed_mod_times[userip_path] = post_parse_sig
+                    continue
+                cached = (parsed_settings, parsed_entries)
+                _parsed_userip_databases[userip_path] = cached
+                # Re-snapshot mod time *after* parsing this file because parse_userip_json_file()
+                # may rewrite the file during auto-repair, advancing its mtime beyond file_sig.
+                parsed_mod_times[userip_path] = get_file_signature(userip_path) or file_sig
+            else:
+                parsed_mod_times[userip_path] = file_sig
+
+            new_databases.append((userip_path, *cached))
 
         UserIPDatabases.populate(new_databases)
         UserIPDatabases.build()
 
-        # Re-snapshot mod times *after* parsing, because parse_userip_json_file() may rewrite
-        # files during auto-repair, advancing their mtimes beyond the pre-parse snapshot.
         _last_userip_db_mod_times.clear()
-        _last_userip_db_mod_times.update(_snapshot_db_mod_times())
+        _last_userip_db_mod_times.update(parsed_mod_times)
 
         return time.monotonic(), True
 
 
-def _parse_existing_entry_dict(item_dict: dict[str, Any], entry_user: str, entry_ip: str) -> UserIPEntryModel:
-    """Construct a `UserIPEntryModel` from a raw dictionary while preserving all metadata."""
-    raw_is_looky: object = item_dict.get('is_looky', False)
-    is_looky = raw_is_looky if isinstance(raw_is_looky, bool) else False
-    if isinstance(raw_is_looky, str):
-        with contextlib.suppress(InvalidBooleanValueError):
-            is_looky, _ = custom_str_to_bool(raw_is_looky.strip())
-    raw_notes: object = item_dict.get('notes', '')
-    notes = raw_notes.strip() if isinstance(raw_notes, str) else ''
-    entry, _ = UserIPEntryModel.from_raw_entry_dict(item_dict, username=entry_user, ip=entry_ip, is_looky=is_looky, notes=notes)
-    return entry
-
-
-def _load_raw_userip_db(db_path: Path, *, action_label: str) -> tuple[UserIPSettingsModel, list[object]] | None:
-    """Read and validate the settings and raw entries list from a UserIP database file."""
+def _load_raw_userip_db(db_path: Path, *, action_label: str) -> tuple[UserIPSettingsModel, list[UserIPEntryModel]] | None:
+    """Read and validate the settings and existing entries list from a UserIP database file."""
     try:
         raw_data: object = json.loads(db_path.read_text(encoding='utf-8'))
     except (OSError, json.JSONDecodeError) as e:
@@ -821,7 +770,8 @@ def _load_raw_userip_db(db_path: Path, *, action_label: str) -> tuple[UserIPSett
 
     raw_entries_obj: object = typed_data.get('entries')
     raw_entries = cast('list[object]', raw_entries_obj) if isinstance(raw_entries_obj, list) else []
-    return validated_settings, raw_entries
+    entries = [parsed[0] for item in raw_entries if (parsed := UserIPEntryModel.parse_raw_entry(item)) is not None]
+    return validated_settings, entries
 
 
 def _write_userip_db(db_path: Path, settings: UserIPSettingsModel, entries: list[UserIPEntryModel], *, action_label: str) -> bool:
@@ -866,23 +816,11 @@ def append_userip_entry_if_missing(db_path: Path, username: str, ip: str) -> boo
         loaded = _load_raw_userip_db(db_path, action_label='auto-feed')
         if loaded is None:
             return False
-        validated_settings, raw_entries = loaded
+        validated_settings, entries = loaded
 
-        entries: list[UserIPEntryModel] = []
         username_cf = cleaned_username.casefold()
-        for item in raw_entries:
-            if not isinstance(item, dict):
-                continue
-            item_dict = cast('dict[str, Any]', item)
-            raw_user: object = item_dict.get('username')
-            raw_ip: object = item_dict.get('ip')
-            entry_user = raw_user.strip() if isinstance(raw_user, str) else ''
-            entry_ip = raw_ip.strip() if isinstance(raw_ip, str) else ''
-            if not entry_user or not entry_ip:
-                continue
-            if entry_user.casefold() == username_cf and entry_ip_covers_ip(entry_ip, cleaned_ip):
-                return False
-            entries.append(_parse_existing_entry_dict(item_dict, entry_user, entry_ip))
+        if any(entry.username.casefold() == username_cf and entry_ip_covers_ip(entry.ip, cleaned_ip) for entry in entries):
+            return False
 
         new_entry, _ = enrich_userip_entry_from_logs(UserIPEntryModel(username=cleaned_username, ip=cleaned_ip, is_looky=False, notes='', source='Auto-IP'))
         entries.insert(find_userip_insert_index(entries, cleaned_username, cleaned_ip), new_entry)
@@ -914,24 +852,14 @@ def _update_matching_userip_entries(
         loaded = _load_raw_userip_db(db_path, action_label='player activity')
         if loaded is None:
             return None
-        validated_settings, raw_entries = loaded
+        validated_settings, entries = loaded
 
-        entries: list[UserIPEntryModel] = []
-        for item in raw_entries:
-            if not isinstance(item, dict):
-                continue
-            item_dict = cast('dict[str, Any]', item)
-            raw_user: object = item_dict.get('username')
-            raw_ip: object = item_dict.get('ip')
-            entry_user = raw_user.strip() if isinstance(raw_user, str) else ''
-            entry_ip = raw_ip.strip() if isinstance(raw_ip, str) else ''
-            if not entry_user or not entry_ip:
-                continue
-            parsed_entry = _parse_existing_entry_dict(item_dict, entry_user, entry_ip)
-            if entry_ip_covers_ip(entry_ip, cleaned_ip):
-                parsed_entry = apply_update(parsed_entry)
-                modified = True
-            entries.append(parsed_entry)
+        for idx, entry in enumerate(entries):
+            if entry_ip_covers_ip(entry.ip, cleaned_ip):
+                updated_entry = apply_update(entry)
+                if updated_entry != entry:
+                    entries[idx] = updated_entry
+                    modified = True
 
         if modified and not _write_userip_db(db_path, validated_settings, entries, action_label='player activity'):
             return None
@@ -944,6 +872,8 @@ def _update_matching_userip_entries(
 def _apply_detection_to_entry(entry: UserIPEntryModel, timestamp: str) -> UserIPEntryModel:
     """Apply a live player join detection to `entry` while merging historical log statistics."""
     already_counted = entry.detections_count > 0 and entry.last_seen_at is not None and pick_latest_iso(entry.last_seen_at, timestamp) == entry.last_seen_at
+    if already_counted and entry.first_seen_at is not None:
+        return entry
     incremented_count = entry.detections_count if already_counted else entry.detections_count + 1
     enriched_entry, _ = enrich_userip_entry_from_logs(entry)
     first_seen_at = pick_earliest_iso(enriched_entry.first_seen_at, timestamp)

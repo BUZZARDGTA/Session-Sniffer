@@ -52,7 +52,7 @@ from session_sniffer.models.userip_settings_model import (
 )
 from session_sniffer.networking.ip_range import is_valid_ip_range_entry
 from session_sniffer.player.userip import UserIPDatabases
-from session_sniffer.player.userip_loader import update_userip_databases
+from session_sniffer.player.userip_loader import enrich_userip_entry_from_logs, update_userip_databases
 from session_sniffer.rendering_core.events import wake_rendering_core
 from session_sniffer.text_utils import pluralize, split_usernames
 from session_sniffer.utils import dedup_preserve_order
@@ -60,7 +60,7 @@ from session_sniffer.utils import dedup_preserve_order
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from PySide6.QtGui import QStandardItemModel
+    from PySide6.QtGui import QIcon, QStandardItemModel
 
     from session_sniffer.guis.file_watch import DebouncedFileWatcher
 
@@ -93,6 +93,7 @@ class UserIPEntriesOperationsMixin(QDialog):
     _dirty: bool
     _search_input: QLineEdit
     _settings_container: QFrame
+    _looky_icon: QIcon
 
     def _append_row(
         self,
@@ -274,6 +275,8 @@ class UserIPEntriesOperationsMixin(QDialog):
 
             with QSignalBlocker(self._fs_watcher):
                 success = bool(rewrite_db_edit_entry_ip(database_path, current_entry, new_ip_text, username=username))
+                if success:
+                    refresh_userip_and_wake_renderer()
             self._rebuild_fs_watch()
 
             if not success:
@@ -289,9 +292,10 @@ class UserIPEntriesOperationsMixin(QDialog):
             set_row_updated_at(self._model, source_row)
             extract_entry_model_from_row(self._model, source_row)
 
+            self._dedup_global_search_rows()
             self._highlight_duplicates()
+            self._refresh_stats()
             self._update_entry_counts()
-            refresh_userip_and_wake_renderer()
             self._set_status(f'Updated entry to "{new_ip_text}" in {database_path.name}.')
         else:
             with QSignalBlocker(self._model):
@@ -348,6 +352,8 @@ class UserIPEntriesOperationsMixin(QDialog):
 
             with QSignalBlocker(self._fs_watcher):
                 success = rewrite_db_edit_entry_note(database_path, username, entry_ip_or_range, new_note)
+                if success:
+                    refresh_userip_and_wake_renderer()
             self._rebuild_fs_watch()
 
             if not success:
@@ -357,7 +363,6 @@ class UserIPEntriesOperationsMixin(QDialog):
                 notes_item.setText(new_note)
             set_row_updated_at(self._model, source_row)
 
-            refresh_userip_and_wake_renderer()
             self._set_status(f'Updated note for "{username}" in {database_path.name}.')
         else:
             with QSignalBlocker(self._model):
@@ -410,12 +415,17 @@ class UserIPEntriesOperationsMixin(QDialog):
         if not new_usernames:
             return
 
-        new_entry_models = [UserIPEntryModel(username=name, ip=entry_value) for name in new_usernames]
+        new_entry_models = [
+            enrich_userip_entry_from_logs(UserIPEntryModel(username=name, ip=entry_value))[0]
+            for name in new_usernames
+        ]
         with QSignalBlocker(self._fs_watcher):
             added_pairs = append_userip_entries(
                 database_path,
                 new_entry_models,
             )
+            if added_pairs:
+                refresh_userip_and_wake_renderer()
         self._rebuild_fs_watch()
 
         if not added_pairs:
@@ -445,7 +455,6 @@ class UserIPEntriesOperationsMixin(QDialog):
         self._highlight_duplicates()
         self._refresh_stats()
         self._update_entry_counts()
-        refresh_userip_and_wake_renderer()
         added_count = len(added_pairs)
         self._set_status(f'Added {added_count} username{pluralize(added_count)} for {entry_value} in {database_path.name}.')
         UserIPDatabases.renotify_if_conflicting([entry_value])
@@ -649,6 +658,8 @@ class UserIPEntriesOperationsMixin(QDialog):
                     if database_path.is_file():
                         rename_pairs = [(old_name, ip_value) for _, old_name, ip_value in entries]
                         renamed_count += rewrite_db_rename_entries(database_path, rename_pairs, new_username)
+                if renamed_count:
+                    refresh_userip_and_wake_renderer()
             self._rebuild_fs_watch()
 
             if not renamed_count:
@@ -659,9 +670,10 @@ class UserIPEntriesOperationsMixin(QDialog):
                 clear_row_looky_badge(self._model, row)
                 set_row_updated_at(self._model, row)
 
+            self._dedup_global_search_rows()
             self._highlight_duplicates()
+            self._refresh_stats()
             self._update_entry_counts()
-            refresh_userip_and_wake_renderer()
             self._set_status(f'Renamed {renamed_count} {pluralize(renamed_count, "entry", "entries")} to "{new_username}" in database files.')
         else:
             with QSignalBlocker(self._model):
@@ -742,6 +754,7 @@ class UserIPEntriesOperationsMixin(QDialog):
                     if username and ip:
                         to_remove.add((username, ip))
                 rewrite_db_without_entries(db_path, to_remove)
+            refresh_userip_and_wake_renderer()
         self._rebuild_fs_watch()
 
         for row in source_rows:
@@ -750,7 +763,6 @@ class UserIPEntriesOperationsMixin(QDialog):
         self._highlight_duplicates()
         self._refresh_stats()
         self._update_entry_counts()
-        refresh_userip_and_wake_renderer()
         self._set_status(f'Deleted {count} {pluralize(count, "entry", "entries")} from database files.')
 
     def _move_selected_to_database(self, target_db_path: Path) -> None:
@@ -806,12 +818,15 @@ class UserIPEntriesOperationsMixin(QDialog):
                 for src_db_path, to_remove in entries_by_src.items():
                     if src_db_path.is_file():
                         rewrite_db_without_entries(src_db_path, to_remove)
+                refresh_userip_and_wake_renderer()
+            self._rebuild_fs_watch()
 
+            added_pairs_cf = {(u.casefold(), ip) for u, ip in added_pairs}
             rows_to_remove: list[int] = []
             for entry_model, row in valid_moves:
-                pair = (entry_model.username, entry_model.ip)
-                if pair in added_pairs:
-                    added_pairs.discard(pair)
+                pair = (entry_model.username.casefold(), entry_model.ip)
+                if pair in added_pairs_cf:
+                    added_pairs_cf.discard(pair)
                     db_item = self._model.item(row, DATABASE_COLUMN)
                     if db_item:
                         db_item.setText(str(target_display_name))
@@ -829,8 +844,6 @@ class UserIPEntriesOperationsMixin(QDialog):
             self._highlight_duplicates()
             self._refresh_stats()
             self._set_status(f'Moved {len(valid_moves)} {pluralize(len(valid_moves), "entry", "entries")} to "{target_display_name}".')
-            refresh_userip_and_wake_renderer()
-            self._rebuild_fs_watch()
         else:
             if self._current_path is None or target_db_path == self._current_path:
                 return
@@ -916,6 +929,7 @@ class UserIPEntriesOperationsMixin(QDialog):
                 # --- Write new JSON file content ---
                 db_model = UserIPDatabaseFile(settings=settings_model, entries=entries)
                 save_userip_database_model(self._current_path, db_model)
+                refresh_userip_and_wake_renderer()
                 self._disk_snapshot = self._current_path.read_text('utf-8')
 
                 self._settings_snapshot = settings_model.model_copy()
@@ -923,7 +937,6 @@ class UserIPEntriesOperationsMixin(QDialog):
                 self._update_file_info(self._current_path)
                 self._set_status(f'Saved {len(entries)} entries to {self._current_path.name}')
                 self._refresh_stats()
-                refresh_userip_and_wake_renderer()
                 self._rebuild_fs_watch()
                 if duplicate_count > 0:
                     self._load_database(self._current_path)
@@ -933,6 +946,62 @@ class UserIPEntriesOperationsMixin(QDialog):
     # ------------------------------------------------------------------
     # Duplicate highlighting
     # ------------------------------------------------------------------
+
+    def _dedup_global_search_rows(self) -> None:
+        """Merge and remove duplicate `(database, username, ip)` rows in-place in global search mode."""
+        seen_rows: dict[tuple[str, str, str], int] = {}
+        duplicate_pairs: list[tuple[int, int]] = []
+
+        for row in range(self._model.rowCount()):
+            db_item = self._model.item(row, DATABASE_COLUMN)
+            username_item = self._model.item(row, USERNAME_COLUMN)
+            if not db_item or not username_item:
+                continue
+            db_path_str = str(db_item.data(Qt.ItemDataRole.UserRole) or '')
+            username = username_item.text().strip()
+            ip = self._get_row_entry_value(row)
+            if not db_path_str or not username or not ip:
+                continue
+            key = (db_path_str, username.casefold(), ip)
+            if key in seen_rows:
+                duplicate_pairs.append((seen_rows[key], row))
+            else:
+                seen_rows[key] = row
+
+        if not duplicate_pairs:
+            return
+
+        merged_by_row: dict[int, UserIPEntryModel] = {}
+        rows_to_remove: list[int] = []
+        for first_row, dup_row in duplicate_pairs:
+            base_model = merged_by_row.get(first_row) or extract_entry_model_from_row(self._model, first_row)[3]
+            dup_model = extract_entry_model_from_row(self._model, dup_row)[3]
+            if base_model is not None and dup_model is not None:
+                merged_by_row[first_row] = base_model.merge_duplicate(dup_model)
+                rows_to_remove.append(dup_row)
+
+        if not rows_to_remove:
+            return
+
+        with QSignalBlocker(self._model):
+            for first_row, merged_model in merged_by_row.items():
+                db_item = self._model.item(first_row, DATABASE_COLUMN)
+                db_label = db_item.text() if db_item else ''
+                db_path = Path(str(db_item.data(Qt.ItemDataRole.UserRole))) if db_item else Path()
+                row_index = int(self._model.item(first_row, INDEX_COLUMN).data(Qt.ItemDataRole.UserRole) or (first_row + 1))
+                new_items = build_entry_row_items(
+                    merged_model,
+                    index=row_index,
+                    database=(db_label, db_path),
+                    looky_icon=self._looky_icon,
+                    persisted=True,
+                )
+                for col, item in enumerate(new_items):
+                    self._model.setItem(first_row, col, item)
+            for row in sorted(rows_to_remove, reverse=True):
+                self._model.removeRow(row)
+
+        self._renumber_indexes()
 
     def _highlight_duplicates(self) -> int:
         """Scan all rows for exact (username, ip) duplicates and highlight them.
@@ -953,7 +1022,7 @@ class UserIPEntriesOperationsMixin(QDialog):
             if not username or not ip:
                 continue
 
-            key = (username, ip)
+            key = (username.casefold(), ip)
             if key in seen:
                 duplicate_rows.add(row)
                 duplicate_rows.add(seen[key])

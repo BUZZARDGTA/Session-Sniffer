@@ -191,12 +191,16 @@ class UserIPImportExportMixin(QDialog):
             if choice == 'use':
                 chosen_settings = src_db.settings
 
-        existing_set: set[tuple[str, str]] = {(entry.username, entry.ip) for entry in dest_db.entries}
-        new_entries = [
-            entry.model_copy(update={'source': 'Import'}) if entry.source == 'Manual' and not entry.is_looky else entry
-            for entry in src_db.entries
-            if (entry.username, entry.ip) not in existing_set
-        ]
+        existing_set: set[tuple[str, str]] = {(entry.username.casefold(), entry.ip) for entry in dest_db.entries}
+        new_entries: list[UserIPEntryModel] = []
+        for entry in src_db.entries:
+            key = (entry.username.casefold(), entry.ip)
+            if key in existing_set:
+                continue
+            existing_set.add(key)
+            new_entries.append(
+                entry.model_copy(update={'source': 'Import'}) if entry.source == 'Manual' and not entry.is_looky else entry,
+            )
 
         merged_entries = list(dest_db.entries)
         for entry in new_entries:
@@ -341,11 +345,11 @@ class UserIPImportExportMixin(QDialog):
         for row in range(self._model.rowCount()):
             username, ip, _notes, _entry_model = extract_entry_model_from_row(self._model, row)
             if username and ip:
-                existing_set.add((username, ip))
+                existing_set.add((username.casefold(), ip))
 
         added = 0
         for entry in imported_db.entries:
-            key = (entry.username, entry.ip)
+            key = (entry.username.casefold(), entry.ip)
             if key in existing_set:
                 continue
             existing_set.add(key)

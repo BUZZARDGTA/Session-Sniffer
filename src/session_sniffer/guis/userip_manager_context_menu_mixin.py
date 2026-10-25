@@ -503,7 +503,7 @@ class EntriesContextMenuMixin(QDialog):
 
             row_username = username_item.text().strip()
             row_ip_or_range = self._get_row_entry_value(row).strip()
-            if username and ip_or_range and row_username == username and row_ip_or_range == ip_or_range:
+            if username_cf and ip_or_range and row_username.casefold() == username_cf and row_ip_or_range == ip_or_range:
                 fallback_row = row
                 break
             if fallback_row is None and ((ip_or_range and row_ip_or_range == ip_or_range) or (username_cf and row_username.casefold() == username_cf)):

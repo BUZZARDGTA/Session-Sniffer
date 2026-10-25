@@ -841,7 +841,7 @@ class UserIPDatabasesManager(
             for entry in entries:
                 total_entries += 1
                 unique_ips.add(entry.ip)
-                unique_usernames.add(entry.username)
+                unique_usernames.add(entry.username.casefold())
 
         parts = [
             f'<span style="color:#8a9bad;">Databases:</span> <b style="color:#e0e0e0;">{total_files}</b>',

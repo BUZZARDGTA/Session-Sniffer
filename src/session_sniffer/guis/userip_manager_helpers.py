@@ -45,8 +45,6 @@ from session_sniffer.networking.ip_range import entry_ip_covers_ip
 from session_sniffer.player.userip_loader import enrich_userip_entry_from_logs, find_userip_insert_index, invalidate_userip_db_mtime, update_userip_databases
 from session_sniffer.rendering_core.events import wake_rendering_core
 from session_sniffer.text_utils import pluralize, split_usernames
-from session_sniffer.utils import custom_str_to_bool
-from session_sniffer.utils_exceptions import InvalidBooleanValueError
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
@@ -339,29 +337,11 @@ def parse_userip_database_content(
 
     entries: list[UserIPEntryModel] = []
     for raw_entry in raw_entries:
-        if not isinstance(raw_entry, dict):
+        parsed = UserIPEntryModel.parse_raw_entry(raw_entry)
+        if parsed is None:
             continue
-        entry_dict = cast('dict[str, Any]', raw_entry)
-        raw_username = entry_dict.get('username')
-        raw_ip = entry_dict.get('ip')
-        if not isinstance(raw_username, str) or not isinstance(raw_ip, str):
-            continue
-        username_str = raw_username.strip()
-        ip_str = raw_ip.strip()
-        if not username_str or not ip_str:
-            continue
-
-        raw_is_looky = entry_dict.get('is_looky', False)
-        is_looky = raw_is_looky if isinstance(raw_is_looky, bool) else False
-        if isinstance(raw_is_looky, str):
-            with contextlib.suppress(InvalidBooleanValueError):
-                is_looky, _ = custom_str_to_bool(raw_is_looky.strip())
-
-        raw_notes = entry_dict.get('notes', '')
-        notes_str = raw_notes.strip() if isinstance(raw_notes, str) else ''
-        base_entry, _ = UserIPEntryModel.from_raw_entry_dict(entry_dict, username=username_str, ip=ip_str, is_looky=is_looky, notes=notes_str)
-        base_entry, _ = enrich_userip_entry_from_logs(base_entry)
-        entries.extend(base_entry.model_copy(update={'username': individual_username}) for individual_username in split_usernames(username_str))
+        base_entry, _ = enrich_userip_entry_from_logs(parsed[0])
+        entries.extend(base_entry.model_copy(update={'username': individual_username}) for individual_username in split_usernames(base_entry.username))
 
     return UserIPDatabaseFile(settings=validated_settings, entries=entries)
 
@@ -408,7 +388,7 @@ def dedup_userip_entries(entries: Iterable[UserIPEntryModel]) -> list[UserIPEntr
     deduplicated: list[UserIPEntryModel] = []
     seen_pairs: dict[tuple[str, str], int] = {}
     for entry in entries:
-        pair_key = (entry.username, entry.ip)
+        pair_key = (entry.username.casefold(), entry.ip)
         if pair_key in seen_pairs:
             existing_index = seen_pairs[pair_key]
             deduplicated[existing_index] = deduplicated[existing_index].merge_duplicate(entry)

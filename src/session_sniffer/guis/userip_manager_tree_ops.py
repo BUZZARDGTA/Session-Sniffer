@@ -367,6 +367,7 @@ class TreeOperationsMixin(QDialog):
 
         save_userip_database_model(new_path, UserIPDatabaseFile(settings=NEW_DATABASE_SETTINGS))
         refresh_userip_and_wake_renderer()
+        self._rebuild_fs_watch()
 
         self._set_status(f'Created new database: {name}')
         self._refresh_stats()
@@ -470,6 +471,8 @@ class TreeOperationsMixin(QDialog):
 
         if self._current_path == path:
             self._load_database(path)
+        else:
+            self._rebuild_fs_watch()
 
         self._set_status(f'Reset "{path.name}" to factory defaults.')
         self._refresh_stats()
@@ -630,3 +633,6 @@ class TreeOperationsMixin(QDialog):
                 self._open_db_button.setEnabled(False)
                 if self._export_selected_action is not None:
                     self._export_selected_action.setEnabled(False)
+                self._rebuild_fs_watch()
+        else:
+            self._rebuild_fs_watch()

@@ -361,6 +361,53 @@ class UserIPEntryModel(BaseModel):
         )
         return entry, is_canonical
 
+    @classmethod
+    def parse_raw_entry(cls, raw_entry: object) -> tuple[Self, bool] | None:
+        """Parse and validate a raw JSON entry object into `(UserIPEntryModel, is_canonical)`, or `None` if invalid."""
+        if not isinstance(raw_entry, dict):
+            return None
+
+        entry_dict = cast('dict[str, Any]', raw_entry)
+        raw_username: object = entry_dict.get('username')
+        raw_ip: object = entry_dict.get('ip')
+        if not isinstance(raw_username, str) or not isinstance(raw_ip, str):
+            return None
+
+        username = raw_username.strip()
+        ip = raw_ip.strip()
+        if not username or not ip:
+            return None
+
+        fields_clean = username == raw_username and ip == raw_ip
+
+        raw_is_looky: object = entry_dict.get('is_looky', False)
+        is_looky = False
+        looky_clean = False
+        if isinstance(raw_is_looky, bool):
+            is_looky = raw_is_looky
+            looky_clean = True
+        elif isinstance(raw_is_looky, str):
+            try:
+                is_looky, _ = custom_str_to_bool(raw_is_looky.strip())
+            except InvalidBooleanValueError:
+                is_looky = False
+
+        raw_notes: object = entry_dict.get('notes', '')
+        notes = ''
+        notes_clean = False
+        if isinstance(raw_notes, str):
+            notes = raw_notes.strip()
+            notes_clean = notes == raw_notes
+
+        entry, meta_clean = cls.from_raw_entry_dict(
+            entry_dict,
+            username=username,
+            ip=ip,
+            is_looky=is_looky,
+            notes=notes,
+        )
+        return entry, (fields_clean and looky_clean and notes_clean and meta_clean)
+
     def merge_duplicate(self, other: Self) -> Self:
         """Merge metadata and timestamps from a duplicate `(username, ip)` entry into this entry."""
         self_start = _parse_iso_for_compare(self.first_seen_at or self.last_seen_at or '')
