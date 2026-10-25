@@ -216,7 +216,7 @@ def userip_add(
         parent,
         TITLE,
         (
-            f'Selected IP{pluralize(len(selected_ips))} {list(selected_ips)} '
+            f'Selected IP{pluralize(len(selected_ips))} {", ".join(selected_ips)} '
             f'ha{pluralize(len(selected_ips), singular="s", plural="ve")} been added with username{pluralize(len(chosen_usernames))} '
             f'{usernames_display} to UserIP database "{db_display}".'
         ),
@@ -653,7 +653,7 @@ def userip_move(parent: QWidget, selected_ips: list[str], selected_database: Pat
         refresh_userip_and_wake_renderer()
         target_db_display = html.escape(str(selected_database.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix('')))
         header = (
-            f'<b>Selected IP{pluralize(len(selected_ips))} {html.escape(str(selected_ips))} moved from the following '
+            f'<b>Selected IP{pluralize(len(selected_ips))} moved from the following '
             f'UserIP database{pluralize(len(deleted_entries_by_database))} to UserIP database '
             f'"{target_db_display}":</b><br><br><br>'
         )
@@ -689,7 +689,7 @@ def userip_delete(parent: QWidget, selected_ips: list[str]) -> None:
     if deleted_entries_by_database:
         refresh_userip_and_wake_renderer()
         header = (
-            f'<b>Selected IP{pluralize(len(selected_ips))} {html.escape(str(selected_ips))} removed from the following '
+            f'<b>Selected IP{pluralize(len(selected_ips))} removed from the following '
             f'UserIP database{pluralize(len(deleted_entries_by_database))}:</b><br><br><br>'
         )
         QMessageBox.information(parent, TITLE, header + _format_database_entries_html_list(deleted_entries_by_database))
