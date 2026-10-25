@@ -449,7 +449,6 @@ class GUIUpdatePayload(NamedTuple):
 
     snapshot_version: int
     column_config: GUIColumnConfig
-    header_text: str
     status_capture_text: str
     status_config_text: str
     status_issues_text: str

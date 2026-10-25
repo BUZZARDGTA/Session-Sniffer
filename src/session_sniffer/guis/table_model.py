@@ -150,7 +150,6 @@ class _ColumnIndices:
     ip: int
     username: int
     country: int | None
-    pps: int | None
 
 
 def _build_sort_players_map() -> dict[str, Player]:
@@ -373,7 +372,6 @@ class SessionTableModel(QAbstractTableModel):
             ip=self._headers.index('IP Address'),
             username=self._headers.index('Usernames'),
             country=self.get_column_index('Country'),
-            pps=self.get_column_index('PPS'),
         )
         self._ip_to_row_index: dict[str, int] = {}  # O(1) row lookup by IP
         self._looky_icon = QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'eye.svg'))
@@ -688,7 +686,7 @@ class SessionTableModel(QAbstractTableModel):
         ip = self.get_ip_for_row(row)
         if not ip:
             return None
-        return PlayersRegistry.get_player_by_ip(ip)
+        return self.resolve_row_player(ip)
 
     def _get_ip_from_data_safely(self, row_data: Sequence[str]) -> str:
         """Safely extract an IP address as a string from row data.
@@ -805,7 +803,6 @@ class SessionTableModel(QAbstractTableModel):
                 ip=self._headers.index('IP Address'),
                 username=self._headers.index('Usernames'),
                 country=self.get_column_index('Country'),
-                pps=self.get_column_index('PPS'),
             )
         self._data = []
         self._compiled_colors = []

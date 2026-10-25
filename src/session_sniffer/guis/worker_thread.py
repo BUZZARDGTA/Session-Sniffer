@@ -258,7 +258,6 @@ class GUIWorkerThread(CrashingQThread):
                 GUIUpdatePayload(
                     snapshot_version=last_seen_version,
                     column_config=last_snapshot.column_config,
-                    header_text=last_snapshot.status.header_text,
                     status_capture_text=last_snapshot.status.status_capture_text,
                     status_config_text=last_snapshot.status.status_config_text,
                     status_issues_text=last_snapshot.status.status_issues_text,

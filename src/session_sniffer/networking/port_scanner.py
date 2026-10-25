@@ -284,6 +284,7 @@ def probe_tcp_port(
     *,
     timeout_seconds: float = DEFAULT_SCAN_TIMEOUT_SECONDS,
     grab_banner: bool = True,
+    target_host: str = '',
 ) -> PortScanResult:
     """Perform a TCP connect probe to target_ip:port with optional banner grab."""
     service_name = get_service_name(port)
@@ -298,7 +299,7 @@ def probe_tcp_port(
 
         banner_text: str | None = None
         if grab_banner:
-            banner_text = _attempt_tcp_banner_grab(probe_socket, port)
+            banner_text = _attempt_tcp_banner_grab(probe_socket, port, target_host=target_host or target_ip)
 
         return PortScanResult(
             port=port,
@@ -333,13 +334,14 @@ def probe_tcp_port(
         probe_socket.close()
 
 
-def _attempt_tcp_banner_grab(connected_socket: socket.socket, port: int) -> str | None:
+def _attempt_tcp_banner_grab(connected_socket: socket.socket, port: int, *, target_host: str = 'localhost') -> str | None:
     """Attempt a non-intrusive banner grab on an already connected TCP socket."""
     connected_socket.settimeout(0.6)
     try:
         # Standard HTTP ports: send a minimal HTTP HEAD probe
         if port in (80, 8080, 8000, 8888, 3128):
-            connected_socket.sendall(b'HEAD / HTTP/1.0\r\nHost: localhost\r\n\r\n')
+            host_header = (target_host or 'localhost').encode('ascii', errors='ignore') or b'localhost'
+            connected_socket.sendall(b'HEAD / HTTP/1.0\r\nHost: ' + host_header + b'\r\n\r\n')
         # Some services (SSH, FTP, SMTP, POP3) send a banner immediately without client input
         raw_data = connected_socket.recv(_MAX_BANNER_BYTES)
         if raw_data:
@@ -411,14 +413,17 @@ def probe_udp_port(
 
 
 def probe_single_target(
-    target_ip: str,
+    config: PortScanConfiguration,
     port: int,
     protocol: str,
-    timeout_seconds: float,
-    *,
-    grab_banner: bool = True,
 ) -> PortScanResult:
     """Dispatch a probe to the appropriate protocol handler."""
     if protocol == 'TCP':
-        return probe_tcp_port(target_ip, port, timeout_seconds=timeout_seconds, grab_banner=grab_banner)
-    return probe_udp_port(target_ip, port, timeout_seconds=timeout_seconds)
+        return probe_tcp_port(
+            config.target_ip,
+            port,
+            timeout_seconds=config.timeout_seconds,
+            grab_banner=config.grab_banner,
+            target_host=config.target_host,
+        )
+    return probe_udp_port(config.target_ip, port, timeout_seconds=config.timeout_seconds)

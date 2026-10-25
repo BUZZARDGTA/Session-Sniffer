@@ -133,11 +133,9 @@ class PortScannerWorkerThread(CrashingQThread):
                     break
                 future = executor.submit(
                     probe_single_target,
-                    config.target_ip,
+                    config,
                     port,
                     protocol,
-                    config.timeout_seconds,
-                    grab_banner=config.grab_banner,
                 )
                 future_to_task[future] = (port, protocol)
 

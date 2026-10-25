@@ -64,10 +64,8 @@ class LookyInstructionStatusInitialInstruction(BaseModel):
 class LookyPlayerSighting(BaseModel):
     """A single session sighting entry inside `LookyPlayerProfile.users_by_rockstar_id`."""
 
-    model_config = ConfigDict(populate_by_name=True)
-
     datetimestamp: datetime
-    rockstarid: int
+    rockstarid: int = 0
     name: str
     ip: str
     country: str = 'unknown'
@@ -93,5 +91,5 @@ class LookyPlayerProfile(BaseModel):
 class LookyInstructionStatusInitialResponse(BaseModel):
     """Raw response shape returned by `GET /api/instruction-status-initial/...`."""
 
-    success: bool
+    success: bool = True
     instruction: LookyInstructionStatusInitialInstruction

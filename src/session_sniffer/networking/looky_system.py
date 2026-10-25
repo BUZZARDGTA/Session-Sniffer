@@ -316,10 +316,12 @@ def lookup_player_by_rid(rid: int, api_key: str) -> LookyPlayerProfile | None:
     fetched_at = time.monotonic()
     with _CACHE_LOCK:
         _PROFILE_BY_RID_CACHE[rid] = (fetched_at, profile)
-        if resolved_rid > 0:
-            for sighting in profile.users_by_rockstar_id:
-                if stripped_name := sighting.name.strip():
-                    _RID_BY_USERNAME_CF_CACHE[stripped_name.casefold()] = (fetched_at, resolved_rid)
+        if resolved_rid > 0 and (profile_name := profile.last_name.strip()):
+            _RID_BY_USERNAME_CF_CACHE[profile_name.casefold()] = (fetched_at, resolved_rid)
+        for sighting in profile.users_by_rockstar_id:
+            sighting_rid = sighting.rockstarid or resolved_rid
+            if sighting_rid > 0 and (stripped_name := sighting.name.strip()):
+                _RID_BY_USERNAME_CF_CACHE[stripped_name.casefold()] = (fetched_at, sighting_rid)
     return profile
 
 
@@ -379,6 +381,7 @@ class _LookyRateLimiter:
         now = time.monotonic()
         with self._lock:
             self._total_rate_limit_hits += 1
+            total_hits = self._total_rate_limit_hits
             if extracted_wait is not None:
                 wait_seconds = extracted_wait
             else:
@@ -395,8 +398,8 @@ class _LookyRateLimiter:
 
         if extended_existing:
             logger.warning(
-                '[Looky System] Rate limited (HTTP 429) on %s: "%s". Waiting %d second%s before retrying (no items will be skipped).',
-                context_label, rate_limit_message, remaining_total, pluralize(remaining_total),
+                '[Looky System] Rate limited (HTTP 429, hit #%d) on %s: "%s". Waiting %d second%s before retrying (no items will be skipped).',
+                total_hits, context_label, rate_limit_message, remaining_total, pluralize(remaining_total),
             )
         else:
             logger.debug('[Looky System] Concurrent in-flight request also hit HTTP 429 on %s; already waiting %ds for active cooldown.', context_label, remaining_total)
@@ -798,12 +801,24 @@ def lookup_username_ips(
             reverse=True,
         )
         resolved_rid = profile.rockstarid or rid
+        profile_name = profile.last_name.strip()
+        profile_seen = profile.last_seen
+        profile_seen_utc = (
+            (profile_seen.astimezone(UTC) if profile_seen.tzinfo is not None else profile_seen.replace(tzinfo=UTC))
+            if profile_seen is not None
+            else None
+        )
         for sighting in sorted_sightings:
             if sighting.relay or not _is_valid_player_ipv4(sighting.ip):
                 continue
             if (version == 'enhanced' and not sighting.enhanced) or (version == 'legacy' and sighting.enhanced):
                 continue
-            candidate_names = [*rid_usernames, *([sighting.name.strip()] if sighting.name.strip() else [])]
+            sighting_rid = sighting.rockstarid or resolved_rid
+            sighting_utc = sighting.datetimestamp.astimezone(UTC) if sighting.datetimestamp.tzinfo is not None else sighting.datetimestamp.replace(tzinfo=UTC)
+            sighting_seen = profile_seen if profile_seen is not None and profile_seen_utc is not None and profile_seen_utc > sighting_utc else sighting.datetimestamp
+            sighting_country = sighting.country if sighting.country and sighting.country != 'unknown' else profile.last_country
+            sighting_enhanced = sighting.enhanced or profile.has_enhanced
+            candidate_names = [*rid_usernames, *([profile_name] if profile_name else []), *([sighting.name.strip()] if sighting.name.strip() else [])]
             for queried_name in rid_usernames:
                 queried_cf = queried_name.casefold()
                 if sighting.ip not in seen_ips_by_username_cf[queried_cf]:
@@ -815,8 +830,8 @@ def lookup_username_ips(
                     seen_names_by_ip[sighting.ip].add(cand_cf)
                     players_by_ip[sighting.ip].append(
                         LookyPlayer(
-                            rockstarid=resolved_rid, name=candidate_name, last_seen=sighting.datetimestamp, last_country=sighting.country,
-                            is_modder=profile.is_modder, is_enhanced=sighting.enhanced, is_legacy=not sighting.enhanced, is_vpn=sighting.vpn,
+                            rockstarid=sighting_rid, name=candidate_name, last_seen=sighting_seen, last_country=sighting_country,
+                            is_modder=profile.is_modder, is_enhanced=sighting_enhanced, is_legacy=not sighting.enhanced, is_vpn=sighting.vpn,
                         ),
                     )
 
@@ -895,6 +910,8 @@ def watch_instruction_status(
             raise
 
         initial_data = LookyInstructionStatusInitialResponse.model_validate(initial_response.json())
+        if not initial_data.success:
+            logger.debug('Looky initial status returned success=False for %s', context.tracking_id)
         yield initial_data.instruction.status, initial_data.instruction.result
         if is_terminal_instruction_status(initial_data.instruction.status):
             return

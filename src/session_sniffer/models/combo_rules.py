@@ -91,7 +91,3 @@ class ComboRule(DetectionActionBase):
     def has_event_condition(self) -> bool:
         """Return True if the rule has an event condition."""
         return EVENT_CONDITION in self.conditions
-
-    def to_dict(self) -> dict[str, object]:
-        """Serialize the rule to a JSON-compatible dictionary."""
-        return cast('dict[str, object]', self.model_dump(mode='json'))

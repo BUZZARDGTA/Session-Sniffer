@@ -664,9 +664,7 @@ class TableContextMenuMixin(QTableView):
 
                 # When the cell belongs to the Usernames column, offer the exact structured usernames
                 # from the matched player (UserIP, Looky System, PS3, etc.) without string splitting.
-                row_ip_index = selected_model.index(index.row(), selected_model.ip_column_index)
-                row_ip = selected_model.get_display_text(row_ip_index)
-                player = selected_model.resolve_row_player(row_ip) if row_ip is not None and row_ip else None
+                player = selected_model.get_player_for_row(index.row())
 
                 usernames: list[str] = resolve_usernames_for_player(player) if player else []
 

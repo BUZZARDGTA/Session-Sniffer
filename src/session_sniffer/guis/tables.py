@@ -169,11 +169,9 @@ class SessionTableView(TableHeaderMenuMixin, TableContextMenuMixin, QTableView):
             if index.isValid():
                 model = self.model()
                 if (country_column := model.get_column_index('Country')) is not None and country_column == index.column():
-                    ip = model.get_display_text(model.index(index.row(), model.ip_column_index))
-                    if ip is not None:
-                        matched_player = model.resolve_row_player(ip)
-                        if matched_player is not None and matched_player.country_flag is not None:
-                            self._show_flag_tooltip(event, index, matched_player)
+                    matched_player = model.get_player_for_row(index.row())
+                    if matched_player is not None and matched_player.country_flag is not None:
+                        self._show_flag_tooltip(event, index, matched_player)
 
         return super().eventFilter(watched, event)
 
