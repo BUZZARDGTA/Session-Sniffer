@@ -10,7 +10,7 @@ from PySide6.QtWidgets import QAbstractItemView, QDialog, QFrame, QInputDialog, 
 
 from session_sniffer.constants.local import USERIP_DATABASES_DIR_PATH
 from session_sniffer.constants.standalone import TITLE
-from session_sniffer.guis.select_usernames_dialog import prompt_username_input
+from session_sniffer.guis.select_usernames_dialog import prompt_username_input, prompt_usernames_input
 from session_sniffer.guis.userip_manager_helpers import (
     DATABASE_COLUMN,
     DUPLICATE_HIGHLIGHT_BRUSH,
@@ -47,8 +47,7 @@ from session_sniffer.networking.ip_range import is_valid_ip_range_entry
 from session_sniffer.player.userip import UserIPDatabases
 from session_sniffer.player.userip_loader import enrich_userip_entry_from_logs, update_userip_databases
 from session_sniffer.rendering_core.events import wake_rendering_core
-from session_sniffer.text_utils import pluralize, split_usernames
-from session_sniffer.utils import dedup_preserve_order
+from session_sniffer.text_utils import pluralize
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -377,9 +376,9 @@ class UserIPEntriesOperationsMixin(QDialog):
             self._entries_table.edit(proxy_index)
 
     def _prompt_new_usernames(self, prompt: str) -> list[str]:
-        """Prompt the user for one or more comma-separated usernames."""
-        entered_text, accepted = prompt_username_input(self, 'Add Username', prompt)
-        return dedup_preserve_order(split_usernames(entered_text)) if accepted and entered_text.strip() else []
+        """Prompt the user for one or more usernames."""
+        entered_usernames, accepted = prompt_usernames_input(self, 'Add Username', prompt)
+        return entered_usernames if accepted else []
 
     def _add_username_global_search(self, source_row: int, ip_text: str, range_text: str) -> None:
         """Prompt for usernames and append them directly to the entry's database in global search mode."""
@@ -390,7 +389,7 @@ class UserIPEntriesOperationsMixin(QDialog):
             return
 
         new_usernames = self._prompt_new_usernames(
-            f'Enter the username to add for {entry_value} in "{database_path.stem}" (comma-separated for multiple):',
+            f'Enter the username(s) to add for {entry_value} in "{database_path.stem}":',
         )
         if not new_usernames:
             return
@@ -436,7 +435,7 @@ class UserIPEntriesOperationsMixin(QDialog):
         """Prompt for usernames and insert rows into the single-DB model when a search filter is active."""
         entry_value = ip_text or range_text
         new_usernames = self._prompt_new_usernames(
-            f'Enter the username to add for {entry_value} (comma-separated for multiple):',
+            f'Enter the username(s) to add for {entry_value}:',
         )
         if not new_usernames:
             return

@@ -8,7 +8,7 @@ from PySide6.QtWidgets import QInputDialog, QLineEdit, QMessageBox, QWidget
 
 from session_sniffer.constants.local import USERIP_DATABASES_DIR_PATH
 from session_sniffer.constants.standalone import TITLE
-from session_sniffer.guis.select_usernames_dialog import SelectUsernamesDialog, prompt_username_input
+from session_sniffer.guis.select_usernames_dialog import SelectUsernamesDialog, prompt_username_input, prompt_usernames_input
 from session_sniffer.guis.userip_manager_helpers import (
     IPRangeBuilderDialog,
     append_userip_entries,
@@ -25,7 +25,7 @@ from session_sniffer.player.registry import PlayersRegistry, SessionTracker
 from session_sniffer.player.userip import UserIPDatabases
 from session_sniffer.rendering_core.types import SessionFilterState
 from session_sniffer.settings import Settings
-from session_sniffer.text_utils import pluralize, split_usernames
+from session_sniffer.text_utils import pluralize
 from session_sniffer.utils import dedup_preserve_order
 
 if TYPE_CHECKING:
@@ -140,30 +140,28 @@ def _prompt_usernames_to_add(
             return selected
 
         # User clicked 'Custom…' in the selection dialog
-        selected_candidates = dialog.selected_usernames()
-        initial_text = ', '.join(selected_candidates)
-        usernames_count = len(selected_candidates) or 1
+        initial_usernames = dialog.selected_usernames()
+        usernames_count = len(initial_usernames) or 1
     elif len(candidates) == 1:
-        initial_text = candidates[0]
+        initial_usernames = [candidates[0]]
         usernames_count = 1
     else:
-        initial_text = ''
+        initial_usernames = []
         usernames_count = 1
 
     if prompt_message is None:
         prompt_message = f'Please enter the username{pluralize(usernames_count)} to associate with the selected IP{pluralize(len(selected_ips))}:'
 
-    entered_username, success = prompt_username_input(
+    entered_usernames, success = prompt_usernames_input(
         parent,
         'Input Username',
         prompt_message,
-        initial_text,
+        initial_usernames,
     )
 
     if not success:
         return None
 
-    entered_usernames = dedup_preserve_order(split_usernames(entered_username))
     if not entered_usernames:
         QMessageBox.warning(parent, TITLE, 'ERROR:\nNo username was provided.')
         return None
