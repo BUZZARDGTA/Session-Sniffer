@@ -6,15 +6,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from PySide6.QtCore import QItemSelectionModel, QModelIndex, QSignalBlocker, Qt
-from PySide6.QtWidgets import (
-    QAbstractItemView,
-    QDialog,
-    QFrame,
-    QInputDialog,
-    QLineEdit,
-    QMessageBox,
-    QTreeView,
-)
+from PySide6.QtWidgets import QAbstractItemView, QDialog, QFrame, QInputDialog, QLineEdit, QMessageBox, QTreeView
 
 from session_sniffer.constants.local import USERIP_DATABASES_DIR_PATH
 from session_sniffer.constants.standalone import TITLE
@@ -235,14 +227,19 @@ class UserIPEntriesOperationsMixin(QDialog):
 
     def _edit_selected_entry_ip(self) -> None:
         """Edit the IP/range of the currently selected entry via the builder button."""
-        selection = self._entries_table.selectionModel()
-        if not selection:
-            return
-        selected_rows = selection.selectedRows()
-        if len(selected_rows) != 1:
-            return
-        source_row = self._proxy.mapToSource(selected_rows[0]).row()
-        self._edit_entry_ip(source_row)
+        source_rows = self._get_selected_source_rows()
+        if len(source_rows) == 1:
+            self._edit_entry_ip(source_rows[0])
+
+    def _set_row_ip_or_range(self, source_row: int, new_ip_text: str, *, is_single: bool) -> None:
+        """Update the IP and Range column cells for `source_row` and clear its Looky badge."""
+        ip_item = self._model.item(source_row, IP_COLUMN)
+        range_item = self._model.item(source_row, RANGE_COLUMN)
+        if ip_item:
+            ip_item.setText(new_ip_text if is_single else '')
+        if range_item:
+            range_item.setText('' if is_single else new_ip_text)
+        clear_row_looky_badge(self._model, source_row)
 
     def _edit_entry_ip(self, source_row: int) -> None:
         """Open the IP Range Builder dialog to edit the IP/range of an existing entry."""
@@ -265,11 +262,8 @@ class UserIPEntriesOperationsMixin(QDialog):
             is_single = False
 
         if self._global_search_active:
-            database_item = self._model.item(source_row, DATABASE_COLUMN)
-            database_path_str = database_item.data(Qt.ItemDataRole.UserRole) if database_item else None
-            username_item = self._model.item(source_row, USERNAME_COLUMN)
-            username = username_item.text().strip() if username_item else ''
-            database_path = Path(database_path_str) if database_path_str else None
+            database_path = self._get_row_database_path(source_row)
+            username = self._get_row_username(source_row)
             if not database_path or not database_path.is_file() or not username:
                 return
 
@@ -282,13 +276,7 @@ class UserIPEntriesOperationsMixin(QDialog):
             if not success:
                 return
 
-            ip_item = self._model.item(source_row, IP_COLUMN)
-            range_item = self._model.item(source_row, RANGE_COLUMN)
-            if ip_item:
-                ip_item.setText(new_ip_text if is_single else '')
-            if range_item:
-                range_item.setText('' if is_single else new_ip_text)
-            clear_row_looky_badge(self._model, source_row)
+            self._set_row_ip_or_range(source_row, new_ip_text, is_single=is_single)
             set_row_updated_at(self._model, source_row)
             extract_entry_model_from_row(self._model, source_row)
 
@@ -299,13 +287,7 @@ class UserIPEntriesOperationsMixin(QDialog):
             self._set_status(f'Updated entry to "{new_ip_text}" in {database_path.name}.')
         else:
             with QSignalBlocker(self._model):
-                ip_item = self._model.item(source_row, IP_COLUMN)
-                range_item = self._model.item(source_row, RANGE_COLUMN)
-                if ip_item:
-                    ip_item.setText(new_ip_text if is_single else '')
-                if range_item:
-                    range_item.setText('' if is_single else new_ip_text)
-                clear_row_looky_badge(self._model, source_row)
+                self._set_row_ip_or_range(source_row, new_ip_text, is_single=is_single)
                 if is_row_persisted(self._model, source_row):
                     set_row_updated_at(self._model, source_row)
 
@@ -341,12 +323,9 @@ class UserIPEntriesOperationsMixin(QDialog):
             return
 
         if self._global_search_active:
-            database_item = self._model.item(source_row, DATABASE_COLUMN)
-            database_path_str = database_item.data(Qt.ItemDataRole.UserRole) if database_item else None
-            username_item = self._model.item(source_row, USERNAME_COLUMN)
-            username = username_item.text().strip() if username_item else ''
-            entry_ip_or_range = self._get_row_entry_value(source_row).strip()
-            database_path = Path(database_path_str) if database_path_str else None
+            database_path = self._get_row_database_path(source_row)
+            username = self._get_row_username(source_row)
+            entry_ip_or_range = self._get_row_entry_value(source_row)
             if not database_path or not database_path.is_file() or not username or not entry_ip_or_range:
                 return
 
@@ -396,22 +375,22 @@ class UserIPEntriesOperationsMixin(QDialog):
             self._entries_table.setCurrentIndex(proxy_index)
             self._entries_table.edit(proxy_index)
 
+    def _prompt_new_usernames(self, prompt: str) -> list[str]:
+        """Prompt the user for one or more comma-separated usernames."""
+        entered_text, accepted = QInputDialog.getText(self, 'Add Username', prompt, QLineEdit.EchoMode.Normal)
+        return dedup_preserve_order(split_usernames(entered_text)) if accepted and entered_text.strip() else []
+
     def _add_username_global_search(self, source_row: int, ip_text: str, range_text: str) -> None:
         """Prompt for usernames and append them directly to the entry's database in global search mode."""
         entry_value = ip_text or range_text
         database_item = self._model.item(source_row, DATABASE_COLUMN)
-        database_path_str = database_item.data(Qt.ItemDataRole.UserRole) if database_item else None
-        database_path = Path(database_path_str) if database_path_str else None
+        database_path = self._get_row_database_path(source_row)
         if not database_path or not database_path.is_file():
             return
 
-        entered_text, accepted = QInputDialog.getText(
-            self,
-            'Add Username',
+        new_usernames = self._prompt_new_usernames(
             f'Enter the username to add for {entry_value} in "{database_path.stem}" (comma-separated for multiple):',
-            QLineEdit.EchoMode.Normal,
         )
-        new_usernames = dedup_preserve_order(split_usernames(entered_text)) if accepted and entered_text.strip() else []
         if not new_usernames:
             return
 
@@ -420,10 +399,7 @@ class UserIPEntriesOperationsMixin(QDialog):
             for name in new_usernames
         ]
         with QSignalBlocker(self._fs_watcher):
-            added_pairs = append_userip_entries(
-                database_path,
-                new_entry_models,
-            )
+            added_pairs = append_userip_entries(database_path, new_entry_models)
             if added_pairs:
                 refresh_userip_and_wake_renderer()
         self._rebuild_fs_watch()
@@ -443,11 +419,7 @@ class UserIPEntriesOperationsMixin(QDialog):
                 continue
             self._model.insertRow(
                 insert_at,
-                build_entry_row_items(
-                    entry_model,
-                    database=(database_label, database_path),
-                    persisted=True,
-                ),
+                build_entry_row_items(entry_model, database=(database_label, database_path), persisted=True),
             )
             insert_at += 1
 
@@ -462,13 +434,9 @@ class UserIPEntriesOperationsMixin(QDialog):
     def _add_username_filtered(self, source_row: int, ip_text: str, range_text: str) -> None:
         """Prompt for usernames and insert rows into the single-DB model when a search filter is active."""
         entry_value = ip_text or range_text
-        entered_text, accepted = QInputDialog.getText(
-            self,
-            'Add Username',
+        new_usernames = self._prompt_new_usernames(
             f'Enter the username to add for {entry_value} (comma-separated for multiple):',
-            QLineEdit.EchoMode.Normal,
         )
-        new_usernames = dedup_preserve_order(split_usernames(entered_text)) if accepted and entered_text.strip() else []
         if not new_usernames:
             return
 
@@ -476,10 +444,7 @@ class UserIPEntriesOperationsMixin(QDialog):
         for added_name in new_usernames:
             self._model.insertRow(
                 insert_at,
-                build_entry_row_items(
-                    UserIPEntryModel(username=added_name, ip=entry_value),
-                    persisted=True,
-                ),
+                build_entry_row_items(UserIPEntryModel(username=added_name, ip=entry_value), persisted=True),
             )
             insert_at += 1
 
@@ -515,10 +480,7 @@ class UserIPEntriesOperationsMixin(QDialog):
 
         self._model.insertRow(
             source_row + 1,
-            build_entry_row_items(
-                UserIPEntryModel(username='', ip=ip_text or range_text),
-                persisted=False,
-            ),
+            build_entry_row_items(UserIPEntryModel(username='', ip=ip_text or range_text), persisted=False),
         )
 
         self._renumber_indexes()
@@ -544,10 +506,7 @@ class UserIPEntriesOperationsMixin(QDialog):
         if not selection:
             return
 
-        selected_proxy_rows = selection.selectedRows()
-        if not selected_proxy_rows:
-            selected_proxy_rows = [proxy_index]
-
+        selected_proxy_rows = selection.selectedRows() or [proxy_index]
         source_rows = sorted({self._proxy.mapToSource(i).row() for i in selected_proxy_rows})
 
         if direction < 0:
@@ -569,20 +528,17 @@ class UserIPEntriesOperationsMixin(QDialog):
 
         # Reselect the moved rows
         new_source_rows = [row + direction for row in source_rows]
-        selection_model = self._entries_table.selectionModel()
-        if selection_model:
-            selection_model.clearSelection()
-            for src_row in new_source_rows:
-                p_index = self._proxy.mapFromSource(self._model.index(src_row, 0))
-                if p_index.isValid():
-                    selection_model.select(
-                        p_index,
-                        QItemSelectionModel.SelectionFlag.Select | QItemSelectionModel.SelectionFlag.Rows,
-                    )
-            # Scroll to the first moved row
-            first_proxy = self._proxy.mapFromSource(self._model.index(new_source_rows[0], 0))
-            if first_proxy.isValid():
-                self._entries_table.scrollTo(first_proxy)
+        selection.clearSelection()
+        for src_row in new_source_rows:
+            p_index = self._proxy.mapFromSource(self._model.index(src_row, 0))
+            if p_index.isValid():
+                selection.select(
+                    p_index,
+                    QItemSelectionModel.SelectionFlag.Select | QItemSelectionModel.SelectionFlag.Rows,
+                )
+        first_proxy = self._proxy.mapFromSource(self._model.index(new_source_rows[0], 0))
+        if first_proxy.isValid():
+            self._entries_table.scrollTo(first_proxy)
 
     def _renumber_indexes(self) -> None:
         """Reassign sequential index numbers (1-based) to all rows in the source model."""
@@ -596,26 +552,17 @@ class UserIPEntriesOperationsMixin(QDialog):
 
     def _rename_selected(self) -> None:
         """Rename the username of the selected entry or entries."""
-        selection = self._entries_table.selectionModel()
-        if not selection:
+        source_rows = self._get_selected_source_rows(warn_if_empty=True)
+        if not source_rows:
             return
-
-        selected_indexes = selection.selectedRows()
-        if not selected_indexes:
-            QMessageBox.information(self, TITLE, 'No entries selected.')
-            return
-
-        source_rows = sorted({self._proxy.mapToSource(index).row() for index in selected_indexes})
         count = len(source_rows)
 
         if count == 1:
-            first_row = source_rows[0]
-            username_item = self._model.item(first_row, USERNAME_COLUMN)
-            initial_name = username_item.text().strip() if username_item else ''
+            initial_name = self._get_row_username(source_rows[0])
             title = 'Rename Username'
             prompt = 'Enter the new username:'
         else:
-            usernames = {username for row in source_rows if (username := self._model.item(row, USERNAME_COLUMN).text().strip())}
+            usernames = {username for row in source_rows if (username := self._get_row_username(row))}
             initial_name = next(iter(usernames)) if len(usernames) == 1 else ''
             title = f'Rename Selected ({count})'
             prompt = f'Enter the new username for {count} selected {pluralize(count, "entry", "entries")}:'
@@ -642,15 +589,11 @@ class UserIPEntriesOperationsMixin(QDialog):
         if self._global_search_active:
             rows_by_database: dict[Path, list[tuple[int, str, str]]] = defaultdict(list)
             for row in source_rows:
-                database_item = self._model.item(row, DATABASE_COLUMN)
-                database_path_str = database_item.data(Qt.ItemDataRole.UserRole) if database_item else None
-                if not database_path_str:
-                    continue
-                username_item = self._model.item(row, USERNAME_COLUMN)
-                old_username = username_item.text().strip() if username_item else ''
-                entry_ip_or_range = self._get_row_entry_value(row).strip()
-                if old_username and old_username != new_username and entry_ip_or_range:
-                    rows_by_database[Path(database_path_str)].append((row, old_username, entry_ip_or_range))
+                database_path = self._get_row_database_path(row)
+                old_username = self._get_row_username(row)
+                entry_ip_or_range = self._get_row_entry_value(row)
+                if database_path and old_username and old_username != new_username and entry_ip_or_range:
+                    rows_by_database[database_path].append((row, old_username, entry_ip_or_range))
 
             renamed_count = 0
             with QSignalBlocker(self._fs_watcher):
@@ -693,20 +636,10 @@ class UserIPEntriesOperationsMixin(QDialog):
 
     def _delete_selected(self) -> None:
         """Delete selected rows after confirmation."""
-        selection = self._entries_table.selectionModel()
-        if not selection:
+        source_rows = list(reversed(self._get_selected_source_rows(warn_if_empty=True)))
+        if not source_rows:
             return
-
-        selected_indexes = selection.selectedRows()
-        if not selected_indexes:
-            QMessageBox.information(self, TITLE, 'No entries selected.')
-            return
-
-        count = len(selected_indexes)
-        source_rows = sorted(
-            {self._proxy.mapToSource(i).row() for i in selected_indexes},
-            reverse=True,
-        )
+        count = len(source_rows)
 
         result = QMessageBox.warning(
             self,
@@ -734,25 +667,20 @@ class UserIPEntriesOperationsMixin(QDialog):
 
     def _delete_global_search_rows(self, count: int, source_rows: list[int]) -> None:
         """Write deletions directly to database files and remove rows from the global search model."""
-        rows_by_db: dict[str, list[int]] = defaultdict(list)
+        rows_by_db: dict[Path, list[int]] = defaultdict(list)
         for row in source_rows:
-            db_item = self._model.item(row, DATABASE_COLUMN)
-            db_path_str = db_item.data(Qt.ItemDataRole.UserRole) if db_item else None
-            if db_path_str:
-                rows_by_db[db_path_str].append(row)
+            if (db_path := self._get_row_database_path(row)) is not None:
+                rows_by_db[db_path].append(row)
 
         with QSignalBlocker(self._fs_watcher):
-            for db_path_str, rows in rows_by_db.items():
-                db_path = Path(db_path_str)
+            for db_path, rows in rows_by_db.items():
                 if not db_path.is_file():
                     continue
-                to_remove: set[tuple[str, str]] = set()
-                for row in rows:
-                    u_item = self._model.item(row, USERNAME_COLUMN)
-                    username = u_item.text() if u_item else ''
-                    ip = self._get_row_entry_value(row)
-                    if username and ip:
-                        to_remove.add((username, ip))
+                to_remove = {
+                    (username, ip)
+                    for row in rows
+                    if (username := self._get_row_username(row)) and (ip := self._get_row_entry_value(row))
+                }
                 rewrite_db_without_entries(db_path, to_remove)
             refresh_userip_and_wake_renderer()
         self._rebuild_fs_watch()
@@ -767,24 +695,16 @@ class UserIPEntriesOperationsMixin(QDialog):
 
     def _move_selected_to_database(self, target_db_path: Path) -> None:
         """Move the selected entries to a different UserIP database."""
-        selection = self._entries_table.selectionModel()
-        if not selection:
+        source_rows = self._get_selected_source_rows(warn_if_empty=True)
+        if not source_rows:
             return
-
-        selected_indexes = selection.selectedRows()
-        if not selected_indexes:
-            QMessageBox.information(self, TITLE, 'No entries selected.')
-            return
-
-        source_rows = sorted({self._proxy.mapToSource(i).row() for i in selected_indexes})
         now_iso = get_current_iso_timestamp()
 
         entries_to_move: list[tuple[UserIPEntryModel, int]] = []
         for row in source_rows:
             _, _, _, entry_model = extract_entry_model_from_row(self._model, row)
-            if entry_model is None:
-                continue
-            entries_to_move.append((entry_model.model_copy(update={'updated_at': now_iso}), row))
+            if entry_model is not None:
+                entries_to_move.append((entry_model.model_copy(update={'updated_at': now_iso}), row))
 
         if not entries_to_move:
             QMessageBox.information(self, TITLE, 'No valid entries to move.')
@@ -798,12 +718,8 @@ class UserIPEntriesOperationsMixin(QDialog):
             valid_moves: list[tuple[UserIPEntryModel, int]] = []
 
             for entry_model, row in entries_to_move:
-                db_item = self._model.item(row, DATABASE_COLUMN)
-                db_path_str = db_item.data(Qt.ItemDataRole.UserRole) if db_item else None
-                if not db_path_str:
-                    continue
-                src_db_path = Path(db_path_str)
-                if src_db_path == target_db_path:
+                src_db_path = self._get_row_database_path(row)
+                if src_db_path is None or src_db_path == target_db_path:
                     continue
                 entries_by_src[src_db_path].add((entry_model.username, entry_model.ip))
                 valid_moves.append((entry_model, row))
@@ -814,7 +730,6 @@ class UserIPEntriesOperationsMixin(QDialog):
 
             with QSignalBlocker(self._fs_watcher):
                 added_pairs = append_userip_entries(target_db_path, [entry_model for entry_model, _ in valid_moves])
-
                 for src_db_path, to_remove in entries_by_src.items():
                     if src_db_path.is_file():
                         rewrite_db_without_entries(src_db_path, to_remove)
@@ -827,8 +742,7 @@ class UserIPEntriesOperationsMixin(QDialog):
                 pair = (entry_model.username.casefold(), entry_model.ip)
                 if pair in added_pairs_cf:
                     added_pairs_cf.discard(pair)
-                    db_item = self._model.item(row, DATABASE_COLUMN)
-                    if db_item:
+                    if db_item := self._model.item(row, DATABASE_COLUMN):
                         db_item.setText(str(target_display_name))
                         db_item.setData(str(target_db_path), Qt.ItemDataRole.UserRole)
                     set_row_updated_at(self._model, row, now_iso)
@@ -953,16 +867,12 @@ class UserIPEntriesOperationsMixin(QDialog):
         duplicate_pairs: list[tuple[int, int]] = []
 
         for row in range(self._model.rowCount()):
-            db_item = self._model.item(row, DATABASE_COLUMN)
-            username_item = self._model.item(row, USERNAME_COLUMN)
-            if not db_item or not username_item:
-                continue
-            db_path_str = str(db_item.data(Qt.ItemDataRole.UserRole) or '')
-            username = username_item.text().strip()
+            db_path = self._get_row_database_path(row)
+            username = self._get_row_username(row)
             ip = self._get_row_entry_value(row)
-            if not db_path_str or not username or not ip:
+            if not db_path or not username or not ip:
                 continue
-            key = (db_path_str, username.casefold(), ip)
+            key = (str(db_path), username.casefold(), ip)
             if key in seen_rows:
                 duplicate_pairs.append((seen_rows[key], row))
             else:
@@ -987,7 +897,7 @@ class UserIPEntriesOperationsMixin(QDialog):
             for first_row, merged_model in merged_by_row.items():
                 db_item = self._model.item(first_row, DATABASE_COLUMN)
                 db_label = db_item.text() if db_item else ''
-                db_path = Path(str(db_item.data(Qt.ItemDataRole.UserRole))) if db_item else Path()
+                db_path = self._get_row_database_path(first_row) or Path()
                 row_index = int(self._model.item(first_row, INDEX_COLUMN).data(Qt.ItemDataRole.UserRole) or (first_row + 1))
                 new_items = build_entry_row_items(
                     merged_model,
@@ -1013,11 +923,7 @@ class UserIPEntriesOperationsMixin(QDialog):
         duplicate_rows: set[int] = set()
 
         for row in range(self._model.rowCount()):
-            username_item = self._model.item(row, USERNAME_COLUMN)
-            if not username_item:
-                continue
-
-            username = username_item.text().strip()
+            username = self._get_row_username(row)
             ip = self._get_row_entry_value(row)
             if not username or not ip:
                 continue
@@ -1045,6 +951,27 @@ class UserIPEntriesOperationsMixin(QDialog):
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
+
+    def _get_selected_source_rows(self, *, warn_if_empty: bool = False) -> list[int]:
+        """Return sorted source-model row indices for the current selection."""
+        selection = self._entries_table.selectionModel()
+        selected_indexes = selection.selectedRows() if selection else []
+        if not selected_indexes:
+            if warn_if_empty:
+                QMessageBox.information(self, TITLE, 'No entries selected.')
+            return []
+        return sorted({self._proxy.mapToSource(index).row() for index in selected_indexes})
+
+    def _get_row_database_path(self, row: int) -> Path | None:
+        """Return the database file path stored on `row` in global search mode, if any."""
+        db_item = self._model.item(row, DATABASE_COLUMN)
+        db_path_str = db_item.data(Qt.ItemDataRole.UserRole) if db_item else None
+        return Path(str(db_path_str)) if db_path_str else None
+
+    def _get_row_username(self, row: int) -> str:
+        """Return the stripped username text from `row`."""
+        username_item = self._model.item(row, USERNAME_COLUMN)
+        return username_item.text().strip() if username_item else ''
 
     def _get_row_entry_value(self, row: int) -> str:
         """Return the effective IP or Range value from a row (whichever is non-empty)."""
