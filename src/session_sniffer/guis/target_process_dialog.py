@@ -60,7 +60,9 @@ class TargetProcessDialog(QDialog):
         """Initialize the target process selection dialog."""
         super().__init__(parent)
         self.selected_pid: int = Settings.capture_filter_process_pid if initial_pid is None else initial_pid
-        self.selected_process_name: str | None = Settings.capture_filter_process_name if initial_pid is None else initial_process_name
+        self.selected_process_name: str | None = (
+            Settings.capture_filter_process_name if initial_pid is None and initial_process_name is None else initial_process_name
+        )
         self.selected_track_by_name: bool = (
             Settings.capture_filter_process_track_by_name if initial_track_by_name is None else initial_track_by_name
         )
