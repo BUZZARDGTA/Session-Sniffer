@@ -39,6 +39,7 @@ from session_sniffer.guis._dialog_mixins import prompt_unsaved_changes_close
 from session_sniffer.guis.delegates import ElidedTextTooltipDelegate, SearchHighlightDelegate
 from session_sniffer.guis.file_watch import DebouncedFileWatcher
 from session_sniffer.guis.logs_manager._helpers import human_readable_timestamp
+from session_sniffer.guis.select_usernames_dialog import configure_username_cell_editor
 from session_sniffer.guis.stylesheets import DIALOG_BUTTON_STYLESHEET, DIALOG_DANGER_BUTTON_STYLESHEET
 from session_sniffer.guis.table_column_resizing import adjust_last_visible_column_to_viewport, setup_table_header_context_menu
 from session_sniffer.guis.userip_conflict_resolver import open_userip_conflict_resolver
@@ -437,7 +438,7 @@ class UserIPDatabasesManager(
         self._entries_table.setVerticalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
         self._entries_table.setHorizontalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
         self._entries_table.setItemDelegate(
-            SearchHighlightDelegate(self._entries_table, self._search_input.text),
+            SearchHighlightDelegate(self._entries_table, self._search_input.text, configure_editor=configure_username_cell_editor),
         )
         self._entries_table.setWordWrap(False)
         self._entries_table.sortByColumn(INDEX_COLUMN, Qt.SortOrder.AscendingOrder)

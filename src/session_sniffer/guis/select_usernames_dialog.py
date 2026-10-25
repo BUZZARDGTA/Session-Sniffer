@@ -2,12 +2,14 @@
 
 import html
 from dataclasses import dataclass
-from typing import Self
+from typing import TYPE_CHECKING, Self, override
 
-from PySide6.QtCore import QItemSelectionModel, QModelIndex, QSortFilterProxyModel, Qt
-from PySide6.QtGui import QStandardItem, QStandardItemModel
+from PySide6.QtCore import QItemSelectionModel, QModelIndex, QPersistentModelIndex, QSortFilterProxyModel, QStringListModel, Qt
+from PySide6.QtGui import QKeyEvent, QStandardItem, QStandardItemModel
 from PySide6.QtWidgets import (
+    QCompleter,
     QDialog,
+    QDialogButtonBox,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -24,10 +26,227 @@ from session_sniffer.guis.stylesheets import (
     DIALOG_BUTTON_STYLESHEET,
     DIALOG_PRIMARY_BUTTON_STYLESHEET,
 )
-from session_sniffer.guis.utils import apply_search_icon
+from session_sniffer.guis.utils import apply_search_icon, scale_by_ui
+from session_sniffer.networking.looky_system import get_cached_looky_usernames
+from session_sniffer.player.registry import PlayersRegistry, SessionTracker
+from session_sniffer.player.userip_loader import get_cached_userip_usernames
+from session_sniffer.rendering_core.modmenu_logs_parser import ModMenuLogsParser
 from session_sniffer.text_utils import pluralize
 
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
 _MAX_DISPLAY_SELECTED_IPS = 3
+_USERNAME_COMPLETER_MAX_VISIBLE_ITEMS = 12
+_INLINE_SUGGESTIONS_MAX_VISIBLE_ROWS = 8
+
+
+def collect_known_usernames() -> list[str]:
+    """Collect deduplicated known usernames from cached UserIP databases and session players."""
+    seen_casefolded: set[str] = set()
+    usernames: list[str] = []
+
+    def _add_name(raw_name: str) -> None:
+        cleaned = raw_name.strip()
+        if not cleaned:
+            return
+        folded = cleaned.casefold()
+        if folded not in seen_casefolded:
+            seen_casefolded.add(folded)
+            usernames.append(cleaned)
+
+    for name in get_cached_userip_usernames():
+        _add_name(name)
+    for modmenu_names in ModMenuLogsParser.get_all_ip_to_usernames_map().values():
+        for name in modmenu_names:
+            _add_name(name)
+    for name in get_cached_looky_usernames():
+        _add_name(name)
+    for player in (*PlayersRegistry.get_all_players(), *SessionTracker.get_all_snapshot_players()):
+        if player.userip is not None:
+            for name in player.userip.usernames:
+                _add_name(name)
+        if player.ps3_username is not None and player.ps3_username:
+            _add_name(player.ps3_username)
+        if player.mod_menus is not None:
+            for name in player.mod_menus.usernames:
+                _add_name(name)
+        with player.looky_system.lock:
+            looky_names = list(player.looky_system.usernames) if player.looky_system.is_initialized else []
+        for name in looky_names:
+            _add_name(name)
+        for name in player.usernames:
+            _add_name(name)
+
+    usernames.sort(key=lambda name: (name.casefold(), name))
+    return usernames
+
+
+def attach_username_completer(line_edit: QLineEdit) -> QCompleter:
+    """Attach a case-insensitive substring `QCompleter` populated with known usernames to `line_edit`."""
+    completer = QCompleter(collect_known_usernames(), line_edit)
+    completer.setCompletionMode(QCompleter.CompletionMode.PopupCompletion)
+    completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+    completer.setFilterMode(Qt.MatchFlag.MatchContains)
+    completer.setMaxVisibleItems(_USERNAME_COMPLETER_MAX_VISIBLE_ITEMS)
+    popup = completer.popup()
+    if popup is not None:
+        popup.setObjectName('CompleterPopup')
+    line_edit.setCompleter(completer)
+    return completer
+
+
+def configure_username_cell_editor(
+    editor: QWidget,
+    index: QModelIndex | QPersistentModelIndex,
+    username_column: int = 1,
+) -> None:
+    """Attach username autocomplete when inline-editing a cell in `username_column`."""
+    if index.column() == username_column and isinstance(editor, QLineEdit):
+        attach_username_completer(editor)
+
+
+class _SuggestionLineEdit(QLineEdit):
+    """Line edit that delegates Up/Down arrow keys to an inline suggestion list when visible."""
+
+    def __init__(self, initial_text: str, on_navigate: Callable[[int], bool], parent: QWidget | None = None) -> None:
+        super().__init__(initial_text, parent)
+        self._on_navigate = on_navigate
+
+    @override
+    def keyPressEvent(self, event: QKeyEvent) -> None:
+        key = event.key()
+        if key in (Qt.Key.Key_Down, Qt.Key.Key_Up) and self._on_navigate(1 if key == Qt.Key.Key_Down else -1):
+            event.accept()
+            return
+        super().keyPressEvent(event)
+
+
+def prompt_username_input(
+    parent: QWidget,
+    title: str,
+    label: str,
+    initial_text: str = '',
+) -> tuple[str, bool]:
+    """Prompt the user for a username with an inline expandable real-time suggestion list."""
+    dialog = QDialog(parent)
+    dialog.setWindowModality(Qt.WindowModality.WindowModal)
+    dialog.setWindowTitle(title)
+    dialog.setWindowFlag(Qt.WindowType.WindowContextHelpButtonHint, on=False)
+    dialog.setMinimumWidth(scale_by_ui(360))
+
+    layout = QVBoxLayout(dialog)
+
+    prompt_label = QLabel(label, dialog)
+    layout.addWidget(prompt_label)
+
+    source_model = QStringListModel(collect_known_usernames(), dialog)
+    proxy_model = QSortFilterProxyModel(dialog)
+    proxy_model.setSourceModel(source_model)
+    proxy_model.setFilterCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+
+    active_query = ''
+
+    suggestions_list = QListView(dialog)
+    suggestions_list.setModel(proxy_model)
+    suggestions_list.setSelectionMode(QListView.SelectionMode.SingleSelection)
+    suggestions_list.setEditTriggers(QListView.EditTrigger.NoEditTriggers)
+    suggestions_list.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+    suggestions_list.setAlternatingRowColors(True)
+    suggestions_list.setUniformItemSizes(True)
+    suggestions_list.setWordWrap(False)
+    suggestions_list.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+    suggestions_list.setVerticalScrollMode(QListView.ScrollMode.ScrollPerPixel)
+    suggestions_list.setItemDelegate(SearchHighlightDelegate(suggestions_list, lambda: active_query))
+    suggestions_list.setVisible(False)
+
+    def _navigate_suggestions(step: int) -> bool:
+        if not suggestions_list.isVisible():
+            return False
+        row_count = proxy_model.rowCount()
+        if row_count <= 0:
+            return False
+        selection_model = suggestions_list.selectionModel()
+        if not selection_model:
+            return False
+        selected_indexes = selection_model.selectedIndexes()
+        next_row = (0 if step > 0 else row_count - 1) if not selected_indexes else (selected_indexes[0].row() + step) % row_count
+        target_index = proxy_model.index(next_row, 0)
+        if not target_index.isValid():
+            return False
+        selection_model.select(target_index, QItemSelectionModel.SelectionFlag.ClearAndSelect)
+        suggestions_list.setCurrentIndex(target_index)
+        suggestions_list.scrollTo(target_index)
+        chosen = proxy_model.data(target_index, Qt.ItemDataRole.DisplayRole)
+        if isinstance(chosen, str):
+            line_edit.setText(chosen)
+        return True
+
+    line_edit = _SuggestionLineEdit(initial_text, _navigate_suggestions, dialog)
+    line_edit.selectAll()
+    layout.addWidget(line_edit)
+    layout.addWidget(suggestions_list)
+
+    button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel, dialog)
+    button_box.accepted.connect(dialog.accept)
+    button_box.rejected.connect(dialog.reject)
+    layout.addWidget(button_box)
+
+    def _sync_dialog_height() -> None:
+        suggestions_list.updateGeometry()
+        layout.invalidate()
+        layout.activate()
+        target_width = max(dialog.width(), layout.totalSizeHint().width(), scale_by_ui(360))
+        target_height = layout.totalHeightForWidth(target_width) if layout.hasHeightForWidth() else layout.totalSizeHint().height()
+        target_height = max(target_height, layout.totalMinimumSize().height())
+        dialog.setFixedHeight(target_height)
+        dialog.resize(target_width, target_height)
+
+    def _on_text_edited(text: str) -> None:
+        nonlocal active_query
+        active_query = text.strip()
+        if not active_query:
+            if suggestions_list.isVisible():
+                suggestions_list.setVisible(False)
+                _sync_dialog_height()
+            return
+
+        proxy_model.setFilterFixedString(active_query)
+        match_count = proxy_model.rowCount()
+        if match_count <= 0:
+            if suggestions_list.isVisible():
+                suggestions_list.setVisible(False)
+                _sync_dialog_height()
+            return
+
+        suggestions_list.clearSelection()
+        visible_rows = min(match_count, _INLINE_SUGGESTIONS_MAX_VISIBLE_ROWS)
+        row_height = max(suggestions_list.sizeHintForRow(0), scale_by_ui(20))
+        frame_margins = suggestions_list.frameWidth() * 2
+        suggestions_list.setFixedHeight(row_height * visible_rows + frame_margins)
+        suggestions_list.setVisible(True)
+        if viewport := suggestions_list.viewport():
+            viewport.update()
+        _sync_dialog_height()
+
+    def _on_suggestion_clicked(index: QModelIndex) -> None:
+        chosen = proxy_model.data(index, Qt.ItemDataRole.DisplayRole)
+        if isinstance(chosen, str):
+            line_edit.setText(chosen)
+            line_edit.setFocus()
+
+    def _on_suggestion_double_clicked(index: QModelIndex) -> None:
+        chosen = proxy_model.data(index, Qt.ItemDataRole.DisplayRole)
+        if isinstance(chosen, str):
+            line_edit.setText(chosen)
+            dialog.accept()
+
+    line_edit.textEdited.connect(_on_text_edited)
+    suggestions_list.clicked.connect(_on_suggestion_clicked)
+    suggestions_list.doubleClicked.connect(_on_suggestion_double_clicked)
+
+    accepted = dialog.exec() == QDialog.DialogCode.Accepted
+    return line_edit.text(), accepted
 
 
 @dataclass(frozen=True, slots=True)

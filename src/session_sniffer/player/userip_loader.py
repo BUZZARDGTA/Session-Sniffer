@@ -752,6 +752,24 @@ def update_userip_databases() -> tuple[float, bool]:
         return time.monotonic(), True
 
 
+def get_cached_userip_usernames() -> list[str]:
+    """Return all non-empty usernames currently cached across parsed UserIP databases."""
+    with _update_userip_databases_lock:
+        if _parsed_userip_databases:
+            return [
+                cleaned
+                for _, entries in _parsed_userip_databases.values()
+                for entry in entries
+                if (cleaned := entry.username.strip())
+            ]
+        return [
+            cleaned
+            for db_entry in UserIPDatabases.userip_databases
+            for entry in (*db_entry.single_entries, *db_entry.range_entries)
+            if (cleaned := entry.username.strip())
+        ]
+
+
 def _load_raw_userip_db(db_path: Path, *, action_label: str) -> tuple[UserIPSettingsModel, list[UserIPEntryModel]] | None:
     """Read and validate the settings and existing entries list from a UserIP database file."""
     try:

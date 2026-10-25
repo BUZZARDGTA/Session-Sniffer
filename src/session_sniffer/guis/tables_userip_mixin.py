@@ -8,7 +8,7 @@ from PySide6.QtWidgets import QInputDialog, QLineEdit, QMessageBox, QWidget
 
 from session_sniffer.constants.local import USERIP_DATABASES_DIR_PATH
 from session_sniffer.constants.standalone import TITLE
-from session_sniffer.guis.select_usernames_dialog import SelectUsernamesDialog
+from session_sniffer.guis.select_usernames_dialog import SelectUsernamesDialog, prompt_username_input
 from session_sniffer.guis.userip_manager_helpers import (
     IPRangeBuilderDialog,
     append_userip_entries,
@@ -153,11 +153,10 @@ def _prompt_usernames_to_add(
     if prompt_message is None:
         prompt_message = f'Please enter the username{pluralize(usernames_count)} to associate with the selected IP{pluralize(len(selected_ips))}:'
 
-    entered_username, success = QInputDialog.getText(
+    entered_username, success = prompt_username_input(
         parent,
         'Input Username',
         prompt_message,
-        QLineEdit.EchoMode.Normal,
         initial_text,
     )
 
@@ -525,11 +524,10 @@ def userip_rename_multi(parent: QWidget, players: list[Player]) -> None:
         next(iter(all_username_sets[0])) if len(all_username_sets[0]) == 1 and all(username_set == all_username_sets[0] for username_set in all_username_sets) else ''
     )
 
-    new_username, success = QInputDialog.getText(
+    new_username, success = prompt_username_input(
         parent,
         'Rename Selected',
         f'Enter a new username for {len(eligible)} selected IP{pluralize(len(eligible))}:\n{ips_display}',
-        QLineEdit.EchoMode.Normal,
         shared_username,
     )
     new_username = new_username.strip() if success else ''
@@ -586,11 +584,10 @@ def userip_rename(parent: QWidget, ip_address: str, player: Player) -> None:
             return
 
     # Step 2: Prompt for the new username
-    new_username, success = QInputDialog.getText(
+    new_username, success = prompt_username_input(
         parent,
         'Rename Username',
         f'Renaming "{old_username}" for IP {ip_address}.\nDatabase: {db_display}\n\nEnter the new username:',
-        QLineEdit.EchoMode.Normal,
         old_username,
     )
     new_username = new_username.strip() if success else ''

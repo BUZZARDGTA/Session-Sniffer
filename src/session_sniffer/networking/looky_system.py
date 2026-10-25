@@ -204,6 +204,29 @@ def _cache_looky_players(players: list[LookyPlayer]) -> None:
                 _RID_BY_USERNAME_CF_CACHE[stripped_name.casefold()] = (now, player.rockstarid)
 
 
+def get_cached_looky_usernames() -> list[str]:
+    """Return all non-empty usernames currently held in the in-memory Looky lookup caches."""
+    names: list[str] = []
+    with _CACHE_LOCK:
+        names.extend(
+            stripped
+            for _, players in _IP_PLAYERS_CACHE.values()
+            for player in players
+            if (stripped := player.name.strip())
+        )
+        for _, profile in _PROFILE_BY_RID_CACHE.values():
+            if profile is None:
+                continue
+            if last_name := profile.last_name.strip():
+                names.append(last_name)
+            names.extend(
+                sighting_name
+                for sighting in profile.users_by_rockstar_id
+                if (sighting_name := sighting.name.strip())
+            )
+    return names
+
+
 def _get_cached_rid_for_username(name_cf: str, now: float) -> tuple[bool, int | None]:
     """Return `(is_cached, rid)` from `_RID_BY_USERNAME_CF_CACHE` if still within TTL (caller must hold `_CACHE_LOCK`)."""
     if (cached_entry := _RID_BY_USERNAME_CF_CACHE.get(name_cf)) is None:

@@ -311,7 +311,7 @@ def get_stylesheet(ui_scale: float = 1.0) -> str:
         width: 7px;
         height: 7px;
     }
-    QComboBox QAbstractItemView {
+    QComboBox QAbstractItemView, QListView#CompleterPopup {
         background-color: #252526;
         border: 1px solid #3e3e42;
         border-radius: 4px;
@@ -320,7 +320,7 @@ def get_stylesheet(ui_scale: float = 1.0) -> str:
         color: #e0e0e0;
         selection-background-color: #3e3e42;
     }
-    QComboBox QAbstractItemView::item {
+    QComboBox QAbstractItemView::item, QListView#CompleterPopup::item {
         min-height: 20px;
         padding: 2px 6px;
         margin: 1px 0px;
@@ -330,28 +330,28 @@ def get_stylesheet(ui_scale: float = 1.0) -> str:
         background-color: transparent;
         color: #e0e0e0;
     }
-    QComboBox QAbstractItemView::item:hover {
+    QComboBox QAbstractItemView::item:hover, QListView#CompleterPopup::item:hover {
         background-color: #3e3e42;
         color: #ffffff;
         border-radius: 3px;
         padding: 2px 6px;
         border: none;
     }
-    QComboBox QAbstractItemView::item:selected {
+    QComboBox QAbstractItemView::item:selected, QListView#CompleterPopup::item:selected {
         background-color: #3e3e42;
         color: #ffffff;
         border-radius: 3px;
         padding: 2px 6px;
         border: none;
     }
-    QComboBox QAbstractItemView::item:selected:hover {
+    QComboBox QAbstractItemView::item:selected:hover, QListView#CompleterPopup::item:selected:hover {
         background-color: #4a4a50;
         color: #ffffff;
         border-radius: 3px;
         padding: 2px 6px;
         border: none;
     }
-    QComboBox QAbstractItemView::item:focus {
+    QComboBox QAbstractItemView::item:focus, QListView#CompleterPopup::item:focus {
         background-color: #3e3e42;
         color: #ffffff;
         border-radius: 3px;

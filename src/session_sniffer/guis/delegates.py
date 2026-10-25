@@ -357,11 +357,26 @@ class SearchHighlightDelegate(ElidedTextTooltipDelegate):
         parent: QWidget,
         get_search_text: Callable[[], str],
         get_search_column: Callable[[], int] | None = None,
+        configure_editor: Callable[[QWidget, QModelIndex | QPersistentModelIndex], None] | None = None,
     ) -> None:
         """Initialize the delegate with callables for the active search query and target column."""
         super().__init__(parent)
         self._get_search_text = get_search_text
         self._get_search_column = get_search_column
+        self._configure_editor = configure_editor
+
+    @override
+    def createEditor(
+        self,
+        parent: QWidget,
+        option: QStyleOptionViewItem,
+        index: QModelIndex | QPersistentModelIndex,
+    ) -> QWidget:
+        """Create the cell editor widget and apply optional caller configuration."""
+        editor = super().createEditor(parent, option, index)
+        if self._configure_editor is not None:
+            self._configure_editor(editor, index)
+        return editor
 
     @override
     def paint(self, painter: QPainter, option: QStyleOptionViewItem, index: QModelIndex | QPersistentModelIndex) -> None:

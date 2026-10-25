@@ -10,6 +10,7 @@ from PySide6.QtWidgets import QAbstractItemView, QDialog, QFrame, QInputDialog, 
 
 from session_sniffer.constants.local import USERIP_DATABASES_DIR_PATH
 from session_sniffer.constants.standalone import TITLE
+from session_sniffer.guis.select_usernames_dialog import prompt_username_input
 from session_sniffer.guis.userip_manager_helpers import (
     DATABASE_COLUMN,
     DUPLICATE_HIGHLIGHT_BRUSH,
@@ -377,7 +378,7 @@ class UserIPEntriesOperationsMixin(QDialog):
 
     def _prompt_new_usernames(self, prompt: str) -> list[str]:
         """Prompt the user for one or more comma-separated usernames."""
-        entered_text, accepted = QInputDialog.getText(self, 'Add Username', prompt, QLineEdit.EchoMode.Normal)
+        entered_text, accepted = prompt_username_input(self, 'Add Username', prompt)
         return dedup_preserve_order(split_usernames(entered_text)) if accepted and entered_text.strip() else []
 
     def _add_username_global_search(self, source_row: int, ip_text: str, range_text: str) -> None:
@@ -567,13 +568,7 @@ class UserIPEntriesOperationsMixin(QDialog):
             title = f'Rename Selected ({count})'
             prompt = f'Enter the new username for {count} selected {pluralize(count, "entry", "entries")}:'
 
-        new_username, success = QInputDialog.getText(
-            self,
-            title,
-            prompt,
-            QLineEdit.EchoMode.Normal,
-            initial_name,
-        )
+        new_username, success = prompt_username_input(self, title, prompt, initial_name)
         new_username = new_username.strip() if success else ''
         if not success:
             return
