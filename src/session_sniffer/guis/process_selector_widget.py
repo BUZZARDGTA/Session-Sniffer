@@ -15,14 +15,21 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from session_sniffer.capture.process import get_running_applications
-from session_sniffer.capture.process_monitor import ensure_process_monitor_running
+from session_sniffer.capture.process import (
+    get_process_image_path,
+    get_running_applications,
+    is_process_running,
+    matches_process_name,
+)
 from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.guis._settings_widget_builders import format_setting_tooltip
 from session_sniffer.guis.target_process_dialog import TargetProcessDialog
 from session_sniffer.guis.utils import get_process_icon, render_svg_icon_from_resource
 from session_sniffer.rendering_core.types import CaptureState
 from session_sniffer.settings import SettingMeta, Settings
+
+_PROCESS_NAME_ROLE = Qt.ItemDataRole.UserRole + 1
+_NON_RUNNING_ITEM_ROLE = Qt.ItemDataRole.UserRole + 2
 
 
 class _ProcessComboBoxViewFilter(QObject):
@@ -73,6 +80,7 @@ class ProcessSelectorWidget(QWidget):
         self._selected_name: str | None = Settings.capture_filter_process_name
         self._track_by_name = Settings.capture_filter_process_track_by_name
         self._specific_process_requested = self._selected_pid > 0 or (self._track_by_name and bool(self._selected_name))
+        self._stashed_untracked_target: tuple[int, str | None] | None = None
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -161,6 +169,7 @@ class ProcessSelectorWidget(QWidget):
 
     def _on_combo_index_changed(self) -> None:
         """Update the selected process and capture scope after a dropdown selection."""
+        self._stashed_untracked_target = None
         self._selected_pid = self.value()
         self._selected_name = self.process_name()
         if self._selected_pid > 0 or (self._track_by_name and self._selected_name is not None):
@@ -190,41 +199,51 @@ class ProcessSelectorWidget(QWidget):
             self.sync_scope_state()
             return
 
-        current_pid = self.value() if self._combo.count() > 0 else self._selected_pid
+        current_pid = self._selected_pid
         current_name = self._selected_name
-        warning_icon = render_svg_icon_from_resource('triangle-alert.svg', 16, 16, '#f59e0b')
+        scope_was_requested = self._specific_process_requested
+        stashed_target = self._stashed_untracked_target
         with QSignalBlocker(self._combo):
             self._combo.clear()
-            processes = get_running_applications(user_apps_only=True)
-            found_current = False
-            for pid, name, exe_path in processes:
+            for pid, name, exe_path in get_running_applications(user_apps_only=True):
                 self._combo.addItem(get_process_icon(exe_path), f'{name} (PID: {pid})', pid)
                 index = self._combo.count() - 1
                 item_tooltip = f'{name} (PID: {pid})\n{exe_path}' if exe_path else f'{name} (PID: {pid})'
                 self._combo.setItemData(index, item_tooltip, Qt.ItemDataRole.ToolTipRole)
-                self._combo.setItemData(index, name, Qt.ItemDataRole.UserRole + 1)
-                if pid == current_pid > 0:
-                    found_current = True
+                self._combo.setItemData(index, name, _PROCESS_NAME_ROLE)
 
-            if not found_current and current_pid > 0:
-                display_text = f'{current_name} (PID: {current_pid} - Not Running)' if bool(current_name) else f'Process PID {current_pid} (Not Running)'
-                self._combo.addItem(warning_icon, display_text, current_pid)
-                index = self._combo.count() - 1
-                self._combo.setItemData(index, display_text, Qt.ItemDataRole.ToolTipRole)
-                if bool(current_name):
-                    self._combo.setItemData(index, current_name, Qt.ItemDataRole.UserRole + 1)
-            elif not found_current and current_pid <= 0 and Settings.capture_filter_process_track_by_name and bool(current_name):
-                self._combo.addItem(warning_icon, f'{current_name} (Not Running)', 0)
-                index = self._combo.count() - 1
-                self._combo.setItemData(index, f'{current_name} (Waiting to launch)', Qt.ItemDataRole.ToolTipRole)
-                self._combo.setItemData(index, current_name, Qt.ItemDataRole.UserRole + 1)
-
-            scope_was_requested = self._specific_process_requested
             self.set_value(current_pid, current_name)
+            if self.value() <= 0:
+                self._stashed_untracked_target = stashed_target
             if current_pid <= 0 and current_name is None and scope_was_requested:
                 self._specific_process_requested = True
                 self.sync_scope_state()
         self._update_combo_tooltip()
+
+    def _find_combo_index_by_name(self, target_name: str) -> int:
+        """Return the combo index of a running process matching *target_name*."""
+        for index in range(self._combo.count()):
+            item_pid = self._combo.itemData(index)
+            if not (isinstance(item_pid, int) and item_pid > 0):
+                continue
+            item_name = self._combo.itemData(index, _PROCESS_NAME_ROLE)
+            if isinstance(item_name, str) and matches_process_name(item_name, target_name):
+                return index
+        for bg_pid, bg_name, bg_exe_path in get_running_applications(user_apps_only=False):
+            if matches_process_name(bg_name, target_name):
+                display_text = f'{bg_name} (PID: {bg_pid})'
+                self._combo.addItem(get_process_icon(bg_exe_path), display_text, bg_pid)
+                matched_index = self._combo.count() - 1
+                item_tooltip = f'{display_text}\n{bg_exe_path}' if bg_exe_path else display_text
+                self._combo.setItemData(matched_index, item_tooltip, Qt.ItemDataRole.ToolTipRole)
+                self._combo.setItemData(matched_index, bg_name, _PROCESS_NAME_ROLE)
+                return matched_index
+        return -1
+
+    @property
+    def track_by_name(self) -> bool:
+        """Return whether executable-name tracking is enabled."""
+        return self._track_by_name
 
     def value(self) -> int:
         """Return the currently selected PID (0 when sniffing all traffic)."""
@@ -236,61 +255,107 @@ class ProcessSelectorWidget(QWidget):
         current_index = self._combo.currentIndex()
         if current_index < 0:
             return None
-        data = self._combo.itemData(current_index, Qt.ItemDataRole.UserRole + 1)
+        data = self._combo.itemData(current_index, _PROCESS_NAME_ROLE)
         return str(data) if data is not None else None
 
-    def set_value(self, pid: int, process_name: str | None = None) -> None:
+    def set_value(
+        self,
+        pid: int,
+        process_name: str | None = None,
+        *,
+        track_by_name: bool | None = None,
+    ) -> None:
         """Set the selected process in the built-in dropdown."""
+        self._stashed_untracked_target = None
+        if track_by_name is not None:
+            self._track_by_name = track_by_name
+        if not CaptureState.is_local_capture():
+            with QSignalBlocker(self._combo):
+                self._combo.clear()
+                self._combo.setPlaceholderText('Disabled (External Device Capture)')
+                self._combo.setCurrentIndex(-1)
+            self._selected_pid = 0
+            self._selected_name = None
+            self._specific_process_requested = False
+            self.setEnabled(False)
+            self.sync_scope_state()
+            self._update_combo_tooltip()
+            return
+
         target_name = process_name
         self._selected_pid = max(0, pid)
         self._selected_name = target_name
         self._specific_process_requested = self._selected_pid > 0 or (self._track_by_name and bool(target_name))
-        if pid <= 0:
-            if target_name is not None and self._track_by_name:
+        with QSignalBlocker(self._combo):
+            for index in range(self._combo.count() - 1, -1, -1):
+                if bool(self._combo.itemData(index, _NON_RUNNING_ITEM_ROLE)):
+                    self._combo.removeItem(index)
+
+            if pid > 0:
+                matched_index = -1
                 for index in range(self._combo.count()):
-                    if not self._combo.itemData(index) and self._combo.itemData(index, Qt.ItemDataRole.UserRole + 1) == target_name:
-                        self._combo.setCurrentIndex(index)
-                        self._specific_process_requested = True
-                        self.sync_scope_state()
-                        self._update_combo_tooltip()
-                        self.process_target_changed.emit()
-                        return
-                warning_icon = render_svg_icon_from_resource('triangle-alert.svg', 16, 16, '#f59e0b')
-                self._combo.addItem(warning_icon, f'{target_name} (Not Running)', 0)
-                index = self._combo.count() - 1
-                self._combo.setItemData(index, f'{target_name} (Waiting to launch)', Qt.ItemDataRole.ToolTipRole)
-                self._combo.setItemData(index, target_name, Qt.ItemDataRole.UserRole + 1)
-                self._combo.setCurrentIndex(index)
-                self._specific_process_requested = True
-            else:
-                self._combo.setCurrentIndex(-1)
-            self._selected_name = self.process_name()
-            self.sync_scope_state()
-            self._update_combo_tooltip()
-            self.process_target_changed.emit()
-            return
+                    if self._combo.itemData(index) == pid:
+                        item_name = self._combo.itemData(index, _PROCESS_NAME_ROLE)
+                        if (
+                            target_name is not None
+                            and isinstance(item_name, str)
+                            and not matches_process_name(item_name, target_name)
+                        ):
+                            continue
+                        matched_index = index
+                        break
+                if matched_index < 0 and is_process_running(pid):
+                    image_path = get_process_image_path(pid)
+                    exe_path = str(image_path) if image_path is not None else ''
+                    actual_name = image_path.name if image_path is not None else None
+                    if (
+                        target_name is None
+                        or (actual_name is not None and matches_process_name(actual_name, target_name))
+                    ):
+                        resolved_name = actual_name or target_name
+                        display_text = f'{resolved_name} (PID: {pid})' if resolved_name is not None else f'Process PID {pid}'
+                        self._combo.addItem(get_process_icon(exe_path), display_text, pid)
+                        matched_index = self._combo.count() - 1
+                        item_tooltip = f'{display_text}\n{exe_path}' if exe_path else display_text
+                        self._combo.setItemData(matched_index, item_tooltip, Qt.ItemDataRole.ToolTipRole)
+                        if resolved_name is not None:
+                            self._combo.setItemData(matched_index, resolved_name, _PROCESS_NAME_ROLE)
+                if matched_index < 0:
+                    if self._track_by_name and target_name is not None:
+                        pid = 0
+                    else:
+                        warning_icon = render_svg_icon_from_resource('triangle-alert.svg', 16, 16, '#f59e0b')
+                        display_text = f'{target_name} (PID: {pid} - Not Running)' if target_name is not None else f'Process PID {pid} (Not Running)'
+                        self._combo.addItem(warning_icon, display_text, pid)
+                        matched_index = self._combo.count() - 1
+                        self._combo.setItemData(matched_index, display_text, Qt.ItemDataRole.ToolTipRole)
+                        self._combo.setItemData(matched_index, 1, _NON_RUNNING_ITEM_ROLE)
+                        if target_name is not None:
+                            self._combo.setItemData(matched_index, target_name, _PROCESS_NAME_ROLE)
+                if pid > 0:
+                    self._combo.setCurrentIndex(matched_index)
+                    self._selected_pid = self.value()
+                    self._selected_name = self.process_name()
+                    self._specific_process_requested = True
 
-        for index in range(self._combo.count()):
-            if self._combo.itemData(index) == pid:
-                self._combo.setCurrentIndex(index)
-                self._selected_pid = pid
-                self._selected_name = self.process_name()
-                self._specific_process_requested = True
-                self.sync_scope_state()
-                self._update_combo_tooltip()
-                self.process_target_changed.emit()
-                return
-
-        warning_icon = render_svg_icon_from_resource('triangle-alert.svg', 16, 16, '#f59e0b')
-        display_text = f'{target_name} (PID: {pid} - Not Running)' if target_name is not None else f'Process PID {pid} (Not Running)'
-        self._combo.addItem(warning_icon, display_text, pid)
-        index = self._combo.count() - 1
-        self._combo.setItemData(index, display_text, Qt.ItemDataRole.ToolTipRole)
-        if target_name is not None:
-            self._combo.setItemData(index, target_name, Qt.ItemDataRole.UserRole + 1)
-        self._combo.setCurrentIndex(index)
-        self._selected_name = self.process_name()
-        self._specific_process_requested = True
+            if pid <= 0:
+                if target_name is not None and self._track_by_name:
+                    matched_index = self._find_combo_index_by_name(target_name)
+                    if matched_index < 0:
+                        warning_icon = render_svg_icon_from_resource('triangle-alert.svg', 16, 16, '#f59e0b')
+                        self._combo.addItem(warning_icon, f'{target_name} (Not Running)', 0)
+                        matched_index = self._combo.count() - 1
+                        self._combo.setItemData(matched_index, f'{target_name} (Waiting to launch)', Qt.ItemDataRole.ToolTipRole)
+                        self._combo.setItemData(matched_index, target_name, _PROCESS_NAME_ROLE)
+                        self._combo.setItemData(matched_index, 1, _NON_RUNNING_ITEM_ROLE)
+                    self._combo.setCurrentIndex(matched_index)
+                    self._selected_pid = self.value()
+                    self._selected_name = self.process_name()
+                    self._specific_process_requested = True
+                else:
+                    self._combo.setCurrentIndex(-1)
+                    self._selected_pid = 0
+                    self._selected_name = None
         self.sync_scope_state()
         self._update_combo_tooltip()
         self.process_target_changed.emit()
@@ -299,8 +364,55 @@ class ProcessSelectorWidget(QWidget):
         """Keep the scope selection and process controls in sync with the current target."""
         if track_by_name is not None:
             self._track_by_name = track_by_name
-            if not track_by_name and self.value() <= 0:
-                self._specific_process_requested = False
+            current_index = self._combo.currentIndex()
+            if track_by_name:
+                if (
+                    current_index >= 0
+                    and bool(self._combo.itemData(current_index, _NON_RUNNING_ITEM_ROLE))
+                    and self.value() > 0
+                    and self._selected_name is not None
+                ):
+                    stashed_target = (self._selected_pid, self._selected_name)
+                    self.set_value(self._selected_pid, self._selected_name)
+                    if self.value() <= 0:
+                        self._stashed_untracked_target = stashed_target
+                    return
+                if (
+                    self.value() <= 0
+                    and current_index < 0
+                    and self._stashed_untracked_target is not None
+                ):
+                    stashed_pid, stashed_name = self._stashed_untracked_target
+                    self._stashed_untracked_target = None
+                    self.set_value(stashed_pid, stashed_name)
+                    return
+            else:
+                cleared_zero_pid_selection = self.value() <= 0 and (
+                    current_index >= 0 or self._selected_name is not None
+                )
+                if cleared_zero_pid_selection:
+                    if (
+                        self._stashed_untracked_target is not None
+                        and self._stashed_untracked_target[0] > 0
+                        and self._stashed_untracked_target[1] == self._selected_name
+                    ):
+                        stashed_pid, stashed_name = self._stashed_untracked_target
+                        self._stashed_untracked_target = None
+                        self.set_value(stashed_pid, stashed_name)
+                        return
+                    if self._selected_name is not None:
+                        self._stashed_untracked_target = (0, self._selected_name)
+                    self._specific_process_requested = False
+                    self._selected_name = None
+                with QSignalBlocker(self._combo):
+                    if cleared_zero_pid_selection:
+                        self._combo.setCurrentIndex(-1)
+                    for index in range(self._combo.count() - 1, -1, -1):
+                        if not self._combo.itemData(index):
+                            self._combo.removeItem(index)
+                if cleared_zero_pid_selection:
+                    self._update_combo_tooltip()
+                    self.process_target_changed.emit()
         process_selected = self._specific_process_requested or self.value() > 0 or (
             self._track_by_name and self.process_name() is not None
         )
@@ -312,6 +424,7 @@ class ProcessSelectorWidget(QWidget):
 
     def _on_sniff_all_traffic_clicked(self) -> None:
         """Clear process selection so capture includes traffic from every process."""
+        self._stashed_untracked_target = None
         self._specific_process_requested = False
         self._selected_name = None
         self.set_value(0)
@@ -326,16 +439,18 @@ class ProcessSelectorWidget(QWidget):
         """Open the target process selection dialog and update combo if changed."""
         if not CaptureState.is_local_capture():
             return
-        dialog = TargetProcessDialog(self)
+        dialog = TargetProcessDialog(
+            self,
+            initial_pid=self.value(),
+            initial_process_name=self.process_name(),
+            initial_track_by_name=self._track_by_name,
+        )
         if not dialog.exec():
             return
-        selected_pid = dialog.selected_pid
-        selected_name = dialog.selected_process_name
-        self._track_by_name = Settings.capture_filter_process_track_by_name
-        Settings.capture_filter_process_pid = selected_pid
-        Settings.capture_filter_process_name = selected_name
-        ensure_process_monitor_running()
+        self._stashed_untracked_target = None
+        self._selected_pid = dialog.selected_pid
+        self._selected_name = dialog.selected_process_name
+        self._track_by_name = dialog.selected_track_by_name
         self.refresh_process_list()
-        self.set_value(selected_pid, selected_name)
         self.process_selection_applied.emit()
         self.sync_scope_state()

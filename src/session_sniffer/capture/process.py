@@ -45,6 +45,7 @@ class ProcessInfo:
 
     pid: int
     creation_time: float
+    name: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -361,7 +362,7 @@ def inspect_target_process(
     # Fast path: re-query existing cached process handle if PID matches.
     if cached_process is not None and cached_process.pid == target_pid and is_process_running(cached_process):
         process_path = get_process_image_path(target_pid)
-        process_name = process_path.name if process_path is not None else None
+        process_name = process_path.name if process_path is not None else cached_process.name
         return (
             TargetProcessStatus(
                 pid=target_pid,
@@ -377,8 +378,12 @@ def inspect_target_process(
     if is_process_running(target_pid):
         creation_time = get_process_creation_time(target_pid)
         process_path = get_process_image_path(target_pid)
-        process_name = process_path.name if process_path is not None else None
-        cached_info = ProcessInfo(pid=target_pid, creation_time=creation_time) if creation_time is not None else None
+        process_name = (
+            process_path.name
+            if process_path is not None
+            else next((name for pid, name in iter_running_processes() if pid == target_pid and name), None)
+        )
+        cached_info = ProcessInfo(pid=target_pid, creation_time=creation_time, name=process_name) if creation_time is not None else None
         return (
             TargetProcessStatus(
                 pid=target_pid,
@@ -401,6 +406,15 @@ GTA5_PROCESS_NAMES: frozenset[str] = frozenset(
 )
 
 
+def matches_process_name(candidate_name: str, target_name: str) -> bool:
+    """Return whether *candidate_name* matches *target_name* (including GTA V executable aliases)."""
+    candidate_lower = candidate_name.strip().lower()
+    target_lower = target_name.strip().lower()
+    if target_lower in GTA5_PROCESS_NAMES:
+        return candidate_lower in GTA5_PROCESS_NAMES
+    return candidate_lower == target_lower
+
+
 def find_running_target_process(
     target_name: str,
     target_pid: int = 0,
@@ -417,14 +431,39 @@ def find_running_target_process(
     candidate_names = GTA5_PROCESS_NAMES if is_gta5 else frozenset({normalized_target})
 
     # Fast path: re-query existing cached process handle if still running.
-    if cached_process is not None and is_process_running(cached_process):
+    if (
+        cached_process is not None
+        and (target_pid <= 0 or cached_process.pid == target_pid)
+        and is_process_running(cached_process)
+    ):
         process_path = get_process_image_path(cached_process.pid)
         if process_path is not None and process_path.name.lower() in candidate_names:
+            updated_cache = (
+                cached_process
+                if cached_process.name == process_path.name
+                else ProcessInfo(pid=cached_process.pid, creation_time=cached_process.creation_time, name=process_path.name)
+            )
             return (
                 TargetProcessStatus(
                     pid=cached_process.pid,
                     name=process_path.name,
-                    path=process_path,
+                    path=process_path.resolve(),
+                    udp_ports=get_process_udp_ports(cached_process.pid),
+                    is_running=True,
+                ),
+                updated_cache,
+            )
+        if (
+            not is_gta5
+            and process_path is None
+            and cached_process.name is not None
+            and cached_process.name.lower() in candidate_names
+        ):
+            return (
+                TargetProcessStatus(
+                    pid=cached_process.pid,
+                    name=cached_process.name,
+                    path=None,
                     udp_ports=get_process_udp_ports(cached_process.pid),
                     is_running=True,
                 ),
@@ -440,7 +479,7 @@ def find_running_target_process(
             and (not is_gta5 or has_valid_authenticode_signature(process_path))
         ):
             creation_time = get_process_creation_time(target_pid)
-            cached_info = ProcessInfo(pid=target_pid, creation_time=creation_time) if creation_time is not None else None
+            cached_info = ProcessInfo(pid=target_pid, creation_time=creation_time, name=process_path.name) if creation_time is not None else None
             return (
                 TargetProcessStatus(
                     pid=target_pid,
@@ -453,25 +492,42 @@ def find_running_target_process(
             )
 
     # Slow path: iterate running processes to find candidate executable.
+    fallback_match: tuple[int, str, Path | None] | None = None
     for pid, process_name in iter_running_processes():
         if not process_name or process_name.lower() not in candidate_names:
             continue
 
         process_path = get_process_image_path(pid)
-        if process_path is None:
-            continue
-
-        if is_gta5 and not has_valid_authenticode_signature(process_path):
+        if is_gta5 and (process_path is None or not has_valid_authenticode_signature(process_path)):
             logger.debug('[TargetProcess] Authenticode signature invalid for GTA5, ignoring: "%s" (PID: %s)', process_path, pid)
             continue
 
-        resolved_path = process_path.resolve()
+        resolved_name = process_path.name if process_path is not None else process_name
+        resolved_path = process_path.resolve() if process_path is not None else None
+        if target_pid <= 0 or pid == target_pid:
+            creation_time = get_process_creation_time(pid)
+            cached_info = ProcessInfo(pid=pid, creation_time=creation_time, name=resolved_name) if creation_time is not None else None
+            return (
+                TargetProcessStatus(
+                    pid=pid,
+                    name=resolved_name,
+                    path=resolved_path,
+                    udp_ports=get_process_udp_ports(pid),
+                    is_running=True,
+                ),
+                cached_info,
+            )
+        if fallback_match is None:
+            fallback_match = (pid, resolved_name, resolved_path)
+
+    if fallback_match is not None:
+        pid, resolved_name, resolved_path = fallback_match
         creation_time = get_process_creation_time(pid)
-        cached_info = ProcessInfo(pid=pid, creation_time=creation_time) if creation_time is not None else None
+        cached_info = ProcessInfo(pid=pid, creation_time=creation_time, name=resolved_name) if creation_time is not None else None
         return (
             TargetProcessStatus(
                 pid=pid,
-                name=process_path.name,
+                name=resolved_name,
                 path=resolved_path,
                 udp_ports=get_process_udp_ports(pid),
                 is_running=True,

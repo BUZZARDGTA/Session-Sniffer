@@ -30,6 +30,7 @@ from PySide6.QtWidgets import (
 )
 
 from session_sniffer.capture.arp_spoofing import ArpSpoofingController
+from session_sniffer.capture.process import matches_process_name
 from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.discord.webhook import is_valid_webhook_url
@@ -194,6 +195,7 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
 
         self._connect_widget_change_signals()
         self._load_current_values()
+        self._sync_loaded_process_baseline()
 
         # Force the webhook enable cascade once even if the value matches the
         # default (in which case `setChecked` would not fire `toggled`).
@@ -553,7 +555,13 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
                 if key == 'capture_filter_process_pid':
                     pid_value = int(value) if isinstance(value, (int, float)) else 0
                     process_name = Settings.capture_filter_process_name if self._loading_settings else None
-                    cast('ProcessSelectorWidget', widget).set_value(pid_value, process_name)
+                    track_by_name = (
+                        Settings.capture_filter_process_track_by_name
+                        if self._loading_settings
+                        else SETTING_DEFAULTS['capture_filter_process_track_by_name']
+                    )
+                    selector = cast('ProcessSelectorWidget', widget)
+                    selector.set_value(pid_value, process_name, track_by_name=track_by_name)
                 else:
                     cast('QSpinBox', widget).setValue(int(value) if isinstance(value, (int, float)) else 0)
 
@@ -676,6 +684,14 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
             QMessageBox.critical(self, TITLE, '\n\n'.join(errors))
             return
 
+        live_process_pid = Settings.capture_filter_process_pid
+        live_process_name = Settings.capture_filter_process_name
+        runtime_old_values = {
+            **self._old_values,
+            'capture_filter_process_pid': live_process_pid,
+            'capture_filter_process_name': live_process_name,
+        }
+
         for key, value in new_values.items():
             if SETTING_METADATA[key].setting_type == SettingType.MAC_ADDRESS and isinstance(value, str):
                 formatted_value: SettingValue = format_mac_address(value)
@@ -686,9 +702,22 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
 
         if 'capture_filter_process_pid' in self._widgets:
             selector = cast('ProcessSelectorWidget', self._widgets['capture_filter_process_pid'])
-            selected_process_name = selector.process_name()
-            new_values['capture_filter_process_name'] = selected_process_name
-            Settings.capture_filter_process_name = selected_process_name
+            if (
+                not self._is_setting_modified('capture_filter_process_pid', selector)
+                and bool(new_values.get('capture_filter_process_track_by_name'))
+                and bool(runtime_old_values.get('capture_filter_process_track_by_name'))
+            ):
+                new_values['capture_filter_process_pid'] = live_process_pid
+                new_values['capture_filter_process_name'] = live_process_name
+                Settings.capture_filter_process_pid = live_process_pid
+                Settings.capture_filter_process_name = live_process_name
+            else:
+                selected_process_name = selector.process_name()
+                new_values['capture_filter_process_name'] = selected_process_name
+                Settings.capture_filter_process_name = selected_process_name
+                if selector.value() > 0 and selected_process_name is None and bool(new_values.get('capture_filter_process_track_by_name')):
+                    new_values['capture_filter_process_track_by_name'] = False
+                    Settings.capture_filter_process_track_by_name = False
 
         if self._capture.is_running():
             Settings.capture_interface_name = self._capture.config.interface.name
@@ -696,11 +725,22 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
             Settings.capture_mac_address = self._capture.config.interface.mac_address
 
         Settings.rewrite_settings_file()
-        apply_runtime_settings_changes(self._capture, self._old_values, new_values, dialog_parent=self)
+        apply_runtime_settings_changes(self._capture, runtime_old_values, new_values, dialog_parent=self)
 
         self._changed_settings = {key for key, value in new_values.items() if value != self._initial_values.get(key)}
         self._saved = True
         self.accept()
+
+    def _sync_loaded_process_baseline(self) -> None:
+        """Align baseline process target values with the resolved ProcessSelectorWidget state."""
+        process_selector = self._widgets.get('capture_filter_process_pid')
+        if isinstance(process_selector, ProcessSelectorWidget):
+            resolved_pid = process_selector.value()
+            resolved_name = process_selector.process_name()
+            self._old_values['capture_filter_process_pid'] = resolved_pid
+            self._old_values['capture_filter_process_name'] = resolved_name
+            self._initial_values['capture_filter_process_pid'] = resolved_pid
+            self._initial_values['capture_filter_process_name'] = resolved_name
 
     def refresh_from_external_settings(self) -> None:
         """Reload widget values from `Settings` when `settings.json` changes externally and there are no unsaved edits."""
@@ -709,6 +749,7 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
         self._old_values = {key: getattr(Settings, key) for key in SETTING_METADATA}
         self._initial_values = dict(self._old_values)
         self._load_current_values()
+        self._sync_loaded_process_baseline()
         self._update_restart_notice()
 
     @property
@@ -788,7 +829,6 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
             meta = SETTING_METADATA[key]
             match widget:
                 case QCheckBox():
-                    widget.toggled.connect(self._update_restart_notice)
                     if key == 'capture_filter_process_track_by_name':
                         process_selector = self._widgets.get('capture_filter_process_pid')
                         if isinstance(process_selector, ProcessSelectorWidget):
@@ -802,6 +842,7 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
                                 return _sync_process_scope
 
                             widget.toggled.connect(_make_process_scope_sync_handler(process_selector, widget))
+                    widget.toggled.connect(self._update_restart_notice)
                 case ColorPickerButton():
                     widget.color_changed.connect(self._update_restart_notice)
                 case QSpinBox() | QDoubleSpinBox():
@@ -866,17 +907,15 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
         self._restart_notice_banner.setVisible(self._has_unsaved_restart_changes())
 
     def _on_process_selection_applied(self) -> None:
-        """Synchronize dialog widgets and baseline values after TargetProcessDialog persists process selection."""
+        """Synchronize dialog widgets after TargetProcessDialog updates the process selector."""
+        process_selector = self._widgets.get('capture_filter_process_pid')
+        if not isinstance(process_selector, ProcessSelectorWidget):
+            return
         track_by_name_widget = self._widgets.get('capture_filter_process_track_by_name')
         if isinstance(track_by_name_widget, QCheckBox):
             with QSignalBlocker(track_by_name_widget):
-                track_by_name_widget.setChecked(Settings.capture_filter_process_track_by_name)
-        process_selector = self._widgets.get('capture_filter_process_pid')
-        if isinstance(process_selector, ProcessSelectorWidget):
-            process_selector.sync_scope_state(track_by_name=Settings.capture_filter_process_track_by_name)
-        self._old_values['capture_filter_process_pid'] = Settings.capture_filter_process_pid
-        self._old_values['capture_filter_process_name'] = Settings.capture_filter_process_name
-        self._old_values['capture_filter_process_track_by_name'] = Settings.capture_filter_process_track_by_name
+                track_by_name_widget.setChecked(process_selector.track_by_name)
+        process_selector.sync_scope_state(track_by_name=process_selector.track_by_name)
         self._update_restart_notice()
 
     def _is_setting_modified(self, key: str, widget: QWidget) -> bool:
@@ -884,7 +923,17 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
         current_value = self._read_widget_value(key, widget)
         original_value = self._old_values.get(key)
         if key == 'capture_filter_process_pid' and isinstance(widget, ProcessSelectorWidget):
-            return current_value != original_value or widget.process_name() != self._old_values.get('capture_filter_process_name')
+            current_name = widget.process_name()
+            original_name = self._old_values.get('capture_filter_process_name')
+            same_tracked_name = isinstance(current_name, str) and isinstance(original_name, str) and matches_process_name(current_name, original_name)
+            if (
+                bool(self._old_values.get('capture_filter_process_track_by_name'))
+                and widget.track_by_name
+                and same_tracked_name
+                and current_value in (original_value, Settings.capture_filter_process_pid)
+            ):
+                return False
+            return current_value != original_value or current_name != original_name
         if SETTING_METADATA[key].setting_type in (SettingType.IP_RANGE_TUPLE, SettingType.STRING_TUPLE):
             return sorted(current_value if isinstance(current_value, tuple) else ()) != sorted(original_value if isinstance(original_value, tuple) else ())
         return current_value != original_value

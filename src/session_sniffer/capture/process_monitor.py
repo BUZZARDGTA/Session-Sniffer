@@ -15,6 +15,7 @@ from session_sniffer.capture.process import (
     TargetProcessStatus,
     find_running_target_process,
     inspect_target_process,
+    matches_process_name,
 )
 from session_sniffer.gta5.process import GTA5Status, find_running_gta5_path
 from session_sniffer.rdr2.process import RDR2Status, find_running_rdr2_path
@@ -53,6 +54,20 @@ def _log_process_status_transition(
         logger.debug('[ProcessMonitor] %s UDP ports updated: %s', process_identifier, sorted(current.udp_ports))
 
 
+def _is_same_process_target(
+    target_pid: int,
+    tracked_name: str | None,
+    *,
+    track_by_name: bool,
+) -> bool:
+    """Return whether `Settings` still points at the same process target inspected at the start of the poll."""
+    return (
+        Settings.capture_filter_process_track_by_name == track_by_name
+        and Settings.capture_filter_process_name == tracked_name
+        and Settings.capture_filter_process_pid == target_pid
+    )
+
+
 def _monitor_target_process(
     previous_status: TargetProcessStatus,
     cached_process: ProcessInfo | None,
@@ -70,7 +85,9 @@ def _monitor_target_process(
             cached_process=cached_process,
         )
         if status.is_running:
-            if status.pid != target_pid or (status.name is not None and status.name != Settings.capture_filter_process_name):
+            if _is_same_process_target(target_pid, tracked_name, track_by_name=True) and (
+                status.pid != target_pid or (status.name is not None and status.name != Settings.capture_filter_process_name)
+            ):
                 if status.pid is not None:
                     Settings.capture_filter_process_pid = status.pid
                 if status.name is not None:
@@ -79,19 +96,30 @@ def _monitor_target_process(
             _log_process_status_transition(previous_status, status, tracking_by_name=True)
             return (status, updated_cache)
 
+        if target_pid > 0 and _is_same_process_target(target_pid, tracked_name, track_by_name=True):
+            Settings.capture_filter_process_pid = 0
+            Settings.rewrite_settings_file()
         if previous_status.is_running:
             _log_process_status_transition(previous_status, status, tracking_by_name=True)
         return (status, None)
 
     if target_pid > 0:
         status, updated_cache = inspect_target_process(target_pid, cached_process)
-        if not status.is_running:
+        pid_reused = (
+            status.is_running
+            and tracked_name is not None
+            and status.name is not None
+            and not matches_process_name(status.name, tracked_name)
+        )
+        if not status.is_running or pid_reused:
             if previous_status.is_running:
-                _log_process_status_transition(previous_status, status, tracking_by_name=False)
+                _log_process_status_transition(previous_status, TargetProcessStatus(pid=target_pid, is_running=False), tracking_by_name=False)
             else:
                 logger.info('[ProcessMonitor] Target process (PID %d) is not running; resetting to capture all traffic', target_pid)
-            Settings.capture_filter_process_pid = 0
-            Settings.rewrite_settings_file()
+            if not Settings.capture_filter_process_track_by_name and Settings.capture_filter_process_pid == target_pid:
+                Settings.capture_filter_process_pid = 0
+                Settings.capture_filter_process_name = None
+                Settings.rewrite_settings_file()
             return (TargetProcessStatus(), None)
 
         _log_process_status_transition(previous_status, status, tracking_by_name=False)
@@ -149,7 +177,7 @@ def _process_monitor() -> None:
                 cached_process=cached_process,
             )
             CaptureState.update_target_process_status(last_process_status)
-        elif last_process_status.is_running or last_process_status.pid is not None:
+        elif last_process_status.is_running or last_process_status.pid is not None or last_process_status.name is not None:
             last_process_status = TargetProcessStatus()
             cached_process = None
             CaptureState.update_target_process_status(last_process_status)
