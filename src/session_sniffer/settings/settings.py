@@ -374,7 +374,7 @@ class Settings:
         clear_secret_cache()
 
     @staticmethod
-    def parse_settings_json_file(json_path: Path) -> tuple[dict[str, Any], bool]:
+    def parse_settings_json_file(json_path: Path, *, strict: bool = False) -> tuple[dict[str, Any], bool]:
         """Parse the settings JSON file and report whether it should be rewritten."""
         validate_file(json_path)
 
@@ -382,10 +382,15 @@ class Settings:
         try:
             parsed: object = json.loads(json_text)
         except json.JSONDecodeError as e:
+            if strict:
+                raise
             logger.warning('Failed to parse settings file %s: %s; resetting to defaults.', json_path, e)
             return {}, True
 
         if not isinstance(parsed, dict):
+            if strict:
+                msg = 'Settings file root is not a JSON object.'
+                raise TypeError(msg)
             logger.warning('Settings file %s root is not a JSON object; resetting to defaults.', json_path)
             return {}, True
 
@@ -411,8 +416,10 @@ class Settings:
     def load_from_settings_file(cls, settings_path: Path, *, rewrite_if_needed: bool = True) -> None:
         """Load settings from disk into `Settings` and rewrite when necessary."""
         try:
-            raw_settings, need_rewrite_settings = cls.parse_settings_json_file(settings_path)
+            raw_settings, need_rewrite_settings = cls.parse_settings_json_file(settings_path, strict=not rewrite_if_needed)
         except FileNotFoundError:
+            if not rewrite_if_needed:
+                raise
             logger.info('Settings file not found at %s; initializing defaults.', settings_path)
             raw_settings = {}
             need_rewrite_settings = True

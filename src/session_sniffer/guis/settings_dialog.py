@@ -812,14 +812,19 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
         if not file_path:
             return
         previous_settings = {name.lower(): value for name, value in Settings.iterate_over_settings()}
-        Settings.load_from_settings_file(Path(file_path), rewrite_if_needed=False)
-        if self._capture.is_running():
-            Settings.capture_interface_name = self._capture.config.interface.name
-            Settings.capture_ip_address = self._capture.config.interface.ip_address
-            Settings.capture_mac_address = self._capture.config.interface.mac_address
-        self._load_current_values()
-        for key, value in previous_settings.items():
-            setattr(Settings, key, value)
+        try:
+            Settings.load_from_settings_file(Path(file_path), rewrite_if_needed=False)
+            if self._capture.is_running():
+                Settings.capture_interface_name = self._capture.config.interface.name
+                Settings.capture_ip_address = self._capture.config.interface.ip_address
+                Settings.capture_mac_address = self._capture.config.interface.mac_address
+            self._load_current_values()
+        except (OSError, UnicodeDecodeError, ValueError, TypeError) as exc:
+            QMessageBox.critical(self, TITLE, f'Failed to import settings:\n\n{exc}')
+            return
+        finally:
+            for key, value in previous_settings.items():
+                setattr(Settings, key, value)
         self._update_restart_notice()
         QMessageBox.information(self, TITLE, 'Settings imported successfully.')
 
