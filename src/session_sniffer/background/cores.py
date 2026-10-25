@@ -26,7 +26,7 @@ from session_sniffer.networking.looky_system import verify_token as looky_verify
 from session_sniffer.networking.ping import ping_player
 from session_sniffer.networking.reverse_dns import reverse_dns_lookup
 from session_sniffer.networking.third_party_servers import is_third_party_server_ip
-from session_sniffer.player.registry import PlayersRegistry
+from session_sniffer.player.registry import PlayersRegistry, SessionTracker
 from session_sniffer.player.userip import gui_dispatcher
 from session_sniffer.rendering_core.events import wake_rendering_core
 from session_sniffer.rendering_core.types import CaptureState
@@ -494,6 +494,7 @@ def pinger_core() -> None:
         player.ping.update_fields(ping_result._asdict())
         player.ping.is_pinging = ping_result.packets_received is not None and ping_result.packets_received > 0
         player.ping.is_initialized = True
+        SessionTracker.update_session_player_snapshot(player, metadata_only=True)
 
     def handle_exception(ip_address: str, exception: Exception) -> bool:
         if isinstance(exception, AllEndpointsExhaustedError):
@@ -729,6 +730,7 @@ def looky_core() -> None:
                         looky_usernames = list(matched_player.looky_system.usernames)
 
                     matched_player.rebuild_usernames(looky_usernames=looky_usernames)
+                    SessionTracker.update_session_player_snapshot(matched_player, metadata_only=True)
             wake_rendering_core()
             server_error_consecutive_failures = 0
             gui_closed__event.wait(0.1)

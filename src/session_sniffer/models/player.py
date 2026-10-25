@@ -257,9 +257,18 @@ class Player:
         if session_id is not None:
             clone.session_id = session_id
         clone.usernames = list(self.usernames)
+        if self.mod_menus is not None:
+            clone.mod_menus = PlayerModMenus(usernames=list(self.mod_menus.usernames))
+        if self.userip_detection is not None:
+            clone.userip_detection = copy.copy(self.userip_detection)
+        clone.ping = copy.copy(self.ping)
         clone.datetime = self.datetime.snapshot()
         clone.packets = self.packets.snapshot()
+        clone.packets.pps.reset()
+        clone.packets.ppm.reset()
         clone.bandwidth = self.bandwidth.snapshot()
+        clone.bandwidth.bps.reset()
+        clone.bandwidth.bpm.reset()
         clone.ports = self.ports.snapshot()
         clone.joins = [join.snapshot() for join in self.joins]
         return clone

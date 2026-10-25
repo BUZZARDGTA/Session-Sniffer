@@ -20,10 +20,11 @@ from session_sniffer.guis.userip_manager_helpers import (
 )
 from session_sniffer.models.userip_settings_model import UserIPDatabaseFile, UserIPEntryModel, get_current_iso_timestamp
 from session_sniffer.networking.ip_range import entry_ip_covers_ip
-from session_sniffer.player.registry import PlayersRegistry
+from session_sniffer.player.registry import PlayersRegistry, SessionTracker
 from session_sniffer.player.userip import UserIPDatabases
 from session_sniffer.player.userip_loader import update_userip_databases
 from session_sniffer.rendering_core.events import wake_rendering_core
+from session_sniffer.rendering_core.types import SessionFilterState
 from session_sniffer.settings import Settings
 from session_sniffer.text_utils import pluralize, split_usernames
 from session_sniffer.utils import dedup_preserve_order
@@ -89,9 +90,15 @@ def resolve_usernames_for_player(player: Player) -> list[str]:
 
 def resolve_usernames_for_ips(selected_ips: list[str]) -> list[str]:
     """Return deduplicated usernames associated with the given IP addresses from the player registry."""
+    selected_session = SessionFilterState.get_selected_session()
+    is_past_session = 0 < selected_session < SessionTracker.get_current_session_id()
     all_usernames: list[str] = []
     for ip_address in selected_ips:
-        player = PlayersRegistry.get_player_by_ip(ip_address)
+        player = (
+            SessionTracker.get_session_snapshot_player(selected_session, ip_address)
+            if is_past_session
+            else None
+        ) or PlayersRegistry.get_player_by_ip(ip_address)
         if player is not None:
             all_usernames.extend(resolve_usernames_for_player(player))
     return dedup_preserve_order(all_usernames)

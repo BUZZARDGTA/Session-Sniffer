@@ -34,12 +34,14 @@ from session_sniffer.guis.tables_player_actions.looky_system._looky_crawler_requ
 )
 from session_sniffer.guis.tables_player_actions.looky_system._looky_helpers import check_looky_prerequisites
 from session_sniffer.guis.utils import ActiveDialogRegistry, set_dialog_window_flags
+from session_sniffer.models.player import Player
 from session_sniffer.networking.looky_system import (
     extract_rate_limit_message,
     extract_rate_limit_wait_seconds,
     get_looky_user_url,
     lookup_ip,
 )
+from session_sniffer.player.registry import PlayersRegistry, SessionTracker
 from session_sniffer.rendering_core.events import wake_rendering_core
 from session_sniffer.settings.settings import Settings
 from session_sniffer.text_utils import pluralize
@@ -50,7 +52,6 @@ if TYPE_CHECKING:
 
     from session_sniffer.guis.tables_player_actions._ip_lookup_dialog import StandaloneIPLookup
     from session_sniffer.models.looky_system import LookyPlayer
-    from session_sniffer.models.player import Player
 
 logger = logging.getLogger(__name__)
 
@@ -241,6 +242,19 @@ def show_looky_lookup(parent: QWidget, player: Player | StandaloneIPLookup) -> N
             player.looky_system.as_userip_checked = False
         if player.looky_system.usernames:
             player.usernames = dedup_preserve_order(player.usernames, player.looky_system.usernames)
+            if isinstance(player, Player):
+                live_player = PlayersRegistry.get_player_by_ip(player.ip)
+                if live_player is not None and live_player is not player:
+                    with live_player.looky_system.lock:
+                        live_player.looky_system.usernames = list(player.looky_system.usernames)
+                        live_player.looky_system.rockstarids = list(player.looky_system.rockstarids)
+                        live_player.looky_system.last_seens = list(player.looky_system.last_seens)
+                        live_player.looky_system.needs_refresh = False
+                        live_player.looky_system.last_fetched_at = player.looky_system.last_fetched_at
+                        live_player.looky_system.is_initialized = True
+                        live_player.looky_system.as_userip_checked = False
+                    live_player.usernames = dedup_preserve_order(live_player.usernames, live_player.looky_system.usernames)
+                SessionTracker.update_session_player_snapshot(player, metadata_only=True)
             wake_rendering_core()
 
         if not isValid(parent):

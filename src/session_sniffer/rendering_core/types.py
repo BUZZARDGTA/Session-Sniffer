@@ -12,11 +12,11 @@ from PySide6.QtGui import QColor
 from session_sniffer.background.events import gui_closed__event
 from session_sniffer.capture.process import GTA5_PROCESS_NAMES
 from session_sniffer.networking.interface import INTERFACE_TYPE_BRIDGED, INTERFACE_TYPE_SHARING
-from session_sniffer.player.registry import PlayersRegistry
 from session_sniffer.rendering_core.events import wake_rendering_core
 from session_sniffer.settings import Settings
 
 if TYPE_CHECKING:
+    from collections.abc import Iterable
     from datetime import datetime, timedelta
     from pathlib import Path
 
@@ -24,6 +24,7 @@ if TYPE_CHECKING:
 
     from session_sniffer.capture.process import TargetProcessStatus
     from session_sniffer.gta5.process import GTA5Status
+    from session_sniffer.models.player import Player
     from session_sniffer.rdr2.process import RDR2Status
 
 _MAX_LATENCY_ENTRIES = 3600  # default; resized to Settings.gui_rate_graph_max_history after startup
@@ -195,7 +196,6 @@ class TableMergeState:
             cls._override = not current
             cls._version += 1
         wake_rendering_core()
-        GUIRenderingState.wake()
 
     @classmethod
     def reset_override(cls) -> None:
@@ -206,7 +206,6 @@ class TableMergeState:
             cls._override = None
             cls._version += 1
         wake_rendering_core()
-        GUIRenderingState.wake()
 
     @classmethod
     def get_version(cls) -> int:
@@ -414,10 +413,10 @@ class CaptureStats:
         cls.capture_health_samples.clear()
 
     @classmethod
-    def recalculate_total_packets(cls) -> None:
+    def recalculate_total_packets(cls, players: Iterable[Player]) -> None:
         """Recalculate total captured packets from current players in registry."""
         cls.total_packets_captured = (
-            sum(player.packets.total_exchanged for player in PlayersRegistry.get_players_map().values())
+            sum(player.packets.total_exchanged for player in players)
             + cls.packets_overflow_dropped
         )
 

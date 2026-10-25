@@ -342,16 +342,9 @@ def main() -> None:
         CaptureStats.packets_latencies.append((packet.datetime, packet_latency))
         CaptureStats.total_packets_captured += 1
 
-        is_gta5_packet = (
-            Settings.is_gta5_feature_set()
-            and CaptureState.is_local_capture()
-            and local_port in CaptureState.gta5_udp_ports
-        )
-        is_rdr2_packet = (
-            Settings.is_rdr2_feature_set()
-            and CaptureState.is_local_capture()
-            and local_port in CaptureState.rdr2_udp_ports
-        )
+        is_local_capture = CaptureState.is_local_capture()
+        is_gta5_packet = Settings.is_gta5_feature_set() and is_local_capture and local_port in CaptureState.gta5_udp_ports
+        is_rdr2_packet = Settings.is_rdr2_feature_set() and is_local_capture and local_port in CaptureState.rdr2_udp_ports
 
         matched_player = PlayersRegistry.get_player_by_ip(target_ip)
         if matched_player is None:
@@ -401,9 +394,21 @@ def main() -> None:
             )
             if is_gta5_packet and not matched_player.is_gta5_process:
                 matched_player.is_gta5_process = True
+                if not matched_player.is_third_party_server:
+                    SessionTracker.record_session_player_activity(
+                        matched_player.session_id,
+                        matched_player.datetime.last_rejoin,
+                        fallback_timestamp=packet.datetime,
+                    )
                 enqueue_player_for_resolution(matched_player)
             if is_rdr2_packet and not matched_player.is_rdr2_process:
                 matched_player.is_rdr2_process = True
+                if not matched_player.is_third_party_server:
+                    SessionTracker.record_session_player_activity(
+                        matched_player.session_id,
+                        matched_player.datetime.last_rejoin,
+                        fallback_timestamp=packet.datetime,
+                    )
                 enqueue_player_for_resolution(matched_player)
 
         if (

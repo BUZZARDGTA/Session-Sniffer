@@ -97,6 +97,7 @@ class _WindowState:
     worker_thread: GUIWorkerThread
     window_being_moved: bool
     min_accepted_snapshot_version: int
+    last_selected_session: int = SessionFilterState.FILTER_ALL
 
 
 class _MinimizedTablesPlaceholder(QWidget):
@@ -142,7 +143,7 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
     def _on_splitter_moved(self, _position: int, _index: int) -> None:
         selected_session = SessionFilterState.get_selected_session()
         is_past_session = 0 < selected_session < SessionTracker.get_current_session_id()
-        if not is_past_session and self._connected.is_expanded and self._disconnected.is_expanded:
+        if not is_past_session and not TableMergeState.is_merged() and self._connected.is_expanded and self._disconnected.is_expanded:
             self._saved_splitter_sizes = self._tables_splitter.sizes()
 
     def _on_session_filter_changed(self, _session_id: int) -> None:
@@ -152,9 +153,13 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
         self._connected.update_disconnected_players_state()
         self._disconnected.update_disconnected_players_state()
         is_merged = TableMergeState.is_merged()
-        self._header.set_search_placeholder_merged(is_merged=is_merged)
         selected_session = SessionFilterState.get_selected_session()
         is_past_session = 0 < selected_session < SessionTracker.get_current_session_id()
+        self._header.set_search_placeholder_merged(is_merged=is_merged or is_past_session)
+        if self.isVisible():
+            current_sizes = self._tables_splitter.sizes()
+            if len(current_sizes) == self._tables_splitter.count() and all(size > 0 for size in current_sizes):
+                self._saved_splitter_sizes = current_sizes
         if is_past_session:
             self._connected.setVisible(False)
             self._connected.expand_button.setVisible(False)
@@ -175,6 +180,7 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
             self._connected.setVisible(True)
             self._tables_splitter.setVisible(True)
             self._placeholder.setVisible(False)
+            self._tables_splitter.setSizes([10000, 0])
             return
 
         self._connected.collapse_button.setVisible(True)
@@ -199,14 +205,20 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
                     connected_size = int(total_height * ratio)
                     disconnected_size = total_height - connected_size
                     self._tables_splitter.setSizes([connected_size, disconnected_size])
+                    self._saved_splitter_sizes = [connected_size, disconnected_size]
             else:
                 total_height = sum(self._tables_splitter.sizes())
                 if total_height > 0:
                     half_height = total_height // 2
-                    self._tables_splitter.setSizes([half_height, total_height - half_height])
+                    restored_sizes = [half_height, total_height - half_height]
+                    self._tables_splitter.setSizes(restored_sizes)
+                    self._saved_splitter_sizes = restored_sizes
 
     def _toggle_tables_merged(self) -> None:
         """Toggle merging connected and disconnected tables on the fly."""
+        selected_session = SessionFilterState.get_selected_session()
+        if 0 < selected_session < SessionTracker.get_current_session_id():
+            return
         TableMergeState.toggle()
         self._update_splitter_visibility()
         self._connected.table_view.viewport().update()
@@ -563,9 +575,9 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
             gui_state = GUIState.load()
             selected_session = SessionFilterState.get_selected_session()
             is_past_session = 0 < selected_session < SessionTracker.get_current_session_id()
-            if not is_past_session and self._connected.is_expanded and self._disconnected.is_expanded:
+            if not is_past_session and not TableMergeState.is_merged() and self._connected.is_expanded and self._disconnected.is_expanded:
                 current_sizes = self._tables_splitter.sizes()
-                if sum(current_sizes) > 0:
+                if len(current_sizes) == self._tables_splitter.count() and all(size > 0 for size in current_sizes):
                     gui_state.main_window_splitter_sizes = current_sizes
             elif self._saved_splitter_sizes:
                 gui_state.main_window_splitter_sizes = self._saved_splitter_sizes
@@ -638,6 +650,13 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
             return
         if payload.snapshot_version < self._state.min_accepted_snapshot_version:
             return
+
+        selected_session = SessionFilterState.get_selected_session()
+        if selected_session != self._state.last_selected_session:
+            self._state.last_selected_session = selected_session
+            self._disconnected.reset_page_to_first()
+            self._disconnected.sync_session_filter()
+            self._update_splitter_visibility()
 
         self._sync_capture_toggle_action()
         self._header.set_capture_running(is_running=self.capture.is_running())
@@ -863,6 +882,7 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
 
     def reset_players_for_interface_switch(self) -> None:
         """Clear all player data in preparation for a new capture interface."""
+        self._disconnected.set_selected_session_filter(SessionFilterState.FILTER_ALL)
         self._clear_connected_players()
         self._clear_disconnected_players()
         clear_resolution_queues()
@@ -882,50 +902,59 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
         self._update_status_bar()
         wake_all_player_cores()
 
+    @override
+    def _bump_min_accepted_snapshot_version(self) -> None:
+        """Advance the minimum accepted rendering snapshot version."""
+        self._state.min_accepted_snapshot_version = GUIRenderingState.get_version() + 1
+
     def _clear_connected_players(self) -> None:
         """Clear all connected players from the table and registry."""
-        self._state.min_accepted_snapshot_version = GUIRenderingState.get_version() + 1
+        current_session_id = SessionTracker.get_current_session_id()
         connected_players = PlayersRegistry.get_default_sorted_players(include_connected=True, include_disconnected=False)
         connected_ips = {player.ip for player in connected_players}
+        affected_past_sessions: set[int] = set()
+        for player in connected_players:
+            if 0 < player.session_id < current_session_id and SessionTracker.remove_session_player(player.session_id, player.ip):
+                affected_past_sessions.add(player.session_id)
 
         PlayersRegistry.clear_connected_players()
+        self._prune_empty_past_sessions(affected_past_sessions)
         SessionHost.players_pending_for_disconnection.clear()
         self._connected.clear_table()
-
-        if connected_ips:
-            for ip in connected_ips:
-                GTASuspendManager.release_reasons_for_ip(ip)
-                RDR2SuspendManager.release_reasons_for_ip(ip)
+        self._cleanup_removed_player_ips(connected_ips)
 
         if TableMergeState.is_merged():
             self._clear_disconnected_players()
-        else:
-            self.recalculate_capture_stats()
+            return
+        self._refresh_session_gui_state()
+        self.recalculate_capture_stats()
 
     def _clear_disconnected_players(self) -> None:
-        """Clear all disconnected players from the table and registry (or active past session)."""
+        """Clear all disconnected players from the table and registry (or active session filter)."""
         selected_session = SessionFilterState.get_selected_session()
         current_session_id = SessionTracker.get_current_session_id()
-        if 0 < selected_session < current_session_id:
-            self._state.min_accepted_snapshot_version = GUIRenderingState.get_version() + 1
-            SessionTracker.clear_session_players(selected_session)
+        is_past_session = 0 < selected_session < current_session_id
+        if is_past_session or selected_session == SessionFilterState.FILTER_CURRENT:
+            if is_past_session:
+                for pruned_sid in SessionTracker.clear_session_players(selected_session):
+                    SessionHost.prune_history_for_session(pruned_sid)
+                self._disconnected.set_selected_session_filter(SessionFilterState.FILTER_ALL)
+            target_session_id = selected_session if is_past_session else current_session_id
+            removed_ips = {player.ip for player in PlayersRegistry.remove_players_by_session_id(target_session_id)}
             self._disconnected.clear_table()
             self._refresh_session_gui_state()
+            self._cleanup_removed_player_ips(removed_ips, remove_from_connected=is_past_session or TableMergeState.is_merged())
             return
 
-        self._state.min_accepted_snapshot_version = GUIRenderingState.get_version() + 1
         disconnected_players = PlayersRegistry.get_default_sorted_players(include_connected=False, include_disconnected=True)
         disconnected_ips = {player.ip for player in disconnected_players}
 
         PlayersRegistry.clear_disconnected_players()
-        SessionHost.players_pending_for_disconnection = [player for player in SessionHost.players_pending_for_disconnection if player.ip not in disconnected_ips]
+        for pruned_sid in SessionTracker.clear_session_players():
+            SessionHost.prune_history_for_session(pruned_sid)
         self._disconnected.clear_table()
-
-        if disconnected_ips:
-            for ip in disconnected_ips:
-                GTASuspendManager.release_reasons_for_ip(ip)
-                RDR2SuspendManager.release_reasons_for_ip(ip)
-
+        self._refresh_session_gui_state()
+        self._cleanup_removed_player_ips(disconnected_ips, remove_from_connected=TableMergeState.is_merged())
         self.recalculate_capture_stats()
 
     @override
@@ -936,7 +965,7 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
             self.reset_capture_stats()
             return
 
-        CaptureStats.recalculate_total_packets()
+        CaptureStats.recalculate_total_packets(PlayersRegistry.get_all_players())
         if not PlayersRegistry.get_connected_count():
             CaptureStats.global_bandwidth = 0
             CaptureStats.global_download = 0

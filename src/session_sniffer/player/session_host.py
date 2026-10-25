@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, ClassVar
 from session_sniffer.constants.standard import LOCAL_TZ
 from session_sniffer.exceptions import UnexpectedPlayerCountError
 from session_sniffer.player.registry import PlayersRegistry, SessionTracker
+from session_sniffer.rendering_core.types import CaptureState
 from session_sniffer.settings import Settings
 from session_sniffer.text_utils import format_elapsed_time, pluralize
 
@@ -308,6 +309,8 @@ class SessionHost:
     @staticmethod
     def is_game_packet_confirmed(player: Player) -> bool:
         """Return True when the player was seen on a UDP port owned by the active game."""
+        if not CaptureState.is_local_capture():
+            return Settings.is_session_host_feature_set()
         if Settings.is_gta5_feature_set():
             return player.is_gta5_process
         if Settings.is_rdr2_feature_set():
@@ -315,9 +318,19 @@ class SessionHost:
         return False
 
     @classmethod
-    def clear_session_host_data(cls) -> None:
-        """Clear active session host data including pending disconnections."""
-        cls.players_pending_for_disconnection.clear()
+    def filter_confirmed_p2p_players(cls, players: list[Player]) -> list[Player]:
+        """Return non-server players confirmed on the active game's UDP port."""
+        return [
+            player
+            for player in players
+            if not player.is_third_party_server and cls.is_game_packet_confirmed(player)
+        ]
+
+    @classmethod
+    def clear_session_host_data(cls, *, clear_pending_disconnections: bool = True) -> None:
+        """Clear active session host data and optionally pending disconnections."""
+        if clear_pending_disconnections:
+            cls.players_pending_for_disconnection.clear()
         cls.search_player = False
         cls.manual_redetect = False
         cls.search_start_time = None
@@ -339,6 +352,12 @@ class SessionHost:
         )
         if session_id is None:
             session_id = SessionTracker.get_current_session_id()
+        if cls._history and cls._history[-1].session_id == session_id and cls._history[-1].ip == player.ip:
+            if diagnostics is not None:
+                cls._history[-1].diagnostics = diagnostics
+            if country_code not in {'...', 'N/A', ''}:
+                cls._history[-1].country_code = country_code
+            return
         cls._history.append(
             HostHistoryEntry(
                 ip=player.ip,
@@ -371,9 +390,15 @@ class SessionHost:
         """Infer and cache the session host from currently connected players and eligible relay candidates."""
         # Only consider IPs confirmed by traffic on the active game's UDP port. Other captured
         # traffic can still appear in the session tables, but must not influence host selection.
-        confirmed_session_players = [player for player in session_connected if cls.is_game_packet_confirmed(player)]
-        if not session_connected or not confirmed_session_players:
-            if session_connected:
+        current_session_id = SessionTracker.get_current_session_id()
+        current_session_connected = [
+            player
+            for player in session_connected
+            if player.session_id in (0, current_session_id)
+        ]
+        confirmed_session_players = [player for player in current_session_connected if cls.is_game_packet_confirmed(player)]
+        if not current_session_connected or not confirmed_session_players:
+            if current_session_connected:
                 game_name = 'GTA V' if Settings.is_gta5_feature_set() else 'RDR2'
                 cls.last_rejection_reason = f'No connected players have been confirmed by packets on a {game_name} UDP port.'
                 outcome = f'No {game_name} UDP-port-confirmed players found in current session.'
@@ -381,7 +406,7 @@ class SessionHost:
                 cls.last_rejection_reason = 'No other players are currently connected in your session.'
                 outcome = 'No connected players found in current session.'
             cls.last_diagnostics = _build_host_diagnostics_snapshot(
-                session_players=session_connected,
+                session_players=confirmed_session_players,
                 candidates=[],
                 result=_DetectionEvaluationResult(
                     outcome=outcome,
@@ -391,12 +416,16 @@ class SessionHost:
             return None
 
         candidates = list(confirmed_session_players)
-        p2p_connected = [player for player in confirmed_session_players if not player.is_third_party_server]
+        p2p_connected = cls.filter_confirmed_p2p_players(confirmed_session_players)
         if p2p_connected:
-            earliest_connected_time = min(player.datetime.last_rejoin for player in p2p_connected)
+            active_p2p_connected = [
+                player for player in p2p_connected if player not in cls.players_pending_for_disconnection
+            ] or p2p_connected
+            earliest_connected_time = min(player.datetime.last_rejoin for player in active_p2p_connected)
             for disconnected_player in PlayersRegistry.get_disconnected_players():
                 if (
-                    cls.is_relay_host_candidate(disconnected_player)
+                    disconnected_player.session_id in (0, current_session_id)
+                    and cls.is_relay_host_candidate(disconnected_player)
                     and abs(earliest_connected_time - disconnected_player.datetime.last_rejoin) <= _SESSION_HOST_AMBIGUITY_MAX_TD
                     and disconnected_player not in candidates
                 ):
@@ -553,5 +582,10 @@ class SessionHost:
                 detected_host=potential_session_host_player,
                 timing_gap=gap_seconds,
             ),
+        )
+        cls.record_host(
+            potential_session_host_player,
+            diagnostics=cls.last_diagnostics,
+            session_id=current_session_id,
         )
         return potential_session_host_player

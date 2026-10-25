@@ -55,7 +55,11 @@ def populate_host_history_submenu(
 
     now = datetime.now(tz=LOCAL_TZ)
     for entry in reversed(history):
-        matched_player = PlayersRegistry.get_player_by_ip(entry.ip)
+        matched_player = (
+            SessionTracker.get_session_snapshot_player(entry.session_id, entry.ip)
+            if entry.session_id is not None
+            else None
+        ) or PlayersRegistry.get_player_by_ip(entry.ip)
         usernames = matched_player.usernames if matched_player is not None and matched_player.usernames else ()
         formatted_usernames = format_menu_usernames(usernames, placeholder='—')
         elapsed_time_string = format_elapsed_time(now - entry.detected_at)

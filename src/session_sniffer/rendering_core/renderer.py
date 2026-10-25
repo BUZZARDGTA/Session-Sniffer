@@ -60,6 +60,7 @@ from session_sniffer.rendering_core.types import (
     GUIRenderingState,
     GUIStatusTexts,
     GUITableData,
+    SessionFilterState,
     SessionTableSnapshot,
     TableMergeState,
 )
@@ -82,6 +83,64 @@ DISCORD_PRESENCE_UPDATE_INTERVAL_SECONDS = 3.0
 DISCORD_WEBHOOK_UPDATE_INTERVAL_SECONDS = 1.0
 
 
+def _prune_recovered_pending_disconnections(*, session_transitioned: bool) -> None:
+    """Remove recovered players from `SessionHost.players_pending_for_disconnection`."""
+    recovered_players = [
+        player
+        for player in SessionHost.players_pending_for_disconnection
+        if not player.left_event.is_set() and (player.packets.pps.is_first_calculation or player.packets.pps.calculated_rate)
+    ]
+    if not recovered_players:
+        return
+    if not session_transitioned:
+        had_departed_pending_player = any(
+            player.left_event.is_set() for player in SessionHost.players_pending_for_disconnection
+        )
+        SessionHost.players_pending_for_disconnection.clear()
+        if had_departed_pending_player and not SessionHost.has_player():
+            SessionHost.search_player = True
+            SessionHost.search_start_time = None
+        return
+    current_session_id = SessionTracker.get_current_session_id()
+    affected_session_ids: set[int] = set()
+    for player in recovered_players:
+        if player.session_id != current_session_id:
+            old_session_id = player.session_id
+            if SessionTracker.remove_session_player(old_session_id, player.ip, recovered=True):
+                affected_session_ids.add(old_session_id)
+        player.session_id = current_session_id
+    SessionHost.players_pending_for_disconnection = [
+        player for player in SessionHost.players_pending_for_disconnection if player not in recovered_players
+    ]
+    for old_session_id in sorted(affected_session_ids):
+        pruned_or_collapsed = SessionTracker.prune_empty_past_session(old_session_id)
+        if pruned_or_collapsed is not None and pruned_or_collapsed != old_session_id:
+            SessionHost.prune_history_for_session(pruned_or_collapsed)
+            existing_history = SessionHost.get_history(session_id=old_session_id)
+            restored_host = (
+                PlayersRegistry.get_player_by_ip(existing_history[-1].ip)
+                if existing_history
+                else None
+            )
+            SessionHost.last_diagnostics = existing_history[-1].diagnostics if existing_history else None
+            if restored_host is not None and (
+                (not restored_host.left_event.is_set() and PlayersRegistry.is_player_connected(restored_host))
+                or SessionHost.is_relay_host_candidate(restored_host)
+            ):
+                SessionHost.set_player(restored_host)
+                SessionHost.search_player = False
+            else:
+                SessionHost.set_player(None)
+                SessionHost.search_player = True
+            SessionHost.search_start_time = None
+            if SessionFilterState.get_selected_session() in (old_session_id, pruned_or_collapsed):
+                SessionFilterState.set_selected_session(session_id=SessionFilterState.FILTER_ALL)
+        elif pruned_or_collapsed == old_session_id:
+            SessionHost.prune_history_for_session(old_session_id)
+            if SessionFilterState.get_selected_session() == old_session_id:
+                SessionFilterState.set_selected_session(session_id=SessionFilterState.FILTER_ALL)
+
+
 def rendering_core(
     capture_holder: CaptureHolder,
     geoip2_readers: GeoIP2Readers,
@@ -99,6 +158,23 @@ def rendering_core(
     def get_asn_info(ip_address: str) -> str:
         reader = geoip2_readers.asn_reader if geoip2_readers.enabled else None
         return extract_asn_info(reader, ip_address)
+
+    def _populate_player_geoip_and_flag(target_player: Player) -> None:
+        if not target_player.iplookup.geolite2.is_initialized:
+            target_player.iplookup.geolite2.country, target_player.iplookup.geolite2.country_code = get_country_info(target_player.ip)
+            target_player.iplookup.geolite2.city = get_city_info(target_player.ip)
+            target_player.iplookup.geolite2.asn = get_asn_info(target_player.ip)
+            target_player.iplookup.geolite2.is_initialized = True
+        if target_player.country_flag is None:
+            country_code_value = (
+                target_player.iplookup.geolite2.country_code
+                if target_player.iplookup.geolite2.country_code not in {'...', 'N/A'}
+                else target_player.iplookup.ipapi.country_code
+                if target_player.iplookup.ipapi.country_code not in {'...', 'N/A'}
+                else None
+            )
+            if country_code_value is not None:
+                target_player.country_flag = get_country_flag(country_code_value)
 
     _disconnected_json_cache: dict[str, tuple[tuple[object, ...], dict[str, object]]] = {}
     _session_logging_writing: bool = False
@@ -335,7 +411,7 @@ def rendering_core(
     last_session_logging_processing_time = None
     last_modmenu_refresh_time: float | None = None
     _has_players_for_poll: bool = False
-    _last_recorded_host_ip: str | None = None
+    _last_recorded_host_key: tuple[int, str] | None = None
     _sniffer_just_started: bool = True
     _sniffer_start_time: float = time.monotonic()
     _session_host_was_active: bool = False
@@ -446,10 +522,29 @@ def rendering_core(
                 looky_userip_checked = player.looky_system.as_userip_checked
 
             if Settings.looky_enabled and Settings.is_gta5_feature_set():
-                looky_complete = looky_initialized and not looky_needs_refresh and all(name in player.usernames for name in looky_usernames)
+                looky_complete = (
+                    looky_initialized
+                    and not looky_needs_refresh
+                    and (not looky_usernames or looky_userip_checked)
+                    and all(name in player.usernames for name in looky_usernames)
+                )
             else:
                 looky_complete = True
-            if player.left_event.is_set() and not _userip_db_rebuilt and player.iplookup.geolite2.is_initialized and has_geo and looky_complete:
+            modmenu_usernames_for_player = all_modmenu_usernames.get(player.ip)
+            modmenu_complete = (
+                not bool(modmenu_usernames_for_player)
+                if player.mod_menus is None
+                else player.mod_menus.usernames == modmenu_usernames_for_player
+            )
+            ps3_complete = not bool(player.ps3_username) or player.ps3_username in player.usernames
+            usernames_complete = looky_complete and modmenu_complete and ps3_complete
+            if (
+                player.left_event.is_set()
+                and not _userip_db_rebuilt
+                and player.iplookup.geolite2.is_initialized
+                and has_geo
+                and usernames_complete
+            ):
                 continue
 
             if _userip_db_rebuilt:
@@ -472,7 +567,6 @@ def rendering_core(
             ):
                 spawn_connected_userip_detection(player, player.userip)
 
-            modmenu_usernames_for_player = all_modmenu_usernames.get(player.ip)
             if modmenu_usernames_for_player is not None and modmenu_usernames_for_player:
                 modmenu_changed = player.mod_menus is None or player.mod_menus.usernames != modmenu_usernames_for_player
                 if player.mod_menus is None:
@@ -500,71 +594,102 @@ def rendering_core(
             if not player.left_event.is_set() and player.userip is None and player.usernames and should_recheck_usernames:
                 trigger_auto_username_userip(player, list(player.usernames))
 
-            if not player.iplookup.geolite2.is_initialized:
-                player.iplookup.geolite2.country, player.iplookup.geolite2.country_code = get_country_info(player.ip)
-                player.iplookup.geolite2.city = get_city_info(player.ip)
-                player.iplookup.geolite2.asn = get_asn_info(player.ip)
-                player.iplookup.geolite2.is_initialized = True
+            _populate_player_geoip_and_flag(player)
 
-            if player.country_flag is None:
-                country_code_value = (
-                    player.iplookup.geolite2.country_code
-                    if player.iplookup.geolite2.country_code not in {'...', 'N/A'}
-                    else player.iplookup.ipapi.country_code
-                    if player.iplookup.ipapi.country_code not in {'...', 'N/A'}
-                    else None
+            SessionTracker.update_session_player_snapshot(player, metadata_only=True)
+
+        for snapshot_player in SessionTracker.get_all_snapshot_players():
+            _populate_player_geoip_and_flag(snapshot_player)
+            if _userip_db_rebuilt:
+                snapshot_player.userip = UserIPDatabases.resolve_userip(snapshot_player.ip)
+            elif snapshot_player.userip is None and snapshot_player.ip not in _userip_not_found:
+                resolved = UserIPDatabases.resolve_userip(snapshot_player.ip)
+                if resolved is None:
+                    _userip_not_found.add(snapshot_player.ip)
+                else:
+                    snapshot_player.userip = resolved
+            snapshot_modmenu = all_modmenu_usernames.get(snapshot_player.ip)
+            snapshot_player.mod_menus = (
+                PlayerModMenus(usernames=list(snapshot_modmenu))
+                if snapshot_modmenu is not None and snapshot_modmenu
+                else None
+            )
+            with snapshot_player.looky_system.lock:
+                snapshot_looky_usernames = (
+                    list(snapshot_player.looky_system.usernames)
+                    if Settings.looky_enabled and Settings.is_gta5_feature_set() and snapshot_player.looky_system.is_initialized
+                    else ()
                 )
-                if country_code_value is not None:
-                    player.country_flag = get_country_flag(country_code_value)
-
-        p2p_session_connected = [player for player in session_connected if not player.is_third_party_server]
+            snapshot_player.rebuild_usernames(looky_usernames=snapshot_looky_usernames)
 
         if Settings.is_session_host_feature_set():
+            p2p_session_connected = SessionHost.filter_confirmed_p2p_players(session_connected)
             if not Settings.gui_session_host_detection:
                 if SessionHost.has_player() or SessionHost.players_pending_for_disconnection or SessionHost.search_player or SessionHost.last_timing_gap_candidate is not None:
                     SessionHost.clear_session_host_data()
                     _session_transitioned_for_pending_disconnections = False
                 if _session_host_was_active and not p2p_session_connected:
-                    SessionTracker.advance_session(players=session_connected)
+                    SessionTracker.advance_session(players=session_connected, p2p_players=())
                     _session_host_was_active = False
             else:
                 current_session_host = SessionHost.get_player()
                 is_relay_host = current_session_host is not None and SessionHost.is_relay_host_candidate(current_session_host)
                 if current_session_host is not None and current_session_host.left_event.is_set() and not is_relay_host:
                     SessionHost.set_player(None)
-                    SessionHost.search_player = any(player.packets.pps.calculated_rate for player in p2p_session_connected if player.ip != current_session_host.ip)
+                    SessionHost.search_player = any(
+                        player.packets.pps.is_first_calculation or player.packets.pps.calculated_rate
+                        for player in p2p_session_connected
+                        if player.ip != current_session_host.ip
+                    )
                     SessionHost.search_start_time = None
+                if SessionHost.players_pending_for_disconnection:
+                    _prune_recovered_pending_disconnections(session_transitioned=_session_transitioned_for_pending_disconnections)
+                if not SessionHost.players_pending_for_disconnection:
+                    _session_transitioned_for_pending_disconnections = False
+
                 # Trigger search once every pending player has completed disconnection
                 if SessionHost.players_pending_for_disconnection and all(player.left_event.is_set() for player in SessionHost.players_pending_for_disconnection):
-                    if not SessionHost.has_player():
+                    if not SessionHost.has_player() or not _session_transitioned_for_pending_disconnections:
                         SessionHost.set_player(None)
                         SessionHost.search_player = True
                         SessionHost.search_start_time = None
-                    if not _session_transitioned_for_pending_disconnections and p2p_session_connected:
-                        SessionTracker.advance_session(players=p2p_session_connected)
+                    new_p2p_connected = [
+                        player for player in p2p_session_connected if player not in SessionHost.players_pending_for_disconnection
+                    ]
+                    if not _session_transitioned_for_pending_disconnections and new_p2p_connected:
+                        remaining_connected = [
+                            player for player in session_connected if player not in SessionHost.players_pending_for_disconnection
+                        ]
+                        SessionTracker.advance_session(
+                            players=remaining_connected,
+                            p2p_players=new_p2p_connected,
+                            excluded_players=SessionHost.players_pending_for_disconnection,
+                        )
                     SessionHost.players_pending_for_disconnection.clear()
                     _session_transitioned_for_pending_disconnections = False
                 elif SessionHost.players_pending_for_disconnection:
-                    recovered_players = [
-                        player for player in SessionHost.players_pending_for_disconnection if not player.left_event.is_set() and player.packets.pps.calculated_rate
+                    new_active_players = [
+                        player
+                        for player in p2p_session_connected
+                        if player not in SessionHost.players_pending_for_disconnection
+                        and (player.packets.pps.is_first_calculation or player.packets.pps.calculated_rate)
                     ]
-                    if recovered_players:
-                        SessionHost.players_pending_for_disconnection = [player for player in SessionHost.players_pending_for_disconnection if player not in recovered_players]
-
-                    new_active_players = (
-                        [player for player in p2p_session_connected if player not in SessionHost.players_pending_for_disconnection and player.packets.pps.calculated_rate]
-                        if SessionHost.players_pending_for_disconnection
-                        else []
-                    )
                     if new_active_players and not _session_transitioned_for_pending_disconnections:
-                        new_session_connected = [
+                        remaining_connected = [
+                            player for player in session_connected if player not in SessionHost.players_pending_for_disconnection
+                        ]
+                        new_p2p_connected = [
                             player for player in p2p_session_connected if player not in SessionHost.players_pending_for_disconnection
                         ]
                         _session_transitioned_for_pending_disconnections = True
                         SessionHost.set_player(None)
                         SessionHost.search_player = True
                         SessionHost.search_start_time = None
-                        SessionTracker.advance_session(players=new_session_connected)
+                        SessionTracker.advance_session(
+                            players=remaining_connected,
+                            p2p_players=new_p2p_connected,
+                            excluded_players=SessionHost.players_pending_for_disconnection,
+                        )
 
                 # Sniffer startup: wait the full window before deciding.
                 # Players seen before the window expires suppress the search; once the window
@@ -582,7 +707,7 @@ def rendering_core(
 
                 if not p2p_session_connected:
                     if _session_host_was_active:
-                        SessionTracker.advance_session(players=session_connected)
+                        SessionTracker.advance_session(players=session_connected, p2p_players=())
                     _session_host_was_active = False
                     SessionHost.clear_session_host_data()
                     _session_transitioned_for_pending_disconnections = False
@@ -598,7 +723,7 @@ def rendering_core(
                         SessionHost.clear_session_host_data()
                         _session_transitioned_for_pending_disconnections = False
                     elif len(p2p_session_connected) != 1 or p2p_session_connected[0].packets.sent >= MINIMUM_PACKETS_FOR_RELAY_SESSION_HOST:
-                        SessionHost.get_host_player(p2p_session_connected)
+                        SessionHost.get_host_player(session_connected)
                 elif not SessionHost.has_player() and SessionHost.last_timing_gap_candidate is not None and len(p2p_session_connected) >= SESSION_HOST_CANDIDATE_PLAYERS_COUNT:
                     top2 = sorted(p2p_session_connected, key=attrgetter('datetime.last_rejoin'))[:SESSION_HOST_CANDIDATE_PLAYERS_COUNT]
                     current_pair = (top2[0].ip, top2[1].ip)
@@ -612,16 +737,18 @@ def rendering_core(
                         SessionHost.search_player = True
 
         current_session_host = SessionHost.get_player()
-        if current_session_host is not None and current_session_host.ip != _last_recorded_host_ip:
+        if current_session_host is not None:
             active_session_id = SessionTracker.get_current_session_id()
-            SessionHost.record_host(
-                current_session_host,
-                diagnostics=SessionHost.last_diagnostics,
-                session_id=active_session_id,
-            )
-            _last_recorded_host_ip = current_session_host.ip
-        elif current_session_host is None and _last_recorded_host_ip is not None:
-            _last_recorded_host_ip = None
+            host_key = (active_session_id, current_session_host.ip)
+            if host_key != _last_recorded_host_key:
+                SessionHost.record_host(
+                    current_session_host,
+                    diagnostics=SessionHost.last_diagnostics,
+                    session_id=active_session_id,
+                )
+                _last_recorded_host_key = host_key
+        elif _last_recorded_host_key is not None:
+            _last_recorded_host_key = None
 
         if Settings.gui_sessions_logging and (last_session_logging_processing_time is None or (time.monotonic() - last_session_logging_processing_time) >= 1.0):
             last_session_logging_processing_time = time.monotonic()

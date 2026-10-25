@@ -40,8 +40,8 @@ from session_sniffer.guis.table_model import SessionTableModel
 from session_sniffer.guis.tables_context_menu_mixin import TableContextMenuMixin
 from session_sniffer.guis.tables_header_menu_mixin import TableHeaderMenuMixin
 from session_sniffer.guis.utils import scale_by_ui
-from session_sniffer.player.registry import PlayersRegistry
-from session_sniffer.rendering_core.types import PaginationState, SearchState, SortState, TableMergeState
+from session_sniffer.player.registry import PlayersRegistry, SessionTracker
+from session_sniffer.rendering_core.types import PaginationState, SearchState, SessionFilterState, SortState, TableMergeState
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -173,7 +173,7 @@ class SessionTableView(TableHeaderMenuMixin, TableContextMenuMixin, QTableView):
                 if (country_column := model.get_column_index('Country')) is not None and country_column == index.column():
                     ip = model.get_display_text(model.index(index.row(), model.ip_column_index))
                     if ip is not None:
-                        matched_player = PlayersRegistry.get_player_by_ip(ip)
+                        matched_player = model.resolve_row_player(ip)
                         if matched_player is not None and matched_player.country_flag is not None:
                             self._show_flag_tooltip(event, index, matched_player)
 
@@ -309,14 +309,17 @@ class SessionTableView(TableHeaderMenuMixin, TableContextMenuMixin, QTableView):
             self._empty_icon_renderer.render(painter, icon_rect)
 
             search_text = SearchState.get_text()
-            has_registry_players = bool(
-                PlayersRegistry.get_default_sorted_players(
-                    include_connected=self.is_connected_table,
-                    include_disconnected=not self.is_connected_table,
-                ),
-            )
-
             is_merged = TableMergeState.is_merged()
+            selected_session = SessionFilterState.get_selected_session()
+            if not self.is_connected_table and 0 < selected_session < SessionTracker.get_current_session_id():
+                has_registry_players = bool(SessionTracker.get_session_players(selected_session))
+            else:
+                has_registry_players = bool(
+                    PlayersRegistry.get_default_sorted_players(
+                        include_connected=self.is_connected_table,
+                        include_disconnected=not self.is_connected_table or is_merged,
+                    ),
+                ) or (not self.is_connected_table and bool(SessionTracker.get_all_snapshot_players()))
             if search_text and has_registry_players:
                 title = ('No matching players' if is_merged else 'No matching connected players') if self.is_connected_table else 'No matching disconnected players'
                 subtitle = 'No players match the current search filter.'

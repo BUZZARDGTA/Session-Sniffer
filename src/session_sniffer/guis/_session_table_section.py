@@ -603,9 +603,12 @@ class SessionTableSection(QWidget):
         self.expand_button.setEnabled(enabled)
 
     def update_merge_button_state(self) -> None:
-        """Update the merge button text and tooltip according to the current merge state."""
+        """Update the merge button text, tooltip, and visibility according to the current merge state."""
         if self._merge_button is None:
             return
+        selected_session = SessionFilterState.get_selected_session()
+        is_past_session = 0 < selected_session < SessionTracker.get_current_session_id()
+        self._merge_button.setVisible(not is_past_session)
         is_merged = TableMergeState.is_merged()
         self._merge_button.setText('SPLIT' if is_merged else 'MERGE')
         self._merge_button.setToolTip(
@@ -732,10 +735,14 @@ class SessionTableSection(QWidget):
         """Synchronize the section header label and clear button tooltip."""
         self._update_header_label()
 
+    def reset_page_to_first(self) -> None:
+        """Reset this section's pagination to the first page."""
+        self._current_page = 1
+        self._push_pagination_state()
+
     def set_selected_session_filter(self, session_id: int) -> None:
         """Set the active session filter and update header state."""
-        self._current_page = 1
-        PaginationState.set_disconnected_page(1)
+        self.reset_page_to_first()
         SessionFilterState.set_selected_session(session_id=session_id)
         self._update_header_label()
         self.session_filter_changed.emit(session_id)

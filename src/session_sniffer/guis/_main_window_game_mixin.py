@@ -104,6 +104,11 @@ class GameMixin(QMainWindow):
         def _select_ips(self, ip_addresses: list[str]) -> None:
             del ip_addresses
 
+        def _cleanup_removed_player_ips(
+            self, removed_ips: set[str], *, remove_from_connected: bool = False, remove_from_disconnected: bool = False,
+        ) -> None:
+            del removed_ips, remove_from_connected, remove_from_disconnected
+
         _detections_manager_window: DetectionsManagerDialog | None
         _userip_manager_window: UserIPDatabasesManager | None
         _disconnected: SessionTableSection
@@ -582,7 +587,11 @@ Process is currently suspended',
             host_action.triggered.connect(partial(self._select_and_show_current_host_diagnostics, current_session_host.ip))
             self._current_session_submenu.addAction(host_action)
         elif last_host is not None:
-            matched_player = PlayersRegistry.get_player_by_ip(last_host.ip)
+            matched_player = PlayersRegistry.get_player_by_ip(last_host.ip) or (
+                SessionTracker.get_session_snapshot_player(last_host.session_id, last_host.ip)
+                if last_host.session_id is not None
+                else None
+            )
             usernames = matched_player.usernames if matched_player is not None and matched_player.usernames else ()
             formatted_usernames = format_menu_usernames(usernames)
             host_text = f'Host: Detected: {last_host.ip}' + (f'  |  {formatted_usernames}' if formatted_usernames else '') + ' (Left)'
@@ -618,7 +627,13 @@ Process is currently suspended',
         # -----------------------------------------------------------------
         # Current Session Stats & Actions
         # -----------------------------------------------------------------
-        connected_count = len([player for player in PlayersRegistry.get_connected_players() if not player.is_third_party_server])
+        connected_count = len(
+            [
+                player
+                for player in PlayersRegistry.get_connected_players()
+                if player.session_id in (0, current_session_id) and not player.is_third_party_server
+            ],
+        )
         disconnected_count = len(
             [player for player in PlayersRegistry.get_disconnected_players() if player.session_id == current_session_id and not player.is_third_party_server],
         )
@@ -666,7 +681,16 @@ Process is currently suspended',
         self._current_session_submenu.addAction(rename_action)
 
         all_session_ids = SessionTracker.get_all_session_ids()
-        has_past_disconnected = len(all_session_ids) > 1 and any(player.session_id < current_session_id for player in PlayersRegistry.get_disconnected_players())
+        has_past_disconnected = len(all_session_ids) > 1 and (
+            any(
+                player.session_id < current_session_id and not player.is_third_party_server
+                for player in PlayersRegistry.get_disconnected_players()
+            )
+            or any(
+                not player.is_third_party_server
+                for player in SessionTracker.get_all_snapshot_players()
+            )
+        )
 
         filter_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'search.svg')), 'Filter to this Session', self._current_session_submenu)
         filter_action.setCheckable(True)
@@ -764,7 +788,7 @@ Process is currently suspended',
                 session_history = SessionHost.get_history(session_id=session_id)
                 if session_history:
                     last_host = session_history[-1]
-                    matched_player = PlayersRegistry.get_player_by_ip(last_host.ip)
+                    matched_player = SessionTracker.get_session_snapshot_player(session_id, last_host.ip) or PlayersRegistry.get_player_by_ip(last_host.ip)
                     usernames = matched_player.usernames if matched_player is not None and matched_player.usernames else ()
                     formatted_usernames = format_menu_usernames(usernames)
                     host_label = f'Host: {last_host.ip}' + (f'  |  {formatted_usernames}' if formatted_usernames else '')
@@ -866,12 +890,13 @@ Process is currently suspended',
         if reply != QMessageBox.StandardButton.Yes:
             return
 
-        SessionTracker.delete_session(session_id)
+        removed_ips = {player.ip for player in SessionTracker.delete_session(session_id)}
         SessionHost.prune_history_for_session(session_id)
         if SessionFilterState.get_selected_session() == session_id:
-            SessionFilterState.set_selected_session(session_id=SessionFilterState.FILTER_ALL)
+            self._disconnected.set_selected_session_filter(SessionFilterState.FILTER_ALL)
             self._disconnected.clear_table()
         self._refresh_session_gui_state()
+        self._cleanup_removed_player_ips(removed_ips, remove_from_connected=True, remove_from_disconnected=True)
 
     def _prompt_clear_past_sessions_and_history(self) -> None:
         """Prompt user to clear past sessions and host history while preserving the active session."""
@@ -888,18 +913,15 @@ Process is currently suspended',
 
         current_session_id = SessionTracker.get_current_session_id()
         past_session_ids = [session_id for session_id in SessionTracker.get_all_session_ids() if session_id < current_session_id]
-        for session_id in past_session_ids:
-            SessionTracker.delete_session(session_id)
-            SessionHost.prune_history_for_session(session_id)
-
+        removed_ips = {player.ip for session_id in past_session_ids for player in SessionTracker.delete_session(session_id)}
         SessionHost.clear_history()
 
         if SessionFilterState.get_selected_session() in past_session_ids:
-            SessionFilterState.set_selected_session(session_id=SessionFilterState.FILTER_ALL)
+            self._disconnected.set_selected_session_filter(SessionFilterState.FILTER_ALL)
+            self._disconnected.clear_table()
 
-        self._disconnected.clear_table()
         self._refresh_session_gui_state()
-        self.recalculate_capture_stats()
+        self._cleanup_removed_player_ips(removed_ips, remove_from_connected=True, remove_from_disconnected=True)
 
     def _apply_session_filter(self, session_id: int) -> None:
         """Apply a session filter and synchronize table controls."""
@@ -907,7 +929,7 @@ Process is currently suspended',
 
     def _clear_session_host(self) -> None:
         """Manually clear the current session host and reset host detection state."""
-        SessionHost.clear_session_host_data()
+        SessionHost.clear_session_host_data(clear_pending_disconnections=False)
 
     def _open_host_history_diagnostics(self, history_entry: HostHistoryEntry) -> None:
         """Display diagnostic information for a specific host history entry."""
@@ -916,18 +938,10 @@ Process is currently suspended',
             diagnostics = SessionHost.last_diagnostics
 
         if diagnostics is None:
-            QMessageBox.information(
-                self,
-                TITLE,
-                f'No session host detection diagnostics were recorded for host {history_entry.ip}.',
-            )
+            QMessageBox.information(self, TITLE, f'No session host detection diagnostics were recorded for host {history_entry.ip}.')
             return
 
-        show_session_host_diagnostics_dialog(
-            self,
-            diagnostics,
-            dialog_key=history_entry.dialog_key,
-        )
+        show_session_host_diagnostics_dialog(self, diagnostics, dialog_key=history_entry.dialog_key)
 
     def _show_session_host_diagnostics(self) -> None:
         """Display detailed diagnostic information from the last session host detection attempt."""
@@ -941,11 +955,7 @@ Process is currently suspended',
             QMessageBox.information(self, TITLE, 'No session host detection diagnostics are available yet.')
             return
 
-        show_session_host_diagnostics_dialog(
-            self,
-            diagnostics,
-            redetect_callback=self._redetect_host_from_diagnostics,
-        )
+        show_session_host_diagnostics_dialog(self, diagnostics, redetect_callback=self._redetect_host_from_diagnostics)
 
     def _redetect_host_from_diagnostics(self) -> HostDiagnosticsSnapshot | None:
         """Re-evaluate session host detection in-place for the diagnostics window."""
@@ -957,12 +967,18 @@ Process is currently suspended',
             QMessageBox.warning(self, TITLE, 'Session Host Detection is disabled in Settings.\n\nPlease enable it in Settings to detect the session host.')
             return None
 
-        connected_players = PlayersRegistry.get_connected_players()
+        current_session_id = SessionTracker.get_current_session_id()
+        connected_players = [
+            player
+            for player in PlayersRegistry.get_connected_players()
+            if player.session_id in (0, current_session_id)
+            and player not in SessionHost.players_pending_for_disconnection
+        ]
         if not connected_players:
             QMessageBox.information(self, TITLE, 'No connected players were found in the current session.')
             return None
 
-        SessionHost.clear_session_host_data()
+        SessionHost.clear_session_host_data(clear_pending_disconnections=False)
         SessionHost.manual_redetect = True
 
         SessionHost.get_host_player(connected_players)

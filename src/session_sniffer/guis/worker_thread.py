@@ -152,21 +152,18 @@ class GUIWorkerThread(CrashingQThread):
                     past_data = last_snapshot.past_sessions.get(selected_session)
                     source_disconnected = list(past_data.rows_with_colors) if past_data is not None else []
                 elif selected_session == SessionFilterState.FILTER_CURRENT:
-                    if TableMergeState.is_merged():
-                        try:
-                            connected_ip_col = last_snapshot.column_config.connected_column_names.index('IP Address')
-                        except ValueError:
-                            connected_ip_col = _COLUMN_NOT_FOUND
+                    try:
+                        connected_ip_col = last_snapshot.column_config.connected_column_names.index('IP Address')
+                    except ValueError:
+                        connected_ip_col = _COLUMN_NOT_FOUND
 
-                        if connected_ip_col != _COLUMN_NOT_FOUND:
-                            players_map = PlayersRegistry.get_players_map()
-                            source_connected = [
-                                entry
-                                for entry in cached_connected_zipped
-                                if (player := players_map.get(entry[0][connected_ip_col])) is not None and player.session_id == current_session_id
-                            ]
-                        else:
-                            source_connected = cached_connected_zipped
+                    if connected_ip_col != _COLUMN_NOT_FOUND:
+                        players_map = PlayersRegistry.get_players_map()
+                        source_connected = [
+                            entry
+                            for entry in cached_connected_zipped
+                            if (player := players_map.get(entry[0][connected_ip_col])) is not None and player.session_id in (0, current_session_id)
+                        ]
                     else:
                         source_connected = cached_connected_zipped
                     try:

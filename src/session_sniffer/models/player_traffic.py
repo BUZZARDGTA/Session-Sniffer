@@ -529,14 +529,15 @@ class PlayerDateTime:
 
     def snapshot(self) -> Self:
         """Create a frozen snapshot copy of this datetime tracking state."""
+        current_session = self.get_session_time()
         return self.__class__(
             first_seen=self.first_seen,
             last_rejoin=self.last_rejoin,
             last_seen=self.last_seen,
             total_session_time=self.total_session_time,
-            session_time=self.get_session_time(),
+            session_time=current_session,
             biggest_session_time=self.get_biggest_session_time(),
-            lowest_session_time=self.get_lowest_session_time(),
+            lowest_session_time=min(self.get_lowest_session_time(), current_session),
         )
 
     @classmethod

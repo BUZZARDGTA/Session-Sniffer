@@ -34,7 +34,7 @@ from session_sniffer.guis.tables_userip_mixin import resolve_usernames_for_playe
 from session_sniffer.networking.ip_range import check_ip_against_ranges
 from session_sniffer.networking.isp_filter import get_player_primary_isp, is_player_isp_filtered
 from session_sniffer.networking.looky_system import get_looky_user_url
-from session_sniffer.player.registry import PlayersRegistry
+from session_sniffer.player.registry import PlayersRegistry, SessionTracker
 from session_sniffer.player.session_host import HostDiagnosticsSnapshot, SessionHost
 from session_sniffer.rendering_core.types import CaptureState
 from session_sniffer.settings.settings import Settings
@@ -103,16 +103,19 @@ class TableContextMenuMixin(QTableView):
             return ip_addresses
 
         def get_matched_players(ip_addresses: list[str]) -> list[Player]:
-            return [player for ip in ip_addresses if (player := PlayersRegistry.get_player_by_ip(ip)) is not None]
+            return [player for ip in ip_addresses if (player := selected_model.resolve_row_player(ip)) is not None]
 
         def remove_matching_players_from_tables(predicate: Callable[[Player], bool]) -> None:
             main_window = cast('MainWindow', self.window())
             for player in PlayersRegistry.get_default_sorted_players():
                 if predicate(player):
                     if not PlayersRegistry.is_player_connected(player):
-                        main_window.remove_player_from_disconnected(player.ip)
+                        main_window.remove_player_from_disconnected(player.ip, all_sessions=True)
                     else:
                         main_window.remove_player_from_connected(player.ip)
+            for snapshot_player in SessionTracker.get_all_snapshot_players():
+                if predicate(snapshot_player):
+                    main_window.remove_player_from_disconnected(snapshot_player.ip, all_sessions=True)
 
         def remove_blocked_players_from_tables() -> None:
             remove_matching_players_from_tables(lambda player: check_ip_against_ranges(player.ip, Settings.blocked_ip_ranges) is not None)
@@ -663,7 +666,7 @@ class TableContextMenuMixin(QTableView):
                 # from the matched player (UserIP, Looky System, PS3, etc.) without string splitting.
                 row_ip_index = selected_model.index(index.row(), selected_model.ip_column_index)
                 row_ip = selected_model.get_display_text(row_ip_index)
-                player = PlayersRegistry.get_player_by_ip(row_ip) if row_ip is not None and row_ip else None
+                player = selected_model.resolve_row_player(row_ip) if row_ip is not None and row_ip else None
 
                 usernames: list[str] = resolve_usernames_for_player(player) if player else []
 
@@ -746,7 +749,7 @@ class TableContextMenuMixin(QTableView):
                 context_menu,
                 'Clear Session Host',
                 tooltip='Manually clear this player as the detected session host.',
-                handler=SessionHost.clear_session_host_data,
+                handler=lambda: SessionHost.clear_session_host_data(clear_pending_disconnections=False),
                 icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'x.svg')),
             )
 

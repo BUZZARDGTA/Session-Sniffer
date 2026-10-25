@@ -24,10 +24,13 @@ from session_sniffer.guis.utils import show_or_focus_window
 from session_sniffer.player.registry import PlayersRegistry, SessionTracker
 from session_sniffer.player.session_host import SessionHost
 from session_sniffer.rdr2.suspend_manager import RDR2SuspendManager
-from session_sniffer.rendering_core.types import CaptureStats, GUIRenderingState, SessionFilterState
+from session_sniffer.rendering_core.events import wake_rendering_core
+from session_sniffer.rendering_core.types import CaptureStats, SessionFilterState, TableMergeState
 from session_sniffer.settings import Settings
 
 if TYPE_CHECKING:
+    from collections.abc import Iterable
+
     from session_sniffer.capture.packet_capture import CaptureHolder
     from session_sniffer.guis._main_header import SessionHeader
     from session_sniffer.guis._session_table_section import SessionTableSection
@@ -63,6 +66,7 @@ class StatsMixin(QMainWindow):
     _session_duration_window: SessionDurationWindow | None
     _capture_statistics_window: CaptureStatisticsWindow | None
 
+    def _bump_min_accepted_snapshot_version(self) -> None: ...  # Provided by MainWindow
     def _sync_game_process_button(self) -> None: ...  # Provided by GameMixin
     def _update_current_session_menu(self) -> None: ...  # Provided by GameMixin
     def _update_session_history_menu(self) -> None: ...  # Provided by GameMixin
@@ -108,19 +112,22 @@ class StatsMixin(QMainWindow):
 
     def _select_ips(self, ip_addresses: list[str]) -> None:
         """Select and scroll to player rows by IP, checking connected first then disconnected."""
+        selected_session = SessionFilterState.get_selected_session()
+        is_past_session = 0 < selected_session < SessionTracker.get_current_session_id()
+        is_merged = TableMergeState.is_merged() and not is_past_session
         connected_selection = QItemSelection()
         disconnected_selection = QItemSelection()
         connected_first_index = None
         disconnected_first_index = None
         for ip in ip_addresses:
-            row = self._connected.table_model.get_row_index_by_ip(ip)
+            row = None if is_past_session else self._connected.table_model.get_row_index_by_ip(ip)
             if row is not None:
                 top_left = self._connected.table_model.index(row, 0)
                 bottom_right = self._connected.table_model.index(row, self._connected.table_model.columnCount() - 1)
                 connected_selection.select(top_left, bottom_right)
                 if connected_first_index is None:
                     connected_first_index = top_left
-            else:
+            elif not is_merged:
                 row = self._disconnected.table_model.get_row_index_by_ip(ip)
                 if row is not None:
                     top_left = self._disconnected.table_model.index(row, 0)
@@ -303,42 +310,109 @@ class StatsMixin(QMainWindow):
         """Remove a single player from connected table and registry by IP address."""
         removed_player: Player | None = PlayersRegistry.remove_connected_player(ip)
         if removed_player is None:
+            if TableMergeState.is_merged():
+                self.remove_player_from_disconnected(ip)
             return
 
         SessionHost.players_pending_for_disconnection = [player for player in SessionHost.players_pending_for_disconnection if player.ip != ip]
+        if 0 < removed_player.session_id < SessionTracker.get_current_session_id() and SessionTracker.remove_session_player(removed_player.session_id, ip):
+            self._prune_empty_past_sessions((removed_player.session_id,))
 
         self._connected.table_model.remove_player_by_ip(ip)
+        self._refresh_session_gui_state()
+        self._cleanup_removed_player_ips({ip})
 
-        GTASuspendManager.release_reasons_for_ip(ip)
-        RDR2SuspendManager.release_reasons_for_ip(ip)
-
+    def _cleanup_removed_player_ips(
+        self,
+        removed_ips: set[str],
+        *,
+        remove_from_connected: bool = False,
+        remove_from_disconnected: bool = False,
+    ) -> None:
+        """Clean pending disconnections, table rows, suspend reasons, and stats for removed IPs."""
+        if not removed_ips:
+            return
+        SessionHost.players_pending_for_disconnection = [
+            player for player in SessionHost.players_pending_for_disconnection if player.ip not in removed_ips
+        ]
+        for ip in removed_ips:
+            if remove_from_connected:
+                self._connected.table_model.remove_player_by_ip(ip)
+            if remove_from_disconnected:
+                self._disconnected.table_model.remove_player_by_ip(ip)
+            GTASuspendManager.release_reasons_for_ip(ip)
+            RDR2SuspendManager.release_reasons_for_ip(ip)
         self.recalculate_capture_stats()
 
     def _refresh_session_gui_state(self) -> None:
         """Wake rendering and synchronize session filter and menus."""
+        self._bump_min_accepted_snapshot_version()
         SessionFilterState.bump_version()
-        GUIRenderingState.wake()
+        wake_rendering_core()
         self._update_current_session_menu()
         self._update_session_history_menu()
         self._disconnected.sync_session_filter()
 
-    def remove_player_from_disconnected(self, ip: str) -> None:
+    def _prune_empty_past_sessions(self, session_ids: Iterable[int]) -> None:
+        """Prune or collapse empty past sessions and synchronize host history and session filter."""
+        for past_session_id in sorted(session_ids):
+            pruned_sid = SessionTracker.prune_empty_past_session(past_session_id)
+            if pruned_sid is not None:
+                SessionHost.prune_history_for_session(pruned_sid)
+                if SessionFilterState.get_selected_session() in (past_session_id, pruned_sid):
+                    self._disconnected.set_selected_session_filter(SessionFilterState.FILTER_ALL)
+
+    def remove_player_from_disconnected(self, ip: str, *, all_sessions: bool = False) -> None:
         """Remove a single player from disconnected table and registry by IP address."""
         selected_session = SessionFilterState.get_selected_session()
         current_session_id = SessionTracker.get_current_session_id()
-        if 0 < selected_session < current_session_id:
-            if SessionTracker.remove_session_player(selected_session, ip):
+        if not all_sessions and 0 < selected_session < current_session_id:
+            removed_snapshot = SessionTracker.remove_session_player(selected_session, ip)
+            live_player = PlayersRegistry.get_player_by_ip(ip)
+            removed_live: Player | None = None
+            if live_player is not None and live_player.session_id == selected_session:
+                removed_live = (
+                    PlayersRegistry.remove_connected_player(ip)
+                    if PlayersRegistry.is_player_connected(live_player)
+                    else PlayersRegistry.remove_disconnected_player(ip)
+                )
+            if removed_snapshot or removed_live is not None:
+                self._prune_empty_past_sessions((selected_session,))
                 self._disconnected.table_model.remove_player_by_ip(ip)
                 self._refresh_session_gui_state()
+            if removed_live is not None:
+                self._cleanup_removed_player_ips({ip}, remove_from_connected=True)
             return
 
         removed_player: Player | None = PlayersRegistry.remove_disconnected_player(ip)
         if removed_player is None:
+            live_player = PlayersRegistry.get_player_by_ip(ip)
+            if live_player is not None and (all_sessions or live_player.session_id < current_session_id):
+                removed_player = PlayersRegistry.remove_connected_player(ip)
+        removed_snapshot = False
+        affected_past_sessions: set[int] = set()
+        if removed_player is not None and 0 < removed_player.session_id < current_session_id:
+            affected_past_sessions.add(removed_player.session_id)
+            if SessionTracker.remove_session_player(removed_player.session_id, ip):
+                removed_snapshot = True
+        if all_sessions or selected_session == SessionFilterState.FILTER_ALL:
+            for session_id in SessionTracker.get_all_session_ids():
+                if (
+                    session_id < current_session_id
+                    and (removed_player is None or session_id != removed_player.session_id)
+                    and SessionTracker.remove_session_player(session_id, ip)
+                ):
+                    removed_snapshot = True
+                    affected_past_sessions.add(session_id)
+
+        if removed_player is None and not removed_snapshot:
             return
 
+        self._prune_empty_past_sessions(affected_past_sessions)
+
         self._disconnected.table_model.remove_player_by_ip(ip)
-
-        GTASuspendManager.release_reasons_for_ip(ip)
-        RDR2SuspendManager.release_reasons_for_ip(ip)
-
-        self.recalculate_capture_stats()
+        if removed_player is not None or TableMergeState.is_merged():
+            self._connected.table_model.remove_player_by_ip(ip)
+        self._refresh_session_gui_state()
+        if removed_player is not None:
+            self._cleanup_removed_player_ips({ip})

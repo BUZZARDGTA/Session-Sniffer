@@ -35,6 +35,7 @@ from session_sniffer.guis.player_identifier import PlayerIdentifierTracker
 from session_sniffer.guis.table_icons import get_ip_column_composite_icon
 from session_sniffer.player.registry import PlayersRegistry, SessionTracker
 from session_sniffer.player.session_host import SessionHost
+from session_sniffer.rendering_core.types import SessionFilterState, TableMergeState
 from session_sniffer.settings import Settings
 
 if TYPE_CHECKING:
@@ -152,6 +153,17 @@ class _ColumnIndices:
     pps: int | None
 
 
+def _build_sort_players_map() -> dict[str, Player]:
+    """Return the player lookup map for table sorting, overlaying past-session snapshots when active."""
+    players_map = PlayersRegistry.get_players_map()
+    selected_session = SessionFilterState.get_selected_session()
+    if 0 < selected_session < SessionTracker.get_current_session_id():
+        snapshots = SessionTracker.get_session_snapshots(selected_session)
+        if snapshots:
+            return {**players_map, **{player.ip: player for player in snapshots}}
+    return players_map
+
+
 def sort_table_rows[T: Sequence[str], C: Sequence[CellColor]](
     rows_with_colors: Sequence[tuple[T, C]],
     column_name: str,
@@ -198,7 +210,7 @@ def sort_table_rows[T: Sequence[str], C: Sequence[CellColor]](
     elif resolved_column_name in {'First Seen', 'Last Rejoin', 'Last Seen'}:
         if ip_column_index >= 0:
             default_datetime = datetime.max.replace(tzinfo=UTC) if sort_order_bool else datetime.min.replace(tzinfo=UTC)
-            players_map = PlayersRegistry.get_players_map()
+            players_map = _build_sort_players_map()
             ip_index = ip_column_index
 
             if resolved_column_name == 'First Seen':
@@ -224,7 +236,7 @@ def sort_table_rows[T: Sequence[str], C: Sequence[CellColor]](
     elif resolved_column_name in {'T. Session Time', 'Biggest Session Time', 'Lowest Session Time'}:
         if ip_column_index >= 0:
             ip_index = ip_column_index
-            players_map = PlayersRegistry.get_players_map()
+            players_map = _build_sort_players_map()
             duration_getters: dict[str, Callable[[Player], timedelta]] = {
                 'T. Session Time': lambda player: player.datetime.get_total_session_time(),
                 'Biggest Session Time': lambda player: player.datetime.get_biggest_session_time(),
@@ -243,7 +255,7 @@ def sort_table_rows[T: Sequence[str], C: Sequence[CellColor]](
     elif resolved_column_name == 'Session Time':
         if ip_column_index >= 0:
             ip_index = ip_column_index
-            players_map = PlayersRegistry.get_players_map()
+            players_map = _build_sort_players_map()
 
             def _session_time_sort_key(row: tuple[T, C]) -> tuple[timedelta, tuple[int, ipaddress.IPv4Address | ipaddress.IPv6Address]]:
                 player_ip = row[0][ip_index]
@@ -279,7 +291,7 @@ def sort_table_rows[T: Sequence[str], C: Sequence[CellColor]](
         if ip_column_index >= 0:
             bandwidth_getter = _BANDWIDTH_GETTERS[resolved_column_name]
             ip_index = ip_column_index
-            players_map = PlayersRegistry.get_players_map()
+            players_map = _build_sort_players_map()
 
             def _bandwidth_sort_key(row: tuple[T, C]) -> int:
                 matched_player = players_map.get(row[0][ip_index])
@@ -429,6 +441,25 @@ class SessionTableModel(QAbstractTableModel):
     # Qt model methods (overrides)
     # --------------------------------------------------------------------------
 
+    def resolve_row_player(self, ip: str) -> Player | None:
+        """Resolve the player for a table row IP, using past-session snapshots when viewing a past session."""
+        if not self.view.is_connected_table:
+            selected_session = SessionFilterState.get_selected_session()
+            if 0 < selected_session < SessionTracker.get_current_session_id():
+                snapshot_player = SessionTracker.get_session_snapshot_player(selected_session, ip)
+                if snapshot_player is not None:
+                    return snapshot_player
+        return PlayersRegistry.get_player_by_ip(ip)
+
+    def _is_row_session_host(self, ip: str) -> bool:
+        """Return True if *ip* should be badged as session host in the current table view."""
+        if not self.view.is_connected_table:
+            selected_session = SessionFilterState.get_selected_session()
+            if 0 < selected_session < SessionTracker.get_current_session_id():
+                history = SessionHost.get_history(session_id=selected_session)
+                return bool(history and history[-1].ip == ip)
+        return SessionHost.is_host(ip)
+
     @override
     def rowCount(self, parent: QModelIndex | QPersistentModelIndex | None = None) -> int:
         """Return number of rows in the model."""
@@ -466,26 +497,26 @@ class SessionTableModel(QAbstractTableModel):
             if self._column_indices.country is not None and self._column_indices.country == column_index:
                 ip = self._get_ip_from_data_safely(self._data[row_index])
 
-                matched_player = PlayersRegistry.get_player_by_ip(ip)
+                matched_player = self.resolve_row_player(ip)
                 if matched_player is not None and matched_player.country_flag is not None:
                     output = matched_player.country_flag.icon
             elif self.ip_column_index >= 0 and self.ip_column_index == column_index:
                 ip = self._get_ip_from_data_safely(self._data[row_index])
                 output = get_ip_column_composite_icon(
-                    is_host=Settings.gui_session_host_icon and Settings.is_session_host_feature_set() and SessionHost.is_host(ip),
+                    is_host=Settings.gui_session_host_icon and Settings.is_session_host_feature_set() and self._is_row_session_host(ip),
                     is_high_rate=Settings.high_rate_monitor_icon and HighRateTracker.is_high_rate(ip),
                     is_identified=Settings.player_identifier_icon and PlayerIdentifierTracker.is_identified(ip),
                 )
             elif self.username_column_index >= 0 and self.username_column_index == column_index:
                 if Settings.looky_enabled and Settings.is_gta5_feature_set():
                     ip = self._get_ip_from_data_safely(self._data[row_index])
-                    matched_player = PlayersRegistry.get_player_by_ip(ip)
+                    matched_player = self.resolve_row_player(ip)
                     if matched_player is not None and self._is_player_looky_resolved(matched_player):
                         output = self._looky_icon
         elif role == Qt.ItemDataRole.UserRole:
             if self.username_column_index >= 0 and self.username_column_index == column_index and Settings.looky_enabled and Settings.is_gta5_feature_set():
                 ip = self._get_ip_from_data_safely(self._data[row_index])
-                matched_player = PlayersRegistry.get_player_by_ip(ip)
+                matched_player = self.resolve_row_player(ip)
                 if matched_player is not None:
                     return self._get_looky_usernames(matched_player)
             return None
@@ -521,8 +552,8 @@ class SessionTableModel(QAbstractTableModel):
                 tooltips: list[str] = []
                 if bool(output):
                     tooltips.append(str(output))
-                if not self.view.is_connected_table:
-                    matched_player = PlayersRegistry.get_player_by_ip(ip)
+                if not self.view.is_connected_table or TableMergeState.is_merged():
+                    matched_player = self.resolve_row_player(ip)
                     if matched_player is not None:
                         session_name = SessionTracker.get_session_name(matched_player.session_id)
                         session_label = (
@@ -534,7 +565,7 @@ class SessionTableModel(QAbstractTableModel):
                             tooltips.append(f'Current Session ({session_label})')
                         else:
                             tooltips.append(f'Past Session ({session_label})')
-                if Settings.gui_session_host_icon and Settings.is_session_host_feature_set() and SessionHost.is_host(ip):
+                if Settings.gui_session_host_icon and Settings.is_session_host_feature_set() and self._is_row_session_host(ip):
                     tooltips.append('Session Host')
                 if Settings.high_rate_monitor_icon and HighRateTracker.is_high_rate(ip):
                     tooltips.append('High-Rate traffic detected (exceeds PPS/BPS thresholds)')
