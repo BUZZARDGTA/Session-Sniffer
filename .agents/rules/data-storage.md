@@ -43,7 +43,7 @@ Feature toggles and other persisted settings must continue to use the establishe
 Follow the established split between real-time auto-saving tool windows and the main `SettingsDialog`:
 
 * **Live tool and manager windows auto-save in real time (`Close` button only, no `Save` / `Cancel` buttons):**
-  * Windows such as `UserIPManagerDialog`, `DetectionsManagerDialog`, `PingWindow`, `TargetProcessDialog`, `PlayerResolverWindow`, and `PlayerLeaderboardWindow` must persist changes immediately when controls, lists, or rules are modified.
+  * Windows such as `UserIPManagerDialog`, `DetectionsManagerDialog`, `PingWindow`, `PlayerResolverWindow`, and `PlayerLeaderboardWindow` must persist changes immediately when controls, lists, or rules are modified.
   * Do not add `Save` or `Cancel` buttons to these windows; use a `Close` button instead.
   * When an open manager window's underlying data can also be modified from outside the window (such as session table context menus or background auto-feed), keep the open window synchronized in real time.
   * Destructive bulk actions in auto-saving windows (such as `Reset` or `Reset all…` in `DetectionsManagerDialog`) must prompt for confirmation before immediately persisting defaults.
