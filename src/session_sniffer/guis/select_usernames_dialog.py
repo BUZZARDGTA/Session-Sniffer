@@ -32,7 +32,7 @@ from session_sniffer.networking.looky_system import get_cached_looky_usernames
 from session_sniffer.player.registry import PlayersRegistry, SessionTracker
 from session_sniffer.player.userip_loader import get_cached_userip_usernames
 from session_sniffer.rendering_core.modmenu_logs_parser import ModMenuLogsParser
-from session_sniffer.text_utils import pluralize
+from session_sniffer.text_utils import pluralize, split_usernames
 from session_sniffer.utils import dedup_preserve_order
 
 if TYPE_CHECKING:
@@ -238,10 +238,17 @@ def _run_username_input_dialog(
 
     def _update_row_placeholders_and_buttons() -> None:
         total = len(row_entries)
-        stripped_values = [edit.text().strip() for _, edit, _ in row_entries]
-        all_non_empty = bool(stripped_values) and all(stripped_values)
-        all_unique = len({val.casefold() for val in stripped_values if val}) == total
-        can_proceed = all_non_empty and all_unique
+        row_tokens = [split_usernames(edit.text()) for _, edit, _ in row_entries]
+        if allow_multiple:
+            all_non_empty = bool(row_tokens) and all(row_tokens)
+            flat_tokens = [token for tokens in row_tokens for token in tokens]
+            all_unique = len({token.casefold() for token in flat_tokens}) == len(flat_tokens)
+            can_proceed = all_non_empty and all_unique
+        else:
+            can_proceed = bool(row_tokens) and all(
+                len(tokens) == 1 and tokens[0] == edit.text().strip()
+                for (_, edit, _), tokens in zip(row_entries, row_tokens, strict=True)
+            )
 
         for idx, (_, edit, remove_btn) in enumerate(row_entries, start=1):
             edit.setPlaceholderText(f'Username {idx}…' if allow_multiple and total > 1 else 'Enter username…')
@@ -264,9 +271,10 @@ def _run_username_input_dialog(
             return
 
         excluded_cf: set[str] = {
-            other_edit.text().strip().casefold()
+            token.casefold()
             for _, other_edit, _ in row_entries
-            if other_edit is not target_edit and other_edit.text().strip()
+            if other_edit is not target_edit
+            for token in split_usernames(other_edit.text())
         }
         proxy_model.set_query_and_excluded(active_query, excluded_cf)
         match_count = proxy_model.rowCount()
@@ -400,7 +408,7 @@ def _run_username_input_dialog(
 
     accepted = dialog.exec() == QDialog.DialogCode.Accepted
     collected = dedup_preserve_order(
-        cleaned for _, edit, _ in row_entries if (cleaned := edit.text().strip())
+        token for _, edit, _ in row_entries for token in split_usernames(edit.text())
     )
     return collected, accepted
 

@@ -47,7 +47,7 @@ from session_sniffer.networking.ip_range import is_valid_ip_range_entry
 from session_sniffer.player.userip import UserIPDatabases
 from session_sniffer.player.userip_loader import enrich_userip_entry_from_logs, update_userip_databases
 from session_sniffer.rendering_core.events import wake_rendering_core
-from session_sniffer.text_utils import pluralize
+from session_sniffer.text_utils import pluralize, split_usernames
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -442,9 +442,10 @@ class UserIPEntriesOperationsMixin(QDialog):
 
         insert_at = source_row + 1
         for added_name in new_usernames:
+            enriched_entry, _ = enrich_userip_entry_from_logs(UserIPEntryModel(username=added_name, ip=entry_value))
             self._model.insertRow(
                 insert_at,
-                build_entry_row_items(UserIPEntryModel(username=added_name, ip=entry_value), persisted=True),
+                build_entry_row_items(enriched_entry, persisted=True),
             )
             insert_at += 1
 
@@ -792,6 +793,7 @@ class UserIPEntriesOperationsMixin(QDialog):
                 errors: list[str] = []
                 entries: list[UserIPEntryModel] = []
                 persisted_rows: list[int] = []
+                split_or_repaired = False
 
                 for row in range(self._model.rowCount()):
                     username, ip, notes, entry_model = extract_entry_model_from_row(self._model, row)
@@ -799,15 +801,21 @@ class UserIPEntriesOperationsMixin(QDialog):
                     if not username and not ip and not notes:
                         continue  # skip completely empty rows
 
-                    if not username:
+                    split_names = split_usernames(username)
+                    if not split_names:
                         errors.append(f'Row {row + 1}: Username is empty.')
                     if not ip:
                         errors.append(f'Row {row + 1}: IP or Range is empty.')
                     elif not is_valid_ip_range_entry(ip):
                         errors.append(f'Row {row + 1}: "{ip}" is not a valid IP address or range.')
 
-                    if entry_model is not None and is_valid_ip_range_entry(ip):
-                        entries.append(entry_model)
+                    if entry_model is not None and split_names and is_valid_ip_range_entry(ip):
+                        if len(split_names) > 1 or split_names[0] != entry_model.username:
+                            split_or_repaired = True
+                        entries.extend(
+                            entry_model if split_name == entry_model.username else entry_model.model_copy(update={'username': split_name})
+                            for split_name in split_names
+                        )
                         persisted_rows.append(row)
 
                 if errors:
@@ -846,7 +854,7 @@ class UserIPEntriesOperationsMixin(QDialog):
                 self._set_status(f'Saved {len(entries)} entries to {self._current_path.name}')
                 self._refresh_stats()
                 self._rebuild_fs_watch()
-                if duplicate_count > 0:
+                if duplicate_count > 0 or split_or_repaired:
                     self._load_database(self._current_path)
         finally:
             self._saving = False

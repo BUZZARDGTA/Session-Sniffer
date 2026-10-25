@@ -691,6 +691,12 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
             'capture_filter_process_pid': live_process_pid,
             'capture_filter_process_name': live_process_name,
         }
+        process_selector = (
+            cast('ProcessSelectorWidget', self._widgets['capture_filter_process_pid'])
+            if 'capture_filter_process_pid' in self._widgets
+            else None
+        )
+        process_pid_modified = process_selector is not None and self._is_setting_modified('capture_filter_process_pid', process_selector)
 
         for key, value in new_values.items():
             if SETTING_METADATA[key].setting_type == SettingType.MAC_ADDRESS and isinstance(value, str):
@@ -700,10 +706,9 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
             else:
                 setattr(Settings, key, value)
 
-        if 'capture_filter_process_pid' in self._widgets:
-            selector = cast('ProcessSelectorWidget', self._widgets['capture_filter_process_pid'])
+        if process_selector is not None:
             if (
-                not self._is_setting_modified('capture_filter_process_pid', selector)
+                not process_pid_modified
                 and bool(new_values.get('capture_filter_process_track_by_name'))
                 and bool(runtime_old_values.get('capture_filter_process_track_by_name'))
             ):
@@ -712,10 +717,10 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
                 Settings.capture_filter_process_pid = live_process_pid
                 Settings.capture_filter_process_name = live_process_name
             else:
-                selected_process_name = selector.process_name()
+                selected_process_name = process_selector.process_name()
                 new_values['capture_filter_process_name'] = selected_process_name
                 Settings.capture_filter_process_name = selected_process_name
-                if selector.value() > 0 and selected_process_name is None and bool(new_values.get('capture_filter_process_track_by_name')):
+                if process_selector.value() > 0 and selected_process_name is None and bool(new_values.get('capture_filter_process_track_by_name')):
                     new_values['capture_filter_process_track_by_name'] = False
                     Settings.capture_filter_process_track_by_name = False
 

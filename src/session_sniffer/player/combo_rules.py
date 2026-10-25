@@ -57,8 +57,16 @@ def matches_asn_entry(value: str, asn_candidate: str) -> bool:
     """Return True if *value* matches *asn_candidate* using normalized ASN matching."""
     value_upper = value.upper().strip()
     normalized = value_upper if value_upper.startswith('AS') else f'AS{value_upper}'
-    asn_upper = asn_candidate.upper()
-    return asn_upper in (value_upper, normalized) or bool(asn_upper.split() and asn_upper.split()[0] == normalized)
+    value_tokens = value_upper.split()
+    first_token = value_tokens[0] if value_tokens else ''
+    normalized_token = first_token if first_token.startswith('AS') else f'AS{first_token}'
+    asn_upper = asn_candidate.upper().strip()
+    asn_tokens = asn_upper.split()
+    if asn_upper in (value_upper, normalized):
+        return True
+    if not asn_tokens:
+        return False
+    return asn_tokens[0] == normalized or (normalized_token[2:].isdigit() and asn_tokens[0] == normalized_token)
 
 
 def _match_asn_condition(value: ConditionValue, player: Player) -> bool:

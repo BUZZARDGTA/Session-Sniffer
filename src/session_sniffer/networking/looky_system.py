@@ -825,22 +825,19 @@ def lookup_username_ips(
         )
         resolved_rid = profile.rockstarid or rid
         profile_name = profile.last_name.strip()
-        profile_seen = profile.last_seen
-        profile_seen_utc = (
-            (profile_seen.astimezone(UTC) if profile_seen.tzinfo is not None else profile_seen.replace(tzinfo=UTC))
-            if profile_seen is not None
-            else None
-        )
-        for sighting in sorted_sightings:
+        profile_seen = (
+            profile.last_seen.astimezone(UTC) if profile.last_seen.tzinfo is not None else profile.last_seen.replace(tzinfo=UTC)
+        ) if profile.last_seen is not None else None
+        for index, sighting in enumerate(sorted_sightings):
             if sighting.relay or not _is_valid_player_ipv4(sighting.ip):
                 continue
-            if (version == 'enhanced' and not sighting.enhanced) or (version == 'legacy' and sighting.enhanced):
+            sighting_enhanced = sighting.enhanced or (not index and profile.has_enhanced)
+            if (version == 'enhanced' and not sighting_enhanced) or (version == 'legacy' and sighting.enhanced):
                 continue
             sighting_rid = sighting.rockstarid or resolved_rid
-            sighting_utc = sighting.datetimestamp.astimezone(UTC) if sighting.datetimestamp.tzinfo is not None else sighting.datetimestamp.replace(tzinfo=UTC)
-            sighting_seen = profile_seen if profile_seen is not None and profile_seen_utc is not None and profile_seen_utc > sighting_utc else sighting.datetimestamp
             sighting_country = sighting.country if sighting.country and sighting.country != 'unknown' else profile.last_country
-            sighting_enhanced = sighting.enhanced or profile.has_enhanced
+            sighting_utc = sighting.datetimestamp.astimezone(UTC) if sighting.datetimestamp.tzinfo is not None else sighting.datetimestamp.replace(tzinfo=UTC)
+            sighting_seen = profile_seen if not index and profile_seen is not None and profile_seen > sighting_utc else sighting.datetimestamp
             candidate_names = [*rid_usernames, *([profile_name] if profile_name else []), *([sighting.name.strip()] if sighting.name.strip() else [])]
             for queried_name in rid_usernames:
                 queried_cf = queried_name.casefold()

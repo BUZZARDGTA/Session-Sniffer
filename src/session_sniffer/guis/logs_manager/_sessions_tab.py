@@ -589,20 +589,18 @@ class SessionsLogTab(QWidget):
             for line_num, line in enumerate(lines, start=1):
                 if not line_num % 400:
                     time.sleep(0)
-                if search_lower in line.lower():
-                    parsed_cells = self._try_parse_table_row(line)
+                matched, parsed_cells = self._line_matches_search(line, search_lower, selected_column)
+                if matched:
                     if parsed_cells is not None:
                         row_length = len(parsed_cells)
                         parsed_table_rows_by_length.setdefault(row_length, []).append(parsed_cells)
                     line_matches.append((line_num, line, parsed_cells))
                     total_matches += 1
 
+            files_with_matches += 1
             if line_matches:
-                files_with_matches += 1
                 file_blocks.append((relative, line_number_width, line_matches, []))
             else:
-                # Fallback when rendered-line matching is sparse but structured field match exists.
-                files_with_matches += 1
                 total_matches += len(structured_matches)
                 file_blocks.append((relative, line_number_width, [], structured_matches))
 
@@ -624,9 +622,7 @@ class SessionsLogTab(QWidget):
             if line_matches:
                 result_lines.extend(
                     self._render_aligned_line_matches(
-                        line_matches=line_matches,
-                        line_number_width=line_number_width,
-                        column_widths_by_length=column_widths_by_length,
+                        line_matches=line_matches, line_number_width=line_number_width, column_widths_by_length=column_widths_by_length,
                     ),
                 )
             else:
@@ -666,6 +662,8 @@ class SessionsLogTab(QWidget):
         rendered_text = '\n'.join(result_lines)
         if total_matches > 0:
             self._set_viewer_content(rendered_text, _GLOBAL_SEARCH_VIEWER_PLACEHOLDER)
+            if search_text := self._search_input.text():
+                find_and_highlight_matches(self._viewer.document(), search_text, self._viewer)
         else:
             self._set_viewer_content('', rendered_text or _GLOBAL_SEARCH_VIEWER_PLACEHOLDER)
         self._match_label.setText(f'{total_matches} match{pluralize(total_matches, "", "es")}' if total_matches else 'No matches')
@@ -700,12 +698,10 @@ class SessionsLogTab(QWidget):
     @staticmethod
     def _try_parse_table_row(line: str) -> list[str] | None:
         stripped = line.strip()
-        if not stripped.startswith('│') or not stripped.endswith('│'):
+        if not (stripped.startswith('│') and stripped.endswith('│')):
             return None
         raw_cells = stripped.split('│')[1:-1]
-        if not raw_cells:
-            return None
-        return [cell.strip() for cell in raw_cells]
+        return [cell.strip() for cell in raw_cells] if raw_cells else None
 
     @staticmethod
     def _format_table_row(cells: list[str], column_widths: list[int]) -> str:
@@ -732,13 +728,10 @@ class SessionsLogTab(QWidget):
 
     @staticmethod
     def _column_headers_for_row_length(row_length: int) -> list[str] | None:
-        connected_columns = list(Settings.GUI_ALL_CONNECTED_COLUMNS)
-        disconnected_columns = list(Settings.GUI_ALL_DISCONNECTED_COLUMNS)
-
-        if row_length == len(connected_columns):
-            return connected_columns
-        if row_length == len(disconnected_columns):
-            return disconnected_columns
+        if row_length == len(Settings.GUI_ALL_CONNECTED_COLUMNS):
+            return list(Settings.GUI_ALL_CONNECTED_COLUMNS)
+        if row_length == len(Settings.GUI_ALL_DISCONNECTED_COLUMNS):
+            return list(Settings.GUI_ALL_DISCONNECTED_COLUMNS)
         return None
 
     def _render_aligned_line_matches(
@@ -794,15 +787,30 @@ class SessionsLogTab(QWidget):
             for column in _SEARCHABLE_COLUMNS[1:]
         }
 
+    def _line_matches_search(self, line: str, search_lower: str, selected_column: str) -> tuple[bool, list[str] | None]:
+        if search_lower not in line.lower():
+            return False, None
+        parsed_cells = self._try_parse_table_row(line)
+        if parsed_cells is None:
+            return selected_column == _SEARCH_ALL, None
+        header_cells = self._column_headers_for_row_length(len(parsed_cells))
+        if header_cells is not None and parsed_cells[0] == header_cells[0]:
+            return False, None
+        if selected_column == _SEARCH_ALL:
+            return True, parsed_cells
+        if header_cells is None or selected_column not in header_cells:
+            return False, None
+        cell_value = parsed_cells[header_cells.index(selected_column)]
+        return (cell_value not in {'N/A', '...'} and search_lower in cell_value.lower()), parsed_cells
+
     @classmethod
     def _iter_json_text_values(cls, value: object) -> list[str]:
         if isinstance(value, dict):
             mapping = cast('dict[object, object]', value)
-            return [text for item in mapping.values() for text in cls._iter_json_text_values(item)]
+            return [text for k, v in mapping.items() if k not in SEARCHABLE_COLUMN_EXCLUSIONS for text in cls._iter_json_text_values(v)]
         if isinstance(value, list):
-            values = cast('list[object]', value)
-            return [text for item in values for text in cls._iter_json_text_values(item)]
-        return [] if value is None else [str(value)]
+            return [text for item in cast('list[object]', value) for text in cls._iter_json_text_values(item)]
+        return [normalized] if (normalized := cls._normalize_search_value(value)) else []
 
     @staticmethod
     def _load_session_log_file(file_path: Path) -> SessionLogFile:
