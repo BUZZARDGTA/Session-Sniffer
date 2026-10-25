@@ -331,7 +331,8 @@ class PacketCapture:
             try:
                 self._capture_and_process()
             except (CaptureError, OSError) as e:
-                cause = e.cause if isinstance(e, CaptureExitError) and e.cause is not None else e.__cause__
+                exit_error: CaptureExitError | None = e if isinstance(e, CaptureExitError) else None
+                cause = exit_error.cause if exit_error is not None and exit_error.cause is not None else e.__cause__
                 error_detail = cause if cause is not None else e
                 error_string = str(error_detail)
                 adapter_guid = self.config.interface.interface.identity.adapter_guid
