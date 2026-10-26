@@ -272,10 +272,25 @@ def _run_username_input_dialog(
             add_row_button.setEnabled(can_proceed)
         ok_button.setEnabled(can_proceed)
 
+    def _apply_chosen_suggestion(target_edit: _SuggestionLineEdit, chosen: str) -> None:
+        raw_text = target_edit.text()
+        if allow_multiple and ',' in raw_text:
+            prefix_tokens = split_usernames(raw_text.rsplit(',', 1)[0])
+            target_edit.setText(f'{", ".join(prefix_tokens)}, {chosen}' if prefix_tokens else chosen)
+        else:
+            target_edit.setText(chosen)
+
     def _refresh_suggestions_for(target_edit: _SuggestionLineEdit) -> None:
         nonlocal active_line_edit, active_query
         active_line_edit = target_edit
-        active_query = target_edit.text().strip()
+        raw_text = target_edit.text()
+        if allow_multiple and ',' in raw_text:
+            prefix_part, last_part = raw_text.rsplit(',', 1)
+            active_query = last_part.strip()
+            same_row_prefix_tokens = split_usernames(prefix_part)
+        else:
+            active_query = raw_text.strip()
+            same_row_prefix_tokens = []
         if not active_query:
             if suggestions_list.isVisible():
                 suggestions_list.setVisible(False)
@@ -283,10 +298,13 @@ def _run_username_input_dialog(
             return
 
         excluded_cf: set[str] = {
-            token.casefold()
-            for _, other_edit, _ in row_entries
-            if other_edit is not target_edit
-            for token in split_usernames(other_edit.text())
+            *(token.casefold() for token in same_row_prefix_tokens),
+            *(
+                token.casefold()
+                for _, other_edit, _ in row_entries
+                if other_edit is not target_edit
+                for token in split_usernames(other_edit.text())
+            ),
         }
         proxy_model.set_query_and_excluded(active_query, excluded_cf)
         match_count = proxy_model.rowCount()
@@ -325,7 +343,7 @@ def _run_username_input_dialog(
         suggestions_list.scrollTo(target_index)
         chosen = proxy_model.data(target_index, Qt.ItemDataRole.DisplayRole)
         if isinstance(chosen, str):
-            active_line_edit.setText(chosen)
+            _apply_chosen_suggestion(active_line_edit, chosen)
         return True
 
     def _on_line_edit_focused(focused_edit: _SuggestionLineEdit) -> None:
@@ -409,13 +427,13 @@ def _run_username_input_dialog(
     def _on_suggestion_clicked(index: QModelIndex) -> None:
         chosen = proxy_model.data(index, Qt.ItemDataRole.DisplayRole)
         if isinstance(chosen, str) and active_line_edit is not None:
-            active_line_edit.setText(chosen)
+            _apply_chosen_suggestion(active_line_edit, chosen)
             active_line_edit.setFocus()
 
     def _on_suggestion_double_clicked(index: QModelIndex) -> None:
         chosen = proxy_model.data(index, Qt.ItemDataRole.DisplayRole)
         if isinstance(chosen, str) and active_line_edit is not None:
-            active_line_edit.setText(chosen)
+            _apply_chosen_suggestion(active_line_edit, chosen)
             if ok_button.isEnabled():
                 dialog.accept()
 

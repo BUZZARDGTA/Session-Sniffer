@@ -162,12 +162,15 @@ class UserIPEntriesOperationsMixin(QDialog):
         if current_text == self._disk_snapshot:
             return  # No real change (or our own write).
 
-        if self._dirty:
+        if self._dirty or self._entries_table.state() == QAbstractItemView.State.EditingState:
             self._update_file_info(self._current_path)
             self._set_status(f'"{self._current_path.name}" changed on disk. Save to overwrite, or reselect it to discard your edits and reload.')
             return
 
+        active_search = self._search_input.text()
         self._load_database(self._current_path)
+        if active_search:
+            self._search_input.setText(active_search)
         self._set_status(f'Reloaded "{self._current_path.name}" after an external change.')
 
     # ------------------------------------------------------------------
@@ -440,6 +443,7 @@ class UserIPEntriesOperationsMixin(QDialog):
         if not new_usernames:
             return
 
+        before_count = self._model.rowCount()
         insert_at = source_row + 1
         for added_name in new_usernames:
             enriched_entry, _ = enrich_userip_entry_from_logs(UserIPEntryModel(username=added_name, ip=entry_value))
@@ -455,9 +459,10 @@ class UserIPEntriesOperationsMixin(QDialog):
         self._update_entry_counts()
         self._save_database()
         if not self._dirty:
-            added_count = len(new_usernames)
-            self._set_status(f'Added {added_count} username{pluralize(added_count)} for {entry_value}.')
-            UserIPDatabases.renotify_if_conflicting([entry_value])
+            added_count = max(0, self._model.rowCount() - before_count)
+            if added_count > 0:
+                self._set_status(f'Added {added_count} username{pluralize(added_count)} for {entry_value}.')
+                UserIPDatabases.renotify_if_conflicting([entry_value])
 
     def _add_username(self, source_row: int) -> None:
         """Insert a row below source_row with its IP or Range pre-filled, or prompt in global search / filtered view."""
@@ -855,7 +860,10 @@ class UserIPEntriesOperationsMixin(QDialog):
                 self._refresh_stats()
                 self._rebuild_fs_watch()
                 if duplicate_count > 0 or split_or_repaired:
+                    active_search = self._search_input.text()
                     self._load_database(self._current_path)
+                    if active_search:
+                        self._search_input.setText(active_search)
         finally:
             self._saving = False
 
