@@ -7,16 +7,11 @@ description: Use when working on packaging, PyInstaller, module exclusions, rele
 
 Apply these rules when working on packaging, PyInstaller, release builds, runtime resources, executable generation, dependency releases, or CI/release configuration.
 
-## Python and Dependencies
+## Dependencies and Versioning
 
-* The project requires Python 3.14.
-* Keep dependency versions consistent with the existing `pyproject.toml` configuration.
-* New normal dependencies must be pinned exactly, matching the project's existing style.
-* Security libraries may use `>=` when appropriate.
+* Dependency pinning rules are defined in `security.md` ("Dependencies").
 * Do not change dependency versions without understanding their impact on the supported Python version and existing tooling.
-* When modifying or regenerating `uv.lock`, always preserve or restore CRLF (`\r\n`) line endings. Remember that `uv` defaults to LF line endings when writing lockfiles.
-* When bumping the release version in `pyproject.toml`, always run `uv lock` to synchronize `uv.lock`, restore CRLF (`\r\n`) line endings, and commit both files together.
-* Before incrementing an RC or final version, check if the current version in `pyproject.toml` was published/tagged on GitHub. If unpublished (no tag on GitHub), do not increment the RC or version number; only update the build timestamp (`+YYYYMMDD.HHMM`).
+* Release version bumps (including `uv.lock` synchronization and the published-tag check) follow the `release` skill (`.agents/skills/release/SKILL.md`).
 
 ## PyInstaller
 
@@ -62,7 +57,6 @@ The `excludes` list in `.github/workflows/Session_Sniffer.spec` must be maintain
   * Before modifying `excludes`, verify module reachability across `src/` and dependencies.
   * Test application imports and startup in an environment where candidate excluded modules are blocked in `sys.modules`.
   * Validate `.github/workflows/Session_Sniffer.spec` using `python -m py_compile` and `flake8`.
-  * Always ensure `.github/workflows/Session_Sniffer.spec` retains CRLF (`\r\n`) line endings.
 
 ## Release Validation
 
@@ -73,16 +67,8 @@ When release-sensitive files are changed:
 * verify affected runtime resources,
 * dry-run the PyInstaller build locally when available and relevant.
 
-Do not claim that a release build or PyInstaller build succeeded unless it was actually executed.
-
 ## CI and Workflows
 
 Do not modify release or CI workflows merely to accommodate unrelated code changes.
 
 When changing workflow behavior, inspect the existing workflow and understand its dependencies, build sequence, artifacts, and release assumptions before editing it.
-
-## Scope
-
-Keep release changes focused.
-
-Do not combine packaging changes with unrelated refactoring, formatting, dependency upgrades, or repository cleanup unless explicitly requested.

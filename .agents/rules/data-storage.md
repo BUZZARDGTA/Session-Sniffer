@@ -58,21 +58,9 @@ Follow the established split between real-time auto-saving tool windows and the 
 * Always provide explicit unit suffixes (such as `' seconds'`, `' ms'`, `' bytes'`, `' PPS'`, `' KB/s'`, `' samples'`, `' packets'`) on spinboxes (`QSpinBox` / `SettingMeta.suffix`) that represent time durations, sizes, rates, or sample/packet counts.
 * Use clean, concise labels for zero/special spinbox values (`'Unlimited'`, `'Continuous'`, `'Disabled'`, `'All'`, `'Keep All'`) via `setSpecialValueText` / `SettingMeta.special_value_text` without appending redundant `'(0)'` text.
 
-## No Backward Compatibility
+## Renamed or Removed Settings
 
-This project never maintains backward compatibility for settings or stored data.
-
-When a setting is renamed or replaced:
-
-* remove the old setting,
-* update every call site,
-* use only the new setting,
-* do not add migration code,
-* do not add aliases,
-* do not add fallback lookups,
-* do not add transitional validators.
-
-If stale keys exist in `Settings.ini`, they are intentionally treated as unknown and discarded by the existing rewrite logic.
+Follow the No Backward Compatibility rules in `core.md` for settings and stored data. Stale keys in the settings file are intentionally treated as unknown and discarded by the existing rewrite logic.
 
 ## Settings Documentation
 
@@ -88,14 +76,10 @@ Do not consider a settings change complete until the relevant documentation has 
 
 ## Logging
 
-* Configure application logging through `session_sniffer.logging_setup.setup_logging` once during startup (already done in `main.py`).
-* Obtain module loggers with the standard `import logging` / `logger = logging.getLogger(__name__)` pattern. Do not use any project-specific logger shim.
-* Preserve the existing log file behavior:
+Logger usage in code is defined in `python.md` ("Logging").
 
-  * `debug.log`: consolidated rotating log file under Local AppData (`Debug/debug.log`).
-* Do not create a separate logging configuration for individual features.
-
-Application logs belong under the appropriate Local AppData location rather than the repository or working directory.
+* Preserve the existing log file behavior: `debug.log` is the consolidated rotating log file under Local AppData (`Debug/debug.log`).
+* Do not create a separate logging configuration or a second logging mechanism for individual features.
 
 ## Secret Redaction
 
@@ -107,20 +91,4 @@ When a module introduces a new secret value (API key, token, password) that may 
 
 ## User Data and Privacy
 
-Treat stored IP addresses, packet information, session information, logs, and databases as potentially sensitive.
-
-Do not unnecessarily:
-
-* persist captured network information,
-* expand logging of sensitive data,
-* transmit stored user data externally,
-* add telemetry,
-* expose user data through diagnostics.
-
-When adding persistence, explicitly understand what is stored, where it is stored, and why it is required.
-
-## Logging Data
-
-Follow the existing logging locations and architecture.
-
-Do not create a second logging or persistence mechanism for functionality already handled by the project.
+Follow the Sensitive Data rules in `security.md`. When adding persistence, explicitly understand what is stored, where it is stored, and why it is required.

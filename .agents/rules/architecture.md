@@ -9,16 +9,7 @@ Apply these rules when a task involves subsystem boundaries, data flow, threadin
 
 ## Existing Architecture
 
-Session Sniffer is a mature codebase. Treat its existing architecture as intentional until investigation shows that a change is necessary.
-
-Before making an architectural change:
-
-* locate the current implementation,
-* trace its callers and consumers,
-* understand the data flow,
-* identify ownership of state and lifecycle,
-* inspect related configuration, models, workers, signals, and UI,
-* search for existing abstractions serving a similar purpose.
+Before making an architectural change, follow the Investigation steps in `core.md` and additionally identify the ownership of state and lifecycle.
 
 Do not design a new architecture based only on the task description when the repository already contains the relevant implementation.
 
@@ -28,7 +19,7 @@ Preserve clear separation between existing subsystems.
 
 The established application flow is:
 
-packet capture → player/session state → rendering core → GUI worker signals → Qt models/views
+packet capture → packet callback → player/session registries → rendering core → GUI worker signals → Qt models/views
 
 Keep responsibilities within the subsystem that already owns them.
 
@@ -38,12 +29,7 @@ Do not move capture or network processing into GUI components.
 
 Do not make background components directly manipulate Qt widgets.
 
-## Low-Level vs High-Level Separation
-
-Enforce a strict architectural separation between low-level native bindings and high-level Python logic:
-
-* **Low-level native binding modules (`ctypes_*.py` and `capture/pcap.py`)** are restricted to `ctypes` / `ctypes.wintypes` definitions, `ctypes.Structure` layouts, COM vtable definitions, DLL/`CDLL` loading, and thin wrapper functions/handles that translate between C ABI calls and Python values. They must not contain `subprocess` calls, `winreg` queries, regex parsing, `/proc` or `/sys` file readers, or business logic.
-* **High-level modules** own domain models, cross-platform dispatch, `/proc` and `/sys` file parsing, `subprocess` / `winreg` / `re` logic, workers, and UI integration. High-level modules must never import `ctypes` or `ctypes.wintypes` directly; they must call into the dedicated low-level modules (`session_sniffer.ctypes_windows`, `session_sniffer.ctypes_console`, `session_sniffer.ctypes_wintrust`, `session_sniffer.capture.ctypes_process`, `session_sniffer.capture.pcap`, `session_sniffer.capture.utils.ctypes_win32`, or `session_sniffer.networking.ctypes_adapters_info`).
+The low-level native binding vs high-level module boundary is defined in `core.md` ("Low-Level vs High-Level Separation").
 
 ## Abstractions
 
@@ -82,11 +68,7 @@ Do not duplicate state that is already owned by an existing registry, configurat
 
 ## Configuration
 
-Follow the project's existing settings architecture.
-
-Settings are loaded through the existing `Settings` mechanisms and persistent changes are reconstructed through the established `Settings.rewrite_settings_file()` flow.
-
-Do not introduce a parallel configuration or persistence mechanism.
+Follow the settings architecture defined in `data-storage.md`. Do not introduce a parallel configuration or persistence mechanism.
 
 ## Refactoring
 
@@ -101,8 +83,6 @@ Do not combine an architectural change with unrelated:
 * API redesign,
 * dependency changes,
 * or modernization.
-
-When replacing an existing design, make a clean replacement rather than maintaining two implementations for compatibility.
 
 ## Validation
 

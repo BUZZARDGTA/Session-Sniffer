@@ -51,7 +51,6 @@ Do not treat a refactor as permission to redesign APIs, change defaults, remove 
 - Preserve threading, queue, synchronization, and worker-lifecycle patterns.
 - Do not add allocations, repeated parsing, extra work in hot paths, or new blocking operations without a demonstrated reason.
 - Do not change polling intervals, timers, retry behavior, or event frequency as part of a behavior-preserving refactor.
-- Avoid abstractions that merely wrap a single simple operation or obscure a straightforward flow.
 - Follow the file sizing rules in `.agents/rules/python.md` ("File Sizing and Structural Warnings"): leave cohesive data tables, schemas, and defaults registries intact; do not split files solely to satisfy line-count metrics.
 
 ## Code Quality
@@ -59,9 +58,6 @@ Do not treat a refactor as permission to redesign APIs, change defaults, remove 
 - Follow the project's authoritative `pyproject.toml` and `.agents/rules/` instructions.
 - Reuse existing types, utilities, and error-handling patterns.
 - Keep names precise and intent-revealing.
-- Do not silence lint or type diagnostics just to make the refactor pass.
-- Do not add dependencies unless the task explicitly requires them and existing functionality cannot reasonably be reused.
-- Do not perform repository-wide formatting or unrelated renames.
 
 ## Validation
 
@@ -69,16 +65,12 @@ Follow the validation workflow and configured tooling in `.agents/rules/testing.
 
 - Start narrowly with targeted linter and type-checker runs against the touched paths.
 - Broaden validation to the full suite (`python code_quality_checks.py`) when the risk warrants it.
-- Never claim a check passed unless it actually ran successfully.
-- Ensure all modified files retain CRLF (`\r\n`) line endings per `.agents/rules/core.md`.
 
 ## Scope and Safety
 
-Follow the Git and Change Discipline rules in `.agents/rules/core.md`.
+Follow the Git, Change Discipline, Line Endings, and Verification rules in `.agents/rules/core.md`.
 
-- Do not create commits or push changes unless explicitly requested.
 - Do not modify files merely to make validation pass.
-- Keep the diff focused and reviewable.
 
 ## Final Report
 

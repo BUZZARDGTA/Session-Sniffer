@@ -9,9 +9,7 @@ globs: **/*.py
 
 * The project requires Python 3.14.
 * `pyproject.toml` is authoritative for Python version, dependencies, formatting, linting, type checking, and static-analysis configuration.
-* Follow the existing project tooling. Do not introduce competing formatters, linters, or type checkers.
-* Type checking and linting are strictly enforced with Ruff, Flake8, Pylint, MyPy, Pyright, Pyrefly, ty, and Vulture.
-* Preserve the existing suppression and configuration lists unless the task explicitly requires changing them.
+* Linting, type checking, validation commands, and suppression-list rules are defined in `testing.md`.
 * The project targets a line length of 176 characters.
 
 ## Project Imports
@@ -32,8 +30,9 @@ globs: **/*.py
 
 ## Pluralization
 
-* Never use parenthesized plural patterns such as `username(s)`, `IP(s)`, or `file(s)` in user-facing strings, messages, dialogs, action labels, or tooltips whenever a count is available or can be determined.
-* Always use `pluralize(count)` from `session_sniffer.text_utils` (e.g. `f'username{pluralize(count)}'`, `f'IP{pluralize(count)}'`) to dynamically format singular and plural forms.
+* Never use parenthesized plural patterns such as `username(s)`, `IP(s)`, or `file(s)` in user-facing sentences, messages, dialog body text, or tooltips whenever a count is available or can be determined.
+* Always use `pluralize(count)` from `session_sniffer.text_utils` (e.g. `f'username{pluralize(count)}'`, `f'IP{pluralize(count)}'`) to dynamically format singular and plural forms in that text.
+* Exception — titles must be static: window titles, dialog titles, section/group headings, and menu action labels must never be pluralized dynamically (no `pluralize()`, no `f'{title}s'`, no count-based title switching). Use a fixed parenthesized plural instead (e.g. `'Add Username(s)'`, `'Delete Selected Row(s)'`, `f'Filtered Game & Relay Server(s) ({count})'`).
 
 ## Documentation Style
 
@@ -70,16 +69,6 @@ globs: **/*.py
   * `debug` — expected, low-value operational noise (e.g. DNS timeouts, cache misses).
   * `warning` — something went wrong and could explain a user-visible problem, but the full traceback adds no value (`logger.warning('…: %s', e)`).
   * `exception` — an unexpected failure on a critical path where the full traceback is diagnostic (`logger.exception('…')`). Use this inside `except` blocks where you want the traceback captured.
-* Do not silently swallow exceptions; prefer a clear traceback over `except ...: pass`.
-
-## Dependencies
-
-Before adding a dependency:
-
-* Check whether the functionality already exists in the project or standard library.
-* Inspect `pyproject.toml`.
-* Keep new dependencies to a minimum.
-* Pin new dependencies exactly to match the project's existing dependency style, except security libraries which may use `>=` when appropriate.
 
 ## General Python Changes
 

@@ -11,11 +11,7 @@ Apply these rules when working on packet capture, packet parsing, networking, se
 
 Understand the existing packet-processing pipeline before changing it.
 
-The established flow is:
-
-packet capture → packet callback → player/session registries → rendering core → GUI worker signals → Qt models/views
-
-Preserve the existing separation between:
+Follow the application flow defined in `architecture.md` and preserve the existing separation between:
 
 * raw capture data,
 * parsed network information,
@@ -44,8 +40,6 @@ Follow the existing background-thread architecture for expensive user IP process
 
 ## Concurrency
 
-Preserve the project's existing worker, queue, thread, event, and synchronization patterns.
-
 Do not move work between threads without understanding:
 
 * who owns the state,
@@ -53,8 +47,6 @@ Do not move work between threads without understanding:
 * how results are communicated,
 * what synchronization already exists,
 * and how thread lifetime is managed.
-
-Do not introduce unnecessary concurrency abstractions.
 
 ## Packet and Protocol Handling
 
@@ -92,24 +84,6 @@ Avoid adding network requests to latency-sensitive paths.
 Third-party integrations that transmit network metadata or IP addresses externally (such as Looky System)
 must strictly follow their domain-specific rules and gating logic (see `.agents/rules/looky.md`).
 
-## Data Sensitivity
-
-Captured packet information, IP addresses, and session information can be sensitive.
-
-Do not add unnecessary:
-
-* persistence of captured data,
-* logging of packet contents,
-* external transmission,
-* telemetry,
-* diagnostic output containing network data.
-
-Any new external network request must have an explicit purpose and must make clear what data is sent and where it is sent.
-
 ## Changes
-
-Keep networking changes narrowly scoped.
-
-Do not rewrite capture, parsing, or session architecture unless the task actually requires it.
 
 Measure or identify a real bottleneck before making performance-driven changes to hot network paths.

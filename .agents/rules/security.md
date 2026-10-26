@@ -71,4 +71,4 @@ Unexpected failures should remain observable through the project's existing logg
 Treat new dependencies as a security and maintenance consideration.
 
 Prefer existing dependencies or the standard library when appropriate.
-Follow the project's dependency pinning and auditing configuration when a new dependency is genuinely required.
+Follow the project's dependency pinning and auditing configuration when a new dependency is genuinely required: pin new dependencies exactly to match the existing style in `pyproject.toml`; security libraries may use `>=` when appropriate.

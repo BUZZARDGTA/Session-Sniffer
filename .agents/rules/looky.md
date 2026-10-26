@@ -111,18 +111,9 @@ Always use centralized helpers and constants from `session_sniffer.guis.looky_te
 
 * **Rate Limits (HTTP 429)**:
   * Parse rate-limit responses with `extract_rate_limit_message(e)` and `extract_rate_limit_wait_seconds(e)`.
-  * Use dynamic pluralization (`pluralize(wait_seconds)`) when displaying wait time to the user.
 * **Server Errors (HTTP 5xx) & Connection Failures**:
   * Apply exponential backoff (e.g. starting at 30s up to 300s max) during token verification in `cores.py`.
   * Never spam or flood the Looky System API during server disruptions or downtime.
 * **Instruction Status Watching**:
   * Crawler requests use Server-Sent Events (SSE) via `watch_instruction_status`.
     Always cleanly close the active socket and handle terminal failure statuses (`is_terminal_failure_instruction_status`).
-
-## Repository Standards for Looky Code
-
-* Line endings: Always CRLF (`\r\n`).
-* Maximum line length: 176 characters.
-* String quotes: Single quotes (`'`) unless containing a single quote.
-* No backward compatibility shims or transitional dual paths.
-* Dynamic pluralization: Always use `pluralize(count)` from `session_sniffer.text_utils` for user-facing counts.

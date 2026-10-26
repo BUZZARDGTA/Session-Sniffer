@@ -20,16 +20,7 @@ globs: src/session_sniffer/guis/**/*.py
 
 ## Existing Architecture
 
-Before changing UI behavior, inspect:
-
-* the relevant widget hierarchy,
-* related models and views,
-* signals and slots,
-* worker threads,
-* controllers or rendering code,
-* existing reusable components.
-
-Do not create a second architecture for functionality that already has an established project pattern.
+Before changing UI behavior, also inspect the relevant widget hierarchy and existing reusable components. Do not create a second architecture for functionality that already has an established project pattern.
 
 ## Session Tables
 
@@ -55,9 +46,7 @@ Avoid unnecessary widget updates, model refreshes, recalculation, or re-renderin
 
 ## Behavior
 
-When modifying an existing UI component, preserve its established behavior unless the task explicitly requires changing it.
-
-Pay particular attention to:
+When modifying an existing UI component, pay particular attention to preserving:
 
 * signals and slots,
 * selection behavior,
@@ -83,18 +72,11 @@ Do not introduce a separate styling system or duplicate existing styles just to 
 
 ## Icons and SVG Assets
 
-* All SVG icon assets must always use CRLF (`\r\n`) line endings. Never commit or use LF line endings.
 * Follow the project's established icon style: Lucide 24x24 viewBox (`viewBox="0 0 24 24"`), stroke `#a5b4c4`, stroke-width `2`, stroke-linecap `round`, stroke-linejoin `round`, and `fill="none"` (except deliberate small accent dots).
-* Never leave unused SVG files in `resources/icons/`. Whenever an icon is replaced, superseded, or no longer referenced in code or stylesheets, delete its SVG file outright. When introducing, renaming, or removing icons or UI elements, audit `resources/icons/` to ensure every SVG asset is actively used.
+* When introducing, renaming, or removing icons or UI elements, audit `resources/icons/` to ensure every SVG asset is actively used (unused assets are deleted per `core.md`).
 
 ## Errors
 
 For GUI-specific error states, use the project's existing exception and message-box patterns.
 
 Screen resolution must be obtained through the project's `get_screen_size()` helper. If `UnsupportedScreenResolutionError` is raised, display its `msgbox_text` using the existing application pattern.
-
-## Changes
-
-Keep UI changes focused.
-
-Do not reformat unrelated sections, rename unrelated widgets, reorganize unrelated files, or perform broad UI cleanup unless explicitly requested.
