@@ -114,11 +114,6 @@ def _check_userip_usernames(player: Player) -> bool:
     return isinstance(player.userip, UserIP) and len(player.userip.usernames) > 0
 
 
-def _is_player_packet_flow_active(player: Player) -> bool:
-    """Return `True` when a player is actively exchanging packets."""
-    return player.packets.pps.accumulated_packets > 0 or player.packets.pps.calculated_rate > 0
-
-
 def _check_reverse_dns_hostname(player: Player) -> bool:
     """Check if player reverse DNS is initialized."""
     return player.reverse_dns.is_initialized
@@ -526,7 +521,8 @@ def trigger_auto_username_userip(player: Player, detected_usernames: Sequence[st
     wake_rendering_core()
 
 
-_GTA5_RELAY_PPS_NONZERO_STREAK_SECONDS = 5.0
+_GTA5_RELAY_PPS_STREAK_SECONDS = 3.0
+_GTA5_RELAY_MIN_PPS = 2
 
 
 def is_gta5_relay_ip(ip: str) -> bool:
@@ -538,6 +534,8 @@ def is_gta5_relay_monitoring_active() -> bool:
     """Return True if GTA5 relay monitoring is active and has any actionable notification or response enabled."""
     if not Settings.is_gta5_feature_set() or not GUIDetectionSettings.has_any_gta5_relay_action_enabled():
         return False
+    if CaptureState.is_local_capture() and not CaptureState.gta5_is_running:
+        return False
     return (
         GUIDetectionSettings.gta5_relay_enabled
         or (Settings.voice_notifications_enabled and bool(GUIDetectionSettings.gta5_relay_voice_notifications))
@@ -547,52 +545,60 @@ def is_gta5_relay_monitoring_active() -> bool:
 
 
 def monitor_gta5_relay_task(player: Player) -> None:
-    """Monitor a GTA5 relay IP and suspend the game process when the packet threshold is reached.
-
-    Only active when:
-    - The GTA5 feature set is selected.
-    - At least one GTA5 relay action is enabled.
-    - The player IP belongs to the Take-Two Interactive / GTA5 relay CIDR ranges.
-
-    The monitor polls the player's packet count until it reaches the
-    configurable `GUIDetectionSettings.gta5_relay_packet_threshold` while
-    the player is still connected.
-
-    Args:
-        player: The player object to monitor.
-    """
-    if not is_gta5_relay_monitoring_active():
+    """Monitor a GTA5 relay IP, flag it in the table, and trigger relay actions when relay traffic is sustained."""
+    if not Settings.is_gta5_feature_set() or not is_gta5_relay_ip(player.ip):
         return
 
-    if not is_gta5_relay_ip(player.ip):
-        return
+    is_initial_window = player.packets.exchanged == player.packets.pps.accumulated_packets
+    prev_exchanged = 0 if is_initial_window else player.packets.exchanged
+    last_pps_update_time = player.packets.pps.last_update_time
+    streak_start_exchanged: int | None = None
+    streak_seconds = 0.0
 
-    # Poll until the packet threshold is exceeded AND PPS has been continuously
-    # above 0 for at least `_GTA5_RELAY_PPS_NONZERO_STREAK_SECONDS` (any 0-PPS sample resets the streak).
-    # A 0-PPS relay is not actively sending packets and must be a false positive.
-    _pps_nonzero_since: float | None = None
     while not player.left_event.is_set() and not gui_closed__event.is_set() and PlayersRegistry.is_player_connected(player):
-        if not is_gta5_relay_monitoring_active():
+        if not Settings.is_gta5_feature_set() or (CaptureState.is_local_capture() and not CaptureState.gta5_is_running):
             player.relay_monitor_started = False
             return
 
-        pps_active = _is_player_packet_flow_active(player)
-        if pps_active:
-            if _pps_nonzero_since is None:
-                _pps_nonzero_since = time.monotonic()
-        else:
-            _pps_nonzero_since = None  # reset streak on any 0-PPS sample
+        curr_exchanged = player.packets.exchanged
+        if curr_exchanged < prev_exchanged:
+            prev_exchanged = 0
+            streak_start_exchanged, streak_seconds = None, 0.0
 
-        if (
-            player.packets.exchanged >= GUIDetectionSettings.gta5_relay_packet_threshold
-            and _pps_nonzero_since is not None
-            and (time.monotonic() - _pps_nonzero_since) >= _GTA5_RELAY_PPS_NONZERO_STREAK_SECONDS
-        ):
-            break
+        curr_pps_update_time = player.packets.pps.last_update_time
+        if curr_pps_update_time > last_pps_update_time:
+            is_valid_relay_tick = (
+                (not CaptureState.is_local_capture() or player.is_gta5_process)
+                and player.packets.pps.calculated_rate >= _GTA5_RELAY_MIN_PPS
+            )
+            if is_valid_relay_tick:
+                if streak_start_exchanged is None:
+                    streak_start_exchanged = prev_exchanged
+                streak_seconds += curr_pps_update_time - last_pps_update_time
+            else:
+                streak_start_exchanged, streak_seconds = None, 0.0
+
+            prev_exchanged = curr_exchanged
+            last_pps_update_time = curr_pps_update_time
+
+            if (
+                streak_start_exchanged is not None
+                and streak_seconds >= _GTA5_RELAY_PPS_STREAK_SECONDS
+                and (curr_exchanged - streak_start_exchanged) >= GUIDetectionSettings.gta5_relay_packet_threshold
+            ):
+                break
 
         gui_closed__event.wait(0.25)
 
     if player.left_event.is_set() or gui_closed__event.is_set() or not PlayersRegistry.is_player_connected(player):
+        return
+
+    if not player.is_gta5_relay:
+        player.is_gta5_relay = True
+        wake_rendering_core()
+
+    if not is_gta5_relay_monitoring_active():
+        player.relay_monitor_started = False
         return
 
     if GUIDetectionSettings.gta5_relay_enabled and CaptureState.is_local_capture():
@@ -600,11 +606,15 @@ def monitor_gta5_relay_task(player: Player) -> None:
             reason_key=f'gta5_relay:{player.ip}', left_event=player.left_event, duration=GUIDetectionSettings.gta5_relay_duration,
         )
 
-    wait_for_player_data_ready(player, data_fields=('iplookup.geolite2', 'reverse_dns.hostname', 'iplookup.ipapi'), timeout=10.0)
-
     if Settings.voice_notifications_enabled and GUIDetectionSettings.gta5_relay_voice_notifications:
         tts_candidate_path = TTS_DIR_PATH / tts_voice_name(voice_setting=GUIDetectionSettings.gta5_relay_voice_notifications) / 'detection' / 'gta5_relay_detected.wav'
         queue_voice_notification(tts_candidate_path)
+
+    if GUIDetectionSettings.gta5_relay_logging or GUIDetectionSettings.gta5_relay_message_box:
+        required_fields: tuple[Literal['iplookup.geolite2', 'reverse_dns.hostname', 'iplookup.ipapi'], ...] = (
+            ('iplookup.geolite2', 'reverse_dns.hostname', 'iplookup.ipapi') if GUIDetectionSettings.gta5_relay_message_box else ('iplookup.geolite2',)
+        )
+        wait_for_player_data_ready(player, data_fields=required_fields, timeout=3.0)
 
     if GUIDetectionSettings.gta5_relay_logging:
         _log_to_protection_csv('GTA5 RELAY DETECTED!', ', '.join(player.usernames), player.ip, player.iplookup.geolite2.country)
@@ -901,20 +911,15 @@ def submit_global_detections_check(player: Player) -> None:
 
 def retrigger_detections_scan() -> None:
     """Re-evaluate global detections, combo rules, and GTA5 relay monitoring for all connected players."""
-    relay_active = is_gta5_relay_monitoring_active() and (CaptureState.gta5_is_running or not CaptureState.is_local_capture())
+    relay_active = Settings.is_gta5_feature_set() and (CaptureState.gta5_is_running or not CaptureState.is_local_capture())
     for player in PlayersRegistry.get_connected_players():
         if player.left_event.is_set():
             continue
         player.detection_checked = True
         submit_global_detections_check(player)
-        if relay_active and is_gta5_relay_ip(player.ip) and not player.relay_monitor_started:
+        if relay_active and not player.relay_monitor_started and (player.is_gta5_process or not CaptureState.is_local_capture()) and is_gta5_relay_ip(player.ip):
             player.relay_monitor_started = True
-            Thread(
-                target=monitor_gta5_relay_task,
-                name=f'GTA5RelayMonitor-{player.ip}',
-                args=(player,),
-                daemon=True,
-            ).start()
+            Thread(target=monitor_gta5_relay_task, name=f'GTA5RelayMonitor-{player.ip}', args=(player,), daemon=True).start()
 
 
 def player_rates_core() -> None:

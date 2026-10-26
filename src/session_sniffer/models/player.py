@@ -65,6 +65,7 @@ class Player:
         'detection_checked',
         'iplookup',
         'is_gta5_process',
+        'is_gta5_relay',
         'is_rdr2_process',
         'is_third_party_server',
         'joins',
@@ -90,6 +91,7 @@ class Player:
     detection_checked: bool
     iplookup: PlayerIPLookup
     is_gta5_process: bool
+    is_gta5_relay: bool
     is_rdr2_process: bool
     is_third_party_server: bool
     joins: list[PlayerJoin]
@@ -122,6 +124,7 @@ class Player:
         self.session_id = session_id
         self.detection_checked = False
         self.relay_monitor_started = False
+        self.is_gta5_relay = False
         self.usernames = []
         self.is_gta5_process = False
         self.is_rdr2_process = False
@@ -189,6 +192,7 @@ class Player:
         self.session_id = session_id
         self.detection_checked = False
         self.relay_monitor_started = False
+        self.is_gta5_relay = False
 
         self.datetime.accumulate_session_to_total()
         self.datetime.last_rejoin = packet_datetime

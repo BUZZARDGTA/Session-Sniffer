@@ -11,6 +11,7 @@ from session_sniffer.settings import Settings
 CROWN_ICON_PATH = str(RESOURCES_DIR_PATH / 'icons' / 'crown.svg')
 SPEEDOMETER_ICON_PATH = str(RESOURCES_DIR_PATH / 'icons' / 'gauge.svg')
 TARGET_ICON_PATH = str(RESOURCES_DIR_PATH / 'icons' / 'target.svg')
+RELAY_ICON_PATH = str(RESOURCES_DIR_PATH / 'icons' / 'radio-tower.svg')
 
 
 def _create_composite_icon(icon_paths: tuple[str, ...]) -> QIcon:
@@ -51,14 +52,18 @@ def get_ip_column_composite_icon(
     is_host: bool,
     is_high_rate: bool,
     is_identified: bool,
+    is_gta5_relay: bool = False,
 ) -> QIcon | None:
     """Return a composite QIcon for active IP status indicators, or None if no indicators apply."""
     effective_host = is_host and Settings.is_session_host_feature_set()
-    if not (effective_host or is_high_rate or is_identified):
+    effective_relay = is_gta5_relay and Settings.is_gta5_feature_set()
+    if not (effective_host or is_high_rate or is_identified or effective_relay):
         return None
     paths: list[str] = []
     if effective_host:
         paths.append(CROWN_ICON_PATH)
+    if effective_relay:
+        paths.append(RELAY_ICON_PATH)
     if is_high_rate:
         paths.append(SPEEDOMETER_ICON_PATH)
     if is_identified:
@@ -71,6 +76,8 @@ def preload_table_icons() -> None:
     active_paths: list[str] = []
     if Settings.is_session_host_feature_set() and Settings.gui_session_host_icon:
         active_paths.append(CROWN_ICON_PATH)
+    if Settings.is_gta5_feature_set():
+        active_paths.append(RELAY_ICON_PATH)
     if Settings.high_rate_monitor_icon:
         active_paths.append(SPEEDOMETER_ICON_PATH)
     if Settings.player_identifier_icon:

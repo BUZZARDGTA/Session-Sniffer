@@ -500,10 +500,12 @@ class SessionTableModel(QAbstractTableModel):
                     output = matched_player.country_flag.icon
             elif self.ip_column_index >= 0 and self.ip_column_index == column_index:
                 ip = self._get_ip_from_data_safely(self._data[row_index])
+                matched_player = self.resolve_row_player(ip)
                 output = get_ip_column_composite_icon(
                     is_host=Settings.gui_session_host_icon and Settings.is_session_host_feature_set() and self._is_row_session_host(ip),
                     is_high_rate=Settings.high_rate_monitor_icon and HighRateTracker.is_high_rate(ip),
                     is_identified=Settings.player_identifier_icon and PlayerIdentifierTracker.is_identified(ip),
+                    is_gta5_relay=matched_player is not None and matched_player.is_gta5_relay,
                 )
             elif self.username_column_index >= 0 and self.username_column_index == column_index:
                 if Settings.looky_enabled and Settings.is_gta5_feature_set():
@@ -547,24 +549,25 @@ class SessionTableModel(QAbstractTableModel):
 
             if self.ip_column_index >= 0 and self.ip_column_index == column_index:
                 ip = self._get_ip_from_data_safely(self._data[row_index])
+                matched_player = self.resolve_row_player(ip)
                 tooltips: list[str] = []
                 if bool(output):
                     tooltips.append(str(output))
-                if not self.view.is_connected_table or TableMergeState.is_merged():
-                    matched_player = self.resolve_row_player(ip)
-                    if matched_player is not None:
-                        session_name = SessionTracker.get_session_name(matched_player.session_id)
-                        session_label = (
-                            f'Session #{matched_player.session_id} ({session_name})'
-                            if session_name is not None
-                            else f'Session #{matched_player.session_id}'
-                        )
-                        if matched_player.session_id == SessionTracker.get_current_session_id():
-                            tooltips.append(f'Current Session ({session_label})')
-                        else:
-                            tooltips.append(f'Past Session ({session_label})')
+                if (not self.view.is_connected_table or TableMergeState.is_merged()) and matched_player is not None:
+                    session_name = SessionTracker.get_session_name(matched_player.session_id)
+                    session_label = (
+                        f'Session #{matched_player.session_id} ({session_name})'
+                        if session_name is not None
+                        else f'Session #{matched_player.session_id}'
+                    )
+                    if matched_player.session_id == SessionTracker.get_current_session_id():
+                        tooltips.append(f'Current Session ({session_label})')
+                    else:
+                        tooltips.append(f'Past Session ({session_label})')
                 if Settings.gui_session_host_icon and Settings.is_session_host_feature_set() and self._is_row_session_host(ip):
                     tooltips.append('Session Host')
+                if Settings.is_gta5_feature_set() and matched_player is not None and matched_player.is_gta5_relay:
+                    tooltips.append('GTA5 Relay')
                 if Settings.high_rate_monitor_icon and HighRateTracker.is_high_rate(ip):
                     tooltips.append('High-Rate traffic detected (exceeds PPS/BPS thresholds)')
                 if Settings.player_identifier_icon and PlayerIdentifierTracker.is_identified(ip):
