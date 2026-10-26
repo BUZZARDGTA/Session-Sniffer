@@ -592,8 +592,9 @@ class PortScannerTabWidget(QWidget):
             QMessageBox.information(self, 'No Results', 'There are no scan results to export.')
             return
 
+        target_host = self._scanned_target or self.target
         export_filter = 'CSV Files (*.csv);;Text Files (*.txt)'
-        file_path, _ = QFileDialog.getSaveFileName(self, 'Export Scan Results', f'port_scan_{self.target}.csv', export_filter)
+        file_path, _ = QFileDialog.getSaveFileName(self, 'Export Scan Results', f'port_scan_{target_host}.csv', export_filter)
         if not file_path:
             return
 
@@ -615,7 +616,7 @@ class PortScannerTabWidget(QWidget):
                             ],
                         )
                 else:
-                    file.write(f'Port Scan Results for {self.target}\n')
+                    file.write(f'Port Scan Results for {target_host}\n')
                     file.write('=' * 60 + '\n')
                     for result in self._results:
                         latency_str = f' ({result.latency_ms:.1f}ms)' if result.latency_ms is not None else ''
