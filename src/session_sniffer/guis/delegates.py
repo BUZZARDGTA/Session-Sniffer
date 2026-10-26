@@ -83,6 +83,18 @@ def _is_disconnected_cell(view: object, index: QModelIndex | QPersistentModelInd
     return resolved_foreground_color is not None and resolved_foreground_color == _DISCONNECTED_TEXT_COLOR
 
 
+def _strip_usernames_note_suffix(text: str, model: object, row: int) -> str:
+    """Return `text` with any appended UserIP ` (notes)` suffix removed."""
+    get_player = getattr(model, 'get_player_for_row', None)
+    if callable(get_player):
+        player = cast('Player | None', get_player(row))
+        if player is not None and player.userip is not None and player.userip.notes:
+            suffix = f' ({", ".join(player.userip.notes)})'
+            if text.endswith(suffix):
+                return text[: -len(suffix)]
+    return text
+
+
 def _format_looky_tooltip_html(text: str, looky_names: set[str], *, is_disconnected: bool) -> str:
     """Format elided username text for tooltip with HTML highlighting for Looky-resolved usernames."""
     looky_casefolded = {name.casefold() for name in looky_names}
@@ -466,12 +478,18 @@ class SearchHighlightDelegate(ElidedTextTooltipDelegate):
                 looky_color = _DISCONNECTED_LOOKY_TEXT_COLOR if is_disconnected else _LOOKY_TEXT_COLOR
                 looky_format.setForeground(looky_color)
 
-                tokens = split_usernames(text)
-                display_segments = split_usernames(display_text)
+                usernames_text = _strip_usernames_note_suffix(text, index.model(), index.row())
+                display_usernames_text = (
+                    display_text[: len(usernames_text)]
+                    if len(display_text) > len(usernames_text) and display_text.startswith(usernames_text)
+                    else display_text
+                )
+                tokens = split_usernames(usernames_text)
+                display_segments = split_usernames(display_usernames_text)
                 current_offset = 0
 
                 for i, segment in enumerate(display_segments):
-                    segment_position = display_text.find(segment, current_offset)
+                    segment_position = display_usernames_text.find(segment, current_offset)
                     if segment_position == -1:
                         segment_position = current_offset
                     if i < len(tokens) and tokens[i].casefold() in looky_casefolded:
@@ -479,10 +497,10 @@ class SearchHighlightDelegate(ElidedTextTooltipDelegate):
                         format_range.start = segment_position
                         if i + 1 < len(display_segments):
                             next_segment = display_segments[i + 1]
-                            next_position = display_text.find(next_segment, segment_position + len(segment))
+                            next_position = display_usernames_text.find(next_segment, segment_position + len(segment))
                             end_position = next_position if next_position != -1 else segment_position + len(segment)
                         else:
-                            end_position = len(display_text) if display_text.endswith(('…', '...')) else segment_position + len(segment)
+                            end_position = len(display_usernames_text) if display_usernames_text.endswith(('…', '...')) else segment_position + len(segment)
                         format_range.length = end_position - segment_position
                         format_range.format = looky_format
                         formats.append(format_range)

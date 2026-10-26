@@ -486,6 +486,13 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         setting_type=SettingType.BOOLEAN,
         tooltip='Append the two-letter ISO code to the continent name (e.g. "North America (NA)").',
     ),
+    'gui_columns_usernames_show_notes': SettingMeta(
+        category='Columns',
+        group='Usernames',
+        display_label='Show UserIP Notes',
+        setting_type=SettingType.BOOLEAN,
+        tooltip='Append UserIP database notes in parentheses to the Usernames column (e.g. "Username (Note)").',
+    ),
     'gui_connected_table_rows_per_page': SettingMeta(
         category='Session',
         group='Table Pagination',

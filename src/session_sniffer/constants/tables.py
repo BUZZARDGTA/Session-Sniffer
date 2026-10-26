@@ -293,4 +293,5 @@ COLUMN_FORMAT_SETTING_TO_COLUMNS: dict[str, tuple[str, ...]] = {
     'gui_columns_datetime_show_elapsed_time': DATETIME_TRACKING_COLUMNS,
     'gui_columns_geo_country_append_alpha2': ('Country',),
     'gui_columns_geo_continent_append_alpha2': ('Continent',),
+    'gui_columns_usernames_show_notes': ('Usernames',),
 }

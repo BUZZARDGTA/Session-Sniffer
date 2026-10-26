@@ -334,6 +334,8 @@ def rendering_core(
                 lookup_key = (
                     player.rejoins,
                     tuple(player.usernames),
+                    tuple(player.userip.notes) if player.userip is not None else (),
+                    Settings.gui_columns_usernames_show_notes,
                     player.iplookup.geolite2.is_initialized,
                     player.iplookup.ipapi.is_initialized,
                     player.reverse_dns.is_initialized,

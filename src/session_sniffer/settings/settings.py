@@ -82,6 +82,7 @@ class Settings:
     gui_columns_timezone_display: str = SETTING_DEFAULTS['gui_columns_timezone_display']
     gui_columns_geo_country_append_alpha2: bool = SETTING_DEFAULTS['gui_columns_geo_country_append_alpha2']
     gui_columns_geo_continent_append_alpha2: bool = SETTING_DEFAULTS['gui_columns_geo_continent_append_alpha2']
+    gui_columns_usernames_show_notes: bool = SETTING_DEFAULTS['gui_columns_usernames_show_notes']
     gui_connected_table_rows_per_page: int = SETTING_DEFAULTS['gui_connected_table_rows_per_page']
     gui_connected_table_sort_column: str = SETTING_DEFAULTS['gui_connected_table_sort_column']
     gui_connected_table_sort_order: str = SETTING_DEFAULTS['gui_connected_table_sort_order']
@@ -187,6 +188,7 @@ class Settings:
         'GUI_COLUMNS_TIMEZONE_DISPLAY',
         'GUI_COLUMNS_GEO_COUNTRY_APPEND_ALPHA2',
         'GUI_COLUMNS_GEO_CONTINENT_APPEND_ALPHA2',
+        'GUI_COLUMNS_USERNAMES_SHOW_NOTES',
         'GUI_CONNECTED_TABLE_ROWS_PER_PAGE',
         'GUI_CONNECTED_TABLE_SORT_COLUMN',
         'GUI_CONNECTED_TABLE_SORT_ORDER',

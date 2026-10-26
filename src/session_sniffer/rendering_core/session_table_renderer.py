@@ -34,9 +34,13 @@ _RATE_GRADIENT_COLORS: tuple[QColor, ...] = tuple(QColor(0xFF - i, i, 0) for i i
 
 
 def format_player_usernames(player: Player) -> str:
-    """Format player usernames as a comma-separated string."""
+    """Format player usernames as a comma-separated string, optionally appending UserIP notes."""
     usernames = player.usernames or (player.looky_system.usernames if Settings.looky_enabled and Settings.is_gta5_feature_set() and player.looky_system.is_initialized else [])
-    return ', '.join(usernames) if usernames else ''
+    usernames_text = ', '.join(usernames) if usernames else ''
+    if Settings.gui_columns_usernames_show_notes and player.userip is not None and player.userip.notes:
+        notes_text = ', '.join(player.userip.notes)
+        return f'{usernames_text} ({notes_text})' if usernames_text else f'({notes_text})'
+    return usernames_text
 
 
 def format_player_ip(player_ip: str) -> str:

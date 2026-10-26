@@ -55,6 +55,7 @@ class SettingDefaults(TypedDict):
     gui_columns_timezone_display: str
     gui_columns_geo_country_append_alpha2: bool
     gui_columns_geo_continent_append_alpha2: bool
+    gui_columns_usernames_show_notes: bool
     gui_connected_table_rows_per_page: int
     gui_connected_table_sort_column: str
     gui_connected_table_sort_order: str
@@ -190,6 +191,7 @@ SETTING_DEFAULTS: SettingDefaults = {
     'gui_columns_timezone_display': 'Timezone',
     'gui_columns_geo_country_append_alpha2': True,
     'gui_columns_geo_continent_append_alpha2': True,
+    'gui_columns_usernames_show_notes': True,
     'gui_connected_table_rows_per_page': 0,
     'gui_connected_table_sort_column': 'Last Rejoin',
     'gui_connected_table_sort_order': 'Descending',

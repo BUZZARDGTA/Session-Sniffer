@@ -730,6 +730,7 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
         self._disconnected.apply_pagination_from_settings()
         self._connected.apply_columns_from_settings(changed)
         self._disconnected.apply_columns_from_settings(changed)
+        wake_rendering_core()
 
     def _sync_player_resolver_settings(self) -> None:
         """Synchronize Player Resolver background monitoring and refresh session table icons."""
