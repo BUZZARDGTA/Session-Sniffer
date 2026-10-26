@@ -788,16 +788,17 @@ class SessionsLogTab(QWidget):
         }
 
     def _line_matches_search(self, line: str, search_lower: str, selected_column: str) -> tuple[bool, list[str] | None]:
-        if search_lower not in line.lower():
+        if search_lower not in line.lower() or (parsed_cells := self._try_parse_table_row(line)) is None:
             return False, None
-        parsed_cells = self._try_parse_table_row(line)
-        if parsed_cells is None:
-            return selected_column == _SEARCH_ALL, None
         header_cells = self._column_headers_for_row_length(len(parsed_cells))
         if header_cells is not None and parsed_cells[0] == header_cells[0]:
             return False, None
         if selected_column == _SEARCH_ALL:
-            return True, parsed_cells
+            matched = header_cells is None or any(
+                col not in SEARCHABLE_COLUMN_EXCLUSIONS and cell not in {'N/A', '...'} and search_lower in cell.lower()
+                for col, cell in zip(header_cells, parsed_cells, strict=False)
+            )
+            return matched, parsed_cells
         if header_cells is None or selected_column not in header_cells:
             return False, None
         cell_value = parsed_cells[header_cells.index(selected_column)]
