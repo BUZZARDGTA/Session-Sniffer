@@ -584,7 +584,7 @@ class _RIDPickerDialog(QDialog):
         self._list.setItemDelegate(ElidedTextTooltipDelegate(self._list))
         self._list.setWordWrap(False)
         for name, rid in entries:
-            item = QListWidgetItem(f'{name} (RID: {rid})')
+            item = QListWidgetItem(f'{name} (RID: {rid})' if name else f'RID: {rid}')
             item.setData(Qt.ItemDataRole.UserRole, rid)
             self._list.addItem(item)
         self._list.setCurrentRow(0)
@@ -736,7 +736,10 @@ def _show_player_instruction_request(
     if api_key is None:
         return
 
-    if not player.looky_system.rockstarids:
+    with player.looky_system.lock:
+        rockstarids = list(player.looky_system.rockstarids)
+        entry_names = list(player.looky_system.entry_names)
+    if not rockstarids:
         QMessageBox.warning(
             parent,
             LOOKY_TITLE,
@@ -744,16 +747,16 @@ def _show_player_instruction_request(
         )
         return
 
-    entries = list(zip(player.looky_system.usernames, player.looky_system.rockstarids, strict=False))
+    entries = [(entry_names[i] if i < len(entry_names) else '', rid) for i, rid in enumerate(rockstarids)]
     rid = (
-        player.looky_system.rockstarids[0]
-        if len(player.looky_system.rockstarids) == 1
+        rockstarids[0]
+        if len(rockstarids) == 1
         else _RIDPickerDialog.pick_rid(parent, entries, title_prefix=spec.title_prefix, action_verb=spec.action_verb)
     )
     if rid is None:
         return
 
-    display_name = next((name for name, rockstar_id in entries if rockstar_id == rid), player.ip)
+    display_name = next((name for name, rockstar_id in entries if rockstar_id == rid and name), player.ip)
     _show_rid_instruction_request(
         parent,
         rid,

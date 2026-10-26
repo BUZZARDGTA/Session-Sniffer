@@ -171,6 +171,7 @@ class PlayerLooky:
     as_userip_checked: bool = False
     last_fetched_at: float = 0.0
     usernames: list[str] = dataclasses.field(default_factory=list[str])
+    entry_names: list[str] = dataclasses.field(default_factory=list[str])
     rockstarids: list[int] = dataclasses.field(default_factory=list[int])
     last_seens: list[datetime] = dataclasses.field(default_factory=list[datetime])
     lock: Lock = dataclasses.field(default_factory=Lock)
@@ -191,11 +192,13 @@ class PlayerLooky:
             if pair not in seen_pairs:
                 seen_pairs.add(pair)
                 unique_results.append(entry)
-        new_usernames = [entry.name.strip() for entry in unique_results if entry.name and entry.name.strip()]
+        entry_names = [entry.name.strip() if entry.name else '' for entry in unique_results]
+        new_usernames = [name for name in entry_names if name]
         with self.lock:
             if force_reset_userip_checked or new_usernames != self.usernames:
                 self.as_userip_checked = False
             self.usernames = new_usernames
+            self.entry_names = entry_names
             self.rockstarids = [entry.rockstarid for entry in unique_results]
             self.last_seens = [entry.last_seen for entry in unique_results]
             self.needs_refresh = False

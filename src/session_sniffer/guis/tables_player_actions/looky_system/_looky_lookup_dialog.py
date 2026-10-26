@@ -222,13 +222,14 @@ def show_looky_lookup(parent: QWidget, player: Player | StandaloneIPLookup) -> N
         unique_results = player.looky_system.apply_results(worker.results, force_reset_userip_checked=True)
         if player.looky_system.usernames:
             player.usernames = dedup_preserve_order(player.usernames, player.looky_system.usernames)
-            if isinstance(player, Player):
-                live_player = PlayersRegistry.get_player_by_ip(player.ip)
-                if live_player is not None and live_player is not player:
-                    live_player.looky_system.apply_results(worker.results, force_reset_userip_checked=True)
+        if isinstance(player, Player):
+            live_player = PlayersRegistry.get_player_by_ip(player.ip)
+            if live_player is not None and live_player is not player:
+                live_player.looky_system.apply_results(worker.results, force_reset_userip_checked=True)
+                if live_player.looky_system.usernames:
                     live_player.usernames = dedup_preserve_order(live_player.usernames, live_player.looky_system.usernames)
-                SessionTracker.update_session_player_snapshot(player, metadata_only=True)
-            wake_rendering_core()
+            SessionTracker.update_session_player_snapshot(player, metadata_only=True)
+        wake_rendering_core()
 
         if not isValid(parent):
             return

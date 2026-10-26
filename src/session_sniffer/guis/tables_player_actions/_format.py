@@ -182,7 +182,7 @@ def format_looky_last_seens(looky: PlayerLooky) -> str:
         for i, last_seen in enumerate(looky.last_seens):
             last_seen_dt = last_seen if last_seen.tzinfo is None else last_seen.astimezone(UTC)
             formatted_dt = last_seen_dt.strftime('%Y-%m-%d %H:%M:%S UTC')
-            name = looky.usernames[i] if i < len(looky.usernames) else ''
+            name = looky.entry_names[i] if i < len(looky.entry_names) else (looky.usernames[i] if i < len(looky.usernames) else '')
             rid = str(looky.rockstarids[i]) if i < len(looky.rockstarids) else ''
             identifier = name or rid
             if identifier:
