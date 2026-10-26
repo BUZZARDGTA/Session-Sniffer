@@ -246,20 +246,12 @@ def _run_username_input_dialog(
 
     def _update_row_placeholders_and_buttons() -> None:
         total = len(row_entries)
-        row_tokens = [split_usernames(edit.text()) for _, edit, _ in row_entries]
-        if allow_multiple:
-            all_non_empty = bool(row_tokens) and all(row_tokens)
-            flat_tokens = [token for tokens in row_tokens for token in tokens]
-            all_unique = len({token.casefold() for token in flat_tokens}) == len(flat_tokens)
-            can_proceed = all_non_empty and all_unique
-            effective_count = max(total, len(flat_tokens), 1)
-            if not isinstance(label, str):
-                prompt_label.setText(label(effective_count))
-        else:
-            can_proceed = bool(row_tokens) and all(
-                len(tokens) == 1 and tokens[0] == edit.text().strip()
-                for (_, edit, _), tokens in zip(row_entries, row_tokens, strict=True)
-            )
+        stripped_values = [edit.text().strip() for _, edit, _ in row_entries]
+        all_non_empty = bool(stripped_values) and all(stripped_values)
+        all_unique = len({val.casefold() for val in stripped_values if val}) == total
+        can_proceed = all_non_empty and all_unique
+        if allow_multiple and not isinstance(label, str):
+            prompt_label.setText(label(total))
 
         for idx, (_, edit, remove_btn) in enumerate(row_entries, start=1):
             edit.setPlaceholderText(f'Username {idx}…' if allow_multiple and total > 1 else 'Enter username…')
@@ -271,25 +263,10 @@ def _run_username_input_dialog(
             add_row_button.setEnabled(can_proceed)
         ok_button.setEnabled(can_proceed)
 
-    def _apply_chosen_suggestion(target_edit: _SuggestionLineEdit, chosen: str) -> None:
-        raw_text = target_edit.text()
-        if allow_multiple and ',' in raw_text:
-            prefix_tokens = split_usernames(raw_text.rsplit(',', 1)[0])
-            target_edit.setText(f'{", ".join(prefix_tokens)}, {chosen}' if prefix_tokens else chosen)
-        else:
-            target_edit.setText(chosen)
-
     def _refresh_suggestions_for(target_edit: _SuggestionLineEdit) -> None:
         nonlocal active_line_edit, active_query
         active_line_edit = target_edit
-        raw_text = target_edit.text()
-        if allow_multiple and ',' in raw_text:
-            prefix_part, last_part = raw_text.rsplit(',', 1)
-            active_query = last_part.strip()
-            same_row_prefix_tokens = split_usernames(prefix_part)
-        else:
-            active_query = raw_text.strip()
-            same_row_prefix_tokens = []
+        active_query = target_edit.text().strip()
         if not active_query:
             if suggestions_list.isVisible():
                 suggestions_list.setVisible(False)
@@ -297,13 +274,9 @@ def _run_username_input_dialog(
             return
 
         excluded_cf: set[str] = {
-            *(token.casefold() for token in same_row_prefix_tokens),
-            *(
-                token.casefold()
-                for _, other_edit, _ in row_entries
-                if other_edit is not target_edit
-                for token in split_usernames(other_edit.text())
-            ),
+            other_edit.text().strip().casefold()
+            for _, other_edit, _ in row_entries
+            if other_edit is not target_edit and other_edit.text().strip()
         }
         proxy_model.set_query_and_excluded(active_query, excluded_cf)
         match_count = proxy_model.rowCount()
@@ -441,7 +414,7 @@ def _run_username_input_dialog(
 
     accepted = dialog.exec() == QDialog.DialogCode.Accepted
     collected = dedup_preserve_order(
-        token for _, edit, _ in row_entries for token in split_usernames(edit.text())
+        cleaned for _, edit, _ in row_entries if (cleaned := edit.text().strip())
     )
     return collected, accepted
 
