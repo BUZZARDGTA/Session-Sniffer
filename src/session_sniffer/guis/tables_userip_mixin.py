@@ -161,7 +161,7 @@ def _prompt_usernames_to_add(
 
     entered_usernames, success = prompt_usernames_input(
         parent,
-        'Input Username',
+        'Input Username(s)',
         prompt_message,
         initial_usernames,
     )

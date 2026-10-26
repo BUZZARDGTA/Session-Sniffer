@@ -35,7 +35,7 @@ from session_sniffer.player.userip_loader import get_cached_userip_usernames
 from session_sniffer.rendering_core.modmenu_logs_parser import ModMenuLogsParser
 from session_sniffer.rendering_core.types import CaptureState
 from session_sniffer.settings import Settings
-from session_sniffer.text_utils import pluralize, split_usernames
+from session_sniffer.text_utils import pluralize
 from session_sniffer.utils import dedup_preserve_order
 
 if TYPE_CHECKING:
@@ -253,7 +253,6 @@ def _run_username_input_dialog(
             all_unique = len({token.casefold() for token in flat_tokens}) == len(flat_tokens)
             can_proceed = all_non_empty and all_unique
             effective_count = max(total, len(flat_tokens), 1)
-            dialog.setWindowTitle(f'{title}s' if effective_count > 1 and title.endswith('Username') else title)
             if not isinstance(label, str):
                 prompt_label.setText(label(effective_count))
         else:
@@ -343,7 +342,7 @@ def _run_username_input_dialog(
         suggestions_list.scrollTo(target_index)
         chosen = proxy_model.data(target_index, Qt.ItemDataRole.DisplayRole)
         if isinstance(chosen, str):
-            _apply_chosen_suggestion(active_line_edit, chosen)
+            active_line_edit.setText(chosen)
         return True
 
     def _on_line_edit_focused(focused_edit: _SuggestionLineEdit) -> None:
@@ -427,13 +426,13 @@ def _run_username_input_dialog(
     def _on_suggestion_clicked(index: QModelIndex) -> None:
         chosen = proxy_model.data(index, Qt.ItemDataRole.DisplayRole)
         if isinstance(chosen, str) and active_line_edit is not None:
-            _apply_chosen_suggestion(active_line_edit, chosen)
+            active_line_edit.setText(chosen)
             active_line_edit.setFocus()
 
     def _on_suggestion_double_clicked(index: QModelIndex) -> None:
         chosen = proxy_model.data(index, Qt.ItemDataRole.DisplayRole)
         if isinstance(chosen, str) and active_line_edit is not None:
-            _apply_chosen_suggestion(active_line_edit, chosen)
+            active_line_edit.setText(chosen)
             if ok_button.isEnabled():
                 dialog.accept()
 

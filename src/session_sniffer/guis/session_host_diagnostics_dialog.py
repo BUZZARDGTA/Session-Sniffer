@@ -730,7 +730,7 @@ class SessionHostDiagnosticsDialog(QDialog):
         layout.setSpacing(6)
 
         count = len(self._snapshot.filtered_servers)
-        title = QLabel(f'Filtered Game & Relay Server{pluralize(count)} ({count})')
+        title = QLabel(f'Filtered Game & Relay Server(s) ({count})')
         title.setStyleSheet('color: #8b9bb4; font-weight: bold; font-size: 9pt;')
         layout.addWidget(title)
 

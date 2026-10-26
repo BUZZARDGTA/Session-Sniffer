@@ -324,10 +324,7 @@ class EntriesContextMenuMixin(QDialog):
 
     def _add_delete_selected_action(self, menu: QMenu) -> None:
         """Add the 'Delete Selected Row(s)' action with a preceding separator to *menu*."""
-        selection_model = self._entries_table.selectionModel()
-        selected_count = len(selection_model.selectedRows()) if selection_model else 1
-        delete_label = f'Delete Selected Row{pluralize(selected_count)}'
-        delete_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')), delete_label, self)
+        delete_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')), 'Delete Selected Row(s)', self)
         delete_action.triggered.connect(self._delete_selected)
         menu.addSeparator()
         menu.addAction(delete_action)

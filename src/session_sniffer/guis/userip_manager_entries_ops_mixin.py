@@ -380,7 +380,7 @@ class UserIPEntriesOperationsMixin(QDialog):
 
     def _prompt_new_usernames(self, prompt: str | Callable[[int], str]) -> list[str]:
         """Prompt the user for one or more usernames."""
-        entered_usernames, accepted = prompt_usernames_input(self, 'Add Username', prompt)
+        entered_usernames, accepted = prompt_usernames_input(self, 'Add Username(s)', prompt)
         return entered_usernames if accepted else []
 
     def _add_username_global_search(self, source_row: int, ip_text: str, range_text: str) -> None:
