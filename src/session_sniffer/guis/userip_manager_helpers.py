@@ -44,7 +44,7 @@ from session_sniffer.models.userip_settings_model import (
 from session_sniffer.networking.ip_range import entry_ip_covers_ip
 from session_sniffer.player.userip_loader import enrich_userip_entry_from_logs, find_userip_insert_index, invalidate_userip_db_mtime, update_userip_databases
 from session_sniffer.rendering_core.events import wake_rendering_core
-from session_sniffer.text_utils import pluralize, split_usernames
+from session_sniffer.text_utils import pluralize
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
@@ -341,7 +341,7 @@ def parse_userip_database_content(
         if parsed is None:
             continue
         base_entry, _ = enrich_userip_entry_from_logs(parsed[0])
-        entries.extend(base_entry.model_copy(update={'username': individual_username}) for individual_username in split_usernames(base_entry.username))
+        entries.append(base_entry)
 
     return UserIPDatabaseFile(settings=validated_settings, entries=entries)
 

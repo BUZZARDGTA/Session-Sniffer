@@ -29,7 +29,6 @@ from session_sniffer.models.userip_settings_model import (
 from session_sniffer.networking.ip_range import entry_ip_covers_ip, is_valid_ip_range_entry, parse_ip_range
 from session_sniffer.player.registry import PlayersRegistry
 from session_sniffer.player.userip import ProtectionSettings, UserIPDatabases, UserIPSettings
-from session_sniffer.text_utils import split_usernames
 from session_sniffer.utils import FileSignature, get_file_signature, validate_file
 
 if TYPE_CHECKING:
@@ -583,33 +582,19 @@ def _parse_and_repair_single_raw_entry(
         logger.info('Auto-removed invalid IP entry "%s=%s" from "%s".', base_entry.username, ip, json_name)
         return True
 
-    split_names = split_usernames(base_entry.username)
-    if not split_names:
-        return True
-
-    was_split = len(split_names) > 1
-    username_repaired = split_names[0] != base_entry.username
-    if username_repaired:
-        base_entry = base_entry.model_copy(update={'username': split_names[0]})
-
     base_entry, log_enriched = enrich_userip_entry_from_logs(base_entry)
-    need_rewrite = not entry_clean or was_split or username_repaired or log_enriched
+    need_rewrite = not entry_clean or log_enriched
 
-    for split_name in split_names:
-        if was_split:
-            logger.info('Auto-repaired split username entry "%s=%s" in "%s".', split_name, ip, json_name)
-        candidate = base_entry if split_name == base_entry.username else base_entry.model_copy(update={'username': split_name})
-        pair_key = (split_name.casefold(), ip)
-        if pair_key in seen_pairs:
-            need_rewrite = True
-            existing_idx = seen_pairs[pair_key]
-            repaired_entries[existing_idx] = repaired_entries[existing_idx].merge_duplicate(candidate)
-            logger.info('Auto-removed duplicate IP entry "%s=%s" from "%s".', split_name, ip, json_name)
-            continue
+    pair_key = (base_entry.username.casefold(), ip)
+    if pair_key in seen_pairs:
+        need_rewrite = True
+        existing_idx = seen_pairs[pair_key]
+        repaired_entries[existing_idx] = repaired_entries[existing_idx].merge_duplicate(base_entry)
+        logger.info('Auto-removed duplicate IP entry "%s=%s" from "%s".', base_entry.username, ip, json_name)
+        return need_rewrite
 
-        seen_pairs[pair_key] = len(repaired_entries)
-        repaired_entries.append(candidate)
-
+    seen_pairs[pair_key] = len(repaired_entries)
+    repaired_entries.append(base_entry)
     return need_rewrite
 
 
