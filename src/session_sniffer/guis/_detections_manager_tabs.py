@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+from shiboken6 import isValid
 
 from session_sniffer.background import clear_voice_notification_queue, retrigger_detections_scan
 from session_sniffer.constants.local import COMBO_RULES_PATH, RESOURCES_DIR_PATH
@@ -619,10 +620,12 @@ class DetectionsManagerTabsMixin(QDialog):
             if list_widget.count() > 0:
                 list_widget.clear()
                 self._auto_save_detections()
-            clear_button.setEnabled(list_widget.count() > 0)
+            if isValid(list_widget) and isValid(clear_button):
+                clear_button.setEnabled(list_widget.count() > 0)
 
         def _on_list_model_changed(*_args: object) -> None:
-            clear_button.setEnabled(list_widget.count() > 0)
+            if isValid(list_widget) and isValid(clear_button):
+                clear_button.setEnabled(list_widget.count() > 0)
 
         clear_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')), ' Clear All')
         clear_button.setEnabled(list_widget.count() > 0)
