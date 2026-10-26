@@ -171,7 +171,7 @@ class _UsernameSuggestionProxyModel(QSortFilterProxyModel):
 def _run_username_input_dialog(
     parent: QWidget,
     title: str,
-    label: str,
+    label: str | Callable[[int], str],
     initial_usernames: Sequence[str],
     *,
     allow_multiple: bool,
@@ -185,7 +185,8 @@ def _run_username_input_dialog(
 
     layout = QVBoxLayout(dialog)
 
-    prompt_label = QLabel(label, dialog)
+    initial_label = label if isinstance(label, str) else label(1)
+    prompt_label = QLabel(initial_label, dialog)
     layout.addWidget(prompt_label)
 
     rows_layout = QVBoxLayout()
@@ -249,6 +250,10 @@ def _run_username_input_dialog(
             flat_tokens = [token for tokens in row_tokens for token in tokens]
             all_unique = len({token.casefold() for token in flat_tokens}) == len(flat_tokens)
             can_proceed = all_non_empty and all_unique
+            effective_count = max(total, len(flat_tokens), 1)
+            dialog.setWindowTitle(f'{title}s' if effective_count > 1 and title.endswith('Username') else title)
+            if not isinstance(label, str):
+                prompt_label.setText(label(effective_count))
         else:
             can_proceed = bool(row_tokens) and all(
                 len(tokens) == 1 and tokens[0] == edit.text().strip()
@@ -438,7 +443,7 @@ def prompt_username_input(
 def prompt_usernames_input(
     parent: QWidget,
     title: str,
-    label: str,
+    label: str | Callable[[int], str],
     initial_usernames: Sequence[str] | None = None,
 ) -> tuple[list[str], bool]:
     """Prompt the user for one or more usernames using dynamic input rows and real-time suggestions."""

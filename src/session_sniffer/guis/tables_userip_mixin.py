@@ -29,6 +29,7 @@ from session_sniffer.text_utils import pluralize
 from session_sniffer.utils import dedup_preserve_order
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
     from pathlib import Path
 
     from session_sniffer.models.player import Player
@@ -109,7 +110,7 @@ def _prompt_usernames_to_add(
     selected_database: Path,
     *,
     candidate_usernames: list[str] | None = None,
-    prompt_message: str | None = None,
+    prompt_message: str | Callable[[int], str] | None = None,
 ) -> list[str] | None:
     """Prompt the user for one or more usernames to associate with the selected IP(s).
 
@@ -147,16 +148,16 @@ def _prompt_usernames_to_add(
 
         # User clicked 'Custom…' in the selection dialog
         initial_usernames = dialog.selected_usernames()
-        usernames_count = len(initial_usernames) or 1
     elif len(candidates) == 1:
         initial_usernames = [candidates[0]]
-        usernames_count = 1
     else:
         initial_usernames = []
-        usernames_count = 1
 
     if prompt_message is None:
-        prompt_message = f'Please enter the username{pluralize(usernames_count)} to associate with the selected IP{pluralize(len(selected_ips))}:'
+        def _default_prompt(count: int) -> str:
+            return f'Please enter the username{pluralize(count)} to associate with the selected IP{pluralize(len(selected_ips))}:'
+
+        prompt_message = _default_prompt
 
     entered_usernames, success = prompt_usernames_input(
         parent,
@@ -245,13 +246,12 @@ def userip_add_as_range(
         return
 
     candidates = list(usernames) if usernames is not None else None
-    prompt_message = f'Enter the username to associate with range "{range_input}":'
     chosen_usernames = _prompt_usernames_to_add(
         parent,
         [ip_address],
         selected_database,
         candidate_usernames=candidates,
-        prompt_message=prompt_message,
+        prompt_message=lambda count: f'Enter the username{pluralize(count)} to associate with range "{range_input}":',
     )
     if chosen_usernames is None or not chosen_usernames:
         return
@@ -461,15 +461,15 @@ def userip_add_username(parent: QWidget, ip_address: str, player: Player) -> Non
 
     db_path = player.userip.db_path
     db_display = player.userip.db_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix('')
+    existing_count = len(player.userip.usernames)
     existing = ', '.join(player.userip.usernames) if player.userip.usernames else 'None'
     candidates = [name for name in resolve_usernames_for_player(player) if name not in player.userip.usernames]
-    prompt_message = f'Current username{pluralize(len(player.userip.usernames))} for {ip_address}: {existing}\n\nEnter the new username to add:'
     entered_usernames = _prompt_usernames_to_add(
         parent,
         [ip_address],
         db_path,
         candidate_usernames=candidates,
-        prompt_message=prompt_message,
+        prompt_message=lambda count: f'Current username{pluralize(existing_count)} for {ip_address}: {existing}\n\nEnter the new username{pluralize(count)} to add:',
     )
 
     if entered_usernames is None or not entered_usernames:

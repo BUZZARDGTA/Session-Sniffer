@@ -375,7 +375,7 @@ class UserIPEntriesOperationsMixin(QDialog):
             self._entries_table.setCurrentIndex(proxy_index)
             self._entries_table.edit(proxy_index)
 
-    def _prompt_new_usernames(self, prompt: str) -> list[str]:
+    def _prompt_new_usernames(self, prompt: str | Callable[[int], str]) -> list[str]:
         """Prompt the user for one or more usernames."""
         entered_usernames, accepted = prompt_usernames_input(self, 'Add Username', prompt)
         return entered_usernames if accepted else []
@@ -389,7 +389,7 @@ class UserIPEntriesOperationsMixin(QDialog):
             return
 
         new_usernames = self._prompt_new_usernames(
-            f'Enter the username(s) to add for {entry_value} in "{database_path.stem}":',
+            lambda count: f'Enter the username{pluralize(count)} to add for {entry_value} in "{database_path.stem}":',
         )
         if not new_usernames:
             return
@@ -435,7 +435,7 @@ class UserIPEntriesOperationsMixin(QDialog):
         """Prompt for usernames and insert rows into the single-DB model when a search filter is active."""
         entry_value = ip_text or range_text
         new_usernames = self._prompt_new_usernames(
-            f'Enter the username(s) to add for {entry_value}:',
+            lambda count: f'Enter the username{pluralize(count)} to add for {entry_value}:',
         )
         if not new_usernames:
             return
