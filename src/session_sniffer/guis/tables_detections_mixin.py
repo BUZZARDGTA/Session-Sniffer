@@ -9,6 +9,7 @@ from session_sniffer.background import retrigger_detections_scan
 from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.guis.country_data import matches_country, normalize_country_name
 from session_sniffer.guis.detections_manager import DetectionsManagerDialog, open_combo_rule_editor, open_combo_rule_editor_for_player
+from session_sniffer.player.combo_rules import matches_asn_entry
 from session_sniffer.player.detections import GUIDetectionSettings
 from session_sniffer.text_utils import pluralize
 
@@ -73,6 +74,23 @@ def _toggle_country_detection(country_name: str, *, add: bool) -> None:
     _persist_and_refresh_detections()
 
 
+def _is_asn_in_detection_list(asn_value: str) -> bool:
+    """Return True if *asn_value* matches any entry in the ASN detection list."""
+    return any(matches_asn_entry(entry, asn_value) for entry in GUIDetectionSettings.asn_detection_list)
+
+
+def _toggle_asn_detection(asn_value: str, *, add: bool) -> None:
+    """Add or remove *asn_value* (and any normalized match) from the ASN detection list and persist."""
+    if add:
+        if not _is_asn_in_detection_list(asn_value):
+            GUIDetectionSettings.asn_detection_list.append(asn_value)
+    else:
+        GUIDetectionSettings.asn_detection_list[:] = [
+            entry for entry in GUIDetectionSettings.asn_detection_list if not matches_asn_entry(entry, asn_value)
+        ]
+    _persist_and_refresh_detections()
+
+
 def build_detections_menu(
     menu: QMenu,
     add_action: Callable[..., QAction],
@@ -128,13 +146,13 @@ def build_detections_menu(
     # --- ASN ---
     asn_value = asn_ipapi if asn_ipapi is not None else asn_geolite2
     if asn_value is not None:
-        asn_in_list = asn_value in GUIDetectionSettings.asn_detection_list
+        asn_in_list = _is_asn_in_detection_list(asn_value)
         if asn_in_list:
             add_action(
                 menu,
                 f'Remove ASN ({asn_value})',
                 tooltip=f'Remove ASN "{asn_value}" from the ASN detection list.',
-                handler=lambda: _toggle_detection_list(GUIDetectionSettings.asn_detection_list, asn_value, add=False),
+                handler=lambda: _toggle_asn_detection(asn_value, add=False),
                 icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')),
             )
         else:
@@ -142,7 +160,7 @@ def build_detections_menu(
                 menu,
                 f'Add ASN ({asn_value})',
                 tooltip=f'Add ASN "{asn_value}" to the ASN detection list.',
-                handler=lambda: _toggle_detection_list(GUIDetectionSettings.asn_detection_list, asn_value, add=True),
+                handler=lambda: _toggle_asn_detection(asn_value, add=True),
                 icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'plus.svg')),
             )
 
@@ -251,15 +269,15 @@ def build_detections_menu_multi(
         )
 
     # --- ASN ---
-    new_asns = [asn for asn in asns if asn not in GUIDetectionSettings.asn_detection_list]
-    existing_asns = [asn for asn in asns if asn in GUIDetectionSettings.asn_detection_list]
+    new_asns = [asn for asn in asns if not _is_asn_in_detection_list(asn)]
+    existing_asns = [asn for asn in asns if _is_asn_in_detection_list(asn)]
     if (new_asns or existing_asns) and has_items:
         menu.addSeparator()
     if new_asns:
 
         def _add_asns(asn_list: list[str] = new_asns) -> None:
             for asn in asn_list:
-                if asn not in GUIDetectionSettings.asn_detection_list:
+                if not _is_asn_in_detection_list(asn):
                     GUIDetectionSettings.asn_detection_list.append(asn)
             _persist_and_refresh_detections()
 
@@ -273,9 +291,11 @@ def build_detections_menu_multi(
     if existing_asns:
 
         def _remove_asns(asn_list: list[str] = existing_asns) -> None:
-            for asn in asn_list:
-                with suppress(ValueError):
-                    GUIDetectionSettings.asn_detection_list.remove(asn)
+            GUIDetectionSettings.asn_detection_list[:] = [
+                entry
+                for entry in GUIDetectionSettings.asn_detection_list
+                if not any(matches_asn_entry(entry, asn) for asn in asn_list)
+            ]
             _persist_and_refresh_detections()
 
         add_action(
