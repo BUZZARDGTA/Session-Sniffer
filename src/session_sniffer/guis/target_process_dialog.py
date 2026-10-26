@@ -318,8 +318,9 @@ class TargetProcessDialog(QDialog):
                     self._user_selected_name = matched_name or previous_selected_name
                 else:
                     self._user_selected_name = previous_selected_name
-                    self.selected_pid = 0
-                    self.selected_process_name = previous_selected_name
+                    if self.selected_process_name is not None and self.selected_process_name.casefold() == previous_selected_name.casefold():
+                        self.selected_pid = 0
+                        self.selected_process_name = previous_selected_name
         self._update_status_label()
         self._filter_process_list(self._search_input.text())
         self._column_resizer.setup_column_resizing()
