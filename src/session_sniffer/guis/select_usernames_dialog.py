@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QListView,
     QPushButton,
+    QSizePolicy,
     QVBoxLayout,
     QWidget,
 )
@@ -234,6 +235,7 @@ def _run_username_input_dialog(
 
     def _sync_dialog_height() -> None:
         suggestions_list.updateGeometry()
+        rows_layout.invalidate()
         layout.invalidate()
         layout.activate()
         target_width = max(dialog.width(), layout.totalSizeHint().width(), scale_by_ui(380))
@@ -332,6 +334,7 @@ def _run_username_input_dialog(
 
     def _add_row(initial_value: str = '', *, focus: bool = False) -> _SuggestionLineEdit:
         row_widget = QWidget(dialog)
+        row_widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         row_hbox = QHBoxLayout(row_widget)
         row_hbox.setContentsMargins(0, 0, 0, 0)
         row_hbox.setSpacing(6)
@@ -365,6 +368,7 @@ def _run_username_input_dialog(
                     if row_edit is edit:
                         row_entries.pop(idx)
                         rows_layout.removeWidget(widget)
+                        widget.hide()
                         widget.setParent(None)
                         widget.deleteLater()
                         next_idx = min(idx, len(row_entries) - 1)
@@ -380,6 +384,8 @@ def _run_username_input_dialog(
 
         row_entries.append((row_widget, edit, remove_btn))
         rows_layout.addWidget(row_widget)
+        if dialog.isVisible():
+            row_widget.show()
         _update_row_placeholders_and_buttons()
         if focus:
             edit.setFocus()
