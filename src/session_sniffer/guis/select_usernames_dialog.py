@@ -7,15 +7,18 @@ from typing import TYPE_CHECKING, Self, override
 from PySide6.QtCore import QItemSelectionModel, QModelIndex, QPersistentModelIndex, QSortFilterProxyModel, QStringListModel, Qt
 from PySide6.QtGui import QFocusEvent, QIcon, QKeyEvent, QStandardItem, QStandardItemModel
 from PySide6.QtWidgets import (
+    QAbstractItemView,
     QCompleter,
     QDialog,
     QDialogButtonBox,
     QHBoxLayout,
+    QHeaderView,
     QLabel,
     QLineEdit,
     QListView,
     QPushButton,
     QSizePolicy,
+    QTableView,
     QVBoxLayout,
     QWidget,
 )
@@ -39,11 +42,13 @@ from session_sniffer.text_utils import pluralize
 from session_sniffer.utils import dedup_preserve_order
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Sequence
+    from collections.abc import Callable, Mapping, Sequence
 
 _MAX_DISPLAY_SELECTED_IPS = 3
 _USERNAME_COMPLETER_MAX_VISIBLE_ITEMS = 12
 _INLINE_SUGGESTIONS_MAX_VISIBLE_ROWS = 8
+_PICKER_USERNAME_COLUMN = 0
+_PICKER_NOTE_COLUMN = 1
 
 
 def collect_known_usernames() -> list[str]:
@@ -169,20 +174,35 @@ class _UsernameSuggestionProxyModel(QSortFilterProxyModel):
         return self._query_cf in value_cf and value_cf not in self._excluded_cf
 
 
+@dataclass(frozen=True, slots=True)
+class _UsernameInputMode:
+    """Layout options for the username input dialog."""
+
+    allow_multiple: bool
+    initial_notes: Mapping[str, str] | None = None
+    """Pre-filled per-username notes; None hides the per-row note fields."""
+
+
 def _run_username_input_dialog(
     parent: QWidget,
     title: str,
     label: str | Callable[[int], str],
     initial_usernames: Sequence[str],
-    *,
-    allow_multiple: bool,
-) -> tuple[list[str], bool]:
-    """Run the username input dialog supporting either a single field or dynamic multi-username rows."""
+    mode: _UsernameInputMode,
+) -> tuple[list[str], dict[str, str], bool]:
+    """Run the username input dialog supporting either a single field or dynamic multi-username rows.
+
+    Returns:
+        A tuple of (entered usernames, `{username: note}` for rows with a non-empty note, accepted).
+    """
+    allow_multiple = mode.allow_multiple
+    initial_notes = mode.initial_notes
+    min_dialog_width = scale_by_ui(520 if initial_notes is not None else 380)
     dialog = QDialog(parent)
     dialog.setWindowModality(Qt.WindowModality.WindowModal)
     dialog.setWindowTitle(title)
     dialog.setWindowFlag(Qt.WindowType.WindowContextHelpButtonHint, on=False)
-    dialog.setMinimumWidth(scale_by_ui(380))
+    dialog.setMinimumWidth(min_dialog_width)
 
     layout = QVBoxLayout(dialog)
 
@@ -199,7 +219,7 @@ def _run_username_input_dialog(
     proxy_model = _UsernameSuggestionProxyModel(dialog)
     proxy_model.setSourceModel(source_model)
 
-    row_entries: list[tuple[QWidget, _SuggestionLineEdit, QPushButton | None]] = []
+    row_entries: list[tuple[QWidget, _SuggestionLineEdit, QLineEdit | None, QPushButton | None]] = []
     active_line_edit: _SuggestionLineEdit | None = None
     active_query = ''
 
@@ -238,7 +258,7 @@ def _run_username_input_dialog(
         rows_layout.invalidate()
         layout.invalidate()
         layout.activate()
-        target_width = max(dialog.width(), layout.totalSizeHint().width(), scale_by_ui(380))
+        target_width = max(dialog.width(), layout.totalSizeHint().width(), min_dialog_width)
         target_height = layout.totalHeightForWidth(target_width) if layout.hasHeightForWidth() else layout.totalSizeHint().height()
         target_height = max(target_height, layout.totalMinimumSize().height())
         dialog.setFixedHeight(target_height)
@@ -246,14 +266,14 @@ def _run_username_input_dialog(
 
     def _update_row_placeholders_and_buttons() -> None:
         total = len(row_entries)
-        stripped_values = [edit.text().strip() for _, edit, _ in row_entries]
+        stripped_values = [edit.text().strip() for _, edit, _, _ in row_entries]
         all_non_empty = bool(stripped_values) and all(stripped_values)
         all_unique = len({val.casefold() for val in stripped_values if val}) == total
         can_proceed = all_non_empty and all_unique
         if allow_multiple and not isinstance(label, str):
             prompt_label.setText(label(total))
 
-        for idx, (_, edit, remove_btn) in enumerate(row_entries, start=1):
+        for idx, (_, edit, _, remove_btn) in enumerate(row_entries, start=1):
             edit.setPlaceholderText(f'Username {idx}…' if allow_multiple and total > 1 else 'Enter username…')
             if remove_btn is not None:
                 remove_btn.setToolTip('Remove this username field' if total > 1 else 'Clear username')
@@ -275,7 +295,7 @@ def _run_username_input_dialog(
 
         excluded_cf: set[str] = {
             other_edit.text().strip().casefold()
-            for _, other_edit, _ in row_entries
+            for _, other_edit, _, _ in row_entries
             if other_edit is not target_edit and other_edit.text().strip()
         }
         proxy_model.set_query_and_excluded(active_query, excluded_cf)
@@ -322,7 +342,7 @@ def _run_username_input_dialog(
         if focused_edit is not active_line_edit:
             _refresh_suggestions_for(focused_edit)
 
-    def _add_row(initial_value: str = '', *, focus: bool = False) -> _SuggestionLineEdit:
+    def _add_row(initial_value: str = '', initial_note: str = '', *, focus: bool = False) -> _SuggestionLineEdit:
         row_widget = QWidget(dialog)
         row_widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         row_hbox = QHBoxLayout(row_widget)
@@ -341,6 +361,13 @@ def _run_username_input_dialog(
         edit.textChanged.connect(_on_row_text_changed)
         row_hbox.addWidget(edit, stretch=1)
 
+        note_edit: QLineEdit | None = None
+        if initial_notes is not None:
+            note_edit = QLineEdit(initial_note, row_widget)
+            note_edit.setPlaceholderText('Note (optional)…')
+            note_edit.setToolTip('Optional note saved with this username.')
+            row_hbox.addWidget(note_edit, stretch=1)
+
         remove_btn: QPushButton | None = None
         if allow_multiple:
             remove_btn = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')), '', row_widget)
@@ -351,10 +378,12 @@ def _run_username_input_dialog(
             def _on_remove_clicked() -> None:
                 if len(row_entries) <= 1:
                     edit.clear()
+                    if note_edit is not None:
+                        note_edit.clear()
                     edit.setFocus()
                     _refresh_suggestions_for(edit)
                     return
-                for idx, (widget, row_edit, _) in enumerate(row_entries):
+                for idx, (widget, row_edit, _, _) in enumerate(row_entries):
                     if row_edit is edit:
                         row_entries.pop(idx)
                         rows_layout.removeWidget(widget)
@@ -372,7 +401,7 @@ def _run_username_input_dialog(
             remove_btn.clicked.connect(_on_remove_clicked)
             row_hbox.addWidget(remove_btn)
 
-        row_entries.append((row_widget, edit, remove_btn))
+        row_entries.append((row_widget, edit, note_edit, remove_btn))
         rows_layout.addWidget(row_widget)
         if dialog.isVisible():
             row_widget.show()
@@ -387,7 +416,7 @@ def _run_username_input_dialog(
     if not allow_multiple:
         seed_values = [seed_values[0]]
     for seed in seed_values:
-        _add_row(seed)
+        _add_row(seed, initial_notes.get(seed, '') if initial_notes is not None else '')
 
     first_edit = row_entries[0][1]
     active_line_edit = first_edit
@@ -414,9 +443,13 @@ def _run_username_input_dialog(
 
     accepted = dialog.exec() == QDialog.DialogCode.Accepted
     collected = dedup_preserve_order(
-        cleaned for _, edit, _ in row_entries if (cleaned := edit.text().strip())
+        cleaned for _, edit, _, _ in row_entries if (cleaned := edit.text().strip())
     )
-    return collected, accepted
+    notes_by_username: dict[str, str] = {}
+    for _, edit, note_edit, _ in row_entries:
+        if note_edit is not None and (cleaned := edit.text().strip()) and (note := note_edit.text().strip()):
+            notes_by_username.setdefault(cleaned, note)
+    return collected, notes_by_username, accepted
 
 
 def prompt_username_input(
@@ -426,12 +459,12 @@ def prompt_username_input(
     initial_text: str = '',
 ) -> tuple[str, bool]:
     """Prompt the user for a single username with an inline expandable real-time suggestion list."""
-    usernames, accepted = _run_username_input_dialog(
+    usernames, _, accepted = _run_username_input_dialog(
         parent,
         title,
         label,
         [initial_text] if initial_text else [],
-        allow_multiple=False,
+        _UsernameInputMode(allow_multiple=False),
     )
     return (usernames[0] if usernames else ''), accepted
 
@@ -443,12 +476,34 @@ def prompt_usernames_input(
     initial_usernames: Sequence[str] | None = None,
 ) -> tuple[list[str], bool]:
     """Prompt the user for one or more usernames using dynamic input rows and real-time suggestions."""
+    usernames, _, accepted = _run_username_input_dialog(
+        parent,
+        title,
+        label,
+        initial_usernames or (),
+        _UsernameInputMode(allow_multiple=True),
+    )
+    return usernames, accepted
+
+
+def prompt_usernames_and_notes_input(
+    parent: QWidget,
+    title: str,
+    label: str | Callable[[int], str],
+    initial_usernames: Sequence[str] | None = None,
+    initial_notes: Mapping[str, str] | None = None,
+) -> tuple[list[str], dict[str, str], bool]:
+    """Prompt the user for one or more usernames, each with its own optional note.
+
+    Returns:
+        A tuple of (entered usernames, `{username: note}` for usernames with a non-empty note, accepted).
+    """
     return _run_username_input_dialog(
         parent,
         title,
         label,
         initial_usernames or (),
-        allow_multiple=True,
+        _UsernameInputMode(allow_multiple=True, initial_notes=initial_notes or {}),
     )
 
 
@@ -465,6 +520,7 @@ class UsernameSelectionConfig:
     database: str | None = None
     selected_ips: list[str] | None = None
     current_username: str | None = None
+    show_notes: bool = False
 
 
 class SelectUsernamesDialog(QDialog):
@@ -483,9 +539,10 @@ class SelectUsernamesDialog(QDialog):
         self.setWindowTitle(f'{dialog_config.title} - {TITLE}')
         self.setWindowFlag(Qt.WindowType.WindowContextHelpButtonHint, on=False)
         self.setMinimumSize(340, 420)
-        self.resize(380, 480)
+        self.resize(560 if dialog_config.show_notes else 380, 480)
 
         self._multiple: bool = dialog_config.multiple
+        self._show_notes: bool = dialog_config.show_notes
         self._action_button_text: str = dialog_config.action_button_text
         self._total_count: int = len(usernames)
         self._custom_requested: bool = False
@@ -535,23 +592,51 @@ class SelectUsernamesDialog(QDialog):
             if self._multiple:
                 item.setCheckable(True)
                 item.setCheckState(initial_check_state)
-            self._list_model.appendRow(item)
+            if self._show_notes:
+                item.setEditable(False)
+                note_item = QStandardItem('')
+                note_item.setToolTip('Click to type an optional note for this username.')
+                self._list_model.appendRow([item, note_item])
+            else:
+                self._list_model.appendRow(item)
+        if self._show_notes:
+            self._list_model.setHorizontalHeaderLabels(['Username', 'Note (optional)'])
 
         proxy_model = QSortFilterProxyModel(self)
         proxy_model.setSourceModel(self._list_model)
         proxy_model.setFilterCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
         self._proxy = proxy_model
 
-        usernames_list = QListView()
+        usernames_list: QListView | QTableView
+        if self._show_notes:
+            usernames_table = QTableView()
+            usernames_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+            usernames_table.setShowGrid(False)
+            usernames_table.setEditTriggers(
+                QAbstractItemView.EditTrigger.DoubleClicked
+                | QAbstractItemView.EditTrigger.SelectedClicked
+                | QAbstractItemView.EditTrigger.EditKeyPressed
+                | QAbstractItemView.EditTrigger.AnyKeyPressed,
+            )
+            usernames_table.verticalHeader().setVisible(False)
+            usernames_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+            usernames_table.horizontalHeader().setHighlightSections(False)
+            usernames_list = usernames_table
+        else:
+            usernames_list = QListView()
         usernames_list.setModel(self._proxy)
         usernames_list.setSelectionMode(
-            QListView.SelectionMode.ExtendedSelection if self._multiple else QListView.SelectionMode.SingleSelection,
+            QAbstractItemView.SelectionMode.ExtendedSelection if self._multiple else QAbstractItemView.SelectionMode.SingleSelection,
         )
         usernames_list.setAlternatingRowColors(True)
         usernames_list.setWordWrap(False)
-        usernames_list.setItemDelegate(SearchHighlightDelegate(usernames_list, self._search.text))
-        usernames_list.setHorizontalScrollMode(QListView.ScrollMode.ScrollPerPixel)
-        usernames_list.setVerticalScrollMode(QListView.ScrollMode.ScrollPerPixel)
+        search_delegate = SearchHighlightDelegate(usernames_list, self._search.text)
+        if isinstance(usernames_list, QTableView):
+            usernames_list.setItemDelegateForColumn(_PICKER_USERNAME_COLUMN, search_delegate)
+        else:
+            usernames_list.setItemDelegate(search_delegate)
+        usernames_list.setHorizontalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
+        usernames_list.setVerticalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
         self._list = usernames_list
         layout.addWidget(self._list, stretch=1)
 
@@ -615,6 +700,7 @@ class SelectUsernamesDialog(QDialog):
             allow_custom=True,
             database=database,
             selected_ips=selected_ips,
+            show_notes=True,
         )
         return cls(parent, usernames, config)
 
@@ -705,6 +791,8 @@ class SelectUsernamesDialog(QDialog):
             self._action_button.setText(self._action_button_text)
 
     def _on_double_clicked(self, index: QModelIndex) -> None:
+        if index.column() != _PICKER_USERNAME_COLUMN:
+            return  # Double-clicking a note cell edits the note instead of accepting the dialog.
         source_index = self._proxy.mapToSource(index)
         self._double_clicked_username = self._list_model.itemFromIndex(source_index).text()
         self.accept()
@@ -717,6 +805,17 @@ class SelectUsernamesDialog(QDialog):
         """Return True if the user requested entering a custom username."""
         return self._custom_requested
 
+    def notes_by_username(self) -> dict[str, str]:
+        """Return `{username: note}` for every listed username with a non-empty note (empty when notes are hidden)."""
+        if not self._show_notes:
+            return {}
+        notes: dict[str, str] = {}
+        for row in range(self._list_model.rowCount()):
+            note_item = self._list_model.item(row, _PICKER_NOTE_COLUMN)
+            if note := note_item.text().strip():
+                notes[self._list_model.item(row, _PICKER_USERNAME_COLUMN).text()] = note
+        return notes
+
     def _get_checked_usernames(self) -> list[str]:
         result: list[str] = []
         for row in range(self._list_model.rowCount()):
@@ -728,6 +827,8 @@ class SelectUsernamesDialog(QDialog):
     def _get_selected_row_usernames(self) -> list[str]:
         result: list[str] = []
         for index in self._list.selectedIndexes():
+            if index.column() != _PICKER_USERNAME_COLUMN:
+                continue  # Row selection in the notes table also selects the note cells.
             data = self._proxy.data(index, Qt.ItemDataRole.DisplayRole)
             if data:
                 result.append(str(data))

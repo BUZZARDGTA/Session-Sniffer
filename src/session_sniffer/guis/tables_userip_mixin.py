@@ -8,7 +8,7 @@ from PySide6.QtWidgets import QInputDialog, QLineEdit, QMessageBox, QWidget
 
 from session_sniffer.constants.local import USERIP_DATABASES_DIR_PATH
 from session_sniffer.constants.standalone import TITLE
-from session_sniffer.guis.select_usernames_dialog import SelectUsernamesDialog, prompt_username_input, prompt_usernames_input
+from session_sniffer.guis.select_usernames_dialog import SelectUsernamesDialog, prompt_username_input, prompt_usernames_and_notes_input
 from session_sniffer.guis.userip_manager_helpers import (
     IPRangeBuilderDialog,
     append_userip_entries,
@@ -111,14 +111,16 @@ def _prompt_usernames_to_add(
     *,
     candidate_usernames: list[str] | None = None,
     prompt_message: str | Callable[[int], str] | None = None,
-) -> list[str] | None:
+) -> tuple[list[str], dict[str, str]] | None:
     """Prompt the user for one or more usernames to associate with the selected IP(s).
 
     If exactly one username is found/provided, pre-fills the input dialog.
     If multiple usernames are found, shows a selection dialog to pick which one(s) to add.
     If no usernames are found, displays a standard blank input dialog.
+    Both dialogs also let the user enter an optional note per username.
 
-    Returns a non-empty list of chosen usernames, or None if cancelled/empty.
+    Returns a tuple of the non-empty list of chosen usernames and `{username: note}`
+    for usernames with a non-empty note, or None if cancelled/empty.
     """
     candidates = (
         [name.strip() for name in dedup_preserve_order(candidate_usernames) if name.strip()] if candidate_usernames is not None else resolve_usernames_for_ips(selected_ips)
@@ -144,14 +146,17 @@ def _prompt_usernames_to_add(
                 return None
             if Settings.userip_sync_known_alts:
                 selected = UserIPDatabases.expand_with_known_alts(selected)
-            return selected
+            return selected, dialog.notes_by_username()
 
         # User clicked 'Custom…' in the selection dialog
         initial_usernames = dialog.selected_usernames()
+        initial_notes = dialog.notes_by_username()
     elif len(candidates) == 1:
         initial_usernames = [candidates[0]]
+        initial_notes = {}
     else:
         initial_usernames = []
+        initial_notes = {}
 
     if prompt_message is None:
         def _default_prompt(count: int) -> str:
@@ -159,11 +164,12 @@ def _prompt_usernames_to_add(
 
         prompt_message = _default_prompt
 
-    entered_usernames, success = prompt_usernames_input(
+    entered_usernames, entered_notes, success = prompt_usernames_and_notes_input(
         parent,
         'Input Username(s)',
         prompt_message,
         initial_usernames,
+        initial_notes,
     )
 
     if not success:
@@ -176,7 +182,7 @@ def _prompt_usernames_to_add(
     if Settings.userip_sync_known_alts:
         entered_usernames = UserIPDatabases.expand_with_known_alts(entered_usernames)
 
-    return entered_usernames
+    return entered_usernames, entered_notes
 
 
 def userip_add(
@@ -188,13 +194,16 @@ def userip_add(
 ) -> None:
     """Add the selected IP address(es) to the chosen UserIP database."""
     candidates = list(usernames) if usernames is not None else None
-    chosen_usernames = _prompt_usernames_to_add(
+    prompt_result = _prompt_usernames_to_add(
         parent,
         selected_ips,
         selected_database,
         candidate_usernames=candidates,
     )
-    if chosen_usernames is None or not chosen_usernames:
+    if prompt_result is None:
+        return
+    chosen_usernames, notes_by_username = prompt_result
+    if not chosen_usernames:
         return
 
     if Settings.userip_sync_known_alts:
@@ -206,7 +215,7 @@ def userip_add(
         existing_pairs = {(entry.username.casefold(), entry.ip) for entry in db_model.entries}
 
     new_entries = [
-        UserIPEntryModel(username=username, ip=ip_address, source='Session')
+        UserIPEntryModel(username=username, ip=ip_address, notes=notes_by_username.get(username, ''), source='Session')
         for username in chosen_usernames
         for ip_address in selected_ips
         if (username.casefold(), ip_address) not in existing_pairs
@@ -246,14 +255,17 @@ def userip_add_as_range(
         return
 
     candidates = list(usernames) if usernames is not None else None
-    chosen_usernames = _prompt_usernames_to_add(
+    prompt_result = _prompt_usernames_to_add(
         parent,
         [ip_address],
         selected_database,
         candidate_usernames=candidates,
         prompt_message=lambda count: f'Enter the username{pluralize(count)} to associate with range "{range_input}":',
     )
-    if chosen_usernames is None or not chosen_usernames:
+    if prompt_result is None:
+        return
+    chosen_usernames, notes_by_username = prompt_result
+    if not chosen_usernames:
         return
 
     if Settings.userip_sync_known_alts:
@@ -261,7 +273,7 @@ def userip_add_as_range(
 
     append_userip_entries(
         selected_database,
-        [UserIPEntryModel(username=username, ip=range_input, source='Session') for username in chosen_usernames],
+        [UserIPEntryModel(username=username, ip=range_input, notes=notes_by_username.get(username, ''), source='Session') for username in chosen_usernames],
     )
     refresh_userip_and_wake_renderer()
 
@@ -464,7 +476,7 @@ def userip_add_username(parent: QWidget, ip_address: str, player: Player) -> Non
     existing_count = len(player.userip.usernames)
     existing = ', '.join(player.userip.usernames) if player.userip.usernames else 'None'
     candidates = [name for name in resolve_usernames_for_player(player) if name not in player.userip.usernames]
-    entered_usernames = _prompt_usernames_to_add(
+    prompt_result = _prompt_usernames_to_add(
         parent,
         [ip_address],
         db_path,
@@ -472,7 +484,10 @@ def userip_add_username(parent: QWidget, ip_address: str, player: Player) -> Non
         prompt_message=lambda count: f'Current username{pluralize(existing_count)} for {ip_address}: {existing}\n\nEnter the new username{pluralize(count)} to add:',
     )
 
-    if entered_usernames is None or not entered_usernames:
+    if prompt_result is None:
+        return
+    entered_usernames, notes_by_username = prompt_result
+    if not entered_usernames:
         return
 
     if Settings.userip_sync_known_alts:
@@ -498,7 +513,10 @@ def userip_add_username(parent: QWidget, ip_address: str, player: Player) -> Non
     existing_note = ', '.join(player.userip.notes) if player.userip.notes else ''
     append_userip_entries(
         db_path,
-        [UserIPEntryModel(username=username, ip=target_entry, notes=existing_note, source='Session') for username in entered_usernames],
+        [
+            UserIPEntryModel(username=username, ip=target_entry, notes=notes_by_username.get(username) or existing_note, source='Session')
+            for username in entered_usernames
+        ],
     )
     refresh_userip_and_wake_renderer()
 
