@@ -32,6 +32,8 @@ from session_sniffer.networking.looky_system import get_cached_looky_usernames
 from session_sniffer.player.registry import PlayersRegistry, SessionTracker
 from session_sniffer.player.userip_loader import get_cached_userip_usernames
 from session_sniffer.rendering_core.modmenu_logs_parser import ModMenuLogsParser
+from session_sniffer.rendering_core.types import CaptureState
+from session_sniffer.settings import Settings
 from session_sniffer.text_utils import pluralize, split_usernames
 from session_sniffer.utils import dedup_preserve_order
 
@@ -57,13 +59,15 @@ def collect_known_usernames() -> list[str]:
             seen_casefolded.add(folded)
             usernames.append(cleaned)
 
+    include_looky = Settings.looky_enabled and Settings.is_gta5_feature_set() and CaptureState.is_local_capture()
     for name in get_cached_userip_usernames():
         _add_name(name)
     for modmenu_names in ModMenuLogsParser.get_all_ip_to_usernames_map().values():
         for name in modmenu_names:
             _add_name(name)
-    for name in get_cached_looky_usernames():
-        _add_name(name)
+    if include_looky:
+        for name in get_cached_looky_usernames():
+            _add_name(name)
     for player in (*PlayersRegistry.get_all_players(), *SessionTracker.get_all_snapshot_players()):
         if player.userip is not None:
             for name in player.userip.usernames:
@@ -73,10 +77,11 @@ def collect_known_usernames() -> list[str]:
         if player.mod_menus is not None:
             for name in player.mod_menus.usernames:
                 _add_name(name)
-        with player.looky_system.lock:
-            looky_names = list(player.looky_system.usernames) if player.looky_system.is_initialized else []
-        for name in looky_names:
-            _add_name(name)
+        if include_looky:
+            with player.looky_system.lock:
+                looky_names = list(player.looky_system.usernames) if player.looky_system.is_initialized else []
+            for name in looky_names:
+                _add_name(name)
         for name in player.usernames:
             _add_name(name)
 

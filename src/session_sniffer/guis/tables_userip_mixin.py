@@ -23,7 +23,7 @@ from session_sniffer.models.userip_settings_model import UserIPDatabaseFile, Use
 from session_sniffer.networking.ip_range import entry_ip_covers_ip
 from session_sniffer.player.registry import PlayersRegistry, SessionTracker
 from session_sniffer.player.userip import UserIPDatabases
-from session_sniffer.rendering_core.types import SessionFilterState
+from session_sniffer.rendering_core.types import CaptureState, SessionFilterState
 from session_sniffer.settings import Settings
 from session_sniffer.text_utils import pluralize
 from session_sniffer.utils import dedup_preserve_order
@@ -68,11 +68,17 @@ def _entry_ip_matches_any(entry_ip: str, selected_ips: list[str]) -> bool:
 
 def resolve_usernames_for_player(player: Player) -> list[str]:
     """Return deduplicated usernames associated with the given player from all sources."""
+    include_looky = Settings.looky_enabled and Settings.is_gta5_feature_set() and CaptureState.is_local_capture()
+    if include_looky:
+        with player.looky_system.lock:
+            looky_usernames = list(player.looky_system.usernames) if player.looky_system.is_initialized else []
+    else:
+        looky_usernames = []
     player_names = dedup_preserve_order(
         [player.ps3_username] if player.ps3_username is not None and player.ps3_username else [],
         player.userip.usernames if player.userip else [],
         player.mod_menus.usernames if player.mod_menus else [],
-        player.looky_system.usernames if player.looky_system.is_initialized else [],
+        looky_usernames,
         player.usernames,
     )
     names: list[str] = [name.strip() for name in player_names if name.strip()]
