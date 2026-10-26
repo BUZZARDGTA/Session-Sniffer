@@ -177,6 +177,7 @@ class PortScannerTabWidget(QWidget):
         self._tab_widget = tab_widget
         self._worker_thread: PortScannerWorkerThread | None = None
         self._results: list[PortScanResult] = []
+        self._scanned_target: str = ''
 
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(8, 8, 8, 8)
@@ -429,6 +430,7 @@ class PortScannerTabWidget(QWidget):
         )
 
         self._clear_results()
+        self._scanned_target = target_host
         self._progress_bar.setValue(0)
         self._metrics_label.setText(f'Starting scan of {len(parsed_ports)} ports on {target_host} ({target_ip})…')
 
@@ -676,7 +678,7 @@ class PortScannerTabWidget(QWidget):
         copy_port_action = menu.addAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), f'Copy Port ({port_str})')
         copy_port_action.triggered.connect(lambda: set_clipboard_text(port_str))
 
-        target_host = self.target
+        target_host = self._scanned_target or self.target
         copy_target_port_action = menu.addAction(
             QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')),
             f'Copy {target_host}:{port_str}',
