@@ -10,6 +10,7 @@ import socket
 import time
 from bisect import bisect_left, bisect_right
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
 from threading import Lock, RLock
@@ -32,7 +33,7 @@ from session_sniffer.player.userip import ProtectionSettings, UserIPDatabases, U
 from session_sniffer.utils import FileSignature, get_file_signature, validate_file
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Sequence
+    from collections.abc import Callable, Generator, Sequence
     from typing import Any
 
     from session_sniffer.models.player import Player
@@ -566,36 +567,35 @@ def _parse_and_repair_single_raw_entry(
     json_name: str,
     repaired_entries: list[UserIPEntryModel],
     seen_pairs: dict[tuple[str, str], int],
-) -> bool:
+) -> tuple[bool, bool]:
     """Validate and repair one raw entry dict from a UserIP `.json` database file.
 
     Returns:
-        `True` if the entry required auto-repair (meaning the file should be rewritten).
+        A tuple of (whether the entry required a genuine auto-repair,
+        whether the entry was updated from log history). Either one means the file should be rewritten.
     """
     parsed = UserIPEntryModel.parse_raw_entry(raw_entry)
     if parsed is None:
-        return True
+        return True, False
 
     base_entry, entry_clean = parsed
     ip = base_entry.ip
     if not is_valid_ip_range_entry(ip):
         logger.info('Auto-removed invalid IP entry "%s=%s" from "%s".', base_entry.username, ip, json_name)
-        return True
+        return True, False
 
     base_entry, log_enriched = enrich_userip_entry_from_logs(base_entry)
-    need_rewrite = not entry_clean or log_enriched
 
     pair_key = (base_entry.username.casefold(), ip)
     if pair_key in seen_pairs:
-        need_rewrite = True
         existing_idx = seen_pairs[pair_key]
         repaired_entries[existing_idx] = repaired_entries[existing_idx].merge_duplicate(base_entry)
         logger.info('Auto-removed duplicate IP entry "%s=%s" from "%s".', base_entry.username, ip, json_name)
-        return need_rewrite
+        return True, log_enriched
 
     seen_pairs[pair_key] = len(repaired_entries)
     repaired_entries.append(base_entry)
-    return need_rewrite
+    return not entry_clean, log_enriched
 
 
 def parse_userip_json_file(json_path: Path) -> tuple[UserIPSettings | None, list[UserIPEntryModel] | None]:
@@ -614,38 +614,42 @@ def parse_userip_json_file(json_path: Path) -> tuple[UserIPSettings | None, list
         return None, None
 
     typed_data = cast('dict[str, Any]', raw_data)
-    need_rewrite = list(typed_data.keys()) != ['settings', 'entries']
+    # `need_repair` tracks genuine auto-repairs; `need_log_sync` tracks entries only refreshed from log history.
+    need_repair = list(typed_data.keys()) != ['settings', 'entries']
+    need_log_sync = False
 
     raw_settings_obj: object = typed_data.get('settings')
     if isinstance(raw_settings_obj, dict):
         raw_settings = cast('dict[str, Any]', raw_settings_obj)
     else:
-        need_rewrite = True
+        need_repair = True
         default_model = DEFAULT_USERIP_FILES_SETTINGS_BY_PATH.get(json_path, UserIPSettingsModel())
         raw_settings = default_model.model_dump()
 
     validated_settings, settings_rewritten = UserIPSettingsModel.validate_settings(raw_settings)
     if settings_rewritten:
-        need_rewrite = True
+        need_repair = True
 
     raw_entries_obj: object = typed_data.get('entries')
     if isinstance(raw_entries_obj, list):
         raw_entries = cast('list[object]', raw_entries_obj)
     else:
-        need_rewrite = True
+        need_repair = True
         raw_entries = []
 
     repaired_entries: list[UserIPEntryModel] = []
     seen_pairs: dict[tuple[str, str], int] = {}
 
     for raw_entry in raw_entries:
-        if _parse_and_repair_single_raw_entry(raw_entry, json_path.name, repaired_entries, seen_pairs):
-            need_rewrite = True
+        entry_repaired, entry_log_synced = _parse_and_repair_single_raw_entry(raw_entry, json_path.name, repaired_entries, seen_pairs)
+        need_repair = need_repair or entry_repaired
+        need_log_sync = need_log_sync or entry_log_synced
 
-    if need_rewrite:
+    if need_repair or need_log_sync:
         db_file = UserIPDatabaseFile(settings=validated_settings, entries=repaired_entries)
         json_path.write_text(db_file.serialize_to_json(), encoding='utf-8')
-        logger.info('Rewrote "%s" after auto-repairs.', json_path.name)
+        if need_repair:
+            logger.info('Rewrote "%s" after auto-repairs.', json_path.name)
 
     runtime_settings = UserIPSettings(
         enabled=validated_settings.ENABLED,
@@ -662,13 +666,18 @@ def parse_userip_json_file(json_path: Path) -> tuple[UserIPSettings | None, list
     return runtime_settings, repaired_entries
 
 
-def invalidate_userip_db_mtime(db_path: Path | None = None) -> None:
-    """Invalidate cached UserIP database modification signatures so the next poll forces a rebuild."""
+@contextmanager
+def userip_database_write(db_path: Path) -> Generator[None]:
+    """Guard an in-app write to a UserIP database file, then invalidate its cached signature.
+
+    Holding the polling lock for the whole write prevents a concurrent poll from observing the
+    half-written file and reporting it as an external change; invalidating afterwards makes the
+    next poll re-parse the file as an in-app change.
+    """
     with _update_userip_databases_lock:
-        if db_path is None:
-            _last_userip_db_mod_times.clear()
-            _parsed_userip_databases.clear()
-        else:
+        try:
+            yield
+        finally:
             _last_userip_db_mod_times.pop(db_path, None)
             _parsed_userip_databases.pop(db_path, None)
 
@@ -710,7 +719,11 @@ def update_userip_databases() -> tuple[float, bool]:
         parsed_mod_times: dict[Path, FileSignature] = {}
         for userip_path, file_sig in current_userip_db_mod_times.items():
             cached = _parsed_userip_databases.get(userip_path)
-            if cached is None or _last_userip_db_mod_times.get(userip_path) != file_sig:
+            last_sig = _last_userip_db_mod_times.get(userip_path)
+            if cached is None or last_sig != file_sig:
+                # In-app writes invalidate their cached signature, so a still-tracked file with a new signature was edited externally.
+                if last_sig is not None and last_sig != file_sig:
+                    logger.info('Detected external changes to UserIP database "%s"; re-parsed it.', userip_path.name)
                 parsed_settings, parsed_entries = parse_userip_json_file(userip_path)
                 if parsed_settings is None or parsed_entries is None:
                     _parsed_userip_databases.pop(userip_path, None)
@@ -781,11 +794,11 @@ def _write_userip_db(db_path: Path, settings: UserIPSettingsModel, entries: list
     """Serialize and write a UserIP database file, invalidating its cached mtime."""
     db_file = UserIPDatabaseFile(settings=settings, entries=entries)
     try:
-        db_path.write_text(db_file.serialize_to_json(), encoding='utf-8')
+        with userip_database_write(db_path):
+            db_path.write_text(db_file.serialize_to_json(), encoding='utf-8')
     except OSError as e:
         logger.warning('Failed to write UserIP database "%s" for %s: %s', db_path, action_label, e)
         return False
-    invalidate_userip_db_mtime(db_path)
     return True
 
 

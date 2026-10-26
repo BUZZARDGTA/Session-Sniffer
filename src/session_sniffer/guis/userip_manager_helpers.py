@@ -42,7 +42,7 @@ from session_sniffer.models.userip_settings_model import (
     get_current_iso_timestamp,
 )
 from session_sniffer.networking.ip_range import entry_ip_covers_ip
-from session_sniffer.player.userip_loader import enrich_userip_entry_from_logs, find_userip_insert_index, invalidate_userip_db_mtime, update_userip_databases
+from session_sniffer.player.userip_loader import enrich_userip_entry_from_logs, find_userip_insert_index, update_userip_databases, userip_database_write
 from session_sniffer.rendering_core.events import wake_rendering_core
 from session_sniffer.text_utils import pluralize
 
@@ -364,8 +364,8 @@ def load_userip_database_model(path: Path) -> UserIPDatabaseFile:
 def save_userip_database_model(path: Path, db_model: UserIPDatabaseFile) -> None:
     """Serialize and write a `UserIPDatabaseFile` model to *path*."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(db_model.serialize_to_json(), encoding='utf-8')
-    invalidate_userip_db_mtime(path)
+    with userip_database_write(path):
+        path.write_text(db_model.serialize_to_json(), encoding='utf-8')
 
 
 def refresh_userip_and_wake_renderer() -> None:

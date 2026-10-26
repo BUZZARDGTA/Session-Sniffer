@@ -25,7 +25,7 @@ from session_sniffer.guis.userip_manager_helpers import (
 )
 from session_sniffer.models.userip_settings_model import UserIPDatabaseFile, UserIPEntryModel, UserIPSettingsModel
 from session_sniffer.player import backup_userip_databases
-from session_sniffer.player.userip_loader import find_userip_insert_index, invalidate_userip_db_mtime
+from session_sniffer.player.userip_loader import find_userip_insert_index, userip_database_write
 from session_sniffer.text_utils import pluralize
 
 
@@ -298,8 +298,8 @@ class UserIPImportExportMixin(QDialog):
             target_dir.mkdir(parents=True, exist_ok=True)
             if self._is_current_database_file(dest):
                 reload_current_view = True
-            shutil.copy2(str(src), str(dest))
-            invalidate_userip_db_mtime(dest)
+            with userip_database_write(dest):
+                shutil.copy2(str(src), str(dest))
             modified_on_disk = True
             imported += 1
 
@@ -459,8 +459,8 @@ class UserIPImportExportMixin(QDialog):
                     dest.parent.mkdir(parents=True, exist_ok=True)
                     if self._is_current_database_file(dest):
                         reload_current_view = True
-                    dest.write_bytes(member_bytes)
-                    invalidate_userip_db_mtime(dest)
+                    with userip_database_write(dest):
+                        dest.write_bytes(member_bytes)
                     modified_on_disk = True
                     imported += 1
 
