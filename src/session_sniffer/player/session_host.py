@@ -327,10 +327,17 @@ class SessionHost:
         ]
 
     @classmethod
-    def clear_session_host_data(cls, *, clear_pending_disconnections: bool = True) -> None:
-        """Clear active session host data and optionally pending disconnections."""
+    def clear_session_host_data(
+        cls,
+        *,
+        clear_pending_disconnections: bool = True,
+        clear_current_session_history: bool = False,
+    ) -> None:
+        """Clear active session host data and optionally pending disconnections and current session history."""
         if clear_pending_disconnections:
             cls.players_pending_for_disconnection.clear()
+        if clear_current_session_history:
+            cls.prune_history_for_session(SessionTracker.get_current_session_id())
         cls.search_player = False
         cls.manual_redetect = False
         cls.search_start_time = None

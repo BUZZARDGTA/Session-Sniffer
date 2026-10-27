@@ -747,7 +747,10 @@ class TableContextMenuMixin(QTableView):
                 context_menu,
                 'Clear Session Host',
                 tooltip='Manually clear this player as the detected session host.',
-                handler=lambda: SessionHost.clear_session_host_data(clear_pending_disconnections=False),
+                handler=lambda: SessionHost.clear_session_host_data(
+                    clear_pending_disconnections=False,
+                    clear_current_session_history=True,
+                ),
                 icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'x.svg')),
             )
 
