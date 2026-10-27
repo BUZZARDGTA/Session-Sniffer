@@ -802,6 +802,11 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         min_width=600,
         max_width=600,
     ),
+    'solo_session_duration': SettingMeta(
+        category='GTA V', group='Solo Public Session', display_label='Solo Session Suspend Duration', setting_type=SettingType.INTEGER,
+        tooltip='Duration in seconds to suspend the game process to trigger a solo public session.',
+        min_value=6, max_value=60, step=1, suffix=' seconds',
+    ),
     'gui_session_host_detection': SettingMeta(
         category='GTA V',
         group='Session Host',
@@ -849,11 +854,6 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         category='GTA V', group='Session Relays', display_label='Session Relay Minimum Bandwidth', setting_type=SettingType.INTEGER,
         tooltip='Minimum bandwidth in kilobytes (KB) on the primary relay direction (Download or Upload) required for relay detection.',
         min_value=1, max_value=1024, step=1, suffix=' KB',
-    ),
-    'solo_session_duration': SettingMeta(
-        category='GTA V', group='Solo Public Session', display_label='Solo Session Suspend Duration', setting_type=SettingType.INTEGER,
-        tooltip='Duration in seconds to suspend the game process to trigger a solo public session.',
-        min_value=6, max_value=60, step=1, suffix=' seconds',
     ),
     'high_rate_monitor_mode': SettingMeta(
         category='GTA V', group='Player High Rate Monitor', display_label='Player High Rate Monitor Mode', setting_type=SettingType.ENUM,
