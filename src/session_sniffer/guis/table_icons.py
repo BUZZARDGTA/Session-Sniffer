@@ -11,7 +11,7 @@ from session_sniffer.settings import Settings
 CROWN_ICON_PATH = str(RESOURCES_DIR_PATH / 'icons' / 'crown.svg')
 SPEEDOMETER_ICON_PATH = str(RESOURCES_DIR_PATH / 'icons' / 'gauge.svg')
 TARGET_ICON_PATH = str(RESOURCES_DIR_PATH / 'icons' / 'target.svg')
-RELAY_ICON_PATH = str(RESOURCES_DIR_PATH / 'icons' / 'waypoints.svg')
+RELAY_ICON_PATH = str(RESOURCES_DIR_PATH / 'icons' / 'route.svg')
 
 
 def _create_composite_icon(icon_paths: tuple[str, ...]) -> QIcon:

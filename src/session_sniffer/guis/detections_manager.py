@@ -176,7 +176,7 @@ class DetectionsManagerDialog(DetectionsManagerTabsMixin, QDialog):
         self._tabs.addTab(self.create_geo_based_tab(), QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'globe.svg')), 'Geography-Based')
         self._tabs.addTab(self.create_combo_rules_tab(), QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'link.svg')), 'Combo Rules')
         if Settings.is_gta5_feature_set():
-            self._tabs.addTab(self.create_gta5_relays_tab(), QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'waypoints.svg')), 'GTA5 Relays')
+            self._tabs.addTab(self.create_gta5_relays_tab(), QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'route.svg')), 'GTA5 Relays')
         layout.addWidget(self._tabs)
 
         # Bottom buttons
