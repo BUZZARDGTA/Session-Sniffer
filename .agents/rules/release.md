@@ -13,20 +13,24 @@ Apply these rules when working on packaging, PyInstaller, release builds, runtim
 * Do not change dependency versions without understanding their impact on the supported Python version and existing tooling.
 * Release version bumps (including `uv.lock` synchronization and the published-tag check) follow the `release` skill (`.agents/skills/release/SKILL.md`).
 
-## GitHub Release Title
+## GitHub Release Tag and Title
 
-Whenever a release is prepared (e.g. via `/release`), always provide the GitHub release title alongside the changelog, in its own fenced code block so it can be copied in one click.
+Whenever a release is prepared (e.g. via `/release`), always provide both the **GitHub Release Tag** and the **GitHub Release Title** alongside the changelog, each in its own fenced code block so they can be copied in one click.
 
-The title is derived strictly from the new `version` in `pyproject.toml`, using the version without its `+` build metadata, followed by the UTC build timestamp:
+* **GitHub Release Tag**: The exact `version` string from `pyproject.toml`, including the leading `v`, the `.` in `rc.N`, and the `+` build metadata (never the PEP 440-normalized `uv.lock` version `1.5.0rcN+...`):
 
-`<version-without-build-metadata> - YYYY/MM/DD (HH:MM)`
+  `vMAJOR.MINOR.PATCH[rc.N]+YYYYMMDD.HHMM`
+
+* **GitHub Release Title**: Derived strictly from the new `version` in `pyproject.toml`, using the version without its `+` build metadata, followed by the UTC build timestamp:
+
+  `<version-without-build-metadata> - YYYY/MM/DD (HH:MM)`
 
 Examples:
 
-* `v1.5.0rc.92+20261026.1829` → `v1.5.0rc.92 - 2026/10/26 (18:29)`
-* `v1.5.0+20261101.0915` → `v1.5.0 - 2026/11/01 (09:15)`
+* Tag: `v1.5.0rc.92+20261026.1829` → Title: `v1.5.0rc.92 - 2026/10/26 (18:29)`
+* Tag: `v1.5.0+20261101.0915` → Title: `v1.5.0 - 2026/11/01 (09:15)`
 
-The date and time must come from the version's build timestamp (UTC), never from local time. The release tag itself remains the full `version` string, including the `+` build metadata.
+The date and time must come from the version's build timestamp (UTC), never from local time.
 
 ## PyInstaller
 

@@ -34,6 +34,8 @@ Use this skill when the user wants to prepare and commit a new Session Sniffer r
     - new version,
     - changed files (`pyproject.toml`, `uv.lock`),
     - validation performed,
+    - a copy-ready **GitHub Release Tag** in its own fenced code block (the exact `version` from `pyproject.toml`, e.g. `v1.5.0rc.93+20261027.2106` — never the PEP 440-normalized `uv.lock` version `1.5.0rc93+...`),
+    - a copy-ready **GitHub Release Title** in its own fenced code block (`<version-without-build-metadata> - YYYY/MM/DD (HH:MM)`),
     - a synthesized **user-facing changelog** from the previous release to `HEAD` (following the **User Changelog** rules below).
 11. Ensure the version-bump commit is pushed before creating any GitHub tag or release. The release tag MUST match `version` in `pyproject.toml` exactly.
 
