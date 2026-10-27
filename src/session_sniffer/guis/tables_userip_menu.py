@@ -258,7 +258,7 @@ def build_userip_menu(
         note_label,
         tooltip=f'{note_action} the note for this IP address in its UserIP database.',
         handler=lambda: userip_edit_note(parent, ip_address, player),
-        icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square-pen.svg')),
+        icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'notepad-text.svg')),
     )
     move_userip_menu = add_menu(
         userip_menu,

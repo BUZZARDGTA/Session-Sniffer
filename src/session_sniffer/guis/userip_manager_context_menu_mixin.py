@@ -261,7 +261,8 @@ class EntriesContextMenuMixin(QDialog):
             has_note = bool(notes_item and notes_item.text().strip())
             note_action = 'Edit' if has_note else 'Add'
             note_label = f'{note_action} Note…'
-            edit_note_action = QAction(pen_icon, note_label, self)
+            note_icon = QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'notepad-text.svg'))
+            edit_note_action = QAction(note_icon, note_label, self)
             tooltip = 'Edit the note for this entry.' if has_note else 'Add a note to this entry.'
             edit_note_action.setToolTip(tooltip)
             edit_note_action.triggered.connect(lambda _checked=False, row=target_row: self._edit_entry_note(row))
