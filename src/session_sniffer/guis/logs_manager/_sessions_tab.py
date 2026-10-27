@@ -31,6 +31,7 @@ from PySide6.QtWidgets import (
 
 from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.constants.standalone import TITLE
+from session_sniffer.constants.standard import LOCAL_TZ
 from session_sniffer.constants.tables import DATETIME_TRACKING_COLUMNS, SEARCHABLE_COLUMN_EXCLUSIONS
 from session_sniffer.guis.delegates import ElidedTextTooltipDelegate
 from session_sniffer.guis.file_watch import DebouncedFileWatcher
@@ -899,6 +900,21 @@ class SessionsLogTab(QWidget):
         return player_info
 
     @classmethod
+    def _player_datetime_sort_key(cls, player_info: dict[str, Any], sort_column: str) -> datetime:
+        for candidate in (player_info.get(sort_column), cls._get_column_snapshot(player_info).get(sort_column)):
+            if not isinstance(candidate, str) or not candidate:
+                continue
+            try:
+                parsed = datetime.fromisoformat(candidate)
+                return parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=LOCAL_TZ)
+            except ValueError:
+                try:
+                    return datetime.strptime(candidate, '%m/%d/%Y %H:%M:%S.%f').replace(tzinfo=LOCAL_TZ)
+                except ValueError:
+                    continue
+        return datetime.min.replace(tzinfo=LOCAL_TZ)
+
+    @classmethod
     def _build_session_table(
         cls,
         *,
@@ -911,13 +927,11 @@ class SessionsLogTab(QWidget):
         ]
         sorted_players = sorted(
             players.items(),
-            key=lambda item: cls._get_column_snapshot(item[1]).get(config.sort_column, ''),
-            reverse=config.descending,
+            key=lambda item: cls._player_datetime_sort_key(item[1], config.sort_column),
+            reverse=not config.descending,
         )
-        rows: list[list[str]] = []
-        for ip, info in sorted_players:
-            columns = cls._get_column_snapshot(info)
-            row = [
+        rows = [
+            [
                 cls._format_session_datetime(columns.get(column_name, info.get(column_name, 'N/A')))
                 if column_name in DATETIME_TRACKING_COLUMNS
                 else cls._format_table_value(columns.get(column_name, info.get(column_name, 'N/A')))
@@ -925,33 +939,20 @@ class SessionsLogTab(QWidget):
                 else cls._format_table_value(ip)
                 for column_name in column_names
             ]
-            rows.append(row)
-
+            for ip, info in sorted_players
+            for columns in (cls._get_column_snapshot(info),)
+        ]
         return format_single_border_table(headers, rows, title=config.title)
 
     @classmethod
     def _build_connected_table(cls, players: dict[str, dict[str, Any]]) -> str:
-        return cls._build_session_table(
-            players=players,
-            column_names=Settings.GUI_ALL_CONNECTED_COLUMNS,
-            config=_SessionTableRenderConfig(
-                title=f'Players connected in your session ({len(players)}):',
-                sort_column='Last Rejoin',
-                descending=True,
-            ),
-        )
+        config = _SessionTableRenderConfig(f'Players connected in your session ({len(players)}):', 'Last Rejoin', descending=True)
+        return cls._build_session_table(players=players, column_names=Settings.GUI_ALL_CONNECTED_COLUMNS, config=config)
 
     @classmethod
     def _build_disconnected_table(cls, players: dict[str, dict[str, Any]]) -> str:
-        return cls._build_session_table(
-            players=players,
-            column_names=Settings.GUI_ALL_DISCONNECTED_COLUMNS,
-            config=_SessionTableRenderConfig(
-                title=f"Players who've left your session ({len(players)}):",
-                sort_column='Last Seen',
-                descending=False,
-            ),
-        )
+        config = _SessionTableRenderConfig(f"Players who've left your session ({len(players)}):", 'Last Seen', descending=False)
+        return cls._build_session_table(players=players, column_names=Settings.GUI_ALL_DISCONNECTED_COLUMNS, config=config)
 
     def _render_session_file(self, file_path: Path) -> str | None:
         try:

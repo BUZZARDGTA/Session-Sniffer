@@ -361,9 +361,11 @@ def rendering_core(
             if cached_ip not in active_disconnected_ips:
                 del _disconnected_json_cache[cached_ip]
 
+        sorted_session_connected = sorted(session_connected, key=attrgetter('datetime.last_rejoin'))
+        sorted_session_disconnected = sorted(session_disconnected, key=attrgetter('datetime.last_seen'), reverse=True)
         snapshot_model = SessionLogFile(
-            connected={player.ip: _get_player_json_dict(player) for player in session_connected},
-            disconnected={player.ip: _get_player_json_dict(player) for player in session_disconnected},
+            connected={player.ip: _get_player_json_dict(player) for player in sorted_session_connected},
+            disconnected={player.ip: _get_player_json_dict(player) for player in sorted_session_disconnected},
         )
 
         def _write_session_logging_task(model_snapshot: SessionLogFile) -> None:
