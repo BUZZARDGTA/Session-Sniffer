@@ -275,6 +275,7 @@ class SessionHost:
     last_rejection_reason: ClassVar[str | None] = None
     last_diagnostics: ClassVar[HostDiagnosticsSnapshot | None] = None
     _history: ClassVar[list[HostHistoryEntry]] = []
+    _manually_cleared_session_ids: ClassVar[set[int]] = set()
 
     @classmethod
     def get_player(cls) -> Player | None:
@@ -327,17 +328,30 @@ class SessionHost:
         ]
 
     @classmethod
+    def is_manually_cleared(cls, session_id: int | None = None) -> bool:
+        """Return True if the session host was manually cleared for the given or current session."""
+        if session_id is None:
+            session_id = SessionTracker.get_current_session_id()
+        return session_id in cls._manually_cleared_session_ids
+
+    @classmethod
     def clear_session_host_data(
         cls,
         *,
         clear_pending_disconnections: bool = True,
         clear_current_session_history: bool = False,
+        mark_manually_cleared: bool = False,
     ) -> None:
         """Clear active session host data and optionally pending disconnections and current session history."""
         if clear_pending_disconnections:
             cls.players_pending_for_disconnection.clear()
-        if clear_current_session_history:
-            cls.prune_history_for_session(SessionTracker.get_current_session_id())
+        current_session_id = SessionTracker.get_current_session_id()
+        if clear_current_session_history or mark_manually_cleared:
+            cls.prune_history_for_session(current_session_id)
+        if mark_manually_cleared:
+            cls._manually_cleared_session_ids.add(current_session_id)
+        elif clear_pending_disconnections or clear_current_session_history:
+            cls._manually_cleared_session_ids.discard(current_session_id)
         cls.search_player = False
         cls.manual_redetect = False
         cls.search_start_time = None
@@ -386,11 +400,13 @@ class SessionHost:
     def clear_history(cls) -> None:
         """Clear the in-memory session host history."""
         cls._history.clear()
+        cls._manually_cleared_session_ids.clear()
 
     @classmethod
     def prune_history_for_session(cls, session_id: int) -> None:
         """Remove host history entries belonging to the specified session."""
         cls._history = [entry for entry in cls._history if entry.session_id != session_id]
+        cls._manually_cleared_session_ids.discard(session_id)
 
     @classmethod
     def get_host_player(cls, session_connected: list[Player]) -> Player | None:

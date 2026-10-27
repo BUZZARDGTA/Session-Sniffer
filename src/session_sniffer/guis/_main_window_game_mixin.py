@@ -929,7 +929,7 @@ Process is currently suspended',
 
     def _clear_session_host(self) -> None:
         """Manually clear the current session host and reset host detection state."""
-        SessionHost.clear_session_host_data(clear_pending_disconnections=False, clear_current_session_history=True)
+        SessionHost.clear_session_host_data(clear_pending_disconnections=False, mark_manually_cleared=True)
 
     def _open_host_history_diagnostics(self, history_entry: HostHistoryEntry) -> None:
         """Display diagnostic information for a specific host history entry."""

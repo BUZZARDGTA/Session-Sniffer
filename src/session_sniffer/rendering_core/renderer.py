@@ -97,7 +97,7 @@ def _prune_recovered_pending_disconnections(*, session_transitioned: bool) -> No
             player.left_event.is_set() for player in SessionHost.players_pending_for_disconnection
         )
         SessionHost.players_pending_for_disconnection.clear()
-        if had_departed_pending_player and not SessionHost.has_player():
+        if had_departed_pending_player and not SessionHost.has_player() and not SessionHost.is_manually_cleared():
             SessionHost.search_player = True
             SessionHost.search_start_time = None
         return
@@ -131,7 +131,7 @@ def _prune_recovered_pending_disconnections(*, session_transitioned: bool) -> No
                 SessionHost.search_player = False
             else:
                 SessionHost.set_player(None)
-                SessionHost.search_player = True
+                SessionHost.search_player = not SessionHost.is_manually_cleared(old_session_id)
             SessionHost.search_start_time = None
             if SessionFilterState.get_selected_session() in (old_session_id, pruned_or_collapsed):
                 SessionFilterState.set_selected_session(session_id=SessionFilterState.FILTER_ALL)
