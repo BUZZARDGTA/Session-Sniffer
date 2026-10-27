@@ -373,10 +373,14 @@ def rendering_core(
             json_path = SESSIONS_LOGGING_PATH.with_suffix('.json')
             try:
                 json_content = model_snapshot.model_dump_json(by_alias=True)
-                if json_content == _last_written_session_json and json_path.is_file():
+                file_exists = json_path.is_file()
+                if json_content == _last_written_session_json and file_exists:
                     return
                 json_path.parent.mkdir(parents=True, exist_ok=True)
-                json_path.write_text(json_content, encoding='utf-8')
+                json_bytes = json_content.encode('utf-8')
+                with json_path.open('r+b' if file_exists else 'wb') as file:
+                    file.write(json_bytes)
+                    file.truncate()
                 _last_written_session_json = json_content
             except OSError as e:
                 logger.warning('Failed to write session log to %s: %s', json_path, e)

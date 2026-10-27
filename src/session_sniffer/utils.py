@@ -564,29 +564,31 @@ def is_session_file_empty(file_path: Path) -> bool:
         True if the file has no players (empty 'connected' and 'disconnected' sections) or is unreadable.
     """
     try:
-        file_size = file_path.stat().st_size
+        with file_path.open('rb') as file:
+            chunk = file.read(_MAX_EMPTY_SESSION_LOG_SIZE_BYTES + 1)
     except OSError as e:
-        logger.warning('Failed to stat session log file %s: %s', file_path, e)
+        logger.warning('Failed to read session log file %s: %s', file_path, e)
         return True
 
-    if not file_size:
+    if not chunk:
+        return True
+
+    if b'\x00' in chunk or not chunk.removeprefix(b'\xef\xbb\xbf').lstrip().startswith(b'{'):
+        logger.warning('Corrupted session log file detected at %s', file_path)
         return True
 
     # Empty session JSON files produced by Session Sniffer contain '{"connected":{},"disconnected":{}}' (~34 bytes).
-    # Files with actual players include player records and easily exceed 256 bytes.
-    if file_size > _MAX_EMPTY_SESSION_LOG_SIZE_BYTES:
+    # Valid files with actual players include player records and easily exceed 512 bytes.
+    if len(chunk) > _MAX_EMPTY_SESSION_LOG_SIZE_BYTES:
         return False
 
     try:
-        data = json.loads(file_path.read_text(encoding='utf-8', errors='replace'))
-    except (OSError, json.JSONDecodeError) as e:
-        logger.warning('Failed to read or parse session log file %s: %s', file_path, e)
+        data = json.loads(chunk.decode('utf-8', errors='replace'))
+    except json.JSONDecodeError as e:
+        logger.warning('Failed to parse session log file %s: %s', file_path, e)
         return True
 
-    if not isinstance(data, dict):
-        return True
-
-    return not (data.get('connected') or data.get('disconnected'))
+    return not isinstance(data, dict) or not (data.get('connected') or data.get('disconnected'))
 
 
 def cleanup_session_logs(
