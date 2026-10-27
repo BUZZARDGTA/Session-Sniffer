@@ -1,6 +1,6 @@
 """Mixin providing tab-building, group-factory, and combo-rule management methods for DetectionsManagerDialog."""
 
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -60,7 +60,6 @@ class DetectionsManagerTabsMixin(QDialog):
     if TYPE_CHECKING:
         _loading_settings: bool
         _relay_filter_warning: QWidget
-        gta5_relay_packet_threshold_spin: QSpinBox
         _combo_rules_list: QListWidget
         _combo_edit_button: QPushButton
         _combo_duplicate_button: QPushButton
@@ -224,32 +223,9 @@ class DetectionsManagerTabsMixin(QDialog):
 
         relay_group = self._create_detection_group(
             'GTA5 Relay',
-            'Triggers when a Take-Two Interactive relay IP exceeds the configured packet threshold.',
+            'Triggers when a Take-Two Interactive or Microsoft relay IP is detected (thresholds are configured under Settings -> GTA V -> Session Relays).',
             'gta5_relay',
         )
-        threshold_row = QWidget()
-        threshold_layout = QHBoxLayout(threshold_row)
-        threshold_layout.setContentsMargins(0, 0, 0, 0)
-        _threshold_tooltip = (
-            'How many packets must be exchanged with a relay IP before the detection triggers.\n\n'
-            'Take-Two Interactive relay servers act as middlemen between you and other players — '
-            'they route traffic through their own infrastructure.\n\n'
-            'A lower value triggers faster but may react to brief or coincidental relay contact.\n'
-            'A higher value waits for sustained communication, reducing false positives '
-            'but delaying the response.'
-        )
-        threshold_label = QLabel('Packet Threshold:')
-        threshold_label.setToolTip(_threshold_tooltip)
-        threshold_layout.addWidget(threshold_label)
-        threshold_spin = QSpinBox()
-        threshold_spin.setRange(10, 10000)
-        threshold_spin.setValue(40)
-        threshold_spin.setSuffix(' packets')
-        threshold_spin.setToolTip(_threshold_tooltip)
-        self.gta5_relay_packet_threshold_spin = threshold_spin
-        threshold_layout.addWidget(threshold_spin)
-        threshold_layout.addStretch()
-        cast('QVBoxLayout', relay_group.layout()).insertWidget(1, threshold_row)
         scroll_layout.addWidget(relay_group)
 
         scroll_layout.addStretch()

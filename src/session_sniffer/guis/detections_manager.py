@@ -152,7 +152,6 @@ class DetectionsManagerDialog(DetectionsManagerTabsMixin, QDialog):
         self.player_leave_msgbox_checkbox: QCheckBox
         # -- GTA5 Relays (GTA5 preset only) --
         self._relay_filter_warning: QWidget
-        self.gta5_relay_packet_threshold_spin: QSpinBox
         self.gta5_relay_duration_combo: QComboBox
         self.gta5_relay_duration_spin: QSpinBox
         self.gta5_relay_voice_combo: QComboBox
@@ -177,7 +176,7 @@ class DetectionsManagerDialog(DetectionsManagerTabsMixin, QDialog):
         self._tabs.addTab(self.create_geo_based_tab(), QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'globe.svg')), 'Geography-Based')
         self._tabs.addTab(self.create_combo_rules_tab(), QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'link.svg')), 'Combo Rules')
         if Settings.is_gta5_feature_set():
-            self._tabs.addTab(self.create_gta5_relays_tab(), QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'gamepad-2.svg')), 'GTA5 Relays')
+            self._tabs.addTab(self.create_gta5_relays_tab(), QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'waypoints.svg')), 'GTA5 Relays')
         layout.addWidget(self._tabs)
 
         # Bottom buttons
@@ -293,7 +292,6 @@ class DetectionsManagerDialog(DetectionsManagerTabsMixin, QDialog):
 
             if hasattr(self, 'gta5_relay_duration_combo'):
                 self._relay_filter_warning.setVisible('TAKETWO_INTERACTIVE' in Settings.capture_block_third_party_servers)
-                self.gta5_relay_packet_threshold_spin.setValue(GUIDetectionSettings.gta5_relay_packet_threshold)
                 self._load_prefix_widgets('gta5_relay')
 
             # Combo Rules
@@ -303,10 +301,7 @@ class DetectionsManagerDialog(DetectionsManagerTabsMixin, QDialog):
 
     def _connect_auto_save_signals(self) -> None:
         """Connect all detection widget change signals to auto-save."""
-        prefixes: tuple[str, ...] = _STANDARD_DETECTION_PREFIXES
-        if hasattr(self, 'gta5_relay_duration_combo'):
-            prefixes = _ALL_DETECTION_PREFIXES
-            self.gta5_relay_packet_threshold_spin.valueChanged.connect(self._auto_save_detections)
+        prefixes: tuple[str, ...] = _ALL_DETECTION_PREFIXES if hasattr(self, 'gta5_relay_duration_combo') else _STANDARD_DETECTION_PREFIXES
 
         for prefix in prefixes:
             cast('QComboBox', getattr(self, f'{prefix}_duration_combo')).currentTextChanged.connect(self._auto_save_detections)
@@ -389,8 +384,6 @@ class DetectionsManagerDialog(DetectionsManagerTabsMixin, QDialog):
                 getattr(self, f'{prefix}_msgbox_checkbox').setChecked(False)
                 if hasattr(self, f'{prefix}_list'):
                     getattr(self, f'{prefix}_list').clear()
-                if prefix == 'gta5_relay':
-                    self.gta5_relay_packet_threshold_spin.setValue(40)
         finally:
             self._loading_settings = False
         self._auto_save_detections()
@@ -451,7 +444,6 @@ class DetectionsManagerDialog(DetectionsManagerTabsMixin, QDialog):
             self._save_prefix_widgets(prefix)
 
         if hasattr(self, 'gta5_relay_duration_combo'):
-            GUIDetectionSettings.gta5_relay_packet_threshold = self.gta5_relay_packet_threshold_spin.value()
             self._save_prefix_widgets('gta5_relay')
 
     @override

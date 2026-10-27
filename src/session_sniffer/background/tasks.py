@@ -521,10 +521,6 @@ def trigger_auto_username_userip(player: Player, detected_usernames: Sequence[st
     wake_rendering_core()
 
 
-_GTA5_RELAY_PPS_STREAK_SECONDS = 3.0
-_GTA5_RELAY_MIN_PPS = 2
-
-
 def is_gta5_relay_ip(ip: str) -> bool:
     """Return True if *ip* belongs to the GTAV Take-Two Interactive or Microsoft relay IP ranges."""
     return is_ip_in_ranges(IPv4Address(ip), _GTA5_RELAY_RANGES)
@@ -544,16 +540,24 @@ def is_gta5_relay_monitoring_active() -> bool:
     )
 
 
+def _has_gta5_relay_traffic_minimums(player: Player) -> bool:
+    """Return True if *player* satisfies packet and byte thresholds for an active GTA5 relay."""
+    return (
+        player.packets.sent >= Settings.gta5_relay_min_sent_packets
+        and player.bandwidth.upload >= Settings.gta5_relay_min_upload_bytes
+        and max(player.bandwidth.download, player.bandwidth.upload) >= Settings.gta5_relay_min_bandwidth_kb * 1024
+    )
+
+
 def monitor_gta5_relay_task(player: Player) -> None:
     """Monitor a GTA5 relay IP, flag it in the table, and trigger relay actions when relay traffic is sustained."""
     if not Settings.is_gta5_feature_set() or not is_gta5_relay_ip(player.ip):
         return
 
-    is_initial_window = player.packets.exchanged == player.packets.pps.accumulated_packets
-    prev_exchanged = 0 if is_initial_window else player.packets.exchanged
+    prev_exchanged = player.packets.exchanged
     last_pps_update_time = player.packets.pps.last_update_time
-    streak_start_exchanged: int | None = None
     streak_seconds = 0.0
+    max_streak_seconds = 0.0
 
     while not player.left_event.is_set() and not gui_closed__event.is_set() and PlayersRegistry.is_player_connected(player):
         if not Settings.is_gta5_feature_set() or (CaptureState.is_local_capture() and not CaptureState.gta5_is_running):
@@ -562,29 +566,23 @@ def monitor_gta5_relay_task(player: Player) -> None:
 
         curr_exchanged = player.packets.exchanged
         if curr_exchanged < prev_exchanged:
-            prev_exchanged = 0
-            streak_start_exchanged, streak_seconds = None, 0.0
+            streak_seconds, max_streak_seconds = 0.0, 0.0
+        prev_exchanged = curr_exchanged
 
         curr_pps_update_time = player.packets.pps.last_update_time
         if curr_pps_update_time > last_pps_update_time:
             is_valid_relay_tick = (
                 (not CaptureState.is_local_capture() or player.is_gta5_process)
-                and player.packets.pps.calculated_rate >= _GTA5_RELAY_MIN_PPS
+                and player.packets.pps.calculated_rate >= Settings.gta5_relay_min_pps
             )
-            if is_valid_relay_tick:
-                if streak_start_exchanged is None:
-                    streak_start_exchanged = prev_exchanged
-                streak_seconds += curr_pps_update_time - last_pps_update_time
-            else:
-                streak_start_exchanged, streak_seconds = None, 0.0
-
-            prev_exchanged = curr_exchanged
+            streak_seconds = streak_seconds + (curr_pps_update_time - last_pps_update_time) if is_valid_relay_tick else 0.0
+            max_streak_seconds = max(max_streak_seconds, streak_seconds)
             last_pps_update_time = curr_pps_update_time
 
             if (
-                streak_start_exchanged is not None
-                and streak_seconds >= _GTA5_RELAY_PPS_STREAK_SECONDS
-                and (curr_exchanged - streak_start_exchanged) >= GUIDetectionSettings.gta5_relay_packet_threshold
+                max_streak_seconds >= Settings.gta5_relay_streak_duration
+                and curr_exchanged >= Settings.gta5_relay_packet_threshold
+                and _has_gta5_relay_traffic_minimums(player)
             ):
                 break
 

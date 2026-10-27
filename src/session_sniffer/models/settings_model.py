@@ -202,6 +202,13 @@ class SettingsModel(BaseModel):
     PLAYER_IDENTIFIER_CONTAMINATION_MIN_SAMPLES: int
     PLAYER_IDENTIFIER_BASELINE_TIMEOUT: int
     PLAYER_IDENTIFIER_SESSION_DRIFT_ZSCORE: float
+    GTA5_RELAY_ICON: bool
+    GTA5_RELAY_PACKET_THRESHOLD: int
+    GTA5_RELAY_MIN_PPS: int
+    GTA5_RELAY_STREAK_DURATION: int
+    GTA5_RELAY_MIN_SENT_PACKETS: int
+    GTA5_RELAY_MIN_UPLOAD_BYTES: int
+    GTA5_RELAY_MIN_BANDWIDTH_KB: int
 
     # --- Internal context helpers ---
 
@@ -244,6 +251,7 @@ class SettingsModel(BaseModel):
             'HIGH_RATE_MONITOR_RUN_IN_BACKGROUND',
             'HIGH_RATE_MONITOR_AUTO_SELECT',
             'PLAYER_IDENTIFIER_ICON',
+            'GTA5_RELAY_ICON',
             'USERIP_SYNC_KNOWN_ALTS',
             'USERIP_AUTO_FEED_FROM_USERNAMES',
         },
@@ -267,6 +275,12 @@ class SettingsModel(BaseModel):
         'PING_INTERVAL_MS': (50, 10000, 250),
         'PING_TIMEOUT_MS': (100, 10000, 1000),
         'PING_PAYLOAD_BYTES': (0, 65500, 32),
+        'GTA5_RELAY_PACKET_THRESHOLD': (10, 10000, 40),
+        'GTA5_RELAY_MIN_PPS': (1, 100, 2),
+        'GTA5_RELAY_STREAK_DURATION': (1, 30, 3),
+        'GTA5_RELAY_MIN_SENT_PACKETS': (0, 1000, 1),
+        'GTA5_RELAY_MIN_UPLOAD_BYTES': (0, 65535, 46),
+        'GTA5_RELAY_MIN_BANDWIDTH_KB': (1, 1024, 5),
     }
 
     _CLAMPED_FLOAT_BOUNDS: ClassVar[dict[str, tuple[float, float, float]]] = {

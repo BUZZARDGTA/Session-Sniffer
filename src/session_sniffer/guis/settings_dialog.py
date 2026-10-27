@@ -132,6 +132,7 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
 
         self._tabs = QTabWidget()
         self._game_tab_index: int = -1
+        self._session_relays_group_box: QGroupBox | None = None
         for i, category in enumerate(SETTING_CATEGORIES_ORDER):
             tab_widget = self._build_tab(category)
             tab_widget.setProperty('category', category)
@@ -283,6 +284,8 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
                 continue
 
             group_box = QGroupBox(group_name.replace('&', '&&'))
+            if category == 'GTA V' and group_name == 'Session Relays':
+                self._session_relays_group_box = group_box
             direct_items = [(setting_key, setting_meta) for setting_key, setting_meta in items if setting_meta.subgroup is None or not setting_meta.subgroup]
             subgrouped: dict[str, list[tuple[str, SettingMeta]]] = {}
             for setting_key, setting_meta in items:
@@ -413,6 +416,8 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
                 self._tabs.setTabText(self._game_tab_index, feature_set)
 
         self._looky_group_box.setVisible(is_gta5)
+        if self._session_relays_group_box is not None:
+            self._session_relays_group_box.setVisible(is_gta5)
         if is_gta5:
             api_key_widget = self._widgets.get('looky_api_key')
             self._on_looky_api_key_changed(api_key_widget.text() if isinstance(api_key_widget, QLineEdit) else '')
@@ -769,7 +774,7 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
         is_rdr2 = isinstance(preset_widget, QComboBox) and preset_widget.currentText() == 'RDR2'
         for key, widget in self._widgets.items():
             if key in defaults_dict and SETTING_METADATA[key].category == category:
-                if is_rdr2 and category == 'GTA V' and SETTING_METADATA[key].group == 'Looky System':
+                if is_rdr2 and category == 'GTA V' and SETTING_METADATA[key].group in ('Looky System', 'Session Relays'):
                     continue
                 self._set_widget_value(key, widget, defaults_dict[key])
         self._update_sort_column_options()

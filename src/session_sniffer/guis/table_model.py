@@ -505,7 +505,7 @@ class SessionTableModel(QAbstractTableModel):
                     is_host=Settings.gui_session_host_icon and Settings.is_session_host_feature_set() and self._is_row_session_host(ip),
                     is_high_rate=Settings.high_rate_monitor_icon and HighRateTracker.is_high_rate(ip),
                     is_identified=Settings.player_identifier_icon and PlayerIdentifierTracker.is_identified(ip),
-                    is_gta5_relay=matched_player is not None and matched_player.is_gta5_relay,
+                    is_gta5_relay=Settings.gta5_relay_icon and matched_player is not None and matched_player.is_gta5_relay,
                 )
             elif self.username_column_index >= 0 and self.username_column_index == column_index:
                 if Settings.looky_enabled and Settings.is_gta5_feature_set():
@@ -566,7 +566,7 @@ class SessionTableModel(QAbstractTableModel):
                         tooltips.append(f'Past Session ({session_label})')
                 if Settings.gui_session_host_icon and Settings.is_session_host_feature_set() and self._is_row_session_host(ip):
                     tooltips.append('Session Host')
-                if Settings.is_gta5_feature_set() and matched_player is not None and matched_player.is_gta5_relay:
+                if Settings.gta5_relay_icon and Settings.is_gta5_feature_set() and matched_player is not None and matched_player.is_gta5_relay:
                     tooltips.append('GTA5 Relay')
                 if Settings.high_rate_monitor_icon and HighRateTracker.is_high_rate(ip):
                     tooltips.append('High-Rate traffic detected (exceeds PPS/BPS thresholds)')

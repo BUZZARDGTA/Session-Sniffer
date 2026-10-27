@@ -145,6 +145,13 @@ class Settings:
     player_identifier_contamination_min_samples: int = SETTING_DEFAULTS['player_identifier_contamination_min_samples']
     player_identifier_baseline_timeout: int = SETTING_DEFAULTS['player_identifier_baseline_timeout']
     player_identifier_session_drift_zscore: float = SETTING_DEFAULTS['player_identifier_session_drift_zscore']
+    gta5_relay_icon: bool = SETTING_DEFAULTS['gta5_relay_icon']
+    gta5_relay_packet_threshold: int = SETTING_DEFAULTS['gta5_relay_packet_threshold']
+    gta5_relay_min_pps: int = SETTING_DEFAULTS['gta5_relay_min_pps']
+    gta5_relay_streak_duration: int = SETTING_DEFAULTS['gta5_relay_streak_duration']
+    gta5_relay_min_sent_packets: int = SETTING_DEFAULTS['gta5_relay_min_sent_packets']
+    gta5_relay_min_upload_bytes: int = SETTING_DEFAULTS['gta5_relay_min_upload_bytes']
+    gta5_relay_min_bandwidth_kb: int = SETTING_DEFAULTS['gta5_relay_min_bandwidth_kb']
 
     MIN_GUI_DISCONNECTED_PLAYERS_TIMER_SECONDS: ClassVar[int] = 3
     MAX_GUI_DISCONNECTED_PLAYERS_LIMIT: ClassVar[int] = 20000
@@ -251,6 +258,13 @@ class Settings:
         'PLAYER_IDENTIFIER_CONTAMINATION_MIN_SAMPLES',
         'PLAYER_IDENTIFIER_BASELINE_TIMEOUT',
         'PLAYER_IDENTIFIER_SESSION_DRIFT_ZSCORE',
+        'GTA5_RELAY_ICON',
+        'GTA5_RELAY_PACKET_THRESHOLD',
+        'GTA5_RELAY_MIN_PPS',
+        'GTA5_RELAY_STREAK_DURATION',
+        'GTA5_RELAY_MIN_SENT_PACKETS',
+        'GTA5_RELAY_MIN_UPLOAD_BYTES',
+        'GTA5_RELAY_MIN_BANDWIDTH_KB',
     )
 
     GUI_FORCED_COLUMNS: ClassVar[tuple[str, ...]] = ('Usernames', 'First Seen', 'Last Rejoin', 'Last Seen', 'Rejoins', 'IP Address')

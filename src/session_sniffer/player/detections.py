@@ -10,7 +10,6 @@ from session_sniffer.constants.local import COMBO_RULES_PATH, DETECTIONS_JSON_PA
 from session_sniffer.models.detections import (
     DetectionActionSettings,
     DetectionsFile,
-    Gta5RelayDetectionActionSettings,
     ListDetectionActionSettings,
 )
 from session_sniffer.player.combo_rules import ComboRulesManager
@@ -93,7 +92,6 @@ class GUIDetectionSettings:
 
     # GTA5 relay detection (GTA5 preset only)
     gta5_relay_enabled: ClassVar[bool] = False
-    gta5_relay_packet_threshold: ClassVar[int] = 40
     gta5_relay_duration: ClassVar[int | Literal['Auto']] = 'Auto'
     gta5_relay_voice_notifications: ClassVar[Literal['Male', 'Female'] | bool] = False
     gta5_relay_logging: ClassVar[bool] = False
@@ -175,13 +173,12 @@ class GUIDetectionSettings:
                 logging=cls.player_leave_logging,
                 message_box=cls.player_leave_message_box,
             ),
-            gta5_relay=Gta5RelayDetectionActionSettings(
+            gta5_relay=DetectionActionSettings(
                 enabled=cls.gta5_relay_enabled,
                 duration=cls.gta5_relay_duration,
                 voice_notifications=cls.gta5_relay_voice_notifications,
                 logging=cls.gta5_relay_logging,
                 message_box=cls.gta5_relay_message_box,
-                packet_threshold=cls.gta5_relay_packet_threshold,
             ),
         )
 
@@ -255,7 +252,6 @@ class GUIDetectionSettings:
         cls.gta5_relay_voice_notifications = model.gta5_relay.voice_notifications
         cls.gta5_relay_logging = model.gta5_relay.logging
         cls.gta5_relay_message_box = model.gta5_relay.message_box
-        cls.gta5_relay_packet_threshold = model.gta5_relay.packet_threshold
 
     @classmethod
     def load_from_file_or_defaults(cls, file_path: Path) -> None:

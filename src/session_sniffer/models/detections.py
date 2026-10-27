@@ -19,12 +19,6 @@ class ListDetectionActionSettings(DetectionActionSettings):
     target_list: list[str] = Field(default_factory=list, validation_alias='list', serialization_alias='list')
 
 
-class Gta5RelayDetectionActionSettings(DetectionActionSettings):
-    """Settings for GTA5 Relay detection."""
-
-    packet_threshold: int = 40
-
-
 class DetectionsFile(BaseModel):
     """Validated model for the complete detections.json file."""
 
@@ -39,5 +33,5 @@ class DetectionsFile(BaseModel):
     player_join: DetectionActionSettings = Field(default_factory=DetectionActionSettings)
     player_rejoin: DetectionActionSettings = Field(default_factory=DetectionActionSettings)
     player_leave: DetectionActionSettings = Field(default_factory=DetectionActionSettings)
-    gta5_relay: Gta5RelayDetectionActionSettings = Field(default_factory=Gta5RelayDetectionActionSettings)
+    gta5_relay: DetectionActionSettings = Field(default_factory=DetectionActionSettings)
     combo_rules: list[ComboRule] | None = None
