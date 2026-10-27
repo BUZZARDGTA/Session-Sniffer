@@ -64,15 +64,24 @@ Follow the No Backward Compatibility rules in `core.md` for settings and stored 
 
 ## Settings Documentation
 
-When adding, removing, or changing a default setting, synchronize the project's Wiki documentation.
+The settings reference lives in the Wiki repository at `../Session-Sniffer.wiki`, in `Configuration-Guide.md`. It is the user-facing source of truth and must always mirror the code exactly.
 
-The relevant Wiki repository is:
+**Always update `Configuration-Guide.md` in the same task** whenever a change touches any user-visible aspect of a setting in `settings/metadata.py`, `settings/defaults.py`, `models/settings_model.py`, or `settings/settings.py`, including:
 
-`../Session-Sniffer.wiki`
+* adding, removing, or renaming a setting (JSON key);
+* changing a default value, range (`min_value` / `max_value`), suffix, or allowed values;
+* changing a `display_label`, `category`, or `group` (the documented `*Path: **Settings ➔ Preferences ➔ <category> ➔ <group>***`);
+* changing the behavior a setting controls, so its description is no longer accurate.
 
-Check the appropriate configuration documentation, particularly `Configuration-Guide.md`, and update setting defaults or setting lists when required.
+Wiki entry rules:
 
-Do not consider a settings change complete until the relevant documentation has been checked.
+* The ``(JSON: `KEY`)`` value must be the exact key written to `settings.json` (the `SettingsModel` field name); never add or drop prefixes.
+* The entry label and path must match `display_label`, `category`, and `group` from `SETTING_METADATA`. A short in-group label (such as `Enabled` or `Color`) may be expanded with its group for context.
+* `Default:` and any documented range or allowed values must match `SETTING_DEFAULTS` and `SETTING_METADATA`.
+* Remove entries for deleted settings outright; document every non-hidden setting.
+* Preserve the file's existing UTF-8 encoding and CRLF line endings.
+
+Commit the Wiki change in the Wiki repository as its own `docs(config): ...` commit. Do not consider a settings change complete until `Configuration-Guide.md` has been updated, or explicitly verified as already accurate.
 
 ## Logging
 

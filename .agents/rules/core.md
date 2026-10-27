@@ -20,6 +20,7 @@ Treat the existing codebase and architecture as intentional. Before making chang
 - Do not silently remove existing functionality.
 - Do not add unnecessary dependencies.
 - Do not modify user changes that are unrelated to the task.
+- Whenever a setting is added, removed, renamed, or its default, range, label, group, or behavior changes, update the Wiki `Configuration-Guide.md` in the same task (see "Settings Documentation" in `data-storage.md`).
 
 ## No Backward Compatibility
 
