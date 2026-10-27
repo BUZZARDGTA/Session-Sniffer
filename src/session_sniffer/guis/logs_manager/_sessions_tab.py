@@ -928,7 +928,7 @@ class SessionsLogTab(QWidget):
         sorted_players = sorted(
             players.items(),
             key=lambda item: cls._player_datetime_sort_key(item[1], config.sort_column),
-            reverse=config.descending,
+            reverse=not config.descending,
         )
         rows = [
             [
@@ -946,12 +946,12 @@ class SessionsLogTab(QWidget):
 
     @classmethod
     def _build_connected_table(cls, players: dict[str, dict[str, Any]]) -> str:
-        config = _SessionTableRenderConfig(f'Players connected in your session ({len(players)}):', 'Last Rejoin', descending=False)
+        config = _SessionTableRenderConfig(f'Players connected in your session ({len(players)}):', 'Last Rejoin', descending=True)
         return cls._build_session_table(players=players, column_names=Settings.GUI_ALL_CONNECTED_COLUMNS, config=config)
 
     @classmethod
     def _build_disconnected_table(cls, players: dict[str, dict[str, Any]]) -> str:
-        config = _SessionTableRenderConfig(f"Players who've left your session ({len(players)}):", 'Last Seen', descending=True)
+        config = _SessionTableRenderConfig(f"Players who've left your session ({len(players)}):", 'Last Seen', descending=False)
         return cls._build_session_table(players=players, column_names=Settings.GUI_ALL_DISCONNECTED_COLUMNS, config=config)
 
     def _render_session_file(self, file_path: Path) -> str | None:
