@@ -526,73 +526,58 @@ def is_gta5_relay_ip(ip: str) -> bool:
     return is_ip_in_ranges(IPv4Address(ip), _GTA5_RELAY_RANGES)
 
 
-def is_gta5_relay_monitoring_active() -> bool:
-    """Return True if GTA5 relay monitoring is active and has any actionable notification or response enabled."""
-    if not Settings.is_gta5_feature_set() or not GUIDetectionSettings.has_any_gta5_relay_action_enabled():
-        return False
-    if CaptureState.is_local_capture() and not CaptureState.gta5_is_running:
-        return False
-    return (
-        GUIDetectionSettings.gta5_relay_enabled
-        or (Settings.voice_notifications_enabled and bool(GUIDetectionSettings.gta5_relay_voice_notifications))
-        or GUIDetectionSettings.gta5_relay_logging
-        or GUIDetectionSettings.gta5_relay_message_box
-    )
-
-
 def monitor_gta5_relay_task(player: Player) -> None:
-    """Monitor a GTA5 relay IP, flag it in the table, and trigger relay actions when relay traffic is sustained."""
-    if not Settings.is_gta5_feature_set() or not is_gta5_relay_ip(player.ip):
+    """Monitor a GTA5 relay IP, flag it in the table once relay traffic is sustained, and submit a detections check."""
+    if not Settings.is_gta5_feature_set() or not is_gta5_relay_ip(player.ip) or player.is_gta5_relay:
         return
 
     initial_rejoins = player.rejoins
-    if not player.is_gta5_relay:
-        prev_exchanged = player.packets.exchanged
-        wave_start_exchanged, wave_start_download, wave_start_upload = 0, 0, 0
-        last_pps_update_time = player.packets.pps.last_update_time
-        streak_seconds = 0.0
-        max_streak_seconds = 0.0
+    prev_exchanged = player.packets.exchanged
+    wave_start_exchanged, wave_start_download, wave_start_upload = 0, 0, 0
+    last_pps_update_time = player.packets.pps.last_update_time
+    streak_seconds = 0.0
+    max_streak_seconds = 0.0
 
-        while (
-            not player.left_event.is_set()
-            and player.rejoins == initial_rejoins
-            and not gui_closed__event.is_set()
-            and PlayersRegistry.is_player_connected(player)
-        ):
-            if not Settings.is_gta5_feature_set() or (CaptureState.is_local_capture() and not CaptureState.gta5_is_running):
-                player.relay_monitor_started = False
-                return
+    while (
+        not player.left_event.is_set()
+        and player.rejoins == initial_rejoins
+        and not gui_closed__event.is_set()
+        and PlayersRegistry.is_player_connected(player)
+    ):
+        if not Settings.is_gta5_feature_set() or (CaptureState.is_local_capture() and not CaptureState.gta5_is_running):
+            player.relay_monitor_started = False
+            return
 
-            curr_exchanged = player.packets.exchanged
-            if curr_exchanged < prev_exchanged:
-                wave_start_exchanged, wave_start_download, wave_start_upload = 0, 0, 0
+        curr_exchanged = player.packets.exchanged
+        if curr_exchanged < prev_exchanged:
+            wave_start_exchanged, wave_start_download, wave_start_upload = 0, 0, 0
+            streak_seconds, max_streak_seconds = 0.0, 0.0
+        prev_exchanged = curr_exchanged
+
+        curr_pps_update_time = player.packets.pps.last_update_time
+        if curr_pps_update_time > last_pps_update_time:
+            curr_pps = player.packets.pps.calculated_rate if (not CaptureState.is_local_capture() or player.is_gta5_process) else 0
+            if not curr_pps:
+                wave_start_exchanged = curr_exchanged - player.packets.pps.accumulated_packets
+                wave_start_download = player.bandwidth.download
+                wave_start_upload = player.bandwidth.upload
                 streak_seconds, max_streak_seconds = 0.0, 0.0
-            prev_exchanged = curr_exchanged
+            elif curr_pps >= Settings.gta5_relay_min_pps:
+                streak_seconds += curr_pps_update_time - last_pps_update_time
+                max_streak_seconds = max(max_streak_seconds, streak_seconds)
+            else:
+                streak_seconds = 0.0
+            last_pps_update_time = curr_pps_update_time
 
-            curr_pps_update_time = player.packets.pps.last_update_time
-            if curr_pps_update_time > last_pps_update_time:
-                curr_pps = player.packets.pps.calculated_rate if (not CaptureState.is_local_capture() or player.is_gta5_process) else 0
-                if not curr_pps:
-                    wave_start_exchanged = curr_exchanged - player.packets.pps.accumulated_packets
-                    wave_start_download = player.bandwidth.download
-                    wave_start_upload = player.bandwidth.upload
-                    streak_seconds, max_streak_seconds = 0.0, 0.0
-                elif curr_pps >= Settings.gta5_relay_min_pps:
-                    streak_seconds += curr_pps_update_time - last_pps_update_time
-                    max_streak_seconds = max(max_streak_seconds, streak_seconds)
-                else:
-                    streak_seconds = 0.0
-                last_pps_update_time = curr_pps_update_time
+            if (
+                max_streak_seconds >= Settings.gta5_relay_streak_duration
+                and (curr_exchanged - wave_start_exchanged) >= Settings.gta5_relay_packet_threshold
+                and max(player.bandwidth.download - wave_start_download, player.bandwidth.upload - wave_start_upload)
+                >= Settings.gta5_relay_min_bandwidth_kb * 1024
+            ):
+                break
 
-                if (
-                    max_streak_seconds >= Settings.gta5_relay_streak_duration
-                    and (curr_exchanged - wave_start_exchanged) >= Settings.gta5_relay_packet_threshold
-                    and max(player.bandwidth.download - wave_start_download, player.bandwidth.upload - wave_start_upload)
-                    >= Settings.gta5_relay_min_bandwidth_kb * 1024
-                ):
-                    break
-
-            gui_closed__event.wait(0.25)
+        gui_closed__event.wait(0.25)
 
     if (
         player.left_event.is_set()
@@ -602,41 +587,9 @@ def monitor_gta5_relay_task(player: Player) -> None:
     ):
         return
 
-    if not player.is_gta5_relay:
-        player.is_gta5_relay = True
-        wake_rendering_core()
-
-    if not is_gta5_relay_monitoring_active():
-        return
-
-    if GUIDetectionSettings.gta5_relay_enabled and CaptureState.is_local_capture():
-        GTASuspendManager.request_suspend(
-            reason_key=f'gta5_relay:{player.ip}', left_event=player.left_event, duration=GUIDetectionSettings.gta5_relay_duration,
-        )
-
-    if Settings.voice_notifications_enabled and GUIDetectionSettings.gta5_relay_voice_notifications:
-        tts_candidate_path = TTS_DIR_PATH / tts_voice_name(voice_setting=GUIDetectionSettings.gta5_relay_voice_notifications) / 'detection' / 'gta5_relay_detected.wav'
-        queue_voice_notification(tts_candidate_path)
-
-    if GUIDetectionSettings.gta5_relay_logging or GUIDetectionSettings.gta5_relay_message_box:
-        required_fields: tuple[Literal['iplookup.geolite2', 'reverse_dns.hostname', 'iplookup.ipapi'], ...] = (
-            ('iplookup.geolite2', 'reverse_dns.hostname', 'iplookup.ipapi') if GUIDetectionSettings.gta5_relay_message_box else ('iplookup.geolite2',)
-        )
-        wait_for_player_data_ready(player, data_fields=required_fields, timeout=3.0)
-
-    if GUIDetectionSettings.gta5_relay_logging:
-        _log_to_protection_csv('GTA5 RELAY DETECTED!', ', '.join(player.usernames), player.ip, player.iplookup.geolite2.country)
-
-    if GUIDetectionSettings.gta5_relay_message_box:
-        _et = datetime.now(tz=LOCAL_TZ).strftime('%H:%M:%S')
-
-        def _show_relay_notif() -> None:
-            notification_info = DetectionNotificationInfo(
-                display_title='GTA5 Relay Detected', extra_detection_fields=[('Packets', str(player.packets.exchanged))], event_time=_et,
-            )
-            show_detection_notification_dialog(find_main_window(), player, notification_info)
-
-        gui_dispatcher.invoke(_show_relay_notif)
+    player.is_gta5_relay = True
+    wake_rendering_core()
+    submit_global_detections_check(player)
 
 
 def check_global_detections(player: Player) -> None:
@@ -847,6 +800,23 @@ def check_global_detections(player: Player) -> None:
                     ),
                 )
 
+    # GTA5 Relay Detection (relay IPs are servers by definition, so voice is not muted for server IPs)
+    if player.is_gta5_relay and Settings.is_gta5_feature_set() and (CaptureState.gta5_is_running or not CaptureState.is_local_capture()):
+        handle_detection_notifications(
+            detection_title='GTA5 RELAY DETECTED!',
+            display_title='GTA5 Relay Detected',
+            extra_detection_fields=[('Packets', str(player.packets.exchanged))],
+            settings=_DetectionSettings(
+                voice=GUIDetectionSettings.gta5_relay_voice_notifications,
+                log=GUIDetectionSettings.gta5_relay_logging,
+                msgbox=GUIDetectionSettings.gta5_relay_message_box,
+                tts_filename='gta5_relay_detected',
+                suspend_enabled=GUIDetectionSettings.gta5_relay_enabled,
+                suspend_duration=GUIDetectionSettings.gta5_relay_duration,
+                suspension_name='GTA5Relay',
+            ),
+        )
+
     # Combo Rules evaluation (rules without event condition fire here at join-time)
     matched_combo_rules = ComboRulesManager.evaluate(player, event_type=None)
     for rule in matched_combo_rules:
@@ -902,7 +872,8 @@ def submit_global_detections_check(player: Player) -> None:
     """Submit global detection checks to the background detection worker pool."""
     enqueue_player_for_resolution(player)
     has_non_event_combo_rules = any(not rule.has_event_condition for rule in ComboRulesManager.rules if rule.enabled)
-    if not GUIDetectionSettings.has_any_global_detection_enabled() and not has_non_event_combo_rules:
+    has_relay_actions = player.is_gta5_relay and GUIDetectionSettings.has_any_gta5_relay_action_enabled()
+    if not GUIDetectionSettings.has_any_global_detection_enabled() and not has_non_event_combo_rules and not has_relay_actions:
         with _fired_detections_lock:
             _fired_detections.pop((player.ip, player.rejoins), None)
             stale_reasons = _active_global_suspend_reasons.pop(player.ip, set())
