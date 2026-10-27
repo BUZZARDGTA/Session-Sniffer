@@ -49,9 +49,9 @@ class PlayerResolverWindow(ToggleAlwaysOnTopMixin):
         self._tabs = QTabWidget()
         layout.addWidget(self._tabs)
 
-        # Tab 1: High Rate Monitor
+        # Tab 1: Player High Rate Monitor
         self.high_rate_monitor = HighRateMonitorWidget(select_ips_callback, deselect_ips_callback, self)
-        self._tabs.addTab(self.high_rate_monitor, QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'gauge.svg')), 'High Rate Monitor')
+        self._tabs.addTab(self.high_rate_monitor, QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'gauge.svg')), 'Player High Rate Monitor')
 
         # Tab 2: Player Identifier
         self.player_identifier = PlayerIdentifierWidget(select_ips_callback, deselect_ips_callback, self)

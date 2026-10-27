@@ -338,16 +338,16 @@ class TableContextMenuMixin(QTableView):
                 if is_blacklisted(single_ip):
                     add_action(
                         context_menu,
-                        'Unblacklist from High Rate Monitor',
-                        tooltip='Allow this IP to be tracked by the High Rate Monitor again.',
+                        'Unblacklist from Player High Rate Monitor',
+                        tooltip='Allow this IP to be tracked by the Player High Rate Monitor again.',
                         handler=lambda: _unblacklist_handler([single_ip]),
                         icon=icon,
                     )
                 else:
                     add_action(
                         context_menu,
-                        'Blacklist in High Rate Monitor',
-                        tooltip='Exclude this IP from High Rate Monitor tracking.',
+                        'Blacklist in Player High Rate Monitor',
+                        tooltip='Exclude this IP from Player High Rate Monitor tracking.',
                         handler=lambda: _blacklist_handler([single_ip]),
                         icon=icon,
                     )
@@ -357,8 +357,8 @@ class TableContextMenuMixin(QTableView):
                 count = len(unblacklisted_ip_addresses)
                 add_action(
                     context_menu,
-                    'Blacklist in High Rate Monitor',
-                    tooltip=f'Exclude {count} selected IP{pluralize(count)} from High Rate Monitor tracking.',
+                    'Blacklist in Player High Rate Monitor',
+                    tooltip=f'Exclude {count} selected IP{pluralize(count)} from Player High Rate Monitor tracking.',
                     handler=lambda: _blacklist_handler(unblacklisted_ip_addresses),
                     icon=icon,
                 )
@@ -366,8 +366,8 @@ class TableContextMenuMixin(QTableView):
                 count = len(blacklisted_ip_addresses)
                 add_action(
                     context_menu,
-                    'Unblacklist from High Rate Monitor',
-                    tooltip=f'Allow {count} selected IP{pluralize(count)} to be tracked by the High Rate Monitor again.',
+                    'Unblacklist from Player High Rate Monitor',
+                    tooltip=f'Allow {count} selected IP{pluralize(count)} to be tracked by the Player High Rate Monitor again.',
                     handler=lambda: _unblacklist_handler(blacklisted_ip_addresses),
                     icon=icon,
                 )
@@ -376,15 +376,15 @@ class TableContextMenuMixin(QTableView):
                 unblacklist_count = len(blacklisted_ip_addresses)
                 add_action(
                     context_menu,
-                    f'Blacklist in High Rate Monitor ({blacklist_count})',
-                    tooltip=f'Exclude {blacklist_count} unblacklisted IP{pluralize(blacklist_count)} from High Rate Monitor tracking.',
+                    f'Blacklist in Player High Rate Monitor ({blacklist_count})',
+                    tooltip=f'Exclude {blacklist_count} unblacklisted IP{pluralize(blacklist_count)} from Player High Rate Monitor tracking.',
                     handler=lambda: _blacklist_handler(unblacklisted_ip_addresses),
                     icon=icon,
                 )
                 add_action(
                     context_menu,
-                    f'Unblacklist from High Rate Monitor ({unblacklist_count})',
-                    tooltip=f'Allow {unblacklist_count} blacklisted IP{pluralize(unblacklist_count)} to be tracked by the High Rate Monitor again.',
+                    f'Unblacklist from Player High Rate Monitor ({unblacklist_count})',
+                    tooltip=f'Allow {unblacklist_count} blacklisted IP{pluralize(unblacklist_count)} to be tracked by the Player High Rate Monitor again.',
                     handler=lambda: _unblacklist_handler(blacklisted_ip_addresses),
                     icon=icon,
                 )

@@ -856,7 +856,7 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         min_value=6, max_value=60, step=1, suffix=' seconds',
     ),
     'high_rate_monitor_mode': SettingMeta(
-        category='GTA V', group='High Rate Monitor', display_label='High Rate Monitor Mode', setting_type=SettingType.ENUM,
+        category='GTA V', group='Player High Rate Monitor', display_label='Player High Rate Monitor Mode', setting_type=SettingType.ENUM,
         tooltip=(
             'Detection mode for flagging high packet-rate players.\n\n'
             'Smart: Dynamically calculates the average PPS of connected players and flags players exceeding the session average with a margin and minimum floor.\n'
@@ -865,32 +865,32 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         allowed_values=('Smart', 'Manual'),
     ),
     'high_rate_monitor_icon': SettingMeta(
-        category='GTA V', group='High Rate Monitor', display_label='High Rate Monitor Table Icon', setting_type=SettingType.BOOLEAN,
-        tooltip='Display the High Rate Monitor speedometer icon in the IP Address column for players exceeding rate thresholds.',
+        category='GTA V', group='Player High Rate Monitor', display_label='Player High Rate Monitor Table Icon', setting_type=SettingType.BOOLEAN,
+        tooltip='Display the Player High Rate Monitor speedometer icon in the IP Address column for players exceeding rate thresholds.',
     ),
     'high_rate_monitor_run_in_background': SettingMeta(
-        category='GTA V', group='High Rate Monitor', display_label='High Rate Monitor Run in Background', setting_type=SettingType.BOOLEAN,
+        category='GTA V', group='Player High Rate Monitor', display_label='Player High Rate Monitor Run in Background', setting_type=SettingType.BOOLEAN,
         tooltip=(
-            'When enabled, the High Rate Monitor continuously tracks player packet rates in the background even when the Player Resolver window is closed.\n'
+            'When enabled, the Player High Rate Monitor continuously tracks player packet rates in the background even when the Player Resolver window is closed.\n'
             'When disabled, player rate monitoring is only active while the Player Resolver window is open.'
         ),
     ),
     'high_rate_monitor_auto_select': SettingMeta(
-        category='GTA V', group='High Rate Monitor', display_label='High Rate Monitor Auto-Select in Table', setting_type=SettingType.BOOLEAN,
+        category='GTA V', group='Player High Rate Monitor', display_label='Player High Rate Monitor Auto-Select in Table', setting_type=SettingType.BOOLEAN,
         tooltip='Automatically select flagged high-rate players in the connected-players table.',
     ),
     'high_rate_monitor_pps_threshold': SettingMeta(
-        category='GTA V', group='High Rate Monitor', display_label='High Rate Monitor PPS Threshold', setting_type=SettingType.INTEGER,
+        category='GTA V', group='Player High Rate Monitor', display_label='Player High Rate Monitor PPS Threshold', setting_type=SettingType.INTEGER,
         tooltip='Minimum Packets Per Second required to flag a player as high-rate traffic.',
         min_value=20, max_value=50, step=1, suffix=' PPS',
     ),
     'high_rate_monitor_bps_threshold': SettingMeta(
-        category='GTA V', group='High Rate Monitor', display_label='High Rate Monitor BPS Threshold', setting_type=SettingType.INTEGER,
+        category='GTA V', group='Player High Rate Monitor', display_label='Player High Rate Monitor BPS Threshold', setting_type=SettingType.INTEGER,
         tooltip='Minimum bandwidth in kilobytes per second (KB/s) required to flag a player as high-rate traffic.',
         min_value=3, max_value=500, step=1, suffix=' KB/s',
     ),
     'high_rate_monitor_duration_threshold': SettingMeta(
-        category='GTA V', group='High Rate Monitor', display_label='High Rate Monitor Duration', setting_type=SettingType.INTEGER,
+        category='GTA V', group='Player High Rate Monitor', display_label='Player High Rate Monitor Duration', setting_type=SettingType.INTEGER,
         tooltip='Number of consecutive seconds player traffic must exceed both PPS and BPS thresholds.',
         min_value=1, max_value=10, step=1, suffix=' seconds',
     ),
