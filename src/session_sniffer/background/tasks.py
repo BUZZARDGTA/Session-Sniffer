@@ -540,12 +540,12 @@ def is_gta5_relay_monitoring_active() -> bool:
     )
 
 
-def _has_gta5_relay_traffic_minimums(player: Player) -> bool:
+def _has_gta5_relay_traffic_minimums(player: Player, *, wave_download: int, wave_upload: int) -> bool:
     """Return True if *player* satisfies packet and byte thresholds for an active GTA5 relay."""
     return (
         player.packets.sent >= Settings.gta5_relay_min_sent_packets
         and player.bandwidth.upload >= Settings.gta5_relay_min_upload_bytes
-        and max(player.bandwidth.download, player.bandwidth.upload) >= Settings.gta5_relay_min_bandwidth_kb * 1024
+        and max(wave_download, wave_upload) >= Settings.gta5_relay_min_bandwidth_kb * 1024
     )
 
 
@@ -555,6 +555,7 @@ def monitor_gta5_relay_task(player: Player) -> None:
         return
 
     prev_exchanged = player.packets.exchanged
+    wave_start_exchanged, wave_start_download, wave_start_upload = 0, 0, 0
     last_pps_update_time = player.packets.pps.last_update_time
     streak_seconds = 0.0
     max_streak_seconds = 0.0
@@ -566,23 +567,33 @@ def monitor_gta5_relay_task(player: Player) -> None:
 
         curr_exchanged = player.packets.exchanged
         if curr_exchanged < prev_exchanged:
+            wave_start_exchanged, wave_start_download, wave_start_upload = 0, 0, 0
             streak_seconds, max_streak_seconds = 0.0, 0.0
         prev_exchanged = curr_exchanged
 
         curr_pps_update_time = player.packets.pps.last_update_time
         if curr_pps_update_time > last_pps_update_time:
-            is_valid_relay_tick = (
-                (not CaptureState.is_local_capture() or player.is_gta5_process)
-                and player.packets.pps.calculated_rate >= Settings.gta5_relay_min_pps
-            )
-            streak_seconds = streak_seconds + (curr_pps_update_time - last_pps_update_time) if is_valid_relay_tick else 0.0
-            max_streak_seconds = max(max_streak_seconds, streak_seconds)
+            curr_pps = player.packets.pps.calculated_rate if (not CaptureState.is_local_capture() or player.is_gta5_process) else 0
+            if not curr_pps:
+                wave_start_exchanged = curr_exchanged - player.packets.pps.accumulated_packets
+                wave_start_download = player.bandwidth.download
+                wave_start_upload = player.bandwidth.upload
+                streak_seconds, max_streak_seconds = 0.0, 0.0
+            elif curr_pps >= Settings.gta5_relay_min_pps:
+                streak_seconds += curr_pps_update_time - last_pps_update_time
+                max_streak_seconds = max(max_streak_seconds, streak_seconds)
+            else:
+                streak_seconds = 0.0
             last_pps_update_time = curr_pps_update_time
 
             if (
                 max_streak_seconds >= Settings.gta5_relay_streak_duration
-                and curr_exchanged >= Settings.gta5_relay_packet_threshold
-                and _has_gta5_relay_traffic_minimums(player)
+                and (curr_exchanged - wave_start_exchanged) >= Settings.gta5_relay_packet_threshold
+                and _has_gta5_relay_traffic_minimums(
+                    player,
+                    wave_download=player.bandwidth.download - wave_start_download,
+                    wave_upload=player.bandwidth.upload - wave_start_upload,
+                )
             ):
                 break
 
