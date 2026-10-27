@@ -220,6 +220,8 @@ class Player:
     def mark_as_left(self) -> None:
         """Mark the player as disconnected and move it to the disconnected registry."""
         self.left_event.set()
+        self.detection_checked = False
+        self.relay_monitor_started = False
 
         self.datetime.set_session_time()
         self.packets.pps.reset()

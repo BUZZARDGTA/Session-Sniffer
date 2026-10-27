@@ -444,8 +444,6 @@ def rendering_core(
             if player.left_event.is_set() or (now - player.datetime.last_seen).total_seconds() < Settings.gui_disconnected_players_timer:
                 continue
             player.mark_as_left()
-            player.detection_checked = False
-            player.relay_monitor_started = False
             to_disconnect.append(i)
             disconnected.append(player)
 
