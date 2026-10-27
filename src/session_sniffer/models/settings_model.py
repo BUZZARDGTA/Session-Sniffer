@@ -206,8 +206,6 @@ class SettingsModel(BaseModel):
     GTA5_RELAY_PACKET_THRESHOLD: int
     GTA5_RELAY_MIN_PPS: int
     GTA5_RELAY_STREAK_DURATION: int
-    GTA5_RELAY_MIN_SENT_PACKETS: int
-    GTA5_RELAY_MIN_UPLOAD_BYTES: int
     GTA5_RELAY_MIN_BANDWIDTH_KB: int
 
     # --- Internal context helpers ---
@@ -278,8 +276,6 @@ class SettingsModel(BaseModel):
         'GTA5_RELAY_PACKET_THRESHOLD': (10, 10000, 40),
         'GTA5_RELAY_MIN_PPS': (1, 100, 2),
         'GTA5_RELAY_STREAK_DURATION': (1, 30, 3),
-        'GTA5_RELAY_MIN_SENT_PACKETS': (0, 1000, 1),
-        'GTA5_RELAY_MIN_UPLOAD_BYTES': (0, 65535, 46),
         'GTA5_RELAY_MIN_BANDWIDTH_KB': (1, 1024, 5),
     }
 

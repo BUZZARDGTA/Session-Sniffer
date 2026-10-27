@@ -122,8 +122,6 @@ class SettingDefaults(TypedDict):
     gta5_relay_packet_threshold: int
     gta5_relay_min_pps: int
     gta5_relay_streak_duration: int
-    gta5_relay_min_sent_packets: int
-    gta5_relay_min_upload_bytes: int
     gta5_relay_min_bandwidth_kb: int
 
 
@@ -281,7 +279,5 @@ SETTING_DEFAULTS: SettingDefaults = {
     'gta5_relay_packet_threshold': 40,
     'gta5_relay_min_pps': 2,
     'gta5_relay_streak_duration': 3,
-    'gta5_relay_min_sent_packets': 1,
-    'gta5_relay_min_upload_bytes': 46,
     'gta5_relay_min_bandwidth_kb': 5,
 }

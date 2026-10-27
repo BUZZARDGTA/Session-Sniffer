@@ -840,16 +840,6 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         tooltip='Number of consecutive seconds a relay IP must sustain the minimum PPS rate before triggering relay detection.',
         min_value=1, max_value=30, step=1, suffix=' seconds',
     ),
-    'gta5_relay_min_sent_packets': SettingMeta(
-        category='GTA V', group='Session Relays', display_label='Session Relay Minimum Sent Packets', setting_type=SettingType.INTEGER,
-        tooltip='Minimum number of outgoing packets sent to the relay IP required for relay detection.',
-        min_value=0, max_value=1000, step=1, suffix=' packets',
-    ),
-    'gta5_relay_min_upload_bytes': SettingMeta(
-        category='GTA V', group='Session Relays', display_label='Session Relay Minimum Upload Bytes', setting_type=SettingType.INTEGER,
-        tooltip='Minimum outgoing bytes uploaded to the relay IP required for relay detection.',
-        min_value=0, max_value=65535, step=1, suffix=' bytes',
-    ),
     'gta5_relay_min_bandwidth_kb': SettingMeta(
         category='GTA V', group='Session Relays', display_label='Session Relay Minimum Bandwidth', setting_type=SettingType.INTEGER,
         tooltip='Minimum bandwidth in kilobytes (KB) on the primary relay direction (Download or Upload) required for relay detection.',

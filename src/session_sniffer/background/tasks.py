@@ -540,15 +540,6 @@ def is_gta5_relay_monitoring_active() -> bool:
     )
 
 
-def _has_gta5_relay_traffic_minimums(player: Player, *, wave_download: int, wave_upload: int) -> bool:
-    """Return True if *player* satisfies packet and byte thresholds for an active GTA5 relay."""
-    return (
-        player.packets.sent >= Settings.gta5_relay_min_sent_packets
-        and player.bandwidth.upload >= Settings.gta5_relay_min_upload_bytes
-        and max(wave_download, wave_upload) >= Settings.gta5_relay_min_bandwidth_kb * 1024
-    )
-
-
 def monitor_gta5_relay_task(player: Player) -> None:
     """Monitor a GTA5 relay IP, flag it in the table, and trigger relay actions when relay traffic is sustained."""
     if not Settings.is_gta5_feature_set() or not is_gta5_relay_ip(player.ip):
@@ -589,11 +580,8 @@ def monitor_gta5_relay_task(player: Player) -> None:
             if (
                 max_streak_seconds >= Settings.gta5_relay_streak_duration
                 and (curr_exchanged - wave_start_exchanged) >= Settings.gta5_relay_packet_threshold
-                and _has_gta5_relay_traffic_minimums(
-                    player,
-                    wave_download=player.bandwidth.download - wave_start_download,
-                    wave_upload=player.bandwidth.upload - wave_start_upload,
-                )
+                and max(player.bandwidth.download - wave_start_download, player.bandwidth.upload - wave_start_upload)
+                >= Settings.gta5_relay_min_bandwidth_kb * 1024
             ):
                 break
 
