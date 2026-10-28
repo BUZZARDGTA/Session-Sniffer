@@ -117,6 +117,7 @@ Grab the latest stable release executable for Windows, Linux, and macOS, or run 
 | RustDesk                 | PC                                 |          No          |                                                                                                                                                                                                              |
 | Snapchat                 | Android, iOS                       |          No          | Sometimes the IP does not leak, or ARP spoofing drops packets. Restarting the app or initiating a call with the camera enabled can help. The IP is typically only exposed at the very beginning of the call. |
 | TeamViewer               | PC                                 |          No          |                                                                                                                                                                                                              |
+| WhatsApp                 | PC                                 |          No          | Worked during a camera call, though calls usually route through a server; exact circumstances for P2P connections are unclear.                                                                               |
 
 > _Note_: Session Sniffer works with all peer-to-peer (P2P) games and software, but only the titles listed above have been confirmed to work.
 
