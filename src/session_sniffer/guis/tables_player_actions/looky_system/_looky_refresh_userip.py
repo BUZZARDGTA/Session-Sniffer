@@ -472,8 +472,10 @@ class LookyRefreshReviewDialog(PlayerInfoDialogMixin):
         source_label, target_label = _format_db_label(entry.db_path), _format_db_label(entry.target_db_path)
         suspect_count = len(entry.suspect_removals)
         cleanup_suffix = f' \u00b7 {suspect_count} wrong candidate row{pluralize(suspect_count)} to delete' if suspect_count > 0 else ''
+        is_new_username = not entry.is_confirmation and not entry.is_known_in_db
+        user_text = (entry.anchor_username or '\u2014') if is_new_username else entry.username
         if entry.target_db_path != entry.db_path:
-            icon, action_text, user_color, action_color = self._move_icon, f'Move to {target_label}', _COLOR_CONFIRMED, _COLOR_CONFIRMED
+            icon, action_text, user_color, action_color = self._move_icon, f'Move to {target_label}', _COLOR_DB_LABEL if is_new_username else _COLOR_CONFIRMED, _COLOR_CONFIRMED
             details = f'Move from {source_label} to {target_label} (Source = Looky){cleanup_suffix}'
             tip = (
                 f'Looky resolved "{entry.username}" on IP {entry.ip}.\n\n\u2022 Checked: Saves "{entry.username} = {entry.ip}" (Source = Looky) '
@@ -494,13 +496,13 @@ class LookyRefreshReviewDialog(PlayerInfoDialogMixin):
                 f'(Source = Looky) in "{target_label}".\n\u2022 Tip: Change "Target Database" on the right to move this player directly to another database.'
             )
         else:
-            icon, action_text, user_color, action_color = self._new_icon, 'Add New Username', _COLOR_NEW, _COLOR_NEW_TAG
+            icon, action_text, user_color, action_color = self._new_icon, 'Add New Username', _COLOR_DB_LABEL, _COLOR_NEW_TAG
             details = f'New username returned by Looky on {entry.ip} (not in {source_label} yet)'
             tip = (
                 f'Looky returned "{entry.username}" on IP {entry.ip}. This username is not in "{source_label}" yet.\n\n'
                 f'\u2022 Checked: Adds "{entry.username} = {entry.ip}" (Source = Looky) to "{target_label}".\n\u2022 Unchecked: Ignores this username.'
             )
-        for col, text, color in ((0, entry.username, user_color), (_COL_ACTION, action_text, action_color), (_COL_DETAILS, details, _COLOR_DB_LABEL)):
+        for col, text, color in ((0, user_text, user_color), (_COL_ACTION, action_text, action_color), (_COL_DETAILS, details, _COLOR_DB_LABEL)):
             item.setText(col, text)
             item.setForeground(col, QBrush(color))
         item.setIcon(_COL_ACTION, icon)
@@ -724,8 +726,9 @@ class LookyRefreshReviewDialog(PlayerInfoDialogMixin):
         goto_icon, box_icon = QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'arrow-right.svg')), QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'box.svg'))
         username_str, ip_or_range, looky_user_str = item.text(0).strip(), item.text(_COL_IP).strip(), item.text(_COL_LOOKY_USER).strip()
         db_path = item.data(_COL_TARGET_DB, Qt.ItemDataRole.UserRole)
-        looky_copy = '' if looky_user_str in {'\u2014', username_str} else looky_user_str
-        for label_text, copy_val in (('Copy Username', username_str), ('Copy Looky Username', looky_copy), ('Copy IP Address', ip_or_range)):
+        user_copy = '' if username_str == '\u2014' else username_str
+        looky_copy = '' if looky_user_str in {'\u2014', user_copy} else looky_user_str
+        for label_text, copy_val in (('Copy Username', user_copy), ('Copy Looky Username', looky_copy), ('Copy IP Address', ip_or_range)):
             if copy_val:
                 menu.addAction(copy_icon, label_text, partial(set_clipboard_text, copy_val))
 
@@ -743,14 +746,15 @@ class LookyRefreshReviewDialog(PlayerInfoDialogMixin):
         owner = self._owner_window
         if isValid(owner) and isinstance(owner, _UserIPManagerProtocol):
             menu.addSeparator()
-            for act_label, query_val in ((f'Find "{username_str}" in All Databases', username_str), (f'Find IP {ip_or_range} in All Databases', ip_or_range)):
+            q_user = user_copy or looky_copy
+            for act_label, query_val in ((f'Find "{q_user}" in All Databases', q_user), (f'Find IP {ip_or_range} in All Databases', ip_or_range)):
                 if query_val:
                     act = menu.addAction(search_icon, act_label)
                     act.triggered.connect(partial(owner.search_global, query_val))
                     act.triggered.connect(lambda: activate_window(owner))
             if (source_db := matched_pair[1].db_path if matched_pair is not None else (db_path if isinstance(db_path, Path) else None)) is not None:
                 act_db = menu.addAction(goto_icon, f'Go to Database ("{source_db.stem}")')
-                act_db.triggered.connect(lambda: owner.navigate_to_database(source_db, username=username_str, ip_or_range=ip_or_range))
+                act_db.triggered.connect(lambda: owner.navigate_to_database(source_db, username=user_copy, ip_or_range=ip_or_range))
                 act_db.triggered.connect(lambda: activate_window(owner))
 
         if viewport := self._tree.viewport():
@@ -822,19 +826,16 @@ def _build_pending_entries_for_database(
                 assigned_user_cleanup_cf.add(name_cf)
 
             if is_searchlist and (is_confirmation or is_known):
-                for other_name, other_is_looky, other_det, other_notes in existing_entries_for_ip:
-                    other_cf = other_name.casefold()
-                    if (
-                        other_cf != name_cf and not other_is_looky and not other_det
-                        and ip not in looky_resolved_ips_by_cf.get(other_cf, set()) and (other_cf, ip) not in assigned_removal_pairs
-                    ):
-                        assigned_removal_pairs.add((other_cf, ip))
-                        reason = f'Belongs to "{display_name}" on Looky, not "{other_name}"'
-                        removals.append(_SuspectRemoval(db_path, other_cf, other_name, ip, display_name, other_notes, reason))
+                for o_name, o_looky, o_det, o_notes in existing_entries_for_ip:
+                    o_cf = o_name.casefold()
+                    if o_cf != name_cf and not o_looky and not o_det and ip not in looky_resolved_ips_by_cf.get(o_cf, set()) and (o_cf, ip) not in assigned_removal_pairs:
+                        assigned_removal_pairs.add((o_cf, ip))
+                        removals.append(_SuspectRemoval(db_path, o_cf, o_name, ip, display_name, o_notes, f'Belongs to "{display_name}" on Looky, not "{o_name}"'))
 
             if existing_is_looky and default_targets[name_cf] == db_path and not removals:
                 continue
-            anchor_user = anchor_by_ip.get(ip, display_name) if anchor_by_ip is not None else display_name
+            def_anchor = anchor_by_ip.get(ip, '') if anchor_by_ip is not None else ''
+            anchor_user = (existing_entries_for_ip[0][0] if existing_entries_for_ip else def_anchor) if not (is_confirmation or is_known) else (def_anchor or display_name)
             pending_entries.append(_PendingEntry(
                 db_path, default_targets[name_cf], ip, display_name, existing_notes,
                 is_confirmation, is_known, existing_is_looky, existing_det, tuple(removals), anchor_user,
