@@ -331,7 +331,7 @@ def handle_detection_notification(
                     )
 
                 # Message box
-                if rule.message_box and player.userip is None:
+                if rule.message_box:
                     conditions_summary = ', '.join(f'{key}={value}' for key, value in rule.conditions.items() if key != 'event')
                     _display_title = f'Combo Rule Matched: {rule.name}'
                     _extra: list[tuple[str, str]] = [('Event', combo_event), ('Conditions', conditions_summary)]
@@ -629,12 +629,14 @@ def check_global_detections(player: Player) -> None:
         display_title: str,
         extra_detection_fields: list[tuple[str, str]],
         settings: _DetectionSettings,
+        *,
+        allow_userip_message_box: bool = False,
     ) -> None:
         """Handle per-join deduplication, suspension, voice, logging, and message box for a detection."""
         effective_suspend = settings.suspend_enabled and bool(settings.suspension_name) and Settings.is_gta5_feature_set() and CaptureState.is_local_capture()
         effective_voice: Literal['Male', 'Female'] | bool = settings.voice if Settings.voice_notifications_enabled and settings.voice else False
         effective_log = settings.log
-        effective_msgbox = settings.msgbox and player.userip is None
+        effective_msgbox = settings.msgbox and (player.userip is None or allow_userip_message_box)
         if not (effective_suspend or bool(effective_voice) or effective_log or effective_msgbox):
             return
         current_active_titles.add(detection_title)
@@ -834,6 +836,7 @@ def check_global_detections(player: Player) -> None:
                 suspend_duration=rule.duration,
                 suspension_name=f'ComboRule:{rule.name}',
             ),
+            allow_userip_message_box=True,
         )
 
     with _fired_detections_lock:
