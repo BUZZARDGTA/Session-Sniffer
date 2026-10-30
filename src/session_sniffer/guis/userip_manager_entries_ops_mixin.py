@@ -21,6 +21,7 @@ from session_sniffer.guis.userip_manager_helpers import (
     USERNAME_COLUMN,
     EntriesSortProxy,
     IPRangeBuilderDialog,
+    append_entry_rows,
     append_userip_entries,
     build_entry_row_items,
     clear_row_looky_badge,
@@ -179,20 +180,31 @@ class UserIPEntriesOperationsMixin(QDialog):
 
     def _load_all_databases(self) -> None:
         """Parse all .json files and populate the table with entries from every database."""
-        self._model.removeRows(0, self._model.rowCount())
+        dynamic_sort_filter = self._proxy.dynamicSortFilter()
+        self._proxy.setDynamicSortFilter(False)
+        try:
+            self._model.removeRows(0, self._model.rowCount())
 
-        total_entries = 0
-        total_files = 0
+            rows = []
+            total_entries = 0
+            total_files = 0
 
-        for json_path, entries in iter_userip_databases():
-            total_files += 1
-            for entry in entries:
-                total_entries += 1
-                self._append_row(
-                    entry,
-                    index=total_entries,
-                    database=(json_path.stem, json_path),
-                )
+            for json_path, entries in iter_userip_databases():
+                total_files += 1
+                for entry in entries:
+                    total_entries += 1
+                    row = build_entry_row_items(
+                        entry,
+                        index=total_entries,
+                        database=(json_path.stem, json_path),
+                        looky_icon=self._looky_icon,
+                    )
+                    rows.append(row)
+
+            append_entry_rows(self._model, rows)
+        finally:
+            self._proxy.setDynamicSortFilter(dynamic_sort_filter)
+            self._proxy.invalidate()
 
         self._set_status(f'Global search: {total_entries} entries across {total_files} databases')
         self._proxy.setFilterFixedString(self._search_input.text())

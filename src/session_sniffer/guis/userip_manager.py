@@ -61,6 +61,7 @@ from session_sniffer.guis.userip_manager_helpers import (
     UPDATED_AT_COLUMN,
     USERNAME_COLUMN,
     EntriesSortProxy,
+    append_entry_rows,
     build_entry_row_items,
     clear_row_looky_badge,
     human_readable_size,
@@ -634,9 +635,18 @@ class UserIPDatabasesManager(
         self._capture_settings_snapshot()
         self._settings_container.setVisible(True)
 
-        entry_count = 0
-        for entry_count, entry in enumerate(db_model.entries, start=1):
-            self._append_row(entry, index=entry_count)
+        rows = [
+            build_entry_row_items(entry, index=entry_count, looky_icon=self._looky_icon)
+            for entry_count, entry in enumerate(db_model.entries, start=1)
+        ]
+        dynamic_sort_filter = self._proxy.dynamicSortFilter()
+        self._proxy.setDynamicSortFilter(False)
+        try:
+            append_entry_rows(self._model, rows)
+        finally:
+            self._proxy.setDynamicSortFilter(dynamic_sort_filter)
+            self._proxy.invalidate()
+        entry_count = len(rows)
 
         self._next_index = entry_count + 1
         self._update_file_info(path)

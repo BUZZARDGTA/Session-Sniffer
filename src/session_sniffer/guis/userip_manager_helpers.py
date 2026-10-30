@@ -227,6 +227,17 @@ def build_entry_row_items(
     return [index_item, username_item, ip_item, range_item, db_item, notes_item, source_item, detections_item, added_item, updated_item, first_seen_item, last_seen_item]
 
 
+def append_entry_rows(model: QStandardItemModel, rows: list[list[QStandardItem]]) -> None:
+    """Insert prepared entry rows in one model operation, then populate their cells."""
+    if not rows:
+        return
+    first_row = model.rowCount()
+    model.insertRows(first_row, len(rows))
+    for row_index, row_items in enumerate(rows, start=first_row):
+        for column, item in enumerate(row_items):
+            model.setItem(row_index, column, item)
+
+
 def is_row_persisted(model: QStandardItemModel, row: int) -> bool:
     """Return `True` if the row was loaded from or previously saved to disk."""
     return bool(model.item(row, INDEX_COLUMN).data(IS_PERSISTED_ROLE))
