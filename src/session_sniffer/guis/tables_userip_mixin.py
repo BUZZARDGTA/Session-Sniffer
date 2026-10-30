@@ -144,8 +144,6 @@ def _prompt_usernames_to_add(
             selected = dialog.selected_usernames()
             if not selected:
                 return None
-            if Settings.userip_sync_known_alts:
-                selected = UserIPDatabases.expand_with_known_alts(selected)
             return selected, dialog.notes_by_username()
 
         # User clicked 'Custom…' in the selection dialog
@@ -206,9 +204,6 @@ def userip_add(
     if not chosen_usernames:
         return
 
-    if Settings.userip_sync_known_alts:
-        chosen_usernames = UserIPDatabases.expand_with_known_alts(chosen_usernames)
-
     existing_pairs: set[tuple[str, str]] = set()
     if selected_database.is_file():
         db_model = load_userip_database_model(selected_database)
@@ -267,9 +262,6 @@ def userip_add_as_range(
     chosen_usernames, notes_by_username = prompt_result
     if not chosen_usernames:
         return
-
-    if Settings.userip_sync_known_alts:
-        chosen_usernames = UserIPDatabases.expand_with_known_alts(chosen_usernames)
 
     append_userip_entries(
         selected_database,
@@ -489,9 +481,6 @@ def userip_add_username(parent: QWidget, ip_address: str, player: Player) -> Non
     entered_usernames, notes_by_username = prompt_result
     if not entered_usernames:
         return
-
-    if Settings.userip_sync_known_alts:
-        entered_usernames = UserIPDatabases.expand_with_known_alts(entered_usernames)
 
     target_options = _collect_matching_entries_in_db(db_path, ip_address, ranges_only=False)
     if not target_options:
@@ -725,12 +714,20 @@ def userip_remove_username(parent: QWidget, ip_address: str, player: Player) -> 
     if player.userip is None or not player.userip.usernames:
         return
 
-    ip_usernames = list(player.userip.usernames)
+    db_path = player.userip.db_path
+    if not db_path.is_file():
+        return
+
+    db_model = load_userip_database_model(db_path)
+    ip_usernames = dedup_preserve_order(
+        entry.username.strip()
+        for entry in db_model.entries
+        if entry.username.strip() and entry_ip_covers_ip(entry.ip.strip(), ip_address)
+    )
 
     if len(ip_usernames) < MIN_USERNAMES_FOR_REMOVAL:
         return
 
-    db_path = player.userip.db_path
     db_display = str(db_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix(''))
     dialog = SelectUsernamesDialog.for_remove(
         parent,
