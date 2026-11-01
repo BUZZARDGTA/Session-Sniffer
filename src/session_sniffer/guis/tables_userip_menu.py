@@ -14,6 +14,7 @@ from session_sniffer.guis.looky_text import (
 from session_sniffer.guis.tables_player_actions.looky_system._looky_refresh_userip import looky_refresh_userip_entries
 from session_sniffer.guis.tables_userip_mixin import (
     MIN_USERNAMES_FOR_REMOVAL,
+    collect_persisted_usernames_for_ip,
     resolve_usernames_for_player,
     userip_add,
     userip_add_as_range,
@@ -244,13 +245,15 @@ def build_userip_menu(
             handler=lambda: userip_convert_to_ip(parent, ip_address, player),
             icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'refresh-cw.svg')),
         )
-    add_action(
-        userip_menu,
-        'Rename',
-        tooltip='Rename all entries for this IP address by picking from existing usernames in its database.',
-        handler=lambda: userip_rename(parent, ip_address, player),
-        icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square-pen.svg')),
-    )
+    persisted_usernames = collect_persisted_usernames_for_ip(player.userip.db_path, ip_address)
+    if persisted_usernames:
+        add_action(
+            userip_menu,
+            'Rename',
+            tooltip='Rename all entries for this IP address by picking from existing usernames in its database.',
+            handler=lambda: userip_rename(parent, ip_address, player),
+            icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square-pen.svg')),
+        )
     note_action = 'Edit' if player.userip.notes else 'Add'
     note_label = f'{note_action} Note…'
     add_action(
@@ -273,7 +276,7 @@ def build_userip_menu(
         handler_factory=lambda db_path: lambda: userip_move(parent, [ip_address], db_path),
         disabled_path=player.userip.db_path,
     )
-    if player.userip.usernames and len(player.userip.usernames) >= MIN_USERNAMES_FOR_REMOVAL:
+    if len(persisted_usernames) >= MIN_USERNAMES_FOR_REMOVAL:
         add_action(
             userip_menu,
             'Remove Username…',

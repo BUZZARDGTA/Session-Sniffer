@@ -50,6 +50,18 @@ def _collect_matching_entries_in_db(db_path: Path, ip_address: str, *, ranges_on
     return matching_entries
 
 
+def collect_persisted_usernames_for_ip(db_path: Path, ip_address: str) -> list[str]:
+    """Return deduplicated usernames from entries in `db_path` whose IP/range covers `ip_address`."""
+    if not db_path.is_file():
+        return []
+    db_model = load_userip_database_model(db_path)
+    return dedup_preserve_order(
+        entry.username.strip()
+        for entry in db_model.entries
+        if entry.username.strip() and entry_ip_covers_ip(entry.ip.strip(), ip_address)
+    )
+
+
 def _show_modal_info_on_top(parent: QWidget, title: str, text: str) -> None:
     """Show a modal information message box that stays on top of other windows."""
     message_box = QMessageBox(parent)
@@ -526,14 +538,20 @@ def userip_add_username(parent: QWidget, ip_address: str, player: Player) -> Non
 
 def userip_rename_multi(parent: QWidget, players: list[Player]) -> None:
     """Prompt once for a new username and apply it to all selected players' IP entries."""
-    eligible = [(player.ip, player.userip) for player in players if player.userip is not None and player.userip.usernames]
+    eligible: list[tuple[str, Path, list[str]]] = []
+    for player in players:
+        if player.userip is None or not player.userip.usernames:
+            continue
+        db_usernames = collect_persisted_usernames_for_ip(player.userip.db_path, player.ip)
+        if db_usernames:
+            eligible.append((player.ip, player.userip.db_path, db_usernames))
     if not eligible:
         return
 
-    ips_display = ', '.join(ip for ip, _ in eligible)
+    ips_display = ', '.join(ip for ip, _, _ in eligible)
 
     # Pre-fill with the shared username if every selected player has exactly the same one
-    all_username_sets = [frozenset(userip.usernames) for _, userip in eligible]
+    all_username_sets = [frozenset(db_usernames) for _, _, db_usernames in eligible]
     shared_username = (
         next(iter(all_username_sets[0])) if len(all_username_sets[0]) == 1 and all(username_set == all_username_sets[0] for username_set in all_username_sets) else ''
     )
@@ -552,11 +570,11 @@ def userip_rename_multi(parent: QWidget, players: list[Player]) -> None:
 
     # Build mapping: db_path → list of (old_username, ip) pairs to rename
     by_db: dict[Path, list[tuple[str, str]]] = {}
-    for ip, userip in eligible:
-        if userip.db_path not in by_db:
-            by_db[userip.db_path] = []
-        for old_u in userip.usernames:
-            by_db[userip.db_path].append((old_u, ip))
+    for ip, db_path, db_usernames in eligible:
+        if db_path not in by_db:
+            by_db[db_path] = []
+        for old_u in db_usernames:
+            by_db[db_path].append((old_u, ip))
 
     total_renamed = 0
     for db_path, pairs in by_db.items():
@@ -578,7 +596,10 @@ def userip_rename(parent: QWidget, ip_address: str, player: Player) -> None:
 
     db_path = player.userip.db_path
     db_display = str(db_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix(''))
-    ip_usernames = list(player.userip.usernames)
+    ip_usernames = collect_persisted_usernames_for_ip(db_path, ip_address)
+    if not ip_usernames:
+        QMessageBox.information(parent, TITLE, f'No entries found for IP {ip_address} in the database.')
+        return
 
     # Step 1: Determine which username to rename
     old_username: str | None
@@ -718,15 +739,7 @@ def userip_remove_username(parent: QWidget, ip_address: str, player: Player) -> 
         return
 
     db_path = player.userip.db_path
-    if not db_path.is_file():
-        return
-
-    db_model = load_userip_database_model(db_path)
-    ip_usernames = dedup_preserve_order(
-        entry.username.strip()
-        for entry in db_model.entries
-        if entry.username.strip() and entry_ip_covers_ip(entry.ip.strip(), ip_address)
-    )
+    ip_usernames = collect_persisted_usernames_for_ip(db_path, ip_address)
 
     if len(ip_usernames) < MIN_USERNAMES_FOR_REMOVAL:
         return
