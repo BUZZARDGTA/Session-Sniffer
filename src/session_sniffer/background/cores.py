@@ -119,6 +119,12 @@ _IPAPI_FIELDS = (
 )
 _IPAPI_PROBE_IP = '1.1.1.1'
 _PLAYER_CORE_MAX_WORKERS = 8
+_HTTP_SERVER_ERROR_MAX_STATUS = 599
+
+
+def _is_http_server_error(status_code: int) -> bool:
+    """Return True if `status_code` is a 5xx server error (including non-IANA codes like Cloudflare 520-530)."""
+    return HTTPStatus.INTERNAL_SERVER_ERROR <= status_code <= _HTTP_SERVER_ERROR_MAX_STATUS
 
 
 def _notify_ipapi_unavailable(reason: str) -> None:
@@ -329,7 +335,7 @@ def iplookup_core() -> None:
                     continue
 
                 # Transient server-side errors — wait and retry.
-                if HTTPStatus(e.response.status_code).is_server_error:
+                if _is_http_server_error(e.response.status_code):
                     logger.warning('ip-api.com returned %s, retrying in 5 seconds...', e.response.status_code)
                     _wait_iplookup_event(5)
                     continue
@@ -575,7 +581,7 @@ def looky_core() -> None:
                 if e.response is not None and e.response.status_code == HTTPStatus.UNAUTHORIZED:
                     logger.warning(LOOKY_LOG_API_KEY_INVALID)
                     _failed_verification_api_key = Settings.looky_api_key
-                elif e.response is not None and HTTPStatus(e.response.status_code).is_server_error:
+                elif e.response is not None and _is_http_server_error(e.response.status_code):
                     server_error_consecutive_failures += 1
                     cooldown_duration = min(30 * (2 ** (server_error_consecutive_failures - 1)), 300)
                     logger.warning(
@@ -588,7 +594,7 @@ def looky_core() -> None:
                     continue
                 else:
                     logger.warning(LOOKY_LOG_VERIFICATION_HTTP_FAILED_TEMPLATE, status, reason)
-            except requests.RequestException as e:
+            except (requests.RequestException, ValidationError) as e:
                 server_error_consecutive_failures += 1
                 cooldown_duration = min(30 * (2 ** (server_error_consecutive_failures - 1)), 300)
                 logger.warning('[Looky System] Token verification failed: %s. Entering %ss cooldown.', e, cooldown_duration)
@@ -660,11 +666,11 @@ def looky_core() -> None:
         except requests.HTTPError as e:
             if e.response is not None and e.response.status_code == HTTPStatus.TOO_MANY_REQUESTS:
                 _looky_queue.requeue_front(batch)
-                wait_seconds = extract_rate_limit_wait_seconds(e)
+                wait_seconds = extract_rate_limit_wait_seconds(e) or 15
                 logger.warning('[Looky System] Rate limited — waiting %s seconds', wait_seconds)
                 gui_closed__event.wait(wait_seconds)
                 continue
-            if e.response is not None and HTTPStatus(e.response.status_code).is_server_error:
+            if e.response is not None and _is_http_server_error(e.response.status_code):
                 _looky_queue.requeue_front(batch)
                 server_error_consecutive_failures += 1
                 cooldown_duration = min(30 * (2 ** (server_error_consecutive_failures - 1)), 300)
