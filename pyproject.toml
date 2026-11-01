@@ -149,6 +149,7 @@ select = ["ALL"]
 allowed-confusables = ["➕", "ℹ"]
 
 [tool.ruff.lint.per-file-ignores]
+".agents/**" = ["INP001"]
 ".dev/*" = ["INP001"]
 ".github/workflows/scripts/*" = ["INP001"]
 "check_project_dependencies.py" = ["INP001", "S310", "T201"]

@@ -1,0 +1,32 @@
+{
+  "session-sniffer-command-guard": {
+    "enabled": true,
+    "PreToolUse": [
+      {
+        "matcher": "run_command",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python hooks/agent_hooks.py pre-tool-use",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  },
+  "session-sniffer-crlf-enforcer": {
+    "enabled": true,
+    "PostToolUse": [
+      {
+        "matcher": "write_file|edit_file|run_command",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python hooks/agent_hooks.py post-tool-use",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}
