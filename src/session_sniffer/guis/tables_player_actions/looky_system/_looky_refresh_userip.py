@@ -49,11 +49,7 @@ from session_sniffer.guis.stylesheets import (
 )
 from session_sniffer.guis.table_column_resizing import setup_table_header_context_menu
 from session_sniffer.guis.tables_player_actions._player_info_dialog_mixin import PlayerInfoDialogMixin
-from session_sniffer.guis.tables_player_actions.looky_system._looky_helpers import (
-    LookyRefreshLoadingDialog,
-    check_looky_prerequisites,
-    format_looky_request_error,
-)
+from session_sniffer.guis.tables_player_actions.looky_system._looky_helpers import LookyRefreshLoadingDialog, check_looky_prerequisites, format_looky_request_error
 from session_sniffer.guis.userip_manager_helpers import (
     append_userip_entries,
     load_userip_database_model,
@@ -761,16 +757,20 @@ class LookyRefreshReviewDialog(PlayerInfoDialogMixin):
             menu.popup(viewport.mapToGlobal(pos))
 
 
-def _resolve_default_targets(db_path: Path, *, is_searchlist: bool) -> defaultdict[str, Path]:
-    """Return a `username_cf -> target_db_path` mapping (other DB if matched, else `Randomlist` for Searchlist)."""
-    other_dbs = [path for _label, path in _list_available_databases(set()) if path.stem.casefold() != 'searchlist'] if is_searchlist else []
-    fallback_db = next((path for path in other_dbs if path.stem.casefold() == 'randomlist'), db_path)
-    targets = defaultdict[str, Path](lambda: fallback_db)
+def _resolve_cross_db_context(db_path: Path, *, is_searchlist: bool) -> tuple[defaultdict[str, Path], dict[str, Path], list[str]]:
+    """Return `(username_targets, single_ip_owners, other_ranges)` across all other non-Searchlist databases."""
+    other_dbs = [path for _label, path in _list_available_databases(set()) if path != db_path and path.stem.casefold() != 'searchlist']
+    fallback_db = next((path for path in other_dbs if path.stem.casefold() == 'randomlist'), db_path) if is_searchlist else db_path
+    targets, ip_owners, other_ranges = defaultdict[str, Path](lambda: fallback_db), dict[str, Path](), list[str]()
     for other_db in sorted(other_dbs, key=lambda path: path.stem.casefold() == 'randomlist'):
         for entry in load_userip_database_model(other_db).entries:
-            if entry.username:
+            if is_searchlist and entry.username:
                 targets.setdefault(entry.username.casefold(), other_db)
-    return targets
+            if _is_single_ipv4(entry.ip):
+                ip_owners.setdefault(entry.ip, other_db)
+            elif entry.ip:
+                other_ranges.append(entry.ip)
+    return targets, ip_owners, other_ranges
 
 
 def _build_pending_entries_for_database(
@@ -778,7 +778,7 @@ def _build_pending_entries_for_database(
 ) -> tuple[list[_PendingEntry], list[_SuspectRemoval], int]:
     """Build sorted `_PendingEntry` and standalone `_SuspectRemoval` items for *db_path*."""
     snapshot, is_searchlist = _collect_existing_usernames(db_path), db_path.stem.casefold() == 'searchlist'
-    default_targets = _resolve_default_targets(db_path, is_searchlist=is_searchlist)
+    default_targets, ip_owners, other_ranges = _resolve_cross_db_context(db_path, is_searchlist=is_searchlist)
     looky_resolved_ips_by_cf: dict[str, set[str]] = defaultdict(set)
     for db_ip, db_entries in snapshot.ip_to_entries.items():
         for name, is_looky, _det, _notes in db_entries:
@@ -794,9 +794,14 @@ def _build_pending_entries_for_database(
     for ip in ip_addresses:
         if not _is_single_ipv4(ip) or ip in seen_ips_for_db:
             continue
+        is_in_other_db = ip in ip_owners or any(entry_ip_covers_ip(r, ip) for r in other_ranges)
+        if not is_searchlist and is_in_other_db and ip not in snapshot.ip_to_entries:
+            continue
         seen_ips_for_db.add(ip)
         players, existing_entries_for_ip = results.get(ip, []), snapshot.ip_to_entries.get(ip, [])
         existing_by_cf = {name.casefold(): (name, is_looky, det, notes) for name, is_looky, det, notes in existing_entries_for_ip}
+        matched_non_random = (default_targets[p_cf] for p in players if (p_cf := p.name.casefold()) in snapshot.all_usernames_cf)
+        ip_target_db = (ip_owners.get(ip) or next((db for db in matched_non_random if db.stem.casefold() != 'randomlist'), None)) if is_searchlist else None
         seen_new_cf: set[str] = set()
         for player_entry in players:
             name_cf = player_entry.name.casefold()
@@ -812,7 +817,7 @@ def _build_pending_entries_for_database(
                 existing_notes = snapshot.notes_by_cf.get(name_cf, '') if is_searchlist else ''
                 existing_is_looky, existing_det, is_confirmation, is_known = False, 0, False, name_cf in snapshot.all_usernames_cf
 
-            if is_searchlist and not (is_confirmation or is_known):
+            if (is_searchlist and not (is_confirmation or is_known)) or (not is_searchlist and is_in_other_db and not is_confirmation):
                 continue
 
             removals: list[_SuspectRemoval] = []
@@ -832,21 +837,20 @@ def _build_pending_entries_for_database(
                         assigned_removal_pairs.add((o_cf, ip))
                         removals.append(_SuspectRemoval(db_path, o_cf, o_name, ip, display_name, o_notes, f'Belongs to "{display_name}" on Looky, not "{o_name}"'))
 
-            if existing_is_looky and default_targets[name_cf] == db_path and not removals:
+            target_db = ip_target_db or default_targets[name_cf]
+            if existing_is_looky and target_db == db_path and not removals:
                 continue
             def_anchor = anchor_by_ip.get(ip, '') if anchor_by_ip is not None else ''
             anchor_user = (existing_entries_for_ip[0][0] if existing_entries_for_ip else def_anchor) if not (is_confirmation or is_known) else (def_anchor or display_name)
             pending_entries.append(_PendingEntry(
-                db_path, default_targets[name_cf], ip, display_name, existing_notes,
-                is_confirmation, is_known, existing_is_looky, existing_det, tuple(removals), anchor_user,
+                db_path, target_db, ip, display_name, existing_notes, is_confirmation, is_known, existing_is_looky, existing_det, tuple(removals), anchor_user,
             ))
             seen_new_cf.add(name_cf)
             counted_ips_with_results.add(ip)
 
     if is_searchlist:
         for ip in seen_ips_for_db:
-            random_label = ', '.join(dict.fromkeys(player_entry.name for player_entry in results.get(ip, []) if player_entry.name.casefold() not in snapshot.all_usernames_cf))
-            if not random_label:
+            if not (random_label := ', '.join(dict.fromkeys(p.name for p in results.get(ip, []) if p.name.casefold() not in snapshot.all_usernames_cf))):
                 continue
             for other_name, other_is_looky, other_det, other_notes in snapshot.ip_to_entries.get(ip, []):
                 other_cf = other_name.casefold()
@@ -876,8 +880,7 @@ def _apply_accepted_changes(accepted_entries: list[_PendingEntry], accepted_remo
     for target_db_path, db_entries in by_target_db.items():
         ordered_entries = sorted(db_entries, key=lambda item: not (item.is_confirmation or item.is_known_in_db))
         new_models = [
-            UserIPEntryModel(username=entry.username, ip=entry.ip, is_looky=True, source='Looky', detections_count=entry.detections_count, notes=entry.notes)
-            for entry in ordered_entries
+            UserIPEntryModel(username=e.username, ip=e.ip, is_looky=True, source='Looky', detections_count=e.detections_count, notes=e.notes) for e in ordered_entries
         ]
         anchors = {entry.ip: entry.anchor_username for entry in ordered_entries if entry.anchor_username}
         added_pairs = append_userip_entries(target_db_path, new_models, anchor_usernames_by_ip=anchors)
@@ -940,9 +943,12 @@ def looky_refresh_userip_entries(parent: QWidget, entries: list[tuple[Path, list
     def _on_finished_ok(results: dict[str, list[LookyPlayer]], discovered_ips_by_cf: dict[str, list[str]]) -> None:
         loading_dialog.accept()
         pending_entries, standalone_removals, total_ips_with_results = list[_PendingEntry](), list[_SuspectRemoval](), 0
+        claimed_ips = {ip for _db_path, ip_addresses in entries for ip in ip_addresses if _is_single_ipv4(ip)}
         for db_path, ip_addresses in entries:
-            anchor_by_ip = {ip: username for username in reversed(db_usernames_by_path.get(db_path, [])) for ip in discovered_ips_by_cf.get(username.casefold(), [])}
-            discovered_for_db = [ip for username in db_usernames_by_path.get(db_path, []) for ip in discovered_ips_by_cf.get(username.casefold(), [])]
+            db_users = db_usernames_by_path.get(db_path, [])
+            anchor_by_ip = {ip: username for username in reversed(db_users) for ip in discovered_ips_by_cf.get(username.casefold(), [])}
+            discovered_for_db = [ip for username in db_users for ip in discovered_ips_by_cf.get(username.casefold(), []) if ip not in claimed_ips]
+            claimed_ips.update(discovered_for_db)
             db_pending, db_removals, db_ips_count = _build_pending_entries_for_database(db_path, [*ip_addresses, *discovered_for_db], results, anchor_by_ip=anchor_by_ip)
             pending_entries.extend(db_pending)
             standalone_removals.extend(db_removals)
@@ -956,7 +962,6 @@ def looky_refresh_userip_entries(parent: QWidget, entries: list[tuple[Path, list
             msg = f'No new usernames or unconfirmed candidate IPs found.\n\nAll resolved usernames already exist in the database{pluralize(len(entries))}.'
             QMessageBox.information(parent, TITLE, msg)
             return
-
         dialog = LookyRefreshReviewDialog(parent, pending_entries, standalone_removals, ips_with_results_count=total_ips_with_results)
 
         def _on_review_accepted() -> None:
@@ -964,11 +969,8 @@ def looky_refresh_userip_entries(parent: QWidget, entries: list[tuple[Path, list
             if not (total_added or total_moved or total_removed):
                 return
             refresh_userip_and_wake_renderer()
-            summary_parts = [
-                f'{verb} {cnt} {noun}{pluralize(cnt)}' for cnt, verb, noun in (
-                    (total_added, 'added or confirmed', 'username'), (total_moved, 'moved', 'username'), (total_removed, 'deleted', 'wrong candidate row'),
-                ) if cnt
-            ]
+            parts = [(total_added, 'added or confirmed', 'username'), (total_moved, 'moved', 'username'), (total_removed, 'deleted', 'wrong candidate row')]
+            summary_parts = [f'{verb} {cnt} {noun}{pluralize(cnt)}' for cnt, verb, noun in parts if cnt]
             QMessageBox.information(parent if isValid(parent) else None, TITLE, f'{", ".join(summary_parts).capitalize()} across {db_count} database{pluralize(db_count)}.')
 
         dialog.accepted.connect(_on_review_accepted)
