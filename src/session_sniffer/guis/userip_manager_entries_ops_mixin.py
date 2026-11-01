@@ -53,7 +53,7 @@ from session_sniffer.text_utils import pluralize
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from PySide6.QtGui import QIcon, QStandardItemModel
+    from PySide6.QtGui import QIcon, QStandardItem, QStandardItemModel
 
     from session_sniffer.guis.file_watch import DebouncedFileWatcher
 
@@ -185,7 +185,7 @@ class UserIPEntriesOperationsMixin(QDialog):
         try:
             self._model.removeRows(0, self._model.rowCount())
 
-            rows = []
+            rows: list[list[QStandardItem]] = []
             total_entries = 0
             total_files = 0
 
