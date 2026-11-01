@@ -46,19 +46,11 @@ from session_sniffer.guis.userip_conflict_resolver import open_userip_conflict_r
 from session_sniffer.guis.userip_manager_context_menu_mixin import EntriesContextMenuMixin
 from session_sniffer.guis.userip_manager_entries_ops_mixin import UserIPEntriesOperationsMixin
 from session_sniffer.guis.userip_manager_helpers import (
-    ADDED_AT_COLUMN,
     DATABASE_COLUMN,
-    DETECTIONS_COLUMN,
     ENTRY_TABLE_HEADERS,
-    FIRST_SEEN_AT_COLUMN,
     INDEX_COLUMN,
-    IP_COLUMN,
-    LAST_SEEN_AT_COLUMN,
     NEW_DATABASE_SETTINGS,
-    NOTES_COLUMN,
     RANGE_COLUMN,
-    SOURCE_COLUMN,
-    UPDATED_AT_COLUMN,
     USERNAME_COLUMN,
     EntriesSortProxy,
     append_entry_rows,
@@ -449,11 +441,6 @@ class UserIPDatabasesManager(
         )
 
         header = self._entries_table.header()
-        if header:
-            header.setStretchLastSection(False)
-            for column in range(self._model.columnCount()):
-                header.setSectionResizeMode(column, QHeaderView.ResizeMode.Interactive)
-
         self._entries_table.hideColumn(DATABASE_COLUMN)
         self._reset_column_sizes()
         setup_table_header_context_menu(self._entries_table, on_reset=self._reset_column_sizes)
@@ -983,21 +970,9 @@ class UserIPDatabasesManager(
             if not header:
                 return
             header.setStretchLastSection(False)
-            for column in range(self._model.columnCount()):
+            for column, header_label in enumerate(ENTRY_TABLE_HEADERS):
                 header.setSectionResizeMode(column, QHeaderView.ResizeMode.Interactive)
-
-            self._entries_table.setColumnWidth(INDEX_COLUMN, 50)
-            self._entries_table.setColumnWidth(USERNAME_COLUMN, 180)
-            self._entries_table.setColumnWidth(IP_COLUMN, 120)
-            self._entries_table.setColumnWidth(RANGE_COLUMN, 180)
-            self._entries_table.setColumnWidth(DATABASE_COLUMN, 160)
-            self._entries_table.setColumnWidth(NOTES_COLUMN, 180)
-            self._entries_table.setColumnWidth(SOURCE_COLUMN, 85)
-            self._entries_table.setColumnWidth(DETECTIONS_COLUMN, 85)
-            self._entries_table.setColumnWidth(ADDED_AT_COLUMN, 145)
-            self._entries_table.setColumnWidth(UPDATED_AT_COLUMN, 145)
-            self._entries_table.setColumnWidth(FIRST_SEEN_AT_COLUMN, 145)
-            self._entries_table.setColumnWidth(LAST_SEEN_AT_COLUMN, 145)
+                self._entries_table.setColumnWidth(column, _DEFAULT_ENTRY_COLUMN_WIDTHS[header_label])
             self._adjust_username_column_width()
         finally:
             self._is_programmatic_resizing = False
