@@ -233,9 +233,10 @@ def append_entry_rows(model: QStandardItemModel, rows: list[list[QStandardItem]]
         return
     first_row = model.rowCount()
     model.insertRows(first_row, len(rows))
-    for row_index, row_items in enumerate(rows, start=first_row):
-        for column, item in enumerate(row_items):
-            model.setItem(row_index, column, item)
+    with QSignalBlocker(model):
+        for row_index, row_items in enumerate(rows, start=first_row):
+            for column, item in enumerate(row_items):
+                model.setItem(row_index, column, item)
 
 
 def is_row_persisted(model: QStandardItemModel, row: int) -> bool:
