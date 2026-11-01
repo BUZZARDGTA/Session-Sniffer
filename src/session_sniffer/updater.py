@@ -350,7 +350,7 @@ def _handle_update_decision(
     ignore_skipped: bool = False,
 ) -> tuple[UpdateCheckOutcome, Callable[[], None] | None]:
     """Compare versions and schedule update download if a newer version is available."""
-    is_prerelease_channel = updater_channel == 'Pre-release'
+    is_prerelease_channel = updater_channel == 'Pre-release' or CURRENT_VERSION.is_prerelease
     if is_prerelease_channel:
         latest_stable = Version(versions.latest_stable.version)
         latest_prerelease = Version(versions.latest_prerelease.version)
