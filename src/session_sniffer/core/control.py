@@ -100,6 +100,12 @@ def terminate_script(
     ScriptControl.set_crashed()
 
     if exception_info is not None:
+        logger.critical(
+            'Uncaught exception in %s (method=%s):',
+            caller_thread.name,
+            terminate_method,
+            exc_info=(exception_info.exc_type, exception_info.exc_value, exception_info.exc_traceback),
+        )
         dump_crash_diagnostics(
             f'Uncaught exception in {caller_thread.name} (method={terminate_method}): {exception_info.exc_type.__name__}: {exception_info.exc_value}',
             exc_info=(exception_info.exc_type, exception_info.exc_value, exception_info.exc_traceback),
