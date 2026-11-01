@@ -280,8 +280,8 @@ _MIN_USERNAME_SEARCH_LEN = 2
 _IP_BATCH_SIZE = 32
 _IP_BATCH_MAX_WORKERS = 4
 _IP_BATCH_MIN_INTERVAL = 0.20
-_USERNAME_LOOKUP_MAX_WORKERS = 6
-_USERNAME_SEARCH_MIN_INTERVAL = 0.25
+_USERNAME_LOOKUP_MAX_WORKERS = 4
+_USERNAME_SEARCH_MIN_INTERVAL = 0.35
 _PROFILE_LOOKUP_MAX_WORKERS = 4
 _PROFILE_FETCH_MIN_INTERVAL = 0.15
 _MAX_TRANSIENT_RETRIES = 4
@@ -374,6 +374,7 @@ class _RateLimitPhase:
     label: str
     min_interval: float
     total_count: int
+    completed_getter: Callable[[], int] = lambda: 0
     should_cancel: Callable[[], bool] | None = None
     on_progress: Callable[[str, int, int], None] | None = None
     raise_on_exhaustion: bool = False
@@ -428,7 +429,7 @@ class _LookyRateLimiter:
             logger.debug('[Looky System] Concurrent in-flight request also hit HTTP 429 on %s; already waiting %ds for active cooldown.', context_label, remaining_total)
         return remaining_total
 
-    def wait_and_acquire_slot(self, phase: _RateLimitPhase, current_completed: int) -> bool:
+    def wait_and_acquire_slot(self, phase: _RateLimitPhase) -> bool:
         """Wait out any active HTTP 429 cooldown and reserve a paced request dispatch slot."""
         while True:
             if phase.should_cancel is not None and phase.should_cancel():
@@ -456,6 +457,7 @@ class _LookyRateLimiter:
 
             if cooldown_remaining > 0:
                 if should_report_tick:
+                    current_completed = phase.completed_getter()
                     if phase.on_progress is not None and phase.label and phase.total_count > 0:
                         phase.on_progress(f'{phase.label} (rate limited \u2014 resuming in {remaining_sec}s)', current_completed, phase.total_count)
                     if not remaining_sec % _RATE_LIMIT_LOG_INTERVAL_SECONDS or remaining_sec <= _FINAL_COUNTDOWN_LOG_THRESHOLD:
@@ -467,6 +469,7 @@ class _LookyRateLimiter:
                 continue
 
             if was_cooling_down and phase.label:
+                current_completed = phase.completed_getter()
                 logger.info('[Looky System] Rate-limit cooldown finished for "%s". Resuming requests (%d/%d completed).', phase.label, current_completed, phase.total_count)
                 if phase.on_progress is not None and phase.total_count > 0:
                     phase.on_progress(phase.label, current_completed, phase.total_count)
@@ -487,11 +490,11 @@ class _LookyRateLimiter:
 
             return phase.should_cancel is None or not phase.should_cancel()
 
-    def execute_with_retry[T](self, request_fn: Callable[[], T], phase: _RateLimitPhase, current_completed: int, context_label: str) -> tuple[str, T | None, float]:
+    def execute_with_retry[T](self, request_fn: Callable[[], T], phase: _RateLimitPhase, context_label: str) -> tuple[str, T | None, float]:
         """Execute `request_fn` with slot pacing, infinite 429 cooldown retries, and bounded transient retries."""
         transient_attempts = 0
         while True:
-            if not self.wait_and_acquire_slot(phase, current_completed):
+            if not self.wait_and_acquire_slot(phase):
                 return 'canceled', None, 0.0
             req_started_at = time.monotonic()
             try:
@@ -574,13 +577,12 @@ def lookup_ip_batches(
 
     started_at = time.monotonic()
     completed_holder = [0]
-    phase = _RateLimitPhase(LOOKY_PHASE_IP_BATCHES, _IP_BATCH_MIN_INTERVAL, total_batches, should_cancel, on_progress, raise_on_exhaustion=True)
+    phase = _RateLimitPhase(LOOKY_PHASE_IP_BATCHES, _IP_BATCH_MIN_INTERVAL, total_batches, lambda: completed_holder[0], should_cancel, on_progress, raise_on_exhaustion=True)
 
     def _lookup_one_batch(batch_index: int, batch_ips: list[str]) -> dict[str, list[LookyPlayer]]:
         status, batch_result, elapsed = _RATE_LIMITER.execute_with_retry(
             lambda: lookup_ip_batch(batch_ips, api_key, version),
             phase,
-            completed_holder[0],
             f'IP batch {batch_index}/{total_batches} ({len(batch_ips)} IPs)',
         )
         if status != 'ok' or batch_result is None:
@@ -666,18 +668,17 @@ def _resolve_usernames_to_rids(
     api_resolved_count = 0
     api_not_found_count = 0
     api_failed_count = 0
-    phase = _RateLimitPhase(LOOKY_PHASE_RESOLVE_USERNAMES, _USERNAME_SEARCH_MIN_INTERVAL, total_to_query, should_cancel, on_progress)
+    phase = _RateLimitPhase(LOOKY_PHASE_RESOLVE_USERNAMES, _USERNAME_SEARCH_MIN_INTERVAL, total_to_query, lambda: completed_holder[0], should_cancel, on_progress)
 
     def _resolve_one(name: str) -> tuple[str, int | None, bool]:
         status, resolved_rid, elapsed = _RATE_LIMITER.execute_with_retry(
             lambda: get_rid_by_username(name, api_key),
             phase,
-            completed_holder[0],
             f'username={name!r}',
         )
         if status == 'ok':
             if resolved_rid is not None and resolved_rid > 0:
-                logger.info('[Looky System] Resolved username %r -> Rockstar ID %d (%.2fs).', name, resolved_rid, elapsed)
+                logger.debug('[Looky System] Resolved username %r -> Rockstar ID %d (%.2fs).', name, resolved_rid, elapsed)
             else:
                 logger.debug('[Looky System] Username %r is not indexed in Looky (%.2fs).', name, elapsed)
         return name, resolved_rid, status == 'failed'
@@ -706,10 +707,11 @@ def _resolve_usernames_to_rids(
                     api_failed_count, time.monotonic() - started_at,
                 )
 
+    total_resolved = cached_positive_count + api_resolved_count
     logger.info(
-        '[Looky System] Finished username-to-RID resolution in %.2fs: %d Rockstar ID%s resolved (%d from cache, %d from API, %d not indexed, %d failed).',
-        time.monotonic() - started_at, len(usernames_by_rid), pluralize(len(usernames_by_rid)), cached_positive_count, api_resolved_count,
-        cached_negative_count + api_not_found_count, api_failed_count,
+        '[Looky System] Finished username-to-RID resolution in %.2fs: %d username%s -> %d Rockstar ID%s (%d from cache, %d from API, %d not indexed, %d failed).',
+        time.monotonic() - started_at, total_resolved, pluralize(total_resolved), len(usernames_by_rid), pluralize(len(usernames_by_rid)),
+        cached_positive_count, api_resolved_count, cached_negative_count + api_not_found_count, api_failed_count,
     )
     return usernames_by_rid
 
@@ -756,19 +758,18 @@ def _fetch_profiles_by_rid(
 
     started_at = time.monotonic()
     completed_holder = [0]
-    phase = _RateLimitPhase(LOOKY_PHASE_PLAYER_PROFILES, _PROFILE_FETCH_MIN_INTERVAL, total_to_query, should_cancel, on_progress)
+    phase = _RateLimitPhase(LOOKY_PHASE_PLAYER_PROFILES, _PROFILE_FETCH_MIN_INTERVAL, total_to_query, lambda: completed_holder[0], should_cancel, on_progress)
 
     def _fetch_one(target_rid: int) -> tuple[int, LookyPlayerProfile | None]:
         status, profile, elapsed = _RATE_LIMITER.execute_with_retry(
             lambda: lookup_player_by_rid(target_rid, api_key),
             phase,
-            completed_holder[0],
             f'rid={target_rid}',
         )
         if status == 'ok':
             if profile is not None:
                 sightings_count = len(profile.users_by_rockstar_id)
-                logger.info(
+                logger.debug(
                     '[Looky System] Fetched profile for rid=%d in %.2fs (%d sighting%s, is_modder=%s).',
                     target_rid, elapsed, sightings_count, pluralize(sightings_count), profile.is_modder,
                 )
@@ -788,6 +789,11 @@ def _fetch_profiles_by_rid(
                 return {}
             if profile is not None:
                 profiles_by_rid[target_rid] = profile
+            if not completed % 25 or completed == total_to_query:
+                logger.info(
+                    '[Looky System] Player profile fetch progress: %d/%d (%d%%) queried (%d retrieved, %.1fs elapsed).',
+                    completed, total_to_query, round(completed * 100 / total_to_query), len(profiles_by_rid), time.monotonic() - started_at,
+                )
 
     logger.info(
         '[Looky System] Finished player profile fetch in %.2fs: %d/%d profile%s retrieved.',
@@ -829,7 +835,7 @@ def lookup_username_ips(
             profile.last_seen.astimezone(UTC) if profile.last_seen.tzinfo is not None else profile.last_seen.replace(tzinfo=UTC)
         ) if profile.last_seen is not None else None
         for index, sighting in enumerate(sorted_sightings):
-            if sighting.relay or not _is_valid_player_ipv4(sighting.ip):
+            if sighting.relay or sighting.vpn or not _is_valid_player_ipv4(sighting.ip):
                 continue
             sighting_enhanced = sighting.enhanced or (not index and profile.has_enhanced)
             if (version == 'enhanced' and not sighting_enhanced) or (version == 'legacy' and sighting.enhanced):
