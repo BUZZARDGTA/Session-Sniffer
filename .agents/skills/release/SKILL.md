@@ -10,34 +10,28 @@ Use this skill when the user wants to prepare and commit a new Session Sniffer r
 ## Release Procedure
 
 1. Inspect the Git working tree before making changes.
-2. Read the current `version` from `pyproject.toml`.
-3. Check whether the current version has already been published/tagged on GitHub (`git ls-remote --tags origin` or local tags matching the version prefix):
+2. Run the release helper script in check mode to inspect `pyproject.toml`, published GitHub tags, and the current UTC timestamp:
+   `python .agents/skills/release/scripts/prepare_release.py --check`
+   (See [prepare_release.py](./scripts/prepare_release.py).)
+3. Check whether the current version has already been published/tagged on GitHub (`is_published_on_github` from `git ls-remote --tags origin` or local tags matching the version prefix):
    - If NOT tagged/published on GitHub: do NOT increment the RC or version number; only update the build timestamp.
    - If ALREADY tagged/published on GitHub: ask the user whether this is a new release candidate (`RC`) or a final release.
-4. Generate the current UTC timestamp in the format:
-   - build timestamp: `YYYYMMDD.HHMM`
-   - full UTC timestamp: `YYYY-MM-DDTHH:MM:SSZ`
-5. Update the `version` in `pyproject.toml`:
-   - If unpublished: preserve the existing version prefix (e.g. `v1.5.0rc.69`) and update only the build timestamp.
-   - For a new RC: increment the existing `rc.N` number by one, preserving `X.Y.Z`.
-   - For a final release: remove the `rc.N` suffix, preserving `X.Y.Z`.
-   - Always append the new UTC build timestamp: `+YYYYMMDD.HHMM`
-6. Synchronize `uv.lock` immediately:
-   - Run `uv lock` to rebuild/update the `session-sniffer` version in `uv.lock`.
-   - Enforce CRLF (`\r\n`) line endings on `uv.lock` (since `uv` outputs LF line endings by default).
-   - Run `uv lock --check` to verify the lockfile is completely synchronized.
-7. Review the resulting diff (both `pyproject.toml` and `uv.lock` should reflect the new version).
-8. Run the release-specific validation before committing (see **Validation** below).
-9. Create exactly one version-bump commit containing both `pyproject.toml` and `uv.lock` (see **Commit** below).
-10. Show the user:
-    - previous version,
-    - new version,
-    - changed files (`pyproject.toml`, `uv.lock`),
-    - validation performed,
-    - a copy-ready **GitHub Release Tag** in its own fenced code block (the exact `version` from `pyproject.toml`, e.g. `v1.5.0rc.93+20261027.2106` — never the PEP 440-normalized `uv.lock` version `1.5.0rc93+...`),
-    - a copy-ready **GitHub Release Title** in its own fenced code block (`<version-without-build-metadata> - YYYY/MM/DD (HH:MM)`),
-    - a synthesized **user-facing changelog** from the previous release to `HEAD` (following the **User Changelog** rules below).
-11. Ensure the version-bump commit is pushed before creating any GitHub tag or release. The release tag MUST match `version` in `pyproject.toml` exactly.
+4. Run [prepare_release.py](./scripts/prepare_release.py) to generate the current UTC timestamp (`YYYYMMDD.HHMM` / `YYYY-MM-DDTHH:MM:SSZ`), update `version` in `pyproject.toml`, run `uv lock`, enforce CRLF (`\r\n`) line endings on both `pyproject.toml` and `uv.lock`, and verify synchronization via `uv lock --check`:
+   - If unpublished: `python .agents/skills/release/scripts/prepare_release.py --mode timestamp` (preserves the existing version prefix, e.g. `v1.5.0rc.69`, and updates only `+YYYYMMDD.HHMM`).
+   - For a new RC: `python .agents/skills/release/scripts/prepare_release.py --mode rc` (increments the existing `rc.N` number by one, preserving `X.Y.Z`, and appends `+YYYYMMDD.HHMM`).
+   - For a final release: `python .agents/skills/release/scripts/prepare_release.py --mode final` (removes the `rc.N` suffix, preserving `X.Y.Z`, and appends `+YYYYMMDD.HHMM`).
+5. Review the resulting diff (both `pyproject.toml` and `uv.lock` should reflect the new version).
+6. Run the release-specific validation before committing (see **Validation** below).
+7. Create exactly one version-bump commit containing both `pyproject.toml` and `uv.lock` (see **Commit** below).
+8. Show the user:
+   - previous version,
+   - new version,
+   - changed files (`pyproject.toml`, `uv.lock`),
+   - validation performed,
+   - a copy-ready **GitHub Release Tag** in its own fenced code block (the exact `version` from `pyproject.toml`, e.g. `v1.5.0rc.93+20261027.2106` — never the PEP 440-normalized `uv.lock` version `1.5.0rc93+...`),
+   - a copy-ready **GitHub Release Title** in its own fenced code block (`<version-without-build-metadata> - YYYY/MM/DD (HH:MM)`),
+   - a synthesized **user-facing changelog** from the previous release to `HEAD` (following the **User Changelog** rules below).
+9. Ensure the version-bump commit is pushed before creating any GitHub tag or release. The release tag MUST match `version` in `pyproject.toml` exactly.
 
 ## User Changelog
 
