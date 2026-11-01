@@ -149,12 +149,15 @@ def _prompt_usernames_to_add(
         # User clicked 'Custom…' in the selection dialog
         initial_usernames = dialog.selected_usernames()
         initial_notes = dialog.notes_by_username()
+        expand_entered_alts = False
     elif len(candidates) == 1:
         initial_usernames = [candidates[0]]
         initial_notes = {}
+        expand_entered_alts = True
     else:
         initial_usernames = []
         initial_notes = {}
+        expand_entered_alts = True
 
     if prompt_message is None:
         def _default_prompt(count: int) -> str:
@@ -177,7 +180,7 @@ def _prompt_usernames_to_add(
         QMessageBox.warning(parent, TITLE, 'ERROR:\nNo username was provided.')
         return None
 
-    if Settings.userip_sync_known_alts:
+    if expand_entered_alts and Settings.userip_sync_known_alts:
         entered_usernames = UserIPDatabases.expand_with_known_alts(entered_usernames)
 
     return entered_usernames, entered_notes
