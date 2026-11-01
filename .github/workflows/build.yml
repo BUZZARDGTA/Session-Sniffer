@@ -31,7 +31,7 @@ jobs:
             asset_name: Session_Sniffer
             venv_python: .venv/bin/python
             architecture: x64
-          - os: macos-14
+          - os: macos-15
             name: macOS ARM64
             asset_name: Session_Sniffer_macOS
             venv_python: .venv/bin/python
