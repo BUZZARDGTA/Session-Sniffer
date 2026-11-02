@@ -277,17 +277,17 @@ class FilesMixin(QMainWindow):
 
         app_logs_submenu.addSeparator()
 
-        open_detection_log_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'file-text.svg')), 'Detection_Logging.csv', self)
+        open_detection_log_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'file-text.svg')), 'Open Detection_Logging.csv', self)
         open_detection_log_action.setToolTip('Open Local AppData\\Session Sniffer\\Logging\\Detection_Logging.csv')
         open_detection_log_action.triggered.connect(self._open_detection_log_file)
         app_logs_submenu.addAction(open_detection_log_action)
 
-        open_protection_log_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'file-text.svg')), 'Protection_Logging.csv', self)
+        open_protection_log_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'file-text.svg')), 'Open Protection_Logging.csv', self)
         open_protection_log_action.setToolTip('Open Local AppData\\Session Sniffer\\Logging\\Protection_Logging.csv')
         open_protection_log_action.triggered.connect(self._open_protection_log_file)
         app_logs_submenu.addAction(open_protection_log_action)
 
-        open_userip_log_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'file-text.svg')), 'UserIP_Logging.csv', self)
+        open_userip_log_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'file-text.svg')), 'Open UserIP_Logging.csv', self)
         open_userip_log_action.setToolTip('Open Local AppData\\Session Sniffer\\Logging\\UserIP_Logging.csv')
         open_userip_log_action.triggered.connect(self._open_userip_log_file)
         app_logs_submenu.addAction(open_userip_log_action)
@@ -306,12 +306,12 @@ class FilesMixin(QMainWindow):
 
         debug_logs_submenu.addSeparator()
 
-        open_debug_log_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'file-text.svg')), 'debug.log', self)
+        open_debug_log_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'file-text.svg')), 'Open debug.log', self)
         open_debug_log_action.setToolTip('Open Local AppData\\Session Sniffer\\Debug\\debug.log')
         open_debug_log_action.triggered.connect(self._open_debug_log_file)
         debug_logs_submenu.addAction(open_debug_log_action)
 
-        open_crash_log_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'file-text.svg')), 'crash.log', self)
+        open_crash_log_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'file-text.svg')), 'Open crash.log', self)
         open_crash_log_action.setToolTip('Open Local AppData\\Session Sniffer\\Debug\\crash.log')
         open_crash_log_action.triggered.connect(self._open_crash_log_file)
         debug_logs_submenu.addAction(open_crash_log_action)
