@@ -77,20 +77,17 @@ LAST_SEEN_AT_COLUMN = 11
 
 TIMESTAMP_COLUMNS = (ADDED_AT_COLUMN, UPDATED_AT_COLUMN, FIRST_SEEN_AT_COLUMN, LAST_SEEN_AT_COLUMN)
 
-FILTERABLE_COLUMNS = (
-    USERNAME_COLUMN,
-    IP_COLUMN,
-    RANGE_COLUMN,
-    DATABASE_COLUMN,
-    NOTES_COLUMN,
-    SOURCE_COLUMN,
-    ADDED_AT_COLUMN,
-    UPDATED_AT_COLUMN,
-    FIRST_SEEN_AT_COLUMN,
-    LAST_SEEN_AT_COLUMN,
-)
+FILTERABLE_COLUMNS = (USERNAME_COLUMN, IP_COLUMN, RANGE_COLUMN, DATABASE_COLUMN, NOTES_COLUMN, SOURCE_COLUMN, *TIMESTAMP_COLUMNS)
 
 ENTRY_TABLE_HEADERS = ['#', 'Username', 'IP', 'Range', 'Database', 'Notes', 'Source', 'Detections', 'Added', 'Updated', 'First Seen', 'Last Seen']
+
+USERIP_METADATA_HEADER_TOOLTIPS: dict[str, str] = {
+    'Detections': 'The number of times this entry has been matched across sessions.',
+    'Added': 'The date and time when this entry was first added to the database.',
+    'Updated': 'The date and time when this entry was last modified.',
+    'First Seen': 'The very first time a player matching this entry was observed in a session.',
+    'Last Seen': 'The most recent time a player matching this entry was active in a session.',
+}
 
 IS_PERSISTED_ROLE = Qt.ItemDataRole.UserRole + 1
 SEARCH_TEXT_ROLE = Qt.ItemDataRole.UserRole + 2

@@ -55,6 +55,7 @@ from session_sniffer.guis.userip_manager_helpers import (
     INDEX_COLUMN,
     NEW_DATABASE_SETTINGS,
     RANGE_COLUMN,
+    USERIP_METADATA_HEADER_TOOLTIPS,
     USERNAME_COLUMN,
     EntriesSortProxy,
     append_entry_rows,
@@ -99,11 +100,7 @@ _ENTRY_TABLE_HEADER_TOOLTIPS: dict[str, str] = {
     'Database': 'The UserIP database file that contains this entry (shown when searching across all databases).',
     'Notes': 'Optional user notes or comments attached to this entry.',
     'Source': 'How this entry was added to the database (e.g., Manual, Looky, Sniffer, or Imported).',
-    'Detections': 'The number of times this entry has been matched across sessions.',
-    'Added': 'The date and time when this entry was first added to the database.',
-    'Updated': 'The date and time when this entry was last modified.',
-    'First Seen': 'The very first time a player matching this entry was observed in a session.',
-    'Last Seen': 'The most recent time a player matching this entry was active in a session.',
+    **USERIP_METADATA_HEADER_TOOLTIPS,
 }
 
 _DEFAULT_ENTRY_COLUMN_WIDTHS: dict[str, int] = {

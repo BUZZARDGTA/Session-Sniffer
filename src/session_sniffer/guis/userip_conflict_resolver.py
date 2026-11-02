@@ -1,7 +1,7 @@
 """UserIP Conflict Resolver dialog for reviewing and fixing IPs or ranges claimed by multiple UserIP databases."""
 
 import html
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from ipaddress import IPv4Address
 from pathlib import Path
 from typing import TYPE_CHECKING, NamedTuple, override
@@ -33,6 +33,7 @@ from session_sniffer.guis.stylesheets import DIALOG_BUTTON_STYLESHEET, DIALOG_DA
 from session_sniffer.guis.table_column_resizing import setup_table_header_context_menu
 from session_sniffer.guis.tables_player_actions import create_ping_menu, scan_ports_ip, show_detailed_ip_lookup
 from session_sniffer.guis.userip_manager_helpers import (
+    USERIP_METADATA_HEADER_TOOLTIPS,
     IPRangeBuilderDialog,
     append_userip_entries,
     dedup_userip_entries,
@@ -87,11 +88,7 @@ _CONFLICT_HEADER_TOOLTIPS: dict[str, str] = {
     ),
     'Notes': 'Optional user notes or comments attached to this entry (double-click to edit).',
     'Source': 'How this entry was added to the database (e.g., Manual, Looky, Session, or Import).',
-    'Detections': 'The number of times this entry has been matched across sessions.',
-    'Added': 'The date and time when this entry was first added to the database.',
-    'Updated': 'The date and time when this entry was last modified.',
-    'First Seen': 'The very first time a player matching this entry was observed in a session.',
-    'Last Seen': 'The most recent time a player matching this entry was active in a session.',
+    **USERIP_METADATA_HEADER_TOOLTIPS,
 }
 
 _DEFAULT_CONFLICT_COLUMN_WIDTHS: dict[int, int] = {
@@ -125,10 +122,10 @@ class _ConflictGroup(NamedTuple):
 class _SideDetails:
     """Aggregated usernames, notes, Looky state, and timestamps for a `_ConflictSide`."""
 
-    usernames: list[str]
-    looky_usernames: set[str]
-    notes: list[str]
-    sources: list[str]
+    usernames: list[str] = field(default_factory=list[str])
+    looky_usernames: set[str] = field(default_factory=set[str])
+    notes: list[str] = field(default_factory=list[str])
+    sources: list[str] = field(default_factory=list[str])
     detections_count: int = 0
     added_at: str | None = None
     updated_at: str | None = None
@@ -202,39 +199,25 @@ def _format_database_name(db_path: Path) -> str:
 
 def _aggregate_side_entries(entries: Sequence[UserIPEntryModel], target_entry: str) -> _SideDetails:
     """Aggregate all `UserIPEntryModel` records matching `target_entry` into a `_SideDetails` snapshot."""
-    usernames: list[str] = []
-    looky_usernames: set[str] = set()
-    notes: list[str] = []
-    sources: list[str] = []
-    detections_count = 0
-    added_at: str | None = None
-    updated_at: str | None = None
-    first_seen_at: str | None = None
-    last_seen_at: str | None = None
-
+    details = _SideDetails()
     for entry in entries:
         if entry.ip.strip() != target_entry:
             continue
-        if entry.username not in usernames:
-            usernames.append(entry.username)
+        if entry.username not in details.usernames:
+            details.usernames.append(entry.username)
         if entry.is_looky:
-            looky_usernames.add(entry.username)
+            details.looky_usernames.add(entry.username)
         cleaned_note = entry.notes.strip()
-        if cleaned_note and cleaned_note not in notes:
-            notes.append(cleaned_note)
-        if entry.source not in sources:
-            sources.append(entry.source)
-        detections_count = max(detections_count, entry.detections_count)
-        added_at = pick_earliest_iso(added_at, entry.added_at)
-        updated_at = pick_latest_iso(updated_at, entry.updated_at)
-        first_seen_at = pick_earliest_iso(first_seen_at, entry.first_seen_at)
-        last_seen_at = pick_latest_iso(last_seen_at, entry.last_seen_at)
-
-    return _SideDetails(
-        usernames=usernames, looky_usernames=looky_usernames, notes=notes, sources=sources,
-        detections_count=detections_count, added_at=added_at, updated_at=updated_at,
-        first_seen_at=first_seen_at, last_seen_at=last_seen_at,
-    )
+        if cleaned_note and cleaned_note not in details.notes:
+            details.notes.append(cleaned_note)
+        if entry.source not in details.sources:
+            details.sources.append(entry.source)
+        details.detections_count = max(details.detections_count, entry.detections_count)
+        details.added_at = pick_earliest_iso(details.added_at, entry.added_at)
+        details.updated_at = pick_latest_iso(details.updated_at, entry.updated_at)
+        details.first_seen_at = pick_earliest_iso(details.first_seen_at, entry.first_seen_at)
+        details.last_seen_at = pick_latest_iso(details.last_seen_at, entry.last_seen_at)
+    return details
 
 
 def _collect_side_details(sides: Sequence[_ConflictSide]) -> dict[_ConflictSide, _SideDetails]:
@@ -629,10 +612,7 @@ class UserIPConflictResolverDialog(QDialog):
                 group_item.setFirstColumnSpanned(True)
 
                 for side in group.sides:
-                    details = self._details_by_side.get(
-                        side,
-                        _SideDetails(usernames=[], looky_usernames=set(), notes=[], sources=[]),
-                    )
+                    details = self._details_by_side.get(side) or _SideDetails()
                     side_item = QTreeWidgetItem()
                     self._populate_side_item(side_item, side, details)
                     side_item.setFlags(side_item.flags() | Qt.ItemFlag.ItemIsEditable)
@@ -733,10 +713,7 @@ class UserIPConflictResolverDialog(QDialog):
         if selection is None:
             return
         _, side = selection
-        details = self._details_by_side.get(
-            side,
-            _SideDetails(usernames=[], looky_usernames=set(), notes=[], sources=[]),
-        )
+        details = self._details_by_side.get(side) or _SideDetails()
         is_single_ip = _is_single_ipv4(side.entry)
 
         menu = QMenu(self)
@@ -868,10 +845,7 @@ class UserIPConflictResolverDialog(QDialog):
         if not isinstance(side_row, int) or not 0 <= side_row < len(self._side_rows):
             return
         _, side = self._side_rows[side_row]
-        details = self._details_by_side.get(
-            side,
-            _SideDetails(usernames=[], looky_usernames=set(), notes=[], sources=[]),
-        )
+        details = self._details_by_side.get(side) or _SideDetails()
 
         if column == _USERNAMES_COLUMN:
             seen_cf: set[str] = set()

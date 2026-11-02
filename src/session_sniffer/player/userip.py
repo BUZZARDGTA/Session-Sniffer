@@ -79,11 +79,11 @@ class UserIP(NamedTuple):
     usernames: list[str]
     notes: list[str]
     sources: list[EntrySource]
-    detections_count: int = 0
-    added_at: str | None = None
-    updated_at: str | None = None
-    first_seen_at: str | None = None
-    last_seen_at: str | None = None
+    detections_count: int
+    added_at: str | None
+    updated_at: str | None
+    first_seen_at: str | None
+    last_seen_at: str | None
 
 
 class UserIPConflict(NamedTuple):
@@ -116,11 +116,11 @@ class _RangeEntry(NamedTuple):
     usernames: list[str]
     notes: list[str]
     sources: list[EntrySource]
-    detections_count: int = 0
-    added_at: str | None = None
-    updated_at: str | None = None
-    first_seen_at: str | None = None
-    last_seen_at: str | None = None
+    detections_count: int
+    added_at: str | None
+    updated_at: str | None
+    first_seen_at: str | None
+    last_seen_at: str | None
 
 
 class _UsernameMeta(NamedTuple):
@@ -491,12 +491,11 @@ class UserIPDatabases:
                     return None
                 matching_ranges = [entry for entry in range_entries if address in entry.ip_range]
 
-        if single_userip is None and not matching_ranges:
+        matched_entries: list[UserIP | _RangeEntry] = [*([single_userip] if single_userip is not None else ()), *matching_ranges]
+        if not matched_entries:
             return None
 
-        primary_db_path = single_userip.db_path if single_userip is not None else matching_ranges[0].db_path
-        primary_settings = single_userip.settings if single_userip is not None else matching_ranges[0].settings
-
+        primary = matched_entries[0]
         combined_usernames: list[str] = []
         combined_notes: list[str] = []
         combined_sources: list[EntrySource] = []
@@ -506,30 +505,20 @@ class UserIPDatabases:
         first_seen_at: str | None = None
         last_seen_at: str | None = None
 
-        if single_userip is not None:
-            combined_usernames.extend(single_userip.usernames)
-            combined_notes.extend(single_userip.notes)
-            combined_sources.extend(single_userip.sources)
-            detections_count = max(detections_count, single_userip.detections_count)
-            added_at = pick_earliest_iso(added_at, single_userip.added_at)
-            updated_at = pick_latest_iso(updated_at, single_userip.updated_at)
-            first_seen_at = pick_earliest_iso(first_seen_at, single_userip.first_seen_at)
-            last_seen_at = pick_latest_iso(last_seen_at, single_userip.last_seen_at)
-
-        for range_entry in matching_ranges:
-            combined_usernames.extend(range_entry.usernames)
-            combined_notes.extend(range_entry.notes)
-            combined_sources.extend(range_entry.sources)
-            detections_count = max(detections_count, range_entry.detections_count)
-            added_at = pick_earliest_iso(added_at, range_entry.added_at)
-            updated_at = pick_latest_iso(updated_at, range_entry.updated_at)
-            first_seen_at = pick_earliest_iso(first_seen_at, range_entry.first_seen_at)
-            last_seen_at = pick_latest_iso(last_seen_at, range_entry.last_seen_at)
+        for matched in matched_entries:
+            combined_usernames.extend(matched.usernames)
+            combined_notes.extend(matched.notes)
+            combined_sources.extend(matched.sources)
+            detections_count = max(detections_count, matched.detections_count)
+            added_at = pick_earliest_iso(added_at, matched.added_at)
+            updated_at = pick_latest_iso(updated_at, matched.updated_at)
+            first_seen_at = pick_earliest_iso(first_seen_at, matched.first_seen_at)
+            last_seen_at = pick_latest_iso(last_seen_at, matched.last_seen_at)
 
         return UserIP(
             ip=ip,
-            db_path=primary_db_path,
-            settings=primary_settings,
+            db_path=primary.db_path,
+            settings=primary.settings,
             usernames=dedup_preserve_order(combined_usernames),
             notes=dedup_preserve_order(combined_notes),
             sources=dedup_preserve_order(combined_sources),
