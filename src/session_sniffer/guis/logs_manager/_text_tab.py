@@ -92,7 +92,7 @@ class TextLogTab(QWidget):
         # --- Top bar ---
         top_bar = QHBoxLayout()
 
-        self._search_input = create_search_input(top_bar, 'Search in log…', self._on_search_changed)
+        self._search_input = create_search_input(top_bar, 'Search in log…', self._on_search_changed, debounce_ms=100)
         self._search_input.returnPressed.connect(self._find_next)
 
         prev_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'arrow-left.svg')), '')

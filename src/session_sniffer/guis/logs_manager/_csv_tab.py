@@ -269,6 +269,7 @@ class CsvLogTab(QWidget):
         previous_scroll = scrollbar.value() if scrollbar else 0
 
         self._model.removeRows(0, self._model.rowCount())
+        self._proxy.set_source_rows(())
         self._truncated = False
 
         if not self._file_path.exists():
@@ -290,6 +291,7 @@ class CsvLogTab(QWidget):
             self._rebuild_column_combo(file_headers)
 
             skipped = 0
+            valid_rows: list[list[str]] = []
             for row_num, row in enumerate(reader):
                 if row_num >= MAX_CSV_ROWS:
                     self._truncated = True
@@ -297,10 +299,23 @@ class CsvLogTab(QWidget):
                 if len(row) != len(file_headers):
                     skipped += 1
                     continue
-                items = [QStandardItem(cell) for cell in row]
-                for item in items:
-                    item.setEditable(False)
-                self._model.appendRow(items)
+                valid_rows.append(row)
+
+            if valid_rows:
+                dynamic_sort_filter = self._proxy.dynamicSortFilter()
+                self._proxy.setDynamicSortFilter(False)
+                try:
+                    self._model.insertRows(0, len(valid_rows))
+                    with QSignalBlocker(self._model):
+                        for row_idx, row in enumerate(valid_rows):
+                            for col_idx, cell in enumerate(row):
+                                item = QStandardItem(cell)
+                                item.setEditable(False)
+                                self._model.setItem(row_idx, col_idx, item)
+                    self._proxy.set_source_rows(valid_rows)
+                finally:
+                    self._proxy.setDynamicSortFilter(dynamic_sort_filter)
+                    self._proxy.invalidate()
 
             # Only surface malformed-row warnings on the first load; auto-refreshes stay silent.
             if skipped and not self._initial_loaded:
@@ -703,8 +718,15 @@ class CsvLogTab(QWidget):
             return
 
         source_rows = sorted((self._proxy.mapToSource(i).row() for i in indexes), reverse=True)
-        for row in source_rows:
-            self._model.removeRow(row)
+        dynamic_sort_filter = self._proxy.dynamicSortFilter()
+        self._proxy.setDynamicSortFilter(False)
+        try:
+            for row in source_rows:
+                self._model.removeRow(row)
+            self._proxy.remove_source_rows(source_rows)
+        finally:
+            self._proxy.setDynamicSortFilter(dynamic_sort_filter)
+            self._proxy.invalidate()
 
         was_truncated = self._truncated
         self._rewrite_csv_from_model()

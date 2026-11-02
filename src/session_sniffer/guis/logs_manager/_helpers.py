@@ -4,7 +4,7 @@ import shutil
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, cast, override
 
-from PySide6.QtCore import QModelIndex, QPersistentModelIndex, QSortFilterProxyModel, QUrl
+from PySide6.QtCore import QModelIndex, QPersistentModelIndex, QSortFilterProxyModel, QTimer, QUrl
 from PySide6.QtGui import (
     QColor,
     QDesktopServices,
@@ -43,13 +43,15 @@ from session_sniffer.guis.utils import (
 from session_sniffer.logging_setup import purge_crash_log, purge_debug_log
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Sequence
     from pathlib import Path
     from typing import Any
 
 MAX_CSV_ROWS = 50_000
 LARGE_TEXT_FILE_LIMIT = 5 * BYTES_PER_UNIT * BYTES_PER_UNIT  # 5 MB
 _DAYS_IN_WEEK = 7
+_ISO_DATE_LENGTH = 10
+_MAX_HIGHLIGHT_SELECTIONS = 2_500
 
 DATE_COLUMN_NAME = 'Date'
 
@@ -158,48 +160,117 @@ class MultiColumnFilterProxy(QSortFilterProxyModel):
         self._filter_column: int = -1  # -1 means all columns
         self._date_column: int = -1
         self._date_cutoff: datetime | None = None
+        self._date_cutoff_iso: str | None = None
+        self._filter_text_lower: str = ''
+        self._rows_raw: list[tuple[str, ...]] = []
+        self._rows_lower: list[tuple[str, ...]] = []
+        self._rows_joined_lower: list[str] = []
+        self._accepted_rows: set[int] | None = None
+
+    def set_source_rows(self, rows: Sequence[Sequence[str]]) -> None:
+        """Populate pre-indexed row cells so filtering runs in pure Python without per-cell Qt calls."""
+        self._rows_raw = [tuple(row) for row in rows]
+        self._rows_lower = [tuple(cell.lower() for cell in row) for row in rows]
+        self._rows_joined_lower = ['\x00'.join(row_lower) for row_lower in self._rows_lower]
+        self._recompute_accepted_rows()
+
+    def remove_source_rows(self, sorted_descending_rows: Sequence[int]) -> None:
+        """Remove deleted source row indices (in descending order) from the pre-indexed row cache."""
+        for row_idx in sorted_descending_rows:
+            if 0 <= row_idx < len(self._rows_raw):
+                del self._rows_raw[row_idx]
+                del self._rows_lower[row_idx]
+                del self._rows_joined_lower[row_idx]
+        self._recompute_accepted_rows()
+
+    def _ensure_rows_indexed(self) -> None:
+        source_model = self.sourceModel()
+        if not isinstance(source_model, QStandardItemModel):
+            return
+        row_count = source_model.rowCount()
+        if len(self._rows_raw) == row_count:
+            return
+        col_count = source_model.columnCount()
+        raw_rows = [
+            tuple((item.text() if (item := source_model.item(r, c)) else '') for c in range(col_count))
+            for r in range(row_count)
+        ]
+        self.set_source_rows(raw_rows)
+
+    def _row_passes_date_filter(self, date_text: str) -> bool:
+        if self._date_cutoff is None:
+            return True
+        if self._date_cutoff_iso is not None and len(date_text) == _ISO_DATE_LENGTH and date_text[4] == '-' and date_text[7] == '-':
+            return date_text >= self._date_cutoff_iso
+        try:
+            row_date = datetime.strptime(date_text, '%Y-%m-%d').replace(tzinfo=LOCAL_TZ)
+        except ValueError:
+            return True
+        return row_date >= self._date_cutoff
+
+    def _recompute_accepted_rows(self) -> None:
+        has_date_filter = self._date_cutoff is not None and self._date_column >= 0
+        query = self._filter_text_lower
+        if not has_date_filter and not query:
+            self._accepted_rows = None
+            return
+
+        self._ensure_rows_indexed()
+        filter_col = self._filter_column
+        date_col = self._date_column
+        rows_raw = self._rows_raw
+        rows_lower = self._rows_lower
+        rows_joined = self._rows_joined_lower
+        accepted: set[int] = set()
+
+        for row_idx, lower_row in enumerate(rows_lower):
+            if has_date_filter:
+                raw_row = rows_raw[row_idx]
+                if date_col < len(raw_row) and not self._row_passes_date_filter(raw_row[date_col]):
+                    continue
+            if query:
+                if filter_col >= 0:
+                    if filter_col >= len(lower_row) or query not in lower_row[filter_col]:
+                        continue
+                elif query not in rows_joined[row_idx]:
+                    continue
+            accepted.add(row_idx)
+
+        self._accepted_rows = accepted
+
+    @override
+    def setFilterFixedString(self, pattern: str) -> None:
+        """Update the case-insensitive substring filter and recompute accepted rows."""
+        lowered = pattern.lower()
+        if lowered == self._filter_text_lower:
+            return
+        self._filter_text_lower = lowered
+        self._recompute_accepted_rows()
+        self.invalidateFilter()
 
     def set_filter_column(self, column: int) -> None:
         """Set which column to filter on (-1 for all)."""
+        if column == self._filter_column:
+            return
         self._filter_column = column
+        self._recompute_accepted_rows()
         self.invalidateFilter()
 
     def set_date_filter(self, date_column: int, cutoff: datetime | None) -> None:
         """Set an optional date-range cutoff on a specific column."""
         self._date_column = date_column
         self._date_cutoff = cutoff
+        self._date_cutoff_iso = cutoff.strftime('%Y-%m-%d') if cutoff is not None else None
+        self._recompute_accepted_rows()
         self.invalidateFilter()
 
     @override
     def filterAcceptsRow(self, source_row: int, source_parent: QModelIndex | QPersistentModelIndex) -> bool:
         """Determine whether a source row passes the current text and date filters."""
         _ = source_parent
-        source_model = self.sourceModel()
-        if not isinstance(source_model, QStandardItemModel):
+        if self._accepted_rows is None:
             return True
-        model = source_model
-
-        # Date filter
-        if self._date_cutoff is not None and self._date_column >= 0:
-            date_item = model.item(source_row, self._date_column)
-            if date_item:
-                try:
-                    row_date = datetime.strptime(date_item.text(), '%Y-%m-%d').replace(tzinfo=LOCAL_TZ)
-                    if row_date < self._date_cutoff:
-                        return False
-                except ValueError:
-                    pass
-
-        # Text filter
-        pattern = self.filterRegularExpression()
-        if not pattern.pattern():
-            return True
-
-        if self._filter_column >= 0:
-            item = model.item(source_row, self._filter_column)
-            return bool(item and pattern.match(item.text()).hasMatch())
-
-        return any((item := model.item(source_row, column)) and pattern.match(item.text()).hasMatch() for column in range(model.columnCount()))
+        return source_row in self._accepted_rows
 
 
 # ---------------------------------------------------------------------------
@@ -222,12 +293,29 @@ def create_search_input(
     top_bar: QHBoxLayout,
     placeholder: str,
     on_changed: Callable[[str], None],
+    *,
+    debounce_ms: int = 0,
 ) -> QLineEdit:
     """Add a labelled search QLineEdit to *top_bar* and return it."""
     top_bar.addWidget(QLabel('Search:'))
     search_input = QLineEdit()
     search_input.setPlaceholderText(placeholder)
-    search_input.textChanged.connect(on_changed)
+    if debounce_ms > 0:
+        debounce_timer = QTimer(search_input)
+        debounce_timer.setSingleShot(True)
+        debounce_timer.setInterval(debounce_ms)
+        debounce_timer.timeout.connect(lambda: on_changed(search_input.text()))
+
+        def _handle_text_changed(text: str) -> None:
+            if not text:
+                debounce_timer.stop()
+                on_changed('')
+            else:
+                debounce_timer.start()
+
+        search_input.textChanged.connect(_handle_text_changed)
+    else:
+        search_input.textChanged.connect(on_changed)
     apply_search_icon(search_input)
     top_bar.addWidget(search_input, stretch=1)
     return search_input
@@ -382,7 +470,7 @@ def find_and_highlight_matches(document: QTextDocument, text: str, viewer: QPlai
     highlight_format.setForeground(QColor('#000000'))
 
     selections: list[Any] = []
-    for match_cursor in matched_cursors:
+    for match_cursor in matched_cursors[:_MAX_HIGHLIGHT_SELECTIONS]:
         selection = cast('Any', QTextEdit.ExtraSelection())
         selection.cursor = match_cursor
         selection.format = highlight_format
