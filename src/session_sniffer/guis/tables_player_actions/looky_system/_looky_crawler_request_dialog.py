@@ -43,7 +43,7 @@ from session_sniffer.guis.tables_player_actions.looky_system._looky_helpers impo
     build_looky_progress_widgets,
     check_looky_prerequisites,
 )
-from session_sniffer.guis.utils import set_dialog_window_flags
+from session_sniffer.guis.utils import scale_by_ui, set_dialog_window_flags
 from session_sniffer.networking.looky_system import (
     LookyInstructionContext,
     LookyState,
@@ -247,8 +247,8 @@ class _CrawlerRequestDialog(QDialog):
 
         set_dialog_window_flags(self)
         self.setWindowTitle(LOOKY_TITLE)
-        self.setMinimumSize(500, 360)
-        self.resize(640, 400)
+        self.setMinimumSize(scale_by_ui(500), scale_by_ui(360))
+        self.resize(scale_by_ui(640), scale_by_ui(400))
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(12, 12, 12, 12)
@@ -563,7 +563,7 @@ class _RIDPickerDialog(QDialog):
         self.setWindowTitle(LOOKY_TITLE)
         self.setWindowModality(Qt.WindowModality.WindowModal)
         self.setWindowFlag(Qt.WindowType.WindowContextHelpButtonHint, on=False)
-        self.setMinimumWidth(420)
+        self.setMinimumWidth(scale_by_ui(420))
         self._selected_rid: int | None = None
 
         layout = QVBoxLayout(self)

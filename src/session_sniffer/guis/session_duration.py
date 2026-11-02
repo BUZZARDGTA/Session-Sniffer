@@ -8,6 +8,7 @@ from session_sniffer.guis.table_context_menu import StatTableWindowMixin, skip_i
 from session_sniffer.guis.utils import (
     NumericTableWidgetItem,
     format_duration,
+    scale_by_ui,
     setup_stat_table,
 )
 from session_sniffer.player.registry import PlayersRegistry
@@ -21,7 +22,7 @@ class SessionDurationWindow(StatTableWindowMixin):
         super().__init__()
 
         self.setWindowTitle('Session Duration')
-        self.resize(520, 420)
+        self.resize(scale_by_ui(520), scale_by_ui(420))
         layout = self.setup_window_layout(always_on_top=always_on_top)
 
         self._table = QTableWidget(0, 3)

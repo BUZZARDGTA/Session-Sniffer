@@ -21,6 +21,7 @@ from session_sniffer.guis.stylesheets import (
     color_button_filled_stylesheet,
     color_swatch_button_stylesheet,
 )
+from session_sniffer.guis.utils import scale_by_ui
 
 _SVG_COLOR_GROUPS: dict[str, list[str]] = {
     'Reds': [
@@ -209,7 +210,7 @@ class SVGColorPickerDialog(QDialog):
         self.setWindowModality(Qt.WindowModality.WindowModal)
         self.setWindowTitle('Choose Color')
         self.setWindowFlag(Qt.WindowType.WindowContextHelpButtonHint, on=False)
-        self.resize(960, 580)
+        self.resize(scale_by_ui(960), scale_by_ui(580))
 
         self._chosen: QColor = QColor()
         self._chosen_name: str = ''
@@ -249,11 +250,17 @@ class SVGColorPickerDialog(QDialog):
                 border_color = '#ffffff' if is_current else '#555555'
                 border_width = 3 if is_current else 1
                 swatch_button = QPushButton(color_name)
-                swatch_button.setFixedSize(_SWATCH_WIDTH, _SWATCH_HEIGHT)
+                swatch_button.setFixedSize(scale_by_ui(_SWATCH_WIDTH), scale_by_ui(_SWATCH_HEIGHT))
                 swatch_button.setCursor(Qt.CursorShape.PointingHandCursor)
                 swatch_button.setAutoDefault(False)
                 swatch_button.setStyleSheet(
-                    color_swatch_button_stylesheet(color.name(), text_color, border_width, border_color),
+                    color_swatch_button_stylesheet(
+                        color.name(),
+                        text_color,
+                        border_width,
+                        border_color,
+                        font_pt=max(6, scale_by_ui(8)),
+                    ),
                 )
 
                 def _on_clicked(*_: object, color_name: str = color_name) -> None:

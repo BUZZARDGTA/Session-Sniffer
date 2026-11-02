@@ -19,7 +19,7 @@ from session_sniffer.guis.stylesheets import (
     GRAPH_LATENCY_POPOUT_BUTTON_STYLESHEET,
     GRAPH_PPS_POPOUT_BUTTON_STYLESHEET,
 )
-from session_sniffer.guis.utils import RateGraphWindowMixin, format_duration
+from session_sniffer.guis.utils import RateGraphWindowMixin, format_duration, scale_by_ui
 from session_sniffer.models.player import PlayerBandwidth
 from session_sniffer.player.registry import PlayersRegistry
 from session_sniffer.rendering_core.types import CaptureState, CaptureStats
@@ -51,7 +51,7 @@ class CaptureStatisticsWindow(RateGraphWindowMixin):
         self._max_history = DEFAULT_MAX_HISTORY
 
         self.setWindowTitle(self.WINDOW_TITLE)
-        self.resize(1200, 620)
+        self.resize(scale_by_ui(1200), scale_by_ui(620))
         layout = self.setup_window_layout(always_on_top=True, spacing=6)
 
         body_layout = QHBoxLayout()
@@ -170,7 +170,7 @@ class CaptureStatisticsWindow(RateGraphWindowMixin):
         left_column_b.addWidget(packets_group)
 
         self._latency_group = QGroupBox('Latency (60s)')
-        self._latency_group.setMinimumWidth(150)
+        self._latency_group.setMinimumWidth(scale_by_ui(150))
         latency_form = QFormLayout(self._latency_group)
         self._label_latest = QLabel('— ms')
         self._label_avg = QLabel('— ms')

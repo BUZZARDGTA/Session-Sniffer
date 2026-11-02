@@ -544,8 +544,8 @@ class SelectUsernamesDialog(QDialog):
         self.setWindowModality(Qt.WindowModality.WindowModal)
         self.setWindowTitle(f'{dialog_config.title} - {TITLE}')
         self.setWindowFlag(Qt.WindowType.WindowContextHelpButtonHint, on=False)
-        self.setMinimumSize(340, 420)
-        self.resize(560 if dialog_config.show_notes else 380, 480)
+        self.setMinimumSize(scale_by_ui(340), scale_by_ui(420))
+        self.resize(scale_by_ui(560 if dialog_config.show_notes else 380), scale_by_ui(480))
 
         self._multiple: bool = dialog_config.multiple
         self._show_notes: bool = dialog_config.show_notes

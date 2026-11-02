@@ -32,6 +32,7 @@ from session_sniffer.guis.stylesheets import (
     LOOKY_PROGRESS_BAR_STYLESHEET,
     LOOKY_STATUS_LABEL_STYLESHEET,
 )
+from session_sniffer.guis.utils import scale_by_ui
 from session_sniffer.networking.looky_system import (
     LOOKY_PHASE_IP_BATCHES,
     LOOKY_PHASE_PLAYER_PROFILES,
@@ -109,7 +110,7 @@ class LookyRefreshLoadingDialog(QDialog):
         self.setWindowTitle(LOOKY_TITLE)
         self.setWindowModality(Qt.WindowModality.WindowModal)
         self.setWindowFlag(Qt.WindowType.WindowContextHelpButtonHint, on=False)
-        self.setMinimumSize(420, 175)
+        self.setMinimumSize(scale_by_ui(420), scale_by_ui(175))
         layout = QVBoxLayout(self)
         layout.setContentsMargins(12, 12, 12, 12)
         layout.setSpacing(8)

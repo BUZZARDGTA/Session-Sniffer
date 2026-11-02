@@ -62,6 +62,7 @@ from session_sniffer.guis.utils import (
     apply_adaptive_window_size,
     apply_search_icon,
     render_svg_icon_from_resource,
+    scale_by_ui,
     set_clipboard_text,
     set_dialog_window_flags,
 )
@@ -377,7 +378,7 @@ class LookyRefreshReviewDialog(PlayerInfoDialogMixin):
             'QLineEdit { background-color: #1a1325; color: #d4c8f0; border: 1px solid #3d2d6e; border-radius: 6px; padding: 4px 8px; font-size: 9pt; }'
             ' QLineEdit:focus { border: 1px solid #7c3aed; }',
         )
-        self._search_input.setMinimumWidth(200)
+        self._search_input.setMinimumWidth(scale_by_ui(200))
         apply_search_icon(self._search_input)
         self._search_input.textChanged.connect(self._apply_tree_visibility)
         controls_bar.addWidget(self._search_input, stretch=1)
@@ -387,7 +388,7 @@ class LookyRefreshReviewDialog(PlayerInfoDialogMixin):
             move_label = QLabel('Target DB for Checked:')
             move_label.setStyleSheet('color: #d8b4fe; font-size: 8.5pt; font-weight: 600; background: transparent;')
             controls_bar.addWidget(move_label)
-            self._bulk_db_combo.setMinimumWidth(145)
+            self._bulk_db_combo.setMinimumWidth(scale_by_ui(145))
             self._bulk_db_combo.setToolTip(
                 'Change the Target Database for all currently checked & visible usernames:\n'
                 '\u2022 Auto (Default): Restores each row\u2019s smart default Target Database (matched DB or Randomlist for Searchlist, or source DB).\n'

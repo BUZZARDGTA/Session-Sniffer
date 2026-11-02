@@ -35,6 +35,7 @@ from session_sniffer.guis.utils import (
     SUSPEND_TOOLTIP_MANUAL,
     create_section_separator,
     load_country_flag_icon,
+    scale_by_ui,
 )
 from session_sniffer.models.combo_rules import ComboRule
 from session_sniffer.networking.ip_range import is_valid_ip_range_entry
@@ -140,7 +141,7 @@ class CountrySelectionDialog(QDialog):
         super().__init__(parent)
         self.setWindowModality(Qt.WindowModality.WindowModal)
         self.setWindowTitle('Select Country')
-        self.setMinimumWidth(420)
+        self.setMinimumWidth(scale_by_ui(420))
         self.setWindowFlag(Qt.WindowType.WindowContextHelpButtonHint, on=False)
 
         layout = QVBoxLayout(self)
@@ -208,8 +209,8 @@ class ComboRuleEditorDialog(QDialog):
         super().__init__(parent)
         self.setWindowModality(Qt.WindowModality.WindowModal)
         self.setWindowTitle('Edit Combo Rule' if rule else 'New Combo Rule')
-        self.setMinimumWidth(800)
-        self.setMinimumHeight(700)
+        self.setMinimumWidth(scale_by_ui(800))
+        self.setMinimumHeight(scale_by_ui(700))
         self.setWindowFlag(Qt.WindowType.WindowContextHelpButtonHint, on=False)
 
         self._condition_rows: list[tuple[QComboBox, QWidget]] = []
@@ -432,7 +433,7 @@ class ComboRuleEditorDialog(QDialog):
 
                 builder_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square-pen.svg')), '')
                 builder_button.setToolTip('Open IP Range Builder')
-                builder_button.setMaximumWidth(40)
+                builder_button.setMaximumWidth(scale_by_ui(40))
                 builder_button.setCursor(Qt.CursorShape.PointingHandCursor)
 
                 def open_builder() -> None:
@@ -454,7 +455,7 @@ class ComboRuleEditorDialog(QDialog):
         type_combo.currentTextChanged.connect(on_type_changed)
 
         remove_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')), '')
-        remove_button.setMaximumWidth(40)
+        remove_button.setMaximumWidth(scale_by_ui(40))
         remove_button.setCursor(Qt.CursorShape.PointingHandCursor)
 
         row_widget = QWidget()

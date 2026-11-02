@@ -47,6 +47,7 @@ from session_sniffer.guis.utils import (
     create_section_separator,
     load_country_flag_icon,
     render_svg_pixmap_from_resource,
+    scale_by_ui,
 )
 from session_sniffer.models.combo_rules import ComboRule
 from session_sniffer.player.combo_rules import ComboRulesManager
@@ -265,7 +266,7 @@ class DetectionsManagerTabsMixin(QDialog):
         self._combo_toggle_button = QPushButton(' Toggle State')
         self._combo_toggle_button.setEnabled(False)
         self._combo_toggle_button.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._combo_toggle_button.setFixedWidth(110)
+        self._combo_toggle_button.setFixedWidth(scale_by_ui(110))
         self._combo_toggle_button.clicked.connect(self._toggle_combo_rule)
         button_layout.addWidget(self._combo_toggle_button)
 

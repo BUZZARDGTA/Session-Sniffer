@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, override
 from PySide6.QtGui import QColor
 
 from session_sniffer.guis.rate_graph_widget import RateGraphTheme, RateGraphWidget
-from session_sniffer.guis.utils import RateGraphWindowMixin, format_player_display
+from session_sniffer.guis.utils import RateGraphWindowMixin, format_player_display, scale_by_ui
 
 if TYPE_CHECKING:
     from PySide6.QtWidgets import QVBoxLayout
@@ -43,7 +43,7 @@ class SingleRateGraphBase(RateGraphWindowMixin):
         self._buffer_running_sum = 0.0
 
         self.setWindowTitle(self.WINDOW_TITLE)
-        self.resize(700, 350)
+        self.resize(scale_by_ui(700), scale_by_ui(350))
         layout = self.setup_window_layout(always_on_top=True, margins=(0, 0, 0, 0), spacing=0)
 
         self._widget = RateGraphWidget(
@@ -151,7 +151,7 @@ class DualRateGraphBase(RateGraphWindowMixin):
     def _finish_graph_init(self) -> None:
         """Initialize the common window layout, widgets, and history buffers."""
         self._max_history = DEFAULT_MAX_HISTORY
-        self.resize(700, 500)
+        self.resize(scale_by_ui(700), scale_by_ui(500))
         layout = self.setup_window_layout(always_on_top=True, margins=(0, 0, 0, 0), spacing=0)
         self._setup_dual_graph_widgets(layout)
         self.add_rate_graph_controls(layout, HISTORY_OPTIONS)

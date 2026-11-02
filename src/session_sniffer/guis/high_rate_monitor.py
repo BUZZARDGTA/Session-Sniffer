@@ -18,7 +18,7 @@ from PySide6.QtWidgets import (
 
 from session_sniffer.constants.standard import LOCAL_TZ
 from session_sniffer.guis.player_rate_graph import DEFAULT_MAX_HISTORY, PlayerRateGraphWindow
-from session_sniffer.guis.utils import activate_window
+from session_sniffer.guis.utils import activate_window, scale_by_ui
 from session_sniffer.models.player import PlayerBandwidth
 from session_sniffer.player.registry import PlayersRegistry
 from session_sniffer.settings import Settings
@@ -160,14 +160,14 @@ class HighRateMonitorWidget(QWidget):
 
         self._select_button = QPushButton('Select in Table')
         self._select_button.setToolTip('Select and scroll to all currently flagged high-rate players in the connected players table.')
-        self._select_button.setFixedWidth(140)
+        self._select_button.setMinimumWidth(scale_by_ui(140))
         self._select_button.clicked.connect(self._select_flagged)
         self._select_button.setEnabled(not self._auto_select)
         selection_layout.addWidget(self._select_button)
 
         self._deselect_button = QPushButton('Deselect in Table')
         self._deselect_button.setToolTip('Deselect all currently flagged high-rate players in the connected players table.')
-        self._deselect_button.setFixedWidth(140)
+        self._deselect_button.setMinimumWidth(scale_by_ui(140))
         self._deselect_button.clicked.connect(self._deselect_flagged)
         self._deselect_button.setEnabled(not self._auto_select)
         selection_layout.addWidget(self._deselect_button)
@@ -193,7 +193,7 @@ class HighRateMonitorWidget(QWidget):
             'Opens a live PPS/BPS rate graph window for every player currently flagged as high-rate traffic.\n\n'
             'Each graph updates in real time so you can visually compare traffic patterns.',
         )
-        open_all_graphs.setFixedWidth(240)
+        open_all_graphs.setMinimumWidth(scale_by_ui(240))
         open_all_graphs.clicked.connect(self._open_all_graphs)
         actions_layout.addWidget(open_all_graphs)
 
@@ -201,7 +201,7 @@ class HighRateMonitorWidget(QWidget):
         reset_button.setToolTip(
             'Clears all tracked data, rate history, and flagged players.\nThe scan restarts from scratch immediately.',
         )
-        reset_button.setFixedWidth(130)
+        reset_button.setMinimumWidth(scale_by_ui(130))
         reset_button.clicked.connect(self.reset_all)
         actions_layout.addWidget(reset_button)
 
@@ -211,7 +211,7 @@ class HighRateMonitorWidget(QWidget):
             'Removes all IPs from the blacklist so they can be tracked again.\n\n'
             'Blacklisted IPs are excluded from high-rate detection.',
         )
-        clear_bl_button.setFixedWidth(130)
+        clear_bl_button.setMinimumWidth(scale_by_ui(130))
         clear_bl_button.clicked.connect(self._clear_blacklist)
         actions_layout.addWidget(clear_bl_button)
         self._clear_blacklist_button = clear_bl_button

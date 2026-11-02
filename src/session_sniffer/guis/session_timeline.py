@@ -14,6 +14,7 @@ from session_sniffer.guis.utils import (
     NumericTableWidgetItem,
     format_duration,
     format_player_display,
+    scale_by_ui,
     setup_stat_table,
 )
 from session_sniffer.player.registry import PlayersRegistry
@@ -58,7 +59,7 @@ class SessionTimelineWindow(StatTableWindowMixin):
         super().__init__()
 
         self.setWindowTitle('Session Timeline')
-        self.resize(1000, 500)
+        self.resize(scale_by_ui(1000), scale_by_ui(500))
         layout = self.setup_window_layout(always_on_top=always_on_top, spacing=4)
 
         self._table = QTableWidget(0, len(_HEADERS))

@@ -51,7 +51,7 @@ from session_sniffer.guis.detections_manager import DetectionsManagerDialog
 from session_sniffer.guis.interface_selection_dialog import InterfaceSelectionDialog
 from session_sniffer.guis.logs_manager import LogsManager
 from session_sniffer.guis.userip_manager import UserIPDatabasesManager
-from session_sniffer.guis.utils import activate_window, animate_button_feedback, set_clipboard_text, show_or_focus_window
+from session_sniffer.guis.utils import activate_window, animate_button_feedback, scale_by_ui, set_clipboard_text, show_or_focus_window
 from session_sniffer.settings import Settings
 from session_sniffer.updater import UpdateCheckOutcome, check_for_updates
 
@@ -341,7 +341,7 @@ class FilesMixin(QMainWindow):
 
         dialog = QDialog(self)
         dialog.setWindowTitle(f'About {TITLE}')
-        dialog.setMinimumWidth(440)
+        dialog.setMinimumWidth(scale_by_ui(440))
 
         layout = QVBoxLayout(dialog)
         layout.setSpacing(6)

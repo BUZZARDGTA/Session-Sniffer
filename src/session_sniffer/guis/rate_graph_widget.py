@@ -7,6 +7,8 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QBrush, QColor, QPainter, QPainterPath, QPaintEvent, QPen
 from PySide6.QtWidgets import QWidget
 
+from session_sniffer.guis.utils import scale_by_ui
+
 INTEGER_FORMAT_THRESHOLD = 10
 
 
@@ -45,7 +47,7 @@ class RateGraphWidget(QWidget):
         self._y_max: float = 10.0
         self._y_min: float = 0.0
 
-        self.setMinimumSize(200, 100)
+        self.setMinimumSize(scale_by_ui(200), scale_by_ui(100))
         self.setAttribute(Qt.WidgetAttribute.WA_OpaquePaintEvent, on=True)
 
     def set_data(self, data: list[float]) -> None:

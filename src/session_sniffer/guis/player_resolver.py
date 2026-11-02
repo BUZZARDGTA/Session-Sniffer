@@ -12,7 +12,7 @@ from PySide6.QtWidgets import (
 from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.guis.high_rate_monitor import HighRateMonitorWidget
 from session_sniffer.guis.player_identifier import PlayerIdentifierWidget
-from session_sniffer.guis.utils import ToggleAlwaysOnTopMixin, activate_window
+from session_sniffer.guis.utils import ToggleAlwaysOnTopMixin, activate_window, scale_by_ui
 from session_sniffer.settings import Settings
 
 if TYPE_CHECKING:
@@ -34,7 +34,7 @@ class PlayerResolverWindow(ToggleAlwaysOnTopMixin):
         super().__init__(parent)
 
         self.setWindowTitle('Player Resolver')
-        self.setMinimumSize(540, 360)
+        self.setMinimumSize(scale_by_ui(540), scale_by_ui(360))
         flags = (
             Qt.WindowType.Window
             | Qt.WindowType.WindowCloseButtonHint

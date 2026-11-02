@@ -5,7 +5,7 @@ from PySide6.QtWidgets import QTableWidget, QTableWidgetItem
 
 from session_sniffer.constants.tables import RECONNECT_FREQUENCY_TABLE_MIN_COLUMN_WIDTHS
 from session_sniffer.guis.table_context_menu import StatTableWindowMixin, skip_if_menu_open
-from session_sniffer.guis.utils import NumericTableWidgetItem, setup_stat_table
+from session_sniffer.guis.utils import NumericTableWidgetItem, scale_by_ui, setup_stat_table
 from session_sniffer.player.registry import PlayersRegistry
 
 
@@ -17,7 +17,7 @@ class ReconnectFrequencyWindow(StatTableWindowMixin):
         super().__init__()
 
         self.setWindowTitle('Reconnect Frequency')
-        self.resize(520, 420)
+        self.resize(scale_by_ui(520), scale_by_ui(420))
         layout = self.setup_window_layout(always_on_top=always_on_top)
 
         self._table = QTableWidget(0, 3)
