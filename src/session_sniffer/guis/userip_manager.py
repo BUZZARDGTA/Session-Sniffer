@@ -4,7 +4,7 @@ import html
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, ClassVar, override
 
-from PySide6.QtCore import QByteArray, QModelIndex, QSignalBlocker, Qt, QUrl
+from PySide6.QtCore import QByteArray, QModelIndex, QSignalBlocker, QSize, Qt, QUrl
 from PySide6.QtGui import (
     QCloseEvent,
     QDesktopServices,
@@ -40,7 +40,11 @@ from session_sniffer.guis.delegates import ElidedTextTooltipDelegate, SearchHigh
 from session_sniffer.guis.file_watch import DebouncedFileWatcher
 from session_sniffer.guis.logs_manager._helpers import human_readable_timestamp
 from session_sniffer.guis.select_usernames_dialog import configure_username_cell_editor
-from session_sniffer.guis.stylesheets import DIALOG_BUTTON_STYLESHEET, DIALOG_DANGER_BUTTON_STYLESHEET
+from session_sniffer.guis.stylesheets import (
+    USERIP_METADATA_CONTAINER_STYLESHEET,
+    userip_dialog_button_stylesheet,
+    userip_dialog_danger_button_stylesheet,
+)
 from session_sniffer.guis.table_column_resizing import adjust_last_visible_column_to_viewport, setup_table_header_context_menu
 from session_sniffer.guis.userip_conflict_resolver import open_userip_conflict_resolver
 from session_sniffer.guis.userip_manager_context_menu_mixin import EntriesContextMenuMixin
@@ -207,6 +211,14 @@ class UserIPDatabasesManager(
         self._looky_icon = QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'eye.svg'))
 
         root_layout = QVBoxLayout(self)
+        root_margin = scale_by_ui(6)
+        root_layout.setContentsMargins(root_margin, root_margin, root_margin, root_margin)
+        root_layout.setSpacing(scale_by_ui(6))
+
+        btn_style = userip_dialog_button_stylesheet(scale_by_ui)
+        danger_btn_style = userip_dialog_danger_button_stylesheet(scale_by_ui)
+        btn_icon_size = QSize(scale_by_ui(14), scale_by_ui(14))
+        btn_row_spacing = scale_by_ui(4)
 
         # === Main splitter: file tree (left) | entries editor (right) ===
         self._splitter = QSplitter(Qt.Orientation.Horizontal)
@@ -215,39 +227,37 @@ class UserIPDatabasesManager(
         # ------ LEFT PANEL: file tree ------
         left_panel = QWidget()
         left_layout = QVBoxLayout(left_panel)
-        left_layout.setContentsMargins(0, 0, 10, 0)
+        left_layout.setContentsMargins(0, 0, scale_by_ui(6), 0)
+        left_layout.setSpacing(scale_by_ui(6))
 
         # Tree toolbar buttons
         tree_buttons = QHBoxLayout()
+        tree_buttons.setSpacing(btn_row_spacing)
 
         new_db_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'file-plus.svg')), ' New DB')
-        new_db_button.setAutoDefault(False)
         new_db_button.setToolTip('Create a new UserIP database file')
-        new_db_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
+        new_db_button.setStyleSheet(btn_style)
         new_db_button.clicked.connect(self._new_database)
         tree_buttons.addWidget(new_db_button)
 
         new_folder_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'folder.svg')), ' New Folder')
-        new_folder_button.setAutoDefault(False)
         new_folder_button.setToolTip('Create a new folder to organize databases')
-        new_folder_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
+        new_folder_button.setStyleSheet(btn_style)
         new_folder_button.clicked.connect(self._new_folder)
         tree_buttons.addWidget(new_folder_button)
 
         self._delete_tree_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')), ' Delete')
-        self._delete_tree_button.setAutoDefault(False)
-        self._delete_tree_button.setFixedWidth(115)
+        self._delete_tree_button.setIconSize(btn_icon_size)
         self._delete_tree_button.setToolTip('Delete the selected database or folder')
-        self._delete_tree_button.setStyleSheet(DIALOG_DANGER_BUTTON_STYLESHEET)
+        self._delete_tree_button.setStyleSheet(danger_btn_style)
+        self._delete_tree_button.setMinimumWidth(self._delete_tree_button.sizeHint().width())
         self._delete_tree_button.setEnabled(False)
         self._delete_tree_button.clicked.connect(self._delete_tree_item)  # reconnected dynamically in _on_tree_selection_changed
         tree_buttons.addWidget(self._delete_tree_button)
 
         reset_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'rotate-ccw.svg')), ' Reset all…')
-        reset_button.setAutoDefault(False)
-        reset_button.setFixedWidth(115)
         reset_button.setToolTip('Permanently delete all user databases and restore defaults')
-        reset_button.setStyleSheet(DIALOG_DANGER_BUTTON_STYLESHEET)
+        reset_button.setStyleSheet(danger_btn_style)
         reset_button.clicked.connect(self._reset_all_databases)
         tree_buttons.addWidget(reset_button)
 
@@ -293,6 +303,7 @@ class UserIPDatabasesManager(
 
         # Import / Export buttons (below the tree, above stats)
         transfer_buttons = QHBoxLayout()
+        transfer_buttons.setSpacing(btn_row_spacing)
 
         import_menu = QMenu(self)
         import_files_action = import_menu.addAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'folder.svg')), 'Import .json file(s)…')
@@ -303,10 +314,9 @@ class UserIPDatabasesManager(
             import_zip_action.triggered.connect(self._import_from_zip)
 
         import_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'import.svg')), ' Import…')
-        import_button.setAutoDefault(False)
-        import_button.setMaximumWidth(130)
+        import_button.setMaximumWidth(scale_by_ui(130))
         import_button.setToolTip('Import database files into the databases directory')
-        import_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
+        import_button.setStyleSheet(btn_style)
         import_button.setMenu(import_menu)
         transfer_buttons.addWidget(import_button)
 
@@ -327,17 +337,15 @@ class UserIPDatabasesManager(
             open_backups_action.triggered.connect(self._open_backups_folder)
 
         export_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'upload.svg')), ' Export…')
-        export_button.setAutoDefault(False)
-        export_button.setMaximumWidth(130)
+        export_button.setMaximumWidth(scale_by_ui(130))
         export_button.setToolTip('Export databases to an external location')
-        export_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
+        export_button.setStyleSheet(btn_style)
         export_button.setMenu(export_menu)
         transfer_buttons.addWidget(export_button)
 
         resolve_conflicts_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'scale.svg')), ' Resolve Conflicts…')
-        resolve_conflicts_button.setAutoDefault(False)
         resolve_conflicts_button.setToolTip('Open the UserIP Conflict Resolver to fix IPs or ranges claimed by multiple databases')
-        resolve_conflicts_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
+        resolve_conflicts_button.setStyleSheet(btn_style)
         resolve_conflicts_button.clicked.connect(lambda: open_userip_conflict_resolver(None))
         transfer_buttons.addWidget(resolve_conflicts_button)
 
@@ -345,28 +353,19 @@ class UserIPDatabasesManager(
 
         # Fancy Metadata Container
         self._metadata_container = QFrame()
-        self._metadata_container.setStyleSheet("""
-            QFrame {
-                background-color: rgba(16, 20, 26, 0.85);
-                border: 1px solid rgba(50, 65, 80, 0.7);
-                border-radius: 6px;
-            }
-            QLabel {
-                background: transparent;
-                border: none;
-                line-height: 1.4;
-            }
-        """)
+        self._metadata_container.setStyleSheet(USERIP_METADATA_CONTAINER_STYLESHEET)
         status_row = QHBoxLayout(self._metadata_container)
-        status_row.setContentsMargins(12, 10, 12, 10)
-        status_row.setSpacing(16)
+        status_margin_h = scale_by_ui(10)
+        status_margin_v = scale_by_ui(8)
+        status_row.setContentsMargins(status_margin_h, status_margin_v, status_margin_h, status_margin_v)
+        status_row.setSpacing(scale_by_ui(12))
 
         self._stats_label = QLabel('')
         self._stats_label.setWordWrap(True)
         status_row.addWidget(self._stats_label, stretch=1, alignment=Qt.AlignmentFlag.AlignTop)
 
         right_col = QVBoxLayout()
-        right_col.setSpacing(6)
+        right_col.setSpacing(scale_by_ui(4))
 
         self._file_info_label = QLabel('')
         self._file_info_label.setWordWrap(True)
@@ -386,10 +385,12 @@ class UserIPDatabasesManager(
         # ------ RIGHT PANEL: entries editor ------
         right_panel = QWidget()
         right_layout = QVBoxLayout(right_panel)
-        right_layout.setContentsMargins(10, 0, 0, 0)
+        right_layout.setContentsMargins(scale_by_ui(6), 0, 0, 0)
+        right_layout.setSpacing(scale_by_ui(6))
 
         # Search / filter bar
         search_bar = QHBoxLayout()
+        search_bar.setSpacing(scale_by_ui(6))
         search_bar.addWidget(QLabel('Search:'))
 
         self._search_input = QLineEdit()
@@ -474,35 +475,32 @@ class UserIPDatabasesManager(
 
         # Entry action buttons
         entry_buttons = QHBoxLayout()
+        entry_buttons.setSpacing(btn_row_spacing)
 
         self._add_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'plus.svg')), ' Add Entry')
-        self._add_button.setAutoDefault(False)
         self._add_button.setToolTip('Add a new entry (single IP, IP range, or subnet) to the current database')
-        self._add_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
+        self._add_button.setStyleSheet(btn_style)
         self._add_button.setEnabled(False)
         self._add_button.clicked.connect(self._add_entry)
         entry_buttons.addWidget(self._add_button)
 
         self._edit_ip_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square-pen.svg')), ' Edit IP/Range…')
-        self._edit_ip_button.setAutoDefault(False)
         self._edit_ip_button.setToolTip('Edit the IP or range of the selected entry using the builder')
-        self._edit_ip_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
+        self._edit_ip_button.setStyleSheet(btn_style)
         self._edit_ip_button.setEnabled(False)
         self._edit_ip_button.clicked.connect(self._edit_selected_entry_ip)
         entry_buttons.addWidget(self._edit_ip_button)
 
         self._rename_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square-pen.svg')), ' Rename')
-        self._rename_button.setAutoDefault(False)
         self._rename_button.setToolTip('Rename the username of the selected entry or entries')
-        self._rename_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
+        self._rename_button.setStyleSheet(btn_style)
         self._rename_button.setEnabled(False)
         self._rename_button.clicked.connect(self._rename_selected)
         entry_buttons.addWidget(self._rename_button)
 
         self._open_db_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'file-text.svg')), ' Open DB')
-        self._open_db_button.setAutoDefault(False)
         self._open_db_button.setToolTip('Open the current database file in the default text editor')
-        self._open_db_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
+        self._open_db_button.setStyleSheet(btn_style)
         self._open_db_button.setEnabled(False)
         self._open_db_button.clicked.connect(self._open_db_in_editor)
         entry_buttons.addWidget(self._open_db_button)
@@ -510,30 +508,48 @@ class UserIPDatabasesManager(
         entry_buttons.addStretch()
 
         self._delete_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')), ' Delete Selected')
-        self._delete_button.setAutoDefault(False)
         self._delete_button.setToolTip('Delete the selected entries (with confirmation)')
-        self._delete_button.setStyleSheet(DIALOG_DANGER_BUTTON_STYLESHEET)
+        self._delete_button.setStyleSheet(danger_btn_style)
         self._delete_button.setEnabled(False)
         self._delete_button.clicked.connect(self._delete_selected)
         entry_buttons.addWidget(self._delete_button)
 
         close_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'x.svg')), ' Close')
-        close_button.setAutoDefault(False)
         close_button.setToolTip('Close the UserIP Databases Manager')
-        close_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
+        close_button.setStyleSheet(btn_style)
         close_button.clicked.connect(self.close)
         entry_buttons.addWidget(close_button)
+
+        for action_button in (
+            new_db_button,
+            new_folder_button,
+            self._delete_tree_button,
+            reset_button,
+            import_button,
+            export_button,
+            resolve_conflicts_button,
+            self._add_button,
+            self._edit_ip_button,
+            self._rename_button,
+            self._open_db_button,
+            self._delete_button,
+            close_button,
+        ):
+            action_button.setAutoDefault(False)
+            action_button.setIconSize(btn_icon_size)
 
         right_layout.addLayout(entry_buttons)
 
         self._splitter.addWidget(right_panel)
+        self._splitter.setStretchFactor(0, 1)
+        self._splitter.setStretchFactor(1, 2)
         self._splitter.setHandleWidth(scale_by_ui(4))
         self._splitter.handle(1).setEnabled(True)
 
         if UserIPDatabasesManager._cached_splitter is not None:
             self._splitter.restoreState(UserIPDatabasesManager._cached_splitter)
         else:
-            self._splitter.setSizes([scale_by_ui(280), scale_by_ui(820)])
+            self._splitter.setSizes([scale_by_ui(350), scale_by_ui(750)])
 
         def _on_splitter_moved(_pos: int, _index: int) -> None:
             self._adjust_username_column_width()
@@ -969,7 +985,7 @@ class UserIPDatabasesManager(
             header.setStretchLastSection(False)
             for column, header_label in enumerate(ENTRY_TABLE_HEADERS):
                 header.setSectionResizeMode(column, QHeaderView.ResizeMode.Interactive)
-                self._entries_table.setColumnWidth(column, _DEFAULT_ENTRY_COLUMN_WIDTHS[header_label])
+                self._entries_table.setColumnWidth(column, scale_by_ui(_DEFAULT_ENTRY_COLUMN_WIDTHS[header_label]))
             self._adjust_username_column_width()
         finally:
             self._is_programmatic_resizing = False

@@ -191,11 +191,14 @@ from session_sniffer.guis.stylesheets._userip import (
     IP_RANGE_PREVIEW_VALID_STYLESHEET,
     SETTINGS_SEPARATOR_STYLESHEET,
     SUBNET_DESC_LABEL_STYLESHEET,
-    USERIP_SETTINGS_BODY_STYLESHEET,
+    USERIP_METADATA_CONTAINER_STYLESHEET,
     USERIP_SETTINGS_CONTAINER_STYLESHEET,
-    USERIP_SETTINGS_TOGGLE_STYLESHEET,
     color_button_filled_stylesheet,
     color_swatch_button_stylesheet,
+    userip_dialog_button_stylesheet,
+    userip_dialog_danger_button_stylesheet,
+    userip_settings_body_stylesheet,
+    userip_settings_toggle_stylesheet,
 )
 
 __all__ = [
@@ -348,9 +351,8 @@ __all__ = [
     'UPDATE_DOWNLOAD_VERSION_CARD_SHA_STYLESHEET',
     'UPDATE_DOWNLOAD_VERSION_CARD_VALUE_ACCENT_STYLESHEET',
     'UPDATE_DOWNLOAD_VERSION_CARD_VALUE_MUTED_STYLESHEET',
-    'USERIP_SETTINGS_BODY_STYLESHEET',
+    'USERIP_METADATA_CONTAINER_STYLESHEET',
     'USERIP_SETTINGS_CONTAINER_STYLESHEET',
-    'USERIP_SETTINGS_TOGGLE_STYLESHEET',
     'WARNING_ICON_LABEL_STYLESHEET',
     'WARNING_TEXT_LABEL_STYLESHEET',
     'WEBHOOK_NOTE_LABEL_STYLESHEET',
@@ -370,4 +372,8 @@ __all__ = [
     'player_info_group_stylesheet',
     'player_info_header_stylesheet',
     'section_bar_qss',
+    'userip_dialog_button_stylesheet',
+    'userip_dialog_danger_button_stylesheet',
+    'userip_settings_body_stylesheet',
+    'userip_settings_toggle_stylesheet',
 ]

@@ -23,6 +23,7 @@ from session_sniffer.guis.userip_manager_helpers import (
     refresh_userip_and_wake_renderer,
     save_userip_database_model,
 )
+from session_sniffer.guis.utils import scale_by_ui
 from session_sniffer.models.userip_settings_model import UserIPDatabaseFile, UserIPEntryModel, UserIPSettingsModel
 from session_sniffer.player import backup_userip_databases
 from session_sniffer.player.userip_loader import find_userip_insert_index, userip_database_write
@@ -165,7 +166,7 @@ class UserIPImportExportMixin(QDialog):
         use_button = message_box.addButton('Use imported settings', QMessageBox.ButtonRole.AcceptRole)
         message_box.addButton(QMessageBox.StandardButton.Cancel)
         for button in message_box.buttons():
-            button.setMinimumWidth(160)
+            button.setMinimumWidth(scale_by_ui(160))
             button.setCursor(Qt.CursorShape.PointingHandCursor)
         message_box.exec()
         clicked = message_box.clickedButton()
@@ -220,7 +221,7 @@ class UserIPImportExportMixin(QDialog):
             merge_button = msg_box.addButton(f'Merge into "{self._current_path.stem}"', QMessageBox.ButtonRole.AcceptRole)
             msg_box.addButton(QMessageBox.StandardButton.Cancel)
             for _button in msg_box.buttons():
-                _button.setMinimumWidth(200)
+                _button.setMinimumWidth(scale_by_ui(200))
                 _button.setCursor(Qt.CursorShape.PointingHandCursor)
             msg_box.exec()
             clicked = msg_box.clickedButton()
@@ -273,7 +274,7 @@ class UserIPImportExportMixin(QDialog):
                 merge_button = msg_box.addButton('Merge', QMessageBox.ButtonRole.AcceptRole)
                 skip_button = msg_box.addButton('Skip', QMessageBox.ButtonRole.NoRole)
                 for _button in msg_box.buttons():
-                    _button.setMinimumWidth(100)
+                    _button.setMinimumWidth(scale_by_ui(100))
                     _button.setCursor(Qt.CursorShape.PointingHandCursor)
                 msg_box.exec()
                 clicked = msg_box.clickedButton()
@@ -430,7 +431,7 @@ class UserIPImportExportMixin(QDialog):
                         skip_button = msg_box.addButton('Skip', QMessageBox.ButtonRole.NoRole)
                         cancel_button = msg_box.addButton('Cancel', QMessageBox.ButtonRole.RejectRole)
                         for _button in msg_box.buttons():
-                            _button.setMinimumWidth(120)
+                            _button.setMinimumWidth(scale_by_ui(120))
                             _button.setCursor(Qt.CursorShape.PointingHandCursor)
                         msg_box.exec()
 

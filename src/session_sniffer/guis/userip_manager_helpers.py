@@ -34,6 +34,7 @@ from session_sniffer.guis.stylesheets import (
     IP_RANGE_PREVIEW_VALID_STYLESHEET,
     SUBNET_DESC_LABEL_STYLESHEET,
 )
+from session_sniffer.guis.utils import scale_by_ui
 from session_sniffer.models.userip_settings_model import (
     DEFAULT_USERIP_FILES_SETTINGS,
     UserIPDatabaseFile,
@@ -761,7 +762,7 @@ class IPRangeBuilderDialog(QDialog):
         super().__init__(parent)
         self.setWindowModality(Qt.WindowModality.WindowModal)
         self.setWindowTitle(f'IP Range Builder - {TITLE}')
-        self.setMinimumWidth(520)
+        self.setMinimumWidth(scale_by_ui(520))
         self.setWindowFlag(Qt.WindowType.WindowContextHelpButtonHint, on=False)
 
         layout = QVBoxLayout(self)

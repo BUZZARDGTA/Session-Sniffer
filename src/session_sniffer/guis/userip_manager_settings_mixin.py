@@ -26,14 +26,15 @@ from session_sniffer.guis._combo_rule_editor import (
 from session_sniffer.guis.color_picker_dialog import ColorPickerButton
 from session_sniffer.guis.stylesheets import (
     SETTINGS_SEPARATOR_STYLESHEET,
-    USERIP_SETTINGS_BODY_STYLESHEET,
     USERIP_SETTINGS_CONTAINER_STYLESHEET,
-    USERIP_SETTINGS_TOGGLE_STYLESHEET,
+    userip_settings_body_stylesheet,
+    userip_settings_toggle_stylesheet,
 )
 from session_sniffer.guis.utils import (
     SUSPEND_TOOLTIP_AUTO,
     SUSPEND_TOOLTIP_DISABLED,
     SUSPEND_TOOLTIP_MANUAL,
+    scale_by_ui,
 )
 from session_sniffer.models.userip_settings_model import UserIPSettingsModel
 from session_sniffer.rendering_core.types import CaptureState
@@ -81,7 +82,7 @@ class SettingsPanelMixin(QDialog):
         self._settings_container.setVisible(False)
 
         group_outer = QVBoxLayout(self._settings_container)
-        group_outer.setContentsMargins(8, 4, 8, 8)
+        group_outer.setContentsMargins(scale_by_ui(8), scale_by_ui(4), scale_by_ui(8), scale_by_ui(8))
         group_outer.setSpacing(0)
 
         self._icon_arrow_right = QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'chevron-right.svg'))
@@ -89,20 +90,20 @@ class SettingsPanelMixin(QDialog):
         self._settings_toggle = QPushButton(self._icon_arrow_right, ' Database Settings')
         self._settings_toggle.setAutoDefault(False)
         self._settings_toggle.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._settings_toggle.setStyleSheet(USERIP_SETTINGS_TOGGLE_STYLESHEET)
+        self._settings_toggle.setStyleSheet(userip_settings_toggle_stylesheet(scale_by_ui))
         self._settings_toggle.clicked.connect(self._on_settings_toggle_clicked)
         group_outer.addWidget(self._settings_toggle)
 
         self._settings_content = QWidget()
-        self._settings_content.setStyleSheet(USERIP_SETTINGS_BODY_STYLESHEET)
+        self._settings_content.setStyleSheet(userip_settings_body_stylesheet(scale_by_ui))
         self._settings_content.setVisible(False)
         content = QVBoxLayout(self._settings_content)
-        content.setContentsMargins(4, 8, 4, 0)
-        content.setSpacing(8)
+        content.setContentsMargins(scale_by_ui(4), scale_by_ui(8), scale_by_ui(4), 0)
+        content.setSpacing(scale_by_ui(8))
 
         # ── Row 1: Enabled only ──
         row1 = QHBoxLayout()
-        row1.setSpacing(14)
+        row1.setSpacing(scale_by_ui(14))
         row1.setAlignment(Qt.AlignmentFlag.AlignVCenter)
 
         self._setting_enabled = QCheckBox('Enabled')
@@ -117,11 +118,11 @@ class SettingsPanelMixin(QDialog):
         self._settings_body = QWidget()
         body_layout = QVBoxLayout(self._settings_body)
         body_layout.setContentsMargins(0, 0, 0, 0)
-        body_layout.setSpacing(8)
+        body_layout.setSpacing(scale_by_ui(8))
 
         # ── Color · Log · Notifications ──
         row_cln = QHBoxLayout()
-        row_cln.setSpacing(14)
+        row_cln.setSpacing(scale_by_ui(12))
         row_cln.setAlignment(Qt.AlignmentFlag.AlignVCenter)
 
         color_lbl = QLabel('Color:')
@@ -149,7 +150,7 @@ class SettingsPanelMixin(QDialog):
         self._setting_voice = QComboBox()
         self._setting_voice.addItems(['Disabled', 'Male', 'Female'])
         self._setting_voice.setToolTip('Text-to-speech voice for notifications')
-        self._setting_voice.setMinimumWidth(120)
+        self._setting_voice.setMinimumWidth(scale_by_ui(110))
         self._setting_voice.currentIndexChanged.connect(self._on_setting_changed)
         row_cln.addWidget(self._setting_voice)
 
@@ -160,7 +161,7 @@ class SettingsPanelMixin(QDialog):
         self._protection_section = QWidget()
         protection_section_layout = QVBoxLayout(self._protection_section)
         protection_section_layout.setContentsMargins(0, 0, 0, 0)
-        protection_section_layout.setSpacing(8)
+        protection_section_layout.setSpacing(scale_by_ui(8))
 
         # ── Separator ──
         separator = QFrame()
@@ -170,6 +171,7 @@ class SettingsPanelMixin(QDialog):
         protection_section_layout.addWidget(separator)
 
         suspend_row = QHBoxLayout()
+        suspend_row.setSpacing(scale_by_ui(8))
         suspend_row.setAlignment(Qt.AlignmentFlag.AlignVCenter)
         suspend_row.addWidget(QLabel('Suspend Mode:'))
         self._setting_suspend_mode = QComboBox()
