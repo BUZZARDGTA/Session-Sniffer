@@ -564,16 +564,23 @@ class LeaderboardSortProxy(QSortFilterProxyModel):
             dt_val = entry.first_seen if column == COLUMN_FIRST_SEEN else entry.last_seen
             timestamp = dt_val.timestamp() if dt_val is not None else float('-inf')
             return (timestamp, '', session_count, entry.ip)
-        text_by_col: dict[int, str] = {
-            COLUMN_USERNAMES: ', '.join(entry.usernames).lower(),
-            COLUMN_IP: entry.ip,
-            COLUMN_COUNTRY: (entry.country or 'N/A').lower(),
-            COLUMN_ISP: (entry.isp or 'N/A').lower(),
-            COLUMN_MOBILE: format_bool(entry.mobile),
-            COLUMN_VPN: format_bool(entry.vpn),
-            COLUMN_HOSTING: format_bool(entry.hosting),
-        }
-        return (0.0, text_by_col.get(column, ''), session_count, entry.ip)
+        if column == COLUMN_USERNAMES:
+            text_val = ', '.join(entry.usernames).lower()
+        elif column == COLUMN_IP:
+            text_val = entry.ip
+        elif column == COLUMN_COUNTRY:
+            text_val = (entry.country or 'N/A').lower()
+        elif column == COLUMN_ISP:
+            text_val = (entry.isp or 'N/A').lower()
+        elif column == COLUMN_MOBILE:
+            text_val = format_bool(entry.mobile)
+        elif column == COLUMN_VPN:
+            text_val = format_bool(entry.vpn)
+        elif column == COLUMN_HOSTING:
+            text_val = format_bool(entry.hosting)
+        else:
+            text_val = ''
+        return (0.0, text_val, session_count, entry.ip)
 
     def refresh_accepted_ips(self, *, force_invalidate: bool = True) -> None:
         """Recompute the filtered and top-N-capped set of accepted IPs from the source model."""

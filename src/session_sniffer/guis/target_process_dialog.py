@@ -183,6 +183,8 @@ class TargetProcessDialog(QDialog):
         main_layout.addLayout(action_layout)
 
         self._cached_processes: list[tuple[int, str, str]] = []
+        self._cached_search_meta: list[tuple[tuple[int, str, str], str, tuple[str, ...], str]] = []
+        self._cached_active_target_pid: int = 0
         self._user_selected_pid: int | None = None
         self._user_selected_name: str | None = None
         self._manual_pid_entered: bool = False
@@ -207,10 +209,12 @@ class TargetProcessDialog(QDialog):
         tracked_name = self.selected_process_name
 
         if current_pid <= 0 and not (track_by_name and tracked_name is not None):
+            self._cached_active_target_pid = 0
             self._status_label.setText('<b>Status:</b> Currently sniffing <b>ALL network traffic</b> (no process filter active).')
             return
 
         matched_pid, matched_name = self._resolve_running_target(current_pid, tracked_name, track_by_name=track_by_name)
+        self._cached_active_target_pid = matched_pid
         is_running = matched_pid > 0
         display_pid = matched_pid if is_running else current_pid
         process_name = html.escape(matched_name or tracked_name or 'Unknown Process')
@@ -272,16 +276,19 @@ class TargetProcessDialog(QDialog):
         return 0, None
 
     @staticmethod
-    def _process_sort_key(item: tuple[int, str, str], normalized_query: str) -> tuple[int, str, int]:
+    def _process_sort_key(
+        meta: tuple[tuple[int, str, str], str, tuple[str, ...], str],
+        normalized_query: str,
+        normalized_query_exe: str,
+    ) -> tuple[int, str, int]:
         """Compute sorting priority and tie-breaker for process matching."""
-        pid, name, _exe_path = item
-        name_lower = name.lower()
-        pid_string = str(pid)
-        if name_lower in (normalized_query, f'{normalized_query}.exe'):
+        process, name_lower, tokens, pid_string = meta
+        pid = process[0]
+        if name_lower in (normalized_query, normalized_query_exe):
             priority = 0
         elif name_lower.startswith(normalized_query):
             priority = 1
-        elif any(part.startswith(normalized_query) for part in re.split(r'[\s._\-]+', name_lower)):
+        elif any(part.startswith(normalized_query) for part in tokens):
             priority = 2
         elif normalized_query in name_lower:
             priority = 3
@@ -303,6 +310,15 @@ class TargetProcessDialog(QDialog):
         """Populate the process table with running applications and games."""
         user_apps_only = self._user_apps_only_checkbox.isChecked()
         self._cached_processes = get_running_applications(user_apps_only=user_apps_only)
+        self._cached_search_meta = [
+            (
+                proc,
+                name_lower := proc[1].lower(),
+                tuple(re.split(r'[\s._\-]+', name_lower)),
+                str(proc[0]),
+            )
+            for proc in self._cached_processes
+        ]
         if self._user_selected_pid is not None and all(pid != self._user_selected_pid for pid, _, _ in self._cached_processes):
             previous_selected_name = self._user_selected_name
             self._user_selected_pid = 0
@@ -330,24 +346,16 @@ class TargetProcessDialog(QDialog):
         normalized_query = filter_text.strip().lower()
 
         if normalized_query:
-            matching_processes: list[tuple[int, str, str]] = [
-                process for process in self._cached_processes if normalized_query in process[1].lower() or normalized_query in str(process[0])
+            normalized_query_exe = f'{normalized_query}.exe'
+            matching_meta = [
+                meta for meta in self._cached_search_meta if normalized_query in meta[1] or normalized_query in meta[3]
             ]
-            matching_processes.sort(key=lambda process: self._process_sort_key(process, normalized_query))
+            matching_meta.sort(key=lambda meta: self._process_sort_key(meta, normalized_query, normalized_query_exe))
+            matching_processes = [meta[0] for meta in matching_meta]
         else:
             matching_processes = list(self._cached_processes)
 
-        current_target_pid = self.selected_pid
-        track_by_name = self.selected_track_by_name
-        target_name = self.selected_process_name
-        has_tracked_target_name = track_by_name and target_name is not None
-        active_target_pid = 0
-        if current_target_pid > 0 or has_tracked_target_name:
-            active_target_pid, _ = self._resolve_running_target(
-                current_target_pid,
-                target_name,
-                track_by_name=has_tracked_target_name,
-            )
+        active_target_pid = self._cached_active_target_pid
         selected_row_to_restore: int | None = None
         active_target_row: int | None = None
 

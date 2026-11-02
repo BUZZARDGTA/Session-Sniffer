@@ -148,12 +148,13 @@ class _SuggestionLineEdit(QLineEdit):
 
 
 class _UsernameSuggestionProxyModel(QSortFilterProxyModel):
-    """Case-insensitive substring filter that excludes usernames already entered in other rows."""
+    """Case-insensitive substring filter that optionally excludes usernames already entered in other rows."""
 
-    def __init__(self, parent: QWidget | None = None) -> None:
+    def __init__(self, parent: QWidget | None = None, *, accept_empty: bool = False) -> None:
         super().__init__(parent)
         self._query_cf: str = ''
         self._excluded_cf: set[str] = set()
+        self._accept_empty = accept_empty
 
     def set_query_and_excluded(self, query: str, excluded_cf: set[str]) -> None:
         """Update the active substring query and excluded casefolded usernames."""
@@ -162,9 +163,14 @@ class _UsernameSuggestionProxyModel(QSortFilterProxyModel):
         self.invalidateFilter()
 
     @override
+    def setFilterFixedString(self, pattern: str) -> None:
+        self._query_cf = pattern.casefold()
+        self.invalidateFilter()
+
+    @override
     def filterAcceptsRow(self, source_row: int, source_parent: QModelIndex | QPersistentModelIndex) -> bool:
         if not self._query_cf:
-            return False
+            return self._accept_empty
         source_model = self.sourceModel()
         index = source_model.index(source_row, 0, source_parent)
         value = source_model.data(index, Qt.ItemDataRole.DisplayRole)
@@ -602,9 +608,8 @@ class SelectUsernamesDialog(QDialog):
         if self._show_notes:
             self._list_model.setHorizontalHeaderLabels(['Username', 'Note (optional)'])
 
-        proxy_model = QSortFilterProxyModel(self)
+        proxy_model = _UsernameSuggestionProxyModel(self, accept_empty=True)
         proxy_model.setSourceModel(self._list_model)
-        proxy_model.setFilterCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
         self._proxy = proxy_model
 
         usernames_list: QListView | QTableView

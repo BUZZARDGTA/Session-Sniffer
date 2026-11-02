@@ -626,9 +626,7 @@ class LookyRefreshReviewDialog(PlayerInfoDialogMixin):
 
     def _on_item_changed(self, item: QTreeWidgetItem, column: int) -> None:
         """Sync child suspect-removal checkboxes when a parent username checkbox is toggled."""
-        if column or self._updating_checks:
-            return
-        if (removal_children := self._entry_to_removal_children.get(id(item))) is not None:
+        if not column and not self._updating_checks and (removal_children := self._entry_to_removal_children.get(id(item))) is not None:
             self._updating_checks = True
             try:
                 with QSignalBlocker(self._tree.model()):
@@ -637,7 +635,8 @@ class LookyRefreshReviewDialog(PlayerInfoDialogMixin):
             finally:
                 self._updating_checks = False
             self._tree.viewport().update()
-        self._update_counter()
+        if not column and not self._updating_checks:
+            self._update_counter()
 
     def _set_all_checked(self, *, checked: bool) -> None:
         """Check all visible rows (when *checked* is True) or uncheck all rows (when *checked* is False)."""
@@ -646,12 +645,11 @@ class LookyRefreshReviewDialog(PlayerInfoDialogMixin):
         try:
             with QSignalBlocker(self._tree.model()):
                 for item, _entry in self._new_items:
-                    if checked and item.isHidden():
-                        continue
-                    item.setCheckState(0, state)
-                    for rem_child in self._entry_to_removal_children.get(id(item), []):
-                        if not checked or not rem_child.isHidden():
-                            rem_child.setCheckState(0, state)
+                    if not (checked and item.isHidden()):
+                        item.setCheckState(0, state)
+                        for rem_child in self._entry_to_removal_children.get(id(item), []):
+                            if not checked or not rem_child.isHidden():
+                                rem_child.setCheckState(0, state)
                 for rem_item, _rem in self._removal_items:
                     if not checked or (rem_item.parent() is None and not rem_item.isHidden()):
                         rem_item.setCheckState(0, state)
@@ -663,32 +661,34 @@ class LookyRefreshReviewDialog(PlayerInfoDialogMixin):
     def _update_counter(self) -> None:
         """Refresh the counter label and accept button state based on checked additions/moves and removals."""
         checked_actionable, checked_removals = len(self.get_accepted_entries()), len(self.get_accepted_removals())
-        checked_visual = sum(1 for item, _entry in self._new_items if item.checkState(0) == Qt.CheckState.Checked)
+        checked_visual = sum(1 for item, _ in self._new_items if item.checkState(0) == Qt.CheckState.Checked)
         total_visual, total_rem = len(self._new_items), len(self._removal_items)
-        if self._new_items and self._removal_items:
-            self._counter_label.setText(f'{checked_visual}/{total_visual} Looky to add/confirm/move \u00b7 {checked_removals}/{total_rem} wrong candidate rows to delete')
-        elif self._removal_items:
-            self._counter_label.setText(f'{checked_removals} / {total_rem} wrong candidate row{pluralize(total_rem)} to delete')
-        else:
-            self._counter_label.setText(f'{checked_visual} / {total_visual} selected')
+        rem_text = f'{checked_removals} / {total_rem} wrong candidate row{pluralize(total_rem)} to delete'
+        both_text = f'{checked_visual}/{total_visual} Looky to add/confirm/move \u00b7 {checked_removals}/{total_rem} wrong candidate rows to delete'
+        single_text = rem_text if self._removal_items else f'{checked_visual} / {total_visual} selected'
+        self._counter_label.setText(both_text if self._new_items and self._removal_items else single_text)
         self._accept_btn.setEnabled((checked_actionable + checked_removals) > 0)
 
     def _apply_tree_visibility(self) -> None:
         """Filter top-level Username rows and removal rows according to Matches Only and search query."""
         query, matches_only = self._search_input.text().strip().lower(), self._matches_only_btn is not None and self._matches_only_btn.isChecked()
-        for item, entry in self._new_items:
-            if matches_only and not (entry.is_confirmation or entry.is_known_in_db):
-                item.setHidden(True)
-                continue
-            parent_matches = not query or any(query in item.text(col).lower() for col in range(_COL_TARGET_DB)) or query in _format_db_label(entry.target_db_path).lower()
-            any_child = any((child := item.child(j)) and any(query in child.text(col).lower() for col in range(len(_TREE_HEADERS))) for j in range(item.childCount()))
-            item.setHidden(not (visible := parent_matches or any_child))
-            if query and visible and item.childCount() > 0:
-                item.setExpanded(True)
-        for rem_item, _rem in self._removal_items:
-            if rem_item.parent() is None:
-                rem_item.setHidden(not (not query or any(query in rem_item.text(col).lower() for col in range(len(_TREE_HEADERS)))))
-        self._tree.viewport().update()
+        self._tree.setUpdatesEnabled(False)
+        try:
+            for item, entry in self._new_items:
+                if matches_only and not (entry.is_confirmation or entry.is_known_in_db):
+                    item.setHidden(True)
+                    continue
+                parent_matches = not query or any(query in item.text(col).lower() for col in range(_COL_TARGET_DB)) or query in _format_db_label(entry.target_db_path).lower()
+                any_child = any((child := item.child(j)) and any(query in child.text(col).lower() for col in range(len(_TREE_HEADERS))) for j in range(item.childCount()))
+                item.setHidden(not (visible := parent_matches or any_child))
+                if query and visible and item.childCount() > 0:
+                    item.setExpanded(True)
+            for rem_item, _rem in self._removal_items:
+                if rem_item.parent() is None:
+                    rem_item.setHidden(not (not query or any(query in rem_item.text(col).lower() for col in range(len(_TREE_HEADERS)))))
+        finally:
+            self._tree.setUpdatesEnabled(True)
+            self._tree.viewport().update()
 
     def get_accepted_entries(self) -> list[_PendingEntry]:
         """Return the list of new/confirmed/moved entries the user checked."""

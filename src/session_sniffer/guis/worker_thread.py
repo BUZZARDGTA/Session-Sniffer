@@ -32,6 +32,7 @@ def _search_filter[T: Sequence[str], C: Sequence[CellColor]](
     rows: Sequence[tuple[T, C]],
     text: str,
     column: int,
+    joined_lower_cache: dict[int, str] | None = None,
 ) -> list[tuple[T, C]]:
     """Return only rows whose target cell(s) contain `text` (case-insensitive).
 
@@ -39,7 +40,19 @@ def _search_filter[T: Sequence[str], C: Sequence[CellColor]](
     """
     lowered = text.lower()
     if column < 0:
-        return [entry for entry in rows if any(lowered in cell.lower() for cell in entry[0])]
+        if joined_lower_cache is not None:
+            matched: list[tuple[T, C]] = []
+            for entry in rows:
+                row_cells = entry[0]
+                row_id = id(row_cells)
+                joined = joined_lower_cache.get(row_id)
+                if joined is None:
+                    joined = '\x00'.join(row_cells).lower()
+                    joined_lower_cache[row_id] = joined
+                if lowered in joined:
+                    matched.append(entry)
+            return matched
+        return [entry for entry in rows if lowered in '\x00'.join(entry[0]).lower()]
     return [entry for entry in rows if column < len(entry[0]) and lowered in entry[0][column].lower()]
 
 
@@ -98,6 +111,7 @@ class GUIWorkerThread(CrashingQThread):
         cached_disconnected_sorted: Sequence[tuple[tuple[str, ...], tuple[CellColor, ...]]] = ()
         cached_connected_count: int = 0
         cached_disconnected_count: int = 0
+        joined_lower_cache: dict[int, str] = {}
 
         logger.debug('GUIWorkerThread _run loop entered')
         while not gui_closed__event.is_set() and not self.isInterruptionRequested():
@@ -134,6 +148,7 @@ class GUIWorkerThread(CrashingQThread):
                 last_snapshot = snapshot
                 cached_connected_zipped = list(snapshot.connected.rows_with_colors)
                 cached_disconnected_zipped = list(snapshot.disconnected.rows_with_colors)
+                joined_lower_cache.clear()
             elif last_snapshot is None or not (needs_filter_and_sort or pagination_changed):
                 continue
 
@@ -202,14 +217,14 @@ class GUIWorkerThread(CrashingQThread):
                     filtered_connected = (
                         []
                         if connected_col == _COLUMN_NOT_FOUND or not source_connected
-                        else _search_filter(source_connected, search_text, connected_col)
+                        else _search_filter(source_connected, search_text, connected_col, joined_lower_cache)
                     )
                     cached_connected_count = len(filtered_connected)
 
                     filtered_disconnected = (
                         []
                         if disconnected_col == _COLUMN_NOT_FOUND
-                        else _search_filter(source_disconnected, search_text, disconnected_col)
+                        else _search_filter(source_disconnected, search_text, disconnected_col, joined_lower_cache)
                     )
                     cached_disconnected_count = len(filtered_disconnected)
                 else:
