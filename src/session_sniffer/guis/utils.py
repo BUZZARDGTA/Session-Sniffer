@@ -54,27 +54,29 @@ from .exceptions import PrimaryScreenNotFoundError, UnsupportedScreenResolutionE
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
 
-    from PySide6.QtGui import QMouseEvent
+    from PySide6.QtGui import QMouseEvent, QScreen
 
 SPINNER_FRAMES: tuple[str, ...] = ('⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏')
 
-_MIN_SCREEN_HEIGHT_WARNING = 768
+_MIN_SCREEN_HEIGHT_WARNING = 720
 _LARGE_WINDOW_MIN_HEIGHT = 500
-
-_BREAKPOINT_2K_WIDTH = 2560
-_BREAKPOINT_2K_HEIGHT = 1350
-_TARGET_2K_WIDTH = 1300
-_TARGET_2K_HEIGHT = 820
 
 _BREAKPOINT_FHD_WIDTH = 1920
 _BREAKPOINT_FHD_HEIGHT = 1000
-_TARGET_FHD_WIDTH = 1100
-_TARGET_FHD_HEIGHT = 660
-
 _BREAKPOINT_HD_WIDTH = 1024
-_BREAKPOINT_HD_HEIGHT = 720
+_BREAKPOINT_HD_HEIGHT = 660
 _TARGET_HD_WIDTH = 860
 _TARGET_HD_HEIGHT = 620
+
+# Breakpoints ordered high-to-low: min width, min height, target width, target height, UI scale.
+_SCREEN_BREAKPOINTS: tuple[tuple[int, int, int, int, float], ...] = (
+    (3200, 1700, 1500, 940, 1.15),  # 4K (3840x2160 @ 100%)
+    (2560, 1350, 1300, 820, 1.00),  # 2K / QHD (2560x1440 @ 100%, 4K @ 125%/150%)
+    (2048, 1080, 1200, 740, 0.92),  # QHD @ 125% (2048x1152 logical)
+    (_BREAKPOINT_FHD_WIDTH, _BREAKPOINT_FHD_HEIGHT, 1100, 660, 0.85),  # FHD (1920x1080 @ 100%)
+    (1440, 790, 1000, 640, 0.80),  # FHD @ 125% (1536x864), 1600x900, 1440x900
+    (_BREAKPOINT_HD_WIDTH, _BREAKPOINT_HD_HEIGHT, _TARGET_HD_WIDTH, _TARGET_HD_HEIGHT, 0.75),  # HD (1366x768, 720p, FHD @ 150%)
+)
 
 _FALLBACK_MARGIN = 80
 
@@ -198,18 +200,17 @@ def create_section_separator(title: str) -> QWidget:
 def get_screen_size() -> tuple[int, int]:
     """Get the available logical screen size and validate minimum resolution requirements.
 
-    Uses `availableSize()` (which excludes the taskbar) rather than `size()` so
-    the reported dimensions reflect the actual usable area.  Qt 6 returns logical
-    pixels here — i.e. the physical pixel count already divided by the display's
-    device-pixel ratio — so the values are directly comparable to widget sizes
-    expressed in logical pixels.
+    Validates the minimum resolution against `size()` (full logical monitor
+    resolution) so taskbars/docks do not cause false-positive warnings on
+    1366x768 or 1024x768 displays, while returning `availableSize()` (which
+    excludes the taskbar) so reported dimensions reflect the usable work area.
 
     Returns:
         Available screen width and height in logical pixels.
 
     Raises:
         PrimaryScreenNotFoundError: If no primary screen is detected.
-        UnsupportedScreenResolutionError: If the available resolution is below the minimum.
+        UnsupportedScreenResolutionError: If the logical resolution is below the minimum.
     """
     min_screen_width = 1024
     min_screen_height = 768
@@ -218,14 +219,22 @@ def get_screen_size() -> tuple[int, int]:
     if not screen:
         raise PrimaryScreenNotFoundError
 
+    full_size = screen.size()
+    if (full_size.width() < min_screen_width or full_size.height() < min_screen_height) and not Settings.gui_ignore_screen_resolution_warning:
+        raise UnsupportedScreenResolutionError(full_size.width(), full_size.height(), min_screen_width, min_screen_height)
+
     available_size = screen.availableSize()
-    screen_width = available_size.width()
-    screen_height = available_size.height()
+    return available_size.width(), available_size.height()
 
-    if (screen_width < min_screen_width or screen_height < min_screen_height) and not Settings.gui_ignore_screen_resolution_warning:
-        raise UnsupportedScreenResolutionError(screen_width, screen_height, min_screen_width, min_screen_height)
 
-    return screen_width, screen_height
+def _resolve_window_screen(window: QWidget) -> QScreen | None:
+    """Return the target QScreen for *window*, preferring its parent or main window's monitor."""
+    parent = window.parentWidget()
+    if parent is not None:
+        return parent.window().screen() or QApplication.primaryScreen()
+    if not isinstance(window, QMainWindow) and (main_window := find_main_window()) is not None:
+        return main_window.screen() or QApplication.primaryScreen()
+    return window.screen() or QApplication.primaryScreen()
 
 
 _MAXIMIZE_ON_SHOW_PROPERTY = '_should_maximize_on_show'
@@ -251,7 +260,7 @@ def resize_window_for_screen(window: QWidget, screen_size: tuple[int, int] | Non
         window: The window to resize.
         screen_size: Screen dimensions as (width, height) in pixels. Defaults to `get_screen_size()`.
     """
-    screen = window.screen() or QApplication.primaryScreen()
+    screen = _resolve_window_screen(window)
     if screen:
         avail = screen.availableGeometry()
         avail_width = avail.width()
@@ -271,41 +280,33 @@ def resize_window_for_screen(window: QWidget, screen_size: tuple[int, int] | Non
         set_maximize_on_show(window, maximize=True)
         return
 
-    if avail_width >= _BREAKPOINT_2K_WIDTH and avail_height >= _BREAKPOINT_2K_HEIGHT:
-        window.resize(max(_TARGET_2K_WIDTH, min_size.width()), max(_TARGET_2K_HEIGHT, min_size.height()))
-    elif avail_width >= _BREAKPOINT_FHD_WIDTH and avail_height >= _BREAKPOINT_FHD_HEIGHT:
-        window.resize(max(_TARGET_FHD_WIDTH, min_size.width()), max(_TARGET_FHD_HEIGHT, min_size.height()))
-    elif avail_width >= _BREAKPOINT_HD_WIDTH and avail_height >= _BREAKPOINT_HD_HEIGHT:
-        window.resize(max(_TARGET_HD_WIDTH, min_size.width()), max(_TARGET_HD_HEIGHT, min_size.height()))
-    else:
-        fallback_width = min(avail_width - _FALLBACK_MARGIN, _TARGET_HD_WIDTH)
-        fallback_height = min(avail_height - _FALLBACK_MARGIN, _TARGET_HD_HEIGHT)
-        window.resize(max(fallback_width, min_size.width()), max(fallback_height, min_size.height()))
+    for bp_width, bp_height, target_width, target_height, _ in _SCREEN_BREAKPOINTS:
+        if avail_width >= bp_width and avail_height >= bp_height:
+            window.resize(max(target_width, min_size.width()), max(target_height, min_size.height()))
+            return
+
+    fallback_width = min(avail_width - _FALLBACK_MARGIN, _TARGET_HD_WIDTH)
+    fallback_height = min(avail_height - _FALLBACK_MARGIN, _TARGET_HD_HEIGHT)
+    window.resize(max(fallback_width, min_size.width()), max(fallback_height, min_size.height()))
 
 
 def compute_ui_scale(screen_size: tuple[int, int]) -> float:
     """Return a UI scale factor for the given available screen resolution.
 
     Uses the same breakpoints as `resize_window_for_screen` so that window
-    dimensions and element sizes stay in sync.  2560x1440 is the design
-    baseline (scale 1.0); smaller screens receive proportionally reduced values.
-    1920x1080 (FHD) yields 0.85, which keeps the UI comfortable without feeling
-    cramped.  Screens below 1280x800 (common laptops at 1366x768) use 0.70.
+    dimensions and element sizes stay in sync across 4K, 2K/QHD, FHD,
+    fractional-DPI (125%/150%), and HD laptop displays.
 
     Args:
         screen_size: Available screen dimensions as (width, height) in logical pixels.
 
     Returns:
-        A float in the range [0.65, 1.00].
+        A float in the range [0.65, 1.15].
     """
-    if screen_size[0] >= _BREAKPOINT_2K_WIDTH and screen_size[1] >= _BREAKPOINT_2K_HEIGHT:
-        return 1.00
-    if screen_size[0] >= _BREAKPOINT_FHD_WIDTH and screen_size[1] >= _BREAKPOINT_FHD_HEIGHT:
-        return 0.85
-    if screen_size[0] >= _BREAKPOINT_HD_WIDTH and screen_size[1] >= _BREAKPOINT_HD_HEIGHT:
-        return 0.75
+    for bp_width, bp_height, _, _, scale in _SCREEN_BREAKPOINTS:
+        if screen_size[0] >= bp_width and screen_size[1] >= bp_height:
+            return scale
     return 0.65  # ≥ 1024x768 (minimum supported resolution)
-
 
 # ---------------------------------------------------------------------------
 # Shared GUI helpers
@@ -481,16 +482,22 @@ def apply_adaptive_window_size(
     min_h = scale_by_ui(min_size[1])
     window.setMinimumSize(min_w, min_h)
 
-    screen_size = get_screen_size()
-    if screen_size >= (1920, 1080):
-        window.resize(scale_by_ui(size_1080p[0]), scale_by_ui(size_1080p[1]))
-    elif screen_size >= (1280, 720):
-        window.resize(scale_by_ui(size_720p[0]), scale_by_ui(size_720p[1]))
+    screen = _resolve_window_screen(window)
+    if screen is not None:
+        avail = screen.availableGeometry()
+        avail_width, avail_height = avail.width(), avail.height()
     else:
-        resize_window_for_screen(window, screen_size)
+        avail_width, avail_height = get_screen_size()
+
+    if avail_width >= _BREAKPOINT_FHD_WIDTH and avail_height >= _BREAKPOINT_FHD_HEIGHT:
+        window.resize(max(min_w, scale_by_ui(size_1080p[0])), max(min_h, scale_by_ui(size_1080p[1])))
+    elif avail_width >= _BREAKPOINT_HD_WIDTH and avail_height >= _BREAKPOINT_HD_HEIGHT:
+        window.resize(max(min_w, scale_by_ui(size_720p[0])), max(min_h, scale_by_ui(size_720p[1])))
+    else:
+        resize_window_for_screen(window, (avail_width, avail_height))
         window.resize(
-            min(window.width(), max(min_w, screen_size[0] - 80)),
-            min(window.height(), max(min_h, screen_size[1] - 80)),
+            min(window.width(), max(min_w, avail_width - _FALLBACK_MARGIN)),
+            min(window.height(), max(min_h, avail_height - _FALLBACK_MARGIN)),
         )
 
 
@@ -892,8 +899,8 @@ def render_svg_icon_from_resource(filename: str, width: int, height: int, tint_c
 
 
 def center_window_on_screen(window: QWidget) -> None:
-    """Center *window* on its current screen (or the primary screen as fallback)."""
-    screen = window.screen() or QApplication.primaryScreen()
+    """Center *window* on its target screen (preferring parent/main window screen, or primary screen as fallback)."""
+    screen = _resolve_window_screen(window)
     if not screen:
         return
     available_geometry = screen.availableGeometry()

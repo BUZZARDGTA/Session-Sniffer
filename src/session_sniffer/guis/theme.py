@@ -7,6 +7,7 @@ from PySide6.QtGui import QColor, QPalette
 from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.guis.stylesheets._menus import SHARED_QMENU_RIGHT_ARROW_STYLESHEET
 
+_SCALE_THRESHOLD_XLARGE = 1.10
 _SCALE_THRESHOLD_LARGE = 0.85
 _SCALE_THRESHOLD_MEDIUM = 0.75
 
@@ -56,9 +57,12 @@ def get_stylesheet(ui_scale: float = 1.0) -> str:
     close_path = (RESOURCES_DIR_PATH / 'icons' / 'x.svg').as_posix()
 
     # Scale the base font size proportionally to the screen resolution.
-    # 10pt is the design baseline (2K / 1.0 scale).  Smaller screens get
-    # proportionally smaller text so nothing overflows or clips.
-    if ui_scale >= _SCALE_THRESHOLD_LARGE:
+    # 10pt is the design baseline (2K / 1.0 scale).  4K displays step up to
+    # 11pt, while smaller screens get proportionally smaller text so nothing
+    # overflows or clips.
+    if ui_scale >= _SCALE_THRESHOLD_XLARGE:
+        base_font_pt = 11
+    elif ui_scale >= _SCALE_THRESHOLD_LARGE:
         base_font_pt = 10
     elif ui_scale >= _SCALE_THRESHOLD_MEDIUM:
         base_font_pt = 9
