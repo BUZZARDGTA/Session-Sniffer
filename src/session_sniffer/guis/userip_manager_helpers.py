@@ -1,6 +1,7 @@
 """Shared helpers, constants, and dialogs for the UserIP Databases Manager."""
 
 import contextlib
+import functools
 import ipaddress
 import json
 import logging
@@ -8,7 +9,7 @@ from datetime import datetime
 from ipaddress import IPv4Address
 from typing import TYPE_CHECKING, cast, override
 
-from PySide6.QtCore import QModelIndex, QPersistentModelIndex, QRegularExpression, QSignalBlocker, QSortFilterProxyModel, Qt
+from PySide6.QtCore import QAbstractItemModel, QModelIndex, QObject, QPersistentModelIndex, QRegularExpression, QSignalBlocker, QSortFilterProxyModel, Qt
 from PySide6.QtGui import QBrush, QColor, QIcon, QRegularExpressionValidator, QStandardItem, QStandardItemModel
 from PySide6.QtWidgets import (
     QButtonGroup,
@@ -84,6 +85,7 @@ FILTERABLE_COLUMNS = (
 ENTRY_TABLE_HEADERS = ['#', 'Username', 'IP', 'Range', 'Database', 'Notes', 'Source', 'Detections', 'Added', 'Updated', 'First Seen', 'Last Seen']
 
 IS_PERSISTED_ROLE = Qt.ItemDataRole.UserRole + 1
+SEARCH_TEXT_ROLE = Qt.ItemDataRole.UserRole + 2
 
 DUPLICATE_HIGHLIGHT_BRUSH = QBrush(QColor(255, 165, 0, 60))
 
@@ -101,10 +103,29 @@ NEW_DATABASE_SETTINGS = UserIPSettingsModel(
 )
 
 
+def _compute_row_search_blob(model: QAbstractItemModel, row: int) -> str:
+    """Compute and cache the lowercased searchable text blob for *row* in *model*."""
+    if isinstance(model, QStandardItemModel):
+        blob = '\x00'.join(text.lower() for col in FILTERABLE_COLUMNS if (item := model.item(row, col)) and (text := item.text()))
+        if idx_item := model.item(row, INDEX_COLUMN):
+            with QSignalBlocker(model):
+                idx_item.setData(blob, SEARCH_TEXT_ROLE)
+        return blob
+    return '\x00'.join(
+        str(data).lower() for col in FILTERABLE_COLUMNS if (data := model.data(model.index(row, col), Qt.ItemDataRole.DisplayRole)) is not None
+    )
+
+
 class EntriesSortProxy(QSortFilterProxyModel):
     """Proxy that uses IP address as a secondary sort key when the primary column values are equal."""
 
+    def __init__(self, parent: QObject | None = None) -> None:
+        """Initialize the proxy with empty search cache state."""
+        super().__init__(parent)
+        self._filter_lower: str = ''
+
     @staticmethod
+    @functools.lru_cache(maxsize=16384)
     def _ip_sort_key(value: str) -> tuple[int, ...]:
         """Return a numeric tuple for valid IPs so they sort numerically."""
         lead = value.split('/', 1)[0].split('-', 1)[0].strip()
@@ -114,6 +135,7 @@ class EntriesSortProxy(QSortFilterProxyModel):
             return tuple(byte_val for char_val in value.encode() for byte_val in (char_val,))
 
     @staticmethod
+    @functools.lru_cache(maxsize=16384)
     def _timestamp_sort_key(value: object) -> float:
         """Return a numeric POSIX timestamp for ISO-8601 strings, sorting empty values first."""
         if isinstance(value, str) and value:
@@ -122,20 +144,39 @@ class EntriesSortProxy(QSortFilterProxyModel):
         return float('-inf')
 
     @override
+    def setSourceModel(self, source_model: QAbstractItemModel) -> None:
+        old_model = self.sourceModel()
+        if old_model:
+            with contextlib.suppress(RuntimeError, TypeError):
+                old_model.dataChanged.disconnect(self._on_source_data_changed)
+        super().setSourceModel(source_model)
+        if source_model:
+            source_model.dataChanged.connect(self._on_source_data_changed)
+
+    def _on_source_data_changed(self, top_left: QModelIndex, bottom_right: QModelIndex, roles: list[int]) -> None:
+        if roles and Qt.ItemDataRole.DisplayRole not in roles and Qt.ItemDataRole.EditRole not in roles:
+            return
+        model = self.sourceModel()
+        if isinstance(model, QStandardItemModel):
+            for row in range(top_left.row(), bottom_right.row() + 1):
+                _compute_row_search_blob(model, row)
+
+    @override
+    def setFilterFixedString(self, pattern: str) -> None:
+        self._filter_lower = pattern.lower()
+        super().setFilterFixedString(pattern)
+
+    @override
     def filterAcceptsRow(self, source_row: int, source_parent: QModelIndex | QPersistentModelIndex) -> bool:
         """Filter rows across all searchable entry and metadata columns."""
+        if not self._filter_lower:
+            return True
         model = self.sourceModel()
         if not model:
             return True
-        regex = self.filterRegularExpression()
-        if not regex.pattern():
-            return True
-        for column in FILTERABLE_COLUMNS:
-            index = model.index(source_row, column, source_parent)
-            data = model.data(index, self.filterRole())
-            if data is not None and regex.match(str(data)).hasMatch():
-                return True
-        return False
+        cached = model.data(model.index(source_row, INDEX_COLUMN, source_parent), SEARCH_TEXT_ROLE)
+        blob = cached if isinstance(cached, str) else _compute_row_search_blob(model, source_row)
+        return self._filter_lower in blob
 
     @override
     def lessThan(self, left: QModelIndex | QPersistentModelIndex, right: QModelIndex | QPersistentModelIndex) -> bool:
@@ -195,7 +236,7 @@ def build_entry_row_items(
     persisted: bool = True,
 ) -> list[QStandardItem]:
     """Construct the 12 `QStandardItem` instances for a single `UserIPEntryModel` row."""
-    if entry.ip:
+    if not persisted and entry.ip:
         entry, _ = enrich_userip_entry_from_logs(entry)
     index_item = _make_readonly_item(str(index) if index > 0 else '', index)
     index_item.setData(1 if persisted else 0, IS_PERSISTED_ROLE)
@@ -209,14 +250,15 @@ def build_entry_row_items(
         username_item.setData(entry.is_looky, Qt.ItemDataRole.UserRole)
 
     is_single_ip = False
-    if entry.ip:
+    if entry.ip and '/' not in entry.ip and '-' not in entry.ip:
         with contextlib.suppress(ValueError):
             IPv4Address(entry.ip)
             is_single_ip = True
 
     ip_item = QStandardItem(entry.ip if is_single_ip else '')
     range_item = QStandardItem('' if is_single_ip else entry.ip)
-    db_item = _make_readonly_item(database[0] if database else '', str(database[1]) if database is not None else None)
+    db_name = database[0] if database else ''
+    db_item = _make_readonly_item(db_name, str(database[1]) if database is not None else None)
     notes_item = QStandardItem(entry.notes)
     source_item = _make_readonly_item(entry.source, entry.source)
     detections_item = _make_readonly_item(str(entry.detections_count), entry.detections_count)
@@ -224,6 +266,8 @@ def build_entry_row_items(
     updated_item = _make_timestamp_item(entry.updated_at)
     first_seen_item = _make_timestamp_item(entry.first_seen_at)
     last_seen_item = _make_timestamp_item(entry.last_seen_at)
+    search_vals = (entry.username, entry.ip, db_name, entry.notes, entry.source, added_item.text(), updated_item.text(), first_seen_item.text(), last_seen_item.text())
+    index_item.setData('\x00'.join(val.lower() for val in search_vals if val), SEARCH_TEXT_ROLE)
     return [index_item, username_item, ip_item, range_item, db_item, notes_item, source_item, detections_item, added_item, updated_item, first_seen_item, last_seen_item]
 
 
@@ -318,11 +362,7 @@ def human_readable_size(size_bytes: int) -> str:
     return f'{value:.1f} TB'
 
 
-def parse_userip_database_content(
-    content: str,
-    *,
-    default_settings: UserIPSettingsModel | None = None,
-) -> UserIPDatabaseFile:
+def parse_userip_database_content(content: str, *, default_settings: UserIPSettingsModel | None = None) -> UserIPDatabaseFile:
     """Parse raw JSON *content* into a validated `UserIPDatabaseFile` model."""
     fallback_settings = default_settings if default_settings is not None else NEW_DATABASE_SETTINGS
     if not content.strip():
@@ -346,29 +386,24 @@ def parse_userip_database_content(
 
     raw_entries_obj: object = typed_data.get('entries')
     raw_entries = cast('list[object]', raw_entries_obj) if isinstance(raw_entries_obj, list) else []
-
-    entries: list[UserIPEntryModel] = []
-    for raw_entry in raw_entries:
-        parsed = UserIPEntryModel.parse_raw_entry(raw_entry)
-        if parsed is None:
-            continue
-        base_entry, _ = enrich_userip_entry_from_logs(parsed[0])
-        entries.append(base_entry)
-
+    entries = [
+        enrich_userip_entry_from_logs(parsed[0])[0]
+        for raw_entry in raw_entries
+        if (parsed := UserIPEntryModel.parse_raw_entry(raw_entry)) is not None
+    ]
     return UserIPDatabaseFile(settings=validated_settings, entries=entries)
 
 
 def load_userip_database_model(path: Path) -> UserIPDatabaseFile:
     """Read and parse a UserIP `.json` database file into a `UserIPDatabaseFile` model."""
     default_settings = DEFAULT_USERIP_FILES_SETTINGS.get(path.name) if path.parent == USERIP_DATABASES_DIR_PATH else None
+    fallback = default_settings if default_settings is not None else NEW_DATABASE_SETTINGS
     if not path.is_file():
-        fallback = default_settings if default_settings is not None else NEW_DATABASE_SETTINGS
         return UserIPDatabaseFile(settings=fallback.model_copy(), entries=[])
     try:
         content = path.read_text(encoding='utf-8')
     except OSError as e:
         logger.warning('Failed to read UserIP database "%s": %s', path, e)
-        fallback = default_settings if default_settings is not None else NEW_DATABASE_SETTINGS
         return UserIPDatabaseFile(settings=fallback.model_copy(), entries=[])
     return parse_userip_database_content(content, default_settings=default_settings)
 
@@ -390,9 +425,8 @@ def iter_userip_databases() -> Iterator[tuple[Path, list[UserIPEntryModel]]]:
     """Yield `(database_path, entries)` for every UserIP `.json` database file, sorted by path."""
     USERIP_DATABASES_DIR_PATH.mkdir(parents=True, exist_ok=True)
     for json_path in sorted(USERIP_DATABASES_DIR_PATH.rglob('*.json')):
-        if not json_path.is_file():
-            continue
-        yield json_path, load_userip_database_model(json_path).entries
+        if json_path.is_file():
+            yield json_path, load_userip_database_model(json_path).entries
 
 
 def dedup_userip_entries(entries: Iterable[UserIPEntryModel]) -> list[UserIPEntryModel]:
@@ -421,17 +455,8 @@ def rewrite_db_without_entries(db_path: Path, to_remove: set[tuple[str, str]]) -
         save_userip_database_model(db_path, db_model)
 
 
-def rewrite_db_rename_entries(
-    db_path: Path,
-    pairs: list[tuple[str, str]],
-    new_username: str,
-    *,
-    match_ip_ranges: bool = False,
-) -> int:
-    """Replace matched `(old_username, ip_or_range)` entries with *new_username* in-place.
-
-    Returns the number of entries renamed.
-    """
+def rewrite_db_rename_entries(db_path: Path, pairs: list[tuple[str, str]], new_username: str, *, match_ip_ranges: bool = False) -> int:
+    """Replace matched `(old_username, ip_or_range)` entries with *new_username* in-place and return the count renamed."""
     if not db_path.is_file() or not pairs:
         return 0
     db_model = load_userip_database_model(db_path)
@@ -441,13 +466,11 @@ def rewrite_db_rename_entries(
     now_iso = get_current_iso_timestamp()
 
     for entry in db_model.entries:
-        if match_ip_ranges:
-            matched = any(
-                pair_user == entry.username and (entry.ip == pair_ip or entry_ip_covers_ip(entry.ip, pair_ip))
-                for pair_user, pair_ip in pairs
-            )
-        else:
-            matched = (entry.username, entry.ip) in target_pairs
+        matched = (
+            any(pair_user == entry.username and (entry.ip == pair_ip or entry_ip_covers_ip(entry.ip, pair_ip)) for pair_user, pair_ip in pairs)
+            if match_ip_ranges
+            else (entry.username, entry.ip) in target_pairs
+        )
         if matched:
             renamed_count += 1
             new_source = 'Manual' if entry.source == 'Looky' else entry.source
@@ -461,25 +484,8 @@ def rewrite_db_rename_entries(
     return renamed_count
 
 
-def rewrite_db_edit_entry_ip(
-    db_path: Path,
-    old_ip_or_range: str,
-    new_ip_or_range: str,
-    *,
-    username: str | None = None,
-) -> int:
-    """Replace an entry's IP or range in a database file in-place.
-
-    Args:
-        db_path: Path to the UserIP database file.
-        old_ip_or_range: The current IP address or range string to replace.
-        new_ip_or_range: The new IP address or range string.
-        username: If provided, only replaces the entry for this specific username.
-            If None, replaces all occurrences of `old_ip_or_range`.
-
-    Returns:
-        The number of entries replaced.
-    """
+def rewrite_db_edit_entry_ip(db_path: Path, old_ip_or_range: str, new_ip_or_range: str, *, username: str | None = None) -> int:
+    """Replace an entry's IP or range in a database file in-place and return the number of entries replaced."""
     if not db_path.is_file():
         return 0
     db_model = load_userip_database_model(db_path)
@@ -503,12 +509,7 @@ def rewrite_db_edit_entry_ip(
     return replaced_count
 
 
-def rewrite_db_edit_entry_note(
-    db_path: Path,
-    username: str,
-    ip_or_range: str,
-    new_note: str,
-) -> bool:
+def rewrite_db_edit_entry_note(db_path: Path, username: str, ip_or_range: str, new_note: str) -> bool:
     """Update the `notes` field for a specific `(username, ip_or_range)` entry in *db_path*."""
     if not db_path.is_file():
         return False
@@ -527,15 +528,8 @@ def rewrite_db_edit_entry_note(
     return modified
 
 
-def rewrite_db_edit_ip_notes(
-    db_path: Path,
-    ip_address: str,
-    new_note: str,
-) -> int:
-    """Update the `notes` field for all entries in *db_path* covering *ip_address*.
-
-    Returns the number of entries matched.
-    """
+def rewrite_db_edit_ip_notes(db_path: Path, ip_address: str, new_note: str) -> int:
+    """Update the `notes` field for all entries in *db_path* covering *ip_address* and return the match count."""
     if not db_path.is_file():
         return 0
     db_model = load_userip_database_model(db_path)

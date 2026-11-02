@@ -202,12 +202,12 @@ class UserIPEntriesOperationsMixin(QDialog):
                     rows.append(row)
 
             append_entry_rows(self._model, rows)
+            self._proxy.setFilterFixedString(self._search_input.text())
         finally:
             self._proxy.setDynamicSortFilter(dynamic_sort_filter)
             self._proxy.invalidate()
 
         self._set_status(f'Global search: {total_entries} entries across {total_files} databases')
-        self._proxy.setFilterFixedString(self._search_input.text())
         self._update_entry_counts()
 
     # ------------------------------------------------------------------
@@ -952,13 +952,14 @@ class UserIPEntriesOperationsMixin(QDialog):
 
         with QSignalBlocker(self._model):
             for row in range(self._model.rowCount()):
+                is_dup = row in duplicate_rows
                 for column in range(self._model.columnCount()):
                     item = self._model.item(row, column)
                     if not item:
                         continue
-                    if row in duplicate_rows:
+                    if is_dup:
                         item.setBackground(DUPLICATE_HIGHLIGHT_BRUSH)
-                    else:
+                    elif item.data(Qt.ItemDataRole.BackgroundRole) is not None:
                         item.setData(None, Qt.ItemDataRole.BackgroundRole)
 
         return len(duplicate_rows)

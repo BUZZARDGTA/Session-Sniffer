@@ -376,6 +376,9 @@ class SearchHighlightDelegate(ElidedTextTooltipDelegate):
         self._get_search_text = get_search_text
         self._get_search_column = get_search_column
         self._configure_editor = configure_editor
+        self._highlight_format = QTextCharFormat()
+        self._highlight_format.setBackground(_SEARCH_HIGHLIGHT_BG_COLOR)
+        self._highlight_format.setForeground(_SEARCH_HIGHLIGHT_FG_COLOR)
 
     @override
     def createEditor(
@@ -510,10 +513,7 @@ class SearchHighlightDelegate(ElidedTextTooltipDelegate):
                 lower_display_text = display_text.lower()
                 lower_query = search_query.lower()
                 search_position = 0
-
-                highlight_format = QTextCharFormat()
-                highlight_format.setBackground(_SEARCH_HIGHLIGHT_BG_COLOR)
-                highlight_format.setForeground(_SEARCH_HIGHLIGHT_FG_COLOR)
+                highlight_format = self._highlight_format
 
                 while True:
                     match_index = lower_display_text.find(lower_query, search_position)
