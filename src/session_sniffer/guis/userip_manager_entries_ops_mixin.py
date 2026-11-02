@@ -1,13 +1,11 @@
 """Entries operations mixin for the UserIP Databases Manager dialog."""
 
-import queue
-import threading
 from collections import defaultdict
 from ipaddress import IPv4Address
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from PySide6.QtCore import QItemSelectionModel, QModelIndex, QSignalBlocker, Qt, QTimer
+from PySide6.QtCore import QItemSelectionModel, QModelIndex, QSignalBlocker, Qt
 from PySide6.QtWidgets import QAbstractItemView, QDialog, QFrame, QInputDialog, QLineEdit, QMessageBox, QTreeView
 
 from session_sniffer.constants.local import USERIP_DATABASES_DIR_PATH
@@ -78,9 +76,6 @@ class UserIPEntriesOperationsMixin(QDialog):
     _search_input: QLineEdit
     _settings_container: QFrame
     _looky_icon: QIcon
-    _global_load_generation: int = 0
-    _global_load_queue: queue.SimpleQueue[tuple[int, list[list[QStandardItem]], list[int], int, int]] | None = None
-    _global_load_timer: QTimer | None = None
 
     def _append_row(
         self, entry: UserIPEntryModel, *, index: int = 0, database: tuple[str, Path] | None = None, persisted: bool = True,
@@ -154,73 +149,21 @@ class UserIPEntriesOperationsMixin(QDialog):
             self._search_input.setText(active_search)
         self._set_status(f'Reloaded "{self._current_path.name}" after an external change.')
 
-    def _cancel_global_load(self) -> None:
-        """Cancel any in-flight background global database load."""
-        self._global_load_generation += 1
-        if self._global_load_timer is not None:
-            self._global_load_timer.stop()
-
     def _load_all_databases(self) -> None:
-        """Offload parsing all .json files to a background thread and populate the table asynchronously."""
-        self._global_load_generation += 1
-        generation = self._global_load_generation
-        if self._global_load_queue is None:
-            self._global_load_queue = queue.SimpleQueue()
-        if self._global_load_timer is None:
-            self._global_load_timer = QTimer(self)
-            self._global_load_timer.setInterval(15)
-            self._global_load_timer.timeout.connect(self._poll_global_load_result)
-
+        """Populate the table with all cached UserIP database entries."""
         self._model.removeRows(0, self._model.rowCount())
-        self._set_status('Loading all databases…')
-        self._global_load_timer.start()
-        load_queue = self._global_load_queue
+        rows: list[list[QStandardItem]] = []
+        total_entries, total_files = 0, 0
+        for json_path, entries in iter_userip_databases():
+            total_files += 1
+            db_info = (json_path.stem, json_path)
+            for entry in entries:
+                total_entries += 1
+                rows.append(build_entry_row_items(entry, index=total_entries, database=db_info, looky_icon=self._looky_icon))
 
-        def _worker() -> None:
-            rows: list[list[QStandardItem]] = []
-            looky_indices: list[int] = []
-            total_entries, total_files = 0, 0
-            for json_path, entries in iter_userip_databases():
-                if generation != self._global_load_generation or not self._global_search_active:
-                    return
-                total_files += 1
-                db_info = (json_path.stem, json_path)
-                for entry in entries:
-                    if entry.is_looky:
-                        looky_indices.append(total_entries)
-                    total_entries += 1
-                    rows.append(build_entry_row_items(entry, index=total_entries, database=db_info, looky_icon=None))
-            if generation == self._global_load_generation and self._global_search_active:
-                load_queue.put((generation, rows, looky_indices, total_entries, total_files))
-
-        threading.Thread(target=_worker, name=f'UserIPGlobalLoad-{generation}', daemon=True).start()
-
-    def _poll_global_load_result(self) -> None:
-        """Apply completed background global database rows to the entries table model."""
-        if self._global_load_queue is None:
-            return
-        latest: tuple[int, list[list[QStandardItem]], list[int], int, int] | None = None
-        while True:
-            try:
-                queued = self._global_load_queue.get_nowait()
-            except queue.Empty:
-                break
-            if queued[0] == self._global_load_generation:
-                latest = queued
-        if latest is None:
-            return
-        if self._global_load_timer is not None:
-            self._global_load_timer.stop()
-        if not self._global_search_active:
-            return
-
-        _, rows, looky_indices, total_entries, total_files = latest
-        for row_idx in looky_indices:
-            rows[row_idx][USERNAME_COLUMN].setIcon(self._looky_icon)
         dynamic_sort_filter = self._proxy.dynamicSortFilter()
         self._proxy.setDynamicSortFilter(False)
         try:
-            self._model.removeRows(0, self._model.rowCount())
             append_entry_rows(self._model, rows)
             self._proxy.setFilterFixedString(self._search_input.text())
         finally:

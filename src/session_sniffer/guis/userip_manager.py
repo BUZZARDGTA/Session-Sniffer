@@ -604,7 +604,6 @@ class UserIPDatabasesManager(
     @override
     def _load_database(self, path: Path) -> None:
         """Parse the JSON database file and populate the entries table model and settings panel."""
-        self._cancel_global_load()
         self._model.removeRows(0, self._model.rowCount())
         self._clear_dirty_state()
         self._search_input.clear()
@@ -742,13 +741,11 @@ class UserIPDatabasesManager(
         if checked:
             self._update_file_info(None)
             self._load_all_databases()
+        elif self._current_path is not None:
+            self._load_database(self._current_path)
         else:
-            self._cancel_global_load()
-            if self._current_path is not None:
-                self._load_database(self._current_path)
-            else:
-                self._model.removeRows(0, self._model.rowCount())
-                self._set_status('')
+            self._model.removeRows(0, self._model.rowCount())
+            self._set_status('')
 
     def search_global(self, text: str) -> None:
         """Programmatically activate global search mode with the given text."""
@@ -872,7 +869,6 @@ class UserIPDatabasesManager(
         ):
             return
 
-        self._cancel_global_load()
         self._fs_watcher.stop()
         super().closeEvent(event)
         if event.isAccepted() and Settings.gui_remember_window_layout:
