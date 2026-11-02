@@ -590,10 +590,7 @@ class UserIPConflictResolverDialog(QDialog):
         self._refresh()
 
     def _refresh_if_rebuilt(self) -> None:
-        if (
-            UserIPDatabases.build_version != self._last_build_version
-            and self._tree.state() != QAbstractItemView.State.EditingState
-        ):
+        if UserIPDatabases.build_version != self._last_build_version and self._tree.state() != QAbstractItemView.State.EditingState:
             self._refresh()
 
     def _selected_side(self) -> tuple[_ConflictGroup, _ConflictSide] | None:
@@ -642,8 +639,7 @@ class UserIPConflictResolverDialog(QDialog):
                     side_item.setData(0, _SIDE_ROLE, self._side_rows.index((group, side)))
                     group_item.addChild(side_item)
                     if item_to_select is None and (
-                        (focus_entry is not None and entry_ip_covers_ip(side.entry, focus_entry))
-                        or (focus_entry is None and side == previous_side)
+                        (focus_entry is not None and entry_ip_covers_ip(side.entry, focus_entry)) or (focus_entry is None and side == previous_side)
                     ):
                         item_to_select = side_item
 
