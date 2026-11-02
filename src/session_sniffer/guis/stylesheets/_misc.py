@@ -134,6 +134,126 @@ SPLASH_SUBTITLE_READY_STYLESHEET = 'color: #44cc66; background: transparent; fon
 SPLASH_LOG_AREA_STYLESHEET = 'QTextEdit {  background-color: #141922;  color: #8899aa;  border: 1px solid #2a3544;  border-radius: 6px;  padding: 8px;}'
 
 # =============================================================================
+# CRASH DIALOG STYLES
+# =============================================================================
+
+CRASH_DIALOG_FRAME_STYLESHEET = (
+    'QFrame#crashDialogFrame {'
+    '    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #26202a, stop:0.25 #1f2531, stop:1 #161d26);'
+    '    border: 1px solid #5a3540;'
+    '    border-radius: 14px;'
+    '}'
+)
+
+CRASH_DIALOG_ICON_CONTAINER_STYLESHEET = (
+    'QFrame#crashDialogIconContainer {'
+    '    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 rgba(239, 68, 68, 0.24), stop:1 rgba(185, 28, 28, 0.12));'
+    '    border: 1px solid rgba(248, 113, 113, 0.42);'
+    '    border-radius: 10px;'
+    '}'
+)
+
+CRASH_DIALOG_KICKER_LABEL_STYLESHEET = 'color: #f87171; background: transparent; font-size: 8pt; font-weight: 700; letter-spacing: 1px;'
+
+CRASH_DIALOG_SUBTITLE_LABEL_STYLESHEET = 'color: #8b9bb0; background: transparent; font-size: 8.5pt;'
+
+CRASH_DIALOG_INFO_CARD_STYLESHEET = (
+    'QFrame#crashDialogInfoCard {'
+    '    background: rgba(16, 23, 33, 0.82);'
+    '    border: 1px solid #2c3a4d;'
+    '    border-left: 3px solid #ef4444;'
+    '    border-radius: 10px;'
+    '}'
+)
+
+CRASH_DIALOG_SECTION_LABEL_STYLESHEET = 'color: #94a3b8; background: transparent; font-size: 8pt; font-weight: 700; letter-spacing: 0.8px;'
+
+CRASH_DIALOG_BADGE_STYLESHEET = (
+    'color: #fca5a5;'
+    'background: rgba(239, 68, 68, 0.14);'
+    'border: 1px solid rgba(248, 113, 113, 0.35);'
+    'border-radius: 4px;'
+    'padding: 2px 8px;'
+    'font-size: 8pt;'
+    'font-weight: 700;'
+)
+
+CRASH_DIALOG_TRACEBACK_EDIT_STYLESHEET = (
+    'QPlainTextEdit#crashDialogTracebackEdit {'
+    '    background-color: #0d131c;'
+    '    color: #e2e8f0;'
+    '    border: 1px solid #2b384b;'
+    '    border-radius: 8px;'
+    '    padding: 8px 10px;'
+    '    selection-background-color: #2b4c7e;'
+    '    selection-color: #ffffff;'
+    '}'
+)
+
+# =============================================================================
+CRASH_DIALOG_PRIMARY_BUTTON_STYLESHEET = (
+    'QPushButton {'
+    '    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #388ecc, stop:1 #1c62a4);'
+    '    color: #ffffff;'
+    '    border: 1px solid #4da2e4;'
+    '    border-radius: 7px;'
+    '    padding: 5px 14px;'
+    '    font-weight: 700;'
+    '    font-size: 9pt;'
+    '}'
+    'QPushButton:hover {'
+    '    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #479de0, stop:1 #2472bc);'
+    '    border: 1px solid #7ec2fc;'
+    '    color: #ffffff;'
+    '}'
+    'QPushButton:pressed {'
+    '    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #17548f, stop:1 #2974b8);'
+    '    border: 1px solid #3d8ec9;'
+    '}'
+)
+
+CRASH_DIALOG_SECONDARY_BUTTON_STYLESHEET = (
+    'QPushButton {'
+    '    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #253140, stop:1 #1a222d);'
+    '    color: #c8d6e5;'
+    '    border: 1px solid #38485c;'
+    '    border-radius: 7px;'
+    '    padding: 5px 12px;'
+    '    font-weight: 700;'
+    '    font-size: 9pt;'
+    '}'
+    'QPushButton:hover {'
+    '    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #334358, stop:1 #222d3c);'
+    '    border: 1px solid #526780;'
+    '    color: #ffffff;'
+    '}'
+    'QPushButton:pressed {'
+    '    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #1a222d, stop:1 #253140);'
+    '    border: 1px solid #28374a;'
+    '}'
+)
+
+CRASH_DIALOG_EXIT_BUTTON_STYLESHEET = (
+    'QPushButton {'
+    '    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 rgba(192, 57, 43, 0.75), stop:1 rgba(146, 43, 33, 0.85));'
+    '    color: #ffffff;'
+    '    border: 1px solid rgba(231, 76, 60, 0.65);'
+    '    border-radius: 7px;'
+    '    padding: 5px 18px;'
+    '    font-weight: 700;'
+    '    font-size: 9pt;'
+    '}'
+    'QPushButton:hover {'
+    '    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 rgba(231, 76, 60, 0.85), stop:1 rgba(192, 57, 43, 0.95));'
+    '    border: 1px solid rgba(248, 113, 113, 0.95);'
+    '    color: #ffffff;'
+    '}'
+    'QPushButton:pressed {'
+    '    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 rgba(146, 43, 33, 0.95), stop:1 rgba(120, 35, 27, 1.0));'
+    '    border: 1px solid rgba(192, 57, 43, 1.0);'
+    '}'
+)
+
 # DEPENDENCY PROMPT DIALOG STYLES
 # =============================================================================
 

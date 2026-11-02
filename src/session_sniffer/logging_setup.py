@@ -27,7 +27,15 @@ if TYPE_CHECKING:
     from types import FrameType, TracebackType
 
 
-__all__ = ['clear_secret_cache', 'dump_crash_diagnostics', 'flush_all_loggers', 'register_diagnostic_provider', 'register_secret_provider', 'setup_logging']
+__all__ = [
+    'clear_secret_cache',
+    'dump_crash_diagnostics',
+    'flush_all_loggers',
+    'redact_text',
+    'register_diagnostic_provider',
+    'register_secret_provider',
+    'setup_logging',
+]
 
 # --- Handler names for idempotency ---
 _CONSOLE_HANDLER_NAME = 'console_handler'
@@ -140,7 +148,7 @@ def _get_secret_values() -> tuple[str, ...]:
         return _state.cached_secrets
 
 
-def _redact_text(value: str, secrets: tuple[str, ...] | None = None) -> str:
+def redact_text(value: str, secrets: tuple[str, ...] | None = None) -> str:
     """Replace known secret values in a string."""
     secret_values = _get_secret_values() if secrets is None else secrets
     for secret in secret_values:
@@ -151,7 +159,7 @@ def _redact_text(value: str, secrets: tuple[str, ...] | None = None) -> str:
 def _redact_value(value: object, secrets: tuple[str, ...]) -> object:
     """Redact secrets from common logging values."""
     if isinstance(value, str):
-        return _redact_text(value, secrets)
+        return redact_text(value, secrets)
     if isinstance(value, tuple):
         return tuple(_redact_value(item, secrets) for item in cast('Sequence[object]', value))
     if isinstance(value, list):
@@ -183,9 +191,9 @@ def _secret_redact_filter(record: logging.LogRecord) -> bool:
     if record.args is not None and record.args:
         record.args = _redact_args(record.args, secrets)
     if record.exc_text is not None and record.exc_text:
-        record.exc_text = _redact_text(record.exc_text, secrets)
+        record.exc_text = redact_text(record.exc_text, secrets)
     if record.stack_info is not None and record.stack_info:
-        record.stack_info = _redact_text(record.stack_info, secrets)
+        record.stack_info = redact_text(record.stack_info, secrets)
     record.secrets_redacted = True
     return True
 
@@ -200,7 +208,7 @@ class _RedactingFormatter(logging.Formatter):
         secrets = _get_secret_values()
         if not secrets:
             return formatted
-        return _redact_text(formatted, secrets)
+        return redact_text(formatted, secrets)
 
 
 def register_secret_provider(fn: Callable[[], str | None]) -> None:
@@ -272,7 +280,7 @@ def dump_crash_diagnostics(
         lines.append(f'Failed to collect thread diagnostics: {e}')
 
     lines.append('=== END THREAD DIAGNOSTIC DUMP ===')
-    redacted_lines = [_redact_text(line) for line in lines]
+    redacted_lines = [redact_text(line) for line in lines]
     dump_text = '\n'.join(redacted_lines) + '\n'
 
     # 1. Write unbuffered directly to raw standard error

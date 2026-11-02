@@ -9,10 +9,9 @@ from threading import Lock
 from types import TracebackType
 from typing import TYPE_CHECKING, ClassVar, Literal, NamedTuple
 
-from session_sniffer import msgbox
-from session_sniffer.constants.local import APP_DIR_LOCAL, APP_DIR_ROAMING, CRASH_LOG_PATH, DEBUG_LOG_PATH
-from session_sniffer.constants.standalone import DISCORD_INVITE_URL, GITHUB_ISSUES_URL, TITLE
+from session_sniffer.constants.local import APP_DIR_LOCAL, APP_DIR_ROAMING
 from session_sniffer.gta5.suspend_manager import GTASuspendManager
+from session_sniffer.guis.crash_dialog import show_crash_dialog
 from session_sniffer.logging_setup import dump_crash_diagnostics, flush_all_loggers
 from session_sniffer.rdr2.suspend_manager import RDR2SuspendManager
 from session_sniffer.utils import ensure_app_dir_ownership, terminate_process_tree
@@ -22,16 +21,6 @@ if TYPE_CHECKING:
     from types import FrameType
 
 logger = logging.getLogger(__name__)
-
-_UNCAUGHT_ERROR_MESSAGE: str = (
-    'An unexpected (uncaught) error occurred.\n\n'
-    'Please kindly report it on GitHub Issues or our Discord server:\n'
-    f'• GitHub Issues: {GITHUB_ISSUES_URL}\n'
-    f'• Discord Server: {DISCORD_INVITE_URL}\n\n'
-    'IMPORTANT: Please attach the following log files with your report so the issue can be diagnosed and fixed:\n'
-    f'• {CRASH_LOG_PATH}\n'
-    f'• {DEBUG_LOG_PATH}'
-)
 
 
 class ExceptionInfo(NamedTuple):
@@ -79,12 +68,11 @@ class ScriptControl:
 
 def terminate_script(
     terminate_method: Literal['EXIT', 'SIGINT', 'SIGTERM', 'SIGBREAK', 'THREAD_RAISED'],
-    msgbox_crash_text: str | None = None,
     exception_info: ExceptionInfo | None = None,
 ) -> None:
     """Terminate the application and optionally display crash information."""
     caller_thread = threading.current_thread()
-    is_crash = exception_info is not None or terminate_method == 'THREAD_RAISED' or msgbox_crash_text is not None
+    is_crash = exception_info is not None or terminate_method == 'THREAD_RAISED'
     caller_native_id = getattr(caller_thread, 'native_id', 'unknown')
     logger.debug(
         'terminate_script invoked: method=%s, is_crash=%s, caller_thread=%s (native_id=%s, ident=%s)',
@@ -111,31 +99,20 @@ def terminate_script(
             exc_info=(exception_info.exc_type, exception_info.exc_value, exception_info.exc_traceback),
         )
     elif is_crash:
-        crash_reason = (
-            f'terminate_script (method={terminate_method}, thread={caller_thread.name}): {msgbox_crash_text}'
-            if msgbox_crash_text is not None
-            else f'terminate_script (method={terminate_method}, thread={caller_thread.name})'
-        )
-        dump_crash_diagnostics(crash_reason)
+        dump_crash_diagnostics(f'terminate_script (method={terminate_method}, thread={caller_thread.name})')
 
     GTASuspendManager.shutdown()
     RDR2SuspendManager.shutdown()
     ScriptControl.run_termination_hooks()
 
-    if msgbox_crash_text is not None:
-        msgbox_title = TITLE
-        msgbox_message = msgbox_crash_text
-        msgbox_style = msgbox.Style.MB_OK | msgbox.Style.MB_ICONERROR | msgbox.Style.MB_SYSTEMMODAL
-
-        msgbox.show(msgbox_title, msgbox_message, msgbox_style)
-        time.sleep(1)
-
-    # If the termination method is a normal exit/signal, do not sleep unless crash messages are present
-    need_sleep = True
-    if terminate_method in ('EXIT', 'SIGINT', 'SIGTERM', 'SIGBREAK') and msgbox_crash_text is None:
-        need_sleep = False
-    if need_sleep:
-        time.sleep(3)
+    if is_crash:
+        flush_all_loggers()
+        show_crash_dialog(
+            thread_name=caller_thread.name,
+            terminate_method=terminate_method,
+            exc_info=(exception_info.exc_type, exception_info.exc_value, exception_info.exc_traceback) if exception_info is not None else None,
+        )
+        time.sleep(4)
 
     flush_all_loggers()
     ensure_app_dir_ownership(APP_DIR_LOCAL)
@@ -151,7 +128,6 @@ def handle_exception(exc_type: type[BaseException], exc_value: BaseException, ex
     exception_info = ExceptionInfo(exc_type, exc_value, exc_traceback)
     terminate_script(
         'EXIT',
-        _UNCAUGHT_ERROR_MESSAGE,
         exception_info=exception_info,
     )
 
@@ -172,7 +148,6 @@ def terminate_on_uncaught_exception(exc: BaseException) -> None:
     """
     terminate_script(
         'THREAD_RAISED',
-        _UNCAUGHT_ERROR_MESSAGE,
         exception_info=ExceptionInfo(type(exc), exc, exc.__traceback__),
     )
 
@@ -186,7 +161,6 @@ def _handle_thread_exception(args: threading.ExceptHookArgs) -> None:
     exception_info = ExceptionInfo(args.exc_type, exc_value, args.exc_traceback)
     terminate_script(
         'THREAD_RAISED',
-        _UNCAUGHT_ERROR_MESSAGE,
         exception_info=exception_info,
     )
 
