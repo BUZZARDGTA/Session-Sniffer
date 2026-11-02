@@ -38,7 +38,7 @@ from session_sniffer.guis.utils import ActiveDialogRegistry, find_main_window, s
 from session_sniffer.models.userip_settings_model import UserIPEntryModel, get_current_iso_timestamp
 from session_sniffer.networking.ip_range import entry_ip_covers_ip, parse_ip_range
 from session_sniffer.player.userip import UserIPDatabases
-from session_sniffer.player.userip_loader import enrich_userip_entry_from_logs
+from session_sniffer.player.userip_loader import enrich_userip_entry_from_logs, find_userip_insert_index
 from session_sniffer.text_utils import pluralize, split_usernames
 
 if TYPE_CHECKING:
@@ -197,6 +197,67 @@ def _rewrite_side_usernames(side: _ConflictSide, new_usernames: Sequence[str]) -
     return True
 
 
+def _merge_and_delete_sides(kept_side: _ConflictSide, sides_to_delete: Sequence[_ConflictSide]) -> None:
+    """Merge usernames, notes, and metadata from `sides_to_delete` into `kept_side`, then delete `sides_to_delete`."""
+    entries_to_delete_by_db: dict[Path, set[str]] = {}
+    for side in sides_to_delete:
+        entries_to_delete_by_db.setdefault(side.db_path, set()).add(side.entry)
+
+    incoming_entries: list[UserIPEntryModel] = []
+    for db_path, entries_to_delete in entries_to_delete_by_db.items():
+        if not db_path.is_file():
+            continue
+        db_model = load_userip_database_model(db_path)
+        incoming_entries.extend(
+            entry.model_copy(update={'ip': kept_side.entry})
+            for entry in db_model.entries
+            if entry.ip.strip() in entries_to_delete
+        )
+
+    if incoming_entries and kept_side.db_path.is_file():
+        kept_db_model = load_userip_database_model(kept_side.db_path)
+        existing_index_by_cf: dict[str, int] = {
+            entry.username.casefold(): idx
+            for idx, entry in enumerate(kept_db_model.entries)
+            if entry.ip.strip() == kept_side.entry
+        }
+        anchor_username = next(
+            (entry.username for entry in reversed(kept_db_model.entries) if entry.ip.strip() == kept_side.entry),
+            '',
+        )
+        modified = False
+        for incoming in incoming_entries:
+            cf_name = incoming.username.casefold()
+            existing_idx = existing_index_by_cf.get(cf_name)
+            if existing_idx is not None:
+                merged = kept_db_model.entries[existing_idx].merge_duplicate(incoming)
+                if merged != kept_db_model.entries[existing_idx]:
+                    kept_db_model.entries[existing_idx] = merged
+                    modified = True
+            else:
+                insert_idx = find_userip_insert_index(
+                    kept_db_model.entries,
+                    incoming.username,
+                    kept_side.entry,
+                    anchor_username=anchor_username,
+                )
+                enriched, _ = enrich_userip_entry_from_logs(incoming)
+                kept_db_model.entries.insert(insert_idx, enriched)
+                anchor_username = enriched.username
+                existing_index_by_cf = {
+                    entry.username.casefold(): idx
+                    for idx, entry in enumerate(kept_db_model.entries)
+                    if entry.ip.strip() == kept_side.entry
+                }
+                modified = True
+
+        if modified:
+            kept_db_model.entries = dedup_userip_entries(kept_db_model.entries)
+            save_userip_database_model(kept_side.db_path, kept_db_model)
+
+    _delete_sides(sides_to_delete)
+
+
 def _delete_sides(sides: Sequence[_ConflictSide]) -> None:
     """Delete every entry of the given IP or range strings from their UserIP databases, then rebuild."""
     entries_to_delete_by_db: dict[Path, set[str]] = {}
@@ -265,6 +326,16 @@ class UserIPConflictResolverDialog(QDialog):
         self._keep_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
         self._keep_button.clicked.connect(self._keep_selected)
         buttons_layout.addWidget(self._keep_button)
+
+        self._keep_merge_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'user-round-check.svg')), ' Keep && Merge…')
+        self._keep_merge_button.setAutoDefault(False)
+        self._keep_merge_button.setToolTip(
+            'Keep the selected entry, merge usernames, notes, and metadata from the conflicting entries into it, '
+            'and delete the conflicting entries (you will be asked to confirm)',
+        )
+        self._keep_merge_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
+        self._keep_merge_button.clicked.connect(self._keep_and_merge_selected)
+        buttons_layout.addWidget(self._keep_merge_button)
 
         self._edit_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square-pen.svg')), ' Edit Entry…')
         self._edit_button.setAutoDefault(False)
@@ -371,7 +442,7 @@ class UserIPConflictResolverDialog(QDialog):
                 f'{conflict_group_count} UserIP conflict group{pluralize(conflict_group_count)} '
                 f'({conflict_pair_count} conflicting pair{pluralize(conflict_pair_count)}) found. '
                 'An IP or range claimed by several databases is ignored until only one database claims it.\n'
-                'Select an entry, then keep it (deletes the entries that conflict with it), edit its IP or range, or delete it.',
+                'Select an entry, then keep it (or keep & merge), edit its IP or range, or delete it.',
             )
         else:
             self._summary_label.setText('No UserIP conflicts. Every IP and range belongs to a single database.')
@@ -416,6 +487,7 @@ class UserIPConflictResolverDialog(QDialog):
     def _update_buttons(self) -> None:
         has_side = self._selected_side() is not None
         self._keep_button.setEnabled(has_side)
+        self._keep_merge_button.setEnabled(has_side)
         self._edit_button.setEnabled(has_side)
         self._delete_button.setEnabled(has_side)
 
@@ -440,6 +512,22 @@ class UserIPConflictResolverDialog(QDialog):
         if not self._confirm_deletion(f'Keep <b>{kept_html}</b> and delete the following conflicting {entry_word}?', sides_to_delete):
             return
         _delete_sides(sides_to_delete)
+        self._refresh()
+
+    def _keep_and_merge_selected(self) -> None:
+        selection = self._selected_side()
+        if selection is None:
+            return
+        group, kept_side = selection
+        sides_to_delete = _find_sides_conflicting_with(group, kept_side)
+        if not sides_to_delete:
+            return
+        kept_html = html.escape(f'{kept_side.entry} in "{_format_database_name(kept_side.db_path)}"')
+        entry_word = pluralize(len(sides_to_delete), 'entry', 'entries')
+        prompt = f'Keep <b>{kept_html}</b>, merge usernames and metadata from the following conflicting {entry_word} into it, and delete the conflicting {entry_word}?'
+        if not self._confirm_deletion(prompt, sides_to_delete):
+            return
+        _merge_and_delete_sides(kept_side, sides_to_delete)
         self._refresh()
 
     def _edit_selected(self) -> None:
