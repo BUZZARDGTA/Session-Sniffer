@@ -700,22 +700,22 @@ def get_stylesheet(ui_scale: float = 1.0) -> str:
         border: 1px solid #333333;
         border-radius: 4px;
         border-top-left-radius: 0px;
-        margin-top: 26px;
-        padding-top: 12px;
+        margin-top: {group_margin_top}px;
+        padding-top: {group_padding_top}px;
     }
     QGroupBox::title {
         subcontrol-origin: margin;
         subcontrol-position: top left;
         left: -1px;
         top: 0px;
-        padding: 4px 12px;
+        padding: {group_title_pad_v}px {group_title_pad_h}px;
         background-color: #252526;
         color: #88c0d0;
         border: 1px solid #333333;
         border-bottom: none;
         border-top-left-radius: 4px;
         border-top-right-radius: 4px;
-        font-size: 11pt;
+        font-size: {group_title_font_pt}pt;
         font-weight: bold;
     }
 
@@ -847,4 +847,9 @@ def get_stylesheet(ui_scale: float = 1.0) -> str:
     css = css.replace('{close_path}', close_path)
     css = css.replace('{ui_font_family}', ui_font_family)
     css = css.replace('{mono_font_family}', mono_font_family)
+    css = css.replace('{group_margin_top}', str(max(16, round(26 * ui_scale))))
+    css = css.replace('{group_padding_top}', str(max(6, round(12 * ui_scale))))
+    css = css.replace('{group_title_pad_v}', str(max(2, round(4 * ui_scale))))
+    css = css.replace('{group_title_pad_h}', str(max(6, round(12 * ui_scale))))
+    css = css.replace('{group_title_font_pt}', str(base_font_pt + 1))
     return css.replace('{base_font_pt}', str(base_font_pt))

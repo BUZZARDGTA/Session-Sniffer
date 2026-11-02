@@ -190,6 +190,21 @@ class CaptureStatisticsWindow(RateGraphWindowMixin):
         left_column.addLayout(left_column_a)
         left_column.addLayout(left_column_b)
 
+        form_spacing = scale_by_ui(2)
+        form_margin_h = scale_by_ui(6)
+        form_margin_v = scale_by_ui(4)
+        for stats_form in (
+            capture_config_form,
+            players_form,
+            stability_form,
+            performance_form,
+            traffic_form,
+            packets_form,
+            latency_form,
+        ):
+            stats_form.setVerticalSpacing(form_spacing)
+            stats_form.setContentsMargins(form_margin_h, form_margin_v, form_margin_h, form_margin_v)
+
         right_column = QVBoxLayout()
         right_column.setSpacing(6)
 
