@@ -215,7 +215,9 @@ class UserIPDatabases:
             dlg = create_nonmodal_warning(parent, text)
             if detailed_text is not None:
                 dlg.setDetailedText(detailed_text)
-            dlg.addButton('Resolve Conflicts…', QMessageBox.ButtonRole.ActionRole).clicked.connect(gui_dispatcher.conflict_resolver_requested)
+            resolve_button = dlg.addButton('Resolve Conflicts…', QMessageBox.ButtonRole.ActionRole)
+            resolve_button.clicked.connect(gui_dispatcher.conflict_resolver_requested)
+            dlg.setDefaultButton(resolve_button)
 
             def _on_finished(_result: int) -> None:
                 UserIPDatabases._open_conflict_dialog = None
