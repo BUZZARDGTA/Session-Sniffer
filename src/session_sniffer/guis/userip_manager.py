@@ -421,11 +421,12 @@ class UserIPDatabasesManager(
         self._proxy = EntriesSortProxy()
         self._proxy.setSourceModel(self._model)
         self._proxy.setFilterCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
-        self._proxy.setFilterKeyColumn(-1)
+        self._proxy.setFilterKeyColumn(INDEX_COLUMN)
 
         self._entries_table = QTreeView()
         self._entries_table.setModel(self._proxy)
         self._entries_table.setRootIsDecorated(False)
+        self._entries_table.setUniformRowHeights(True)
         self._entries_table.setAlternatingRowColors(True)
         self._entries_table.setSortingEnabled(True)
         self._entries_table.setVerticalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
@@ -603,6 +604,7 @@ class UserIPDatabasesManager(
     @override
     def _load_database(self, path: Path) -> None:
         """Parse the JSON database file and populate the entries table model and settings panel."""
+        self._cancel_global_load()
         self._model.removeRows(0, self._model.rowCount())
         self._clear_dirty_state()
         self._search_input.clear()
@@ -632,7 +634,7 @@ class UserIPDatabasesManager(
             append_entry_rows(self._model, rows)
         finally:
             self._proxy.setDynamicSortFilter(dynamic_sort_filter)
-            self._proxy.invalidate()
+            self._proxy.prepare_sort_and_invalidate()
         entry_count = len(rows)
 
         self._next_index = entry_count + 1
@@ -712,43 +714,41 @@ class UserIPDatabasesManager(
     def _on_global_search_toggled(self) -> None:
         """Switch between single-database editing mode and read-only global search mode."""
         checked = self._global_search_checkbox.isChecked()
-        if checked:
-            if self._dirty and not self._confirm_discard():
-                with QSignalBlocker(self._global_search_checkbox):
-                    self._global_search_checkbox.setChecked(False)
-                return
-            self._clear_dirty_state()
-            self._global_search_active = True
-            self._update_file_info(None)
-            self._load_all_databases()
-        else:
-            self._clear_dirty_state()
-            self._global_search_active = False
-            if self._current_path is not None:
-                self._load_database(self._current_path)
-            else:
-                self._model.removeRows(0, self._model.rowCount())
-                self._set_status('')
+        if checked and self._dirty and not self._confirm_discard():
+            with QSignalBlocker(self._global_search_checkbox):
+                self._global_search_checkbox.setChecked(False)
+            return
 
-        db_available = not self._global_search_active and self._current_path is not None
-        self._add_button.setVisible(not self._global_search_active)
+        self._clear_dirty_state()
+        self._global_search_active = checked
+        db_available = not checked and self._current_path is not None
+        self._add_button.setVisible(not checked)
         self._add_button.setEnabled(db_available)
         self._edit_ip_button.setVisible(True)
         self._edit_ip_button.setEnabled(False)  # driven by selection
         self._rename_button.setEnabled(False)  # driven by selection
         self._delete_button.setEnabled(False)  # driven by selection
-        self._open_db_button.setEnabled(not self._global_search_active and self._current_path is not None)
+        self._open_db_button.setEnabled(db_available)
         if self._export_selected_action is not None:
             self._export_selected_action.setEnabled(db_available)
-        self._entries_table.setColumnHidden(DATABASE_COLUMN, not self._global_search_active)
+        self._entries_table.setColumnHidden(DATABASE_COLUMN, not checked)
         self._reset_column_sizes()
-        self._settings_container.setVisible(not self._global_search_active and self._current_path is not None)
+        self._settings_container.setVisible(db_available)
 
         editable = QAbstractItemView.EditTrigger.DoubleClicked | QAbstractItemView.EditTrigger.EditKeyPressed
-        self._entries_table.setEditTriggers(
-            QAbstractItemView.EditTrigger.NoEditTriggers if self._global_search_active else editable,
-        )
+        self._entries_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers if checked else editable)
         self._rebuild_fs_watch()
+
+        if checked:
+            self._update_file_info(None)
+            self._load_all_databases()
+        else:
+            self._cancel_global_load()
+            if self._current_path is not None:
+                self._load_database(self._current_path)
+            else:
+                self._model.removeRows(0, self._model.rowCount())
+                self._set_status('')
 
     def search_global(self, text: str) -> None:
         """Programmatically activate global search mode with the given text."""
@@ -872,6 +872,7 @@ class UserIPDatabasesManager(
         ):
             return
 
+        self._cancel_global_load()
         self._fs_watcher.stop()
         super().closeEvent(event)
         if event.isAccepted() and Settings.gui_remember_window_layout:

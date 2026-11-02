@@ -1,5 +1,6 @@
 """Pydantic models for UserIP JSON database settings and entries."""
 
+import functools
 import json
 from dataclasses import dataclass
 from datetime import datetime
@@ -75,6 +76,7 @@ def normalize_iso_timestamp(value: object) -> tuple[str | None, bool]:
     return normalized, normalized == value
 
 
+@functools.lru_cache(maxsize=16384)
 def format_iso_timestamp_display(iso_str: str | None) -> str:
     """Format an ISO-8601 timestamp string as `YYYY-MM-DD HH:MM:SS` in local time, or empty string if absent."""
     if iso_str is None or not iso_str:

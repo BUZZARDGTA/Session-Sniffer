@@ -9,7 +9,7 @@ from datetime import datetime
 from ipaddress import IPv4Address
 from typing import TYPE_CHECKING, cast, override
 
-from PySide6.QtCore import QAbstractItemModel, QModelIndex, QObject, QPersistentModelIndex, QRegularExpression, QSignalBlocker, QSortFilterProxyModel, Qt
+from PySide6.QtCore import QAbstractItemModel, QModelIndex, QObject, QRegularExpression, QSignalBlocker, QSortFilterProxyModel, Qt
 from PySide6.QtGui import QBrush, QColor, QIcon, QRegularExpressionValidator, QStandardItem, QStandardItemModel
 from PySide6.QtWidgets import (
     QButtonGroup,
@@ -43,7 +43,14 @@ from session_sniffer.models.userip_settings_model import (
     get_current_iso_timestamp,
 )
 from session_sniffer.networking.ip_range import entry_ip_covers_ip
-from session_sniffer.player.userip_loader import enrich_userip_entry_from_logs, find_userip_insert_index, update_userip_databases, userip_database_write
+from session_sniffer.player.userip_loader import (
+    enrich_userip_entry_from_logs,
+    find_userip_insert_index,
+    get_cached_userip_database_entries,
+    get_cached_userip_databases,
+    update_userip_databases,
+    userip_database_write,
+)
 from session_sniffer.rendering_core.events import wake_rendering_core
 from session_sniffer.text_utils import pluralize
 
@@ -86,11 +93,15 @@ ENTRY_TABLE_HEADERS = ['#', 'Username', 'IP', 'Range', 'Database', 'Notes', 'Sou
 
 IS_PERSISTED_ROLE = Qt.ItemDataRole.UserRole + 1
 SEARCH_TEXT_ROLE = Qt.ItemDataRole.UserRole + 2
+SORT_KEY_ROLE = Qt.ItemDataRole.UserRole + 3
 
 DUPLICATE_HIGHLIGHT_BRUSH = QBrush(QColor(255, 165, 0, 60))
+_LOOKY_FOREGROUND_BRUSH = QBrush(QColor('#a855f7'))
+_READONLY_ITEM_FLAGS = Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsDragEnabled | Qt.ItemFlag.ItemIsDropEnabled
 
 _IPV4_BROADCAST_FREE_PREFIX = 31
 _IPV4_VERSION = 4
+_EPOCH_SORT_OFFSET_MS = 10_000_000_000_000
 
 NEW_DATABASE_SETTINGS = UserIPSettingsModel(
     ENABLED=True,
@@ -103,45 +114,72 @@ NEW_DATABASE_SETTINGS = UserIPSettingsModel(
 )
 
 
+@functools.lru_cache(maxsize=16384)
+def _ip_sort_str(value: str) -> str:
+    """Return a fixed-order sortable string for an IP/range value so C++ string sort matches numeric IP order."""
+    if not value:
+        return ''
+    lead = value.split('/', 1)[0].split('-', 1)[0].strip()
+    try:
+        return '0' + ipaddress.ip_address(lead).packed.hex()
+    except ValueError:
+        return '1' + value
+
+
+@functools.lru_cache(maxsize=16384)
+def _timestamp_sort_str(value: object) -> str:
+    """Return a fixed-width sortable string for an ISO-8601 timestamp, sorting empty values first."""
+    if isinstance(value, str) and value:
+        with contextlib.suppress(ValueError):
+            epoch_ms = int(datetime.fromisoformat(value).timestamp() * 1000) + _EPOCH_SORT_OFFSET_MS
+            return f'1{max(0, epoch_ms):016d}'
+    return ''
+
+
+def _compute_cell_sort_key(model: QStandardItemModel, row: int, col: int, row_ip_key: str) -> str:
+    """Compute the composite C++ sort key string for `(row, col)`."""
+    item = model.item(row, col)
+    if not item:
+        return f'\x00{row_ip_key}'
+    if col in (INDEX_COLUMN, DETECTIONS_COLUMN):
+        raw_val = item.data(Qt.ItemDataRole.UserRole)
+        num_val = raw_val if isinstance(raw_val, int) else 0
+        return f'{max(0, num_val):010d}\x00{row_ip_key}'
+    if col in (IP_COLUMN, RANGE_COLUMN):
+        return f'{_ip_sort_str(item.text())}\x00{row_ip_key}'
+    if col in TIMESTAMP_COLUMNS:
+        return f'{_timestamp_sort_str(item.data(Qt.ItemDataRole.UserRole))}\x00{row_ip_key}'
+    return f'{item.text()}\x00{row_ip_key}'
+
+
 def _compute_row_search_blob(model: QAbstractItemModel, row: int) -> str:
     """Compute and cache the lowercased searchable text blob for *row* in *model*."""
     if isinstance(model, QStandardItemModel):
-        blob = '\x00'.join(text.lower() for col in FILTERABLE_COLUMNS if (item := model.item(row, col)) and (text := item.text()))
+        blob = '\x1f'.join(text.lower() for col in FILTERABLE_COLUMNS if (item := model.item(row, col)) and (text := item.text()))
         if idx_item := model.item(row, INDEX_COLUMN):
             with QSignalBlocker(model):
                 idx_item.setData(blob, SEARCH_TEXT_ROLE)
         return blob
-    return '\x00'.join(
+    return '\x1f'.join(
         str(data).lower() for col in FILTERABLE_COLUMNS if (data := model.data(model.index(row, col), Qt.ItemDataRole.DisplayRole)) is not None
     )
 
 
 class EntriesSortProxy(QSortFilterProxyModel):
-    """Proxy that uses IP address as a secondary sort key when the primary column values are equal."""
+    """Proxy that delegates filtering and IP-tiebroken sorting to native C++ via `SEARCH_TEXT_ROLE` and `SORT_KEY_ROLE`."""
 
     def __init__(self, parent: QObject | None = None) -> None:
-        """Initialize the proxy with empty search cache state."""
+        """Initialize the proxy with C++ filter and sort roles."""
         super().__init__(parent)
-        self._filter_lower: str = ''
+        self._populated_sort_cols: set[int] = {INDEX_COLUMN}
+        self.setFilterRole(SEARCH_TEXT_ROLE)
+        self.setFilterKeyColumn(INDEX_COLUMN)
+        self.setFilterCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+        self.setSortRole(SORT_KEY_ROLE)
 
-    @staticmethod
-    @functools.lru_cache(maxsize=16384)
-    def _ip_sort_key(value: str) -> tuple[int, ...]:
-        """Return a numeric tuple for valid IPs so they sort numerically."""
-        lead = value.split('/', 1)[0].split('-', 1)[0].strip()
-        try:
-            return tuple(ipaddress.ip_address(lead).packed)
-        except ValueError:
-            return tuple(byte_val for char_val in value.encode() for byte_val in (char_val,))
-
-    @staticmethod
-    @functools.lru_cache(maxsize=16384)
-    def _timestamp_sort_key(value: object) -> float:
-        """Return a numeric POSIX timestamp for ISO-8601 strings, sorting empty values first."""
-        if isinstance(value, str) and value:
-            with contextlib.suppress(ValueError):
-                return datetime.fromisoformat(value).timestamp()
-        return float('-inf')
+    @override
+    def setFilterKeyColumn(self, column: int) -> None:
+        super().setFilterKeyColumn(INDEX_COLUMN if column < 0 else column)
 
     @override
     def setSourceModel(self, source_model: QAbstractItemModel) -> None:
@@ -149,71 +187,80 @@ class EntriesSortProxy(QSortFilterProxyModel):
         if old_model:
             with contextlib.suppress(RuntimeError, TypeError):
                 old_model.dataChanged.disconnect(self._on_source_data_changed)
+                old_model.rowsInserted.disconnect(self._on_source_rows_changed)
+                old_model.rowsRemoved.disconnect(self._on_source_rows_changed)
+                old_model.modelReset.disconnect(self._on_source_model_reset)
         super().setSourceModel(source_model)
+        self._populated_sort_cols = {INDEX_COLUMN}
         if source_model:
             source_model.dataChanged.connect(self._on_source_data_changed)
+            source_model.rowsInserted.connect(self._on_source_rows_changed)
+            source_model.rowsRemoved.connect(self._on_source_rows_changed)
+            source_model.modelReset.connect(self._on_source_model_reset)
+
+    def _on_source_rows_changed(self, _parent: QModelIndex, _first: int, _last: int) -> None:
+        self._populated_sort_cols.clear()
+
+    def _on_source_model_reset(self) -> None:
+        self._populated_sort_cols.clear()
+
+    def _ensure_column_sort_keys(self, column: int) -> None:
+        if column < 0 or column in self._populated_sort_cols:
+            return
+        model = self.sourceModel()
+        if not isinstance(model, QStandardItemModel):
+            return
+        row_count = model.rowCount()
+        if row_count > 0:
+            with QSignalBlocker(model):
+                for row in range(row_count):
+                    ip_item = model.item(row, IP_COLUMN)
+                    range_item = model.item(row, RANGE_COLUMN)
+                    row_ip = (ip_item.text() if ip_item else '') or (range_item.text() if range_item else '')
+                    row_ip_key = _ip_sort_str(row_ip)
+                    if target_item := model.item(row, column):
+                        target_item.setData(_compute_cell_sort_key(model, row, column, row_ip_key), SORT_KEY_ROLE)
+        self._populated_sort_cols.add(column)
 
     def _on_source_data_changed(self, top_left: QModelIndex, bottom_right: QModelIndex, roles: list[int]) -> None:
-        if roles and Qt.ItemDataRole.DisplayRole not in roles and Qt.ItemDataRole.EditRole not in roles:
+        if roles and Qt.ItemDataRole.DisplayRole not in roles and Qt.ItemDataRole.EditRole not in roles and Qt.ItemDataRole.UserRole not in roles:
             return
         model = self.sourceModel()
         if isinstance(model, QStandardItemModel):
-            for row in range(top_left.row(), bottom_right.row() + 1):
-                _compute_row_search_blob(model, row)
+            sort_col = self.sortColumn()
+            cols_to_update: set[int] = set(self._populated_sort_cols)
+            if sort_col >= 0:
+                cols_to_update.add(sort_col)
+            with QSignalBlocker(model):
+                for row in range(top_left.row(), bottom_right.row() + 1):
+                    _compute_row_search_blob(model, row)
+                    ip_item = model.item(row, IP_COLUMN)
+                    range_item = model.item(row, RANGE_COLUMN)
+                    row_ip = (ip_item.text() if ip_item else '') or (range_item.text() if range_item else '')
+                    row_ip_key = _ip_sort_str(row_ip)
+                    for col in cols_to_update:
+                        if target_item := model.item(row, col):
+                            target_item.setData(_compute_cell_sort_key(model, row, col, row_ip_key), SORT_KEY_ROLE)
 
     @override
     def setFilterFixedString(self, pattern: str) -> None:
-        self._filter_lower = pattern.lower()
-        super().setFilterFixedString(pattern)
+        super().setFilterFixedString(pattern.lower())
 
     @override
-    def filterAcceptsRow(self, source_row: int, source_parent: QModelIndex | QPersistentModelIndex) -> bool:
-        """Filter rows across all searchable entry and metadata columns."""
-        if not self._filter_lower:
-            return True
-        model = self.sourceModel()
-        if not model:
-            return True
-        cached = model.data(model.index(source_row, INDEX_COLUMN, source_parent), SEARCH_TEXT_ROLE)
-        blob = cached if isinstance(cached, str) else _compute_row_search_blob(model, source_row)
-        return self._filter_lower in blob
+    def sort(self, column: int, order: Qt.SortOrder = Qt.SortOrder.AscendingOrder) -> None:
+        self._ensure_column_sort_keys(column)
+        super().sort(column, order)
 
-    @override
-    def lessThan(self, left: QModelIndex | QPersistentModelIndex, right: QModelIndex | QPersistentModelIndex) -> bool:
-        """Compare two indexes, sorting numeric/IP/timestamp columns appropriately and using IP as a tiebreaker."""
-        model = self.sourceModel()
-        if model:
-            sort_col = self.sortColumn()
-            if sort_col in (INDEX_COLUMN, DETECTIONS_COLUMN):
-                left_val = model.data(left, Qt.ItemDataRole.UserRole)
-                right_val = model.data(right, Qt.ItemDataRole.UserRole)
-                if isinstance(left_val, int) and isinstance(right_val, int) and left_val != right_val:
-                    return left_val < right_val
-            elif sort_col in (IP_COLUMN, RANGE_COLUMN):
-                left_key = self._ip_sort_key(str(model.data(left) or ''))
-                right_key = self._ip_sort_key(str(model.data(right) or ''))
-                if left_key != right_key:
-                    return left_key < right_key
-            elif sort_col in TIMESTAMP_COLUMNS:
-                left_ts = self._timestamp_sort_key(model.data(left, Qt.ItemDataRole.UserRole))
-                right_ts = self._timestamp_sort_key(model.data(right, Qt.ItemDataRole.UserRole))
-                if left_ts != right_ts:
-                    return left_ts < right_ts
-            elif model.data(left) != model.data(right):
-                return super().lessThan(left, right)
-
-            left_idx = cast('QModelIndex', left)
-            right_idx = cast('QModelIndex', right)
-            left_ip = str(model.data(left_idx.siblingAtColumn(IP_COLUMN)) or model.data(left_idx.siblingAtColumn(RANGE_COLUMN)) or '')
-            right_ip = str(model.data(right_idx.siblingAtColumn(IP_COLUMN)) or model.data(right_idx.siblingAtColumn(RANGE_COLUMN)) or '')
-            return self._ip_sort_key(left_ip) < self._ip_sort_key(right_ip)
-        return super().lessThan(left, right)
+    def prepare_sort_and_invalidate(self) -> None:
+        """Ensure sort keys are populated for the active sort column, then invalidate the proxy."""
+        self._ensure_column_sort_keys(self.sortColumn())
+        self.invalidate()
 
 
 def _make_readonly_item(text: str, user_data: object = None, *, tooltip: str = '') -> QStandardItem:
     """Create a read-only `QStandardItem` with optional `UserRole` data and tooltip."""
     item = QStandardItem(text)
-    item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+    item.setFlags(_READONLY_ITEM_FLAGS)
     if user_data is not None:
         item.setData(user_data, Qt.ItemDataRole.UserRole)
     if tooltip:
@@ -239,21 +286,26 @@ def build_entry_row_items(
     if not persisted and entry.ip:
         entry, _ = enrich_userip_entry_from_logs(entry)
     index_item = _make_readonly_item(str(index) if index > 0 else '', index)
-    index_item.setData(1 if persisted else 0, IS_PERSISTED_ROLE)
+    if not persisted:
+        index_item.setData(0, IS_PERSISTED_ROLE)
+    index_item.setData(f'{max(0, index):010d}\x00{_ip_sort_str(entry.ip)}', SORT_KEY_ROLE)
 
     username_item = QStandardItem(entry.username)
     if entry.is_looky:
         if looky_icon is not None:
             username_item.setIcon(looky_icon)
-        username_item.setForeground(QBrush(QColor('#a855f7')))
+        username_item.setForeground(_LOOKY_FOREGROUND_BRUSH)
         username_item.setToolTip('Added automatically by Looky System')
         username_item.setData(entry.is_looky, Qt.ItemDataRole.UserRole)
 
-    is_single_ip = False
-    if entry.ip and '/' not in entry.ip and '-' not in entry.ip:
-        with contextlib.suppress(ValueError):
-            IPv4Address(entry.ip)
-            is_single_ip = True
+    if persisted:
+        is_single_ip = bool(entry.ip and '/' not in entry.ip and '-' not in entry.ip)
+    else:
+        is_single_ip = False
+        if entry.ip and '/' not in entry.ip and '-' not in entry.ip:
+            with contextlib.suppress(ValueError):
+                IPv4Address(entry.ip)
+                is_single_ip = True
 
     ip_item = QStandardItem(entry.ip if is_single_ip else '')
     range_item = QStandardItem('' if is_single_ip else entry.ip)
@@ -267,7 +319,7 @@ def build_entry_row_items(
     first_seen_item = _make_timestamp_item(entry.first_seen_at)
     last_seen_item = _make_timestamp_item(entry.last_seen_at)
     search_vals = (entry.username, entry.ip, db_name, entry.notes, entry.source, added_item.text(), updated_item.text(), first_seen_item.text(), last_seen_item.text())
-    index_item.setData('\x00'.join(val.lower() for val in search_vals if val), SEARCH_TEXT_ROLE)
+    index_item.setData('\x1f'.join(val.lower() for val in search_vals if val), SEARCH_TEXT_ROLE)
     return [index_item, username_item, ip_item, range_item, db_item, notes_item, source_item, detections_item, added_item, updated_item, first_seen_item, last_seen_item]
 
 
@@ -285,7 +337,7 @@ def append_entry_rows(model: QStandardItemModel, rows: list[list[QStandardItem]]
 
 def is_row_persisted(model: QStandardItemModel, row: int) -> bool:
     """Return `True` if the row was loaded from or previously saved to disk."""
-    return bool(model.item(row, INDEX_COLUMN).data(IS_PERSISTED_ROLE))
+    return model.item(row, INDEX_COLUMN).data(IS_PERSISTED_ROLE) not in (0, False)
 
 
 def mark_row_persisted(model: QStandardItemModel, row: int) -> None:
@@ -362,7 +414,12 @@ def human_readable_size(size_bytes: int) -> str:
     return f'{value:.1f} TB'
 
 
-def parse_userip_database_content(content: str, *, default_settings: UserIPSettingsModel | None = None) -> UserIPDatabaseFile:
+def parse_userip_database_content(
+    content: str,
+    *,
+    default_settings: UserIPSettingsModel | None = None,
+    cached_entries: list[UserIPEntryModel] | None = None,
+) -> UserIPDatabaseFile:
     """Parse raw JSON *content* into a validated `UserIPDatabaseFile` model."""
     fallback_settings = default_settings if default_settings is not None else NEW_DATABASE_SETTINGS
     if not content.strip():
@@ -383,6 +440,9 @@ def parse_userip_database_content(content: str, *, default_settings: UserIPSetti
         validated_settings, _ = UserIPSettingsModel.validate_settings(cast('dict[str, Any]', raw_settings_obj))
     else:
         validated_settings = fallback_settings.model_copy()
+
+    if cached_entries is not None:
+        return UserIPDatabaseFile(settings=validated_settings, entries=cached_entries)
 
     raw_entries_obj: object = typed_data.get('entries')
     raw_entries = cast('list[object]', raw_entries_obj) if isinstance(raw_entries_obj, list) else []
@@ -405,7 +465,11 @@ def load_userip_database_model(path: Path) -> UserIPDatabaseFile:
     except OSError as e:
         logger.warning('Failed to read UserIP database "%s": %s', path, e)
         return UserIPDatabaseFile(settings=fallback.model_copy(), entries=[])
-    return parse_userip_database_content(content, default_settings=default_settings)
+    return parse_userip_database_content(
+        content,
+        default_settings=default_settings,
+        cached_entries=get_cached_userip_database_entries(path),
+    )
 
 
 def save_userip_database_model(path: Path, db_model: UserIPDatabaseFile) -> None:
@@ -424,9 +488,7 @@ def refresh_userip_and_wake_renderer() -> None:
 def iter_userip_databases() -> Iterator[tuple[Path, list[UserIPEntryModel]]]:
     """Yield `(database_path, entries)` for every UserIP `.json` database file, sorted by path."""
     USERIP_DATABASES_DIR_PATH.mkdir(parents=True, exist_ok=True)
-    for json_path in sorted(USERIP_DATABASES_DIR_PATH.rglob('*.json')):
-        if json_path.is_file():
-            yield json_path, load_userip_database_model(json_path).entries
+    yield from get_cached_userip_databases()
 
 
 def dedup_userip_entries(entries: Iterable[UserIPEntryModel]) -> list[UserIPEntryModel]:
@@ -794,33 +856,21 @@ class IPRangeBuilderDialog(QDialog):
         # Hide the single-IP option when the dialog is used for range-only operations
         if not allow_single_ip:
             self._radio_single.setVisible(False)
-
-        # Start with the default mode (single IP, or subnet when single is not allowed)
-        if allow_single_ip:
-            self._radio_single.setChecked(True)
-        else:
-            self._radio_subnet.setChecked(True)
+        (self._radio_single if allow_single_ip else self._radio_subnet).setChecked(True)
         self._on_mode_changed()
 
-        # Pre-fill fields when an initial IP is provided
         if initial_ip is not None:
             self._single_input.setText(initial_ip)
             self._range_from_input.setText(initial_ip)
             self._subnet_ip_input.setText(initial_ip)
             self._radio_subnet.setChecked(True)
 
-        # Pre-fill fields from an existing stored entry (single IP, range, or subnet)
         if initial_entry is not None:
             if '/' in initial_entry:
-                parts = initial_entry.split('/', 1)
-                base_ip = parts[0]
+                base_ip, _, prefix_str = initial_entry.partition('/')
                 try:
-                    cidr_prefix = int(parts[1])
-
-                    slider_index = next(
-                        (i for i, (prefix_length, _) in enumerate(_SUBNET_SLIDER_OPTIONS) if prefix_length == cidr_prefix),
-                        _SUBNET_DEFAULT_SLIDER_INDEX,
-                    )
+                    cidr_prefix = int(prefix_str)
+                    slider_index = next((i for i, (p_len, _) in enumerate(_SUBNET_SLIDER_OPTIONS) if p_len == cidr_prefix), _SUBNET_DEFAULT_SLIDER_INDEX)
                 except ValueError:
                     slider_index = _SUBNET_DEFAULT_SLIDER_INDEX
                 self._subnet_ip_input.setText(base_ip)
@@ -847,44 +897,28 @@ class IPRangeBuilderDialog(QDialog):
     def _on_mode_changed(self, *_args: object) -> None:
         """Show/hide input fields based on the selected mode."""
         mode = self._mode_group.checkedId()
-
-        # Single IP
-        single_visible = mode == _MODE_SINGLE
-        self._single_label.setVisible(single_visible)
-        self._single_input.setVisible(single_visible)
-
-        # Range
-        range_visible = mode == _MODE_RANGE
-        self._range_from_label.setVisible(range_visible)
-        self._range_from_input.setVisible(range_visible)
-        self._range_to_label.setVisible(range_visible)
-        self._range_to_input.setVisible(range_visible)
-
-        # Subnet
-        subnet_visible = mode == _MODE_SUBNET
-        self._subnet_ip_label.setVisible(subnet_visible)
-        self._subnet_ip_input.setVisible(subnet_visible)
-        self._subnet_size_label.setVisible(subnet_visible)
-        self._subnet_slider.setVisible(subnet_visible)
-        self._subnet_desc_label.setVisible(subnet_visible)
-
+        single_visible, range_visible, subnet_visible = mode == _MODE_SINGLE, mode == _MODE_RANGE, mode == _MODE_SUBNET
+        widget: QWidget
+        for widget in (self._single_label, self._single_input):
+            widget.setVisible(single_visible)
+        for widget in (self._range_from_label, self._range_from_input, self._range_to_label, self._range_to_input):
+            widget.setVisible(range_visible)
+        for widget in (self._subnet_ip_label, self._subnet_ip_input, self._subnet_size_label, self._subnet_slider, self._subnet_desc_label):
+            widget.setVisible(subnet_visible)
         if subnet_visible:
             self._on_slider_changed()
-
         self._update_preview()
 
     def _on_slider_changed(self, *_args: object) -> None:
         """Update the subnet description label when the slider moves."""
         index = self._subnet_slider.value()
         if _SUBNET_PREFIX_MIN_INDEX <= index <= _SUBNET_PREFIX_MAX_INDEX:
-            _, desc = _SUBNET_SLIDER_OPTIONS[index]
-            self._subnet_desc_label.setText(desc)
+            self._subnet_desc_label.setText(_SUBNET_SLIDER_OPTIONS[index][1])
         self._update_preview()
 
     def _update_preview(self, *_args: object) -> None:
         """Refresh the preview panel based on current inputs."""
         mode = self._mode_group.checkedId()
-
         if mode == _MODE_SINGLE:
             self._update_single_preview()
         elif mode == _MODE_RANGE:
@@ -898,20 +932,17 @@ class IPRangeBuilderDialog(QDialog):
             self._set_preview('', valid=None)
             return
         try:
-            addr = IPv4Address(text)
-            self._set_preview(f'Single host: {addr}', valid=True)
+            self._set_preview(f'Single host: {IPv4Address(text)}', valid=True)
         except ValueError:
             self._set_preview('Enter a valid IPv4 address', valid=False)
 
     def _update_range_preview(self) -> None:
-        from_text = self._range_from_input.text().strip()
-        to_text = self._range_to_input.text().strip()
+        from_text, to_text = self._range_from_input.text().strip(), self._range_to_input.text().strip()
         if not from_text and not to_text:
             self._set_preview('', valid=None)
             return
         try:
-            start = IPv4Address(from_text)
-            end = IPv4Address(to_text)
+            start, end = IPv4Address(from_text), IPv4Address(to_text)
         except ValueError:
             self._set_preview('Enter valid IPv4 addresses in both fields', valid=False)
             return
@@ -919,18 +950,11 @@ class IPRangeBuilderDialog(QDialog):
             self._set_preview('"From" address must be less than or equal to "To" address', valid=False)
             return
         count = int(end) - int(start) + 1
-        self._set_preview(
-            f'Range: {start} - {end}\nCovers {count:,} address{pluralize(count, "", "es")}',
-            valid=True,
-        )
+        self._set_preview(f'Range: {start} - {end}\nCovers {count:,} address{pluralize(count, "", "es")}', valid=True)
 
     def _update_subnet_preview(self) -> None:
-        text = self._subnet_ip_input.text().strip()
-        slider_index = self._subnet_slider.value()
-        if not text:
-            self._set_preview('', valid=None)
-            return
-        if not _SUBNET_PREFIX_MIN_INDEX <= slider_index <= _SUBNET_PREFIX_MAX_INDEX:
+        text, slider_index = self._subnet_ip_input.text().strip(), self._subnet_slider.value()
+        if not text or not _SUBNET_PREFIX_MIN_INDEX <= slider_index <= _SUBNET_PREFIX_MAX_INDEX:
             self._set_preview('', valid=None)
             return
         prefix, _ = _SUBNET_SLIDER_OPTIONS[slider_index]
@@ -941,8 +965,7 @@ class IPRangeBuilderDialog(QDialog):
             return
         usable = max(0, network.num_addresses - 2) if prefix < _IPV4_BROADCAST_FREE_PREFIX and network.version == _IPV4_VERSION else network.num_addresses
         self._set_preview(
-            f'Network: {network.network_address}/{prefix}\n'
-            f'Range: {network.network_address} - {network.broadcast_address}\n'
+            f'Network: {network.network_address}/{prefix}\nRange: {network.network_address} - {network.broadcast_address}\n'
             f'Addresses: {network.num_addresses:,} total, {usable:,} usable',
             valid=True,
         )
@@ -950,35 +973,22 @@ class IPRangeBuilderDialog(QDialog):
     def _set_preview(self, text: str, *, valid: bool | None) -> None:
         """Update the preview label text and style, and toggle the OK button."""
         self._preview.setText(text)
-        if valid is None:
-            self._preview.setStyleSheet(IP_RANGE_PREVIEW_EMPTY_STYLESHEET)
-        elif valid:
-            self._preview.setStyleSheet(IP_RANGE_PREVIEW_VALID_STYLESHEET)
-        else:
-            self._preview.setStyleSheet(IP_RANGE_PREVIEW_ERROR_STYLESHEET)
+        style = IP_RANGE_PREVIEW_EMPTY_STYLESHEET if valid is None else (IP_RANGE_PREVIEW_VALID_STYLESHEET if valid else IP_RANGE_PREVIEW_ERROR_STYLESHEET)
+        self._preview.setStyleSheet(style)
         if self._ok_button:
             self._ok_button.setEnabled(valid is True)
 
     def result_entry(self) -> str:
         """Return the constructed IP/range string for insertion into the database."""
         mode = self._mode_group.checkedId()
-
         if mode == _MODE_SINGLE:
             return self._single_input.text().strip()
-
         if mode == _MODE_RANGE:
-            from_text = self._range_from_input.text().strip()
-            to_text = self._range_to_input.text().strip()
-            return f'{from_text}-{to_text}'
-
+            return f'{self._range_from_input.text().strip()}-{self._range_to_input.text().strip()}'
         if mode == _MODE_SUBNET:
             text = self._subnet_ip_input.text().strip()
-            slider_index = self._subnet_slider.value()
-            prefix, _ = _SUBNET_SLIDER_OPTIONS[slider_index]
-            try:
-                network = ipaddress.ip_network(f'{text}/{prefix}', strict=False)
-            except ValueError:
-                return text
-            return str(network)
-
+            prefix, _ = _SUBNET_SLIDER_OPTIONS[self._subnet_slider.value()]
+            with contextlib.suppress(ValueError):
+                return str(ipaddress.ip_network(f'{text}/{prefix}', strict=False))
+            return text
         return ''

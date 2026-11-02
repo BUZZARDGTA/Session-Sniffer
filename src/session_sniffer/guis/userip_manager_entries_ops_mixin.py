@@ -1,11 +1,13 @@
 """Entries operations mixin for the UserIP Databases Manager dialog."""
 
+import queue
+import threading
 from collections import defaultdict
 from ipaddress import IPv4Address
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from PySide6.QtCore import QItemSelectionModel, QModelIndex, QSignalBlocker, Qt
+from PySide6.QtCore import QItemSelectionModel, QModelIndex, QSignalBlocker, Qt, QTimer
 from PySide6.QtWidgets import QAbstractItemView, QDialog, QFrame, QInputDialog, QLineEdit, QMessageBox, QTreeView
 
 from session_sniffer.constants.local import USERIP_DATABASES_DIR_PATH
@@ -59,18 +61,7 @@ if TYPE_CHECKING:
 
 
 class UserIPEntriesOperationsMixin(QDialog):
-    """Mixin providing entry-level manipulation, editing, movement, deletion, saving, and filesystem synchronization.
-
-    Expects these attributes on the concrete class:
-        _entries_table, _proxy, _model, _current_path, _next_index,
-        _global_search_active, _fs_watcher, _saving,
-        _disk_snapshot, _settings_snapshot, _dirty, _search_input,
-        _settings_container
-    And these methods:
-        _append_row, _mark_entries_dirty, _update_entry_counts, _set_status,
-        _refresh_stats, _save_on_close, _clear_dirty_state, _update_file_info,
-        _load_database, read_settings_from_widgets
-    """
+    """Mixin providing entry-level manipulation, editing, movement, deletion, saving, and filesystem synchronization."""
 
     # -- Attribute stubs for type checkers --
     _entries_table: QTreeView
@@ -87,19 +78,16 @@ class UserIPEntriesOperationsMixin(QDialog):
     _search_input: QLineEdit
     _settings_container: QFrame
     _looky_icon: QIcon
+    _global_load_generation: int = 0
+    _global_load_queue: queue.SimpleQueue[tuple[int, list[list[QStandardItem]], list[int], int, int]] | None = None
+    _global_load_timer: QTimer | None = None
 
     def _append_row(
-        self,
-        entry: UserIPEntryModel,
-        *,
-        index: int = 0,
-        database: tuple[str, Path] | None = None,
-        persisted: bool = True,
+        self, entry: UserIPEntryModel, *, index: int = 0, database: tuple[str, Path] | None = None, persisted: bool = True,
     ) -> None:
         raise NotImplementedError
 
     def _mark_entries_dirty(self) -> None: ...
-
     def _update_entry_counts(self) -> None: ...
 
     def _set_status(self, text: str) -> None:
@@ -121,10 +109,6 @@ class UserIPEntriesOperationsMixin(QDialog):
     if TYPE_CHECKING:
         read_settings_from_widgets: Callable[[], UserIPSettingsModel]
 
-    # ------------------------------------------------------------------
-    # Watch management
-    # ------------------------------------------------------------------
-
     def _rebuild_fs_watch(self) -> None:
         """Point the filesystem watcher at the databases directory and all database files."""
         directories: list[Path] = [USERIP_DATABASES_DIR_PATH]
@@ -143,10 +127,8 @@ class UserIPEntriesOperationsMixin(QDialog):
         if self._global_search_active:
             self._load_all_databases()
             return
-
         if self._current_path is None:
             return
-
         if not self._current_path.is_file():
             self._model.removeRows(0, self._model.rowCount())
             self._settings_container.setVisible(False)
@@ -155,14 +137,12 @@ class UserIPEntriesOperationsMixin(QDialog):
             self._current_path = None
             self._update_file_info(None)
             return
-
         try:
             current_text = self._current_path.read_text('utf-8')
         except OSError:
             return
         if current_text == self._disk_snapshot:
-            return  # No real change (or our own write).
-
+            return
         if self._dirty or self._entries_table.state() == QAbstractItemView.State.EditingState:
             self._update_file_info(self._current_path)
             self._set_status(f'"{self._current_path.name}" changed on disk. Save to overwrite, or reselect it to discard your edits and reload.')
@@ -174,38 +154,78 @@ class UserIPEntriesOperationsMixin(QDialog):
             self._search_input.setText(active_search)
         self._set_status(f'Reloaded "{self._current_path.name}" after an external change.')
 
-    # ------------------------------------------------------------------
-    # Global search load
-    # ------------------------------------------------------------------
+    def _cancel_global_load(self) -> None:
+        """Cancel any in-flight background global database load."""
+        self._global_load_generation += 1
+        if self._global_load_timer is not None:
+            self._global_load_timer.stop()
 
     def _load_all_databases(self) -> None:
-        """Parse all .json files and populate the table with entries from every database."""
+        """Offload parsing all .json files to a background thread and populate the table asynchronously."""
+        self._global_load_generation += 1
+        generation = self._global_load_generation
+        if self._global_load_queue is None:
+            self._global_load_queue = queue.SimpleQueue()
+        if self._global_load_timer is None:
+            self._global_load_timer = QTimer(self)
+            self._global_load_timer.setInterval(15)
+            self._global_load_timer.timeout.connect(self._poll_global_load_result)
+
+        self._model.removeRows(0, self._model.rowCount())
+        self._set_status('Loading all databases…')
+        self._global_load_timer.start()
+        load_queue = self._global_load_queue
+
+        def _worker() -> None:
+            rows: list[list[QStandardItem]] = []
+            looky_indices: list[int] = []
+            total_entries, total_files = 0, 0
+            for json_path, entries in iter_userip_databases():
+                if generation != self._global_load_generation or not self._global_search_active:
+                    return
+                total_files += 1
+                db_info = (json_path.stem, json_path)
+                for entry in entries:
+                    if entry.is_looky:
+                        looky_indices.append(total_entries)
+                    total_entries += 1
+                    rows.append(build_entry_row_items(entry, index=total_entries, database=db_info, looky_icon=None))
+            if generation == self._global_load_generation and self._global_search_active:
+                load_queue.put((generation, rows, looky_indices, total_entries, total_files))
+
+        threading.Thread(target=_worker, name=f'UserIPGlobalLoad-{generation}', daemon=True).start()
+
+    def _poll_global_load_result(self) -> None:
+        """Apply completed background global database rows to the entries table model."""
+        if self._global_load_queue is None:
+            return
+        latest: tuple[int, list[list[QStandardItem]], list[int], int, int] | None = None
+        while True:
+            try:
+                queued = self._global_load_queue.get_nowait()
+            except queue.Empty:
+                break
+            if queued[0] == self._global_load_generation:
+                latest = queued
+        if latest is None:
+            return
+        if self._global_load_timer is not None:
+            self._global_load_timer.stop()
+        if not self._global_search_active:
+            return
+
+        _, rows, looky_indices, total_entries, total_files = latest
+        for row_idx in looky_indices:
+            rows[row_idx][USERNAME_COLUMN].setIcon(self._looky_icon)
         dynamic_sort_filter = self._proxy.dynamicSortFilter()
         self._proxy.setDynamicSortFilter(False)
         try:
             self._model.removeRows(0, self._model.rowCount())
-
-            rows: list[list[QStandardItem]] = []
-            total_entries = 0
-            total_files = 0
-
-            for json_path, entries in iter_userip_databases():
-                total_files += 1
-                for entry in entries:
-                    total_entries += 1
-                    row = build_entry_row_items(
-                        entry,
-                        index=total_entries,
-                        database=(json_path.stem, json_path),
-                        looky_icon=self._looky_icon,
-                    )
-                    rows.append(row)
-
             append_entry_rows(self._model, rows)
             self._proxy.setFilterFixedString(self._search_input.text())
         finally:
             self._proxy.setDynamicSortFilter(dynamic_sort_filter)
-            self._proxy.invalidate()
+            self._proxy.prepare_sort_and_invalidate()
 
         self._set_status(f'Global search: {total_entries} entries across {total_files} databases')
         self._update_entry_counts()
@@ -218,13 +238,8 @@ class UserIPEntriesOperationsMixin(QDialog):
         """Open the IP Range Builder dialog and insert the result as a new entry."""
         if self._current_path is None:
             return
-
         dialog = IPRangeBuilderDialog(self)
-        if dialog.exec() != QDialog.DialogCode.Accepted:
-            return
-
-        ip_text = dialog.result_entry()
-        if not ip_text:
+        if dialog.exec() != QDialog.DialogCode.Accepted or not (ip_text := dialog.result_entry()):
             return
 
         self._append_row(UserIPEntryModel(username='', ip=ip_text), index=self._next_index, persisted=False)
@@ -232,7 +247,6 @@ class UserIPEntriesOperationsMixin(QDialog):
         self._mark_entries_dirty()
         self._update_entry_counts()
 
-        # Scroll to the new row and start editing the Username column
         last_source_row = self._model.rowCount() - 1
         proxy_index = self._proxy.mapFromSource(self._model.index(last_source_row, USERNAME_COLUMN))
         if proxy_index.isValid():
@@ -248,11 +262,9 @@ class UserIPEntriesOperationsMixin(QDialog):
 
     def _set_row_ip_or_range(self, source_row: int, new_ip_text: str, *, is_single: bool) -> None:
         """Update the IP and Range column cells for `source_row` and clear its Looky badge."""
-        ip_item = self._model.item(source_row, IP_COLUMN)
-        range_item = self._model.item(source_row, RANGE_COLUMN)
-        if ip_item:
+        if ip_item := self._model.item(source_row, IP_COLUMN):
             ip_item.setText(new_ip_text if is_single else '')
-        if range_item:
+        if range_item := self._model.item(source_row, RANGE_COLUMN):
             range_item.setText('' if is_single else new_ip_text)
         clear_row_looky_badge(self._model, source_row)
 
@@ -260,12 +272,10 @@ class UserIPEntriesOperationsMixin(QDialog):
         """Open the IP Range Builder dialog to edit the IP/range of an existing entry."""
         if not self._global_search_active and self._current_path is None:
             return
-
         current_entry = self._get_row_entry_value(source_row)
         dialog = IPRangeBuilderDialog(self, initial_entry=current_entry or None)
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
-
         new_ip_text = dialog.result_entry()
         if not new_ip_text or new_ip_text == current_entry:
             return
@@ -281,20 +291,16 @@ class UserIPEntriesOperationsMixin(QDialog):
             username = self._get_row_username(source_row)
             if not database_path or not database_path.is_file() or not username:
                 return
-
             with QSignalBlocker(self._fs_watcher):
                 success = bool(rewrite_db_edit_entry_ip(database_path, current_entry, new_ip_text, username=username))
                 if success:
                     refresh_userip_and_wake_renderer()
             self._rebuild_fs_watch()
-
             if not success:
                 return
-
             self._set_row_ip_or_range(source_row, new_ip_text, is_single=is_single)
             set_row_updated_at(self._model, source_row)
             extract_entry_model_from_row(self._model, source_row)
-
             self._dedup_global_search_rows()
             self._highlight_duplicates()
             self._refresh_stats()
@@ -305,7 +311,6 @@ class UserIPEntriesOperationsMixin(QDialog):
                 self._set_row_ip_or_range(source_row, new_ip_text, is_single=is_single)
                 if is_row_persisted(self._model, source_row):
                     set_row_updated_at(self._model, source_row)
-
             self._mark_entries_dirty()
             self._highlight_duplicates()
             self._update_entry_counts()
@@ -318,10 +323,8 @@ class UserIPEntriesOperationsMixin(QDialog):
         """Open a text input dialog to edit the note of an existing entry."""
         if not self._global_search_active and self._current_path is None:
             return
-
         notes_item = self._model.item(source_row, NOTES_COLUMN)
         current_note = notes_item.text().strip() if notes_item else ''
-
         dialog_title = 'Edit Note' if current_note else 'Add Note'
         note_prompt = 'Enter the note' if current_note else 'Enter a note'
         new_note, accepted = QInputDialog.getText(
@@ -331,10 +334,7 @@ class UserIPEntriesOperationsMixin(QDialog):
             QLineEdit.EchoMode.Normal,
             current_note,
         )
-        if not accepted:
-            return
-        new_note = new_note.strip()
-        if new_note == current_note:
+        if not accepted or (new_note := new_note.strip()) == current_note:
             return
 
         if self._global_search_active:
@@ -343,20 +343,16 @@ class UserIPEntriesOperationsMixin(QDialog):
             entry_ip_or_range = self._get_row_entry_value(source_row)
             if not database_path or not database_path.is_file() or not username or not entry_ip_or_range:
                 return
-
             with QSignalBlocker(self._fs_watcher):
                 success = rewrite_db_edit_entry_note(database_path, username, entry_ip_or_range, new_note)
                 if success:
                     refresh_userip_and_wake_renderer()
             self._rebuild_fs_watch()
-
             if not success:
                 return
-
             if notes_item:
                 notes_item.setText(new_note)
             set_row_updated_at(self._model, source_row)
-
             self._set_status(f'Updated note for "{username}" in {database_path.name}.')
         else:
             with QSignalBlocker(self._model):
@@ -364,7 +360,6 @@ class UserIPEntriesOperationsMixin(QDialog):
                     notes_item.setText(new_note)
                 if is_row_persisted(self._model, source_row):
                     set_row_updated_at(self._model, source_row)
-
             self._mark_entries_dirty()
             self._save_database()
             if not self._dirty:
@@ -374,16 +369,10 @@ class UserIPEntriesOperationsMixin(QDialog):
         """Insert a blank row at a specific position in the source model."""
         if self._current_path is None:
             return
-
-        self._model.insertRow(
-            source_row,
-            build_entry_row_items(UserIPEntryModel(username='', ip=''), persisted=False),
-        )
-
+        self._model.insertRow(source_row, build_entry_row_items(UserIPEntryModel(username='', ip=''), persisted=False))
         self._renumber_indexes()
         self._mark_entries_dirty()
         self._update_entry_counts()
-
         proxy_index = self._proxy.mapFromSource(self._model.index(source_row, USERNAME_COLUMN))
         if proxy_index.isValid():
             self._entries_table.scrollTo(proxy_index)

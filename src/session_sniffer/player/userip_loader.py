@@ -768,6 +768,22 @@ def get_cached_userip_usernames() -> list[str]:
         ]
 
 
+def get_cached_userip_databases() -> list[tuple[Path, list[UserIPEntryModel]]]:
+    """Return sorted `(database_path, entries)` pairs from cached UserIP databases, refreshing any stale files."""
+    with _update_userip_databases_lock:
+        update_userip_databases()
+        return [(path, list(entries)) for path, (_, entries) in sorted(_parsed_userip_databases.items())]
+
+
+def get_cached_userip_database_entries(db_path: Path) -> list[UserIPEntryModel] | None:
+    """Return a shallow copy of cached enriched entries for *db_path* when its on-disk signature is unchanged."""
+    with _update_userip_databases_lock:
+        cached = _parsed_userip_databases.get(db_path)
+        if cached is not None and (sig := get_file_signature(db_path)) is not None and _last_userip_db_mod_times.get(db_path) == sig:
+            return list(cached[1])
+    return None
+
+
 def _load_raw_userip_db(db_path: Path, *, action_label: str) -> tuple[UserIPSettingsModel, list[UserIPEntryModel]] | None:
     """Read and validate the settings and existing entries list from a UserIP database file."""
     try:
