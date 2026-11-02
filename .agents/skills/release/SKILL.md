@@ -1,6 +1,6 @@
 ---
 name: release
-description: Prepare and commit a Session Sniffer release by updating the version in pyproject.toml with the current UTC build timestamp, incrementing the RC or final version as requested, synchronizing uv.lock via uv lock, validating the change, creating the release commit, and generating a synthesized user-facing changelog since the previous release.
+description: Prepare, commit, and push a Session Sniffer release by updating the version in pyproject.toml with the current UTC build timestamp, incrementing the RC or final version as requested, synchronizing uv.lock via uv lock, validating the change, creating the release commit, pushing the branch to GitHub, and generating a synthesized user-facing changelog since the previous release.
 ---
 
 # Session Sniffer Release
@@ -23,15 +23,15 @@ Use this skill when the user wants to prepare and commit a new Session Sniffer r
 5. Review the resulting diff (both `pyproject.toml` and `uv.lock` should reflect the new version).
 6. Run the release-specific validation before committing (see **Validation** below).
 7. Create exactly one version-bump commit containing both `pyproject.toml` and `uv.lock` (see **Commit** below).
-8. Show the user:
+8. Push the current branch to GitHub (`git push`) immediately after creating the version-bump commit so `origin` already contains the updated `pyproject.toml` and `uv.lock` before the user publishes the GitHub release/tag. The release tag MUST match `version` in `pyproject.toml` exactly.
+9. Show the user:
    - previous version,
    - new version,
    - changed files (`pyproject.toml`, `uv.lock`),
-   - validation performed,
+   - validation performed and confirmation that the branch was pushed to GitHub,
    - a copy-ready **GitHub Release Tag** in its own fenced code block (the exact `version` from `pyproject.toml`, e.g. `v1.5.0rc.93+20261027.2106` — never the PEP 440-normalized `uv.lock` version `1.5.0rc93+...`),
    - a copy-ready **GitHub Release Title** in its own fenced code block (`<version-without-build-metadata> - YYYY/MM/DD (HH:MM)`),
    - a synthesized **user-facing changelog** from the previous release to `HEAD` (following the **User Changelog** rules below).
-9. Ensure the version-bump commit is pushed before creating any GitHub tag or release. The release tag MUST match `version` in `pyproject.toml` exactly.
 
 ## User Changelog
 
@@ -137,4 +137,4 @@ Do not use local time.
 
 Do not manually invent or reuse a timestamp.
 
-Do not automatically push the commit.
+When `/release` is invoked, always push the branch to GitHub (`git push`) after creating the release commit so the remote branch is up to date before the GitHub release/tag is created.
