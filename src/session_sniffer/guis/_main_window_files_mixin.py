@@ -76,6 +76,10 @@ class FilesMixin(QMainWindow):
         """Open the UserIP Databases Manager, activate global search, and populate the search field with `text`."""
         self._open_userip_manager().search_global(text)
 
+    def open_userip_manager_and_navigate(self, db_path: Path, *, username: str = '', ip_or_range: str = '') -> None:
+        """Open the UserIP Databases Manager on `db_path` and select the matching entry."""
+        self._open_userip_manager().navigate_to_database(db_path, username=username, ip_or_range=ip_or_range)
+
     def _open_logs_manager(self) -> LogsManager:
         """Open the Logs Manager window, or focus the existing one."""
         return show_or_focus_window(self, '_logs_manager_window', lambda: LogsManager(None))

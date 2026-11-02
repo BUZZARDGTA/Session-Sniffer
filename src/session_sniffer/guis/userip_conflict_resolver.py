@@ -2,11 +2,12 @@
 
 import html
 from dataclasses import dataclass
+from ipaddress import IPv4Address
 from pathlib import Path
 from typing import TYPE_CHECKING, NamedTuple, override
 
-from PySide6.QtCore import QModelIndex, QPersistentModelIndex, QSignalBlocker, Qt, QTimer
-from PySide6.QtGui import QIcon
+from PySide6.QtCore import QModelIndex, QPersistentModelIndex, QPoint, QSignalBlocker, Qt, QTimer, QUrl
+from PySide6.QtGui import QAction, QDesktopServices, QIcon, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QDialog,
@@ -14,6 +15,7 @@ from PySide6.QtWidgets import (
     QHeaderView,
     QLabel,
     QLineEdit,
+    QMenu,
     QMessageBox,
     QPushButton,
     QStyleOptionViewItem,
@@ -26,18 +28,21 @@ from PySide6.QtWidgets import (
 from session_sniffer.constants.local import RESOURCES_DIR_PATH, USERIP_DATABASES_DIR_PATH
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.guis.delegates import SearchHighlightDelegate
-from session_sniffer.guis.select_usernames_dialog import configure_username_cell_editor
-from session_sniffer.guis.stylesheets import DIALOG_BUTTON_STYLESHEET, DIALOG_DANGER_BUTTON_STYLESHEET
+from session_sniffer.guis.select_usernames_dialog import configure_username_cell_editor, prompt_usernames_input
+from session_sniffer.guis.stylesheets import DIALOG_BUTTON_STYLESHEET, DIALOG_DANGER_BUTTON_STYLESHEET, SVG_ICON_CONTEXT_MENU_STYLESHEET
 from session_sniffer.guis.table_column_resizing import setup_table_header_context_menu
+from session_sniffer.guis.tables_player_actions import create_ping_menu, scan_ports_ip, show_detailed_ip_lookup
 from session_sniffer.guis.userip_manager_helpers import (
     IPRangeBuilderDialog,
+    append_userip_entries,
     dedup_userip_entries,
     load_userip_database_model,
+    populate_userip_databases_menu,
     refresh_userip_and_wake_renderer,
     rewrite_db_edit_entry_ip,
     save_userip_database_model,
 )
-from session_sniffer.guis.utils import ActiveDialogRegistry, find_main_window, scale_by_ui, set_dialog_window_flags
+from session_sniffer.guis.utils import ActiveDialogRegistry, find_main_window, open_file_location, scale_by_ui, set_clipboard_text, set_dialog_window_flags
 from session_sniffer.models.userip_settings_model import (
     UserIPEntryModel,
     format_iso_timestamp_display,
@@ -70,16 +75,7 @@ _LAST_SEEN_COLUMN = 9
 _NO_USERNAME_TEXT = '(no username)'
 
 _CONFLICT_TABLE_HEADERS: list[str] = [
-    'Database',
-    'IP / Range',
-    'Usernames',
-    'Notes',
-    'Source',
-    'Detections',
-    'Added',
-    'Updated',
-    'First Seen',
-    'Last Seen',
+    'Database', 'IP / Range', 'Usernames', 'Notes', 'Source', 'Detections', 'Added', 'Updated', 'First Seen', 'Last Seen',
 ]
 
 _CONFLICT_HEADER_TOOLTIPS: dict[str, str] = {
@@ -147,12 +143,7 @@ class _ConflictTreeDelegate(SearchHighlightDelegate):
         super().__init__(parent, lambda: '')
 
     @override
-    def createEditor(
-        self,
-        parent: QWidget,
-        option: QStyleOptionViewItem,
-        index: QModelIndex | QPersistentModelIndex,
-    ) -> QWidget:
+    def createEditor(self, parent: QWidget, option: QStyleOptionViewItem, index: QModelIndex | QPersistentModelIndex) -> QWidget:
         editor = super().createEditor(parent, option, index)
         configure_username_cell_editor(editor, index, username_column=_USERNAMES_COLUMN)
         return editor
@@ -240,15 +231,9 @@ def _aggregate_side_entries(entries: Sequence[UserIPEntryModel], target_entry: s
         last_seen_at = pick_latest_iso(last_seen_at, entry.last_seen_at)
 
     return _SideDetails(
-        usernames=usernames,
-        looky_usernames=looky_usernames,
-        notes=notes,
-        sources=sources,
-        detections_count=detections_count,
-        added_at=added_at,
-        updated_at=updated_at,
-        first_seen_at=first_seen_at,
-        last_seen_at=last_seen_at,
+        usernames=usernames, looky_usernames=looky_usernames, notes=notes, sources=sources,
+        detections_count=detections_count, added_at=added_at, updated_at=updated_at,
+        first_seen_at=first_seen_at, last_seen_at=last_seen_at,
     )
 
 
@@ -403,6 +388,26 @@ def _merge_and_delete_sides(kept_side: _ConflictSide, sides_to_delete: Sequence[
     _delete_sides(sides_to_delete)
 
 
+def _move_side_to_database(side: _ConflictSide, target_db_path: Path) -> bool:
+    """Move all entries of `side` from `side.db_path` to `target_db_path`."""
+    if not side.db_path.is_file() or side.db_path == target_db_path:
+        return False
+    db_model = load_userip_database_model(side.db_path)
+    now_iso = get_current_iso_timestamp()
+    entries_to_move = [
+        entry.model_copy(update={'updated_at': now_iso})
+        for entry in db_model.entries
+        if entry.ip.strip() == side.entry
+    ]
+    if not entries_to_move:
+        return False
+
+    append_userip_entries(target_db_path, entries_to_move)
+    _delete_sides([side])
+    UserIPDatabases.renotify_if_conflicting([side.entry])
+    return True
+
+
 def _delete_sides(sides: Sequence[_ConflictSide]) -> None:
     """Delete every entry of the given IP or range strings from their UserIP databases, then rebuild."""
     entries_to_delete_by_db: dict[Path, set[str]] = {}
@@ -425,6 +430,25 @@ def _format_side_html(side: _ConflictSide, usernames: Sequence[str]) -> str:
     """Return an HTML list item describing one conflicting entry."""
     usernames_text = ', '.join(usernames) if usernames else _NO_USERNAME_TEXT
     return f'<li>"{html.escape(_format_database_name(side.db_path))}": {html.escape(usernames_text)} = {html.escape(side.entry)}</li>'
+
+
+def _is_single_ipv4(entry_text: str) -> bool:
+    """Return `True` if `entry_text` is a single IPv4 address rather than a range or CIDR subnet."""
+    if not entry_text or '/' in entry_text or '-' in entry_text:
+        return False
+    try:
+        IPv4Address(entry_text)
+    except ValueError:
+        return False
+    return True
+
+
+def _navigate_to_database_in_manager(db_path: Path, *, username: str = '', ip_or_range: str = '') -> None:
+    """Open or focus the UserIP Databases Manager on `db_path` and select the matching entry."""
+    main_window = find_main_window()
+    navigate_fn = getattr(main_window, 'open_userip_manager_and_navigate', None)
+    if callable(navigate_fn):
+        navigate_fn(db_path, username=username, ip_or_range=ip_or_range)
 
 
 class UserIPConflictResolverDialog(QDialog):
@@ -467,9 +491,14 @@ class UserIPConflictResolverDialog(QDialog):
         self._tree.setHorizontalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
         self._reset_column_sizes()
         setup_table_header_context_menu(self._tree, on_reset=self._reset_column_sizes)
+        self._tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self._tree.customContextMenuRequested.connect(self._show_context_menu)
         self._tree.itemSelectionChanged.connect(self._update_buttons)
         self._tree.itemDoubleClicked.connect(self._on_item_double_clicked)
         self._tree.itemChanged.connect(self._on_item_changed)
+        QShortcut(QKeySequence('Ctrl+C'), self._tree).activated.connect(self._copy_selected_row)
+        QShortcut(QKeySequence('F2'), self._tree).activated.connect(self._edit_selected_usernames)
+        QShortcut(QKeySequence('Delete'), self._tree).activated.connect(self._delete_selected)
         layout.addWidget(self._tree, stretch=1)
 
         buttons_layout = QHBoxLayout()
@@ -645,6 +674,196 @@ class UserIPConflictResolverDialog(QDialog):
         elif column == _IP_RANGE_COLUMN:
             self._tree.setCurrentItem(item)
             self._edit_selected()
+
+    def _edit_selected_usernames(self) -> None:
+        selected_items = self._tree.selectedItems()
+        if selected_items and selected_items[0].data(0, _SIDE_ROLE) is not None:
+            self._tree.editItem(selected_items[0], _USERNAMES_COLUMN)
+
+    def _edit_selected_note(self) -> None:
+        selected_items = self._tree.selectedItems()
+        if selected_items and selected_items[0].data(0, _SIDE_ROLE) is not None:
+            self._tree.editItem(selected_items[0], _NOTES_COLUMN)
+
+    def _copy_selected_row(self) -> None:
+        selected_items = self._tree.selectedItems()
+        if not selected_items or selected_items[0].data(0, _SIDE_ROLE) is None:
+            return
+        item = selected_items[0]
+        header = self._tree.header()
+        cells = [
+            item.text(col)
+            for col in range(self._tree.columnCount())
+            if not header.isSectionHidden(col)
+        ]
+        set_clipboard_text('\t'.join(cells))
+
+    def _add_username_to_side(self, side: _ConflictSide) -> None:
+        if not side.db_path.is_file():
+            return
+        db_name = _format_database_name(side.db_path)
+        new_usernames, accepted = prompt_usernames_input(
+            self,
+            'Add Username(s)',
+            lambda count: f'Enter the username{pluralize(count)} to add for {side.entry} in "{db_name}":',
+        )
+        if not accepted or not new_usernames:
+            return
+        new_entry_models = [
+            enrich_userip_entry_from_logs(UserIPEntryModel(username=name, ip=side.entry))[0]
+            for name in new_usernames
+        ]
+        added_pairs = append_userip_entries(side.db_path, new_entry_models)
+        if not added_pairs:
+            QMessageBox.information(
+                self,
+                TITLE,
+                f'All specified username{pluralize(len(new_usernames))} already exist for {side.entry} in "{db_name}".',
+            )
+            return
+        refresh_userip_and_wake_renderer()
+        self._refresh()
+
+    def _move_side(self, side: _ConflictSide, target_db_path: Path) -> None:
+        if _move_side_to_database(side, target_db_path):
+            self._refresh()
+
+    def _show_context_menu(self, position: QPoint) -> None:
+        item = self._tree.itemAt(position)
+        if item is None or item.data(0, _SIDE_ROLE) is None:
+            return
+        self._tree.setCurrentItem(item)
+        selection = self._selected_side()
+        if selection is None:
+            return
+        _, side = selection
+        details = self._details_by_side.get(
+            side,
+            _SideDetails(usernames=[], looky_usernames=set(), notes=[], sources=[]),
+        )
+        is_single_ip = _is_single_ipv4(side.entry)
+
+        menu = QMenu(self)
+        menu.setStyleSheet(SVG_ICON_CONTEXT_MENU_STYLESHEET)
+        menu.setToolTipsVisible(True)
+
+        self._populate_copy_menu_actions(menu, side, details, is_single_ip=is_single_ip)
+        menu.addSeparator()
+        self._populate_database_menu_actions(menu, side, details)
+        menu.addSeparator()
+        self._populate_resolution_menu_actions(menu, side, details, is_single_ip=is_single_ip)
+
+        viewport = self._tree.viewport()
+        if viewport:
+            menu.popup(viewport.mapToGlobal(position))
+
+    def _populate_copy_menu_actions(self, menu: QMenu, side: _ConflictSide, details: _SideDetails, *, is_single_ip: bool) -> None:
+        copy_icon = QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg'))
+        copy_row_action = QAction(copy_icon, 'Copy Row', self)
+        copy_row_action.setShortcut('Ctrl+C')
+        copy_row_action.triggered.connect(self._copy_selected_row)
+        menu.addAction(copy_row_action)
+
+        if details.usernames:
+            usernames_text = ', '.join(details.usernames)
+            user_label = f'Copy Username{pluralize(len(details.usernames))}'
+            copy_user_action = QAction(copy_icon, user_label, self)
+            copy_user_action.triggered.connect(lambda: set_clipboard_text(usernames_text))
+            menu.addAction(copy_user_action)
+
+        ip_label = 'IP' if is_single_ip else 'Range'
+        copy_ip_action = QAction(copy_icon, f'Copy {ip_label}', self)
+        copy_ip_action.triggered.connect(lambda: set_clipboard_text(side.entry))
+        menu.addAction(copy_ip_action)
+
+        if details.notes:
+            notes_text = ', '.join(details.notes)
+            copy_note_action = QAction(copy_icon, 'Copy Note', self)
+            copy_note_action.triggered.connect(lambda: set_clipboard_text(notes_text))
+            menu.addAction(copy_note_action)
+
+    def _populate_database_menu_actions(self, menu: QMenu, side: _ConflictSide, details: _SideDetails) -> None:
+        first_username = details.usernames[0] if details.usernames else ''
+        go_to_db_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'arrow-right.svg')), 'Go to Database', self)
+        go_to_db_action.setToolTip('Open this database in the UserIP Databases Manager and navigate to this entry.')
+        go_to_db_action.triggered.connect(
+            lambda: _navigate_to_database_in_manager(side.db_path, username=first_username, ip_or_range=side.entry),
+        )
+        menu.addAction(go_to_db_action)
+
+        open_editor_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'file-text.svg')), 'Open in Text Editor', self)
+        open_editor_action.triggered.connect(lambda: QDesktopServices.openUrl(QUrl.fromLocalFile(str(side.db_path))))
+        menu.addAction(open_editor_action)
+
+        open_explorer_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'folder.svg')), 'Open in Explorer', self)
+        open_explorer_action.triggered.connect(lambda: open_file_location(side.db_path))
+        menu.addAction(open_explorer_action)
+
+    def _populate_resolution_menu_actions(self, menu: QMenu, side: _ConflictSide, details: _SideDetails, *, is_single_ip: bool) -> None:
+        keep_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'check.svg')), 'Keep This Entry…', self)
+        keep_action.triggered.connect(self._keep_selected)
+        menu.addAction(keep_action)
+
+        keep_merge_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'user-round-check.svg')), 'Keep && Merge…', self)
+        keep_merge_action.triggered.connect(self._keep_and_merge_selected)
+        menu.addAction(keep_merge_action)
+
+        menu.addSeparator()
+
+        pen_icon = QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square-pen.svg'))
+        rename_action = QAction(pen_icon, 'Rename', self)
+        rename_action.setShortcut('F2')
+        rename_action.triggered.connect(self._edit_selected_usernames)
+        menu.addAction(rename_action)
+
+        edit_ip_label = 'Edit IP…' if is_single_ip else 'Edit Range…'
+        edit_ip_action = QAction(pen_icon, edit_ip_label, self)
+        edit_ip_action.triggered.connect(self._edit_selected)
+        menu.addAction(edit_ip_action)
+
+        note_label = 'Edit Note…' if details.notes else 'Add Note…'
+        edit_note_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'notepad-text.svg')), note_label, self)
+        edit_note_action.triggered.connect(self._edit_selected_note)
+        menu.addAction(edit_note_action)
+
+        move_db_menu = QMenu('Move to Database', menu)
+        move_db_menu.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'box.svg')))
+        move_db_menu.setStyleSheet(SVG_ICON_CONTEXT_MENU_STYLESHEET)
+        move_db_menu.setToolTipsVisible(True)
+        all_db_paths = [json_path for json_path in USERIP_DATABASES_DIR_PATH.rglob('*.json') if json_path.is_file()]
+        enabled_targets = populate_userip_databases_menu(
+            move_db_menu,
+            all_db_paths,
+            tooltip='Move this entry to this database.',
+            handler_factory=lambda target_path: lambda: self._move_side(side, target_path),
+            disabled_path=side.db_path,
+        )
+        if not enabled_targets:
+            move_db_menu.setEnabled(False)
+        menu.addMenu(move_db_menu)
+
+        if is_single_ip:
+            menu.addSeparator()
+            lookup_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'info.svg')), 'IP Lookup Details…', self)
+            lookup_action.triggered.connect(lambda: show_detailed_ip_lookup(side.entry))
+            menu.addAction(lookup_action)
+
+            create_ping_menu(self, menu, [side.entry])
+
+            scan_ports_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'radar.svg')), 'Scan Ports…', self)
+            scan_ports_action.triggered.connect(lambda: scan_ports_ip(side.entry))
+            menu.addAction(scan_ports_action)
+
+        menu.addSeparator()
+        add_user_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'plus.svg')), 'Add Username…', self)
+        add_user_action.triggered.connect(lambda: self._add_username_to_side(side))
+        menu.addAction(add_user_action)
+
+        menu.addSeparator()
+        delete_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')), 'Delete This Entry…', self)
+        delete_action.setShortcut('Delete')
+        delete_action.triggered.connect(self._delete_selected)
+        menu.addAction(delete_action)
 
     def _on_item_changed(self, item: QTreeWidgetItem, column: int) -> None:
         if column not in (_USERNAMES_COLUMN, _NOTES_COLUMN):
