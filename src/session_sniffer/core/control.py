@@ -4,7 +4,6 @@ import logging
 import signal
 import sys
 import threading
-import time
 from threading import Lock
 from types import TracebackType
 from typing import TYPE_CHECKING, ClassVar, Literal, NamedTuple
@@ -54,10 +53,13 @@ class ScriptControl:
             hook()
 
     @classmethod
-    def set_crashed(cls) -> None:
-        """Mark the process as crashed."""
+    def set_crashed(cls) -> bool:
+        """Atomically mark the process as crashed and return True only for the first caller."""
         with cls._lock:
+            if cls._crashed:
+                return False
             cls._crashed = True
+            return True
 
     @classmethod
     def has_crashed(cls) -> bool:
@@ -85,7 +87,16 @@ def terminate_script(
     active_thread_names = [f'{thread.name} (native_id={getattr(thread, "native_id", "unknown")})' for thread in threading.enumerate()]
     logger.debug('Active threads at terminate_script (%d): %s', len(active_thread_names), active_thread_names)
 
-    ScriptControl.set_crashed()
+    if not ScriptControl.set_crashed():
+        if exception_info is not None:
+            logger.critical(
+                'Secondary uncaught exception in %s (method=%s) while termination is already in progress:',
+                caller_thread.name,
+                terminate_method,
+                exc_info=(exception_info.exc_type, exception_info.exc_value, exception_info.exc_traceback),
+            )
+            flush_all_loggers()
+        return
 
     if exception_info is not None:
         logger.critical(
@@ -112,7 +123,6 @@ def terminate_script(
             terminate_method=terminate_method,
             exc_info=(exception_info.exc_type, exception_info.exc_value, exception_info.exc_traceback) if exception_info is not None else None,
         )
-        time.sleep(4)
 
     flush_all_loggers()
     ensure_app_dir_ownership(APP_DIR_LOCAL)
