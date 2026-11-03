@@ -112,9 +112,9 @@ class PlayerIPLookup:
 
     def resolve_country(self) -> tuple[str, str]:
         """Return `(country, country_code)`, preferring GeoLite2 over IP-API when available."""
-        if self.geolite2.country_code not in {'...', 'N/A'}:
+        if self.geolite2.country_code not in {'', '...', 'N/A'}:
             return self.geolite2.country, self.geolite2.country_code
-        if self.ipapi.country_code not in {'...', 'N/A'} or not self.ipapi.is_initialized:
+        if self.ipapi.country_code not in {'', '...', 'N/A'} or not self.ipapi.is_initialized:
             return self.ipapi.country, self.ipapi.country_code
         return self.geolite2.country, self.geolite2.country_code
 
@@ -124,9 +124,9 @@ class PlayerIPLookup:
 
     def resolve_city(self) -> str:
         """Return the player's GeoLite2 city, falling back to IP-API when unavailable."""
-        if self.geolite2.city not in {'...', 'N/A'}:
+        if self.geolite2.city not in {'', '...', 'N/A'}:
             return self.geolite2.city
-        if self.ipapi.city not in {'...', 'N/A'} or not self.ipapi.is_initialized:
+        if self.ipapi.city not in {'', '...', 'N/A'} or not self.ipapi.is_initialized:
             return self.ipapi.city
         return self.geolite2.city
 
