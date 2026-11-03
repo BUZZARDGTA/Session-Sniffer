@@ -398,8 +398,8 @@ class _LookyRateLimiter:
             if self._consecutive_rate_limits > 0 and time.monotonic() >= self._cooldown_until:
                 self._consecutive_rate_limits = 0
 
-    def record_rate_limit(self, exc: requests.HTTPError, *, context_label: str) -> None:
-        """Record an HTTP 429 response and extend the shared cooldown deadline."""
+    def record_rate_limit(self, exc: requests.HTTPError, phase: _RateLimitPhase, *, context_label: str) -> None:
+        """Record an HTTP 429 response, extend the shared cooldown deadline, and notify phase progress."""
         extracted_wait = extract_rate_limit_wait_seconds(exc)
         rate_limit_message = extract_rate_limit_message(exc)
         now = time.monotonic()
@@ -421,6 +421,8 @@ class _LookyRateLimiter:
                 self._cooldown_active_logged = True
 
         if extended_existing:
+            if phase.on_progress is not None and phase.label and phase.total_count > 0:
+                phase.on_progress(f'{phase.label} (rate limited \u2014 resuming in {remaining_total}s)', phase.completed_getter(), phase.total_count)
             logger.warning(
                 '[Looky System] Rate limited (HTTP 429, hit #%d) on %s: "%s". Waiting %d second%s before retrying (no items will be skipped).',
                 total_hits, context_label, rate_limit_message, remaining_total, pluralize(remaining_total),
@@ -503,7 +505,7 @@ class _LookyRateLimiter:
                     if e.response.status_code in _AUTH_HTTP_STATUSES:
                         raise
                     if e.response.status_code == HTTPStatus.TOO_MANY_REQUESTS:
-                        self.record_rate_limit(e, context_label=context_label)
+                        self.record_rate_limit(e, phase, context_label=context_label)
                         continue
                 transient_attempts += 1
                 if transient_attempts > _MAX_TRANSIENT_RETRIES:
