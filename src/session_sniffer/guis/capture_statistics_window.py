@@ -20,7 +20,7 @@ from session_sniffer.guis.stylesheets import (
     GRAPH_PPS_POPOUT_BUTTON_STYLESHEET,
 )
 from session_sniffer.guis.utils import RateGraphWindowMixin, format_duration, scale_by_ui
-from session_sniffer.models.player import PlayerBandwidth
+from session_sniffer.models.player_traffic import PlayerBandwidth
 from session_sniffer.player.registry import PlayersRegistry
 from session_sniffer.rendering_core.types import CaptureState, CaptureStats
 from session_sniffer.settings import Settings

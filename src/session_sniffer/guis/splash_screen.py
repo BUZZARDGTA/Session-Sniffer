@@ -10,7 +10,7 @@ from PySide6.QtWidgets import QApplication, QLabel, QTextEdit, QVBoxLayout, QWid
 from shiboken6 import isValid
 
 from session_sniffer.constants.standalone import TITLE
-from session_sniffer.core.control import ScriptControl
+from session_sniffer.core import ScriptControl
 from session_sniffer.guis.fonts import get_monospace_font, get_ui_font
 from session_sniffer.guis.stylesheets import (
     SPLASH_LOG_AREA_STYLESHEET,

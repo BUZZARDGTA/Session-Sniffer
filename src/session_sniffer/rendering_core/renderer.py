@@ -25,7 +25,8 @@ from session_sniffer.discord.webhook import DiscordWebhookPayload, DiscordWebhoo
 from session_sniffer.gta5.suspend_manager import GTASuspendManager
 from session_sniffer.guis.html_templates import generate_gui_header_html
 from session_sniffer.models import SessionLogFile
-from session_sniffer.models.player import Player, PlayerBandwidth, PlayerModMenus
+from session_sniffer.models.player_lookup import PlayerModMenus
+from session_sniffer.models.player_traffic import PlayerBandwidth
 from session_sniffer.networking.geolite2 import extract_asn_info, extract_city_info, extract_country_info
 from session_sniffer.networking.port_scanner import get_active_port_scan_threads
 from session_sniffer.player.registry import PlayersRegistry, SessionTracker
@@ -71,6 +72,7 @@ from session_sniffer.utils import get_session_log_path
 
 if TYPE_CHECKING:
     from session_sniffer.capture.packet_capture import CaptureHolder
+    from session_sniffer.models.player import Player
 
 logger = logging.getLogger(__name__)
 

@@ -93,6 +93,12 @@ class _DetectionEvaluationResult:
     timing_gap: float | None = None
 
 
+def _resolve_player_country_code(player: Player) -> str:
+    """Return the player's GeoLite2 country code, falling back to IP-API when unavailable."""
+    geolite2_code = player.iplookup.geolite2.country_code
+    return geolite2_code if geolite2_code not in {'...', 'N/A'} else player.iplookup.ipapi.country_code
+
+
 def _build_host_diagnostics_snapshot(
     session_players: list[Player],
     candidates: list[Player],
@@ -111,11 +117,7 @@ def _build_host_diagnostics_snapshot(
         else:
             packets_status = 'Eligible'
 
-        country = (
-            player.iplookup.geolite2.country_code
-            if player.iplookup.geolite2.country_code not in {'...', 'N/A'}
-            else player.iplookup.ipapi.country_code
-        )
+        country = _resolve_player_country_code(player)
 
         candidate_diagnostics.append(
             HostCandidateDiagnostic(
@@ -236,13 +238,7 @@ def _build_host_diagnostics_snapshot(
     detected_host = result.detected_host
     host_ip = detected_host.ip if detected_host is not None else None
     host_usernames = list(detected_host.usernames) if detected_host is not None else []
-    host_country = (
-        (detected_host.iplookup.geolite2.country_code
-         if detected_host.iplookup.geolite2.country_code not in {'...', 'N/A'}
-         else detected_host.iplookup.ipapi.country_code)
-        if detected_host is not None
-        else ''
-    )
+    host_country = _resolve_player_country_code(detected_host) if detected_host is not None else ''
 
     return HostDiagnosticsSnapshot(
         timestamp=now,
@@ -366,11 +362,7 @@ class SessionHost:
         session_id: int | None = None,
     ) -> None:
         """Snapshot the given player as a detected session host and append to history."""
-        country_code = (
-            player.iplookup.geolite2.country_code
-            if player.iplookup.geolite2.country_code not in {'...', 'N/A'}
-            else player.iplookup.ipapi.country_code
-        )
+        country_code = _resolve_player_country_code(player)
         if session_id is None:
             session_id = SessionTracker.get_current_session_id()
         if cls._history and cls._history[-1].session_id == session_id and cls._history[-1].ip == player.ip:
@@ -409,7 +401,7 @@ class SessionHost:
         cls._manually_cleared_session_ids.discard(session_id)
 
     @classmethod
-    def get_host_player(cls, session_connected: list[Player]) -> Player | None:
+    def get_host_player(cls, session_connected: list[Player]) -> None:
         """Infer and cache the session host from currently connected players and eligible relay candidates."""
         # Only consider IPs confirmed by traffic on the active game's UDP port. Other captured
         # traffic can still appear in the session tables, but must not influence host selection.
@@ -436,7 +428,7 @@ class SessionHost:
                     rejection_reason=cls.last_rejection_reason,
                 ),
             )
-            return None
+            return
 
         candidates = list(confirmed_session_players)
         p2p_connected = cls.filter_confirmed_p2p_players(confirmed_session_players)
@@ -465,7 +457,7 @@ class SessionHost:
                     rejection_reason=cls.last_rejection_reason,
                 ),
             )
-            return None
+            return
         active_p2p_players = [
             player
             for player in p2p_players
@@ -484,7 +476,7 @@ class SessionHost:
             )
             cls.search_player = False
             cls.search_start_time = None
-            return None
+            return
         connected_players: list[Player] = nsmallest(SESSION_HOST_CANDIDATE_PLAYERS_COUNT, active_p2p_players, key=attrgetter('datetime.last_rejoin'))
 
         potential_session_host_player: Player
@@ -526,7 +518,7 @@ class SessionHost:
                         timing_gap=gap_seconds,
                     ),
                 )
-                return None
+                return
             potential_session_host_player = connected_players[0]
         else:
             raise UnexpectedPlayerCountError(len(connected_players))
@@ -589,7 +581,7 @@ class SessionHost:
                         timing_gap=gap_seconds,
                     ),
                 )
-            return None
+            return
 
         cls.set_player(potential_session_host_player)
         cls.search_player = False
@@ -611,4 +603,3 @@ class SessionHost:
             diagnostics=cls.last_diagnostics,
             session_id=current_session_id,
         )
-        return potential_session_host_player

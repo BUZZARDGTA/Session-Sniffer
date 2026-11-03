@@ -398,8 +398,8 @@ class _LookyRateLimiter:
             if self._consecutive_rate_limits > 0 and time.monotonic() >= self._cooldown_until:
                 self._consecutive_rate_limits = 0
 
-    def record_rate_limit(self, exc: requests.HTTPError, *, context_label: str) -> int:
-        """Record an HTTP 429 response, extend the shared cooldown deadline, and return wait seconds."""
+    def record_rate_limit(self, exc: requests.HTTPError, *, context_label: str) -> None:
+        """Record an HTTP 429 response and extend the shared cooldown deadline."""
         extracted_wait = extract_rate_limit_wait_seconds(exc)
         rate_limit_message = extract_rate_limit_message(exc)
         now = time.monotonic()
@@ -427,7 +427,6 @@ class _LookyRateLimiter:
             )
         else:
             logger.debug('[Looky System] Concurrent in-flight request also hit HTTP 429 on %s; already waiting %ds for active cooldown.', context_label, remaining_total)
-        return remaining_total
 
     def wait_and_acquire_slot(self, phase: _RateLimitPhase) -> bool:
         """Wait out any active HTTP 429 cooldown and reserve a paced request dispatch slot."""

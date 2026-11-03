@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from functools import lru_cache
+from typing import TYPE_CHECKING
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from PySide6.QtGui import QColor
@@ -10,12 +11,15 @@ from PySide6.QtGui import QColor
 from session_sniffer.constants.standard import LOCAL_TZ
 from session_sniffer.guis.colors import TableColors
 from session_sniffer.guis.exceptions import InvalidDateColumnConfigurationError
-from session_sniffer.models.player import Player, PlayerBandwidth
+from session_sniffer.models.player_traffic import PlayerBandwidth
 from session_sniffer.networking.isp_filter import is_player_isp_filtered
 from session_sniffer.player.registry import SessionTracker
 from session_sniffer.rendering_core.types import CellColor, SessionTableSnapshot
 from session_sniffer.settings import Settings
 from session_sniffer.text_utils import format_elapsed_time
+
+if TYPE_CHECKING:
+    from session_sniffer.models.player import Player
 
 PPS_MAX_THRESHOLD = 10
 PPM_MAX_THRESHOLD = PPS_MAX_THRESHOLD * 60

@@ -76,7 +76,9 @@ from session_sniffer.guis.utils import compute_ui_scale, get_screen_size, initia
 from session_sniffer.launcher.cache_preloader import preload_application_caches, warm_table_gui_assets
 from session_sniffer.launcher.package_checker import check_packages_version, get_dependencies_from_pyproject
 from session_sniffer.logging_setup import register_secret_provider, setup_logging
-from session_sniffer.models.player import PacketInfo, Player, PlayerUserIPDetection
+from session_sniffer.models.player import Player
+from session_sniffer.models.player_lookup import PlayerUserIPDetection
+from session_sniffer.models.player_traffic import PacketInfo
 from session_sniffer.networking.adapters_info import get_adapters_info
 from session_sniffer.networking.geolite2.service import update_and_initialize_geolite2_readers
 from session_sniffer.networking.interface import AllInterfaces, Interface, SelectedInterfaceRow

@@ -27,7 +27,7 @@ from session_sniffer.guis.tables_player_actions._detection_dialogs import (
 )
 from session_sniffer.guis.tables_player_actions._userip_dialog import show_userip_detected_dialog
 from session_sniffer.guis.utils import find_main_window
-from session_sniffer.models.player import Player, PlayerUserIPDetection
+from session_sniffer.models.player_lookup import PlayerUserIPDetection
 from session_sniffer.networking.geolite2 import query_geolite2_asn, query_geolite2_city, query_geolite2_country
 from session_sniffer.networking.third_party_servers import ThirdPartyServers, is_ip_in_ranges
 from session_sniffer.player.combo_rules import ComboRulesManager, matches_asn_entry, matches_player_isp
@@ -43,6 +43,8 @@ from session_sniffer.utils import dedup_preserve_order
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
     from pathlib import Path
+
+    from session_sniffer.models.player import Player
 
 _GTA5_RELAY_RANGES = ThirdPartyServers.get_ip_obj_ranges_for(['TAKETWO_INTERACTIVE', 'MICROSOFT'])
 _DETECTION_CSV_HEADERS = ('Detection', 'Usernames', 'IP', 'Date', 'Time', 'Country')

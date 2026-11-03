@@ -19,7 +19,7 @@ from PySide6.QtWidgets import (
 from session_sniffer.constants.standard import LOCAL_TZ
 from session_sniffer.guis.player_rate_graph import DEFAULT_MAX_HISTORY, PlayerRateGraphWindow
 from session_sniffer.guis.utils import activate_window, scale_by_ui
-from session_sniffer.models.player import PlayerBandwidth
+from session_sniffer.models.player_traffic import PlayerBandwidth
 from session_sniffer.player.registry import PlayersRegistry
 from session_sniffer.settings import Settings
 from session_sniffer.text_utils import pluralize

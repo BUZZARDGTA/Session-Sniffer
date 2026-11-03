@@ -36,7 +36,7 @@ from session_sniffer.guis.stylesheets import (
     PROGRESS_BAR_CHUNK_RED_STYLESHEET,
     PROGRESS_BAR_IDLE_STYLESHEET,
 )
-from session_sniffer.models.player import PlayerBandwidth
+from session_sniffer.models.player_traffic import PlayerBandwidth
 from session_sniffer.player.registry import PlayersRegistry
 from session_sniffer.settings import Settings
 from session_sniffer.text_utils import pluralize

@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 
 from session_sniffer.constants.standard import LOCAL_TZ
-from session_sniffer.models.player import Player, PlayerBandwidth
+from session_sniffer.models.player_traffic import PlayerBandwidth
 from session_sniffer.rendering_core.session_table_renderer import (
     format_player_boolean,
     format_player_continent,
@@ -17,6 +17,8 @@ from session_sniffer.text_utils import format_elapsed_time, format_single_border
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+
+    from session_sniffer.models.player import Player
 
 
 def format_player_column_value(player: Player, column_name: str, now: datetime) -> str:
