@@ -219,7 +219,7 @@ def userip_add(
         existing_pairs = {(entry.username.casefold(), entry.ip) for entry in db_model.entries}
 
     new_entries = [
-        UserIPEntryModel(username=username, ip=ip_address, notes=notes_by_username.get(username, ''), source='Session')
+        UserIPEntryModel(username=username, ip=ip_address, notes=notes_by_username.get(username, ''))
         for username in chosen_usernames
         for ip_address in selected_ips
         if (username.casefold(), ip_address) not in existing_pairs
@@ -274,7 +274,7 @@ def userip_add_as_range(
 
     append_userip_entries(
         selected_database,
-        [UserIPEntryModel(username=username, ip=range_input, notes=notes_by_username.get(username, ''), source='Session') for username in chosen_usernames],
+        [UserIPEntryModel(username=username, ip=range_input, notes=notes_by_username.get(username, '')) for username in chosen_usernames],
     )
     refresh_userip_and_wake_renderer()
 
@@ -512,7 +512,7 @@ def userip_add_username(parent: QWidget, ip_address: str, player: Player) -> Non
     append_userip_entries(
         db_path,
         [
-            UserIPEntryModel(username=username, ip=target_entry, notes=notes_by_username.get(username) or existing_note, source='Session')
+            UserIPEntryModel(username=username, ip=target_entry, notes=notes_by_username.get(username) or existing_note)
             for username in entered_usernames
         ],
     )

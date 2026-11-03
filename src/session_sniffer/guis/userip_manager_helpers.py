@@ -37,6 +37,7 @@ from session_sniffer.guis.stylesheets import (
 from session_sniffer.guis.utils import scale_by_ui
 from session_sniffer.models.userip_settings_model import (
     DEFAULT_USERIP_FILES_SETTINGS,
+    USERIP_SOURCE_TOOLTIPS,
     UserIPDatabaseFile,
     UserIPEntryModel,
     UserIPSettingsModel,
@@ -82,6 +83,7 @@ FILTERABLE_COLUMNS = (USERNAME_COLUMN, IP_COLUMN, RANGE_COLUMN, DATABASE_COLUMN,
 ENTRY_TABLE_HEADERS = ['#', 'Username', 'IP', 'Range', 'Database', 'Notes', 'Source', 'Detections', 'Added', 'Updated', 'First Seen', 'Last Seen']
 
 USERIP_METADATA_HEADER_TOOLTIPS: dict[str, str] = {
+    'Source': 'How this entry was added to the database:\n' + '\n'.join(f'• {src}: {desc}' for src, desc in USERIP_SOURCE_TOOLTIPS.items()),
     'Detections': 'The number of times this entry has been matched across sessions.',
     'Added': 'The date and time when this entry was first added to the database.',
     'Updated': 'The date and time when this entry was last modified.',
@@ -308,7 +310,7 @@ def build_entry_row_items(
     db_name = database[0] if database else ''
     db_item = _make_readonly_item(db_name, str(database[1]) if database is not None else None)
     notes_item = QStandardItem(entry.notes)
-    source_item = _make_readonly_item(entry.source, entry.source)
+    source_item = _make_readonly_item(entry.source, entry.source, tooltip=USERIP_SOURCE_TOOLTIPS.get(entry.source, ''))
     detections_item = _make_readonly_item(str(entry.detections_count), entry.detections_count)
     added_item = _make_timestamp_item(entry.added_at)
     updated_item = _make_timestamp_item(entry.updated_at)

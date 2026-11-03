@@ -99,7 +99,6 @@ _ENTRY_TABLE_HEADER_TOOLTIPS: dict[str, str] = {
     'Range': 'The IPv4 address range or CIDR subnet matched by this entry.',
     'Database': 'The UserIP database file that contains this entry (shown when searching across all databases).',
     'Notes': 'Optional user notes or comments attached to this entry.',
-    'Source': 'How this entry was added to the database (e.g., Manual, Looky, Sniffer, or Imported).',
     **USERIP_METADATA_HEADER_TOOLTIPS,
 }
 

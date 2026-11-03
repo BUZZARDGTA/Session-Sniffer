@@ -14,15 +14,21 @@ from session_sniffer.text_utils import DEFAULT_MANUAL_SUSPEND_DURATION_SECONDS
 from session_sniffer.utils import check_case_insensitive_and_exact_match, custom_str_to_bool
 from session_sniffer.utils_exceptions import InvalidBooleanValueError, NoMatchFoundError
 
-type EntrySource = Literal['Manual', 'Session', 'Looky', 'Auto-IP', 'Import']
+type EntrySource = Literal['Manual', 'Looky', 'Auto-IP', 'Import']
 
 USERIP_SOURCE_VALUES: tuple[EntrySource, ...] = (
     'Manual',
-    'Session',
     'Looky',
     'Auto-IP',
     'Import',
 )
+
+USERIP_SOURCE_TOOLTIPS: dict[EntrySource, str] = {
+    'Manual': 'Added manually by you (via the session table or UserIP Manager).',
+    'Looky': 'Added or synchronized automatically by Looky System.',
+    'Auto-IP': 'Automatically recorded when a known player was detected on a new IP address.',
+    'Import': 'Merged from an imported external UserIP database file.',
+}
 
 USERIP_SETTINGS_KEYS: tuple[str, ...] = (
     'ENABLED',

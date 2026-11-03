@@ -45,6 +45,8 @@ from session_sniffer.guis.userip_manager_helpers import (
 )
 from session_sniffer.guis.utils import ActiveDialogRegistry, find_main_window, open_file_location, scale_by_ui, set_clipboard_text, set_dialog_window_flags
 from session_sniffer.models.userip_settings_model import (
+    USERIP_SOURCE_TOOLTIPS,
+    EntrySource,
     UserIPEntryModel,
     format_iso_timestamp_display,
     get_current_iso_timestamp,
@@ -88,7 +90,6 @@ _CONFLICT_HEADER_TOOLTIPS: dict[str, str] = {
         'Purple entries with a Looky icon were automatically added or confirmed via Looky System.'
     ),
     'Notes': 'Optional user notes or comments attached to this entry (double-click to edit).',
-    'Source': 'How this entry was added to the database (e.g., Manual, Looky, Session, or Import).',
     **USERIP_METADATA_HEADER_TOOLTIPS,
 }
 
@@ -126,7 +127,7 @@ class _SideDetails:
     usernames: list[str] = field(default_factory=list[str])
     looky_usernames: set[str] = field(default_factory=set[str])
     notes: list[str] = field(default_factory=list[str])
-    sources: list[str] = field(default_factory=list[str])
+    sources: list[EntrySource] = field(default_factory=list[EntrySource])
     detections_count: int = 0
     added_at: str | None = None
     updated_at: str | None = None
@@ -557,6 +558,10 @@ class UserIPConflictResolverDialog(QDialog):
             item.setData(_USERNAMES_COLUMN, Qt.ItemDataRole.UserRole, None)
         item.setText(_NOTES_COLUMN, ', '.join(details.notes))
         item.setText(_SOURCE_COLUMN, ', '.join(details.sources))
+        item.setToolTip(
+            _SOURCE_COLUMN,
+            '\n'.join(f'{src}: {desc}' if len(details.sources) > 1 else desc for src in details.sources if (desc := USERIP_SOURCE_TOOLTIPS.get(src)) is not None),
+        )
         item.setText(_DETECTIONS_COLUMN, str(details.detections_count))
         for col, raw_iso in (
             (_ADDED_COLUMN, details.added_at),
