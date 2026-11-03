@@ -503,6 +503,7 @@ class UserIPEntriesOperationsMixin(QDialog):
                     index_item.setText(str(row + 1))
                     index_item.setData(row + 1, Qt.ItemDataRole.UserRole)
         self._next_index = self._model.rowCount() + 1
+        self._proxy.prepare_sort_and_invalidate()
 
     def _rename_selected(self) -> None:
         """Rename the username of the selected entry or entries."""
@@ -860,8 +861,9 @@ class UserIPEntriesOperationsMixin(QDialog):
                 )
                 for col, item in enumerate(new_items):
                     self._model.setItem(first_row, col, item)
-            for row in sorted(rows_to_remove, reverse=True):
-                self._model.removeRow(row)
+
+        for row in sorted(rows_to_remove, reverse=True):
+            self._model.removeRow(row)
 
         self._renumber_indexes()
 

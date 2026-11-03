@@ -218,22 +218,20 @@ class EntriesSortProxy(QSortFilterProxyModel):
     def refresh_rows(self, rows: Iterable[int]) -> None:
         """Recompute cached search blobs and sort keys for *rows* after signal-blocked model edits."""
         model = self.sourceModel()
-        if not isinstance(model, QStandardItemModel):
+        if not isinstance(model, QStandardItemModel) or not (row_list := list(rows)):
             return
-        sort_col = self.sortColumn()
         cols_to_update: set[int] = set(self._populated_sort_cols)
-        if sort_col >= 0:
+        if (sort_col := self.sortColumn()) >= 0:
             cols_to_update.add(sort_col)
         with QSignalBlocker(model):
-            for row in rows:
+            for row in row_list:
                 _compute_row_search_blob(model, row)
-                ip_item = model.item(row, IP_COLUMN)
-                range_item = model.item(row, RANGE_COLUMN)
-                row_ip = (ip_item.text() if ip_item else '') or (range_item.text() if range_item else '')
-                row_ip_key = _ip_sort_str(row_ip)
+                ip_item, range_item = model.item(row, IP_COLUMN), model.item(row, RANGE_COLUMN)
+                row_ip_key = _ip_sort_str((ip_item.text() if ip_item else '') or (range_item.text() if range_item else ''))
                 for col in cols_to_update:
                     if target_item := model.item(row, col):
                         target_item.setData(_compute_cell_sort_key(model, row, col, row_ip_key), SORT_KEY_ROLE)
+        model.dataChanged.emit(model.index(min(row_list), 0), model.index(max(row_list), max(0, model.columnCount() - 1)), [SEARCH_TEXT_ROLE, SORT_KEY_ROLE])
 
     def _on_source_data_changed(self, top_left: QModelIndex, bottom_right: QModelIndex, roles: list[int]) -> None:
         if roles and Qt.ItemDataRole.DisplayRole not in roles and Qt.ItemDataRole.EditRole not in roles and Qt.ItemDataRole.UserRole not in roles:
