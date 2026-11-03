@@ -274,18 +274,14 @@ class BaseSuspendManager:
                 # all reasons satisfied
                 now = time.monotonic()
                 if all(cls._reason_ok(reason, now) for reason in cls._state.reasons.values()):
-                    process_id_to_resume = cls._state.pid
+                    cls._try_resume_pid(cls._state.pid)
                     cls._state = None
                     cls._publish_snapshot_locked()
                     cls._monitor_thread = None
-                else:
-                    process_id_to_resume = None
-                    timeout = cls._next_timeout(cls._state, now)
-                    cls._condition.wait(timeout=timeout)
+                    return
 
-            if process_id_to_resume is not None:
-                cls._try_resume_pid(process_id_to_resume)
-                return
+                timeout = cls._next_timeout(cls._state, now)
+                cls._condition.wait(timeout=timeout)
 
     # ------------------------------------------------------------
     # Logic helpers
