@@ -8,7 +8,6 @@ from pydantic import ValidationError
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (
-    QCheckBox,
     QComboBox,
     QDialog,
     QFileDialog,
@@ -17,7 +16,6 @@ from PySide6.QtWidgets import (
     QListWidget,
     QMessageBox,
     QPushButton,
-    QSpinBox,
     QTabWidget,
     QVBoxLayout,
     QWidget,
@@ -55,6 +53,7 @@ from session_sniffer.text_utils import DEFAULT_MANUAL_SUSPEND_DURATION_SECONDS
 
 if TYPE_CHECKING:
     from PySide6.QtGui import QKeyEvent, QShowEvent
+    from PySide6.QtWidgets import QCheckBox, QSpinBox
 
     from session_sniffer.models.player import Player
 
@@ -98,66 +97,12 @@ class DetectionsManagerDialog(DetectionsManagerTabsMixin, QDialog):
         self.setMinimumSize(scale_by_ui(720), scale_by_ui(500))
         resize_window_for_screen(self)
 
-        # Widget references (populated by tab builders)
-        # -- Network-based (mobile, vpn, hosting) --
-        self.mobile_duration_combo: QComboBox
-        self.mobile_duration_spin: QSpinBox
-        self.mobile_voice_combo: QComboBox
-        self.mobile_logging_checkbox: QCheckBox
-        self.mobile_msgbox_checkbox: QCheckBox
-        self.vpn_duration_combo: QComboBox
-        self.vpn_duration_spin: QSpinBox
-        self.vpn_voice_combo: QComboBox
-        self.vpn_logging_checkbox: QCheckBox
-        self.vpn_msgbox_checkbox: QCheckBox
-        self.hosting_duration_combo: QComboBox
-        self.hosting_duration_spin: QSpinBox
-        self.hosting_voice_combo: QComboBox
-        self.hosting_logging_checkbox: QCheckBox
-        self.hosting_msgbox_checkbox: QCheckBox
-        # -- Geography-based (country, isp, asn) --
+        # Static widget references (per-rule controls are accessed dynamically via prefix)
         self.country_list: QListWidget
-        self.country_duration_combo: QComboBox
-        self.country_duration_spin: QSpinBox
-        self.country_voice_combo: QComboBox
-        self.country_logging_checkbox: QCheckBox
-        self.country_msgbox_checkbox: QCheckBox
         self.isp_list: QListWidget
-        self.isp_duration_combo: QComboBox
-        self.isp_duration_spin: QSpinBox
-        self.isp_voice_combo: QComboBox
-        self.isp_logging_checkbox: QCheckBox
-        self.isp_msgbox_checkbox: QCheckBox
         self.asn_list: QListWidget
-        self.asn_duration_combo: QComboBox
-        self.asn_duration_spin: QSpinBox
-        self.asn_voice_combo: QComboBox
-        self.asn_logging_checkbox: QCheckBox
-        self.asn_msgbox_checkbox: QCheckBox
-        # -- Player events (join, rejoin, leave) --
-        self.player_join_duration_combo: QComboBox
-        self.player_join_duration_spin: QSpinBox
-        self.player_join_voice_combo: QComboBox
-        self.player_join_logging_checkbox: QCheckBox
-        self.player_join_msgbox_checkbox: QCheckBox
-        self.player_rejoin_duration_combo: QComboBox
-        self.player_rejoin_duration_spin: QSpinBox
-        self.player_rejoin_voice_combo: QComboBox
-        self.player_rejoin_logging_checkbox: QCheckBox
-        self.player_rejoin_msgbox_checkbox: QCheckBox
-        self.player_leave_duration_combo: QComboBox
-        self.player_leave_duration_spin: QSpinBox
-        self.player_leave_voice_combo: QComboBox
-        self.player_leave_logging_checkbox: QCheckBox
-        self.player_leave_msgbox_checkbox: QCheckBox
-        # -- GTA5 Relays (GTA5 preset only) --
         self._relay_filter_warning: QWidget
         self.gta5_relay_duration_combo: QComboBox
-        self.gta5_relay_duration_spin: QSpinBox
-        self.gta5_relay_voice_combo: QComboBox
-        self.gta5_relay_logging_checkbox: QCheckBox
-        self.gta5_relay_msgbox_checkbox: QCheckBox
-        # -- Combo rules --
         self._combo_rules_list: QListWidget
 
         layout = QVBoxLayout(self)

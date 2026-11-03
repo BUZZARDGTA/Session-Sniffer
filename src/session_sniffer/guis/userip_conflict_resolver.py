@@ -4,7 +4,7 @@ import html
 from dataclasses import dataclass, field
 from ipaddress import IPv4Address
 from pathlib import Path
-from typing import TYPE_CHECKING, NamedTuple, override
+from typing import TYPE_CHECKING, NamedTuple, cast, override
 
 from PySide6.QtCore import QModelIndex, QPersistentModelIndex, QPoint, QSignalBlocker, Qt, QTimer, QUrl
 from PySide6.QtGui import QAction, QDesktopServices, QIcon, QKeySequence, QShortcut
@@ -59,6 +59,7 @@ from session_sniffer.text_utils import pluralize, split_usernames
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
+    from session_sniffer.guis._main_window_files_mixin import FilesMixin
     from session_sniffer.player.userip import UserIPConflict
 
 _REFRESH_INTERVAL_MS = 1000
@@ -428,10 +429,9 @@ def _is_single_ipv4(entry_text: str) -> bool:
 
 def _navigate_to_database_in_manager(db_path: Path, *, username: str = '', ip_or_range: str = '') -> None:
     """Open or focus the UserIP Databases Manager on `db_path` and select the matching entry."""
-    main_window = find_main_window()
-    navigate_fn = getattr(main_window, 'open_userip_manager_and_navigate', None)
-    if callable(navigate_fn):
-        navigate_fn(db_path, username=username, ip_or_range=ip_or_range)
+    main_window = cast('FilesMixin | None', find_main_window())
+    if main_window is not None:
+        main_window.open_userip_manager_and_navigate(db_path, username=username, ip_or_range=ip_or_range)
 
 
 class UserIPConflictResolverDialog(QDialog):

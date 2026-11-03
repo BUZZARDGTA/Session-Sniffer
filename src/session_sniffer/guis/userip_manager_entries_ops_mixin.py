@@ -78,7 +78,7 @@ class UserIPEntriesOperationsMixin(QDialog):
     _looky_icon: QIcon
 
     def _append_row(
-        self, entry: UserIPEntryModel, *, index: int = 0, database: tuple[str, Path] | None = None, persisted: bool = True,
+        self, entry: UserIPEntryModel, *, index: int = 0, persisted: bool = True,
     ) -> None:
         raise NotImplementedError
 

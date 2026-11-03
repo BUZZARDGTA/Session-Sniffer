@@ -664,7 +664,6 @@ class UserIPDatabasesManager(
         entry: UserIPEntryModel,
         *,
         index: int = 0,
-        database: tuple[str, Path] | None = None,
         persisted: bool = True,
     ) -> None:
         """Add a single row to the entries model."""
@@ -672,7 +671,6 @@ class UserIPDatabasesManager(
             build_entry_row_items(
                 entry,
                 index=index,
-                database=database,
                 looky_icon=self._looky_icon,
                 persisted=persisted,
             ),

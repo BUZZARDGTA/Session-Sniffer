@@ -95,7 +95,7 @@ def collect_known_usernames() -> list[str]:
     return usernames
 
 
-def attach_username_completer(line_edit: QLineEdit) -> QCompleter:
+def attach_username_completer(line_edit: QLineEdit) -> None:
     """Attach a case-insensitive substring `QCompleter` populated with known usernames to `line_edit`."""
     completer = QCompleter(collect_known_usernames(), line_edit)
     completer.setCompletionMode(QCompleter.CompletionMode.PopupCompletion)
@@ -106,7 +106,6 @@ def attach_username_completer(line_edit: QLineEdit) -> QCompleter:
     if popup is not None:
         popup.setObjectName('CompleterPopup')
     line_edit.setCompleter(completer)
-    return completer
 
 
 def configure_username_cell_editor(

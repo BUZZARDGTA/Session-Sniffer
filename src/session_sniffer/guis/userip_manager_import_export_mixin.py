@@ -57,7 +57,6 @@ class UserIPImportExportMixin(QDialog):
         entry: UserIPEntryModel,
         *,
         index: int = 0,
-        database: tuple[str, Path] | None = None,
         persisted: bool = True,
     ) -> None:
         raise NotImplementedError

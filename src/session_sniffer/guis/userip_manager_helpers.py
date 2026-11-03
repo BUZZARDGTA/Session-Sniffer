@@ -150,17 +150,12 @@ def _compute_cell_sort_key(model: QStandardItemModel, row: int, col: int, row_ip
     return f'{item.text()}\x00{row_ip_key}'
 
 
-def _compute_row_search_blob(model: QAbstractItemModel, row: int) -> str:
+def _compute_row_search_blob(model: QStandardItemModel, row: int) -> None:
     """Compute and cache the lowercased searchable text blob for *row* in *model*."""
-    if isinstance(model, QStandardItemModel):
-        blob = '\x1f'.join(text.lower() for col in FILTERABLE_COLUMNS if (item := model.item(row, col)) and (text := item.text()))
-        if idx_item := model.item(row, INDEX_COLUMN):
-            with QSignalBlocker(model):
-                idx_item.setData(blob, SEARCH_TEXT_ROLE)
-        return blob
-    return '\x1f'.join(
-        str(data).lower() for col in FILTERABLE_COLUMNS if (data := model.data(model.index(row, col), Qt.ItemDataRole.DisplayRole)) is not None
-    )
+    blob = '\x1f'.join(text.lower() for col in FILTERABLE_COLUMNS if (item := model.item(row, col)) and (text := item.text()))
+    if idx_item := model.item(row, INDEX_COLUMN):
+        with QSignalBlocker(model):
+            idx_item.setData(blob, SEARCH_TEXT_ROLE)
 
 
 class EntriesSortProxy(QSortFilterProxyModel):
@@ -343,14 +338,13 @@ def mark_row_persisted(model: QStandardItemModel, row: int) -> None:
     model.item(row, INDEX_COLUMN).setData(1, IS_PERSISTED_ROLE)
 
 
-def set_row_updated_at(model: QStandardItemModel, row: int, updated_iso: str | None = None) -> str:
+def set_row_updated_at(model: QStandardItemModel, row: int, updated_iso: str | None = None) -> None:
     """Update the `Updated` column item of *row* with *updated_iso* (defaults to current local ISO timestamp)."""
     iso_val = updated_iso if updated_iso is not None else get_current_iso_timestamp()
     updated_item = model.item(row, UPDATED_AT_COLUMN)
     updated_item.setText(format_iso_timestamp_display(iso_val))
     updated_item.setData(iso_val, Qt.ItemDataRole.UserRole)
     updated_item.setToolTip(iso_val)
-    return iso_val
 
 
 def clear_row_looky_badge(model: QStandardItemModel, row: int) -> None:
