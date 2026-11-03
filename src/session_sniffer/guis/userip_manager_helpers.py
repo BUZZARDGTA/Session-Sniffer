@@ -215,25 +215,30 @@ class EntriesSortProxy(QSortFilterProxyModel):
                         target_item.setData(_compute_cell_sort_key(model, row, column, row_ip_key), SORT_KEY_ROLE)
         self._populated_sort_cols.add(column)
 
+    def refresh_rows(self, rows: Iterable[int]) -> None:
+        """Recompute cached search blobs and sort keys for *rows* after signal-blocked model edits."""
+        model = self.sourceModel()
+        if not isinstance(model, QStandardItemModel):
+            return
+        sort_col = self.sortColumn()
+        cols_to_update: set[int] = set(self._populated_sort_cols)
+        if sort_col >= 0:
+            cols_to_update.add(sort_col)
+        with QSignalBlocker(model):
+            for row in rows:
+                _compute_row_search_blob(model, row)
+                ip_item = model.item(row, IP_COLUMN)
+                range_item = model.item(row, RANGE_COLUMN)
+                row_ip = (ip_item.text() if ip_item else '') or (range_item.text() if range_item else '')
+                row_ip_key = _ip_sort_str(row_ip)
+                for col in cols_to_update:
+                    if target_item := model.item(row, col):
+                        target_item.setData(_compute_cell_sort_key(model, row, col, row_ip_key), SORT_KEY_ROLE)
+
     def _on_source_data_changed(self, top_left: QModelIndex, bottom_right: QModelIndex, roles: list[int]) -> None:
         if roles and Qt.ItemDataRole.DisplayRole not in roles and Qt.ItemDataRole.EditRole not in roles and Qt.ItemDataRole.UserRole not in roles:
             return
-        model = self.sourceModel()
-        if isinstance(model, QStandardItemModel):
-            sort_col = self.sortColumn()
-            cols_to_update: set[int] = set(self._populated_sort_cols)
-            if sort_col >= 0:
-                cols_to_update.add(sort_col)
-            with QSignalBlocker(model):
-                for row in range(top_left.row(), bottom_right.row() + 1):
-                    _compute_row_search_blob(model, row)
-                    ip_item = model.item(row, IP_COLUMN)
-                    range_item = model.item(row, RANGE_COLUMN)
-                    row_ip = (ip_item.text() if ip_item else '') or (range_item.text() if range_item else '')
-                    row_ip_key = _ip_sort_str(row_ip)
-                    for col in cols_to_update:
-                        if target_item := model.item(row, col):
-                            target_item.setData(_compute_cell_sort_key(model, row, col, row_ip_key), SORT_KEY_ROLE)
+        self.refresh_rows(range(top_left.row(), bottom_right.row() + 1))
 
     @override
     def setFilterFixedString(self, pattern: str) -> None:
@@ -390,6 +395,7 @@ def extract_entry_model_from_row(model: QStandardItemModel, row: int) -> tuple[s
                 ts_item.setText(format_iso_timestamp_display(iso_val))
                 ts_item.setData(iso_val, Qt.ItemDataRole.UserRole)
                 ts_item.setToolTip(iso_val or '')
+            _compute_row_search_blob(model, row)
     return username, ip_text, notes, entry_model
 
 

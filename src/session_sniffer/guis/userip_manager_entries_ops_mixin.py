@@ -254,6 +254,7 @@ class UserIPEntriesOperationsMixin(QDialog):
                 self._set_row_ip_or_range(source_row, new_ip_text, is_single=is_single)
                 if is_row_persisted(self._model, source_row):
                     set_row_updated_at(self._model, source_row)
+            self._proxy.refresh_rows((source_row,))
             self._mark_entries_dirty()
             self._highlight_duplicates()
             self._update_entry_counts()
@@ -303,6 +304,7 @@ class UserIPEntriesOperationsMixin(QDialog):
                     notes_item.setText(new_note)
                 if is_row_persisted(self._model, source_row):
                     set_row_updated_at(self._model, source_row)
+            self._proxy.refresh_rows((source_row,))
             self._mark_entries_dirty()
             self._save_database()
             if not self._dirty:
@@ -366,7 +368,7 @@ class UserIPEntriesOperationsMixin(QDialog):
                 continue
             self._model.insertRow(
                 insert_at,
-                build_entry_row_items(entry_model, database=(database_label, database_path), persisted=True),
+                build_entry_row_items(entry_model, database=(database_label, database_path), looky_icon=self._looky_icon, persisted=True),
             )
             insert_at += 1
 
@@ -395,7 +397,7 @@ class UserIPEntriesOperationsMixin(QDialog):
             )
             self._model.insertRow(
                 insert_at,
-                build_entry_row_items(enriched_entry, persisted=True),
+                build_entry_row_items(enriched_entry, looky_icon=self._looky_icon, persisted=True),
             )
             insert_at += 1
 
@@ -571,6 +573,7 @@ class UserIPEntriesOperationsMixin(QDialog):
                     clear_row_looky_badge(self._model, row)
                     if is_row_persisted(self._model, row):
                         set_row_updated_at(self._model, row)
+            self._proxy.refresh_rows(source_rows)
 
             self._mark_entries_dirty()
             self._highlight_duplicates()

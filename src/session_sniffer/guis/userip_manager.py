@@ -786,6 +786,7 @@ class UserIPDatabasesManager(
                         modified_entries.append(entry_val)
                 if is_row_persisted(self._model, row):
                     set_row_updated_at(self._model, row)
+        self._proxy.refresh_rows(range(top_left.row(), bottom_right.row() + 1))
         self._highlight_duplicates()
         self._mark_entries_dirty()
         self._save_database(show_errors=False)
