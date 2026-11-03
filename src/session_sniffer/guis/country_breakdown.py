@@ -32,11 +32,8 @@ class CountryBreakdownWindow(StatTableWindowMixin):
         """Rebuild the table with current country data."""
         counts: dict[str, int] = {}
         for player in PlayersRegistry.get_all_players():
-            if (
-                country := player.iplookup.ipapi.country
-                if (player.iplookup.geolite2.country == '...' and player.iplookup.ipapi.country != '...')
-                else player.iplookup.geolite2.country
-            ) and country != '...':
+            country, _ = player.iplookup.resolve_country()
+            if country and country != '...':
                 counts[country] = counts.get(country, 0) + 1
 
         sorted_counts = sorted(counts.items(), key=lambda item: item[1], reverse=True)
