@@ -440,12 +440,8 @@ class SessionTableView(TableHeaderMenuMixin, TableContextMenuMixin, QTableView):
             icon_size.height(),
         )
         if flag_rect.contains(event.position().toPoint()):
-            country_name: str | None = None
-            if player.iplookup.geolite2 and player.iplookup.geolite2.country:
-                country_name = player.iplookup.geolite2.country
-            elif player.iplookup.ipapi and player.iplookup.ipapi.country:
-                country_name = player.iplookup.ipapi.country
-            if country_name is not None and country_name:
+            country_name, _ = player.iplookup.resolve_country()
+            if country_name not in {'', '...', 'N/A'}:
                 QToolTip.showText(event.globalPosition().toPoint(), country_name, self)
             else:
                 QToolTip.hideText()
