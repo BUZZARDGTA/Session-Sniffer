@@ -97,9 +97,7 @@ def _prune_recovered_pending_disconnections(*, session_transitioned: bool) -> No
     if not recovered_players:
         return
     if not session_transitioned:
-        had_departed_pending_player = any(
-            player.left_event.is_set() for player in SessionHost.players_pending_for_disconnection
-        )
+        had_departed_pending_player = any(player.left_event.is_set() for player in SessionHost.players_pending_for_disconnection)
         SessionHost.players_pending_for_disconnection.clear()
         if had_departed_pending_player and not SessionHost.has_player() and not SessionHost.is_manually_cleared():
             SessionHost.search_player = True
@@ -113,23 +111,16 @@ def _prune_recovered_pending_disconnections(*, session_transitioned: bool) -> No
             if SessionTracker.remove_session_player(old_session_id, player.ip, recovered=True):
                 affected_session_ids.add(old_session_id)
         player.session_id = current_session_id
-    SessionHost.players_pending_for_disconnection = [
-        player for player in SessionHost.players_pending_for_disconnection if player not in recovered_players
-    ]
+    SessionHost.players_pending_for_disconnection = [player for player in SessionHost.players_pending_for_disconnection if player not in recovered_players]
     for old_session_id in sorted(affected_session_ids):
         pruned_or_collapsed = SessionTracker.prune_empty_past_session(old_session_id)
         if pruned_or_collapsed is not None and pruned_or_collapsed != old_session_id:
             SessionHost.prune_history_for_session(pruned_or_collapsed)
             existing_history = SessionHost.get_history(session_id=old_session_id)
-            restored_host = (
-                PlayersRegistry.get_player_by_ip(existing_history[-1].ip)
-                if existing_history
-                else None
-            )
+            restored_host = PlayersRegistry.get_player_by_ip(existing_history[-1].ip) if existing_history else None
             SessionHost.last_diagnostics = existing_history[-1].diagnostics if existing_history else None
             if restored_host is not None and (
-                (not restored_host.left_event.is_set() and PlayersRegistry.is_player_connected(restored_host))
-                or SessionHost.is_relay_host_candidate(restored_host)
+                (not restored_host.left_event.is_set() and PlayersRegistry.is_player_connected(restored_host)) or SessionHost.is_relay_host_candidate(restored_host)
             ):
                 SessionHost.set_player(restored_host)
                 SessionHost.search_player = False
@@ -421,9 +412,7 @@ def rendering_core(
     connected_column_mapping: dict[str, int] = {}
     _userip_not_found: set[str] = set()
     last_seen_userip_build_version: int = UserIPDatabases.build_version
-    _last_userip_auto_feed: bool = (
-        Settings.userip_auto_feed_from_usernames and Settings.is_gta5_feature_set() and CaptureState.is_local_capture()
-    )
+    _last_userip_auto_feed: bool = Settings.userip_auto_feed_from_usernames and Settings.is_gta5_feature_set() and CaptureState.is_local_capture()
 
     def _process_player_disconnections(connected: list[Player], disconnected: list[Player]) -> list[int]:
         to_disconnect: list[int] = []
@@ -467,9 +456,7 @@ def rendering_core(
         if _userip_db_rebuilt:
             _userip_not_found.clear()
         _newly_resolvable_usernames = UserIPDatabases.consume_newly_resolvable_usernames()
-        _current_auto_feed_active = (
-            Settings.userip_auto_feed_from_usernames and Settings.is_gta5_feature_set() and CaptureState.is_local_capture()
-        )
+        _current_auto_feed_active = Settings.userip_auto_feed_from_usernames and Settings.is_gta5_feature_set() and CaptureState.is_local_capture()
         _auto_feed_retriggered = _current_auto_feed_active and not _last_userip_auto_feed
         _last_userip_auto_feed = _current_auto_feed_active
 
@@ -522,20 +509,10 @@ def rendering_core(
             else:
                 looky_complete = True
             modmenu_usernames_for_player = all_modmenu_usernames.get(player.ip)
-            modmenu_complete = (
-                not bool(modmenu_usernames_for_player)
-                if player.mod_menus is None
-                else player.mod_menus.usernames == modmenu_usernames_for_player
-            )
+            modmenu_complete = not bool(modmenu_usernames_for_player) if player.mod_menus is None else player.mod_menus.usernames == modmenu_usernames_for_player
             ps3_complete = not bool(player.ps3_username) or player.ps3_username in player.usernames
             usernames_complete = looky_complete and modmenu_complete and ps3_complete
-            if (
-                player.left_event.is_set()
-                and not _userip_db_rebuilt
-                and player.iplookup.geolite2.is_initialized
-                and has_geo
-                and usernames_complete
-            ):
+            if player.left_event.is_set() and not _userip_db_rebuilt and player.iplookup.geolite2.is_initialized and has_geo and usernames_complete:
                 continue
 
             if _userip_db_rebuilt:
@@ -551,11 +528,7 @@ def rendering_core(
                 else:
                     player.userip = resolved
 
-            if (
-                not player.left_event.is_set()
-                and player.userip is not None
-                and (player.userip_detection is None or not player.userip_detection.as_processed_task)
-            ):
+            if not player.left_event.is_set() and player.userip is not None and (player.userip_detection is None or not player.userip_detection.as_processed_task):
                 spawn_connected_userip_detection(player, player.userip)
 
             if modmenu_usernames_for_player is not None and modmenu_usernames_for_player:
@@ -600,11 +573,7 @@ def rendering_core(
                 else:
                     snapshot_player.userip = resolved
             snapshot_modmenu = all_modmenu_usernames.get(snapshot_player.ip)
-            snapshot_player.mod_menus = (
-                PlayerModMenus(usernames=list(snapshot_modmenu))
-                if snapshot_modmenu is not None and snapshot_modmenu
-                else None
-            )
+            snapshot_player.mod_menus = PlayerModMenus(usernames=list(snapshot_modmenu)) if snapshot_modmenu is not None and snapshot_modmenu else None
             with snapshot_player.looky_system.lock:
                 snapshot_looky_usernames = (
                     list(snapshot_player.looky_system.usernames)
@@ -644,13 +613,9 @@ def rendering_core(
                         SessionHost.set_player(None)
                         SessionHost.search_player = True
                         SessionHost.search_start_time = None
-                    new_p2p_connected = [
-                        player for player in p2p_session_connected if player not in SessionHost.players_pending_for_disconnection
-                    ]
+                    new_p2p_connected = [player for player in p2p_session_connected if player not in SessionHost.players_pending_for_disconnection]
                     if not _session_transitioned_for_pending_disconnections and new_p2p_connected:
-                        remaining_connected = [
-                            player for player in session_connected if player not in SessionHost.players_pending_for_disconnection
-                        ]
+                        remaining_connected = [player for player in session_connected if player not in SessionHost.players_pending_for_disconnection]
                         SessionTracker.advance_session(
                             players=remaining_connected,
                             p2p_players=new_p2p_connected,
@@ -662,16 +627,11 @@ def rendering_core(
                     new_active_players = [
                         player
                         for player in p2p_session_connected
-                        if player not in SessionHost.players_pending_for_disconnection
-                        and (player.packets.pps.is_first_calculation or player.packets.pps.calculated_rate)
+                        if player not in SessionHost.players_pending_for_disconnection and (player.packets.pps.is_first_calculation or player.packets.pps.calculated_rate)
                     ]
                     if new_active_players and not _session_transitioned_for_pending_disconnections:
-                        remaining_connected = [
-                            player for player in session_connected if player not in SessionHost.players_pending_for_disconnection
-                        ]
-                        new_p2p_connected = [
-                            player for player in p2p_session_connected if player not in SessionHost.players_pending_for_disconnection
-                        ]
+                        remaining_connected = [player for player in session_connected if player not in SessionHost.players_pending_for_disconnection]
+                        new_p2p_connected = [player for player in p2p_session_connected if player not in SessionHost.players_pending_for_disconnection]
                         _session_transitioned_for_pending_disconnections = True
                         SessionHost.set_player(None)
                         SessionHost.search_player = True
@@ -777,9 +737,7 @@ def rendering_core(
             sorted_webhook_connected = sorted(session_connected, key=lambda player: player.datetime.last_rejoin)
             sorted_webhook_disconnected = sorted(session_disconnected, key=lambda player: player.datetime.last_seen, reverse=True)
             webhook_connected = (
-                sorted_webhook_connected[: Settings.discord_webhook_max_connected_players]
-                if Settings.discord_webhook_max_connected_players > 0
-                else sorted_webhook_connected
+                sorted_webhook_connected[: Settings.discord_webhook_max_connected_players] if Settings.discord_webhook_max_connected_players > 0 else sorted_webhook_connected
             )
             webhook_disconnected = (
                 sorted_webhook_disconnected[: Settings.discord_webhook_max_disconnected_players]
