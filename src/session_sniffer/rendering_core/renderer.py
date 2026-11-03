@@ -162,7 +162,7 @@ def rendering_core(
             target_player.iplookup.geolite2.is_initialized = True
         if target_player.country_flag is None:
             country_code_value = target_player.iplookup.resolve_country_code()
-            if country_code_value not in {'...', 'N/A'}:
+            if country_code_value not in {'', '...', 'N/A'}:
                 target_player.country_flag = get_country_flag(country_code_value)
 
     _disconnected_json_cache: dict[str, tuple[tuple[object, ...], dict[str, object]]] = {}
@@ -495,7 +495,7 @@ def rendering_core(
             del session_connected[i]
 
         for player in chain(session_connected, session_disconnected):
-            has_geo = player.country_flag is not None or (player.iplookup.ipapi.is_initialized and player.iplookup.ipapi.country_code in {'...', 'N/A'})
+            has_geo = player.country_flag is not None or (player.iplookup.ipapi.is_initialized and player.iplookup.ipapi.country_code in {'', '...', 'N/A'})
             with player.looky_system.lock:
                 looky_usernames = list(player.looky_system.usernames)
                 looky_initialized = player.looky_system.is_initialized
