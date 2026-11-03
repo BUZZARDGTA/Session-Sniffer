@@ -413,6 +413,7 @@ def rendering_core(
     _userip_not_found: set[str] = set()
     last_seen_userip_build_version: int = UserIPDatabases.build_version
     _last_userip_auto_feed: bool = Settings.userip_auto_feed_from_usernames and Settings.is_gta5_feature_set() and CaptureState.is_local_capture()
+    _last_looky_active: bool = Settings.looky_enabled and Settings.is_gta5_feature_set()
 
     def _process_player_disconnections(connected: list[Player], disconnected: list[Player]) -> list[int]:
         to_disconnect: list[int] = []
@@ -459,6 +460,9 @@ def rendering_core(
         _current_auto_feed_active = Settings.userip_auto_feed_from_usernames and Settings.is_gta5_feature_set() and CaptureState.is_local_capture()
         _auto_feed_retriggered = _current_auto_feed_active and not _last_userip_auto_feed
         _last_userip_auto_feed = _current_auto_feed_active
+        _current_looky_active = Settings.looky_enabled and Settings.is_gta5_feature_set()
+        _looky_active_changed = _current_looky_active != _last_looky_active
+        _last_looky_active = _current_looky_active
 
         if Settings.is_gta5_feature_set():
             if last_modmenu_refresh_time is None or time.monotonic() - last_modmenu_refresh_time >= _poll_interval:
@@ -498,7 +502,7 @@ def rendering_core(
                 looky_needs_refresh = player.looky_system.needs_refresh
                 looky_userip_checked = player.looky_system.as_userip_checked
 
-            if Settings.looky_enabled and Settings.is_gta5_feature_set():
+            if _current_looky_active:
                 can_fetch_looky = bool(Settings.looky_api_key) and LookyState.api_access and is_looky_eligible(player)
                 looky_complete = (
                     (looky_initialized or not can_fetch_looky)
@@ -507,7 +511,7 @@ def rendering_core(
                     and (not looky_initialized or all(name in player.usernames for name in looky_usernames))
                 )
             else:
-                looky_complete = True
+                looky_complete = not _looky_active_changed
             modmenu_usernames_for_player = all_modmenu_usernames.get(player.ip)
             modmenu_complete = not bool(modmenu_usernames_for_player) if player.mod_menus is None else player.mod_menus.usernames == modmenu_usernames_for_player
             ps3_complete = not bool(player.ps3_username) or player.ps3_username in player.usernames
