@@ -308,7 +308,7 @@ def build_disconnected_player_row(
     if 'R. Code' in context.disconnected_shown_columns:
         disconnected_row_texts.append(f'{player.iplookup.ipapi.region_code}')
     if 'City' in context.disconnected_shown_columns:
-        disconnected_row_texts.append(player.iplookup.geolite2.city)
+        disconnected_row_texts.append(player.iplookup.resolve_city())
     if 'District' in context.disconnected_shown_columns:
         disconnected_row_texts.append(f'{player.iplookup.ipapi.district}')
     if 'ZIP Code' in context.disconnected_shown_columns:
@@ -511,7 +511,7 @@ def build_session_table_snapshot(
         if 'R. Code' in context.connected_shown_columns:
             connected_row_texts.append(f'{player.iplookup.ipapi.region_code}')
         if 'City' in context.connected_shown_columns:
-            connected_row_texts.append(player.iplookup.geolite2.city)
+            connected_row_texts.append(player.iplookup.resolve_city())
         if 'District' in context.connected_shown_columns:
             connected_row_texts.append(f'{player.iplookup.ipapi.district}')
         if 'ZIP Code' in context.connected_shown_columns:

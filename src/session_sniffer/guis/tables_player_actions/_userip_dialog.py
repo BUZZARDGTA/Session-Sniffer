@@ -158,7 +158,7 @@ class UserIPDetectedDialog(PlayerInfoDialogMixin):
         self._add_live_row(form, 'Continent', lambda: format_text(player.iplookup.ipapi.continent))
         self._add_live_row(form, 'Country', lambda: format_text(player.iplookup.resolve_country()[0]))
         self._add_live_row(form, 'Region', lambda: format_text(player.iplookup.ipapi.region))
-        self._add_live_row(form, 'City', lambda: format_text(player.iplookup.geolite2.city))
+        self._add_live_row(form, 'City', lambda: format_text(player.iplookup.resolve_city()))
         self._add_live_row(form, 'Organization', lambda: format_text(player.iplookup.ipapi.org))
         self._add_live_row(form, 'ISP', lambda: format_text(player.iplookup.ipapi.isp))
         self._add_live_row(form, 'GeoLite2 ASN / ISP', lambda: format_text(player.iplookup.geolite2.asn))

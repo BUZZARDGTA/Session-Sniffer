@@ -332,7 +332,7 @@ class IPLookupDetailsDialog(PlayerInfoDialogMixin):
         self._add_live_row(form, 'Country Code', lambda: format_text(target.iplookup.resolve_country_code()))
         self._add_live_row(form, 'Region', lambda: format_text(target.iplookup.ipapi.region))
         self._add_live_row(form, 'Region Code', lambda: format_text(target.iplookup.ipapi.region_code))
-        self._add_live_row(form, 'City', lambda: format_text(target.iplookup.geolite2.city))
+        self._add_live_row(form, 'City', lambda: format_text(target.iplookup.resolve_city()))
         self._add_live_row(form, 'District', lambda: format_text(target.iplookup.ipapi.district))
         self._add_live_row(form, 'ZIP Code', lambda: format_text(target.iplookup.ipapi.zip_code))
         self._add_live_row(form, 'Latitude', lambda: format_text(target.iplookup.ipapi.lat))

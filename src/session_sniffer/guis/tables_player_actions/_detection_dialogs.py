@@ -109,7 +109,7 @@ class DetectionNotificationDialog(_BaseDetectionDialog):
         """Add the 'Location Details' section."""
         group, form = self._make_group('Location Details', accent='#38a169')
         self._add_row(form, 'Country', format_text(player.iplookup.resolve_country()[0]))
-        self._add_row(form, 'City', format_text(player.iplookup.geolite2.city))
+        self._add_row(form, 'City', format_text(player.iplookup.resolve_city()))
         parent_layout.addWidget(group)
 
 
@@ -213,6 +213,7 @@ class PlayerDetectionDialog(_BaseDetectionDialog):
         self._add_row(form, 'Continent', format_with_code(player.iplookup.ipapi.continent, player.iplookup.ipapi.continent_code))
         self._add_row(form, 'Country', format_with_code(*player.iplookup.resolve_country()))
         self._add_row(form, 'Region', format_with_code(player.iplookup.ipapi.region, player.iplookup.ipapi.region_code))
+        self._add_row(form, 'City', format_text(player.iplookup.resolve_city()))
         parent_layout.addWidget(group)
 
 

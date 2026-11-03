@@ -69,7 +69,7 @@ def format_player_column_value(player: Player, column_name: str, now: datetime) 
         'Country': lambda: format_player_country(player),
         'Region': lambda: player.iplookup.ipapi.region,
         'R. Code': lambda: player.iplookup.ipapi.region_code,
-        'City': lambda: player.iplookup.geolite2.city,
+        'City': player.iplookup.resolve_city,
         'District': lambda: player.iplookup.ipapi.district,
         'ZIP Code': lambda: player.iplookup.ipapi.zip_code,
         'Lat': lambda: str(player.iplookup.ipapi.lat),

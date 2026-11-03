@@ -67,7 +67,7 @@ def build_discord_player_report(player: Player) -> str:
     # Location
     continent = format_text(player.iplookup.ipapi.continent)
     region = format_text(player.iplookup.ipapi.region)
-    city = format_text(player.iplookup.geolite2.city)
+    city = format_text(player.iplookup.resolve_city())
     timezone = format_text(player.iplookup.ipapi.time_zone)
     lines.append('**Location**')
     country_display = format_with_code(*player.iplookup.resolve_country())
