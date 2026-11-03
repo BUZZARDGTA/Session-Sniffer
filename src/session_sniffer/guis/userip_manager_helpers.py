@@ -364,6 +364,7 @@ def clear_row_looky_badge(model: QStandardItemModel, row: int) -> None:
         if source_item.data(Qt.ItemDataRole.UserRole) == 'Looky':
             source_item.setText('Manual')
             source_item.setData('Manual', Qt.ItemDataRole.UserRole)
+            source_item.setToolTip(USERIP_SOURCE_TOOLTIPS['Manual'])
 
 
 def extract_entry_model_from_row(model: QStandardItemModel, row: int) -> tuple[str, str, str, UserIPEntryModel | None]:
