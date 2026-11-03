@@ -84,6 +84,7 @@ class UserIP(NamedTuple):
     updated_at: str | None
     first_seen_at: str | None
     last_seen_at: str | None
+    known_alts: tuple[str, ...] = ()
 
 
 class UserIPConflict(NamedTuple):
@@ -121,6 +122,7 @@ class _RangeEntry(NamedTuple):
     updated_at: str | None
     first_seen_at: str | None
     last_seen_at: str | None
+    known_alts: tuple[str, ...] = ()
 
 
 class _UsernameMeta(NamedTuple):
@@ -499,6 +501,8 @@ class UserIPDatabases:
 
         primary = matched_entries[0]
         combined_usernames: list[str] = []
+        combined_known_alts: list[str] = []
+        direct_cfs: set[str] = set()
         combined_notes: list[str] = []
         combined_sources: list[EntrySource] = []
         detections_count = 0
@@ -508,7 +512,9 @@ class UserIPDatabases:
         last_seen_at: str | None = None
 
         for matched in matched_entries:
+            direct_cfs.update({u.casefold() for u in matched.usernames} - {a.casefold() for a in matched.known_alts})
             combined_usernames.extend(matched.usernames)
+            combined_known_alts.extend(matched.known_alts)
             combined_notes.extend(matched.notes)
             combined_sources.extend(matched.sources)
             detections_count = max(detections_count, matched.detections_count)
@@ -529,6 +535,7 @@ class UserIPDatabases:
             updated_at=updated_at,
             first_seen_at=first_seen_at,
             last_seen_at=last_seen_at,
+            known_alts=tuple(alt for alt in dedup_preserve_order(combined_known_alts) if alt.casefold() not in direct_cfs),
         )
 
     @staticmethod
@@ -695,12 +702,12 @@ class UserIPDatabases:
             for ip, userip_obj in list(ip_to_userip.items()):
                 expanded = cls._expand_usernames_with_cluster_dict(userip_obj.usernames, known_alts_clusters)
                 if expanded != userip_obj.usernames:
-                    ip_to_userip[ip] = userip_obj._replace(usernames=expanded)
+                    ip_to_userip[ip] = userip_obj._replace(usernames=expanded, known_alts=tuple(n for n in expanded if n not in userip_obj.usernames))
 
             for index, range_obj in enumerate(range_entries):
                 expanded = cls._expand_usernames_with_cluster_dict(range_obj.usernames, known_alts_clusters)
                 if expanded != range_obj.usernames:
-                    range_entries[index] = range_obj._replace(usernames=expanded)
+                    range_entries[index] = range_obj._replace(usernames=expanded, known_alts=tuple(n for n in expanded if n not in range_obj.usernames))
 
         # Assign or refresh UserIP for all players in a single pass.
         for player in PlayersRegistry.get_all_players():
@@ -921,6 +928,7 @@ class UserIPDatabases:
                 updated_at=meta.updated_at,
                 first_seen_at=meta.first_seen_at,
                 last_seen_at=meta.last_seen_at,
+                known_alts=tuple(usernames[1:]),
             ),
             meta.canonical_name,
         )

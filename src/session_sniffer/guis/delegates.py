@@ -141,7 +141,13 @@ def _format_username_source_lines(
         lines.append(f'<span style="color: #9ca3af;">{label}:</span> {value_html}')
 
     if player.userip is not None and player.userip.usernames:
-        _append_source_line('DB Username', player.userip.usernames)
+        if player.userip.known_alts:
+            known_alts_cf = {alt.casefold() for alt in player.userip.known_alts}
+            direct_db_usernames = [name for name in player.userip.usernames if name.casefold() not in known_alts_cf]
+            _append_source_line('DB Username', direct_db_usernames)
+            _append_source_line('DB Known Alt', player.userip.known_alts)
+        else:
+            _append_source_line('DB Username', player.userip.usernames)
     if player.ps3_username is not None and player.ps3_username:
         _append_source_line('PS3 Username', (player.ps3_username,))
     if player.mod_menus is not None and player.mod_menus.usernames:
