@@ -183,7 +183,7 @@ def create_float_widget(meta: SettingMeta) -> QDoubleSpinBox:
     spin = QDoubleSpinBox()
     spin.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
     spin.setDecimals(1)
-    spin.setSingleStep(0.5)
+    spin.setSingleStep(meta.step if meta.step is not None else 0.5)
     spin.setMinimum(meta.min_value if meta.min_value is not None else 0.0)
     spin.setMaximum(meta.max_value if meta.max_value is not None else 99999.0)
     if meta.suffix is not None:
