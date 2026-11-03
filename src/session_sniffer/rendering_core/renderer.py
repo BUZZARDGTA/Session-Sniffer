@@ -9,6 +9,7 @@ from operator import attrgetter
 from threading import Thread
 from typing import TYPE_CHECKING
 
+from session_sniffer.background.cores import is_looky_eligible
 from session_sniffer.background.events import gui_closed__event
 from session_sniffer.background.tasks import (
     handle_detection_notification,
@@ -28,6 +29,7 @@ from session_sniffer.models import SessionLogFile
 from session_sniffer.models.player_lookup import PlayerModMenus
 from session_sniffer.models.player_traffic import PlayerBandwidth
 from session_sniffer.networking.geolite2 import extract_asn_info, extract_city_info, extract_country_info
+from session_sniffer.networking.looky_system import LookyState
 from session_sniffer.networking.port_scanner import get_active_port_scan_threads
 from session_sniffer.player.registry import PlayersRegistry, SessionTracker
 from session_sniffer.player.session_host import (
@@ -510,11 +512,12 @@ def rendering_core(
                 looky_userip_checked = player.looky_system.as_userip_checked
 
             if Settings.looky_enabled and Settings.is_gta5_feature_set():
+                can_fetch_looky = bool(Settings.looky_api_key) and LookyState.api_access and is_looky_eligible(player)
                 looky_complete = (
-                    looky_initialized
-                    and not looky_needs_refresh
-                    and (not looky_usernames or looky_userip_checked)
-                    and all(name in player.usernames for name in looky_usernames)
+                    (looky_initialized or not can_fetch_looky)
+                    and (not looky_needs_refresh or not can_fetch_looky)
+                    and (not looky_initialized or not looky_usernames or looky_userip_checked)
+                    and (not looky_initialized or all(name in player.usernames for name in looky_usernames))
                 )
             else:
                 looky_complete = True

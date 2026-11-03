@@ -60,6 +60,7 @@ from session_sniffer.networking.http_session import session
 from session_sniffer.networking.looky_system import LookyState, get_looky_user_url, lookup_ip
 from session_sniffer.networking.ping import ping_player
 from session_sniffer.networking.reverse_dns import reverse_dns_lookup
+from session_sniffer.networking.third_party_servers import is_third_party_server_ip
 from session_sniffer.player.registry import PlayersRegistry
 from session_sniffer.player.userip import UserIP, UserIPDatabases
 from session_sniffer.rendering_core.types import CaptureState
@@ -94,6 +95,11 @@ class StandaloneIPLookup:
     ping: PlayerPing = dataclasses.field(default_factory=PlayerPing)
     ports: _StandalonePorts = dataclasses.field(default_factory=_StandalonePorts)
     userip: UserIP | None = None
+
+    @property
+    def is_third_party_server(self) -> bool:
+        """Return whether the standalone IP belongs to a known third-party server range."""
+        return is_third_party_server_ip(self.ip)
 
 
 type IPLookupTarget = Player | StandaloneIPLookup
@@ -166,6 +172,7 @@ def _resolve_standalone_lookup(lookup: StandaloneIPLookup) -> None:
         and LookyState.api_access
         and Settings.is_gta5_feature_set()
         and CaptureState.is_local_capture()
+        and not lookup.is_third_party_server
     )
     if can_lookup_looky and not lookup.looky_system.is_initialized and get_looky_restriction([lookup]) is None:
         try:
@@ -207,6 +214,7 @@ class IPLookupDetailsDialog(PlayerInfoDialogMixin):
         set_dialog_window_flags(self)
         self._target: IPLookupTarget = target
         self._closed_event = Event()
+        self._looky_lookup_button: QPushButton | None = None
 
         self.setWindowTitle(f'{TITLE} - IP Lookup Details ({format_player_display(self._target.ip, self._target.usernames)})')
         apply_adaptive_window_size(self, min_size=(560, 420), size_1080p=(820, 680), size_720p=(720, 600))
@@ -225,7 +233,7 @@ class IPLookupDetailsDialog(PlayerInfoDialogMixin):
         scroll_layout = self._init_scroll_area(outer_layout)
 
         self._build_player_info_group(scroll_layout)
-        if Settings.is_gta5_feature_set():
+        if Settings.is_gta5_feature_set() and CaptureState.is_local_capture() and not self._target.is_third_party_server:
             self._build_looky_group(scroll_layout)
         self._build_iplookup_group(scroll_layout)
         self._build_ping_group(scroll_layout)
@@ -288,9 +296,21 @@ class IPLookupDetailsDialog(PlayerInfoDialogMixin):
             with target.looky_system.lock:
                 return f'Rockstar ID{pluralize(len(target.looky_system.rockstarids))}'
 
-        self._add_live_row(form, _looky_usernames_label, lambda: format_looky_usernames(target.looky_system))
-        self._add_live_row(form, _looky_rockstarids_label, lambda: format_looky_rockstarids(target.looky_system))
-        self._add_live_row(form, 'Last Seen', lambda: format_looky_last_seens(target.looky_system))
+        self._add_live_row(
+            form,
+            _looky_usernames_label,
+            lambda: format_looky_usernames(target.looky_system, is_restricted=get_looky_restriction([target]) is not None),
+        )
+        self._add_live_row(
+            form,
+            _looky_rockstarids_label,
+            lambda: format_looky_rockstarids(target.looky_system, is_restricted=get_looky_restriction([target]) is not None),
+        )
+        self._add_live_row(
+            form,
+            'Last Seen',
+            lambda: format_looky_last_seens(target.looky_system, is_restricted=get_looky_restriction([target]) is not None),
+        )
 
         buttons_layout = QHBoxLayout()
         buttons_layout.setContentsMargins(0, 6, 0, 0)
@@ -298,6 +318,7 @@ class IPLookupDetailsDialog(PlayerInfoDialogMixin):
 
         lookup_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'user.svg')), ' Looky Lookup…')
         lookup_button.clicked.connect(lambda: show_looky_lookup(self, self._target))
+        self._looky_lookup_button = lookup_button
         configure_looky_action(
             lookup_button,
             default_tooltip='Query the Looky System API to view full player details for this IP.',
@@ -400,6 +421,12 @@ class IPLookupDetailsDialog(PlayerInfoDialogMixin):
         if self.windowTitle() != new_title:
             self.setWindowTitle(new_title)
             self._header_label.setText(f'IP Lookup Details — {display}')
+        if self._looky_lookup_button is not None:
+            configure_looky_action(
+                self._looky_lookup_button,
+                default_tooltip='Query the Looky System API to view full player details for this IP.',
+                restriction=get_looky_restriction([self._target]),
+            )
         self._refresh_live_rows()
 
     @override

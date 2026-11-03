@@ -140,12 +140,13 @@ def userip_database_text(player: Player) -> str:
     return format_userip_database(player.userip)
 
 
-def _looky_fallback_text(looky: PlayerLooky) -> str:
+def _looky_fallback_text(looky: PlayerLooky, *, is_restricted: bool = False) -> str:
     """Return '...' when Looky is enabled and pending initialization, otherwise 'N/A'."""
     if (
-        not Settings.is_gta5_feature_set()
+        is_restricted
+        or not Settings.is_gta5_feature_set()
         or not Settings.looky_enabled
-        or not bool(Settings.looky_api_key)
+        or not Settings.looky_api_key
         or not LookyState.api_access
         or not CaptureState.is_local_capture()
     ):
@@ -153,27 +154,27 @@ def _looky_fallback_text(looky: PlayerLooky) -> str:
     return '...' if not looky.is_initialized else 'N/A'
 
 
-def format_looky_usernames(looky: PlayerLooky) -> str:
+def format_looky_usernames(looky: PlayerLooky, *, is_restricted: bool = False) -> str:
     """Format Looky System usernames for display."""
     with looky.lock:
         if looky.usernames:
             return ', '.join(looky.usernames)
-        return _looky_fallback_text(looky)
+        return _looky_fallback_text(looky, is_restricted=is_restricted)
 
 
-def format_looky_rockstarids(looky: PlayerLooky) -> str:
+def format_looky_rockstarids(looky: PlayerLooky, *, is_restricted: bool = False) -> str:
     """Format Looky System Rockstar IDs for display."""
     with looky.lock:
         if looky.rockstarids:
             return ', '.join(map(str, looky.rockstarids))
-        return _looky_fallback_text(looky)
+        return _looky_fallback_text(looky, is_restricted=is_restricted)
 
 
-def format_looky_last_seens(looky: PlayerLooky) -> str:
+def format_looky_last_seens(looky: PlayerLooky, *, is_restricted: bool = False) -> str:
     """Format Looky System last seen timestamps for display."""
     with looky.lock:
         if not looky.last_seens:
-            return _looky_fallback_text(looky)
+            return _looky_fallback_text(looky, is_restricted=is_restricted)
         if len(looky.last_seens) == 1:
             last_seen = looky.last_seens[0]
             last_seen_dt = last_seen if last_seen.tzinfo is None else last_seen.astimezone(UTC)
