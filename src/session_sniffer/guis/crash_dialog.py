@@ -88,13 +88,13 @@ def _format_exception_details(
     return 'Crash', summary, summary
 
 
-def _read_debug_log_tail(max_lines: int = _DEBUG_LOG_TAIL_LINES) -> str:
-    """Return the last *max_lines* lines from `debug.log` with secrets redacted."""
+def _read_debug_log_tail() -> str:
+    """Return the last `_DEBUG_LOG_TAIL_LINES` lines from `debug.log` with secrets redacted."""
     try:
         if not DEBUG_LOG_PATH.is_file():
             return ''
         with DEBUG_LOG_PATH.open('r', encoding='utf-8', errors='replace') as debug_file:
-            tail_lines = deque(debug_file, maxlen=max_lines)
+            tail_lines = deque(debug_file, maxlen=_DEBUG_LOG_TAIL_LINES)
         return redact_text(''.join(tail_lines).rstrip())
     except OSError:
         return ''
@@ -178,9 +178,7 @@ class _CrashDialogRequest:
     """Thread-safe request payload for displaying the crash dialog on the main GUI thread."""
 
     thread_name: str
-    terminate_method: str
     exc_type_name: str
-    exc_summary: str
     display_traceback: str
     clipboard_report: str
     started_event: Event = field(default_factory=Event)
@@ -529,9 +527,7 @@ def show_crash_dialog(
 
     request = _CrashDialogRequest(
         thread_name=thread_name,
-        terminate_method=terminate_method,
         exc_type_name=exc_type_name,
-        exc_summary=exc_summary,
         display_traceback=display_traceback,
         clipboard_report=clipboard_report,
     )

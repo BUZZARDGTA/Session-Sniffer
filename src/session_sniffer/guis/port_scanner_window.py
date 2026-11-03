@@ -779,7 +779,7 @@ class PortScannerWindow(QWidget):
     def open_window(
         cls,
         targets: str | list[str] | None = None,
-    ) -> PortScannerWindow:
+    ) -> None:
         """Open or reuse the active PortScannerWindow and bring it to foreground."""
         active_window = cls._instance
         if active_window is None:
@@ -791,7 +791,6 @@ class PortScannerWindow(QWidget):
                 active_window.add_target_tab(target_host)
 
         activate_window(active_window)
-        return active_window
 
     @classmethod
     def close_window(cls) -> None:

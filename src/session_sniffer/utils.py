@@ -227,23 +227,18 @@ def get_session_log_path(base_dir: Path, tz: tzinfo) -> Path:
     return date_dir / f'{now.strftime("%Y-%m-%d_%H-%M-%S")}.log'
 
 
-def validate_file(file_path: Path) -> Path:
+def validate_file(file_path: Path) -> None:
     """Validate if the given file path exists and is a file.
 
     Raises:
         FileNotFoundError: If the file does not exist.
         InvalidFileError: If the path is not a file.
-
-    Returns:
-        The validated file path.
     """
     if not file_path.exists():
         message = f'File not found: {file_path.absolute()}'
         raise FileNotFoundError(message)
     if not file_path.is_file():
         raise InvalidFileError(file_path)
-
-    return file_path
 
 
 type FileSignature = tuple[int, int, int, int]

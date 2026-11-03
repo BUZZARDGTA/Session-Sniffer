@@ -4,7 +4,7 @@ import dataclasses
 import time
 from dataclasses import dataclass
 from datetime import datetime as datetime_type
-from datetime import timedelta as timedelta_type
+from datetime import timedelta
 from typing import NamedTuple, Self
 
 BANDWIDTH_GB_THRESHOLD = 1_073_741_824  # 1 GB in bytes
@@ -438,10 +438,10 @@ class PlayerDateTime:
     first_seen: datetime_type
     last_rejoin: datetime_type
     last_seen: datetime_type
-    total_session_time: timedelta_type | None
-    session_time: timedelta_type | None
-    biggest_session_time: timedelta_type | None
-    lowest_session_time: timedelta_type | None
+    total_session_time: timedelta | None
+    session_time: timedelta | None
+    biggest_session_time: timedelta | None
+    lowest_session_time: timedelta | None
 
     def set_session_time(self) -> None:
         """Finalize and store the session duration.
@@ -474,7 +474,7 @@ class PlayerDateTime:
                 self.lowest_session_time = self.session_time
             self.session_time = None
 
-    def get_session_time(self) -> timedelta_type:
+    def get_session_time(self) -> timedelta:
         """Return current session duration.
 
         Returns:
@@ -487,7 +487,7 @@ class PlayerDateTime:
             return self.last_seen - self.last_rejoin
         return self.session_time
 
-    def get_biggest_session_time(self) -> timedelta_type:
+    def get_biggest_session_time(self) -> timedelta:
         """Return the maximum session duration across all sessions.
 
         Returns:
@@ -499,7 +499,7 @@ class PlayerDateTime:
             return current_session
         return max(self.biggest_session_time, current_session)
 
-    def get_lowest_session_time(self) -> timedelta_type:
+    def get_lowest_session_time(self) -> timedelta:
         """Return the minimum session duration across all sessions.
 
         Returns:
@@ -510,7 +510,7 @@ class PlayerDateTime:
             return self.get_session_time()
         return self.lowest_session_time
 
-    def get_total_session_time(self) -> timedelta_type:
+    def get_total_session_time(self) -> timedelta:
         """Return total cumulative session duration across all sessions.
 
         Returns:
@@ -582,10 +582,10 @@ class PlayerJoin:
     ports: PlayerPorts
     packets: PlayerPackets
     bandwidth: PlayerBandwidth
-    session_time: timedelta_type | None = None
+    session_time: timedelta | None = None
     is_active: bool = True
 
-    def get_session_time(self) -> timedelta_type:
+    def get_session_time(self) -> timedelta:
         """Return the session duration for this join."""
         if self.session_time is not None:
             return self.session_time

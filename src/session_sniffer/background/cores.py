@@ -20,9 +20,12 @@ from session_sniffer.guis.looky_text import LOOKY_LOG_API_KEY_INVALID, LOOKY_LOG
 from session_sniffer.models import IpApiResponse
 from session_sniffer.networking.exceptions import AllEndpointsExhaustedError
 from session_sniffer.networking.http_session import session
-from session_sniffer.networking.looky_system import LookyState, extract_rate_limit_wait_seconds
-from session_sniffer.networking.looky_system import lookup_ip_batch as looky_lookup_ip_batch
-from session_sniffer.networking.looky_system import verify_token as looky_verify_token
+from session_sniffer.networking.looky_system import (
+    LookyState,
+    extract_rate_limit_wait_seconds,
+    lookup_ip_batch,
+    verify_token,
+)
 from session_sniffer.networking.ping import ping_player
 from session_sniffer.networking.reverse_dns import reverse_dns_lookup
 from session_sniffer.networking.third_party_servers import is_third_party_server_ip
@@ -566,7 +569,7 @@ def looky_core() -> None:
 
         if Settings.looky_api_key != _verified_api_key:
             try:
-                response = looky_verify_token(Settings.looky_api_key)
+                response = verify_token(Settings.looky_api_key)
                 LookyState.set(response)
                 if LookyState.api_access:
                     _verified_api_key = Settings.looky_api_key
@@ -662,7 +665,7 @@ def looky_core() -> None:
         batch = pending_ip_addresses
 
         try:
-            results = looky_lookup_ip_batch(batch, Settings.looky_api_key, Settings.looky_game_version.lower())
+            results = lookup_ip_batch(batch, Settings.looky_api_key, Settings.looky_game_version.lower())
         except requests.HTTPError as e:
             if e.response is not None and e.response.status_code == HTTPStatus.TOO_MANY_REQUESTS:
                 _looky_queue.requeue_front(batch)

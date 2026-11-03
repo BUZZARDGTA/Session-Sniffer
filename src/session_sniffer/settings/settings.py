@@ -151,9 +151,6 @@ class Settings:
     gta5_relay_streak_duration: int = SETTING_DEFAULTS['gta5_relay_streak_duration']
     gta5_relay_min_bandwidth_kb: int = SETTING_DEFAULTS['gta5_relay_min_bandwidth_kb']
 
-    MIN_GUI_DISCONNECTED_PLAYERS_TIMER_SECONDS: ClassVar[int] = 3
-    MAX_GUI_DISCONNECTED_PLAYERS_LIMIT: ClassVar[int] = 20000
-    MAX_GUI_TABLE_ROWS_PER_PAGE: ClassVar[int] = 5000
     blocked_ip_ranges: ClassVar[list[IPRange]] = []
 
     ALL_SETTINGS: ClassVar[tuple[str, ...]] = (
@@ -449,9 +446,6 @@ class Settings:
                 all_connected_columns=cls.GUI_ALL_CONNECTED_COLUMNS,
                 all_disconnected_columns=cls.GUI_ALL_DISCONNECTED_COLUMNS,
                 all_third_party_servers=ALL_THIRD_PARTY_SERVER_NAMES,
-                max_gui_table_rows_per_page=cls.MAX_GUI_TABLE_ROWS_PER_PAGE,
-                min_gui_disconnected_players_timer=cls.MIN_GUI_DISCONNECTED_PLAYERS_TIMER_SECONDS,
-                max_gui_disconnected_players_limit=cls.MAX_GUI_DISCONNECTED_PLAYERS_LIMIT,
             ),
         )
 

@@ -184,9 +184,6 @@ def rendering_core(
         def format_player_logging_datetime(player_datetime: datetime) -> str:
             return player_datetime.strftime('%m/%d/%Y %H:%M:%S.%f')[:-3]
 
-        def _format_lookup_text(value: object) -> str:
-            return str(value)
-
         def _player_columns(player: Player) -> dict[str, object]:
             mobile_value = None if not player.iplookup.ipapi.is_initialized else player.iplookup.ipapi.mobile
             vpn_value = None if not player.iplookup.ipapi.is_initialized else player.iplookup.ipapi.proxy
@@ -231,23 +228,23 @@ def rendering_core(
                 'Last Port': player.ports.last,
                 'Middle Ports': format_player_middle_ports(player),
                 'First Port': player.ports.first,
-                'Continent': _format_lookup_text(player.iplookup.ipapi.continent),
-                'Country': _format_lookup_text(country_name),
-                'Region': _format_lookup_text(player.iplookup.ipapi.region),
-                'R. Code': _format_lookup_text(player.iplookup.ipapi.region_code),
-                'City': _format_lookup_text(player.iplookup.resolve_city()),
-                'District': _format_lookup_text(player.iplookup.ipapi.district),
-                'ZIP Code': _format_lookup_text(player.iplookup.ipapi.zip_code),
-                'Lat': _format_lookup_text(player.iplookup.ipapi.lat),
-                'Lon': _format_lookup_text(player.iplookup.ipapi.lon),
-                'Time Zone': _format_lookup_text(player.iplookup.ipapi.time_zone),
-                'Offset': _format_lookup_text(player.iplookup.ipapi.offset),
-                'Currency': _format_lookup_text(player.iplookup.ipapi.currency),
-                'Organization': _format_lookup_text(player.iplookup.ipapi.org),
-                'ISP': _format_lookup_text(player.iplookup.ipapi.isp),
-                'ASN / ISP': _format_lookup_text(player.iplookup.geolite2.asn),
-                'AS': _format_lookup_text(player.iplookup.ipapi.asn),
-                'ASN': _format_lookup_text(player.iplookup.ipapi.as_name),
+                'Continent': player.iplookup.ipapi.continent,
+                'Country': country_name,
+                'Region': player.iplookup.ipapi.region,
+                'R. Code': player.iplookup.ipapi.region_code,
+                'City': player.iplookup.resolve_city(),
+                'District': player.iplookup.ipapi.district,
+                'ZIP Code': player.iplookup.ipapi.zip_code,
+                'Lat': str(player.iplookup.ipapi.lat),
+                'Lon': str(player.iplookup.ipapi.lon),
+                'Time Zone': player.iplookup.ipapi.time_zone,
+                'Offset': str(player.iplookup.ipapi.offset),
+                'Currency': player.iplookup.ipapi.currency,
+                'Organization': player.iplookup.ipapi.org,
+                'ISP': player.iplookup.ipapi.isp,
+                'ASN / ISP': player.iplookup.geolite2.asn,
+                'AS': player.iplookup.ipapi.asn,
+                'ASN': player.iplookup.ipapi.as_name,
                 'Mobile': mobile_value,
                 'VPN': vpn_value,
                 'Hosting': hosting_value,
@@ -398,12 +395,6 @@ def rendering_core(
                 disconnected_num_columns=disconnected_num_columns,
                 connected_column_mapping=connected_column_mapping,
             ),
-        )
-
-    def generate_gui_status_text() -> tuple[str, str, str, str]:
-        return build_gui_status_text(
-            capture=capture,
-            discord_rpc_manager=discord_rpc_manager,
         )
 
     last_userip_parse_time = None
@@ -847,7 +838,10 @@ def rendering_core(
             status_config_text,
             status_issues_text,
             status_performance_text,
-        ) = generate_gui_status_text()
+        ) = build_gui_status_text(
+            capture=capture,
+            discord_rpc_manager=discord_rpc_manager,
+        )
         session_table_snapshot = process_gui_session_tables_rendering()
 
         GUIRenderingState.publish_rendering_snapshot(

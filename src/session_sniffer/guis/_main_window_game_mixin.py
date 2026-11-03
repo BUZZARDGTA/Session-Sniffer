@@ -115,9 +115,6 @@ class GameMixin(QMainWindow):
 
     def _refresh_session_gui_state(self) -> None: ...  # Provided by StatsMixin
 
-    def recalculate_capture_stats(self) -> None:
-        """Recalculate capture statistics from remaining players."""
-
     def _active_game_label(self) -> str:
         """Return the user-facing game label for the active preset."""
         if Settings.is_rdr2_feature_set():

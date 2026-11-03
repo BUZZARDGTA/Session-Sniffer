@@ -506,7 +506,7 @@ def reset_npcap_binding_repair_attempts() -> None:
     _attempted_binding_guids.clear()
 
 
-def try_enable_npcap_adapter_binding(adapter_guid: str, *, device_name: str | None = None) -> bool:
+def try_enable_npcap_adapter_binding(adapter_guid: str, *, device_name: str) -> None:
     """Attempt to enable the 'INSECURE_NPCAP' NDIS filter binding on the given adapter GUID.
 
     When the current process is already elevated, runs the PowerShell cmdlet directly.
@@ -514,15 +514,15 @@ def try_enable_npcap_adapter_binding(adapter_guid: str, *, device_name: str | No
     until reset_npcap_binding_repair_attempts() is called.
     """
     if sys.platform != 'win32':
-        return False
+        return
     normalized = _normalize_adapter_guid(adapter_guid)
     if normalized is None or normalized in _attempted_binding_guids:
-        return False
+        return
 
     _attempted_binding_guids.add(normalized)
     logger.info(
         'Npcap driver binding is disabled on adapter %s (%s) — attempting to enable INSECURE_NPCAP binding...',
-        device_name or normalized,
+        device_name,
         normalized,
     )
     ps_command = (
@@ -530,22 +530,21 @@ def try_enable_npcap_adapter_binding(adapter_guid: str, *, device_name: str | No
         "| Enable-NetAdapterBinding -ComponentID 'INSECURE_NPCAP' -Confirm:$false -ErrorAction Stop"
     )
     if not run_elevated_powershell_command(ps_command):
-        return False
+        return
 
     deadline = time.monotonic() + 3.0
     while time.monotonic() < deadline:
-        if is_npcap_adapter_bound(normalized) and (device_name is None or can_open_pcap_device(device_name)):
-            logger.info('Successfully enabled Npcap driver binding on capture adapter %s.', device_name or normalized)
-            return True
+        if is_npcap_adapter_bound(normalized) and can_open_pcap_device(device_name):
+            logger.info('Successfully enabled Npcap driver binding on capture adapter %s.', device_name)
+            return
         time.sleep(0.1)
-    return is_npcap_adapter_bound(normalized)
 
 
-def ensure_npcap_adapter_bound(device_name: str) -> bool:
+def ensure_npcap_adapter_bound(device_name: str) -> None:
     """Ensure the Npcap NDIS filter driver is bound to the adapter for *device_name*, attempting repair if disabled."""
     if sys.platform != 'win32':
-        return True
+        return
     adapter_guid = extract_npcap_device_guid(device_name)
     if adapter_guid is None or is_npcap_adapter_bound(adapter_guid) or not is_ndis_adapter_registered(adapter_guid):
-        return True
-    return try_enable_npcap_adapter_binding(adapter_guid, device_name=device_name)
+        return
+    try_enable_npcap_adapter_binding(adapter_guid, device_name=device_name)

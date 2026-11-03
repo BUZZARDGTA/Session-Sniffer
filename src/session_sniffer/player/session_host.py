@@ -262,7 +262,6 @@ class SessionHost:
     search_start_time: ClassVar[float | None] = None
     players_pending_for_disconnection: ClassVar[list[Player]] = []
     last_timing_gap_candidate: ClassVar[tuple[str, str] | None] = None
-    last_rejection_reason: ClassVar[str | None] = None
     last_diagnostics: ClassVar[HostDiagnosticsSnapshot | None] = None
     _history: ClassVar[list[HostHistoryEntry]] = []
     _manually_cleared_session_ids: ClassVar[set[int]] = set()
@@ -409,17 +408,17 @@ class SessionHost:
         if not current_session_connected or not confirmed_session_players:
             if current_session_connected:
                 game_name = 'GTA V' if Settings.is_gta5_feature_set() else 'RDR2'
-                cls.last_rejection_reason = f'No connected players have been confirmed by packets on a {game_name} UDP port.'
+                rejection_reason = f'No connected players have been confirmed by packets on a {game_name} UDP port.'
                 outcome = f'No {game_name} UDP-port-confirmed players found in current session.'
             else:
-                cls.last_rejection_reason = 'No other players are currently connected in your session.'
+                rejection_reason = 'No other players are currently connected in your session.'
                 outcome = 'No connected players found in current session.'
             cls.last_diagnostics = _build_host_diagnostics_snapshot(
                 session_players=confirmed_session_players,
                 candidates=[],
                 result=_DetectionEvaluationResult(
                     outcome=outcome,
-                    rejection_reason=cls.last_rejection_reason,
+                    rejection_reason=rejection_reason,
                 ),
             )
             return
@@ -442,13 +441,12 @@ class SessionHost:
 
         p2p_players = [player for player in candidates if not player.is_third_party_server]
         if not p2p_players:
-            cls.last_rejection_reason = f'All {len(candidates)} connected IP{pluralize(len(candidates))} are game or relay servers, not direct peer-to-peer players.'
             cls.last_diagnostics = _build_host_diagnostics_snapshot(
                 session_players=candidates,
                 candidates=[],
                 result=_DetectionEvaluationResult(
                     outcome='All connected IPs matched known server ranges.',
-                    rejection_reason=cls.last_rejection_reason,
+                    rejection_reason=f'All {len(candidates)} connected IP{pluralize(len(candidates))} are game or relay servers, not direct peer-to-peer players.',
                 ),
             )
             return
@@ -459,13 +457,12 @@ class SessionHost:
             and player not in cls.players_pending_for_disconnection
         ]
         if not active_p2p_players:
-            cls.last_rejection_reason = f'All connected peer-to-peer player{pluralize(len(p2p_players))} are disconnecting, so the session host cannot be determined.'
             cls.last_diagnostics = _build_host_diagnostics_snapshot(
                 session_players=candidates,
                 candidates=[],
                 result=_DetectionEvaluationResult(
                     outcome=f'All connected P2P player{pluralize(len(p2p_players))} are pending disconnection.',
-                    rejection_reason=cls.last_rejection_reason,
+                    rejection_reason=f'All connected peer-to-peer player{pluralize(len(p2p_players))} are disconnecting, so the session host cannot be determined.',
                 ),
             )
             cls.search_player = False
@@ -485,7 +482,7 @@ class SessionHost:
                 cls.search_player = False
                 cls.search_start_time = None
                 if time_difference > _SESSION_HOST_AMBIGUITY_MAX_TD:
-                    cls.last_rejection_reason = (
+                    rejection_reason = (
                         f'The connection time gap between the first two players is too large ({gap_seconds:.1f}s gap).\n\n'
                         'Host detection requires players to connect together during session creation.'
                     )
@@ -495,7 +492,7 @@ class SessionHost:
                     )
                 else:
                     gap_milliseconds = gap_seconds * 1000
-                    cls.last_rejection_reason = (
+                    rejection_reason = (
                         f'The first two players connected almost at the exact same moment ({gap_milliseconds:.1f}ms apart).\n\n'
                         'Their connection times are too close to determine who hosted the session.'
                     )
@@ -508,7 +505,7 @@ class SessionHost:
                     candidates=connected_players,
                     result=_DetectionEvaluationResult(
                         outcome=outcome,
-                        rejection_reason=cls.last_rejection_reason,
+                        rejection_reason=rejection_reason,
                         timing_gap=gap_seconds,
                     ),
                 )
@@ -538,9 +535,6 @@ class SessionHost:
             if potential_session_host_player.packets.exchanged > SESSION_HOST_MAX_PACKETS_FOR_DETECTION:
                 cls.search_player = False
                 cls.search_start_time = None
-                cls.last_rejection_reason = (
-                    f'Candidate player {potential_session_host_player.ip} has already exchanged too many packets to determine if they originally hosted the session.'
-                )
                 cls.last_diagnostics = _build_host_diagnostics_snapshot(
                     session_players=candidates,
                     candidates=connected_players,
@@ -549,7 +543,9 @@ class SessionHost:
                             f'Candidate {potential_session_host_player.ip} packet count ({potential_session_host_player.packets.exchanged}) '
                             f'exceeds maximum allowed threshold ({SESSION_HOST_MAX_PACKETS_FOR_DETECTION}).'
                         ),
-                        rejection_reason=cls.last_rejection_reason,
+                        rejection_reason=(
+                            f'Candidate player {potential_session_host_player.ip} has already exchanged too many packets to determine if they originally hosted the session.'
+                        ),
                         timing_gap=gap_seconds,
                     ),
                 )
@@ -558,11 +554,6 @@ class SessionHost:
                     cls.last_timing_gap_candidate = (connected_players[0].ip, connected_players[1].ip)
                     cls.search_player = False
                     cls.search_start_time = None
-                cls.last_rejection_reason = (
-                    f'Not enough network packets sent yet to candidate {potential_session_host_player.ip} '
-                    f'({potential_session_host_player.packets.sent} / {MINIMUM_PACKETS_FOR_RELAY_SESSION_HOST} sent packets).\n\n'
-                    'Please wait a few moments for packets to be sent and try again.'
-                )
                 cls.last_diagnostics = _build_host_diagnostics_snapshot(
                     session_players=candidates,
                     candidates=connected_players,
@@ -571,7 +562,11 @@ class SessionHost:
                             f'Candidate {potential_session_host_player.ip} has only sent {potential_session_host_player.packets.sent} '
                             f'packets (minimum sent required: {MINIMUM_PACKETS_FOR_RELAY_SESSION_HOST}).'
                         ),
-                        rejection_reason=cls.last_rejection_reason,
+                        rejection_reason=(
+                            f'Not enough network packets sent yet to candidate {potential_session_host_player.ip} '
+                            f'({potential_session_host_player.packets.sent} / {MINIMUM_PACKETS_FOR_RELAY_SESSION_HOST} sent packets).\n\n'
+                            'Please wait a few moments for packets to be sent and try again.'
+                        ),
                         timing_gap=gap_seconds,
                     ),
                 )
@@ -581,7 +576,6 @@ class SessionHost:
         cls.search_player = False
         cls.manual_redetect = False
         cls.search_start_time = None
-        cls.last_rejection_reason = None
         cls.last_diagnostics = _build_host_diagnostics_snapshot(
             session_players=candidates,
             candidates=connected_players,

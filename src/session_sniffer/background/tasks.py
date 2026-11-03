@@ -8,7 +8,6 @@ from ipaddress import IPv4Address
 from threading import Lock, Thread
 from typing import TYPE_CHECKING, Literal, NamedTuple, TypedDict, cast
 
-from session_sniffer import msgbox
 from session_sniffer.background.cores import enqueue_player_for_resolution
 from session_sniffer.background.events import gui_closed__event
 from session_sniffer.background.voice_notifications import queue_voice_notification, tts_voice_name
@@ -56,9 +55,9 @@ class _DetectionSettings(NamedTuple):
     log: bool
     msgbox: bool
     tts_filename: str
-    suspend_enabled: bool = False
-    suspend_duration: int | Literal['Auto'] = 'Auto'
-    suspension_name: str = ''
+    suspend_enabled: bool
+    suspend_duration: int | Literal['Auto']
+    suspension_name: str
 
 
 def _on_pool_task_done(future: Future[None]) -> None:
@@ -185,8 +184,6 @@ class NotificationConfig(TypedDict):
 
     title: str
     description: str
-    icon: msgbox.Style
-    thread_name: str
 
 
 _NOTIFICATION_TYPE_SETTING_PREFIX: dict[NotificationType, str] = {
@@ -199,20 +196,14 @@ _NOTIFICATION_CONFIGS: dict[NotificationType, NotificationConfig] = {
     'player_joined_session': {
         'title': 'PLAYER JOINED SESSION!',
         'description': 'A new player has joined your session!',
-        'icon': msgbox.Style.MB_ICONINFORMATION,
-        'thread_name': 'PlayerJoined',
     },
     'player_rejoined_session': {
         'title': 'PLAYER REJOINED SESSION!',
         'description': 'A player has rejoined your session after disconnecting!',
-        'icon': msgbox.Style.MB_ICONINFORMATION,
-        'thread_name': 'PlayerRejoined',
     },
     'player_left_session': {
         'title': 'PLAYER LEFT SESSION!',
         'description': 'A player has left your session!',
-        'icon': msgbox.Style.MB_ICONINFORMATION,
-        'thread_name': 'PlayerLeft',
     },
 }
 

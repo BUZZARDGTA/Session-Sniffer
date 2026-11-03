@@ -34,8 +34,7 @@ from session_sniffer.guis.stylesheets import (
     LOOKY_CARD_VALUE_STYLESHEET,
     LOOKY_INFO_LABEL_STYLESHEET,
 )
-from session_sniffer.networking.looky_system import LookyState
-from session_sniffer.networking.looky_system import verify_token as looky_verify_token
+from session_sniffer.networking.looky_system import LookyState, verify_token
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -66,9 +65,9 @@ class _LookyVerifyWorker(CrashingQThread):
 
     @override
     def _run(self) -> None:
-        """Call `looky_verify_token` and emit the result or error signal."""
+        """Call `verify_token` and emit the result or error signal."""
         try:
-            result = looky_verify_token(self._api_key)
+            result = verify_token(self._api_key)
             if self.isInterruptionRequested():
                 return
             self.verified.emit(result)

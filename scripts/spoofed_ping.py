@@ -273,9 +273,9 @@ def ping_loop(target_ip: str, session: requests.Session) -> None:
 
         return request_id, nodes
 
-    def get_ping_results(request_id: str, delay: int = 10) -> PingCheckResults:
+    def get_ping_results(request_id: str) -> PingCheckResults:
         """Fetch the results using the request ID."""
-        for i in range(delay, 0, -1):
+        for i in range(10, 0, -1):
             print_line(f'{Colors.CYAN}Waiting {Colors.CYAN_LIGHT}{i}{Colors.CYAN} second{pluralize(i)} for ping request to complete...  {Colors.RESET}', end='\r')
             time.sleep(1)
         print_line(' ' * 50, end='\r')
@@ -288,18 +288,9 @@ def ping_loop(target_ip: str, session: requests.Session) -> None:
         except (TypeError, ValueError) as e:
             exit_with_error(f'Invalid response from check-result endpoint: {e}')
 
-    def pluralize(count: int, singular: str = '', plural: str = 's') -> str:
-        """Return the singular/plural suffix based on a count.
-
-        Args:
-            count: The count to decide plurality.
-            singular: Suffix to use when count is exactly 1.
-            plural: Suffix to use otherwise.
-
-        Returns:
-            The chosen suffix.
-        """
-        return singular if count == 1 else plural
+    def pluralize(count: int) -> str:
+        """Return the singular/plural suffix based on a count."""
+        return '' if count == 1 else 's'
 
     def get_rtt_gradient_color(val: int) -> str:
         val = min(max(val, 0), 3000) * 0xFF // 3000

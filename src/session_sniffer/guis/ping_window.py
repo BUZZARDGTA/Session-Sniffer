@@ -623,7 +623,7 @@ class PingWindow(QWidget):
         *,
         mode: PingMode = PingMode.ICMP,
         port: int | None = None,
-    ) -> PingWindow:
+    ) -> None:
         """Open or reuse the active PingWindow and activate it."""
         if cls._instance is None:
             cls._instance = cls(targets, mode=mode, port=port)
@@ -634,7 +634,6 @@ class PingWindow(QWidget):
                 cls._instance.add_target_tab(target, mode=mode, port=port, auto_start=should_auto_start)
 
         activate_window(cls._instance)
-        return cls._instance
 
     @classmethod
     def close_window(cls) -> None:

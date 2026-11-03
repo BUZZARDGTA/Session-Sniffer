@@ -68,9 +68,6 @@ class SettingsValidationConfig:
     all_connected_columns: tuple[str, ...]
     all_disconnected_columns: tuple[str, ...]
     all_third_party_servers: tuple[str, ...]
-    max_gui_table_rows_per_page: int
-    min_gui_disconnected_players_timer: int
-    max_gui_disconnected_players_limit: int
 
 
 @dataclass(slots=True)
@@ -82,9 +79,6 @@ class _ValidatorContext:
     all_connected_columns: tuple[str, ...]
     all_disconnected_columns: tuple[str, ...]
     all_third_party_servers: tuple[str, ...]
-    max_gui_table_rows_per_page: int
-    min_gui_disconnected_players_timer: int
-    max_gui_disconnected_players_limit: int
 
 
 class SettingsModel(BaseModel):
@@ -527,11 +521,7 @@ class SettingsModel(BaseModel):
     @field_validator('GUI_CONNECTED_TABLE_ROWS_PER_PAGE', 'GUI_DISCONNECTED_TABLE_ROWS_PER_PAGE', mode='before')
     @classmethod
     def _parse_rows_per_page(cls, value: object, info: ValidationInfo) -> int:
-        maximum_rows_per_page = 5000  # Settings.MAX_GUI_TABLE_ROWS_PER_PAGE
-        context = cls._get_context(info)
-        if context is not None:
-            maximum_rows_per_page = context.max_gui_table_rows_per_page
-
+        maximum_rows_per_page = 5000
         default = cls._get_default_for_field(info)
         default_int = default if isinstance(default, int) else 0
 
@@ -576,11 +566,7 @@ class SettingsModel(BaseModel):
     @field_validator('GUI_DISCONNECTED_PLAYERS_TIMER', mode='before')
     @classmethod
     def _parse_disconnected_timer(cls, value: object, info: ValidationInfo) -> int:
-        minimum_timer = 3  # Settings.MIN_GUI_DISCONNECTED_PLAYERS_TIMER_SECONDS
-        context = cls._get_context(info)
-        if context is not None:
-            minimum_timer = context.min_gui_disconnected_players_timer
-
+        minimum_timer = 3
         default = cls._get_default_for_field(info)
         default_int = default if isinstance(default, int) else 10
 
@@ -597,10 +583,6 @@ class SettingsModel(BaseModel):
     @classmethod
     def _parse_disconnected_limit(cls, value: object, info: ValidationInfo) -> int:
         maximum_limit = 20000
-        context = cls._get_context(info)
-        if context is not None:
-            maximum_limit = context.max_gui_disconnected_players_limit
-
         default = cls._get_default_for_field(info)
         default_int = default if isinstance(default, int) else 500
 
@@ -862,9 +844,6 @@ class SettingsModel(BaseModel):
             all_connected_columns=config.all_connected_columns,
             all_disconnected_columns=config.all_disconnected_columns,
             all_third_party_servers=config.all_third_party_servers,
-            max_gui_table_rows_per_page=config.max_gui_table_rows_per_page,
-            min_gui_disconnected_players_timer=config.min_gui_disconnected_players_timer,
-            max_gui_disconnected_players_limit=config.max_gui_disconnected_players_limit,
         )
         parsed = cls.model_validate(full_input, context=context)
 
