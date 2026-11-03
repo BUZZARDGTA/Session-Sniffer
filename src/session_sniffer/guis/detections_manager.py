@@ -416,7 +416,7 @@ def open_combo_rule_editor_for_player(parent: QWidget, player: Player) -> None:
         return value if isinstance(value, str) and value and value not in {_placeholder, 'N/A'} else None
 
     conditions: dict[str, str | bool | list[str]] = {}
-    if (country := _safe(player.iplookup.geolite2.country) or _safe(player.iplookup.ipapi.country)) is not None:
+    if (country := _safe(player.iplookup.resolve_country()[0])) is not None:
         conditions['country'] = normalize_country_name(country) or country
     if (isp := _safe(player.iplookup.ipapi.isp)) is not None:
         conditions['isp'] = isp

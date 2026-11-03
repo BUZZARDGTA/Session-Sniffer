@@ -384,16 +384,20 @@ def extract_entry_model_from_row(model: QStandardItemModel, row: int) -> tuple[s
     entry_model, _ = UserIPEntryModel.from_raw_entry_dict(raw_meta, username=username, ip=ip_text, is_looky=bool(username_item.data(Qt.ItemDataRole.UserRole)), notes=notes)
     entry_model, was_enriched = enrich_userip_entry_from_logs(entry_model)
     if was_enriched:
+        row_ip_key = _ip_sort_str(ip_text)
         with QSignalBlocker(model):
             det_item = model.item(row, DETECTIONS_COLUMN)
             det_item.setText(str(entry_model.detections_count))
             det_item.setData(entry_model.detections_count, Qt.ItemDataRole.UserRole)
+            det_item.setData(_compute_cell_sort_key(model, row, DETECTIONS_COLUMN, row_ip_key), SORT_KEY_ROLE)
             for col, iso_val in ((ADDED_AT_COLUMN, entry_model.added_at), (FIRST_SEEN_AT_COLUMN, entry_model.first_seen_at), (LAST_SEEN_AT_COLUMN, entry_model.last_seen_at)):
                 ts_item = model.item(row, col)
                 ts_item.setText(format_iso_timestamp_display(iso_val))
                 ts_item.setData(iso_val, Qt.ItemDataRole.UserRole)
                 ts_item.setToolTip(iso_val or '')
+                ts_item.setData(_compute_cell_sort_key(model, row, col, row_ip_key), SORT_KEY_ROLE)
             _compute_row_search_blob(model, row)
+        model.dataChanged.emit(model.index(row, 0), model.index(row, max(0, model.columnCount() - 1)), [SEARCH_TEXT_ROLE, SORT_KEY_ROLE])
     return username, ip_text, notes, entry_model
 
 

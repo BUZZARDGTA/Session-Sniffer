@@ -51,7 +51,7 @@ def _safe_str(value: str) -> str | None:
 
 def _player_country_name(player: Player) -> str | None:
     """Return the canonical country name for *player*, or None if unresolved."""
-    raw_country = _safe_str(player.iplookup.geolite2.country) or _safe_str(player.iplookup.ipapi.country)
+    raw_country = _safe_str(player.iplookup.resolve_country()[0])
     if raw_country is None:
         return None
     return normalize_country_name(raw_country) or raw_country
