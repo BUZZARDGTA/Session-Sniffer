@@ -183,11 +183,6 @@ class _SeenStatsDialog(QDialog):
         self._reset_column_sizes()
 
 
-def _build_seen_stats_dialog(entry: LeaderboardEntry, parent: QWidget | None = None) -> QDialog:
-    """Build and return a dialog showing Unique Days and Sessions side-by-side for each time period."""
-    return _SeenStatsDialog(entry, parent)
-
-
 class _LeaderboardTableView(QTableView):
     """Custom QTableView for the leaderboard that distributes extra viewport space to flexible columns."""
 
@@ -810,7 +805,7 @@ class PlayerLeaderboardWindow(ToggleAlwaysOnTopMixin):
         copy_table_all_rows(self._table)
 
     def _show_seen_stats_for_entry(self, entry: LeaderboardEntry) -> None:
-        _build_seen_stats_dialog(entry, self).exec()
+        _SeenStatsDialog(entry, self).exec()
 
     def _update_count_label(self) -> None:
         visible = self._proxy.rowCount()

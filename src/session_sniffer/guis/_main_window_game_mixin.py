@@ -166,7 +166,7 @@ class GameMixin(QMainWindow):
         if not game_menu_action:
             message = 'Failed to get Game menu action'
             raise RuntimeError(message)
-        game_menu_action.setVisible(Settings.is_gta5_feature_set() or Settings.is_rdr2_feature_set())
+        game_menu_action.setVisible(Settings.is_rockstar_feature_set())
         self._game_menu = game_menu
 
         # Process status indicator widget
@@ -507,7 +507,7 @@ Process is currently suspended',
 
     def _update_game_toolbar_visibility(self) -> None:
         """Show, hide, or rename the Game menu and its actions based on the active feature set."""
-        has_feature_set = Settings.is_gta5_feature_set() or Settings.is_rdr2_feature_set()
+        has_feature_set = Settings.is_rockstar_feature_set()
         is_gta5 = Settings.is_gta5_feature_set()
         current_feature_set = Settings.capture_feature_set
         if current_feature_set != self._last_feature_set or not has_feature_set:

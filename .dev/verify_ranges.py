@@ -247,14 +247,14 @@ def extract_ranges(file_path: str) -> list[tuple[str, str, int]]:
     return extracted_ranges
 
 
-def sample_ips(network: ipaddress.IPv4Network, max_samples: int = MAX_SAMPLES) -> list[str]:
+def sample_ips(network: ipaddress.IPv4Network) -> list[str]:
     """Generate representative IP samples from an IPv4 network."""
     samples: set[ipaddress.IPv4Address] = {network.network_address, network.broadcast_address}
     start, end = int(network.network_address), int(network.broadcast_address)
-    step = max((end - start) // max(max_samples - len(samples), 1), 1)
+    step = max((end - start) // max(MAX_SAMPLES - len(samples), 1), 1)
     step = max(step - (step % SUBNET_BLOCK_SIZE), SUBNET_BLOCK_SIZE) if step >= SUBNET_BLOCK_SIZE else step
     current = start
-    while current <= end and len(samples) < max_samples:
+    while current <= end and len(samples) < MAX_SAMPLES:
         aligned = ipaddress.IPv4Address(current - (current % SUBNET_BLOCK_SIZE))
         if network.network_address <= aligned <= network.broadcast_address:
             samples.add(aligned)
@@ -642,7 +642,7 @@ class CheckRangeOptions:
 
 def check_range(
     client: RateLimitClient | GeoLite2Client, owner: str, cidr_range: str, owner_networks: list[ipaddress.IPv4Network], options: CheckRangeOptions | None = None,
-) -> bool:
+) -> None:
     """Check the validity of the CIDR range and look for potential expansion."""
     options = options or CheckRangeOptions()
     file_path, line_number = options.location or ('', None)
@@ -653,13 +653,13 @@ def check_range(
     base_samples, adjacent_ip_addresses = sample_ips(network), _get_adjacent_ips(network)
     all_ip_addresses = list(dict.fromkeys(base_samples + adjacent_ip_addresses))
     results = lookup_ips_batch(client, adjacent_ip_addresses if isinstance(client, GeoLite2Client) else all_ip_addresses)
-    is_valid, has_mismatches, active_client = True, False, client
+    has_mismatches, active_client = False, client
     mismatch_lines, mismatches_raw, matching_networks = cast('list[str]', []), cast('list[str]', []), cast('list[ipaddress.IPv4Network]', [])
 
     if isinstance(client, GeoLite2Client):
         mismatches, matching_networks, _ = scan_network_geolite2(client, owner, network, options.fallback_client)
         if mismatches:
-            is_valid, has_mismatches = False, True
+            has_mismatches = True
             for start_ip, end_ip, actual_owner in mismatches:
                 ip_range_str = str(start_ip) if start_ip == end_ip else f'{start_ip} - {end_ip}'
                 mismatch_lines.append(f'[red]✗[/red] [magenta]{ip_range_str}[/magenta] → {actual_owner}')
@@ -672,7 +672,7 @@ def check_range(
             active_client = options.fallback_client
             sample_valid, lines, raw = _collect_sample_mismatches(base_samples, fallback_results, owner, cidr_range)
             if not sample_valid:
-                is_valid, has_mismatches = False, True
+                has_mismatches = True
                 mismatch_lines.extend(lines)
                 mismatches_raw.extend(raw)
         if options.fallback_client and owner not in IP_API_SKIPPED_OWNERS and (
@@ -682,7 +682,7 @@ def check_range(
     else:
         sample_valid, lines, raw = _collect_sample_mismatches(base_samples, results, owner, cidr_range)
         if not sample_valid:
-            is_valid, has_mismatches = False, True
+            has_mismatches = True
             mismatch_lines.extend(lines)
             mismatches_raw.extend(raw)
 
@@ -705,7 +705,7 @@ def check_range(
         details_table.add_column()
     backward_text, forward_text = '\n'.join(backward_details) if backward_details else 'N/A', '\n'.join(forward_details) if forward_details else 'N/A'
     summary_text = (
-        ('[green]✓ Range Verified\n✓ Ownership Consistent[/green]' if is_valid else '[red]✗ Range Verification Failed\n✗ Ownership Inconsistent[/red]')
+        ('[green]✓ Range Verified\n✓ Ownership Consistent[/green]' if not has_mismatches else '[red]✗ Range Verification Failed\n✗ Ownership Inconsistent[/red]')
         + ('\n[green]✓ No Expansion Opportunities[/green]' if not expansion_found else '\n[yellow]! Expansion Opportunities Found[/yellow]')
     )
     details_table.add_row(
@@ -739,7 +739,7 @@ def check_range(
     if expansion_found and options.detections is not None:
         options.detections.append(f'{clean_path}:{line_number}: ({owner}) [EXPANSION] {cidr_range} is expandable | [EXPAND SUGGESTION] {expansion_raw}')
 
-    if not is_valid or expansion_found:
+    if has_mismatches or expansion_found:
         title = (
             f'[bold white]{owner}[/bold white]  •  [bold magenta]{network.with_prefixlen}[/bold magenta]  •  '
             f'[dim]{network.network_address} → {network.broadcast_address}[/dim]  •  '
@@ -747,8 +747,6 @@ def check_range(
         ) + (f'  •  [blue]{clean_path}:{line_number}[/blue]' if file_path and line_number is not None else '')
         console.print()
         console.print(Panel(Group(*renderables), title=title, border_style='cyan', box=box.ROUNDED))
-
-    return is_valid
 
 
 def run_preflight_checks(

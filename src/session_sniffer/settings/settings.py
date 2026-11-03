@@ -453,10 +453,10 @@ class Settings:
         for field_name in cls.ALL_SETTINGS:
             setattr(cls, field_name.lower(), getattr(validated, field_name))
 
-        if flags.get('should_rewrite'):
+        if 'should_rewrite' in flags:
             need_rewrite_settings = True
 
-        if flags.get('invalid_datetime_columns_corrected'):
+        if 'invalid_datetime_columns_corrected' in flags:
             msgbox.show(
                 title=TITLE,
                 text=format_triple_quoted_text(format_invalid_datetime_columns_settings_message()),

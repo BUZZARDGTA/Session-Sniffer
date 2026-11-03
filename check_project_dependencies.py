@@ -46,7 +46,7 @@ def ensure_virtualenv(repo_root: Path) -> None:
             sys.exit(1)
 
 
-def fetch_json(url: str, timeout: int = 10) -> object:
+def fetch_json(url: str) -> object:
     """Fetch JSON data from an HTTP URL."""
     parsed_url = urllib.parse.urlparse(url)
     if parsed_url.scheme not in ('http', 'https'):
@@ -60,7 +60,7 @@ def fetch_json(url: str, timeout: int = 10) -> object:
         },
     )
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
+        with urllib.request.urlopen(request, timeout=10) as response:
             return json.loads(response.read().decode('utf-8'))
     except (urllib.error.URLError, TimeoutError, json.JSONDecodeError):
         return None

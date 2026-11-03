@@ -6,6 +6,10 @@ from ip-api.com.
 
 from pydantic import BaseModel, Field
 
+IPAPI_FIELDS = (
+    'status,continent,continentCode,country,countryCode,region,regionName,city,district,zip,lat,lon,timezone,offset,currency,isp,org,as,asname,mobile,proxy,hosting,query'
+)
+
 
 class IpApiResponse(BaseModel):
     """Model for a single IP lookup result from ip-api.com batch endpoint.

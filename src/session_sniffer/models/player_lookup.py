@@ -12,6 +12,7 @@ from PySide6.QtGui import QIcon, QImage, QPixmap
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
+    from session_sniffer.models.ip_api import IpApiResponse
     from session_sniffer.models.looky_system import LookyPlayer
     from session_sniffer.networking.endpoint_ping_manager import PingResult
 
@@ -65,10 +66,11 @@ class PlayerIPAPI:
     proxy: bool | str = '...'
     hosting: bool | str = '...'
 
-    def update_fields(self, data: dict[str, object]) -> None:
-        """Batch-update IP-API lookup fields from a pre-validated mapping."""
-        for key, value in data.items():
+    def apply_response(self, response: IpApiResponse) -> None:
+        """Update IP-API lookup fields and initialization state from a validated *response*."""
+        for key, value in response.model_dump(exclude={'status', 'query'}).items():
             setattr(self, key, value)
+        self.is_initialized = True
 
 
 class PlayerCountryFlag:
@@ -147,14 +149,10 @@ class PlayerPing:
     rtt_max: float | str | None = '...'
     rtt_mdev: float | str | None = '...'
 
-    def update_fields(self, data: dict[str, object]) -> None:
-        """Batch-update ping lookup fields from a pre-validated mapping."""
-        for key, value in data.items():
-            setattr(self, key, value)
-
     def apply_result(self, ping_result: PingResult) -> None:
         """Update ping fields, pinging status, and initialization state from *ping_result*."""
-        self.update_fields(ping_result._asdict())
+        for key, value in ping_result._asdict().items():
+            setattr(self, key, value)
         self.is_pinging = ping_result.packets_received is not None and ping_result.packets_received > 0
         self.is_initialized = True
 

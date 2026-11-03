@@ -17,7 +17,7 @@ from session_sniffer.background.events import gui_closed__event
 from session_sniffer.core import ScriptControl
 from session_sniffer.guis.dialogs import show_ipapi_unavailable_dialog
 from session_sniffer.guis.looky_text import LOOKY_LOG_API_KEY_INVALID, LOOKY_LOG_VERIFICATION_HTTP_FAILED_TEMPLATE, get_looky_restriction
-from session_sniffer.models import IpApiResponse
+from session_sniffer.models import IPAPI_FIELDS, IpApiResponse
 from session_sniffer.networking.exceptions import AllEndpointsExhaustedError
 from session_sniffer.networking.http_session import session
 from session_sniffer.networking.looky_system import (
@@ -100,11 +100,6 @@ class ResolutionQueue:
             self._queued_ip_addresses.clear()
             self._has_items.clear()
 
-    def __len__(self) -> int:
-        """Return the number of IP addresses in the queue."""
-        with self._lock:
-            return len(self._deque)
-
     def __bool__(self) -> bool:
         """Return True if the queue contains any IP addresses."""
         with self._lock:
@@ -117,9 +112,6 @@ _IPAPI_MAX_THROTTLE_TIME = 60
 _IPAPI_MAX_BATCH_IPS = 100
 # Stop ip-api.com lookups after this many consecutive connection failures (e.g. a VPN/firewall silently blocking it).
 _IPAPI_MAX_CONSECUTIVE_FAILURES = 3
-_IPAPI_FIELDS = (
-    'status,continent,continentCode,country,countryCode,region,regionName,city,district,zip,lat,lon,timezone,offset,currency,isp,org,as,asname,mobile,proxy,hosting,query'
-)
 _IPAPI_PROBE_IP = '1.1.1.1'
 _PLAYER_CORE_MAX_WORKERS = 8
 _HTTP_SERVER_ERROR_MAX_STATUS = 599
@@ -283,7 +275,7 @@ def iplookup_core() -> None:
         try:
             response = session.post(
                 'http://ip-api.com/batch',
-                params={'fields': _IPAPI_FIELDS},
+                params={'fields': IPAPI_FIELDS},
                 headers={'Content-Type': 'application/json'},
                 json=ip_addresses_to_lookup,
                 timeout=3,
@@ -392,8 +384,7 @@ def iplookup_core() -> None:
             if matched_player is None:
                 continue
 
-            matched_player.iplookup.ipapi.update_fields(iplookup.model_dump(exclude={'status', 'query'}))
-            matched_player.iplookup.ipapi.is_initialized = True
+            matched_player.iplookup.ipapi.apply_response(iplookup)
 
         if requests_remaining <= 0:
             gui_closed__event.wait(max(ttl_seconds, 1))

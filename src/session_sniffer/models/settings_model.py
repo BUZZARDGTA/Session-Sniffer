@@ -73,7 +73,7 @@ class SettingsValidationConfig:
 @dataclass(slots=True)
 class _ValidatorContext:
     defaults: dict[str, Any]
-    flags: dict[str, Any]
+    flags: set[str]
     toggleable_connected_columns: tuple[str, ...]
     toggleable_disconnected_columns: tuple[str, ...]
     all_connected_columns: tuple[str, ...]
@@ -310,10 +310,10 @@ class SettingsModel(BaseModel):
         return context.defaults.get(info.field_name)
 
     @staticmethod
-    def _set_flag(info: ValidationInfo, flag_name: str, *, value: object) -> None:
+    def _set_flag(info: ValidationInfo, flag_name: str = 'should_rewrite') -> None:
         if not isinstance(info.context, _ValidatorContext):
             return
-        info.context.flags[flag_name] = value
+        info.context.flags.add(flag_name)
 
     # --- Validators ---
 
@@ -327,12 +327,12 @@ class SettingsModel(BaseModel):
             try:
                 resolved, _ = custom_str_to_bool(value)
             except InvalidBooleanValueError:
-                cls._set_flag(info, 'should_rewrite', value=True)
+                cls._set_flag(info)
                 default_value = cls._get_default_for_field(info)
                 return default_value if isinstance(default_value, bool) else False
-            cls._set_flag(info, 'should_rewrite', value=True)
+            cls._set_flag(info)
             return resolved
-        cls._set_flag(info, 'should_rewrite', value=True)
+        cls._set_flag(info)
         default_value = cls._get_default_for_field(info)
         return default_value if isinstance(default_value, bool) else False
 
@@ -347,11 +347,11 @@ class SettingsModel(BaseModel):
             except InvalidNoneTypeValueError:
                 if is_ipv4_address(value):
                     return value
-                cls._set_flag(info, 'should_rewrite', value=True)
+                cls._set_flag(info)
                 return cast('str | None', cls._get_default_for_field(info))
-            cls._set_flag(info, 'should_rewrite', value=True)
+            cls._set_flag(info)
             return none_value
-        cls._set_flag(info, 'should_rewrite', value=True)
+        cls._set_flag(info)
         return cast('str | None', cls._get_default_for_field(info))
 
     @field_validator('CAPTURE_MAC_ADDRESS', mode='before')
@@ -366,13 +366,13 @@ class SettingsModel(BaseModel):
                 formatted = format_mac_address(value)
                 if is_mac_address(formatted):
                     if formatted != value:
-                        cls._set_flag(info, 'should_rewrite', value=True)
+                        cls._set_flag(info)
                     return formatted
-                cls._set_flag(info, 'should_rewrite', value=True)
+                cls._set_flag(info)
                 return cast('str | None', cls._get_default_for_field(info))
-            cls._set_flag(info, 'should_rewrite', value=True)
+            cls._set_flag(info)
             return none_value
-        cls._set_flag(info, 'should_rewrite', value=True)
+        cls._set_flag(info)
         return cast('str | None', cls._get_default_for_field(info))
 
     @field_validator(
@@ -398,9 +398,9 @@ class SettingsModel(BaseModel):
         if isinstance(value, (list, tuple)):
             normalized, need_rewrite = _normalize_sequence_column(cast('Sequence[object]', value), allowed)
             if need_rewrite:
-                cls._set_flag(info, 'should_rewrite', value=True)
+                cls._set_flag(info)
             return normalized if normalized is not None else cast('tuple[str, ...]', cls._get_default_for_field(info) or ())
-        cls._set_flag(info, 'should_rewrite', value=True)
+        cls._set_flag(info)
         return cast('tuple[str, ...]', cls._get_default_for_field(info) or ())
 
     @field_validator('CAPTURE_BLOCKED_IPS', mode='before')
@@ -419,9 +419,9 @@ class SettingsModel(BaseModel):
                 except ValueError:
                     need_rewrite = True
             if need_rewrite:
-                cls._set_flag(info, 'should_rewrite', value=True)
+                cls._set_flag(info)
             return tuple(valid_items)
-        cls._set_flag(info, 'should_rewrite', value=True)
+        cls._set_flag(info)
         return ()
 
     @field_validator('CAPTURE_FILTERED_ISPS', mode='before')
@@ -438,9 +438,9 @@ class SettingsModel(BaseModel):
                 else:
                     need_rewrite = True
             if need_rewrite:
-                cls._set_flag(info, 'should_rewrite', value=True)
+                cls._set_flag(info)
             return tuple(valid_items)
-        cls._set_flag(info, 'should_rewrite', value=True)
+        cls._set_flag(info)
         return ()
 
     @field_validator(*_OPTIONAL_ENUM_VALUES, mode='before')
@@ -457,14 +457,14 @@ class SettingsModel(BaseModel):
                 try:
                     case_match, normalized = check_case_insensitive_and_exact_match(value, allowed)
                 except NoMatchFoundError:
-                    cls._set_flag(info, 'should_rewrite', value=True)
+                    cls._set_flag(info)
                     return cast('str | None', cls._get_default_for_field(info))
                 if not case_match:
-                    cls._set_flag(info, 'should_rewrite', value=True)
+                    cls._set_flag(info)
                 return normalized
-            cls._set_flag(info, 'should_rewrite', value=True)
+            cls._set_flag(info)
             return none_value
-        cls._set_flag(info, 'should_rewrite', value=True)
+        cls._set_flag(info)
         return cast('str | None', cls._get_default_for_field(info))
 
     @field_validator('CAPTURE_OVERFLOW_TIMER', 'CAPTURE_FILTER_PROCESS_PID', mode='before')
@@ -477,9 +477,9 @@ class SettingsModel(BaseModel):
         parsed, coerced = _parse_int_value(value)
         if parsed is not None and parsed >= 0:
             if coerced:
-                cls._set_flag(info, 'should_rewrite', value=True)
+                cls._set_flag(info)
             return parsed
-        cls._set_flag(info, 'should_rewrite', value=True)
+        cls._set_flag(info)
         return default_int
 
     @field_validator('CAPTURE_FILTER_PROCESS_NAME', mode='before')
@@ -493,11 +493,11 @@ class SettingsModel(BaseModel):
             except InvalidNoneTypeValueError:
                 stripped = value.strip()
                 if stripped != value:
-                    cls._set_flag(info, 'should_rewrite', value=True)
+                    cls._set_flag(info)
                 return stripped or None
-            cls._set_flag(info, 'should_rewrite', value=True)
+            cls._set_flag(info)
             return none_value
-        cls._set_flag(info, 'should_rewrite', value=True)
+        cls._set_flag(info)
         return cast('str | None', cls._get_default_for_field(info))
 
     @field_validator('CAPTURE_PREPEND_CUSTOM_CAPTURE_FILTER', mode='before')
@@ -511,11 +511,11 @@ class SettingsModel(BaseModel):
             except InvalidNoneTypeValueError:
                 stripped = validate_and_strip_balanced_outer_parens(value)
                 if value != stripped:
-                    cls._set_flag(info, 'should_rewrite', value=True)
+                    cls._set_flag(info)
                 return stripped
-            cls._set_flag(info, 'should_rewrite', value=True)
+            cls._set_flag(info)
             return none_value
-        cls._set_flag(info, 'should_rewrite', value=True)
+        cls._set_flag(info)
         return cast('str | None', cls._get_default_for_field(info))
 
     @field_validator('GUI_CONNECTED_TABLE_ROWS_PER_PAGE', 'GUI_DISCONNECTED_TABLE_ROWS_PER_PAGE', mode='before')
@@ -528,10 +528,10 @@ class SettingsModel(BaseModel):
         parsed, coerced = _parse_int_value(value)
         if parsed is not None and 0 <= parsed <= maximum_rows_per_page:
             if coerced:
-                cls._set_flag(info, 'should_rewrite', value=True)
+                cls._set_flag(info)
             return parsed
 
-        cls._set_flag(info, 'should_rewrite', value=True)
+        cls._set_flag(info)
         return default_int
 
     @field_validator('WEBSERVER_PORT', mode='before')
@@ -541,16 +541,16 @@ class SettingsModel(BaseModel):
         default_int = default if isinstance(default, int) else 80
 
         if isinstance(value, bool):
-            cls._set_flag(info, 'should_rewrite', value=True)
+            cls._set_flag(info)
             return default_int
 
         port, coerced = _parse_int_value(value)
         if port is not None and MIN_PORT <= port <= MAX_PORT:
             if coerced:
-                cls._set_flag(info, 'should_rewrite', value=True)
+                cls._set_flag(info)
             return port
 
-        cls._set_flag(info, 'should_rewrite', value=True)
+        cls._set_flag(info)
         return default_int
 
     @field_validator('WEBSERVER_HOST', mode='before')
@@ -560,7 +560,7 @@ class SettingsModel(BaseModel):
         default_str = default if isinstance(default, str) else WEBSERVER_DEFAULT_HOST
         if isinstance(value, str) and is_ipv4_address(value):
             return value
-        cls._set_flag(info, 'should_rewrite', value=True)
+        cls._set_flag(info)
         return default_str
 
     @field_validator('GUI_DISCONNECTED_PLAYERS_TIMER', mode='before')
@@ -573,10 +573,10 @@ class SettingsModel(BaseModel):
         parsed, coerced = _parse_int_value(value)
         if parsed is not None and parsed >= minimum_timer:
             if coerced:
-                cls._set_flag(info, 'should_rewrite', value=True)
+                cls._set_flag(info)
             return parsed
 
-        cls._set_flag(info, 'should_rewrite', value=True)
+        cls._set_flag(info)
         return default_int
 
     @field_validator('GUI_DISCONNECTED_PLAYERS_LIMIT', mode='before')
@@ -589,10 +589,10 @@ class SettingsModel(BaseModel):
         parsed, coerced = _parse_int_value(value)
         if parsed is not None and 0 <= parsed <= maximum_limit:
             if coerced:
-                cls._set_flag(info, 'should_rewrite', value=True)
+                cls._set_flag(info)
             return parsed
 
-        cls._set_flag(info, 'should_rewrite', value=True)
+        cls._set_flag(info)
         return default_int
 
     @field_validator('DISCORD_PRESENCE_TITLE', mode='before')
@@ -600,7 +600,7 @@ class SettingsModel(BaseModel):
     def _parse_discord_presence_title(cls, value: object, info: ValidationInfo) -> str:
         if isinstance(value, str) and len(value) != 1:
             return value
-        cls._set_flag(info, 'should_rewrite', value=True)
+        cls._set_flag(info)
         default_value = cls._get_default_for_field(info)
         return default_value if isinstance(default_value, str) else ''
 
@@ -609,7 +609,7 @@ class SettingsModel(BaseModel):
     def _parse_gui_servers_color(cls, value: object, info: ValidationInfo) -> str:
         if isinstance(value, str) and QColor(value).isValid():
             return value
-        cls._set_flag(info, 'should_rewrite', value=True)
+        cls._set_flag(info)
         default_value = cls._get_default_for_field(info)
         return str(default_value) if default_value is not None else DEFAULT_DETECTED_SERVER_COLOR
 
@@ -631,9 +631,9 @@ class SettingsModel(BaseModel):
                 none_value, _ = custom_str_to_nonetype(value)
             except InvalidNoneTypeValueError:
                 return value
-            cls._set_flag(info, 'should_rewrite', value=True)
+            cls._set_flag(info)
             return none_value
-        cls._set_flag(info, 'should_rewrite', value=True)
+        cls._set_flag(info)
         return cast('str | None', cls._get_default_for_field(info))
 
     @field_validator(*_CLAMPED_INT_BOUNDS, mode='before')
@@ -646,16 +646,16 @@ class SettingsModel(BaseModel):
 
         parsed, coerced = _parse_int_value(value)
         if parsed is None:
-            cls._set_flag(info, 'should_rewrite', value=True)
+            cls._set_flag(info)
             return default_int
         if parsed < minimum_value:
-            cls._set_flag(info, 'should_rewrite', value=True)
+            cls._set_flag(info)
             return minimum_value
         if parsed > maximum_value:
-            cls._set_flag(info, 'should_rewrite', value=True)
+            cls._set_flag(info)
             return maximum_value
         if coerced:
-            cls._set_flag(info, 'should_rewrite', value=True)
+            cls._set_flag(info)
         return parsed
 
     @field_validator(*_CLAMPED_FLOAT_BOUNDS, mode='before')
@@ -668,16 +668,16 @@ class SettingsModel(BaseModel):
 
         parsed, coerced = _parse_float_value(value)
         if parsed is None:
-            cls._set_flag(info, 'should_rewrite', value=True)
+            cls._set_flag(info)
             return default_float
         if parsed < minimum_value:
-            cls._set_flag(info, 'should_rewrite', value=True)
+            cls._set_flag(info)
             return minimum_value
         if parsed > maximum_value:
-            cls._set_flag(info, 'should_rewrite', value=True)
+            cls._set_flag(info)
             return maximum_value
         if coerced:
-            cls._set_flag(info, 'should_rewrite', value=True)
+            cls._set_flag(info)
         return parsed
 
     @field_validator(*_ENUM_ALLOWED_VALUES, mode='before')
@@ -689,12 +689,12 @@ class SettingsModel(BaseModel):
             try:
                 case_match, normalized = check_case_insensitive_and_exact_match(value, allowed)
             except NoMatchFoundError:
-                cls._set_flag(info, 'should_rewrite', value=True)
+                cls._set_flag(info)
                 return cast('str', cls._get_default_for_field(info))
             if not case_match:
-                cls._set_flag(info, 'should_rewrite', value=True)
+                cls._set_flag(info)
             return normalized
-        cls._set_flag(info, 'should_rewrite', value=True)
+        cls._set_flag(info)
         return cast('str', cls._get_default_for_field(info))
 
     @field_validator('GUI_CONNECTED_TABLE_SORT_COLUMN', 'GUI_DISCONNECTED_TABLE_SORT_COLUMN', mode='before')
@@ -713,12 +713,12 @@ class SettingsModel(BaseModel):
             try:
                 case_match, normalized = check_case_insensitive_and_exact_match(value, allowed)
             except NoMatchFoundError:
-                cls._set_flag(info, 'should_rewrite', value=True)
+                cls._set_flag(info)
                 return cast('str', cls._get_default_for_field(info))
             if not case_match:
-                cls._set_flag(info, 'should_rewrite', value=True)
+                cls._set_flag(info)
             return normalized
-        cls._set_flag(info, 'should_rewrite', value=True)
+        cls._set_flag(info)
         return cast('str', cls._get_default_for_field(info))
 
     @field_validator('UPDATER_SKIPPED_VERSION', mode='before')
@@ -734,16 +734,16 @@ class SettingsModel(BaseModel):
                 try:
                     parsed_version = Version(stripped)
                 except InvalidVersion:
-                    cls._set_flag(info, 'should_rewrite', value=True)
+                    cls._set_flag(info)
                     return cast('str | None', cls._get_default_for_field(info))
 
                 normalized = str(parsed_version)
                 if normalized != value:
-                    cls._set_flag(info, 'should_rewrite', value=True)
+                    cls._set_flag(info)
                 return normalized
-            cls._set_flag(info, 'should_rewrite', value=True)
+            cls._set_flag(info)
             return none_value
-        cls._set_flag(info, 'should_rewrite', value=True)
+        cls._set_flag(info)
         return cast('str | None', cls._get_default_for_field(info))
 
     @field_validator('USERIP_BACKUP_RETENTION_LIMIT', mode='before')
@@ -757,30 +757,30 @@ class SettingsModel(BaseModel):
         parsed: int | None
         coerced = False
         if isinstance(value, str) and value.strip().lower() in ('keep all', 'keepall', 'all'):
-            cls._set_flag(info, 'should_rewrite', value=True)
+            cls._set_flag(info)
             parsed = 0
         else:
             parsed, coerced = _parse_int_value(value)
 
         if parsed is None:
-            cls._set_flag(info, 'should_rewrite', value=True)
+            cls._set_flag(info)
             return default_int
         if parsed < minimum_limit:
-            cls._set_flag(info, 'should_rewrite', value=True)
+            cls._set_flag(info)
             return minimum_limit
         if parsed > maximum_limit:
-            cls._set_flag(info, 'should_rewrite', value=True)
+            cls._set_flag(info)
             return maximum_limit
         if coerced:
-            cls._set_flag(info, 'should_rewrite', value=True)
+            cls._set_flag(info)
         return parsed
 
     @model_validator(mode='after')
     def _check_datetime_columns(self, info: ValidationInfo) -> Self:
         """Ensure at least one datetime column is enabled; reset all to defaults if not."""
         if self.GUI_COLUMNS_DATETIME_SHOW_DATE is False and self.GUI_COLUMNS_DATETIME_SHOW_TIME is False and self.GUI_COLUMNS_DATETIME_SHOW_ELAPSED_TIME is False:
-            self._set_flag(info, 'invalid_datetime_columns_corrected', value=True)
-            self._set_flag(info, 'should_rewrite', value=True)
+            self._set_flag(info, 'invalid_datetime_columns_corrected')
+            self._set_flag(info)
             context = self._get_context(info)
             if context is not None:
                 return self.model_copy(
@@ -804,7 +804,7 @@ class SettingsModel(BaseModel):
         ):
             if getattr(self, setting_key) not in set(shown_columns) | forced_columns:
                 updates[setting_key] = fallback_sort
-                self._set_flag(info, 'should_rewrite', value=True)
+                self._set_flag(info)
 
         if updates:
             return self.model_copy(update=updates)
@@ -817,7 +817,7 @@ class SettingsModel(BaseModel):
         cls,
         raw_settings: dict[str, Any],
         config: SettingsValidationConfig,
-    ) -> tuple[Self, dict[str, Any]]:
+    ) -> tuple[Self, set[str]]:
         """Validate raw settings.json key/value entries and compute rewrite flags.
 
         Args:
@@ -830,7 +830,7 @@ class SettingsModel(BaseModel):
         all_names_set = frozenset(config.all_setting_names)
         raw_keys = set(raw_settings)
 
-        flags: dict[str, Any] = {}
+        flags: set[str] = set()
 
         # Build full input: defaults first, then overwrite with raw values from JSON
         full_input: dict[str, Any] = dict(config.defaults)
@@ -850,18 +850,18 @@ class SettingsModel(BaseModel):
         # Unknown keys trigger rewrite
         unknown_keys = raw_keys - all_names_set
         if unknown_keys:
-            flags['should_rewrite'] = True
+            flags.add('should_rewrite')
 
         # Missing keys trigger rewrite
         missing_keys = all_names_set - raw_keys
         if missing_keys:
-            flags['should_rewrite'] = True
+            flags.add('should_rewrite')
 
         # Key order mismatch triggers rewrite
         if list(raw_settings.keys()) != list(config.all_setting_names):
-            flags['should_rewrite'] = True
+            flags.add('should_rewrite')
 
-        return parsed, dict(flags)
+        return parsed, set(flags)
 
 
 def _normalize_sequence_column(

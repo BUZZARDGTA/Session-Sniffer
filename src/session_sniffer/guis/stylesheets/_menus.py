@@ -162,27 +162,7 @@ MENU_BAR_STYLESHEET = ''
 STATUS_BAR_STYLESHEET = ''
 
 
-STATUS_BAR_CAPTURE_LABEL_STYLESHEET = """
-QLabel {
-    background: transparent;
-    color: #d8dee9;
-    border: none;
-    padding: 4px 8px 4px 8px;
-}
-""".strip()
-
-
-STATUS_BAR_CONFIG_LABEL_STYLESHEET = """
-QLabel {
-    background: transparent;
-    color: #d8dee9;
-    border: none;
-    padding: 4px 8px;
-}
-""".strip()
-
-
-STATUS_BAR_ISSUES_LABEL_STYLESHEET = """
+STATUS_BAR_LABEL_STYLESHEET = """
 QLabel {
     background: transparent;
     color: #d8dee9;

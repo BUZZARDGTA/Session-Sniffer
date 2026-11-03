@@ -29,9 +29,8 @@ from session_sniffer.guis.stylesheets import (
     HEADER_TITLE_STYLESHEET,
     HEADER_VERSION_BADGE_STYLESHEET,
     MAIN_HEADER_CONTAINER_STYLESHEET,
-    STAT_CARD_PACKETS_VALUE_STYLESHEET,
     STAT_CARD_TITLE_STYLESHEET,
-    STAT_CARD_UPTIME_VALUE_STYLESHEET,
+    STAT_CARD_VALUE_STYLESHEET,
 )
 from session_sniffer.guis.utils import render_svg_pixmap_from_resource, scale_by_ui
 from session_sniffer.rendering_core.types import TableMergeState
@@ -187,7 +186,7 @@ class SessionHeader(QFrame):
         uptime_layout.addWidget(uptime_title)
 
         self._uptime_value = QLabel('00:00:00')
-        self._uptime_value.setStyleSheet(STAT_CARD_UPTIME_VALUE_STYLESHEET)
+        self._uptime_value.setStyleSheet(STAT_CARD_VALUE_STYLESHEET)
         uptime_layout.addWidget(self._uptime_value)
         stats_card_layout.addLayout(uptime_layout)
 
@@ -205,7 +204,7 @@ class SessionHeader(QFrame):
         packets_layout.addWidget(packets_title)
 
         self._packets_value = QLabel('0')
-        self._packets_value.setStyleSheet(STAT_CARD_PACKETS_VALUE_STYLESHEET)
+        self._packets_value.setStyleSheet(STAT_CARD_VALUE_STYLESHEET)
         packets_layout.addWidget(self._packets_value)
         stats_card_layout.addLayout(packets_layout)
 

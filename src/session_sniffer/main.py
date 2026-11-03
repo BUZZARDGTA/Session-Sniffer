@@ -689,8 +689,7 @@ def main() -> None:
         try:
             if stop_capture and capture_holder.is_running():
                 capture_holder.stop()
-            window.on_interface_switched()
-            window.set_capture_toggle_enabled(enabled=False)
+            window.on_interface_switched(capture_toggle_enabled=False)
             if InterfaceSelectionDialog.get_active_instance() is not None:
                 return
             if warning_message is not None:
@@ -818,8 +817,7 @@ def main() -> None:
             _adapter_lost_attempts = 0
             if capture_holder.is_running():
                 capture_holder.stop()
-                window.on_interface_switched()
-                window.set_capture_toggle_enabled(enabled=False)
+                window.on_interface_switched(capture_toggle_enabled=False)
             _adapter_lost_event.clear()
             return
 
@@ -888,8 +886,7 @@ def main() -> None:
             _arp_failed_event.clear()
             if capture_holder.is_running():
                 capture_holder.stop()
-                window.on_interface_switched()
-                window.set_capture_toggle_enabled(enabled=False)
+                window.on_interface_switched(capture_toggle_enabled=False)
             return
         if not _arp_failed_event.is_set():
             return

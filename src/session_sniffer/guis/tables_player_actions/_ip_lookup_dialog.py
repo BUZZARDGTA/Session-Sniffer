@@ -2,7 +2,6 @@
 
 import dataclasses
 import logging
-import time
 from dataclasses import dataclass
 from http import HTTPStatus
 from threading import Event, Thread
@@ -43,7 +42,7 @@ from session_sniffer.guis.utils import (
     format_player_display,
     set_dialog_window_flags,
 )
-from session_sniffer.models import IpApiResponse
+from session_sniffer.models import IPAPI_FIELDS, IpApiResponse
 from session_sniffer.models.player_lookup import (
     PlayerIPLookup,
     PlayerLooky,
@@ -105,11 +104,6 @@ class StandaloneIPLookup:
 type IPLookupTarget = Player | StandaloneIPLookup
 
 
-_IPAPI_FIELDS = (
-    'status,continent,continentCode,country,countryCode,region,regionName,city,district,zip,lat,lon,timezone,offset,currency,isp,org,as,asname,mobile,proxy,hosting,query'
-)
-
-
 def _resolve_standalone_lookup(lookup: StandaloneIPLookup) -> None:
     """Background worker to resolve Reverse DNS, GeoLite2, IP-API, and Ping for a standalone IP."""
     # 1. UserIP resolution
@@ -141,15 +135,14 @@ def _resolve_standalone_lookup(lookup: StandaloneIPLookup) -> None:
         try:
             response = session.get(
                 f'http://ip-api.com/json/{lookup.ip}',
-                params={'fields': _IPAPI_FIELDS},
+                params={'fields': IPAPI_FIELDS},
                 timeout=3,
             )
             response.raise_for_status()
             data = response.json()
             if isinstance(data, dict):
                 parsed = IpApiResponse.model_validate(data)
-                lookup.iplookup.ipapi.update_fields(parsed.model_dump(exclude={'status', 'query'}))
-                lookup.iplookup.ipapi.is_initialized = True
+                lookup.iplookup.ipapi.apply_response(parsed)
         except (requests.exceptions.RequestException, ValidationError) as e:
             logger.warning('IP-API lookup failed: %s', e)
             lookup.iplookup.ipapi.is_initialized = True
@@ -261,10 +254,8 @@ class IPLookupDetailsDialog(PlayerInfoDialogMixin):
                     self._target.ping.is_initialized = True
 
             # Cooldown between ping checks (interruptible upon dialog close)
-            for _ in range(30):
-                if self._closed_event.is_set():
-                    return
-                time.sleep(0.1)
+            if self._closed_event.wait(3.0):
+                return
 
     def _build_player_info_group(self, parent_layout: QVBoxLayout) -> None:
         """Add the 'Player Info' section to the scroll layout."""

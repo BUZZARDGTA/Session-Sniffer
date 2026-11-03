@@ -19,10 +19,11 @@ from .discord_rpc import (
 from .github_release import GithubReleaseResponse
 from .github_versions import GithubVersionsResponse, VersionInfo
 from .gui_state import GUIState
-from .ip_api import IpApiResponse
+from .ip_api import IPAPI_FIELDS, IpApiResponse
 from .sessions_log import SessionLogFile
 
 __all__ = [
+    'IPAPI_FIELDS',
     'DiscordActivity',
     'DiscordActivityArgs',
     'DiscordActivityButton',

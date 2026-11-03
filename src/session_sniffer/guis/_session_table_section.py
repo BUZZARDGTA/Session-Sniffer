@@ -25,9 +25,7 @@ from session_sniffer.guis.stylesheets import (
     CONNECTED_EXPAND_BUTTON_STYLESHEET,
     DISCONNECTED_EXPAND_BUTTON_STYLESHEET,
     SECTION_HEADER_SEPARATOR_STYLESHEET,
-    STATUS_BAR_CAPTURE_LABEL_STYLESHEET,
-    STATUS_BAR_CONFIG_LABEL_STYLESHEET,
-    STATUS_BAR_ISSUES_LABEL_STYLESHEET,
+    STATUS_BAR_LABEL_STYLESHEET,
     STATUS_BAR_PERFORMANCE_LABEL_STYLESHEET,
     STATUS_BAR_STYLESHEET,
     section_bar_qss,
@@ -55,15 +53,15 @@ class SessionStatusBar(QStatusBar):
 
         self._capture_label = QLabel()
         self._capture_label.setTextFormat(Qt.TextFormat.RichText)
-        self._capture_label.setStyleSheet(STATUS_BAR_CAPTURE_LABEL_STYLESHEET)
+        self._capture_label.setStyleSheet(STATUS_BAR_LABEL_STYLESHEET)
 
         self._config_label = QLabel()
         self._config_label.setTextFormat(Qt.TextFormat.RichText)
-        self._config_label.setStyleSheet(STATUS_BAR_CONFIG_LABEL_STYLESHEET)
+        self._config_label.setStyleSheet(STATUS_BAR_LABEL_STYLESHEET)
 
         self._issues_label = QLabel()
         self._issues_label.setTextFormat(Qt.TextFormat.RichText)
-        self._issues_label.setStyleSheet(STATUS_BAR_ISSUES_LABEL_STYLESHEET)
+        self._issues_label.setStyleSheet(STATUS_BAR_LABEL_STYLESHEET)
 
         self._performance_label = QLabel()
         self._performance_label.setTextFormat(Qt.TextFormat.RichText)
@@ -838,14 +836,12 @@ class SessionTableSection(QWidget):
         """Set the keyboard editing state for the rows-per-page spinbox."""
         self._rows_keyboard_editing = is_editing
 
-    def get_search_column_index(self, column_name: str) -> int:
-        """Return the column index for `column_name`, or -1 if 'All Columns' or not found."""
+    def _get_highlight_search_column(self) -> int:
+        """Return the active search column index for highlighting, or -1 if 'All Columns' or not found."""
+        column_name = SearchState.get_column_name()
         if not column_name or column_name == 'All Columns':
             return -1
         try:
             return self.table_model.column_names.index(column_name)
         except ValueError:
             return -1
-
-    def _get_highlight_search_column(self) -> int:
-        return self.get_search_column_index(SearchState.get_column_name())

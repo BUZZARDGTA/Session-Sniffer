@@ -890,15 +890,11 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
         SessionHost.clear_history()
         SessionHost.players_pending_for_disconnection.clear()
 
-    def set_capture_toggle_enabled(self, *, enabled: bool) -> None:
-        """Enable or disable the Stop/Start Capture toolbar button."""
-        self._actions.toggle_capture.setEnabled(enabled)
-
-    def on_interface_switched(self) -> None:
+    def on_interface_switched(self, *, capture_toggle_enabled: bool = True) -> None:
         """Synchronize GUI state after the capture interface has been replaced."""
         self._update_game_toolbar_visibility()
         self._sync_capture_toggle_action()
-        self._actions.toggle_capture.setEnabled(True)
+        self._actions.toggle_capture.setEnabled(capture_toggle_enabled)
         self._update_header_capture_status()
         self._update_status_bar()
         wake_all_player_cores()

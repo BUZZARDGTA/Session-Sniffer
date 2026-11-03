@@ -193,7 +193,7 @@ class StatsMixin(QMainWindow):
         self._refresh_stat_breakdown_windows()
 
         # Sync game process control state every tick
-        if Settings.is_gta5_feature_set() or Settings.is_rdr2_feature_set():
+        if Settings.is_rockstar_feature_set():
             self._sync_game_process_button()
 
     def _refresh_stat_breakdown_windows(self) -> None:
