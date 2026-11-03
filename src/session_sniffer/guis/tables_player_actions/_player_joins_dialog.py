@@ -169,7 +169,7 @@ class PlayerJoinsWindow(StatTableWindowMixin):
         is_connected = PlayersRegistry.is_player_connected(self._player)
         status_text = 'Connected' if is_connected else 'Disconnected'
         total_time_str = format_duration(self._player.datetime.get_total_session_time().total_seconds())
-        country = self._player.iplookup.geolite2.country or 'N/A'
+        country = self._player.iplookup.resolve_country()[0] or 'N/A'
         isp = self._player.iplookup.ipapi.isp or 'N/A'
 
         info_parts = [

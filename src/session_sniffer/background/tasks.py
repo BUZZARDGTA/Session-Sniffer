@@ -283,7 +283,7 @@ def handle_detection_notification(
                     _detection_logging_file_write_lock,
                     DETECTION_LOGGING_PATH,
                     _DETECTION_CSV_HEADERS,
-                    [config['title'], ', '.join(player.usernames), player.ip, now.strftime('%Y-%m-%d'), now.strftime('%H:%M:%S'), player.iplookup.geolite2.country],
+                    [config['title'], ', '.join(player.usernames), player.ip, now.strftime('%Y-%m-%d'), now.strftime('%H:%M:%S'), player.iplookup.resolve_country()[0]],
                 )
 
             # Message box popup
@@ -329,7 +329,7 @@ def handle_detection_notification(
                         f'COMBO RULE MATCHED: {rule.name}',
                         ', '.join(player.usernames),
                         player.ip,
-                        player.iplookup.geolite2.country,
+                        player.iplookup.resolve_country()[0],
                     )
 
                 # Message box
@@ -427,12 +427,14 @@ def process_userip_task(
                 date_part, time_part = userip_detection.date_time.split('_', maxsplit=1)
                 usernames_display = ', '.join(player.usernames) or ', '.join(userip.usernames)
 
+                resolved_country, _ = player.iplookup.resolve_country()
+
                 if protection_triggered:
                     _log_to_protection_csv(
                         f'USERIP PROTECTION: {relative_database_path}',
                         usernames_display,
                         player.ip,
-                        player.iplookup.geolite2.country,
+                        resolved_country,
                     )
 
                 if userip.settings.log:
@@ -446,7 +448,7 @@ def process_userip_task(
                             player.ip,
                             date_part,
                             time_part,
-                            player.iplookup.geolite2.country,
+                            resolved_country,
                         ],
                     )
     finally:
@@ -658,7 +660,7 @@ def check_global_detections(player: Player) -> None:
             queue_voice_notification(tts_candidate_path)
 
         if effective_log:
-            _log_to_protection_csv(detection_title, ', '.join(player.usernames), player.ip, player.iplookup.geolite2.country)
+            _log_to_protection_csv(detection_title, ', '.join(player.usernames), player.ip, player.iplookup.resolve_country()[0])
 
         if effective_msgbox:
             _event_time = datetime.now(tz=LOCAL_TZ).strftime('%H:%M:%S')

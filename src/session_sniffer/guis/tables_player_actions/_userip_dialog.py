@@ -112,7 +112,7 @@ class UserIPDetectedDialog(PlayerInfoDialogMixin):
         self._add_row(form, 'IP Address', player.ip)
         self._add_live_row(form, 'Hostname', lambda: format_text(player.reverse_dns.hostname))
         self._add_live_row(form, lambda: f'Port{pluralize(len(player.ports.all))}', lambda: ', '.join(map(str, reversed(player.ports.all))) if player.ports.all else 'N/A')
-        self._add_live_row(form, 'Country Code', lambda: format_text(player.iplookup.geolite2.country_code))
+        self._add_live_row(form, 'Country Code', lambda: format_text(player.iplookup.resolve_country_code()))
         self._add_live_row(form, 'Detection Type', lambda: player.userip_detection.type if player.userip_detection is not None else detection_type)
         self._add_live_row(form, 'Database', self._get_database_name)
         self._add_live_row(
@@ -156,7 +156,7 @@ class UserIPDetectedDialog(PlayerInfoDialogMixin):
         """Add the 'IP Lookup' section to the scroll layout."""
         group, form = self._make_group('IP Lookup', accent='#38a169')
         self._add_live_row(form, 'Continent', lambda: format_text(player.iplookup.ipapi.continent))
-        self._add_live_row(form, 'Country', lambda: format_text(player.iplookup.geolite2.country))
+        self._add_live_row(form, 'Country', lambda: format_text(player.iplookup.resolve_country()[0]))
         self._add_live_row(form, 'Region', lambda: format_text(player.iplookup.ipapi.region))
         self._add_live_row(form, 'City', lambda: format_text(player.iplookup.geolite2.city))
         self._add_live_row(form, 'Organization', lambda: format_text(player.iplookup.ipapi.org))
