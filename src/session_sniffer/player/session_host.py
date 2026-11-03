@@ -93,12 +93,6 @@ class _DetectionEvaluationResult:
     timing_gap: float | None = None
 
 
-def _resolve_player_country_code(player: Player) -> str:
-    """Return the player's GeoLite2 country code, falling back to IP-API when unavailable."""
-    geolite2_code = player.iplookup.geolite2.country_code
-    return geolite2_code if geolite2_code not in {'...', 'N/A'} else player.iplookup.ipapi.country_code
-
-
 def _build_host_diagnostics_snapshot(
     session_players: list[Player],
     candidates: list[Player],
@@ -117,7 +111,7 @@ def _build_host_diagnostics_snapshot(
         else:
             packets_status = 'Eligible'
 
-        country = _resolve_player_country_code(player)
+        country = player.iplookup.resolve_country_code()
 
         candidate_diagnostics.append(
             HostCandidateDiagnostic(
@@ -238,7 +232,7 @@ def _build_host_diagnostics_snapshot(
     detected_host = result.detected_host
     host_ip = detected_host.ip if detected_host is not None else None
     host_usernames = list(detected_host.usernames) if detected_host is not None else []
-    host_country = _resolve_player_country_code(detected_host) if detected_host is not None else ''
+    host_country = detected_host.iplookup.resolve_country_code() if detected_host is not None else ''
 
     return HostDiagnosticsSnapshot(
         timestamp=now,
@@ -362,7 +356,7 @@ class SessionHost:
         session_id: int | None = None,
     ) -> None:
         """Snapshot the given player as a detected session host and append to history."""
-        country_code = _resolve_player_country_code(player)
+        country_code = player.iplookup.resolve_country_code()
         if session_id is None:
             session_id = SessionTracker.get_current_session_id()
         if cls._history and cls._history[-1].session_id == session_id and cls._history[-1].ip == player.ip:

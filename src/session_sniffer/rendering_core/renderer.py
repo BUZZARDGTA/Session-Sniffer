@@ -168,14 +168,8 @@ def rendering_core(
             target_player.iplookup.geolite2.asn = get_asn_info(target_player.ip)
             target_player.iplookup.geolite2.is_initialized = True
         if target_player.country_flag is None:
-            country_code_value = (
-                target_player.iplookup.geolite2.country_code
-                if target_player.iplookup.geolite2.country_code not in {'...', 'N/A'}
-                else target_player.iplookup.ipapi.country_code
-                if target_player.iplookup.ipapi.country_code not in {'...', 'N/A'}
-                else None
-            )
-            if country_code_value is not None:
+            country_code_value = target_player.iplookup.resolve_country_code()
+            if country_code_value not in {'...', 'N/A'}:
                 target_player.country_flag = get_country_flag(country_code_value)
 
     _disconnected_json_cache: dict[str, tuple[tuple[object, ...], dict[str, object]]] = {}
@@ -193,16 +187,11 @@ def rendering_core(
         def _format_lookup_text(value: object) -> str:
             return str(value)
 
-        def _resolve_country_pair(player: Player) -> tuple[str, str]:
-            if player.iplookup.geolite2.country_code not in {'...', 'N/A'}:
-                return player.iplookup.geolite2.country, player.iplookup.geolite2.country_code
-            return player.iplookup.ipapi.country, player.iplookup.ipapi.country_code
-
         def _player_columns(player: Player) -> dict[str, object]:
             mobile_value = None if not player.iplookup.ipapi.is_initialized else player.iplookup.ipapi.mobile
             vpn_value = None if not player.iplookup.ipapi.is_initialized else player.iplookup.ipapi.proxy
             hosting_value = None if not player.iplookup.ipapi.is_initialized else player.iplookup.ipapi.hosting
-            country_name, _ = _resolve_country_pair(player)
+            country_name, _ = player.iplookup.resolve_country()
 
             return {
                 'Usernames': format_player_usernames(player),
@@ -267,7 +256,7 @@ def rendering_core(
 
         def _player_to_json_dict(player: Player) -> dict[str, object]:
             columns = _player_columns(player)
-            country_name, country_code = _resolve_country_pair(player)
+            country_name, country_code = player.iplookup.resolve_country()
             return {
                 'Usernames': player.usernames,
                 'First Seen': player.datetime.first_seen.isoformat(),

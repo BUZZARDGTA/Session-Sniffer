@@ -108,6 +108,16 @@ class PlayerIPLookup:
     geolite2: PlayerGeoLite2 = dataclasses.field(default_factory=PlayerGeoLite2)
     ipapi: PlayerIPAPI = dataclasses.field(default_factory=PlayerIPAPI)
 
+    def resolve_country(self) -> tuple[str, str]:
+        """Return `(country, country_code)`, preferring GeoLite2 over IP-API when available."""
+        if self.geolite2.country_code not in {'...', 'N/A'}:
+            return self.geolite2.country, self.geolite2.country_code
+        return self.ipapi.country, self.ipapi.country_code
+
+    def resolve_country_code(self) -> str:
+        """Return the player's GeoLite2 country code, falling back to IP-API when unavailable."""
+        return self.geolite2.country_code if self.geolite2.country_code not in {'...', 'N/A'} else self.ipapi.country_code
+
 
 @dataclass(kw_only=True, slots=True)
 class PlayerPing:

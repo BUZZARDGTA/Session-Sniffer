@@ -77,13 +77,7 @@ def format_player_continent(player: Player) -> str:
 
 def format_player_country(player: Player) -> str:
     """Format player country, preferring GeoLite2 over IPAPI when valid."""
-    if player.iplookup.geolite2.country_code not in {'...', 'N/A'}:
-        country_name = player.iplookup.geolite2.country
-        country_code = player.iplookup.geolite2.country_code
-    else:
-        country_name = player.iplookup.ipapi.country
-        country_code = player.iplookup.ipapi.country_code
-
+    country_name, country_code = player.iplookup.resolve_country()
     if Settings.gui_columns_geo_country_append_alpha2:
         return f'{country_name} ({country_code})'
     return country_name

@@ -576,12 +576,7 @@ Process is currently suspended',
             usernames = matched_player.usernames if matched_player is not None and matched_player.usernames else ()
             formatted_usernames = format_menu_usernames(usernames)
             host_text = f'Host: Detected: {current_session_host.ip}' + (f'  |  {formatted_usernames}' if formatted_usernames else '')
-            country_code = (
-                current_session_host.iplookup.geolite2.country_code
-                if current_session_host.iplookup.geolite2.country_code not in {'...', 'N/A'}
-                else current_session_host.iplookup.ipapi.country_code
-            )
-            flag_icon = load_country_flag_icon(country_code) or QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'crown.svg'))
+            flag_icon = load_country_flag_icon(current_session_host.iplookup.resolve_country_code()) or QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'crown.svg'))
             host_action = QAction(flag_icon, host_text, self._current_session_submenu)
             host_action.setToolTip(format_player_action_tooltip('Select this host player in the table and open host diagnostics', usernames))
             host_action.triggered.connect(partial(self._select_and_show_current_host_diagnostics, current_session_host.ip))
