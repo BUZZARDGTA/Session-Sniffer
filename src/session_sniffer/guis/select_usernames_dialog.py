@@ -475,23 +475,6 @@ def prompt_username_input(
     return (usernames[0] if usernames else ''), accepted
 
 
-def prompt_usernames_input(
-    parent: QWidget,
-    title: str,
-    label: str | Callable[[int], str],
-    initial_usernames: Sequence[str] | None = None,
-) -> tuple[list[str], bool]:
-    """Prompt the user for one or more usernames using dynamic input rows and real-time suggestions."""
-    usernames, _, accepted = _run_username_input_dialog(
-        parent,
-        title,
-        label,
-        initial_usernames or (),
-        _UsernameInputMode(allow_multiple=True),
-    )
-    return usernames, accepted
-
-
 def prompt_usernames_and_notes_input(
     parent: QWidget,
     title: str,

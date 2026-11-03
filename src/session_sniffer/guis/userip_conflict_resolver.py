@@ -28,7 +28,7 @@ from PySide6.QtWidgets import (
 from session_sniffer.constants.local import RESOURCES_DIR_PATH, USERIP_DATABASES_DIR_PATH
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.guis.delegates import SearchHighlightDelegate
-from session_sniffer.guis.select_usernames_dialog import configure_username_cell_editor, prompt_usernames_input
+from session_sniffer.guis.select_usernames_dialog import configure_username_cell_editor, prompt_usernames_and_notes_input
 from session_sniffer.guis.stylesheets import DIALOG_BUTTON_STYLESHEET, DIALOG_DANGER_BUTTON_STYLESHEET, SVG_ICON_CONTEXT_MENU_STYLESHEET
 from session_sniffer.guis.table_column_resizing import setup_table_header_context_menu
 from session_sniffer.guis.tables_player_actions import create_ping_menu, scan_ports_ip, show_detailed_ip_lookup
@@ -678,7 +678,7 @@ class UserIPConflictResolverDialog(QDialog):
         if not side.db_path.is_file():
             return
         db_name = _format_database_name(side.db_path)
-        new_usernames, accepted = prompt_usernames_input(
+        new_usernames, entered_notes, accepted = prompt_usernames_and_notes_input(
             self,
             'Add Username(s)',
             lambda count: f'Enter the username{pluralize(count)} to add for {side.entry} in "{db_name}":',
@@ -686,7 +686,7 @@ class UserIPConflictResolverDialog(QDialog):
         if not accepted or not new_usernames:
             return
         new_entry_models = [
-            enrich_userip_entry_from_logs(UserIPEntryModel(username=name, ip=side.entry))[0]
+            enrich_userip_entry_from_logs(UserIPEntryModel(username=name, ip=side.entry, notes=entered_notes.get(name, '')))[0]
             for name in new_usernames
         ]
         added_pairs = append_userip_entries(side.db_path, new_entry_models)

@@ -10,7 +10,7 @@ from PySide6.QtWidgets import QAbstractItemView, QDialog, QFrame, QInputDialog, 
 
 from session_sniffer.constants.local import USERIP_DATABASES_DIR_PATH
 from session_sniffer.constants.standalone import TITLE
-from session_sniffer.guis.select_usernames_dialog import prompt_username_input, prompt_usernames_input
+from session_sniffer.guis.select_usernames_dialog import prompt_username_input, prompt_usernames_and_notes_input
 from session_sniffer.guis.userip_manager_helpers import (
     DATABASE_COLUMN,
     DUPLICATE_HIGHLIGHT_BRUSH,
@@ -322,10 +322,10 @@ class UserIPEntriesOperationsMixin(QDialog):
             self._entries_table.setCurrentIndex(proxy_index)
             self._entries_table.edit(proxy_index)
 
-    def _prompt_new_usernames(self, prompt: str | Callable[[int], str]) -> list[str]:
-        """Prompt the user for one or more usernames."""
-        entered_usernames, accepted = prompt_usernames_input(self, 'Add Username(s)', prompt)
-        return entered_usernames if accepted else []
+    def _prompt_new_usernames(self, prompt: str | Callable[[int], str]) -> tuple[list[str], dict[str, str]]:
+        """Prompt the user for one or more usernames and their optional notes."""
+        entered_usernames, entered_notes, accepted = prompt_usernames_and_notes_input(self, 'Add Username(s)', prompt)
+        return (entered_usernames, entered_notes) if accepted else ([], {})
 
     def _add_username_global_search(self, source_row: int, ip_text: str, range_text: str) -> None:
         """Prompt for usernames and append them directly to the entry's database in global search mode."""
@@ -335,14 +335,14 @@ class UserIPEntriesOperationsMixin(QDialog):
         if not database_path or not database_path.is_file():
             return
 
-        new_usernames = self._prompt_new_usernames(
+        new_usernames, entered_notes = self._prompt_new_usernames(
             lambda count: f'Enter the username{pluralize(count)} to add for {entry_value} in "{database_path.stem}":',
         )
         if not new_usernames:
             return
 
         new_entry_models = [
-            enrich_userip_entry_from_logs(UserIPEntryModel(username=name, ip=entry_value))[0]
+            enrich_userip_entry_from_logs(UserIPEntryModel(username=name, ip=entry_value, notes=entered_notes.get(name, '')))[0]
             for name in new_usernames
         ]
         with QSignalBlocker(self._fs_watcher):
@@ -381,7 +381,7 @@ class UserIPEntriesOperationsMixin(QDialog):
     def _add_username_filtered(self, source_row: int, ip_text: str, range_text: str) -> None:
         """Prompt for usernames and insert rows into the single-DB model when a search filter is active."""
         entry_value = ip_text or range_text
-        new_usernames = self._prompt_new_usernames(
+        new_usernames, entered_notes = self._prompt_new_usernames(
             lambda count: f'Enter the username{pluralize(count)} to add for {entry_value}:',
         )
         if not new_usernames:
@@ -390,7 +390,9 @@ class UserIPEntriesOperationsMixin(QDialog):
         before_count = self._model.rowCount()
         insert_at = source_row + 1
         for added_name in new_usernames:
-            enriched_entry, _ = enrich_userip_entry_from_logs(UserIPEntryModel(username=added_name, ip=entry_value))
+            enriched_entry, _ = enrich_userip_entry_from_logs(
+                UserIPEntryModel(username=added_name, ip=entry_value, notes=entered_notes.get(added_name, '')),
+            )
             self._model.insertRow(
                 insert_at,
                 build_entry_row_items(enriched_entry, persisted=True),
