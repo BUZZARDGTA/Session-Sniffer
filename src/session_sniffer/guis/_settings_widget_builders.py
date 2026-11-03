@@ -152,7 +152,7 @@ def create_text_widget(meta: SettingMeta) -> QLineEdit:
         le.setMinimumWidth(meta.min_width)
     if meta.max_width is not None:
         le.setMaximumWidth(meta.max_width)
-    if meta.secret:
+    if isinstance(le, SecretLineEdit):
         _icons_dir = RESOURCES_DIR_PATH / 'icons'
         icon_show = QIcon(str(_icons_dir / 'eye.svg'))
         icon_hide = QIcon(str(_icons_dir / 'eye-off.svg'))
@@ -166,10 +166,7 @@ def create_text_widget(meta: SettingMeta) -> QLineEdit:
 
         def _toggle_echo() -> None:
             checked = _act.isChecked()
-            if isinstance(le, SecretLineEdit):
-                le.set_revealed(revealed=checked)
-            else:
-                le.setEchoMode(QLineEdit.EchoMode.Normal if checked else QLineEdit.EchoMode.Password)
+            le.set_revealed(revealed=checked)
             _act.setIcon(icon_show if checked else icon_hide)
             _act.setToolTip('Hide' if checked else 'Show')
 
@@ -841,17 +838,15 @@ def create_ip_range_tuple_widget(meta: SettingMeta, parent: QWidget) -> QGroupBo
     )
 
 
-def create_string_tuple_widget(
-    meta: SettingMeta,
-    parent: QWidget,
-    *,
-    input_dialog_title: str = 'Add Filtered ISP / ASN',
-    input_dialog_label: str = 'Enter ISP or ASN name (e.g. Take-Two, Amazon, Hetzner, AS15169):',
-) -> QGroupBox:
+def create_string_tuple_widget(meta: SettingMeta, parent: QWidget) -> QGroupBox:
     """Create an add/remove list widget for managing a tuple of strings."""
 
     def _prompt_string() -> str | None:
-        text, success = QInputDialog.getText(parent, input_dialog_title, input_dialog_label)
+        text, success = QInputDialog.getText(
+            parent,
+            'Add Filtered ISP / ASN',
+            'Enter ISP or ASN name (e.g. Take-Two, Amazon, Hetzner, AS15169):',
+        )
         if not success or not (entry := text.strip()):
             return None
         return entry
@@ -874,17 +869,6 @@ def set_checkboxes_to(container: QWidget, selected: tuple[str, ...]) -> None:
     wanted = set(selected)
     for checkbox in container.findChildren(QCheckBox):
         checkbox.setChecked(checkbox.objectName() in wanted)
-
-
-def get_line_edit(widget: QWidget) -> QLineEdit:
-    """Return the `QLineEdit` from *widget*, which may itself be a `QLineEdit` or a container holding one."""
-    if isinstance(widget, QLineEdit):
-        return widget
-    child = widget.findChild(QLineEdit)
-    if child is None:
-        message = f'No QLineEdit child found in {widget!r}'
-        raise RuntimeError(message)
-    return child
 
 
 def build_discord_info_group() -> QGroupBox:

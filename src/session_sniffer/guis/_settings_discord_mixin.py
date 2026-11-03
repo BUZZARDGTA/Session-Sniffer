@@ -26,7 +26,6 @@ from session_sniffer.guis._settings_widget_builders import (
     create_setting_label,
     create_standard_form_layout,
     create_text_widget,
-    format_setting_tooltip,
 )
 from session_sniffer.guis.stylesheets import (
     DIALOG_DANGER_BUTTON_STYLESHEET,
@@ -72,11 +71,7 @@ class SettingsDialogDiscordMixin(QDialog):
         if enabled_meta is not None:
             enabled_widget = create_boolean_widget(enabled_meta)
             self._widgets['discord_webhook_enabled'] = enabled_widget
-            enabled_label = QLabel(enabled_meta.display_label + ':')
-            enabled_tooltip = format_setting_tooltip(enabled_meta)
-            if enabled_tooltip is not None and enabled_tooltip:
-                enabled_label.setToolTip(enabled_tooltip)
-            top_form.addRow(enabled_label, enabled_widget)
+            top_form.addRow(create_setting_label(enabled_meta), enabled_widget)
 
         # Use the standard text-field widget directly in the form row so its label
         # aligns the same way as other settings, such as Presence Title.
@@ -100,9 +95,7 @@ class SettingsDialogDiscordMixin(QDialog):
             test_button.clicked.connect(partial(self._test_webhook, url_line))
             url_row_layout.addWidget(test_button)
 
-            url_label = create_setting_label(url_meta)
-            url_label.setToolTip(url_line.toolTip())
-            top_form.addRow(url_label, url_row)
+            top_form.addRow(create_setting_label(url_meta), url_row)
 
         outer.addLayout(top_form)
 

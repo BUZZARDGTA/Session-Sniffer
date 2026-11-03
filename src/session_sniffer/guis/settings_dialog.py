@@ -60,7 +60,6 @@ from session_sniffer.guis._settings_widget_builders import (
     create_text_widget,
     create_third_party_servers_split_widget,
     format_setting_tooltip,
-    get_line_edit,
 )
 from session_sniffer.guis.color_picker_dialog import ColorPickerButton
 from session_sniffer.guis.process_selector_widget import ProcessSelectorWidget
@@ -548,7 +547,7 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
                 cast('QCheckBox', widget).setChecked(bool(value))
 
             case SettingType.STRING | SettingType.IPV4 | SettingType.MAC_ADDRESS:
-                get_line_edit(widget).setText('' if value is None else str(value))
+                cast('QLineEdit', widget).setText('' if value is None else str(value))
 
             case SettingType.COLOR:
                 cast('ColorPickerButton', widget).set_color(str(value) if value is not None else '')
@@ -603,7 +602,7 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
             case SettingType.BOOLEAN:
                 value = cast('QCheckBox', widget).isChecked()
             case SettingType.STRING | SettingType.IPV4 | SettingType.MAC_ADDRESS:
-                text = get_line_edit(widget).text().strip()
+                text = cast('QLineEdit', widget).text().strip()
                 value = text or None
             case SettingType.COLOR:
                 value = cast('ColorPickerButton', widget).color()
@@ -867,6 +866,8 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
                 case ProcessSelectorWidget():
                     widget.process_target_changed.connect(self._update_restart_notice)
                     widget.process_selection_applied.connect(self._on_process_selection_applied)
+                case QLineEdit():
+                    widget.textChanged.connect(self._update_restart_notice)
                 case _:
                     if meta.setting_type in (SettingType.COLUMN_TUPLE, SettingType.THIRD_PARTY_SERVERS_TUPLE):
                         for checkbox in widget.findChildren(QCheckBox):
@@ -878,12 +879,6 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
                         if list_widget is not None:
                             list_widget.model().rowsInserted.connect(self._on_list_rows_changed)
                             list_widget.model().rowsRemoved.connect(self._on_list_rows_changed)
-                    else:
-                        try:
-                            line_edit = get_line_edit(widget)
-                            line_edit.textChanged.connect(self._update_restart_notice)
-                        except RuntimeError:
-                            pass
 
     def _on_list_rows_changed(self, *_args: object) -> None:
         """Handle rows added or removed in IP range list widgets."""
@@ -973,11 +968,8 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
         for widget in self._widgets.values():
             if isinstance(widget, QLineEdit):
                 act = widget.property('secret_action')
-                show_button = widget.property('show_button')
                 if isinstance(act, QAction) and act.isChecked():
                     act.setChecked(False)
-                elif isinstance(show_button, QPushButton) and show_button.isChecked():
-                    show_button.setChecked(False)
                 elif isinstance(widget, SecretLineEdit) and widget.is_revealed:
                     widget.set_revealed(revealed=False)
 
