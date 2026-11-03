@@ -22,7 +22,6 @@ class _SuspendReason:
 @dataclass(slots=True)
 class _ProcessState:
     pid: int
-    suspended: bool = False
     reasons: dict[str, _SuspendReason] = field(default_factory=dict[str, _SuspendReason])
 
 
@@ -105,11 +104,6 @@ class BaseSuspendManager:
                 if reason_key in cls._state.reasons:
                     logger.warning('Overwriting suspend reason: %s', reason_key)
 
-                if not cls._state.suspended:
-                    if not cls._try_suspend_pid(cls._state.pid, f'reason added: {reason_key}'):
-                        return
-                    cls._state.suspended = True
-
                 cls._state.reasons[reason_key] = reason
 
                 cls._publish_snapshot_locked()
@@ -126,7 +120,7 @@ class BaseSuspendManager:
             if not cls._try_suspend_pid(target_process_id, f'first reason: {reason_key}'):
                 return
 
-            cls._state = _ProcessState(pid=target_process_id, suspended=True)
+            cls._state = _ProcessState(pid=target_process_id)
             cls._state.reasons[reason_key] = reason
 
             cls._publish_snapshot_locked()
@@ -182,7 +176,7 @@ class BaseSuspendManager:
         cls._shutdown_event.set()
 
         with cls._condition:
-            if cls._state and cls._state.suspended:
+            if cls._state is not None:
                 cls._try_resume_pid(cls._state.pid)
 
             cls._state = None
@@ -197,7 +191,7 @@ class BaseSuspendManager:
     def is_suspended(cls) -> bool:
         """Return whether the target process is currently suspended by this manager."""
         with cls._condition:
-            return cls._state is not None and cls._state.suspended
+            return cls._state is not None
 
     @classmethod
     def has_reason(cls, reason_key: str) -> bool:
@@ -308,7 +302,7 @@ class BaseSuspendManager:
             cls._snapshot = SuspendSnapshot()
             return
         cls._snapshot = SuspendSnapshot(
-            is_suspended=cls._state.suspended,
+            is_suspended=True,
             manual_active='manual:toolbar' in cls._state.reasons,
             solo_active='solo:toolbar' in cls._state.reasons,
         )
@@ -359,21 +353,20 @@ class BaseSuspendManager:
         return True
 
     @classmethod
-    def _try_resume_pid(cls, pid: int) -> bool:
+    def _try_resume_pid(cls, pid: int) -> None:
         try:
             resume_process(pid)
 
         except ProcessLookupError:
             logger.info('%s resume skipped PID %d: process already exited', cls._game_name, pid)
-            return True
+            return
 
         except PermissionError:
             logger.warning('%s resume failed PID %d: access denied', cls._game_name, pid)
-            return False
+            return
 
         except OSError as e:
             logger.warning('%s resume failed PID %d: error: %s', cls._game_name, pid, e)
-            return False
+            return
 
         logger.info('Resumed %s PID %d', cls._game_name, pid)
-        return True
