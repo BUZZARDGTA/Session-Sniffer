@@ -380,7 +380,7 @@ class UserIPDatabasesManager(
         initial_sort_mode = UserIPDatabasesManager._cached_sort_mode
         if initial_sort_mode in ('Groups', 'Date Added', 'Entry Order (#)'):
             self._sort_mode_combo.setCurrentText(initial_sort_mode)
-        self._sort_mode_combo.currentTextChanged.connect(self._on_sort_mode_changed)
+        self._sort_mode_combo.textActivated.connect(self._on_sort_mode_changed)
         search_bar.addWidget(self._sort_mode_combo)
 
         right_layout.addLayout(search_bar)

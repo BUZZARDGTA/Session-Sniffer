@@ -181,6 +181,8 @@ class EntriesSortProxy(QSortFilterProxyModel):
             return
         self._group_sort_enabled = enabled
         self._populated_sort_cols.clear()
+        self._row_group_id.clear()
+        self._row_group_sort_prefix.clear()
         self.prepare_sort_and_invalidate()
 
     @override
@@ -346,10 +348,10 @@ class EntriesSortProxy(QSortFilterProxyModel):
         is_desc = order == Qt.SortOrder.DescendingOrder
         if is_desc != self._last_group_descending:
             self._last_group_descending = is_desc
+            self._row_group_id.clear()
+            self._row_group_sort_prefix.clear()
             if self._group_sort_enabled:
                 self._populated_sort_cols.clear()
-                self._row_group_id.clear()
-                self._row_group_sort_prefix.clear()
         self._ensure_column_sort_keys(column)
         super().sort(column, order)
         self._rebuild_proxy_group_shades()
