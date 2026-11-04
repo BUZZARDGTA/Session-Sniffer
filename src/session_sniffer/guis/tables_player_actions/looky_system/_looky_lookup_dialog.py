@@ -46,7 +46,6 @@ from session_sniffer.player.userip import UserIPDatabases
 from session_sniffer.player.userip_groups import get_excluded_looky_usernames_cf, record_looky_db_correlation
 from session_sniffer.rendering_core.events import wake_rendering_core
 from session_sniffer.settings.settings import Settings
-from session_sniffer.utils import dedup_preserve_order
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -223,17 +222,19 @@ def show_looky_lookup(parent: QWidget, player: Player | StandaloneIPLookup) -> N
     def _on_fetch_succeeded() -> None:
         excluded_cfs = get_excluded_looky_usernames_cf(player.ip)
         unique_results = player.looky_system.apply_results(worker.results, force_reset_userip_checked=True, excluded_cfs=excluded_cfs)
-        if record_looky_db_correlation(player.looky_system.usernames, UserIPDatabases.get_known_usernames_cf()):
+        if record_looky_db_correlation(player.looky_system.usernames, UserIPDatabases.get_known_username_dbs_cf()):
             UserIPDatabases.build()
+            if not isinstance(player, Player):
+                player.userip = UserIPDatabases.resolve_userip(player.ip)
+        include_looky = Settings.looky_enabled and Settings.is_gta5_feature_set()
+        looky_names = list(player.looky_system.usernames) if include_looky else ()
+        player.rebuild_usernames(looky_usernames=looky_names)
         if isinstance(player, Player):
-            player.rebuild_usernames(looky_usernames=list(player.looky_system.usernames))
             live_player = PlayersRegistry.get_player_by_ip(player.ip)
             if live_player is not None and live_player is not player:
                 live_player.looky_system.apply_results(worker.results, force_reset_userip_checked=True, excluded_cfs=excluded_cfs)
-                live_player.rebuild_usernames(looky_usernames=list(live_player.looky_system.usernames))
+                live_player.rebuild_usernames(looky_usernames=list(live_player.looky_system.usernames) if include_looky else ())
             SessionTracker.update_session_player_snapshot(player, metadata_only=True)
-        elif player.looky_system.usernames:
-            player.usernames = dedup_preserve_order(player.usernames, player.looky_system.usernames)
         wake_rendering_core()
 
         if not isValid(parent):

@@ -935,11 +935,10 @@ def looky_refresh_userip_entries(parent: QWidget, entries: list[tuple[Path, list
 
     def _on_finished_ok(results: dict[str, list[LookyPlayer]], discovered_ips_by_cf: dict[str, list[str]]) -> None:
         loading_dialog.accept()
-        db_usernames_cf = UserIPDatabases.get_known_usernames_cf()
-        if any(
-            record_looky_db_correlation([lp.name.strip() for lp in lps if lp.name and lp.name.strip().casefold() not in get_excluded_looky_usernames_cf(ip)], db_usernames_cf)
-            for ip, lps in results.items()
-        ):
+        results = {ip: [lp for lp in lps if not lp.name or lp.name.strip().casefold() not in get_excluded_looky_usernames_cf(ip)] for ip, lps in results.items()}
+        discovered_ips_by_cf = {u_cf: [ip for ip in ips if u_cf not in get_excluded_looky_usernames_cf(ip)] for u_cf, ips in discovered_ips_by_cf.items()}
+        db_by_username_cf = UserIPDatabases.get_known_username_dbs_cf()
+        if any(record_looky_db_correlation([lp.name.strip() for lp in lps if lp.name], db_by_username_cf) for lps in results.values()):
             UserIPDatabases.build()
         pending_entries, standalone_removals, total_ips_with_results = list[_PendingEntry](), list[_SuspectRemoval](), 0
         claimed_ips = {ip for _db_path, ip_addresses in entries for ip in ip_addresses if _is_single_ipv4(ip)}

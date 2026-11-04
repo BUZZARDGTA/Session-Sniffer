@@ -11,7 +11,6 @@ from session_sniffer.constants.local import APP_DIR_ROAMING
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
-    from collections.abc import Set as AbstractSet
     from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -254,47 +253,49 @@ def ungroup_usernames(
 
 def record_looky_db_correlation(
     looky_usernames: Sequence[str],
-    db_usernames_cf: AbstractSet[str],
+    db_by_username_cf: Mapping[str, Path],
 ) -> bool:
-    """Auto-link Looky usernames resolved on the same IP when at least 2 of them exist in the user's UserIP databases.
+    """Auto-link Looky usernames resolved on the same IP when at least 2 of them exist in the same UserIP database.
 
     Explicitly unlinked pairs (`unlinked_pairs`) are respected and never re-linked.
 
     Returns:
         True if any new link was recorded.
     """
-    if len(looky_usernames) < MIN_GROUP_USERNAMES or not db_usernames_cf:
+    if len(looky_usernames) < MIN_GROUP_USERNAMES or not db_by_username_cf:
         return False
 
-    matched: list[str] = []
+    matched_by_db: dict[Path, list[str]] = {}
     seen_cf: set[str] = set()
     for name in looky_usernames:
         clean = name.strip()
         cf = clean.casefold()
-        if clean and cf in db_usernames_cf and cf not in seen_cf:
+        if clean and cf not in seen_cf and (db_path := db_by_username_cf.get(cf)) is not None:
             seen_cf.add(cf)
-            matched.append(clean)
+            matched_by_db.setdefault(db_path, []).append(clean)
 
-    if len(matched) < MIN_GROUP_USERNAMES:
+    eligible_groups = [names for names in matched_by_db.values() if len(names) >= MIN_GROUP_USERNAMES]
+    if not eligible_groups:
         return False
 
     with _groups_lock:
         _ensure_loaded_locked()
         changed = False
 
-        for clean in matched:
-            cf = clean.casefold()
-            if cf not in _cache.canonical_names:
-                _cache.canonical_names[cf] = clean
-                changed = True
-
-        matched_cfs = [m.casefold() for m in matched]
-        for i, cf1 in enumerate(matched_cfs):
-            for cf2 in matched_cfs[i + 1 :]:
-                pair = _normalize_pair(cf1, cf2)
-                if pair is not None and pair not in _cache.unlinked_pairs and pair not in _cache.linked_pairs:
-                    _cache.linked_pairs.add(pair)
+        for matched in eligible_groups:
+            for clean in matched:
+                cf = clean.casefold()
+                if cf not in _cache.canonical_names:
+                    _cache.canonical_names[cf] = clean
                     changed = True
+
+            matched_cfs = [m.casefold() for m in matched]
+            for i, cf1 in enumerate(matched_cfs):
+                for cf2 in matched_cfs[i + 1 :]:
+                    pair = _normalize_pair(cf1, cf2)
+                    if pair is not None and pair not in _cache.unlinked_pairs and pair not in _cache.linked_pairs:
+                        _cache.linked_pairs.add(pair)
+                        changed = True
 
         if changed:
             _save_locked()

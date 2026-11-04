@@ -562,16 +562,12 @@ class UserIPDatabases:
                     )
 
         for cf, cluster in known_alts_clusters.items():
-            if cf in username_to_meta:
+            if cf in username_to_meta and len({username_to_meta[m.casefold()].db_path for m in cluster if m.casefold() in username_to_meta}) == 1:
                 meta = username_to_meta[cf]
                 for alt_name in cluster:
                     alt_cf = alt_name.casefold()
                     if alt_cf not in ambiguous_usernames and alt_cf not in username_to_meta:
-                        username_to_meta[alt_cf] = meta._replace(
-                            canonical_name=alt_name,
-                            notes=list(meta.notes),
-                            sources=list(meta.sources),
-                        )
+                        username_to_meta[alt_cf] = meta._replace(canonical_name=alt_name, notes=list(meta.notes), sources=list(meta.sources))
         return username_to_meta
 
     @classmethod
@@ -635,7 +631,7 @@ class UserIPDatabases:
         # Build known alts clusters from all entries with multiple usernames + persistent manual/Looky groups
         linked_pairs, unlinked_pairs, stored_canonical_names = get_grouping_snapshot()
         adj: dict[str, set[str]] = {}
-        canonical_names: dict[str, str] = dict(stored_canonical_names)
+        canonical_names: dict[str, str] = {}
 
         def _register_entry_usernames(names: list[str]) -> None:
             clean_names = [name.strip() for name in names if name.strip()]
@@ -658,6 +654,8 @@ class UserIPDatabases:
             _register_entry_usernames(userip_obj.usernames)
         for range_obj in range_entries:
             _register_entry_usernames(range_obj.usernames)
+        for cf, display_name in stored_canonical_names.items():
+            canonical_names.setdefault(cf, display_name)
 
         for u_cf, v_cf in linked_pairs:
             pair = (u_cf, v_cf) if u_cf < v_cf else (v_cf, u_cf)
@@ -985,10 +983,10 @@ class UserIPDatabases:
         return list(cluster) if cluster is not None and cluster else [stripped]
 
     @classmethod
-    def get_known_usernames_cf(cls) -> frozenset[str]:
-        """Return a frozenset of all casefolded usernames currently indexed in UserIP databases."""
+    def get_known_username_dbs_cf(cls) -> dict[str, Path]:
+        """Return a mapping of casefolded usernames to their target database path for all indexed usernames."""
         with cls._update_userip_database_lock:
-            return frozenset(cls._username_to_meta.keys())
+            return {cf: meta.db_path for cf, meta in cls._username_to_meta.items()}
 
     @classmethod
     def get_known_alts_clusters_snapshot(cls) -> dict[str, list[str]]:

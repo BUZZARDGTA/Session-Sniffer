@@ -62,12 +62,15 @@ from session_sniffer.networking.reverse_dns import reverse_dns_lookup
 from session_sniffer.networking.third_party_servers import is_third_party_server_ip
 from session_sniffer.player.registry import PlayersRegistry
 from session_sniffer.player.userip import UserIP, UserIPDatabases
+from session_sniffer.player.userip_groups import get_excluded_looky_usernames_cf, record_looky_db_correlation
 from session_sniffer.rendering_core.types import CaptureState
 from session_sniffer.settings.settings import Settings
 from session_sniffer.text_utils import pluralize
 from session_sniffer.utils import dedup_preserve_order
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from session_sniffer.models.player import Player
 
 logger = logging.getLogger(__name__)
@@ -99,6 +102,13 @@ class StandaloneIPLookup:
     def is_third_party_server(self) -> bool:
         """Return whether the standalone IP belongs to a known third-party server range."""
         return is_third_party_server_ip(self.ip)
+
+    def rebuild_usernames(self, *, looky_usernames: Sequence[str] = ()) -> None:
+        """Rebuild deduplicated `usernames` from UserIP and Looky sources."""
+        self.usernames = dedup_preserve_order(
+            self.userip.usernames if self.userip is not None else (),
+            looky_usernames,
+        )
 
 
 type IPLookupTarget = Player | StandaloneIPLookup
@@ -170,9 +180,11 @@ def _resolve_standalone_lookup(lookup: StandaloneIPLookup) -> None:
     if can_lookup_looky and not lookup.looky_system.is_initialized and get_looky_restriction([lookup]) is None:
         try:
             looky_players = lookup_ip(lookup.ip, api_key, Settings.looky_game_version.lower())
-            lookup.looky_system.apply_results(looky_players)
-            if lookup.looky_system.usernames:
-                lookup.usernames = dedup_preserve_order(lookup.usernames, lookup.looky_system.usernames)
+            lookup.looky_system.apply_results(looky_players, excluded_cfs=get_excluded_looky_usernames_cf(lookup.ip))
+            if record_looky_db_correlation(lookup.looky_system.usernames, UserIPDatabases.get_known_username_dbs_cf()):
+                UserIPDatabases.build()
+                lookup.userip = UserIPDatabases.resolve_userip(lookup.ip)
+            lookup.rebuild_usernames(looky_usernames=lookup.looky_system.usernames)
         except requests.HTTPError as e:
             if e.response is not None and e.response.status_code == HTTPStatus.NOT_FOUND:
                 lookup.looky_system.mark_fetched()

@@ -683,8 +683,9 @@ def looky_core() -> None:
             _looky_wakeup_event.wait(1)
             _looky_wakeup_event.clear()
         else:
-            db_usernames_cf = UserIPDatabases.get_known_usernames_cf()
+            db_by_username_cf = UserIPDatabases.get_known_username_dbs_cf()
             groups_updated = False
+            matched_players_with_looky: list[tuple[Player, list[str]]] = []
             for ip in batch:
                 matched_player = PlayersRegistry.get_player_by_ip(ip)
                 if matched_player is not None:
@@ -693,13 +694,15 @@ def looky_core() -> None:
                     with matched_player.looky_system.lock:
                         looky_usernames = list(matched_player.looky_system.usernames)
 
-                    if record_looky_db_correlation(looky_usernames, db_usernames_cf):
+                    if record_looky_db_correlation(looky_usernames, db_by_username_cf):
                         groups_updated = True
 
-                    matched_player.rebuild_usernames(looky_usernames=looky_usernames)
-                    SessionTracker.update_session_player_snapshot(matched_player, metadata_only=True)
+                    matched_players_with_looky.append((matched_player, looky_usernames))
             if groups_updated:
                 UserIPDatabases.build()
+            for matched_player, looky_usernames in matched_players_with_looky:
+                matched_player.rebuild_usernames(looky_usernames=looky_usernames)
+                SessionTracker.update_session_player_snapshot(matched_player, metadata_only=True)
             wake_rendering_core()
             server_error_consecutive_failures = 0
             gui_closed__event.wait(0.1)
