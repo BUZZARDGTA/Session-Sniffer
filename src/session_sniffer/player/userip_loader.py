@@ -181,7 +181,7 @@ def _parse_session_file_fallback(data: bytes) -> dict[str, list[_RawSessionRecor
     """Fallback JSON parser for non-standard session log files."""
     try:
         raw_data: object = json.loads(data.decode('utf-8'))
-    except (UnicodeDecodeError, json.JSONDecodeError):
+    except UnicodeDecodeError, json.JSONDecodeError:
         return {}
     if not isinstance(raw_data, dict):
         return {}
@@ -278,7 +278,7 @@ class _UserIPLogHistoryCache:
                     parsed = _parse_log_datetime_str(f'{date_val} {time_val}')
                     if parsed is not None:
                         raw_events_by_ip.setdefault(ip_val, []).append(parsed)
-        except (OSError, UnicodeDecodeError, csv.Error):
+        except OSError, UnicodeDecodeError, csv.Error:
             return {}
 
         deduped_by_ip: dict[str, tuple[tuple[str, float], ...]] = {}
@@ -754,17 +754,9 @@ def get_cached_userip_usernames() -> list[str]:
     """Return all non-empty usernames currently cached across parsed UserIP databases."""
     with _update_userip_databases_lock:
         if _parsed_userip_databases:
-            return [
-                cleaned
-                for _, entries in _parsed_userip_databases.values()
-                for entry in entries
-                if (cleaned := entry.username.strip())
-            ]
+            return [cleaned for _, entries in _parsed_userip_databases.values() for entry in entries if (cleaned := entry.username.strip())]
         return [
-            cleaned
-            for db_entry in UserIPDatabases.userip_databases
-            for entry in (*db_entry.single_entries, *db_entry.range_entries)
-            if (cleaned := entry.username.strip())
+            cleaned for db_entry in UserIPDatabases.userip_databases for entry in (*db_entry.single_entries, *db_entry.range_entries) if (cleaned := entry.username.strip())
         ]
 
 
@@ -819,13 +811,17 @@ def _write_userip_db(db_path: Path, settings: UserIPSettingsModel, entries: list
 
 
 def find_userip_insert_index(entries: Sequence[UserIPEntryModel], username: str, ip_or_range: str, *, anchor_username: str = '') -> int:
-    """Return the index in *entries* immediately after the last matching IP, username, or covering range."""
+    """Return the index in *entries* immediately after the last matching IP, username, grouped cluster member, or covering range."""
     username_cf, anchor_cf = username.casefold(), anchor_username.casefold()
+    cluster_cfs = {member.casefold() for member in UserIPDatabases.get_cluster_for_username(username)}
+    if anchor_username:
+        cluster_cfs.update(member.casefold() for member in UserIPDatabases.get_cluster_for_username(anchor_username))
     rev_indices = range(len(entries) - 1, -1, -1)
     for match_idx in (
         next((i for i in rev_indices if entries[i].ip == ip_or_range), None),
         next((i for i in rev_indices if entries[i].username.casefold() == username_cf), None),
         next((i for i in rev_indices if anchor_cf and entries[i].username.casefold() == anchor_cf), None),
+        next((i for i in rev_indices if cluster_cfs and entries[i].username.casefold() in cluster_cfs), None),
         next((i for i in rev_indices if entry_ip_covers_ip(entries[i].ip, ip_or_range)), None),
     ):
         if match_idx is not None:

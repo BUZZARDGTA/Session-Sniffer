@@ -11,6 +11,7 @@ from PySide6.QtGui import QIcon, QImage, QPixmap
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
+    from collections.abc import Set as AbstractSet
 
     from session_sniffer.models.ip_api import IpApiResponse
     from session_sniffer.models.looky_system import LookyPlayer
@@ -173,6 +174,11 @@ def _empty_usernames() -> list[str]:
     return []
 
 
+def _empty_looky_players() -> list[LookyPlayer]:
+    """Return a typed empty LookyPlayer list for dataclass defaults."""
+    return []
+
+
 @dataclass(kw_only=True, slots=True)
 class PlayerModMenus:
     """Store parsed mod menu usernames associated with a player."""
@@ -188,6 +194,8 @@ class PlayerLooky:
     needs_refresh: bool = False
     as_userip_checked: bool = False
     last_fetched_at: float = 0.0
+    raw_results: list[LookyPlayer] = dataclasses.field(default_factory=_empty_looky_players)
+    removed_usernames: list[str] = dataclasses.field(default_factory=_empty_usernames)
     usernames: list[str] = dataclasses.field(default_factory=list[str])
     entry_names: list[str] = dataclasses.field(default_factory=list[str])
     rockstarids: list[int] = dataclasses.field(default_factory=list[int])
@@ -201,8 +209,14 @@ class PlayerLooky:
             self.last_fetched_at = time.monotonic()
             self.is_initialized = True
 
-    def apply_results(self, results: Sequence[LookyPlayer], *, force_reset_userip_checked: bool = False) -> list[LookyPlayer]:
-        """Deduplicate *results* by `(name, rockstarid)` and update the lookup fields under the lock."""
+    def apply_results(
+        self,
+        results: Sequence[LookyPlayer],
+        *,
+        force_reset_userip_checked: bool = False,
+        excluded_cfs: AbstractSet[str] = frozenset(),
+    ) -> list[LookyPlayer]:
+        """Deduplicate *results* by `(name, rockstarid)`, filter out *excluded_cfs*, and update lookup fields under the lock."""
         unique_results: list[LookyPlayer] = []
         seen_pairs: set[tuple[str, int]] = set()
         for entry in results:
@@ -210,16 +224,40 @@ class PlayerLooky:
             if pair not in seen_pairs:
                 seen_pairs.add(pair)
                 unique_results.append(entry)
-        entry_names = [entry.name.strip() if entry.name else '' for entry in unique_results]
+
+        filtered_results: list[LookyPlayer] = []
+        removed_names: list[str] = []
+        seen_removed_cf: set[str] = set()
+        for entry in unique_results:
+            clean_name = entry.name.strip() if entry.name else ''
+            name_cf = clean_name.casefold()
+            if clean_name and name_cf in excluded_cfs:
+                if name_cf not in seen_removed_cf:
+                    seen_removed_cf.add(name_cf)
+                    removed_names.append(clean_name)
+                continue
+            filtered_results.append(entry)
+
+        entry_names = [entry.name.strip() if entry.name else '' for entry in filtered_results]
         new_usernames = [name for name in entry_names if name]
         with self.lock:
             if force_reset_userip_checked or new_usernames != self.usernames:
                 self.as_userip_checked = False
+            self.raw_results = unique_results
+            self.removed_usernames = removed_names
             self.usernames = new_usernames
             self.entry_names = entry_names
-            self.rockstarids = [entry.rockstarid for entry in unique_results]
-            self.last_seens = [entry.last_seen for entry in unique_results]
+            self.rockstarids = [entry.rockstarid for entry in filtered_results]
+            self.last_seens = [entry.last_seen for entry in filtered_results]
             self.needs_refresh = False
             self.last_fetched_at = time.monotonic()
             self.is_initialized = True
-        return unique_results
+        return filtered_results
+
+    def refresh_filtered_usernames(self, excluded_cfs: AbstractSet[str]) -> list[str]:
+        """Re-filter `raw_results` against *excluded_cfs* under the lock and return the active Looky usernames."""
+        with self.lock:
+            unique_results = list(self.raw_results)
+        self.apply_results(unique_results, force_reset_userip_checked=True, excluded_cfs=excluded_cfs)
+        with self.lock:
+            return list(self.usernames)

@@ -30,7 +30,12 @@ from session_sniffer.guis.tables_player_actions import (
     show_seen_stats,
 )
 from session_sniffer.guis.tables_userip_menu import add_action, add_menu, build_userip_menu, build_userip_menu_multi
-from session_sniffer.guis.tables_userip_mixin import resolve_usernames_for_player
+from session_sniffer.guis.tables_userip_mixin import (
+    get_player_looky_username_lists,
+    looky_remove_usernames_for_player,
+    looky_restore_usernames_for_player,
+    resolve_usernames_for_player,
+)
 from session_sniffer.networking.ip_range import check_ip_against_ranges
 from session_sniffer.networking.isp_filter import get_player_primary_isp, is_player_isp_filtered
 from session_sniffer.networking.looky_system import get_looky_user_url
@@ -212,9 +217,7 @@ class TableContextMenuMixin(QTableView):
             if not players:
                 return
 
-            unique_isps: list[str] = dedup_preserve_order([
-                isp_name for player in players if (isp_name := get_player_primary_isp(player)) is not None
-            ])
+            unique_isps: list[str] = dedup_preserve_order([isp_name for player in players if (isp_name := get_player_primary_isp(player)) is not None])
             if not unique_isps:
                 return
 
@@ -308,12 +311,7 @@ class TableContextMenuMixin(QTableView):
             )
 
         def add_high_rate_blacklist_action(ip_addresses: list[str]) -> None:
-            if (
-                not ip_addresses
-                or self.blacklist_high_rate_callback is None
-                or self.unblacklist_high_rate_callback is None
-                or self.is_high_rate_blacklisted_callback is None
-            ):
+            if not ip_addresses or self.blacklist_high_rate_callback is None or self.unblacklist_high_rate_callback is None or self.is_high_rate_blacklisted_callback is None:
                 return
 
             blacklist_callback = self.blacklist_high_rate_callback
@@ -532,6 +530,27 @@ class TableContextMenuMixin(QTableView):
                         icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'user-plus.svg')),
                     )
                     _apply_looky_gating(proxy_join_action)
+
+                target_player = players[0]
+                active_looky_names, removed_looky_names = get_player_looky_username_lists(target_player)
+                if active_looky_names or removed_looky_names:
+                    looky_menu.addSeparator()
+                if active_looky_names:
+                    add_action(
+                        looky_menu,
+                        'Remove Looky Usernames…',
+                        tooltip='Hide selected Looky System usernames on this IP (useful for VPN or shared IPs).',
+                        handler=lambda: looky_remove_usernames_for_player(self, target_player, active_looky_names),
+                        icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')),
+                    )
+                if removed_looky_names:
+                    add_action(
+                        looky_menu,
+                        'Restore Removed Looky Usernames…',
+                        tooltip='Re-add previously removed Looky System usernames on this IP.',
+                        handler=lambda: looky_restore_usernames_for_player(self, target_player, removed_looky_names),
+                        icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'rotate-ccw.svg')),
+                    )
                 return
 
             all_selected_rockstar_ids: list[int] = []
@@ -774,11 +793,7 @@ class TableContextMenuMixin(QTableView):
 
                 return _handler
 
-            player_history_entries = [
-                entry
-                for entry in SessionHost.get_history()
-                if entry.ip == ip_address and entry.diagnostics is not None
-            ]
+            player_history_entries = [entry for entry in SessionHost.get_history() if entry.ip == ip_address and entry.diagnostics is not None]
 
             if len(player_history_entries) == 1:
                 history_entry = player_history_entries[0]

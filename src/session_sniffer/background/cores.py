@@ -30,7 +30,8 @@ from session_sniffer.networking.ping import ping_player
 from session_sniffer.networking.reverse_dns import reverse_dns_lookup
 from session_sniffer.networking.third_party_servers import is_third_party_server_ip
 from session_sniffer.player.registry import PlayersRegistry, SessionTracker
-from session_sniffer.player.userip import gui_dispatcher
+from session_sniffer.player.userip import UserIPDatabases, gui_dispatcher
+from session_sniffer.player.userip_groups import get_excluded_looky_usernames_cf, record_looky_db_correlation
 from session_sniffer.rendering_core.events import wake_rendering_core
 from session_sniffer.rendering_core.types import CaptureState
 from session_sniffer.settings import Settings
@@ -165,11 +166,7 @@ def enqueue_player_for_resolution(player: Player) -> None:
     if not player.ping.is_initialized and not player.left_event.is_set() and _pinger_queue.put(player.ip):
         _pinger_wakeup_event.set()
 
-    if (
-        is_looky_eligible(player)
-        and (not player.looky_system.is_initialized or player.looky_system.needs_refresh)
-        and _looky_queue.put(player.ip)
-    ):
+    if is_looky_eligible(player) and (not player.looky_system.is_initialized or player.looky_system.needs_refresh) and _looky_queue.put(player.ip):
         _looky_wakeup_event.set()
 
 
@@ -200,11 +197,7 @@ def wake_looky_core() -> None:
     _looky_wakeup_event.set()
     if Settings.is_gta5_feature_set():
         for player in chain(PlayersRegistry.get_connected_players(), PlayersRegistry.get_disconnected_players()):
-            if (
-                is_looky_eligible(player)
-                and (not player.looky_system.is_initialized or player.looky_system.needs_refresh)
-                and _looky_queue.put(player.ip)
-            ):
+            if is_looky_eligible(player) and (not player.looky_system.is_initialized or player.looky_system.needs_refresh) and _looky_queue.put(player.ip):
                 _looky_wakeup_event.set()
 
 
@@ -281,7 +274,7 @@ def iplookup_core() -> None:
                 timeout=3,
             )
             response.raise_for_status()
-        except (requests.exceptions.ConnectionError, requests.exceptions.Timeout):
+        except requests.exceptions.ConnectionError, requests.exceptions.Timeout:
             # ip-api.com is unreachable (no response at all) — commonly a VPN, proxy, or firewall silently
             # blocking the connection. Retry a few times in case it is a transient blip; after too many
             # consecutive failures surface a one-time warning, then probe every 60s so the lookup can
@@ -636,11 +629,7 @@ def looky_core() -> None:
 
             if len(pending_ip_addresses) < _batch_size:
                 for player in PlayersRegistry.get_disconnected_players():
-                    if (
-                        is_looky_eligible(player)
-                        and (not player.looky_system.is_initialized or player.looky_system.needs_refresh)
-                        and player.ip not in pending_ip_addresses
-                    ):
+                    if is_looky_eligible(player) and (not player.looky_system.is_initialized or player.looky_system.needs_refresh) and player.ip not in pending_ip_addresses:
                         pending_ip_addresses.append(player.ip)
                         if len(pending_ip_addresses) >= _batch_size:
                             break
@@ -694,15 +683,23 @@ def looky_core() -> None:
             _looky_wakeup_event.wait(1)
             _looky_wakeup_event.clear()
         else:
+            db_usernames_cf = UserIPDatabases.get_known_usernames_cf()
+            groups_updated = False
             for ip in batch:
                 matched_player = PlayersRegistry.get_player_by_ip(ip)
                 if matched_player is not None:
-                    matched_player.looky_system.apply_results(results.get(ip, []))
+                    excluded_cfs = get_excluded_looky_usernames_cf(ip)
+                    matched_player.looky_system.apply_results(results.get(ip, []), excluded_cfs=excluded_cfs)
                     with matched_player.looky_system.lock:
                         looky_usernames = list(matched_player.looky_system.usernames)
 
+                    if record_looky_db_correlation(looky_usernames, db_usernames_cf):
+                        groups_updated = True
+
                     matched_player.rebuild_usernames(looky_usernames=looky_usernames)
                     SessionTracker.update_session_player_snapshot(matched_player, metadata_only=True)
+            if groups_updated:
+                UserIPDatabases.build()
             wake_rendering_core()
             server_error_consecutive_failures = 0
             gui_closed__event.wait(0.1)

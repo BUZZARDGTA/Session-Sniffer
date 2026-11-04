@@ -21,6 +21,7 @@ from PySide6.QtGui import (
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
+    QLineEdit,
     QStyle,
     QStyledItemDelegate,
     QStyleOptionViewItem,
@@ -59,6 +60,7 @@ _LOOKY_TEXT_COLOR = QColor(TableColors.LOOKY_TEXT)
 _DISCONNECTED_LOOKY_TEXT_COLOR = QColor(TableColors.DISCONNECTED_LOOKY_TEXT)
 _SEARCH_HIGHLIGHT_BG_COLOR = QColor('#e3b341')
 _SEARCH_HIGHLIGHT_FG_COLOR = QColor('#000000')
+_OPAQUE_ALPHA = 255
 
 
 def _get_option_rect(option: QStyleOptionViewItem) -> QRect:
@@ -77,9 +79,7 @@ def _is_disconnected_cell(view: object, index: QModelIndex | QPersistentModelInd
     if isinstance(raw_is_connected, bool):
         return not raw_is_connected
     foreground_brush = index.data(Qt.ItemDataRole.ForegroundRole)
-    resolved_foreground_color = (
-        foreground_brush if isinstance(foreground_brush, QColor) else (foreground_brush.color() if isinstance(foreground_brush, QBrush) else None)
-    )
+    resolved_foreground_color = foreground_brush if isinstance(foreground_brush, QColor) else (foreground_brush.color() if isinstance(foreground_brush, QBrush) else None)
     return resolved_foreground_color is not None and resolved_foreground_color == _DISCONNECTED_TEXT_COLOR
 
 
@@ -133,11 +133,7 @@ def _format_username_source_lines(
             return
         label = f'{label_prefix}{pluralize(len(unique_names))}'
         joined_text = ', '.join(unique_names)
-        value_html = (
-            _format_looky_tooltip_html(joined_text, looky_names, is_disconnected=is_disconnected)
-            if looky_names is not None
-            else html.escape(joined_text)
-        )
+        value_html = _format_looky_tooltip_html(joined_text, looky_names, is_disconnected=is_disconnected) if looky_names is not None else html.escape(joined_text)
         lines.append(f'<span style="color: #9ca3af;">{label}:</span> {value_html}')
 
     if player.userip is not None and player.userip.usernames:
@@ -317,7 +313,9 @@ class ElidedTextTooltipDelegate(QStyledItemDelegate):
         is_connected: bool | None = raw_is_connected if isinstance(raw_is_connected, bool) else None
 
         if is_connected is None and has_background_brush and not is_selected:
-            return
+            bg_color = background_brush if isinstance(background_brush, QColor) else background_brush.color()
+            if bg_color.alpha() < _OPAQUE_ALPHA:
+                return
 
         painter.save()
         grad = QLinearGradient(rect.topLeft(), rect.bottomLeft())
@@ -395,6 +393,8 @@ class SearchHighlightDelegate(ElidedTextTooltipDelegate):
     ) -> QWidget:
         """Create the cell editor widget and apply optional caller configuration."""
         editor = super().createEditor(parent, option, index)
+        if isinstance(editor, QLineEdit):
+            editor.setTextMargins(0, -2, 0, 0)
         if self._configure_editor is not None:
             self._configure_editor(editor, index)
         return editor
@@ -489,9 +489,7 @@ class SearchHighlightDelegate(ElidedTextTooltipDelegate):
 
                 usernames_text = _strip_usernames_note_suffix(text, index.model(), index.row())
                 display_usernames_text = (
-                    display_text[: len(usernames_text)]
-                    if len(display_text) > len(usernames_text) and display_text.startswith(usernames_text)
-                    else display_text
+                    display_text[: len(usernames_text)] if len(display_text) > len(usernames_text) and display_text.startswith(usernames_text) else display_text
                 )
                 tokens = split_usernames(usernames_text)
                 display_segments = split_usernames(display_usernames_text)

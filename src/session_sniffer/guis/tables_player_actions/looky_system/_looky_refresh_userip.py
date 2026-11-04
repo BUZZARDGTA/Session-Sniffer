@@ -69,6 +69,8 @@ from session_sniffer.guis.utils import (
 from session_sniffer.models.userip_settings_model import UserIPEntryModel
 from session_sniffer.networking.ip_range import entry_ip_covers_ip
 from session_sniffer.networking.looky_system import lookup_ip_batches, lookup_username_ips
+from session_sniffer.player.userip import UserIPDatabases
+from session_sniffer.player.userip_groups import get_excluded_looky_usernames_cf, record_looky_db_correlation
 from session_sniffer.settings.settings import Settings
 from session_sniffer.text_utils import pluralize
 
@@ -146,7 +148,6 @@ class _LookyRefreshWorker(CrashingQThread):
         if self.isInterruptionRequested():
             logger.info('[Looky System] UserIP refresh worker canceled after %.2fs.', time.monotonic() - started_at)
             return
-
         matched_ips_count = sum(1 for players in combined.values() if players)
         logger.info(
             '[Looky System] UserIP refresh worker completed in %.2fs: %d IP%s with Looky players, %d username%s resolved to IPs.',
@@ -180,7 +181,6 @@ def _collect_existing_usernames(db_path: Path) -> _DbLookupSnapshot:
     ip_to_entries, ip_to_seen = dict[str, list[tuple[str, bool, int, str]]](), dict[str, dict[str, int]]()
     all_usernames_cf, canonical_name_by_cf, notes_by_cf = set[str](), dict[str, str](), dict[str, str]()
     unconfirmed_ips_by_cf, seen_unconfirmed_ips = defaultdict[str, list[tuple[str, str]]](list), defaultdict[str, set[str]](set)
-
     for entry in load_userip_database_model(db_path).entries:
         username_cf = entry.username.casefold()
         all_usernames_cf.add(username_cf)
@@ -191,8 +191,7 @@ def _collect_existing_usernames(db_path: Path) -> _DbLookupSnapshot:
             seen_unconfirmed_ips[username_cf].add(entry.ip)
             unconfirmed_ips_by_cf[username_cf].append((entry.ip, entry.notes))
         seen_for_ip = ip_to_seen.setdefault(entry.ip, {})
-        existing_idx = seen_for_ip.get(username_cf)
-        if existing_idx is None:
+        if (existing_idx := seen_for_ip.get(username_cf)) is None:
             entries_for_ip = ip_to_entries.setdefault(entry.ip, [])
             seen_for_ip[username_cf] = len(entries_for_ip)
             entries_for_ip.append((entry.username, entry.is_looky, entry.detections_count, entry.notes))
@@ -200,7 +199,6 @@ def _collect_existing_usernames(db_path: Path) -> _DbLookupSnapshot:
             entries_for_ip = ip_to_entries[entry.ip]
             prev_name, prev_looky, prev_det, prev_notes = entries_for_ip[existing_idx]
             entries_for_ip[existing_idx] = (prev_name, prev_looky or entry.is_looky, max(prev_det, entry.detections_count), prev_notes or entry.notes)
-
     return _DbLookupSnapshot(ip_to_entries, all_usernames_cf, canonical_name_by_cf, notes_by_cf, unconfirmed_ips_by_cf)
 
 
@@ -289,14 +287,11 @@ class LookyRefreshReviewDialog(PlayerInfoDialogMixin):
         self._match_icon = render_svg_icon_from_resource('user-round-search.svg', 16, 16, '#fbbf24')
         self._new_icon = render_svg_icon_from_resource('user-plus.svg', 16, 16, '#22c55e')
         self._remove_icon = render_svg_icon_from_resource('remove.svg', 16, 16, '#f87171')
-
         unique_dbs = {entry.db_path for entry in pending_entries} | {rem.db_path for rem in standalone_removals}
         self._available_dbs = _list_available_databases(unique_dbs | {entry.target_db_path for entry in pending_entries})
-
         outer_layout = QVBoxLayout(self)
         outer_layout.setContentsMargins(12, 12, 12, 12)
         self._add_header_label(outer_layout, '\U0001f441  Looky \u2014 UserIP Refresh Review', '#1c0a38', '#2e1065').setStyleSheet(LOOKY_CRAWLER_HEADER_STYLESHEET)
-
         total_new = sum(1 for entry in pending_entries if not entry.is_confirmation and not entry.is_known_in_db)
         total_matches = sum(1 for entry in pending_entries if entry.is_confirmation or entry.is_known_in_db)
         total_suspects = sum(len(entry.suspect_removals) for entry in pending_entries) + len(standalone_removals)
@@ -321,8 +316,7 @@ class LookyRefreshReviewDialog(PlayerInfoDialogMixin):
                 (value_text, 'color: #d8b4fe; font-size: 14pt; font-weight: 700; background: transparent;'),
                 (label_text, 'color: #9ca3af; font-size: 8pt; font-weight: 600; letter-spacing: 1px; background: transparent;'),
             ):
-                stat_lbl = QLabel(text_val)
-                stat_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                stat_lbl = QLabel(text_val, alignment=Qt.AlignmentFlag.AlignCenter)
                 stat_lbl.setStyleSheet(style_val)
                 stat_lbl.setToolTip(stat_tooltip)
                 stat_layout.addWidget(stat_lbl)
@@ -371,14 +365,13 @@ class LookyRefreshReviewDialog(PlayerInfoDialogMixin):
             self._matches_only_btn.clicked.connect(self._on_matches_only_toggled)
             controls_bar.addWidget(self._matches_only_btn)
 
-        self._search_input = QLineEdit()
-        self._search_input.setPlaceholderText('Search username, IP, or notes...')
+        self._search_input = QLineEdit(placeholderText='Search username, IP, or notes...')
+        self._search_input.setMinimumWidth(scale_by_ui(200))
         self._search_input.setToolTip('Filter the table by username, IP address, notes, action, or target database.')
         self._search_input.setStyleSheet(
             'QLineEdit { background-color: #1a1325; color: #d4c8f0; border: 1px solid #3d2d6e; border-radius: 6px; padding: 4px 8px; font-size: 9pt; }'
             ' QLineEdit:focus { border: 1px solid #7c3aed; }',
         )
-        self._search_input.setMinimumWidth(scale_by_ui(200))
         apply_search_icon(self._search_input)
         self._search_input.textChanged.connect(self._apply_tree_visibility)
         controls_bar.addWidget(self._search_input, stretch=1)
@@ -460,7 +453,6 @@ class LookyRefreshReviewDialog(PlayerInfoDialogMixin):
             btn.clicked.connect(slot)
             button_layout.addWidget(btn)
         outer_layout.addLayout(button_layout)
-
         self._apply_tree_visibility()
         self._update_counter()
 
@@ -943,6 +935,12 @@ def looky_refresh_userip_entries(parent: QWidget, entries: list[tuple[Path, list
 
     def _on_finished_ok(results: dict[str, list[LookyPlayer]], discovered_ips_by_cf: dict[str, list[str]]) -> None:
         loading_dialog.accept()
+        db_usernames_cf = UserIPDatabases.get_known_usernames_cf()
+        if any(
+            record_looky_db_correlation([lp.name.strip() for lp in lps if lp.name and lp.name.strip().casefold() not in get_excluded_looky_usernames_cf(ip)], db_usernames_cf)
+            for ip, lps in results.items()
+        ):
+            UserIPDatabases.build()
         pending_entries, standalone_removals, total_ips_with_results = list[_PendingEntry](), list[_SuspectRemoval](), 0
         claimed_ips = {ip for _db_path, ip_addresses in entries for ip in ip_addresses if _is_single_ipv4(ip)}
         for db_path, ip_addresses in entries:

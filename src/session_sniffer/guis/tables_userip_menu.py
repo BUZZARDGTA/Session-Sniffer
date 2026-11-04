@@ -14,6 +14,7 @@ from session_sniffer.guis.looky_text import (
 from session_sniffer.guis.tables_player_actions.looky_system._looky_refresh_userip import looky_refresh_userip_entries
 from session_sniffer.guis.tables_userip_mixin import (
     MIN_USERNAMES_FOR_REMOVAL,
+    collect_grouped_usernames_for_player,
     collect_persisted_usernames_for_ip,
     resolve_usernames_for_player,
     userip_add,
@@ -24,14 +25,19 @@ from session_sniffer.guis.tables_userip_mixin import (
     userip_delete,
     userip_edit_note,
     userip_edit_range,
+    userip_group_selected,
+    userip_group_with,
     userip_move,
     userip_remove_username,
     userip_rename,
     userip_rename_multi,
+    userip_ungroup,
 )
 from session_sniffer.guis.userip_conflict_resolver import open_userip_conflict_resolver
 from session_sniffer.guis.userip_manager_helpers import populate_userip_databases_menu
+from session_sniffer.guis.utils import set_clipboard_text
 from session_sniffer.player.userip import UserIPDatabases
+from session_sniffer.player.userip_groups import MIN_GROUP_USERNAMES
 from session_sniffer.settings.settings import Settings
 from session_sniffer.text_utils import pluralize
 from session_sniffer.utils import dedup_preserve_order
@@ -179,6 +185,32 @@ def build_userip_menu(
             tooltip='Add selected IP as a range to this UserIP database.',
             handler_factory=lambda db_path: lambda: userip_add_as_range(parent, ip_address, db_path, usernames=player_usernames),
         )
+        if player_usernames:
+            userip_menu.addSeparator()
+            add_action(
+                userip_menu,
+                'Group With…',
+                tooltip='Group this player with another username in your UserIP databases.',
+                handler=lambda: userip_group_with(parent, [player]),
+                icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'user-plus.svg')),
+            )
+            grouped_names = collect_grouped_usernames_for_player(player)
+            if len(grouped_names) >= MIN_GROUP_USERNAMES:
+                group_text = ', '.join(grouped_names)
+                add_action(
+                    userip_menu,
+                    f'Copy Usernames ({len(grouped_names)})',
+                    tooltip=f'Copy all {len(grouped_names)} usernames in this account group ({group_text}) to the clipboard.',
+                    handler=lambda: set_clipboard_text(group_text),
+                    icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')),
+                )
+                add_action(
+                    userip_menu,
+                    'Ungroup…',
+                    tooltip='Ungroup linked usernames from this account group.',
+                    handler=lambda: userip_ungroup(parent, player),
+                    icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')),
+                )
         return
 
     def _open_userip_database() -> None:
@@ -201,6 +233,30 @@ def build_userip_menu(
         handler=lambda: userip_add_username(parent, ip_address, player),
         icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'plus.svg')),
     )
+    add_action(
+        userip_menu,
+        'Group With…',
+        tooltip='Group this player with another username so their accounts stay linked in UserIP.',
+        handler=lambda: userip_group_with(parent, [player]),
+        icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'user-plus.svg')),
+    )
+    grouped_names = collect_grouped_usernames_for_player(player)
+    if len(grouped_names) >= MIN_GROUP_USERNAMES:
+        group_text = ', '.join(grouped_names)
+        add_action(
+            userip_menu,
+            f'Copy Usernames ({len(grouped_names)})',
+            tooltip=f'Copy all {len(grouped_names)} usernames in this account group ({group_text}) to the clipboard.',
+            handler=lambda: set_clipboard_text(group_text),
+            icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')),
+        )
+        add_action(
+            userip_menu,
+            'Ungroup…',
+            tooltip='Ungroup linked usernames from this account group (prevents false-positive grouping).',
+            handler=lambda: userip_ungroup(parent, player),
+            icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')),
+        )
     if Settings.is_gta5_feature_set():
         userip_menu.addSeparator()
         is_searchlist = player.userip.db_path.stem.casefold() == 'searchlist'
@@ -317,6 +373,23 @@ def build_userip_menu_multi(
             tooltip=f'Add the {add_count}selected IP address{pluralize(len(ip_addresses), plural="es")} to this UserIP database.',
             handler_factory=lambda db_path: lambda: userip_add(parent, ip_addresses, db_path, usernames=all_usernames),
         )
+        if len(all_usernames) >= MIN_GROUP_USERNAMES:
+            userip_menu.addSeparator()
+            add_action(
+                userip_menu,
+                'Group Selected',
+                tooltip='Group all usernames across the selected players together.',
+                handler=lambda: userip_group_selected(parent, players),
+                icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'user-plus.svg')),
+            )
+        if all_usernames:
+            add_action(
+                userip_menu,
+                'Group With…',
+                tooltip='Group the selected players with another username.',
+                handler=lambda: userip_group_with(parent, players),
+                icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'user-plus.svg')),
+            )
         return
 
     if all(UserIPDatabases.is_known_ip(ip) for ip in ip_addresses):
@@ -332,6 +405,26 @@ def build_userip_menu_multi(
                 tooltip=f'Rename the username for {rename_phrase} in its UserIP database.',
                 handler=lambda: userip_rename_multi(parent, rename_players),
                 icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square-pen.svg')),
+            )
+
+        selected_usernames = dedup_preserve_order(
+            *((p.userip.usernames if p.userip is not None else resolve_usernames_for_player(p)) for p in players),
+        )
+        if len(selected_usernames) >= MIN_GROUP_USERNAMES:
+            add_action(
+                userip_menu,
+                'Group Selected',
+                tooltip='Group all usernames across the selected players together.',
+                handler=lambda: userip_group_selected(parent, players),
+                icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'user-plus.svg')),
+            )
+        if selected_usernames:
+            add_action(
+                userip_menu,
+                'Group With…',
+                tooltip='Group the selected players with another username.',
+                handler=lambda: userip_group_with(parent, players),
+                icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'user-plus.svg')),
             )
 
         if Settings.is_gta5_feature_set():

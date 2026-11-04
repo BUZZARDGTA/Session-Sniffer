@@ -24,6 +24,7 @@ from session_sniffer.guis.userip_manager_helpers import (
     populate_userip_databases_menu,
 )
 from session_sniffer.guis.utils import copy_table_all_rows, copy_table_selection, open_file_location, set_clipboard_text
+from session_sniffer.player.userip_groups import MIN_GROUP_USERNAMES
 from session_sniffer.text_utils import pluralize
 
 
@@ -90,6 +91,18 @@ class EntriesContextMenuMixin(QDialog):
         raise NotImplementedError
 
     def _move_selected_to_database(self, target_db_path: Path) -> None:
+        raise NotImplementedError
+
+    def _collect_group_members_for_rows(self, source_rows: list[int]) -> list[str]:
+        raise NotImplementedError
+
+    def _group_selected_rows(self) -> None:
+        raise NotImplementedError
+
+    def _group_rows_with(self) -> None:
+        raise NotImplementedError
+
+    def _ungroup_rows(self) -> None:
         raise NotImplementedError
 
     # ------------------------------------------------------------------
@@ -171,6 +184,13 @@ class EntriesContextMenuMixin(QDialog):
                 copy_user_action = QAction(copy_icon, 'Copy Username', self)
                 copy_user_action.triggered.connect(lambda: set_clipboard_text(context.username))
                 menu.addAction(copy_user_action)
+            group_members = self._collect_group_members_for_rows([context.row])
+            if len(group_members) >= MIN_GROUP_USERNAMES:
+                group_text = '\n'.join(group_members)
+                copy_group_action = QAction(copy_icon, f'Copy Usernames ({len(group_members)})', self)
+                copy_group_action.setToolTip(f'Copy all {len(group_members)} usernames in this account group ({", ".join(group_members)}) to the clipboard.')
+                copy_group_action.triggered.connect(lambda: set_clipboard_text(group_text))
+                menu.addAction(copy_group_action)
             if context.ip_or_range:
                 range_item = self._model.item(context.row, RANGE_COLUMN)
                 label = 'Range' if range_item and range_item.text().strip() else 'IP'
@@ -182,24 +202,41 @@ class EntriesContextMenuMixin(QDialog):
                 copy_note_action.triggered.connect(lambda: set_clipboard_text(context.note))
                 menu.addAction(copy_note_action)
         else:
-            all_usernames: list[str] = []
+            source_rows: list[int] = []
+            distinct_usernames: list[str] = []
+            seen_user_cf: set[str] = set()
             all_ips_or_ranges: list[str] = []
+            seen_ips: set[str] = set()
             for selected_index in context.selected_rows:
                 source_row = self._proxy.mapToSource(selected_index).row()
+                source_rows.append(source_row)
                 username_item = self._model.item(source_row, USERNAME_COLUMN)
-                if username_item and username_item.text():
-                    all_usernames.append(username_item.text())
+                u_text = username_item.text().strip() if username_item else ''
+                u_cf = u_text.casefold()
+                if u_text and u_cf not in seen_user_cf:
+                    seen_user_cf.add(u_cf)
+                    distinct_usernames.append(u_text)
                 entry_value = self._get_row_entry_value(source_row)
-                if entry_value:
+                if entry_value and entry_value not in seen_ips:
+                    seen_ips.add(entry_value)
                     all_ips_or_ranges.append(entry_value)
 
-            if all_usernames:
-                copy_users_action = QAction(copy_icon, f'Copy Usernames ({len(all_usernames)})', self)
-                copy_users_action.triggered.connect(lambda: set_clipboard_text('\n'.join(all_usernames)))
+            if distinct_usernames:
+                users_text = '\n'.join(distinct_usernames)
+                copy_users_action = QAction(copy_icon, f'Copy Usernames ({len(distinct_usernames)})', self)
+                copy_users_action.triggered.connect(lambda: set_clipboard_text(users_text))
                 menu.addAction(copy_users_action)
+            group_members = self._collect_group_members_for_rows(source_rows)
+            if len(group_members) >= MIN_GROUP_USERNAMES and len(group_members) > len(distinct_usernames):
+                group_text = '\n'.join(group_members)
+                copy_group_action = QAction(copy_icon, f'Copy Group Usernames ({len(group_members)})', self)
+                copy_group_action.setToolTip(f'Copy all {len(group_members)} usernames grouped with the selected rows ({", ".join(group_members)}) to the clipboard.')
+                copy_group_action.triggered.connect(lambda: set_clipboard_text(group_text))
+                menu.addAction(copy_group_action)
             if all_ips_or_ranges:
+                ips_text = '\n'.join(all_ips_or_ranges)
                 copy_ips_action = QAction(copy_icon, f'Copy IPs / Ranges ({len(all_ips_or_ranges)})', self)
-                copy_ips_action.triggered.connect(lambda: set_clipboard_text('\n'.join(all_ips_or_ranges)))
+                copy_ips_action.triggered.connect(lambda: set_clipboard_text(ips_text))
                 menu.addAction(copy_ips_action)
 
     def _add_selection_actions(self, menu: QMenu, *, select_all_tooltip: str) -> None:
@@ -267,6 +304,41 @@ class EntriesContextMenuMixin(QDialog):
             edit_note_action.setToolTip(tooltip)
             edit_note_action.triggered.connect(lambda _checked=False, row=target_row: self._edit_entry_note(row))
             menu.addAction(edit_note_action)
+
+    def _add_grouping_actions(self, menu: QMenu, context: _RowMenuContext) -> None:
+        """Add Group Selected Usernames, Group With…, and Ungroup… actions to *menu*."""
+        source_rows = sorted({self._proxy.mapToSource(idx).row() for idx in context.selected_rows}) if context.selected_rows else [context.row]
+        distinct_usernames: list[str] = []
+        seen_cf: set[str] = set()
+        for r in source_rows:
+            u_item = self._model.item(r, USERNAME_COLUMN)
+            u_text = u_item.text().strip() if u_item else ''
+            u_cf = u_text.casefold()
+            if u_text and u_cf not in seen_cf:
+                seen_cf.add(u_cf)
+                distinct_usernames.append(u_text)
+
+        if not distinct_usernames:
+            return
+
+        group_icon = QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'user-plus.svg'))
+        if len(distinct_usernames) >= MIN_GROUP_USERNAMES:
+            group_selected_action = QAction(group_icon, f'Group Selected Usernames ({len(distinct_usernames)})', self)
+            group_selected_action.setToolTip('Link all selected usernames into the same account group.')
+            group_selected_action.triggered.connect(self._group_selected_rows)
+            menu.addAction(group_selected_action)
+
+        group_with_action = QAction(group_icon, 'Group With…', self)
+        group_with_action.setToolTip('Type or select another username to link into the same account group.')
+        group_with_action.triggered.connect(self._group_rows_with)
+        menu.addAction(group_with_action)
+
+        group_members = self._collect_group_members_for_rows(source_rows)
+        if len(group_members) >= MIN_GROUP_USERNAMES:
+            ungroup_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')), 'Ungroup…', self)
+            ungroup_action.setToolTip('Unlink usernames from this account group so false positives stay separated.')
+            ungroup_action.triggered.connect(self._ungroup_rows)
+            menu.addAction(ungroup_action)
 
     def _add_move_to_database_menu(self, menu: QMenu, *, selected_count: int, disabled_path: Path | None) -> None:
         """Build and append the 'Move to Database' submenu to *menu*."""
@@ -348,17 +420,18 @@ class EntriesContextMenuMixin(QDialog):
             menu.addSeparator()
 
         is_single_ip, selected_ips = self._collect_selected_ips(context.ip_or_range)
+        can_reorder_rows = not self._proxy.group_sort_enabled and not self._proxy.sortColumn() and self._proxy.sortOrder() == Qt.SortOrder.AscendingOrder
 
-        if context.row > 0:
+        if can_reorder_rows and context.row > 0:
             move_up_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'arrow-up.svg')), 'Move Up', self)
             move_up_action.triggered.connect(lambda: self._move_rows(index, -1))
             menu.addAction(move_up_action)
-        if context.row < self._model.rowCount() - 1:
+        if can_reorder_rows and context.row < self._model.rowCount() - 1:
             move_down_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'arrow-down.svg')), 'Move Down', self)
             move_down_action.triggered.connect(lambda: self._move_rows(index, 1))
             menu.addAction(move_down_action)
 
-        if context.row > 0 or context.row < self._model.rowCount() - 1:
+        if can_reorder_rows and (context.row > 0 or context.row < self._model.rowCount() - 1):
             menu.addSeparator()
 
         insert_above_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'arrow-up.svg')), 'Insert Entry Above', self)
@@ -371,6 +444,8 @@ class EntriesContextMenuMixin(QDialog):
 
         menu.addSeparator()
         self._add_edit_actions(menu, target_row=context.row, selected_count=context.selected_count)
+        menu.addSeparator()
+        self._add_grouping_actions(menu, context)
         menu.addSeparator()
         self._add_move_to_database_menu(menu, selected_count=context.selected_count, disabled_path=self._current_path)
         self._add_network_actions(menu, ip_or_range=context.ip_or_range, is_single_ip=is_single_ip, selected_ips=selected_ips)
@@ -415,6 +490,9 @@ class EntriesContextMenuMixin(QDialog):
 
         menu.addSeparator()
         self._add_edit_actions(menu, target_row=context.row, selected_count=context.selected_count)
+        menu.addSeparator()
+        self._add_grouping_actions(menu, context)
+        menu.addSeparator()
 
         selected_db_paths = {
             self._model.item(self._proxy.mapToSource(i).row(), DATABASE_COLUMN).data(Qt.ItemDataRole.UserRole)

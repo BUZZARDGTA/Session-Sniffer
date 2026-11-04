@@ -9,22 +9,9 @@ from datetime import datetime
 from ipaddress import IPv4Address
 from typing import TYPE_CHECKING, cast, override
 
-from PySide6.QtCore import QAbstractItemModel, QModelIndex, QObject, QRegularExpression, QSignalBlocker, QSortFilterProxyModel, Qt
+from PySide6.QtCore import QAbstractItemModel, QModelIndex, QObject, QPersistentModelIndex, QRegularExpression, QSignalBlocker, QSortFilterProxyModel, Qt
 from PySide6.QtGui import QBrush, QColor, QIcon, QRegularExpressionValidator, QStandardItem, QStandardItemModel
-from PySide6.QtWidgets import (
-    QButtonGroup,
-    QDialog,
-    QDialogButtonBox,
-    QGridLayout,
-    QGroupBox,
-    QLabel,
-    QLineEdit,
-    QMenu,
-    QRadioButton,
-    QSlider,
-    QVBoxLayout,
-    QWidget,
-)
+from PySide6.QtWidgets import QButtonGroup, QDialog, QDialogButtonBox, QGridLayout, QGroupBox, QLabel, QLineEdit, QMenu, QRadioButton, QSlider, QVBoxLayout, QWidget
 
 from session_sniffer.constants.local import RESOURCES_DIR_PATH, USERIP_DATABASES_DIR_PATH
 from session_sniffer.constants.standalone import TITLE
@@ -45,6 +32,8 @@ from session_sniffer.models.userip_settings_model import (
     get_current_iso_timestamp,
 )
 from session_sniffer.networking.ip_range import entry_ip_covers_ip
+from session_sniffer.player.userip import UserIPDatabases
+from session_sniffer.player.userip_groups import compute_row_group_ids_and_prefixes
 from session_sniffer.player.userip_loader import (
     enrich_userip_entry_from_logs,
     find_userip_insert_index,
@@ -77,9 +66,7 @@ FIRST_SEEN_AT_COLUMN = 10
 LAST_SEEN_AT_COLUMN = 11
 
 TIMESTAMP_COLUMNS = (ADDED_AT_COLUMN, UPDATED_AT_COLUMN, FIRST_SEEN_AT_COLUMN, LAST_SEEN_AT_COLUMN)
-
 FILTERABLE_COLUMNS = (USERNAME_COLUMN, IP_COLUMN, RANGE_COLUMN, DATABASE_COLUMN, NOTES_COLUMN, SOURCE_COLUMN, *TIMESTAMP_COLUMNS)
-
 ENTRY_TABLE_HEADERS = ['#', 'Username', 'IP', 'Range', 'Database', 'Notes', 'Source', 'Detections', 'Added', 'Updated', 'First Seen', 'Last Seen']
 
 USERIP_METADATA_HEADER_TOOLTIPS: dict[str, str] = {
@@ -96,6 +83,8 @@ SEARCH_TEXT_ROLE = Qt.ItemDataRole.UserRole + 2
 SORT_KEY_ROLE = Qt.ItemDataRole.UserRole + 3
 
 DUPLICATE_HIGHLIGHT_BRUSH = QBrush(QColor(255, 165, 0, 60))
+_GROUP_BG_BRUSH_EVEN = QBrush(QColor('#1e1e1e'))
+_GROUP_BG_BRUSH_ODD = QBrush(QColor('#252526'))
 _LOOKY_FOREGROUND_BRUSH = QBrush(QColor('#a855f7'))
 _READONLY_ITEM_FLAGS = Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsDragEnabled | Qt.ItemFlag.ItemIsDropEnabled
 
@@ -161,16 +150,38 @@ def _compute_row_search_blob(model: QStandardItemModel, row: int) -> None:
 
 
 class EntriesSortProxy(QSortFilterProxyModel):
-    """Proxy that delegates filtering and IP-tiebroken sorting to native C++ via `SEARCH_TEXT_ROLE` and `SORT_KEY_ROLE`."""
+    """Proxy that delegates filtering, group sorting, and group background shading via `SEARCH_TEXT_ROLE` and `SORT_KEY_ROLE`."""
 
     def __init__(self, parent: QObject | None = None) -> None:
         """Initialize the proxy with C++ filter and sort roles."""
         super().__init__(parent)
-        self._populated_sort_cols: set[int] = {INDEX_COLUMN}
+        self._populated_sort_cols: set[int] = set()
+        self._group_sort_enabled: bool = True
+        self._last_group_descending: bool = False
+        self._row_group_id: list[str] = []
+        self._row_group_sort_prefix: list[str] = []
+        self._proxy_row_alt_shade: list[bool] = []
         self.setFilterRole(SEARCH_TEXT_ROLE)
         self.setFilterKeyColumn(INDEX_COLUMN)
         self.setFilterCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
         self.setSortRole(SORT_KEY_ROLE)
+        self.layoutChanged.connect(self._rebuild_proxy_group_shades)
+        self.modelReset.connect(self._rebuild_proxy_group_shades)
+        self.rowsInserted.connect(self._rebuild_proxy_group_shades)
+        self.rowsRemoved.connect(self._rebuild_proxy_group_shades)
+
+    @property
+    def group_sort_enabled(self) -> bool:
+        """Return whether sorting groups linked accounts into consecutive blocks."""
+        return self._group_sort_enabled
+
+    def set_group_sort_enabled(self, *, enabled: bool) -> None:
+        """Enable or disable contiguous account-group sorting and recompute sort keys."""
+        if self._group_sort_enabled == enabled:
+            return
+        self._group_sort_enabled = enabled
+        self._populated_sort_cols.clear()
+        self.prepare_sort_and_invalidate()
 
     @override
     def setFilterKeyColumn(self, column: int) -> None:
@@ -186,7 +197,10 @@ class EntriesSortProxy(QSortFilterProxyModel):
                 old_model.rowsRemoved.disconnect(self._on_source_rows_changed)
                 old_model.modelReset.disconnect(self._on_source_model_reset)
         super().setSourceModel(source_model)
-        self._populated_sort_cols = {INDEX_COLUMN}
+        self._populated_sort_cols.clear()
+        self._row_group_id.clear()
+        self._row_group_sort_prefix.clear()
+        self._proxy_row_alt_shade.clear()
         if source_model:
             source_model.dataChanged.connect(self._on_source_data_changed)
             source_model.rowsInserted.connect(self._on_source_rows_changed)
@@ -195,9 +209,74 @@ class EntriesSortProxy(QSortFilterProxyModel):
 
     def _on_source_rows_changed(self, _parent: QModelIndex, _first: int, _last: int) -> None:
         self._populated_sort_cols.clear()
+        self._row_group_id.clear()
+        self._row_group_sort_prefix.clear()
 
     def _on_source_model_reset(self) -> None:
         self._populated_sort_cols.clear()
+        self._row_group_id.clear()
+        self._row_group_sort_prefix.clear()
+
+    def _compute_row_groups(self, model: QStandardItemModel) -> None:
+        """Build connected-component group IDs and sort prefixes for every source row in *model*."""
+        row_count = model.rowCount()
+        if row_count <= 0:
+            self._row_group_id = []
+            self._row_group_sort_prefix = []
+            return
+        row_usernames_cf: list[str] = []
+        row_ips: list[str] = []
+        row_indices: list[int] = []
+        for row in range(row_count):
+            u_item, ip_item, range_item, idx_item = model.item(row, USERNAME_COLUMN), model.item(row, IP_COLUMN), model.item(row, RANGE_COLUMN), model.item(row, INDEX_COLUMN)
+            row_usernames_cf.append(u_item.text().strip().casefold() if u_item else '')
+            row_ips.append((ip_item.text().strip() if ip_item else '') or (range_item.text().strip() if range_item else ''))
+            raw_idx = idx_item.data(Qt.ItemDataRole.UserRole) if idx_item else None
+            row_indices.append(raw_idx if isinstance(raw_idx, int) and raw_idx > 0 else (row + 1))
+        self._row_group_id, self._row_group_sort_prefix = compute_row_group_ids_and_prefixes(
+            row_usernames_cf, row_ips, row_indices, UserIPDatabases.get_known_alts_clusters_snapshot(), descending=self._last_group_descending,
+        )
+
+    def _rebuild_proxy_group_shades(self, *_args: object) -> None:
+        """Recompute the alternating background shade boolean for every visible proxy row."""
+        model = self.sourceModel()
+        if not isinstance(model, QStandardItemModel) or (proxy_rows := self.rowCount()) <= 0:
+            self._proxy_row_alt_shade = []
+            return
+        if len(self._row_group_id) != model.rowCount():
+            self._compute_row_groups(model)
+        shades: list[bool] = []
+        curr_shade = False
+        prev_gid: str | None = None
+        row_gids, total_source = self._row_group_id, len(self._row_group_id)
+        for p_row in range(proxy_rows):
+            s_row = self.mapToSource(self.index(p_row, 0)).row()
+            gid = row_gids[s_row] if 0 <= s_row < total_source else f'p:{p_row}'
+            if prev_gid is not None and gid != prev_gid:
+                curr_shade = not curr_shade
+            shades.append(curr_shade)
+            prev_gid = gid
+        self._proxy_row_alt_shade = shades
+
+    @override
+    def data(self, index: QModelIndex | QPersistentModelIndex, role: int = Qt.ItemDataRole.DisplayRole) -> Any:
+        if role == Qt.ItemDataRole.BackgroundRole and index.isValid():
+            base_bg: object = super().data(index, role)
+            if base_bg is not None:
+                return base_bg
+            p_row = index.row()
+            if p_row < 0 or p_row >= len(self._proxy_row_alt_shade):
+                self._rebuild_proxy_group_shades()
+            if 0 <= p_row < len(self._proxy_row_alt_shade):
+                return _GROUP_BG_BRUSH_ODD if self._proxy_row_alt_shade[p_row] else _GROUP_BG_BRUSH_EVEN
+            return _GROUP_BG_BRUSH_EVEN
+        return super().data(index, role)
+
+    def _format_cell_sort_key(self, model: QStandardItemModel, row: int, column: int, row_ip_key: str) -> str:
+        base_key = _compute_cell_sort_key(model, row, column, row_ip_key)
+        if self._group_sort_enabled and column in (INDEX_COLUMN, USERNAME_COLUMN) and 0 <= row < len(self._row_group_sort_prefix):
+            return f'{self._row_group_sort_prefix[row]}\x00{base_key}'
+        return base_key
 
     def _ensure_column_sort_keys(self, column: int) -> None:
         if column < 0 or column in self._populated_sort_cols:
@@ -207,6 +286,8 @@ class EntriesSortProxy(QSortFilterProxyModel):
             return
         row_count = model.rowCount()
         if row_count > 0:
+            if len(self._row_group_id) != row_count:
+                self._compute_row_groups(model)
             with QSignalBlocker(model):
                 for row in range(row_count):
                     ip_item = model.item(row, IP_COLUMN)
@@ -214,26 +295,41 @@ class EntriesSortProxy(QSortFilterProxyModel):
                     row_ip = (ip_item.text() if ip_item else '') or (range_item.text() if range_item else '')
                     row_ip_key = _ip_sort_str(row_ip)
                     if target_item := model.item(row, column):
-                        target_item.setData(_compute_cell_sort_key(model, row, column, row_ip_key), SORT_KEY_ROLE)
+                        target_item.setData(self._format_cell_sort_key(model, row, column, row_ip_key), SORT_KEY_ROLE)
         self._populated_sort_cols.add(column)
 
     def refresh_rows(self, rows: Iterable[int]) -> None:
-        """Recompute cached search blobs and sort keys for *rows* after signal-blocked model edits."""
+        """Recompute cached search blobs, group memberships, and sort keys after model edits."""
         model = self.sourceModel()
         if not isinstance(model, QStandardItemModel) or not (row_list := list(rows)):
             return
+        self._compute_row_groups(model)
         cols_to_update: set[int] = set(self._populated_sort_cols)
         if (sort_col := self.sortColumn()) >= 0:
             cols_to_update.add(sort_col)
+        row_count = model.rowCount()
+        target_rows = range(row_count) if self._group_sort_enabled else row_list
         with QSignalBlocker(model):
             for row in row_list:
                 _compute_row_search_blob(model, row)
+            for row in target_rows:
                 ip_item, range_item = model.item(row, IP_COLUMN), model.item(row, RANGE_COLUMN)
                 row_ip_key = _ip_sort_str((ip_item.text() if ip_item else '') or (range_item.text() if range_item else ''))
                 for col in cols_to_update:
                     if target_item := model.item(row, col):
-                        target_item.setData(_compute_cell_sort_key(model, row, col, row_ip_key), SORT_KEY_ROLE)
-        model.dataChanged.emit(model.index(min(row_list), 0), model.index(max(row_list), max(0, model.columnCount() - 1)), [SEARCH_TEXT_ROLE, SORT_KEY_ROLE])
+                        target_item.setData(self._format_cell_sort_key(model, row, col, row_ip_key), SORT_KEY_ROLE)
+        self._rebuild_proxy_group_shades()
+        min_r = 0 if self._group_sort_enabled else min(row_list)
+        max_r = max(0, row_count - 1) if self._group_sort_enabled else max(row_list)
+        model.dataChanged.emit(model.index(min_r, 0), model.index(max_r, max(0, model.columnCount() - 1)), [SEARCH_TEXT_ROLE, SORT_KEY_ROLE])
+
+    def refresh_groups(self) -> None:
+        """Force a full recomputation of row groups, sort keys, and alternating group background shades."""
+        self._populated_sort_cols.clear()
+        self._row_group_id.clear()
+        self._row_group_sort_prefix.clear()
+        self.prepare_sort_and_invalidate()
+        self._rebuild_proxy_group_shades()
 
     def _on_source_data_changed(self, top_left: QModelIndex, bottom_right: QModelIndex, roles: list[int]) -> None:
         if roles and Qt.ItemDataRole.DisplayRole not in roles and Qt.ItemDataRole.EditRole not in roles and Qt.ItemDataRole.UserRole not in roles:
@@ -243,16 +339,26 @@ class EntriesSortProxy(QSortFilterProxyModel):
     @override
     def setFilterFixedString(self, pattern: str) -> None:
         super().setFilterFixedString(pattern.lower())
+        self._rebuild_proxy_group_shades()
 
     @override
     def sort(self, column: int, order: Qt.SortOrder = Qt.SortOrder.AscendingOrder) -> None:
+        is_desc = order == Qt.SortOrder.DescendingOrder
+        if is_desc != self._last_group_descending:
+            self._last_group_descending = is_desc
+            if self._group_sort_enabled:
+                self._populated_sort_cols.clear()
+                self._row_group_id.clear()
+                self._row_group_sort_prefix.clear()
         self._ensure_column_sort_keys(column)
         super().sort(column, order)
+        self._rebuild_proxy_group_shades()
 
     def prepare_sort_and_invalidate(self) -> None:
         """Ensure sort keys are populated for the active sort column, then invalidate the proxy."""
         self._ensure_column_sort_keys(self.sortColumn())
         self.invalidate()
+        self._rebuild_proxy_group_shades()
 
 
 def _make_readonly_item(text: str, user_data: object = None, *, tooltip: str = '') -> QStandardItem:
@@ -296,26 +402,21 @@ def build_entry_row_items(
         username_item.setToolTip('Added automatically by Looky System')
         username_item.setData(entry.is_looky, Qt.ItemDataRole.UserRole)
 
-    if persisted:
-        is_single_ip = bool(entry.ip and '/' not in entry.ip and '-' not in entry.ip)
-    else:
-        is_single_ip = False
-        if entry.ip and '/' not in entry.ip and '-' not in entry.ip:
-            with contextlib.suppress(ValueError):
-                IPv4Address(entry.ip)
-                is_single_ip = True
+    is_single_ip = bool(entry.ip and '/' not in entry.ip and '-' not in entry.ip)
+    if not persisted and is_single_ip:
+        try:
+            IPv4Address(entry.ip)
+        except ValueError:
+            is_single_ip = False
 
-    ip_item = QStandardItem(entry.ip if is_single_ip else '')
-    range_item = QStandardItem('' if is_single_ip else entry.ip)
+    ip_item, range_item = QStandardItem(entry.ip if is_single_ip else ''), QStandardItem('' if is_single_ip else entry.ip)
     db_name = database[0] if database else ''
     db_item = _make_readonly_item(db_name, str(database[1]) if database is not None else None)
     notes_item = QStandardItem(entry.notes)
     source_item = _make_readonly_item(entry.source, entry.source, tooltip=USERIP_SOURCE_TOOLTIPS.get(entry.source, ''))
     detections_item = _make_readonly_item(str(entry.detections_count), entry.detections_count)
-    added_item = _make_timestamp_item(entry.added_at)
-    updated_item = _make_timestamp_item(entry.updated_at)
-    first_seen_item = _make_timestamp_item(entry.first_seen_at)
-    last_seen_item = _make_timestamp_item(entry.last_seen_at)
+    added_item, updated_item = _make_timestamp_item(entry.added_at), _make_timestamp_item(entry.updated_at)
+    first_seen_item, last_seen_item = _make_timestamp_item(entry.first_seen_at), _make_timestamp_item(entry.last_seen_at)
     search_vals = (entry.username, entry.ip, db_name, entry.notes, entry.source, added_item.text(), updated_item.text(), first_seen_item.text(), last_seen_item.text())
     index_item.setData('\x1f'.join(val.lower() for val in search_vals if val), SEARCH_TEXT_ROLE)
     return [index_item, username_item, ip_item, range_item, db_item, notes_item, source_item, detections_item, added_item, updated_item, first_seen_item, last_seen_item]
@@ -418,61 +519,41 @@ def human_readable_size(size_bytes: int) -> str:
 
 
 def parse_userip_database_content(
-    content: str,
-    *,
-    default_settings: UserIPSettingsModel | None = None,
-    cached_entries: list[UserIPEntryModel] | None = None,
+    content: str, *, default_settings: UserIPSettingsModel | None = None, cached_entries: list[UserIPEntryModel] | None = None,
 ) -> UserIPDatabaseFile:
     """Parse raw JSON *content* into a validated `UserIPDatabaseFile` model."""
-    fallback_settings = default_settings if default_settings is not None else NEW_DATABASE_SETTINGS
+    fallback = (default_settings or NEW_DATABASE_SETTINGS).model_copy()
     if not content.strip():
-        return UserIPDatabaseFile(settings=fallback_settings.model_copy(), entries=[])
-
+        return UserIPDatabaseFile(settings=fallback, entries=[])
     try:
         raw_data: object = json.loads(content)
     except json.JSONDecodeError as e:
         logger.warning('Failed to parse UserIP database JSON content: %s', e)
-        return UserIPDatabaseFile(settings=fallback_settings.model_copy(), entries=[])
-
+        return UserIPDatabaseFile(settings=fallback, entries=[])
     if not isinstance(raw_data, dict):
-        return UserIPDatabaseFile(settings=fallback_settings.model_copy(), entries=[])
-
+        return UserIPDatabaseFile(settings=fallback, entries=[])
     typed_data = cast('dict[str, Any]', raw_data)
     raw_settings_obj: object = typed_data.get('settings')
-    if isinstance(raw_settings_obj, dict):
-        validated_settings, _ = UserIPSettingsModel.validate_settings(cast('dict[str, Any]', raw_settings_obj))
-    else:
-        validated_settings = fallback_settings.model_copy()
-
+    settings = UserIPSettingsModel.validate_settings(cast('dict[str, Any]', raw_settings_obj))[0] if isinstance(raw_settings_obj, dict) else fallback
     if cached_entries is not None:
-        return UserIPDatabaseFile(settings=validated_settings, entries=cached_entries)
-
+        return UserIPDatabaseFile(settings=settings, entries=cached_entries)
     raw_entries_obj: object = typed_data.get('entries')
     raw_entries = cast('list[object]', raw_entries_obj) if isinstance(raw_entries_obj, list) else []
-    entries = [
-        enrich_userip_entry_from_logs(parsed[0])[0]
-        for raw_entry in raw_entries
-        if (parsed := UserIPEntryModel.parse_raw_entry(raw_entry)) is not None
-    ]
-    return UserIPDatabaseFile(settings=validated_settings, entries=entries)
+    entries = [enrich_userip_entry_from_logs(parsed[0])[0] for raw_entry in raw_entries if (parsed := UserIPEntryModel.parse_raw_entry(raw_entry)) is not None]
+    return UserIPDatabaseFile(settings=settings, entries=entries)
 
 
 def load_userip_database_model(path: Path) -> UserIPDatabaseFile:
     """Read and parse a UserIP `.json` database file into a `UserIPDatabaseFile` model."""
     default_settings = DEFAULT_USERIP_FILES_SETTINGS.get(path.name) if path.parent == USERIP_DATABASES_DIR_PATH else None
-    fallback = default_settings if default_settings is not None else NEW_DATABASE_SETTINGS
     if not path.is_file():
-        return UserIPDatabaseFile(settings=fallback.model_copy(), entries=[])
+        return UserIPDatabaseFile(settings=(default_settings or NEW_DATABASE_SETTINGS).model_copy(), entries=[])
     try:
         content = path.read_text(encoding='utf-8')
     except OSError as e:
         logger.warning('Failed to read UserIP database "%s": %s', path, e)
-        return UserIPDatabaseFile(settings=fallback.model_copy(), entries=[])
-    return parse_userip_database_content(
-        content,
-        default_settings=default_settings,
-        cached_entries=get_cached_userip_database_entries(path),
-    )
+        return UserIPDatabaseFile(settings=(default_settings or NEW_DATABASE_SETTINGS).model_copy(), entries=[])
+    return parse_userip_database_content(content, default_settings=default_settings, cached_entries=get_cached_userip_database_entries(path))
 
 
 def save_userip_database_model(path: Path, db_model: UserIPDatabaseFile) -> None:
@@ -578,16 +659,11 @@ def rewrite_db_edit_entry_note(db_path: Path, username: str, ip_or_range: str, n
     """Update the `notes` field for a specific `(username, ip_or_range)` entry in *db_path*."""
     if not db_path.is_file():
         return False
-    db_model = load_userip_database_model(db_path)
-    cleaned_note = new_note.strip()
-    modified = False
-    now_iso = get_current_iso_timestamp()
-
+    db_model, cleaned_note, modified, now_iso = load_userip_database_model(db_path), new_note.strip(), False, get_current_iso_timestamp()
     for i, entry in enumerate(db_model.entries):
         if entry.username == username and entry.ip == ip_or_range and entry.notes != cleaned_note:
             db_model.entries[i] = entry.model_copy(update={'notes': cleaned_note, 'updated_at': now_iso})
             modified = True
-
     if modified:
         save_userip_database_model(db_path, db_model)
     return modified
@@ -597,42 +673,28 @@ def rewrite_db_edit_ip_notes(db_path: Path, ip_address: str, new_note: str) -> i
     """Update the `notes` field for all entries in *db_path* covering *ip_address* and return the match count."""
     if not db_path.is_file():
         return 0
-    db_model = load_userip_database_model(db_path)
-    cleaned_note = new_note.strip()
-    matched_count = 0
-    modified = False
-    now_iso = get_current_iso_timestamp()
-
+    db_model, cleaned_note, matched_count, modified, now_iso = load_userip_database_model(db_path), new_note.strip(), 0, False, get_current_iso_timestamp()
     for i, entry in enumerate(db_model.entries):
         if entry_ip_covers_ip(entry.ip, ip_address):
             matched_count += 1
             if entry.notes != cleaned_note:
                 db_model.entries[i] = entry.model_copy(update={'notes': cleaned_note, 'updated_at': now_iso})
                 modified = True
-
     if modified:
         save_userip_database_model(db_path, db_model)
     return matched_count
 
 
-def append_userip_entries(
-    db_path: Path,
-    entries: Sequence[UserIPEntryModel],
-    *,
-    anchor_usernames_by_ip: Mapping[str, str] | None = None,
-) -> set[tuple[str, str]]:
+def append_userip_entries(db_path: Path, entries: Sequence[UserIPEntryModel], *, anchor_usernames_by_ip: Mapping[str, str] | None = None) -> set[tuple[str, str]]:
     """Add entries to a UserIP `.json` database file, inserting next to matching IPs or usernames and avoiding duplicates."""
     db_model = load_userip_database_model(db_path)
-    existing_by_pair: dict[tuple[str, str], UserIPEntryModel] = {
-        (entry.username.casefold(), entry.ip): entry for entry in db_model.entries
-    }
+    existing_by_pair: dict[tuple[str, str], UserIPEntryModel] = {(entry.username.casefold(), entry.ip): entry for entry in db_model.entries}
     added_pairs: set[tuple[str, str]] = set()
     modified = False
     now_iso = get_current_iso_timestamp()
 
     for entry in entries:
-        username = entry.username.strip()
-        ip_or_range = entry.ip.strip()
+        username, ip_or_range = entry.username.strip(), entry.ip.strip()
         if not username or not ip_or_range:
             continue
         cf_pair = (username.casefold(), ip_or_range)
@@ -647,14 +709,9 @@ def append_userip_entries(
         elif (entry.is_looky and not existing_entry.is_looky) or (entry.notes.strip() and not existing_entry.notes):
             existing_index = db_model.entries.index(existing_entry)
             upgraded_looky = existing_entry.is_looky or entry.is_looky
-            updated_entry, _ = enrich_userip_entry_from_logs(
-                existing_entry.model_copy(
-                    update={
-                        'is_looky': upgraded_looky, 'source': 'Looky' if upgraded_looky else existing_entry.source,
-                        'notes': existing_entry.notes or entry.notes.strip(), 'updated_at': now_iso,
-                    },
-                ),
-            )
+            new_src = 'Looky' if upgraded_looky else existing_entry.source
+            upd = {'is_looky': upgraded_looky, 'source': new_src, 'notes': existing_entry.notes or entry.notes.strip(), 'updated_at': now_iso}
+            updated_entry, _ = enrich_userip_entry_from_logs(existing_entry.model_copy(update=upd))
             db_model.entries[existing_index] = updated_entry
             existing_by_pair[cf_pair] = updated_entry
             if entry.is_looky and not existing_entry.is_looky:
@@ -674,10 +731,7 @@ def populate_userip_databases_menu(
     *,
     disabled_path: Path | None = None,
 ) -> int:
-    """Add database entries to *parent_menu*, nesting subfolders as child menus.
-
-    Returns the count of enabled database actions added to the menu.
-    """
+    """Add database entries to *parent_menu*, nesting subfolders as child menus, and return the enabled action count."""
     folder_menus: dict[tuple[str, ...], QMenu] = {}
     menus_with_folders: set[QMenu] = set()
     enabled_count = 0
@@ -688,63 +742,35 @@ def populate_userip_databases_menu(
 
     for db_path in sorted(database_paths, key=_sort_key):
         rel = db_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix('')
+        current_menu = parent_menu
+        for depth in range(len(rel.parts) - 1):
+            folder_key = rel.parts[: depth + 1]
+            if folder_key not in folder_menus:
+                folder_menu = current_menu.addMenu(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'folder.svg')), rel.parts[depth])
+                folder_menu.setToolTipsVisible(True)
+                folder_menus[folder_key] = folder_menu
+                menus_with_folders.add(current_menu)
+            current_menu = folder_menus[folder_key]
 
-        if len(rel.parts) == 1:
-            if parent_menu in menus_with_folders:
-                parent_menu.addSeparator()
-                menus_with_folders.remove(parent_menu)
-            action = parent_menu.addAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'database.svg')), rel.parts[0])
-            action.setToolTip(tooltip)
-            action.triggered.connect(handler_factory(db_path))
-            if disabled_path is not None and db_path == disabled_path:
-                action.setEnabled(False)
-            else:
-                enabled_count += 1
+        if current_menu in menus_with_folders:
+            current_menu.addSeparator()
+            menus_with_folders.remove(current_menu)
+
+        action = current_menu.addAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'database.svg')), rel.parts[-1])
+        action.setToolTip(tooltip)
+        action.triggered.connect(handler_factory(db_path))
+        if disabled_path is not None and db_path == disabled_path:
+            action.setEnabled(False)
         else:
-            current_menu = parent_menu
-            for depth in range(len(rel.parts) - 1):
-                folder_key = rel.parts[: depth + 1]
-                if folder_key not in folder_menus:
-                    folder_menu = current_menu.addMenu(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'folder.svg')), rel.parts[depth])
-                    folder_menu.setToolTipsVisible(True)
-                    folder_menus[folder_key] = folder_menu
-                    menus_with_folders.add(current_menu)
-                current_menu = folder_menus[folder_key]
-
-            if current_menu in menus_with_folders:
-                current_menu.addSeparator()
-                menus_with_folders.remove(current_menu)
-
-            action = current_menu.addAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'database.svg')), rel.parts[-1])
-            action.setToolTip(tooltip)
-            action.triggered.connect(handler_factory(db_path))
-            if disabled_path is not None and db_path == disabled_path:
-                action.setEnabled(False)
-            else:
-                enabled_count += 1
+            enabled_count += 1
 
     return enabled_count
 
 
 # ---- Common subnet descriptions for the slider ----
+_SUBNET_NOTES: dict[int, str] = {32: '  (single host)', 24: '  (common home network)', 16: '  (large corporate network)'}
 _SUBNET_SLIDER_OPTIONS: list[tuple[int, str]] = [
-    (32, '/32  —  1 address  (single host)'),
-    (31, '/31  —  2 addresses'),
-    (30, '/30  —  4 addresses'),
-    (29, '/29  —  8 addresses'),
-    (28, '/28  —  16 addresses'),
-    (27, '/27  —  32 addresses'),
-    (26, '/26  —  64 addresses'),
-    (25, '/25  —  128 addresses'),
-    (24, '/24  —  256 addresses  (common home network)'),
-    (23, '/23  —  512 addresses'),
-    (22, '/22  —  1,024 addresses'),
-    (21, '/21  —  2,048 addresses'),
-    (20, '/20  —  4,096 addresses'),
-    (19, '/19  —  8,192 addresses'),
-    (18, '/18  —  16,384 addresses'),
-    (17, '/17  —  32,768 addresses'),
-    (16, '/16  —  65,536 addresses  (large corporate network)'),
+    (p, f'/{p}  —  {1 << (32 - p):,} address{pluralize(1 << (32 - p), "", "es")}{_SUBNET_NOTES.get(p, "")}') for p in range(32, 15, -1)
 ]
 
 _SUBNET_PREFIX_MIN_INDEX = 0
@@ -772,52 +798,33 @@ class IPRangeBuilderDialog(QDialog):
         # --- Mode selection ---
         mode_group = QGroupBox('Range Type')
         mode_layout = QVBoxLayout(mode_group)
-
         self._mode_group = QButtonGroup(self)
-
         self._radio_single = QRadioButton('Single IP address')
         self._radio_range = QRadioButton('IP range  (from one address to another)')
         self._radio_subnet = QRadioButton('Subnet  (block of addresses starting from a base IP)')
-
-        self._mode_group.addButton(self._radio_single, _MODE_SINGLE)
-        self._mode_group.addButton(self._radio_range, _MODE_RANGE)
-        self._mode_group.addButton(self._radio_subnet, _MODE_SUBNET)
-
-        mode_layout.addWidget(self._radio_single)
-        mode_layout.addWidget(self._radio_range)
-        mode_layout.addWidget(self._radio_subnet)
+        for btn_id, radio in ((_MODE_SINGLE, self._radio_single), (_MODE_RANGE, self._radio_range), (_MODE_SUBNET, self._radio_subnet)):
+            self._mode_group.addButton(radio, btn_id)
+            mode_layout.addWidget(radio)
         layout.addWidget(mode_group)
 
         # --- Input fields ---
         input_group = QGroupBox('Details')
         input_layout = QGridLayout(input_group)
+        self._single_label, self._single_input = QLabel('IP Address:'), self._create_ip_input('e.g. 192.168.1.1')
+        self._range_from_label, self._range_from_input = QLabel('From:'), self._create_ip_input('e.g. 192.168.1.100')
+        self._range_to_label, self._range_to_input = QLabel('To:'), self._create_ip_input('e.g. 192.168.1.200')
+        self._subnet_ip_label, self._subnet_ip_input = QLabel('Base IP:'), self._create_ip_input('e.g. 192.168.1.0')
+        input_pairs = (
+            (self._single_label, self._single_input), (self._range_from_label, self._range_from_input),
+            (self._range_to_label, self._range_to_input), (self._subnet_ip_label, self._subnet_ip_input),
+        )
+        for row_idx, (lbl, inp) in enumerate(input_pairs):
+            input_layout.addWidget(lbl, row_idx, 0)
+            input_layout.addWidget(inp, row_idx, 1)
+            inp.textChanged.connect(self._update_preview)
 
-        # Single IP fields
-        self._single_label = QLabel('IP Address:')
-        self._single_input = self._create_ip_input('e.g. 192.168.1.1')
-        input_layout.addWidget(self._single_label, 0, 0)
-        input_layout.addWidget(self._single_input, 0, 1)
-
-        # Range fields
-        self._range_from_label = QLabel('From:')
-        self._range_from_input = self._create_ip_input('e.g. 192.168.1.100')
-        self._range_to_label = QLabel('To:')
-        self._range_to_input = self._create_ip_input('e.g. 192.168.1.200')
-        input_layout.addWidget(self._range_from_label, 1, 0)
-        input_layout.addWidget(self._range_from_input, 1, 1)
-        input_layout.addWidget(self._range_to_label, 2, 0)
-        input_layout.addWidget(self._range_to_input, 2, 1)
-
-        # Subnet fields
-        self._subnet_ip_label = QLabel('Base IP:')
-        self._subnet_ip_input = self._create_ip_input('e.g. 192.168.1.0')
-        input_layout.addWidget(self._subnet_ip_label, 3, 0)
-        input_layout.addWidget(self._subnet_ip_input, 3, 1)
-
-        self._subnet_size_label = QLabel('Block size:')
-        self._subnet_slider = QSlider(Qt.Orientation.Horizontal)
-        self._subnet_slider.setMinimum(_SUBNET_PREFIX_MIN_INDEX)
-        self._subnet_slider.setMaximum(_SUBNET_PREFIX_MAX_INDEX)
+        self._subnet_size_label, self._subnet_slider = QLabel('Block size:'), QSlider(Qt.Orientation.Horizontal)
+        self._subnet_slider.setRange(_SUBNET_PREFIX_MIN_INDEX, _SUBNET_PREFIX_MAX_INDEX)
         self._subnet_slider.setValue(_SUBNET_DEFAULT_SLIDER_INDEX)
         self._subnet_slider.setTickPosition(QSlider.TickPosition.TicksBelow)
         self._subnet_slider.setTickInterval(1)
@@ -827,14 +834,12 @@ class IPRangeBuilderDialog(QDialog):
         self._subnet_desc_label = QLabel('')
         self._subnet_desc_label.setStyleSheet(SUBNET_DESC_LABEL_STYLESHEET)
         input_layout.addWidget(self._subnet_desc_label, 5, 0, 1, 2)
-
         layout.addWidget(input_group)
 
         # --- Preview ---
         preview_group = QGroupBox('Preview')
         preview_layout = QVBoxLayout(preview_group)
-        self._preview = QLabel('')
-        self._preview.setWordWrap(True)
+        self._preview = QLabel('', wordWrap=True)
         self._preview.setStyleSheet(IP_RANGE_PREVIEW_EMPTY_STYLESHEET)
         preview_layout.addWidget(self._preview)
         layout.addWidget(preview_group)
@@ -848,12 +853,7 @@ class IPRangeBuilderDialog(QDialog):
         self._buttons.rejected.connect(self.reject)
         layout.addWidget(self._buttons)
 
-        # --- Connections ---
         self._mode_group.idToggled.connect(self._on_mode_changed)
-        self._single_input.textChanged.connect(self._update_preview)
-        self._range_from_input.textChanged.connect(self._update_preview)
-        self._range_to_input.textChanged.connect(self._update_preview)
-        self._subnet_ip_input.textChanged.connect(self._update_preview)
         self._subnet_slider.valueChanged.connect(self._on_slider_changed)
 
         # Hide the single-IP option when the dialog is used for range-only operations
@@ -871,13 +871,10 @@ class IPRangeBuilderDialog(QDialog):
         if initial_entry is not None:
             if '/' in initial_entry:
                 base_ip, _, prefix_str = initial_entry.partition('/')
-                try:
+                with contextlib.suppress(ValueError):
                     cidr_prefix = int(prefix_str)
-                    slider_index = next((i for i, (p_len, _) in enumerate(_SUBNET_SLIDER_OPTIONS) if p_len == cidr_prefix), _SUBNET_DEFAULT_SLIDER_INDEX)
-                except ValueError:
-                    slider_index = _SUBNET_DEFAULT_SLIDER_INDEX
+                    self._subnet_slider.setValue(next((i for i, (p_len, _) in enumerate(_SUBNET_SLIDER_OPTIONS) if p_len == cidr_prefix), _SUBNET_DEFAULT_SLIDER_INDEX))
                 self._subnet_ip_input.setText(base_ip)
-                self._subnet_slider.setValue(slider_index)
                 self._radio_subnet.setChecked(True)
             elif '-' in initial_entry:
                 from_ip, _, to_ip = initial_entry.partition('-')
@@ -891,24 +888,21 @@ class IPRangeBuilderDialog(QDialog):
     @staticmethod
     def _create_ip_input(placeholder: str) -> QLineEdit:
         """Create a QLineEdit configured for IPv4 address entry."""
-        line_edit = QLineEdit()
-        line_edit.setPlaceholderText(placeholder)
-        line_edit.setMaxLength(15)
+        line_edit = QLineEdit(placeholderText=placeholder, maxLength=15)
         line_edit.setValidator(QRegularExpressionValidator(QRegularExpression(r'[0-9.]{0,15}')))
         return line_edit
 
     def _on_mode_changed(self, *_args: object) -> None:
         """Show/hide input fields based on the selected mode."""
         mode = self._mode_group.checkedId()
-        single_visible, range_visible, subnet_visible = mode == _MODE_SINGLE, mode == _MODE_RANGE, mode == _MODE_SUBNET
-        widget: QWidget
-        for widget in (self._single_label, self._single_input):
-            widget.setVisible(single_visible)
-        for widget in (self._range_from_label, self._range_from_input, self._range_to_label, self._range_to_input):
-            widget.setVisible(range_visible)
-        for widget in (self._subnet_ip_label, self._subnet_ip_input, self._subnet_size_label, self._subnet_slider, self._subnet_desc_label):
-            widget.setVisible(subnet_visible)
-        if subnet_visible:
+        w: QWidget
+        for w in (self._single_label, self._single_input):
+            w.setVisible(mode == _MODE_SINGLE)
+        for w in (self._range_from_label, self._range_from_input, self._range_to_label, self._range_to_input):
+            w.setVisible(mode == _MODE_RANGE)
+        for w in (self._subnet_ip_label, self._subnet_ip_input, self._subnet_size_label, self._subnet_slider, self._subnet_desc_label):
+            w.setVisible(mode == _MODE_SUBNET)
+        if mode == _MODE_SUBNET:
             self._on_slider_changed()
         self._update_preview()
 
@@ -930,8 +924,7 @@ class IPRangeBuilderDialog(QDialog):
             self._update_subnet_preview()
 
     def _update_single_preview(self) -> None:
-        text = self._single_input.text().strip()
-        if not text:
+        if not (text := self._single_input.text().strip()):
             self._set_preview('', valid=None)
             return
         try:

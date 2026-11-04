@@ -8,7 +8,12 @@ from PySide6.QtWidgets import QInputDialog, QLineEdit, QMessageBox, QWidget
 
 from session_sniffer.constants.local import USERIP_DATABASES_DIR_PATH
 from session_sniffer.constants.standalone import TITLE
-from session_sniffer.guis.select_usernames_dialog import SelectUsernamesDialog, prompt_username_input, prompt_usernames_and_notes_input
+from session_sniffer.guis.select_usernames_dialog import (
+    SelectUsernamesDialog,
+    UsernameSelectionConfig,
+    prompt_username_input,
+    prompt_usernames_and_notes_input,
+)
 from session_sniffer.guis.userip_manager_helpers import (
     IPRangeBuilderDialog,
     append_userip_entries,
@@ -23,13 +28,23 @@ from session_sniffer.models.userip_settings_model import UserIPDatabaseFile, Use
 from session_sniffer.networking.ip_range import entry_ip_covers_ip
 from session_sniffer.player.registry import PlayersRegistry, SessionTracker
 from session_sniffer.player.userip import UserIPDatabases
+from session_sniffer.player.userip_groups import (
+    MIN_GROUP_USERNAMES,
+    exclude_looky_usernames,
+    get_excluded_looky_usernames,
+    get_excluded_looky_usernames_cf,
+    group_usernames,
+    restore_looky_usernames,
+    ungroup_usernames,
+)
+from session_sniffer.rendering_core.events import wake_rendering_core
 from session_sniffer.rendering_core.types import CaptureState, SessionFilterState
 from session_sniffer.settings import Settings
 from session_sniffer.text_utils import pluralize
 from session_sniffer.utils import dedup_preserve_order
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Sequence
     from pathlib import Path
 
     from session_sniffer.models.player import Player
@@ -803,3 +818,166 @@ def _rewrite_database_removing_usernames(
         TITLE,
         f'Removed {removed_count} {entry_word} ({removed_names}) for IP {ip_address} from UserIP database "{db_display}".',
     )
+
+
+_MAX_GROUP_PROMPT_NAMES = 3
+
+
+def _format_group_source_display(names: Sequence[str]) -> str:
+    """Format up to `_MAX_GROUP_PROMPT_NAMES` usernames for the Group With dialog prompt."""
+    preview = ', '.join(names[:_MAX_GROUP_PROMPT_NAMES])
+    extra = len(names) - _MAX_GROUP_PROMPT_NAMES
+    return f'{preview} (+{extra} more)' if extra > 0 else preview
+
+
+def collect_grouped_usernames_for_player(player: Player) -> list[str]:
+    """Return all usernames currently grouped with *player* (via known-alts clusters or shared UserIP entries)."""
+    base_names: list[str] = []
+    if player.userip is not None:
+        base_names.extend(player.userip.usernames)
+        base_names.extend(collect_persisted_usernames_for_ip(player.userip.db_path, player.ip))
+    else:
+        base_names.extend(resolve_usernames_for_player(player))
+    return UserIPDatabases.expand_with_known_alts(dedup_preserve_order(base_names))
+
+
+def prompt_and_group_with(parent: QWidget, source_usernames: Sequence[str]) -> tuple[str, str] | None:
+    """Prompt the user for a username to group with `source_usernames`, persist the group, and refresh UserIP."""
+    if not source_usernames:
+        return None
+    source_display = _format_group_source_display(source_usernames)
+    target_username, ok = prompt_username_input(parent, f'Group With - {TITLE}', f'Enter the username to group with "{source_display}":')
+    if not ok or not target_username.strip():
+        return None
+    target_clean = target_username.strip()
+    combined = dedup_preserve_order(source_usernames, [target_clean])
+    if len(combined) < MIN_GROUP_USERNAMES:
+        QMessageBox.information(parent, TITLE, 'Please enter a different username to group with.')
+        return None
+    if group_usernames(combined, UserIPDatabases.get_known_alts_clusters_snapshot()):
+        refresh_userip_and_wake_renderer()
+        return target_clean, source_display
+    return None
+
+
+def prompt_and_ungroup(parent: QWidget, group_members: list[str], *, selected_ips: list[str] | None = None) -> list[str]:
+    """Open the Ungroup Usernames dialog for `group_members`, persist the ungrouping, and refresh UserIP."""
+    if len(group_members) < MIN_GROUP_USERNAMES:
+        return []
+    dlg = SelectUsernamesDialog(
+        parent,
+        group_members,
+        UsernameSelectionConfig(
+            title='Ungroup Usernames',
+            instructions='Select username(s) to unlink from this account group (prevents false-positive grouping):',
+            action_button_text='Ungroup', multiple=True, default_checked=False, selected_ips=selected_ips,
+        ),
+    )
+    if dlg.exec() != SelectUsernamesDialog.DialogCode.Accepted:
+        return []
+    chosen = dlg.selected_usernames()
+    if chosen and ungroup_usernames(chosen, group_members):
+        refresh_userip_and_wake_renderer()
+        return chosen
+    return []
+
+
+def userip_group_with(parent: QWidget, players: Sequence[Player]) -> None:
+    """Prompt the user to type/select a username and group it with the selected player(s)' usernames."""
+    source_usernames = dedup_preserve_order(
+        *((player.userip.usernames if player.userip is not None and player.userip.usernames else resolve_usernames_for_player(player)) for player in players),
+    )
+    if not source_usernames:
+        typed_source, ok_source = prompt_username_input(parent, f'Group With - {TITLE}', 'Enter the username for the selected player:')
+        if not ok_source or not typed_source.strip():
+            return
+        source_usernames = [typed_source.strip()]
+
+    if result := prompt_and_group_with(parent, source_usernames):
+        target_clean, source_display = result
+        QMessageBox.information(parent, TITLE, f'Grouped username "{target_clean}" with {source_display}.')
+
+
+def userip_group_selected(parent: QWidget, players: Sequence[Player]) -> None:
+    """Group all usernames across the selected players together."""
+    usernames = dedup_preserve_order(
+        *((player.userip.usernames if player.userip is not None and player.userip.usernames else resolve_usernames_for_player(player)) for player in players),
+    )
+    if len(usernames) < MIN_GROUP_USERNAMES:
+        QMessageBox.information(parent, TITLE, 'Select at least two players with distinct usernames to group them together.')
+        return
+
+    if group_usernames(usernames, UserIPDatabases.get_known_alts_clusters_snapshot()):
+        refresh_userip_and_wake_renderer()
+        names_display = ', '.join(f'"{name}"' for name in usernames)
+        QMessageBox.information(parent, TITLE, f'Grouped {len(usernames)} usernames together: {names_display}.')
+
+
+def userip_ungroup(parent: QWidget, player: Player) -> None:
+    """Open a selection dialog to ungroup false-positive or unlinked usernames from *player*'s account group."""
+    group_members = collect_grouped_usernames_for_player(player)
+    if chosen := prompt_and_ungroup(parent, group_members, selected_ips=[player.ip]):
+        removed_display = ', '.join(f'"{name}"' for name in chosen)
+        QMessageBox.information(parent, TITLE, f'Ungrouped {removed_display} from the account group.')
+
+
+def get_player_looky_username_lists(player: Player) -> tuple[list[str], list[str]]:
+    """Return `(active_looky_usernames, removed_looky_usernames)` for *player*."""
+    with player.looky_system.lock:
+        active_names = list(player.looky_system.usernames)
+        cached_removed = list(player.looky_system.removed_usernames)
+    removed_names = dedup_preserve_order(cached_removed, get_excluded_looky_usernames(player.ip))
+    return active_names, removed_names
+
+
+def _refresh_player_looky_exclusions(player: Player) -> None:
+    """Re-apply per-IP Looky username exclusions to *player* (and its live registry counterpart) and wake the renderer."""
+    excluded_cfs = get_excluded_looky_usernames_cf(player.ip)
+    updated_names = player.looky_system.refresh_filtered_usernames(excluded_cfs)
+    player.rebuild_usernames(looky_usernames=updated_names)
+    live_player = PlayersRegistry.get_player_by_ip(player.ip)
+    if live_player is not None and live_player is not player:
+        live_updated = live_player.looky_system.refresh_filtered_usernames(excluded_cfs)
+        live_player.rebuild_usernames(looky_usernames=live_updated)
+    SessionTracker.update_session_player_snapshot(player, metadata_only=True)
+    wake_rendering_core()
+
+
+def looky_remove_usernames_for_player(parent: QWidget, player: Player, active_looky_names: list[str]) -> None:
+    """Open a dialog to exclude/hide selected Looky System usernames on *player*'s IP."""
+    dlg = SelectUsernamesDialog(
+        parent,
+        active_looky_names,
+        UsernameSelectionConfig(
+            title='Remove Looky Usernames',
+            instructions=f'Select Looky username{pluralize(len(active_looky_names))} to hide on this IP:',
+            action_button_text='Remove',
+            multiple=True,
+            default_checked=False,
+            selected_ips=[player.ip],
+        ),
+    )
+    if dlg.exec() == SelectUsernamesDialog.DialogCode.Accepted:
+        chosen = dlg.selected_usernames()
+        if chosen and exclude_looky_usernames(player.ip, chosen):
+            _refresh_player_looky_exclusions(player)
+
+
+def looky_restore_usernames_for_player(parent: QWidget, player: Player, removed_looky_names: list[str]) -> None:
+    """Open a dialog to restore previously excluded Looky System usernames on *player*'s IP."""
+    dlg = SelectUsernamesDialog(
+        parent,
+        removed_looky_names,
+        UsernameSelectionConfig(
+            title='Restore Removed Looky Usernames',
+            instructions=f'Select removed Looky username{pluralize(len(removed_looky_names))} to re-add on this IP:',
+            action_button_text='Restore',
+            multiple=True,
+            default_checked=True,
+            selected_ips=[player.ip],
+        ),
+    )
+    if dlg.exec() == SelectUsernamesDialog.DialogCode.Accepted:
+        chosen = dlg.selected_usernames()
+        if chosen and restore_looky_usernames(player.ip, chosen):
+            _refresh_player_looky_exclusions(player)
