@@ -933,12 +933,13 @@ def get_player_looky_username_lists(player: Player) -> tuple[list[str], list[str
 def _refresh_player_looky_exclusions(player: Player) -> None:
     """Re-apply per-IP Looky username exclusions to *player* (and its live registry counterpart) and wake the renderer."""
     excluded_cfs = get_excluded_looky_usernames_cf(player.ip)
+    include_looky = Settings.looky_enabled and Settings.is_gta5_feature_set()
     updated_names = player.looky_system.refresh_filtered_usernames(excluded_cfs)
-    player.rebuild_usernames(looky_usernames=updated_names)
+    player.rebuild_usernames(looky_usernames=updated_names if include_looky and player.looky_system.is_initialized else ())
     live_player = PlayersRegistry.get_player_by_ip(player.ip)
     if live_player is not None and live_player is not player:
         live_updated = live_player.looky_system.refresh_filtered_usernames(excluded_cfs)
-        live_player.rebuild_usernames(looky_usernames=live_updated)
+        live_player.rebuild_usernames(looky_usernames=live_updated if include_looky and live_player.looky_system.is_initialized else ())
     SessionTracker.update_session_player_snapshot(player, metadata_only=True)
     wake_rendering_core()
 

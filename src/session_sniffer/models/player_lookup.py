@@ -186,6 +186,29 @@ class PlayerModMenus:
     usernames: list[str] = dataclasses.field(default_factory=_empty_usernames)
 
 
+def _filter_looky_results(
+    unique_results: Sequence[LookyPlayer],
+    excluded_cfs: AbstractSet[str],
+) -> tuple[list[LookyPlayer], list[str], list[str], list[str]]:
+    """Partition *unique_results* by *excluded_cfs* into `(filtered_results, removed_names, entry_names, new_usernames)`."""
+    filtered_results: list[LookyPlayer] = []
+    removed_names: list[str] = []
+    seen_removed_cf: set[str] = set()
+    for entry in unique_results:
+        clean_name = entry.name.strip() if entry.name else ''
+        name_cf = clean_name.casefold()
+        if clean_name and name_cf in excluded_cfs:
+            if name_cf not in seen_removed_cf:
+                seen_removed_cf.add(name_cf)
+                removed_names.append(clean_name)
+            continue
+        filtered_results.append(entry)
+
+    entry_names = [entry.name.strip() if entry.name else '' for entry in filtered_results]
+    new_usernames = [name for name in entry_names if name]
+    return filtered_results, removed_names, entry_names, new_usernames
+
+
 @dataclass(kw_only=True, slots=True)
 class PlayerLooky:
     """Store Looky System IP-to-player lookup state for a player."""
@@ -225,21 +248,7 @@ class PlayerLooky:
                 seen_pairs.add(pair)
                 unique_results.append(entry)
 
-        filtered_results: list[LookyPlayer] = []
-        removed_names: list[str] = []
-        seen_removed_cf: set[str] = set()
-        for entry in unique_results:
-            clean_name = entry.name.strip() if entry.name else ''
-            name_cf = clean_name.casefold()
-            if clean_name and name_cf in excluded_cfs:
-                if name_cf not in seen_removed_cf:
-                    seen_removed_cf.add(name_cf)
-                    removed_names.append(clean_name)
-                continue
-            filtered_results.append(entry)
-
-        entry_names = [entry.name.strip() if entry.name else '' for entry in filtered_results]
-        new_usernames = [name for name in entry_names if name]
+        filtered_results, removed_names, entry_names, new_usernames = _filter_looky_results(unique_results, excluded_cfs)
         with self.lock:
             if force_reset_userip_checked or new_usernames != self.usernames:
                 self.as_userip_checked = False
@@ -257,7 +266,16 @@ class PlayerLooky:
     def refresh_filtered_usernames(self, excluded_cfs: AbstractSet[str]) -> list[str]:
         """Re-filter `raw_results` against *excluded_cfs* under the lock and return the active Looky usernames."""
         with self.lock:
+            if not self.is_initialized:
+                return []
             unique_results = list(self.raw_results)
-        self.apply_results(unique_results, force_reset_userip_checked=True, excluded_cfs=excluded_cfs)
+        filtered_results, removed_names, entry_names, new_usernames = _filter_looky_results(unique_results, excluded_cfs)
         with self.lock:
+            if any(name not in self.usernames for name in new_usernames):
+                self.as_userip_checked = False
+            self.removed_usernames = removed_names
+            self.usernames = new_usernames
+            self.entry_names = entry_names
+            self.rockstarids = [entry.rockstarid for entry in filtered_results]
+            self.last_seens = [entry.last_seen for entry in filtered_results]
             return list(self.usernames)
