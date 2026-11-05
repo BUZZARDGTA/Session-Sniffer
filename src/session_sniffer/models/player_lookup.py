@@ -268,10 +268,8 @@ class PlayerLooky:
         with self.lock:
             if not self.is_initialized:
                 return []
-            unique_results = list(self.raw_results)
-        filtered_results, removed_names, entry_names, new_usernames = _filter_looky_results(unique_results, excluded_cfs)
-        with self.lock:
-            if any(name not in self.usernames for name in new_usernames):
+            filtered_results, removed_names, entry_names, new_usernames = _filter_looky_results(self.raw_results, excluded_cfs)
+            if new_usernames != self.usernames:
                 self.as_userip_checked = False
             self.removed_usernames = removed_names
             self.usernames = new_usernames

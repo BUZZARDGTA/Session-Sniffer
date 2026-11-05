@@ -36,6 +36,7 @@ from session_sniffer.guis.tables_player_actions._format import (
 )
 from session_sniffer.guis.tables_player_actions._player_info_dialog_mixin import PlayerInfoDialogMixin
 from session_sniffer.guis.tables_player_actions.looky_system._looky_lookup_dialog import show_looky_lookup
+from session_sniffer.guis.userip_manager_helpers import refresh_userip_and_wake_renderer
 from session_sniffer.guis.utils import (
     ActiveDialogRegistry,
     apply_adaptive_window_size,
@@ -181,10 +182,12 @@ def _resolve_standalone_lookup(lookup: StandaloneIPLookup) -> None:
         try:
             looky_players = lookup_ip(lookup.ip, api_key, Settings.looky_game_version.lower())
             lookup.looky_system.apply_results(looky_players, excluded_cfs=get_excluded_looky_usernames_cf(lookup.ip))
-            if record_looky_db_correlation(lookup.looky_system.usernames, UserIPDatabases.get_known_username_dbs_cf()):
-                UserIPDatabases.build()
+            with lookup.looky_system.lock:
+                looky_names = list(lookup.looky_system.usernames)
+            if record_looky_db_correlation(looky_names, UserIPDatabases.get_known_username_dbs_cf()):
+                refresh_userip_and_wake_renderer()
                 lookup.userip = UserIPDatabases.resolve_userip(lookup.ip)
-            lookup.rebuild_usernames(looky_usernames=lookup.looky_system.usernames)
+            lookup.rebuild_usernames(looky_usernames=looky_names)
         except requests.HTTPError as e:
             if e.response is not None and e.response.status_code == HTTPStatus.NOT_FOUND:
                 lookup.looky_system.mark_fetched()

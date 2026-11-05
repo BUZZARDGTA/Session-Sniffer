@@ -34,9 +34,11 @@ from session_sniffer.player.userip_groups import (
     get_excluded_looky_usernames,
     get_excluded_looky_usernames_cf,
     group_usernames,
+    record_looky_db_correlation,
     restore_looky_usernames,
     ungroup_usernames,
 )
+from session_sniffer.player.userip_loader import update_userip_databases
 from session_sniffer.rendering_core.events import wake_rendering_core
 from session_sniffer.rendering_core.types import CaptureState, SessionFilterState
 from session_sniffer.settings import Settings
@@ -931,15 +933,24 @@ def get_player_looky_username_lists(player: Player) -> tuple[list[str], list[str
 
 
 def _refresh_player_looky_exclusions(player: Player) -> None:
-    """Re-apply per-IP Looky username exclusions to *player* (and its live registry counterpart) and wake the renderer."""
+    """Re-apply per-IP Looky username exclusions to *player* (and its live/snapshot counterparts) and wake the renderer."""
     excluded_cfs = get_excluded_looky_usernames_cf(player.ip)
-    include_looky = Settings.looky_enabled and Settings.is_gta5_feature_set()
+    include_looky = Settings.looky_enabled and Settings.is_gta5_feature_set() and CaptureState.is_local_capture()
     updated_names = player.looky_system.refresh_filtered_usernames(excluded_cfs)
+    record_looky_db_correlation(updated_names, UserIPDatabases.get_known_username_dbs_cf())
+    _, databases_rebuilt = update_userip_databases()
+    if databases_rebuilt:
+        player.userip = UserIPDatabases.resolve_userip(player.ip)
     player.rebuild_usernames(looky_usernames=updated_names if include_looky and player.looky_system.is_initialized else ())
     live_player = PlayersRegistry.get_player_by_ip(player.ip)
     if live_player is not None and live_player is not player:
         live_updated = live_player.looky_system.refresh_filtered_usernames(excluded_cfs)
         live_player.rebuild_usernames(looky_usernames=live_updated if include_looky and live_player.looky_system.is_initialized else ())
+        SessionTracker.update_session_player_snapshot(live_player, metadata_only=True)
+    for snapshot_player in SessionTracker.get_all_snapshot_players():
+        if snapshot_player is not player and snapshot_player.ip == player.ip:
+            snap_updated = snapshot_player.looky_system.refresh_filtered_usernames(excluded_cfs)
+            snapshot_player.rebuild_usernames(looky_usernames=snap_updated if include_looky and snapshot_player.looky_system.is_initialized else ())
     SessionTracker.update_session_player_snapshot(player, metadata_only=True)
     wake_rendering_core()
 
@@ -952,15 +963,13 @@ def looky_remove_usernames_for_player(parent: QWidget, player: Player, active_lo
         UsernameSelectionConfig(
             title='Remove Looky Usernames',
             instructions=f'Select Looky username{pluralize(len(active_looky_names))} to hide on this IP:',
-            action_button_text='Remove',
-            multiple=True,
-            default_checked=False,
-            selected_ips=[player.ip],
+            action_button_text='Remove', multiple=True, default_checked=False, selected_ips=[player.ip],
         ),
     )
     if dlg.exec() == SelectUsernamesDialog.DialogCode.Accepted:
         chosen = dlg.selected_usernames()
-        if chosen and exclude_looky_usernames(player.ip, chosen):
+        peer_names = dedup_preserve_order(active_looky_names, player.userip.usernames if player.userip is not None else (), player.usernames)
+        if chosen and exclude_looky_usernames(player.ip, chosen, peer_usernames=peer_names):
             _refresh_player_looky_exclusions(player)
 
 
@@ -972,10 +981,7 @@ def looky_restore_usernames_for_player(parent: QWidget, player: Player, removed_
         UsernameSelectionConfig(
             title='Restore Removed Looky Usernames',
             instructions=f'Select removed Looky username{pluralize(len(removed_looky_names))} to re-add on this IP:',
-            action_button_text='Restore',
-            multiple=True,
-            default_checked=True,
-            selected_ips=[player.ip],
+            action_button_text='Restore', multiple=True, default_checked=True, selected_ips=[player.ip],
         ),
     )
     if dlg.exec() == SelectUsernamesDialog.DialogCode.Accepted:

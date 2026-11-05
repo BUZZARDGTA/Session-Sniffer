@@ -32,6 +32,7 @@ from session_sniffer.networking.third_party_servers import is_third_party_server
 from session_sniffer.player.registry import PlayersRegistry, SessionTracker
 from session_sniffer.player.userip import UserIPDatabases, gui_dispatcher
 from session_sniffer.player.userip_groups import get_excluded_looky_usernames_cf, record_looky_db_correlation
+from session_sniffer.player.userip_loader import update_userip_databases
 from session_sniffer.rendering_core.events import wake_rendering_core
 from session_sniffer.rendering_core.types import CaptureState
 from session_sniffer.settings import Settings
@@ -699,7 +700,7 @@ def looky_core() -> None:
 
                     matched_players_with_looky.append((matched_player, looky_usernames))
             if groups_updated:
-                UserIPDatabases.build()
+                update_userip_databases()
             for matched_player, looky_usernames in matched_players_with_looky:
                 matched_player.rebuild_usernames(looky_usernames=looky_usernames)
                 SessionTracker.update_session_player_snapshot(matched_player, metadata_only=True)

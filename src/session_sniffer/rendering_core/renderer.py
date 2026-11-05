@@ -413,7 +413,7 @@ def rendering_core(
     _userip_not_found: set[str] = set()
     last_seen_userip_build_version: int = UserIPDatabases.build_version
     _last_userip_auto_feed: bool = Settings.userip_auto_feed_from_usernames and Settings.is_gta5_feature_set() and CaptureState.is_local_capture()
-    _last_looky_active: bool = Settings.looky_enabled and Settings.is_gta5_feature_set()
+    _last_looky_active: bool = Settings.looky_enabled and Settings.is_gta5_feature_set() and CaptureState.is_local_capture()
 
     def _process_player_disconnections(connected: list[Player], disconnected: list[Player]) -> list[int]:
         to_disconnect: list[int] = []
@@ -460,7 +460,7 @@ def rendering_core(
         _current_auto_feed_active = Settings.userip_auto_feed_from_usernames and Settings.is_gta5_feature_set() and CaptureState.is_local_capture()
         _auto_feed_retriggered = _current_auto_feed_active and not _last_userip_auto_feed
         _last_userip_auto_feed = _current_auto_feed_active
-        _current_looky_active = Settings.looky_enabled and Settings.is_gta5_feature_set()
+        _current_looky_active = Settings.looky_enabled and Settings.is_gta5_feature_set() and CaptureState.is_local_capture()
         _looky_active_changed = _current_looky_active != _last_looky_active
         _last_looky_active = _current_looky_active
 
@@ -548,7 +548,7 @@ def rendering_core(
             else:
                 player.mod_menus = None
 
-            include_looky = Settings.looky_enabled and Settings.is_gta5_feature_set() and looky_initialized
+            include_looky = _current_looky_active and looky_initialized
             if include_looky and looky_usernames and not looky_userip_checked:
                 with player.looky_system.lock:
                     player.looky_system.as_userip_checked = True
@@ -581,7 +581,7 @@ def rendering_core(
             with snapshot_player.looky_system.lock:
                 snapshot_looky_usernames = (
                     list(snapshot_player.looky_system.usernames)
-                    if Settings.looky_enabled and Settings.is_gta5_feature_set() and snapshot_player.looky_system.is_initialized
+                    if _current_looky_active and snapshot_player.looky_system.is_initialized
                     else ()
                 )
             snapshot_player.rebuild_usernames(looky_usernames=snapshot_looky_usernames)
