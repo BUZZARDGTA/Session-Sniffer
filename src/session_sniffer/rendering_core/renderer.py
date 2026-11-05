@@ -99,7 +99,12 @@ def _prune_recovered_pending_disconnections(*, session_transitioned: bool) -> No
     if not session_transitioned:
         had_departed_pending_player = any(player.left_event.is_set() for player in SessionHost.players_pending_for_disconnection)
         SessionHost.players_pending_for_disconnection.clear()
-        if had_departed_pending_player and not SessionHost.has_player() and not SessionHost.is_manually_cleared():
+        if (
+            had_departed_pending_player
+            and not SessionHost.has_player()
+            and not SessionHost.is_manually_cleared()
+            and not SessionHost.is_modmenu_lua_source_of_truth()
+        ):
             SessionHost.search_player = True
             SessionHost.search_start_time = None
         return
@@ -126,7 +131,10 @@ def _prune_recovered_pending_disconnections(*, session_transitioned: bool) -> No
                 SessionHost.search_player = False
             else:
                 SessionHost.set_player(None)
-                SessionHost.search_player = not SessionHost.is_manually_cleared(old_session_id)
+                SessionHost.search_player = (
+                    not SessionHost.is_manually_cleared(old_session_id)
+                    and not SessionHost.is_modmenu_lua_source_of_truth()
+                )
             SessionHost.search_start_time = None
             if SessionFilterState.get_selected_session() in (old_session_id, pruned_or_collapsed):
                 SessionFilterState.set_selected_session(session_id=SessionFilterState.FILTER_ALL)
@@ -134,6 +142,36 @@ def _prune_recovered_pending_disconnections(*, session_transitioned: bool) -> No
             SessionHost.prune_history_for_session(old_session_id)
             if SessionFilterState.get_selected_session() == old_session_id:
                 SessionFilterState.set_selected_session(session_id=SessionFilterState.FILTER_ALL)
+
+
+def _sync_modmenu_session_host(session_connected: list[Player], p2p_session_connected: list[Player]) -> None:
+    """Keep SessionHost synchronized with the active Mod Menu Lua session_host.txt state."""
+    SessionHost.search_player = False
+    SessionHost.search_start_time = None
+    if SessionHost.is_manually_cleared():
+        return
+
+    current_session_id = SessionTracker.get_current_session_id()
+    active_p2p_connected = [
+        player
+        for player in p2p_session_connected
+        if player.session_id in (0, current_session_id)
+        and not player.left_event.is_set()
+        and player not in SessionHost.players_pending_for_disconnection
+    ]
+    host_entry = ModMenuLogsParser.get_session_host_entry()
+    expected_host_ip = host_entry.ip if host_entry is not None else None
+    matched_lua_host = (
+        next((player for player in active_p2p_connected if player.ip == expected_host_ip), None)
+        if expected_host_ip is not None
+        else None
+    )
+    if (
+        SessionHost.get_player() is not matched_lua_host
+        or SessionHost.last_diagnostics is None
+        or SessionHost.last_diagnostics.modmenu_host_ip != expected_host_ip
+    ):
+        SessionHost.get_host_player(session_connected)
 
 
 def rendering_core(
@@ -596,14 +634,22 @@ def rendering_core(
                     SessionTracker.advance_session(players=session_connected, p2p_players=())
                     _session_host_was_active = False
             else:
+                modmenu_lua_authoritative = SessionHost.is_modmenu_lua_source_of_truth()
                 current_session_host = SessionHost.get_player()
-                is_relay_host = current_session_host is not None and SessionHost.is_relay_host_candidate(current_session_host)
+                is_relay_host = (
+                    not modmenu_lua_authoritative
+                    and current_session_host is not None
+                    and SessionHost.is_relay_host_candidate(current_session_host)
+                )
                 if current_session_host is not None and current_session_host.left_event.is_set() and not is_relay_host:
                     SessionHost.set_player(None)
-                    SessionHost.search_player = any(
-                        player.packets.pps.is_first_calculation or player.packets.pps.calculated_rate
-                        for player in p2p_session_connected
-                        if player.ip != current_session_host.ip
+                    SessionHost.search_player = (
+                        not modmenu_lua_authoritative
+                        and any(
+                            player.packets.pps.is_first_calculation or player.packets.pps.calculated_rate
+                            for player in p2p_session_connected
+                            if player.ip != current_session_host.ip
+                        )
                     )
                     SessionHost.search_start_time = None
                 if SessionHost.players_pending_for_disconnection:
@@ -615,7 +661,7 @@ def rendering_core(
                 if SessionHost.players_pending_for_disconnection and all(player.left_event.is_set() for player in SessionHost.players_pending_for_disconnection):
                     if not SessionHost.has_player() or not _session_transitioned_for_pending_disconnections:
                         SessionHost.set_player(None)
-                        SessionHost.search_player = True
+                        SessionHost.search_player = not modmenu_lua_authoritative
                         SessionHost.search_start_time = None
                     new_p2p_connected = [player for player in p2p_session_connected if player not in SessionHost.players_pending_for_disconnection]
                     if not _session_transitioned_for_pending_disconnections and new_p2p_connected:
@@ -638,7 +684,7 @@ def rendering_core(
                         new_p2p_connected = [player for player in p2p_session_connected if player not in SessionHost.players_pending_for_disconnection]
                         _session_transitioned_for_pending_disconnections = True
                         SessionHost.set_player(None)
-                        SessionHost.search_player = True
+                        SessionHost.search_player = not modmenu_lua_authoritative
                         SessionHost.search_start_time = None
                         SessionTracker.advance_session(
                             players=remaining_connected,
@@ -666,11 +712,13 @@ def rendering_core(
                     _session_host_was_active = False
                     SessionHost.clear_session_host_data()
                     _session_transitioned_for_pending_disconnections = False
-                    SessionHost.search_player = True
+                    SessionHost.search_player = not modmenu_lua_authoritative
                 elif all(not player.packets.pps.is_first_calculation and not player.packets.pps.calculated_rate for player in p2p_session_connected):
                     if not SessionHost.players_pending_for_disconnection:
                         SessionHost.players_pending_for_disconnection = list(p2p_session_connected)
                         _session_transitioned_for_pending_disconnections = False
+                elif modmenu_lua_authoritative:
+                    _sync_modmenu_session_host(session_connected, p2p_session_connected)
                 elif SessionHost.search_player:
                     if SessionHost.search_start_time is None:
                         SessionHost.search_start_time = time.monotonic()

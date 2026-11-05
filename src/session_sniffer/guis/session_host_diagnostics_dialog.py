@@ -393,6 +393,9 @@ class SessionHostDiagnosticsDialog(QDialog):
 
     def _compute_checklist_items(self) -> list[_DetectionChecklistItem]:
         """Compute the evaluation status and explanation for each detection criterion."""
+        if self._snapshot.modmenu_source is not None:
+            return self._compute_modmenu_checklist_items()
+
         items: list[_DetectionChecklistItem] = []
 
         # 1. Direct P2P Candidates
@@ -575,6 +578,58 @@ class SessionHostDiagnosticsDialog(QDialog):
 
         return items
 
+    def _compute_modmenu_checklist_items(self) -> list[_DetectionChecklistItem]:
+        """Compute checklist items when session host resolution is governed by a mod menu Lua plugin."""
+        source_name = self._snapshot.modmenu_source or 'Mod Menu'
+        host_ip = self._snapshot.modmenu_host_ip
+        host_username = self._snapshot.modmenu_host_username
+
+        if host_ip is not None:
+            lua_passed = True
+            username_suffix = f' (@{host_username})' if bool(host_username) else ''
+            lua_detail = f'{source_name} Lua plugin reported session host {host_ip}{username_suffix}'
+            lua_badge = f'✓ {source_name} Lua'
+            lua_badge_style = HOST_BADGE_SUCCESS_STYLESHEET
+        else:
+            lua_passed = False
+            lua_detail = self._snapshot.rejection_reason or self._snapshot.outcome
+            lua_badge = 'No Remote Host'
+            lua_badge_style = HOST_BADGE_WARNING_STYLESHEET
+
+        if self._snapshot.success and self._snapshot.detected_host_ip is not None:
+            match_passed = True
+            match_detail = f'Reported host {self._snapshot.detected_host_ip} matched an active GTA V UDP-confirmed P2P player in your session'
+            match_badge = '✓ Matched in Session'
+            match_badge_style = HOST_BADGE_SUCCESS_STYLESHEET
+        elif host_ip is not None:
+            match_passed = False
+            match_detail = f'Reported host {host_ip} is not currently connected in confirmed GTA V P2P session traffic'
+            match_badge = '✕ Not Connected'
+            match_badge_style = HOST_BADGE_WARNING_STYLESHEET
+        else:
+            p2p_count = self._snapshot.direct_p2p_players
+            match_passed = False
+            match_detail = f'{p2p_count} direct P2P player{pluralize(p2p_count)} currently connected in session'
+            match_badge = f'{p2p_count} Direct P2P'
+            match_badge_style = HOST_BADGE_INFO_STYLESHEET if p2p_count > 0 else HOST_BADGE_MUTED_STYLESHEET
+
+        return [
+            _DetectionChecklistItem(
+                title=f'{source_name} Lua Plugin (Source of Truth)',
+                passed=lua_passed,
+                detail=lua_detail,
+                badge_text=lua_badge,
+                badge_stylesheet=lua_badge_style,
+            ),
+            _DetectionChecklistItem(
+                title='Direct P2P Session Match',
+                passed=match_passed,
+                detail=match_detail,
+                badge_text=match_badge,
+                badge_stylesheet=match_badge_style,
+            ),
+        ]
+
     def _build_candidates_section(self) -> QWidget:
         container = QWidget()
         layout = QVBoxLayout(container)
@@ -693,7 +748,13 @@ class SessionHostDiagnosticsDialog(QDialog):
         sent_val_box.addWidget(sent_val)
 
         packet_pill = QLabel()
-        if candidate.packet_status == 'Eligible':
+        if candidate.packet_status == 'Authoritative (Mod Menu Lua)':
+            packet_pill.setText('✓ Mod Menu Lua')
+            packet_pill.setStyleSheet(HOST_BADGE_SUCCESS_STYLESHEET)
+        elif candidate.packet_status == 'Connected P2P':
+            packet_pill.setText('Connected P2P')
+            packet_pill.setStyleSheet(HOST_BADGE_INFO_STYLESHEET)
+        elif candidate.packet_status == 'Eligible':
             packet_pill.setText('✓ Eligible')
             packet_pill.setStyleSheet(HOST_BADGE_SUCCESS_STYLESHEET)
         elif candidate.packet_status == 'Not enough sent':

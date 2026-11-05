@@ -36,6 +36,7 @@ from session_sniffer.guis.utils import (
 from session_sniffer.player.registry import PlayersRegistry, SessionTracker
 from session_sniffer.player.session_host import SessionHost
 from session_sniffer.rdr2.suspend_manager import RDR2SuspendManager
+from session_sniffer.rendering_core.modmenu_logs_parser import ModMenuLogsParser
 from session_sniffer.rendering_core.types import CaptureState, SessionFilterState
 from session_sniffer.settings import Settings
 from session_sniffer.text_utils import pluralize
@@ -943,6 +944,9 @@ Process is currently suspended',
             if current_history and current_history[-1].diagnostics is not None:
                 diagnostics = current_history[-1].diagnostics
 
+        if diagnostics is None and SessionHost.is_modmenu_lua_source_of_truth() and Settings.gui_session_host_detection:
+            diagnostics = self._redetect_host_from_diagnostics()
+
         if diagnostics is None:
             QMessageBox.information(self, TITLE, 'No session host detection diagnostics are available yet.')
             return
@@ -959,6 +963,9 @@ Process is currently suspended',
             QMessageBox.warning(self, TITLE, 'Session Host Detection is disabled in Settings.\n\nPlease enable it in Settings to detect the session host.')
             return None
 
+        if Settings.is_gta5_feature_set():
+            ModMenuLogsParser.refresh()
+
         current_session_id = SessionTracker.get_current_session_id()
         connected_players = [
             player
@@ -966,7 +973,7 @@ Process is currently suspended',
             if player.session_id in (0, current_session_id)
             and player not in SessionHost.players_pending_for_disconnection
         ]
-        if not connected_players:
+        if not connected_players and not SessionHost.is_modmenu_lua_source_of_truth():
             QMessageBox.information(self, TITLE, 'No connected players were found in the current session.')
             return None
 

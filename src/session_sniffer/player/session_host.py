@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, ClassVar
 from session_sniffer.constants.standard import LOCAL_TZ
 from session_sniffer.exceptions import UnexpectedPlayerCountError
 from session_sniffer.player.registry import PlayersRegistry, SessionTracker
+from session_sniffer.rendering_core.modmenu_logs_parser import ModMenuLogsParser
 from session_sniffer.rendering_core.types import CaptureState
 from session_sniffer.settings import Settings
 from session_sniffer.text_utils import format_elapsed_time, pluralize
@@ -65,6 +66,9 @@ class HostDiagnosticsSnapshot:
     candidates: list[HostCandidateDiagnostic]
     filtered_servers: list[tuple[str, int]]
     raw_details: str
+    modmenu_source: str | None = None
+    modmenu_host_ip: str | None = None
+    modmenu_host_username: str | None = None
 
 
 @dataclass(slots=True)
@@ -91,6 +95,9 @@ class _DetectionEvaluationResult:
     rejection_reason: str | None = None
     detected_host: Player | None = None
     timing_gap: float | None = None
+    modmenu_source: str | None = None
+    modmenu_host_ip: str | None = None
+    modmenu_host_username: str | None = None
 
 
 def _build_host_diagnostics_snapshot(
@@ -104,7 +111,9 @@ def _build_host_diagnostics_snapshot(
 
     candidate_diagnostics: list[HostCandidateDiagnostic] = []
     for player in candidates:
-        if player.packets.sent < MINIMUM_PACKETS_FOR_RELAY_SESSION_HOST:
+        if result.modmenu_source is not None:
+            packets_status = 'Authoritative (Mod Menu Lua)' if result.detected_host is not None and player.ip == result.detected_host.ip else 'Connected P2P'
+        elif player.packets.sent < MINIMUM_PACKETS_FOR_RELAY_SESSION_HOST:
             packets_status = 'Not enough sent'
         elif player.packets.exchanged > SESSION_HOST_MAX_PACKETS_FOR_DETECTION:
             packets_status = 'Exceeds maximum exchanged'
@@ -137,26 +146,27 @@ def _build_host_diagnostics_snapshot(
     ]
 
     timing_resolution: str | None = None
-    if result.timing_gap is not None:
-        gap_milliseconds = result.timing_gap * 1000
-        time_difference_text = f'{result.timing_gap:.3f}s ({gap_milliseconds:.1f}ms)' if result.timing_gap >= 1.0 else f'{gap_milliseconds:.1f}ms'
-        if SESSION_HOST_AMBIGUITY_MIN_THRESHOLD_MS <= gap_milliseconds <= SESSION_HOST_AMBIGUITY_MAX_THRESHOLD_MS:
-            timing_resolution = (
-                '2 candidates were evaluated, and candidate #1 joined earlier\n'
-                f'within the valid timing window ({SESSION_HOST_AMBIGUITY_MIN_THRESHOLD_MS}ms - {SESSION_HOST_AMBIGUITY_MAX_THRESHOLD_MS}ms).'
-            )
-        elif gap_milliseconds < SESSION_HOST_AMBIGUITY_MIN_THRESHOLD_MS:
-            timing_resolution = (
-                f'Rejected — {gap_milliseconds:.1f}ms gap is below the {SESSION_HOST_AMBIGUITY_MIN_THRESHOLD_MS}ms minimum threshold\n'
-                '(players connected almost simultaneously, timing is ambiguous).'
-            )
-        else:
-            timing_resolution = (
-                f'Rejected — {time_difference_text} gap exceeds the {SESSION_HOST_AMBIGUITY_MAX_THRESHOLD_MS}ms maximum threshold\n'
-                '(candidate #1 joined too far ahead of candidate #2).'
-            )
-    elif len(candidates) == 1:
-        timing_resolution = 'Only 1 non-server player was present, so timing comparison was skipped.'
+    if result.modmenu_source is None:
+        if result.timing_gap is not None:
+            gap_milliseconds = result.timing_gap * 1000
+            time_difference_text = f'{result.timing_gap:.3f}s ({gap_milliseconds:.1f}ms)' if result.timing_gap >= 1.0 else f'{gap_milliseconds:.1f}ms'
+            if SESSION_HOST_AMBIGUITY_MIN_THRESHOLD_MS <= gap_milliseconds <= SESSION_HOST_AMBIGUITY_MAX_THRESHOLD_MS:
+                timing_resolution = (
+                    '2 candidates were evaluated, and candidate #1 joined earlier\n'
+                    f'within the valid timing window ({SESSION_HOST_AMBIGUITY_MIN_THRESHOLD_MS}ms - {SESSION_HOST_AMBIGUITY_MAX_THRESHOLD_MS}ms).'
+                )
+            elif gap_milliseconds < SESSION_HOST_AMBIGUITY_MIN_THRESHOLD_MS:
+                timing_resolution = (
+                    f'Rejected — {gap_milliseconds:.1f}ms gap is below the {SESSION_HOST_AMBIGUITY_MIN_THRESHOLD_MS}ms minimum threshold\n'
+                    '(players connected almost simultaneously, timing is ambiguous).'
+                )
+            else:
+                timing_resolution = (
+                    f'Rejected — {time_difference_text} gap exceeds the {SESSION_HOST_AMBIGUITY_MAX_THRESHOLD_MS}ms maximum threshold\n'
+                    '(candidate #1 joined too far ahead of candidate #2).'
+                )
+        elif len(candidates) == 1:
+            timing_resolution = 'Only 1 non-server player was present, so timing comparison was skipped.'
 
     timing_resolution_summary = timing_resolution.replace('\n', ' ') if timing_resolution is not None else ''
 
@@ -169,27 +179,41 @@ def _build_host_diagnostics_snapshot(
         f'- Direct P2P Players: {len(p2p_players)}',
         f'- Filtered Server IPs: {len(session_players) - len(p2p_players)}',
         '',
-        '--- Detection Criteria ---',
-        f'- Candidate Timing Gap Window: {SESSION_HOST_AMBIGUITY_MIN_THRESHOLD_MS}ms - {SESSION_HOST_AMBIGUITY_MAX_THRESHOLD_MS}ms',
-        f'- Minimum Sent Packets Required: {MINIMUM_PACKETS_FOR_RELAY_SESSION_HOST}',
-        f'- Maximum Exchanged Packets Limit: {SESSION_HOST_MAX_PACKETS_FOR_DETECTION}',
     ]
 
-    if result.timing_gap is not None:
-        gap_milliseconds = result.timing_gap * 1000
-        time_difference_text = f'{result.timing_gap:.3f}s ({gap_milliseconds:.1f}ms)' if result.timing_gap >= 1.0 else f'{gap_milliseconds:.1f}ms'
+    if result.modmenu_source is not None:
+        reported_host_text = (
+            f'{result.modmenu_host_ip} ({result.modmenu_host_username})'
+            if result.modmenu_host_ip is not None and bool(result.modmenu_host_username)
+            else (result.modmenu_host_ip or 'None')
+        )
         lines.extend([
-            '',
-            '--- Timing Analysis ---',
-            f'- Time Difference: {time_difference_text}',
-            f'- Timing Gap Resolution: {timing_resolution_summary}',
+            '--- Detection Source ---',
+            f'- Source of Truth: {result.modmenu_source} Lua Plugin (session_host.txt)',
+            f'- Reported Host: {reported_host_text}',
         ])
-    elif len(candidates) == 1:
+    else:
         lines.extend([
-            '',
-            '--- Timing Analysis ---',
-            f'- Sole P2P Player: {timing_resolution_summary}',
+            '--- Detection Criteria ---',
+            f'- Candidate Timing Gap Window: {SESSION_HOST_AMBIGUITY_MIN_THRESHOLD_MS}ms - {SESSION_HOST_AMBIGUITY_MAX_THRESHOLD_MS}ms',
+            f'- Minimum Sent Packets Required: {MINIMUM_PACKETS_FOR_RELAY_SESSION_HOST}',
+            f'- Maximum Exchanged Packets Limit: {SESSION_HOST_MAX_PACKETS_FOR_DETECTION}',
         ])
+        if result.timing_gap is not None:
+            gap_milliseconds = result.timing_gap * 1000
+            time_difference_text = f'{result.timing_gap:.3f}s ({gap_milliseconds:.1f}ms)' if result.timing_gap >= 1.0 else f'{gap_milliseconds:.1f}ms'
+            lines.extend([
+                '',
+                '--- Timing Analysis ---',
+                f'- Time Difference: {time_difference_text}',
+                f'- Timing Gap Resolution: {timing_resolution_summary}',
+            ])
+        elif len(candidates) == 1:
+            lines.extend([
+                '',
+                '--- Timing Analysis ---',
+                f'- Sole P2P Player: {timing_resolution_summary}',
+            ])
 
     if candidates:
         lines.extend([
@@ -199,7 +223,9 @@ def _build_host_diagnostics_snapshot(
         for index, player in enumerate(candidates, start=1):
             rejoin_time = player.datetime.last_rejoin.strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
             rejoin_ago = format_elapsed_time(now - player.datetime.last_rejoin)
-            if player.packets.sent < MINIMUM_PACKETS_FOR_RELAY_SESSION_HOST:
+            if result.modmenu_source is not None:
+                packets_status_text = 'Mod Menu Lua Host' if result.detected_host is not None and player.ip == result.detected_host.ip else 'Connected P2P'
+            elif player.packets.sent < MINIMUM_PACKETS_FOR_RELAY_SESSION_HOST:
                 packets_status_text = 'Not enough sent'
             elif player.packets.exchanged > SESSION_HOST_MAX_PACKETS_FOR_DETECTION:
                 packets_status_text = 'Exceeds maximum exchanged'
@@ -250,6 +276,9 @@ def _build_host_diagnostics_snapshot(
         candidates=candidate_diagnostics,
         filtered_servers=filtered_servers,
         raw_details='\n'.join(lines),
+        modmenu_source=result.modmenu_source,
+        modmenu_host_ip=result.modmenu_host_ip,
+        modmenu_host_username=result.modmenu_host_username,
     )
 
 
@@ -393,12 +422,99 @@ class SessionHost:
         cls._history = [entry for entry in cls._history if entry.session_id != session_id]
         cls._manually_cleared_session_ids.discard(session_id)
 
+    @staticmethod
+    def is_modmenu_lua_source_of_truth() -> bool:
+        """Return True when session host resolution is governed exclusively by mod menu Lua plugins."""
+        return Settings.is_gta5_feature_set() and CaptureState.is_local_capture()
+
+    @classmethod
+    def _resolve_modmenu_host_player(cls, session_connected: list[Player], current_session_id: int) -> None:
+        """Resolve and cache the session host exclusively from the mod menu Lua session_host.txt file."""
+        current_session_connected = [player for player in session_connected if player.session_id in (0, current_session_id)]
+        confirmed_session_players = [player for player in current_session_connected if cls.is_game_packet_confirmed(player)]
+        p2p_players = cls.filter_confirmed_p2p_players(confirmed_session_players)
+        active_p2p_players = [player for player in p2p_players if not player.left_event.is_set() and player not in cls.players_pending_for_disconnection]
+
+        host_entry = ModMenuLogsParser.get_session_host_entry()
+        active_menu_name = ModMenuLogsParser.get_active_host_menu_name()
+        source_label = host_entry.menu_name if host_entry is not None else (active_menu_name or 'Mod Menu')
+
+        cls.search_player = False
+        cls.manual_redetect = False
+        cls.search_start_time = None
+        cls.last_timing_gap_candidate = None
+
+        if host_entry is None:
+            cls.set_player(None)
+            if active_menu_name is None:
+                outcome = 'No Mod Menu Lua session_host.txt file found.'
+                rejection_reason = 'No Mod Menu Lua session_host.txt file was found.\n\nLoad the Session Sniffer Lua plugin in your mod menu to resolve the session host.'
+            else:
+                outcome = f'No remote session host reported by {active_menu_name} Lua plugin.'
+                rejection_reason = (
+                    f'The {active_menu_name} Lua plugin did not report a remote session host (you may be the session host, not in a session, or the host IP is hidden/relayed).'
+                )
+            cls.last_diagnostics = _build_host_diagnostics_snapshot(
+                session_players=confirmed_session_players,
+                candidates=active_p2p_players,
+                result=_DetectionEvaluationResult(
+                    outcome=outcome,
+                    rejection_reason=rejection_reason,
+                    modmenu_source=source_label,
+                ),
+            )
+            return
+
+        matched_player = next(
+            (player for player in active_p2p_players if player.ip == host_entry.ip),
+            None,
+        )
+        if matched_player is None:
+            cls.set_player(None)
+            cls.last_diagnostics = _build_host_diagnostics_snapshot(
+                session_players=confirmed_session_players,
+                candidates=active_p2p_players,
+                result=_DetectionEvaluationResult(
+                    outcome=(f'{host_entry.menu_name} Lua host {host_entry.ip} ({host_entry.username}) is not currently connected in captured P2P traffic.'),
+                    rejection_reason=(
+                        f'The {host_entry.menu_name} Lua plugin reported {host_entry.username} ({host_entry.ip}) '
+                        'as the session host, but no active GTA V P2P traffic from that IP is currently connected.'
+                    ),
+                    modmenu_source=host_entry.menu_name,
+                    modmenu_host_ip=host_entry.ip,
+                    modmenu_host_username=host_entry.username,
+                ),
+            )
+            return
+
+        cls.set_player(matched_player)
+        cls.last_diagnostics = _build_host_diagnostics_snapshot(
+            session_players=confirmed_session_players,
+            candidates=[matched_player],
+            result=_DetectionEvaluationResult(
+                outcome=f'Session host resolved via {host_entry.menu_name} Lua plugin: {matched_player.ip} ({host_entry.username})',
+                rejection_reason=None,
+                detected_host=matched_player,
+                modmenu_source=host_entry.menu_name,
+                modmenu_host_ip=host_entry.ip,
+                modmenu_host_username=host_entry.username,
+            ),
+        )
+        cls.record_host(
+            matched_player,
+            diagnostics=cls.last_diagnostics,
+            session_id=current_session_id,
+        )
+
     @classmethod
     def get_host_player(cls, session_connected: list[Player]) -> None:
         """Infer and cache the session host from currently connected players and eligible relay candidates."""
         # Only consider IPs confirmed by traffic on the active game's UDP port. Other captured
         # traffic can still appear in the session tables, but must not influence host selection.
         current_session_id = SessionTracker.get_current_session_id()
+        if cls.is_modmenu_lua_source_of_truth():
+            cls._resolve_modmenu_host_player(session_connected, current_session_id)
+            return
         current_session_connected = [
             player
             for player in session_connected
