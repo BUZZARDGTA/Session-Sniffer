@@ -251,6 +251,10 @@ class PortScannerTabWidget(QWidget):
         self._show_open_only_checkbox.setChecked(True)
         self._show_open_only_checkbox.toggled.connect(self._apply_table_filter)
 
+        self._start_stop_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'circle-play.svg')), ' Start Scan')
+        self._start_stop_button.setStyleSheet(DIALOG_PRIMARY_BUTTON_STYLESHEET)
+        self._start_stop_button.clicked.connect(self._toggle_start_stop)
+
         copy_selected_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), ' Copy Selected')
         copy_selected_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
         copy_selected_button.clicked.connect(self._copy_selected_rows)
@@ -273,6 +277,7 @@ class PortScannerTabWidget(QWidget):
 
         toolbar_layout.addWidget(self._show_open_only_checkbox)
         toolbar_layout.addStretch()
+        toolbar_layout.addWidget(self._start_stop_button)
         toolbar_layout.addWidget(copy_selected_button)
         toolbar_layout.addWidget(copy_all_button)
         toolbar_layout.addWidget(export_button)
@@ -333,17 +338,12 @@ class PortScannerTabWidget(QWidget):
         self._ports_input.setPlaceholderText('e.g. 80, 443, 1-1024')
         self._ports_input.textEdited.connect(self._on_ports_text_edited)
 
-        self._start_stop_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'circle-play.svg')), ' Start Scan')
-        self._start_stop_button.setStyleSheet(DIALOG_PRIMARY_BUTTON_STYLESHEET)
-        self._start_stop_button.clicked.connect(self._toggle_start_stop)
-
         target_row.addWidget(target_label)
         target_row.addWidget(self._target_input, stretch=2)
         target_row.addWidget(preset_label)
         target_row.addWidget(self._preset_combo, stretch=1)
         target_row.addWidget(ports_label)
         target_row.addWidget(self._ports_input, stretch=2)
-        target_row.addWidget(self._start_stop_button)
 
         options_row = QHBoxLayout()
         options_row.setSpacing(8)

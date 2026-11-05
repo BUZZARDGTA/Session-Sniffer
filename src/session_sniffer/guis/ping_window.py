@@ -209,17 +209,12 @@ class PingTabWidget(QWidget):
         self._port_spinbox.setValue(port if port is not None else _DEFAULT_PORT)
         self._port_spinbox.valueChanged.connect(self._on_target_or_port_changed)
 
-        self._start_stop_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'circle-play.svg')), ' Start')
-        self._start_stop_button.setStyleSheet(DIALOG_PRIMARY_BUTTON_STYLESHEET)
-        self._start_stop_button.clicked.connect(self._toggle_start_stop)
-
         row1_layout.addWidget(target_label)
         row1_layout.addWidget(self._target_input, stretch=2)
         row1_layout.addWidget(mode_label)
         row1_layout.addWidget(self._mode_combo, stretch=1)
         row1_layout.addWidget(self._port_label)
         row1_layout.addWidget(self._port_spinbox)
-        row1_layout.addWidget(self._start_stop_button)
 
         row2_layout = QHBoxLayout()
         row2_layout.setSpacing(8)
@@ -284,17 +279,28 @@ class PingTabWidget(QWidget):
         )
         main_layout.addWidget(self._console_log, stretch=1)
 
-        # --- Statistics & Bottom Actions Bar ---
-        bottom_group = QGroupBox('Live Statistics')
-        bottom_layout = QHBoxLayout(bottom_group)
-        bottom_layout.setContentsMargins(8, 8, 8, 8)
-        bottom_layout.setSpacing(12)
+        # --- Live Statistics ---
+        stats_group = QGroupBox('Live Statistics')
+        stats_layout = QHBoxLayout(stats_group)
+        stats_layout.setContentsMargins(8, 8, 8, 8)
+        stats_layout.setSpacing(12)
 
         self._stats_label = QLabel('Ready. Press Start to begin pinging.')
         self._stats_label.setStyleSheet('color: #a5b4c4; font-size: 9pt;')
+        stats_layout.addWidget(self._stats_label, stretch=1)
+
+        main_layout.addWidget(stats_group)
+
+        # --- Footer Toolbar ---
+        toolbar_layout = QHBoxLayout()
+        toolbar_layout.setSpacing(8)
 
         self._autoscroll_checkbox = QCheckBox('Auto-scroll')
         self._autoscroll_checkbox.setChecked(True)
+
+        self._start_stop_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'circle-play.svg')), ' Start')
+        self._start_stop_button.setStyleSheet(DIALOG_PRIMARY_BUTTON_STYLESHEET)
+        self._start_stop_button.clicked.connect(self._toggle_start_stop)
 
         copy_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), ' Copy Log')
         copy_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
@@ -307,12 +313,13 @@ class PingTabWidget(QWidget):
         clear_button.clicked.connect(self._clear_log)
         self._clear_log_button = clear_button
 
-        bottom_layout.addWidget(self._stats_label, stretch=1)
-        bottom_layout.addWidget(self._autoscroll_checkbox)
-        bottom_layout.addWidget(copy_button)
-        bottom_layout.addWidget(clear_button)
+        toolbar_layout.addWidget(self._autoscroll_checkbox)
+        toolbar_layout.addStretch()
+        toolbar_layout.addWidget(self._start_stop_button)
+        toolbar_layout.addWidget(copy_button)
+        toolbar_layout.addWidget(clear_button)
 
-        main_layout.addWidget(bottom_group)
+        main_layout.addLayout(toolbar_layout)
 
         self._mode_combo.currentIndexChanged.connect(self._on_mode_changed)
         self._on_mode_changed()
