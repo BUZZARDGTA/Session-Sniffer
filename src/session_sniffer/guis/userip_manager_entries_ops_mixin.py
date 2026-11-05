@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 from PySide6.QtCore import QItemSelectionModel, QModelIndex, QSignalBlocker, Qt
 from PySide6.QtWidgets import QAbstractItemView, QDialog, QFrame, QInputDialog, QLineEdit, QMessageBox, QTreeView
 
-from session_sniffer.constants.local import USERIP_DATABASES_DIR_PATH
+from session_sniffer.constants.local import APP_DIR_ROAMING, USERIP_DATABASES_DIR_PATH
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.guis.select_usernames_dialog import SelectUsernamesDialog, UsernameSelectionConfig, prompt_username_input, prompt_usernames_and_notes_input
 from session_sniffer.guis.userip_manager_helpers import (
@@ -41,7 +41,7 @@ from session_sniffer.guis.userip_manager_helpers import (
 from session_sniffer.models.userip_settings_model import UserIPDatabaseFile, UserIPEntryModel, UserIPSettingsModel, get_current_iso_timestamp
 from session_sniffer.networking.ip_range import is_valid_ip_range_entry
 from session_sniffer.player.userip import UserIPDatabases
-from session_sniffer.player.userip_groups import MIN_GROUP_USERNAMES, are_usernames_unlinked, group_usernames, ungroup_usernames
+from session_sniffer.player.userip_groups import MIN_GROUP_USERNAMES, USERIP_GROUPS_PATH, are_usernames_unlinked, group_usernames, ungroup_usernames
 from session_sniffer.player.userip_loader import enrich_userip_entry_from_logs, update_userip_databases
 from session_sniffer.rendering_core.events import wake_rendering_core
 from session_sniffer.text_utils import pluralize
@@ -64,6 +64,7 @@ class UserIPEntriesOperationsMixin(QDialog):
     _model: QStandardItemModel
     _current_path: Path | None
     _next_index: int = 0
+    _last_seen_build_version: int = 0
     _global_search_active: bool
     _fs_watcher: DebouncedFileWatcher
     _saving: bool
@@ -101,9 +102,9 @@ class UserIPEntriesOperationsMixin(QDialog):
 
     def _rebuild_fs_watch(self) -> None:
         """Point the filesystem watcher at the databases directory and all database files."""
-        directories: list[Path] = [USERIP_DATABASES_DIR_PATH]
+        directories: list[Path] = [APP_DIR_ROAMING, USERIP_DATABASES_DIR_PATH]
         directories.extend(directory for directory in USERIP_DATABASES_DIR_PATH.rglob('*') if directory.is_dir())
-        files = [json_path for json_path in USERIP_DATABASES_DIR_PATH.rglob('*.json') if json_path.is_file()]
+        files = [p for p in (*USERIP_DATABASES_DIR_PATH.rglob('*.json'), USERIP_GROUPS_PATH) if p.is_file()]
         self._fs_watcher.watch(files=files, directories=directories)
 
     def _sync_from_disk(self) -> None:
@@ -111,6 +112,8 @@ class UserIPEntriesOperationsMixin(QDialog):
         _, databases_rebuilt = update_userip_databases()
         if databases_rebuilt:
             wake_rendering_core()
+        build_version_changed = UserIPDatabases.build_version != self._last_seen_build_version
+        self._last_seen_build_version = UserIPDatabases.build_version
         self._rebuild_fs_watch()
         self._refresh_stats()
 
@@ -132,6 +135,10 @@ class UserIPEntriesOperationsMixin(QDialog):
         except OSError:
             return
         if current_text == self._disk_snapshot:
+            if databases_rebuilt or build_version_changed:
+                self._proxy.refresh_groups()
+                if viewport := self._entries_table.viewport():
+                    viewport.update()
             return
         if self._dirty or self._entries_table.state() == QAbstractItemView.State.EditingState:
             self._update_file_info(self._current_path)
@@ -162,8 +169,9 @@ class UserIPEntriesOperationsMixin(QDialog):
             append_entry_rows(self._model, rows)
             self._proxy.setFilterFixedString(self._search_input.text())
         finally:
-            self._proxy.setDynamicSortFilter(dynamic_sort_filter)
             self._proxy.prepare_sort_and_invalidate()
+            self._proxy.setDynamicSortFilter(dynamic_sort_filter)
+        self._last_seen_build_version = UserIPDatabases.build_version
 
         self._set_status(f'Global search: {total_entries} entries across {total_files} databases')
         self._update_entry_counts()
@@ -760,6 +768,7 @@ class UserIPEntriesOperationsMixin(QDialog):
                 db_model = UserIPDatabaseFile(settings=settings_model, entries=entries)
                 save_userip_database_model(self._current_path, db_model)
                 refresh_userip_and_wake_renderer()
+                self._last_seen_build_version = UserIPDatabases.build_version
                 self._proxy.refresh_groups()
                 self._disk_snapshot = self._current_path.read_text('utf-8')
 
@@ -922,6 +931,8 @@ class UserIPEntriesOperationsMixin(QDialog):
     def _refresh_table_after_grouping(self) -> None:
         """Rebuild UserIP databases and refresh the proxy's group sorting and alternating background shading."""
         refresh_userip_and_wake_renderer()
+        self._last_seen_build_version = UserIPDatabases.build_version
+        self._rebuild_fs_watch()
         self._proxy.refresh_groups()
         if viewport := self._entries_table.viewport():
             viewport.update()
@@ -935,61 +946,49 @@ class UserIPEntriesOperationsMixin(QDialog):
         if len(usernames) < MIN_GROUP_USERNAMES:
             QMessageBox.information(self, TITLE, 'Select at least two rows with distinct usernames to group them together.')
             return
-        if group_usernames(usernames, UserIPDatabases.get_known_alts_clusters_snapshot()):
+        with QSignalBlocker(self._fs_watcher):
+            if not group_usernames(usernames, UserIPDatabases.get_known_alts_clusters_snapshot()):
+                return
             self._refresh_table_after_grouping()
-            self._set_status(f'Grouped {len(usernames)} usernames together')
+        self._set_status(f'Grouped {len(usernames)} usernames together')
 
     def _group_rows_with(self) -> None:
         """Prompt for a username and group it with the selected row(s)' usernames."""
         source_rows = self._get_selected_source_rows(warn_if_empty=True)
-        if not source_rows:
-            return
-        usernames = dedup_preserve_order(self._get_row_username(r) for r in source_rows if self._get_row_username(r))
-        if not usernames:
+        if not source_rows or not (usernames := dedup_preserve_order(self._get_row_username(r) for r in source_rows if self._get_row_username(r))):
             return
         max_preview = 3
         source_display = ', '.join(usernames[:max_preview]) + (f' (+{len(usernames) - max_preview} more)' if len(usernames) > max_preview else '')
-        target_username, ok = prompt_username_input(
-            self,
-            f'Group With - {TITLE}',
-            f'Enter the username to group with "{source_display}":',
-        )
-        if not ok or not target_username.strip():
+        target_username, ok = prompt_username_input(self, f'Group With - {TITLE}', f'Enter the username to group with "{source_display}":')
+        if not ok or not (target_clean := target_username.strip()):
             return
-        target_clean = target_username.strip()
         combined = dedup_preserve_order(usernames, [target_clean])
         if len(combined) < MIN_GROUP_USERNAMES:
             QMessageBox.information(self, TITLE, 'Please enter a different username to group with.')
             return
-        if group_usernames(combined, UserIPDatabases.get_known_alts_clusters_snapshot()):
+        with QSignalBlocker(self._fs_watcher):
+            if not group_usernames(combined, UserIPDatabases.get_known_alts_clusters_snapshot()):
+                return
             self._refresh_table_after_grouping()
-            self._set_status(f'Grouped "{target_clean}" with {source_display}')
+        self._set_status(f'Grouped "{target_clean}" with {source_display}')
 
     def _ungroup_rows(self) -> None:
         """Open a selection dialog to ungroup false-positive or unlinked usernames from the selected row(s)' group."""
         source_rows = self._get_selected_source_rows(warn_if_empty=True)
-        if not source_rows:
-            return
-        group_members = self._collect_group_members_for_rows(source_rows)
-        if len(group_members) < MIN_GROUP_USERNAMES:
+        if not source_rows or len(group_members := self._collect_group_members_for_rows(source_rows)) < MIN_GROUP_USERNAMES:
             return
         dlg = SelectUsernamesDialog(
-            self,
-            group_members,
+            self, group_members,
             UsernameSelectionConfig(
                 title='Ungroup Usernames',
                 instructions='Select username(s) to unlink from this account group (prevents false-positive grouping):',
-                action_button_text='Ungroup',
-                multiple=True,
-                default_checked=False,
+                action_button_text='Ungroup', multiple=True, default_checked=False,
             ),
         )
-        if dlg.exec() != SelectUsernamesDialog.DialogCode.Accepted:
+        if dlg.exec() != SelectUsernamesDialog.DialogCode.Accepted or not (chosen := dlg.selected_usernames()):
             return
-        chosen = dlg.selected_usernames()
-        if not chosen:
-            return
-        if ungroup_usernames(chosen, group_members):
+        with QSignalBlocker(self._fs_watcher):
+            if not ungroup_usernames(chosen, group_members):
+                return
             self._refresh_table_after_grouping()
-            removed_display = ', '.join(f'"{name}"' for name in chosen)
-            self._set_status(f'Ungrouped {removed_display}')
+        self._set_status(f'Ungrouped {", ".join(f"{name!r}" for name in chosen)}')

@@ -496,13 +496,14 @@ def compute_row_group_ids_and_prefixes(
         return [], []
 
     linked_pairs, unlinked_pairs, _ = get_grouping_snapshot()
-    present_cfs = {cf for cf in row_usernames_cf if cf}
+    ordered_present_cfs = list(dict.fromkeys(cf for cf in row_usernames_cf if cf))
+    present_cfs = set(ordered_present_cfs)
     rows_by_ip: dict[str, list[int]] = {}
     for row, ip_val in enumerate(row_ips):
         if ip_val:
             rows_by_ip.setdefault(ip_val, []).append(row)
 
-    adj: dict[str, set[str]] = {}
+    adj: dict[str, dict[str, None]] = {}
     for u_cf, cluster in clusters_snapshot.items():
         if u_cf not in present_cfs:
             continue
@@ -511,15 +512,15 @@ def compute_row_group_ids_and_prefixes(
             for c2 in cluster_cfs[idx + 1 :]:
                 pair = (c1, c2) if c1 < c2 else (c2, c1)
                 if pair not in unlinked_pairs:
-                    adj.setdefault(c1, set()).add(c2)
-                    adj.setdefault(c2, set()).add(c1)
+                    adj.setdefault(c1, {})[c2] = None
+                    adj.setdefault(c2, {})[c1] = None
 
-    for u1, u2 in linked_pairs:
+    for u1, u2 in sorted(linked_pairs):
         if u1 in present_cfs and u2 in present_cfs:
             pair = (u1, u2) if u1 < u2 else (u2, u1)
             if pair not in unlinked_pairs:
-                adj.setdefault(u1, set()).add(u2)
-                adj.setdefault(u2, set()).add(u1)
+                adj.setdefault(u1, {})[u2] = None
+                adj.setdefault(u2, {})[u1] = None
 
     for ip_rows in rows_by_ip.values():
         if len(ip_rows) > 1:
@@ -532,25 +533,25 @@ def compute_row_group_ids_and_prefixes(
                 for c2 in ip_cfs[idx + 1 :]:
                     pair = (c1, c2) if c1 < c2 else (c2, c1)
                     if pair not in unlinked_pairs:
-                        adj.setdefault(c1, set()).add(c2)
-                        adj.setdefault(c2, set()).add(c1)
+                        adj.setdefault(c1, {})[c2] = None
+                        adj.setdefault(c2, {})[c1] = None
 
     visited: set[str] = set()
     cf_to_group_id: dict[str, str] = {}
-    for root in present_cfs:
+    for root in ordered_present_cfs:
         if root in visited:
             continue
         comp: list[str] = []
         queue = [root]
         visited.add(root)
         while queue:
-            curr = queue.pop()
+            curr = queue.pop(0)
             comp.append(curr)
             for nb in adj.get(curr, ()):
                 if nb not in visited and all(((nb, m) if nb < m else (m, nb)) not in unlinked_pairs for m in comp):
                     visited.add(nb)
                     queue.append(nb)
-        gid = f'u:{min(comp)}'
+        gid = f'{max(comp) if descending else min(comp)}\x00u:{min(comp)}'
         for member in comp:
             cf_to_group_id[member] = gid
 
@@ -559,12 +560,12 @@ def compute_row_group_ids_and_prefixes(
     for row in range(row_count):
         u_cf = row_usernames_cf[row]
         if u_cf:
-            gid = cf_to_group_id.get(u_cf, f'u:{u_cf}')
+            gid = cf_to_group_id.get(u_cf, f'{u_cf}\x00u:{u_cf}')
         elif row_ips[row]:
             peer_cf = next((row_usernames_cf[r] for r in rows_by_ip.get(row_ips[row], ()) if row_usernames_cf[r]), '')
-            gid = cf_to_group_id.get(peer_cf, f'u:{peer_cf}') if peer_cf else f'ip:{row_ips[row]}'
+            gid = cf_to_group_id.get(peer_cf, f'{peer_cf}\x00u:{peer_cf}') if peer_cf else f'\x00ip:{row_ips[row]}'
         else:
-            gid = f'row:{row}'
+            gid = f'\x00row:{row}'
         row_gids.append(gid)
         r_idx = row_indices[row]
         prev_anchor = group_anchor_index.get(gid)

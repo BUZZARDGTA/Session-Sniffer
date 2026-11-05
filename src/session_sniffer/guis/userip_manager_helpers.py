@@ -164,6 +164,7 @@ class EntriesSortProxy(QSortFilterProxyModel):
         self.setFilterRole(SEARCH_TEXT_ROLE)
         self.setFilterKeyColumn(INDEX_COLUMN)
         self.setFilterCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+        self.setSortCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
         self.setSortRole(SORT_KEY_ROLE)
         self.layoutChanged.connect(self._rebuild_proxy_group_shades)
         self.modelReset.connect(self._rebuild_proxy_group_shades)
@@ -175,7 +176,7 @@ class EntriesSortProxy(QSortFilterProxyModel):
         """Return whether sorting groups linked accounts into consecutive blocks."""
         return self._group_sort_enabled
 
-    def set_group_sort_enabled(self, *, enabled: bool) -> None:
+    def set_group_sort_enabled(self, *, enabled: bool, invalidate: bool = True) -> None:
         """Enable or disable contiguous account-group sorting and recompute sort keys."""
         if self._group_sort_enabled == enabled:
             return
@@ -183,7 +184,8 @@ class EntriesSortProxy(QSortFilterProxyModel):
         self._populated_sort_cols.clear()
         self._row_group_id.clear()
         self._row_group_sort_prefix.clear()
-        self.prepare_sort_and_invalidate()
+        if invalidate:
+            self.prepare_sort_and_invalidate()
 
     @override
     def setFilterKeyColumn(self, column: int) -> None:
@@ -277,7 +279,8 @@ class EntriesSortProxy(QSortFilterProxyModel):
     def _format_cell_sort_key(self, model: QStandardItemModel, row: int, column: int, row_ip_key: str) -> str:
         base_key = _compute_cell_sort_key(model, row, column, row_ip_key)
         if self._group_sort_enabled and column in (INDEX_COLUMN, USERNAME_COLUMN) and 0 <= row < len(self._row_group_sort_prefix):
-            return f'{self._row_group_sort_prefix[row]}\x00{base_key}'
+            prefix = self._row_group_sort_prefix[row] if column == INDEX_COLUMN else self._row_group_id[row]
+            return f'{prefix}\x00{base_key}'
         return base_key
 
     def _ensure_column_sort_keys(self, column: int) -> None:

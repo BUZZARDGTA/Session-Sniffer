@@ -183,6 +183,7 @@ class UserIPDatabasesManager(
         self._settings_snapshot: UserIPSettingsModel = NEW_DATABASE_SETTINGS.model_copy()
         self._global_search_active = False
         self._next_index = 1
+        self._last_seen_build_version: int = UserIPDatabases.build_version
         self._disk_snapshot: str = ''
         self._saving = False
         self._looky_icon = QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'eye.svg'))
@@ -623,9 +624,10 @@ class UserIPDatabasesManager(
         try:
             append_entry_rows(self._model, rows)
         finally:
-            self._proxy.setDynamicSortFilter(dynamic_sort_filter)
             self._proxy.prepare_sort_and_invalidate()
+            self._proxy.setDynamicSortFilter(dynamic_sort_filter)
         entry_count = len(rows)
+        self._last_seen_build_version = UserIPDatabases.build_version
 
         self._next_index = entry_count + 1
         self._update_file_info(path)
@@ -690,7 +692,7 @@ class UserIPDatabasesManager(
         """Apply `'Groups'`, `'Date Added'`, or `'Entry Order (#)'` sorting to the entries table."""
         self._syncing_sort_mode = True
         try:
-            self._proxy.set_group_sort_enabled(enabled=mode == 'Groups')
+            self._proxy.set_group_sort_enabled(enabled=mode == 'Groups', invalidate=False)
             if restore_saved_column:
                 target_col, target_order = UserIPDatabasesManager._cached_sort_column, UserIPDatabasesManager._cached_sort_order
             elif mode == 'Date Added':
@@ -725,7 +727,7 @@ class UserIPDatabasesManager(
                 self._proxy.set_group_sort_enabled(enabled=False)
                 self._sort_mode_combo.setCurrentText('Date Added')
                 UserIPDatabasesManager._cached_sort_mode = 'Date Added'
-            elif logical_index == INDEX_COLUMN and self._sort_mode_combo.currentText() == 'Date Added':
+            elif self._sort_mode_combo.currentText() == 'Date Added':
                 self._proxy.set_group_sort_enabled(enabled=True)
                 self._sort_mode_combo.setCurrentText('Groups')
                 UserIPDatabasesManager._cached_sort_mode = 'Groups'
