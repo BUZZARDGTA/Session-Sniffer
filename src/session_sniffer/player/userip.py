@@ -19,7 +19,8 @@ from session_sniffer.guis.utils import find_main_window
 from session_sniffer.models.userip_settings_model import EntrySource, UserIPEntryModel, pick_earliest_iso, pick_latest_iso
 from session_sniffer.networking.ip_range import IPRange, parse_ip_range
 from session_sniffer.player.registry import PlayersRegistry, SessionTracker
-from session_sniffer.player.userip_groups import get_grouping_snapshot
+from session_sniffer.player.userip_groups import build_known_alts_clusters
+from session_sniffer.rendering_core.types import CaptureState
 from session_sniffer.settings import Settings
 from session_sniffer.text_utils import format_triple_quoted_text, split_usernames
 from session_sniffer.utils import dedup_preserve_order
@@ -627,60 +628,12 @@ class UserIPDatabases:
                     if (db_entry.db_path, range_entry.ip) in conflicting_range_keys:
                         conflicting_ip_usernames.add(cf)
         ambiguous_usernames: set[str] = {cf for cf, paths in username_databases.items() if len(paths) > 1} | conflicting_ip_usernames
-
-        # Build known alts clusters from all entries with multiple usernames + persistent manual/Looky groups
-        linked_pairs, unlinked_pairs, stored_canonical_names = get_grouping_snapshot()
-        adj: dict[str, set[str]] = {}
-        canonical_names: dict[str, str] = {}
-
-        def _register_entry_usernames(names: list[str]) -> None:
-            clean_names = [name.strip() for name in names if name.strip()]
-            unique_cfs: list[str] = []
-            for name in clean_names:
-                cf = name.casefold()
-                if cf not in canonical_names:
-                    canonical_names[cf] = name
-                if cf not in ambiguous_usernames and cf not in unique_cfs:
-                    unique_cfs.append(cf)
-            if len(unique_cfs) > 1:
-                for idx, u_cf in enumerate(unique_cfs):
-                    for v_cf in unique_cfs[idx + 1 :]:
-                        pair = (u_cf, v_cf) if u_cf < v_cf else (v_cf, u_cf)
-                        if pair not in unlinked_pairs:
-                            adj.setdefault(u_cf, set()).add(v_cf)
-                            adj.setdefault(v_cf, set()).add(u_cf)
-
-        for userip_obj in ip_to_userip.values():
-            _register_entry_usernames(userip_obj.usernames)
-        for range_obj in range_entries:
-            _register_entry_usernames(range_obj.usernames)
-        for cf, display_name in stored_canonical_names.items():
-            canonical_names.setdefault(cf, display_name)
-
-        for u_cf, v_cf in linked_pairs:
-            pair = (u_cf, v_cf) if u_cf < v_cf else (v_cf, u_cf)
-            if pair not in unlinked_pairs and u_cf not in ambiguous_usernames and v_cf not in ambiguous_usernames and u_cf in canonical_names and v_cf in canonical_names:
-                adj.setdefault(u_cf, set()).add(v_cf)
-                adj.setdefault(v_cf, set()).add(u_cf)
-
-        visited: set[str] = set()
-        known_alts_clusters: dict[str, list[str]] = {}
-        for root in adj:
-            if root not in visited:
-                component: list[str] = []
-                queue = [root]
-                visited.add(root)
-                while queue:
-                    curr = queue.pop()
-                    component.append(curr)
-                    for neighbor in adj.get(curr, ()):
-                        if neighbor not in visited and all(((neighbor, member) if neighbor < member else (member, neighbor)) not in unlinked_pairs for member in component):
-                            visited.add(neighbor)
-                            queue.append(neighbor)
-                if len(component) > 1:
-                    canonical_cluster = [canonical_names[cf] for cf in component]
-                    for cf in component:
-                        known_alts_clusters[cf] = canonical_cluster
+        single_db_by_cf = {cf: next(iter(paths)) for cf, paths in username_databases.items() if cf not in ambiguous_usernames and len(paths) == 1}
+        canonical_names, known_alts_clusters = build_known_alts_clusters(
+            [*(u.usernames for u in ip_to_userip.values()), *(r.usernames for r in range_entries)],
+            ambiguous_usernames,
+            single_db_by_cf,
+        )
 
         if Settings.userip_sync_known_alts:
             for ip, userip_obj in list(ip_to_userip.items()):
@@ -693,11 +646,16 @@ class UserIPDatabases:
                 if expanded != range_obj.usernames:
                     range_entries[index] = range_obj._replace(usernames=expanded, known_alts=tuple(n for n in expanded if n not in range_obj.usernames))
 
+        include_looky_for_snapshots = Settings.looky_enabled and Settings.is_gta5_feature_set() and CaptureState.is_local_capture()
+
         # Assign or refresh UserIP for all players in a single pass.
         for player in PlayersRegistry.get_all_players():
             prev_userip = player.userip
             new_userip = cls._resolve_from_built_structures(player.ip, ip_to_userip, range_entries, conflicting_ips, conflicting_ranges)
             player.userip = new_userip
+            with player.looky_system.lock:
+                player_looky = list(player.looky_system.usernames) if include_looky_for_snapshots and player.looky_system.is_initialized else ()
+            player.rebuild_usernames(looky_usernames=player_looky)
             if new_userip is None:
                 player.userip_detection = None
                 if prev_userip is not None:
@@ -715,7 +673,6 @@ class UserIPDatabases:
                 ):
                     player.userip_detection.as_processed_task = False
 
-        include_looky_for_snapshots = Settings.looky_enabled and Settings.is_gta5_feature_set()
         for snapshot_player in SessionTracker.get_all_snapshot_players():
             snapshot_player.userip = cls._resolve_from_built_structures(snapshot_player.ip, ip_to_userip, range_entries, conflicting_ips, conflicting_ranges)
             with snapshot_player.looky_system.lock:

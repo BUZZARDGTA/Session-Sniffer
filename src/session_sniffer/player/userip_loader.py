@@ -30,6 +30,7 @@ from session_sniffer.models.userip_settings_model import (
 from session_sniffer.networking.ip_range import entry_ip_covers_ip, is_valid_ip_range_entry, parse_ip_range
 from session_sniffer.player.registry import PlayersRegistry
 from session_sniffer.player.userip import ProtectionSettings, UserIPDatabases, UserIPSettings
+from session_sniffer.player.userip_groups import get_groups_state_token, remove_usernames_from_groups, rename_username_in_groups
 from session_sniffer.utils import FileSignature, get_file_signature, validate_file
 
 if TYPE_CHECKING:
@@ -43,6 +44,7 @@ logger = logging.getLogger(__name__)
 
 _update_userip_databases_lock = RLock()
 _last_userip_db_mod_times: dict[Path, FileSignature] = {}
+_last_userip_groups_token: list[tuple[int, FileSignature | None]] = []
 _parsed_userip_databases: dict[Path, tuple[UserIPSettings, list[UserIPEntryModel]]] = {}
 
 DEFAULT_USERIP_FILES_SETTINGS_BY_PATH: dict[Path, UserIPSettingsModel] = {
@@ -696,6 +698,40 @@ def _snapshot_db_mod_times() -> dict[Path, FileSignature]:
     return snapshot
 
 
+def _sync_groups_with_db_changes(new_databases: Sequence[tuple[Path, UserIPSettings, list[UserIPEntryModel]]]) -> bool:
+    """Propagate username renames and deletions from database changes into `userip_groups.json`."""
+    prev_dbs = UserIPDatabases.userip_databases
+    if not prev_dbs:
+        return False
+    prev_by_db = {db_entry.db_path: [*db_entry.single_entries, *db_entry.range_entries] for db_entry in prev_dbs}
+    prev_cfs = {cleaned.casefold() for entries in prev_by_db.values() for e in entries if (cleaned := e.username.strip())}
+    curr_cfs = {cleaned.casefold() for _, _, entries in new_databases for e in entries if (cleaned := e.username.strip())}
+    if not (removed_cfs := prev_cfs - curr_cfs):
+        return False
+
+    changed = False
+    for db_path, _, new_entries in new_databases:
+        if not (old_entries := prev_by_db.get(db_path, ())):
+            continue
+        old_cfs_by_ip: dict[str, set[str]] = {}
+        for old_e in old_entries:
+            if old_u := old_e.username.strip():
+                old_cfs_by_ip.setdefault(old_e.ip, set()).add(old_u.casefold())
+        new_names_by_ip: dict[str, list[str]] = {}
+        for new_e in new_entries:
+            if (new_u := new_e.username.strip()) and new_u.casefold() not in old_cfs_by_ip.get(new_e.ip, set()):
+                new_names_by_ip.setdefault(new_e.ip, []).append(new_u)
+        for old_e in old_entries:
+            old_u = old_e.username.strip()
+            if old_u and old_u.casefold() in removed_cfs and (candidates := new_names_by_ip.get(old_e.ip, ())):
+                changed = rename_username_in_groups(old_u, candidates[0]) or changed
+                removed_cfs.discard(old_u.casefold())
+
+    if removed_cfs and remove_usernames_from_groups(removed_cfs):
+        changed = True
+    return changed
+
+
 def update_userip_databases() -> tuple[float, bool]:
     """Check for changes in UserIP database files, re-parsing and rebuilding when modified.
 
@@ -706,7 +742,8 @@ def update_userip_databases() -> tuple[float, bool]:
         _ensure_default_userip_files()
 
         current_userip_db_mod_times = _snapshot_db_mod_times()
-        if current_userip_db_mod_times == _last_userip_db_mod_times:
+        current_groups_token = get_groups_state_token()
+        if current_userip_db_mod_times == _last_userip_db_mod_times and _last_userip_groups_token == [current_groups_token]:
             return time.monotonic(), False
 
         if _last_userip_db_mod_times:
@@ -741,11 +778,15 @@ def update_userip_databases() -> tuple[float, bool]:
 
             new_databases.append((userip_path, *cached))
 
+        if _sync_groups_with_db_changes(new_databases):
+            current_groups_token = get_groups_state_token()
+
         UserIPDatabases.populate(new_databases)
         UserIPDatabases.build()
 
         _last_userip_db_mod_times.clear()
         _last_userip_db_mod_times.update(parsed_mod_times)
+        _last_userip_groups_token[:] = [current_groups_token]
 
         return time.monotonic(), True
 

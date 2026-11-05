@@ -8,9 +8,11 @@ from typing import TYPE_CHECKING
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from session_sniffer.constants.local import APP_DIR_ROAMING
+from session_sniffer.utils import FileSignature, get_file_signature
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
+    from collections.abc import Set as AbstractSet
     from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -51,6 +53,8 @@ class _GroupsCache:
     """In-memory cache for persistent UserIP grouping state."""
 
     loaded: bool = False
+    version: int = 0
+    file_sig: FileSignature | None = None
     linked_pairs: set[tuple[str, str]] = field(default_factory=_empty_pair_set)
     unlinked_pairs: set[tuple[str, str]] = field(default_factory=_empty_pair_set)
     canonical_names: dict[str, str] = field(default_factory=_empty_str_dict)
@@ -71,16 +75,20 @@ def _normalize_pair(u1: str, u2: str) -> tuple[str, str] | None:
 
 
 def _ensure_loaded_locked() -> None:
-    """Load `userip_groups.json` into memory if not yet loaded (caller must hold `_groups_lock`)."""
-    if _cache.loaded:
+    """Load `userip_groups.json` into memory if not yet loaded or if modified on disk (caller must hold `_groups_lock`)."""
+    current_sig = get_file_signature(USERIP_GROUPS_PATH)
+    if _cache.loaded and current_sig == _cache.file_sig:
         return
+    if _cache.loaded:
+        _cache.version += 1
     _cache.loaded = True
+    _cache.file_sig = current_sig
     _cache.linked_pairs.clear()
     _cache.unlinked_pairs.clear()
     _cache.canonical_names.clear()
     _cache.excluded_looky_by_ip.clear()
 
-    if not USERIP_GROUPS_PATH.is_file():
+    if current_sig is None:
         return
 
     try:
@@ -120,6 +128,7 @@ def _ensure_loaded_locked() -> None:
 
 def _save_locked() -> None:
     """Persist in-memory grouping state to `userip_groups.json` (caller must hold `_groups_lock`)."""
+    _cache.version += 1
     data = UserIPGroupsData(
         linked_pairs=sorted(_cache.linked_pairs),
         unlinked_pairs=sorted(_cache.unlinked_pairs),
@@ -129,8 +138,16 @@ def _save_locked() -> None:
     try:
         USERIP_GROUPS_PATH.parent.mkdir(parents=True, exist_ok=True)
         USERIP_GROUPS_PATH.write_text(data.model_dump_json(indent=2), encoding='utf-8')
+        _cache.file_sig = get_file_signature(USERIP_GROUPS_PATH)
     except OSError:
         logger.exception('Failed to save UserIP groups to %s', USERIP_GROUPS_PATH)
+
+
+def get_groups_state_token() -> tuple[int, FileSignature | None]:
+    """Return a version and file-signature token representing the current `userip_groups.json` state."""
+    with _groups_lock:
+        _ensure_loaded_locked()
+        return _cache.version, _cache.file_sig
 
 
 def get_grouping_snapshot() -> tuple[set[tuple[str, str]], set[tuple[str, str]], dict[str, str]]:
@@ -251,6 +268,74 @@ def ungroup_usernames(
         return changed
 
 
+def rename_username_in_groups(old_username: str, new_username: str) -> bool:
+    """Replace `old_username` with `new_username` across persisted group links, unlinks, and canonical names."""
+    old_clean, new_clean = old_username.strip(), new_username.strip()
+    old_cf, new_cf = old_clean.casefold(), new_clean.casefold()
+    if not old_cf or not new_cf:
+        return False
+    with _groups_lock:
+        _ensure_loaded_locked()
+        if old_cf == new_cf:
+            if old_cf in _cache.canonical_names and _cache.canonical_names[old_cf] != new_clean:
+                _cache.canonical_names[old_cf] = new_clean
+                _save_locked()
+                return True
+            return False
+
+        changed = False
+        if old_cf in _cache.canonical_names:
+            _cache.canonical_names.pop(old_cf, None)
+            _cache.canonical_names[new_cf] = new_clean
+            changed = True
+
+        new_unlinked: set[tuple[str, str]] = set()
+        for u1, u2 in _cache.unlinked_pairs:
+            if old_cf in (u1, u2):
+                changed = True
+                if pair := _normalize_pair(new_cf if u1 == old_cf else u1, new_cf if u2 == old_cf else u2):
+                    new_unlinked.add(pair)
+            else:
+                new_unlinked.add((u1, u2))
+
+        new_linked: set[tuple[str, str]] = set()
+        for u1, u2 in _cache.linked_pairs:
+            if old_cf in (u1, u2):
+                changed = True
+                if (pair := _normalize_pair(new_cf if u1 == old_cf else u1, new_cf if u2 == old_cf else u2)) and pair not in new_unlinked:
+                    new_linked.add(pair)
+            elif (u1, u2) not in new_unlinked:
+                new_linked.add((u1, u2))
+
+        if changed:
+            _cache.unlinked_pairs = new_unlinked
+            _cache.linked_pairs = new_linked
+            if any(new_cf in pair for pair in _cache.linked_pairs):
+                _cache.canonical_names[new_cf] = new_clean
+            _save_locked()
+        return changed
+
+
+def remove_usernames_from_groups(usernames_cf: AbstractSet[str]) -> bool:
+    """Remove deleted database usernames (casefolded) from persisted `linked_pairs` and `canonical_names`."""
+    if not usernames_cf:
+        return False
+    with _groups_lock:
+        _ensure_loaded_locked()
+        changed = False
+        for cf in usernames_cf:
+            if cf in _cache.canonical_names:
+                _cache.canonical_names.pop(cf, None)
+                changed = True
+        kept_linked = {pair for pair in _cache.linked_pairs if pair[0] not in usernames_cf and pair[1] not in usernames_cf}
+        if len(kept_linked) != len(_cache.linked_pairs):
+            _cache.linked_pairs = kept_linked
+            changed = True
+        if changed:
+            _save_locked()
+        return changed
+
+
 def record_looky_db_correlation(
     looky_usernames: Sequence[str],
     db_by_username_cf: Mapping[str, Path],
@@ -272,9 +357,9 @@ def record_looky_db_correlation(
         cf = clean.casefold()
         if clean and cf not in seen_cf and (db_path := db_by_username_cf.get(cf)) is not None:
             seen_cf.add(cf)
-            matched_by_db.setdefault(db_path, []).append(clean)
+            matched_by_db.setdefault(db_path, []).append(cf)
 
-    eligible_groups = [names for names in matched_by_db.values() if len(names) >= MIN_GROUP_USERNAMES]
+    eligible_groups = [cfs for cfs in matched_by_db.values() if len(cfs) >= MIN_GROUP_USERNAMES]
     if not eligible_groups:
         return False
 
@@ -282,14 +367,7 @@ def record_looky_db_correlation(
         _ensure_loaded_locked()
         changed = False
 
-        for matched in eligible_groups:
-            for clean in matched:
-                cf = clean.casefold()
-                if cf not in _cache.canonical_names:
-                    _cache.canonical_names[cf] = clean
-                    changed = True
-
-            matched_cfs = [m.casefold() for m in matched]
+        for matched_cfs in eligible_groups:
             for i, cf1 in enumerate(matched_cfs):
                 for cf2 in matched_cfs[i + 1 :]:
                     pair = _normalize_pair(cf1, cf2)
@@ -325,15 +403,26 @@ def get_excluded_looky_usernames_cf(ip: str) -> frozenset[str]:
         return frozenset(n.casefold() for n in names)
 
 
-def exclude_looky_usernames(ip: str, usernames: Sequence[str]) -> bool:
+def exclude_looky_usernames(
+    ip: str,
+    usernames: Sequence[str],
+    *,
+    peer_usernames: Sequence[str] = (),
+) -> bool:
     """Exclude/hide the specified Looky `usernames` on `ip` and persist to disk.
 
+    Also removes any Looky-correlated links in `linked_pairs` between the excluded
+    `usernames` and `peer_usernames` on `ip`.
+
     Returns:
-        True if the exclusion list for `ip` changed.
+        True if the persisted state changed.
     """
     clean_ip = ip.strip()
     if not clean_ip or not usernames:
         return False
+
+    excluded_batch_cfs: set[str] = set()
+    peer_cfs = {p.strip().casefold() for p in peer_usernames if p.strip()}
 
     with _groups_lock:
         _ensure_loaded_locked()
@@ -343,12 +432,22 @@ def exclude_looky_usernames(ip: str, usernames: Sequence[str]) -> bool:
         for name in usernames:
             clean_name = name.strip()
             name_cf = clean_name.casefold()
-            if clean_name and name_cf not in seen_cf:
-                seen_cf.add(name_cf)
-                current.append(clean_name)
-                changed = True
+            if clean_name:
+                excluded_batch_cfs.add(name_cf)
+                if name_cf not in seen_cf:
+                    seen_cf.add(name_cf)
+                    current.append(clean_name)
+                    changed = True
         if changed:
             _cache.excluded_looky_by_ip[clean_ip] = current
+
+        for ex_cf in excluded_batch_cfs:
+            for p_cf in peer_cfs:
+                if (pair := _normalize_pair(ex_cf, p_cf)) is not None and pair in _cache.linked_pairs:
+                    _cache.linked_pairs.discard(pair)
+                    changed = True
+
+        if changed:
             _save_locked()
         return changed
 
@@ -474,3 +573,69 @@ def compute_row_group_ids_and_prefixes(
 
     prefixes = [f'{group_anchor_index[row_gids[row]]:010d}\x00{row_gids[row]}' for row in range(row_count)]
     return row_gids, prefixes
+
+
+def build_known_alts_clusters(
+    entry_username_groups: Sequence[Sequence[str]],
+    ambiguous_usernames: AbstractSet[str],
+    single_db_by_cf: Mapping[str, Path],
+) -> tuple[dict[str, str], dict[str, list[str]]]:
+    """Build `(canonical_names, known_alts_clusters)` from entry username groups and persisted group links."""
+    linked_pairs, unlinked_pairs, stored_canonical_names = get_grouping_snapshot()
+    adj: dict[str, dict[str, None]] = {}
+    canonical_names: dict[str, str] = {}
+
+    for names in entry_username_groups:
+        unique_cfs: list[str] = []
+        for raw_name in names:
+            if name := raw_name.strip():
+                cf = name.casefold()
+                canonical_names.setdefault(cf, name)
+                if cf not in ambiguous_usernames and cf not in unique_cfs:
+                    unique_cfs.append(cf)
+        if len(unique_cfs) > 1:
+            for idx, u_cf in enumerate(unique_cfs):
+                for v_cf in unique_cfs[idx + 1 :]:
+                    pair = (u_cf, v_cf) if u_cf < v_cf else (v_cf, u_cf)
+                    if pair not in unlinked_pairs:
+                        adj.setdefault(u_cf, {})[v_cf] = None
+                        adj.setdefault(v_cf, {})[u_cf] = None
+
+    for cf, display_name in stored_canonical_names.items():
+        canonical_names.setdefault(cf, display_name)
+
+    eligible_cfs = set(canonical_names) - set(ambiguous_usernames)
+    for u_cf, v_cf in sorted(linked_pairs):
+        pair = (u_cf, v_cf) if u_cf < v_cf else (v_cf, u_cf)
+        if pair in unlinked_pairs or u_cf not in eligible_cfs or v_cf not in eligible_cfs:
+            continue
+        u_db, v_db = single_db_by_cf.get(u_cf), single_db_by_cf.get(v_cf)
+        if u_db is None or v_db is None or u_db == v_db:
+            adj.setdefault(u_cf, {})[v_cf] = None
+            adj.setdefault(v_cf, {})[u_cf] = None
+
+    visited: set[str] = set()
+    known_alts_clusters: dict[str, list[str]] = {}
+    for root in adj:
+        if root in visited:
+            continue
+        component: list[str] = []
+        comp_db: Path | None = single_db_by_cf.get(root)
+        queue = [root]
+        visited.add(root)
+        while queue:
+            curr = queue.pop(0)
+            component.append(curr)
+            for neighbor in adj.get(curr, ()):
+                nb_db = single_db_by_cf.get(neighbor)
+                same_db = comp_db is None or nb_db is None or nb_db == comp_db
+                if neighbor not in visited and same_db and all(((neighbor, m) if neighbor < m else (m, neighbor)) not in unlinked_pairs for m in component):
+                    comp_db = comp_db or nb_db
+                    visited.add(neighbor)
+                    queue.append(neighbor)
+        if len(component) > 1:
+            canonical_cluster = [canonical_names[cf] for cf in component]
+            for cf in component:
+                known_alts_clusters[cf] = canonical_cluster
+
+    return canonical_names, known_alts_clusters
