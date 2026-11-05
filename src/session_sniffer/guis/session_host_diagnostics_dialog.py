@@ -433,11 +433,7 @@ class SessionHostDiagnosticsDialog(QDialog):
             activity_badge = 'Active & Connected'
             activity_badge_style = HOST_BADGE_SUCCESS_STYLESHEET
         elif self._snapshot.candidates:
-            active_candidates = [
-                candidate
-                for candidate in self._snapshot.candidates
-                if not candidate.is_pending_disconnection and not candidate.is_disconnected
-            ]
+            active_candidates = [candidate for candidate in self._snapshot.candidates if not candidate.is_pending_disconnection and not candidate.is_disconnected]
             activity_passed = bool(active_candidates)
             active_count = len(active_candidates)
             if activity_passed:
@@ -525,18 +521,14 @@ class SessionHostDiagnosticsDialog(QDialog):
                 self._snapshot.candidates[0] if self._snapshot.candidates else None,
             )
             if host_candidate is not None:
-                packet_detail = (
-                    f'Candidate sent >= 9 packets ({host_candidate.packets_sent}) '
-                    f'and exchanged <= 1,000 ({host_candidate.packets_exchanged})'
-                )
+                packet_detail = f'Candidate sent >= 9 packets ({host_candidate.packets_sent}) and exchanged <= 1,000 ({host_candidate.packets_exchanged})'
             else:
                 packet_detail = 'Candidate packet counts within valid bounds (>= 9 sent, <= 1,000 exchanged)'
             packet_badge = 'Eligible Packets'
             packet_badge_style = HOST_BADGE_SUCCESS_STYLESHEET
         elif self._snapshot.candidates:
             has_under_sent = any(
-                candidate.packet_status == 'Not enough sent' or candidate.packets_sent < _MINIMUM_PACKETS_FOR_RELAY_SESSION_HOST
-                for candidate in self._snapshot.candidates
+                candidate.packet_status == 'Not enough sent' or candidate.packets_sent < _MINIMUM_PACKETS_FOR_RELAY_SESSION_HOST for candidate in self._snapshot.candidates
             )
             has_over_exchanged = any(
                 candidate.packet_status == 'Exceeds maximum exchanged' or candidate.packets_exchanged > _SESSION_HOST_MAX_PACKETS_FOR_DETECTION
@@ -555,8 +547,7 @@ class SessionHostDiagnosticsDialog(QDialog):
             else:
                 packet_passed = True
                 packet_detail = (
-                    f'Candidate packet counts within valid bounds (>= {_MINIMUM_PACKETS_FOR_RELAY_SESSION_HOST} sent, '
-                    f'<= {_SESSION_HOST_MAX_PACKETS_FOR_DETECTION:,} exchanged)'
+                    f'Candidate packet counts within valid bounds (>= {_MINIMUM_PACKETS_FOR_RELAY_SESSION_HOST} sent, <= {_SESSION_HOST_MAX_PACKETS_FOR_DETECTION:,} exchanged)'
                 )
                 packet_badge = 'Eligible Packets'
                 packet_badge_style = HOST_BADGE_SUCCESS_STYLESHEET
