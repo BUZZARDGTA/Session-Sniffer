@@ -558,7 +558,7 @@ def rendering_core(
             modmenu_usernames_for_player = all_modmenu_usernames.get(player.ip)
             modmenu_complete = not bool(modmenu_usernames_for_player) if player.mod_menus is None else player.mod_menus.usernames == modmenu_usernames_for_player
             ps3_complete = not bool(player.ps3_username) or player.ps3_username in player.usernames
-            usernames_complete = looky_complete and modmenu_complete and ps3_complete
+            usernames_complete = looky_complete and modmenu_complete and ps3_complete and not _auto_feed_retriggered
             if player.left_event.is_set() and not _userip_db_rebuilt and player.iplookup.geolite2.is_initialized and has_geo and usernames_complete:
                 continue
 
@@ -602,7 +602,7 @@ def rendering_core(
             should_recheck_usernames = _auto_feed_retriggered or bool(
                 _newly_resolvable_usernames and any(name.casefold() in _newly_resolvable_usernames for name in player.usernames),
             )
-            if not player.left_event.is_set() and player.userip is None and player.usernames and should_recheck_usernames:
+            if player.userip is None and player.usernames and should_recheck_usernames:
                 trigger_auto_username_userip(player, list(player.usernames))
 
             _populate_player_geoip_and_flag(player)

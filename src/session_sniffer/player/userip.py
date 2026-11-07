@@ -476,7 +476,11 @@ class UserIPDatabases:
         matched_entries: list[UserIP | _RangeEntry] = [*([single_userip] if single_userip is not None else ()), *matching_ranges]
         if not matched_entries:
             return None
+        return UserIPDatabases._combine_userip_entries(ip, matched_entries)
 
+    @staticmethod
+    def _combine_userip_entries(ip: str, matched_entries: Sequence[UserIP | _RangeEntry]) -> UserIP:
+        """Combine one or more `UserIP` or `_RangeEntry` snapshots from the same database into a single `UserIP`."""
         primary = matched_entries[0]
         combined_usernames: list[str] = []
         combined_known_alts: list[str] = []
@@ -866,23 +870,34 @@ class UserIPDatabases:
         )
 
     @classmethod
-    def resolve_userip_by_usernames(cls, usernames: Sequence[str], player_ip: str) -> tuple[UserIP, str] | None:
-        """Resolve a UserIP snapshot and matched username from a sequence of candidate usernames.
+    def resolve_userip_by_usernames(cls, usernames: Sequence[str], player_ip: str) -> tuple[UserIP, list[str]] | None:
+        """Resolve a UserIP snapshot and matched canonical usernames from a sequence of candidate usernames.
 
-        Returns the first matching database resolution, or None if none match or if candidate
-        usernames resolve to multiple different databases.
+        Returns the combined matching database resolution and deduplicated canonical usernames,
+        or None if none match or if candidate usernames resolve to multiple different databases.
         """
-        first_match: tuple[UserIP, str] | None = None
+        matched_userips: list[UserIP] = []
+        matched_usernames: list[str] = []
+        seen_canonical_cf: set[str] = set()
         matched_db_path: Path | None = None
         for username in usernames:
             resolved = cls.resolve_userip_by_username(username, player_ip)
-            if resolved is not None:
-                if first_match is None:
-                    first_match = resolved
-                    matched_db_path = resolved[0].db_path
-                elif resolved[0].db_path != matched_db_path:
-                    return None
-        return first_match
+            if resolved is None:
+                continue
+            userip, canonical_username = resolved
+            if matched_db_path is None:
+                matched_db_path = userip.db_path
+            elif userip.db_path != matched_db_path:
+                return None
+            canonical_cf = canonical_username.casefold()
+            if canonical_cf not in seen_canonical_cf:
+                seen_canonical_cf.add(canonical_cf)
+                matched_userips.append(userip)
+                matched_usernames.append(canonical_username)
+        if not matched_userips:
+            return None
+        combined = matched_userips[0] if len(matched_userips) == 1 else cls._combine_userip_entries(player_ip, matched_userips)
+        return combined, matched_usernames
 
     @classmethod
     def get_matching_range_raws(cls, ip: str) -> list[str]:

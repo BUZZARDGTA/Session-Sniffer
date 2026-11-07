@@ -495,23 +495,40 @@ def trigger_auto_username_userip(player: Player, detected_usernames: Sequence[st
     if matched is None:
         return
 
-    resolved_userip, matched_username = matched
+    resolved_userip, matched_usernames = matched
+
+    should_trigger_detection = not player.left_event.is_set() and (
+        player.userip_detection is None or not player.userip_detection.as_processed_task
+    )
+    if should_trigger_detection:
+        now = datetime.now(tz=LOCAL_TZ)
+        player.userip_detection = PlayerUserIPDetection(
+            time=now.strftime('%H:%M:%S'),
+            date_time=now.strftime('%Y-%m-%d_%H:%M:%S'),
+            type='Username',
+        )
 
     # Auto-feed the database if entry is not present
-    appended = append_userip_entry_if_missing(resolved_userip.db_path, matched_username, player.ip)
+    appended = False
+    for matched_username in matched_usernames:
+        if append_userip_entry_if_missing(resolved_userip.db_path, matched_username, player.ip):
+            appended = True
     if appended:
         update_userip_databases()
         resolved_userip = UserIPDatabases.resolve_userip(player.ip) or resolved_userip
 
     if UserIPDatabases.is_conflicting_ip(player.ip):
+        if should_trigger_detection:
+            player.userip_detection = None
         return
 
     # Immediate detection if not already processed
-    should_trigger_detection = player.userip_detection is None or not player.userip_detection.as_processed_task
     if should_trigger_detection:
         spawn_connected_userip_detection(player, resolved_userip, detection_type='Username')
-    elif resolved_userip.usernames:
-        player.usernames = dedup_preserve_order(player.usernames, resolved_userip.usernames)
+    else:
+        player.userip = resolved_userip
+        if resolved_userip.usernames:
+            player.usernames = dedup_preserve_order(player.usernames, resolved_userip.usernames)
 
     wake_rendering_core()
 
