@@ -12,6 +12,7 @@ from session_sniffer.constants.local import APP_DIR_ROAMING, USERIP_DATABASES_DI
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.guis.select_usernames_dialog import SelectUsernamesDialog, UsernameSelectionConfig, prompt_username_input, prompt_usernames_and_notes_input
 from session_sniffer.guis.userip_manager_helpers import (
+    ANCHOR_USERNAME_ROLE,
     DATABASE_COLUMN,
     DUPLICATE_HIGHLIGHT_BRUSH,
     INDEX_COLUMN,
@@ -41,7 +42,7 @@ from session_sniffer.guis.userip_manager_helpers import (
 from session_sniffer.models.userip_settings_model import UserIPDatabaseFile, UserIPEntryModel, UserIPSettingsModel, get_current_iso_timestamp
 from session_sniffer.networking.ip_range import is_valid_ip_range_entry
 from session_sniffer.player.userip import UserIPDatabases
-from session_sniffer.player.userip_groups import MIN_GROUP_USERNAMES, USERIP_GROUPS_PATH, are_usernames_unlinked, group_usernames, ungroup_usernames
+from session_sniffer.player.userip_groups import MIN_GROUP_USERNAMES, USERIP_GROUPS_PATH, group_usernames, ungroup_usernames
 from session_sniffer.player.userip_loader import enrich_userip_entry_from_logs, update_userip_databases
 from session_sniffer.rendering_core.events import wake_rendering_core
 from session_sniffer.text_utils import pluralize
@@ -241,13 +242,17 @@ class UserIPEntriesOperationsMixin(QDialog):
                 success = bool(rewrite_db_edit_entry_ip(database_path, current_entry, new_ip_text, username=username))
                 if success:
                     refresh_userip_and_wake_renderer()
+            self._last_seen_build_version = UserIPDatabases.build_version
             self._rebuild_fs_watch()
             if not success:
                 return
-            self._set_row_ip_or_range(source_row, new_ip_text, is_single=is_single)
-            set_row_updated_at(self._model, source_row)
-            extract_entry_model_from_row(self._model, source_row)
+            with QSignalBlocker(self._model):
+                self._set_row_ip_or_range(source_row, new_ip_text, is_single=is_single)
+                set_row_updated_at(self._model, source_row)
+                extract_entry_model_from_row(self._model, source_row)
+            self._proxy.refresh_rows((source_row,))
             self._dedup_global_search_rows()
+            self._proxy.refresh_groups()
             self._highlight_duplicates()
             self._refresh_stats()
             self._update_entry_counts()
@@ -274,13 +279,7 @@ class UserIPEntriesOperationsMixin(QDialog):
         current_note = notes_item.text().strip() if notes_item else ''
         dialog_title = 'Edit Note' if current_note else 'Add Note'
         note_prompt = 'Enter the note' if current_note else 'Enter a note'
-        new_note, accepted = QInputDialog.getText(
-            self,
-            dialog_title,
-            f'{note_prompt} for this entry (leave empty to clear):',
-            QLineEdit.EchoMode.Normal,
-            current_note,
-        )
+        new_note, accepted = QInputDialog.getText(self, dialog_title, f'{note_prompt} for this entry (leave empty to clear):', QLineEdit.EchoMode.Normal, current_note)
         if not accepted or (new_note := new_note.strip()) == current_note:
             return
 
@@ -334,7 +333,7 @@ class UserIPEntriesOperationsMixin(QDialog):
 
     def _add_username_global_search(self, source_row: int, ip_text: str, range_text: str) -> None:
         """Prompt for usernames and append them directly to the entry's database in global search mode."""
-        entry_value = ip_text or range_text
+        entry_value, anchor_username = ip_text or range_text, self._get_row_username(source_row)
         database_item = self._model.item(source_row, DATABASE_COLUMN)
         database_path = self._get_row_database_path(source_row)
         if not database_path or not database_path.is_file():
@@ -348,8 +347,10 @@ class UserIPEntriesOperationsMixin(QDialog):
 
         new_entry_models = [enrich_userip_entry_from_logs(UserIPEntryModel(username=name, ip=entry_value, notes=entered_notes.get(name, '')))[0] for name in new_usernames]
         with QSignalBlocker(self._fs_watcher):
-            added_pairs = append_userip_entries(database_path, new_entry_models)
+            added_pairs = append_userip_entries(database_path, new_entry_models, anchor_usernames_by_ip={entry_value: anchor_username} if anchor_username else None)
             if added_pairs:
+                if anchor_username:
+                    group_usernames([anchor_username, *new_usernames], UserIPDatabases.get_known_alts_clusters_snapshot())
                 refresh_userip_and_wake_renderer()
         self._rebuild_fs_watch()
 
@@ -375,7 +376,7 @@ class UserIPEntriesOperationsMixin(QDialog):
 
     def _add_username_filtered(self, source_row: int, ip_text: str, range_text: str) -> None:
         """Prompt for usernames and insert rows into the single-DB model when a search filter is active."""
-        entry_value = ip_text or range_text
+        entry_value, anchor_username = ip_text or range_text, self._get_row_username(source_row)
         new_usernames, entered_notes = self._prompt_new_usernames(
             lambda count: f'Enter the username{pluralize(count)} to add for {entry_value}:',
         )
@@ -395,6 +396,10 @@ class UserIPEntriesOperationsMixin(QDialog):
         self._update_entry_counts()
         self._save_database()
         if not self._dirty:
+            if anchor_username:
+                with QSignalBlocker(self._fs_watcher):
+                    if group_usernames([anchor_username, *new_usernames], UserIPDatabases.get_known_alts_clusters_snapshot()):
+                        self._refresh_table_after_grouping()
             added_count = max(0, self._model.rowCount() - before_count)
             if added_count > 0:
                 self._set_status(f'Added {added_count} username{pluralize(added_count)} for {entry_value}.')
@@ -416,10 +421,10 @@ class UserIPEntriesOperationsMixin(QDialog):
             self._add_username_filtered(source_row, ip_text, range_text)
             return
 
-        self._model.insertRow(
-            source_row + 1,
-            build_entry_row_items(UserIPEntryModel(username='', ip=ip_text or range_text), index=source_row + 2, persisted=False),
-        )
+        row_items = build_entry_row_items(UserIPEntryModel(username='', ip=ip_text or range_text), index=source_row + 2, persisted=False)
+        if anchor_username := self._get_row_username(source_row):
+            row_items[INDEX_COLUMN].setData(anchor_username, ANCHOR_USERNAME_ROLE)
+        self._model.insertRow(source_row + 1, row_items)
         self._renumber_indexes()
         self._mark_entries_dirty()
         self._highlight_duplicates()
@@ -465,10 +470,7 @@ class UserIPEntriesOperationsMixin(QDialog):
         for src_row in new_source_rows:
             p_index = self._proxy.mapFromSource(self._model.index(src_row, 0))
             if p_index.isValid():
-                selection.select(
-                    p_index,
-                    QItemSelectionModel.SelectionFlag.Select | QItemSelectionModel.SelectionFlag.Rows,
-                )
+                selection.select(p_index, QItemSelectionModel.SelectionFlag.Select | QItemSelectionModel.SelectionFlag.Rows)
         first_proxy = self._proxy.mapFromSource(self._model.index(new_source_rows[0], 0))
         if first_proxy.isValid():
             self._entries_table.scrollTo(first_proxy)
@@ -492,24 +494,18 @@ class UserIPEntriesOperationsMixin(QDialog):
         count = len(source_rows)
 
         if count == 1:
-            initial_name = self._get_row_username(source_rows[0])
-            title = 'Rename Username'
-            prompt = 'Enter the new username:'
+            initial_name, title, prompt = self._get_row_username(source_rows[0]), 'Rename Username', 'Enter the new username:'
         else:
             usernames = {username for row in source_rows if (username := self._get_row_username(row))}
             initial_name = next(iter(usernames)) if len(usernames) == 1 else ''
-            title = f'Rename Selected ({count})'
-            prompt = f'Enter the new username for {count} selected {pluralize(count, "entry", "entries")}:'
+            title, prompt = f'Rename Selected ({count})', f'Enter the new username for {count} selected {pluralize(count, "entry", "entries")}:'
 
         new_username, success = prompt_username_input(self, title, prompt, initial_name)
-        new_username = new_username.strip() if success else ''
         if not success:
             return
-
-        if not new_username:
+        if not (new_username := new_username.strip()):
             QMessageBox.warning(self, TITLE, 'No username was provided.')
             return
-
         if count == 1 and new_username == initial_name:
             return
 
@@ -531,17 +527,20 @@ class UserIPEntriesOperationsMixin(QDialog):
                         renamed_count += rewrite_db_rename_entries(database_path, rename_pairs, new_username)
                 if renamed_count:
                     refresh_userip_and_wake_renderer()
+            self._last_seen_build_version = UserIPDatabases.build_version
             self._rebuild_fs_watch()
 
             if not renamed_count:
                 return
 
-            for row in source_rows:
-                self._model.item(row, USERNAME_COLUMN).setText(new_username)
-                clear_row_looky_badge(self._model, row)
-                set_row_updated_at(self._model, row)
-
+            with QSignalBlocker(self._model):
+                for row in source_rows:
+                    self._model.item(row, USERNAME_COLUMN).setText(new_username)
+                    clear_row_looky_badge(self._model, row)
+                    set_row_updated_at(self._model, row)
+            self._proxy.refresh_rows(source_rows)
             self._dedup_global_search_rows()
+            self._proxy.refresh_groups()
             self._highlight_duplicates()
             self._refresh_stats()
             self._update_entry_counts()
@@ -617,11 +616,28 @@ class UserIPEntriesOperationsMixin(QDialog):
         self._update_entry_counts()
         self._set_status(f'Deleted {count} {pluralize(count, "entry", "entries")} from database files.')
 
+    def _collect_group_source_rows(self, source_rows: list[int]) -> list[int]:
+        """Return all source-model row indices belonging to the account group(s) of *source_rows*."""
+        row_gids = self._proxy.get_source_row_group_ids()
+        target_gids = {row_gids[r] for r in source_rows if 0 <= r < len(row_gids)}
+        group_cfs = {u.casefold() for u in self._collect_group_members_for_rows(source_rows)}
+        return sorted({
+            *source_rows,
+            *(r for r in range(self._model.rowCount()) if (r < len(row_gids) and row_gids[r] in target_gids) or self._get_row_username(r).casefold() in group_cfs),
+        })
+
     def _move_selected_to_database(self, target_db_path: Path) -> None:
         """Move the selected entries to a different UserIP database."""
-        source_rows = self._get_selected_source_rows(warn_if_empty=True)
-        if not source_rows:
-            return
+        if source_rows := self._get_selected_source_rows(warn_if_empty=True):
+            self._move_rows_to_database(source_rows, target_db_path)
+
+    def _move_group_to_database(self, seed_rows: list[int], target_db_path: Path) -> None:
+        """Move all entries in the account group(s) of *seed_rows* to *target_db_path*."""
+        if group_rows := self._collect_group_source_rows(seed_rows):
+            self._move_rows_to_database(group_rows, target_db_path)
+
+    def _move_rows_to_database(self, source_rows: list[int], target_db_path: Path) -> None:
+        """Move the specified *source_rows* to a different UserIP database."""
         now_iso = get_current_iso_timestamp()
 
         entries_to_move: list[tuple[UserIPEntryModel, int]] = []
@@ -658,27 +674,33 @@ class UserIPEntriesOperationsMixin(QDialog):
                     if src_db_path.is_file():
                         rewrite_db_without_entries(src_db_path, to_remove)
                 refresh_userip_and_wake_renderer()
+            self._last_seen_build_version = UserIPDatabases.build_version
             self._rebuild_fs_watch()
 
             added_pairs_cf = {(u.casefold(), ip) for u, ip in added_pairs}
             rows_to_remove: list[int] = []
-            for entry_model, row in valid_moves:
-                pair = (entry_model.username.casefold(), entry_model.ip)
-                if pair in added_pairs_cf:
-                    added_pairs_cf.discard(pair)
-                    if db_item := self._model.item(row, DATABASE_COLUMN):
-                        db_item.setText(str(target_display_name))
-                        db_item.setData(str(target_db_path), Qt.ItemDataRole.UserRole)
-                    set_row_updated_at(self._model, row, now_iso)
-                else:
-                    rows_to_remove.append(row)
+            updated_rows: list[int] = []
+            with QSignalBlocker(self._model):
+                for entry_model, row in valid_moves:
+                    pair = (entry_model.username.casefold(), entry_model.ip)
+                    if pair in added_pairs_cf:
+                        added_pairs_cf.discard(pair)
+                        if db_item := self._model.item(row, DATABASE_COLUMN):
+                            db_item.setText(str(target_display_name))
+                            db_item.setData(str(target_db_path), Qt.ItemDataRole.UserRole)
+                        set_row_updated_at(self._model, row, now_iso)
+                        updated_rows.append(row)
+                    else:
+                        rows_to_remove.append(row)
 
             for row in sorted(rows_to_remove, reverse=True):
                 self._model.removeRow(row)
 
-            if rows_to_remove:
-                self._renumber_indexes()
-                self._update_entry_counts()
+            if updated_rows:
+                self._proxy.refresh_rows([r for r in updated_rows if r < self._model.rowCount()])
+            self._dedup_global_search_rows()
+            self._renumber_indexes()
+            self._update_entry_counts()
             self._highlight_duplicates()
             self._refresh_stats()
             self._set_status(f'Moved {len(valid_moves)} {pluralize(len(valid_moves), "entry", "entries")} to "{target_display_name}".')
@@ -689,7 +711,8 @@ class UserIPEntriesOperationsMixin(QDialog):
             if self._dirty and not self._save_on_close():
                 return
 
-            append_userip_entries(target_db_path, [entry_model for entry_model, _ in entries_to_move])
+            with QSignalBlocker(self._fs_watcher):
+                append_userip_entries(target_db_path, [entry_model for entry_model, _ in entries_to_move])
 
             for row in sorted({r for _, r in entries_to_move}, reverse=True):
                 self._model.removeRow(row)
@@ -751,11 +774,7 @@ class UserIPEntriesOperationsMixin(QDialog):
                 duplicate_count = total_before_dedup - len(entries)
 
                 if duplicate_count > 0:
-                    QMessageBox.information(
-                        self,
-                        TITLE,
-                        f'{duplicate_count} exact duplicate entr{pluralize(duplicate_count, "y was", "ies were")} removed before saving.',
-                    )
+                    QMessageBox.information(self, TITLE, f'{duplicate_count} exact duplicate entr{pluralize(duplicate_count, "y was", "ies were")} removed before saving.')
 
                 with QSignalBlocker(self._model):
                     for row in persisted_rows:
@@ -900,33 +919,11 @@ class UserIPEntriesOperationsMixin(QDialog):
 
     def _collect_group_members_for_rows(self, source_rows: list[int]) -> list[str]:
         """Return all usernames currently grouped with the usernames on *source_rows*."""
-        row_usernames = dedup_preserve_order(self._get_row_username(r) for r in source_rows if self._get_row_username(r))
-        if not row_usernames:
-            return []
-        expanded = UserIPDatabases.expand_with_known_alts(row_usernames)
-        seen_cf = {u.casefold() for u in expanded}
-
-        # Iteratively expand across all IPs shared by any member in the currently loaded model (when not unlinked)
-        row_count = self._model.rowCount()
-        added = True
-        while added:
-            added = False
-            member_ips = {self._get_row_entry_value(r) for r in range(row_count) if self._get_row_entry_value(r) and self._get_row_username(r).casefold() in seen_cf}
-            if not member_ips:
-                break
-            for r in range(row_count):
-                if self._get_row_entry_value(r) not in member_ips:
-                    continue
-                u_val = self._get_row_username(r)
-                u_cf = u_val.casefold()
-                if u_val and u_cf not in seen_cf and not any(are_usernames_unlinked(u_val, existing) for existing in expanded):
-                    for alt in UserIPDatabases.expand_with_known_alts([u_val]):
-                        alt_cf = alt.casefold()
-                        if alt_cf not in seen_cf and not any(are_usernames_unlinked(alt, existing) for existing in expanded):
-                            seen_cf.add(alt_cf)
-                            expanded.append(alt)
-                            added = True
-        return expanded
+        row_gids = self._proxy.get_source_row_group_ids()
+        target_gids = {row_gids[r] for r in source_rows if 0 <= r < len(row_gids)}
+        seed_rows = [r for r in range(self._model.rowCount()) if r in source_rows or (r < len(row_gids) and row_gids[r] in target_gids)]
+        row_usernames = dedup_preserve_order(self._get_row_username(r) for r in seed_rows if self._get_row_username(r))
+        return UserIPDatabases.expand_with_known_alts(row_usernames) if row_usernames else []
 
     def _refresh_table_after_grouping(self) -> None:
         """Rebuild UserIP databases and refresh the proxy's group sorting and alternating background shading."""

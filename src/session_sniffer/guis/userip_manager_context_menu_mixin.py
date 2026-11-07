@@ -93,6 +93,12 @@ class EntriesContextMenuMixin(QDialog):
     def _move_selected_to_database(self, target_db_path: Path) -> None:
         raise NotImplementedError
 
+    def _collect_group_source_rows(self, source_rows: list[int]) -> list[int]:
+        raise NotImplementedError
+
+    def _move_group_to_database(self, seed_rows: list[int], target_db_path: Path) -> None:
+        raise NotImplementedError
+
     def _collect_group_members_for_rows(self, source_rows: list[int]) -> list[str]:
         raise NotImplementedError
 
@@ -340,14 +346,16 @@ class EntriesContextMenuMixin(QDialog):
             ungroup_action.triggered.connect(self._ungroup_rows)
             menu.addAction(ungroup_action)
 
-    def _add_move_to_database_menu(self, menu: QMenu, *, selected_count: int, disabled_path: Path | None) -> None:
-        """Build and append the 'Move to Database' submenu to *menu*."""
+    def _add_move_to_database_menu(self, menu: QMenu, context: _RowMenuContext, *, disabled_path: Path | None) -> None:
+        """Build and append the 'Move to Database' (and 'Move Group to Database' when applicable) submenu to *menu*."""
+        box_icon = QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'box.svg'))
+        all_db_paths = [json_path for json_path in USERIP_DATABASES_DIR_PATH.rglob('*.json') if json_path.is_file()]
+        selected_count = context.selected_count
         move_db_label = f'Move Selected to Database ({selected_count})' if selected_count > 1 else 'Move to Database'
         move_db_menu = QMenu(move_db_label, menu)
-        move_db_menu.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'box.svg')))
+        move_db_menu.setIcon(box_icon)
         move_db_menu.setStyleSheet(SVG_ICON_CONTEXT_MENU_STYLESHEET)
         move_db_menu.setToolTipsVisible(True)
-        all_db_paths = [json_path for json_path in USERIP_DATABASES_DIR_PATH.rglob('*.json') if json_path.is_file()]
         enabled_target_count = populate_userip_databases_menu(
             move_db_menu,
             all_db_paths,
@@ -359,6 +367,33 @@ class EntriesContextMenuMixin(QDialog):
             move_db_menu.setEnabled(False)
             move_db_menu.setToolTip('No other databases available.')
         menu.addMenu(move_db_menu)
+
+        source_rows = sorted({self._proxy.mapToSource(idx).row() for idx in context.selected_rows}) if context.selected_rows else [context.row]
+        group_rows = self._collect_group_source_rows(source_rows)
+        if len(group_rows) > 1 and set(group_rows) != set(source_rows):
+            group_disabled_path = disabled_path
+            if self._global_search_active:
+                group_db_paths = {
+                    db_item.data(Qt.ItemDataRole.UserRole)
+                    for r in group_rows
+                    if (db_item := self._model.item(r, DATABASE_COLUMN))
+                }
+                group_disabled_path = Path(next(iter(group_db_paths))) if len(group_db_paths) == 1 and next(iter(group_db_paths)) else None
+            move_group_menu = QMenu(f'Move Group to Database ({len(group_rows)})', menu)
+            move_group_menu.setIcon(box_icon)
+            move_group_menu.setStyleSheet(SVG_ICON_CONTEXT_MENU_STYLESHEET)
+            move_group_menu.setToolTipsVisible(True)
+            enabled_group_targets = populate_userip_databases_menu(
+                move_group_menu,
+                all_db_paths,
+                tooltip=f'Move all {len(group_rows)} entries in this account group to this database.',
+                handler_factory=lambda target_path: lambda: self._move_group_to_database(source_rows, target_path),
+                disabled_path=group_disabled_path,
+            )
+            if not enabled_group_targets:
+                move_group_menu.setEnabled(False)
+                move_group_menu.setToolTip('No other databases available.')
+            menu.addMenu(move_group_menu)
 
     def _add_network_actions(
         self,
@@ -447,7 +482,7 @@ class EntriesContextMenuMixin(QDialog):
         menu.addSeparator()
         self._add_grouping_actions(menu, context)
         menu.addSeparator()
-        self._add_move_to_database_menu(menu, selected_count=context.selected_count, disabled_path=self._current_path)
+        self._add_move_to_database_menu(menu, context, disabled_path=self._current_path)
         self._add_network_actions(menu, ip_or_range=context.ip_or_range, is_single_ip=is_single_ip, selected_ips=selected_ips)
 
         if context.ip_or_range and self._current_path is not None and context.selected_count <= 1:
@@ -500,7 +535,7 @@ class EntriesContextMenuMixin(QDialog):
             if self._model.item(self._proxy.mapToSource(i).row(), DATABASE_COLUMN)
         }
         disabled_gs_path = Path(next(iter(selected_db_paths))) if len(selected_db_paths) == 1 and next(iter(selected_db_paths)) else None
-        self._add_move_to_database_menu(menu, selected_count=context.selected_count, disabled_path=disabled_gs_path)
+        self._add_move_to_database_menu(menu, context, disabled_path=disabled_gs_path)
 
         is_single_ip_gs, selected_ips_gs = self._collect_selected_ips(context.ip_or_range)
         self._add_network_actions(menu, ip_or_range=context.ip_or_range, is_single_ip=is_single_ip_gs, selected_ips=selected_ips_gs)

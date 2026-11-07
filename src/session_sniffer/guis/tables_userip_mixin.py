@@ -525,14 +525,14 @@ def userip_add_username(parent: QWidget, ip_address: str, player: Player) -> Non
             return
         target_entry = chosen_target
 
-    existing_note = ', '.join(player.userip.notes) if player.userip.notes else ''
+    existing_usernames, existing_note = list(player.userip.usernames), ', '.join(player.userip.notes) if player.userip.notes else ''
     append_userip_entries(
         db_path,
-        [
-            UserIPEntryModel(username=username, ip=target_entry, notes=notes_by_username.get(username) or existing_note)
-            for username in entered_usernames
-        ],
+        [UserIPEntryModel(username=username, ip=target_entry, notes=notes_by_username.get(username) or existing_note) for username in entered_usernames],
+        anchor_usernames_by_ip={target_entry: existing_usernames[0]} if existing_usernames else None,
     )
+    if existing_usernames:
+        group_usernames([*existing_usernames, *entered_usernames], UserIPDatabases.get_known_alts_clusters_snapshot())
     refresh_userip_and_wake_renderer()
 
     usernames_display = ', '.join(f'"{username}"' for username in entered_usernames)
@@ -690,8 +690,8 @@ def userip_move(parent: QWidget, selected_ips: list[str], selected_database: Pat
                 kept_entries.append(entry)
 
         if moved_entries:
-            save_userip_database_model(db_path, UserIPDatabaseFile(settings=db_model.settings, entries=kept_entries))
             append_userip_entries(selected_database, moved_entries)
+            save_userip_database_model(db_path, UserIPDatabaseFile(settings=db_model.settings, entries=kept_entries))
             moved_entry_ips.extend(entry.ip for entry in moved_entries)
             deleted_entries_by_database[db_path] = [f'{html.escape(entry.username)}={html.escape(entry.ip)}' for entry in moved_entries]
 

@@ -859,9 +859,9 @@ def find_userip_insert_index(entries: Sequence[UserIPEntryModel], username: str,
         cluster_cfs.update(member.casefold() for member in UserIPDatabases.get_cluster_for_username(anchor_username))
     rev_indices = range(len(entries) - 1, -1, -1)
     for match_idx in (
+        next((i for i in rev_indices if anchor_cf and entries[i].username.casefold() == anchor_cf and entries[i].ip == ip_or_range), None),
         next((i for i in rev_indices if entries[i].ip == ip_or_range), None),
-        next((i for i in rev_indices if entries[i].username.casefold() == username_cf), None),
-        next((i for i in rev_indices if anchor_cf and entries[i].username.casefold() == anchor_cf), None),
+        next((i for i in rev_indices if entries[i].username.casefold() in {username_cf, anchor_cf} - {''}), None),
         next((i for i in rev_indices if cluster_cfs and entries[i].username.casefold() in cluster_cfs), None),
         next((i for i in rev_indices if entry_ip_covers_ip(entries[i].ip, ip_or_range)), None),
     ):

@@ -150,11 +150,57 @@ def get_groups_state_token() -> tuple[int, FileSignature | None]:
         return _cache.version, _cache.file_sig
 
 
+def _expand_unlinked_across_linked(
+    linked_pairs: AbstractSet[tuple[str, str]],
+    unlinked_pairs: AbstractSet[tuple[str, str]],
+) -> set[tuple[str, str]]:
+    """Propagate `unlinked_pairs` exclusions across connected components of `linked_pairs`."""
+    if not linked_pairs or not unlinked_pairs:
+        return set(unlinked_pairs)
+    link_adj: dict[str, list[str]] = {}
+    for u1, u2 in linked_pairs:
+        if (u1, u2) not in unlinked_pairs:
+            link_adj.setdefault(u1, []).append(u2)
+            link_adj.setdefault(u2, []).append(u1)
+    if not link_adj:
+        return set(unlinked_pairs)
+
+    comp_by_cf: dict[str, list[str]] = {}
+    for root in link_adj:
+        if root in comp_by_cf:
+            continue
+        comp: list[str] = []
+        queue = [root]
+        comp_by_cf[root] = comp
+        while queue:
+            curr = queue.pop(0)
+            comp.append(curr)
+            for nb in link_adj.get(curr, ()):
+                if nb not in comp_by_cf and all(((nb, m) if nb < m else (m, nb)) not in unlinked_pairs for m in comp):
+                    comp_by_cf[nb] = comp
+                    queue.append(nb)
+
+    expanded_unlinked = set(unlinked_pairs)
+    for u1, u2 in unlinked_pairs:
+        c1 = comp_by_cf.get(u1, (u1,))
+        c2 = comp_by_cf.get(u2, (u2,))
+        if c1 is c2:
+            continue
+        for m1 in c1:
+            for m2 in c2:
+                expanded_unlinked.add((m1, m2) if m1 < m2 else (m2, m1))
+    return expanded_unlinked
+
+
 def get_grouping_snapshot() -> tuple[set[tuple[str, str]], set[tuple[str, str]], dict[str, str]]:
     """Return a copy of `(linked_pairs, unlinked_pairs, canonical_names)`."""
     with _groups_lock:
         _ensure_loaded_locked()
-        return set(_cache.linked_pairs), set(_cache.unlinked_pairs), dict(_cache.canonical_names)
+        return (
+            set(_cache.linked_pairs),
+            _expand_unlinked_across_linked(_cache.linked_pairs, _cache.unlinked_pairs),
+            dict(_cache.canonical_names),
+        )
 
 
 def are_usernames_unlinked(u1: str, u2: str) -> bool:
@@ -164,7 +210,7 @@ def are_usernames_unlinked(u1: str, u2: str) -> bool:
         return False
     with _groups_lock:
         _ensure_loaded_locked()
-        return pair in _cache.unlinked_pairs
+        return pair in _expand_unlinked_across_linked(_cache.linked_pairs, _cache.unlinked_pairs)
 
 
 def group_usernames(
@@ -188,13 +234,6 @@ def group_usernames(
     if len(cleaned) < MIN_GROUP_USERNAMES:
         return False
 
-    expanded_cfs: set[str] = set(seen_cf)
-    if existing_clusters is not None:
-        for cf in list(seen_cf):
-            for member in existing_clusters.get(cf, ()):
-                if member_cf := member.strip().casefold():
-                    expanded_cfs.add(member_cf)
-
     with _groups_lock:
         _ensure_loaded_locked()
         changed = False
@@ -205,6 +244,17 @@ def group_usernames(
                 _cache.canonical_names[cf] = clean
                 changed = True
 
+        expanded_cfs: set[str] = set(seen_cf)
+        if existing_clusters is not None:
+            for cf in list(seen_cf):
+                for member in existing_clusters.get(cf, ()):
+                    member_cf = member.strip().casefold()
+                    if member_cf and not any(
+                        _normalize_pair(member_cf, s_cf) in _cache.unlinked_pairs and _normalize_pair(cf, s_cf) not in _cache.unlinked_pairs
+                        for s_cf in seen_cf
+                    ):
+                        expanded_cfs.add(member_cf)
+
         expanded_list = sorted(expanded_cfs)
         for i, cf1 in enumerate(expanded_list):
             for cf2 in expanded_list[i + 1 :]:
@@ -212,6 +262,21 @@ def group_usernames(
                 if unlinked_pair in _cache.unlinked_pairs:
                     _cache.unlinked_pairs.discard(unlinked_pair)
                     changed = True
+
+        external_unlinked_cfs = {
+            u2 if u1 in expanded_cfs else u1
+            for u1, u2 in _cache.unlinked_pairs
+            if (u1 in expanded_cfs) != (u2 in expanded_cfs)
+        }
+        for member_cf in expanded_cfs:
+            for ext_cf in external_unlinked_cfs:
+                if (ext_pair := _normalize_pair(member_cf, ext_cf)) is not None:
+                    if ext_pair in _cache.linked_pairs:
+                        _cache.linked_pairs.discard(ext_pair)
+                        changed = True
+                    if ext_pair not in _cache.unlinked_pairs:
+                        _cache.unlinked_pairs.add(ext_pair)
+                        changed = True
 
         cleaned_cfs = [c.casefold() for c in cleaned]
         for i, cf1 in enumerate(cleaned_cfs):
@@ -562,7 +627,8 @@ def compute_row_group_ids_and_prefixes(
         if u_cf:
             gid = cf_to_group_id.get(u_cf, f'{u_cf}\x00u:{u_cf}')
         elif row_ips[row]:
-            peer_cf = next((row_usernames_cf[r] for r in rows_by_ip.get(row_ips[row], ()) if row_usernames_cf[r]), '')
+            nearest_peer = min(((abs(r - row), r, row_usernames_cf[r]) for r in rows_by_ip.get(row_ips[row], ()) if row_usernames_cf[r]), default=None)
+            peer_cf = nearest_peer[2] if nearest_peer is not None else ''
             gid = cf_to_group_id.get(peer_cf, f'{peer_cf}\x00u:{peer_cf}') if peer_cf else f'\x00ip:{row_ips[row]}'
         else:
             gid = f'\x00row:{row}'
@@ -585,6 +651,7 @@ def build_known_alts_clusters(
     linked_pairs, unlinked_pairs, stored_canonical_names = get_grouping_snapshot()
     adj: dict[str, dict[str, None]] = {}
     canonical_names: dict[str, str] = {}
+    ip_groups: list[list[str]] = []
 
     for names in entry_username_groups:
         unique_cfs: list[str] = []
@@ -595,12 +662,7 @@ def build_known_alts_clusters(
                 if cf not in ambiguous_usernames and cf not in unique_cfs:
                     unique_cfs.append(cf)
         if len(unique_cfs) > 1:
-            for idx, u_cf in enumerate(unique_cfs):
-                for v_cf in unique_cfs[idx + 1 :]:
-                    pair = (u_cf, v_cf) if u_cf < v_cf else (v_cf, u_cf)
-                    if pair not in unlinked_pairs:
-                        adj.setdefault(u_cf, {})[v_cf] = None
-                        adj.setdefault(v_cf, {})[u_cf] = None
+            ip_groups.append(unique_cfs)
 
     for cf, display_name in stored_canonical_names.items():
         canonical_names.setdefault(cf, display_name)
@@ -614,6 +676,14 @@ def build_known_alts_clusters(
         if u_db is None or v_db is None or u_db == v_db:
             adj.setdefault(u_cf, {})[v_cf] = None
             adj.setdefault(v_cf, {})[u_cf] = None
+
+    for unique_cfs in ip_groups:
+        for idx, u_cf in enumerate(unique_cfs):
+            for v_cf in unique_cfs[idx + 1 :]:
+                pair = (u_cf, v_cf) if u_cf < v_cf else (v_cf, u_cf)
+                if pair not in unlinked_pairs:
+                    adj.setdefault(u_cf, {})[v_cf] = None
+                    adj.setdefault(v_cf, {})[u_cf] = None
 
     visited: set[str] = set()
     known_alts_clusters: dict[str, list[str]] = {}
