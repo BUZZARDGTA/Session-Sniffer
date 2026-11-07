@@ -723,8 +723,8 @@ def _sync_groups_with_db_changes(new_databases: Sequence[tuple[Path, UserIPSetti
                 new_names_by_ip.setdefault(new_e.ip, []).append(new_u)
         for old_e in old_entries:
             old_u = old_e.username.strip()
-            if old_u and old_u.casefold() in removed_cfs and (candidates := new_names_by_ip.get(old_e.ip, ())):
-                changed = rename_username_in_groups(old_u, candidates[0]) or changed
+            if old_u and old_u.casefold() in removed_cfs and (candidates := new_names_by_ip.get(old_e.ip)) is not None and candidates:
+                changed = rename_username_in_groups(old_u, candidates.pop(0)) or changed
                 removed_cfs.discard(old_u.casefold())
 
     if removed_cfs and remove_usernames_from_groups(removed_cfs):

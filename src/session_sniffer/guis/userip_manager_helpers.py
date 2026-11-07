@@ -355,8 +355,12 @@ class EntriesSortProxy(QSortFilterProxyModel):
             self._row_group_sort_prefix.clear()
             if self._group_sort_enabled:
                 self._populated_sort_cols.clear()
+        keys_repopulated = column >= 0 and column not in self._populated_sort_cols
         self._ensure_column_sort_keys(column)
-        super().sort(column, order)
+        if keys_repopulated and column == self.sortColumn() and order == self.sortOrder():
+            self.invalidate()
+        else:
+            super().sort(column, order)
         self._rebuild_proxy_group_shades()
 
     def prepare_sort_and_invalidate(self) -> None:

@@ -727,7 +727,9 @@ class UserIPDatabasesManager(
                 self._proxy.set_group_sort_enabled(enabled=False)
                 self._sort_mode_combo.setCurrentText('Date Added')
                 UserIPDatabasesManager._cached_sort_mode = 'Date Added'
-            elif self._sort_mode_combo.currentText() == 'Date Added':
+            elif self._sort_mode_combo.currentText() == 'Date Added' or (
+                self._sort_mode_combo.currentText() == 'Entry Order (#)' and logical_index != INDEX_COLUMN
+            ):
                 self._proxy.set_group_sort_enabled(enabled=True)
                 self._sort_mode_combo.setCurrentText('Groups')
                 UserIPDatabasesManager._cached_sort_mode = 'Groups'
