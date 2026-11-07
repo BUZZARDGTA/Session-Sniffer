@@ -366,6 +366,7 @@ class SessionHost:
         current_session_id = SessionTracker.get_current_session_id()
         if clear_current_session_history or mark_manually_cleared:
             cls.prune_history_for_session(current_session_id)
+            cls.last_diagnostics = None
         if mark_manually_cleared:
             cls._manually_cleared_session_ids.add(current_session_id)
         elif clear_pending_disconnections or clear_current_session_history:

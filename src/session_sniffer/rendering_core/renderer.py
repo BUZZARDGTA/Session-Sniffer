@@ -161,15 +161,20 @@ def _sync_modmenu_session_host(session_connected: list[Player], p2p_session_conn
     ]
     host_entry = ModMenuLogsParser.get_session_host_entry()
     expected_host_ip = host_entry.ip if host_entry is not None else None
+    expected_host_username = host_entry.username if host_entry is not None else None
+    expected_menu_name = host_entry.menu_name if host_entry is not None else ModMenuLogsParser.get_active_host_menu_name()
     matched_lua_host = (
         next((player for player in active_p2p_connected if player.ip == expected_host_ip), None)
         if expected_host_ip is not None
         else None
     )
+    last_diag = SessionHost.last_diagnostics
     if (
         SessionHost.get_player() is not matched_lua_host
-        or SessionHost.last_diagnostics is None
-        or SessionHost.last_diagnostics.modmenu_host_ip != expected_host_ip
+        or last_diag is None
+        or last_diag.modmenu_source != expected_menu_name
+        or last_diag.modmenu_host_ip != expected_host_ip
+        or last_diag.modmenu_host_username != expected_host_username
     ):
         SessionHost.get_host_player(session_connected)
 
@@ -717,6 +722,8 @@ def rendering_core(
                     if not SessionHost.players_pending_for_disconnection:
                         SessionHost.players_pending_for_disconnection = list(p2p_session_connected)
                         _session_transitioned_for_pending_disconnections = False
+                    if modmenu_lua_authoritative:
+                        _sync_modmenu_session_host(session_connected, p2p_session_connected)
                 elif modmenu_lua_authoritative:
                     _sync_modmenu_session_host(session_connected, p2p_session_connected)
                 elif SessionHost.search_player:

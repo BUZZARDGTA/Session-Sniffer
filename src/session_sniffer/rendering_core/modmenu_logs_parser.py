@@ -91,7 +91,7 @@ class ModMenuLogsParser:
         ]
         newest_menu_name = menu_by_path.get(sorted_paths[0])
 
-        for path in sorted_paths[:1]:
+        for path in sorted_paths:
             if not path.is_file():
                 continue
             menu_name = menu_by_path[path]
@@ -173,18 +173,18 @@ class ModMenuLogsParser:
                 cls._active_host_menu_name = active_host_menu_name
                 cls._session_host_entry = parsed_host_entry
                 cls._last_host_mod_times = current_host_mod_times
-                if parsed_host_entry is not None:
-                    existing_usernames = cls._ip_to_usernames_map.get(parsed_host_entry.ip)
-                    if existing_usernames is None:
-                        cls._ip_to_usernames_map = {
-                            **cls._ip_to_usernames_map,
-                            parsed_host_entry.ip: [parsed_host_entry.username],
-                        }
-                    elif parsed_host_entry.username not in existing_usernames:
-                        cls._ip_to_usernames_map = {
-                            **cls._ip_to_usernames_map,
-                            parsed_host_entry.ip: [*existing_usernames, parsed_host_entry.username],
-                        }
+            if cls._session_host_entry is not None:
+                existing_usernames = cls._ip_to_usernames_map.get(cls._session_host_entry.ip)
+                if existing_usernames is None:
+                    cls._ip_to_usernames_map = {
+                        **cls._ip_to_usernames_map,
+                        cls._session_host_entry.ip: [cls._session_host_entry.username],
+                    }
+                elif cls._session_host_entry.username not in existing_usernames:
+                    cls._ip_to_usernames_map = {
+                        **cls._ip_to_usernames_map,
+                        cls._session_host_entry.ip: [*existing_usernames, cls._session_host_entry.username],
+                    }
 
     @classmethod
     def get_all_ip_to_usernames_map(cls) -> dict[str, list[str]]:
