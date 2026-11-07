@@ -714,8 +714,8 @@ def rendering_core(
                 if not p2p_session_connected:
                     if _session_host_was_active:
                         SessionTracker.advance_session(players=session_connected, p2p_players=())
+                    SessionHost.clear_session_host_data(clear_last_diagnostics=_session_host_was_active)
                     _session_host_was_active = False
-                    SessionHost.clear_session_host_data()
                     _session_transitioned_for_pending_disconnections = False
                     SessionHost.search_player = not modmenu_lua_authoritative
                 elif all(not player.packets.pps.is_first_calculation and not player.packets.pps.calculated_rate for player in p2p_session_connected):
