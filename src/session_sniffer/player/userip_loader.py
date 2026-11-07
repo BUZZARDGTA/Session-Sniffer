@@ -688,14 +688,11 @@ def _snapshot_db_mod_times() -> dict[Path, FileSignature]:
     """Return a fresh `{path: FileSignature}` snapshot for every `.json` file under the databases directory."""
     if not USERIP_DATABASES_DIR_PATH.exists():
         return {}
-    snapshot: dict[Path, FileSignature] = {}
-    for path in USERIP_DATABASES_DIR_PATH.rglob('*.json'):
-        if not path.is_file():
-            continue
-        sig = get_file_signature(path)
-        if sig is not None:
-            snapshot[path] = sig
-    return snapshot
+    return {
+        path: sig
+        for path in USERIP_DATABASES_DIR_PATH.rglob('*.json')
+        if path.is_file() and (sig := get_file_signature(path)) is not None
+    }
 
 
 def _sync_groups_with_db_changes(new_databases: Sequence[tuple[Path, UserIPSettings, list[UserIPEntryModel]]]) -> bool:
@@ -704,12 +701,17 @@ def _sync_groups_with_db_changes(new_databases: Sequence[tuple[Path, UserIPSetti
     if not prev_dbs:
         return False
     prev_by_db = {db_entry.db_path: [*db_entry.single_entries, *db_entry.range_entries] for db_entry in prev_dbs}
-    prev_cfs = {cleaned.casefold() for entries in prev_by_db.values() for e in entries if (cleaned := e.username.strip())}
-    curr_cfs = {cleaned.casefold() for _, _, entries in new_databases for e in entries if (cleaned := e.username.strip())}
-    if not (removed_cfs := prev_cfs - curr_cfs):
+    prev_exact = {cleaned for entries in prev_by_db.values() for e in entries if (cleaned := e.username.strip())}
+    curr_exact = {cleaned for _, _, entries in new_databases for e in entries if (cleaned := e.username.strip())}
+    if prev_exact == curr_exact:
         return False
+    prev_cfs = {u.casefold() for u in prev_exact}
+    curr_cfs = {u.casefold() for u in curr_exact}
+    removed_cfs = prev_cfs - curr_cfs
 
-    changed = False
+    changed = any(rename_username_in_groups(new_u, new_u) for new_u in curr_exact - prev_exact if new_u.casefold() in prev_cfs)
+    if not removed_cfs:
+        return changed
     for db_path, _, new_entries in new_databases:
         if not (old_entries := prev_by_db.get(db_path, ())):
             continue
@@ -727,9 +729,7 @@ def _sync_groups_with_db_changes(new_databases: Sequence[tuple[Path, UserIPSetti
                 changed = rename_username_in_groups(old_u, candidates.pop(0)) or changed
                 removed_cfs.discard(old_u.casefold())
 
-    if removed_cfs and remove_usernames_from_groups(removed_cfs):
-        changed = True
-    return changed
+    return bool(removed_cfs and remove_usernames_from_groups(removed_cfs)) or changed
 
 
 def update_userip_databases() -> tuple[float, bool]:

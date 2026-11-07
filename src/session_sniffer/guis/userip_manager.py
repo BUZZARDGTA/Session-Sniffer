@@ -407,7 +407,10 @@ class UserIPDatabasesManager(
         self._entries_table.setRootIsDecorated(False)
         self._entries_table.setUniformRowHeights(True)
         self._entries_table.setAlternatingRowColors(False)
-        self._entries_table.setSortingEnabled(True)
+        header = self._entries_table.header()
+        if header:
+            header.sectionResized.connect(self._on_section_resized)
+            header.sortIndicatorChanged.connect(self._on_header_sort_indicator_changed)
         self._entries_table.setVerticalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
         self._entries_table.setHorizontalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
         self._entries_table.setItemDelegate(
@@ -420,13 +423,9 @@ class UserIPDatabasesManager(
             QAbstractItemView.EditTrigger.DoubleClicked | QAbstractItemView.EditTrigger.EditKeyPressed,
         )
 
-        header = self._entries_table.header()
         self._entries_table.hideColumn(DATABASE_COLUMN)
         self._reset_column_sizes()
         setup_table_header_context_menu(self._entries_table, on_reset=self._reset_column_sizes)
-        if header:
-            header.sectionResized.connect(self._on_section_resized)
-            header.sortIndicatorChanged.connect(self._on_header_sort_indicator_changed)
         cached_column_widths = UserIPDatabasesManager._cached_column_widths
         if cached_column_widths is not None and cached_column_widths:
             self._apply_column_widths(cached_column_widths)
@@ -701,6 +700,8 @@ class UserIPDatabasesManager(
                 target_col = INDEX_COLUMN
                 target_order = UserIPDatabasesManager._cached_sort_order if UserIPDatabasesManager._cached_sort_column == INDEX_COLUMN else Qt.SortOrder.AscendingOrder
             UserIPDatabasesManager._cached_sort_column, UserIPDatabasesManager._cached_sort_order = target_col, target_order
+            if not self._entries_table.isSortingEnabled():
+                self._entries_table.setSortingEnabled(True)
             self._entries_table.sortByColumn(target_col, target_order)
             if viewport := self._entries_table.viewport():
                 viewport.update()
@@ -724,13 +725,13 @@ class UserIPDatabasesManager(
             UserIPDatabasesManager._cached_sort_column = logical_index
             UserIPDatabasesManager._cached_sort_order = order
             if logical_index == ADDED_AT_COLUMN:
-                self._proxy.set_group_sort_enabled(enabled=False)
+                self._proxy.set_group_sort_enabled(enabled=False, invalidate=False)
                 self._sort_mode_combo.setCurrentText('Date Added')
                 UserIPDatabasesManager._cached_sort_mode = 'Date Added'
             elif self._sort_mode_combo.currentText() == 'Date Added' or (
                 self._sort_mode_combo.currentText() == 'Entry Order (#)' and logical_index != INDEX_COLUMN
             ):
-                self._proxy.set_group_sort_enabled(enabled=True)
+                self._proxy.set_group_sort_enabled(enabled=True, invalidate=False)
                 self._sort_mode_combo.setCurrentText('Groups')
                 UserIPDatabasesManager._cached_sort_mode = 'Groups'
             _save_userip_manager_sort_state(UserIPDatabasesManager._cached_sort_mode, logical_index, order)
