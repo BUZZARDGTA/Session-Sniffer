@@ -438,7 +438,11 @@ class TreeOperationsMixin(QDialog):
 
         refresh_userip_and_wake_renderer()
 
-        if self._current_path is not None and (self._current_path == path or path in self._current_path.parents):
+        if self._global_search_active:
+            if self._current_path is not None and (self._current_path == path or path in self._current_path.parents):
+                self._current_path = None
+            self._load_all_databases()
+        elif self._current_path is not None and (self._current_path == path or path in self._current_path.parents):
             self._model.removeRows(0, self._model.rowCount())
             self._current_path = None
             self._open_db_button.setEnabled(False)
@@ -469,7 +473,10 @@ class TreeOperationsMixin(QDialog):
         save_userip_database_model(path, UserIPDatabaseFile(settings=DEFAULT_USERIP_FILES_SETTINGS[path.name]))
         refresh_userip_and_wake_renderer()
 
-        if self._current_path == path:
+        if self._global_search_active:
+            self._load_all_databases()
+            self._rebuild_fs_watch()
+        elif self._current_path == path:
             self._load_database(path)
         else:
             self._rebuild_fs_watch()
@@ -508,13 +515,17 @@ class TreeOperationsMixin(QDialog):
         if self._current_path is not None:
             if self._current_path == path:
                 self._current_path = new_path
-                self._update_file_info(self._current_path)
+                if not self._global_search_active:
+                    self._update_file_info(self._current_path)
             elif path in self._current_path.parents:
                 self._current_path = new_path / self._current_path.relative_to(path)
-                self._update_file_info(self._current_path)
+                if not self._global_search_active:
+                    self._update_file_info(self._current_path)
 
         refresh_userip_and_wake_renderer()
         self._rebuild_fs_watch()
+        if self._global_search_active:
+            self._load_all_databases()
         self._set_status(f'Renamed "{path.name}" → "{new_name}"')
 
     def _move_tree_item(self, path: Path) -> None:
@@ -548,13 +559,17 @@ class TreeOperationsMixin(QDialog):
         if self._current_path is not None:
             if self._current_path == path:
                 self._current_path = new_path
-                self._update_file_info(self._current_path)
+                if not self._global_search_active:
+                    self._update_file_info(self._current_path)
             elif path in self._current_path.parents:
                 self._current_path = new_path / self._current_path.relative_to(path)
-                self._update_file_info(self._current_path)
+                if not self._global_search_active:
+                    self._update_file_info(self._current_path)
 
         refresh_userip_and_wake_renderer()
         self._rebuild_fs_watch()
+        if self._global_search_active:
+            self._load_all_databases()
         dest_label = 'root' if rel_dest == Path() else str(rel_dest)
         self._set_status(f'Moved "{path.name}" → {dest_label}')
 
