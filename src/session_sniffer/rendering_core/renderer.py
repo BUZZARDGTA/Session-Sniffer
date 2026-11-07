@@ -730,7 +730,7 @@ def rendering_core(
                     if SessionHost.search_start_time is None:
                         SessionHost.search_start_time = time.monotonic()
                     if (time.monotonic() - SessionHost.search_start_time) >= SESSION_HOST_SEARCH_TIMEOUT_SECONDS:
-                        SessionHost.clear_session_host_data()
+                        SessionHost.clear_session_host_data(clear_last_diagnostics=False)
                         _session_transitioned_for_pending_disconnections = False
                     elif len(p2p_session_connected) != 1 or p2p_session_connected[0].packets.sent >= MINIMUM_PACKETS_FOR_RELAY_SESSION_HOST:
                         SessionHost.get_host_player(session_connected)

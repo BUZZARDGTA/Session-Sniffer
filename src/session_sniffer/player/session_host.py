@@ -359,6 +359,7 @@ class SessionHost:
         clear_pending_disconnections: bool = True,
         clear_current_session_history: bool = False,
         mark_manually_cleared: bool = False,
+        clear_last_diagnostics: bool = True,
     ) -> None:
         """Clear active session host data and optionally pending disconnections and current session history."""
         if clear_pending_disconnections:
@@ -366,6 +367,7 @@ class SessionHost:
         current_session_id = SessionTracker.get_current_session_id()
         if clear_current_session_history or mark_manually_cleared:
             cls.prune_history_for_session(current_session_id)
+        if clear_last_diagnostics or clear_current_session_history or mark_manually_cleared:
             cls.last_diagnostics = None
         if mark_manually_cleared:
             cls._manually_cleared_session_ids.add(current_session_id)

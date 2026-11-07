@@ -944,8 +944,8 @@ Process is currently suspended',
             if current_history and current_history[-1].diagnostics is not None:
                 diagnostics = current_history[-1].diagnostics
 
-        if diagnostics is None and SessionHost.is_modmenu_lua_source_of_truth() and Settings.gui_session_host_detection:
-            diagnostics = self._redetect_host_from_diagnostics()
+        if diagnostics is None and SessionHost.is_modmenu_lua_source_of_truth() and Settings.gui_session_host_detection and not SessionHost.is_manually_cleared():
+            diagnostics = self._redetect_host_from_diagnostics(clear_history=False)
 
         if diagnostics is None:
             QMessageBox.information(self, TITLE, 'No session host detection diagnostics are available yet.')
@@ -953,7 +953,7 @@ Process is currently suspended',
 
         show_session_host_diagnostics_dialog(self, diagnostics, redetect_callback=self._redetect_host_from_diagnostics)
 
-    def _redetect_host_from_diagnostics(self) -> HostDiagnosticsSnapshot | None:
+    def _redetect_host_from_diagnostics(self, *, clear_history: bool = True) -> HostDiagnosticsSnapshot | None:
         """Re-evaluate session host detection in-place for the diagnostics window."""
         if not Settings.is_session_host_feature_set():
             QMessageBox.warning(self, TITLE, 'Session Host Detection is not supported for the current game feature set.')
@@ -977,8 +977,9 @@ Process is currently suspended',
             QMessageBox.information(self, TITLE, 'No connected players were found in the current session.')
             return None
 
-        SessionHost.clear_session_host_data(clear_pending_disconnections=False, clear_current_session_history=True)
-        SessionHost.manual_redetect = True
+        if clear_history:
+            SessionHost.clear_session_host_data(clear_pending_disconnections=False, clear_current_session_history=True)
+            SessionHost.manual_redetect = True
 
         SessionHost.get_host_player(connected_players)
         SessionHost.manual_redetect = False
