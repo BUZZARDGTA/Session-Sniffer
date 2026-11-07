@@ -937,8 +937,7 @@ def looky_refresh_userip_entries(parent: QWidget, entries: list[tuple[Path, list
         loading_dialog.accept()
         results = {ip: [lp for lp in lps if not lp.name or lp.name.strip().casefold() not in get_excluded_looky_usernames_cf(ip)] for ip, lps in results.items()}
         discovered_ips_by_cf = {u_cf: [ip for ip in ips if u_cf not in get_excluded_looky_usernames_cf(ip)] for u_cf, ips in discovered_ips_by_cf.items()}
-        db_by_username_cf = UserIPDatabases.get_known_username_dbs_cf()
-        if any(record_looky_db_correlation([lp.name.strip() for lp in lps if lp.name], db_by_username_cf) for lps in results.values()):
+        if any(record_looky_db_correlation([lp.name.strip() for lp in lps if lp.name], UserIPDatabases.get_known_username_dbs_cf()) for lps in results.values()):
             refresh_userip_and_wake_renderer()
         pending_entries, standalone_removals, total_ips_with_results = list[_PendingEntry](), list[_SuspectRemoval](), 0
         claimed_ips = {ip for _db_path, ip_addresses in entries for ip in ip_addresses if _is_single_ipv4(ip)}
@@ -967,6 +966,8 @@ def looky_refresh_userip_entries(parent: QWidget, entries: list[tuple[Path, list
             if not (total_added or total_moved or total_removed):
                 return
             refresh_userip_and_wake_renderer()
+            if any(record_looky_db_correlation([lp.name.strip() for lp in lps if lp.name], UserIPDatabases.get_known_username_dbs_cf()) for lps in results.values()):
+                refresh_userip_and_wake_renderer()
             parts = [(total_added, 'added or confirmed', 'username'), (total_moved, 'moved', 'username'), (total_removed, 'deleted', 'wrong candidate row')]
             summary_parts = [f'{verb} {cnt} {noun}{pluralize(cnt)}' for cnt, verb, noun in parts if cnt]
             QMessageBox.information(parent if isValid(parent) else None, TITLE, f'{", ".join(summary_parts).capitalize()} across {db_count} database{pluralize(db_count)}.')
