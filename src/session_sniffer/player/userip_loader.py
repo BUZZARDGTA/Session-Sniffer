@@ -870,7 +870,7 @@ def find_userip_insert_index(entries: Sequence[UserIPEntryModel], username: str,
     return len(entries)
 
 
-def append_userip_entry_if_missing(db_path: Path, username: str, ip: str) -> bool:
+def append_userip_entry_if_missing(db_path: Path, username: str, ip: str, *, is_looky: bool = False) -> bool:
     """Append a `{username, ip}` entry to the UserIP `.json` database file if not already covered.
 
     Returns:
@@ -891,7 +891,7 @@ def append_userip_entry_if_missing(db_path: Path, username: str, ip: str) -> boo
         if any(entry.username.casefold() == username_cf and entry_ip_covers_ip(entry.ip, cleaned_ip) for entry in entries):
             return False
 
-        new_entry, _ = enrich_userip_entry_from_logs(UserIPEntryModel(username=cleaned_username, ip=cleaned_ip, is_looky=False, notes='', source='Auto-IP'))
+        new_entry, _ = enrich_userip_entry_from_logs(UserIPEntryModel(username=cleaned_username, ip=cleaned_ip, is_looky=is_looky, notes='', source='Auto-IP'))
         entries.insert(find_userip_insert_index(entries, cleaned_username, cleaned_ip), new_entry)
         return _write_userip_db(db_path, validated_settings, entries, action_label='auto-feed')
 

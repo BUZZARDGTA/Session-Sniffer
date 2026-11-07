@@ -509,9 +509,20 @@ def trigger_auto_username_userip(player: Player, detected_usernames: Sequence[st
         )
 
     # Auto-feed the database if entry is not present
+    with player.looky_system.lock:
+        looky_cfs: set[str] = (
+            {name.casefold() for name in player.looky_system.usernames}
+            if Settings.looky_enabled and player.looky_system.is_initialized
+            else set()
+        )
     appended = False
     for matched_username in matched_usernames:
-        if append_userip_entry_if_missing(resolved_userip.db_path, matched_username, player.ip):
+        if append_userip_entry_if_missing(
+            resolved_userip.db_path,
+            matched_username,
+            player.ip,
+            is_looky=matched_username.casefold() in looky_cfs,
+        ):
             appended = True
     if appended:
         update_userip_databases()
