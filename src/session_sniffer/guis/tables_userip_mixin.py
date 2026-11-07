@@ -937,20 +937,27 @@ def _refresh_player_looky_exclusions(player: Player) -> None:
     excluded_cfs = get_excluded_looky_usernames_cf(player.ip)
     include_looky = Settings.looky_enabled and Settings.is_gta5_feature_set() and CaptureState.is_local_capture()
     updated_names = player.looky_system.refresh_filtered_usernames(excluded_cfs)
+    live_player = PlayersRegistry.get_player_by_ip(player.ip)
+    live_updated = (
+        live_player.looky_system.refresh_filtered_usernames(excluded_cfs)
+        if live_player is not None and live_player is not player
+        else ()
+    )
+    snap_updates = [
+        (snapshot_player, snapshot_player.looky_system.refresh_filtered_usernames(excluded_cfs))
+        for snapshot_player in SessionTracker.get_all_snapshot_players()
+        if snapshot_player is not player and snapshot_player.ip == player.ip
+    ]
     record_looky_db_correlation(updated_names, UserIPDatabases.get_known_username_dbs_cf())
     _, databases_rebuilt = update_userip_databases()
     if databases_rebuilt:
         player.userip = UserIPDatabases.resolve_userip(player.ip)
     player.rebuild_usernames(looky_usernames=updated_names if include_looky and player.looky_system.is_initialized else ())
-    live_player = PlayersRegistry.get_player_by_ip(player.ip)
     if live_player is not None and live_player is not player:
-        live_updated = live_player.looky_system.refresh_filtered_usernames(excluded_cfs)
         live_player.rebuild_usernames(looky_usernames=live_updated if include_looky and live_player.looky_system.is_initialized else ())
         SessionTracker.update_session_player_snapshot(live_player, metadata_only=True)
-    for snapshot_player in SessionTracker.get_all_snapshot_players():
-        if snapshot_player is not player and snapshot_player.ip == player.ip:
-            snap_updated = snapshot_player.looky_system.refresh_filtered_usernames(excluded_cfs)
-            snapshot_player.rebuild_usernames(looky_usernames=snap_updated if include_looky and snapshot_player.looky_system.is_initialized else ())
+    for snapshot_player, snap_updated in snap_updates:
+        snapshot_player.rebuild_usernames(looky_usernames=snap_updated if include_looky and snapshot_player.looky_system.is_initialized else ())
     SessionTracker.update_session_player_snapshot(player, metadata_only=True)
     wake_rendering_core()
 

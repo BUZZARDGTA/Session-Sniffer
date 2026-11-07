@@ -226,18 +226,27 @@ def show_looky_lookup(parent: QWidget, player: Player | StandaloneIPLookup) -> N
         unique_results = player.looky_system.apply_results(worker.results, force_reset_userip_checked=True, excluded_cfs=excluded_cfs)
         with player.looky_system.lock:
             player_looky_names = list(player.looky_system.usernames)
+        live_player = PlayersRegistry.get_player_by_ip(player.ip)
+        if live_player is not None and live_player is not player:
+            live_player.looky_system.apply_results(worker.results, force_reset_userip_checked=True, excluded_cfs=excluded_cfs)
+        matching_snapshots = [
+            snapshot_player
+            for snapshot_player in SessionTracker.get_all_snapshot_players()
+            if snapshot_player is not player and snapshot_player.ip == player.ip
+        ]
+        for snapshot_player in matching_snapshots:
+            snapshot_player.looky_system.apply_results(worker.results, force_reset_userip_checked=True, excluded_cfs=excluded_cfs)
         if record_looky_db_correlation(player_looky_names, UserIPDatabases.get_known_username_dbs_cf()):
             update_userip_databases()
             player.userip = UserIPDatabases.resolve_userip(player.ip)
         include_looky = Settings.looky_enabled and Settings.is_gta5_feature_set() and CaptureState.is_local_capture()
-        player.rebuild_usernames(looky_usernames=player_looky_names if include_looky else ())
-        live_player = PlayersRegistry.get_player_by_ip(player.ip)
+        active_looky_names = player_looky_names if include_looky else ()
+        player.rebuild_usernames(looky_usernames=active_looky_names)
         if live_player is not None and live_player is not player:
-            live_player.looky_system.apply_results(worker.results, force_reset_userip_checked=True, excluded_cfs=excluded_cfs)
-            with live_player.looky_system.lock:
-                live_looky_names = list(live_player.looky_system.usernames) if include_looky else ()
-            live_player.rebuild_usernames(looky_usernames=live_looky_names)
+            live_player.rebuild_usernames(looky_usernames=active_looky_names)
             SessionTracker.update_session_player_snapshot(live_player, metadata_only=True)
+        for snapshot_player in matching_snapshots:
+            snapshot_player.rebuild_usernames(looky_usernames=active_looky_names)
         if isinstance(player, Player):
             SessionTracker.update_session_player_snapshot(player, metadata_only=True)
         wake_rendering_core()
