@@ -1,9 +1,9 @@
 """Private helper module: shared styles, widget helpers, and dialogs for combo-rule editing."""
 
-from typing import TYPE_CHECKING, ClassVar, Literal, cast
+from typing import TYPE_CHECKING, ClassVar, Literal, cast, override
 
 from PySide6.QtCore import QSignalBlocker, Qt
-from PySide6.QtGui import QIcon, QStandardItemModel
+from PySide6.QtGui import QIcon, QMouseEvent, QStandardItemModel
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -106,6 +106,25 @@ def _toggle_list_item_check_state(item: QListWidgetItem) -> None:
     item_rect = list_widget.visualItemRect(item)
     if cursor_pos.x() > item_rect.left() + scale_by_ui(28):
         item.setCheckState(Qt.CheckState.Unchecked if item.checkState() == Qt.CheckState.Checked else Qt.CheckState.Checked)
+
+
+class _ClickablePickerLineEdit(QLineEdit):
+    """Read-only line edit that opens its associated picker dialog when clicked."""
+
+    def __init__(self, on_click: Callable[[], None], parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._on_click = on_click
+        self.setReadOnly(True)
+        self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+
+    @override
+    def mousePressEvent(self, event: QMouseEvent) -> None:
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._on_click()
+            event.accept()
+            return
+        super().mousePressEvent(event)
 
 
 class ContinentSelectionDialog(QDialog):
@@ -515,8 +534,7 @@ class ComboRuleEditorDialog(QDialog):
                 QMessageBox.warning(
                     self,
                     'Validation Error',
-                    'Please complete all existing conditions before adding a new one.\n\n'
-                    'Ensure every condition has a type selected and a valid value entered.',
+                    'Please complete all existing conditions before adding a new one.\n\nEnsure every condition has a type selected and a valid value entered.',
                 )
                 return
 
@@ -783,27 +801,11 @@ class ComboRuleEditorDialog(QDialog):
         return selected
 
     def _create_multi_select_picker_widget(self, key: str) -> QWidget:
-        """Build a read-only line edit + picker button widget for continent/country selection."""
+        """Build a clickable read-only line edit + picker button widget for continent/country selection."""
         picker_widget = QWidget()
         picker_layout = QHBoxLayout(picker_widget)
         picker_layout.setContentsMargins(0, 0, 0, 0)
         picker_layout.setSpacing(6)
-
-        display_edit = QLineEdit()
-        display_edit.setReadOnly(True)
-        if key == 'continent':
-            display_edit.setPlaceholderText('Select continent(s)...')
-            button_tooltip = 'Select Continent(s)'
-        else:
-            display_edit.setPlaceholderText('Select country/countries...')
-            button_tooltip = 'Select Country / Countries'
-        display_edit.setProperty('selected_items', [])
-        picker_layout.addWidget(display_edit, stretch=1)
-
-        picker_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square-pen.svg')), '')
-        picker_button.setToolTip(button_tooltip)
-        picker_button.setMaximumWidth(scale_by_ui(40))
-        picker_button.setCursor(Qt.CursorShape.PointingHandCursor)
 
         def open_picker() -> None:
             current_raw = display_edit.property('selected_items')
@@ -821,6 +823,21 @@ class ComboRuleEditorDialog(QDialog):
                     display_edit.setProperty('selected_items', chosen)
                     display_edit.setText(', '.join(chosen))
 
+        display_edit = _ClickablePickerLineEdit(open_picker)
+        if key == 'continent':
+            display_edit.setPlaceholderText('Select continent(s)...')
+            button_tooltip = 'Select Continent(s)'
+        else:
+            display_edit.setPlaceholderText('Select country/countries...')
+            button_tooltip = 'Select Country / Countries'
+        display_edit.setToolTip(button_tooltip)
+        display_edit.setProperty('selected_items', [])
+        picker_layout.addWidget(display_edit, stretch=1)
+
+        picker_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square-pen.svg')), '')
+        picker_button.setToolTip(button_tooltip)
+        picker_button.setMaximumWidth(scale_by_ui(40))
+        picker_button.setCursor(Qt.CursorShape.PointingHandCursor)
         picker_button.clicked.connect(open_picker)
         picker_layout.addWidget(picker_button)
         return picker_widget
