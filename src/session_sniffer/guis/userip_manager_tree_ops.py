@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, cast, override
 
 from PySide6.QtCore import QEvent, QModelIndex, QObject, QPersistentModelIndex, QPoint, QRect, QRectF, QSignalBlocker, QSize, Qt, QUrl
-from PySide6.QtGui import QAction, QColor, QDesktopServices, QFont, QFontMetrics, QIcon, QMouseEvent, QPainter, QPainterPath, QPen, QStandardItemModel
+from PySide6.QtGui import QAction, QColor, QDesktopServices, QFont, QFontMetrics, QHelpEvent, QIcon, QMouseEvent, QPainter, QPainterPath, QPen, QStandardItemModel
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QStyle,
     QStyleOptionViewItem,
+    QToolTip,
     QTreeView,
 )
 from shiboken6 import isValid
@@ -41,6 +42,7 @@ from session_sniffer.guis.userip_manager_helpers import (
 )
 from session_sniffer.guis.utils import open_file_location, scale_by_ui
 from session_sniffer.models.userip_settings_model import DEFAULT_USERIP_FILES_SETTINGS, UserIPDatabaseFile
+from session_sniffer.player.userip import UserIPDatabases
 from session_sniffer.settings.settings import Settings
 from session_sniffer.text_utils import pluralize
 
@@ -49,6 +51,7 @@ if TYPE_CHECKING:
 
     from session_sniffer.guis.color_picker_dialog import ColorPickerButton
     from session_sniffer.guis.file_watch import DebouncedFileWatcher
+    from session_sniffer.models.userip_settings_model import UserIPSettingsModel
 
 logger = logging.getLogger(__name__)
 
@@ -96,6 +99,8 @@ class UserIPDatabaseTreeDelegate(ElidedTextTooltipDelegate):
         if watched is not viewport:
             return super().eventFilter(watched, event)
         if not isinstance(event, QMouseEvent):
+            if event.type() == QEvent.Type.Leave:
+                viewport.unsetCursor()
             return False
 
         event_type = event.type()
@@ -121,6 +126,41 @@ class UserIPDatabaseTreeDelegate(ElidedTextTooltipDelegate):
                 return True
 
         return False
+
+    @override
+    def helpEvent(
+        self,
+        event: QHelpEvent,
+        view: QAbstractItemView,
+        option: QStyleOptionViewItem,
+        index: QModelIndex | QPersistentModelIndex,
+    ) -> bool:
+        """Show a tooltip when a database row's filename is truncated between its color dot and ON/OFF pill."""
+        if not event or event.type() != QEvent.Type.ToolTip or self._get_db_visual(index) is None:
+            return super().helpEvent(event, view, option, index)
+
+        rect = cast('QRect', object.__getattribute__(option, 'rect'))
+        if not rect.isValid():
+            rect = view.visualRect(index)
+        pill_rect = self._pill_rect(rect)
+        if pill_rect.contains(event.pos()):
+            QToolTip.hideText()
+            return True
+
+        raw_text = index.data(Qt.ItemDataRole.DisplayRole)
+        text = raw_text if isinstance(raw_text, str) else ''
+        if not text:
+            return super().helpEvent(event, view, option, index)
+
+        text_left = rect.left() + scale_by_ui(6) + scale_by_ui(9) + scale_by_ui(7)
+        text_w = max(0, pill_rect.left() - scale_by_ui(6) - text_left)
+        base_font = cast('QFont', object.__getattribute__(option, 'font'))
+        if QFontMetrics(base_font).horizontalAdvance(text) > text_w:
+            QToolTip.showText(event.globalPos(), text, view)
+            return True
+
+        QToolTip.hideText()
+        return True
 
     @override
     def paint(self, painter: QPainter, option: QStyleOptionViewItem, index: QModelIndex | QPersistentModelIndex) -> None:
@@ -242,6 +282,10 @@ class TreeOperationsMixin(QDialog):
     _fs_watcher: DebouncedFileWatcher
     _global_search_active: bool
     _global_search_checkbox: QCheckBox
+    _last_seen_build_version: int
+
+    if TYPE_CHECKING:
+        read_settings_from_widgets: Callable[[], UserIPSettingsModel]
 
     def _clear_dirty_state(self) -> None: ...
 
@@ -433,10 +477,14 @@ class TreeOperationsMixin(QDialog):
             self._setting_enabled.setChecked(enabled)
         if not is_current or self._settings_dirty:
             db_model = load_userip_database_model(path)
-            db_model.settings.ENABLED = enabled
+            if is_current:
+                db_model.settings = self.read_settings_from_widgets()
+            else:
+                db_model.settings.ENABLED = enabled
             with QSignalBlocker(self._fs_watcher):
                 save_userip_database_model(path, db_model)
                 refresh_userip_and_wake_renderer()
+            self._last_seen_build_version = UserIPDatabases.build_version
             if is_current:
                 self._disk_snapshot = path.read_text('utf-8')
                 self._capture_settings_snapshot()
@@ -454,18 +502,6 @@ class TreeOperationsMixin(QDialog):
 
         if index.isValid():
             file_path = Path(self._fs_model.filePath(index))
-
-            if file_path.is_file() and file_path.suffix.lower() == '.json':
-                is_enabled = (
-                    self._setting_enabled.isChecked()
-                    if (file_path == self._current_path and not self._global_search_active)
-                    else load_userip_database_model(file_path).settings.ENABLED
-                )
-                toggle_icon = QIcon(str(RESOURCES_DIR_PATH / 'icons' / ('toggle-left.svg' if is_enabled else 'toggle-right.svg')))
-                toggle_action = QAction(toggle_icon, 'Disable Database' if is_enabled else 'Enable Database', self)
-                toggle_action.triggered.connect(lambda: self._set_database_enabled(file_path, enabled=not is_enabled))
-                menu.addAction(toggle_action)
-                menu.addSeparator()
 
             if file_path.is_dir():
                 new_db_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'file-plus.svg')), 'New Database Here', self)
@@ -682,6 +718,7 @@ class TreeOperationsMixin(QDialog):
         else:
             path.unlink()
 
+        self._db_visual_cache.clear()
         refresh_userip_and_wake_renderer()
 
         if self._global_search_active:
@@ -717,6 +754,7 @@ class TreeOperationsMixin(QDialog):
             return
 
         save_userip_database_model(path, UserIPDatabaseFile(settings=DEFAULT_USERIP_FILES_SETTINGS[path.name]))
+        self._db_visual_cache.pop(path, None)
         refresh_userip_and_wake_renderer()
 
         if self._global_search_active:
@@ -768,6 +806,7 @@ class TreeOperationsMixin(QDialog):
                 if not self._global_search_active:
                     self._update_file_info(self._current_path)
 
+        self._db_visual_cache.clear()
         refresh_userip_and_wake_renderer()
         self._rebuild_fs_watch()
         if self._global_search_active:
@@ -816,6 +855,7 @@ class TreeOperationsMixin(QDialog):
                 if not self._global_search_active:
                     self._update_file_info(self._current_path)
 
+        self._db_visual_cache.clear()
         refresh_userip_and_wake_renderer()
         self._rebuild_fs_watch()
         if self._global_search_active:
@@ -873,6 +913,7 @@ class TreeOperationsMixin(QDialog):
                 except OSError as e:
                     logger.warning('Failed to remove user database directory %s: %s', entry, e)
 
+        self._db_visual_cache.clear()
         refresh_userip_and_wake_renderer()
         self._refresh_stats()
 

@@ -50,7 +50,7 @@ from session_sniffer.utils import dedup_preserve_order
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from PySide6.QtGui import QIcon, QStandardItem, QStandardItemModel
+    from PySide6.QtGui import QColor, QIcon, QStandardItem, QStandardItemModel
 
     from session_sniffer.guis.file_watch import DebouncedFileWatcher
 
@@ -74,6 +74,7 @@ class UserIPEntriesOperationsMixin(QDialog):
     _search_input: QLineEdit
     _settings_container: QFrame
     _looky_icon: QIcon
+    _db_visual_cache: dict[Path, tuple[int, bool, QColor]]
 
     def _mark_entries_dirty(self) -> None: ...
     def _update_entry_counts(self) -> None: ...
@@ -106,6 +107,7 @@ class UserIPEntriesOperationsMixin(QDialog):
 
     def _sync_from_disk(self) -> None:
         """Reconcile the entries view and stats with the current on-disk state."""
+        self._db_visual_cache.clear()
         _, databases_rebuilt = update_userip_databases()
         if databases_rebuilt:
             wake_rendering_core()
@@ -619,17 +621,16 @@ class UserIPEntriesOperationsMixin(QDialog):
         """Return all source-model row indices belonging to the account group(s) of *source_rows*."""
         row_gids = self._proxy.get_source_row_group_ids()
         target_gids = {row_gids[r] for r in source_rows if 0 <= r < len(row_gids)}
-        target_dbs = {db for r in source_rows if (db := self._get_row_database_path(r)) is not None} if self._global_search_active else None
-        group_cfs = {u.casefold() for u in self._collect_group_members_for_rows(source_rows)}
-        return sorted({
-            *source_rows,
-            *(
-                r
-                for r in range(self._model.rowCount())
-                if (r < len(row_gids) and row_gids[r] in target_gids)
-                or ((target_dbs is None or self._get_row_database_path(r) in target_dbs) and self._get_row_username(r).casefold() in group_cfs)
-            ),
-        })
+        rows_by_db: dict[Path | None, list[int]] = defaultdict(list)
+        for r in source_rows:
+            rows_by_db[self._get_row_database_path(r) if self._global_search_active else None].append(r)
+        cfs_by_db = {db: {u.casefold() for u in self._collect_group_members_for_rows(db_rows)} for db, db_rows in rows_by_db.items()}
+        matched = (
+            r for r in range(self._model.rowCount())
+            if (r < len(row_gids) and row_gids[r] in target_gids)
+            or self._get_row_username(r).casefold() in cfs_by_db.get(self._get_row_database_path(r) if self._global_search_active else None, set())
+        )
+        return sorted({*source_rows, *matched})
 
     def _move_selected_to_database(self, target_db_path: Path) -> None:
         """Move the selected entries to a different UserIP database."""

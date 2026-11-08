@@ -252,7 +252,7 @@ def show_looky_lookup(parent: QWidget, player: Player | StandaloneIPLookup) -> N
             SessionTracker.update_session_player_snapshot(live_player, metadata_only=True)
         for snapshot_player in matching_snapshots:
             snapshot_player.rebuild_usernames(looky_usernames=active_looky_names)
-        if isinstance(player, Player):
+        if isinstance(player, Player) and (live_player is None or live_player is player):
             SessionTracker.update_session_player_snapshot(player, metadata_only=True)
         wake_rendering_core()
 
