@@ -579,23 +579,23 @@ def rendering_core(
                     )
                 else:
                     player.mod_menus.usernames[:] = modmenu_usernames_for_player
-                if modmenu_changed:
-                    trigger_auto_username_userip(player, modmenu_usernames_for_player)
             else:
+                modmenu_changed = False
                 player.mod_menus = None
 
             include_looky = _current_looky_active and looky_initialized
+            looky_newly_checked = False
             if include_looky and looky_usernames and not looky_userip_checked:
                 with player.looky_system.lock:
                     player.looky_system.as_userip_checked = True
-                trigger_auto_username_userip(player, looky_usernames)
+                looky_newly_checked = True
 
             player.rebuild_usernames(looky_usernames=looky_usernames if include_looky else ())
 
             should_recheck_usernames = _auto_feed_retriggered or bool(
                 _newly_resolvable_usernames and any(name.casefold() in _newly_resolvable_usernames for name in player.usernames),
             )
-            if player.userip is None and player.usernames and should_recheck_usernames:
+            if player.usernames and (modmenu_changed or looky_newly_checked or (player.userip is None and should_recheck_usernames)):
                 trigger_auto_username_userip(player, list(player.usernames))
 
             _populate_player_geoip_and_flag(player)

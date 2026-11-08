@@ -393,7 +393,7 @@ class UserIPEntriesOperationsMixin(QDialog):
         self._update_entry_counts()
         self._save_database()
         if not self._dirty:
-            group_candidates = dedup_preserve_order(([anchor_username] if anchor_username else ()), new_usernames)
+            group_candidates = dedup_preserve_order(existing_names, ([anchor_username] if anchor_username else ()), new_usernames)
             if len(group_candidates) >= MIN_GROUP_USERNAMES:
                 with QSignalBlocker(self._fs_watcher):
                     if group_usernames(group_candidates, UserIPDatabases.get_known_alts_clusters_snapshot()):

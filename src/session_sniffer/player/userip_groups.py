@@ -416,12 +416,14 @@ def record_looky_db_correlation(
         return False
 
     matched_by_db: dict[Path, list[str]] = {}
+    clean_by_cf: dict[str, str] = {}
     seen_cf: set[str] = set()
     for name in looky_usernames:
         clean = name.strip()
         cf = clean.casefold()
         if clean and cf not in seen_cf and (db_path := db_by_username_cf.get(cf)) is not None:
             seen_cf.add(cf)
+            clean_by_cf[cf] = clean
             matched_by_db.setdefault(db_path, []).append(cf)
 
     eligible_groups = [cfs for cfs in matched_by_db.values() if len(cfs) >= MIN_GROUP_USERNAMES]
@@ -433,6 +435,10 @@ def record_looky_db_correlation(
         changed = False
 
         for matched_cfs in eligible_groups:
+            for cf in matched_cfs:
+                if cf not in _cache.canonical_names:
+                    _cache.canonical_names[cf] = clean_by_cf[cf]
+                    changed = True
             for i, cf1 in enumerate(matched_cfs):
                 for cf2 in matched_cfs[i + 1 :]:
                     pair = _normalize_pair(cf1, cf2)
@@ -548,92 +554,90 @@ def restore_looky_usernames(ip: str, usernames: Sequence[str]) -> bool:
 
 
 def compute_row_group_ids_and_prefixes(
-    row_usernames_cf: Sequence[str],
-    row_ips: Sequence[str],
-    row_indices: Sequence[int],
+    rows: Sequence[tuple[str, str, int, str]],
     clusters_snapshot: Mapping[str, Sequence[str]],
     *,
     descending: bool = False,
 ) -> tuple[list[str], list[str]]:
-    """Compute connected-component group IDs and sort prefixes for table rows."""
-    row_count = len(row_usernames_cf)
+    """Compute connected-component group IDs and sort prefixes for table rows `(username_cf, ip, row_index, db_key)`."""
+    row_count = len(rows)
     if row_count <= 0:
         return [], []
 
     linked_pairs, unlinked_pairs, _ = get_grouping_snapshot()
-    ordered_present_cfs = list(dict.fromkeys(cf for cf in row_usernames_cf if cf))
-    present_cfs = set(ordered_present_cfs)
-    rows_by_ip: dict[str, list[int]] = {}
-    for row, ip_val in enumerate(row_ips):
+    ordered_present_nodes = list(dict.fromkeys((db_key, cf) for cf, _, _, db_key in rows if cf))
+    nodes_by_db: dict[str, set[str]] = {}
+    for db_key, cf in ordered_present_nodes:
+        nodes_by_db.setdefault(db_key, set()).add(cf)
+
+    rows_by_db_ip: dict[tuple[str, str], list[int]] = {}
+    for row, (_, ip_val, _, db_key) in enumerate(rows):
         if ip_val:
-            rows_by_ip.setdefault(ip_val, []).append(row)
+            rows_by_db_ip.setdefault((db_key, ip_val), []).append(row)
 
-    adj: dict[str, dict[str, None]] = {}
-    for u_cf, cluster in clusters_snapshot.items():
-        if u_cf not in present_cfs:
-            continue
-        cluster_cfs = [m.casefold() for m in cluster if m.casefold() in present_cfs]
-        for idx, c1 in enumerate(cluster_cfs):
-            for c2 in cluster_cfs[idx + 1 :]:
-                pair = (c1, c2) if c1 < c2 else (c2, c1)
+    adj: dict[tuple[str, str], dict[tuple[str, str], None]] = {}
+    for db_key, db_present_cfs in nodes_by_db.items():
+        for u_cf, cluster in clusters_snapshot.items():
+            if u_cf not in db_present_cfs:
+                continue
+            cluster_cfs = [m.casefold() for m in cluster if m.casefold() in db_present_cfs]
+            for idx, c1 in enumerate(cluster_cfs):
+                for c2 in cluster_cfs[idx + 1 :]:
+                    pair = (c1, c2) if c1 < c2 else (c2, c1)
+                    if pair not in unlinked_pairs:
+                        adj.setdefault((db_key, c1), {})[(db_key, c2)] = None
+                        adj.setdefault((db_key, c2), {})[(db_key, c1)] = None
+
+        for u1, u2 in sorted(linked_pairs):
+            if u1 in db_present_cfs and u2 in db_present_cfs:
+                pair = (u1, u2) if u1 < u2 else (u2, u1)
                 if pair not in unlinked_pairs:
-                    adj.setdefault(c1, {})[c2] = None
-                    adj.setdefault(c2, {})[c1] = None
+                    adj.setdefault((db_key, u1), {})[(db_key, u2)] = None
+                    adj.setdefault((db_key, u2), {})[(db_key, u1)] = None
 
-    for u1, u2 in sorted(linked_pairs):
-        if u1 in present_cfs and u2 in present_cfs:
-            pair = (u1, u2) if u1 < u2 else (u2, u1)
-            if pair not in unlinked_pairs:
-                adj.setdefault(u1, {})[u2] = None
-                adj.setdefault(u2, {})[u1] = None
-
-    for ip_rows in rows_by_ip.values():
+    for (db_key, _), ip_rows in rows_by_db_ip.items():
         if len(ip_rows) > 1:
-            ip_cfs: list[str] = []
-            for r in ip_rows:
-                cf = row_usernames_cf[r]
-                if cf and cf not in ip_cfs:
-                    ip_cfs.append(cf)
+            ip_cfs = list(dict.fromkeys(rows[r][0] for r in ip_rows if rows[r][0]))
             for idx, c1 in enumerate(ip_cfs):
                 for c2 in ip_cfs[idx + 1 :]:
                     pair = (c1, c2) if c1 < c2 else (c2, c1)
                     if pair not in unlinked_pairs:
-                        adj.setdefault(c1, {})[c2] = None
-                        adj.setdefault(c2, {})[c1] = None
+                        adj.setdefault((db_key, c1), {})[(db_key, c2)] = None
+                        adj.setdefault((db_key, c2), {})[(db_key, c1)] = None
 
-    visited: set[str] = set()
-    cf_to_group_id: dict[str, str] = {}
-    for root in ordered_present_cfs:
+    visited: set[tuple[str, str]] = set()
+    node_to_group_id: dict[tuple[str, str], str] = {}
+    for root in ordered_present_nodes:
         if root in visited:
             continue
         comp: list[str] = []
         queue = [root]
         visited.add(root)
         while queue:
-            curr = queue.pop(0)
-            comp.append(curr)
-            for nb in adj.get(curr, ()):
-                if nb not in visited and all(((nb, m) if nb < m else (m, nb)) not in unlinked_pairs for m in comp):
-                    visited.add(nb)
-                    queue.append(nb)
-        gid = f'{max(comp) if descending else min(comp)}\x00u:{min(comp)}'
+            curr_db, curr_cf = queue.pop(0)
+            comp.append(curr_cf)
+            for nb_db, nb_cf in adj.get((curr_db, curr_cf), ()):
+                if (nb_db, nb_cf) not in visited and all(((nb_cf, m) if nb_cf < m else (m, nb_cf)) not in unlinked_pairs for m in comp):
+                    visited.add((nb_db, nb_cf))
+                    queue.append((nb_db, nb_cf))
+        db_prefix = f'{root[0]}\x00' if root[0] else ''
+        gid = f'{max(comp) if descending else min(comp)}\x00{db_prefix}u:{min(comp)}'
         for member in comp:
-            cf_to_group_id[member] = gid
+            node_to_group_id[(root[0], member)] = gid
 
     row_gids: list[str] = []
     group_anchor_index: dict[str, int] = {}
-    for row in range(row_count):
-        u_cf = row_usernames_cf[row]
+    for row, (u_cf, ip_val, r_idx, db_key) in enumerate(rows):
+        db_prefix = f'{db_key}\x00' if db_key else ''
         if u_cf:
-            gid = cf_to_group_id.get(u_cf, f'{u_cf}\x00u:{u_cf}')
-        elif row_ips[row]:
-            nearest_peer = min(((abs(r - row), r, row_usernames_cf[r]) for r in rows_by_ip.get(row_ips[row], ()) if row_usernames_cf[r]), default=None)
+            gid = node_to_group_id.get((db_key, u_cf), f'{u_cf}\x00{db_prefix}u:{u_cf}')
+        elif ip_val:
+            nearest_peer = min(((abs(r - row), r, rows[r][0]) for r in rows_by_db_ip.get((db_key, ip_val), ()) if rows[r][0]), default=None)
             peer_cf = nearest_peer[2] if nearest_peer is not None else ''
-            gid = cf_to_group_id.get(peer_cf, f'{peer_cf}\x00u:{peer_cf}') if peer_cf else f'\x00ip:{row_ips[row]}'
+            gid = node_to_group_id.get((db_key, peer_cf), f'{peer_cf}\x00{db_prefix}u:{peer_cf}') if peer_cf else f'\x00{db_prefix}ip:{ip_val}'
         else:
-            gid = f'\x00row:{row}'
+            gid = f'\x00{db_prefix}row:{row}'
         row_gids.append(gid)
-        r_idx = row_indices[row]
         prev_anchor = group_anchor_index.get(gid)
         if prev_anchor is None or (r_idx > prev_anchor if descending else r_idx < prev_anchor):
             group_anchor_index[gid] = r_idx

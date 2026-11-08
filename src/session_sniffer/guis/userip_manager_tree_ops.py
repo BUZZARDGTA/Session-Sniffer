@@ -547,6 +547,10 @@ class TreeOperationsMixin(QDialog):
             QMessageBox.warning(self, TITLE, 'Destination must be within the UserIP Databases directory.')
             return
 
+        if dest == path or path in dest.parents:
+            QMessageBox.warning(self, TITLE, f'Cannot move "{path.name}" into itself.')
+            return
+
         new_path = dest / path.name
         if new_path.exists():
             QMessageBox.warning(self, TITLE, f'"{path.name}" already exists in the destination folder.')
@@ -628,6 +632,7 @@ class TreeOperationsMixin(QDialog):
 
         if self._global_search_active:
             self._load_all_databases()
+            self._rebuild_fs_watch()
         elif self._current_path is not None:
             if self._current_path.is_file():
                 self._load_database(self._current_path)

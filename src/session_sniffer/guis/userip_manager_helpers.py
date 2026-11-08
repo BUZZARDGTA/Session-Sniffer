@@ -219,20 +219,19 @@ class EntriesSortProxy(QSortFilterProxyModel):
             self._row_group_id = []
             self._row_group_sort_prefix = []
             return
-        row_usernames_cf: list[str] = []
-        row_ips: list[str] = []
-        row_indices: list[int] = []
+        rows: list[tuple[str, str, int, str]] = []
         for row in range(row_count):
             u_item, ip_item, range_item, idx_item = model.item(row, USERNAME_COLUMN), model.item(row, IP_COLUMN), model.item(row, RANGE_COLUMN), model.item(row, INDEX_COLUMN)
+            db_item = model.item(row, DATABASE_COLUMN)
             u_text = u_item.text().strip() if u_item else ''
-            row_usernames_cf.append(u_text.casefold())
-            row_ips.append((ip_item.text().strip() if ip_item else '') or (range_item.text().strip() if range_item else ''))
+            ip_val = (ip_item.text().strip() if ip_item else '') or (range_item.text().strip() if range_item else '')
             raw_idx = idx_item.data(Qt.ItemDataRole.UserRole) if idx_item else None
-            row_indices.append(raw_idx if isinstance(raw_idx, int) and raw_idx > 0 else (row + 1))
+            row_idx = raw_idx if isinstance(raw_idx, int) and raw_idx > 0 else (row + 1)
+            db_path = db_item.data(Qt.ItemDataRole.UserRole) if db_item else None
+            db_key = str(db_path) if db_path is not None else (db_item.text().strip() if db_item else '')
+            rows.append((u_text.casefold(), ip_val, row_idx, db_key))
         self._row_group_id, self._row_group_sort_prefix = compute_row_group_ids_and_prefixes(
-            row_usernames_cf,
-            row_ips,
-            row_indices,
+            rows,
             UserIPDatabases.get_known_alts_clusters_snapshot(),
             descending=self._last_group_descending,
         )
@@ -717,8 +716,7 @@ def append_userip_entries(db_path: Path, entries: Sequence[UserIPEntryModel], *,
             updated_entry, _ = enrich_userip_entry_from_logs(existing_entry.model_copy(update=upd))
             db_model.entries[existing_index] = updated_entry
             existing_by_pair[cf_pair] = updated_entry
-            if entry.is_looky and not existing_entry.is_looky:
-                added_pairs.add((existing_entry.username, ip_or_range))
+            added_pairs.add((existing_entry.username, ip_or_range))
             modified = True
 
     if modified:

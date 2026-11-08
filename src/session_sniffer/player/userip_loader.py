@@ -722,13 +722,13 @@ def _sync_groups_with_db_changes(
         for old_e in old_entries:
             if old_u := old_e.username.strip():
                 old_cfs_by_ip.setdefault(old_e.ip, set()).add(old_u.casefold())
-        new_names_by_ip: dict[str, list[str]] = {}
+        new_names_by_key: dict[tuple[str, str], list[str]] = {}
         for new_e in new_entries:
             if (new_u := new_e.username.strip()) and new_u.casefold() not in old_cfs_by_ip.get(new_e.ip, set()):
-                new_names_by_ip.setdefault(new_e.ip, []).append(new_u)
+                new_names_by_key.setdefault((new_e.ip, new_e.added_at), []).append(new_u)
         for old_e in old_entries:
             old_u = old_e.username.strip()
-            if old_u and old_u.casefold() in removed_cfs and (candidates := new_names_by_ip.get(old_e.ip)) is not None and candidates:
+            if old_u and old_u.casefold() in removed_cfs and (candidates := new_names_by_key.get((old_e.ip, old_e.added_at))) is not None and candidates:
                 changed = rename_username_in_groups(old_u, candidates.pop(0)) or changed
                 removed_cfs.discard(old_u.casefold())
 

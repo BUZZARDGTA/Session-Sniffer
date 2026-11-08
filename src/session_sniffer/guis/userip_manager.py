@@ -691,7 +691,10 @@ class UserIPDatabasesManager(
         try:
             self._proxy.set_group_sort_enabled(enabled=mode == 'Groups', invalidate=False)
             if restore_saved_column:
-                target_col, target_order = UserIPDatabasesManager._cached_sort_column, UserIPDatabasesManager._cached_sort_order
+                target_col = UserIPDatabasesManager._cached_sort_column
+                if not self._global_search_active and target_col == DATABASE_COLUMN:
+                    target_col = INDEX_COLUMN
+                target_order = UserIPDatabasesManager._cached_sort_order
             elif mode == 'Date Added':
                 target_col, target_order = ADDED_AT_COLUMN, Qt.SortOrder.DescendingOrder
             else:
@@ -757,6 +760,8 @@ class UserIPDatabasesManager(
         if self._export_selected_action is not None:
             self._export_selected_action.setEnabled(db_available)
         self._entries_table.setColumnHidden(DATABASE_COLUMN, not checked)
+        if not checked and UserIPDatabasesManager._cached_sort_column == DATABASE_COLUMN:
+            self._apply_sort_mode(self._sort_mode_combo.currentText())
         self._reset_column_sizes()
         self._settings_container.setVisible(db_available)
 

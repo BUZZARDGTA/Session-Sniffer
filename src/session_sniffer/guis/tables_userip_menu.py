@@ -10,6 +10,7 @@ from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.error_messages import ensure_instance
 from session_sniffer.guis.looky_text import (
     configure_looky_action,
+    get_looky_restriction,
 )
 from session_sniffer.guis.tables_player_actions.looky_system._looky_refresh_userip import looky_refresh_userip_entries
 from session_sniffer.guis.tables_userip_mixin import (
@@ -38,6 +39,7 @@ from session_sniffer.guis.userip_manager_helpers import populate_userip_database
 from session_sniffer.guis.utils import set_clipboard_text
 from session_sniffer.player.userip import UserIPDatabases
 from session_sniffer.player.userip_groups import MIN_GROUP_USERNAMES
+from session_sniffer.rendering_core.types import CaptureState
 from session_sniffer.settings.settings import Settings
 from session_sniffer.text_utils import pluralize
 from session_sniffer.utils import dedup_preserve_order
@@ -257,9 +259,10 @@ def build_userip_menu(
             handler=lambda: userip_ungroup(parent, player),
             icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')),
         )
-    if Settings.is_gta5_feature_set():
+    if Settings.is_gta5_feature_set() and CaptureState.is_local_capture() and not player.is_third_party_server:
         userip_menu.addSeparator()
         is_searchlist = player.userip.db_path.stem.casefold() == 'searchlist'
+        restriction = get_looky_restriction([player])
         refresh_action = add_action(
             userip_menu,
             'Verify IP (Looky System)' if is_searchlist else 'Refresh IP (Looky System)',
@@ -268,10 +271,10 @@ def build_userip_menu(
                 if is_searchlist
                 else 'Look up this IP via Looky System to confirm existing usernames and discover any additional usernames.'
             ),
-            handler=lambda: looky_refresh_userip_entries(parent, [(player.userip.db_path, [ip_address])]) if player.userip else None,
+            handler=lambda: looky_refresh_userip_entries(parent, [(player.userip.db_path, [ip_address])], restriction=restriction) if player.userip else None,
             icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'eye.svg')),
         )
-        configure_looky_action(refresh_action, default_tooltip=refresh_action.toolTip())
+        configure_looky_action(refresh_action, default_tooltip=refresh_action.toolTip(), restriction=restriction)
         userip_menu.addSeparator()
     entry_desc = _classify_userip_entry(ip_address)
     matching_ranges = UserIPDatabases.get_matching_range_raws(ip_address)
@@ -427,7 +430,7 @@ def build_userip_menu_multi(
                 icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'user-plus.svg')),
             )
 
-        if Settings.is_gta5_feature_set():
+        if Settings.is_gta5_feature_set() and CaptureState.is_local_capture() and all(not p.is_third_party_server for p in players):
             # Group IPs by their UserIP database path for the batch refresh
             _refresh_by_db: dict[Path, list[str]] = {}
             for _p in players:
@@ -437,6 +440,7 @@ def build_userip_menu_multi(
                 if rename_players:
                     userip_menu.addSeparator()
                 is_all_searchlist = all(db_path.stem.casefold() == 'searchlist' for db_path in _refresh_by_db)
+                restriction = get_looky_restriction(players)
                 refresh_multi_action = add_action(
                     userip_menu,
                     'Verify IPs (Looky System)' if is_all_searchlist else 'Refresh IPs (Looky System)',
@@ -445,10 +449,10 @@ def build_userip_menu_multi(
                         if is_all_searchlist
                         else f'Look up {entries_phrase} via Looky System to confirm existing usernames and discover any additional usernames.'
                     ),
-                    handler=lambda: looky_refresh_userip_entries(parent, list(_refresh_by_db.items())),
+                    handler=lambda: looky_refresh_userip_entries(parent, list(_refresh_by_db.items()), restriction=restriction),
                     icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'eye.svg')),
                 )
-                configure_looky_action(refresh_multi_action, default_tooltip=refresh_multi_action.toolTip())
+                configure_looky_action(refresh_multi_action, default_tooltip=refresh_multi_action.toolTip(), restriction=restriction)
                 userip_menu.addSeparator()
 
         move_userip_menu = add_menu(

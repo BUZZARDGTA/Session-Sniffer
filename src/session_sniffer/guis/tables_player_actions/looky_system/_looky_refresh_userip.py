@@ -920,9 +920,9 @@ def _collect_usernames_for_requested_ips(db_path: Path, ip_addresses: list[str])
     return matched_usernames
 
 
-def looky_refresh_userip_entries(parent: QWidget, entries: list[tuple[Path, list[str]]]) -> None:
+def looky_refresh_userip_entries(parent: QWidget, entries: list[tuple[Path, list[str]]], *, restriction: str | None = None) -> None:
     """Look up IPs and resolve usernames from UserIP databases via the Looky System and open the review dialog."""
-    if (api_key := check_looky_prerequisites(parent)) is None:
+    if (api_key := check_looky_prerequisites(parent, restriction=restriction)) is None:
         return
     all_ips = list(dict.fromkeys(ip for _db_path, ip_addresses in entries for ip in ip_addresses if _is_single_ipv4(ip)))
     db_usernames_by_path = {db_path: _collect_usernames_for_requested_ips(db_path, ip_addresses) for db_path, ip_addresses in entries}
@@ -937,8 +937,6 @@ def looky_refresh_userip_entries(parent: QWidget, entries: list[tuple[Path, list
         loading_dialog.accept()
         results = {ip: [lp for lp in lps if not lp.name or lp.name.strip().casefold() not in get_excluded_looky_usernames_cf(ip)] for ip, lps in results.items()}
         discovered_ips_by_cf = {u_cf: [ip for ip in ips if u_cf not in get_excluded_looky_usernames_cf(ip)] for u_cf, ips in discovered_ips_by_cf.items()}
-        if sum(record_looky_db_correlation([lp.name.strip() for lp in lps if lp.name], UserIPDatabases.get_known_username_dbs_cf()) for lps in results.values()):
-            refresh_userip_and_wake_renderer()
         pending_entries, standalone_removals, total_ips_with_results = list[_PendingEntry](), list[_SuspectRemoval](), 0
         claimed_ips = {ip for _db_path, ip_addresses in entries for ip in ip_addresses if _is_single_ipv4(ip)}
         for db_path, ip_addresses in entries:
@@ -956,6 +954,8 @@ def looky_refresh_userip_entries(parent: QWidget, entries: list[tuple[Path, list
             len(standalone_removals), pluralize(len(standalone_removals)), total_ips_with_results, pluralize(total_ips_with_results),
         )
         if not pending_entries and not standalone_removals:
+            if sum(record_looky_db_correlation([lp.name.strip() for lp in lps if lp.name], UserIPDatabases.get_known_username_dbs_cf()) for lps in results.values()):
+                refresh_userip_and_wake_renderer()
             msg = f'No new usernames or unconfirmed candidate IPs found.\n\nAll resolved usernames already exist in the database{pluralize(len(entries))}.'
             QMessageBox.information(parent, TITLE, msg)
             return
