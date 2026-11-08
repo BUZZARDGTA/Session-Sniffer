@@ -37,18 +37,32 @@ Use this skill when the user wants to prepare and commit a new Session Sniffer r
 
 Always include a concise, well-structured user-facing changelog covering all net changes between the previous published release tag (or previous `build: bump version` commit) and `HEAD`.
 
-### Synthesizing the Net Final State (Not Commit-by-Commit)
+### Synthesizing the Net Final State (Diff-First, Never Commit-Message-First)
 
-Do **not** mechanically list or paraphrase every commit one by one. Instead, inspect both the commit history (`git log <prev-release>..HEAD`) and the net code diff (`git diff <prev-release>..HEAD`) to represent the **actual final state at the end of the release cycle**:
+Do **not** mechanically list, paraphrase, or trust commit subject lines (`git log`). Commit messages frequently describe intermediate designs, sub-features that were later removed before `HEAD`, or internal fixes to unpublished code from earlier in the same cycle.
 
-- **Consolidate multi-commit work**: If a feature or change was introduced in one commit and later refined, fixed, reworked, or optimized in subsequent commits during the same release cycle, merge them into a single cohesive entry describing the final behavior.
-- **Drop transient intermediate bugs**: If a commit fixed a bug or regression that was introduced earlier *after* the previous release (within the same `<prev-release>..HEAD` range), do not list that fix as a standalone bug fix—only the net outcome compared to `<prev-release>` matters.
-- **Drop reverted or removed experiments**: If a feature, change, or refactor was added and later reverted or removed before `HEAD`, omit it completely when the net change vs. `<prev-release>` is zero.
-- **Filter internal noise**: Omit purely internal housekeeping commits (e.g. `.gitignore` tweaks, agent/skill config edits, version bumps, or pure code formatting) that have no user-visible behavior, stability, or performance impact.
-- **Verify exact filenames, paths, and data sources from the code**: Never guess or rely on outdated conventions (e.g. all settings and UserIP databases use `.json`, not `.ini`). Check the actual diff/source to cite exact file formats, log paths, and data sources.
+Instead, follow a strict **diff-first workflow**:
+1. Inspect the net code diff (`git diff <prev-release>..HEAD -- src/ resources/`) and the actual code at `HEAD` as the **sole source of truth** for what changed compared to `<prev-release>`.
+2. Use `git log <prev-release>..HEAD` **only** to attribute commit SHAs to the net changes you have already verified in `git diff <prev-release>..HEAD`.
+
+Apply these mandatory rules to every entry:
+
+- **Verify every sub-item of a commit against `git diff <prev-release>..HEAD`**: When a commit message mentions multiple items (e.g. `"add visual indicators, ON/OFF toggle pill, and context menu toggle"`), inspect `git diff <prev-release>..HEAD` to confirm each item still exists in `HEAD`. If one part (such as a context menu toggle) was later removed or reworked in a subsequent commit before `HEAD`, omit that removed part completely—never copy it from the earlier commit's subject line.
+- **Consolidate multi-commit work without leaking intermediate fix details**: If a feature or change was introduced after `<prev-release>` and later refined, fixed, guarded, or tweaked in subsequent commits during the same release cycle, merge all contributing commit links into a single cohesive entry describing **only the final user-facing behavior**. Do not append internal stabilization clauses or intermediate commit-subject phrasing (e.g. `"with automatic operator flipping..."`, `"concurrent file-read retry handling..."`, or `"guard unresolved..."`) to the changelog description.
+- **Drop transient intermediate bugs (`### Fixed` is strictly for bugs present in `<prev-release>`)**: Every entry under `### Fixed` must fix a bug that existed in `<prev-release>`. If a commit (`fix(...)`) fixed a bug, regression, or edge case that was introduced *after* `<prev-release>` by an earlier commit in the same `<prev-release>..HEAD` range, **never** list it under `### Fixed` and never describe the transient bug—at most, include its commit link alongside the parent feature/change entry.
+- **Drop reverted or removed experiments**: If a feature, UI control, or refactor was added after `<prev-release>` and later reverted or removed before `HEAD`, omit it completely when its net change vs. `<prev-release>` is zero.
+- **Filter internal noise**: Omit purely internal housekeeping commits (e.g. `.gitignore` tweaks, agent/skill config edits, lockfile/dependency bumps, version bumps, type-annotation-only fixes, or pure code formatting) that have no user-visible behavior, stability, or performance impact.
+- **Verify exact integrations, filenames, paths, and UI labels from `HEAD` and `README.md`**: Never guess or rely on outdated/archived conventions (e.g. all settings and UserIP databases use `.json`, not `.ini`; cross-check active plugins/integrations against `README.md` and `HEAD`). Check the actual diff/source at `HEAD` to cite exact file formats, log paths, and data sources.
 - **Group by category**: Organize entries under relevant headings such as `### Added`, `### Changed`, `### Fixed`, `### Performance`, or `### Removed` (include only categories that have entries).
 - **Clickable GitHub commit links**: Format every referenced commit hash as a clickable Markdown link to the repository commit on GitHub: `` [`<short-sha>`](https://github.com/BUZZARDGTA/Session-Sniffer/commit/<full-sha>) ``. When a consolidated entry spans multiple commits, link each contributing commit (e.g. ``([`7c0bab5`](https://github.com/BUZZARDGTA/Session-Sniffer/commit/7c0bab5f80a2b7b824883b713801af53921d6303), [`6841708`](https://github.com/BUZZARDGTA/Session-Sniffer/commit/68417080625ab90e9fb92ae4902736c05b318e8d))``).
 - **Copy-ready raw Markdown block**: Provide the changelog in a fenced ````markdown` code block so it can be copied in one click into the GitHub Release notes, where `.github/workflows/build.yml` (`notify-discord`) automatically forwards it to the Discord release webhook once the Windows, Linux, and macOS binaries finish compiling.
+
+### Pre-Output Changelog Audit Checklist
+
+Before presenting the changelog to the user, audit every bullet and sub-clause against these three checks:
+1. **Net-Diff Check**: Does every feature, UI element, or behavior mentioned in this sentence actually exist in `git diff <prev-release>..HEAD` at `HEAD`, or did it come from an earlier commit subject line that was later modified/removed?
+2. **Baseline Bug Check**: For every item in `### Fixed`, did that bug exist in `<prev-release>`? (If it was fixing code introduced after `<prev-release>`, remove it from `### Fixed`.)
+3. **No Intermediate Mechanics Check**: Does any feature bullet include internal implementation/fix phrasing copied from follow-up `fix(...)` commit subjects? (If so, strip the fix phrasing and keep only the clean user-facing description of the final feature.)
 
 ## Version Format
 
