@@ -800,6 +800,7 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
         def _factory() -> SettingsDialog:
             window = SettingsDialog(None, self.capture.get(), self._on_change_interface)
             window.rejected.connect(self._sync_solo_session_hotkey)
+            window.destroyed.connect(self._sync_solo_session_hotkey)
             for callback in (
                 TableMergeState.reset_override,
                 self._apply_always_on_top,
@@ -808,6 +809,7 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
                 self._apply_table_settings,
                 self._sync_player_resolver_settings,
                 self._apply_userip_settings,
+                self._sync_solo_session_hotkey,
             ):
                 window.accepted.connect(callback)
             return window
