@@ -10,11 +10,11 @@ from threading import Lock
 from typing import ClassVar
 
 from session_sniffer.error_messages import format_type_error
-from session_sniffer.utils import get_documents_dir
+from session_sniffer.utils import FileSignature, get_documents_dir, get_file_signature
 
 logger = logging.getLogger(__name__)
 
-FileModTimes = dict[Path, float]
+FileModTimes = dict[Path, FileSignature]
 UsernamesByIP = defaultdict[str, list[str]]
 
 RE_MODMENU_LOGS_USER_PATTERN = re.compile(
@@ -65,18 +65,19 @@ class ModMenuLogsParser:
     _last_mod_times: ClassVar[FileModTimes] = {}
     _last_host_mod_times: ClassVar[FileModTimes] = {}
     _ip_to_usernames_map: ClassVar[dict[str, list[str]]] = {}
+    _host_ip_to_usernames_map: ClassVar[UsernamesByIP] = defaultdict(list)
     _session_host_entry: ClassVar[ModMenuSessionHostEntry | None] = None
     _active_host_menu_name: ClassVar[str | None] = None
 
     @staticmethod
     def _snapshot_file_mod_times() -> FileModTimes:
-        """Return current modification times of all existing log files."""
-        return {path: path.stat().st_mtime for path in LOGS_PATHS if path.is_file()}
+        """Return current file signatures of all existing log files."""
+        return {path: sig for path in LOGS_PATHS if path.is_file() and (sig := get_file_signature(path)) is not None}
 
     @staticmethod
     def _snapshot_host_file_mod_times() -> FileModTimes:
-        """Return current modification times of all existing session host files."""
-        return {path: path.stat().st_mtime for _, path in SESSION_HOST_PATHS if path.is_file()}
+        """Return current file signatures of all existing session host files."""
+        return {path: sig for _, path in SESSION_HOST_PATHS if path.is_file() and (sig := get_file_signature(path)) is not None}
 
     @staticmethod
     def _parse_session_host_files(host_mod_times: FileModTimes) -> tuple[str | None, ModMenuSessionHostEntry | None]:
@@ -95,23 +96,26 @@ class ModMenuLogsParser:
             if not path.is_file():
                 continue
             menu_name = menu_by_path[path]
-            with path.open(encoding='utf-8') as file:
-                for line in file:
-                    match = RE_MODMENU_LOGS_USER_PATTERN.fullmatch(line.rstrip())
-                    if not match:
-                        continue
+            try:
+                with path.open(encoding='utf-8') as file:
+                    for line in file:
+                        match = RE_MODMENU_LOGS_USER_PATTERN.fullmatch(line.rstrip())
+                        if not match:
+                            continue
 
-                    username, ip = match.group('username', 'ip')
-                    if not isinstance(username, str):
-                        raise TypeError(format_type_error(username, str))
-                    if not isinstance(ip, str):
-                        raise TypeError(format_type_error(ip, str))
+                        username, ip = match.group('username', 'ip')
+                        if not isinstance(username, str):
+                            raise TypeError(format_type_error(username, str))
+                        if not isinstance(ip, str):
+                            raise TypeError(format_type_error(ip, str))
 
-                    return menu_name, ModMenuSessionHostEntry(
-                        menu_name=menu_name,
-                        username=username,
-                        ip=ip,
-                    )
+                        return menu_name, ModMenuSessionHostEntry(
+                            menu_name=menu_name,
+                            username=username,
+                            ip=ip,
+                        )
+            except (OSError, UnicodeDecodeError) as e:
+                logger.debug('Failed to read mod menu session host file "%s": %s', path, e)
 
         return newest_menu_name, None
 
@@ -146,45 +150,54 @@ class ModMenuLogsParser:
                     continue
 
                 # Parse file line by line
-                with path.open(encoding='utf-8') as file:
-                    for line in file:
-                        match = RE_MODMENU_LOGS_USER_PATTERN.fullmatch(line.rstrip())
-                        if not match:
-                            continue
+                try:
+                    with path.open(encoding='utf-8') as file:
+                        for line in file:
+                            match = RE_MODMENU_LOGS_USER_PATTERN.fullmatch(line.rstrip())
+                            if not match:
+                                continue
 
-                        username, ip = match.group('username', 'ip')
-                        if not isinstance(username, str):
-                            raise TypeError(format_type_error(username, str))
-                        if not isinstance(ip, str):
-                            raise TypeError(format_type_error(ip, str))
+                            username, ip = match.group('username', 'ip')
+                            if not isinstance(username, str):
+                                raise TypeError(format_type_error(username, str))
+                            if not isinstance(ip, str):
+                                raise TypeError(format_type_error(ip, str))
 
-                        # Preserve order and avoid duplicates
-                        if username not in temp_map[ip]:
-                            temp_map[ip].append(username)
+                            # Preserve order and avoid duplicates
+                            if username not in temp_map[ip]:
+                                temp_map[ip].append(username)
+                except (OSError, UnicodeDecodeError) as e:
+                    logger.debug('Failed to read mod menu log file "%s": %s', path, e)
 
             frozen_map = dict(temp_map)
 
         # Step 3: atomically update class variables under the lock
         with cls._lock:
-            if frozen_map is not None:
-                cls._ip_to_usernames_map = frozen_map
-                cls._last_mod_times = current_mod_times
             if host_changed:
                 cls._active_host_menu_name = active_host_menu_name
                 cls._session_host_entry = parsed_host_entry
                 cls._last_host_mod_times = current_host_mod_times
-            if cls._session_host_entry is not None:
-                existing_usernames = cls._ip_to_usernames_map.get(cls._session_host_entry.ip)
-                if existing_usernames is None:
-                    cls._ip_to_usernames_map = {
-                        **cls._ip_to_usernames_map,
-                        cls._session_host_entry.ip: [cls._session_host_entry.username],
-                    }
-                elif cls._session_host_entry.username not in existing_usernames:
-                    cls._ip_to_usernames_map = {
-                        **cls._ip_to_usernames_map,
-                        cls._session_host_entry.ip: [*existing_usernames, cls._session_host_entry.username],
-                    }
+                if parsed_host_entry is not None and parsed_host_entry.username not in cls._host_ip_to_usernames_map[parsed_host_entry.ip]:
+                    cls._host_ip_to_usernames_map[parsed_host_entry.ip].append(parsed_host_entry.username)
+            if frozen_map is not None:
+                cls._ip_to_usernames_map = frozen_map
+                cls._last_mod_times = current_mod_times
+            if cls._host_ip_to_usernames_map:
+                merged_map: dict[str, list[str]] | None = None
+                for host_ip, host_usernames in cls._host_ip_to_usernames_map.items():
+                    existing_usernames = (merged_map or cls._ip_to_usernames_map).get(host_ip)
+                    if existing_usernames is None:
+                        if merged_map is None:
+                            merged_map = dict(cls._ip_to_usernames_map)
+                        merged_map[host_ip] = list(host_usernames)
+                    else:
+                        missing = [u for u in host_usernames if u not in existing_usernames]
+                        if missing:
+                            if merged_map is None:
+                                merged_map = dict(cls._ip_to_usernames_map)
+                            merged_map[host_ip] = [*existing_usernames, *missing]
+                if merged_map is not None:
+                    cls._ip_to_usernames_map = merged_map
 
     @classmethod
     def get_all_ip_to_usernames_map(cls) -> dict[str, list[str]]:
