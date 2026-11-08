@@ -81,14 +81,12 @@ def _resolve_portable_key_vks(key_token: str) -> tuple[int, ...] | None:
 
 def _parse_win32_hotkey_spec(hotkey: str | None) -> tuple[int, tuple[int, ...]] | None:
     """Translate a portable `QKeySequence` string into `(win32_modifier_flags, primary_vks)`."""
-    if hotkey is None or not hotkey:
+    if not hotkey:
         return None
     seq = QKeySequence.fromString(hotkey, QKeySequence.SequenceFormat.PortableText)
-    portable = seq.toString(QKeySequence.SequenceFormat.PortableText).lower()
+    portable = seq.toString(QKeySequence.SequenceFormat.PortableText).split(', ', 1)[0].strip().lower()
     if not portable:
         return None
-    if ',' in portable:
-        portable = portable.split(',', 1)[0].strip()
 
     mod_flags = 0
     for _ in range(4):
@@ -144,7 +142,7 @@ class GameMixin(QMainWindow):
     _last_game_status_key: tuple[object, ...]
     _last_game_process_button_key: tuple[object, ...]
     _last_feature_set: str | None
-    _registered_solo_hotkey_ids: list[int]
+    _registered_solo_hotkeys: list[tuple[int, int]]
     _solo_session_shortcut: QShortcut
     _player_resolver_window: PlayerResolverWindow
 
@@ -295,24 +293,26 @@ class GameMixin(QMainWindow):
         self._last_game_status_key = ()
         self._last_game_process_button_key = ()
         self._last_feature_set = Settings.capture_feature_set
-        self._registered_solo_hotkey_ids = []
+        self._registered_solo_hotkeys = []
         self._solo_session_shortcut = QShortcut(self)
         self._solo_session_shortcut.setContext(Qt.ShortcutContext.ApplicationShortcut)
         self._solo_session_shortcut.activated.connect(self._trigger_solo_session_from_hotkey)
         self._sync_solo_session_hotkey()
 
     def _unregister_solo_session_hotkeys(self) -> None:
-        """Unregister all active Win32 system-wide hotkeys for Solo Public Session."""
-        if sys.platform == 'win32' and self._registered_solo_hotkey_ids:
-            hwnd = self.winId()
-            for hotkey_id in self._registered_solo_hotkey_ids:
+        """Unregister all active Solo Public Session hotkeys."""
+        if sys.platform == 'win32' and self._registered_solo_hotkeys:
+            for hwnd, hotkey_id in self._registered_solo_hotkeys:
                 unregister_win32_hotkey(hwnd, hotkey_id)
-            self._registered_solo_hotkey_ids.clear()
+            self._registered_solo_hotkeys.clear()
+        self._solo_session_shortcut.setEnabled(False)
 
     def _sync_solo_session_hotkey(self) -> None:
         """Synchronize the OS-level Solo Public Session hotkey registration from Settings."""
         self._unregister_solo_session_hotkeys()
-        hotkey = Settings.solo_session_hotkey
+        if self._settings_dialog_window is not None and self._settings_dialog_window.isVisible():
+            return
+        hotkey = Settings.solo_session_hotkey if Settings.is_rockstar_feature_set() else None
         if sys.platform == 'win32':
             spec = _parse_win32_hotkey_spec(hotkey)
             if spec is not None:
@@ -321,15 +321,13 @@ class GameMixin(QMainWindow):
                 for index, vk_code in enumerate(primary_vks):
                     hotkey_id = _SOLO_SESSION_HOTKEY_BASE_ID + index
                     if register_win32_hotkey(hwnd, hotkey_id, mod_flags, vk_code):
-                        self._registered_solo_hotkey_ids.append(hotkey_id)
+                        self._registered_solo_hotkeys.append((hwnd, hotkey_id))
             self._solo_session_shortcut.setKey(QKeySequence())
-            self._solo_session_shortcut.setEnabled(False)
-        elif hotkey is not None and hotkey:
+        elif hotkey:
             self._solo_session_shortcut.setKey(QKeySequence.fromString(hotkey, QKeySequence.SequenceFormat.PortableText))
             self._solo_session_shortcut.setEnabled(True)
         else:
             self._solo_session_shortcut.setKey(QKeySequence())
-            self._solo_session_shortcut.setEnabled(False)
 
     def _trigger_solo_session_from_hotkey(self) -> None:
         """Trigger a Solo Public Session from the global hotkey if the active game is running and eligible."""
@@ -346,9 +344,9 @@ class GameMixin(QMainWindow):
     @override
     def nativeEvent(self, eventType: QByteArray | bytes | bytearray | memoryview, message: int) -> object:
         """Handle native OS window messages such as Win32 WM_HOTKEY events."""
-        if sys.platform == 'win32' and self._registered_solo_hotkey_ids:
+        if sys.platform == 'win32' and self._registered_solo_hotkeys:
             hotkey_id = parse_win32_hotkey_message(message)
-            if hotkey_id is not None and hotkey_id in self._registered_solo_hotkey_ids:
+            if hotkey_id is not None and any(reg_id == hotkey_id for _, reg_id in self._registered_solo_hotkeys):
                 self._trigger_solo_session_from_hotkey()
                 return True, 0
         return super().nativeEvent(eventType, message)
@@ -444,6 +442,7 @@ class GameMixin(QMainWindow):
             return
         self._last_game_process_button_key = status_key
         self._game_solo_menu_action.setText(format_game_solo_action_text())
+        self._game_solo_menu_action.setToolTip(format_game_solo_tooltip(game_label))
 
         self._game_process_submenu.setEnabled(can_act)
         if not can_act:

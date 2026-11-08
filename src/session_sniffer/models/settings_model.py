@@ -652,12 +652,12 @@ class SettingsModel(BaseModel):
             if not stripped:
                 cls._set_flag(info)
                 return None
-            first_chord = stripped.split(',', 1)[0].strip() if ',' in stripped else stripped
+            first_chord = stripped.split(', ', 1)[0].strip() if ', ' in stripped else stripped
             seq = QKeySequence.fromString(first_chord, QKeySequence.SequenceFormat.PortableText)
             if seq.isEmpty():
                 seq = QKeySequence.fromString(first_chord, QKeySequence.SequenceFormat.NativeText)
-            normalized = seq.toString(QKeySequence.SequenceFormat.PortableText).strip()
-            if not seq.isEmpty() and normalized and '\ufffd' not in normalized:
+            normalized = seq.toString(QKeySequence.SequenceFormat.PortableText).split(', ', 1)[0].strip()
+            if not seq.isEmpty() and normalized and normalized != 'Esc' and '\ufffd' not in normalized:
                 if normalized != value:
                     cls._set_flag(info)
                 return normalized
