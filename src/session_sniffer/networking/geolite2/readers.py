@@ -51,7 +51,7 @@ def extract_country_info(country_reader: geoip2.database.Reader | None, ip_addre
     if country_reader is not None:
         try:
             response = country_reader.country(ip_address)
-        except geoip2.errors.AddressNotFoundError:
+        except (geoip2.errors.GeoIP2Error, ValueError):
             pass
         else:
             continent_name = response.continent.name if response.continent.name is not None else 'N/A'
@@ -67,7 +67,7 @@ def extract_city_info(city_reader: geoip2.database.Reader | None, ip_address: st
     if city_reader is not None:
         try:
             response = city_reader.city(ip_address)
-        except geoip2.errors.AddressNotFoundError:
+        except (geoip2.errors.GeoIP2Error, ValueError):
             pass
         else:
             return response.city.name if response.city.name is not None else 'N/A'
@@ -79,7 +79,7 @@ def extract_asn_info(asn_reader: geoip2.database.Reader | None, ip_address: str)
     if asn_reader is not None:
         try:
             response = asn_reader.asn(ip_address)
-        except geoip2.errors.AddressNotFoundError:
+        except (geoip2.errors.GeoIP2Error, ValueError):
             pass
         else:
             return response.autonomous_system_organization if response.autonomous_system_organization is not None else 'N/A'

@@ -36,6 +36,8 @@ def _match_exact_lookup(value: str, *candidates: object) -> bool:
 def matches_player_isp(value: str, player: Player) -> bool:
     """Return True if *value* matches the player's IP-API AS name, ISP, or GeoLite2 ASN."""
     value_upper = value.upper().strip()
+    if not value_upper:
+        return False
 
     if player.iplookup.ipapi.as_name and player.iplookup.ipapi.as_name not in ('...', 'N/A'):
         as_name_clean = player.iplookup.ipapi.as_name.upper().replace('AS', '', 1).strip()
@@ -87,7 +89,10 @@ def _match_asn_condition(value: ConditionValue, player: Player) -> bool:
 def _match_as_name_condition(value: ConditionValue, player: Player) -> bool:
     """Match AS Name condition using substring match."""
     return isinstance(value, str) and bool(
-        player.iplookup.ipapi.as_name and player.iplookup.ipapi.as_name not in ('...', 'N/A') and value.upper().strip() in player.iplookup.ipapi.as_name.upper(),
+        (value_upper := value.upper().strip())
+        and player.iplookup.ipapi.as_name
+        and player.iplookup.ipapi.as_name not in ('...', 'N/A')
+        and value_upper in player.iplookup.ipapi.as_name.upper(),
     )
 
 
@@ -140,7 +145,12 @@ def _match_region_condition(value: ConditionValue, player: Player) -> bool:
 
 def _match_org_condition(value: ConditionValue, player: Player) -> bool:
     """Match organization condition using substring match."""
-    return isinstance(value, str) and _valid_lookup_value(player.iplookup.ipapi.org) and value.upper() in player.iplookup.ipapi.org.upper()
+    return (
+        isinstance(value, str)
+        and bool(value_upper := value.upper().strip())
+        and _valid_lookup_value(player.iplookup.ipapi.org)
+        and value_upper in player.iplookup.ipapi.org.upper()
+    )
 
 
 def _match_mobile_condition(value: ConditionValue, player: Player) -> bool:

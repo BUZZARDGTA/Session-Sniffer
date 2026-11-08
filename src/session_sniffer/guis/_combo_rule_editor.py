@@ -578,7 +578,18 @@ class ComboRuleEditorDialog(QDialog):
             is_negatable = key in NEGATABLE_CONDITIONS
             operator_combo.setVisible(is_negatable)
             if not is_negatable:
-                operator_combo.setCurrentIndex(0)
+                with QSignalBlocker(operator_combo):
+                    operator_combo.setCurrentIndex(0)
+            elif key in DUAL_OPERATOR_CONDITIONS:
+                other_ops = {
+                    bool(other_op.currentData())
+                    for other_type, other_op, _ in self._condition_rows
+                    if other_op is not operator_combo and self._CONDITION_LABELS.get(other_type.currentText(), '') == key
+                }
+                current_is_negated = bool(operator_combo.currentData())
+                if current_is_negated in other_ops and (not current_is_negated) not in other_ops:
+                    with QSignalBlocker(operator_combo):
+                        operator_combo.setCurrentIndex(0 if current_is_negated else 1)
             # Clear and rebuild value widget
             while value_layout.count():
                 child = value_layout.takeAt(0)
