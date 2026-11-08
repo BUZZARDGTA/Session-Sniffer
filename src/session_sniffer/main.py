@@ -38,11 +38,7 @@ from session_sniffer.capture.packet_capture import CaptureConfig, CaptureHolder,
 from session_sniffer.capture.pcap import can_open_pcap_device
 from session_sniffer.capture.process_monitor import ensure_process_monitor_running
 from session_sniffer.capture.utils.check_capture_filters import check_broadcast_multicast_support
-from session_sniffer.capture.utils.npcap_checker import (
-    ensure_npcap_installed,
-    is_npcap_adapter_bound,
-    reset_npcap_binding_repair_attempts,
-)
+from session_sniffer.capture.utils.npcap_checker import ensure_npcap_installed, is_npcap_adapter_bound, reset_npcap_binding_repair_attempts
 from session_sniffer.constants.local import (
     APP_DIR_LOCAL,
     APP_DIR_ROAMING,
@@ -79,7 +75,7 @@ from session_sniffer.logging_setup import register_secret_provider, setup_loggin
 from session_sniffer.models.player import Player
 from session_sniffer.models.player_lookup import PlayerUserIPDetection
 from session_sniffer.models.player_traffic import PacketInfo
-from session_sniffer.networking.adapters_info import get_adapters_info
+from session_sniffer.networking.adapters_info import get_adapters_info, register_adapter_change_notification
 from session_sniffer.networking.geolite2.service import update_and_initialize_geolite2_readers
 from session_sniffer.networking.interface import AllInterfaces, Interface, SelectedInterfaceRow
 from session_sniffer.networking.ip_range import check_ip_against_ranges
@@ -89,7 +85,7 @@ from session_sniffer.networking.reverse_dns import reset_resolver_cache
 from session_sniffer.player.combo_rules import ComboRulesManager
 from session_sniffer.player.detections import GUIDetectionSettings
 from session_sniffer.player.registry import PlayersRegistry, SessionTracker
-from session_sniffer.player.userip import UserIPDatabases
+from session_sniffer.player.userip import UserIPDatabases, gui_dispatcher
 from session_sniffer.player.userip_backup import run_userip_backup_async
 from session_sniffer.rendering_core.events import wake_rendering_core
 from session_sniffer.rendering_core.renderer import SESSIONS_LOGGING_PATH, rendering_core
@@ -758,32 +754,20 @@ def main() -> None:
 
         window.on_interface_switched()
 
-    def _try_recover_lost_adapter(
-        current_selected: SelectedInterfaceRow,
-        adapter_guid: str,
-        attempt: int,
-    ) -> str | None:
+    def _try_recover_lost_adapter(current_selected: SelectedInterfaceRow, adapter_guid: str, attempt: int) -> str | None:
         """Check whether the lost adapter is back online and ready for live capture, returning its IPv4 address if ready."""
-        matching_adapter = next(
-            (adapter for adapter in get_adapters_info() if adapter.identity.adapter_guid == adapter_guid),
-            None,
-        )
+        matching_adapter = next((adapter for adapter in get_adapters_info() if adapter.identity.adapter_guid == adapter_guid), None)
         if matching_adapter is None:
             logger.debug(
                 'Capture adapter "%s" (GUID: %s) temporarily absent — waiting to recover (attempt %d/%d).',
-                current_selected.name,
-                adapter_guid,
-                attempt,
-                _MAX_ADAPTER_LOST_RECOVERY_ATTEMPTS,
+                current_selected.name, adapter_guid, attempt, _MAX_ADAPTER_LOST_RECOVERY_ATTEMPTS,
             )
             return None
 
         if not matching_adapter.ipv4_addresses:
             logger.debug(
                 'Capture adapter "%s" present but waiting for IPv4 assignment (attempt %d/%d).',
-                matching_adapter.identity.friendly_name,
-                attempt,
-                _MAX_ADAPTER_LOST_RECOVERY_ATTEMPTS,
+                matching_adapter.identity.friendly_name, attempt, _MAX_ADAPTER_LOST_RECOVERY_ATTEMPTS,
             )
             return None
 
@@ -791,9 +775,7 @@ def main() -> None:
         if matching_adapter.status.operational_status != 1 or not can_open_pcap_device(pcap_device_name):
             logger.debug(
                 'Capture adapter "%s" present in OS but pcap handle not yet ready (attempt %d/%d).',
-                matching_adapter.identity.friendly_name,
-                attempt,
-                _MAX_ADAPTER_LOST_RECOVERY_ATTEMPTS,
+                matching_adapter.identity.friendly_name, attempt, _MAX_ADAPTER_LOST_RECOVERY_ATTEMPTS,
             )
             return None
 
@@ -833,19 +815,12 @@ def main() -> None:
             if sys.platform == 'win32' and not is_npcap_adapter_bound(adapter_guid):
                 _adapter_lost_attempts = 0
                 _adapter_lost_event.clear()
-                _handle_capture_lost(
-                    stop_capture=False,
-                    warning_message=format_npcap_adapter_binding_disabled_message(current_selected.name),
-                )
+                _handle_capture_lost(stop_capture=False, warning_message=format_npcap_adapter_binding_disabled_message(current_selected.name))
                 return
 
             _adapter_lost_attempts += 1
             if _adapter_lost_attempts <= _MAX_ADAPTER_LOST_RECOVERY_ATTEMPTS:
-                target_ip_address = _try_recover_lost_adapter(
-                    current_selected,
-                    adapter_guid,
-                    _adapter_lost_attempts,
-                )
+                target_ip_address = _try_recover_lost_adapter(current_selected, adapter_guid, _adapter_lost_attempts)
                 if target_ip_address is None:
                     return
 
@@ -853,18 +828,9 @@ def main() -> None:
                 _adapter_lost_event.clear()
 
                 if previous_ip_address != target_ip_address:
-                    logger.info(
-                        'Capture interface "%s" IP changed from %s to %s — resuming capture.',
-                        current_selected.name,
-                        previous_ip_address,
-                        target_ip_address,
-                    )
+                    logger.info('Capture interface "%s" IP changed from %s to %s — resuming capture.', current_selected.name, previous_ip_address, target_ip_address)
                 else:
-                    logger.info(
-                        'Capture interface "%s" reconnected (IP unchanged: %s) — resuming capture.',
-                        current_selected.name,
-                        target_ip_address,
-                    )
+                    logger.info('Capture interface "%s" reconnected (IP unchanged: %s) — resuming capture.', current_selected.name, target_ip_address)
 
                 _restart_capture_with_ip(target_ip_address)
                 return
@@ -872,6 +838,35 @@ def main() -> None:
         _adapter_lost_attempts = 0
         _adapter_lost_event.clear()
         _handle_capture_lost(stop_capture=False, warning_message=format_capture_interrupted_message())
+
+    def _on_os_adapter_change() -> None:
+        """Handle OS kernel notifications when an adapter's IPv4 address or operational status changes."""
+        if gui_closed__event.is_set() or not window.isVisible() or InterfaceSelectionDialog.get_active_instance() is not None:
+            return
+        if _adapter_lost_event.is_set():
+            _on_adapter_lost_poll()
+            return
+        if not capture_holder.is_running():
+            return
+        current_selected = capture_holder.config.interface
+        adapter_guid = current_selected.interface.identity.adapter_guid
+        if current_selected.is_neighbour or adapter_guid is None:
+            return
+        matching_adapter = next((adapter for adapter in get_adapters_info() if adapter.identity.adapter_guid == adapter_guid), None)
+        if matching_adapter is None or matching_adapter.status.operational_status != 1 or not matching_adapter.ipv4_addresses:
+            logger.info('Capture interface "%s" went down or lost IPv4 assignment — pausing capture for recovery.', current_selected.name)
+            capture_holder.stop()
+            _adapter_lost_event.set()
+            _on_adapter_lost_poll()
+        elif current_selected.ip_address not in matching_adapter.ipv4_addresses:
+            new_ip_address = matching_adapter.ipv4_addresses[0]
+            logger.info(
+                'Capture interface "%s" IP changed from %s to %s — updating capture filter and restarting capture.',
+                current_selected.name, current_selected.ip_address, new_ip_address,
+            )
+            _restart_capture_with_ip(new_ip_address)
+
+    _unregister_adapter_change = register_adapter_change_notification(lambda: gui_dispatcher.invoke(_on_os_adapter_change))
 
     _adapter_lost_timer = QTimer()
     _adapter_lost_timer.setInterval(500)
@@ -959,6 +954,7 @@ def main() -> None:
             return
         about_to_quit_executed = True
         logger.debug('_on_app_about_to_quit triggered: setting gui_closed, waking rendering state and player cores')
+        _unregister_adapter_change()
         gui_closed__event.set()
         wake_rendering_core()
         GUIRenderingState.wake()

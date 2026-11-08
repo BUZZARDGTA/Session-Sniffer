@@ -11,7 +11,7 @@ from session_sniffer.ctypes_windows import WindowsGuid, release_com_interface
 from session_sniffer.networking.adapter_types import GetAdaptersAddressesError
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
+    from collections.abc import Callable, Iterator
 
 logger = logging.getLogger(__name__)
 
@@ -352,6 +352,37 @@ if sys.platform == 'win32':
         wintypes.DWORD,
     ]
     _IcmpSendEcho.restype = wintypes.DWORD
+
+    _MIB_CHANGE_CALLBACK_TYPE = ctypes.WINFUNCTYPE(
+        None,
+        ctypes.c_void_p,
+        ctypes.c_void_p,
+        ctypes.c_int,
+    )
+
+    _NotifyUnicastIpAddressChange = _iphlpapi.NotifyUnicastIpAddressChange
+    _NotifyUnicastIpAddressChange.argtypes = [
+        wintypes.USHORT,
+        _MIB_CHANGE_CALLBACK_TYPE,
+        ctypes.c_void_p,
+        ctypes.c_ubyte,
+        ctypes.POINTER(wintypes.HANDLE),
+    ]
+    _NotifyUnicastIpAddressChange.restype = wintypes.ULONG
+
+    _NotifyIpInterfaceChange = _iphlpapi.NotifyIpInterfaceChange
+    _NotifyIpInterfaceChange.argtypes = [
+        wintypes.USHORT,
+        _MIB_CHANGE_CALLBACK_TYPE,
+        ctypes.c_void_p,
+        ctypes.c_ubyte,
+        ctypes.POINTER(wintypes.HANDLE),
+    ]
+    _NotifyIpInterfaceChange.restype = wintypes.ULONG
+
+    _CancelMibChangeNotify2 = _iphlpapi.CancelMibChangeNotify2
+    _CancelMibChangeNotify2.argtypes = [wintypes.HANDLE]
+    _CancelMibChangeNotify2.restype = wintypes.ULONG
 
 
 def _get_ip_net_table(buf: object, size_ptr: object) -> int:
@@ -889,3 +920,37 @@ def send_icmp_echo(
         int(reply.RoundTripTime),
         int(reply.Options.Ttl),
     )
+
+
+def register_win32_ip_change_notification(callback: Callable[[], None]) -> Callable[[], None]:
+    """Subscribe to Windows kernel IPv4 address and interface change events, returning an unregister callable."""
+    if sys.platform != 'win32':
+        return lambda: None
+
+    def _on_mib_change(_caller_context: int | None, _row_ptr: int | None, _notification_type: int) -> None:
+        callback()
+
+    c_callback = _MIB_CHANGE_CALLBACK_TYPE(_on_mib_change)
+    handles: list[wintypes.HANDLE] = []
+
+    unicast_handle = wintypes.HANDLE()
+    if _NotifyUnicastIpAddressChange(AF_INET, c_callback, None, 0, ctypes.byref(unicast_handle)) == ERROR_SUCCESS and bool(unicast_handle.value):
+        handles.append(unicast_handle)
+
+    interface_handle = wintypes.HANDLE()
+    if _NotifyIpInterfaceChange(AF_INET, c_callback, None, 0, ctypes.byref(interface_handle)) == ERROR_SUCCESS and bool(interface_handle.value):
+        handles.append(interface_handle)
+
+    closed = False
+
+    def _unregister() -> None:
+        nonlocal closed
+        if closed:
+            return
+        closed = True
+        for handle in handles:
+            _CancelMibChangeNotify2(handle)
+        handles.clear()
+        _ = c_callback
+
+    return _unregister

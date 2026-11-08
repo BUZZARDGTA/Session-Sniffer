@@ -19,10 +19,11 @@ from session_sniffer.networking.ctypes_adapters_info import (
     iter_win32_ip_net_table,
     query_darwin_ifaddrs,
     query_linux_ifaddrs,
+    register_win32_ip_change_notification,
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
+    from collections.abc import Callable, Iterator
 
 # OperStatus values
 IF_OPER_STATUS_UP = 1
@@ -328,3 +329,8 @@ def get_adapters_info() -> Iterator[AdapterData]:
             gateway_addresses=gateway_list,
             neighbors=neighbors_by_if.get(interface_index, []),
         )
+
+
+def register_adapter_change_notification(callback: Callable[[], None]) -> Callable[[], None]:
+    """Register an OS-level notification callback for IPv4 address and interface state changes."""
+    return register_win32_ip_change_notification(callback)
