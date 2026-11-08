@@ -1,38 +1,28 @@
 """Game process-control, session-host, and player-resolver mixin for `MainWindow`."""
 
 import logging
+import sys
 from datetime import date, datetime
 from functools import partial
 from threading import Event
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, override
 
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QAction, QFont, QFontMetrics, QIcon
+from PySide6.QtCore import QByteArray, Qt
+from PySide6.QtGui import QAction, QFont, QFontMetrics, QIcon, QKeySequence, QShortcut
 from PySide6.QtWidgets import QLabel, QMainWindow, QMenu, QMenuBar, QMessageBox, QWidgetAction
 
 from session_sniffer import msgbox
 from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.constants.standard import LOCAL_TZ
-from session_sniffer.error_messages import (
-    format_game_solo_session_process_not_running_message,
-    format_game_solo_session_suspend_failed_message,
-)
+from session_sniffer.ctypes_windows import parse_win32_hotkey_message, register_win32_hotkey, unregister_win32_hotkey
+from session_sniffer.error_messages import format_game_solo_session_process_not_running_message, format_game_solo_session_suspend_failed_message
 from session_sniffer.gta5.suspend_manager import GTASuspendManager
 from session_sniffer.guis.session_host_diagnostics_dialog import show_session_host_diagnostics_dialog
-from session_sniffer.guis.session_host_history_window import (
-    SessionHostActionCallbacks,
-    populate_host_history_submenu,
-    setup_session_host_actions,
-)
+from session_sniffer.guis.session_host_history_window import SessionHostActionCallbacks, populate_host_history_submenu, setup_session_host_actions
 from session_sniffer.guis.stylesheets import GTA5_STATUS_LABEL_STYLESHEET
 from session_sniffer.guis.tables_player_actions import prompt_rename_session
-from session_sniffer.guis.utils import (
-    format_duration,
-    format_menu_usernames,
-    format_player_action_tooltip,
-    load_country_flag_icon,
-)
+from session_sniffer.guis.utils import format_duration, format_menu_usernames, format_player_action_tooltip, load_country_flag_icon
 from session_sniffer.player.registry import PlayersRegistry, SessionTracker
 from session_sniffer.player.session_host import SessionHost
 from session_sniffer.rdr2.suspend_manager import RDR2SuspendManager
@@ -48,20 +38,80 @@ if TYPE_CHECKING:
     from session_sniffer.guis._session_table_section import SessionTableSection
     from session_sniffer.guis.detections_manager import DetectionsManagerDialog
     from session_sniffer.guis.player_resolver import PlayerResolverWindow
+    from session_sniffer.guis.settings_dialog import SettingsDialog
     from session_sniffer.guis.userip_manager import UserIPDatabasesManager
     from session_sniffer.player.session_host import HostDiagnosticsSnapshot, HostHistoryEntry
 
 logger = logging.getLogger(__name__)
 
+_MOD_ALT = 0x0001
+_MOD_CONTROL = 0x0002
+_MOD_SHIFT = 0x0004
+_MOD_WIN = 0x0008
+_SOLO_SESSION_HOTKEY_BASE_ID = 0x5353
+_MAX_F_KEY_NUMBER = 24
+
+_PORTABLE_KEY_TO_WIN32_VKS: dict[str, tuple[int, ...]] = {
+    'backspace': (0x08,), 'tab': (0x09,), 'return': (0x0D,), 'enter': (0x0D,), 'pause': (0x13,), 'capslock': (0x14,),
+    'space': (0x20,), 'pgup': (0x21,), 'pgdown': (0x22,), 'end': (0x23,), 'home': (0x24,), 'left': (0x25,),
+    'up': (0x26,), 'right': (0x27,), 'down': (0x28,), 'print': (0x2C,), 'ins': (0x2D,), 'del': (0x2E,),
+    '*': (0x6A,), '+': (0x6B, 0xBB), '-': (0x6D, 0xBD), '.': (0x6E, 0xBE), '/': (0x6F, 0xBF),
+    'numlock': (0x90,), 'scrolllock': (0x91,), ';': (0xBA,), '=': (0xBB,), ',': (0xBC,), '`': (0xC0,),
+    '[': (0xDB,), '\\': (0xDC,), ']': (0xDD,), "'": (0xDE,),
+}
+
+
+def _resolve_portable_key_vks(key_token: str) -> tuple[int, ...] | None:
+    """Resolve a lowercase portable key token to one or more Win32 virtual-key codes."""
+    mapped = _PORTABLE_KEY_TO_WIN32_VKS.get(key_token)
+    if mapped is not None:
+        return mapped
+    if len(key_token) == 1:
+        if 'a' <= key_token <= 'z':
+            return (ord(key_token.upper()),)
+        if '0' <= key_token <= '9':
+            digit = ord(key_token) - ord('0')
+            return (ord(key_token), 0x60 + digit)
+    if key_token.startswith('f') and key_token[1:].isdigit():
+        fn_num = int(key_token[1:])
+        if 1 <= fn_num <= _MAX_F_KEY_NUMBER:
+            return (0x70 + fn_num - 1,)
+    return None
+
+
+def _parse_win32_hotkey_spec(hotkey: str | None) -> tuple[int, tuple[int, ...]] | None:
+    """Translate a portable `QKeySequence` string into `(win32_modifier_flags, primary_vks)`."""
+    if hotkey is None or not hotkey:
+        return None
+    seq = QKeySequence.fromString(hotkey, QKeySequence.SequenceFormat.PortableText)
+    portable = seq.toString(QKeySequence.SequenceFormat.PortableText).lower()
+    if not portable:
+        return None
+    if ',' in portable:
+        portable = portable.split(',', 1)[0].strip()
+
+    mod_flags = 0
+    for _ in range(4):
+        for mod_prefix, flag in (('ctrl+', _MOD_CONTROL), ('shift+', _MOD_SHIFT), ('alt+', _MOD_ALT), ('meta+', _MOD_WIN)):
+            if portable.startswith(mod_prefix):
+                mod_flags |= flag
+                portable = portable[len(mod_prefix) :]
+                break
+
+    primary_vks = _resolve_portable_key_vks(portable)
+    return (mod_flags, primary_vks) if primary_vks is not None else None
+
 
 def format_game_solo_action_text() -> str:
     """Return the label for the solo public session action."""
-    return f'Solo Public Session ({Settings.solo_session_duration}s)'
+    hotkey = Settings.solo_session_hotkey
+    return f'Solo Public Session ({Settings.solo_session_duration}s) [{hotkey}]' if bool(hotkey) else f'Solo Public Session ({Settings.solo_session_duration}s)'
 
 
 def format_game_solo_tooltip(game_label: str) -> str:
     """Return the tooltip text for the solo public session action."""
-    return f'Suspend {game_label} for {Settings.solo_session_duration} seconds then auto-resume.\nThis forces the game to spawn you alone in a public session.'
+    base = f'Suspend {game_label} for {Settings.solo_session_duration} seconds then auto-resume.\nThis forces the game to spawn you alone in a public session.'
+    return f'{base}\n\nGlobal Hotkey: {Settings.solo_session_hotkey}' if bool(Settings.solo_session_hotkey) else base
 
 
 def _format_session_time_component(target_dt: datetime, current_date: date) -> str:
@@ -94,9 +144,12 @@ class GameMixin(QMainWindow):
     _last_game_status_key: tuple[object, ...]
     _last_game_process_button_key: tuple[object, ...]
     _last_feature_set: str | None
+    _registered_solo_hotkey_ids: list[int]
+    _solo_session_shortcut: QShortcut
     _player_resolver_window: PlayerResolverWindow
 
     if TYPE_CHECKING:
+
         def _update_looky_actions(self) -> None: ...
 
         def _build_looky_submenu(self, gta5_menu: QMenu) -> None:
@@ -106,11 +159,16 @@ class GameMixin(QMainWindow):
             del ip_addresses
 
         def _cleanup_removed_player_ips(
-            self, removed_ips: set[str], *, remove_from_connected: bool = False, remove_from_disconnected: bool = False,
+            self,
+            removed_ips: set[str],
+            *,
+            remove_from_connected: bool = False,
+            remove_from_disconnected: bool = False,
         ) -> None:
             del removed_ips, remove_from_connected, remove_from_disconnected
 
         _detections_manager_window: DetectionsManagerDialog | None
+        _settings_dialog_window: SettingsDialog | None
         _userip_manager_window: UserIPDatabasesManager | None
         _disconnected: SessionTableSection
 
@@ -118,33 +176,23 @@ class GameMixin(QMainWindow):
 
     def _active_game_label(self) -> str:
         """Return the user-facing game label for the active preset."""
-        if Settings.is_rdr2_feature_set():
-            return 'RDR2'
-        return 'GTA V'
+        return 'RDR2' if Settings.is_rdr2_feature_set() else 'GTA V'
 
     def _active_game_process_name(self) -> str:
         """Return the short process label for the active game."""
-        if Settings.is_rdr2_feature_set():
-            return 'RDR2'
-        return 'GTA5'
+        return 'RDR2' if Settings.is_rdr2_feature_set() else 'GTA5'
 
     def _active_suspend_manager(self) -> type[GTASuspendManager | RDR2SuspendManager]:
         """Return the suspend manager class for the active feature set."""
-        if Settings.is_rdr2_feature_set():
-            return RDR2SuspendManager
-        return GTASuspendManager
+        return RDR2SuspendManager if Settings.is_rdr2_feature_set() else GTASuspendManager
 
     def _game_has_any_process_path(self) -> bool:
         """Return `True` if the active game is currently running."""
-        if Settings.is_rdr2_feature_set():
-            return CaptureState.rdr2_is_running
-        return CaptureState.gta5_is_running
+        return CaptureState.rdr2_is_running if Settings.is_rdr2_feature_set() else CaptureState.gta5_is_running
 
     def _get_game_process_path(self) -> Path | None:
         """Return the path to the running game executable, or `None` if not running."""
-        if Settings.is_rdr2_feature_set():
-            return CaptureState.rdr2_path
-        return CaptureState.gta5_path
+        return CaptureState.rdr2_path if Settings.is_rdr2_feature_set() else CaptureState.gta5_path
 
     def _game_process_is_running(self) -> bool:
         """Return `True` if the active game process is currently running."""
@@ -152,9 +200,7 @@ class GameMixin(QMainWindow):
 
     def _game_is_os_suspended(self) -> bool:
         """Return `True` if the game process is externally suspended outside the manager."""
-        if Settings.is_rdr2_feature_set():
-            return CaptureState.rdr2_is_suspended
-        return CaptureState.gta5_is_suspended
+        return CaptureState.rdr2_is_suspended if Settings.is_rdr2_feature_set() else CaptureState.gta5_is_suspended
 
     def _build_game_menu(self, menu_bar: QMenuBar) -> None:
         """Construct the dynamic Game menu and its submenus."""
@@ -170,7 +216,6 @@ class GameMixin(QMainWindow):
         game_menu_action.setVisible(Settings.is_rockstar_feature_set())
         self._game_menu = game_menu
 
-        # Process status indicator widget
         game_status_label = QLabel()
         game_status_label.setTextFormat(Qt.TextFormat.RichText)
         game_status_label.setStyleSheet(GTA5_STATUS_LABEL_STYLESHEET)
@@ -186,18 +231,15 @@ class GameMixin(QMainWindow):
         game_menu.aboutToShow.connect(self._update_game_status_label)
         self._game_menu_status_separator = game_menu.addSeparator()
 
-        # Shared: Player Resolver action
         player_resolver_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'search.svg')), 'Player Resolver', self)
         player_resolver_action.setToolTip('Find the exact IP of a player in your current session.')
         player_resolver_action.triggered.connect(self._open_player_resolver)
         game_menu.addAction(player_resolver_action)
         self._player_resolver_action = player_resolver_action
 
-        # GTA V only: Looky submenu
         self._build_looky_submenu(game_menu)
         self._game_menu_gta5_separator = game_menu.addSeparator()
 
-        # Shared: Current Session submenu
         current_session_submenu = game_menu.addMenu(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'radio.svg')), 'Current Session')
         if not current_session_submenu:
             message = 'Failed to create Current Session submenu'
@@ -207,7 +249,6 @@ class GameMixin(QMainWindow):
         current_session_submenu.aboutToShow.connect(self._update_current_session_menu)
         self._current_session_submenu = current_session_submenu
 
-        # Shared: Session History submenu
         session_history_submenu = game_menu.addMenu(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'rotate-ccw-clock.svg')), 'Session History')
         if not session_history_submenu:
             message = 'Failed to create Session History submenu'
@@ -219,7 +260,6 @@ class GameMixin(QMainWindow):
 
         self._game_menu_process_separator = game_menu.addSeparator()
 
-        # Shared: Game Process submenu
         self._icon_controller = QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'gamepad-2.svg'))
         self._icon_user = QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'user.svg'))
         self._icon_pause = QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'circle-pause.svg'))
@@ -237,14 +277,12 @@ class GameMixin(QMainWindow):
         game_solo_menu_action.setToolTip(format_game_solo_tooltip(self._active_game_process_name()))
         game_solo_menu_action.triggered.connect(self.game_solo_session)
         game_process_submenu.addAction(game_solo_menu_action)
-
         game_process_submenu.addSeparator()
 
         game_suspend_resume_action = QAction(self._icon_pause, 'Suspend Process', self)
         game_suspend_resume_action.setToolTip('Manually suspend the game process — stays suspended until you click it again to resume')
         game_suspend_resume_action.triggered.connect(self.toggle_manual_game_suspend)
         game_process_submenu.addAction(game_suspend_resume_action)
-
         game_process_submenu.aboutToShow.connect(self._sync_game_process_button)
 
         self._game_solo_menu_action = game_solo_menu_action
@@ -257,6 +295,63 @@ class GameMixin(QMainWindow):
         self._last_game_status_key = ()
         self._last_game_process_button_key = ()
         self._last_feature_set = Settings.capture_feature_set
+        self._registered_solo_hotkey_ids = []
+        self._solo_session_shortcut = QShortcut(self)
+        self._solo_session_shortcut.setContext(Qt.ShortcutContext.ApplicationShortcut)
+        self._solo_session_shortcut.activated.connect(self._trigger_solo_session_from_hotkey)
+        self._sync_solo_session_hotkey()
+
+    def _unregister_solo_session_hotkeys(self) -> None:
+        """Unregister all active Win32 system-wide hotkeys for Solo Public Session."""
+        if sys.platform == 'win32' and self._registered_solo_hotkey_ids:
+            hwnd = self.winId()
+            for hotkey_id in self._registered_solo_hotkey_ids:
+                unregister_win32_hotkey(hwnd, hotkey_id)
+            self._registered_solo_hotkey_ids.clear()
+
+    def _sync_solo_session_hotkey(self) -> None:
+        """Synchronize the OS-level Solo Public Session hotkey registration from Settings."""
+        self._unregister_solo_session_hotkeys()
+        hotkey = Settings.solo_session_hotkey
+        if sys.platform == 'win32':
+            spec = _parse_win32_hotkey_spec(hotkey)
+            if spec is not None:
+                mod_flags, primary_vks = spec
+                hwnd = self.winId()
+                for index, vk_code in enumerate(primary_vks):
+                    hotkey_id = _SOLO_SESSION_HOTKEY_BASE_ID + index
+                    if register_win32_hotkey(hwnd, hotkey_id, mod_flags, vk_code):
+                        self._registered_solo_hotkey_ids.append(hotkey_id)
+            self._solo_session_shortcut.setKey(QKeySequence())
+            self._solo_session_shortcut.setEnabled(False)
+        elif hotkey is not None and hotkey:
+            self._solo_session_shortcut.setKey(QKeySequence.fromString(hotkey, QKeySequence.SequenceFormat.PortableText))
+            self._solo_session_shortcut.setEnabled(True)
+        else:
+            self._solo_session_shortcut.setKey(QKeySequence())
+            self._solo_session_shortcut.setEnabled(False)
+
+    def _trigger_solo_session_from_hotkey(self) -> None:
+        """Trigger a Solo Public Session from the global hotkey if the active game is running and eligible."""
+        if self._settings_dialog_window is not None and self._settings_dialog_window.isVisible():
+            return
+        if not Settings.is_rockstar_feature_set() or not CaptureState.is_local_capture():
+            return
+        self._refresh_game_process_state()
+        if not self._game_process_detected or self._game_process_suspended or self._game_externally_suspended:
+            return
+        logger.info('Solo Public Session triggered via hotkey (%s)', Settings.solo_session_hotkey)
+        self.game_solo_session()
+
+    @override
+    def nativeEvent(self, eventType: QByteArray | bytes | bytearray | memoryview, message: int) -> object:
+        """Handle native OS window messages such as Win32 WM_HOTKEY events."""
+        if sys.platform == 'win32' and self._registered_solo_hotkey_ids:
+            hotkey_id = parse_win32_hotkey_message(message)
+            if hotkey_id is not None and hotkey_id in self._registered_solo_hotkey_ids:
+                self._trigger_solo_session_from_hotkey()
+                return True, 0
+        return super().nativeEvent(eventType, message)
 
     def toggle_manual_game_suspend(self) -> None:
         """Toggle manual process suspend on or off for the active game."""
@@ -278,11 +373,7 @@ class GameMixin(QMainWindow):
                 logger.info('Manual %s suspend: process is already suspended by another protection reason', game_label)
                 self._sync_game_process_button()
                 return
-            manager.request_suspend(
-                reason_key='manual:toolbar',
-                left_event=Event(),
-                duration='Manual',
-            )
+            manager.request_suspend(reason_key='manual:toolbar', left_event=Event(), duration='Manual')
         self._sync_game_process_button()
 
     def game_solo_session(self) -> None:
@@ -308,11 +399,7 @@ class GameMixin(QMainWindow):
             return
         already_left = Event()
         already_left.set()
-        manager.request_suspend(
-            reason_key='solo:toolbar',
-            left_event=already_left,
-            duration=Settings.solo_session_duration,
-        )
+        manager.request_suspend(reason_key='solo:toolbar', left_event=already_left, duration=Settings.solo_session_duration)
         if not manager.has_reason('solo:toolbar'):
             logger.warning('%s solo session: suspend failed', game_label)
             msgbox.show(
@@ -330,10 +417,8 @@ class GameMixin(QMainWindow):
         suspend_snapshot = manager.snapshot()
         self._manual_game_suspend_active = suspend_snapshot.manual_active
         self._game_solo_active = suspend_snapshot.solo_active
-
         can_act = self._game_has_any_process_path() and CaptureState.is_local_capture()
         self._game_process_detected = can_act and self._game_process_is_running()
-
         self._game_process_suspended = can_act and suspend_snapshot.is_suspended
         self._game_externally_suspended = can_act and not suspend_snapshot.is_suspended and self._game_is_os_suspended()
 
@@ -343,7 +428,6 @@ class GameMixin(QMainWindow):
         manager = self._active_suspend_manager()
         game_label = self._active_game_process_name()
         process_menu_title = f'{game_label} Process'
-
         can_act = self._game_has_any_process_path() and CaptureState.is_local_capture()
         status_key = (
             can_act,
@@ -354,10 +438,12 @@ class GameMixin(QMainWindow):
             self._game_process_detected,
             game_label,
             Settings.solo_session_duration,
+            Settings.solo_session_hotkey,
         )
         if status_key == self._last_game_process_button_key:
             return
         self._last_game_process_button_key = status_key
+        self._game_solo_menu_action.setText(format_game_solo_action_text())
 
         self._game_process_submenu.setEnabled(can_act)
         if not can_act:
@@ -402,9 +488,7 @@ class GameMixin(QMainWindow):
             self._game_suspend_resume_action.setIcon(self._icon_play)
             self._game_suspend_resume_action.setEnabled(False)
             self._game_solo_menu_action.setEnabled(False)
-            self._game_suspend_resume_action.setToolTip(
-                'Process is currently suspended by active protection rules. It will resume automatically when those rules clear.',
-            )
+            self._game_suspend_resume_action.setToolTip('Process is currently suspended by active protection rules. It will resume automatically when those rules clear.')
             self._game_solo_menu_action.setToolTip('Process is already suspended')
         elif self._game_externally_suspended:
             self._game_process_submenu.setTitle(f'{process_menu_title} (Suspended)')
@@ -443,14 +527,9 @@ class GameMixin(QMainWindow):
         """Refresh the game status label and tooltip from cached `CaptureState` values."""
         game_label = self._active_game_label()
         if Settings.is_rdr2_feature_set():
-            running = CaptureState.rdr2_is_running
-            suspended = CaptureState.rdr2_is_suspended
-            path = CaptureState.rdr2_path
-            version_text = 'RDR2'
+            running, suspended, path, version_text = CaptureState.rdr2_is_running, CaptureState.rdr2_is_suspended, CaptureState.rdr2_path, 'RDR2'
         else:
-            running = CaptureState.gta5_is_running
-            suspended = CaptureState.gta5_is_suspended
-            path = CaptureState.gta5_path
+            running, suspended, path = CaptureState.gta5_is_running, CaptureState.gta5_is_suspended, CaptureState.gta5_path
             version_text = 'GTA V Enhanced' if CaptureState.gta5_is_enhanced else 'GTA V Legacy'
 
         path_tooltip = str(path) if path is not None else f'{game_label} process detection state'
@@ -458,10 +537,7 @@ class GameMixin(QMainWindow):
             if suspended:
                 visible_text = f'{version_text} (Suspended)'
                 self._game_status_label.setText(f'<span style="color: #ff9800;">●</span> {visible_text}')
-                self._game_status_label.setToolTip(
-                    f'{path_tooltip}\
-Process is currently suspended',
-                )
+                self._game_status_label.setToolTip(f'{path_tooltip}\nProcess is currently suspended')
             else:
                 visible_text = version_text
                 self._game_status_label.setText(f'<span style="color: #4caf50;">●</span> {visible_text}')
@@ -476,12 +552,7 @@ Process is currently suspended',
     def _get_current_game_status_key(self) -> tuple[object, ...]:
         """Return a comparable snapshot of the active game process detection state."""
         if Settings.is_rdr2_feature_set():
-            return (
-                'RDR2',
-                CaptureState.rdr2_is_running,
-                CaptureState.rdr2_is_suspended,
-                CaptureState.is_local_capture(),
-            )
+            return ('RDR2', CaptureState.rdr2_is_running, CaptureState.rdr2_is_suspended, CaptureState.is_local_capture())
         return (
             'GTA5',
             CaptureState.gta5_is_running,
@@ -520,6 +591,7 @@ Process is currently suspended',
             game_menu_action.setVisible(has_feature_set)
 
         self._update_looky_actions()
+        self._sync_solo_session_hotkey()
         self._refresh_runtime_capability_windows()
 
         if not has_feature_set:
@@ -556,15 +628,11 @@ Process is currently suspended',
     def _update_current_session_menu(self) -> None:
         """Rebuild the Current Session submenu with live host detection controls and active session stats."""
         self._current_session_submenu.clear()
-
         current_session_id = SessionTracker.get_current_session_id()
         display_name = SessionTracker.get_session_display_name(current_session_id)
         current_filter = SessionFilterState.get_selected_session()
         is_filter_active = current_filter in (SessionFilterState.FILTER_CURRENT, current_session_id)
 
-        # -----------------------------------------------------------------
-        # Host Status & Controls
-        # -----------------------------------------------------------------
         current_session_host = SessionHost.get_player()
         session_history = SessionHost.get_history(session_id=current_session_id)
         last_host = session_history[-1] if session_history else None
@@ -581,18 +649,14 @@ Process is currently suspended',
             self._current_session_submenu.addAction(host_action)
         elif last_host is not None:
             matched_player = PlayersRegistry.get_player_by_ip(last_host.ip) or (
-                SessionTracker.get_session_snapshot_player(last_host.session_id, last_host.ip)
-                if last_host.session_id is not None
-                else None
+                SessionTracker.get_session_snapshot_player(last_host.session_id, last_host.ip) if last_host.session_id is not None else None
             )
             usernames = matched_player.usernames if matched_player is not None and matched_player.usernames else ()
             formatted_usernames = format_menu_usernames(usernames)
             host_text = f'Host: Detected: {last_host.ip}' + (f'  |  {formatted_usernames}' if formatted_usernames else '') + ' (Left)'
             flag_icon = load_country_flag_icon(last_host.country_code) or QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'crown.svg'))
             host_action = QAction(flag_icon, host_text, self._current_session_submenu)
-            host_action.setToolTip(
-                format_player_action_tooltip('Select this host player in the table and open host diagnostics (Host has left the session)', usernames),
-            )
+            host_action.setToolTip(format_player_action_tooltip('Select this host player in the table and open host diagnostics (Host has left the session)', usernames))
             host_action.triggered.connect(self._create_past_host_action_handler(last_host))
             self._current_session_submenu.addAction(host_action)
             if SessionHost.search_player:
@@ -614,32 +678,16 @@ Process is currently suspended',
             show_diagnostics=self._show_session_host_diagnostics,
         )
         setup_session_host_actions(self._current_session_submenu, host_callbacks)
-
         self._current_session_submenu.addSeparator()
 
-        # -----------------------------------------------------------------
-        # Current Session Stats & Actions
-        # -----------------------------------------------------------------
-        connected_count = len(
-            [
-                player
-                for player in PlayersRegistry.get_connected_players()
-                if player.session_id in (0, current_session_id) and not player.is_third_party_server
-            ],
-        )
-        disconnected_count = len(
-            [player for player in PlayersRegistry.get_disconnected_players() if player.session_id == current_session_id and not player.is_third_party_server],
-        )
+        connected_count = len([p for p in PlayersRegistry.get_connected_players() if p.session_id in (0, current_session_id) and not p.is_third_party_server])
+        disconnected_count = len([p for p in PlayersRegistry.get_disconnected_players() if p.session_id == current_session_id and not p.is_third_party_server])
         player_count = connected_count + disconnected_count
         player_noun = f'player{pluralize(player_count)}'
         connected_noun = f'connected player{pluralize(connected_count)}'
         disconnected_noun = f'disconnected player{pluralize(disconnected_count)}'
 
-        players_action = QAction(
-            QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'user-round.svg')),
-            f'Players: {player_count} {player_noun}',
-            self._current_session_submenu,
-        )
+        players_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'user-round.svg')), f'Players: {player_count} {player_noun}', self._current_session_submenu)
         players_action.setToolTip(f'{connected_count} {connected_noun}, {disconnected_count} {disconnected_noun}')
         players_action.triggered.connect(partial(self._apply_session_filter, SessionFilterState.FILTER_CURRENT))
         self._current_session_submenu.addAction(players_action)
@@ -661,28 +709,17 @@ Process is currently suspended',
         time_action.setToolTip(time_action_tooltip)
         time_action.triggered.connect(partial(self._apply_session_filter, SessionFilterState.FILTER_CURRENT))
         self._current_session_submenu.addAction(time_action)
-
         self._current_session_submenu.addSeparator()
 
-        rename_action = QAction(
-            QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square-pen.svg')),
-            f"Rename Session '{display_name}'…",
-            self._current_session_submenu,
-        )
+        rename_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square-pen.svg')), f"Rename Session '{display_name}'…", self._current_session_submenu)
         rename_action.setToolTip(f"Rename Session '{display_name}'")
         rename_action.triggered.connect(partial(self._prompt_rename_session, current_session_id))
         self._current_session_submenu.addAction(rename_action)
 
         all_session_ids = SessionTracker.get_all_session_ids()
         has_past_disconnected = len(all_session_ids) > 1 and (
-            any(
-                player.session_id < current_session_id and not player.is_third_party_server
-                for player in PlayersRegistry.get_disconnected_players()
-            )
-            or any(
-                not player.is_third_party_server
-                for player in SessionTracker.get_all_snapshot_players()
-            )
+            any(p.session_id < current_session_id and not p.is_third_party_server for p in PlayersRegistry.get_disconnected_players())
+            or any(not p.is_third_party_server for p in SessionTracker.get_all_snapshot_players())
         )
 
         filter_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'search.svg')), 'Filter to this Session', self._current_session_submenu)
@@ -712,14 +749,11 @@ Process is currently suspended',
     def _update_session_history_menu(self) -> None:
         """Rebuild the Session History submenu with past sessions, host history, and management controls."""
         self._session_history_submenu.clear()
-
         current_session_id = SessionTracker.get_current_session_id()
         all_session_ids = SessionTracker.get_all_session_ids()
         past_session_ids = [session_id for session_id in all_session_ids if session_id < current_session_id]
         current_filter = SessionFilterState.get_selected_session()
-
-        now_dt = datetime.now(tz=LOCAL_TZ)
-        now_date = now_dt.date()
+        now_date = datetime.now(tz=LOCAL_TZ).date()
 
         if not past_session_ids:
             no_past_sessions_action = QAction('(no previous sessions recorded)', self._session_history_submenu)
@@ -730,7 +764,6 @@ Process is currently suspended',
                 display_name = SessionTracker.get_session_display_name(session_id)
                 player_count = SessionTracker.get_session_player_count(session_id)
                 player_noun = f'player{pluralize(player_count)}'
-
                 start_dt = SessionTracker.get_session_start_time(session_id)
                 end_dt = SessionTracker.get_session_end_time(session_id)
 
@@ -790,7 +823,6 @@ Process is currently suspended',
                     host_action.setToolTip(format_player_action_tooltip('Select this host player in the table and open host diagnostics', usernames))
                     host_action.triggered.connect(self._create_past_host_action_handler(last_host))
                     session_menu.addAction(host_action)
-
                     session_menu.addAction(players_action)
                     session_menu.addAction(time_action)
 
@@ -803,12 +835,10 @@ Process is currently suspended',
                     no_host_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'crown.svg')), 'Host: None recorded', session_menu)
                     no_host_action.setEnabled(False)
                     session_menu.addAction(no_host_action)
-
                     session_menu.addAction(players_action)
                     session_menu.addAction(time_action)
 
                 session_menu.addSeparator()
-
                 rename_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square-pen.svg')), f"Rename Session '{display_name}'…", session_menu)
                 rename_action.setToolTip(f"Rename Session '{display_name}'")
                 rename_action.triggered.connect(partial(self._prompt_rename_session, session_id))
@@ -826,7 +856,6 @@ Process is currently suspended',
                 filter_action.setEnabled(True)
                 filter_action.setToolTip('Show all sessions (currently filtered to this session)' if is_filter_active_past else 'Filter to only show players from this session')
                 filter_target = SessionFilterState.FILTER_ALL if is_filter_active_past else session_id
-
                 filter_action.triggered.connect(partial(self._apply_session_filter, filter_target))
                 session_menu.addAction(filter_action)
 
@@ -834,24 +863,12 @@ Process is currently suspended',
         history_menu = self._session_history_submenu.addMenu(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'host_history.svg')), 'Host History')
         if history_menu:
             history_menu.setToolTipsVisible(True)
-            history_menu.aboutToShow.connect(
-                partial(
-                    populate_host_history_submenu,
-                    history_menu,
-                    self._select_ips,
-                    self._open_host_history_diagnostics,
-                ),
-            )
+            history_menu.aboutToShow.connect(partial(populate_host_history_submenu, history_menu, self._select_ips, self._open_host_history_diagnostics))
 
         self._session_history_submenu.addSeparator()
-        clear_history_action = QAction(
-            QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'rotate-ccw.svg')),
-            'Clear Past Sessions && History…',
-            self._session_history_submenu,
-        )
+        clear_history_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'rotate-ccw.svg')), 'Clear Past Sessions && History…', self._session_history_submenu)
         clear_history_action.setToolTip('Clear all past sessions, their player logs, and session host history')
-        can_clear_history = bool(past_session_ids) or bool(SessionHost.get_history())
-        clear_history_action.setEnabled(can_clear_history)
+        clear_history_action.setEnabled(bool(past_session_ids) or bool(SessionHost.get_history()))
         clear_history_action.triggered.connect(self._prompt_clear_past_sessions_and_history)
         self._session_history_submenu.addAction(clear_history_action)
 
@@ -882,7 +899,6 @@ Process is currently suspended',
         )
         if reply != QMessageBox.StandardButton.Yes:
             return
-
         removed_ips = {player.ip for player in SessionTracker.delete_session(session_id)}
         SessionHost.prune_history_for_session(session_id)
         if SessionFilterState.get_selected_session() == session_id:
@@ -903,16 +919,13 @@ Process is currently suspended',
         )
         if reply != QMessageBox.StandardButton.Yes:
             return
-
         current_session_id = SessionTracker.get_current_session_id()
         past_session_ids = [session_id for session_id in SessionTracker.get_all_session_ids() if session_id < current_session_id]
         removed_ips = {player.ip for session_id in past_session_ids for player in SessionTracker.delete_session(session_id)}
         SessionHost.clear_history()
-
         if SessionFilterState.get_selected_session() in past_session_ids:
             self._disconnected.set_selected_session_filter(SessionFilterState.FILTER_ALL)
             self._disconnected.clear_table()
-
         self._refresh_session_gui_state()
         self._cleanup_removed_player_ips(removed_ips, remove_from_connected=True, remove_from_disconnected=True)
 
@@ -929,11 +942,9 @@ Process is currently suspended',
         diagnostics = history_entry.diagnostics
         if diagnostics is None and SessionHost.last_diagnostics is not None and SessionHost.last_diagnostics.detected_host_ip == history_entry.ip:
             diagnostics = SessionHost.last_diagnostics
-
         if diagnostics is None:
             QMessageBox.information(self, TITLE, f'No session host detection diagnostics were recorded for host {history_entry.ip}.')
             return
-
         show_session_host_diagnostics_dialog(self, diagnostics, dialog_key=history_entry.dialog_key)
 
     def _show_session_host_diagnostics(self) -> None:
@@ -943,14 +954,11 @@ Process is currently suspended',
             current_history = SessionHost.get_history(session_id=SessionTracker.get_current_session_id())
             if current_history and current_history[-1].diagnostics is not None:
                 diagnostics = current_history[-1].diagnostics
-
         if diagnostics is None and SessionHost.is_modmenu_lua_source_of_truth() and Settings.gui_session_host_detection and not SessionHost.is_manually_cleared():
             diagnostics = self._redetect_host_from_diagnostics(clear_history=False)
-
         if diagnostics is None:
             QMessageBox.information(self, TITLE, 'No session host detection diagnostics are available yet.')
             return
-
         show_session_host_diagnostics_dialog(self, diagnostics, redetect_callback=self._redetect_host_from_diagnostics)
 
     def _redetect_host_from_diagnostics(self, *, clear_history: bool = True) -> HostDiagnosticsSnapshot | None:
@@ -958,34 +966,25 @@ Process is currently suspended',
         if not Settings.is_session_host_feature_set():
             QMessageBox.warning(self, TITLE, 'Session Host Detection is not supported for the current game feature set.')
             return None
-
         if not Settings.gui_session_host_detection:
             QMessageBox.warning(self, TITLE, 'Session Host Detection is disabled in Settings.\n\nPlease enable it in Settings to detect the session host.')
             return None
-
         if Settings.is_gta5_feature_set():
             ModMenuLogsParser.refresh()
-
         current_session_id = SessionTracker.get_current_session_id()
         connected_players = [
-            player
-            for player in PlayersRegistry.get_connected_players()
-            if player.session_id in (0, current_session_id)
-            and player not in SessionHost.players_pending_for_disconnection
+            p for p in PlayersRegistry.get_connected_players() if p.session_id in (0, current_session_id) and p not in SessionHost.players_pending_for_disconnection
         ]
         if not connected_players and not SessionHost.is_modmenu_lua_source_of_truth():
             QMessageBox.information(self, TITLE, 'No connected players were found in the current session.')
             return None
-
         if clear_history:
             SessionHost.clear_session_host_data(clear_pending_disconnections=False, clear_current_session_history=True)
             SessionHost.manual_redetect = True
-
         SessionHost.get_host_player(connected_players)
         SessionHost.manual_redetect = False
         SessionHost.search_player = False
         SessionHost.search_start_time = None
-
         return SessionHost.last_diagnostics
 
     def _redetect_session_host(self) -> None:

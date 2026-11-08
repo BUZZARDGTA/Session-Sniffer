@@ -20,6 +20,7 @@ class SettingType(Enum):
     STRING_TUPLE = auto()
     THIRD_PARTY_SERVERS_TUPLE = auto()
     COLOR = auto()
+    HOTKEY = auto()
 
 
 @dataclass(frozen=True, slots=True)

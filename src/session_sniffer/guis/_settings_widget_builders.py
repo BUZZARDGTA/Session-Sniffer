@@ -3,8 +3,8 @@
 import re
 from typing import TYPE_CHECKING, cast, override
 
-from PySide6.QtCore import QRegularExpression, QSignalBlocker, QSize, Qt
-from PySide6.QtGui import QAction, QIcon, QRegularExpressionValidator
+from PySide6.QtCore import QRegularExpression, QSignalBlocker, QSize, Qt, Signal
+from PySide6.QtGui import QAction, QIcon, QKeySequence, QRegularExpressionValidator
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
     QGroupBox,
     QHBoxLayout,
     QInputDialog,
+    QKeySequenceEdit,
     QLabel,
     QLineEdit,
     QListWidget,
@@ -94,6 +95,74 @@ def create_color_widget(meta: SettingMeta) -> ColorPickerButton:
     if tooltip is not None and tooltip:
         button.setToolTip(tooltip)
     return button
+
+
+class HotkeyEditWidget(QWidget):
+    """Single-chord keyboard shortcut editor with a clear button."""
+
+    hotkey_changed = Signal()
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        """Initialize the shortcut editor and clear button."""
+        super().__init__(parent)
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(6)
+
+        self._key_edit = QKeySequenceEdit()
+        self._key_edit.setMaximumSequenceLength(1)
+        self._key_edit.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        inner_line_edit = self._key_edit.findChild(QLineEdit)
+        if inner_line_edit is not None:
+            inner_line_edit.setPlaceholderText('None (click and press shortcut...)')
+
+        self._clear_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'x.svg')), ' Clear')
+        self._clear_button.setToolTip('Clear shortcut (disable hotkey)')
+        self._clear_button.setStyleSheet(COMPACT_BUTTON_STYLESHEET)
+        self._clear_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._clear_button.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
+        self._clear_button.setEnabled(False)
+
+        self._key_edit.keySequenceChanged.connect(self._on_sequence_changed)
+        self._clear_button.clicked.connect(self._clear_shortcut)
+
+        layout.addWidget(self._key_edit, 1)
+        layout.addWidget(self._clear_button)
+
+    def _on_sequence_changed(self, sequence: QKeySequence) -> None:
+        portable = sequence.toString(QKeySequence.SequenceFormat.PortableText).strip()
+        if not sequence.isEmpty() and (not portable or portable == 'Esc' or '\ufffd' in portable):
+            with QSignalBlocker(self._key_edit):
+                self._key_edit.clear()
+        self._clear_button.setEnabled(not self._key_edit.keySequence().isEmpty())
+        self.hotkey_changed.emit()
+
+    def _clear_shortcut(self) -> None:
+        self._key_edit.clear()
+
+    def value(self) -> str | None:
+        """Return the current portable key sequence string, or `None` if empty."""
+        seq = self._key_edit.keySequence()
+        if seq.isEmpty():
+            return None
+        text = seq.toString(QKeySequence.SequenceFormat.PortableText).strip()
+        return text if text and '\ufffd' not in text else None
+
+    def set_value(self, value: str | None) -> None:
+        """Set the current shortcut from a portable string or `None`."""
+        seq = QKeySequence.fromString(value, QKeySequence.SequenceFormat.PortableText) if value is not None and value else QKeySequence()
+        with QSignalBlocker(self._key_edit):
+            self._key_edit.setKeySequence(seq)
+        self._clear_button.setEnabled(not seq.isEmpty())
+
+
+def create_hotkey_widget(meta: SettingMeta) -> HotkeyEditWidget:
+    """Create a keyboard shortcut editor widget for a hotkey setting."""
+    widget = HotkeyEditWidget()
+    tooltip = format_setting_tooltip(meta)
+    if tooltip is not None and tooltip:
+        widget.setToolTip(tooltip)
+    return widget
 
 
 def create_text_widget(meta: SettingMeta) -> QLineEdit:

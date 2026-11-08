@@ -106,6 +106,7 @@ class SettingDefaults(TypedDict):
     high_rate_monitor_run_in_background: bool
     high_rate_monitor_auto_select: bool
     solo_session_duration: int
+    solo_session_hotkey: str | None
     high_rate_monitor_pps_threshold: int
     high_rate_monitor_bps_threshold: int
     high_rate_monitor_duration_threshold: int
@@ -263,6 +264,7 @@ SETTING_DEFAULTS: SettingDefaults = {
     'high_rate_monitor_run_in_background': True,
     'high_rate_monitor_auto_select': True,
     'solo_session_duration': 6,
+    'solo_session_hotkey': None,
     'high_rate_monitor_pps_threshold': 30,
     'high_rate_monitor_bps_threshold': 5,
     'high_rate_monitor_duration_threshold': 3,

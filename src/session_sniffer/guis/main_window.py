@@ -569,6 +569,7 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
     def closeEvent(self, a0: QCloseEvent | None) -> None:
         """Handle the main window close event and terminate background work."""
         self._thread_health_timer.stop()
+        self._unregister_solo_session_hotkeys()
         self._stats_timer.stop()
         self._config_watcher.stop()
         if Settings.gui_remember_window_layout:
@@ -766,6 +767,8 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
                 apply_runtime_settings_changes(self.capture.get(), old_values, new_values)
                 if 'gui_disconnected_players_enabled' in changed:
                     TableMergeState.reset_override()
+                if 'solo_session_hotkey' in changed:
+                    self._sync_solo_session_hotkey()
                 self._update_game_toolbar_visibility()
                 self._apply_always_on_top()
                 self._update_splitter_visibility()
@@ -795,9 +798,11 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
 
     def _open_settings_dialog(self) -> None:
         """Open the Settings window, or focus the existing one."""
+        self._unregister_solo_session_hotkeys()
 
         def _factory() -> SettingsDialog:
             window = SettingsDialog(None, self.capture.get(), self._on_change_interface)
+            window.finished.connect(self._sync_solo_session_hotkey)
             for callback in (
                 TableMergeState.reset_override,
                 self._update_game_toolbar_visibility,

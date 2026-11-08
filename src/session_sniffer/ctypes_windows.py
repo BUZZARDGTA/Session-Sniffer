@@ -17,6 +17,8 @@ _TH32CS_SNAPPROCESS = 0x00000002
 _PROCESS_TERMINATE = 0x0001
 _GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS = 0x00000004
 _SIGABRT = 22
+_WM_HOTKEY = 0x0312
+_MOD_NOREPEAT = 0x4000
 
 
 class WindowsGuid(ctypes.Structure):
@@ -108,6 +110,10 @@ if sys.platform == 'win32':
     _user32 = ctypes.windll.user32
     _user32.MessageBoxW.argtypes = [wintypes.HWND, wintypes.LPCWSTR, wintypes.LPCWSTR, wintypes.UINT]
     _user32.MessageBoxW.restype = ctypes.c_int
+    _user32.RegisterHotKey.argtypes = [wintypes.HWND, ctypes.c_int, wintypes.UINT, wintypes.UINT]
+    _user32.RegisterHotKey.restype = wintypes.BOOL
+    _user32.UnregisterHotKey.argtypes = [wintypes.HWND, ctypes.c_int]
+    _user32.UnregisterHotKey.restype = wintypes.BOOL
 
     _kernel32 = ctypes.windll.kernel32
     _kernel32.GetSystemDirectoryW.argtypes = [wintypes.LPWSTR, wintypes.UINT]
@@ -191,6 +197,30 @@ def show_win32_message_box(owner_hwnd: int, text: str, title: str, style: int) -
     if sys.platform != 'win32':
         return 0
     return int(_user32.MessageBoxW(owner_hwnd, text, title, style))
+
+
+def register_win32_hotkey(hwnd: int, hotkey_id: int, modifiers: int, vk_code: int) -> bool:
+    """Register a system-wide hotkey with Windows user32 RegisterHotKey."""
+    if sys.platform != 'win32':
+        return False
+    return bool(_user32.RegisterHotKey(hwnd, hotkey_id, modifiers | _MOD_NOREPEAT, vk_code))
+
+
+def unregister_win32_hotkey(hwnd: int, hotkey_id: int) -> bool:
+    """Unregister a system-wide hotkey previously registered with RegisterHotKey."""
+    if sys.platform != 'win32':
+        return False
+    return bool(_user32.UnregisterHotKey(hwnd, hotkey_id))
+
+
+def parse_win32_hotkey_message(message_ptr: int) -> int | None:
+    """Extract the hotkey identifier from a native Win32 MSG pointer if it is a WM_HOTKEY message."""
+    if sys.platform != 'win32' or not message_ptr:
+        return None
+    msg = wintypes.MSG.from_address(message_ptr)
+    if msg.message == _WM_HOTKEY:
+        return msg.wParam or 0
+    return None
 
 
 def iter_win32_toolhelp_processes() -> list[tuple[int, int, str]]:
@@ -369,6 +399,6 @@ def install_win32_crt_handlers(on_crash: Callable[[str], None]) -> bool:
         if prev_sigabrt_ptr != our_sigabrt_ptr:
             _crt_state['prev_sigabrt_handler'] = prev_sigabrt_ptr
         _crt_state['installed'] = True
-    except (AttributeError, OSError):
+    except AttributeError, OSError:
         return False
     return True

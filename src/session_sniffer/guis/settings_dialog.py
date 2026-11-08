@@ -43,6 +43,7 @@ from session_sniffer.guis._settings_discord_mixin import SettingsDialogDiscordMi
 from session_sniffer.guis._settings_looky_mixin import SettingsDialogLookyMixin
 from session_sniffer.guis._settings_runtime import SettingValue, apply_runtime_settings_changes
 from session_sniffer.guis._settings_widget_builders import (
+    HotkeyEditWidget,
     build_discord_info_group,
     build_webserver_help_group,
     create_boolean_widget,
@@ -50,6 +51,7 @@ from session_sniffer.guis._settings_widget_builders import (
     create_column_tuple_widget,
     create_enum_widget,
     create_float_widget,
+    create_hotkey_widget,
     create_integer_or_all_widget,
     create_integer_widget,
     create_ip_range_tuple_widget,
@@ -515,6 +517,7 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
             SettingType.ENUM: partial(create_enum_widget, meta),
             SettingType.COLUMN_TUPLE: partial(create_column_tuple_widget, key, meta),
             SettingType.COLOR: partial(create_color_widget, meta),
+            SettingType.HOTKEY: partial(create_hotkey_widget, meta),
             SettingType.THIRD_PARTY_SERVERS_TUPLE: partial(create_third_party_servers_split_widget, key, meta),
             SettingType.IP_RANGE_TUPLE: partial(create_ip_range_tuple_widget, meta, self),
             SettingType.STRING_TUPLE: partial(create_string_tuple_widget, meta, self),
@@ -552,6 +555,9 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
             case SettingType.COLOR:
                 cast('ColorPickerButton', widget).set_color(str(value) if value is not None else '')
 
+            case SettingType.HOTKEY:
+                cast('HotkeyEditWidget', widget).set_value(value if isinstance(value, str) else None)
+
             case SettingType.FLOAT:
                 cast('QDoubleSpinBox', widget).setValue(float(value) if isinstance(value, (int, float)) else 0.0)
 
@@ -559,11 +565,7 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
                 if key == 'capture_filter_process_pid':
                     pid_value = int(value) if isinstance(value, (int, float)) else 0
                     process_name = Settings.capture_filter_process_name if self._loading_settings else None
-                    track_by_name = (
-                        Settings.capture_filter_process_track_by_name
-                        if self._loading_settings
-                        else SETTING_DEFAULTS['capture_filter_process_track_by_name']
-                    )
+                    track_by_name = Settings.capture_filter_process_track_by_name if self._loading_settings else SETTING_DEFAULTS['capture_filter_process_track_by_name']
                     selector = cast('ProcessSelectorWidget', widget)
                     selector.set_value(pid_value, process_name, track_by_name=track_by_name)
                 else:
@@ -606,6 +608,8 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
                 value = text or None
             case SettingType.COLOR:
                 value = cast('ColorPickerButton', widget).color()
+            case SettingType.HOTKEY:
+                value = cast('HotkeyEditWidget', widget).value()
             case SettingType.FLOAT:
                 value = cast('QDoubleSpinBox', widget).value()
             case SettingType.INTEGER | SettingType.INTEGER_OR_ALL:
@@ -695,11 +699,7 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
             'capture_filter_process_pid': live_process_pid,
             'capture_filter_process_name': live_process_name,
         }
-        process_selector = (
-            cast('ProcessSelectorWidget', self._widgets['capture_filter_process_pid'])
-            if 'capture_filter_process_pid' in self._widgets
-            else None
-        )
+        process_selector = cast('ProcessSelectorWidget', self._widgets['capture_filter_process_pid']) if 'capture_filter_process_pid' in self._widgets else None
         process_pid_modified = process_selector is not None and self._is_setting_modified('capture_filter_process_pid', process_selector)
 
         for key, value in new_values.items():
@@ -846,6 +846,7 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
                     if key == 'capture_filter_process_track_by_name':
                         process_selector = self._widgets.get('capture_filter_process_pid')
                         if isinstance(process_selector, ProcessSelectorWidget):
+
                             def _make_process_scope_sync_handler(
                                 selector: ProcessSelectorWidget,
                                 track_by_name_checkbox: QCheckBox,
@@ -859,6 +860,8 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
                     widget.toggled.connect(self._update_restart_notice)
                 case ColorPickerButton():
                     widget.color_changed.connect(self._update_restart_notice)
+                case HotkeyEditWidget():
+                    widget.hotkey_changed.connect(self._update_restart_notice)
                 case QSpinBox() | QDoubleSpinBox():
                     widget.valueChanged.connect(self._update_restart_notice)
                 case QComboBox():

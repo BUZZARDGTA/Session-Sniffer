@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, Self, cast
 
 from packaging.version import InvalidVersion, Version
 from pydantic import BaseModel, ConfigDict, ValidationInfo, field_validator, model_validator
-from PySide6.QtGui import QColor
+from PySide6.QtGui import QColor, QKeySequence
 
 from session_sniffer.constants.standalone import (
     CAPTURE_FILTER_BLOCK_SETTINGS,
@@ -180,6 +180,7 @@ class SettingsModel(BaseModel):
     PING_TIMEOUT_MS: int
     PING_PAYLOAD_BYTES: int
     SOLO_SESSION_DURATION: int
+    SOLO_SESSION_HOTKEY: str | None
     HIGH_RATE_MONITOR_MODE: str
     HIGH_RATE_MONITOR_ICON: bool
     HIGH_RATE_MONITOR_RUN_IN_BACKGROUND: bool
@@ -636,6 +637,35 @@ class SettingsModel(BaseModel):
         cls._set_flag(info)
         return cast('str | None', cls._get_default_for_field(info))
 
+    @field_validator('SOLO_SESSION_HOTKEY', mode='before')
+    @classmethod
+    def _parse_hotkey(cls, value: object, info: ValidationInfo) -> str | None:
+        if value is None:
+            return None
+        if not isinstance(value, str):
+            cls._set_flag(info)
+            return cast('str | None', cls._get_default_for_field(info))
+        try:
+            none_value, _ = custom_str_to_nonetype(value)
+        except InvalidNoneTypeValueError:
+            stripped = value.strip()
+            if not stripped:
+                cls._set_flag(info)
+                return None
+            first_chord = stripped.split(',', 1)[0].strip() if ',' in stripped else stripped
+            seq = QKeySequence.fromString(first_chord, QKeySequence.SequenceFormat.PortableText)
+            if seq.isEmpty():
+                seq = QKeySequence.fromString(first_chord, QKeySequence.SequenceFormat.NativeText)
+            normalized = seq.toString(QKeySequence.SequenceFormat.PortableText).strip()
+            if not seq.isEmpty() and normalized and '\ufffd' not in normalized:
+                if normalized != value:
+                    cls._set_flag(info)
+                return normalized
+            cls._set_flag(info)
+            return cast('str | None', cls._get_default_for_field(info))
+        cls._set_flag(info)
+        return none_value
+
     @field_validator(*_CLAMPED_INT_BOUNDS, mode='before')
     @classmethod
     def _parse_clamped_int(cls, value: object, info: ValidationInfo) -> int:
@@ -701,13 +731,7 @@ class SettingsModel(BaseModel):
     @classmethod
     def _parse_table_sort_column(cls, value: object, info: ValidationInfo) -> str:
         context = cls._get_context(info)
-        allowed = (
-            context.all_connected_columns
-            if context and info.field_name == 'GUI_CONNECTED_TABLE_SORT_COLUMN'
-            else context.all_disconnected_columns
-            if context
-            else ()
-        )
+        allowed = context.all_connected_columns if context and info.field_name == 'GUI_CONNECTED_TABLE_SORT_COLUMN' else context.all_disconnected_columns if context else ()
 
         if isinstance(value, str):
             try:
