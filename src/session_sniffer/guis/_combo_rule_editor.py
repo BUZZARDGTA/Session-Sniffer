@@ -3,7 +3,7 @@
 from typing import TYPE_CHECKING, ClassVar, Literal, cast
 
 from PySide6.QtCore import QSignalBlocker, Qt
-from PySide6.QtGui import QIcon
+from PySide6.QtGui import QIcon, QStandardItemModel
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -43,7 +43,7 @@ from session_sniffer.guis.utils import (
     load_country_flag_icon,
     scale_by_ui,
 )
-from session_sniffer.models.combo_rules import NEGATABLE_CONDITIONS, NEGATED_PREFIX, ComboRule, split_condition_key
+from session_sniffer.models.combo_rules import DUAL_OPERATOR_CONDITIONS, NEGATABLE_CONDITIONS, NEGATED_PREFIX, ComboRule, split_condition_key
 from session_sniffer.networking.ip_range import is_valid_ip_range_entry
 from session_sniffer.rendering_core.types import CaptureState
 from session_sniffer.settings import Settings
@@ -447,23 +447,56 @@ class ComboRuleEditorDialog(QDialog):
         self._add_condition_row()
 
     def _sync_available_condition_types(self) -> None:
-        """Keep only unused condition types (plus each row's own selection) in each row's combo box."""
+        """Synchronize available condition types and operators across all condition rows."""
+        # Pass 1: Ensure dual-operator conditions ('org', 'isp', 'as_name', 'ip_range') use distinct operators ('Is' vs 'Is Not')
+        used_operators_by_key: dict[str, set[bool]] = {}
+        for type_combo, operator_combo, _ in self._condition_rows:
+            key = self._CONDITION_LABELS.get(type_combo.currentText(), '')
+            if key not in DUAL_OPERATOR_CONDITIONS:
+                continue
+            used_ops = used_operators_by_key.setdefault(key, set())
+            current_is_negated = bool(operator_combo.currentData())
+            if current_is_negated in used_ops:
+                current_is_negated = not current_is_negated
+                with QSignalBlocker(operator_combo):
+                    operator_combo.setCurrentIndex(1 if current_is_negated else 0)
+            used_ops.add(current_is_negated)
+
+        # Pass 2: Filter exhausted condition types and lock operators when both slots of a dual-operator condition are active
         selected_labels_by_row = [type_combo.currentText() for type_combo, _, _ in self._condition_rows]
-        for row_idx, (type_combo, _, _) in enumerate(self._condition_rows):
+        for row_idx, (type_combo, operator_combo, _) in enumerate(self._condition_rows):
             current_label = selected_labels_by_row[row_idx]
-            used_elsewhere = {
-                label
-                for idx, label in enumerate(selected_labels_by_row)
-                if idx != row_idx and label in self._CONDITION_LABELS
-            }
-            available_labels = [label for label in self._CONDITION_LABELS if label not in used_elsewhere]
+            current_key = self._CONDITION_LABELS.get(current_label, '')
+
+            op_model = operator_combo.model()
+            if isinstance(op_model, QStandardItemModel):
+                item_is = op_model.item(0)
+                item_is_not = op_model.item(1)
+                lock_operator = current_key in DUAL_OPERATOR_CONDITIONS and len(used_operators_by_key.get(current_key, set())) > 1
+                if lock_operator:
+                    row_is_negated = bool(operator_combo.currentData())
+                    item_is.setEnabled(not row_is_negated)
+                    item_is_not.setEnabled(row_is_negated)
+                else:
+                    item_is.setEnabled(True)
+                    item_is_not.setEnabled(True)
+
+            available_labels: list[str] = []
+            for label, cond_key in self._CONDITION_LABELS.items():
+                max_uses = 2 if cond_key in DUAL_OPERATOR_CONDITIONS else 1
+                other_uses = sum(1 for idx, other_label in enumerate(selected_labels_by_row) if idx != row_idx and other_label == label)
+                if other_uses < max_uses:
+                    available_labels.append(label)
+
             current_items = [type_combo.itemText(i) for i in range(type_combo.count())]
             if current_items != available_labels:
                 with QSignalBlocker(type_combo):
                     type_combo.clear()
                     type_combo.addItems(available_labels)
                     type_combo.setCurrentIndex(available_labels.index(current_label) if current_label in available_labels else -1)
-        self._add_condition_button.setEnabled(len(self._condition_rows) < len(self._CONDITION_LABELS))
+
+        max_total_rows = len(self._CONDITION_LABELS) + len(DUAL_OPERATOR_CONDITIONS)
+        self._add_condition_button.setEnabled(len(self._condition_rows) < max_total_rows)
 
     def _add_condition_row(
         self,
@@ -472,7 +505,8 @@ class ComboRuleEditorDialog(QDialog):
         preset_value: str | bool | list[str] | None = None,
     ) -> None:
         """Add a new condition row with type selector and value widget."""
-        if len(self._condition_rows) >= len(self._CONDITION_LABELS):
+        max_total_rows = len(self._CONDITION_LABELS) + len(DUAL_OPERATOR_CONDITIONS)
+        if len(self._condition_rows) >= max_total_rows:
             return
         if preset_key is None and self._condition_rows:
             # Validate existing conditions before adding a new row
@@ -482,8 +516,7 @@ class ComboRuleEditorDialog(QDialog):
                     self,
                     'Validation Error',
                     'Please complete all existing conditions before adding a new one.\n\n'
-                    'Ensure every condition has a type selected, a valid value entered, '
-                    'and each condition type may only be used once.',
+                    'Ensure every condition has a type selected and a valid value entered.',
                 )
                 return
 
@@ -511,6 +544,7 @@ class ComboRuleEditorDialog(QDialog):
         operator_combo.addItem('Is Not', userData=True)
         operator_combo.setMinimumWidth(scale_by_ui(85))
         operator_combo.setToolTip('Choose whether the condition must match (Is) or must not match (Is Not)')
+        operator_combo.currentIndexChanged.connect(self._sync_available_condition_types)
 
         value_stack = QWidget()
         value_layout = QVBoxLayout(value_stack)
@@ -621,13 +655,14 @@ class ComboRuleEditorDialog(QDialog):
         # Set preset values if provided
         if preset_key is not None:
             base_key, is_negated = split_condition_key(preset_key)
+            if is_negated and base_key in NEGATABLE_CONDITIONS:
+                with QSignalBlocker(operator_combo):
+                    operator_combo.setCurrentIndex(1)
             # Find the display label for the base key
             for label, condition_key in self._CONDITION_LABELS.items():
                 if condition_key == base_key:
                     type_combo.setCurrentText(label)
                     break
-            if is_negated and base_key in NEGATABLE_CONDITIONS:
-                operator_combo.setCurrentIndex(1)
             # Now set the value
             if base_key in ('mobile', 'vpn', 'hosting') and isinstance(preset_value, bool):
                 bool_combo_widget: QComboBox | None = value_stack.findChild(QComboBox)
@@ -666,7 +701,7 @@ class ComboRuleEditorDialog(QDialog):
             QMessageBox.warning(
                 self,
                 'Validation Error',
-                'All condition rows must have a valid value, and each condition type may only be used once.',
+                'All condition rows must have a condition type selected and a valid value entered.',
             )
             return
 
@@ -694,37 +729,44 @@ class ComboRuleEditorDialog(QDialog):
     def _read_conditions(self) -> dict[str, str | bool | list[str]]:
         """Read conditions from the UI rows."""
         conditions: dict[str, str | bool | list[str]] = {}
-        seen_base_keys: set[str] = set()
+        seen_effective_keys: set[str] = set()
+        seen_single_base_keys: set[str] = set()
         for type_combo, operator_combo, value_stack in self._condition_rows:
             label = type_combo.currentText()
             base_key = self._CONDITION_LABELS.get(label)
-            if base_key is None or base_key in seen_base_keys:
+            if base_key is None:
                 continue
             is_negated = bool(operator_combo.currentData()) and base_key in NEGATABLE_CONDITIONS
             effective_key = f'{NEGATED_PREFIX}{base_key}' if is_negated else base_key
+            if effective_key in seen_effective_keys or (base_key not in DUAL_OPERATOR_CONDITIONS and base_key in seen_single_base_keys):
+                continue
 
             if base_key in ('mobile', 'vpn', 'hosting'):
                 bool_combo_widget: QComboBox | None = value_stack.findChild(QComboBox)
                 if bool_combo_widget is not None:
                     conditions[effective_key] = bool(bool_combo_widget.currentData())
-                    seen_base_keys.add(base_key)
+                    seen_effective_keys.add(effective_key)
+                    seen_single_base_keys.add(base_key)
             elif base_key == 'event':
                 selected = self._read_event_checkboxes(value_stack)
                 if selected:
                     conditions[effective_key] = selected
-                    seen_base_keys.add(base_key)
+                    seen_effective_keys.add(effective_key)
+                    seen_single_base_keys.add(base_key)
             elif base_key in ('continent', 'country'):
                 selected_items = self._read_multi_select_picker_values(value_stack)
                 if selected_items:
                     conditions[effective_key] = selected_items if len(selected_items) > 1 else selected_items[0]
-                    seen_base_keys.add(base_key)
+                    seen_effective_keys.add(effective_key)
+                    seen_single_base_keys.add(base_key)
             else:
                 line_edit_widget: QLineEdit | None = value_stack.findChild(QLineEdit)
                 if line_edit_widget is not None:
                     trimmed_text = line_edit_widget.text().strip()
                     if trimmed_text:
                         conditions[effective_key] = trimmed_text
-                        seen_base_keys.add(base_key)
+                        seen_effective_keys.add(effective_key)
+                        seen_single_base_keys.add(base_key)
         return conditions
 
     def _read_event_checkboxes(self, value_stack: QWidget) -> list[str]:
