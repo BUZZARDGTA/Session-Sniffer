@@ -653,13 +653,13 @@ def main() -> None:
                     on_overflow_drop=on_overflow_drop,
                 ),
             )
+            _adapter_lost_event.clear()
+            _arp_failed_event.clear()
             new_capture.start()
             CaptureStats.capture_started_at = time.monotonic()
             capture_holder.set(new_capture)
-
             if Settings.capture_arp_spoofing:
                 ArpSpoofingController.start(new_interface)
-
             window.on_interface_switched()
         finally:
             window.set_interface_switching_mode(switching=False)
@@ -682,6 +682,7 @@ def main() -> None:
             return
         _is_handling_capture_lost = True
         try:
+            ArpSpoofingController.stop()
             if stop_capture and capture_holder.is_running():
                 capture_holder.stop()
             window.on_interface_switched(capture_toggle_enabled=False)
@@ -750,10 +751,8 @@ def main() -> None:
         new_capture.start()
         CaptureStats.capture_started_at = time.monotonic()
         capture_holder.set(new_capture)
-
         if Settings.capture_arp_spoofing:
             ArpSpoofingController.start(new_selected_interface)
-
         window.on_interface_switched()
 
     def _try_recover_lost_adapter(current_selected: SelectedInterfaceRow, adapter_guid: str, attempt: int) -> tuple[str, list[str]] | None:
@@ -765,14 +764,12 @@ def main() -> None:
                 current_selected.name, adapter_guid, attempt, _MAX_ADAPTER_LOST_RECOVERY_ATTEMPTS,
             )
             return None
-
         if not matching_adapter.ipv4_addresses:
             logger.debug(
                 'Capture adapter "%s" present but waiting for IPv4 assignment (attempt %d/%d).',
                 matching_adapter.identity.friendly_name, attempt, _MAX_ADAPTER_LOST_RECOVERY_ATTEMPTS,
             )
             return None
-
         pcap_device_name = current_selected.device_name or current_selected.name
         if matching_adapter.status.operational_status != 1 or not can_open_pcap_device(pcap_device_name):
             logger.debug(
@@ -799,6 +796,7 @@ def main() -> None:
 
         if InterfaceSelectionDialog.get_active_instance() is not None:
             _adapter_lost_attempts = 0
+            ArpSpoofingController.stop()
             if capture_holder.is_running():
                 capture_holder.stop()
                 window.on_interface_switched(capture_toggle_enabled=False)
@@ -829,13 +827,13 @@ def main() -> None:
 
                 target_ip_address, recovered_ipv4s = recovered
                 previous_ip_address = current_selected.ip_address
+                _adapter_lost_attempts = 0
                 _adapter_lost_event.clear()
 
                 if previous_ip_address != target_ip_address:
                     logger.info('Capture interface "%s" IP changed from %s to %s — resuming capture.', current_selected.name, previous_ip_address, target_ip_address)
                 else:
                     logger.info('Capture interface "%s" reconnected (IP unchanged: %s) — resuming capture.', current_selected.name, target_ip_address)
-
                 _restart_capture_with_ip(target_ip_address, recovered_ipv4s)
                 return
 
@@ -892,6 +890,7 @@ def main() -> None:
             return
         if InterfaceSelectionDialog.get_active_instance() is not None:
             _arp_failed_event.clear()
+            ArpSpoofingController.stop()
             if capture_holder.is_running():
                 capture_holder.stop()
                 window.on_interface_switched(capture_toggle_enabled=False)
