@@ -3,16 +3,19 @@
 import html
 from typing import TYPE_CHECKING, cast, override
 
-from PySide6.QtCore import QEvent, QModelIndex, QPersistentModelIndex, QPointF, QRect, QSize, Qt
+from PySide6.QtCore import QEvent, QModelIndex, QPersistentModelIndex, QPointF, QRect, QRectF, QSize, Qt
 from PySide6.QtGui import (
     QBrush,
     QColor,
+    QFont,
     QFontMetrics,
     QHelpEvent,
     QIcon,
     QLinearGradient,
     QPainter,
+    QPainterPath,
     QPalette,
+    QPen,
     QPixmap,
     QTextCharFormat,
     QTextLayout,
@@ -31,13 +34,12 @@ from PySide6.QtWidgets import (
 
 from session_sniffer.constants.local import USERIP_DATABASES_DIR_PATH
 from session_sniffer.guis.colors import TableColors
+from session_sniffer.models.combo_rules import ComboRule, split_condition_key
 from session_sniffer.models.userip_settings_model import format_iso_timestamp_display
 from session_sniffer.text_utils import pluralize, split_usernames
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
-
-    from PySide6.QtGui import QFont
 
     from session_sniffer.models.player import Player
     from session_sniffer.player.userip import UserIP
@@ -556,3 +558,343 @@ class SearchHighlightDelegate(ElidedTextTooltipDelegate):
 
             layout.draw(painter, QPointF(horizontal_offset, float(vertical_offset)))
             painter.restore()
+
+
+_COMBO_CONDITION_LABELS: dict[str, str] = {
+    'event': 'Player Event',
+    'continent': 'Continent',
+    'country': 'Country',
+    'city': 'City',
+    'region': 'Region',
+    'org': 'Organization',
+    'isp': 'ISP',
+    'asn': 'ASN',
+    'as_name': 'AS Name',
+    'ip_range': 'IP Range',
+    'mobile': 'Mobile',
+    'vpn': 'VPN / Proxy',
+    'hosting': 'Hosting',
+}
+_COMBO_EVENT_NAMES: dict[str, str] = {
+    'join': 'Joined',
+    'rejoin': 'Rejoined',
+    'leave': 'Left',
+}
+
+
+class ComboRuleCardDelegate(QStyledItemDelegate):
+    """Custom item delegate that renders each ComboRule as a structured multi-line card with condition chips and action badges."""
+
+    def __init__(
+        self,
+        parent: QWidget,
+        get_rule: Callable[[int], ComboRule | None],
+        is_suspend_supported: Callable[[], bool],
+        scale_fn: Callable[[int], int],
+    ) -> None:
+        """Initialize the delegate with callables to look up rules, suspend availability, and UI scaling."""
+        super().__init__(parent)
+        self._get_rule = get_rule
+        self._is_suspend_supported = is_suspend_supported
+        self._scale = scale_fn
+
+    @staticmethod
+    def _format_condition_chips(rule: ComboRule) -> list[tuple[str, str, bool]]:
+        """Return `(prefix_text, value_text, is_negated)` tuples for all conditions in *rule*."""
+        chips: list[tuple[str, str, bool]] = []
+        for key, value in rule.conditions.items():
+            base_key, is_negated = split_condition_key(key)
+            label = _COMBO_CONDITION_LABELS.get(base_key, base_key)
+            operator = ' ≠ ' if is_negated else ': '
+            prefix_text = f'{label}{operator}'
+            if base_key == 'event' and isinstance(value, list):
+                value_text = ' | '.join(_COMBO_EVENT_NAMES.get(item, item) for item in value)
+            elif isinstance(value, bool):
+                value_text = 'Yes' if value else 'No'
+            elif isinstance(value, list):
+                value_text = ' | '.join(value)
+            else:
+                value_text = value
+            chips.append((prefix_text, value_text, is_negated))
+        return chips
+
+    def _format_action_badges(self, rule: ComboRule) -> list[tuple[str, QColor, QColor, QColor]]:
+        """Return `(text, bg_color, border_color, text_color)` badges for the rule's configured actions."""
+        badges: list[tuple[str, QColor, QColor, QColor]] = []
+        if self._is_suspend_supported() and rule.protection_enabled:
+            dur_str = 'Auto' if rule.duration == 'Auto' else f'{rule.duration}s'
+            badges.append((f'Suspend: {dur_str}', QColor(245, 158, 11, 38), QColor(245, 158, 11, 115), QColor('#fbbf24')))
+        if rule.voice_notifications:
+            badges.append((f'Voice: {rule.voice_notifications}', QColor(56, 189, 248, 38), QColor(56, 189, 248, 115), QColor('#38bdf8')))
+        if rule.message_box:
+            badges.append(('Message Box', QColor(168, 85, 247, 38), QColor(168, 85, 247, 115), QColor('#c084fc')))
+        if rule.logging:
+            badges.append(('Logging', QColor(45, 212, 191, 34), QColor(45, 212, 191, 105), QColor('#2dd4bf')))
+        if not badges:
+            badges.append(('No Actions', QColor(148, 163, 184, 24), QColor(148, 163, 184, 65), QColor('#64748b')))
+        return badges
+
+    @staticmethod
+    def _chip_fonts(base_font: QFont) -> tuple[QFont, QFont]:
+        """Return `(bold_font, regular_font)` sized for condition chips."""
+        reg_font = QFont(base_font)
+        reg_font.setPointSizeF(8.5)
+        reg_font.setBold(False)
+        bold_font = QFont(reg_font)
+        bold_font.setBold(True)
+        return bold_font, reg_font
+
+    def _layout_chips(
+        self,
+        content_left: int,
+        content_width: int,
+        start_y: int,
+        base_font: QFont,
+        chips: Sequence[tuple[str, str, bool]],
+    ) -> tuple[list[tuple[QRect, str, str, bool]], int]:
+        """Compute flow-wrapped chip rectangles and return `(placed_chips, bottom_y)`."""
+        bold_font, reg_font = self._chip_fonts(base_font)
+        bold_fm, reg_fm = QFontMetrics(bold_font), QFontMetrics(reg_font)
+        chip_pad_h = self._scale(8)
+        chip_h = max(bold_fm.height(), reg_fm.height()) + self._scale(6)
+        chip_h_gap = self._scale(6)
+        chip_v_gap = self._scale(5)
+        x = content_left
+        y = start_y
+        placed: list[tuple[QRect, str, str, bool]] = []
+        for prefix_text, value_text, is_negated in chips:
+            prefix_w = bold_fm.horizontalAdvance(prefix_text)
+            val_w = reg_fm.horizontalAdvance(value_text)
+            chip_w = min(content_width, chip_pad_h * 2 + prefix_w + val_w)
+            if x > content_left and x + chip_w > content_left + content_width:
+                x = content_left
+                y += chip_h + chip_v_gap
+            placed.append((QRect(x, y, chip_w, chip_h), prefix_text, value_text, is_negated))
+            x += chip_w + chip_h_gap
+        bottom_y = (y + chip_h) if placed else (start_y + chip_h)
+        return placed, bottom_y
+
+    @override
+    def sizeHint(self, option: QStyleOptionViewItem, index: QModelIndex | QPersistentModelIndex) -> QSize:
+        """Return the dynamically wrapped card height for the combo rule at *index*."""
+        rule = self._get_rule(index.row())
+        if rule is None:
+            return super().sizeHint(option, index)
+
+        scale = self._scale
+        view = self.parent()
+        viewport = view.viewport() if isinstance(view, QAbstractItemView) else None
+        viewport_w = viewport.width() if viewport is not None and viewport.width() > 0 else 0
+        opt_w = _get_option_rect(option).width()
+        total_width = viewport_w or opt_w or scale(640)
+
+        outer_h = scale(4)
+        outer_v = scale(4)
+        accent_w = scale(4)
+        pad_h = scale(12)
+        pad_top = scale(9)
+        pad_bottom = scale(9)
+        header_h = scale(22)
+        divider_space = scale(13)
+
+        content_left = outer_h + accent_w + pad_h
+        content_width = max(scale(120), total_width - outer_h * 2 - accent_w - pad_h * 2)
+        chips_start_y = outer_v + pad_top + header_h + divider_space
+
+        chips = self._format_condition_chips(rule)
+        _, bottom_y = self._layout_chips(content_left, content_width, chips_start_y, _get_option_font(option), chips)
+        return QSize(total_width, bottom_y + pad_bottom + outer_v)
+
+    @override
+    def paint(self, painter: QPainter, option: QStyleOptionViewItem, index: QModelIndex | QPersistentModelIndex) -> None:
+        """Paint the combo rule card with status pill, rule name, action badges, and wrapped condition chips."""
+        rule = self._get_rule(index.row())
+        if rule is None or not painter:
+            super().paint(painter, option, index)
+            return
+
+        scale = self._scale
+        rect = _get_option_rect(option)
+        is_selected = bool(option.state & QStyle.StateFlag.State_Selected)
+        is_hovered = bool(option.state & QStyle.StateFlag.State_MouseOver)
+        is_enabled = rule.enabled
+
+        outer_h = scale(4)
+        outer_v = scale(4)
+        accent_w = scale(4)
+        pad_h = scale(12)
+        pad_top = scale(9)
+        header_h = scale(22)
+        divider_space = scale(13)
+        radius = float(scale(7))
+
+        card_rect = rect.adjusted(outer_h, outer_v, -outer_h, -outer_v)
+        if card_rect.width() <= 0 or card_rect.height() <= 0:
+            return
+
+        painter.save()
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, on=True)
+        painter.setRenderHint(QPainter.RenderHint.TextAntialiasing, on=True)
+
+        card_path = QPainterPath()
+        card_path.addRoundedRect(QRectF(card_rect), radius, radius)
+
+        bg_grad = QLinearGradient(card_rect.topLeft(), card_rect.bottomLeft())
+        if is_selected:
+            bg_grad.setColorAt(0.0, QColor('#1e3246'))
+            bg_grad.setColorAt(1.0, QColor('#152434'))
+            border_color = QColor('#38bdf8')
+            border_width = 1.5
+        elif is_hovered:
+            bg_grad.setColorAt(0.0, QColor('#1b2735'))
+            bg_grad.setColorAt(1.0, QColor('#141d28'))
+            border_color = QColor('#3b556e')
+            border_width = 1.0
+        elif is_enabled:
+            bg_grad.setColorAt(0.0, QColor('#17212c'))
+            bg_grad.setColorAt(1.0, QColor('#111820'))
+            border_color = QColor('#263747')
+            border_width = 1.0
+        else:
+            bg_grad.setColorAt(0.0, QColor('#131820'))
+            bg_grad.setColorAt(1.0, QColor('#0e1218'))
+            border_color = QColor('#1e2832')
+            border_width = 1.0
+
+        painter.fillPath(card_path, bg_grad)
+
+        painter.save()
+        painter.setClipPath(card_path)
+        accent_rect = QRect(card_rect.left(), card_rect.top(), accent_w, card_rect.height())
+        painter.fillRect(accent_rect, QColor('#10b981') if is_enabled else QColor('#475569'))
+        painter.restore()
+
+        painter.setPen(QPen(border_color, border_width))
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.drawPath(card_path)
+
+        base_font = _get_option_font(option)
+        content_left = card_rect.left() + accent_w + pad_h
+        content_right = card_rect.right() - pad_h
+        content_width = max(scale(120), content_right - content_left)
+        header_top = card_rect.top() + pad_top
+        header_rect = QRect(content_left, header_top, content_width, header_h)
+
+        # --- Right-aligned Action Badges ---
+        badge_font = QFont(base_font)
+        badge_font.setPointSizeF(8.0)
+        badge_font.setBold(True)
+        badge_fm = QFontMetrics(badge_font)
+        badge_pad_h = scale(7)
+        badge_gap = scale(5)
+        badge_h = scale(19)
+        badge_y = header_top + (header_h - badge_h) // 2
+        badge_radius = float(scale(4))
+
+        badges_right_x = content_right
+        painter.setFont(badge_font)
+        for badge_text, b_bg, b_border, b_fg in reversed(self._format_action_badges(rule)):
+            b_w = badge_fm.horizontalAdvance(badge_text) + badge_pad_h * 2
+            b_rect = QRect(badges_right_x - b_w, badge_y, b_w, badge_h)
+            if b_rect.left() < content_left + scale(140):
+                break
+            b_path = QPainterPath()
+            b_path.addRoundedRect(QRectF(b_rect), badge_radius, badge_radius)
+            painter.fillPath(b_path, b_bg)
+            painter.setPen(QPen(b_border, 1.0))
+            painter.drawPath(b_path)
+            painter.setPen(b_fg if is_enabled else QColor('#7c8d9e'))
+            painter.drawText(b_rect, Qt.AlignmentFlag.AlignCenter, badge_text)
+            badges_right_x = b_rect.left() - badge_gap
+
+        # --- Left-aligned Status Pill + Rule Name + Condition Count ---
+        status_text = '✓ ENABLED' if is_enabled else '✕ DISABLED'
+        status_bg = QColor(16, 185, 129, 42) if is_enabled else QColor(239, 68, 68, 34)
+        status_border = QColor(16, 185, 129, 120) if is_enabled else QColor(239, 68, 68, 95)
+        status_fg = QColor('#34d399') if is_enabled else QColor('#f87171')
+        status_w = badge_fm.horizontalAdvance(status_text) + badge_pad_h * 2
+        status_rect = QRect(content_left, badge_y, status_w, badge_h)
+        status_path = QPainterPath()
+        status_path.addRoundedRect(QRectF(status_rect), badge_radius, badge_radius)
+        painter.fillPath(status_path, status_bg)
+        painter.setPen(QPen(status_border, 1.0))
+        painter.drawPath(status_path)
+        painter.setPen(status_fg)
+        painter.drawText(status_rect, Qt.AlignmentFlag.AlignCenter, status_text)
+
+        title_left = status_rect.right() + scale(9)
+        title_max_right = max(title_left, badges_right_x - scale(8))
+
+        name_font = QFont(base_font)
+        name_font.setPointSizeF(10.0)
+        name_font.setBold(True)
+        name_fm = QFontMetrics(name_font)
+        painter.setFont(name_font)
+        painter.setPen(QColor('#ffffff') if is_selected else (QColor('#f1f5f9') if is_enabled else QColor('#94a3b8')))
+
+        avail_title_w = max(0, title_max_right - title_left)
+        elided_name = name_fm.elidedText(rule.name, Qt.TextElideMode.ElideRight, avail_title_w)
+        name_rect = QRect(title_left, header_rect.top(), avail_title_w, header_rect.height())
+        painter.drawText(name_rect, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, elided_name)
+
+        name_drawn_w = name_fm.horizontalAdvance(elided_name)
+        count_left = title_left + name_drawn_w + scale(8)
+        cond_count = len(rule.conditions)
+        count_text = f'({cond_count} condition{pluralize(cond_count)})'
+        bold_chip_font, reg_chip_font = self._chip_fonts(base_font)
+        reg_chip_fm = QFontMetrics(reg_chip_font)
+        if count_left + reg_chip_fm.horizontalAdvance(count_text) <= title_max_right:
+            painter.setFont(reg_chip_font)
+            painter.setPen(QColor('#64748b'))
+            count_rect = QRect(count_left, header_rect.top(), title_max_right - count_left, header_rect.height())
+            painter.drawText(count_rect, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, count_text)
+
+        # --- Horizontal Divider ---
+        divider_y = header_rect.bottom() + scale(6)
+        painter.setPen(QPen(QColor(255, 255, 255, 16), 1.0))
+        painter.drawLine(content_left, divider_y, content_right, divider_y)
+
+        # --- Flow-Wrapped Condition Chips ---
+        chips_start_y = header_rect.top() + header_h + divider_space
+        bold_chip_fm = QFontMetrics(bold_chip_font)
+        chips = self._format_condition_chips(rule)
+        placed_chips, _ = self._layout_chips(content_left, content_width, chips_start_y, base_font, chips)
+
+        chip_pad_h = scale(8)
+        chip_radius = float(scale(4))
+        for chip_rect, prefix_text, value_text, is_negated in placed_chips:
+            chip_path = QPainterPath()
+            chip_path.addRoundedRect(QRectF(chip_rect), chip_radius, chip_radius)
+            if is_negated:
+                c_bg = QColor(239, 68, 68, 30 if is_enabled else 16)
+                c_border = QColor(239, 68, 68, 90 if is_enabled else 45)
+                prefix_color = QColor('#fca5a5') if is_enabled else QColor('#9ca3af')
+            else:
+                c_bg = QColor(56, 189, 248, 22 if is_enabled else 12)
+                c_border = QColor(136, 192, 208, 72 if is_enabled else 38)
+                prefix_color = QColor('#88c0d0') if is_enabled else QColor('#7c8d9e')
+            value_color = QColor('#f1f5f9') if is_enabled else QColor('#94a3b8')
+
+            painter.fillPath(chip_path, c_bg)
+            painter.setPen(QPen(c_border, 1.0))
+            painter.drawPath(chip_path)
+
+            inner_left = chip_rect.left() + chip_pad_h
+            inner_right = chip_rect.right() - chip_pad_h
+            prefix_w = bold_chip_fm.horizontalAdvance(prefix_text)
+
+            painter.setFont(bold_chip_font)
+            painter.setPen(prefix_color)
+            prefix_rect = QRect(inner_left, chip_rect.top(), min(prefix_w, max(0, inner_right - inner_left)), chip_rect.height())
+            painter.drawText(prefix_rect, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, prefix_text)
+
+            val_left = inner_left + prefix_w
+            avail_val_w = max(0, inner_right - val_left)
+            if avail_val_w > 0:
+                painter.setFont(reg_chip_font)
+                painter.setPen(value_color)
+                elided_val = reg_chip_fm.elidedText(value_text, Qt.TextElideMode.ElideRight, avail_val_w)
+                val_rect = QRect(val_left, chip_rect.top(), avail_val_w, chip_rect.height())
+                painter.drawText(val_rect, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, elided_val)
+
+        painter.restore()

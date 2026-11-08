@@ -36,8 +36,9 @@ from session_sniffer.guis.country_data import (
     normalize_continent_name,
     normalize_country_name,
 )
-from session_sniffer.guis.delegates import ElidedTextTooltipDelegate
+from session_sniffer.guis.delegates import ComboRuleCardDelegate, ElidedTextTooltipDelegate
 from session_sniffer.guis.stylesheets import (
+    COMBO_RULES_LIST_STYLE,
     DESC_LABEL_STYLESHEET,
     GROUPBOX_STYLE,
     LIST_WIDGET_STYLE,
@@ -54,8 +55,9 @@ from session_sniffer.guis.utils import (
     render_svg_pixmap_from_resource,
     scale_by_ui,
 )
-from session_sniffer.models.combo_rules import ComboRule, format_combo_conditions_summary
+from session_sniffer.models.combo_rules import ComboRule
 from session_sniffer.player.combo_rules import ComboRulesManager
+from session_sniffer.rendering_core.types import CaptureState
 from session_sniffer.settings import Settings
 from session_sniffer.text_utils import DEFAULT_MANUAL_SUSPEND_DURATION_SECONDS
 
@@ -263,10 +265,20 @@ class DetectionsManagerTabsMixin(QDialog):
 
         # Rule list
         self._combo_rules_list = QListWidget()
-        self._combo_rules_list.setStyleSheet(LIST_WIDGET_STYLE)
+        self._combo_rules_list.setStyleSheet(COMBO_RULES_LIST_STYLE)
         self._combo_rules_list.setSelectionMode(QListWidget.SelectionMode.SingleSelection)
-        self._combo_rules_list.setItemDelegate(ElidedTextTooltipDelegate(self._combo_rules_list))
-        self._combo_rules_list.setWordWrap(False)
+        self._combo_rules_list.setResizeMode(QListWidget.ResizeMode.Adjust)
+        self._combo_rules_list.setVerticalScrollMode(QListWidget.ScrollMode.ScrollPerPixel)
+        self._combo_rules_list.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self._combo_rules_list.setMouseTracking(True)
+        self._combo_rules_list.setItemDelegate(
+            ComboRuleCardDelegate(
+                self._combo_rules_list,
+                lambda row: ComboRulesManager.rules[row] if 0 <= row < len(ComboRulesManager.rules) else None,
+                lambda: Settings.is_gta5_feature_set() and CaptureState.is_local_capture(),
+                scale_by_ui,
+            ),
+        )
         layout.addWidget(self._combo_rules_list, stretch=1)
 
         # Buttons row
@@ -277,10 +289,10 @@ class DetectionsManagerTabsMixin(QDialog):
         add_button.clicked.connect(self._add_combo_rule)
         button_layout.addWidget(add_button)
 
-        self._combo_toggle_button = QPushButton(' Toggle State')
+        self._combo_toggle_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'check.svg')), ' Toggle State')
         self._combo_toggle_button.setEnabled(False)
         self._combo_toggle_button.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._combo_toggle_button.setFixedWidth(scale_by_ui(110))
+        self._combo_toggle_button.setFixedWidth(scale_by_ui(125))
         self._combo_toggle_button.clicked.connect(self._toggle_combo_rule)
         button_layout.addWidget(self._combo_toggle_button)
 
@@ -371,17 +383,19 @@ class DetectionsManagerTabsMixin(QDialog):
             if index is not None:
                 rule = ComboRulesManager.rules[index]
                 self._combo_toggle_button.setText(' Disable Rule' if rule.enabled else ' Enable Rule')
+                self._combo_toggle_button.setIcon(
+                    QIcon(str(RESOURCES_DIR_PATH / 'icons' / ('x.svg' if rule.enabled else 'check.svg'))),
+                )
         else:
             self._combo_toggle_button.setText(' Toggle State')
+            self._combo_toggle_button.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'check.svg')))
 
     def refresh_combo_rules_list(self) -> None:
         """Reload the combo rules QListWidget from ComboRulesManager."""
         current_row = self._combo_rules_list.currentRow()
         self._combo_rules_list.clear()
         for rule in ComboRulesManager.rules:
-            conditions_summary = format_combo_conditions_summary(rule.conditions)
-            item = QListWidgetItem(f'{rule.name}  [{conditions_summary}]')
-            item.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / ('check.svg' if rule.enabled else 'x.svg'))))
+            item = QListWidgetItem(rule.name)
             item.setData(Qt.ItemDataRole.UserRole, id(rule))
             self._combo_rules_list.addItem(item)
 

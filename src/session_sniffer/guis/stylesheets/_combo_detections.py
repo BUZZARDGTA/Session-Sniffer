@@ -135,6 +135,27 @@ LIST_WIDGET_STYLE = """
     }
 """
 
+COMBO_RULES_LIST_STYLE = """
+    QListWidget {
+        background: #12171e;
+        border: 1px solid #2a3f4a;
+        border-radius: 6px;
+        padding: 4px;
+        outline: none;
+    }
+    QListWidget::item {
+        background: transparent;
+        border: none;
+        padding: 0px;
+    }
+    QListWidget::item:hover {
+        background: transparent;
+    }
+    QListWidget::item:selected {
+        background: transparent;
+    }
+"""
+
 DESC_LABEL_STYLESHEET = 'color: #a0b8c0; font-style: italic; font-size: 10pt; padding: 5px;'
 
 HINT_LABEL_STYLESHEET = 'color: #a0a0a0; font-style: italic; padding-bottom: 4px;'
