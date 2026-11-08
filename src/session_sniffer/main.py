@@ -781,13 +781,11 @@ def main() -> None:
             )
             return None
 
-        if matching_adapter.identity.friendly_name:
-            AllInterfaces.rename_interface(current_selected.name, matching_adapter.identity.friendly_name)
-            current_selected.interface.identity.name = matching_adapter.identity.friendly_name
-            Settings.capture_interface_name = matching_adapter.identity.friendly_name
-        if bool(matching_adapter.identity.mac_address):
-            current_selected.interface.identity.mac_address = matching_adapter.identity.mac_address
-            Settings.capture_mac_address = matching_adapter.identity.mac_address
+        if (fname := matching_adapter.identity.friendly_name):
+            AllInterfaces.rename_interface(current_selected.name, fname)
+            current_selected.interface.identity.name = Settings.capture_interface_name = fname
+        if bool(mac := matching_adapter.identity.mac_address):
+            current_selected.interface.identity.mac_address = Settings.capture_mac_address = mac
 
         target_ip = current_selected.ip_address if current_selected.ip_address in matching_adapter.ipv4_addresses else matching_adapter.ipv4_addresses[0]
         return target_ip, matching_adapter.ipv4_addresses
@@ -848,11 +846,8 @@ def main() -> None:
     def _on_os_adapter_change() -> None:
         """Handle OS kernel notifications when an adapter's IPv4 address or operational status changes."""
         if (
-            _is_switching_interface
-            or _is_handling_capture_lost
-            or gui_closed__event.is_set()
-            or not window.isVisible()
-            or InterfaceSelectionDialog.get_active_instance() is not None
+            _is_switching_interface or _is_handling_capture_lost or gui_closed__event.is_set()
+            or not window.isVisible() or InterfaceSelectionDialog.get_active_instance() is not None
         ):
             return
         if _adapter_lost_event.is_set():
@@ -867,9 +862,16 @@ def main() -> None:
         matching_adapter = next((adapter for adapter in get_adapters_info() if adapter.identity.adapter_guid == adapter_guid), None)
         if matching_adapter is None or matching_adapter.status.operational_status != 1 or not matching_adapter.ipv4_addresses:
             logger.info('Capture interface "%s" went down or lost IPv4 assignment — pausing capture for recovery.', current_selected.name)
+            ArpSpoofingController.stop()
             capture_holder.stop()
+            window.on_interface_switched(capture_toggle_enabled=False)
             _adapter_lost_event.set()
         elif current_selected.ip_address not in matching_adapter.ipv4_addresses:
+            if (fname := matching_adapter.identity.friendly_name):
+                AllInterfaces.rename_interface(current_selected.name, fname)
+                current_selected.interface.identity.name = Settings.capture_interface_name = fname
+            if bool(mac := matching_adapter.identity.mac_address):
+                current_selected.interface.identity.mac_address = Settings.capture_mac_address = mac
             new_ip_address = matching_adapter.ipv4_addresses[0]
             logger.info(
                 'Capture interface "%s" IP changed from %s to %s — updating capture filter and restarting capture.',

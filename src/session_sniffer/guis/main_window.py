@@ -901,6 +901,8 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
         self._actions.toggle_capture.setEnabled(capture_toggle_enabled)
         self._update_header_capture_status()
         self._update_status_bar()
+        if self._settings_dialog_window is not None and isValid(self._settings_dialog_window):
+            self._settings_dialog_window.update_capture(self.capture.get())
         wake_all_player_cores()
 
     @override

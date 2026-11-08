@@ -116,13 +116,16 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
 
         self._capture = capture
         self._on_change_interface = on_change_interface
+        self._interface_name_label: QLabel | None = None
+        self._arp_spoofing_label: QLabel | None = None
+        self._ip_address_label: QLabel | None = None
+        self._mac_address_label: QLabel | None = None
         self._widgets: dict[str, QWidget] = {}
         self._labels: dict[str, QLabel] = {}
         self._old_values: dict[str, SettingValue] = {key: getattr(Settings, key) for key in SETTING_METADATA}
         self._initial_values: dict[str, SettingValue] = dict(self._old_values)
         self._changed_settings: set[str] = set()
-        self._saved: bool = False
-        self._loading_settings: bool = False
+        self._saved, self._loading_settings = False, False
         self._last_verified_key: str = Settings.looky_api_key or '' if LookyState.user_data is not None else ''
         self._verify_worker = None
         self._verify_debounce: QTimer = QTimer(self)
@@ -340,6 +343,11 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
 
         arp_state = ('Running' if ArpSpoofingController.is_running() else 'Stopped') if Settings.capture_arp_spoofing else 'Disabled'
 
+        self._interface_name_label = _make_value(Settings.capture_interface_name)
+        self._arp_spoofing_label = _make_value(arp_state)
+        self._ip_address_label = _make_value(Settings.capture_ip_address)
+        self._mac_address_label = _make_value(Settings.capture_mac_address)
+
         grid = QGridLayout()
         grid.setHorizontalSpacing(12)
         grid.setVerticalSpacing(6)
@@ -347,13 +355,13 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
         grid.setColumnStretch(3, 1)
         grid.setColumnMinimumWidth(2, 20)  # Gap between the two pairs.
         grid.addWidget(_make_label('Interface Name'), 0, 0)
-        grid.addWidget(_make_value(Settings.capture_interface_name), 0, 1)
+        grid.addWidget(self._interface_name_label, 0, 1)
         grid.addWidget(_make_label('ARP Spoofing'), 0, 2)
-        grid.addWidget(_make_value(arp_state), 0, 3)
+        grid.addWidget(self._arp_spoofing_label, 0, 3)
         grid.addWidget(_make_label('IP Address'), 1, 0)
-        grid.addWidget(_make_value(Settings.capture_ip_address), 1, 1)
+        grid.addWidget(self._ip_address_label, 1, 1)
         grid.addWidget(_make_label('MAC Address'), 1, 2)
-        grid.addWidget(_make_value(Settings.capture_mac_address), 1, 3)
+        grid.addWidget(self._mac_address_label, 1, 3)
         layout.addLayout(grid)
 
         separator = QFrame()
@@ -751,8 +759,26 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
             self._initial_values['capture_filter_process_pid'] = resolved_pid
             self._initial_values['capture_filter_process_name'] = resolved_name
 
+    def _refresh_interface_info_labels(self) -> None:
+        """Update the read-only Interface summary card labels with the latest capture state."""
+        arp_state = ('Running' if ArpSpoofingController.is_running() else 'Stopped') if Settings.capture_arp_spoofing else 'Disabled'
+        for label, val in (
+            (self._interface_name_label, Settings.capture_interface_name),
+            (self._arp_spoofing_label, arp_state),
+            (self._ip_address_label, Settings.capture_ip_address),
+            (self._mac_address_label, Settings.capture_mac_address),
+        ):
+            if label is not None:
+                label.setText(val if val is not None else '\u2014')
+
+    def update_capture(self, capture: PacketCapture) -> None:
+        """Bind a replaced `PacketCapture` instance and refresh the Interface info summary labels."""
+        self._capture = capture
+        self._refresh_interface_info_labels()
+
     def refresh_from_external_settings(self) -> None:
         """Reload widget values from `Settings` when `settings.json` changes externally and there are no unsaved edits."""
+        self._refresh_interface_info_labels()
         if not self.isVisible() or self._has_unsaved_changes_for_close():
             return
         self._old_values = {key: getattr(Settings, key) for key in SETTING_METADATA}
@@ -784,8 +810,7 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
         """Reset the current tab's settings to their default values."""
         current_widget = self._tabs.currentWidget()
         category_property = current_widget.property('category')
-        category = str(category_property) if category_property else self._tabs.tabText(self._tabs.currentIndex())
-        self._reset_tab_to_defaults(category)
+        self._reset_tab_to_defaults(str(category_property) if category_property else self._tabs.tabText(self._tabs.currentIndex()))
 
     def _reset_to_defaults(self) -> None:
         """Populate all widgets with default values without saving."""
@@ -799,12 +824,7 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
 
     def _export_settings(self) -> None:
         """Export current in-memory settings to a user-chosen settings.json file."""
-        file_path, _ = QFileDialog.getSaveFileName(
-            self,
-            'Export Settings',
-            'settings.json',
-            'JSON Files (*.json);;All Files (*.*)',
-        )
+        file_path, _ = QFileDialog.getSaveFileName(self, 'Export Settings', 'settings.json', 'JSON Files (*.json);;All Files (*.*)')
         if not file_path:
             return
         Path(file_path).write_text(Settings.serialize_to_json(), encoding='utf-8')
@@ -812,12 +832,7 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
 
     def _import_settings(self) -> None:
         """Import settings from a user-chosen settings.json file and refresh widgets."""
-        file_path, _ = QFileDialog.getOpenFileName(
-            self,
-            'Import Settings',
-            '',
-            'JSON Files (*.json);;All Files (*.*)',
-        )
+        file_path, _ = QFileDialog.getOpenFileName(self, 'Import Settings', '', 'JSON Files (*.json);;All Files (*.*)')
         if not file_path:
             return
         previous_settings = {name.lower(): value for name, value in Settings.iterate_over_settings()}
