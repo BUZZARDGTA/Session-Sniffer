@@ -878,10 +878,10 @@ def _apply_accepted_changes(accepted_entries: list[_PendingEntry], accepted_remo
         ]
         anchors = {entry.ip: entry.anchor_username for entry in ordered_entries if entry.anchor_username}
         added_pairs = append_userip_entries(target_db_path, new_models, anchor_usernames_by_ip=anchors)
-        moved_in_batch = sum(1 for entry in ordered_entries if entry.target_db_path != entry.db_path)
-        if added_pairs or moved_in_batch:
-            total_added += max(0, len(added_pairs) - moved_in_batch)
-            total_moved += moved_in_batch
+        added_pairs_cf = {(u.casefold(), ip) for u, ip in added_pairs}
+        total_added += sum(1 for entry in ordered_entries if entry.target_db_path == entry.db_path and (entry.username.casefold(), entry.ip) in added_pairs_cf)
+        total_moved += sum(1 for entry in ordered_entries if entry.target_db_path != entry.db_path)
+        if added_pairs:
             affected_dbs.add(target_db_path)
 
     for rem in accepted_removals:

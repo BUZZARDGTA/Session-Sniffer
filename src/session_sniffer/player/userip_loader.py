@@ -722,14 +722,27 @@ def _sync_groups_with_db_changes(
         for old_e in old_entries:
             if old_u := old_e.username.strip():
                 old_cfs_by_ip.setdefault(old_e.ip, set()).add(old_u.casefold())
-        new_names_by_key: dict[tuple[str, str], list[str]] = {}
-        for new_e in new_entries:
-            if (new_u := new_e.username.strip()) and new_u.casefold() not in old_cfs_by_ip.get(new_e.ip, set()):
-                new_names_by_key.setdefault((new_e.ip, new_e.added_at), []).append(new_u)
+        unmatched_new = [
+            new_e for new_e in new_entries if (new_u := new_e.username.strip()) and new_u.casefold() not in old_cfs_by_ip.get(new_e.ip, set())
+        ]
         for old_e in old_entries:
             old_u = old_e.username.strip()
-            if old_u and old_u.casefold() in removed_cfs and (candidates := new_names_by_key.get((old_e.ip, old_e.added_at))) is not None and candidates:
-                changed = rename_username_in_groups(old_u, candidates.pop(0)) or changed
+            if not old_u or old_u.casefold() not in removed_cfs:
+                continue
+            match_e = next(
+                (e for e in unmatched_new if e.ip == old_e.ip and e.added_at == old_e.added_at),
+                next(
+                    (
+                        e
+                        for e in unmatched_new
+                        if e.username.strip().casefold() not in prev_cfs and (e.ip == old_e.ip or (bool(old_e.added_at) and e.added_at == old_e.added_at))
+                    ),
+                    None,
+                ),
+            )
+            if match_e is not None:
+                unmatched_new.remove(match_e)
+                changed = rename_username_in_groups(old_u, match_e.username.strip()) or changed
                 removed_cfs.discard(old_u.casefold())
 
     return bool(removed_cfs and remove_usernames_from_groups(removed_cfs)) or changed
@@ -768,6 +781,7 @@ def update_userip_databases() -> tuple[float, bool]:
                 parsed_settings, parsed_entries = parse_userip_json_file(userip_path)
                 if parsed_settings is None or parsed_entries is None:
                     _parsed_userip_databases.pop(userip_path, None)
+                    prev_by_db.pop(userip_path, None)
                     post_parse_sig = get_file_signature(userip_path)
                     if post_parse_sig is not None:
                         parsed_mod_times[userip_path] = post_parse_sig

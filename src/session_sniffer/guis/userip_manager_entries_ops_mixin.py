@@ -691,7 +691,7 @@ class UserIPEntriesOperationsMixin(QDialog):
                     if pair in added_pairs_cf:
                         added_pairs_cf.discard(pair)
                         if db_item := self._model.item(row, DATABASE_COLUMN):
-                            db_item.setText(str(target_display_name))
+                            db_item.setText(target_db_path.stem)
                             db_item.setData(str(target_db_path), Qt.ItemDataRole.UserRole)
                         set_row_updated_at(self._model, row, now_iso)
                         updated_rows.append(row)

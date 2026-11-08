@@ -73,11 +73,7 @@ def collect_persisted_usernames_for_ip(db_path: Path, ip_address: str) -> list[s
     if not db_path.is_file():
         return []
     db_model = load_userip_database_model(db_path)
-    return dedup_preserve_order(
-        entry.username.strip()
-        for entry in db_model.entries
-        if entry.username.strip() and entry_ip_covers_ip(entry.ip.strip(), ip_address)
-    )
+    return dedup_preserve_order(entry.username.strip() for entry in db_model.entries if entry.username.strip() and entry_ip_covers_ip(entry.ip.strip(), ip_address))
 
 
 def _show_modal_info_on_top(parent: QWidget, title: str, text: str) -> None:
@@ -124,11 +120,7 @@ def resolve_usernames_for_ips(selected_ips: list[str]) -> list[str]:
     is_past_session = 0 < selected_session < SessionTracker.get_current_session_id()
     all_usernames: list[str] = []
     for ip_address in selected_ips:
-        player = (
-            SessionTracker.get_session_snapshot_player(selected_session, ip_address)
-            if is_past_session
-            else None
-        ) or PlayersRegistry.get_player_by_ip(ip_address)
+        player = (SessionTracker.get_session_snapshot_player(selected_session, ip_address) if is_past_session else None) or PlayersRegistry.get_player_by_ip(ip_address)
         if player is not None:
             all_usernames.extend(resolve_usernames_for_player(player))
     return dedup_preserve_order(all_usernames)
@@ -187,6 +179,7 @@ def _prompt_usernames_to_add(
         initial_notes = {}
 
     if prompt_message is None:
+
         def _default_prompt(count: int) -> str:
             return f'Please enter the username{pluralize(count)} to associate with the selected IP{pluralize(len(selected_ips))}:'
 
@@ -733,10 +726,7 @@ def userip_delete(parent: QWidget, selected_ips: list[str]) -> None:
 
     if deleted_entries_by_database:
         refresh_userip_and_wake_renderer()
-        header = (
-            f'<b>Selected IP{pluralize(len(selected_ips))} removed from the following '
-            f'UserIP database{pluralize(len(deleted_entries_by_database))}:</b><br><br><br>'
-        )
+        header = f'<b>Selected IP{pluralize(len(selected_ips))} removed from the following UserIP database{pluralize(len(deleted_entries_by_database))}:</b><br><br><br>'
         QMessageBox.information(parent, TITLE, header + _format_database_entries_html_list(deleted_entries_by_database))
 
 
@@ -871,7 +861,10 @@ def prompt_and_ungroup(parent: QWidget, group_members: list[str], *, selected_ip
         UsernameSelectionConfig(
             title='Ungroup Usernames',
             instructions='Select username(s) to unlink from this account group (prevents false-positive grouping):',
-            action_button_text='Ungroup', multiple=True, default_checked=False, selected_ips=selected_ips,
+            action_button_text='Ungroup',
+            multiple=True,
+            default_checked=False,
+            selected_ips=selected_ips,
         ),
     )
     if dlg.exec() != SelectUsernamesDialog.DialogCode.Accepted:
@@ -931,26 +924,28 @@ def get_player_looky_username_lists(player: Player) -> tuple[list[str], list[str
     return active_names, removed_names
 
 
-def _refresh_player_looky_exclusions(player: Player) -> None:
+def _refresh_player_looky_exclusions(player: Player, *, reset_userip_checked: bool = False) -> None:
     """Re-apply per-IP Looky username exclusions to *player* (and its live/snapshot counterparts) and wake the renderer."""
     excluded_cfs = get_excluded_looky_usernames_cf(player.ip)
     include_looky = Settings.looky_enabled and Settings.is_gta5_feature_set() and CaptureState.is_local_capture()
     updated_names = player.looky_system.refresh_filtered_usernames(excluded_cfs)
     live_player = PlayersRegistry.get_player_by_ip(player.ip)
-    live_updated = (
-        live_player.looky_system.refresh_filtered_usernames(excluded_cfs)
-        if live_player is not None and live_player is not player
-        else ()
-    )
+    live_updated = live_player.looky_system.refresh_filtered_usernames(excluded_cfs) if live_player is not None and live_player is not player else ()
+    if reset_userip_checked:
+        for target_p in (player, live_player):
+            if target_p is not None:
+                with target_p.looky_system.lock:
+                    target_p.looky_system.as_userip_checked = False
     snap_updates = [
         (snapshot_player, snapshot_player.looky_system.refresh_filtered_usernames(excluded_cfs))
         for snapshot_player in SessionTracker.get_all_snapshot_players()
         if snapshot_player is not player and snapshot_player.ip == player.ip
     ]
     record_looky_db_correlation(updated_names, UserIPDatabases.get_known_username_dbs_cf())
-    _, databases_rebuilt = update_userip_databases()
-    if databases_rebuilt:
-        player.userip = UserIPDatabases.resolve_userip(player.ip)
+    if update_userip_databases()[1]:
+        resolved_userip = UserIPDatabases.resolve_userip(player.ip)
+        for target_p in (player, *([live_player] if live_player is not None else []), *(s for s, _ in snap_updates)):
+            target_p.userip = resolved_userip
     player.rebuild_usernames(looky_usernames=updated_names if include_looky and player.looky_system.is_initialized else ())
     if live_player is not None and live_player is not player:
         live_player.rebuild_usernames(looky_usernames=live_updated if include_looky and live_player.looky_system.is_initialized else ())
@@ -969,7 +964,10 @@ def looky_remove_usernames_for_player(parent: QWidget, player: Player, active_lo
         UsernameSelectionConfig(
             title='Remove Looky Usernames',
             instructions=f'Select Looky username{pluralize(len(active_looky_names))} to hide on this IP:',
-            action_button_text='Remove', multiple=True, default_checked=False, selected_ips=[player.ip],
+            action_button_text='Remove',
+            multiple=True,
+            default_checked=False,
+            selected_ips=[player.ip],
         ),
     )
     if dlg.exec() == SelectUsernamesDialog.DialogCode.Accepted:
@@ -987,10 +985,13 @@ def looky_restore_usernames_for_player(parent: QWidget, player: Player, removed_
         UsernameSelectionConfig(
             title='Restore Removed Looky Usernames',
             instructions=f'Select removed Looky username{pluralize(len(removed_looky_names))} to re-add on this IP:',
-            action_button_text='Restore', multiple=True, default_checked=True, selected_ips=[player.ip],
+            action_button_text='Restore',
+            multiple=True,
+            default_checked=True,
+            selected_ips=[player.ip],
         ),
     )
     if dlg.exec() == SelectUsernamesDialog.DialogCode.Accepted:
         chosen = dlg.selected_usernames()
         if chosen and restore_looky_usernames(player.ip, chosen):
-            _refresh_player_looky_exclusions(player)
+            _refresh_player_looky_exclusions(player, reset_userip_checked=True)

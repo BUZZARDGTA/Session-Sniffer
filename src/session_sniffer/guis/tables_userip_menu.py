@@ -466,6 +466,7 @@ def build_userip_menu_multi(
             UserIPDatabases.get_userip_database_filepaths(),
             tooltip=f'Move {entries_phrase} to this UserIP database.',
             handler_factory=lambda db_path: lambda: userip_move(parent, ip_addresses, db_path),
+            disabled_path=next(iter(selected_dbs)) if len(selected_dbs := {p.userip.db_path for p in rename_players if p.userip is not None}) == 1 else None,
         )
 
         add_action(
