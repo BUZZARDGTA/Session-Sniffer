@@ -796,11 +796,13 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
     def _open_settings_dialog(self) -> None:
         """Open the Settings window, or focus the existing one."""
         self._unregister_solo_session_hotkeys()
+        created = False
 
         def _factory() -> SettingsDialog:
+            nonlocal created
+            created = True
             window = SettingsDialog(None, self.capture.get(), self._on_change_interface)
             window.rejected.connect(self._sync_solo_session_hotkey)
-            window.destroyed.connect(self._sync_solo_session_hotkey)
             for callback in (
                 TableMergeState.reset_override,
                 self._apply_always_on_top,
@@ -814,7 +816,9 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
                 window.accepted.connect(callback)
             return window
 
-        show_or_focus_window(self, '_settings_dialog_window', _factory)
+        dialog = show_or_focus_window(self, '_settings_dialog_window', _factory)
+        if created:
+            dialog.destroyed.connect(self._sync_solo_session_hotkey)
 
     def _on_global_search_changed(self, text: str, column_name: str) -> None:
         """Update global search state across connected and disconnected tables."""
