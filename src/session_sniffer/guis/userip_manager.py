@@ -5,7 +5,7 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, ClassVar, override
 
 from PySide6.QtCore import QByteArray, QModelIndex, QSignalBlocker, QSize, Qt, QUrl
-from PySide6.QtGui import QCloseEvent, QDesktopServices, QIcon, QKeySequence, QResizeEvent, QShortcut, QShowEvent, QStandardItemModel
+from PySide6.QtGui import QCloseEvent, QColor, QDesktopServices, QIcon, QKeySequence, QResizeEvent, QShortcut, QShowEvent, QStandardItemModel
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
@@ -28,7 +28,7 @@ from PySide6.QtWidgets import (
 from session_sniffer.constants.local import GUI_STATE_PATH, RESOURCES_DIR_PATH, USERIP_DATABASES_DIR_PATH
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.guis._dialog_mixins import prompt_unsaved_changes_close
-from session_sniffer.guis.delegates import ElidedTextTooltipDelegate, SearchHighlightDelegate
+from session_sniffer.guis.delegates import SearchHighlightDelegate
 from session_sniffer.guis.file_watch import DebouncedFileWatcher
 from session_sniffer.guis.logs_manager._helpers import human_readable_timestamp
 from session_sniffer.guis.select_usernames_dialog import configure_username_cell_editor
@@ -58,7 +58,7 @@ from session_sniffer.guis.userip_manager_helpers import (
 )
 from session_sniffer.guis.userip_manager_import_export_mixin import UserIPImportExportMixin
 from session_sniffer.guis.userip_manager_settings_mixin import SettingsPanelMixin
-from session_sniffer.guis.userip_manager_tree_ops import TreeOperationsMixin
+from session_sniffer.guis.userip_manager_tree_ops import TreeOperationsMixin, UserIPDatabaseTreeDelegate
 from session_sniffer.guis.utils import (
     apply_search_icon,
     consume_maximize_on_show,
@@ -184,6 +184,7 @@ class UserIPDatabasesManager(
         self._global_search_active, self._saving = False, False
         self._next_index, self._last_seen_build_version = 1, UserIPDatabases.build_version
         self._disk_snapshot: str = ''
+        self._db_visual_cache: dict[Path, tuple[int, bool, QColor]] = {}
         self._looky_icon = QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'eye.svg'))
 
         root_layout = QVBoxLayout(self)
@@ -255,7 +256,7 @@ class UserIPDatabasesManager(
         self._tree.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self._tree.setVerticalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
         self._tree.setHorizontalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
-        self._tree.setItemDelegate(ElidedTextTooltipDelegate(self._tree))
+        self._tree.setItemDelegate(UserIPDatabaseTreeDelegate(self._tree, self._get_tree_index_db_visual, self._toggle_tree_index_db))
         self._tree.setWordWrap(False)
 
         # Enable drag-and-drop to move files/folders within the tree
@@ -568,7 +569,10 @@ class UserIPDatabasesManager(
         self._sync_dirty_state()
         if self._settings_dirty:
             self._save_database(show_errors=False)
+        if viewport := self._tree.viewport():
+            viewport.update()
 
+    @override
     def _capture_settings_snapshot(self) -> None:
         """Record the current serialized settings as the clean baseline."""
         self._settings_snapshot = self.read_settings_from_widgets().model_copy()
@@ -934,10 +938,7 @@ class UserIPDatabasesManager(
             self._is_programmatic_resizing = True
             try:
                 adjust_last_visible_column_to_viewport(
-                    self._entries_table,
-                    resized_column=logical_index,
-                    min_column_widths=_DEFAULT_ENTRY_COLUMN_WIDTHS,
-                    custom_widths=self._custom_column_widths,
+                    self._entries_table, resized_column=logical_index, min_column_widths=_DEFAULT_ENTRY_COLUMN_WIDTHS, custom_widths=self._custom_column_widths,
                 )
             finally:
                 self._is_programmatic_resizing = False

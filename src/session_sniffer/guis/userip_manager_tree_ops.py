@@ -3,14 +3,31 @@
 import logging
 import shutil
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast, override
 
-from PySide6.QtCore import QPoint, QSignalBlocker, Qt, QUrl
-from PySide6.QtGui import QAction, QDesktopServices, QIcon, QStandardItemModel
-from PySide6.QtWidgets import QCheckBox, QDialog, QFileDialog, QFileSystemModel, QFrame, QInputDialog, QLineEdit, QMenu, QMessageBox, QPushButton, QTreeView
+from PySide6.QtCore import QEvent, QModelIndex, QObject, QPersistentModelIndex, QPoint, QRect, QRectF, QSignalBlocker, QSize, Qt, QUrl
+from PySide6.QtGui import QAction, QColor, QDesktopServices, QFont, QFontMetrics, QIcon, QMouseEvent, QPainter, QPainterPath, QPen, QStandardItemModel
+from PySide6.QtWidgets import (
+    QAbstractItemView,
+    QCheckBox,
+    QDialog,
+    QFileDialog,
+    QFileSystemModel,
+    QFrame,
+    QInputDialog,
+    QLineEdit,
+    QMenu,
+    QMessageBox,
+    QPushButton,
+    QStyle,
+    QStyleOptionViewItem,
+    QTreeView,
+)
+from shiboken6 import isValid
 
 from session_sniffer.constants.local import RESOURCES_DIR_PATH, USERIP_DATABASES_DIR_PATH
 from session_sniffer.constants.standalone import TITLE
+from session_sniffer.guis.delegates import ElidedTextTooltipDelegate
 from session_sniffer.guis.looky_text import (
     configure_looky_action,
 )
@@ -22,15 +39,177 @@ from session_sniffer.guis.userip_manager_helpers import (
     refresh_userip_and_wake_renderer,
     save_userip_database_model,
 )
-from session_sniffer.guis.utils import open_file_location
+from session_sniffer.guis.utils import open_file_location, scale_by_ui
 from session_sniffer.models.userip_settings_model import DEFAULT_USERIP_FILES_SETTINGS, UserIPDatabaseFile
 from session_sniffer.settings.settings import Settings
 from session_sniffer.text_utils import pluralize
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from session_sniffer.guis.color_picker_dialog import ColorPickerButton
     from session_sniffer.guis.file_watch import DebouncedFileWatcher
 
 logger = logging.getLogger(__name__)
+
+
+class UserIPDatabaseTreeDelegate(ElidedTextTooltipDelegate):
+    """Item delegate for the UserIP databases tree showing a color dot, strike-through when disabled, and a clickable ON/OFF toggle pill."""
+
+    def __init__(
+        self,
+        parent: QAbstractItemView,
+        get_db_visual: Callable[[QModelIndex | QPersistentModelIndex], tuple[bool, QColor] | None],
+        on_toggle_db: Callable[[QModelIndex | QPersistentModelIndex], None],
+    ) -> None:
+        """Initialize the delegate with callbacks for database visual state and toggling."""
+        super().__init__(parent)
+        self._view = parent
+        self._get_db_visual = get_db_visual
+        self._on_toggle_db = on_toggle_db
+        self._pressed_index: QPersistentModelIndex | None = None
+        viewport = parent.viewport()
+        viewport.setMouseTracking(True)
+        viewport.installEventFilter(self)
+
+    @staticmethod
+    def _pill_rect(row_rect: QRect) -> QRect:
+        """Return the rectangle for the right-aligned ON/OFF toggle pill within *row_rect*."""
+        pill_w = scale_by_ui(44)
+        pill_h = min(scale_by_ui(18), max(scale_by_ui(14), row_rect.height() - scale_by_ui(4)))
+        pill_x = row_rect.left() + row_rect.width() - pill_w - scale_by_ui(6)
+        pill_y = row_rect.top() + (row_rect.height() - pill_h) // 2
+        return QRect(pill_x, pill_y, pill_w, pill_h)
+
+    @override
+    def sizeHint(self, option: QStyleOptionViewItem, index: QModelIndex | QPersistentModelIndex) -> QSize:
+        """Ensure sufficient row height for the ON/OFF toggle pill."""
+        size = super().sizeHint(option, index)
+        return QSize(size.width(), max(size.height(), scale_by_ui(24)))
+
+    @override
+    def eventFilter(self, watched: QObject, event: QEvent) -> bool:
+        """Handle hover cursor and click events on the ON/OFF toggle pill without changing tree selection."""
+        if not isValid(self._view) or not isValid(watched):
+            return False
+        viewport = self._view.viewport()
+        if watched is not viewport:
+            return super().eventFilter(watched, event)
+        if not isinstance(event, QMouseEvent):
+            return False
+
+        event_type = event.type()
+        pos = event.position().toPoint()
+        idx = self._view.indexAt(pos)
+        on_pill = idx.isValid() and self._get_db_visual(idx) is not None and self._pill_rect(self._view.visualRect(idx)).contains(pos)
+
+        if event_type == QEvent.Type.MouseMove:
+            if on_pill:
+                viewport.setCursor(Qt.CursorShape.PointingHandCursor)
+            else:
+                viewport.unsetCursor()
+        elif event.button() == Qt.MouseButton.LeftButton:
+            if event_type in (QEvent.Type.MouseButtonPress, QEvent.Type.MouseButtonDblClick) and on_pill:
+                self._pressed_index = QPersistentModelIndex(idx)
+                return True
+            if event_type == QEvent.Type.MouseButtonRelease and self._pressed_index is not None:
+                pressed = self._pressed_index
+                self._pressed_index = None
+                if pressed.isValid() and pressed == QPersistentModelIndex(idx) and on_pill:
+                    self._on_toggle_db(idx)
+                    viewport.update()
+                return True
+
+        return False
+
+    @override
+    def paint(self, painter: QPainter, option: QStyleOptionViewItem, index: QModelIndex | QPersistentModelIndex) -> None:
+        """Paint database rows with a color dot, strike-through when disabled, and a right-aligned ON/OFF toggle pill."""
+        visual = self._get_db_visual(index)
+        if visual is None or not painter:
+            super().paint(painter, option, index)
+            return
+
+        is_enabled, db_color = visual
+        self._paint_cell_background(painter, option, index, paint_selection=True)
+
+        rect = cast('QRect', object.__getattribute__(option, 'rect'))
+        base_font = cast('QFont', object.__getattribute__(option, 'font'))
+        is_selected = bool(option.state & QStyle.StateFlag.State_Selected)
+
+        painter.save()
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, on=True)
+        painter.setRenderHint(QPainter.RenderHint.TextAntialiasing, on=True)
+
+        # 1. Left Color Dot
+        dot_size = scale_by_ui(9)
+        dot_x = rect.left() + scale_by_ui(6)
+        dot_y = rect.top() + (rect.height() - dot_size) // 2
+        dot_rect = QRectF(float(dot_x), float(dot_y), float(dot_size), float(dot_size))
+        painter.setBrush(db_color if is_enabled else QColor('#64748b'))
+        painter.setPen(QPen(QColor(255, 255, 255, 75 if is_enabled else 35), 1.0))
+        painter.drawEllipse(dot_rect)
+
+        # 2. Right-aligned ON / OFF Toggle Pill
+        pill_rect = self._pill_rect(rect)
+        pill_radius = float(scale_by_ui(4))
+        pill_path = QPainterPath()
+        pill_path.addRoundedRect(QRectF(pill_rect), pill_radius, pill_radius)
+
+        if is_enabled:
+            pill_bg = QColor(16, 185, 129, 45)
+            pill_border = QColor(16, 185, 129, 130)
+            pill_fg = QColor('#34d399')
+            pill_text = 'ON'
+        else:
+            pill_bg = QColor(100, 116, 139, 32)
+            pill_border = QColor(100, 116, 139, 95)
+            pill_fg = QColor('#94a3b8')
+            pill_text = 'OFF'
+
+        painter.fillPath(pill_path, pill_bg)
+        painter.setPen(QPen(pill_border, 1.0))
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.drawPath(pill_path)
+
+        # Mini toggle switch icon inside pill
+        sw_w = float(scale_by_ui(11))
+        sw_h = float(scale_by_ui(7))
+        sw_x = float(pill_rect.left() + scale_by_ui(5))
+        sw_y = float(pill_rect.top()) + (float(pill_rect.height()) - sw_h) / 2.0
+        painter.setPen(QPen(pill_fg, 1.3))
+        painter.drawRoundedRect(QRectF(sw_x, sw_y, sw_w, sw_h), sw_h / 2.0, sw_h / 2.0)
+        knob_d = max(2.0, sw_h - 3.2)
+        knob_x = (sw_x + sw_w - knob_d - 1.6) if is_enabled else (sw_x + 1.6)
+        knob_y = sw_y + (sw_h - knob_d) / 2.0
+        painter.setBrush(pill_fg)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.drawEllipse(QRectF(knob_x, knob_y, knob_d, knob_d))
+
+        pill_font = QFont(base_font)
+        pill_font.setPointSizeF(7.5)
+        pill_font.setBold(True)
+        painter.setFont(pill_font)
+        painter.setPen(pill_fg)
+        pill_text_left = int(sw_x + sw_w) + scale_by_ui(3)
+        pill_text_rect = QRect(pill_text_left, pill_rect.top(), max(0, pill_rect.left() + pill_rect.width() - pill_text_left - scale_by_ui(3)), pill_rect.height())
+        painter.drawText(pill_text_rect, Qt.AlignmentFlag.AlignCenter, pill_text)
+
+        # 3. Database Filename
+        raw_text = index.data(Qt.ItemDataRole.DisplayRole)
+        text = raw_text if isinstance(raw_text, str) else ''
+        text_left = dot_x + dot_size + scale_by_ui(7)
+        text_w = max(0, pill_rect.left() - scale_by_ui(6) - text_left)
+        if text and text_w > 0:
+            name_font = QFont(base_font)
+            name_font.setStrikeOut(not is_enabled)
+            painter.setFont(name_font)
+            text_color = (QColor('#ffffff') if is_selected else QColor('#e6edf3')) if is_enabled else (QColor('#94a3b8') if is_selected else QColor('#64748b'))
+            painter.setPen(text_color)
+            elided = QFontMetrics(name_font).elidedText(text, Qt.TextElideMode.ElideRight, text_w)
+            painter.drawText(QRect(text_left, rect.top(), text_w, rect.height()), Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, elided)
+
+        painter.restore()
 
 
 class TreeOperationsMixin(QDialog):
@@ -47,10 +226,15 @@ class TreeOperationsMixin(QDialog):
     _fs_model: QFileSystemModel
     _current_path: Path | None
     _dirty: bool
+    _settings_dirty: bool
+    _disk_snapshot: str
     _model: QStandardItemModel
     _open_db_button: QPushButton
     _export_selected_action: QAction | None
     _settings_container: QFrame
+    _setting_enabled: QCheckBox
+    _setting_color: ColorPickerButton
+    _db_visual_cache: dict[Path, tuple[int, bool, QColor]]
     _add_button: QPushButton
     _edit_ip_button: QPushButton
     _delete_button: QPushButton
@@ -60,6 +244,8 @@ class TreeOperationsMixin(QDialog):
     _global_search_checkbox: QCheckBox
 
     def _clear_dirty_state(self) -> None: ...
+
+    def _capture_settings_snapshot(self) -> None: ...
 
     def _save_on_close(self) -> bool:
         return True
@@ -212,6 +398,54 @@ class TreeOperationsMixin(QDialog):
 
         looky_refresh_userip_entries(self, entries)
 
+    def _get_tree_index_db_visual(self, index: QModelIndex | QPersistentModelIndex) -> tuple[bool, QColor] | None:
+        """Return `(is_enabled, color)` for a `.json` database tree index, or `None` for folders/non-databases."""
+        file_path_str = self._fs_model.filePath(index) if index.isValid() and not self._fs_model.isDir(index) else ''
+        file_path = Path(file_path_str) if file_path_str else None
+        if file_path is None or file_path.suffix.lower() != '.json':
+            return None
+        if file_path == self._current_path and not self._global_search_active:
+            return self._setting_enabled.isChecked(), QColor(self._setting_color.color())
+        try:
+            mtime_ns = file_path.stat().st_mtime_ns
+        except OSError:
+            return None
+        cached = self._db_visual_cache.get(file_path)
+        if cached is not None and cached[0] == mtime_ns:
+            return cached[1], cached[2]
+        settings = load_userip_database_model(file_path).settings
+        color = QColor(settings.COLOR)
+        self._db_visual_cache[file_path] = (mtime_ns, settings.ENABLED, color)
+        return settings.ENABLED, color
+
+    def _toggle_tree_index_db(self, index: QModelIndex | QPersistentModelIndex) -> None:
+        """Toggle the enabled state of the `.json` database at *index*."""
+        visual = self._get_tree_index_db_visual(index)
+        if visual is not None:
+            self._set_database_enabled(Path(self._fs_model.filePath(index)), enabled=not visual[0])
+
+    def _set_database_enabled(self, path: Path, *, enabled: bool) -> None:
+        """Enable or disable the UserIP database at *path* and persist the setting."""
+        if not path.is_file() or path.suffix.lower() != '.json':
+            return
+        is_current = path == self._current_path and not self._global_search_active
+        if is_current:
+            self._setting_enabled.setChecked(enabled)
+        if not is_current or self._settings_dirty:
+            db_model = load_userip_database_model(path)
+            db_model.settings.ENABLED = enabled
+            with QSignalBlocker(self._fs_watcher):
+                save_userip_database_model(path, db_model)
+                refresh_userip_and_wake_renderer()
+            if is_current:
+                self._disk_snapshot = path.read_text('utf-8')
+                self._capture_settings_snapshot()
+            self._rebuild_fs_watch()
+        self._db_visual_cache.pop(path, None)
+        if viewport := self._tree.viewport():
+            viewport.update()
+        self._set_status(f'{"Enabled" if enabled else "Disabled"} database: {path.name}')
+
     def _show_tree_context_menu(self, position: QPoint) -> None:
         """Show a right-click context menu for the file tree."""
         index = self._tree.indexAt(position)
@@ -220,6 +454,18 @@ class TreeOperationsMixin(QDialog):
 
         if index.isValid():
             file_path = Path(self._fs_model.filePath(index))
+
+            if file_path.is_file() and file_path.suffix.lower() == '.json':
+                is_enabled = (
+                    self._setting_enabled.isChecked()
+                    if (file_path == self._current_path and not self._global_search_active)
+                    else load_userip_database_model(file_path).settings.ENABLED
+                )
+                toggle_icon = QIcon(str(RESOURCES_DIR_PATH / 'icons' / ('toggle-left.svg' if is_enabled else 'toggle-right.svg')))
+                toggle_action = QAction(toggle_icon, 'Disable Database' if is_enabled else 'Enable Database', self)
+                toggle_action.triggered.connect(lambda: self._set_database_enabled(file_path, enabled=not is_enabled))
+                menu.addAction(toggle_action)
+                menu.addSeparator()
 
             if file_path.is_dir():
                 new_db_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'file-plus.svg')), 'New Database Here', self)
