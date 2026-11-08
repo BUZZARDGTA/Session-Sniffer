@@ -647,10 +647,6 @@ def rendering_core(
 
                 # Trigger search once every pending player has completed disconnection
                 if SessionHost.players_pending_for_disconnection and all(player.left_event.is_set() for player in SessionHost.players_pending_for_disconnection):
-                    if not _session_transitioned_for_pending_disconnections:
-                        SessionHost.set_player(None)
-                        SessionHost.search_player = not modmenu_lua_authoritative and not SessionHost.is_manually_cleared()
-                        SessionHost.search_start_time = None
                     new_p2p_connected = [player for player in p2p_session_connected if player not in SessionHost.players_pending_for_disconnection]
                     if not _session_transitioned_for_pending_disconnections and new_p2p_connected:
                         remaining_connected = [player for player in session_connected if player not in SessionHost.players_pending_for_disconnection]
@@ -659,6 +655,10 @@ def rendering_core(
                             p2p_players=new_p2p_connected,
                             excluded_players=SessionHost.players_pending_for_disconnection,
                         )
+                    if not _session_transitioned_for_pending_disconnections:
+                        SessionHost.set_player(None)
+                        SessionHost.search_player = not modmenu_lua_authoritative and not SessionHost.is_manually_cleared()
+                        SessionHost.search_start_time = None
                     SessionHost.players_pending_for_disconnection.clear()
                     _session_transitioned_for_pending_disconnections = False
                 elif SessionHost.players_pending_for_disconnection:
@@ -708,8 +708,6 @@ def rendering_core(
                     if not SessionHost.players_pending_for_disconnection:
                         SessionHost.players_pending_for_disconnection = list(p2p_session_connected)
                         _session_transitioned_for_pending_disconnections = False
-                    if modmenu_lua_authoritative:
-                        _sync_modmenu_session_host(session_connected, p2p_session_connected)
                 elif modmenu_lua_authoritative:
                     _sync_modmenu_session_host(session_connected, p2p_session_connected)
                 elif SessionHost.search_player:

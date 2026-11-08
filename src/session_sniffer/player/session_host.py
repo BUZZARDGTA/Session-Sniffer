@@ -427,12 +427,22 @@ class SessionHost:
         """Update the latest host history entry in-place if it matches `(session_id, player.ip)`."""
         if session_id is None:
             session_id = SessionTracker.get_current_session_id()
+        country_code = player.iplookup.resolve_country_code()
+        valid_country = country_code if country_code not in {'...', 'N/A', ''} else ''
+        for snap in (diagnostics, cls.last_diagnostics):
+            if snap is not None and snap.success and snap.detected_host_ip == player.ip:
+                if valid_country and snap.detected_host_country_code in {'...', 'N/A', ''}:
+                    snap.detected_host_country_code = valid_country
+                if player.usernames:
+                    snap.detected_host_usernames = dedup_preserve_order(
+                        player.usernames,
+                        [snap.modmenu_host_username] if snap.modmenu_host_username is not None else (),
+                    )
         if cls._history and cls._history[-1].session_id == session_id and cls._history[-1].ip == player.ip:
-            if diagnostics is not None:
+            if diagnostics is not None and diagnostics.success and diagnostics.detected_host_ip == player.ip:
                 cls._history[-1].diagnostics = diagnostics
-            country_code = player.iplookup.resolve_country_code()
-            if country_code not in {'...', 'N/A', ''}:
-                cls._history[-1].country_code = country_code
+            if valid_country:
+                cls._history[-1].country_code = valid_country
 
     @classmethod
     def get_history(cls, session_id: int | None = None) -> list[HostHistoryEntry]:
@@ -552,6 +562,7 @@ class SessionHost:
         if cls.is_modmenu_lua_source_of_truth():
             cls._resolve_modmenu_host_player(session_connected, current_session_id)
             return
+        cls.set_player(None)
         current_session_connected = [
             player
             for player in session_connected
