@@ -289,7 +289,7 @@ class DetectionsManagerTabsMixin(QDialog):
         add_button.clicked.connect(self._add_combo_rule)
         button_layout.addWidget(add_button)
 
-        self._combo_toggle_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'check.svg')), ' Toggle State')
+        self._combo_toggle_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'toggle-right.svg')), ' Toggle State')
         self._combo_toggle_button.setEnabled(False)
         self._combo_toggle_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self._combo_toggle_button.setFixedWidth(scale_by_ui(125))
@@ -384,11 +384,11 @@ class DetectionsManagerTabsMixin(QDialog):
                 rule = ComboRulesManager.rules[index]
                 self._combo_toggle_button.setText(' Disable Rule' if rule.enabled else ' Enable Rule')
                 self._combo_toggle_button.setIcon(
-                    QIcon(str(RESOURCES_DIR_PATH / 'icons' / ('x.svg' if rule.enabled else 'check.svg'))),
+                    QIcon(str(RESOURCES_DIR_PATH / 'icons' / ('toggle-left.svg' if rule.enabled else 'toggle-right.svg'))),
                 )
         else:
             self._combo_toggle_button.setText(' Toggle State')
-            self._combo_toggle_button.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'check.svg')))
+            self._combo_toggle_button.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'toggle-right.svg')))
 
     def refresh_combo_rules_list(self) -> None:
         """Reload the combo rules QListWidget from ComboRulesManager."""
