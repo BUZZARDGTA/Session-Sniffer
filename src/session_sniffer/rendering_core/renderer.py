@@ -155,13 +155,13 @@ def _sync_modmenu_session_host(session_connected: list[Player], p2p_session_conn
     expected_host_username = host_entry.username if host_entry is not None else None
     expected_menu_name = host_entry.menu_name if host_entry is not None else (ModMenuLogsParser.get_active_host_menu_name() or 'Mod Menu')
     matched_lua_host = next((player for player in active_p2p_connected if player.ip == expected_host_ip), None) if expected_host_ip is not None else None
+    expected_detected_ip = matched_lua_host.ip if matched_lua_host is not None else None
     last_diag = SessionHost.last_diagnostics
     if (
         SessionHost.get_player() is not matched_lua_host
         or last_diag is None
-        or last_diag.modmenu_source != expected_menu_name
-        or last_diag.modmenu_host_ip != expected_host_ip
-        or last_diag.modmenu_host_username != expected_host_username
+        or (last_diag.detected_host_ip, last_diag.modmenu_source, last_diag.modmenu_host_ip, last_diag.modmenu_host_username)
+        != (expected_detected_ip, expected_menu_name, expected_host_ip, expected_host_username)
     ):
         SessionHost.get_host_player(session_connected)
 

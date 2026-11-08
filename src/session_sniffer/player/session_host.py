@@ -438,6 +438,12 @@ class SessionHost:
                         player.usernames,
                         [snap.modmenu_host_username] if snap.modmenu_host_username is not None else (),
                     )
+                for candidate in snap.candidates:
+                    if candidate.ip == player.ip:
+                        if valid_country and candidate.country_code in {'...', 'N/A', ''}:
+                            candidate.country_code = valid_country
+                        if snap.detected_host_usernames:
+                            candidate.usernames = list(snap.detected_host_usernames)
         if cls._history and cls._history[-1].session_id == session_id and cls._history[-1].ip == player.ip:
             if diagnostics is not None and diagnostics.success and diagnostics.detected_host_ip == player.ip:
                 cls._history[-1].diagnostics = diagnostics

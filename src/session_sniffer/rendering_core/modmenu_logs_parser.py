@@ -184,7 +184,7 @@ class ModMenuLogsParser:
                 if not failed_host_paths:
                     cls._active_host_menu_name = active_host_menu_name
                     cls._session_host_entry = parsed_host_entry
-                cls._last_host_mod_times = {p: sig for p, sig in current_host_mod_times.items() if p not in failed_host_paths}
+                cls._last_host_mod_times = {p: (-1, -1, -1, -1) if p in failed_host_paths else sig for p, sig in current_host_mod_times.items()}
                 if parsed_host_entry is not None and parsed_host_entry.username not in cls._host_ip_to_usernames_map[parsed_host_entry.ip]:
                     cls._host_ip_to_usernames_map[parsed_host_entry.ip].append(parsed_host_entry.username)
             if frozen_map is not None:
@@ -195,7 +195,7 @@ class ModMenuLogsParser:
                             if u not in merged_users:
                                 merged_users.append(u)
                 cls._ip_to_usernames_map = frozen_map
-                cls._last_mod_times = {p: sig for p, sig in current_mod_times.items() if p not in failed_log_paths}
+                cls._last_mod_times = {p: (-1, -1, -1, -1) if p in failed_log_paths else sig for p, sig in current_mod_times.items()}
             if cls._host_ip_to_usernames_map:
                 merged_map: dict[str, list[str]] | None = None
                 for host_ip, host_usernames in cls._host_ip_to_usernames_map.items():
