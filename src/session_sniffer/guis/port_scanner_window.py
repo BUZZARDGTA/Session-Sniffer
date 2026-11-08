@@ -1,5 +1,6 @@
 """Native PySide6 window for high-performance TCP and UDP port scanning."""
 
+import contextlib
 import csv
 import socket
 import webbrowser
@@ -176,6 +177,7 @@ class PortScannerTabWidget(QWidget):
         super().__init__(parent)
         self._tab_widget = tab_widget
         self._worker_thread: PortScannerWorkerThread | None = None
+        self._retiring_workers: set[PortScannerWorkerThread] = set()
         self._results: list[PortScanResult] = []
         self._scanned_target: str = ''
 
@@ -454,8 +456,15 @@ class PortScannerTabWidget(QWidget):
     def stop_scan(self) -> None:
         """Abort the active port scan."""
         active_worker = self._worker_thread
-        if active_worker is not None and active_worker.isRunning():
-            active_worker.cancel()
+        if active_worker is not None:
+            with contextlib.suppress(RuntimeError, TypeError):
+                active_worker.result_found.disconnect(self._on_result_received)
+                active_worker.scan_progress.disconnect(self._on_progress_updated)
+                active_worker.scan_complete.disconnect(self._on_worker_finished)
+            if active_worker.isRunning():
+                active_worker.cancel()
+                self._retiring_workers.add(active_worker)
+                active_worker.finished.connect(lambda thread=active_worker: self._retiring_workers.discard(thread))
         self._on_worker_finished()
 
     def _toggle_start_stop(self) -> None:

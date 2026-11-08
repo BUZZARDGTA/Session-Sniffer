@@ -1,5 +1,6 @@
 """Native PySide6 window for ICMP, TCP port, and web ping diagnostics."""
 
+import contextlib
 import html
 import time
 from threading import Event
@@ -168,6 +169,7 @@ class PingTabWidget(QWidget):
         super().__init__(parent)
         self._tab_widget = tab_widget
         self._worker_thread: PingWorkerThread | None = None
+        self._retiring_workers: set[PingWorkerThread] = set()
         self._statistics = PingStatistics()
 
         main_layout = QVBoxLayout(self)
@@ -412,8 +414,15 @@ class PingTabWidget(QWidget):
 
     def stop_ping(self) -> None:
         """Signal the worker thread to stop and restore controls."""
-        if self._worker_thread is not None and self._worker_thread.isRunning():
-            self._worker_thread.cancel()
+        worker = self._worker_thread
+        if worker is not None:
+            with contextlib.suppress(RuntimeError, TypeError):
+                worker.result_received.disconnect(self._on_probe_result)
+                worker.finished_signal.disconnect(self._on_worker_finished)
+            if worker.isRunning():
+                self._retiring_workers.add(worker)
+                worker.finished.connect(lambda w=worker: self._retiring_workers.discard(w))
+                worker.cancel()
 
         self._on_worker_finished()
 
