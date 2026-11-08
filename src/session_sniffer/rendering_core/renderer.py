@@ -120,7 +120,8 @@ def _prune_recovered_pending_disconnections(*, session_transitioned: bool) -> No
             restored_host = PlayersRegistry.get_player_by_ip(existing_history[-1].ip) if existing_history else None
             SessionHost.last_diagnostics = existing_history[-1].diagnostics if existing_history else None
             if restored_host is not None and (
-                (not restored_host.left_event.is_set() and PlayersRegistry.is_player_connected(restored_host)) or SessionHost.is_relay_host_candidate(restored_host)
+                (not restored_host.left_event.is_set() and PlayersRegistry.is_player_connected(restored_host))
+                or (not SessionHost.is_modmenu_lua_source_of_truth() and SessionHost.is_relay_host_candidate(restored_host))
             ):
                 SessionHost.set_player(restored_host)
                 SessionHost.search_player = False
