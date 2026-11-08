@@ -664,7 +664,7 @@ class ComboRuleCardDelegate(QStyledItemDelegate):
         placed: list[tuple[QRect, str, str, bool]] = []
         for prefix_text, value_text, is_negated in chips:
             prefix_w = bold_fm.horizontalAdvance(prefix_text)
-            val_w = reg_fm.horizontalAdvance(value_text)
+            val_w = reg_fm.horizontalAdvance(value_text) + 2
             chip_w = min(content_width, chip_pad_h * 2 + prefix_w + val_w)
             if x > content_left and x + chip_w > content_left + content_width:
                 x = content_left
@@ -880,16 +880,16 @@ class ComboRuleCardDelegate(QStyledItemDelegate):
             painter.drawPath(chip_path)
 
             inner_left = chip_rect.left() + chip_pad_h
-            inner_right = chip_rect.right() - chip_pad_h
+            inner_w = max(0, chip_rect.width() - chip_pad_h * 2)
             prefix_w = bold_chip_fm.horizontalAdvance(prefix_text)
 
             painter.setFont(bold_chip_font)
             painter.setPen(prefix_color)
-            prefix_rect = QRect(inner_left, chip_rect.top(), min(prefix_w, max(0, inner_right - inner_left)), chip_rect.height())
+            prefix_rect = QRect(inner_left, chip_rect.top(), min(prefix_w, inner_w), chip_rect.height())
             painter.drawText(prefix_rect, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, prefix_text)
 
             val_left = inner_left + prefix_w
-            avail_val_w = max(0, inner_right - val_left)
+            avail_val_w = max(0, inner_w - prefix_w)
             if avail_val_w > 0:
                 painter.setFont(reg_chip_font)
                 painter.setPen(value_color)
