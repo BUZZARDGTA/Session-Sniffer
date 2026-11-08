@@ -395,8 +395,8 @@ class LookyRefreshReviewDialog(PlayerInfoDialogMixin):
             controls_bar.addWidget(self._bulk_db_combo)
 
         for btn_text, icon_name, tip_text, is_checked in (
-            ('Select All', 'check.svg', 'Check all currently visible Looky entries and wrong candidate IP removals.', True),
-            ('Unselect All', 'x.svg', 'Uncheck all rows in the table.', False),
+            ('Select All', 'square-check.svg', 'Check all currently visible Looky entries and wrong candidate IP removals.', True),
+            ('Unselect All', 'square.svg', 'Uncheck all rows in the table.', False),
         ):
             sel_btn = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / icon_name)), btn_text)
             sel_btn.setStyleSheet(LOOKY_REVIEW_SELECT_BUTTON_STYLESHEET)
@@ -596,7 +596,7 @@ class LookyRefreshReviewDialog(PlayerInfoDialogMixin):
         self._matches_only_btn.setMinimumWidth(0)
         is_on = self._matches_only_btn.isChecked()
         self._matches_only_btn.setText(f'Matches Only: ON ({self._total_matches})' if is_on else 'Matches Only: OFF (Show All)')
-        self._matches_only_btn.setIcon(render_svg_icon_from_resource('user-round-check.svg' if is_on else 'eye.svg', 16, 16, '#ffffff' if is_on else '#9ca3af'))
+        self._matches_only_btn.setIcon(render_svg_icon_from_resource('toggle-right.svg' if is_on else 'toggle-left.svg', 16, 16, '#ffffff' if is_on else '#9ca3af'))
         self._matches_only_btn.ensurePolished()
         self._matches_only_btn.setMinimumWidth(self._matches_only_btn.sizeHint().width() + 10)
 

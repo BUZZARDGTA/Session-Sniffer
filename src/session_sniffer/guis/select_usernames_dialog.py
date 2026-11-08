@@ -559,13 +559,13 @@ class SelectUsernamesDialog(QDialog):
 
         if self._multiple:
             quick_select_row = QHBoxLayout()
-            select_all_button = QPushButton('Select All')
+            select_all_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square-check.svg')), ' Select All')
             select_all_button.setStyleSheet(COMPACT_BUTTON_STYLESHEET)
             select_all_button.setCursor(Qt.CursorShape.PointingHandCursor)
             select_all_button.clicked.connect(self._select_all)
             quick_select_row.addWidget(select_all_button)
 
-            deselect_all_button = QPushButton('Deselect All')
+            deselect_all_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square.svg')), ' Deselect All')
             deselect_all_button.setStyleSheet(COMPACT_BUTTON_STYLESHEET)
             deselect_all_button.setCursor(Qt.CursorShape.PointingHandCursor)
             deselect_all_button.clicked.connect(self._deselect_all)

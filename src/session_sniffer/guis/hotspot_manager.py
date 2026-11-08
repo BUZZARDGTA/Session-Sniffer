@@ -47,6 +47,7 @@ from session_sniffer.guis.stylesheets import (
     SVG_ICON_CONTEXT_MENU_STYLESHEET,
 )
 from session_sniffer.guis.utils import (
+    render_svg_icon_from_resource,
     scale_by_ui,
     set_clipboard_text,
 )
@@ -411,7 +412,7 @@ class HotspotManagerWidget(QWidget):
 
         # Action buttons
         buttons_layout = QHBoxLayout()
-        self._enable_sharing_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'check.svg')), ' Enable Sharing')
+        self._enable_sharing_button = QPushButton(render_svg_icon_from_resource('toggle-right.svg', scale_by_ui(16), scale_by_ui(16), '#ffffff'), ' Enable Sharing')
         self._enable_sharing_button.setStyleSheet(DIALOG_PRIMARY_BUTTON_STYLESHEET)
         self._enable_sharing_button.clicked.connect(self._enable_sharing_action)
         buttons_layout.addWidget(self._enable_sharing_button)

@@ -150,12 +150,12 @@ class ContinentSelectionDialog(QDialog):
         layout.addWidget(self._list, stretch=1)
 
         actions_row = QHBoxLayout()
-        select_all_btn = QPushButton('Select All')
+        select_all_btn = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square-check.svg')), ' Select All')
         select_all_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         select_all_btn.clicked.connect(lambda: self._set_all_checked(checked=True))
         actions_row.addWidget(select_all_btn)
 
-        clear_btn = QPushButton('Clear Selection')
+        clear_btn = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square.svg')), ' Clear Selection')
         clear_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         clear_btn.clicked.connect(lambda: self._set_all_checked(checked=False))
         actions_row.addWidget(clear_btn)
@@ -238,12 +238,12 @@ class CountrySelectionDialog(QDialog):
         layout.addWidget(self._list, stretch=1)
 
         actions_row = QHBoxLayout()
-        select_visible_btn = QPushButton('Select Visible')
+        select_visible_btn = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square-check.svg')), ' Select Visible')
         select_visible_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         select_visible_btn.clicked.connect(lambda: self._set_visible_checked(checked=True))
         actions_row.addWidget(select_visible_btn)
 
-        clear_btn = QPushButton('Clear Selection')
+        clear_btn = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square.svg')), ' Clear Selection')
         clear_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         clear_btn.clicked.connect(self._clear_all_checked)
         actions_row.addWidget(clear_btn)
