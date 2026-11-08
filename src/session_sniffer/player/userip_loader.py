@@ -840,11 +840,36 @@ def _load_raw_userip_db(db_path: Path, *, action_label: str) -> tuple[UserIPSett
 
 
 def _write_userip_db(db_path: Path, settings: UserIPSettingsModel, entries: list[UserIPEntryModel], *, action_label: str) -> bool:
-    """Serialize and write a UserIP database file, invalidating its cached mtime."""
+    """Serialize and write a UserIP database file, updating in-memory caches in-place when available."""
     db_file = UserIPDatabaseFile(settings=settings, entries=entries)
     try:
-        with userip_database_write(db_path):
+        with _update_userip_databases_lock:
             db_path.write_text(db_file.serialize_to_json(), encoding='utf-8')
+            new_sig = get_file_signature(db_path)
+            if _parsed_userip_databases and new_sig is not None:
+                cached_entry = _parsed_userip_databases.get(db_path)
+                runtime_settings = (
+                    cached_entry[0]
+                    if cached_entry is not None
+                    else UserIPSettings(
+                        enabled=settings.ENABLED,
+                        color=QColor(settings.COLOR) if settings.COLOR else QColor('WHITE'),
+                        log=settings.LOG,
+                        notifications=settings.NOTIFICATIONS,
+                        voice_notifications=settings.VOICE_NOTIFICATIONS,
+                        protection=ProtectionSettings(enabled=settings.PROTECTION, suspend_process_mode=settings.PROTECTION_SUSPEND_PROCESS_MODE),
+                    )
+                )
+                _parsed_userip_databases[db_path] = (runtime_settings, list(entries))
+                _last_userip_db_mod_times[db_path] = new_sig
+                new_databases = [(path, db_settings, db_entries) for path, (db_settings, db_entries) in _parsed_userip_databases.items()]
+                if _sync_groups_with_db_changes(new_databases):
+                    _last_userip_groups_token[:] = [get_groups_state_token()]
+                UserIPDatabases.populate(new_databases)
+                UserIPDatabases.build()
+            else:
+                _last_userip_db_mod_times.pop(db_path, None)
+                _parsed_userip_databases.pop(db_path, None)
     except OSError as e:
         logger.warning('Failed to write UserIP database "%s" for %s: %s', db_path, action_label, e)
         return False
@@ -871,11 +896,7 @@ def find_userip_insert_index(entries: Sequence[UserIPEntryModel], username: str,
 
 
 def append_userip_entry_if_missing(db_path: Path, username: str, ip: str, *, is_looky: bool = False) -> bool:
-    """Append a `{username, ip}` entry to the UserIP `.json` database file if not already covered.
-
-    Returns:
-        `True` if the entry was added; `False` if already present or invalid.
-    """
+    """Append a `{username, ip}` entry to the UserIP `.json` database file if not already covered."""
     cleaned_username = username.strip()
     cleaned_ip = ip.strip()
     if not cleaned_username or not cleaned_ip or not db_path.is_file():
@@ -886,11 +907,9 @@ def append_userip_entry_if_missing(db_path: Path, username: str, ip: str, *, is_
         if loaded is None:
             return False
         validated_settings, entries = loaded
-
         username_cf = cleaned_username.casefold()
         if any(entry.username.casefold() == username_cf and entry_ip_covers_ip(entry.ip, cleaned_ip) for entry in entries):
             return False
-
         new_entry, _ = enrich_userip_entry_from_logs(UserIPEntryModel(username=cleaned_username, ip=cleaned_ip, is_looky=is_looky, notes='', source='Auto-IP'))
         entries.insert(find_userip_insert_index(entries, cleaned_username, cleaned_ip), new_entry)
         return _write_userip_db(db_path, validated_settings, entries, action_label='auto-feed')
@@ -901,39 +920,27 @@ def _update_matching_userip_entries(
     ip_address: str,
     apply_update: Callable[[UserIPEntryModel], UserIPEntryModel],
 ) -> UserIP | None:
-    """Rewrite every entry in `db_path` whose IP or range covers `ip_address` through `apply_update`.
-
-    Args:
-        db_path: Path to the matched UserIP `.json` database file.
-        ip_address: The player's IPv4 address.
-        apply_update: Returns the updated copy of a matching entry.
-
-    Returns:
-        The refreshed `UserIP` snapshot after updating the database, or `None` if unavailable.
-    """
+    """Rewrite every entry in `db_path` whose IP or range covers `ip_address` through `apply_update`."""
     cleaned_ip = ip_address.strip()
     if not cleaned_ip or not db_path.is_file():
         return None
 
     modified = False
-
     with _update_userip_databases_lock:
         loaded = _load_raw_userip_db(db_path, action_label='player activity')
         if loaded is None:
             return None
         validated_settings, entries = loaded
-
         for idx, entry in enumerate(entries):
             if entry_ip_covers_ip(entry.ip, cleaned_ip):
                 updated_entry = apply_update(entry)
                 if updated_entry != entry:
                     entries[idx] = updated_entry
                     modified = True
-
         if modified and not _write_userip_db(db_path, validated_settings, entries, action_label='player activity'):
             return None
 
-    if modified:
+    if modified and not _parsed_userip_databases:
         update_userip_databases()
     return UserIPDatabases.resolve_userip(cleaned_ip)
 
@@ -960,40 +967,14 @@ def _apply_detection_to_entry(entry: UserIPEntryModel, timestamp: str) -> UserIP
 
 
 def record_userip_detection(db_path: Path, ip_address: str, joined_at: datetime) -> UserIP | None:
-    """Increment `detections_count` and merge `joined_at` into `first_seen_at` / `last_seen_at` for entries matching `ip_address`.
-
-    Args:
-        db_path: Path to the matched UserIP `.json` database file.
-        ip_address: The detected player's IPv4 address.
-        joined_at: When the player joined the current session.
-
-    Returns:
-        The refreshed `UserIP` snapshot after updating the database, or `None` if unavailable.
-    """
+    """Increment `detections_count` and merge `joined_at` into `first_seen_at` / `last_seen_at` for entries matching `ip_address`."""
     timestamp = joined_at.isoformat(timespec='seconds')
-    return _update_matching_userip_entries(
-        db_path,
-        ip_address,
-        lambda entry: _apply_detection_to_entry(entry, timestamp),
-    )
+    return _update_matching_userip_entries(db_path, ip_address, lambda entry: _apply_detection_to_entry(entry, timestamp))
 
 
 def record_userip_last_seen(db_path: Path, ip_address: str, last_seen: datetime) -> UserIP | None:
-    """Merge the player's last activity time into `last_seen_at` for entries matching `ip_address`.
-
-    Args:
-        db_path: Path to the matched UserIP `.json` database file.
-        ip_address: The departing player's IPv4 address.
-        last_seen: When the player was last active in the session they just left.
-
-    Returns:
-        The refreshed `UserIP` snapshot after updating the database, or `None` if unavailable.
-    """
+    """Merge the player's last activity time into `last_seen_at` for entries matching `ip_address`."""
     timestamp = last_seen.isoformat(timespec='seconds')
     return _update_matching_userip_entries(
-        db_path,
-        ip_address,
-        lambda entry: enrich_userip_entry_from_logs(
-            entry.model_copy(update={'last_seen_at': pick_latest_iso(entry.last_seen_at, timestamp)}),
-        )[0],
+        db_path, ip_address, lambda entry: enrich_userip_entry_from_logs(entry.model_copy(update={'last_seen_at': pick_latest_iso(entry.last_seen_at, timestamp)}))[0],
     )

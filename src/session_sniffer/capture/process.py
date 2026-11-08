@@ -116,7 +116,7 @@ def _get_process_udp_ports_darwin(target_pid: int) -> frozenset[int]:
             check=False,
             timeout=3.0,
         )
-    except (OSError, subprocess.TimeoutExpired):
+    except OSError, subprocess.TimeoutExpired:
         return frozenset[int]()
 
     ports: set[int] = set()
@@ -378,11 +378,7 @@ def inspect_target_process(
     if is_process_running(target_pid):
         creation_time = get_process_creation_time(target_pid)
         process_path = get_process_image_path(target_pid)
-        process_name = (
-            process_path.name
-            if process_path is not None
-            else next((name for pid, name in iter_running_processes() if pid == target_pid and name), None)
-        )
+        process_name = process_path.name if process_path is not None else next((name for pid, name in iter_running_processes() if pid == target_pid and name), None)
         cached_info = ProcessInfo(pid=target_pid, creation_time=creation_time, name=process_name) if creation_time is not None else None
         return (
             TargetProcessStatus(
@@ -431,11 +427,7 @@ def find_running_target_process(
     candidate_names = GTA5_PROCESS_NAMES if is_gta5 else frozenset({normalized_target})
 
     # Fast path: re-query existing cached process handle if still running.
-    if (
-        cached_process is not None
-        and (target_pid <= 0 or cached_process.pid == target_pid)
-        and is_process_running(cached_process)
-    ):
+    if cached_process is not None and (target_pid <= 0 or cached_process.pid == target_pid) and is_process_running(cached_process):
         process_path = get_process_image_path(cached_process.pid)
         if process_path is not None and process_path.name.lower() in candidate_names:
             updated_cache = (
@@ -453,12 +445,7 @@ def find_running_target_process(
                 ),
                 updated_cache,
             )
-        if (
-            not is_gta5
-            and process_path is None
-            and cached_process.name is not None
-            and cached_process.name.lower() in candidate_names
-        ):
+        if not is_gta5 and process_path is None and cached_process.name is not None and cached_process.name.lower() in candidate_names:
             return (
                 TargetProcessStatus(
                     pid=cached_process.pid,
@@ -473,11 +460,7 @@ def find_running_target_process(
     # Secondary fast path: verify target_pid if provided and running.
     if target_pid > 0 and is_process_running(target_pid):
         process_path = get_process_image_path(target_pid)
-        if (
-            process_path is not None
-            and process_path.name.lower() in candidate_names
-            and (not is_gta5 or has_valid_authenticode_signature(process_path))
-        ):
+        if process_path is not None and process_path.name.lower() in candidate_names and (not is_gta5 or has_valid_authenticode_signature(process_path)):
             creation_time = get_process_creation_time(target_pid)
             cached_info = ProcessInfo(pid=target_pid, creation_time=creation_time, name=process_path.name) if creation_time is not None else None
             return (
@@ -495,6 +478,8 @@ def find_running_target_process(
     fallback_match: tuple[int, str, Path | None] | None = None
     for pid, process_name in iter_running_processes():
         if not process_name or process_name.lower() not in candidate_names:
+            continue
+        if not is_process_running(pid):
             continue
 
         process_path = get_process_image_path(pid)
@@ -540,9 +525,21 @@ def find_running_target_process(
 
 _SYSTEM_PROCESS_NAMES: frozenset[str] = frozenset(
     {
-        'conhost.exe', 'csrss.exe', 'dwm.exe', 'fontdrvhost.exe', 'lsass.exe', 'registry',
-        'runtimebroker.exe', 'services.exe', 'sihost.exe', 'smss.exe', 'spoolsv.exe',
-        'system', 'taskhostw.exe', 'wininit.exe', 'winlogon.exe',
+        'conhost.exe',
+        'csrss.exe',
+        'dwm.exe',
+        'fontdrvhost.exe',
+        'lsass.exe',
+        'registry',
+        'runtimebroker.exe',
+        'services.exe',
+        'sihost.exe',
+        'smss.exe',
+        'spoolsv.exe',
+        'system',
+        'taskhostw.exe',
+        'wininit.exe',
+        'winlogon.exe',
     },
 )
 
@@ -610,6 +607,8 @@ def find_running_game_process[T: GameProcessStatus](
     # Slow path: cheap scan by process name only.
     for pid, process_name in iter_running_processes():
         if not process_name or process_name.lower() not in target_process_names:
+            continue
+        if not is_process_running(pid):
             continue
 
         process_path = get_process_image_path(pid)
