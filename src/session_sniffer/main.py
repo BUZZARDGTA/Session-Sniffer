@@ -697,6 +697,9 @@ def main() -> None:
 
     def _restart_capture_with_ip(new_ip: str, ipv4_addresses: list[str] | None = None) -> None:
         """Silently restart packet capture with a specified IP address on the current interface."""
+        # Stop ARP spoofing first: the old ARP thread must not observe the new capture starting.
+        ArpSpoofingController.stop()
+
         was_running = capture_holder.is_running()
         if was_running:
             capture_holder.stop()
@@ -749,7 +752,6 @@ def main() -> None:
         capture_holder.set(new_capture)
 
         if Settings.capture_arp_spoofing:
-            ArpSpoofingController.stop()
             ArpSpoofingController.start(new_selected_interface)
 
         window.on_interface_switched()
