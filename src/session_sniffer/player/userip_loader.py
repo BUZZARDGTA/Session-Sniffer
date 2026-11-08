@@ -34,7 +34,7 @@ from session_sniffer.player.userip_groups import get_groups_state_token, remove_
 from session_sniffer.utils import FileSignature, get_file_signature, validate_file
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Generator, Sequence
+    from collections.abc import Callable, Generator, Mapping, Sequence
     from typing import Any
 
     from session_sniffer.models.player import Player
@@ -681,7 +681,6 @@ def userip_database_write(db_path: Path) -> Generator[None]:
             yield
         finally:
             _last_userip_db_mod_times.pop(db_path, None)
-            _parsed_userip_databases.pop(db_path, None)
 
 
 def _snapshot_db_mod_times() -> dict[Path, FileSignature]:
@@ -695,12 +694,13 @@ def _snapshot_db_mod_times() -> dict[Path, FileSignature]:
     }
 
 
-def _sync_groups_with_db_changes(new_databases: Sequence[tuple[Path, UserIPSettings, list[UserIPEntryModel]]]) -> bool:
+def _sync_groups_with_db_changes(
+    prev_by_db: Mapping[Path, Sequence[UserIPEntryModel]],
+    new_databases: Sequence[tuple[Path, UserIPSettings, list[UserIPEntryModel]]],
+) -> bool:
     """Propagate username renames and deletions from database changes into `userip_groups.json`."""
-    prev_dbs = UserIPDatabases.userip_databases
-    if not prev_dbs:
+    if not prev_by_db:
         return False
-    prev_by_db = {db_entry.db_path: [*db_entry.single_entries, *db_entry.range_entries] for db_entry in prev_dbs}
     prev_exact = {cleaned for entries in prev_by_db.values() for e in entries if (cleaned := e.username.strip())}
     curr_exact = {cleaned for _, _, entries in new_databases for e in entries if (cleaned := e.username.strip())}
     if prev_exact == curr_exact:
@@ -709,7 +709,10 @@ def _sync_groups_with_db_changes(new_databases: Sequence[tuple[Path, UserIPSetti
     curr_cfs = {u.casefold() for u in curr_exact}
     removed_cfs = prev_cfs - curr_cfs
 
-    changed = any(rename_username_in_groups(new_u, new_u) for new_u in curr_exact - prev_exact if new_u.casefold() in prev_cfs)
+    changed = False
+    for new_u in curr_exact - prev_exact:
+        if new_u.casefold() in prev_cfs and rename_username_in_groups(new_u, new_u):
+            changed = True
     if not removed_cfs:
         return changed
     for db_path, _, new_entries in new_databases:
@@ -749,6 +752,7 @@ def update_userip_databases() -> tuple[float, bool]:
         if _last_userip_db_mod_times:
             logger.debug('Detected changes in UserIP databases, re-parsing...')
 
+        prev_by_db = {path: list(entries) for path, (_, entries) in _parsed_userip_databases.items()}
         for removed_path in set(_parsed_userip_databases) - set(current_userip_db_mod_times):
             _parsed_userip_databases.pop(removed_path, None)
 
@@ -778,7 +782,7 @@ def update_userip_databases() -> tuple[float, bool]:
 
             new_databases.append((userip_path, *cached))
 
-        if _sync_groups_with_db_changes(new_databases):
+        if _sync_groups_with_db_changes(prev_by_db, new_databases):
             current_groups_token = get_groups_state_token()
 
         UserIPDatabases.populate(new_databases)
@@ -846,30 +850,30 @@ def _write_userip_db(db_path: Path, settings: UserIPSettingsModel, entries: list
         with _update_userip_databases_lock:
             db_path.write_text(db_file.serialize_to_json(), encoding='utf-8')
             new_sig = get_file_signature(db_path)
-            if _parsed_userip_databases and new_sig is not None:
-                cached_entry = _parsed_userip_databases.get(db_path)
-                runtime_settings = (
-                    cached_entry[0]
-                    if cached_entry is not None
-                    else UserIPSettings(
-                        enabled=settings.ENABLED,
-                        color=QColor(settings.COLOR) if settings.COLOR else QColor('WHITE'),
-                        log=settings.LOG,
-                        notifications=settings.NOTIFICATIONS,
-                        voice_notifications=settings.VOICE_NOTIFICATIONS,
-                        protection=ProtectionSettings(enabled=settings.PROTECTION, suspend_process_mode=settings.PROTECTION_SUSPEND_PROCESS_MODE),
-                    )
+            if (
+                _parsed_userip_databases
+                and new_sig is not None
+                and db_path in _last_userip_db_mod_times
+                and _last_userip_db_mod_times.keys() == _parsed_userip_databases.keys()
+            ):
+                prev_by_db = {path: list(db_entries) for path, (_, db_entries) in _parsed_userip_databases.items()}
+                runtime_settings = UserIPSettings(
+                    enabled=settings.ENABLED,
+                    color=QColor(settings.COLOR) if settings.COLOR else QColor('WHITE'),
+                    log=settings.LOG,
+                    notifications=settings.NOTIFICATIONS,
+                    voice_notifications=settings.VOICE_NOTIFICATIONS,
+                    protection=ProtectionSettings(enabled=settings.PROTECTION, suspend_process_mode=settings.PROTECTION_SUSPEND_PROCESS_MODE),
                 )
                 _parsed_userip_databases[db_path] = (runtime_settings, list(entries))
                 _last_userip_db_mod_times[db_path] = new_sig
                 new_databases = [(path, db_settings, db_entries) for path, (db_settings, db_entries) in _parsed_userip_databases.items()]
-                if _sync_groups_with_db_changes(new_databases):
+                if _sync_groups_with_db_changes(prev_by_db, new_databases):
                     _last_userip_groups_token[:] = [get_groups_state_token()]
                 UserIPDatabases.populate(new_databases)
                 UserIPDatabases.build()
             else:
                 _last_userip_db_mod_times.pop(db_path, None)
-                _parsed_userip_databases.pop(db_path, None)
     except OSError as e:
         logger.warning('Failed to write UserIP database "%s" for %s: %s', db_path, action_label, e)
         return False
@@ -940,7 +944,7 @@ def _update_matching_userip_entries(
         if modified and not _write_userip_db(db_path, validated_settings, entries, action_label='player activity'):
             return None
 
-    if modified and not _parsed_userip_databases:
+    if modified and db_path not in _last_userip_db_mod_times:
         update_userip_databases()
     return UserIPDatabases.resolve_userip(cleaned_ip)
 
