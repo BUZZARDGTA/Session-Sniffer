@@ -228,16 +228,18 @@ class DetectionsManagerDialog(DetectionsManagerTabsMixin, QDialog):
             self.continent_list.clear()
             seen_continents: set[str] = set()
             for continent in GUIDetectionSettings.continent_detection_list:
-                if continent not in seen_continents:
-                    seen_continents.add(continent)
-                    self._add_continent_item(continent)
+                canonical_continent = normalize_continent_name(continent) or continent
+                if canonical_continent not in seen_continents:
+                    seen_continents.add(canonical_continent)
+                    self._add_continent_item(canonical_continent)
 
             self.country_list.clear()
             seen_countries: set[str] = set()
             for country in GUIDetectionSettings.country_detection_list:
-                if country not in seen_countries:
-                    seen_countries.add(country)
-                    self._add_country_item(country)
+                canonical_country = normalize_country_name(country) or country
+                if canonical_country not in seen_countries:
+                    seen_countries.add(canonical_country)
+                    self._add_country_item(canonical_country)
             self._populate_unique_text_list(self.isp_list, GUIDetectionSettings.isp_detection_list)
             self._populate_unique_text_list(self.asn_list, GUIDetectionSettings.asn_detection_list)
 

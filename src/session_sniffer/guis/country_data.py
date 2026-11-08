@@ -279,16 +279,13 @@ _COUNTRY_CODES_CASEFOLDED: dict[str, str] = {
 
 def get_country_flag_code(country_name: str) -> str | None:
     """Return the 2-letter flag file code for a country name, alias, or ISO code, or None if unknown."""
-    code = COUNTRY_CODES.get(country_name)
-    if code is not None:
-        return code
     stripped = country_name.strip()
     if not stripped:
         return None
     upper = stripped.upper()
     if upper in COUNTRY_NAMES:
         return upper
-    code = _COUNTRY_CODES_CASEFOLDED.get(stripped.casefold())
+    code = COUNTRY_CODES.get(country_name) or _COUNTRY_CODES_CASEFOLDED.get(stripped.casefold())
     if code is not None:
         return code
     if ' - ' in stripped:
@@ -296,6 +293,11 @@ def get_country_flag_code(country_name: str) -> str | None:
         prefix_upper = prefix.strip().upper()
         if prefix_upper in COUNTRY_NAMES and _COUNTRY_CODES_CASEFOLDED.get(suffix.strip().casefold()) == prefix_upper:
             return prefix_upper
+    if stripped.endswith(')') and ' (' in stripped:
+        prefix, _, suffix = stripped[:-1].rpartition(' (')
+        suffix_upper = suffix.strip().upper()
+        if suffix_upper in COUNTRY_NAMES and _COUNTRY_CODES_CASEFOLDED.get(prefix.strip().casefold()) == suffix_upper:
+            return suffix_upper
     return None
 
 
@@ -341,16 +343,13 @@ _CONTINENT_CODES_CASEFOLDED: dict[str, str] = {continent_name.casefold(): contin
 
 def get_continent_code(continent_name: str) -> str | None:
     """Return the 2-letter continent code for a continent name or code, or None if unknown."""
-    code = CONTINENT_CODES.get(continent_name)
-    if code is not None:
-        return code
     stripped = continent_name.strip()
     if not stripped:
         return None
     upper = stripped.upper()
     if upper in CONTINENT_NAMES:
         return upper
-    code = _CONTINENT_CODES_CASEFOLDED.get(stripped.casefold())
+    code = CONTINENT_CODES.get(continent_name) or _CONTINENT_CODES_CASEFOLDED.get(stripped.casefold())
     if code is not None:
         return code
     if ' - ' in stripped:
@@ -358,6 +357,11 @@ def get_continent_code(continent_name: str) -> str | None:
         prefix_upper = prefix.strip().upper()
         if prefix_upper in CONTINENT_NAMES and _CONTINENT_CODES_CASEFOLDED.get(suffix.strip().casefold()) == prefix_upper:
             return prefix_upper
+    if stripped.endswith(')') and ' (' in stripped:
+        prefix, _, suffix = stripped[:-1].rpartition(' (')
+        suffix_upper = suffix.strip().upper()
+        if suffix_upper in CONTINENT_NAMES and _CONTINENT_CODES_CASEFOLDED.get(prefix.strip().casefold()) == suffix_upper:
+            return suffix_upper
     return None
 
 

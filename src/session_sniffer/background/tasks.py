@@ -14,7 +14,6 @@ from session_sniffer.background.voice_notifications import queue_voice_notificat
 from session_sniffer.constants.local import DETECTION_LOGGING_PATH, PROTECTION_LOGGING_PATH, TTS_DIR_PATH, USERIP_DATABASES_DIR_PATH, USERIP_LOGGING_PATH
 from session_sniffer.constants.standard import LOCAL_TZ
 from session_sniffer.core import ScriptControl, terminate_on_uncaught_exception
-from session_sniffer.error_messages import format_type_error
 from session_sniffer.gta5.suspend_manager import GTASuspendManager
 from session_sniffer.guis.country_data import matches_continent, matches_country
 from session_sniffer.guis.tables_player_actions._detection_dialogs import (
@@ -159,13 +158,15 @@ def wait_for_player_data_ready(
     deadline = time.monotonic() + timeout
     checker_items = [_FIELD_CHECKERS[field] for field in data_fields if field in _FIELD_CHECKERS]
     while True:
-        if player.left_event.is_set() or gui_closed__event.is_set():
+        if gui_closed__event.is_set():
+            break
+        if all(checker(player) for checker in checker_items):
+            return True
+        if player.left_event.is_set():
             break
         remaining = deadline - time.monotonic()
         if remaining <= 0:
             break
-        if all(checker(player) for checker in checker_items):
-            return True
         gui_closed__event.wait(min(0.02, remaining))
     return False
 
@@ -300,7 +301,7 @@ def process_userip_task(
     """
     userip_detection = player.userip_detection
     if userip_detection is None:
-        raise TypeError(format_type_error(userip_detection, PlayerUserIPDetection))
+        return
 
     task_key: tuple[str, Literal['connected', 'disconnected']] = (player.ip, connection_type)
     with _active_userip_tasks_lock:
@@ -337,7 +338,7 @@ def process_userip_task(
             player.userip = updated_userip
             wake_rendering_core()
 
-        if player.userip is None:
+        if player.userip is None and UserIPDatabases.resolve_userip(player.ip) is not None:
             player.userip = userip
         if userip.usernames:
             player.usernames = dedup_preserve_order(player.usernames, userip.usernames)

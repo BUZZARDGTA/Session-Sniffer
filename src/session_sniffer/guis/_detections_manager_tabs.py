@@ -733,9 +733,10 @@ class DetectionsManagerTabsMixin(QDialog):
 
     def _add_country_item(self, country_name: str) -> None:
         """Add a country list item with an icon and display name to `self.country_list`."""
-        item = QListWidgetItem(country_name)
-        item.setData(Qt.ItemDataRole.UserRole, country_name)
-        flag_code = get_country_flag_code(country_name)
+        canonical = normalize_country_name(country_name) or country_name
+        item = QListWidgetItem(canonical)
+        item.setData(Qt.ItemDataRole.UserRole, canonical)
+        flag_code = get_country_flag_code(canonical)
         if flag_code is not None and flag_code:
             flag_icon = load_country_flag_icon(flag_code)
             if flag_icon is not None:
