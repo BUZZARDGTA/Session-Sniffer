@@ -507,12 +507,11 @@ class SessionTableModel(QAbstractTableModel):
                     is_identified=Settings.player_identifier_icon and PlayerIdentifierTracker.is_identified(ip),
                     is_gta5_relay=Settings.gta5_relay_icon and matched_player is not None and matched_player.is_gta5_relay,
                 )
-            elif self.username_column_index >= 0 and self.username_column_index == column_index:
-                if Settings.looky_enabled and Settings.is_gta5_feature_set():
-                    ip = self._get_ip_from_data_safely(self._data[row_index])
-                    matched_player = self.resolve_row_player(ip)
-                    if matched_player is not None and self._is_player_looky_resolved(matched_player):
-                        output = self._looky_icon
+            elif self.username_column_index >= 0 and self.username_column_index == column_index and Settings.looky_enabled and Settings.is_gta5_feature_set():
+                ip = self._get_ip_from_data_safely(self._data[row_index])
+                matched_player = self.resolve_row_player(ip)
+                if matched_player is not None and self._is_player_looky_resolved(matched_player):
+                    output = self._looky_icon
         elif role == Qt.ItemDataRole.UserRole:
             if self.username_column_index >= 0 and self.username_column_index == column_index and Settings.looky_enabled and Settings.is_gta5_feature_set():
                 ip = self._get_ip_from_data_safely(self._data[row_index])
