@@ -124,7 +124,7 @@ def _build_host_diagnostics_snapshot(
         country = player.iplookup.resolve_country_code()
         candidate_usernames = (
             dedup_preserve_order(player.usernames, [result.modmenu_host_username])
-            if result.modmenu_host_username and player.ip == result.modmenu_host_ip
+            if result.modmenu_host_username is not None and player.ip == result.modmenu_host_ip
             else list(player.usernames)
         )
 
@@ -264,7 +264,7 @@ def _build_host_diagnostics_snapshot(
     detected_host = result.detected_host
     host_ip = detected_host.ip if detected_host is not None else None
     host_usernames = (
-        dedup_preserve_order(detected_host.usernames, [result.modmenu_host_username] if result.modmenu_host_username else ())
+        dedup_preserve_order(detected_host.usernames, [result.modmenu_host_username] if result.modmenu_host_username is not None else ())
         if detected_host is not None
         else []
     )

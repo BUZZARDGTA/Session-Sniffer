@@ -81,7 +81,7 @@ def _resolve_portable_key_vks(key_token: str) -> tuple[int, ...] | None:
 
 def _parse_win32_hotkey_spec(hotkey: str | None) -> tuple[int, tuple[int, ...]] | None:
     """Translate a portable `QKeySequence` string into `(win32_modifier_flags, primary_vks)`."""
-    if not hotkey:
+    if hotkey is None or not hotkey:
         return None
     seq = QKeySequence.fromString(hotkey, QKeySequence.SequenceFormat.PortableText)
     portable = seq.toString(QKeySequence.SequenceFormat.PortableText).split(', ', 1)[0].strip().lower()
