@@ -13,6 +13,7 @@ from session_sniffer.rendering_core.modmenu_logs_parser import ModMenuLogsParser
 from session_sniffer.rendering_core.types import CaptureState
 from session_sniffer.settings import Settings
 from session_sniffer.text_utils import format_elapsed_time, pluralize
+from session_sniffer.utils import dedup_preserve_order
 
 if TYPE_CHECKING:
     from session_sniffer.models.player import Player
@@ -121,11 +122,16 @@ def _build_host_diagnostics_snapshot(
             packets_status = 'Eligible'
 
         country = player.iplookup.resolve_country_code()
+        candidate_usernames = (
+            dedup_preserve_order(player.usernames, [result.modmenu_host_username])
+            if result.modmenu_host_username and player.ip == result.modmenu_host_ip
+            else list(player.usernames)
+        )
 
         candidate_diagnostics.append(
             HostCandidateDiagnostic(
                 ip=player.ip,
-                usernames=list(player.usernames),
+                usernames=candidate_usernames,
                 country_code=country,
                 last_rejoin=player.datetime.last_rejoin,
                 packets_sent=player.packets.sent,
@@ -257,7 +263,11 @@ def _build_host_diagnostics_snapshot(
 
     detected_host = result.detected_host
     host_ip = detected_host.ip if detected_host is not None else None
-    host_usernames = list(detected_host.usernames) if detected_host is not None else []
+    host_usernames = (
+        dedup_preserve_order(detected_host.usernames, [result.modmenu_host_username] if result.modmenu_host_username else ())
+        if detected_host is not None
+        else []
+    )
     host_country = detected_host.iplookup.resolve_country_code() if detected_host is not None else ''
 
     return HostDiagnosticsSnapshot(
