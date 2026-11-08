@@ -1,5 +1,6 @@
 """Looky System → UserIP username refresh: batch-lookup IPs and append new usernames to database files."""
 
+import contextlib
 import logging
 import time
 from collections import defaultdict
@@ -950,8 +951,8 @@ def looky_refresh_userip_entries(parent: QWidget, entries: list[tuple[Path, list
             total_ips_with_results += db_ips_count
         logger.info(
             '[Looky System] UserIP review prepared across %d database%s: %d pending entry change%s, %d standalone suspect removal%s, %d IP%s with Looky results.',
-            len(entries), pluralize(len(entries)), len(pending_entries), pluralize(len(pending_entries)),
-            len(standalone_removals), pluralize(len(standalone_removals)), total_ips_with_results, pluralize(total_ips_with_results),
+            len(entries), pluralize(len(entries)), len(pending_entries), pluralize(len(pending_entries)), len(standalone_removals), pluralize(len(standalone_removals)),
+            total_ips_with_results, pluralize(total_ips_with_results),
         )
         if not pending_entries and not standalone_removals:
             if sum(record_looky_db_correlation([lp.name.strip() for lp in lps if lp.name], UserIPDatabases.get_known_username_dbs_cf()) for lps in results.values()):
@@ -962,11 +963,14 @@ def looky_refresh_userip_entries(parent: QWidget, entries: list[tuple[Path, list
         dialog = LookyRefreshReviewDialog(parent, pending_entries, standalone_removals, ips_with_results_count=total_ips_with_results)
 
         def _on_review_accepted() -> None:
-            total_added, total_moved, total_removed, db_count = _apply_accepted_changes(dialog.get_accepted_entries(), dialog.get_accepted_removals())
+            accepted = dialog.get_accepted_entries()
+            total_added, total_moved, total_removed, db_count = _apply_accepted_changes(accepted, dialog.get_accepted_removals())
             if not (total_added or total_moved or total_removed):
                 return
             refresh_userip_and_wake_renderer()
-            if sum(record_looky_db_correlation([lp.name.strip() for lp in lps if lp.name], UserIPDatabases.get_known_username_dbs_cf()) for lps in results.values()):
+            rejected = {(e.ip, e.username.casefold()) for e in pending_entries} - {(e.ip, e.username.casefold()) for e in accepted}
+            dbs_cf = UserIPDatabases.get_known_username_dbs_cf()
+            if sum(record_looky_db_correlation([n for lp in lps if (n := lp.name.strip()) and (ip, n.casefold()) not in rejected], dbs_cf) for ip, lps in results.items()):
                 refresh_userip_and_wake_renderer()
             parts = [(total_added, 'added or confirmed', 'username'), (total_moved, 'moved', 'username'), (total_removed, 'deleted', 'wrong candidate row')]
             summary_parts = [f'{verb} {cnt} {noun}{pluralize(cnt)}' for cnt, verb, noun in parts if cnt]
@@ -983,10 +987,8 @@ def looky_refresh_userip_entries(parent: QWidget, entries: list[tuple[Path, list
 
     def _on_rejected() -> None:
         for sig, slot in worker_links:
-            try:
+            with contextlib.suppress(TypeError):
                 sig.disconnect(slot)
-            except TypeError as e:
-                logger.debug('Failed to disconnect worker signal: %s', e)
         worker.cancel()
 
     loading_dialog.rejected.connect(_on_rejected)

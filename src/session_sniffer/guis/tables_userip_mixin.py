@@ -30,6 +30,7 @@ from session_sniffer.player.registry import PlayersRegistry, SessionTracker
 from session_sniffer.player.userip import UserIPDatabases
 from session_sniffer.player.userip_groups import (
     MIN_GROUP_USERNAMES,
+    are_usernames_unlinked,
     exclude_looky_usernames,
     get_excluded_looky_usernames,
     get_excluded_looky_usernames_cf,
@@ -528,7 +529,9 @@ def userip_add_username(parent: QWidget, ip_address: str, player: Player) -> Non
         anchor_usernames_by_ip={target_entry: existing_usernames[0]} if existing_usernames else None,
     )
     if existing_usernames:
-        group_usernames([*existing_usernames, *entered_usernames], UserIPDatabases.get_known_alts_clusters_snapshot())
+        anchor_name = existing_usernames[0]
+        linked_existing = [name for name in existing_usernames if not are_usernames_unlinked(name, anchor_name)]
+        group_usernames([*linked_existing, *entered_usernames], UserIPDatabases.get_known_alts_clusters_snapshot())
     refresh_userip_and_wake_renderer()
 
     usernames_display = ', '.join(f'"{username}"' for username in entered_usernames)

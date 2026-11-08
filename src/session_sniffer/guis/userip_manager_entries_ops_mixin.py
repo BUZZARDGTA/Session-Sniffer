@@ -41,7 +41,7 @@ from session_sniffer.guis.userip_manager_helpers import (
 from session_sniffer.models.userip_settings_model import UserIPDatabaseFile, UserIPEntryModel, UserIPSettingsModel, get_current_iso_timestamp
 from session_sniffer.networking.ip_range import is_valid_ip_range_entry
 from session_sniffer.player.userip import UserIPDatabases
-from session_sniffer.player.userip_groups import MIN_GROUP_USERNAMES, USERIP_GROUPS_PATH, group_usernames, ungroup_usernames
+from session_sniffer.player.userip_groups import MIN_GROUP_USERNAMES, USERIP_GROUPS_PATH, are_usernames_unlinked, group_usernames, ungroup_usernames
 from session_sniffer.player.userip_loader import enrich_userip_entry_from_logs, update_userip_databases
 from session_sniffer.rendering_core.events import wake_rendering_core
 from session_sniffer.text_utils import pluralize
@@ -403,7 +403,9 @@ class UserIPEntriesOperationsMixin(QDialog):
         self._update_entry_counts()
         self._save_database()
         if not self._dirty:
-            group_candidates = dedup_preserve_order(existing_names, ([anchor_username] if anchor_username else ()), new_usernames)
+            ref_anchor = anchor_username or (existing_names[0] if existing_names else '')
+            linked_existing = [name for name in existing_names if not ref_anchor or not are_usernames_unlinked(name, ref_anchor)]
+            group_candidates = dedup_preserve_order(linked_existing, ([anchor_username] if anchor_username else ()), added_usernames)
             if len(group_candidates) >= MIN_GROUP_USERNAMES:
                 with QSignalBlocker(self._fs_watcher):
                     if group_usernames(group_candidates, UserIPDatabases.get_known_alts_clusters_snapshot()):
@@ -617,10 +619,16 @@ class UserIPEntriesOperationsMixin(QDialog):
         """Return all source-model row indices belonging to the account group(s) of *source_rows*."""
         row_gids = self._proxy.get_source_row_group_ids()
         target_gids = {row_gids[r] for r in source_rows if 0 <= r < len(row_gids)}
+        target_dbs = {db for r in source_rows if (db := self._get_row_database_path(r)) is not None} if self._global_search_active else None
         group_cfs = {u.casefold() for u in self._collect_group_members_for_rows(source_rows)}
         return sorted({
             *source_rows,
-            *(r for r in range(self._model.rowCount()) if (r < len(row_gids) and row_gids[r] in target_gids) or self._get_row_username(r).casefold() in group_cfs),
+            *(
+                r
+                for r in range(self._model.rowCount())
+                if (r < len(row_gids) and row_gids[r] in target_gids)
+                or ((target_dbs is None or self._get_row_database_path(r) in target_dbs) and self._get_row_username(r).casefold() in group_cfs)
+            ),
         })
 
     def _move_selected_to_database(self, target_db_path: Path) -> None:
@@ -854,13 +862,14 @@ class UserIPEntriesOperationsMixin(QDialog):
 
     def _highlight_duplicates(self) -> int:
         """Scan all rows for exact (username, ip) duplicates and highlight them."""
-        seen: dict[tuple[str, str], int] = {}
+        seen: dict[tuple[str, str, str], int] = {}
         duplicate_rows: set[int] = set()
         for row in range(self._model.rowCount()):
             username, ip = self._get_row_username(row), self._get_row_entry_value(row)
             if not username or not ip:
                 continue
-            key = (username.casefold(), ip)
+            db_key = str(self._get_row_database_path(row) or '') if self._global_search_active else ''
+            key = (db_key, username.casefold(), ip)
             if key in seen:
                 duplicate_rows.add(row)
                 duplicate_rows.add(seen[key])

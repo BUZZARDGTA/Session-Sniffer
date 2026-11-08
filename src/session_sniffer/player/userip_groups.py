@@ -392,6 +392,17 @@ def remove_usernames_from_groups(usernames_cf: AbstractSet[str]) -> bool:
             if cf in _cache.canonical_names:
                 _cache.canonical_names.pop(cf, None)
                 changed = True
+            neighbors = sorted({
+                pair[1] if pair[0] == cf else pair[0]
+                for pair in _cache.linked_pairs
+                if (pair[0] == cf and pair[1] not in usernames_cf) or (pair[1] == cf and pair[0] not in usernames_cf)
+            })
+            for idx, n1 in enumerate(neighbors):
+                for n2 in neighbors[idx + 1 :]:
+                    bridge = (n1, n2) if n1 < n2 else (n2, n1)
+                    if bridge not in _cache.unlinked_pairs and bridge not in _cache.linked_pairs:
+                        _cache.linked_pairs.add(bridge)
+                        changed = True
         kept_linked = {pair for pair in _cache.linked_pairs if pair[0] not in usernames_cf and pair[1] not in usernames_cf}
         if len(kept_linked) != len(_cache.linked_pairs):
             _cache.linked_pairs = kept_linked
