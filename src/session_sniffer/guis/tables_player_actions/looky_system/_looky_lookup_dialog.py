@@ -238,7 +238,12 @@ def show_looky_lookup(parent: QWidget, player: Player | StandaloneIPLookup) -> N
             snapshot_player.looky_system.apply_results(worker.results, force_reset_userip_checked=True, excluded_cfs=excluded_cfs)
         if record_looky_db_correlation(player_looky_names, UserIPDatabases.get_known_username_dbs_cf()):
             update_userip_databases()
-            player.userip = UserIPDatabases.resolve_userip(player.ip)
+            resolved_userip = UserIPDatabases.resolve_userip(player.ip)
+            player.userip = resolved_userip
+            if live_player is not None and live_player is not player:
+                live_player.userip = resolved_userip
+            for snapshot_player in matching_snapshots:
+                snapshot_player.userip = resolved_userip
         include_looky = Settings.looky_enabled and Settings.is_gta5_feature_set() and CaptureState.is_local_capture()
         active_looky_names = player_looky_names if include_looky else ()
         player.rebuild_usernames(looky_usernames=active_looky_names)

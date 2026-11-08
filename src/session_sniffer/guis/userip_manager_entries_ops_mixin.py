@@ -275,12 +275,15 @@ class UserIPEntriesOperationsMixin(QDialog):
                 success = rewrite_db_edit_entry_note(database_path, username, entry_ip_or_range, new_note)
                 if success:
                     refresh_userip_and_wake_renderer()
+            self._last_seen_build_version = UserIPDatabases.build_version
             self._rebuild_fs_watch()
             if not success:
                 return
-            if notes_item:
-                notes_item.setText(new_note)
-            set_row_updated_at(self._model, source_row)
+            with QSignalBlocker(self._model):
+                if notes_item:
+                    notes_item.setText(new_note)
+                set_row_updated_at(self._model, source_row)
+            self._proxy.refresh_rows((source_row,))
             self._set_status(f'Updated note for "{username}" in {database_path.name}.')
         else:
             with QSignalBlocker(self._model):
@@ -334,14 +337,21 @@ class UserIPEntriesOperationsMixin(QDialog):
         if not new_usernames:
             return
 
-        new_entry_models = [enrich_userip_entry_from_logs(UserIPEntryModel(username=name, ip=entry_value, notes=entered_notes.get(name, '')))[0] for name in new_usernames]
+        existing_cf = {name.casefold() for name in existing_names}
+        added_usernames = [name for name in new_usernames if name.casefold() not in existing_cf]
+        if not added_usernames:
+            QMessageBox.information(self, TITLE, f'All specified username{pluralize(len(new_usernames))} already exist for {entry_value} in "{database_path.stem}".')
+            return
+
+        new_entry_models = [enrich_userip_entry_from_logs(UserIPEntryModel(username=name, ip=entry_value, notes=entered_notes.get(name, '')))[0] for name in added_usernames]
         with QSignalBlocker(self._fs_watcher):
             added_pairs = append_userip_entries(database_path, new_entry_models, anchor_usernames_by_ip={entry_value: anchor_username} if anchor_username else None)
             if added_pairs:
-                group_candidates = dedup_preserve_order(([anchor_username] if anchor_username else ()), new_usernames)
+                group_candidates = dedup_preserve_order(([anchor_username] if anchor_username else ()), added_usernames)
                 if len(group_candidates) >= MIN_GROUP_USERNAMES:
                     group_usernames(group_candidates, UserIPDatabases.get_known_alts_clusters_snapshot())
                 refresh_userip_and_wake_renderer()
+        self._last_seen_build_version = UserIPDatabases.build_version
         self._rebuild_fs_watch()
 
         if not added_pairs:
@@ -592,6 +602,7 @@ class UserIPEntriesOperationsMixin(QDialog):
                 to_remove = {(username, ip) for row in rows if (username := self._get_row_username(row)) and (ip := self._get_row_entry_value(row))}
                 rewrite_db_without_entries(db_path, to_remove)
             refresh_userip_and_wake_renderer()
+        self._last_seen_build_version = UserIPDatabases.build_version
         self._rebuild_fs_watch()
 
         for row in source_rows:
