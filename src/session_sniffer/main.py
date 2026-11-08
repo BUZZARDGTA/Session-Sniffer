@@ -508,9 +508,10 @@ def main() -> None:
     rendering_core__thread.start()
 
     _is_switching_interface = False
+    _adapter_lost_attempts = 0
 
     def _switch_interface(*, initial_tab: int = 0) -> None:
-        nonlocal _is_switching_interface
+        nonlocal _is_switching_interface, _adapter_lost_attempts
         active_dialog = InterfaceSelectionDialog.get_active_instance()
         if active_dialog is not None:
             if initial_tab == 1:
@@ -532,31 +533,20 @@ def main() -> None:
             _interface.identity.device_name = _device_name
             new_available_interfaces.append(_interface)
 
-        new_interface = select_interface(
-            new_available_interfaces,
-            screen_size,
-            force_dialog=True,
-            initial_tab=initial_tab,
-        )
-
+        new_interface = select_interface(new_available_interfaces, screen_size, force_dialog=True, initial_tab=initial_tab)
         if new_interface is None:
             window.set_change_interface_button_enabled(enabled=True)
             return
 
         reset_npcap_binding_repair_attempts()
-
         current_selected = capture_holder.config.interface
-
         current_adapter_guid = current_selected.interface.identity.adapter_guid
         new_adapter_guid = new_interface.interface.identity.adapter_guid
 
         is_same_adapter = False
         if new_interface.is_neighbour == current_selected.is_neighbour:
             if current_adapter_guid is not None and new_adapter_guid is not None:
-                is_same_adapter = (
-                    current_adapter_guid == new_adapter_guid
-                    and new_interface.ip_address == current_selected.ip_address
-                )
+                is_same_adapter = current_adapter_guid == new_adapter_guid and new_interface.ip_address == current_selected.ip_address
             else:
                 is_same_adapter = (
                     new_interface.name == current_selected.name
@@ -570,7 +560,7 @@ def main() -> None:
                     ArpSpoofingController.start(new_interface)
             else:
                 ArpSpoofingController.stop()
-            window.set_change_interface_button_enabled(enabled=True)
+            window.on_interface_switched()
             return
 
         _is_switching_interface = True
@@ -653,11 +643,12 @@ def main() -> None:
                     on_overflow_drop=on_overflow_drop,
                 ),
             )
+            _adapter_lost_attempts = 0
             _adapter_lost_event.clear()
             _arp_failed_event.clear()
-            new_capture.start()
-            CaptureStats.capture_started_at = time.monotonic()
             capture_holder.set(new_capture)
+            CaptureStats.capture_started_at = time.monotonic()
+            new_capture.start()
             if Settings.capture_arp_spoofing:
                 ArpSpoofingController.start(new_interface)
             window.on_interface_switched()
@@ -694,10 +685,9 @@ def main() -> None:
         finally:
             _is_handling_capture_lost = False
 
-    _adapter_lost_attempts = 0
-
     def _restart_capture_with_ip(new_ip: str, ipv4_addresses: list[str] | None = None) -> None:
         """Silently restart packet capture with a specified IP address on the current interface."""
+        nonlocal _adapter_lost_attempts
         # Stop ARP spoofing first: the old ARP thread must not observe the new capture starting.
         ArpSpoofingController.stop()
 
@@ -748,9 +738,12 @@ def main() -> None:
             ),
         )
 
-        new_capture.start()
-        CaptureStats.capture_started_at = time.monotonic()
+        _adapter_lost_attempts = 0
+        _adapter_lost_event.clear()
+        _arp_failed_event.clear()
         capture_holder.set(new_capture)
+        CaptureStats.capture_started_at = time.monotonic()
+        new_capture.start()
         if Settings.capture_arp_spoofing:
             ArpSpoofingController.start(new_selected_interface)
         window.on_interface_switched()
@@ -807,6 +800,12 @@ def main() -> None:
             if capture_holder.is_running():
                 _adapter_lost_attempts = 0
             return
+
+        ArpSpoofingController.stop()
+        if capture_holder.is_running() or not _adapter_lost_attempts:
+            if capture_holder.is_running():
+                capture_holder.stop()
+            window.on_interface_switched(capture_toggle_enabled=False)
 
         current_selected = capture_holder.config.interface
         adapter_guid = current_selected.interface.identity.adapter_guid
