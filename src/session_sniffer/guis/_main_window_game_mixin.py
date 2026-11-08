@@ -64,19 +64,21 @@ _PORTABLE_KEY_TO_WIN32_VKS: dict[str, tuple[int, ...]] = {
 }
 
 
-def _resolve_portable_key_vks(key_token: str) -> tuple[int, ...] | None:
-    """Resolve a lowercase portable key token to one or more Win32 virtual-key codes."""
-    mapped = _PORTABLE_KEY_TO_WIN32_VKS.get(key_token)
+def _resolve_portable_key_vks(portable_key: str, *, mod_flags: int = 0, is_numpad: bool = False) -> tuple[int, ...] | None:
+    """Resolve a lowercase portable key string to one or more Win32 virtual-key codes."""
+    if portable_key == '*':
+        return (0x38, 0x6A) if (mod_flags & _MOD_SHIFT) and not is_numpad else (0x6A,)
+    mapped = _PORTABLE_KEY_TO_WIN32_VKS.get(portable_key)
     if mapped is not None:
         return mapped
-    if len(key_token) == 1:
-        if 'a' <= key_token <= 'z':
-            return (ord(key_token.upper()),)
-        if '0' <= key_token <= '9':
-            digit = ord(key_token) - ord('0')
-            return (ord(key_token), 0x60 + digit)
-    if key_token.startswith('f') and key_token[1:].isdigit():
-        fn_num = int(key_token[1:])
+    if len(portable_key) == 1:
+        if 'a' <= portable_key <= 'z':
+            return (ord(portable_key.upper()),)
+        if '0' <= portable_key <= '9':
+            digit = ord(portable_key) - ord('0')
+            return (ord(portable_key), 0x60 + digit)
+    if portable_key.startswith('f') and portable_key[1:].isdigit():
+        fn_num = int(portable_key[1:])
         if 1 <= fn_num <= _MAX_F_KEY_NUMBER:
             return (0x70 + fn_num - 1,)
     return None
@@ -91,10 +93,10 @@ def _parse_win32_hotkey_spec(hotkey: str | None) -> tuple[int, tuple[int, ...]] 
     if not portable:
         return None
 
-    mod_flags = 0
+    mod_flags, is_numpad = 0, False
     for _ in range(5):
         if portable.startswith('num+'):
-            portable = portable[4:]
+            is_numpad, portable = True, portable[4:]
             continue
         for mod_prefix, flag in (('ctrl+', _MOD_CONTROL), ('shift+', _MOD_SHIFT), ('alt+', _MOD_ALT), ('meta+', _MOD_WIN)):
             if portable.startswith(mod_prefix):
@@ -102,7 +104,7 @@ def _parse_win32_hotkey_spec(hotkey: str | None) -> tuple[int, tuple[int, ...]] 
                 portable = portable[len(mod_prefix) :]
                 break
 
-    primary_vks = _resolve_portable_key_vks(portable)
+    primary_vks = _resolve_portable_key_vks(portable, mod_flags=mod_flags, is_numpad=is_numpad)
     return (mod_flags, primary_vks) if primary_vks is not None else None
 
 
