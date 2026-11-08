@@ -33,6 +33,8 @@ class PlayerGeoLite2:
 
     is_initialized: bool = False
 
+    continent: str = '...'
+    continent_code: str = '...'
     country: str = '...'
     country_code: str = '...'
     city: str = '...'
@@ -110,6 +112,14 @@ class PlayerIPLookup:
 
     geolite2: PlayerGeoLite2 = dataclasses.field(default_factory=PlayerGeoLite2)
     ipapi: PlayerIPAPI = dataclasses.field(default_factory=PlayerIPAPI)
+
+    def resolve_continent(self) -> tuple[str, str]:
+        """Return `(continent, continent_code)`, preferring GeoLite2 over IP-API when available."""
+        if self.geolite2.continent_code not in {'', '...', 'N/A'}:
+            return self.geolite2.continent, self.geolite2.continent_code
+        if self.ipapi.continent_code not in {'', '...', 'N/A'} or not self.ipapi.is_initialized:
+            return self.ipapi.continent, self.ipapi.continent_code
+        return self.geolite2.continent, self.geolite2.continent_code
 
     def resolve_country(self) -> tuple[str, str]:
         """Return `(country, country_code)`, preferring GeoLite2 over IP-API when available."""

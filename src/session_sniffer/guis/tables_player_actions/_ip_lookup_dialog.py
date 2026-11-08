@@ -54,6 +54,7 @@ from session_sniffer.networking.exceptions import AllEndpointsExhaustedError
 from session_sniffer.networking.geolite2 import (
     query_geolite2_asn,
     query_geolite2_city,
+    query_geolite2_continent,
     query_geolite2_country,
 )
 from session_sniffer.networking.http_session import session
@@ -134,6 +135,9 @@ def _resolve_standalone_lookup(lookup: StandaloneIPLookup) -> None:
 
     # 3. GeoLite2
     if not lookup.iplookup.geolite2.is_initialized:
+        continent_name, continent_code = query_geolite2_continent(lookup.ip)
+        lookup.iplookup.geolite2.continent = continent_name
+        lookup.iplookup.geolite2.continent_code = continent_code
         country_name, country_code = query_geolite2_country(lookup.ip)
         lookup.iplookup.geolite2.country = country_name
         lookup.iplookup.geolite2.country_code = country_code
@@ -353,8 +357,8 @@ class IPLookupDetailsDialog(PlayerInfoDialogMixin):
         """Add the 'IP Lookup Details' section to the scroll layout."""
         target = self._target
         group, form = self._make_group('IP Lookup Details', accent='#38a169')
-        self._add_live_row(form, 'Continent', lambda: format_text(target.iplookup.ipapi.continent))
-        self._add_live_row(form, 'Continent Code', lambda: format_text(target.iplookup.ipapi.continent_code))
+        self._add_live_row(form, 'Continent', lambda: format_text(target.iplookup.resolve_continent()[0]))
+        self._add_live_row(form, 'Continent Code', lambda: format_text(target.iplookup.resolve_continent()[1]))
         self._add_live_row(form, 'Country', lambda: format_text(target.iplookup.resolve_country()[0]))
         self._add_live_row(form, 'Country Code', lambda: format_text(target.iplookup.resolve_country_code()))
         self._add_live_row(form, 'Region', lambda: format_text(target.iplookup.ipapi.region))

@@ -28,7 +28,7 @@ from session_sniffer.guis.html_templates import generate_gui_header_html
 from session_sniffer.models import SessionLogFile
 from session_sniffer.models.player_lookup import PlayerModMenus
 from session_sniffer.models.player_traffic import PlayerBandwidth
-from session_sniffer.networking.geolite2 import extract_asn_info, extract_city_info, extract_country_info
+from session_sniffer.networking.geolite2 import extract_asn_info, extract_city_info, extract_continent_info, extract_country_info
 from session_sniffer.networking.looky_system import LookyState
 from session_sniffer.networking.port_scanner import get_active_port_scan_threads
 from session_sniffer.player.registry import PlayersRegistry, SessionTracker
@@ -99,12 +99,7 @@ def _prune_recovered_pending_disconnections(*, session_transitioned: bool) -> No
     if not session_transitioned:
         had_departed_pending_player = any(player.left_event.is_set() for player in SessionHost.players_pending_for_disconnection)
         SessionHost.players_pending_for_disconnection.clear()
-        if (
-            had_departed_pending_player
-            and not SessionHost.has_player()
-            and not SessionHost.is_manually_cleared()
-            and not SessionHost.is_modmenu_lua_source_of_truth()
-        ):
+        if had_departed_pending_player and not SessionHost.has_player() and not SessionHost.is_manually_cleared() and not SessionHost.is_modmenu_lua_source_of_truth():
             SessionHost.search_player = True
             SessionHost.search_start_time = None
         return
@@ -131,10 +126,7 @@ def _prune_recovered_pending_disconnections(*, session_transitioned: bool) -> No
                 SessionHost.search_player = False
             else:
                 SessionHost.set_player(None)
-                SessionHost.search_player = (
-                    not SessionHost.is_manually_cleared(old_session_id)
-                    and not SessionHost.is_modmenu_lua_source_of_truth()
-                )
+                SessionHost.search_player = not SessionHost.is_manually_cleared(old_session_id) and not SessionHost.is_modmenu_lua_source_of_truth()
             SessionHost.search_start_time = None
             if SessionFilterState.get_selected_session() in (old_session_id, pruned_or_collapsed):
                 SessionFilterState.set_selected_session(session_id=SessionFilterState.FILTER_ALL)
@@ -155,19 +147,13 @@ def _sync_modmenu_session_host(session_connected: list[Player], p2p_session_conn
     active_p2p_connected = [
         player
         for player in p2p_session_connected
-        if player.session_id in (0, current_session_id)
-        and not player.left_event.is_set()
-        and player not in SessionHost.players_pending_for_disconnection
+        if player.session_id in (0, current_session_id) and not player.left_event.is_set() and player not in SessionHost.players_pending_for_disconnection
     ]
     host_entry = ModMenuLogsParser.get_session_host_entry()
     expected_host_ip = host_entry.ip if host_entry is not None else None
     expected_host_username = host_entry.username if host_entry is not None else None
     expected_menu_name = host_entry.menu_name if host_entry is not None else ModMenuLogsParser.get_active_host_menu_name()
-    matched_lua_host = (
-        next((player for player in active_p2p_connected if player.ip == expected_host_ip), None)
-        if expected_host_ip is not None
-        else None
-    )
+    matched_lua_host = next((player for player in active_p2p_connected if player.ip == expected_host_ip), None) if expected_host_ip is not None else None
     last_diag = SessionHost.last_diagnostics
     if (
         SessionHost.get_player() is not matched_lua_host
@@ -189,6 +175,10 @@ def rendering_core(
         reader = geoip2_readers.country_reader if geoip2_readers.enabled else None
         return extract_country_info(reader, ip_address)
 
+    def get_continent_info(ip_address: str) -> tuple[str, str]:
+        reader = geoip2_readers.country_reader if geoip2_readers.enabled else None
+        return extract_continent_info(reader, ip_address)
+
     def get_city_info(ip_address: str) -> str:
         reader = geoip2_readers.city_reader if geoip2_readers.enabled else None
         return extract_city_info(reader, ip_address)
@@ -199,6 +189,7 @@ def rendering_core(
 
     def _populate_player_geoip_and_flag(target_player: Player) -> None:
         if not target_player.iplookup.geolite2.is_initialized:
+            target_player.iplookup.geolite2.continent, target_player.iplookup.geolite2.continent_code = get_continent_info(target_player.ip)
             target_player.iplookup.geolite2.country, target_player.iplookup.geolite2.country_code = get_country_info(target_player.ip)
             target_player.iplookup.geolite2.city = get_city_info(target_player.ip)
             target_player.iplookup.geolite2.asn = get_asn_info(target_player.ip)
@@ -224,6 +215,7 @@ def rendering_core(
             mobile_value = None if not player.iplookup.ipapi.is_initialized else player.iplookup.ipapi.mobile
             vpn_value = None if not player.iplookup.ipapi.is_initialized else player.iplookup.ipapi.proxy
             hosting_value = None if not player.iplookup.ipapi.is_initialized else player.iplookup.ipapi.hosting
+            continent_name, _ = player.iplookup.resolve_continent()
             country_name, _ = player.iplookup.resolve_country()
 
             return {
@@ -264,7 +256,7 @@ def rendering_core(
                 'Last Port': player.ports.last,
                 'Middle Ports': format_player_middle_ports(player),
                 'First Port': player.ports.first,
-                'Continent': player.iplookup.ipapi.continent,
+                'Continent': continent_name,
                 'Country': country_name,
                 'Region': player.iplookup.ipapi.region,
                 'R. Code': player.iplookup.ipapi.region_code,
@@ -289,6 +281,7 @@ def rendering_core(
 
         def _player_to_json_dict(player: Player) -> dict[str, object]:
             columns = _player_columns(player)
+            continent_name, _ = player.iplookup.resolve_continent()
             country_name, country_code = player.iplookup.resolve_country()
             return {
                 'Usernames': player.usernames,
@@ -328,7 +321,7 @@ def rendering_core(
                 'Last Port': player.ports.last,
                 'Middle Ports': format_player_middle_ports(player),
                 'First Port': player.ports.first,
-                'Continent': player.iplookup.ipapi.continent,
+                'Continent': continent_name,
                 'Country': country_name,
                 'Country Code': country_code,
                 'Region': player.iplookup.ipapi.region,
@@ -622,11 +615,7 @@ def rendering_core(
             snapshot_modmenu = all_modmenu_usernames.get(snapshot_player.ip)
             snapshot_player.mod_menus = PlayerModMenus(usernames=list(snapshot_modmenu)) if snapshot_modmenu is not None and snapshot_modmenu else None
             with snapshot_player.looky_system.lock:
-                snapshot_looky_usernames = (
-                    list(snapshot_player.looky_system.usernames)
-                    if _current_looky_active and snapshot_player.looky_system.is_initialized
-                    else ()
-                )
+                snapshot_looky_usernames = list(snapshot_player.looky_system.usernames) if _current_looky_active and snapshot_player.looky_system.is_initialized else ()
             snapshot_player.rebuild_usernames(looky_usernames=snapshot_looky_usernames)
 
         if Settings.is_session_host_feature_set():
@@ -641,20 +630,13 @@ def rendering_core(
             else:
                 modmenu_lua_authoritative = SessionHost.is_modmenu_lua_source_of_truth()
                 current_session_host = SessionHost.get_player()
-                is_relay_host = (
-                    not modmenu_lua_authoritative
-                    and current_session_host is not None
-                    and SessionHost.is_relay_host_candidate(current_session_host)
-                )
+                is_relay_host = not modmenu_lua_authoritative and current_session_host is not None and SessionHost.is_relay_host_candidate(current_session_host)
                 if current_session_host is not None and current_session_host.left_event.is_set() and not is_relay_host:
                     SessionHost.set_player(None)
-                    SessionHost.search_player = (
-                        not modmenu_lua_authoritative
-                        and any(
-                            player.packets.pps.is_first_calculation or player.packets.pps.calculated_rate
-                            for player in p2p_session_connected
-                            if player.ip != current_session_host.ip
-                        )
+                    SessionHost.search_player = not modmenu_lua_authoritative and any(
+                        player.packets.pps.is_first_calculation or player.packets.pps.calculated_rate
+                        for player in p2p_session_connected
+                        if player.ip != current_session_host.ip
                     )
                     SessionHost.search_start_time = None
                 if SessionHost.players_pending_for_disconnection:

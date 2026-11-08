@@ -45,6 +45,14 @@ class GUIDetectionSettings:
     hosting_logging: ClassVar[bool] = False
     hosting_message_box: ClassVar[bool] = False
 
+    # Continent-based detection
+    continent_suspend_enabled: ClassVar[bool] = False
+    continent_detection_list: ClassVar[list[str]] = []
+    continent_suspend_duration: ClassVar[int | Literal['Auto']] = 'Auto'
+    continent_voice_notifications: ClassVar[Literal['Male', 'Female'] | bool] = False
+    continent_logging: ClassVar[bool] = False
+    continent_message_box: ClassVar[bool] = False
+
     # Country-based detection
     country_suspend_enabled: ClassVar[bool] = False
     country_detection_list: ClassVar[list[str]] = []
@@ -128,6 +136,14 @@ class GUIDetectionSettings:
                 logging=cls.hosting_logging,
                 message_box=cls.hosting_message_box,
             ),
+            continent=ListDetectionActionSettings(
+                enabled=cls.continent_suspend_enabled,
+                duration=cls.continent_suspend_duration,
+                voice_notifications=cls.continent_voice_notifications,
+                logging=cls.continent_logging,
+                message_box=cls.continent_message_box,
+                target_list=list(cls.continent_detection_list),
+            ),
             country=ListDetectionActionSettings(
                 enabled=cls.country_suspend_enabled,
                 duration=cls.country_suspend_duration,
@@ -208,6 +224,13 @@ class GUIDetectionSettings:
         cls.hosting_logging = model.hosting.logging
         cls.hosting_message_box = model.hosting.message_box
 
+        cls.continent_suspend_enabled = model.continent.enabled
+        cls.continent_suspend_duration = model.continent.duration
+        cls.continent_voice_notifications = model.continent.voice_notifications
+        cls.continent_logging = model.continent.logging
+        cls.continent_message_box = model.continent.message_box
+        cls.continent_detection_list = list(model.continent.target_list)
+
         cls.country_suspend_enabled = model.country.enabled
         cls.country_suspend_duration = model.country.duration
         cls.country_voice_notifications = model.country.voice_notifications
@@ -263,7 +286,7 @@ class GUIDetectionSettings:
             return
         try:
             cls.import_from_file(file_path)
-        except (ValidationError, json.JSONDecodeError, OSError):
+        except ValidationError, json.JSONDecodeError, OSError:
             logger.exception('Failed to load detection settings from %s, keeping defaults', file_path)
             cls.apply_model(DetectionsFile())
             if file_path == DETECTIONS_JSON_PATH:
@@ -319,7 +342,7 @@ class GUIDetectionSettings:
             or cls.hosting_message_box
             or bool(cls.isp_detection_list)
             or bool(cls.asn_detection_list)
-            or (geo_country_missing and bool(cls.country_detection_list))
+            or (geo_country_missing and (bool(cls.continent_detection_list) or bool(cls.country_detection_list)))
         )
 
     @classmethod
@@ -330,9 +353,4 @@ class GUIDetectionSettings:
     @classmethod
     def has_any_gta5_relay_action_enabled(cls) -> bool:
         """Return True if any GTA5 relay action is active."""
-        return (
-            cls.gta5_relay_enabled
-            or bool(cls.gta5_relay_voice_notifications)
-            or cls.gta5_relay_logging
-            or cls.gta5_relay_message_box
-        )
+        return cls.gta5_relay_enabled or bool(cls.gta5_relay_voice_notifications) or cls.gta5_relay_logging or cls.gta5_relay_message_box

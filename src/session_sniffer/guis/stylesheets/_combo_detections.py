@@ -156,18 +156,3 @@ DETECTIONS_MANAGER_HEADER_STYLESHEET = (
     'background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #0f1923, stop:0.5 #1a2d3d, stop:1 #0f1923);'
     'border-radius: 6px; border: 1px solid #2a3f4a;'
 )
-
-# =============================================================================
-# COUNTRY SELECTOR COMBO STYLES
-# =============================================================================
-
-COUNTRY_SELECTOR_COMBO_STYLESHEET = """
-    QComboBox {
-        font-size: 11pt;
-        padding: 6px 10px;
-        min-height: 28px;
-    }
-    QComboBox QAbstractItemView {
-        font-size: 10pt;
-    }
-"""

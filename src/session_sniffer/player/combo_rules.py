@@ -9,8 +9,8 @@ from typing import TYPE_CHECKING, ClassVar
 
 from pydantic import TypeAdapter, ValidationError
 
-from session_sniffer.guis.country_data import matches_country
-from session_sniffer.models.combo_rules import EVENT_CONDITION, ComboRule, ConditionValue
+from session_sniffer.guis.country_data import matches_continent, matches_country
+from session_sniffer.models.combo_rules import EVENT_CONDITION, ComboRule, ConditionValue, split_condition_key
 from session_sniffer.models.player import Player
 from session_sniffer.networking.ip_range import IPRange, parse_ip_range
 from session_sniffer.utils import FileSignature, get_file_signature
@@ -91,15 +91,34 @@ def _match_as_name_condition(value: ConditionValue, player: Player) -> bool:
     )
 
 
+def _match_continent_condition(value: ConditionValue, player: Player) -> bool:
+    """Match continent condition against GeoLite2 and ip-api continent names and codes."""
+    candidates = (
+        player.iplookup.geolite2.continent,
+        player.iplookup.geolite2.continent_code,
+        player.iplookup.ipapi.continent,
+        player.iplookup.ipapi.continent_code,
+    )
+    if isinstance(value, str):
+        return matches_continent(value, *candidates)
+    if isinstance(value, list):
+        return any(matches_continent(item, *candidates) for item in value if item)
+    return False
+
+
 def _match_country_condition(value: ConditionValue, player: Player) -> bool:
     """Match country condition against GeoLite2 and ip-api country names and ISO codes."""
-    return isinstance(value, str) and matches_country(
-        value,
+    candidates = (
         player.iplookup.geolite2.country,
         player.iplookup.geolite2.country_code,
         player.iplookup.ipapi.country,
         player.iplookup.ipapi.country_code,
     )
+    if isinstance(value, str):
+        return matches_country(value, *candidates)
+    if isinstance(value, list):
+        return any(matches_country(item, *candidates) for item in value if item)
+    return False
 
 
 def _match_city_condition(value: ConditionValue, player: Player) -> bool:
@@ -157,6 +176,7 @@ def _match_ip_range_condition(value: ConditionValue, player: Player) -> bool:
 
 
 _CONDITION_MATCHERS: dict[str, ConditionMatcher] = {
+    'continent': _match_continent_condition,
     'country': _match_country_condition,
     'city': _match_city_condition,
     'region': _match_region_condition,
@@ -171,14 +191,48 @@ _CONDITION_MATCHERS: dict[str, ConditionMatcher] = {
 }
 
 
+def _has_resolved_target(base_key: str, value: ConditionValue, player: Player) -> bool:
+    """Return True if the player's lookup data (or IP range) for *base_key* is resolved and valid for negation."""
+    if base_key == 'ip_range':
+        if not isinstance(value, str):
+            return False
+        try:
+            _parse_ip_range_cached(value)
+        except ValueError:
+            return False
+        return bool(player.ip)
+
+    geolite2 = player.iplookup.geolite2
+    ipapi = player.iplookup.ipapi
+    lookup_candidates_by_key: dict[str, tuple[object, ...]] = {
+        'continent': (geolite2.continent, geolite2.continent_code, ipapi.continent, ipapi.continent_code),
+        'country': (geolite2.country, geolite2.country_code, ipapi.country, ipapi.country_code),
+        'city': (geolite2.city, ipapi.city),
+        'region': (ipapi.region,),
+        'org': (ipapi.org,),
+        'isp': (ipapi.isp, ipapi.as_name, geolite2.asn),
+        'asn': (ipapi.asn, geolite2.asn),
+        'as_name': (ipapi.as_name,),
+    }
+    candidates = lookup_candidates_by_key.get(base_key, ())
+    return any(_valid_lookup_value(candidate) for candidate in candidates)
+
+
 def _check_condition(
     key: str,
     value: ConditionValue,
     player: Player,
 ) -> bool:
     """Check whether a single non-event condition matches the player."""
-    matcher = _CONDITION_MATCHERS.get(key)
-    return matcher(value, player) if matcher is not None else False
+    base_key, is_negated = split_condition_key(key)
+    matcher = _CONDITION_MATCHERS.get(base_key)
+    if matcher is None:
+        return False
+    if is_negated:
+        if not _has_resolved_target(base_key, value, player):
+            return False
+        return not matcher(value, player)
+    return matcher(value, player)
 
 
 def _evaluate_rule(rule: ComboRule, player: Player, event_type: str | None) -> bool:
@@ -251,8 +305,11 @@ class ComboRulesManager:
     @classmethod
     def needs_ipapi(cls, *, event_rules: bool, geo_country_missing: bool) -> bool:
         """Return True if any enabled combo rule of the requested kind requires ip-api.com data."""
-        return any(
-            bool(rule.conditions.keys() - {'event', 'country', 'ip_range'}) or ('country' in rule.conditions and geo_country_missing)
-            for rule in cls.rules
-            if rule.enabled and rule.has_event_condition == event_rules
-        )
+        geo_keys = {'continent', 'country'}
+        for rule in cls.rules:
+            if not rule.enabled or rule.has_event_condition != event_rules:
+                continue
+            base_keys = {split_condition_key(key)[0] for key in rule.conditions}
+            if bool(base_keys - {'event', *geo_keys, 'ip_range'}) or (bool(base_keys & geo_keys) and geo_country_missing):
+                return True
+        return False

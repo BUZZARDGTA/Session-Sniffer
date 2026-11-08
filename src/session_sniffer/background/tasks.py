@@ -16,7 +16,7 @@ from session_sniffer.constants.standard import LOCAL_TZ
 from session_sniffer.core import ScriptControl, terminate_on_uncaught_exception
 from session_sniffer.error_messages import format_type_error
 from session_sniffer.gta5.suspend_manager import GTASuspendManager
-from session_sniffer.guis.country_data import matches_country
+from session_sniffer.guis.country_data import matches_continent, matches_country
 from session_sniffer.guis.tables_player_actions._detection_dialogs import (
     DetectionNotificationInfo,
     NotificationType,
@@ -26,8 +26,9 @@ from session_sniffer.guis.tables_player_actions._detection_dialogs import (
 )
 from session_sniffer.guis.tables_player_actions._userip_dialog import show_userip_detected_dialog
 from session_sniffer.guis.utils import find_main_window
+from session_sniffer.models.combo_rules import format_combo_conditions_summary
 from session_sniffer.models.player_lookup import PlayerUserIPDetection
-from session_sniffer.networking.geolite2 import query_geolite2_asn, query_geolite2_city, query_geolite2_country
+from session_sniffer.networking.geolite2 import query_geolite2_asn, query_geolite2_city, query_geolite2_continent, query_geolite2_country
 from session_sniffer.networking.third_party_servers import ThirdPartyServers, is_ip_in_ranges
 from session_sniffer.player.combo_rules import ComboRulesManager, matches_asn_entry, matches_player_isp
 from session_sniffer.player.detections import GUIDetectionSettings
@@ -123,6 +124,7 @@ def _check_reverse_dns_hostname(player: Player) -> bool:
 def _check_iplookup_geolite2(player: Player) -> bool:
     """Check if player GeoLite2 data is initialized."""
     if not player.iplookup.geolite2.is_initialized:
+        player.iplookup.geolite2.continent, player.iplookup.geolite2.continent_code = query_geolite2_continent(player.ip)
         player.iplookup.geolite2.country, player.iplookup.geolite2.country_code = query_geolite2_country(player.ip)
         player.iplookup.geolite2.city = query_geolite2_city(player.ip)
         player.iplookup.geolite2.asn = query_geolite2_asn(player.ip)
@@ -149,33 +151,18 @@ def wait_for_player_data_ready(
     data_fields: tuple[Literal['userip.usernames', 'reverse_dns.hostname', 'iplookup.geolite2', 'iplookup.ipapi'], ...],
     timeout: float,
 ) -> bool:
-    """Wait for specific player data fields to be ready for display.
-
-    Args:
-        player: The player object to wait for
-        data_fields: Tuple of data field paths to wait for
-        timeout: Maximum time to wait for data to be ready
-
-    Returns:
-        Whether all specified data is ready before the timeout expires.
-    """
+    """Wait for specific player data fields to be ready for display before `timeout` expires."""
     deadline = time.monotonic() + timeout
-
     checker_items = [_FIELD_CHECKERS[field] for field in data_fields if field in _FIELD_CHECKERS]
-
     while True:
         if player.left_event.is_set() or gui_closed__event.is_set():
             break
-
         remaining = deadline - time.monotonic()
         if remaining <= 0:
             break
-
         if all(checker(player) for checker in checker_items):
             return True
-
         gui_closed__event.wait(min(0.02, remaining))
-
     return False
 
 
@@ -193,18 +180,9 @@ _NOTIFICATION_TYPE_SETTING_PREFIX: dict[NotificationType, str] = {
 }
 
 _NOTIFICATION_CONFIGS: dict[NotificationType, NotificationConfig] = {
-    'player_joined_session': {
-        'title': 'PLAYER JOINED SESSION!',
-        'description': 'A new player has joined your session!',
-    },
-    'player_rejoined_session': {
-        'title': 'PLAYER REJOINED SESSION!',
-        'description': 'A player has rejoined your session after disconnecting!',
-    },
-    'player_left_session': {
-        'title': 'PLAYER LEFT SESSION!',
-        'description': 'A player has left your session!',
-    },
+    'player_joined_session': {'title': 'PLAYER JOINED SESSION!', 'description': 'A new player has joined your session!'},
+    'player_rejoined_session': {'title': 'PLAYER REJOINED SESSION!', 'description': 'A player has rejoined your session after disconnecting!'},
+    'player_left_session': {'title': 'PLAYER LEFT SESSION!', 'description': 'A player has left your session!'},
 }
 
 _NOTIFICATION_TO_EVENT: dict[NotificationType, str] = {
@@ -214,31 +192,15 @@ _NOTIFICATION_TO_EVENT: dict[NotificationType, str] = {
 }
 
 
-def handle_detection_notification(
-    player: Player,
-    notification_type: NotificationType,
-) -> None:
-    """Handle voice notifications, logging, message box popups, and suspension actions for player connection events.
-
-    This function now reads all settings from GUIDetectionSettings and is used only for
-    player_joined_session, player_rejoined_session, and player_left_session events.
-    VPN/hosting/mobile notifications are handled by check_global_detections.
-
-    Args:
-        player: The player object with detection data
-        notification_type: Type of notification - `player_joined_session`,
-            `player_rejoined_session`, or `player_left_session`
-    """
+def handle_detection_notification(player: Player, notification_type: NotificationType) -> None:
+    """Handle voice notifications, logging, message box popups, and suspension actions for player connection events."""
     prefix = _NOTIFICATION_TYPE_SETTING_PREFIX[notification_type]
-
     enabled = cast('bool', getattr(GUIDetectionSettings, f'{prefix}_enabled'))
     voice_setting = cast('Literal["Male", "Female"] | bool', getattr(GUIDetectionSettings, f'{prefix}_voice_notifications'))
     logging_setting = cast('bool', getattr(GUIDetectionSettings, f'{prefix}_logging'))
     msgbox_setting = cast('bool', getattr(GUIDetectionSettings, f'{prefix}_message_box'))
 
-    # Check if there are combo rules with event conditions that might need evaluation
     has_event_combo_rules = any(rule.has_event_condition for rule in ComboRulesManager.rules if rule.enabled)
-
     standalone_active = enabled or voice_setting or logging_setting or msgbox_setting
     if not standalone_active and not has_event_combo_rules:
         return
@@ -246,28 +208,19 @@ def handle_detection_notification(
     def notification_thread() -> None:
         """Thread function to handle voice, logging, message box, and suspension actions."""
         config = _NOTIFICATION_CONFIGS[notification_type]
-
         data_ready = False
 
         if standalone_active:
             duration = cast('int | Literal["Auto"]', getattr(GUIDetectionSettings, f'{prefix}_duration'))
-
-            # Execute suspension action (only when enabled and suspension is supported)
             if enabled and Settings.is_gta5_feature_set() and CaptureState.is_local_capture():
-                GTASuspendManager.request_suspend(
-                    reason_key=f'event:{notification_type}:{player.ip}',
-                    left_event=player.left_event,
-                    duration=duration,
-                )
+                GTASuspendManager.request_suspend(reason_key=f'event:{notification_type}:{player.ip}', left_event=player.left_event, duration=duration)
 
-            # Voice notification (queued, plays sequentially through VoiceNotificationWorker)
             if Settings.voice_notifications_enabled and voice_setting:
                 tts_candidate_path = TTS_DIR_PATH / tts_voice_name(voice_setting=voice_setting) / 'event' / f'{notification_type}.wav'
                 queue_voice_notification(tts_candidate_path)
 
             data_ready = wait_for_player_data_ready(player, data_fields=('iplookup.geolite2', 'reverse_dns.hostname', 'iplookup.ipapi'), timeout=3.0)
 
-            # Detection logging
             if logging_setting:
                 now = datetime.now(tz=LOCAL_TZ)
                 _append_csv_log_row(
@@ -277,14 +230,10 @@ def handle_detection_notification(
                     [config['title'], ', '.join(player.usernames), player.ip, now.strftime('%Y-%m-%d'), now.strftime('%H:%M:%S'), player.iplookup.resolve_country()[0]],
                 )
 
-            # Message box popup
             if msgbox_setting:
                 _info = PlayerDetectionInfo(
-                    event_type=notification_type,
-                    title=config['title'],
-                    description=config['description'],
-                    event_time=datetime.now(tz=LOCAL_TZ).strftime('%H:%M:%S'),
-                    data_ready=data_ready,
+                    event_type=notification_type, title=config['title'], description=config['description'],
+                    event_time=datetime.now(tz=LOCAL_TZ).strftime('%H:%M:%S'), data_ready=data_ready,
                 )
 
                 def _show_detection_dialog() -> None:
@@ -292,40 +241,27 @@ def handle_detection_notification(
 
                 gui_dispatcher.invoke(_show_detection_dialog)
 
-        # Combo Rules evaluation (rules WITH event condition fire here)
         combo_event = _NOTIFICATION_TO_EVENT.get(notification_type)
         if combo_event is not None:
             _check_iplookup_geolite2(player)
-            if not data_ready and ComboRulesManager.needs_ipapi(event_rules=True, geo_country_missing=player.iplookup.geolite2.country_code in ('...', 'N/A')):
+            geo_missing = player.iplookup.geolite2.country_code in ('...', 'N/A') or player.iplookup.geolite2.continent_code in ('...', 'N/A')
+            if not data_ready and ComboRulesManager.needs_ipapi(event_rules=True, geo_country_missing=geo_missing):
                 wait_for_player_data_ready(player, data_fields=('iplookup.geolite2', 'iplookup.ipapi'), timeout=10.0)
 
             matched_combo_rules = ComboRulesManager.evaluate(player, event_type=combo_event)
             for rule in matched_combo_rules:
-                # Suspension action
                 if rule.protection_enabled and Settings.is_gta5_feature_set() and CaptureState.is_local_capture():
-                    GTASuspendManager.request_suspend(
-                        reason_key=f'combo:{rule.name}:{player.ip}',
-                        left_event=player.left_event,
-                        duration=rule.duration,
-                    )
+                    GTASuspendManager.request_suspend(reason_key=f'combo:{rule.name}:{player.ip}', left_event=player.left_event, duration=rule.duration)
 
-                # Voice notification
                 if Settings.voice_notifications_enabled and rule.voice_notifications:
                     tts_candidate_path = TTS_DIR_PATH / tts_voice_name(voice_setting=rule.voice_notifications) / 'detection' / 'combo_rule_detected.wav'
                     queue_voice_notification(tts_candidate_path)
 
-                # Logging
                 if rule.logging:
-                    _log_to_protection_csv(
-                        f'COMBO RULE MATCHED: {rule.name}',
-                        ', '.join(player.usernames),
-                        player.ip,
-                        player.iplookup.resolve_country()[0],
-                    )
+                    _log_to_protection_csv(f'COMBO RULE MATCHED: {rule.name}', ', '.join(player.usernames), player.ip, player.iplookup.resolve_country()[0])
 
-                # Message box
                 if rule.message_box:
-                    conditions_summary = ', '.join(f'{key}={value}' for key, value in rule.conditions.items() if key != 'event')
+                    conditions_summary = format_combo_conditions_summary(rule.conditions, include_event=False)
                     _display_title = f'Combo Rule Matched: {rule.name}'
                     _extra: list[tuple[str, str]] = [('Event', combo_event), ('Conditions', conditions_summary)]
                     _et = datetime.now(tz=LOCAL_TZ).strftime('%H:%M:%S')
@@ -333,8 +269,7 @@ def handle_detection_notification(
                     def _make_event_combo_notif(title: str, extra_fields: list[tuple[str, str]], event_time_str: str) -> None:
                         def _callback() -> None:
                             show_detection_notification_dialog(
-                                find_main_window(),
-                                player,
+                                find_main_window(), player,
                                 DetectionNotificationInfo(display_title=title, extra_detection_fields=extra_fields, event_time=event_time_str),
                             )
 
@@ -625,7 +560,7 @@ def check_global_detections(player: Player) -> None:
         player: The player object to check detections against.
     """
     _check_iplookup_geolite2(player)
-    geo_missing = player.iplookup.geolite2.country_code in ('...', 'N/A')
+    geo_missing = player.iplookup.geolite2.country_code in ('...', 'N/A') or player.iplookup.geolite2.continent_code in ('...', 'N/A')
     if GUIDetectionSettings.has_any_ipapi_detection_enabled(geo_country_missing=geo_missing) or ComboRulesManager.needs_ipapi(
         event_rules=False, geo_country_missing=geo_missing,
     ):
@@ -743,6 +678,32 @@ def check_global_detections(player: Player) -> None:
             ),
         )
 
+    # Continent Detection
+    if GUIDetectionSettings.continent_detection_list and any(
+        matches_continent(
+            continent,
+            player.iplookup.geolite2.continent,
+            player.iplookup.geolite2.continent_code,
+            player.iplookup.ipapi.continent,
+            player.iplookup.ipapi.continent_code,
+        )
+        for continent in GUIDetectionSettings.continent_detection_list
+    ):
+        handle_detection_notifications(
+            detection_title='BLOCKED CONTINENT DETECTED!',
+            display_title='Blocked Continent Detected',
+            extra_detection_fields=[('Continent', player.iplookup.resolve_continent()[0])],
+            settings=_DetectionSettings(
+                voice=GUIDetectionSettings.continent_voice_notifications,
+                log=GUIDetectionSettings.continent_logging,
+                msgbox=GUIDetectionSettings.continent_message_box,
+                tts_filename='country_detected',
+                suspend_enabled=GUIDetectionSettings.continent_suspend_enabled,
+                suspend_duration=GUIDetectionSettings.continent_suspend_duration,
+                suspension_name='ContinentDetection',
+            ),
+        )
+
     # Country Detection
     if GUIDetectionSettings.country_detection_list and any(
         matches_country(country, player.iplookup.geolite2.country, player.iplookup.geolite2.country_code, player.iplookup.ipapi.country, player.iplookup.ipapi.country_code)
@@ -845,7 +806,7 @@ def check_global_detections(player: Player) -> None:
     # Combo Rules evaluation (rules without event condition fire here at join-time)
     matched_combo_rules = ComboRulesManager.evaluate(player, event_type=None)
     for rule in matched_combo_rules:
-        conditions_summary = ', '.join(f'{key}={value}' for key, value in rule.conditions.items() if key != 'event')
+        conditions_summary = format_combo_conditions_summary(rule.conditions, include_event=False)
         handle_detection_notifications(
             detection_title=f'COMBO RULE MATCHED: {rule.name}',
             display_title=f'Combo Rule Matched: {rule.name}',

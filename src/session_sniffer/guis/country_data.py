@@ -322,3 +322,65 @@ def matches_country(target: str, *candidates: object) -> bool:
         if candidate.strip().casefold() == target_folded:
             return True
     return False
+
+
+CONTINENT_NAMES: dict[str, str] = {
+    'AF': 'Africa',
+    'AN': 'Antarctica',
+    'AS': 'Asia',
+    'EU': 'Europe',
+    'NA': 'North America',
+    'OC': 'Oceania',
+    'SA': 'South America',
+}
+
+CONTINENT_CODES: dict[str, str] = {continent_name: continent_code for continent_code, continent_name in CONTINENT_NAMES.items()}
+
+_CONTINENT_CODES_CASEFOLDED: dict[str, str] = {continent_name.casefold(): continent_code for continent_code, continent_name in CONTINENT_NAMES.items()}
+
+
+def get_continent_code(continent_name: str) -> str | None:
+    """Return the 2-letter continent code for a continent name or code, or None if unknown."""
+    code = CONTINENT_CODES.get(continent_name)
+    if code is not None:
+        return code
+    stripped = continent_name.strip()
+    if not stripped:
+        return None
+    upper = stripped.upper()
+    if upper in CONTINENT_NAMES:
+        return upper
+    code = _CONTINENT_CODES_CASEFOLDED.get(stripped.casefold())
+    if code is not None:
+        return code
+    if ' - ' in stripped:
+        prefix, _, suffix = stripped.partition(' - ')
+        prefix_upper = prefix.strip().upper()
+        if prefix_upper in CONTINENT_NAMES and _CONTINENT_CODES_CASEFOLDED.get(suffix.strip().casefold()) == prefix_upper:
+            return prefix_upper
+    return None
+
+
+def normalize_continent_name(continent_name: str) -> str | None:
+    """Resolve a continent name or 2-letter code to its canonical CONTINENT_NAMES display name."""
+    code = get_continent_code(continent_name)
+    if code is not None:
+        return CONTINENT_NAMES.get(code)
+    return None
+
+
+def matches_continent(target: str, *candidates: object) -> bool:
+    """Return True if any lookup candidate (continent name or 2-letter code) matches *target*."""
+    target_stripped = target.strip()
+    if not target_stripped:
+        return False
+    target_code = get_continent_code(target_stripped)
+    target_folded = target_stripped.casefold()
+    for candidate in candidates:
+        if not isinstance(candidate, str) or candidate in ('', '...', 'N/A'):
+            continue
+        if target_code is not None and get_continent_code(candidate) == target_code:
+            return True
+        if candidate.strip().casefold() == target_folded:
+            return True
+    return False

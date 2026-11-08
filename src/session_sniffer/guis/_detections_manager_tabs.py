@@ -29,8 +29,13 @@ from shiboken6 import isValid
 from session_sniffer.background import clear_voice_notification_queue, retrigger_detections_scan
 from session_sniffer.constants.local import COMBO_RULES_PATH, RESOURCES_DIR_PATH
 from session_sniffer.constants.standalone import MAX_SUSPEND_DURATION_SECONDS, TITLE
-from session_sniffer.guis._combo_rule_editor import ComboRuleEditorDialog, CountrySelectionDialog
-from session_sniffer.guis.country_data import get_country_flag_code, normalize_country_name
+from session_sniffer.guis._combo_rule_editor import ComboRuleEditorDialog, ContinentSelectionDialog, CountrySelectionDialog
+from session_sniffer.guis.country_data import (
+    get_continent_code,
+    get_country_flag_code,
+    normalize_continent_name,
+    normalize_country_name,
+)
 from session_sniffer.guis.delegates import ElidedTextTooltipDelegate
 from session_sniffer.guis.stylesheets import (
     DESC_LABEL_STYLESHEET,
@@ -49,7 +54,7 @@ from session_sniffer.guis.utils import (
     render_svg_pixmap_from_resource,
     scale_by_ui,
 )
-from session_sniffer.models.combo_rules import ComboRule
+from session_sniffer.models.combo_rules import ComboRule, format_combo_conditions_summary
 from session_sniffer.player.combo_rules import ComboRulesManager
 from session_sniffer.settings import Settings
 from session_sniffer.text_utils import DEFAULT_MANUAL_SUSPEND_DURATION_SECONDS
@@ -66,6 +71,7 @@ class DetectionsManagerTabsMixin(QDialog):
         _combo_duplicate_button: QPushButton
         _combo_remove_button: QPushButton
         _combo_clear_button: QPushButton
+        continent_list: QListWidget
         country_list: QListWidget
         isp_list: QListWidget
         asn_list: QListWidget
@@ -152,11 +158,19 @@ class DetectionsManagerTabsMixin(QDialog):
         return widget
 
     def create_geo_based_tab(self) -> QWidget:
-        """Create the geography-based detections tab (Country, ISP, ASN)."""
+        """Create the geography-based detections tab (Continent, Country, ISP, ASN)."""
         widget = QWidget()
         layout = QVBoxLayout(widget)
         layout.setSpacing(15)
         scroll_layout = self._add_scrollable_section(layout)
+
+        continent_group = self._create_list_detection_group(
+            'Continent Detection',
+            "Triggers when a player's continent is in the detection list.",
+            'continent',
+            on_add=self._add_continent,
+        )
+        scroll_layout.addWidget(continent_group)
 
         country_group = self._create_list_detection_group(
             'Country Detection',
@@ -365,7 +379,7 @@ class DetectionsManagerTabsMixin(QDialog):
         current_row = self._combo_rules_list.currentRow()
         self._combo_rules_list.clear()
         for rule in ComboRulesManager.rules:
-            conditions_summary = ', '.join(f'{key}={value}' if not isinstance(value, bool) else key for key, value in rule.conditions.items())
+            conditions_summary = format_combo_conditions_summary(rule.conditions)
             item = QListWidgetItem(f'{rule.name}  [{conditions_summary}]')
             item.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / ('check.svg' if rule.enabled else 'x.svg'))))
             item.setData(Qt.ItemDataRole.UserRole, id(rule))
@@ -555,25 +569,21 @@ class DetectionsManagerTabsMixin(QDialog):
         group.setLayout(group_layout)
         return group
 
-    def _create_list_detection_group(
+    def _append_managed_list_row(
         self,
-        title: str,
-        description: str,
-        detection_type: str,
+        group_layout: QVBoxLayout,
+        attr_name: str,
         *,
         on_add: Callable[[], None],
-    ) -> QGroupBox:
-        """Create a detection group with enable, list, action, process path, and notification settings."""
-        group, group_layout = self._create_base_group(title, description)
-
-        # List widget
+    ) -> QListWidget:
+        """Create a styled `QListWidget` with Add/Remove/Clear All buttons and attach it to *group_layout*."""
         list_layout = QHBoxLayout()
 
         list_widget = QListWidget()
         list_widget.setStyleSheet(LIST_WIDGET_STYLE)
         list_widget.setItemDelegate(ElidedTextTooltipDelegate(list_widget))
         list_widget.setWordWrap(False)
-        setattr(self, f'{detection_type}_list', list_widget)
+        setattr(self, attr_name, list_widget)
         list_layout.addWidget(list_widget)
 
         buttons_layout = QVBoxLayout()
@@ -618,7 +628,19 @@ class DetectionsManagerTabsMixin(QDialog):
         buttons_layout.addStretch()
         list_layout.addLayout(buttons_layout)
         group_layout.addLayout(list_layout)
+        return list_widget
 
+    def _create_list_detection_group(
+        self,
+        title: str,
+        description: str,
+        detection_type: str,
+        *,
+        on_add: Callable[[], None],
+    ) -> QGroupBox:
+        """Create a detection group with enable, list, action, process path, and notification settings."""
+        group, group_layout = self._create_base_group(title, description)
+        self._append_managed_list_row(group_layout, f'{detection_type}_list', on_add=on_add)
         self._append_detection_and_notification_sections(group_layout, detection_type)
         group.setLayout(group_layout)
         return group
@@ -663,8 +685,36 @@ class DetectionsManagerTabsMixin(QDialog):
                 return True
         return False
 
+    def _add_continent(self) -> None:
+        """Add one or more continents via a multi-select dialog."""
+        existing_continents: set[str] = set()
+        for i in range(self.continent_list.count()):
+            item = self.continent_list.item(i)
+            if item:
+                continent = item.data(Qt.ItemDataRole.UserRole)
+                if isinstance(continent, str):
+                    existing_continents.add(normalize_continent_name(continent) or continent)
+
+        dialog = ContinentSelectionDialog(self, existing_continents)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            continents = dialog.selected_continents()
+            if continents:
+                for continent in continents:
+                    self._add_continent_item(continent)
+                self._auto_save_detections()
+
+    def _add_continent_item(self, continent_name: str) -> None:
+        """Add a continent list item with display name and continent code."""
+        canonical = normalize_continent_name(continent_name) or continent_name
+        code = get_continent_code(canonical)
+        display_text = f'{canonical} ({code})' if code is not None and code else canonical
+        item = QListWidgetItem(display_text)
+        item.setData(Qt.ItemDataRole.UserRole, canonical)
+        item.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'globe.svg')))
+        self.continent_list.addItem(item)
+
     def _add_country(self) -> None:
-        """Add a country via a searchable selection dialog."""
+        """Add one or more countries via a searchable selection dialog."""
         existing_countries: set[str] = set()
         for i in range(self.country_list.count()):
             item = self.country_list.item(i)
@@ -673,15 +723,16 @@ class DetectionsManagerTabsMixin(QDialog):
                 if isinstance(country, str):
                     existing_countries.add(normalize_country_name(country) or country)
 
-        dialog = CountrySelectionDialog(self, existing_countries)
+        dialog = CountrySelectionDialog(self, existing_countries, title='Select Country / Countries')
         if dialog.exec() == QDialog.DialogCode.Accepted:
-            country = dialog.selected_country()
-            if country is not None and country:
-                self._add_country_item(country)
+            countries = dialog.selected_countries()
+            if countries:
+                for country in countries:
+                    self._add_country_item(country)
                 self._auto_save_detections()
 
     def _add_country_item(self, country_name: str) -> None:
-        """Add a country list item with an icon and display name."""
+        """Add a country list item with an icon and display name to `self.country_list`."""
         item = QListWidgetItem(country_name)
         item.setData(Qt.ItemDataRole.UserRole, country_name)
         flag_code = get_country_flag_code(country_name)

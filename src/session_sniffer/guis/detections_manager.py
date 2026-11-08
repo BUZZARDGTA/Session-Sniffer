@@ -36,7 +36,7 @@ from session_sniffer.guis._dialog_mixins import (
     equalize_button_sizes,
     setup_tab_reset_buttons,
 )
-from session_sniffer.guis.country_data import normalize_country_name
+from session_sniffer.guis.country_data import normalize_continent_name, normalize_country_name
 from session_sniffer.guis.stylesheets import DETECTIONS_MANAGER_HEADER_STYLESHEET, DIALOG_BUTTON_STYLESHEET
 from session_sniffer.guis.utils import (
     consume_maximize_on_show,
@@ -63,6 +63,7 @@ _STANDARD_DETECTION_PREFIXES: tuple[str, ...] = (
     'mobile',
     'vpn',
     'hosting',
+    'continent',
     'country',
     'isp',
     'asn',
@@ -98,6 +99,7 @@ class DetectionsManagerDialog(DetectionsManagerTabsMixin, QDialog):
         resize_window_for_screen(self)
 
         # Static widget references (per-rule controls are accessed dynamically via prefix)
+        self.continent_list: QListWidget
         self.country_list: QListWidget
         self.isp_list: QListWidget
         self.asn_list: QListWidget
@@ -223,6 +225,13 @@ class DetectionsManagerDialog(DetectionsManagerTabsMixin, QDialog):
         """Read GUIDetectionSettings and populate all widgets."""
         self._loading_settings = True
         try:
+            self.continent_list.clear()
+            seen_continents: set[str] = set()
+            for continent in GUIDetectionSettings.continent_detection_list:
+                if continent not in seen_continents:
+                    seen_continents.add(continent)
+                    self._add_continent_item(continent)
+
             self.country_list.clear()
             seen_countries: set[str] = set()
             for country in GUIDetectionSettings.country_detection_list:
@@ -342,7 +351,7 @@ class DetectionsManagerDialog(DetectionsManagerTabsMixin, QDialog):
         index_to_prefixes: dict[int, tuple[str, ...]] = {
             0: ('player_join', 'player_rejoin', 'player_leave'),
             1: ('mobile', 'vpn', 'hosting'),
-            2: ('country', 'isp', 'asn'),
+            2: ('continent', 'country', 'isp', 'asn'),
             4: ('gta5_relay',),
         }
         prefixes = index_to_prefixes.get(current_index)
@@ -381,6 +390,9 @@ class DetectionsManagerDialog(DetectionsManagerTabsMixin, QDialog):
 
     def _save_widgets_to_singleton(self) -> None:
         """Write current widget state to GUIDetectionSettings without persisting to disk."""
+        GUIDetectionSettings.continent_detection_list = [
+            item.data(Qt.ItemDataRole.UserRole) for i in range(self.continent_list.count()) if (item := self.continent_list.item(i))
+        ]
         GUIDetectionSettings.country_detection_list = [item.data(Qt.ItemDataRole.UserRole) for i in range(self.country_list.count()) if (item := self.country_list.item(i))]
         GUIDetectionSettings.isp_detection_list = [item.text() for i in range(self.isp_list.count()) if (item := self.isp_list.item(i))]
         GUIDetectionSettings.asn_detection_list = [item.text() for i in range(self.asn_list.count()) if (item := self.asn_list.item(i))]
@@ -416,6 +428,8 @@ def open_combo_rule_editor_for_player(parent: QWidget, player: Player) -> None:
         return value if isinstance(value, str) and value and value not in {_placeholder, 'N/A'} else None
 
     conditions: dict[str, str | bool | list[str]] = {}
+    if (continent := _safe(player.iplookup.resolve_continent()[0])) is not None:
+        conditions['continent'] = normalize_continent_name(continent) or continent
     if (country := _safe(player.iplookup.resolve_country()[0])) is not None:
         conditions['country'] = normalize_country_name(country) or country
     if (isp := _safe(player.iplookup.ipapi.isp)) is not None:

@@ -12,7 +12,7 @@ class DetectionActionSettings(DetectionActionBase):
 
 
 class ListDetectionActionSettings(DetectionActionSettings):
-    """Settings for detections that include a target string list (Country, ISP, ASN)."""
+    """Settings for detections that include a target string list (Continent, Country, ISP, ASN)."""
 
     model_config = ConfigDict(extra='ignore', populate_by_name=True)
 
@@ -27,6 +27,7 @@ class DetectionsFile(BaseModel):
     mobile: DetectionActionSettings = Field(default_factory=DetectionActionSettings)
     vpn: DetectionActionSettings = Field(default_factory=DetectionActionSettings)
     hosting: DetectionActionSettings = Field(default_factory=DetectionActionSettings)
+    continent: ListDetectionActionSettings = Field(default_factory=ListDetectionActionSettings)
     country: ListDetectionActionSettings = Field(default_factory=ListDetectionActionSettings)
     isp: ListDetectionActionSettings = Field(default_factory=ListDetectionActionSettings)
     asn: ListDetectionActionSettings = Field(default_factory=ListDetectionActionSettings)

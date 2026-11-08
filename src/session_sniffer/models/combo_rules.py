@@ -40,8 +40,12 @@ class DetectionActionBase(BaseModel):
         return str(voice) if voice else 'False'
 
 
-# Condition keys that accept a free-text string value
-_STRING_CONDITIONS: frozenset[str] = frozenset({'country', 'city', 'region', 'org', 'isp', 'asn', 'as_name', 'ip_range'})
+# Prefix used on condition keys to represent the 'Is Not' (negated) operator
+NEGATED_PREFIX: str = '!'
+# Condition keys that accept a free-text string value (and support 'Is' / 'Is Not')
+NEGATABLE_CONDITIONS: frozenset[str] = frozenset({'continent', 'country', 'city', 'region', 'org', 'isp', 'asn', 'as_name', 'ip_range'})
+# Condition keys that accept either a string or a list of strings
+_MULTI_STRING_CONDITIONS: frozenset[str] = frozenset({'continent', 'country'})
 # Condition keys that are boolean flags
 _BOOL_CONDITIONS: frozenset[str] = frozenset({'mobile', 'vpn', 'hosting'})
 # The special event condition
@@ -49,6 +53,25 @@ EVENT_CONDITION: str = 'event'
 _VALID_EVENTS: frozenset[str] = frozenset({'join', 'rejoin', 'leave'})
 
 type ConditionValue = str | bool | list[str]
+
+
+def split_condition_key(key: str) -> tuple[str, bool]:
+    """Return `(base_key, is_negated)` for a combo rule condition key."""
+    if key.startswith(NEGATED_PREFIX):
+        return key[len(NEGATED_PREFIX) :], True
+    return key, False
+
+
+def format_combo_conditions_summary(conditions: dict[str, ConditionValue], *, include_event: bool = True) -> str:
+    """Format a combo rule's conditions dictionary into a human-readable summary string."""
+    parts: list[str] = []
+    for key, value in conditions.items():
+        if not include_event and key == EVENT_CONDITION:
+            continue
+        base_key, is_negated = split_condition_key(key)
+        operator = '!=' if is_negated else '='
+        parts.append(f'{base_key}{operator}{value}')
+    return ', '.join(parts)
 
 
 class ComboRule(DetectionActionBase):
@@ -69,16 +92,23 @@ class ComboRule(DetectionActionBase):
 
         conditions: dict[str, ConditionValue] = {}
         for key, raw_val in cast('dict[str, object]', value).items():
-            if key in _STRING_CONDITIONS:
+            base_key, is_negated = split_condition_key(key)
+            if is_negated and base_key not in NEGATABLE_CONDITIONS:
+                continue
+            if base_key in _MULTI_STRING_CONDITIONS and isinstance(raw_val, list):
+                valid_items = [item.strip() for item in cast('list[object]', raw_val) if isinstance(item, str) and item.strip()]
+                if valid_items:
+                    conditions[key] = valid_items if len(valid_items) > 1 else valid_items[0]
+            elif base_key in NEGATABLE_CONDITIONS:
                 if isinstance(raw_val, str) and raw_val.strip():
                     # Keep invalid IP ranges so the rule never matches instead of silently dropping the condition and broadening it.
-                    if key == 'ip_range' and not is_valid_ip_range_entry(raw_val.strip()):
+                    if base_key == 'ip_range' and not is_valid_ip_range_entry(raw_val.strip()):
                         logger.warning('Invalid combo rule IP range %r: the rule will never match until it is fixed', raw_val.strip())
                     conditions[key] = raw_val.strip()
-            elif key in _BOOL_CONDITIONS:
+            elif base_key in _BOOL_CONDITIONS:
                 if isinstance(raw_val, bool):
                     conditions[key] = raw_val
-            elif key == EVENT_CONDITION and isinstance(raw_val, list):
+            elif base_key == EVENT_CONDITION and isinstance(raw_val, list):
                 valid_events = [event for event in cast('list[object]', raw_val) if isinstance(event, str) and event in _VALID_EVENTS]
                 if valid_events:
                     conditions[key] = valid_events

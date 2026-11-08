@@ -69,10 +69,11 @@ def format_player_ports(player: Player) -> str:
 
 
 def format_player_continent(player: Player) -> str:
-    """Format player continent with optional alpha-2 code."""
+    """Format player continent, preferring GeoLite2 over IP-API when valid."""
+    continent_name, continent_code = player.iplookup.resolve_continent()
     if Settings.gui_columns_geo_continent_append_alpha2:
-        return f'{player.iplookup.ipapi.continent} ({player.iplookup.ipapi.continent_code})'
-    return player.iplookup.ipapi.continent
+        return f'{continent_name} ({continent_code})'
+    return continent_name
 
 
 def format_player_country(player: Player) -> str:
