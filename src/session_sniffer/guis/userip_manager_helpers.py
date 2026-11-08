@@ -52,18 +52,8 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-INDEX_COLUMN = 0
-USERNAME_COLUMN = 1
-IP_COLUMN = 2
-RANGE_COLUMN = 3
-DATABASE_COLUMN = 4
-NOTES_COLUMN = 5
-SOURCE_COLUMN = 6
-DETECTIONS_COLUMN = 7
-ADDED_AT_COLUMN = 8
-UPDATED_AT_COLUMN = 9
-FIRST_SEEN_AT_COLUMN = 10
-LAST_SEEN_AT_COLUMN = 11
+INDEX_COLUMN, USERNAME_COLUMN, IP_COLUMN, RANGE_COLUMN, DATABASE_COLUMN, NOTES_COLUMN = 0, 1, 2, 3, 4, 5
+SOURCE_COLUMN, DETECTIONS_COLUMN, ADDED_AT_COLUMN, UPDATED_AT_COLUMN, FIRST_SEEN_AT_COLUMN, LAST_SEEN_AT_COLUMN = 6, 7, 8, 9, 10, 11
 
 TIMESTAMP_COLUMNS = (ADDED_AT_COLUMN, UPDATED_AT_COLUMN, FIRST_SEEN_AT_COLUMN, LAST_SEEN_AT_COLUMN)
 FILTERABLE_COLUMNS = (USERNAME_COLUMN, IP_COLUMN, RANGE_COLUMN, DATABASE_COLUMN, NOTES_COLUMN, SOURCE_COLUMN, *TIMESTAMP_COLUMNS)
@@ -78,23 +68,21 @@ USERIP_METADATA_HEADER_TOOLTIPS: dict[str, str] = {
     'Last Seen': 'The most recent time a player matching this entry was active in a session.',
 }
 
-IS_PERSISTED_ROLE = Qt.ItemDataRole.UserRole + 1
-SEARCH_TEXT_ROLE = Qt.ItemDataRole.UserRole + 2
-SORT_KEY_ROLE = Qt.ItemDataRole.UserRole + 3
-ANCHOR_USERNAME_ROLE = Qt.ItemDataRole.UserRole + 4
+IS_PERSISTED_ROLE, SEARCH_TEXT_ROLE, SORT_KEY_ROLE = Qt.ItemDataRole.UserRole + 1, Qt.ItemDataRole.UserRole + 2, Qt.ItemDataRole.UserRole + 3
 
 DUPLICATE_HIGHLIGHT_BRUSH = QBrush(QColor(255, 165, 0, 60))
-_GROUP_BG_BRUSH_EVEN = QBrush(QColor('#1e1e1e'))
-_GROUP_BG_BRUSH_ODD = QBrush(QColor('#252526'))
-_LOOKY_FOREGROUND_BRUSH = QBrush(QColor('#a855f7'))
+_GROUP_BG_BRUSH_EVEN, _GROUP_BG_BRUSH_ODD, _LOOKY_FOREGROUND_BRUSH = QBrush(QColor('#1e1e1e')), QBrush(QColor('#252526')), QBrush(QColor('#a855f7'))
 _READONLY_ITEM_FLAGS = Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsDragEnabled | Qt.ItemFlag.ItemIsDropEnabled
-
-_IPV4_BROADCAST_FREE_PREFIX = 31
-_IPV4_VERSION = 4
-_EPOCH_SORT_OFFSET_MS = 10_000_000_000_000
+_IPV4_BROADCAST_FREE_PREFIX, _IPV4_VERSION, _EPOCH_SORT_OFFSET_MS = 31, 4, 10_000_000_000_000
 
 NEW_DATABASE_SETTINGS = UserIPSettingsModel(
-    ENABLED=True, COLOR='', LOG=True, NOTIFICATIONS=True, VOICE_NOTIFICATIONS=False, PROTECTION=False, PROTECTION_SUSPEND_PROCESS_MODE='Auto',
+    ENABLED=True,
+    COLOR='',
+    LOG=True,
+    NOTIFICATIONS=True,
+    VOICE_NOTIFICATIONS=False,
+    PROTECTION=False,
+    PROTECTION_SUSPEND_PROCESS_MODE='Auto',
 )
 
 
@@ -236,13 +224,17 @@ class EntriesSortProxy(QSortFilterProxyModel):
         row_indices: list[int] = []
         for row in range(row_count):
             u_item, ip_item, range_item, idx_item = model.item(row, USERNAME_COLUMN), model.item(row, IP_COLUMN), model.item(row, RANGE_COLUMN), model.item(row, INDEX_COLUMN)
-            u_text = (u_item.text().strip() if u_item else '') or str((idx_item.data(ANCHOR_USERNAME_ROLE) if idx_item else None) or '').strip()
+            u_text = u_item.text().strip() if u_item else ''
             row_usernames_cf.append(u_text.casefold())
             row_ips.append((ip_item.text().strip() if ip_item else '') or (range_item.text().strip() if range_item else ''))
             raw_idx = idx_item.data(Qt.ItemDataRole.UserRole) if idx_item else None
             row_indices.append(raw_idx if isinstance(raw_idx, int) and raw_idx > 0 else (row + 1))
         self._row_group_id, self._row_group_sort_prefix = compute_row_group_ids_and_prefixes(
-            row_usernames_cf, row_ips, row_indices, UserIPDatabases.get_known_alts_clusters_snapshot(), descending=self._last_group_descending,
+            row_usernames_cf,
+            row_ips,
+            row_indices,
+            UserIPDatabases.get_known_alts_clusters_snapshot(),
+            descending=self._last_group_descending,
         )
 
     def _rebuild_proxy_group_shades(self, *_args: object) -> None:
@@ -527,7 +519,10 @@ def human_readable_size(size_bytes: int) -> str:
 
 
 def parse_userip_database_content(
-    content: str, *, default_settings: UserIPSettingsModel | None = None, cached_entries: list[UserIPEntryModel] | None = None,
+    content: str,
+    *,
+    default_settings: UserIPSettingsModel | None = None,
+    cached_entries: list[UserIPEntryModel] | None = None,
 ) -> UserIPDatabaseFile:
     """Parse raw JSON *content* into a validated `UserIPDatabaseFile` model."""
     fallback = (default_settings or NEW_DATABASE_SETTINGS).model_copy()
@@ -781,13 +776,8 @@ _SUBNET_SLIDER_OPTIONS: list[tuple[int, str]] = [
     (p, f'/{p}  —  {1 << (32 - p):,} address{pluralize(1 << (32 - p), "", "es")}{_SUBNET_NOTES.get(p, "")}') for p in range(32, 15, -1)
 ]
 
-_SUBNET_PREFIX_MIN_INDEX = 0
-_SUBNET_PREFIX_MAX_INDEX = len(_SUBNET_SLIDER_OPTIONS) - 1
-_SUBNET_DEFAULT_SLIDER_INDEX = 8  # /24
-
-_MODE_SINGLE = 0
-_MODE_RANGE = 1
-_MODE_SUBNET = 2
+_SUBNET_PREFIX_MIN_INDEX, _SUBNET_PREFIX_MAX_INDEX, _SUBNET_DEFAULT_SLIDER_INDEX = 0, len(_SUBNET_SLIDER_OPTIONS) - 1, 8
+_MODE_SINGLE, _MODE_RANGE, _MODE_SUBNET = 0, 1, 2
 
 
 class IPRangeBuilderDialog(QDialog):
@@ -823,8 +813,10 @@ class IPRangeBuilderDialog(QDialog):
         self._range_to_label, self._range_to_input = QLabel('To:'), self._create_ip_input('e.g. 192.168.1.200')
         self._subnet_ip_label, self._subnet_ip_input = QLabel('Base IP:'), self._create_ip_input('e.g. 192.168.1.0')
         input_pairs = (
-            (self._single_label, self._single_input), (self._range_from_label, self._range_from_input),
-            (self._range_to_label, self._range_to_input), (self._subnet_ip_label, self._subnet_ip_input),
+            (self._single_label, self._single_input),
+            (self._range_from_label, self._range_from_input),
+            (self._range_to_label, self._range_to_input),
+            (self._subnet_ip_label, self._subnet_ip_input),
         )
         for row_idx, (lbl, inp) in enumerate(input_pairs):
             input_layout.addWidget(lbl, row_idx, 0)

@@ -39,7 +39,6 @@ from session_sniffer.guis.userip_manager_context_menu_mixin import EntriesContex
 from session_sniffer.guis.userip_manager_entries_ops_mixin import UserIPEntriesOperationsMixin
 from session_sniffer.guis.userip_manager_helpers import (
     ADDED_AT_COLUMN,
-    ANCHOR_USERNAME_ROLE,
     DATABASE_COLUMN,
     ENTRY_TABLE_HEADERS,
     INDEX_COLUMN,
@@ -71,7 +70,6 @@ from session_sniffer.guis.utils import (
 )
 from session_sniffer.models import GUIState
 from session_sniffer.player.userip import UserIPDatabases
-from session_sniffer.player.userip_groups import group_usernames
 from session_sniffer.settings.settings import Settings
 from session_sniffer.text_utils import pluralize
 
@@ -159,9 +157,12 @@ class UserIPDatabasesManager(
 
         if Settings.gui_remember_window_layout and UserIPDatabasesManager._cached_geometry is None and GUI_STATE_PATH.is_file():
             (
-                UserIPDatabasesManager._cached_geometry, UserIPDatabasesManager._cached_maximized,
-                UserIPDatabasesManager._cached_splitter, UserIPDatabasesManager._cached_column_widths,
-                UserIPDatabasesManager._cached_sort_mode, UserIPDatabasesManager._cached_sort_column,
+                UserIPDatabasesManager._cached_geometry,
+                UserIPDatabasesManager._cached_maximized,
+                UserIPDatabasesManager._cached_splitter,
+                UserIPDatabasesManager._cached_column_widths,
+                UserIPDatabasesManager._cached_sort_mode,
+                UserIPDatabasesManager._cached_sort_column,
                 UserIPDatabasesManager._cached_sort_order,
             ) = _load_userip_manager_state()
         elif not Settings.gui_remember_window_layout:
@@ -725,9 +726,7 @@ class UserIPDatabasesManager(
                 self._proxy.set_group_sort_enabled(enabled=False, invalidate=False)
                 self._sort_mode_combo.setCurrentText('Date Added')
                 UserIPDatabasesManager._cached_sort_mode = 'Date Added'
-            elif self._sort_mode_combo.currentText() == 'Date Added' or (
-                self._sort_mode_combo.currentText() == 'Entry Order (#)' and logical_index != INDEX_COLUMN
-            ):
+            elif self._sort_mode_combo.currentText() == 'Date Added' or (self._sort_mode_combo.currentText() == 'Entry Order (#)' and logical_index != INDEX_COLUMN):
                 self._proxy.set_group_sort_enabled(enabled=True, invalidate=False)
                 self._sort_mode_combo.setCurrentText('Groups')
                 UserIPDatabasesManager._cached_sort_mode = 'Groups'
@@ -794,22 +793,14 @@ class UserIPDatabasesManager(
             return
         is_identity_edit = top_left.column() <= RANGE_COLUMN and bottom_right.column() >= USERNAME_COLUMN
         modified_entries: list[str] = []
-        anchor_pairs: list[tuple[str, str]] = []
         with QSignalBlocker(self._model):
             for row in range(top_left.row(), bottom_right.row() + 1):
                 if is_identity_edit:
                     clear_row_looky_badge(self._model, row)
                     if entry_val := self._get_row_entry_value(row):
                         modified_entries.append(entry_val)
-                    if (idx_item := self._model.item(row, INDEX_COLUMN)) and (anchor := idx_item.data(ANCHOR_USERNAME_ROLE)) and (u_val := self._get_row_username(row)):
-                        idx_item.setData(None, ANCHOR_USERNAME_ROLE)
-                        anchor_pairs.append((str(anchor), u_val))
                 if is_row_persisted(self._model, row):
                     set_row_updated_at(self._model, row)
-        if anchor_pairs:
-            with QSignalBlocker(self._fs_watcher):
-                for anchor_user, new_user in anchor_pairs:
-                    group_usernames([anchor_user, new_user], UserIPDatabases.get_known_alts_clusters_snapshot())
         self._proxy.refresh_rows(range(top_left.row(), bottom_right.row() + 1))
         self._highlight_duplicates()
         self._mark_entries_dirty()
@@ -938,7 +929,10 @@ class UserIPDatabasesManager(
             self._is_programmatic_resizing = True
             try:
                 adjust_last_visible_column_to_viewport(
-                    self._entries_table, resized_column=logical_index, min_column_widths=_DEFAULT_ENTRY_COLUMN_WIDTHS, custom_widths=self._custom_column_widths,
+                    self._entries_table,
+                    resized_column=logical_index,
+                    min_column_widths=_DEFAULT_ENTRY_COLUMN_WIDTHS,
+                    custom_widths=self._custom_column_widths,
                 )
             finally:
                 self._is_programmatic_resizing = False

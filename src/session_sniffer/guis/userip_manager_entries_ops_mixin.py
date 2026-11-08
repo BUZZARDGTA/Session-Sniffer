@@ -12,7 +12,6 @@ from session_sniffer.constants.local import APP_DIR_ROAMING, USERIP_DATABASES_DI
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.guis.select_usernames_dialog import SelectUsernamesDialog, UsernameSelectionConfig, prompt_username_input, prompt_usernames_and_notes_input
 from session_sniffer.guis.userip_manager_helpers import (
-    ANCHOR_USERNAME_ROLE,
     DATABASE_COLUMN,
     DUPLICATE_HIGHLIGHT_BRUSH,
     INDEX_COLUMN,
@@ -75,9 +74,6 @@ class UserIPEntriesOperationsMixin(QDialog):
     _search_input: QLineEdit
     _settings_container: QFrame
     _looky_icon: QIcon
-
-    def _append_row(self, entry: UserIPEntryModel, *, index: int = 0, persisted: bool = True) -> None:
-        raise NotImplementedError
 
     def _mark_entries_dirty(self) -> None: ...
     def _update_entry_counts(self) -> None: ...
@@ -182,24 +178,10 @@ class UserIPEntriesOperationsMixin(QDialog):
     # ------------------------------------------------------------------
 
     def _add_entry(self) -> None:
-        """Open the IP Range Builder dialog and insert the result as a new entry."""
+        """Open the IP Range Builder and username(s) input dialogs and insert the new entries."""
         if self._current_path is None:
             return
-        dialog = IPRangeBuilderDialog(self)
-        if dialog.exec() != QDialog.DialogCode.Accepted or not (ip_text := dialog.result_entry()):
-            return
-
-        self._append_row(UserIPEntryModel(username='', ip=ip_text), index=self._next_index, persisted=False)
-        self._renumber_indexes()
-        self._mark_entries_dirty()
-        self._update_entry_counts()
-
-        last_source_row = self._model.rowCount() - 1
-        proxy_index = self._proxy.mapFromSource(self._model.index(last_source_row, USERNAME_COLUMN))
-        if proxy_index.isValid():
-            self._entries_table.scrollTo(proxy_index)
-            self._entries_table.setCurrentIndex(proxy_index)
-            self._entries_table.edit(proxy_index)
+        self._insert_entry_at(self._model.rowCount())
 
     def _edit_selected_entry_ip(self) -> None:
         """Edit the IP/range of the currently selected entry via the builder button."""
@@ -313,23 +295,28 @@ class UserIPEntriesOperationsMixin(QDialog):
                 self._set_status('Updated note.')
 
     def _insert_entry_at(self, source_row: int) -> None:
-        """Insert a blank row at a specific position in the source model."""
+        """Prompt for an IP/range and username(s) and insert the resulting rows at *source_row*."""
         if self._current_path is None:
             return
-        self._model.insertRow(source_row, build_entry_row_items(UserIPEntryModel(username='', ip=''), index=source_row + 1, persisted=False))
-        self._renumber_indexes()
-        self._mark_entries_dirty()
-        self._update_entry_counts()
-        proxy_index = self._proxy.mapFromSource(self._model.index(source_row, USERNAME_COLUMN))
-        if proxy_index.isValid():
-            self._entries_table.scrollTo(proxy_index)
-            self._entries_table.setCurrentIndex(proxy_index)
-            self._entries_table.edit(proxy_index)
+        dialog = IPRangeBuilderDialog(self)
+        if dialog.exec() != QDialog.DialogCode.Accepted or not (ip_text := dialog.result_entry()):
+            return
+        self._insert_usernames_single_db(ip_text, insert_at=source_row)
 
     def _prompt_new_usernames(self, prompt: str | Callable[[int], str]) -> tuple[list[str], dict[str, str]]:
         """Prompt the user for one or more usernames and their optional notes."""
-        entered_usernames, entered_notes, accepted = prompt_usernames_and_notes_input(self, 'Add Username(s)', prompt)
+        entered_usernames, entered_notes, accepted = prompt_usernames_and_notes_input(self, 'Input Username(s)', prompt)
         return (entered_usernames, entered_notes) if accepted else ([], {})
+
+    def _collect_existing_usernames_for_entry(self, entry_value: str, *, database_path: Path | None = None) -> list[str]:
+        """Return existing usernames in the table model for *entry_value* (scoped to *database_path* when provided)."""
+        return dedup_preserve_order(
+            username
+            for row in range(self._model.rowCount())
+            if self._get_row_entry_value(row) == entry_value
+            and (database_path is None or self._get_row_database_path(row) == database_path)
+            and (username := self._get_row_username(row))
+        )
 
     def _add_username_global_search(self, source_row: int, ip_text: str, range_text: str) -> None:
         """Prompt for usernames and append them directly to the entry's database in global search mode."""
@@ -339,8 +326,10 @@ class UserIPEntriesOperationsMixin(QDialog):
         if not database_path or not database_path.is_file():
             return
 
+        existing_names = self._collect_existing_usernames_for_entry(entry_value, database_path=database_path)
+        header = f'Current username{pluralize(len(existing_names))} for {entry_value}: {", ".join(existing_names)}\n\n' if existing_names else ''
         new_usernames, entered_notes = self._prompt_new_usernames(
-            lambda count: f'Enter the username{pluralize(count)} to add for {entry_value} in "{database_path.stem}":',
+            lambda count: f'{header}Enter the new username{pluralize(count)} to add for {entry_value} in "{database_path.stem}":',
         )
         if not new_usernames:
             return
@@ -349,8 +338,9 @@ class UserIPEntriesOperationsMixin(QDialog):
         with QSignalBlocker(self._fs_watcher):
             added_pairs = append_userip_entries(database_path, new_entry_models, anchor_usernames_by_ip={entry_value: anchor_username} if anchor_username else None)
             if added_pairs:
-                if anchor_username:
-                    group_usernames([anchor_username, *new_usernames], UserIPDatabases.get_known_alts_clusters_snapshot())
+                group_candidates = dedup_preserve_order(([anchor_username] if anchor_username else ()), new_usernames)
+                if len(group_candidates) >= MIN_GROUP_USERNAMES:
+                    group_usernames(group_candidates, UserIPDatabases.get_known_alts_clusters_snapshot())
                 refresh_userip_and_wake_renderer()
         self._rebuild_fs_watch()
 
@@ -374,21 +364,22 @@ class UserIPEntriesOperationsMixin(QDialog):
         self._set_status(f'Added {added_count} username{pluralize(added_count)} for {entry_value} in {database_path.name}.')
         UserIPDatabases.renotify_if_conflicting([entry_value])
 
-    def _add_username_filtered(self, source_row: int, ip_text: str, range_text: str) -> None:
-        """Prompt for usernames and insert rows into the single-DB model when a search filter is active."""
-        entry_value, anchor_username = ip_text or range_text, self._get_row_username(source_row)
+    def _insert_usernames_single_db(self, entry_value: str, *, insert_at: int, anchor_username: str = '') -> None:
+        """Prompt for one or more usernames + notes and insert enriched rows into the current single-DB model."""
+        existing_names = self._collect_existing_usernames_for_entry(entry_value)
+        header = f'Current username{pluralize(len(existing_names))} for {entry_value}: {", ".join(existing_names)}\n\n' if existing_names else ''
         new_usernames, entered_notes = self._prompt_new_usernames(
-            lambda count: f'Enter the username{pluralize(count)} to add for {entry_value}:',
+            lambda count: f'{header}Enter the new username{pluralize(count)} to add for {entry_value}:',
         )
         if not new_usernames:
             return
 
         before_count = self._model.rowCount()
-        insert_at = source_row + 1
+        current_insert = insert_at
         for added_name in new_usernames:
             enriched_entry, _ = enrich_userip_entry_from_logs(UserIPEntryModel(username=added_name, ip=entry_value, notes=entered_notes.get(added_name, '')))
-            self._model.insertRow(insert_at, build_entry_row_items(enriched_entry, looky_icon=self._looky_icon, persisted=True))
-            insert_at += 1
+            self._model.insertRow(current_insert, build_entry_row_items(enriched_entry, looky_icon=self._looky_icon, persisted=True))
+            current_insert += 1
 
         self._renumber_indexes()
         self._mark_entries_dirty()
@@ -396,17 +387,25 @@ class UserIPEntriesOperationsMixin(QDialog):
         self._update_entry_counts()
         self._save_database()
         if not self._dirty:
-            if anchor_username:
+            group_candidates = dedup_preserve_order(([anchor_username] if anchor_username else ()), new_usernames)
+            if len(group_candidates) >= MIN_GROUP_USERNAMES:
                 with QSignalBlocker(self._fs_watcher):
-                    if group_usernames([anchor_username, *new_usernames], UserIPDatabases.get_known_alts_clusters_snapshot()):
+                    if group_usernames(group_candidates, UserIPDatabases.get_known_alts_clusters_snapshot()):
                         self._refresh_table_after_grouping()
             added_count = max(0, self._model.rowCount() - before_count)
             if added_count > 0:
                 self._set_status(f'Added {added_count} username{pluralize(added_count)} for {entry_value}.')
                 UserIPDatabases.renotify_if_conflicting([entry_value])
+                target_row = min(insert_at, self._model.rowCount() - 1)
+                proxy_index = self._proxy.mapFromSource(self._model.index(target_row, USERNAME_COLUMN))
+                if proxy_index.isValid():
+                    self._entries_table.scrollTo(proxy_index)
+                    self._entries_table.setCurrentIndex(proxy_index)
+                    if selection_model := self._entries_table.selectionModel():
+                        selection_model.select(proxy_index, QItemSelectionModel.SelectionFlag.ClearAndSelect | QItemSelectionModel.SelectionFlag.Rows)
 
     def _add_username(self, source_row: int) -> None:
-        """Insert a row below source_row with its IP or Range pre-filled, or prompt in global search / filtered view."""
+        """Prompt for one or more usernames + notes for the IP/range on *source_row* and add them to the database."""
         if not self._global_search_active and self._current_path is None:
             return
         ip_item, range_item = self._model.item(source_row, IP_COLUMN), self._model.item(source_row, RANGE_COLUMN)
@@ -417,26 +416,7 @@ class UserIPEntriesOperationsMixin(QDialog):
         if self._global_search_active:
             self._add_username_global_search(source_row, ip_text, range_text)
             return
-        if self._search_input.text().strip():
-            self._add_username_filtered(source_row, ip_text, range_text)
-            return
-
-        row_items = build_entry_row_items(UserIPEntryModel(username='', ip=ip_text or range_text), index=source_row + 2, persisted=False)
-        if anchor_username := self._get_row_username(source_row):
-            row_items[INDEX_COLUMN].setData(anchor_username, ANCHOR_USERNAME_ROLE)
-        self._model.insertRow(source_row + 1, row_items)
-        self._renumber_indexes()
-        self._mark_entries_dirty()
-        self._highlight_duplicates()
-        self._update_entry_counts()
-
-        proxy_index = self._proxy.mapFromSource(self._model.index(source_row + 1, USERNAME_COLUMN))
-        if proxy_index.isValid():
-            self._entries_table.scrollTo(proxy_index)
-            self._entries_table.setCurrentIndex(proxy_index)
-            if selection_model := self._entries_table.selectionModel():
-                selection_model.select(proxy_index, QItemSelectionModel.SelectionFlag.ClearAndSelect | QItemSelectionModel.SelectionFlag.Rows)
-            self._entries_table.edit(proxy_index)
+        self._insert_usernames_single_db(ip_text or range_text, insert_at=source_row + 1, anchor_username=self._get_row_username(source_row))
 
     def _move_rows(self, proxy_index: QModelIndex, direction: int) -> None:
         """Move selected rows up (direction=-1) or down (direction=+1) in the source model."""
