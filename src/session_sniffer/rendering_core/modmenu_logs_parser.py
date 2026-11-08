@@ -24,12 +24,10 @@ RE_MODMENU_LOGS_USER_PATTERN = re.compile(
     r'timestamp:\d{10}$',
 )
 
-TWO_TAKE_ONE__PLUGIN__LOG_PATH = Path.home() / 'AppData' / 'Roaming' / 'PopstarDevs' / '2Take1Menu' / 'scripts' / 'Session_Sniffer-plugin' / 'log.txt'
 STAND__PLUGIN__LOG_PATH = Path.home() / 'AppData' / 'Roaming' / 'Stand' / 'Lua Scripts' / 'Session_Sniffer-plugin' / 'log.txt'
 CHERAX__PLUGIN__LOG_PATH = get_documents_dir() / 'Cherax' / 'Lua' / 'Session_Sniffer-plugin' / 'log.txt'
 LEXIS__PLUGIN__LOG_PATH = Path.home() / 'Lexis' / 'Grand Theft Auto V' / 'scripts' / 'Session_Sniffer-plugin' / 'log.txt'
 
-TWO_TAKE_ONE__PLUGIN__HOST_PATH = TWO_TAKE_ONE__PLUGIN__LOG_PATH.with_name('session_host.txt')
 STAND__PLUGIN__HOST_PATH = STAND__PLUGIN__LOG_PATH.with_name('session_host.txt')
 CHERAX__PLUGIN__HOST_PATH = CHERAX__PLUGIN__LOG_PATH.with_name('session_host.txt')
 LEXIS__PLUGIN__HOST_PATH = LEXIS__PLUGIN__LOG_PATH.with_name('session_host.txt')
@@ -37,14 +35,12 @@ LEXIS__PLUGIN__HOST_PATH = LEXIS__PLUGIN__LOG_PATH.with_name('session_host.txt')
 LOGS_PATHS = (
     STAND__PLUGIN__LOG_PATH,
     CHERAX__PLUGIN__LOG_PATH,
-    TWO_TAKE_ONE__PLUGIN__LOG_PATH,
     LEXIS__PLUGIN__LOG_PATH,
 )
 
 SESSION_HOST_PATHS: tuple[tuple[str, Path], ...] = (
     ('Stand', STAND__PLUGIN__HOST_PATH),
     ('Cherax', CHERAX__PLUGIN__HOST_PATH),
-    ('2Take1', TWO_TAKE_ONE__PLUGIN__HOST_PATH),
     ('Lexis', LEXIS__PLUGIN__HOST_PATH),
 )
 
