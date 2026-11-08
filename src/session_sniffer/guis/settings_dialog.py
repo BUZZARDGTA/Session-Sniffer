@@ -978,6 +978,7 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
     @override
     def _save_on_close(self) -> bool:
         """Save settings; return `True` if save succeeded."""
+        self._saved = False
         self._save_settings()
         return self._saved
 

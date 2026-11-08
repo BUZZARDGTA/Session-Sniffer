@@ -96,6 +96,13 @@ class UnsavedChangesMixin(QDialog):
         raise NotImplementedError
 
     @override
+    def done(self, result: int) -> None:
+        """Finish the dialog and schedule deletion when `WA_DeleteOnClose` is set."""
+        super().done(result)
+        if self.testAttribute(Qt.WidgetAttribute.WA_DeleteOnClose):
+            self.deleteLater()
+
+    @override
     def closeEvent(self, event: QCloseEvent) -> None:
         """Prompt to save if there are unsaved changes before closing."""
         prompt_unsaved_changes_close(

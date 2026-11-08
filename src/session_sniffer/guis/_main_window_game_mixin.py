@@ -68,19 +68,14 @@ def _resolve_portable_key_vks(portable_key: str, *, mod_flags: int = 0, is_numpa
     """Resolve a lowercase portable key string to one or more Win32 virtual-key codes."""
     if portable_key == '*':
         return (0x38, 0x6A) if (mod_flags & _MOD_SHIFT) and not is_numpad else (0x6A,)
-    mapped = _PORTABLE_KEY_TO_WIN32_VKS.get(portable_key)
-    if mapped is not None:
+    if portable_key == '+':
+        return (0x6B, 0xBB) if (mod_flags & _MOD_SHIFT) and not is_numpad else (0x6B,)
+    if (mapped := _PORTABLE_KEY_TO_WIN32_VKS.get(portable_key)) is not None:
         return mapped
-    if len(portable_key) == 1:
-        if 'a' <= portable_key <= 'z':
-            return (ord(portable_key.upper()),)
-        if '0' <= portable_key <= '9':
-            digit = ord(portable_key) - ord('0')
-            return (ord(portable_key), 0x60 + digit)
-    if portable_key.startswith('f') and portable_key[1:].isdigit():
-        fn_num = int(portable_key[1:])
-        if 1 <= fn_num <= _MAX_F_KEY_NUMBER:
-            return (0x70 + fn_num - 1,)
+    if len(portable_key) == 1 and ('a' <= portable_key <= 'z' or '0' <= portable_key <= '9'):
+        return (ord(portable_key.upper()),) if 'a' <= portable_key <= 'z' else (ord(portable_key), 0x60 + ord(portable_key) - ord('0'))
+    if portable_key.startswith('f') and portable_key[1:].isdigit() and 1 <= (fn_num := int(portable_key[1:])) <= _MAX_F_KEY_NUMBER:
+        return (0x70 + fn_num - 1,)
     return None
 
 
