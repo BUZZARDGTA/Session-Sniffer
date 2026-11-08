@@ -418,6 +418,23 @@ class SessionHost:
         )
 
     @classmethod
+    def update_latest_host_metadata(
+        cls,
+        player: Player,
+        diagnostics: HostDiagnosticsSnapshot | None = None,
+        session_id: int | None = None,
+    ) -> None:
+        """Update the latest host history entry in-place if it matches `(session_id, player.ip)`."""
+        if session_id is None:
+            session_id = SessionTracker.get_current_session_id()
+        if cls._history and cls._history[-1].session_id == session_id and cls._history[-1].ip == player.ip:
+            if diagnostics is not None:
+                cls._history[-1].diagnostics = diagnostics
+            country_code = player.iplookup.resolve_country_code()
+            if country_code not in {'...', 'N/A', ''}:
+                cls._history[-1].country_code = country_code
+
+    @classmethod
     def get_history(cls, session_id: int | None = None) -> list[HostHistoryEntry]:
         """Return a snapshot list of the in-memory session host history, optionally filtered by session."""
         if session_id is not None:
@@ -429,6 +446,12 @@ class SessionHost:
         """Clear the in-memory session host history."""
         cls._history.clear()
         cls._manually_cleared_session_ids.clear()
+
+    @classmethod
+    def clear_past_sessions_history(cls, current_session_id: int) -> None:
+        """Remove host history entries and manual-clear flags belonging to sessions older than `current_session_id`."""
+        cls._history = [entry for entry in cls._history if entry.session_id == current_session_id]
+        cls._manually_cleared_session_ids.intersection_update({current_session_id})
 
     @classmethod
     def prune_history_for_session(cls, session_id: int) -> None:

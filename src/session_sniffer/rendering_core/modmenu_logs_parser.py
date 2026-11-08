@@ -86,41 +86,38 @@ class ModMenuLogsParser:
             return None, None, set()
 
         menu_by_path = {path: menu_name for menu_name, path in SESSION_HOST_PATHS}
-        sorted_paths = [
-            path
-            for path, _ in sorted(host_mod_times.items(), key=itemgetter(1), reverse=True)
-        ]
-        newest_menu_name = menu_by_path.get(sorted_paths[0])
+        newest_path = max(host_mod_times.items(), key=itemgetter(1))[0]
+        newest_menu_name = menu_by_path.get(newest_path)
         failed_paths: set[Path] = set()
 
-        for path in sorted_paths:
-            if not path.is_file():
-                continue
-            menu_name = menu_by_path[path]
-            matched_entry: ModMenuSessionHostEntry | None = None
-            try:
-                with path.open(encoding='utf-8') as file:
-                    for line in file:
-                        match = RE_MODMENU_LOGS_USER_PATTERN.fullmatch(line.rstrip())
-                        if not match:
-                            continue
+        if not newest_path.is_file():
+            failed_paths.add(newest_path)
+            return newest_menu_name, None, failed_paths
 
-                        username, ip = match.group('username', 'ip')
-                        if not isinstance(username, str):
-                            raise TypeError(format_type_error(username, str))
-                        if not isinstance(ip, str):
-                            raise TypeError(format_type_error(ip, str))
+        matched_entry: ModMenuSessionHostEntry | None = None
+        try:
+            with newest_path.open(encoding='utf-8') as file:
+                for line in file:
+                    match = RE_MODMENU_LOGS_USER_PATTERN.fullmatch(line.rstrip())
+                    if not match:
+                        continue
 
-                        matched_entry = ModMenuSessionHostEntry(
-                            menu_name=menu_name,
-                            username=username,
-                            ip=ip,
-                        )
-            except (OSError, UnicodeDecodeError) as e:
-                logger.debug('Failed to read mod menu session host file "%s": %s', path, e)
-                failed_paths.add(path)
-            else:
-                return menu_name, matched_entry, failed_paths
+                    username, ip = match.group('username', 'ip')
+                    if not isinstance(username, str):
+                        raise TypeError(format_type_error(username, str))
+                    if not isinstance(ip, str):
+                        raise TypeError(format_type_error(ip, str))
+
+                    matched_entry = ModMenuSessionHostEntry(
+                        menu_name=menu_by_path[newest_path],
+                        username=username,
+                        ip=ip,
+                    )
+        except (OSError, UnicodeDecodeError) as e:
+            logger.debug('Failed to read mod menu session host file "%s": %s', newest_path, e)
+            failed_paths.add(newest_path)
+        else:
+            return newest_menu_name, matched_entry, failed_paths
 
         return newest_menu_name, None, failed_paths
 
@@ -154,6 +151,8 @@ class ModMenuLogsParser:
 
             for path in LOGS_PATHS:
                 if not path.is_file():
+                    if path in current_mod_times:
+                        failed_log_paths.add(path)
                     continue
 
                 # Parse file line by line
@@ -182,13 +181,19 @@ class ModMenuLogsParser:
         # Step 3: atomically update class variables under the lock
         with cls._lock:
             if host_changed:
-                if not failed_host_paths or parsed_host_entry is not None:
+                if not failed_host_paths:
                     cls._active_host_menu_name = active_host_menu_name
                     cls._session_host_entry = parsed_host_entry
                 cls._last_host_mod_times = {p: sig for p, sig in current_host_mod_times.items() if p not in failed_host_paths}
                 if parsed_host_entry is not None and parsed_host_entry.username not in cls._host_ip_to_usernames_map[parsed_host_entry.ip]:
                     cls._host_ip_to_usernames_map[parsed_host_entry.ip].append(parsed_host_entry.username)
             if frozen_map is not None:
+                if failed_log_paths and cls._ip_to_usernames_map:
+                    for prev_ip, prev_users in cls._ip_to_usernames_map.items():
+                        merged_users = frozen_map.setdefault(prev_ip, [])
+                        for u in prev_users:
+                            if u not in merged_users:
+                                merged_users.append(u)
                 cls._ip_to_usernames_map = frozen_map
                 cls._last_mod_times = {p: sig for p, sig in current_mod_times.items() if p not in failed_log_paths}
             if cls._host_ip_to_usernames_map:

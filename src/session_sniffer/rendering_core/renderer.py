@@ -153,7 +153,7 @@ def _sync_modmenu_session_host(session_connected: list[Player], p2p_session_conn
     host_entry = ModMenuLogsParser.get_session_host_entry()
     expected_host_ip = host_entry.ip if host_entry is not None else None
     expected_host_username = host_entry.username if host_entry is not None else None
-    expected_menu_name = host_entry.menu_name if host_entry is not None else ModMenuLogsParser.get_active_host_menu_name()
+    expected_menu_name = host_entry.menu_name if host_entry is not None else (ModMenuLogsParser.get_active_host_menu_name() or 'Mod Menu')
     matched_lua_host = next((player for player in active_p2p_connected if player.ip == expected_host_ip), None) if expected_host_ip is not None else None
     last_diag = SessionHost.last_diagnostics
     if (
@@ -576,7 +576,7 @@ def rendering_core(
                 modmenu_changed = player.mod_menus is None or player.mod_menus.usernames != modmenu_usernames_for_player
                 if player.mod_menus is None:
                     player.mod_menus = PlayerModMenus(
-                        usernames=modmenu_usernames_for_player,
+                        usernames=list(modmenu_usernames_for_player),
                     )
                 else:
                     player.mod_menus.usernames[:] = modmenu_usernames_for_player
@@ -647,9 +647,9 @@ def rendering_core(
 
                 # Trigger search once every pending player has completed disconnection
                 if SessionHost.players_pending_for_disconnection and all(player.left_event.is_set() for player in SessionHost.players_pending_for_disconnection):
-                    if not SessionHost.has_player() or not _session_transitioned_for_pending_disconnections:
+                    if not _session_transitioned_for_pending_disconnections:
                         SessionHost.set_player(None)
-                        SessionHost.search_player = not modmenu_lua_authoritative
+                        SessionHost.search_player = not modmenu_lua_authoritative and not SessionHost.is_manually_cleared()
                         SessionHost.search_start_time = None
                     new_p2p_connected = [player for player in p2p_session_connected if player not in SessionHost.players_pending_for_disconnection]
                     if not _session_transitioned_for_pending_disconnections and new_p2p_connected:
@@ -743,6 +743,12 @@ def rendering_core(
                     session_id=active_session_id,
                 )
                 _last_recorded_host_key = host_key
+            else:
+                SessionHost.update_latest_host_metadata(
+                    current_session_host,
+                    diagnostics=SessionHost.last_diagnostics,
+                    session_id=active_session_id,
+                )
         elif _last_recorded_host_key is not None:
             _last_recorded_host_key = None
 

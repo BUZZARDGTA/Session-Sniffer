@@ -777,11 +777,14 @@ class TableContextMenuMixin(QTableView):
             if not Settings.gui_session_host_detection or not Settings.is_session_host_feature_set():
                 return
 
+            main_window = cast('MainWindow', self.window())
+
             def _show_diagnostics(snapshot: HostDiagnosticsSnapshot, dialog_key: str) -> None:
                 show_session_host_diagnostics_dialog(
-                    self.window(),
+                    main_window,
                     snapshot,
                     dialog_key=dialog_key,
+                    redetect_callback=main_window.redetect_host_from_diagnostics if dialog_key == 'host_diagnostics' else None,
                 )
 
             def _build_diagnostics_handler(

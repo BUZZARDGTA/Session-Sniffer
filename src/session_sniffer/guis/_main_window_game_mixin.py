@@ -646,6 +646,8 @@ class GameMixin(QMainWindow):
         current_session_host = SessionHost.get_player()
         session_history = SessionHost.get_history(session_id=current_session_id)
         last_host = session_history[-1] if session_history else None
+        last_host_live = PlayersRegistry.get_player_by_ip(last_host.ip) if last_host is not None else None
+        last_host_left = last_host_live is None or last_host_live.left_event.is_set() or not PlayersRegistry.is_player_connected(last_host_live)
 
         if current_session_host is not None and not current_session_host.left_event.is_set():
             matched_player = PlayersRegistry.get_player_by_ip(current_session_host.ip)
@@ -658,10 +660,8 @@ class GameMixin(QMainWindow):
             host_action.setToolTip(format_player_action_tooltip('Select this host player in the table and open host diagnostics', usernames))
             host_action.triggered.connect(partial(self._select_and_show_current_host_diagnostics, current_session_host.ip))
             self._current_session_submenu.addAction(host_action)
-        elif last_host is not None:
-            matched_player = PlayersRegistry.get_player_by_ip(last_host.ip) or (
-                SessionTracker.get_session_snapshot_player(last_host.session_id, last_host.ip) if last_host.session_id is not None else None
-            )
+        elif last_host is not None and last_host_left and not SessionHost.is_manually_cleared(current_session_id):
+            matched_player = last_host_live or (SessionTracker.get_session_snapshot_player(last_host.session_id, last_host.ip) if last_host.session_id is not None else None)
             fallback_names = last_host.diagnostics.detected_host_usernames if last_host.diagnostics is not None else ()
             usernames = matched_player.usernames if matched_player is not None and matched_player.usernames else fallback_names
             formatted_usernames = format_menu_usernames(usernames)
@@ -927,7 +927,7 @@ class GameMixin(QMainWindow):
         current_session_id = SessionTracker.get_current_session_id()
         past_session_ids = [session_id for session_id in SessionTracker.get_all_session_ids() if session_id < current_session_id]
         removed_ips = {player.ip for session_id in past_session_ids for player in SessionTracker.delete_session(session_id)}
-        SessionHost.clear_history()
+        SessionHost.clear_past_sessions_history(current_session_id)
         if SessionFilterState.get_selected_session() in past_session_ids:
             self._disconnected.set_selected_session_filter(SessionFilterState.FILTER_ALL)
             self._disconnected.clear_table()
@@ -960,13 +960,13 @@ class GameMixin(QMainWindow):
             if current_history and current_history[-1].diagnostics is not None:
                 diagnostics = current_history[-1].diagnostics
         if diagnostics is None and SessionHost.is_modmenu_lua_source_of_truth() and Settings.gui_session_host_detection and not SessionHost.is_manually_cleared():
-            diagnostics = self._redetect_host_from_diagnostics(clear_history=False)
+            diagnostics = self.redetect_host_from_diagnostics(clear_history=False)
         if diagnostics is None:
             QMessageBox.information(self, TITLE, 'No session host detection diagnostics are available yet.')
             return
-        show_session_host_diagnostics_dialog(self, diagnostics, redetect_callback=self._redetect_host_from_diagnostics)
+        show_session_host_diagnostics_dialog(self, diagnostics, redetect_callback=self.redetect_host_from_diagnostics)
 
-    def _redetect_host_from_diagnostics(self, *, clear_history: bool = True) -> HostDiagnosticsSnapshot | None:
+    def redetect_host_from_diagnostics(self, *, clear_history: bool = True) -> HostDiagnosticsSnapshot | None:
         """Re-evaluate session host detection in-place for the diagnostics window."""
         if not Settings.is_session_host_feature_set():
             QMessageBox.warning(self, TITLE, 'Session Host Detection is not supported for the current game feature set.')
@@ -994,6 +994,6 @@ class GameMixin(QMainWindow):
 
     def _redetect_session_host(self) -> None:
         """Clear the current session host and immediately re-evaluate host detection with notification on failure."""
-        snapshot = self._redetect_host_from_diagnostics()
+        snapshot = self.redetect_host_from_diagnostics()
         if snapshot is not None:
             self._show_session_host_diagnostics()
