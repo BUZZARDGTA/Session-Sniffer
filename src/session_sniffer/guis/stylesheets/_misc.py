@@ -158,22 +158,17 @@ CRASH_DIALOG_KICKER_LABEL_STYLESHEET = 'color: #f87171; background: transparent;
 CRASH_DIALOG_SUBTITLE_LABEL_STYLESHEET = 'color: #8b9bb0; background: transparent; font-size: 8.5pt;'
 
 CRASH_DIALOG_INFO_CARD_STYLESHEET = (
-    'QFrame#crashDialogInfoCard {'
-    '    background: rgba(16, 23, 33, 0.82);'
-    '    border: 1px solid #2c3a4d;'
-    '    border-left: 3px solid #ef4444;'
-    '    border-radius: 10px;'
-    '}'
+    'QFrame#crashDialogInfoCard {    background: rgba(16, 23, 33, 0.82);    border: 1px solid #2c3a4d;    border-left: 3px solid #ef4444;    border-radius: 10px;}'
 )
 
 CRASH_DIALOG_SECTION_LABEL_STYLESHEET = 'color: #94a3b8; background: transparent; font-size: 8pt; font-weight: 700; letter-spacing: 0.8px;'
 
 CRASH_DIALOG_BADGE_STYLESHEET = (
     'color: #fca5a5;'
-    'background: rgba(239, 68, 68, 0.14);'
-    'border: 1px solid rgba(248, 113, 113, 0.35);'
-    'border-radius: 4px;'
-    'padding: 2px 8px;'
+    'background: rgba(239, 68, 68, 0.12);'
+    'border: 1px solid rgba(248, 113, 113, 0.28);'
+    'border-radius: 8px;'
+    'padding: 2px 10px;'
     'font-size: 8pt;'
     'font-weight: 700;'
 )

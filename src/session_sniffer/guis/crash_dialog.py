@@ -197,9 +197,7 @@ class CrashDialog(DraggableDialogMixin, QDialog):
 
         self.setWindowTitle(f'{TITLE} — Unhandled Exception')
         self.setWindowFlags(
-            Qt.WindowType.FramelessWindowHint
-            | Qt.WindowType.Dialog
-            | Qt.WindowType.WindowStaysOnTopHint,
+            Qt.WindowType.FramelessWindowHint | Qt.WindowType.Dialog | Qt.WindowType.WindowStaysOnTopHint,
         )
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, on=True)
         self.setStyleSheet(DEPENDENCY_PROMPT_DIALOG_STYLESHEET)
@@ -232,9 +230,15 @@ class CrashDialog(DraggableDialogMixin, QDialog):
         root_layout.setContentsMargins(margin, margin, margin, margin)
         root_layout.addWidget(card_frame)
 
-        self.setFixedWidth(max(720, scale_by_ui(840)))
-        self.adjustSize()
-        self.setFixedSize(self.size())
+        fixed_width = max(720, scale_by_ui(840))
+        self.setFixedWidth(fixed_width)
+        root_layout.activate()
+        target_height = self.heightForWidth(fixed_width)
+        if target_height > 0:
+            self.setFixedSize(fixed_width, target_height)
+        else:
+            self.adjustSize()
+            self.setFixedSize(self.size())
         center_window_on_screen(self)
 
     @staticmethod
@@ -344,7 +348,11 @@ class CrashDialog(DraggableDialogMixin, QDialog):
         badge_text = self._request.exc_type_name
         if len(badge_text) > _MAX_BADGE_TEXT_LEN:
             badge_text = f'{badge_text[: _MAX_BADGE_TEXT_LEN - 1]}…'
-        badge_label = QLabel(badge_text)
+        escaped_badge = html.escape(badge_text)
+        badge_label = QLabel(
+            f'<span style="color: #ef4444;">●</span>&nbsp;<span style="color: #94a3b8; font-weight: 600;">TYPE:</span>&nbsp;{escaped_badge}',
+        )
+        badge_label.setTextFormat(Qt.TextFormat.RichText)
         badge_label.setFont(get_monospace_font(scale_by_ui(8), QFont.Weight.Bold))
         badge_label.setStyleSheet(CRASH_DIALOG_BADGE_STYLESHEET)
         badge_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -352,9 +360,9 @@ class CrashDialog(DraggableDialogMixin, QDialog):
         header_row = QHBoxLayout()
         header_row.setContentsMargins(0, 0, 0, 0)
         header_row.setSpacing(scale_by_ui(8))
-        header_row.addWidget(section_label)
+        header_row.addWidget(section_label, 0, Qt.AlignmentFlag.AlignVCenter)
         header_row.addStretch(1)
-        header_row.addWidget(badge_label)
+        header_row.addWidget(badge_label, 0, Qt.AlignmentFlag.AlignVCenter)
 
         traceback_edit = QPlainTextEdit()
         traceback_edit.setObjectName('crashDialogTracebackEdit')
@@ -498,7 +506,7 @@ class _CrashDialogDispatcher(QObject):
         request.started_event.set()
         try:
             _execute_crash_dialog_on_gui_thread(request)
-        except (RuntimeError, OSError, ValueError, TypeError):
+        except RuntimeError, OSError, ValueError, TypeError:
             logger.exception('Failed to display Qt crash dialog on GUI thread')
             request.failed = True
         finally:
@@ -535,7 +543,7 @@ def show_crash_dialog(
     if QThread.currentThread() == app.thread():
         try:
             _execute_crash_dialog_on_gui_thread(request)
-        except (RuntimeError, OSError, ValueError, TypeError):
+        except RuntimeError, OSError, ValueError, TypeError:
             logger.exception('Failed to display Qt crash dialog on main thread; falling back to native message box')
         else:
             return
