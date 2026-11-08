@@ -2,7 +2,7 @@
 
 from typing import TYPE_CHECKING, ClassVar, Literal, cast
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QSignalBlocker, Qt
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -340,11 +340,14 @@ class ComboRuleEditorDialog(QDialog):
         conditions_layout = QVBoxLayout()
 
         self._conditions_container = QVBoxLayout()
+        self._conditions_container.setSpacing(scale_by_ui(8))
         conditions_layout.addLayout(self._conditions_container)
 
-        add_condition_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'plus.svg')), ' Add Condition')
-        add_condition_button.clicked.connect(self._on_add_condition_clicked)
-        conditions_layout.addWidget(add_condition_button)
+        self._add_condition_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'plus.svg')), ' Add Condition')
+        self._add_condition_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._add_condition_button.clicked.connect(self._on_add_condition_clicked)
+        conditions_layout.addWidget(self._add_condition_button)
+        conditions_layout.addStretch(1)
 
         conditions_group.setLayout(conditions_layout)
 
@@ -443,6 +446,25 @@ class ComboRuleEditorDialog(QDialog):
     def _on_add_condition_clicked(self) -> None:
         self._add_condition_row()
 
+    def _sync_available_condition_types(self) -> None:
+        """Keep only unused condition types (plus each row's own selection) in each row's combo box."""
+        selected_labels_by_row = [type_combo.currentText() for type_combo, _, _ in self._condition_rows]
+        for row_idx, (type_combo, _, _) in enumerate(self._condition_rows):
+            current_label = selected_labels_by_row[row_idx]
+            used_elsewhere = {
+                label
+                for idx, label in enumerate(selected_labels_by_row)
+                if idx != row_idx and label in self._CONDITION_LABELS
+            }
+            available_labels = [label for label in self._CONDITION_LABELS if label not in used_elsewhere]
+            current_items = [type_combo.itemText(i) for i in range(type_combo.count())]
+            if current_items != available_labels:
+                with QSignalBlocker(type_combo):
+                    type_combo.clear()
+                    type_combo.addItems(available_labels)
+                    type_combo.setCurrentIndex(available_labels.index(current_label) if current_label in available_labels else -1)
+        self._add_condition_button.setEnabled(len(self._condition_rows) < len(self._CONDITION_LABELS))
+
     def _add_condition_row(
         self,
         *,
@@ -450,6 +472,8 @@ class ComboRuleEditorDialog(QDialog):
         preset_value: str | bool | list[str] | None = None,
     ) -> None:
         """Add a new condition row with type selector and value widget."""
+        if len(self._condition_rows) >= len(self._CONDITION_LABELS):
+            return
         if preset_key is None and self._condition_rows:
             # Validate existing conditions before adding a new row
             conditions = self._read_conditions()
@@ -459,7 +483,7 @@ class ComboRuleEditorDialog(QDialog):
                     'Validation Error',
                     'Please complete all existing conditions before adding a new one.\n\n'
                     'Ensure every condition has a type selected, a valid value entered, '
-                    'and each condition type + operator combination may only be used once.',
+                    'and each condition type may only be used once.',
                 )
                 return
 
@@ -474,6 +498,8 @@ class ComboRuleEditorDialog(QDialog):
                     return
 
         row_layout = QHBoxLayout()
+        row_layout.setContentsMargins(0, 0, 0, 0)
+        row_layout.setSpacing(scale_by_ui(8))
         type_combo = QComboBox()
         type_combo.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         type_combo.setPlaceholderText('Select condition type...')
@@ -519,10 +545,10 @@ class ComboRuleEditorDialog(QDialog):
             elif key == 'event':
                 events_widget = QFrame()
                 events_widget.setObjectName('EventsContainer')
-                events_widget.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
-                events_widget.setStyleSheet('#EventsContainer { background-color: #1e1e1e; border: 1px solid #3e3e42; border-radius: 4px; min-height: 32px; }')
+                events_widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+                events_widget.setStyleSheet('#EventsContainer { background-color: #1e1e1e; border: 1px solid #3e3e42; border-radius: 4px; min-height: 24px; }')
                 events_layout = QHBoxLayout(events_widget)
-                events_layout.setContentsMargins(15, 6, 15, 6)
+                events_layout.setContentsMargins(12, 4, 12, 4)
 
                 events_layout.addStretch()
                 for i, display_name in enumerate(self._EVENT_LABELS):
@@ -566,6 +592,7 @@ class ComboRuleEditorDialog(QDialog):
                 new_edit = QLineEdit()
                 new_edit.setPlaceholderText(f'Enter {label.lower()} value...')
                 value_layout.addWidget(new_edit)
+            self._sync_available_condition_types()
 
         type_combo.currentTextChanged.connect(on_type_changed)
 
@@ -582,10 +609,12 @@ class ComboRuleEditorDialog(QDialog):
 
         self._conditions_container.addWidget(row_widget)
         self._condition_rows.append((type_combo, operator_combo, value_stack))
+        self._sync_available_condition_types()
 
         def remove_row() -> None:
             self._condition_rows.remove((type_combo, operator_combo, value_stack))
             row_widget.deleteLater()
+            self._sync_available_condition_types()
 
         remove_button.clicked.connect(remove_row)
 
@@ -637,7 +666,7 @@ class ComboRuleEditorDialog(QDialog):
             QMessageBox.warning(
                 self,
                 'Validation Error',
-                'All condition rows must have a valid value, and each condition type + operator combination may only be used once.',
+                'All condition rows must have a valid value, and each condition type may only be used once.',
             )
             return
 
@@ -665,10 +694,11 @@ class ComboRuleEditorDialog(QDialog):
     def _read_conditions(self) -> dict[str, str | bool | list[str]]:
         """Read conditions from the UI rows."""
         conditions: dict[str, str | bool | list[str]] = {}
+        seen_base_keys: set[str] = set()
         for type_combo, operator_combo, value_stack in self._condition_rows:
             label = type_combo.currentText()
             base_key = self._CONDITION_LABELS.get(label)
-            if base_key is None:
+            if base_key is None or base_key in seen_base_keys:
                 continue
             is_negated = bool(operator_combo.currentData()) and base_key in NEGATABLE_CONDITIONS
             effective_key = f'{NEGATED_PREFIX}{base_key}' if is_negated else base_key
@@ -677,20 +707,24 @@ class ComboRuleEditorDialog(QDialog):
                 bool_combo_widget: QComboBox | None = value_stack.findChild(QComboBox)
                 if bool_combo_widget is not None:
                     conditions[effective_key] = bool(bool_combo_widget.currentData())
+                    seen_base_keys.add(base_key)
             elif base_key == 'event':
                 selected = self._read_event_checkboxes(value_stack)
                 if selected:
                     conditions[effective_key] = selected
+                    seen_base_keys.add(base_key)
             elif base_key in ('continent', 'country'):
                 selected_items = self._read_multi_select_picker_values(value_stack)
                 if selected_items:
                     conditions[effective_key] = selected_items if len(selected_items) > 1 else selected_items[0]
+                    seen_base_keys.add(base_key)
             else:
                 line_edit_widget: QLineEdit | None = value_stack.findChild(QLineEdit)
                 if line_edit_widget is not None:
                     trimmed_text = line_edit_widget.text().strip()
                     if trimmed_text:
                         conditions[effective_key] = trimmed_text
+                        seen_base_keys.add(base_key)
         return conditions
 
     def _read_event_checkboxes(self, value_stack: QWidget) -> list[str]:

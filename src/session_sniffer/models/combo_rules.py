@@ -92,27 +92,32 @@ class ComboRule(DetectionActionBase):
             return {}
 
         conditions: dict[str, ConditionValue] = {}
+        seen_base_keys: set[str] = set()
         for key, raw_val in cast('dict[str, object]', value).items():
             base_key, is_negated = split_condition_key(key)
-            if is_negated and base_key not in NEGATABLE_CONDITIONS:
+            if base_key in seen_base_keys or (is_negated and base_key not in NEGATABLE_CONDITIONS):
                 continue
             if base_key in _MULTI_STRING_CONDITIONS and isinstance(raw_val, list):
                 valid_items = [item.strip() for item in cast('list[object]', raw_val) if isinstance(item, str) and item.strip()]
                 if valid_items:
                     conditions[key] = valid_items if len(valid_items) > 1 else valid_items[0]
+                    seen_base_keys.add(base_key)
             elif base_key in NEGATABLE_CONDITIONS:
                 if isinstance(raw_val, str) and raw_val.strip():
                     # Keep invalid IP ranges so the rule never matches instead of silently dropping the condition and broadening it.
                     if base_key == 'ip_range' and not is_valid_ip_range_entry(raw_val.strip()):
                         logger.warning('Invalid combo rule IP range %r: the rule will never match until it is fixed', raw_val.strip())
                     conditions[key] = raw_val.strip()
+                    seen_base_keys.add(base_key)
             elif base_key in _BOOL_CONDITIONS:
                 if isinstance(raw_val, bool):
                     conditions[key] = raw_val
+                    seen_base_keys.add(base_key)
             elif base_key == EVENT_CONDITION and isinstance(raw_val, list):
                 valid_events = [event for event in cast('list[object]', raw_val) if isinstance(event, str) and event in _VALID_EVENTS]
                 if valid_events:
                     conditions[key] = valid_events
+                    seen_base_keys.add(base_key)
         if EVENT_CONDITION in conditions and len(conditions) == 1:
             msg = 'ComboRule with an event condition must include at least one IP-based condition'
             raise ValueError(msg)
