@@ -229,6 +229,16 @@ class AllInterfaces:
         return new_interface
 
     @classmethod
+    def rename_interface(cls, old_name: str, new_name: str) -> None:
+        """Update the registry name lookup map when an interface's friendly name changes."""
+        index = cls._name_map.pop(old_name.casefold(), None)
+        if index is not None and new_name:
+            cls._name_map[new_name.casefold()] = index
+            interface = cls.all_interfaces.get(index)
+            if interface is not None:
+                interface.identity.name = new_name
+
+    @classmethod
     def clear(cls) -> None:
         """Remove all interfaces from the registry."""
         cls.all_interfaces.clear()

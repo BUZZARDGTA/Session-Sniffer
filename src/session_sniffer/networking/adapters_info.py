@@ -170,7 +170,7 @@ def _get_linux_adapters_info() -> Iterator[AdapterData]:
         mac_address = mac_text.upper() if mac_text and mac_text != '00:00:00:00:00:00' else None
 
         operstate = _read_sys_file(interface_sys_dir / 'operstate').lower()
-        is_up = operstate == 'up'
+        is_up = operstate in {'up', 'unknown'}
 
         packets_sent = _read_sys_int(interface_sys_dir / 'statistics' / 'tx_packets')
         packets_recv = _read_sys_int(interface_sys_dir / 'statistics' / 'rx_packets')

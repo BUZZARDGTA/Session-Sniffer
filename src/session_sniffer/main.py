@@ -507,7 +507,10 @@ def main() -> None:
     )
     rendering_core__thread.start()
 
+    _is_switching_interface = False
+
     def _switch_interface(*, initial_tab: int = 0) -> None:
+        nonlocal _is_switching_interface
         active_dialog = InterfaceSelectionDialog.get_active_instance()
         if active_dialog is not None:
             if initial_tab == 1:
@@ -578,93 +581,97 @@ def main() -> None:
             window.set_change_interface_button_enabled(enabled=True)
             return
 
-        # Stop ARP spoofing first: the old ARP thread must not observe the new capture starting.
-        ArpSpoofingController.stop()
+        _is_switching_interface = True
+        try:
+            # Stop ARP spoofing first: the old ARP thread must not observe the new capture starting.
+            ArpSpoofingController.stop()
 
-        was_running = capture_holder.is_running()
-        if was_running:
-            capture_holder.stop()
-        window.set_interface_switching_mode(switching=True)
+            was_running = capture_holder.is_running()
+            if was_running:
+                capture_holder.stop()
+            window.set_interface_switching_mode(switching=True)
 
-        # Run the filter probe off the Qt thread so the UI stays responsive.
-        with ThreadPoolExecutor(max_workers=1, thread_name_prefix='InterfaceReselect') as _pool:
-            _future = _pool.submit(check_broadcast_multicast_support, new_interface.device_name or new_interface.name)
-            while not _future.done():
-                app.processEvents()
-                time.sleep(0.016)
-            new_broadcast, new_multicast = _future.result()
+            # Run the filter probe off the Qt thread so the UI stays responsive.
+            with ThreadPoolExecutor(max_workers=1, thread_name_prefix='InterfaceReselect') as _pool:
+                _future = _pool.submit(check_broadcast_multicast_support, new_interface.device_name or new_interface.name)
+                while not _future.done():
+                    app.processEvents()
+                    time.sleep(0.016)
+                new_broadcast, new_multicast = _future.result()
 
-        CaptureState.apply_interface_names(
-            is_neighbour=new_interface.is_neighbour,
-            name=new_interface.name,
-            ip=new_interface.ip_address,
-            interface_type=new_interface.interface.interface_type,
-        )
-        Settings.capture_interface_name = new_interface.name
-        Settings.capture_mac_address = new_interface.mac_address
-        Settings.capture_ip_address = new_interface.ip_address
-        Settings.rewrite_settings_file()
-
-        new_capture_filter, new_display_filter_fn = build_capture_filters(
-            capture_ip_address=new_interface.ip_address,
-            broadcast_support=new_broadcast,
-            multicast_support=new_multicast,
-        )
-
-        reset_resolver_cache()
-
-        if is_same_adapter:
-            logger.info(
-                'Resuming capture on same interface "%s" (IP: %s) — preserving player tables.',
-                new_interface.name,
-                new_interface.ip_address,
+            CaptureState.apply_interface_names(
+                is_neighbour=new_interface.is_neighbour,
+                name=new_interface.name,
+                ip=new_interface.ip_address,
+                interface_type=new_interface.interface.interface_type,
             )
-        else:
-            is_same_physical_adapter = (
-                current_adapter_guid is not None and new_adapter_guid is not None and current_adapter_guid == new_adapter_guid
-            ) or current_selected.name == new_interface.name
-            if is_same_physical_adapter:
-                old_target = f'neighbour {current_selected.ip_address}' if current_selected.is_neighbour else f'host {current_selected.ip_address}'
-                new_target = f'neighbour {new_interface.ip_address}' if new_interface.is_neighbour else f'host {new_interface.ip_address}'
-                logger.info(
-                    'Switching capture target on "%s" from %s to %s — resetting player tables.',
-                    new_interface.name,
-                    old_target,
-                    new_target,
-                )
-            else:
-                logger.info(
-                    'Switching capture interface from "%s" to "%s" — resetting player tables.',
-                    current_selected.name,
-                    new_interface.name,
-                )
-            CaptureStats.reset_on_interface_switch()
-            window.reset_players_for_interface_switch()
-            window.reset_session_graph()
+            Settings.capture_interface_name = new_interface.name
+            Settings.capture_mac_address = new_interface.mac_address
+            Settings.capture_ip_address = new_interface.ip_address
+            Settings.rewrite_settings_file()
 
-        new_capture = PacketCapture(
-            CaptureConfig(
-                interface=new_interface,
+            new_capture_filter, new_display_filter_fn = build_capture_filters(
+                capture_ip_address=new_interface.ip_address,
                 broadcast_support=new_broadcast,
                 multicast_support=new_multicast,
-                capture_filter=new_capture_filter,
-                display_filter_fn=new_display_filter_fn,
-                include_payload=Settings.capture_ps3_name_resolver,
-                callback=packet_callback,
-                on_capture_lost=_adapter_lost_event.set,
-                max_latency_seconds=lambda: float(Settings.capture_overflow_timer),
-                on_overflow_drop=on_overflow_drop,
-            ),
-        )
-        new_capture.start()
-        CaptureStats.capture_started_at = time.monotonic()
-        capture_holder.set(new_capture)
+            )
 
-        if Settings.capture_arp_spoofing:
-            ArpSpoofingController.start(new_interface)
+            reset_resolver_cache()
 
-        window.on_interface_switched()
-        window.set_interface_switching_mode(switching=False)
+            if is_same_adapter:
+                logger.info(
+                    'Resuming capture on same interface "%s" (IP: %s) — preserving player tables.',
+                    new_interface.name,
+                    new_interface.ip_address,
+                )
+            else:
+                is_same_physical_adapter = (
+                    current_adapter_guid is not None and new_adapter_guid is not None and current_adapter_guid == new_adapter_guid
+                ) or current_selected.name == new_interface.name
+                if is_same_physical_adapter:
+                    old_target = f'neighbour {current_selected.ip_address}' if current_selected.is_neighbour else f'host {current_selected.ip_address}'
+                    new_target = f'neighbour {new_interface.ip_address}' if new_interface.is_neighbour else f'host {new_interface.ip_address}'
+                    logger.info(
+                        'Switching capture target on "%s" from %s to %s — resetting player tables.',
+                        new_interface.name,
+                        old_target,
+                        new_target,
+                    )
+                else:
+                    logger.info(
+                        'Switching capture interface from "%s" to "%s" — resetting player tables.',
+                        current_selected.name,
+                        new_interface.name,
+                    )
+                CaptureStats.reset_on_interface_switch()
+                window.reset_players_for_interface_switch()
+                window.reset_session_graph()
+
+            new_capture = PacketCapture(
+                CaptureConfig(
+                    interface=new_interface,
+                    broadcast_support=new_broadcast,
+                    multicast_support=new_multicast,
+                    capture_filter=new_capture_filter,
+                    display_filter_fn=new_display_filter_fn,
+                    include_payload=Settings.capture_ps3_name_resolver,
+                    callback=packet_callback,
+                    on_capture_lost=_adapter_lost_event.set,
+                    max_latency_seconds=lambda: float(Settings.capture_overflow_timer),
+                    on_overflow_drop=on_overflow_drop,
+                ),
+            )
+            new_capture.start()
+            CaptureStats.capture_started_at = time.monotonic()
+            capture_holder.set(new_capture)
+
+            if Settings.capture_arp_spoofing:
+                ArpSpoofingController.start(new_interface)
+
+            window.on_interface_switched()
+        finally:
+            window.set_interface_switching_mode(switching=False)
+            _is_switching_interface = False
 
     window = MainWindow(
         screen_size,
@@ -780,19 +787,20 @@ def main() -> None:
             return None
 
         if matching_adapter.identity.friendly_name:
+            AllInterfaces.rename_interface(current_selected.name, matching_adapter.identity.friendly_name)
             current_selected.interface.identity.name = matching_adapter.identity.friendly_name
             Settings.capture_interface_name = matching_adapter.identity.friendly_name
         if bool(matching_adapter.identity.mac_address):
             current_selected.interface.identity.mac_address = matching_adapter.identity.mac_address
             Settings.capture_mac_address = matching_adapter.identity.mac_address
 
-        return matching_adapter.ipv4_addresses[0]
+        return current_selected.ip_address if current_selected.ip_address in matching_adapter.ipv4_addresses else matching_adapter.ipv4_addresses[0]
 
     def _on_adapter_lost_poll() -> None:
         """Poll for unexpected capture exits, attempt automatic silent recovery, or re-show the interface selection dialog."""
         nonlocal _adapter_lost_attempts
 
-        if gui_closed__event.is_set() or not window.isVisible():
+        if _is_switching_interface or gui_closed__event.is_set() or not window.isVisible():
             return
 
         if InterfaceSelectionDialog.get_active_instance() is not None:
@@ -841,7 +849,7 @@ def main() -> None:
 
     def _on_os_adapter_change() -> None:
         """Handle OS kernel notifications when an adapter's IPv4 address or operational status changes."""
-        if gui_closed__event.is_set() or not window.isVisible() or InterfaceSelectionDialog.get_active_instance() is not None:
+        if _is_switching_interface or gui_closed__event.is_set() or not window.isVisible() or InterfaceSelectionDialog.get_active_instance() is not None:
             return
         if _adapter_lost_event.is_set():
             _on_adapter_lost_poll()
@@ -875,7 +883,7 @@ def main() -> None:
 
     def _on_arp_failed_poll() -> None:
         """Poll for ARP spoofing failures and re-show the interface selection dialog."""
-        if gui_closed__event.is_set() or not window.isVisible():
+        if _is_switching_interface or gui_closed__event.is_set() or not window.isVisible():
             return
         if InterfaceSelectionDialog.get_active_instance() is not None:
             _arp_failed_event.clear()
