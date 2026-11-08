@@ -155,7 +155,7 @@ class UserIPDetectedDialog(PlayerInfoDialogMixin):
     def _build_iplookup_group(self, parent_layout: QVBoxLayout, player: Player) -> None:
         """Add the 'IP Lookup' section to the scroll layout."""
         group, form = self._make_group('IP Lookup', accent='#38a169')
-        self._add_live_row(form, 'Continent', lambda: format_text(player.iplookup.ipapi.continent))
+        self._add_live_row(form, 'Continent', lambda: format_text(player.iplookup.resolve_continent()[0]))
         self._add_live_row(form, 'Country', lambda: format_text(player.iplookup.resolve_country()[0]))
         self._add_live_row(form, 'Region', lambda: format_text(player.iplookup.ipapi.region))
         self._add_live_row(form, 'City', lambda: format_text(player.iplookup.resolve_city()))
