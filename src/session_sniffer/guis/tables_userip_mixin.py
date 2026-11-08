@@ -218,12 +218,7 @@ def userip_add(
 ) -> None:
     """Add the selected IP address(es) to the chosen UserIP database."""
     candidates = list(usernames) if usernames is not None else None
-    prompt_result = _prompt_usernames_to_add(
-        parent,
-        selected_ips,
-        selected_database,
-        candidate_usernames=candidates,
-    )
+    prompt_result = _prompt_usernames_to_add(parent, selected_ips, selected_database, candidate_usernames=candidates)
     if prompt_result is None:
         return
     chosen_usernames, notes_by_username = prompt_result
@@ -243,6 +238,8 @@ def userip_add(
     ]
     if new_entries:
         append_userip_entries(selected_database, new_entries)
+        if len(chosen_usernames) >= MIN_GROUP_USERNAMES:
+            group_usernames(chosen_usernames, UserIPDatabases.get_known_alts_clusters_snapshot())
     refresh_userip_and_wake_renderer()
 
     db_display = selected_database.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix('')
@@ -289,10 +286,9 @@ def userip_add_as_range(
     if not chosen_usernames:
         return
 
-    append_userip_entries(
-        selected_database,
-        [UserIPEntryModel(username=username, ip=range_input, notes=notes_by_username.get(username, '')) for username in chosen_usernames],
-    )
+    append_userip_entries(selected_database, [UserIPEntryModel(username=u, ip=range_input, notes=notes_by_username.get(u, '')) for u in chosen_usernames])
+    if len(chosen_usernames) >= MIN_GROUP_USERNAMES:
+        group_usernames(chosen_usernames, UserIPDatabases.get_known_alts_clusters_snapshot())
     refresh_userip_and_wake_renderer()
 
     db_display = selected_database.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix('')

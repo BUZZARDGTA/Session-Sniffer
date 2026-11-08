@@ -443,10 +443,10 @@ class TableContextMenuMixin(QTableView):
             if len(players) == 1:
                 if players[0].looky_system.rockstarids:
                     rockstar_ids = players[0].looky_system.rockstarids
-                    usernames = players[0].looky_system.usernames
+                    entry_names = players[0].looky_system.entry_names
                     if len(rockstar_ids) == 1:
                         target_rockstar_id = rockstar_ids[0]
-                        target_name = usernames[0] if usernames else str(target_rockstar_id)
+                        target_name = entry_names[0] if entry_names else str(target_rockstar_id)
                         profile_url = get_looky_user_url(target_rockstar_id)
 
                         def _open_single_profile() -> None:
@@ -475,7 +475,7 @@ class TableContextMenuMixin(QTableView):
 
                         all_profile_urls: list[str] = []
                         for i, target_rockstar_id in enumerate(rockstar_ids):
-                            user_name = usernames[i] if i < len(usernames) else ''
+                            user_name = entry_names[i] if i < len(entry_names) else ''
                             label = f'{user_name} ({target_rockstar_id})' if user_name else str(target_rockstar_id)
                             target_name = user_name or str(target_rockstar_id)
                             profile_url = get_looky_user_url(target_rockstar_id)

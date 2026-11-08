@@ -374,11 +374,17 @@ class UserIPEntriesOperationsMixin(QDialog):
         if not new_usernames:
             return
 
+        existing_cf = {name.casefold() for name in existing_names}
+        added_usernames = [name for name in new_usernames if name.casefold() not in existing_cf]
+        if not added_usernames:
+            QMessageBox.information(self, TITLE, f'All specified username{pluralize(len(new_usernames))} already exist for {entry_value}.')
+            return
+
         before_count = self._model.rowCount()
         current_insert = insert_at
-        for added_name in new_usernames:
+        for added_name in added_usernames:
             enriched_entry, _ = enrich_userip_entry_from_logs(UserIPEntryModel(username=added_name, ip=entry_value, notes=entered_notes.get(added_name, '')))
-            self._model.insertRow(current_insert, build_entry_row_items(enriched_entry, looky_icon=self._looky_icon, persisted=True))
+            self._model.insertRow(current_insert, build_entry_row_items(enriched_entry, looky_icon=self._looky_icon, persisted=False))
             current_insert += 1
 
         self._renumber_indexes()
@@ -677,11 +683,12 @@ class UserIPEntriesOperationsMixin(QDialog):
                 self._model.removeRow(row)
 
             if updated_rows:
-                self._proxy.refresh_rows([r for r in updated_rows if r < self._model.rowCount()])
+                self._proxy.refresh_rows([r - sum(1 for rem in rows_to_remove if rem < r) for r in updated_rows])
             self._dedup_global_search_rows()
             self._renumber_indexes()
             self._update_entry_counts()
             self._highlight_duplicates()
+            self._proxy.refresh_groups()
             self._refresh_stats()
             self._set_status(f'Moved {len(valid_moves)} {pluralize(len(valid_moves), "entry", "entries")} to "{target_display_name}".')
         else:

@@ -624,11 +624,6 @@ class TreeOperationsMixin(QDialog):
                     logger.warning('Failed to remove user database directory %s: %s', entry, e)
 
         refresh_userip_and_wake_renderer()
-        self._set_status(
-            'Reset complete'
-            + (f'  |  Restored {restored} default file{pluralize(restored)}' if restored else '')
-            + (f'  |  Deleted {deleted} user file{pluralize(deleted)}' if deleted else ''),
-        )
         self._refresh_stats()
 
         if self._global_search_active:
@@ -651,3 +646,9 @@ class TreeOperationsMixin(QDialog):
                 self._rebuild_fs_watch()
         else:
             self._rebuild_fs_watch()
+
+        self._set_status(
+            'Reset complete'
+            + (f'  |  Restored {restored} default file{pluralize(restored)}' if restored else '')
+            + (f'  |  Deleted {deleted} user file{pluralize(deleted)}' if deleted else ''),
+        )
