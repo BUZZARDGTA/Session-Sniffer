@@ -1085,7 +1085,7 @@ wheels = [
 
 [[package]]
 name = "session-sniffer"
-version = "1.5.0rc99+20261108.2145"
+version = "1.5.0rc99+20261108.2153"
 source = { editable = "." }
 dependencies = [
     { name = "aiohttp" },
