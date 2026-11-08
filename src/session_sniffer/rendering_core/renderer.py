@@ -28,7 +28,7 @@ from session_sniffer.guis.html_templates import generate_gui_header_html
 from session_sniffer.models import SessionLogFile
 from session_sniffer.models.player_lookup import PlayerModMenus
 from session_sniffer.models.player_traffic import PlayerBandwidth
-from session_sniffer.networking.geolite2 import extract_asn_info, extract_city_info, extract_continent_info, extract_country_info
+from session_sniffer.networking.geolite2 import extract_asn_info, extract_city_info, extract_country_info
 from session_sniffer.networking.looky_system import LookyState
 from session_sniffer.networking.port_scanner import get_active_port_scan_threads
 from session_sniffer.player.registry import PlayersRegistry, SessionTracker
@@ -171,13 +171,9 @@ def rendering_core(
 ) -> None:
     """Compile GUI payloads from runtime state and emit updates."""
 
-    def get_country_info(ip_address: str) -> tuple[str, str]:
+    def get_country_info(ip_address: str) -> tuple[str, str, str, str]:
         reader = geoip2_readers.country_reader if geoip2_readers.enabled else None
         return extract_country_info(reader, ip_address)
-
-    def get_continent_info(ip_address: str) -> tuple[str, str]:
-        reader = geoip2_readers.country_reader if geoip2_readers.enabled else None
-        return extract_continent_info(reader, ip_address)
 
     def get_city_info(ip_address: str) -> str:
         reader = geoip2_readers.city_reader if geoip2_readers.enabled else None
@@ -189,8 +185,12 @@ def rendering_core(
 
     def _populate_player_geoip_and_flag(target_player: Player) -> None:
         if not target_player.iplookup.geolite2.is_initialized:
-            target_player.iplookup.geolite2.continent, target_player.iplookup.geolite2.continent_code = get_continent_info(target_player.ip)
-            target_player.iplookup.geolite2.country, target_player.iplookup.geolite2.country_code = get_country_info(target_player.ip)
+            (
+                target_player.iplookup.geolite2.continent,
+                target_player.iplookup.geolite2.continent_code,
+                target_player.iplookup.geolite2.country,
+                target_player.iplookup.geolite2.country_code,
+            ) = get_country_info(target_player.ip)
             target_player.iplookup.geolite2.city = get_city_info(target_player.ip)
             target_player.iplookup.geolite2.asn = get_asn_info(target_player.ip)
             target_player.iplookup.geolite2.is_initialized = True

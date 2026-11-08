@@ -54,7 +54,6 @@ from session_sniffer.networking.exceptions import AllEndpointsExhaustedError
 from session_sniffer.networking.geolite2 import (
     query_geolite2_asn,
     query_geolite2_city,
-    query_geolite2_continent,
     query_geolite2_country,
 )
 from session_sniffer.networking.http_session import session
@@ -135,12 +134,12 @@ def _resolve_standalone_lookup(lookup: StandaloneIPLookup) -> None:
 
     # 3. GeoLite2
     if not lookup.iplookup.geolite2.is_initialized:
-        continent_name, continent_code = query_geolite2_continent(lookup.ip)
-        lookup.iplookup.geolite2.continent = continent_name
-        lookup.iplookup.geolite2.continent_code = continent_code
-        country_name, country_code = query_geolite2_country(lookup.ip)
-        lookup.iplookup.geolite2.country = country_name
-        lookup.iplookup.geolite2.country_code = country_code
+        (
+            lookup.iplookup.geolite2.continent,
+            lookup.iplookup.geolite2.continent_code,
+            lookup.iplookup.geolite2.country,
+            lookup.iplookup.geolite2.country_code,
+        ) = query_geolite2_country(lookup.ip)
         lookup.iplookup.geolite2.city = query_geolite2_city(lookup.ip)
         lookup.iplookup.geolite2.asn = query_geolite2_asn(lookup.ip)
         lookup.iplookup.geolite2.is_initialized = True

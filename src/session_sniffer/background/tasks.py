@@ -28,7 +28,7 @@ from session_sniffer.guis.tables_player_actions._userip_dialog import show_useri
 from session_sniffer.guis.utils import find_main_window
 from session_sniffer.models.combo_rules import format_combo_conditions_summary
 from session_sniffer.models.player_lookup import PlayerUserIPDetection
-from session_sniffer.networking.geolite2 import query_geolite2_asn, query_geolite2_city, query_geolite2_continent, query_geolite2_country
+from session_sniffer.networking.geolite2 import query_geolite2_asn, query_geolite2_city, query_geolite2_country
 from session_sniffer.networking.third_party_servers import ThirdPartyServers, is_ip_in_ranges
 from session_sniffer.player.combo_rules import ComboRulesManager, matches_asn_entry, matches_player_isp
 from session_sniffer.player.detections import GUIDetectionSettings
@@ -124,8 +124,12 @@ def _check_reverse_dns_hostname(player: Player) -> bool:
 def _check_iplookup_geolite2(player: Player) -> bool:
     """Check if player GeoLite2 data is initialized."""
     if not player.iplookup.geolite2.is_initialized:
-        player.iplookup.geolite2.continent, player.iplookup.geolite2.continent_code = query_geolite2_continent(player.ip)
-        player.iplookup.geolite2.country, player.iplookup.geolite2.country_code = query_geolite2_country(player.ip)
+        (
+            player.iplookup.geolite2.continent,
+            player.iplookup.geolite2.continent_code,
+            player.iplookup.geolite2.country,
+            player.iplookup.geolite2.country_code,
+        ) = query_geolite2_country(player.ip)
         player.iplookup.geolite2.city = query_geolite2_city(player.ip)
         player.iplookup.geolite2.asn = query_geolite2_asn(player.ip)
         player.iplookup.geolite2.is_initialized = True

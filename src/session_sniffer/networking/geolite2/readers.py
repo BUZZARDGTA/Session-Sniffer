@@ -46,22 +46,8 @@ def get_cached_geolite2_readers() -> tuple[geoip2.database.Reader | None, geoip2
     return asn_reader, city_reader, country_reader
 
 
-def extract_country_info(country_reader: geoip2.database.Reader | None, ip_address: str) -> tuple[str, str]:
-    """Extract country name and country ISO code using a GeoLite2 Country reader."""
-    if country_reader is not None:
-        try:
-            response = country_reader.country(ip_address)
-        except geoip2.errors.AddressNotFoundError:
-            pass
-        else:
-            country_name = response.country.name if response.country.name is not None else 'N/A'
-            country_code = response.country.iso_code if response.country.iso_code is not None else 'N/A'
-            return country_name, country_code
-    return 'N/A', 'N/A'
-
-
-def extract_continent_info(country_reader: geoip2.database.Reader | None, ip_address: str) -> tuple[str, str]:
-    """Extract continent name and continent code using a GeoLite2 Country reader."""
+def extract_country_info(country_reader: geoip2.database.Reader | None, ip_address: str) -> tuple[str, str, str, str]:
+    """Extract continent name, continent code, country name, and country ISO code using a GeoLite2 Country reader."""
     if country_reader is not None:
         try:
             response = country_reader.country(ip_address)
@@ -70,8 +56,10 @@ def extract_continent_info(country_reader: geoip2.database.Reader | None, ip_add
         else:
             continent_name = response.continent.name if response.continent.name is not None else 'N/A'
             continent_code = response.continent.code if response.continent.code is not None else 'N/A'
-            return continent_name, continent_code
-    return 'N/A', 'N/A'
+            country_name = response.country.name if response.country.name is not None else 'N/A'
+            country_code = response.country.iso_code if response.country.iso_code is not None else 'N/A'
+            return continent_name, continent_code, country_name, country_code
+    return 'N/A', 'N/A', 'N/A', 'N/A'
 
 
 def extract_city_info(city_reader: geoip2.database.Reader | None, ip_address: str) -> str:
@@ -98,16 +86,10 @@ def extract_asn_info(asn_reader: geoip2.database.Reader | None, ip_address: str)
     return 'N/A'
 
 
-def query_geolite2_country(ip_address: str) -> tuple[str, str]:
-    """Query GeoLite2 for country name and country ISO code for *ip_address*."""
+def query_geolite2_country(ip_address: str) -> tuple[str, str, str, str]:
+    """Query GeoLite2 for continent name, continent code, country name, and country ISO code for *ip_address*."""
     _, _, country_reader = get_cached_geolite2_readers()
     return extract_country_info(country_reader, ip_address)
-
-
-def query_geolite2_continent(ip_address: str) -> tuple[str, str]:
-    """Query GeoLite2 for continent name and continent code for *ip_address*."""
-    _, _, country_reader = get_cached_geolite2_readers()
-    return extract_continent_info(country_reader, ip_address)
 
 
 def query_geolite2_city(ip_address: str) -> str:
