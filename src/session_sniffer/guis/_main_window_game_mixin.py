@@ -10,8 +10,10 @@ from typing import TYPE_CHECKING, override
 from PySide6.QtCore import QByteArray, Qt
 from PySide6.QtGui import QAction, QFont, QFontMetrics, QIcon, QKeySequence, QShortcut
 from PySide6.QtWidgets import QLabel, QMainWindow, QMenu, QMenuBar, QMessageBox, QWidgetAction
+from shiboken6 import isValid
 
 from session_sniffer import msgbox
+from session_sniffer.background.events import gui_closed__event
 from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.constants.standard import LOCAL_TZ
@@ -52,12 +54,13 @@ _SOLO_SESSION_HOTKEY_BASE_ID = 0x5353
 _MAX_F_KEY_NUMBER = 24
 
 _PORTABLE_KEY_TO_WIN32_VKS: dict[str, tuple[int, ...]] = {
-    'backspace': (0x08,), 'tab': (0x09,), 'return': (0x0D,), 'enter': (0x0D,), 'pause': (0x13,), 'capslock': (0x14,),
+    'backspace': (0x08,), 'tab': (0x09,), 'clear': (0x0C,), 'return': (0x0D,), 'enter': (0x0D,), 'pause': (0x13,), 'capslock': (0x14,),
     'space': (0x20,), 'pgup': (0x21,), 'pgdown': (0x22,), 'end': (0x23,), 'home': (0x24,), 'left': (0x25,),
     'up': (0x26,), 'right': (0x27,), 'down': (0x28,), 'print': (0x2C,), 'ins': (0x2D,), 'del': (0x2E,),
-    '*': (0x6A,), '+': (0x6B, 0xBB), '-': (0x6D, 0xBD), '.': (0x6E, 0xBE), '/': (0x6F, 0xBF),
-    'numlock': (0x90,), 'scrolllock': (0x91,), ';': (0xBA,), '=': (0xBB,), ',': (0xBC,), '`': (0xC0,),
-    '[': (0xDB,), '\\': (0xDC,), ']': (0xDD,), "'": (0xDE,),
+    '!': (0x31,), '@': (0x32,), '#': (0x33,), '$': (0x34,), '%': (0x35,), '^': (0x36,), '&': (0x37,), '(': (0x39,), ')': (0x30,),
+    '*': (0x6A,), '+': (0x6B, 0xBB), '-': (0x6D, 0xBD), '_': (0xBD,), '.': (0x6E, 0xBE), '/': (0x6F, 0xBF), '?': (0xBF,),
+    'numlock': (0x90,), 'scrolllock': (0x91,), ';': (0xBA,), ':': (0xBA,), '=': (0xBB,), ',': (0xBC,), '<': (0xBC,), '>': (0xBE,),
+    '`': (0xC0,), '~': (0xC0,), '[': (0xDB,), '{': (0xDB,), '\\': (0xDC,), '|': (0xDC,), ']': (0xDD,), '}': (0xDD,), "'": (0xDE,), '"': (0xDE,),
 }
 
 
@@ -89,7 +92,10 @@ def _parse_win32_hotkey_spec(hotkey: str | None) -> tuple[int, tuple[int, ...]] 
         return None
 
     mod_flags = 0
-    for _ in range(4):
+    for _ in range(5):
+        if portable.startswith('num+'):
+            portable = portable[4:]
+            continue
         for mod_prefix, flag in (('ctrl+', _MOD_CONTROL), ('shift+', _MOD_SHIFT), ('alt+', _MOD_ALT), ('meta+', _MOD_WIN)):
             if portable.startswith(mod_prefix):
                 mod_flags |= flag
@@ -297,7 +303,6 @@ class GameMixin(QMainWindow):
         self._solo_session_shortcut = QShortcut(self)
         self._solo_session_shortcut.setContext(Qt.ShortcutContext.ApplicationShortcut)
         self._solo_session_shortcut.activated.connect(self._trigger_solo_session_from_hotkey)
-        self._sync_solo_session_hotkey()
 
     def _unregister_solo_session_hotkeys(self) -> None:
         """Unregister all active Solo Public Session hotkeys."""
@@ -309,10 +314,12 @@ class GameMixin(QMainWindow):
 
     def _sync_solo_session_hotkey(self) -> None:
         """Synchronize the OS-level Solo Public Session hotkey registration from Settings."""
-        self._unregister_solo_session_hotkeys()
-        if self._settings_dialog_window is not None and self._settings_dialog_window.isVisible():
+        if gui_closed__event.is_set() or not isValid(self):
             return
-        hotkey = Settings.solo_session_hotkey if Settings.is_rockstar_feature_set() else None
+        self._unregister_solo_session_hotkeys()
+        if self._settings_dialog_window is not None and isValid(self._settings_dialog_window) and self._settings_dialog_window.isVisible():
+            return
+        hotkey = Settings.solo_session_hotkey if Settings.is_rockstar_feature_set() and CaptureState.is_local_capture() else None
         if sys.platform == 'win32':
             spec = _parse_win32_hotkey_spec(hotkey)
             if spec is not None:
@@ -331,7 +338,9 @@ class GameMixin(QMainWindow):
 
     def _trigger_solo_session_from_hotkey(self) -> None:
         """Trigger a Solo Public Session from the global hotkey if the active game is running and eligible."""
-        if self._settings_dialog_window is not None and self._settings_dialog_window.isVisible():
+        if gui_closed__event.is_set() or not isValid(self):
+            return
+        if self._settings_dialog_window is not None and isValid(self._settings_dialog_window) and self._settings_dialog_window.isVisible():
             return
         if not Settings.is_rockstar_feature_set() or not CaptureState.is_local_capture():
             return
@@ -638,7 +647,8 @@ class GameMixin(QMainWindow):
 
         if current_session_host is not None and not current_session_host.left_event.is_set():
             matched_player = PlayersRegistry.get_player_by_ip(current_session_host.ip)
-            usernames = matched_player.usernames if matched_player is not None and matched_player.usernames else ()
+            fallback_names = SessionHost.last_diagnostics.detected_host_usernames if SessionHost.last_diagnostics is not None else ()
+            usernames = matched_player.usernames if matched_player is not None and matched_player.usernames else fallback_names
             formatted_usernames = format_menu_usernames(usernames)
             host_text = f'Host: Detected: {current_session_host.ip}' + (f'  |  {formatted_usernames}' if formatted_usernames else '')
             flag_icon = load_country_flag_icon(current_session_host.iplookup.resolve_country_code()) or QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'crown.svg'))
@@ -650,7 +660,8 @@ class GameMixin(QMainWindow):
             matched_player = PlayersRegistry.get_player_by_ip(last_host.ip) or (
                 SessionTracker.get_session_snapshot_player(last_host.session_id, last_host.ip) if last_host.session_id is not None else None
             )
-            usernames = matched_player.usernames if matched_player is not None and matched_player.usernames else ()
+            fallback_names = last_host.diagnostics.detected_host_usernames if last_host.diagnostics is not None else ()
+            usernames = matched_player.usernames if matched_player is not None and matched_player.usernames else fallback_names
             formatted_usernames = format_menu_usernames(usernames)
             host_text = f'Host: Detected: {last_host.ip}' + (f'  |  {formatted_usernames}' if formatted_usernames else '') + ' (Left)'
             flag_icon = load_country_flag_icon(last_host.country_code) or QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'crown.svg'))
@@ -814,7 +825,8 @@ class GameMixin(QMainWindow):
                 if session_history:
                     last_host = session_history[-1]
                     matched_player = SessionTracker.get_session_snapshot_player(session_id, last_host.ip) or PlayersRegistry.get_player_by_ip(last_host.ip)
-                    usernames = matched_player.usernames if matched_player is not None and matched_player.usernames else ()
+                    fallback_names = last_host.diagnostics.detected_host_usernames if last_host.diagnostics is not None else ()
+                    usernames = matched_player.usernames if matched_player is not None and matched_player.usernames else fallback_names
                     formatted_usernames = format_menu_usernames(usernames)
                     host_label = f'Host: {last_host.ip}' + (f'  |  {formatted_usernames}' if formatted_usernames else '')
                     flag_icon = load_country_flag_icon(last_host.country_code) or QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'crown.svg'))
@@ -889,14 +901,9 @@ class GameMixin(QMainWindow):
 
     def _prompt_delete_session(self, session_id: int, display_name: str) -> None:
         """Prompt user to delete the specified session and synchronize the session filter."""
-        reply = QMessageBox.question(
-            self,
-            TITLE,
-            f"Are you sure you want to delete session '{display_name}'?\n\nThis will remove the session and its player history permanently.",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.No,
-        )
-        if reply != QMessageBox.StandardButton.Yes:
+        msg = f"Are you sure you want to delete session '{display_name}'?\n\nThis will remove the session and its player history permanently."
+        buttons = QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        if QMessageBox.question(self, TITLE, msg, buttons, QMessageBox.StandardButton.No) != QMessageBox.StandardButton.Yes:
             return
         removed_ips = {player.ip for player in SessionTracker.delete_session(session_id)}
         SessionHost.prune_history_for_session(session_id)
@@ -908,15 +915,12 @@ class GameMixin(QMainWindow):
 
     def _prompt_clear_past_sessions_and_history(self) -> None:
         """Prompt user to clear past sessions and host history while preserving the active session."""
-        reply = QMessageBox.question(
-            self,
-            TITLE,
+        msg = (
             'Are you sure you want to clear past sessions and history?\n\n'
-            'This will delete all past sessions and clear session host history permanently. Your current active session will not be affected.',
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.No,
+            'This will delete all past sessions and clear session host history permanently. Your current active session will not be affected.'
         )
-        if reply != QMessageBox.StandardButton.Yes:
+        buttons = QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        if QMessageBox.question(self, TITLE, msg, buttons, QMessageBox.StandardButton.No) != QMessageBox.StandardButton.Yes:
             return
         current_session_id = SessionTracker.get_current_session_id()
         past_session_ids = [session_id for session_id in SessionTracker.get_all_session_ids() if session_id < current_session_id]

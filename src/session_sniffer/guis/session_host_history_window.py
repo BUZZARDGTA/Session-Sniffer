@@ -60,7 +60,11 @@ def populate_host_history_submenu(
             if entry.session_id is not None
             else None
         ) or PlayersRegistry.get_player_by_ip(entry.ip)
-        usernames = matched_player.usernames if matched_player is not None and matched_player.usernames else ()
+        usernames = (
+            matched_player.usernames
+            if matched_player is not None and matched_player.usernames
+            else (entry.diagnostics.detected_host_usernames if entry.diagnostics is not None else ())
+        )
         formatted_usernames = format_menu_usernames(usernames, placeholder='—')
         elapsed_time_string = format_elapsed_time(now - entry.detected_at)
         session_prefix = ''

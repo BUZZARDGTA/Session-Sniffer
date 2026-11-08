@@ -237,7 +237,8 @@ def _build_host_diagnostics_snapshot(
                 packets_status_text = 'Exceeds maximum exchanged'
             else:
                 packets_status_text = 'Enough'
-            username_suffix = f' ({", ".join(player.usernames)})' if player.usernames else ''
+            candidate_usernames = candidate_diagnostics[index - 1].usernames
+            username_suffix = f' ({", ".join(candidate_usernames)})' if candidate_usernames else ''
             candidate_lines = [
                 f'Candidate #{index}:',
                 f'  IP Address: {player.ip}{username_suffix}',

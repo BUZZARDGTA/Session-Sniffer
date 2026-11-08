@@ -5,7 +5,7 @@ import ctypes
 import sys
 from ctypes import wintypes
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, SupportsInt
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -199,25 +199,28 @@ def show_win32_message_box(owner_hwnd: int, text: str, title: str, style: int) -
     return int(_user32.MessageBoxW(owner_hwnd, text, title, style))
 
 
-def register_win32_hotkey(hwnd: int, hotkey_id: int, modifiers: int, vk_code: int) -> bool:
+def register_win32_hotkey(hwnd: SupportsInt, hotkey_id: int, modifiers: int, vk_code: int) -> bool:
     """Register a system-wide hotkey with Windows user32 RegisterHotKey."""
     if sys.platform != 'win32':
         return False
-    return bool(_user32.RegisterHotKey(hwnd, hotkey_id, modifiers | _MOD_NOREPEAT, vk_code))
+    return bool(_user32.RegisterHotKey(int(hwnd), hotkey_id, modifiers | _MOD_NOREPEAT, vk_code))
 
 
-def unregister_win32_hotkey(hwnd: int, hotkey_id: int) -> bool:
+def unregister_win32_hotkey(hwnd: SupportsInt, hotkey_id: int) -> bool:
     """Unregister a system-wide hotkey previously registered with RegisterHotKey."""
     if sys.platform != 'win32':
         return False
-    return bool(_user32.UnregisterHotKey(hwnd, hotkey_id))
+    return bool(_user32.UnregisterHotKey(int(hwnd), hotkey_id))
 
 
-def parse_win32_hotkey_message(message_ptr: int) -> int | None:
+def parse_win32_hotkey_message(message_ptr: SupportsInt) -> int | None:
     """Extract the hotkey identifier from a native Win32 MSG pointer if it is a WM_HOTKEY message."""
-    if sys.platform != 'win32' or not message_ptr:
+    if sys.platform != 'win32':
         return None
-    msg = wintypes.MSG.from_address(message_ptr)
+    addr = int(message_ptr)
+    if not addr:
+        return None
+    msg = wintypes.MSG.from_address(addr)
     if msg.message == _WM_HOTKEY:
         return msg.wParam or 0
     return None

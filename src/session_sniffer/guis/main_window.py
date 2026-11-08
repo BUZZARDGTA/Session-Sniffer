@@ -280,6 +280,7 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
 
         self._actions = self._build_capture_menu(menu_bar)
         self._build_game_menu(menu_bar)
+        self._apply_always_on_top()
         self._update_game_toolbar_visibility()
         self._build_tools_menu(menu_bar)
         self._build_statistics_menu(menu_bar)
@@ -401,8 +402,6 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
 
         self._config_watcher = DebouncedFileWatcher(self, on_change=self._on_config_files_changed, poll_interval_ms=1_000)
         self._config_watcher.watch(files=(SETTINGS_PATH, DETECTIONS_JSON_PATH, COMBO_RULES_PATH))
-
-        self._apply_always_on_top()
 
         self._update_header_capture_status()
         self._update_status_bar()
@@ -767,8 +766,8 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
                 apply_runtime_settings_changes(self.capture.get(), old_values, new_values)
                 if 'gui_disconnected_players_enabled' in changed:
                     TableMergeState.reset_override()
-                self._update_game_toolbar_visibility()
                 self._apply_always_on_top()
+                self._update_game_toolbar_visibility()
                 self._update_splitter_visibility()
                 self._apply_table_settings(changed)
                 self._sync_player_resolver_settings()
@@ -800,12 +799,11 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
 
         def _factory() -> SettingsDialog:
             window = SettingsDialog(None, self.capture.get(), self._on_change_interface)
-            window.finished.connect(self._sync_solo_session_hotkey)
-            window.destroyed.connect(self._sync_solo_session_hotkey)
+            window.rejected.connect(self._sync_solo_session_hotkey)
             for callback in (
                 TableMergeState.reset_override,
-                self._update_game_toolbar_visibility,
                 self._apply_always_on_top,
+                self._update_game_toolbar_visibility,
                 self._update_splitter_visibility,
                 self._apply_table_settings,
                 self._sync_player_resolver_settings,
