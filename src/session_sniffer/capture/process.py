@@ -557,6 +557,9 @@ def get_running_applications(*, user_apps_only: bool = True) -> list[tuple[int, 
         if user_apps_only and name.lower() in _SYSTEM_PROCESS_NAMES:
             continue
 
+        if not is_process_running(pid):
+            continue
+
         process_path = get_process_image_path(pid)
         exe_path = str(process_path) if process_path is not None else ''
 
