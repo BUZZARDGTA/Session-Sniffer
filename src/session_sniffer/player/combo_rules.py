@@ -204,6 +204,8 @@ def _has_resolved_target(base_key: str, value: ConditionValue, player: Player) -
 
     geolite2 = player.iplookup.geolite2
     ipapi = player.iplookup.ipapi
+    if base_key in {'city', 'region', 'org', 'isp', 'asn', 'as_name'} and not ipapi.is_initialized:
+        return False
     lookup_candidates_by_key: dict[str, tuple[object, ...]] = {
         'continent': (geolite2.continent, geolite2.continent_code, ipapi.continent, ipapi.continent_code),
         'country': (geolite2.country, geolite2.country_code, ipapi.country, ipapi.country_code),

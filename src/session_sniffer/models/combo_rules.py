@@ -70,7 +70,8 @@ def format_combo_conditions_summary(conditions: dict[str, ConditionValue], *, in
             continue
         base_key, is_negated = split_condition_key(key)
         operator = '!=' if is_negated else '='
-        parts.append(f'{base_key}{operator}{value}')
+        formatted_value = ' | '.join(value) if isinstance(value, list) else value
+        parts.append(f'{base_key}{operator}{formatted_value}')
     return ', '.join(parts)
 
 
