@@ -696,7 +696,7 @@ def check_global_detections(player: Player) -> None:
         handle_detection_notifications(
             detection_title='BLOCKED CONTINENT DETECTED!',
             display_title='Blocked Continent Detected',
-            extra_detection_fields=[('Continent', player.iplookup.resolve_continent()[0])],
+            extra_detection_fields=[],
             settings=_DetectionSettings(
                 voice=GUIDetectionSettings.continent_voice_notifications,
                 log=GUIDetectionSettings.continent_logging,

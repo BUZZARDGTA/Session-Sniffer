@@ -551,15 +551,7 @@ def main() -> None:
         new_adapter_guid = new_interface.interface.identity.adapter_guid
 
         is_same_adapter = False
-        if not new_interface.is_neighbour and not current_selected.is_neighbour:
-            if current_adapter_guid is not None and new_adapter_guid is not None:
-                is_same_adapter = current_adapter_guid == new_adapter_guid
-            else:
-                is_same_adapter = (
-                    new_interface.name == current_selected.name
-                    and new_interface.mac_address == current_selected.mac_address
-                )
-        elif new_interface.is_neighbour and current_selected.is_neighbour:
+        if new_interface.is_neighbour == current_selected.is_neighbour:
             if current_adapter_guid is not None and new_adapter_guid is not None:
                 is_same_adapter = (
                     current_adapter_guid == new_adapter_guid
@@ -703,7 +695,7 @@ def main() -> None:
 
     _adapter_lost_attempts = 0
 
-    def _restart_capture_with_ip(new_ip: str) -> None:
+    def _restart_capture_with_ip(new_ip: str, ipv4_addresses: list[str] | None = None) -> None:
         """Silently restart packet capture with a specified IP address on the current interface."""
         was_running = capture_holder.is_running()
         if was_running:
@@ -718,15 +710,16 @@ def main() -> None:
         Settings.capture_ip_address = new_ip
         Settings.rewrite_settings_file()
 
+        resolved_ips = list(ipv4_addresses) if ipv4_addresses is not None and ipv4_addresses else [new_ip]
         new_selected_interface = SelectedInterfaceRow(
             interface=capture_holder.config.interface.interface,
             ip_address=new_ip,
             is_neighbour=capture_holder.config.interface.is_neighbour,
         )
-        new_selected_interface.interface.ip_addresses = [new_ip]
+        new_selected_interface.interface.ip_addresses = resolved_ips
         registered_interface = AllInterfaces.get_interface_by_name(new_selected_interface.name)
         if registered_interface is not None:
-            registered_interface.ip_addresses = [new_ip]
+            registered_interface.ip_addresses = list(resolved_ips)
 
         CaptureState.apply_interface_names(
             is_neighbour=new_selected_interface.is_neighbour,
@@ -761,8 +754,8 @@ def main() -> None:
 
         window.on_interface_switched()
 
-    def _try_recover_lost_adapter(current_selected: SelectedInterfaceRow, adapter_guid: str, attempt: int) -> str | None:
-        """Check whether the lost adapter is back online and ready for live capture, returning its IPv4 address if ready."""
+    def _try_recover_lost_adapter(current_selected: SelectedInterfaceRow, adapter_guid: str, attempt: int) -> tuple[str, list[str]] | None:
+        """Check whether the lost adapter is back online and ready for live capture, returning `(target_ip, ipv4_addresses)` if ready."""
         matching_adapter = next((adapter for adapter in get_adapters_info() if adapter.identity.adapter_guid == adapter_guid), None)
         if matching_adapter is None:
             logger.debug(
@@ -794,13 +787,14 @@ def main() -> None:
             current_selected.interface.identity.mac_address = matching_adapter.identity.mac_address
             Settings.capture_mac_address = matching_adapter.identity.mac_address
 
-        return current_selected.ip_address if current_selected.ip_address in matching_adapter.ipv4_addresses else matching_adapter.ipv4_addresses[0]
+        target_ip = current_selected.ip_address if current_selected.ip_address in matching_adapter.ipv4_addresses else matching_adapter.ipv4_addresses[0]
+        return target_ip, matching_adapter.ipv4_addresses
 
-    def _on_adapter_lost_poll() -> None:
+    def _on_adapter_lost_poll(*, count_attempt: bool = True) -> None:
         """Poll for unexpected capture exits, attempt automatic silent recovery, or re-show the interface selection dialog."""
         nonlocal _adapter_lost_attempts
 
-        if _is_switching_interface or gui_closed__event.is_set() or not window.isVisible():
+        if _is_switching_interface or _is_handling_capture_lost or gui_closed__event.is_set() or not window.isVisible():
             return
 
         if InterfaceSelectionDialog.get_active_instance() is not None:
@@ -826,12 +820,14 @@ def main() -> None:
                 _handle_capture_lost(stop_capture=False, warning_message=format_npcap_adapter_binding_disabled_message(current_selected.name))
                 return
 
-            _adapter_lost_attempts += 1
+            if count_attempt or not _adapter_lost_attempts:
+                _adapter_lost_attempts += 1
             if _adapter_lost_attempts <= _MAX_ADAPTER_LOST_RECOVERY_ATTEMPTS:
-                target_ip_address = _try_recover_lost_adapter(current_selected, adapter_guid, _adapter_lost_attempts)
-                if target_ip_address is None:
+                recovered = _try_recover_lost_adapter(current_selected, adapter_guid, _adapter_lost_attempts)
+                if recovered is None:
                     return
 
+                target_ip_address, recovered_ipv4s = recovered
                 previous_ip_address = current_selected.ip_address
                 _adapter_lost_event.clear()
 
@@ -840,7 +836,7 @@ def main() -> None:
                 else:
                     logger.info('Capture interface "%s" reconnected (IP unchanged: %s) — resuming capture.', current_selected.name, target_ip_address)
 
-                _restart_capture_with_ip(target_ip_address)
+                _restart_capture_with_ip(target_ip_address, recovered_ipv4s)
                 return
 
         _adapter_lost_attempts = 0
@@ -849,10 +845,16 @@ def main() -> None:
 
     def _on_os_adapter_change() -> None:
         """Handle OS kernel notifications when an adapter's IPv4 address or operational status changes."""
-        if _is_switching_interface or gui_closed__event.is_set() or not window.isVisible() or InterfaceSelectionDialog.get_active_instance() is not None:
+        if (
+            _is_switching_interface
+            or _is_handling_capture_lost
+            or gui_closed__event.is_set()
+            or not window.isVisible()
+            or InterfaceSelectionDialog.get_active_instance() is not None
+        ):
             return
         if _adapter_lost_event.is_set():
-            _on_adapter_lost_poll()
+            _on_adapter_lost_poll(count_attempt=False)
             return
         if not capture_holder.is_running():
             return
@@ -865,14 +867,13 @@ def main() -> None:
             logger.info('Capture interface "%s" went down or lost IPv4 assignment — pausing capture for recovery.', current_selected.name)
             capture_holder.stop()
             _adapter_lost_event.set()
-            _on_adapter_lost_poll()
         elif current_selected.ip_address not in matching_adapter.ipv4_addresses:
             new_ip_address = matching_adapter.ipv4_addresses[0]
             logger.info(
                 'Capture interface "%s" IP changed from %s to %s — updating capture filter and restarting capture.',
                 current_selected.name, current_selected.ip_address, new_ip_address,
             )
-            _restart_capture_with_ip(new_ip_address)
+            _restart_capture_with_ip(new_ip_address, matching_adapter.ipv4_addresses)
 
     _unregister_adapter_change = register_adapter_change_notification(lambda: gui_dispatcher.invoke(_on_os_adapter_change))
 
@@ -883,7 +884,7 @@ def main() -> None:
 
     def _on_arp_failed_poll() -> None:
         """Poll for ARP spoofing failures and re-show the interface selection dialog."""
-        if _is_switching_interface or gui_closed__event.is_set() or not window.isVisible():
+        if _is_switching_interface or _is_handling_capture_lost or gui_closed__event.is_set() or not window.isVisible():
             return
         if InterfaceSelectionDialog.get_active_instance() is not None:
             _arp_failed_event.clear()

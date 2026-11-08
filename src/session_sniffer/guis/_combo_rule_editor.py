@@ -459,7 +459,7 @@ class ComboRuleEditorDialog(QDialog):
                     'Validation Error',
                     'Please complete all existing conditions before adding a new one.\n\n'
                     'Ensure every condition has a type selected, a valid value entered, '
-                    'and there are no duplicate condition types.',
+                    'and each condition type + operator combination may only be used once.',
                 )
                 return
 
