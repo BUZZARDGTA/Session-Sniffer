@@ -424,7 +424,7 @@ def trigger_auto_username_userip(player: Player, detected_usernames: Sequence[st
     if not (Settings.userip_auto_feed_from_usernames and Settings.is_gta5_feature_set() and CaptureState.is_local_capture()):
         return
 
-    if not detected_usernames:
+    if not detected_usernames or player.is_gta5_relay or player.has_relay_mod_menus:
         return
 
     if player.userip is not None or UserIPDatabases.is_known_ip(player.ip) or UserIPDatabases.is_conflicting_ip(player.ip):

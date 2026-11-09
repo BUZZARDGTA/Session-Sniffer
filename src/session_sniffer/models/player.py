@@ -144,6 +144,22 @@ class Player:
         """The player's IP address."""
         return self._ip
 
+    @property
+    def has_relay_mod_menus(self) -> bool:
+        """Return True if this player has session-local relay usernames from a mod menu."""
+        return self.mod_menus is not None and self.mod_menus.is_relay
+
+    def reset_session_relay_state(self) -> None:
+        """Reset session-local relay detection and relay mod menu usernames."""
+        self.detection_checked = False
+        self.relay_monitor_started = False
+        self.is_gta5_relay = False
+        if self.has_relay_mod_menus:
+            self.mod_menus = None
+            self.rebuild_usernames(
+                looky_usernames=self.looky_system.usernames if self.looky_system.is_initialized else (),
+            )
+
     def mark_as_seen(self, *, port: int, packet_datetime: datetime_type, packet_length: int, sent_by_local_host: bool) -> None:
         """Update per-player state from an observed packet."""
         self.datetime.last_seen = max(self.datetime.last_seen, packet_datetime)
@@ -173,9 +189,7 @@ class Player:
         self.left_event.clear()
         self.rejoins += 1
         self.session_id = session_id
-        self.detection_checked = False
-        self.relay_monitor_started = False
-        self.is_gta5_relay = False
+        self.reset_session_relay_state()
 
         self.datetime.accumulate_session_to_total()
         self.datetime.last_rejoin = packet_datetime
@@ -247,7 +261,10 @@ class Player:
             clone.session_id = session_id
         clone.usernames = list(self.usernames)
         if self.mod_menus is not None:
-            clone.mod_menus = PlayerModMenus(usernames=list(self.mod_menus.usernames))
+            clone.mod_menus = PlayerModMenus(
+                usernames=list(self.mod_menus.usernames),
+                is_relay=self.mod_menus.is_relay,
+            )
         if self.userip_detection is not None:
             clone.userip_detection = copy.copy(self.userip_detection)
         clone.ping = copy.copy(self.ping)

@@ -557,6 +557,11 @@ class SessionTracker:
                 carried_p2p_players = list(p2p_by_ip.values())
             else:
                 carried_p2p_players = [player for player in carried_by_ip.values() if _is_session_activity_player(player)]
+            for player in list(carried_by_ip.values()):
+                is_session_relay = player.is_gta5_relay or player.has_relay_mod_menus
+                is_inactive = not carried_p2p_players or (not player.packets.pps.is_first_calculation and not player.packets.pps.calculated_rate)
+                if player.session_id in (0, old_session_id) and is_session_relay and is_inactive:
+                    del carried_by_ip[player.ip]
             old_disconnected = [
                 player
                 for player in PlayersRegistry.get_disconnected_players()
@@ -568,7 +573,7 @@ class SessionTracker:
                 if player.session_id in (0, old_session_id) and player.ip not in carried_by_ip
             ]
             has_old_session_players = any(
-                not player.is_third_party_server
+                not player.is_third_party_server or player.is_gta5_relay
                 for player in (
                     *cls._session_snapshots.get(old_session_id, ()),
                     *old_live_departing,
@@ -616,11 +621,18 @@ class SessionTracker:
                 ]
                 session_players.extend(
                     player.snapshot(session_id=old_session_id)
+                    for player in carried_by_ip.values()
+                    if player.session_id in (0, old_session_id) and (player.is_gta5_relay or player.has_relay_mod_menus)
+                )
+                session_players.extend(
+                    player.snapshot(session_id=old_session_id)
                     for player in old_disconnected
                 )
                 cls._session_snapshots[old_session_id] = session_players
             for player in carried_by_ip.values():
                 player.session_id = new_session_id
+                if player.is_gta5_relay or player.has_relay_mod_menus:
+                    player.reset_session_relay_state()
             logger.debug('[SessionTracker] Advanced to session %d', cls._current_session_id)
 
     @classmethod
@@ -688,7 +700,7 @@ class SessionTracker:
         """Refresh a player's snapshot in past sessions once disconnection finalizes or metadata resolves."""
         with cls._lock:
             if metadata_only:
-                for session_snapshots in cls._session_snapshots.values():
+                for sid, session_snapshots in cls._session_snapshots.items():
                     for snapshot in session_snapshots:
                         if snapshot.ip != player_snapshot.ip:
                             continue
@@ -707,14 +719,26 @@ class SessionTracker:
                         if snapshot.ps3_username is None and player_snapshot.ps3_username is not None:
                             snapshot.ps3_username = player_snapshot.ps3_username
                         snapshot.is_third_party_server = player_snapshot.is_third_party_server
-                        snapshot.mod_menus = (
-                            PlayerModMenus(usernames=list(player_snapshot.mod_menus.usernames))
-                            if player_snapshot.mod_menus is not None
-                            else None
-                        )
                         snapshot.userip = player_snapshot.userip
-                        if snapshot.usernames != player_snapshot.usernames:
-                            snapshot.usernames = list(player_snapshot.usernames)
+                        snapshot_is_relay = snapshot.mod_menus is not None and snapshot.mod_menus.is_relay
+                        player_is_relay = player_snapshot.mod_menus is not None and player_snapshot.mod_menus.is_relay
+                        if sid == player_snapshot.session_id or (not snapshot_is_relay and not player_is_relay):
+                            snapshot.mod_menus = (
+                                PlayerModMenus(
+                                    usernames=list(player_snapshot.mod_menus.usernames),
+                                    is_relay=player_snapshot.mod_menus.is_relay,
+                                )
+                                if player_snapshot.mod_menus is not None
+                                else None
+                            )
+                            if sid == player_snapshot.session_id and player_snapshot.is_gta5_relay:
+                                snapshot.is_gta5_relay = True
+                            if snapshot.usernames != player_snapshot.usernames:
+                                snapshot.usernames = list(player_snapshot.usernames)
+                        else:
+                            with snapshot.looky_system.lock:
+                                snapshot_looky = list(snapshot.looky_system.usernames) if snapshot.looky_system.is_initialized else ()
+                            snapshot.rebuild_usernames(looky_usernames=snapshot_looky)
                 return
             if not player_snapshot.is_third_party_server:
                 cls._session_transition_pending_ips.pop(player_snapshot.session_id, None)

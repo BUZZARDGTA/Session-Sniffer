@@ -506,8 +506,10 @@ def rendering_core(
                 ModMenuLogsParser.refresh()
                 last_modmenu_refresh_time = time.monotonic()
             all_modmenu_usernames = ModMenuLogsParser.get_all_ip_to_usernames_map()
+            all_relay_usernames = ModMenuLogsParser.get_relay_ip_to_usernames_map()
         else:
             all_modmenu_usernames = {}
+            all_relay_usernames = {}
 
         session_connected, session_disconnected = PlayersRegistry.get_connected_and_disconnected_players()
         players_to_disconnect = _process_player_disconnections(session_connected, session_disconnected)
@@ -531,7 +533,13 @@ def rendering_core(
         for i in reversed(players_to_disconnect):
             del session_connected[i]
 
+        current_session_id = SessionTracker.get_current_session_id()
         for player in chain(session_connected, session_disconnected):
+            is_past_session_relay = 0 < player.session_id < current_session_id and (player.is_gta5_relay or player.has_relay_mod_menus)
+            if not player.left_event.is_set() and is_past_session_relay and (player.packets.pps.is_first_calculation or player.packets.pps.calculated_rate):
+                player.session_id = current_session_id
+                player.reset_session_relay_state()
+
             has_geo = player.country_flag is not None or (player.iplookup.ipapi.is_initialized and player.iplookup.ipapi.country_code in {'', '...', 'N/A'})
             with player.looky_system.lock:
                 looky_usernames = list(player.looky_system.usernames)
@@ -550,7 +558,26 @@ def rendering_core(
             else:
                 looky_complete = not _looky_active_changed
             modmenu_usernames_for_player = all_modmenu_usernames.get(player.ip)
-            modmenu_complete = not bool(modmenu_usernames_for_player) if player.mod_menus is None else player.mod_menus.usernames == modmenu_usernames_for_player
+            relay_usernames_for_player = (
+                all_relay_usernames.get(player.ip)
+                if not player.left_event.is_set() or (player.mod_menus is None and player.session_id == current_session_id)
+                else None
+            )
+            if relay_usernames_for_player is not None and relay_usernames_for_player:
+                modmenu_complete = (
+                    player.mod_menus is not None
+                    and player.mod_menus.is_relay
+                    and player.mod_menus.usernames == relay_usernames_for_player
+                    and player.is_gta5_relay
+                )
+            elif player.mod_menus is not None and player.mod_menus.is_relay:
+                modmenu_complete = all(name in player.usernames for name in player.mod_menus.usernames)
+            else:
+                modmenu_complete = (
+                    not bool(modmenu_usernames_for_player)
+                    if player.mod_menus is None
+                    else player.mod_menus.usernames == modmenu_usernames_for_player
+                )
             ps3_complete = not bool(player.ps3_username) or player.ps3_username in player.usernames
             usernames_complete = looky_complete and modmenu_complete and ps3_complete and not _auto_feed_retriggered
             if player.left_event.is_set() and not _userip_db_rebuilt and player.iplookup.geolite2.is_initialized and has_geo and usernames_complete:
@@ -572,14 +599,39 @@ def rendering_core(
             if not player.left_event.is_set() and player.userip is not None and (player.userip_detection is None or not player.userip_detection.as_processed_task):
                 spawn_connected_userip_detection(player, player.userip)
 
-            if modmenu_usernames_for_player is not None and modmenu_usernames_for_player:
-                modmenu_changed = player.mod_menus is None or player.mod_menus.usernames != modmenu_usernames_for_player
+            newly_detected_relay = False
+            if relay_usernames_for_player is not None and relay_usernames_for_player:
+                modmenu_changed = (
+                    player.mod_menus is None
+                    or not player.mod_menus.is_relay
+                    or player.mod_menus.usernames != relay_usernames_for_player
+                )
+                if player.mod_menus is None:
+                    player.mod_menus = PlayerModMenus(
+                        usernames=list(relay_usernames_for_player),
+                        is_relay=True,
+                    )
+                else:
+                    player.mod_menus.usernames[:] = relay_usernames_for_player
+                    player.mod_menus.is_relay = True
+                if not player.is_gta5_relay:
+                    player.is_gta5_relay = True
+                    newly_detected_relay = not player.left_event.is_set()
+            elif player.has_relay_mod_menus:
+                modmenu_changed = False
+            elif modmenu_usernames_for_player is not None and modmenu_usernames_for_player:
+                modmenu_changed = (
+                    player.mod_menus is None
+                    or player.mod_menus.is_relay
+                    or player.mod_menus.usernames != modmenu_usernames_for_player
+                )
                 if player.mod_menus is None:
                     player.mod_menus = PlayerModMenus(
                         usernames=list(modmenu_usernames_for_player),
                     )
                 else:
                     player.mod_menus.usernames[:] = modmenu_usernames_for_player
+                    player.mod_menus.is_relay = False
             else:
                 modmenu_changed = False
                 player.mod_menus = None
@@ -593,10 +645,15 @@ def rendering_core(
 
             player.rebuild_usernames(looky_usernames=looky_usernames if include_looky else ())
 
+            if newly_detected_relay:
+                submit_global_detections_check(player)
+
             should_recheck_usernames = _auto_feed_retriggered or bool(
                 _newly_resolvable_usernames and any(name.casefold() in _newly_resolvable_usernames for name in player.usernames),
             )
-            if player.usernames and (modmenu_changed or looky_newly_checked or (player.userip is None and should_recheck_usernames)):
+            is_relay_player = player.is_gta5_relay or player.has_relay_mod_menus
+            should_trigger_auto_feed = modmenu_changed or looky_newly_checked or (player.userip is None and should_recheck_usernames)
+            if not is_relay_player and bool(player.usernames) and should_trigger_auto_feed:
                 trigger_auto_username_userip(player, list(player.usernames))
 
             _populate_player_geoip_and_flag(player)
@@ -613,8 +670,13 @@ def rendering_core(
                     _userip_not_found.add(snapshot_player.ip)
                 else:
                     snapshot_player.userip = resolved
-            snapshot_modmenu = all_modmenu_usernames.get(snapshot_player.ip)
-            snapshot_player.mod_menus = PlayerModMenus(usernames=list(snapshot_modmenu)) if snapshot_modmenu is not None and snapshot_modmenu else None
+            if snapshot_player.mod_menus is None or not snapshot_player.mod_menus.is_relay:
+                snapshot_modmenu = all_modmenu_usernames.get(snapshot_player.ip)
+                snapshot_player.mod_menus = (
+                    PlayerModMenus(usernames=list(snapshot_modmenu))
+                    if snapshot_modmenu is not None and snapshot_modmenu
+                    else None
+                )
             with snapshot_player.looky_system.lock:
                 snapshot_looky_usernames = list(snapshot_player.looky_system.usernames) if _current_looky_active and snapshot_player.looky_system.is_initialized else ()
             snapshot_player.rebuild_usernames(looky_usernames=snapshot_looky_usernames)

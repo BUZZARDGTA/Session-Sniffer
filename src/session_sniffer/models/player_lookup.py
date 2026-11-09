@@ -200,6 +200,7 @@ class PlayerModMenus:
     """Store parsed mod menu usernames associated with a player."""
 
     usernames: list[str] = dataclasses.field(default_factory=_empty_usernames)
+    is_relay: bool = False
 
 
 def _filter_looky_results(
