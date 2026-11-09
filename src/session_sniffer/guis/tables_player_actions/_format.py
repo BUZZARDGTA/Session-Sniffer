@@ -18,7 +18,7 @@ _UNSET_SENTINEL = '...'
 
 def _is_unset(value: object) -> bool:
     """Return True if a player lookup field has not yet been populated."""
-    return value is None or value in {'', _UNSET_SENTINEL}
+    return value is None or (isinstance(value, str) and value in {'', _UNSET_SENTINEL})
 
 
 def format_text(value: object) -> str:
