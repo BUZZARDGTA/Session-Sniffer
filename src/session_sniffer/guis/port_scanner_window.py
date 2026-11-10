@@ -70,6 +70,7 @@ from session_sniffer.networking.port_scanner import (
     port_scan_execution,
     probe_single_target,
 )
+from session_sniffer.text_utils import pluralize
 
 _DEFAULT_TARGET: Final[str] = '127.0.0.1'
 _COLUMN_PORT: Final[int] = 0
@@ -84,6 +85,8 @@ _TOTAL_COLUMNS: Final[int] = 6
 class PortScannerWorkerThread(CrashingQThread):
     """Background worker thread executing concurrent port scan probes."""
 
+    target_resolved = Signal(str)
+    scan_failed = Signal(str)
     scan_progress = Signal(int, int, int, float, float)
     result_found = Signal(object)
     scan_complete = Signal()
@@ -110,6 +113,26 @@ class PortScannerWorkerThread(CrashingQThread):
     def _run(self) -> None:
         """Execute concurrent port scanning using a worker thread pool."""
         config = self._scan_config
+        if not config.target_ip:
+            try:
+                resolved_ip = socket.gethostbyname(config.target_host)
+            except OSError as e:
+                if not self._abort_signal.is_set() and not self.isInterruptionRequested():
+                    self.scan_failed.emit(str(e))
+                return
+            if self._abort_signal.is_set() or self.isInterruptionRequested():
+                return
+            config = PortScanConfiguration(
+                target_host=config.target_host,
+                target_ip=resolved_ip,
+                ports=config.ports,
+                protocol=config.protocol,
+                timeout_seconds=config.timeout_seconds,
+                threads=config.threads,
+                grab_banner=config.grab_banner,
+            )
+            self.target_resolved.emit(resolved_ip)
+
         probe_tasks: list[tuple[int, str]] = []
 
         if config.protocol in (PortScanProtocol.TCP, PortScanProtocol.BOTH):
@@ -326,6 +349,7 @@ class PortScannerTabWidget(QWidget):
 
         preset_label = QLabel('Preset:')
         self._preset_combo = QComboBox()
+        self._preset_combo.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         for preset_name in PORT_PRESETS:
             self._preset_combo.addItem(preset_name)
         self._preset_combo.addItem('Custom')
@@ -352,12 +376,14 @@ class PortScannerTabWidget(QWidget):
 
         proto_label = QLabel('Protocol:')
         self._protocol_combo = QComboBox()
+        self._protocol_combo.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self._protocol_combo.addItem('TCP', PortScanProtocol.TCP)
         self._protocol_combo.addItem('UDP', PortScanProtocol.UDP)
         self._protocol_combo.addItem('TCP + UDP', PortScanProtocol.BOTH)
 
         threads_label = QLabel('Threads:')
         self._threads_spinbox = QSpinBox()
+        self._threads_spinbox.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self._threads_spinbox.setRange(1, MAX_SCAN_THREADS)
         self._threads_spinbox.setSingleStep(32)
         self._threads_spinbox.setValue(DEFAULT_SCAN_THREADS)
@@ -365,6 +391,7 @@ class PortScannerTabWidget(QWidget):
 
         timeout_label = QLabel('Timeout:')
         self._timeout_spinbox = QSpinBox()
+        self._timeout_spinbox.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self._timeout_spinbox.setRange(100, 10000)
         self._timeout_spinbox.setSingleStep(100)
         self._timeout_spinbox.setValue(int(DEFAULT_SCAN_TIMEOUT_SECONDS * 1000))
@@ -404,12 +431,6 @@ class PortScannerTabWidget(QWidget):
             return
 
         try:
-            target_ip = socket.gethostbyname(target_host)
-        except OSError as error:
-            QMessageBox.warning(self, 'DNS Resolution Error', f'Failed to resolve target host:\n{error}')
-            return
-
-        try:
             parsed_ports = parse_port_specification(self._ports_input.text())
         except ValueError as error:
             QMessageBox.warning(self, 'Port Format Error', str(error))
@@ -423,7 +444,7 @@ class PortScannerTabWidget(QWidget):
 
         configuration = PortScanConfiguration(
             target_host=target_host,
-            target_ip=target_ip,
+            target_ip='',
             ports=parsed_ports,
             protocol=protocol,
             timeout_seconds=timeout_seconds,
@@ -434,7 +455,7 @@ class PortScannerTabWidget(QWidget):
         self._clear_results()
         self._scanned_target = target_host
         self._progress_bar.setValue(0)
-        self._metrics_label.setText(f'Starting scan of {len(parsed_ports)} ports on {target_host} ({target_ip})…')
+        self._metrics_label.setText(f'Resolving {target_host}…')
 
         self._start_stop_button.setText(' Stop Scan')
         self._start_stop_button.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'circle-stop.svg')))
@@ -447,17 +468,32 @@ class PortScannerTabWidget(QWidget):
         self._timeout_spinbox.setEnabled(False)
         self._banner_checkbox.setEnabled(False)
 
+        port_count = len(parsed_ports)
+
+        def _on_target_resolved(resolved_ip: str) -> None:
+            self._metrics_label.setText(f'Starting scan of {port_count} port{pluralize(port_count)} on {target_host} ({resolved_ip})…')
+
         self._worker_thread = PortScannerWorkerThread(configuration)
+        self._worker_thread.target_resolved.connect(_on_target_resolved)
+        self._worker_thread.scan_failed.connect(self._on_scan_failed)
         self._worker_thread.result_found.connect(self._on_result_received)
         self._worker_thread.scan_progress.connect(self._on_progress_updated)
         self._worker_thread.scan_complete.connect(self._on_worker_finished)
         self._worker_thread.start()
+
+    def _on_scan_failed(self, error_message: str) -> None:
+        """Restore controls and report a DNS resolution failure on the GUI thread."""
+        self._on_worker_finished()
+        self._metrics_label.setText('DNS resolution failed.')
+        QMessageBox.warning(self, 'DNS Resolution Error', f'Failed to resolve target host:\n{error_message}')
 
     def stop_scan(self) -> None:
         """Abort the active port scan."""
         active_worker = self._worker_thread
         if active_worker is not None:
             with contextlib.suppress(RuntimeError, TypeError):
+                active_worker.target_resolved.disconnect()
+                active_worker.scan_failed.disconnect(self._on_scan_failed)
                 active_worker.result_found.disconnect(self._on_result_received)
                 active_worker.scan_progress.disconnect(self._on_progress_updated)
                 active_worker.scan_complete.disconnect(self._on_worker_finished)

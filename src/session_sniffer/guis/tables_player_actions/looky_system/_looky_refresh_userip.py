@@ -378,6 +378,7 @@ class LookyRefreshReviewDialog(PlayerInfoDialogMixin):
         controls_bar.addWidget(self._search_input, stretch=1)
 
         self._bulk_db_combo = QComboBox()
+        self._bulk_db_combo.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         if pending_entries:
             move_label = QLabel('Target DB for Checked:')
             move_label.setStyleSheet('color: #d8b4fe; font-size: 8.5pt; font-weight: 600; background: transparent;')
@@ -957,14 +958,13 @@ def looky_refresh_userip_entries(parent: QWidget, entries: list[tuple[Path, list
         if not pending_entries and not standalone_removals:
             if sum(record_looky_db_correlation([lp.name.strip() for lp in lps if lp.name], UserIPDatabases.get_known_username_dbs_cf()) for lps in results.values()):
                 refresh_userip_and_wake_renderer()
-            msg = f'No new usernames or unconfirmed candidate IPs found.\n\nAll resolved usernames already exist in the database{pluralize(len(entries))}.'
-            QMessageBox.information(parent, TITLE, msg)
+            info_message = f'No new usernames or unconfirmed candidate IPs found.\n\nAll resolved usernames already exist in the database{pluralize(len(entries))}.'
+            QMessageBox.information(parent, TITLE, info_message)
             return
         dialog = LookyRefreshReviewDialog(parent, pending_entries, standalone_removals, ips_with_results_count=total_ips_with_results)
 
         def _on_review_accepted() -> None:
-            accepted = dialog.get_accepted_entries()
-            total_added, total_moved, total_removed, db_count = _apply_accepted_changes(accepted, dialog.get_accepted_removals())
+            total_added, total_moved, total_removed, db_count = _apply_accepted_changes(accepted := dialog.get_accepted_entries(), dialog.get_accepted_removals())
             if not (total_added or total_moved or total_removed):
                 return
             refresh_userip_and_wake_renderer()

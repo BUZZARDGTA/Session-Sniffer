@@ -1,7 +1,7 @@
 """Qt dialog for prompting the user to install a missing dependency or capture driver."""
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, override
 
 from PySide6.QtCore import QObject, Qt, QThread, QTimer, Signal, Slot
 from PySide6.QtGui import QColor, QFont, QIcon
@@ -306,9 +306,14 @@ class DependencyPromptDialog(DraggableDialogMixin, QDialog):
             self._status_subtitle_label.setText(status_subtitle)
 
         if self._condition():
-            self._poll_timer.stop()
-            self._spinner_timer.stop()
             self.accept()
+
+    @override
+    def done(self, result: int) -> None:
+        """Stop polling and spinner timers before closing the dialog."""
+        self._poll_timer.stop()
+        self._spinner_timer.stop()
+        super().done(result)
 
 
 @dataclass(frozen=True)
@@ -331,6 +336,7 @@ class _PromptDispatcher(QObject):
         """Initialize the prompt dispatcher with a blocking queued connection."""
         super().__init__()
         self._result: bool = False
+        self.moveToThread(app.thread())
         self.request_dialog.connect(self._handle_request, Qt.ConnectionType.BlockingQueuedConnection)
 
     @Slot(object)

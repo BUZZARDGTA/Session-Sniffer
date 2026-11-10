@@ -822,6 +822,7 @@ class IPRangeBuilderDialog(QDialog):
             inp.textChanged.connect(self._update_preview)
 
         self._subnet_size_label, self._subnet_slider = QLabel('Block size:'), QSlider(Qt.Orientation.Horizontal)
+        self._subnet_slider.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self._subnet_slider.setRange(_SUBNET_PREFIX_MIN_INDEX, _SUBNET_PREFIX_MAX_INDEX)
         self._subnet_slider.setValue(_SUBNET_DEFAULT_SLIDER_INDEX)
         self._subnet_slider.setTickPosition(QSlider.TickPosition.TicksBelow)

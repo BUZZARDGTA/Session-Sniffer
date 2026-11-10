@@ -194,6 +194,7 @@ class PingTabWidget(QWidget):
 
         mode_label = QLabel('Protocol:')
         self._mode_combo = QComboBox()
+        self._mode_combo.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self._mode_combo.addItem(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'radio-tower.svg')), 'ICMP (Standard)', PingMode.ICMP)
         self._mode_combo.addItem(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'radio-tower.svg')), 'TCP Port', PingMode.TCP)
         self._mode_combo.addItem(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'radio-tower.svg')), 'UDP Port', PingMode.UDP)
@@ -207,6 +208,7 @@ class PingTabWidget(QWidget):
 
         self._port_label = QLabel('Port:')
         self._port_spinbox = QSpinBox()
+        self._port_spinbox.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self._port_spinbox.setRange(_MIN_PORT, _MAX_PORT)
         self._port_spinbox.setValue(port if port is not None else _DEFAULT_PORT)
         self._port_spinbox.valueChanged.connect(self._on_target_or_port_changed)
@@ -225,8 +227,8 @@ class PingTabWidget(QWidget):
         self._count_spinbox = QSpinBox()
         self._count_spinbox.setRange(0, 10000)
         self._count_spinbox.setSpecialValueText('Continuous')
+        self._count_spinbox.setSuffix(' probes')
         self._count_spinbox.setValue(Settings.ping_count)
-        self._count_spinbox.valueChanged.connect(self._save_settings)
 
         interval_label = QLabel('Interval:')
         self._interval_spinbox = QSpinBox()
@@ -234,7 +236,6 @@ class PingTabWidget(QWidget):
         self._interval_spinbox.setSingleStep(50)
         self._interval_spinbox.setValue(Settings.ping_interval_ms)
         self._interval_spinbox.setSuffix(' ms')
-        self._interval_spinbox.valueChanged.connect(self._save_settings)
 
         timeout_label = QLabel('Timeout:')
         self._timeout_spinbox = QSpinBox()
@@ -242,7 +243,6 @@ class PingTabWidget(QWidget):
         self._timeout_spinbox.setSingleStep(100)
         self._timeout_spinbox.setValue(Settings.ping_timeout_ms)
         self._timeout_spinbox.setSuffix(' ms')
-        self._timeout_spinbox.valueChanged.connect(self._save_settings)
 
         self._payload_label = QLabel('Payload:')
         self._payload_spinbox = QSpinBox()
@@ -250,7 +250,10 @@ class PingTabWidget(QWidget):
         self._payload_spinbox.setSingleStep(32)
         self._payload_spinbox.setValue(Settings.ping_payload_bytes)
         self._payload_spinbox.setSuffix(' bytes')
-        self._payload_spinbox.valueChanged.connect(self._save_settings)
+
+        for spinbox in (self._count_spinbox, self._interval_spinbox, self._timeout_spinbox, self._payload_spinbox):
+            spinbox.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+            spinbox.valueChanged.connect(self._save_settings)
 
         row2_layout.addWidget(count_label)
         row2_layout.addWidget(self._count_spinbox)

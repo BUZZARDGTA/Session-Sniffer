@@ -264,6 +264,14 @@ def show_looky_lookup(parent: QWidget, player: Player | StandaloneIPLookup) -> N
         _active_dialogs.show_or_focus(player.ip, lambda: LookyLookupDialog(player, unique_results))
 
     def _on_fetch_not_found() -> None:
+        player.looky_system.mark_fetched()
+        live_player = PlayersRegistry.get_player_by_ip(player.ip)
+        if live_player is not None and live_player is not player:
+            live_player.looky_system.mark_fetched()
+        for snapshot_player in SessionTracker.get_all_snapshot_players():
+            if snapshot_player is not player and snapshot_player.ip == player.ip:
+                snapshot_player.looky_system.mark_fetched()
+        wake_rendering_core()
         if isValid(parent):
             QMessageBox.information(parent, LOOKY_TITLE, f'No results found\n\nWe couldn\'t find any players matching "{player.ip}"')
 

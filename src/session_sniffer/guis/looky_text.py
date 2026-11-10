@@ -17,8 +17,8 @@ from session_sniffer.rendering_core.types import CaptureState
 from session_sniffer.settings import Settings
 
 LOOKY_TITLE = f'{TITLE} - Looky System'
-LOOKY_SETTINGS_AUTH_PATH = 'Settings → Looky System → Authentication'
-LOOKY_SETTINGS_GENERAL_PATH = 'Settings → Looky System → General'
+LOOKY_SETTINGS_AUTH_PATH = 'Settings → GTA V → Looky System'
+LOOKY_SETTINGS_GENERAL_PATH = 'Settings → GTA V → Looky System'
 
 # Menu tooltips
 LOOKY_MENU_TOOLTIP_API_KEY_MISSING = f'Looky System requires an API key. Add one in {LOOKY_SETTINGS_AUTH_PATH}.'

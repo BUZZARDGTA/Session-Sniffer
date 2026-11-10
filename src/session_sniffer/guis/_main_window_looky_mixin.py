@@ -9,11 +9,11 @@ from session_sniffer.background import trigger_looky_rescan_all_players
 from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.guis.looky_text import (
     LOOKY_TITLE,
-    LOOKY_WARNING_RESTRICTED_NOT_LOCAL,
     configure_looky_action,
     get_looky_restriction,
 )
 from session_sniffer.guis.tables_player_actions import show_crawlme_request
+from session_sniffer.guis.tables_player_actions.looky_system._looky_helpers import check_looky_prerequisites
 from session_sniffer.player.registry import PlayersRegistry
 from session_sniffer.rendering_core.types import CaptureState
 from session_sniffer.text_utils import pluralize
@@ -84,7 +84,7 @@ class LookyMixin(QMainWindow):
     @staticmethod
     def _get_rescan_all_restriction() -> str | None:
         """Return why no player may be rescanned with Looky System, or `None` when at least one is allowed."""
-        players = PlayersRegistry.get_default_sorted_players()
+        players = [player for player in PlayersRegistry.get_default_sorted_players() if not player.is_third_party_server]
         if any(get_looky_restriction([player]) is None for player in players):
             return None
         return get_looky_restriction(players)
@@ -95,13 +95,7 @@ class LookyMixin(QMainWindow):
 
     def _rescan_all_looky_players(self) -> None:
         """Reset the Looky System fetch timestamp for every player so `looky_core` re-fetches them immediately."""
-        if not CaptureState.is_local_capture():
-            QMessageBox.warning(self, LOOKY_TITLE, LOOKY_WARNING_RESTRICTED_NOT_LOCAL)
-            return
-
-        restriction = self._get_rescan_all_restriction()
-        if restriction is not None:
-            QMessageBox.warning(self, LOOKY_TITLE, restriction)
+        if check_looky_prerequisites(self, restriction=self._get_rescan_all_restriction()) is None:
             return
 
         count = trigger_looky_rescan_all_players()

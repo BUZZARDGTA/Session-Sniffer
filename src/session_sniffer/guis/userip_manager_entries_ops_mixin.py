@@ -76,27 +76,25 @@ class UserIPEntriesOperationsMixin(QDialog):
     _looky_icon: QIcon
     _db_visual_cache: dict[Path, tuple[int, bool, QColor]]
 
-    def _mark_entries_dirty(self) -> None: ...
-    def _update_entry_counts(self) -> None: ...
-
-    def _set_status(self, text: str) -> None:
-        raise NotImplementedError
-
-    def _refresh_stats(self) -> None: ...
-
-    def _save_on_close(self) -> bool:
-        return True
-
-    def _clear_dirty_state(self) -> None: ...
-
-    def _update_file_info(self, path: Path | None) -> None:
-        raise NotImplementedError
-
-    def _load_database(self, path: Path) -> None:
-        raise NotImplementedError
-
     if TYPE_CHECKING:
         read_settings_from_widgets: Callable[[], UserIPSettingsModel]
+
+        def _mark_entries_dirty(self) -> None: ...
+        def _update_entry_counts(self) -> None: ...
+        def _refresh_stats(self) -> None: ...
+        def _clear_dirty_state(self) -> None: ...
+
+        def _set_status(self, text: str) -> None:
+            del text
+
+        def _save_on_close(self) -> bool:
+            raise NotImplementedError
+
+        def _update_file_info(self, path: Path | None) -> None:
+            del path
+
+        def _load_database(self, path: Path) -> None:
+            del path
 
     def _rebuild_fs_watch(self) -> None:
         """Point the filesystem watcher at the databases directory and all database files."""

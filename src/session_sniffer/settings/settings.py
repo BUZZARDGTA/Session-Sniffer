@@ -424,21 +424,10 @@ class Settings:
         return settings_dict, need_rewrite
 
     @classmethod
-    def load_from_settings_file(cls, settings_path: Path, *, rewrite_if_needed: bool = True) -> None:
-        """Load settings from disk into `Settings` and rewrite when necessary."""
-        try:
-            raw_settings, need_rewrite_settings = cls.parse_settings_json_file(settings_path, strict=not rewrite_if_needed)
-        except FileNotFoundError:
-            if not rewrite_if_needed:
-                raise
-            logger.info('Settings file not found at %s; initializing defaults.', settings_path)
-            raw_settings = {}
-            need_rewrite_settings = True
-
-        # Build UPPER_CASE defaults dict for the model
-        upper_defaults: dict[str, Any] = {key.upper(): value for key, value in SETTING_DEFAULTS.items()}
-
-        validated, flags = SettingsModel.validate_and_get_rewrites(
+    def _validate_raw_settings(cls, raw_settings: dict[str, object]) -> tuple[SettingsModel, set[str]]:
+        """Validate normalized uppercase *raw_settings* against defaults without mutating `Settings`."""
+        upper_defaults: dict[str, object] = {key.upper(): value for key, value in SETTING_DEFAULTS.items()}
+        return SettingsModel.validate_and_get_rewrites(
             raw_settings,
             SettingsValidationConfig(
                 defaults=upper_defaults,
@@ -450,6 +439,26 @@ class Settings:
                 all_third_party_servers=ALL_THIRD_PARTY_SERVER_NAMES,
             ),
         )
+
+    @classmethod
+    def validate_settings_file(cls, settings_path: Path) -> tuple[SettingsModel, set[str]]:
+        """Parse and validate *settings_path* without mutating `Settings` or writing to disk."""
+        raw_settings, _ = cls.parse_settings_json_file(settings_path, strict=True)
+        return cls._validate_raw_settings(raw_settings)
+
+    @classmethod
+    def load_from_settings_file(cls, settings_path: Path, *, rewrite_if_needed: bool = True) -> None:
+        """Load settings from disk into `Settings` and rewrite when necessary."""
+        try:
+            raw_settings, need_rewrite_settings = cls.parse_settings_json_file(settings_path, strict=not rewrite_if_needed)
+        except FileNotFoundError:
+            if not rewrite_if_needed:
+                raise
+            logger.info('Settings file not found at %s; initializing defaults.', settings_path)
+            raw_settings = {}
+            need_rewrite_settings = True
+
+        validated, flags = cls._validate_raw_settings(raw_settings)
 
         # Apply all validated fields to Settings class attrs (UPPER model field → lower class attr)
         for field_name in cls.ALL_SETTINGS:

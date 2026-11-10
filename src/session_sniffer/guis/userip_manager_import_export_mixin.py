@@ -38,38 +38,34 @@ class UserIPImportExportMixin(QDialog):
     _current_path: Path | None = None
     _global_search_active: bool = False
 
-    def _set_status(self, text: str) -> None:
-        raise NotImplementedError
-
-    def _load_database(self, path: Path) -> None:
-        raise NotImplementedError
-
-    def _load_all_databases(self) -> None: ...
-
-    def _rebuild_fs_watch(self) -> None: ...
-
-    def _refresh_stats(self) -> None: ...
-
-    def _mark_settings_dirty(self) -> None: ...
-
-    def _append_row(
-        self,
-        entry: UserIPEntryModel,
-        *,
-        index: int = 0,
-        persisted: bool = True,
-    ) -> None:
-        raise NotImplementedError
-
-    def _mark_entries_dirty(self) -> None: ...
-
-    def _save_database(self, *, show_errors: bool = True) -> None:
-        raise NotImplementedError
-
     if TYPE_CHECKING:
         _model: QStandardItemModel
         _get_selected_tree_directory: Callable[[], Path]
         read_settings_from_widgets: Callable[[], UserIPSettingsModel]
+
+        def _set_status(self, text: str) -> None:
+            del text
+
+        def _load_database(self, path: Path) -> None:
+            del path
+
+        def _load_all_databases(self) -> None: ...
+        def _rebuild_fs_watch(self) -> None: ...
+        def _refresh_stats(self) -> None: ...
+        def _mark_settings_dirty(self) -> None: ...
+        def _mark_entries_dirty(self) -> None: ...
+
+        def _append_row(
+            self,
+            entry: UserIPEntryModel,
+            *,
+            index: int = 0,
+            persisted: bool = True,
+        ) -> None:
+            del entry, index, persisted
+
+        def _save_database(self, *, show_errors: bool = True) -> None:
+            del show_errors
 
         def populate_settings_widgets(self, settings: UserIPSettingsModel) -> None:
             """Populate the settings widgets from a model."""

@@ -56,6 +56,7 @@ from session_sniffer.guis.utils import (
     scale_by_ui,
 )
 from session_sniffer.models.combo_rules import ComboRule
+from session_sniffer.networking.third_party_servers import ThirdPartyServers
 from session_sniffer.player.combo_rules import ComboRulesManager
 from session_sniffer.rendering_core.types import CaptureState
 from session_sniffer.settings import Settings
@@ -220,20 +221,20 @@ class DetectionsManagerTabsMixin(QDialog):
         filter_warning_layout.addWidget(warning_icon_label)
         warning_text_label = QLabel(
             '<b>Relay IPs are currently filtered out of the capture.</b><br>'
-            "The 'Take-Two Interactive Software, Inc.' IP ranges are listed under <i>Block Third-Party Servers</i> in Settings. "
-            'These IPs are dropped before the capture engine sees them, so relay detection will never trigger. '
-            'Remove that entry from the blocked servers list to enable relay detection.',
+            "The 'Take-Two Interactive Software, Inc.' and/or 'Microsoft' IP ranges are listed under <i>Block Third-Party Servers</i> in Settings. "
+            'These IPs are dropped before the capture engine sees them, so relay detection will not trigger for blocked ranges. '
+            'Remove those entries from the blocked servers list to enable full relay detection.',
         )
         warning_text_label.setWordWrap(True)
         warning_text_label.setStyleSheet(WARNING_TEXT_LABEL_STYLESHEET)
         filter_warning_layout.addWidget(warning_text_label, 1)
         fix_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'settings.svg')), ' Fix It')
-        fix_button.setToolTip("Remove 'Take-Two Interactive Software, Inc.' from the blocked servers list and save the setting")
+        fix_button.setToolTip("Remove 'Take-Two Interactive Software, Inc.' and 'Microsoft' from the blocked servers list and save the setting")
         fix_button.setCursor(Qt.CursorShape.PointingHandCursor)
-        fix_button.clicked.connect(self._remove_take_two_interactive_from_blocked_servers)
+        fix_button.clicked.connect(self._remove_relay_servers_from_blocked_servers)
         filter_warning_layout.addWidget(fix_button)
         self._relay_filter_warning = filter_warning
-        filter_warning.setVisible('TAKETWO_INTERACTIVE' in Settings.capture_block_third_party_servers)
+        filter_warning.setVisible(any(name in Settings.capture_block_third_party_servers for name in ('TAKETWO_INTERACTIVE', 'MICROSOFT')))
         layout.addWidget(filter_warning)
 
         scroll_layout = self._add_scrollable_section(layout)
@@ -336,31 +337,38 @@ class DetectionsManagerTabsMixin(QDialog):
         """Warn the user when enabling relay detection while relay IPs are still being filtered."""
         if self._loading_settings or text == 'Disabled':
             return
-        if 'TAKETWO_INTERACTIVE' not in Settings.capture_block_third_party_servers:
+        blocked_relays = [name for name in ('TAKETWO_INTERACTIVE', 'MICROSOFT') if name in Settings.capture_block_third_party_servers]
+        if not blocked_relays:
             return
+        blocked_names_str = ' and '.join(f"'{ThirdPartyServers[name].display_name}'" for name in blocked_relays)
         result = QMessageBox.question(
             self,
             TITLE,
-            'The Take-Two Interactive Software, Inc. relay IP ranges are currently being blocked by the capture filter '
-            '(<i>Block Third-Party Servers</i> setting).\n\n'
+            f'The {blocked_names_str} relay IP ranges are currently being blocked by the capture filter '
+            '(Block Third-Party Servers setting).\n\n'
             'Relay IPs will be dropped before the capture engine sees them, '
-            'so this detection will never trigger while that filter is active.\n\n'
-            "Would you like to automatically remove 'Take-Two Interactive Software, Inc.' from the blocked servers list?",
+            'so this detection will not trigger for blocked ranges while that filter is active.\n\n'
+            f'Would you like to automatically remove {blocked_names_str} from the blocked servers list?',
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.Yes,
         )
         if result == QMessageBox.StandardButton.Yes:
-            self._remove_take_two_interactive_from_blocked_servers()
+            self._remove_relay_servers_from_blocked_servers()
 
-    def _remove_take_two_interactive_from_blocked_servers(self) -> None:
-        """Remove TAKETWO_INTERACTIVE from the blocked third-party servers list and persist the setting."""
-        Settings.capture_block_third_party_servers = tuple(server for server in Settings.capture_block_third_party_servers if server != 'TAKETWO_INTERACTIVE')
+    def _remove_relay_servers_from_blocked_servers(self) -> None:
+        """Remove TAKETWO_INTERACTIVE and MICROSOFT from the blocked third-party servers list and persist the setting."""
+        blocked_relays = [name for name in ('TAKETWO_INTERACTIVE', 'MICROSOFT') if name in Settings.capture_block_third_party_servers]
+        removed_names_str = ' and '.join(f"'{ThirdPartyServers[name].display_name}'" for name in blocked_relays) or 'Relay server ranges'
+        Settings.capture_block_third_party_servers = tuple(
+            server for server in Settings.capture_block_third_party_servers if server not in ('TAKETWO_INTERACTIVE', 'MICROSOFT')
+        )
         Settings.rewrite_settings_file()
         self._relay_filter_warning.setVisible(False)
+        verb = 'have' if len(blocked_relays) > 1 else 'has'
         QMessageBox.information(
             self,
             TITLE,
-            "'Take-Two Interactive Software, Inc.' has been removed from the blocked servers list and the setting has been saved.\n\n"
+            f'{removed_names_str} {verb} been removed from the blocked servers list and the setting has been saved.\n\n'
             'Please restart the capture for the change to take effect.',
         )
 
@@ -550,6 +558,7 @@ class DetectionsManagerTabsMixin(QDialog):
         duration_layout.addWidget(duration_label)
 
         duration_combo = QComboBox()
+        duration_combo.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         duration_combo.addItems(['Disabled', 'Auto', 'Manual'])
         duration_combo.setItemData(0, SUSPEND_TOOLTIP_DISABLED, Qt.ItemDataRole.ToolTipRole)
         duration_combo.setItemData(1, SUSPEND_TOOLTIP_AUTO, Qt.ItemDataRole.ToolTipRole)
@@ -558,6 +567,7 @@ class DetectionsManagerTabsMixin(QDialog):
         duration_layout.addWidget(duration_combo)
 
         duration_spin = QSpinBox()
+        duration_spin.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         duration_spin.setRange(1, MAX_SUSPEND_DURATION_SECONDS)
         duration_spin.setValue(DEFAULT_MANUAL_SUSPEND_DURATION_SECONDS)
         duration_spin.setSuffix(' seconds')
@@ -669,6 +679,7 @@ class DetectionsManagerTabsMixin(QDialog):
         voice_layout.addWidget(voice_label)
 
         voice_combo = QComboBox()
+        voice_combo.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         voice_combo.addItems(['Disabled', 'Male', 'Female'])
         voice_combo.setToolTip('Select voice for text-to-speech notifications')
         setattr(self, f'{prefix}_voice_combo', voice_combo)

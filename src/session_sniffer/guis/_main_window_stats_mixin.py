@@ -66,13 +66,15 @@ class StatsMixin(QMainWindow):
     _session_duration_window: SessionDurationWindow | None
     _capture_statistics_window: CaptureStatisticsWindow | None
 
-    def _bump_min_accepted_snapshot_version(self) -> None: ...  # Provided by MainWindow
-    def _sync_game_process_button(self) -> None: ...  # Provided by GameMixin
-    def _update_current_session_menu(self) -> None: ...  # Provided by GameMixin
-    def _update_session_history_menu(self) -> None: ...  # Provided by GameMixin
+    if TYPE_CHECKING:
 
-    def recalculate_capture_stats(self) -> None:
-        """Recalculate capture statistics from currently remaining players in registry."""
+        def _bump_min_accepted_snapshot_version(self) -> None: ...
+        def _sync_game_process_button(self) -> None: ...
+        def _update_current_session_menu(self) -> None: ...
+        def _update_session_history_menu(self) -> None: ...
+
+        def recalculate_capture_stats(self) -> None:
+            """Recalculate capture statistics across connected and disconnected tables."""
 
     def _select_connected_ips(self, ip_addresses: list[str]) -> None:
         """Select and scroll to player rows by IP in the connected table."""

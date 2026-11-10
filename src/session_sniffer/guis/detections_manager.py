@@ -247,7 +247,7 @@ class DetectionsManagerDialog(DetectionsManagerTabsMixin, QDialog):
                 self._load_prefix_widgets(prefix)
 
             if hasattr(self, 'gta5_relay_duration_combo'):
-                self._relay_filter_warning.setVisible('TAKETWO_INTERACTIVE' in Settings.capture_block_third_party_servers)
+                self._relay_filter_warning.setVisible(any(name in Settings.capture_block_third_party_servers for name in ('TAKETWO_INTERACTIVE', 'MICROSOFT')))
                 self._load_prefix_widgets('gta5_relay')
 
             # Combo Rules
@@ -299,8 +299,12 @@ class DetectionsManagerDialog(DetectionsManagerTabsMixin, QDialog):
             model = GUIDetectionSettings.to_model()
             model.combo_rules = list(ComboRulesManager.rules)
             target = Path(file_path)
-            target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_text(model.model_dump_json(indent=4, by_alias=True), encoding='utf-8')
+            try:
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text(model.model_dump_json(indent=4, by_alias=True), encoding='utf-8')
+            except OSError as e:
+                QMessageBox.critical(self, 'Export Error', f'Failed to export settings:\n{e}')
+                return
             QMessageBox.information(self, TITLE, 'Detection settings exported successfully.')
 
     def _import_detections(self) -> None:

@@ -150,6 +150,7 @@ class TargetProcessDialog(QDialog):
         manual_layout.setContentsMargins(0, 0, 0, 0)
         manual_label = QLabel('Manual PID Entry (Advanced):')
         self._pid_spinbox = QSpinBox()
+        self._pid_spinbox.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self._pid_spinbox.setRange(0, 4194304)
         self._pid_spinbox.setSpecialValueText('Disabled')
         self._pid_spinbox.setValue(self.selected_pid)

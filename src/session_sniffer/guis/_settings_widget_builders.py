@@ -739,16 +739,9 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
         is_updating = True
         try:
             preset_set = presets_map[pname]
-            if checked:
-                for rname in preset_set:
-                    if rname in checkboxes:
-                        with QSignalBlocker(checkboxes[rname]):
-                            checkboxes[rname].setChecked(True)
-            else:
-                for rname in preset_set:
-                    if rname in checkboxes:
-                        with QSignalBlocker(checkboxes[rname]):
-                            checkboxes[rname].setChecked(False)
+            for rname in preset_set:
+                if rname in checkboxes:
+                    checkboxes[rname].setChecked(checked)
 
             checked_ranges = {range_name for range_name, checkbox in checkboxes.items() if checkbox.isChecked()}
             for other_name, other_set in presets_map.items():
@@ -774,8 +767,7 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
             for preset_set in presets_map.values():
                 for rname in preset_set:
                     if rname in checkboxes:
-                        with QSignalBlocker(checkboxes[rname]):
-                            checkboxes[rname].setChecked(True)
+                        checkboxes[rname].setChecked(True)
         finally:
             is_updating = False
         update_presets_from_ranges()
@@ -790,8 +782,7 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
             for preset_set in presets_map.values():
                 for rname in preset_set:
                     if rname in checkboxes:
-                        with QSignalBlocker(checkboxes[rname]):
-                            checkboxes[rname].setChecked(False)
+                        checkboxes[rname].setChecked(False)
         finally:
             is_updating = False
         update_presets_from_ranges()

@@ -148,6 +148,7 @@ class SessionHeader(QFrame):
         self.search_bar.textChanged.connect(self._on_search_query_changed)
 
         self.search_combo = QComboBox()
+        self.search_combo.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.search_combo.setObjectName('headerSearchCombo')
         self.search_combo.setStyleSheet(HEADER_SEARCH_COMBO_STYLESHEET)
         self.search_combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)

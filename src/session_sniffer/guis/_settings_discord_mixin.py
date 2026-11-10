@@ -50,6 +50,7 @@ class SettingsDialogDiscordMixin(QDialog):
 
     _widgets: dict[str, QWidget]
     _old_values: dict[str, bool | str | int | float | tuple[str, ...] | None]
+    _pending_webhook_message_ids_reset: bool
 
     def _build_discord_webhook_group(
         self,
@@ -182,23 +183,21 @@ class SettingsDialogDiscordMixin(QDialog):
             reset_messages_button.setEnabled(checked)
 
     def _reset_stored_messages(self) -> None:
-        """Clear persisted Discord webhook message IDs so the next post creates new messages."""
-        if Settings.discord_webhook_message_ids in (None, ''):
+        """Stage clearing persisted Discord webhook message IDs when Settings are saved."""
+        if Settings.discord_webhook_message_ids in (None, '') or self._pending_webhook_message_ids_reset:
             QMessageBox.information(self, TITLE, 'No stored Discord messages to reset.')
             return
         confirm = QMessageBox.question(
             self,
             TITLE,
-            'Forget the IDs of the two posted Discord messages?\n\nThe next refresh will create two fresh messages instead of editing the old ones.',
+            'Forget the IDs of the two posted Discord messages?\n\nThe next refresh after saving Settings will create two fresh messages instead of editing the old ones.',
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No,
         )
         if confirm != QMessageBox.StandardButton.Yes:
             return
-        Settings.discord_webhook_message_ids = None
-        self._old_values['discord_webhook_message_ids'] = None
-        Settings.rewrite_settings_file()
-        QMessageBox.information(self, TITLE, 'Stored Discord message IDs cleared.')
+        self._pending_webhook_message_ids_reset = True
+        QMessageBox.information(self, TITLE, 'Stored Discord message IDs will be cleared when you click Save.')
 
     def _test_webhook(self, url_widget: QLineEdit) -> None:
         """Send a test message to the URL currently in the URL widget."""

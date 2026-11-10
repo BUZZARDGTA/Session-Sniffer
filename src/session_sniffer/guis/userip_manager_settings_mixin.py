@@ -1,5 +1,7 @@
 """Database settings panel mixin for the UserIP Databases Manager dialog."""
 
+from typing import TYPE_CHECKING
+
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (
@@ -63,7 +65,9 @@ class SettingsPanelMixin(QDialog):
     _setting_suspend_mode: QComboBox
     _setting_suspend_custom: QSpinBox
 
-    def _mark_settings_dirty(self) -> None: ...
+    if TYPE_CHECKING:
+
+        def _mark_settings_dirty(self) -> None: ...
 
     @staticmethod
     def _is_protection_supported() -> bool:
@@ -148,6 +152,7 @@ class SettingsPanelMixin(QDialog):
         row_cln.addWidget(voice_lbl)
 
         self._setting_voice = QComboBox()
+        self._setting_voice.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self._setting_voice.addItems(['Disabled', 'Male', 'Female'])
         self._setting_voice.setToolTip('Text-to-speech voice for notifications')
         self._setting_voice.setMinimumWidth(scale_by_ui(110))
@@ -175,6 +180,7 @@ class SettingsPanelMixin(QDialog):
         suspend_row.setAlignment(Qt.AlignmentFlag.AlignVCenter)
         suspend_row.addWidget(QLabel('Suspend Mode:'))
         self._setting_suspend_mode = QComboBox()
+        self._setting_suspend_mode.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self._setting_suspend_mode.addItems(['Disabled', 'Auto', 'Manual'])
         self._setting_suspend_mode.setItemData(0, SUSPEND_TOOLTIP_DISABLED, Qt.ItemDataRole.ToolTipRole)
         self._setting_suspend_mode.setItemData(1, SUSPEND_TOOLTIP_AUTO, Qt.ItemDataRole.ToolTipRole)
@@ -182,6 +188,7 @@ class SettingsPanelMixin(QDialog):
         self._setting_suspend_mode.currentTextChanged.connect(self._on_suspend_mode_changed)
         suspend_row.addWidget(self._setting_suspend_mode)
         self._setting_suspend_custom = QSpinBox()
+        self._setting_suspend_custom.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self._setting_suspend_custom.setRange(1, MAX_SUSPEND_DURATION_SECONDS)
         self._setting_suspend_custom.setValue(DEFAULT_MANUAL_SUSPEND_DURATION_SECONDS)
         self._setting_suspend_custom.setSuffix(' seconds')

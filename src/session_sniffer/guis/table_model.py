@@ -205,7 +205,9 @@ def sort_table_rows[T: Sequence[str], C: Sequence[CellColor]](
         )
     elif resolved_column_name in {'First Seen', 'Last Rejoin', 'Last Seen'}:
         if ip_column_index >= 0:
-            default_datetime = datetime.max.replace(tzinfo=UTC) if sort_order_bool else datetime.min.replace(tzinfo=UTC)
+            invert_for_elapsed_only = not Settings.gui_columns_datetime_show_date and not Settings.gui_columns_datetime_show_time
+            effective_reverse = (not sort_order_bool) if invert_for_elapsed_only else sort_order_bool
+            default_datetime = datetime.min.replace(tzinfo=UTC) if effective_reverse else datetime.max.replace(tzinfo=UTC)
             players_map = _build_sort_players_map()
             ip_index = ip_column_index
 
@@ -227,7 +229,7 @@ def sort_table_rows[T: Sequence[str], C: Sequence[CellColor]](
 
             sorted_rows.sort(
                 key=_datetime_sort_key,
-                reverse=not sort_order_bool,
+                reverse=effective_reverse,
             )
     elif resolved_column_name in {'T. Session Time', 'Biggest Session Time', 'Lowest Session Time'}:
         if ip_column_index >= 0:

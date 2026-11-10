@@ -230,12 +230,12 @@ class FilesMixin(QMainWindow):
         data_menu.setToolTipsVisible(True)
 
         open_local_appdata_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'folder.svg')), 'Open Local AppData Folder', self)
-        open_local_appdata_action.setToolTip('Open Local AppData\\Session Sniffer in Windows Explorer')
+        open_local_appdata_action.setToolTip('Open Local AppData\\Session Sniffer in your file manager')
         open_local_appdata_action.triggered.connect(self._open_local_appdata_folder)
         data_menu.addAction(open_local_appdata_action)
 
         open_roaming_appdata_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'folder.svg')), 'Open Roaming AppData Folder', self)
-        open_roaming_appdata_action.setToolTip('Open Roaming AppData\\Session Sniffer in Windows Explorer')
+        open_roaming_appdata_action.setToolTip('Open Roaming AppData\\Session Sniffer in your file manager')
         open_roaming_appdata_action.triggered.connect(self._open_roaming_appdata_folder)
         data_menu.addAction(open_roaming_appdata_action)
 

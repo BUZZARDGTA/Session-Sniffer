@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, cast, override
 
-from PySide6.QtCore import Signal
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QIcon, QShowEvent
 from PySide6.QtWidgets import (
     QComboBox,
@@ -113,6 +113,7 @@ class TextLogTab(QWidget):
         if self._enable_severity_filter:
             top_bar.addWidget(QLabel('Severity:'))
             self._severity_combo: QComboBox | None = QComboBox()
+            self._severity_combo.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
             self._severity_combo.setToolTip('Filter log entries by severity level')
             for label, data in SEVERITY_FILTER_CHOICES:
                 self._severity_combo.addItem(label, data)

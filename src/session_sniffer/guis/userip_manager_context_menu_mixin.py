@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 from ipaddress import IPv4Address
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from PySide6.QtCore import QItemSelectionModel, QModelIndex, QPoint, QSignalBlocker, Qt, QUrl
 from PySide6.QtGui import QAction, QDesktopServices, QIcon, QStandardItemModel
@@ -63,53 +64,47 @@ class EntriesContextMenuMixin(QDialog):
     _fs_model: QFileSystemModel
     _search_input: QLineEdit
 
-    def _add_entry(self) -> None: ...
+    if TYPE_CHECKING:
 
-    def _delete_selected(self) -> None: ...
+        def _add_entry(self) -> None: ...
+        def _delete_selected(self) -> None: ...
+        def _rename_selected(self) -> None: ...
+        def _group_selected_rows(self) -> None: ...
+        def _group_rows_with(self) -> None: ...
+        def _ungroup_rows(self) -> None: ...
 
-    def _rename_selected(self) -> None: ...
+        def _edit_entry_ip(self, source_row: int) -> None:
+            del source_row
 
-    def _edit_entry_ip(self, source_row: int) -> None:
-        raise NotImplementedError
+        def _edit_entry_note(self, source_row: int) -> None:
+            del source_row
 
-    def _edit_entry_note(self, source_row: int) -> None:
-        raise NotImplementedError
+        def _insert_entry_at(self, source_row: int) -> None:
+            del source_row
 
-    def _insert_entry_at(self, source_row: int) -> None:
-        raise NotImplementedError
+        def _add_username(self, source_row: int) -> None:
+            del source_row
 
-    def _add_username(self, source_row: int) -> None:
-        raise NotImplementedError
+        def _move_rows(self, proxy_index: QModelIndex, direction: int) -> None:
+            del proxy_index, direction
 
-    def _move_rows(self, proxy_index: QModelIndex, direction: int) -> None:
-        raise NotImplementedError
+        def _get_row_entry_value(self, row: int) -> str:
+            raise NotImplementedError
 
-    def _get_row_entry_value(self, row: int) -> str:
-        raise NotImplementedError
+        def _load_database(self, path: Path) -> None:
+            del path
 
-    def _load_database(self, path: Path) -> None:
-        raise NotImplementedError
+        def _move_selected_to_database(self, target_db_path: Path) -> None:
+            del target_db_path
 
-    def _move_selected_to_database(self, target_db_path: Path) -> None:
-        raise NotImplementedError
+        def _collect_group_source_rows(self, source_rows: list[int]) -> list[int]:
+            raise NotImplementedError
 
-    def _collect_group_source_rows(self, source_rows: list[int]) -> list[int]:
-        raise NotImplementedError
+        def _move_group_to_database(self, seed_rows: list[int], target_db_path: Path) -> None:
+            del seed_rows, target_db_path
 
-    def _move_group_to_database(self, seed_rows: list[int], target_db_path: Path) -> None:
-        raise NotImplementedError
-
-    def _collect_group_members_for_rows(self, source_rows: list[int]) -> list[str]:
-        raise NotImplementedError
-
-    def _group_selected_rows(self) -> None:
-        raise NotImplementedError
-
-    def _group_rows_with(self) -> None:
-        raise NotImplementedError
-
-    def _ungroup_rows(self) -> None:
-        raise NotImplementedError
+        def _collect_group_members_for_rows(self, source_rows: list[int]) -> list[str]:
+            raise NotImplementedError
 
     # ------------------------------------------------------------------
     # Entries: context menu
@@ -519,7 +514,7 @@ class EntriesContextMenuMixin(QDialog):
             open_editor_action.triggered.connect(lambda: QDesktopServices.openUrl(QUrl.fromLocalFile(str(db_path))))
             menu.addAction(open_editor_action)
 
-            open_explorer_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'folder.svg')), 'Open in Explorer', self)
+            open_explorer_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'folder.svg')), 'Open in File Manager', self)
             open_explorer_action.triggered.connect(lambda: open_file_location(db_path))
             menu.addAction(open_explorer_action)
 

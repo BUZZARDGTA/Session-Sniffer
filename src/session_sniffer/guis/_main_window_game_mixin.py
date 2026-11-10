@@ -168,12 +168,12 @@ class GameMixin(QMainWindow):
         ) -> None:
             del removed_ips, remove_from_connected, remove_from_disconnected
 
+        def _refresh_session_gui_state(self) -> None: ...
+
         _detections_manager_window: DetectionsManagerDialog | None
         _settings_dialog_window: SettingsDialog | None
         _userip_manager_window: UserIPDatabasesManager | None
         _disconnected: SessionTableSection
-
-    def _refresh_session_gui_state(self) -> None: ...  # Provided by StatsMixin
 
     def _active_game_label(self) -> str:
         """Return the user-facing game label for the active preset."""

@@ -34,6 +34,7 @@ from session_sniffer.capture.process import matches_process_name
 from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.discord.webhook import is_valid_webhook_url
+from session_sniffer.error_messages import format_invalid_datetime_columns_settings_message
 from session_sniffer.guis._dialog_mixins import (
     UnsavedChangesMixin,
     equalize_button_sizes,
@@ -85,6 +86,7 @@ from session_sniffer.networking.utils import format_mac_address, is_ipv4_address
 from session_sniffer.rendering_core.types import CaptureState
 from session_sniffer.settings import SETTING_CATEGORIES_ORDER, SETTING_DEFAULTS, SETTING_METADATA, SettingMeta, SettingType
 from session_sniffer.settings.settings import Settings
+from session_sniffer.text_utils import format_triple_quoted_text
 from session_sniffer.utils import validate_and_strip_balanced_outer_parens
 from session_sniffer.utils_exceptions import ParenthesisMismatchError
 
@@ -125,7 +127,7 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
         self._old_values: dict[str, SettingValue] = {key: getattr(Settings, key) for key in SETTING_METADATA}
         self._initial_values: dict[str, SettingValue] = dict(self._old_values)
         self._changed_settings: set[str] = set()
-        self._saved, self._loading_settings = False, False
+        self._saved = self._loading_settings = self._pending_webhook_message_ids_reset = False
         self._last_verified_key: str = Settings.looky_api_key or '' if LookyState.user_data is not None else ''
         self._verify_worker = None
         self._verify_debounce: QTimer = QTimer(self)
@@ -537,57 +539,51 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
     # Load / save / reset
     # ------------------------------------------------------------------
 
-    def _load_current_values(self) -> None:
-        """Populate every widget from the current in-memory Settings values."""
+    def _populate_widgets(self, getter: Callable[[str], SettingValue]) -> None:
+        """Populate every widget using values returned by *getter* without triggering intermediate notices."""
         self._loading_settings = True
         try:
             for key, widget in self._widgets.items():
-                value = cast('SettingValue', getattr(Settings, key))
-                self._set_widget_value(key, widget, value)
+                self._set_widget_value(key, widget, getter(key), source_getter=getter)
             self._update_sort_column_options()
             self._update_high_rate_monitor_mode_state()
         finally:
             self._loading_settings = False
 
-    def _set_widget_value(self, key: str, widget: QWidget, value: SettingValue) -> None:
+    def _load_current_values(self) -> None:
+        """Populate every widget from the current in-memory Settings values."""
+        self._populate_widgets(lambda key: cast('SettingValue', getattr(Settings, key)))
+
+    def _set_widget_value(self, key: str, widget: QWidget, value: SettingValue, *, source_getter: Callable[[str], SettingValue] | None = None) -> None:
         """Push *value* into the appropriate *widget*."""
         meta = SETTING_METADATA[key]
 
         match meta.setting_type:
             case SettingType.BOOLEAN:
                 cast('QCheckBox', widget).setChecked(bool(value))
-
             case SettingType.STRING | SettingType.IPV4 | SettingType.MAC_ADDRESS:
                 cast('QLineEdit', widget).setText('' if value is None else str(value))
-
             case SettingType.COLOR:
                 cast('ColorPickerButton', widget).set_color(str(value) if value is not None else '')
-
             case SettingType.HOTKEY:
                 cast('HotkeyEditWidget', widget).set_value(value if isinstance(value, str) else None)
-
             case SettingType.FLOAT:
                 cast('QDoubleSpinBox', widget).setValue(float(value) if isinstance(value, (int, float)) else 0.0)
-
             case SettingType.INTEGER | SettingType.INTEGER_OR_ALL:
                 if key == 'capture_filter_process_pid':
                     pid_value = int(value) if isinstance(value, (int, float)) else 0
-                    process_name = Settings.capture_filter_process_name if self._loading_settings else None
-                    track_by_name = Settings.capture_filter_process_track_by_name if self._loading_settings else SETTING_DEFAULTS['capture_filter_process_track_by_name']
-                    selector = cast('ProcessSelectorWidget', widget)
-                    selector.set_value(pid_value, process_name, track_by_name=track_by_name)
+                    process_name = cast('str | None', source_getter('capture_filter_process_name')) if source_getter is not None else None
+                    default_track_by_name = SETTING_DEFAULTS['capture_filter_process_track_by_name']
+                    track_by_name = bool(source_getter('capture_filter_process_track_by_name')) if source_getter is not None else default_track_by_name
+                    cast('ProcessSelectorWidget', widget).set_value(pid_value, process_name, track_by_name=track_by_name)
                 else:
                     cast('QSpinBox', widget).setValue(int(value) if isinstance(value, (int, float)) else 0)
-
             case SettingType.ENUM:
                 self._set_enum(widget, value)
-
             case SettingType.COLUMN_TUPLE | SettingType.THIRD_PARTY_SERVERS_TUPLE:
-                shown: tuple[str, ...] = value if isinstance(value, tuple) else ()
-                shown_set = set(shown)
+                shown_set = set(value if isinstance(value, tuple) else ())
                 for checkbox in widget.findChildren(QCheckBox):
                     checkbox.setChecked(checkbox.objectName() in shown_set)
-
             case SettingType.IP_RANGE_TUPLE | SettingType.STRING_TUPLE:
                 entries: tuple[str, ...] = value if isinstance(value, tuple) else ()
                 list_widget = next(iter(widget.findChildren(QListWidget)), None)
@@ -741,6 +737,11 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
             Settings.capture_ip_address = self._capture.config.interface.ip_address
             Settings.capture_mac_address = self._capture.config.interface.mac_address
 
+        if self._pending_webhook_message_ids_reset:
+            Settings.discord_webhook_message_ids = None
+            self._old_values['discord_webhook_message_ids'] = None
+            self._pending_webhook_message_ids_reset = False
+
         Settings.rewrite_settings_file()
         apply_runtime_settings_changes(self._capture, runtime_old_values, new_values, dialog_parent=self)
 
@@ -815,11 +816,7 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
     def _reset_to_defaults(self) -> None:
         """Populate all widgets with default values without saving."""
         defaults_dict = cast('dict[str, SettingValue]', SETTING_DEFAULTS)
-        for key, widget in self._widgets.items():
-            if key in defaults_dict:
-                self._set_widget_value(key, widget, defaults_dict[key])
-        self._update_sort_column_options()
-        self._update_high_rate_monitor_mode_state()
+        self._populate_widgets(defaults_dict.get)
         self._update_restart_notice()
 
     def _export_settings(self) -> None:
@@ -827,28 +824,26 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
         file_path, _ = QFileDialog.getSaveFileName(self, 'Export Settings', 'settings.json', 'JSON Files (*.json);;All Files (*.*)')
         if not file_path:
             return
-        Path(file_path).write_text(Settings.serialize_to_json(), encoding='utf-8')
+        try:
+            Path(file_path).write_text(Settings.serialize_to_json(), encoding='utf-8')
+        except OSError as e:
+            QMessageBox.critical(self, TITLE, f'Failed to export settings:\n\n{e}')
+            return
         QMessageBox.information(self, TITLE, 'Settings exported successfully.')
 
     def _import_settings(self) -> None:
-        """Import settings from a user-chosen settings.json file and refresh widgets."""
+        """Import settings from a user-chosen settings.json file and populate widgets without saving."""
         file_path, _ = QFileDialog.getOpenFileName(self, 'Import Settings', '', 'JSON Files (*.json);;All Files (*.*)')
         if not file_path:
             return
-        previous_settings = {name.lower(): value for name, value in Settings.iterate_over_settings()}
         try:
-            Settings.load_from_settings_file(Path(file_path), rewrite_if_needed=False)
-            if self._capture.is_running():
-                Settings.capture_interface_name = self._capture.config.interface.name
-                Settings.capture_ip_address = self._capture.config.interface.ip_address
-                Settings.capture_mac_address = self._capture.config.interface.mac_address
-            self._load_current_values()
-        except (OSError, UnicodeDecodeError, ValueError, TypeError) as exc:
-            QMessageBox.critical(self, TITLE, f'Failed to import settings:\n\n{exc}')
+            validated, flags = Settings.validate_settings_file(Path(file_path))
+        except (OSError, UnicodeDecodeError, ValueError, TypeError) as e:
+            QMessageBox.critical(self, TITLE, f'Failed to import settings:\n\n{e}')
             return
-        finally:
-            for key, value in previous_settings.items():
-                setattr(Settings, key, value)
+        self._populate_widgets(lambda key: cast('SettingValue', getattr(validated, key.upper())))
+        if 'invalid_datetime_columns_corrected' in flags:
+            QMessageBox.warning(self, TITLE, format_triple_quoted_text(format_invalid_datetime_columns_settings_message()))
         self._update_restart_notice()
         QMessageBox.information(self, TITLE, 'Settings imported successfully.')
 
@@ -973,7 +968,7 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
     @override
     def _has_unsaved_changes_for_close(self) -> bool:
         """Return `True` if there are unsaved changes that should be saved before closing."""
-        return any(self._is_setting_modified(key, widget) for key, widget in self._widgets.items())
+        return self._pending_webhook_message_ids_reset or any(self._is_setting_modified(key, widget) for key, widget in self._widgets.items())
 
     @override
     def _save_on_close(self) -> bool:

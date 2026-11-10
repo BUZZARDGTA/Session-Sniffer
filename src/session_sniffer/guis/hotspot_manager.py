@@ -389,6 +389,7 @@ class HotspotManagerWidget(QWidget):
         layout.addWidget(public_label)
 
         self._public_combo = QComboBox()
+        self._public_combo.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self._public_combo.setStyleSheet(HOTSPOT_INPUT_STYLESHEET)
         layout.addWidget(self._public_combo)
 
@@ -398,6 +399,7 @@ class HotspotManagerWidget(QWidget):
         layout.addWidget(private_label)
 
         self._private_combo = QComboBox()
+        self._private_combo.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self._private_combo.setStyleSheet(HOTSPOT_INPUT_STYLESHEET)
         layout.addWidget(self._private_combo)
 

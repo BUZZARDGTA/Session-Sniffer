@@ -43,6 +43,7 @@ from session_sniffer.guis.userip_manager_helpers import (
 from session_sniffer.guis.utils import open_file_location, scale_by_ui
 from session_sniffer.models.userip_settings_model import DEFAULT_USERIP_FILES_SETTINGS, UserIPDatabaseFile
 from session_sniffer.player.userip import UserIPDatabases
+from session_sniffer.rendering_core.types import CaptureState
 from session_sniffer.settings.settings import Settings
 from session_sniffer.text_utils import pluralize
 
@@ -287,40 +288,31 @@ class TreeOperationsMixin(QDialog):
     if TYPE_CHECKING:
         read_settings_from_widgets: Callable[[], UserIPSettingsModel]
 
-    def _clear_dirty_state(self) -> None: ...
+        def _clear_dirty_state(self) -> None: ...
+        def _capture_settings_snapshot(self) -> None: ...
+        def _refresh_protection_visibility(self) -> None: ...
+        def _refresh_stats(self) -> None: ...
+        def _update_entry_counts(self) -> None: ...
+        def _rebuild_fs_watch(self) -> None: ...
+        def _load_all_databases(self) -> None: ...
+        def _backup_databases_now(self) -> None: ...
+        def _import_database_files(self) -> None: ...
+        def _open_backups_folder(self) -> None: ...
 
-    def _capture_settings_snapshot(self) -> None: ...
+        def _save_on_close(self) -> bool:
+            raise NotImplementedError
 
-    def _save_on_close(self) -> bool:
-        return True
+        def _set_status(self, text: str) -> None:
+            del text
 
-    def _refresh_protection_visibility(self) -> None: ...
+        def _load_database(self, path: Path) -> None:
+            del path
 
-    def _set_status(self, text: str) -> None:
-        raise NotImplementedError
+        def _update_file_info(self, path: Path | None) -> None:
+            del path
 
-    def _refresh_stats(self) -> None: ...
-
-    def _update_entry_counts(self) -> None: ...
-
-    def _rebuild_fs_watch(self) -> None: ...
-
-    def _load_database(self, path: Path) -> None:
-        raise NotImplementedError
-
-    def _load_all_databases(self) -> None: ...
-
-    def _update_file_info(self, path: Path | None) -> None:
-        raise NotImplementedError
-
-    def _backup_databases_now(self) -> None: ...
-
-    def _export_database_file(self, path: Path) -> None:
-        raise NotImplementedError
-
-    def _import_database_files(self) -> None: ...
-
-    def _open_backups_folder(self) -> None: ...
+        def _export_database_file(self, path: Path) -> None:
+            del path
 
     def _unwatch_path(self, path: Path) -> None:
         """Remove *path* and any of its descendants from the filesystem watcher."""
@@ -512,7 +504,7 @@ class TreeOperationsMixin(QDialog):
                 new_folder_action.triggered.connect(lambda: self._new_folder(parent_dir=file_path))
                 menu.addAction(new_folder_action)
 
-                if Settings.is_gta5_feature_set():
+                if Settings.is_gta5_feature_set() and CaptureState.is_local_capture():
                     menu.addSeparator()
                     _dir_path = file_path
                     refresh_dir_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'eye.svg')), 'Refresh Folder (Looky System)', self)
@@ -536,7 +528,7 @@ class TreeOperationsMixin(QDialog):
             menu.addSeparator()
 
             explorer_target = file_path
-            open_explorer_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'folder.svg')), 'Open in Explorer', self)
+            open_explorer_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'folder.svg')), 'Open in File Manager', self)
             open_explorer_action.triggered.connect(lambda: open_file_location(explorer_target))
             menu.addAction(open_explorer_action)
 
@@ -547,7 +539,7 @@ class TreeOperationsMixin(QDialog):
 
                 menu.addSeparator()
 
-                if file_path.suffix.lower() == '.json' and Settings.is_gta5_feature_set():
+                if file_path.suffix.lower() == '.json' and Settings.is_gta5_feature_set() and CaptureState.is_local_capture():
                     _file_path = file_path
                     is_searchlist = file_path.stem.casefold() == 'searchlist'
                     refresh_label = 'Verify && Clean Searchlist (Looky)' if is_searchlist else 'Refresh Database (Looky System)'
@@ -585,7 +577,7 @@ class TreeOperationsMixin(QDialog):
             new_folder_action.triggered.connect(self._new_folder)
             menu.addAction(new_folder_action)
 
-            if Settings.is_gta5_feature_set():
+            if Settings.is_gta5_feature_set() and CaptureState.is_local_capture():
                 menu.addSeparator()
                 refresh_all_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'eye.svg')), 'Refresh All Databases (Looky)', self)
                 refresh_all_action.triggered.connect(lambda: self._refresh_databases_looky(list(USERIP_DATABASES_DIR_PATH.rglob('*.json'))))

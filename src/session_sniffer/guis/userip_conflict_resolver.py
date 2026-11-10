@@ -773,7 +773,7 @@ class UserIPConflictResolverDialog(QDialog):
         open_editor_action.triggered.connect(lambda: QDesktopServices.openUrl(QUrl.fromLocalFile(str(side.db_path))))
         menu.addAction(open_editor_action)
 
-        open_explorer_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'folder.svg')), 'Open in Explorer', self)
+        open_explorer_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'folder.svg')), 'Open in File Manager', self)
         open_explorer_action.triggered.connect(lambda: open_file_location(side.db_path))
         menu.addAction(open_explorer_action)
 

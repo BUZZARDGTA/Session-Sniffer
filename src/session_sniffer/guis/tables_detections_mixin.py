@@ -1,6 +1,5 @@
 """Right-click Detections menu helpers for session tables."""
 
-from contextlib import suppress
 from typing import TYPE_CHECKING
 
 from PySide6.QtGui import QIcon
@@ -31,17 +30,6 @@ def _persist_and_refresh_detections() -> None:
     retrigger_detections_scan()
 
 
-def _toggle_detection_list(target_list: list[str], value: str, *, add: bool) -> None:
-    """Add or remove *value* from a GUIDetectionSettings list and persist."""
-    if add:
-        if value not in target_list:
-            target_list.append(value)
-    else:
-        with suppress(ValueError):
-            target_list.remove(value)
-    _persist_and_refresh_detections()
-
-
 def _safe_str(value: str) -> str | None:
     """Return `value` if it is a non-empty, non-placeholder string, else `None`."""
     if value and value not in {_PLACEHOLDER, 'N/A'}:
@@ -70,6 +58,25 @@ def _toggle_country_detection(country_name: str, *, add: bool) -> None:
     else:
         GUIDetectionSettings.country_detection_list[:] = [
             entry for entry in GUIDetectionSettings.country_detection_list if not matches_country(country_name, entry)
+        ]
+    _persist_and_refresh_detections()
+
+
+def _is_isp_in_detection_list(isp_value: str) -> bool:
+    """Return True if *isp_value* matches any entry in the ISP detection list case-insensitively."""
+    isp_cf = isp_value.casefold()
+    return any(entry.casefold() == isp_cf for entry in GUIDetectionSettings.isp_detection_list)
+
+
+def _toggle_isp_detection(isp_value: str, *, add: bool) -> None:
+    """Add or remove *isp_value* (case-insensitively) from the ISP detection list and persist."""
+    if add:
+        if not _is_isp_in_detection_list(isp_value):
+            GUIDetectionSettings.isp_detection_list.append(isp_value)
+    else:
+        isp_cf = isp_value.casefold()
+        GUIDetectionSettings.isp_detection_list[:] = [
+            entry for entry in GUIDetectionSettings.isp_detection_list if entry.casefold() != isp_cf
         ]
     _persist_and_refresh_detections()
 
@@ -125,13 +132,13 @@ def build_detections_menu(
 
     # --- ISP ---
     if isp is not None:
-        isp_in_list = isp in GUIDetectionSettings.isp_detection_list
+        isp_in_list = _is_isp_in_detection_list(isp)
         if isp_in_list:
             add_action(
                 menu,
                 f'Remove ISP ({isp})',
                 tooltip=f'Remove ISP "{isp}" from the ISP detection list.',
-                handler=lambda _isp=isp: _toggle_detection_list(GUIDetectionSettings.isp_detection_list, _isp, add=False),
+                handler=lambda _isp=isp: _toggle_isp_detection(_isp, add=False),
                 icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')),
             )
         else:
@@ -139,7 +146,7 @@ def build_detections_menu(
                 menu,
                 f'Add ISP ({isp})',
                 tooltip=f'Add ISP "{isp}" to the ISP detection list.',
-                handler=lambda _isp=isp: _toggle_detection_list(GUIDetectionSettings.isp_detection_list, _isp, add=True),
+                handler=lambda _isp=isp: _toggle_isp_detection(_isp, add=True),
                 icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'plus.svg')),
             )
 
@@ -231,8 +238,8 @@ def build_detections_menu_multi(
         )
 
     # --- ISP ---
-    new_isps = [isp for isp in isps if isp not in GUIDetectionSettings.isp_detection_list]
-    existing_isps = [isp for isp in isps if isp in GUIDetectionSettings.isp_detection_list]
+    new_isps = [isp for isp in isps if not _is_isp_in_detection_list(isp)]
+    existing_isps = [isp for isp in isps if _is_isp_in_detection_list(isp)]
     if new_isps or existing_isps:
         if has_items:
             menu.addSeparator()
@@ -241,7 +248,7 @@ def build_detections_menu_multi(
 
         def _add_isps(isp_list: list[str] = new_isps) -> None:
             for isp in isp_list:
-                if isp not in GUIDetectionSettings.isp_detection_list:
+                if not _is_isp_in_detection_list(isp):
                     GUIDetectionSettings.isp_detection_list.append(isp)
             _persist_and_refresh_detections()
 
@@ -255,9 +262,10 @@ def build_detections_menu_multi(
     if existing_isps:
 
         def _remove_isps(isp_list: list[str] = existing_isps) -> None:
-            for isp in isp_list:
-                with suppress(ValueError):
-                    GUIDetectionSettings.isp_detection_list.remove(isp)
+            remove_cfs = {isp.casefold() for isp in isp_list}
+            GUIDetectionSettings.isp_detection_list[:] = [
+                entry for entry in GUIDetectionSettings.isp_detection_list if entry.casefold() not in remove_cfs
+            ]
             _persist_and_refresh_detections()
 
         add_action(

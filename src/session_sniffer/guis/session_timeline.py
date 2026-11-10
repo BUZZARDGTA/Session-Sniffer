@@ -157,9 +157,10 @@ class SessionTimelineWindow(StatTableWindowMixin):
                 )
                 for column, text, sort_value in cell_updates:
                     cell = self._table.item(target_row, column)
-                    if cell is not None and cell.text() != text:
-                        cell.setText(text)
+                    if cell is not None:
                         if sort_value is not None:
                             cell.setData(Qt.ItemDataRole.UserRole, sort_value)
-                        cell.setForeground(color)
+                        if cell.text() != text:
+                            cell.setText(text)
+                            cell.setForeground(color)
             self._table.setSortingEnabled(True)

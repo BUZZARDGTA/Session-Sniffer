@@ -342,7 +342,7 @@ def add_purge_and_location_buttons(
     label = ' Open Folder Location' if file_path.is_dir() else ' Open File Location'
     open_location_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'folder.svg')), label)
     open_location_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
-    open_location_button.setToolTip('Open the containing folder in Windows Explorer')
+    open_location_button.setToolTip('Open the containing folder in your file manager')
     open_location_button.clicked.connect(lambda: open_file_location(file_path))
     layout.addWidget(open_location_button)
 

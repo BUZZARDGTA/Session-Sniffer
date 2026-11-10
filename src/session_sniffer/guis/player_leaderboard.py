@@ -253,6 +253,7 @@ class PlayerLeaderboardWindow(ToggleAlwaysOnTopMixin):
         controls_layout.addWidget(scope_label)
 
         self._scope_combo = QComboBox()
+        self._scope_combo.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self._scope_combo.addItems(SCOPES)
         self._scope_combo.setCurrentText(SCOPE_ALL_TIME)
         self._scope_combo.setToolTip('Restrict the count to encounters within the selected time window')
@@ -265,6 +266,7 @@ class PlayerLeaderboardWindow(ToggleAlwaysOnTopMixin):
         controls_layout.addWidget(mode_label)
 
         self._mode_combo = QComboBox()
+        self._mode_combo.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self._mode_combo.addItems(MODES)
         self._mode_combo.setCurrentText(MODE_DAYS)
         self._mode_combo.setToolTip('Choose how encounters are counted — by unique calendar days or by individual sniffer sessions')
@@ -295,6 +297,7 @@ class PlayerLeaderboardWindow(ToggleAlwaysOnTopMixin):
         controls_layout.addWidget(self._search_box)
 
         self._search_column_combo = QComboBox()
+        self._search_column_combo.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self._search_column_combo.addItems(SEARCH_COLUMNS)
         self._search_column_combo.setCurrentText(SEARCH_COLUMN_ALL)
         self._search_column_combo.setToolTip('Restrict the search to a specific column')
@@ -353,6 +356,7 @@ class PlayerLeaderboardWindow(ToggleAlwaysOnTopMixin):
         filters_layout.addWidget(cap_label)
 
         self._cap_spinbox = QSpinBox()
+        self._cap_spinbox.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self._cap_spinbox.setRange(50, 10000)
         self._cap_spinbox.setSingleStep(50)
         self._cap_spinbox.setValue(1000)

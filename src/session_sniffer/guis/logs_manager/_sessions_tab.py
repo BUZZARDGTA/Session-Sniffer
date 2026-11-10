@@ -229,7 +229,7 @@ class SessionsLogTab(QWidget):
 
         self._open_location_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'folder.svg')), ' Open Folder Location')
         self._open_location_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
-        self._open_location_button.setToolTip('Open the containing folder in Windows Explorer')
+        self._open_location_button.setToolTip('Open the containing folder in your file manager')
         self._open_location_button.clicked.connect(self._open_location)
         button_row.addWidget(self._open_location_button)
 
@@ -249,14 +249,18 @@ class SessionsLogTab(QWidget):
         if self._watching_stopped:
             self._watching_stopped = False
             self.update_dir_metadata()
-            if self._selected_path is not None and self._selected_path.is_file():
+            if self._global_search_active and self._search_input.text() and not self._viewer.toPlainText():
+                self._start_global_search(self._search_input.text())
+            elif not self._global_search_active and self._selected_path is not None and self._selected_path.is_file():
                 self._file_watcher.watch(files=[self._selected_path])
                 self._on_current_file_changed()
 
     def stop_watching(self) -> None:
-        """Stop watching session files."""
+        """Stop watching session files and cancel any in-flight global search."""
         self._watching_stopped = True
         self._file_watcher.stop()
+        self._global_search_generation += 1
+        self._stop_loading_animation()
 
     @classmethod
     def _count_json_files_and_size(cls, directory: Path) -> tuple[int, int]:
@@ -319,8 +323,7 @@ class SessionsLogTab(QWidget):
         if not is_dir and (open_action := menu.addAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'file-text.svg')), 'Open File')):
             open_action.triggered.connect(self._open_file)
 
-        location_text = 'Open Folder Location' if is_dir else 'Open File Location'
-        if location_action := menu.addAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'folder.svg')), location_text):
+        if location_action := menu.addAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'folder.svg')), 'Open Folder Location' if is_dir else 'Open File Location'):
             location_action.triggered.connect(self._open_location)
 
         menu.addSeparator()
@@ -520,9 +523,7 @@ class SessionsLogTab(QWidget):
         self._global_search_generation += 1
         self._reset_selection_display()
         if not text:
-            self._loading_label.setVisible(False)
-            self._search_spinner_timer.stop()
-            self._search_poll_timer.stop()
+            self._stop_loading_animation()
             return
 
         generation = self._global_search_generation

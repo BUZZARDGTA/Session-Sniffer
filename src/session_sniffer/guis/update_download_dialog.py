@@ -1,5 +1,6 @@
 """Qt dialog for downloading a Session Sniffer update with a live progress bar."""
 
+import contextlib
 import hashlib
 import logging
 import sys
@@ -7,7 +8,7 @@ import threading
 import webbrowser
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, override
+from typing import TYPE_CHECKING, ClassVar, override
 
 import requests
 from packaging.version import Version
@@ -145,6 +146,8 @@ class UpdateDownloadDialog(DraggableDialogMixin, QDialog):
             # dest_path now contains the downloaded file
     """
 
+    _retiring_workers: ClassVar[set[_DownloadWorker]] = set()
+
     def __init__(
         self,
         candidate: UpdateCandidate,
@@ -157,6 +160,7 @@ class UpdateDownloadDialog(DraggableDialogMixin, QDialog):
         self._dest_path = dest_path
         self._success = False
         self._skipped = False
+        self._cleaned_up = False
         self._current_version_label = format_project_version(CURRENT_VERSION)
         self._current_size_text = self._compute_current_build_size_text()
         self._current_sha256_hash = self._compute_current_build_sha256()
@@ -648,11 +652,27 @@ class UpdateDownloadDialog(DraggableDialogMixin, QDialog):
 
     def _cleanup_download(self) -> None:
         """Stop any running download worker and delete any partial destination file."""
-        if self._worker is not None and self._worker.isRunning():
-            self._worker.cancel()
-            self._worker.wait()
-        if self._dest_path.exists():
-            self._dest_path.unlink(missing_ok=True)
+        if self._success or self._cleaned_up:
+            return
+        self._cleaned_up = True
+        worker = self._worker
+        dest_path = self._dest_path
+        if worker is not None:
+            with contextlib.suppress(RuntimeError, TypeError):
+                worker.progress_signal.disconnect(self._on_progress)
+                worker.finished_signal.disconnect(self._on_finished)
+            if worker.isRunning() and not worker.cancel(timeout_ms=1000):
+                self._retiring_workers.add(worker)
+
+                def _retire_and_unlink(retired: _DownloadWorker = worker, target_path: Path = dest_path) -> None:
+                    self._retiring_workers.discard(retired)
+                    with contextlib.suppress(OSError):
+                        target_path.unlink(missing_ok=True)
+
+                worker.finished.connect(_retire_and_unlink)
+                return
+        with contextlib.suppress(OSError):
+            dest_path.unlink(missing_ok=True)
 
     def _on_cancel(self) -> None:
         """Cancel the in-progress download."""

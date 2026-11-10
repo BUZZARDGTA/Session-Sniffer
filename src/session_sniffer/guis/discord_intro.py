@@ -59,6 +59,7 @@ class DiscordIntro(QDialog):
         # the same borderless custom-chrome look without the owner-window side effect.
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Dialog)
 
+        self._closing = False
         if sys.platform == 'win32':
             self.setWindowOpacity(0)
             self.fade_out = QPropertyAnimation(self, b'windowOpacity')
@@ -183,11 +184,15 @@ class DiscordIntro(QDialog):
 
     def close_popup(self) -> None:
         """Fade out and close the Discord popup dialog."""
+        if self._closing:
+            return
+        self._closing = True
         if sys.platform != 'win32':
             self.close()
             return
+        self.fade_in.stop()
         self.fade_out.setDuration(500)
-        self.fade_out.setStartValue(1)
+        self.fade_out.setStartValue(self.windowOpacity())
         self.fade_out.setEndValue(0)
         self.fade_out.setEasingCurve(QEasingCurve.Type.InCubic)
         self.fade_out.finished.connect(self.close)

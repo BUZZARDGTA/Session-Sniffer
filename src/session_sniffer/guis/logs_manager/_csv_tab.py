@@ -118,6 +118,7 @@ class CsvLogTab(QWidget):
 
         top_bar.addWidget(QLabel('Column:'))
         self._column_combo = QComboBox()
+        self._column_combo.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self._column_combo.addItem('All Columns', -1)
         for i, column_name in enumerate(self._expected_headers):
             self._column_combo.addItem(column_name, i)
@@ -126,6 +127,7 @@ class CsvLogTab(QWidget):
 
         top_bar.addWidget(QLabel('Period:'))
         self._date_combo = QComboBox()
+        self._date_combo.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         for choice in DATE_FILTER_CHOICES:
             self._date_combo.addItem(choice)
         self._date_combo.currentTextChanged.connect(self._on_date_filter_changed)

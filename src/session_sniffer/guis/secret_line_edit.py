@@ -24,7 +24,23 @@ class SecretLineEdit(QLineEdit):
         super().__init__(parent)
         self._real_text = ''
         self._revealed = False
+        self._max_length = super().maxLength()
         self.setEchoMode(QLineEdit.EchoMode.Password)
+
+    @override
+    def maxLength(self) -> int:
+        """Return the configured maximum secret text length."""
+        return self._max_length
+
+    @override
+    def setMaxLength(self, length: int) -> None:
+        """Set the maximum allowed length for the underlying secret text."""
+        self._max_length = max(0, length)
+        if len(self._real_text) > self._max_length:
+            self._real_text = self._real_text[: self._max_length]
+        if self._revealed:
+            super().setMaxLength(self._max_length)
+        self._update_display()
 
     @override
     def text(self) -> str:
@@ -36,8 +52,18 @@ class SecretLineEdit(QLineEdit):
     @override
     def setText(self, text: str | None) -> None:
         """Set the underlying secret text and update the display."""
-        self._real_text = text or ''
+        self._real_text = (text or '')[: self._max_length]
         self._update_display()
+        self.textChanged.emit(self._real_text)
+
+    def _apply_user_edit(self, new_text: str) -> None:
+        """Apply a user-initiated edit in masked mode, emitting `textEdited` before `textChanged`."""
+        clipped = new_text[: self._max_length]
+        if clipped == self._real_text:
+            return
+        self._real_text = clipped
+        self._update_display()
+        self.textEdited.emit(self._real_text)
         self.textChanged.emit(self._real_text)
 
     @property
@@ -49,7 +75,7 @@ class SecretLineEdit(QLineEdit):
         """Toggle between plain-text revealed mode and fixed-mask hidden mode."""
         if self._revealed != revealed:
             if self._revealed:
-                self._real_text = super().text()
+                self._real_text = super().text()[: self._max_length]
             self._revealed = revealed
             self._update_display()
 
@@ -73,9 +99,11 @@ class SecretLineEdit(QLineEdit):
         """Update the displayed characters without re-emitting external textChanged signals."""
         with QSignalBlocker(self):
             if self._revealed:
+                super().setMaxLength(self._max_length)
                 self.setEchoMode(QLineEdit.EchoMode.Normal)
                 super().setText(self._real_text)
             else:
+                super().setMaxLength(32767)
                 self.setEchoMode(QLineEdit.EchoMode.Password)
                 super().setText(self._get_mask_text() if self._real_text else '')
                 self.setCursorPosition(0)
@@ -83,7 +111,7 @@ class SecretLineEdit(QLineEdit):
     def _paste_from_clipboard(self) -> None:
         """Paste stripped text from the clipboard into the underlying secret value."""
         clipboard = QGuiApplication.clipboard()
-        self.setText(clipboard.text().strip())
+        self._apply_user_edit(clipboard.text().strip())
 
     @override
     def keyPressEvent(self, event: QKeyEvent) -> None:
@@ -96,17 +124,17 @@ class SecretLineEdit(QLineEdit):
 
             if event.key() in (Qt.Key.Key_Backspace, Qt.Key.Key_Delete):
                 if self.hasSelectedText() or not self._real_text:
-                    self.setText('')
+                    self._apply_user_edit('')
                 else:
-                    self.setText(self._real_text[:-1])
+                    self._apply_user_edit(self._real_text[:-1])
                 event.accept()
                 return
 
             if event.text() and event.text().isprintable():
                 if self.hasSelectedText():
-                    self.setText(event.text())
+                    self._apply_user_edit(event.text())
                 else:
-                    self.setText(self._real_text + event.text())
+                    self._apply_user_edit(self._real_text + event.text())
                 event.accept()
                 return
 
@@ -142,4 +170,4 @@ class SecretLineEdit(QLineEdit):
 
     def _clear_secret(self) -> None:
         """Clear the secret value."""
-        self.setText('')
+        self._apply_user_edit('')
