@@ -24,12 +24,11 @@ from session_sniffer.constants.local import (
 )
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.guis.logs_manager._csv_tab import CsvLogTab, CsvLogTabConfig
-from session_sniffer.guis.logs_manager._helpers import backup_file
+from session_sniffer.guis.logs_manager._helpers import backup_and_truncate_log_file
 from session_sniffer.guis.logs_manager._sessions_tab import SessionsLogTab
 from session_sniffer.guis.logs_manager._text_tab import TextLogTab
 from session_sniffer.guis.stylesheets import DIALOG_BUTTON_STYLESHEET, DIALOG_DANGER_BUTTON_STYLESHEET
 from session_sniffer.guis.utils import consume_maximize_on_show, resize_window_for_screen, scale_by_ui, set_dialog_window_flags
-from session_sniffer.logging_setup import purge_crash_log, purge_debug_log
 from session_sniffer.rendering_core.renderer import SESSIONS_LOGGING_PATH
 from session_sniffer.settings import Settings
 from session_sniffer.utils import cleanup_session_logs
@@ -92,6 +91,9 @@ class LogsManager(QDialog):
         self._crash_tab = TextLogTab(file_path=CRASH_LOG_PATH)
         tabs.addTab(self._crash_tab, QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'triangle-alert.svg')), 'Crash Log')
 
+        self._purgeable_tabs = (self._userip_tab, self._detection_tab, self._protection_tab, self._debug_tab, self._crash_tab)
+        self._all_tabs = (self._userip_tab, self._detection_tab, self._protection_tab, self._sessions_tab, self._debug_tab, self._crash_tab)
+
         self._tabs = tabs
         root_layout.addWidget(tabs, stretch=1)
 
@@ -105,7 +107,7 @@ class LogsManager(QDialog):
         purge_all_button.clicked.connect(self.purge_all_logs)
         button_row.addWidget(purge_all_button)
         self._purge_all_button = purge_all_button
-        for tab in (self._userip_tab, self._detection_tab, self._protection_tab, self._debug_tab, self._crash_tab):
+        for tab in self._purgeable_tabs:
             tab.purge_state_changed.connect(self._update_purge_all_button)
         self._update_purge_all_button()
 
@@ -163,8 +165,7 @@ class LogsManager(QDialog):
 
     def _update_purge_all_button(self) -> None:
         """Enable the bulk purge action only when at least one log has content."""
-        tabs = (self._userip_tab, self._detection_tab, self._protection_tab, self._debug_tab, self._crash_tab)
-        self._purge_all_button.setEnabled(any(tab.can_purge for tab in tabs))
+        self._purge_all_button.setEnabled(any(tab.can_purge for tab in self._purgeable_tabs))
 
     def purge_all_logs(self) -> None:
         """Purge all CSV log files, debug.log, and crash.log after strong confirmation."""
@@ -197,28 +198,17 @@ class LogsManager(QDialog):
             (CRASH_LOG_PATH, self._crash_tab),
         )
         for path, tab in log_tabs_and_paths:
-            if not tab.can_purge:
+            if not tab.can_purge or not path.exists():
                 continue
-            if not path.exists():
-                continue
-            backup_file(path)
             try:
-                if path == DEBUG_LOG_PATH:
-                    purge_debug_log()
-                elif path == CRASH_LOG_PATH:
-                    purge_crash_log()
-                else:
-                    path.write_text('', encoding='utf-8')
+                backup_and_truncate_log_file(path)
             except OSError as e:
                 errors.append(f'{path.name} ({e.strerror or e})')
                 continue
             purged.append(path.name)
 
-        self._userip_tab.load_data()
-        self._detection_tab.load_data()
-        self._protection_tab.load_data()
-        self._debug_tab.load_data()
-        self._crash_tab.load_data()
+        for tab in self._purgeable_tabs:
+            tab.load_data()
 
         parts: list[str] = []
         if purged:
@@ -252,18 +242,10 @@ class LogsManager(QDialog):
 
     def _start_all_watchers(self) -> None:
         """Start filesystem watchers for all tabs."""
-        self._userip_tab.start_watching()
-        self._detection_tab.start_watching()
-        self._protection_tab.start_watching()
-        self._sessions_tab.start_watching()
-        self._debug_tab.start_watching()
-        self._crash_tab.start_watching()
+        for tab in self._all_tabs:
+            tab.start_watching()
 
     def _stop_all_watchers(self) -> None:
         """Stop filesystem watchers for all tabs."""
-        self._userip_tab.stop_watching()
-        self._detection_tab.stop_watching()
-        self._protection_tab.stop_watching()
-        self._sessions_tab.stop_watching()
-        self._debug_tab.stop_watching()
-        self._crash_tab.stop_watching()
+        for tab in self._all_tabs:
+            tab.stop_watching()

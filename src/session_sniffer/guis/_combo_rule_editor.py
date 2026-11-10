@@ -127,158 +127,65 @@ class _ClickablePickerLineEdit(QLineEdit):
         super().mousePressEvent(event)
 
 
-class ContinentSelectionDialog(QDialog):
-    """Multi-select continent selection dialog with checkboxes."""
+class _CheckableSelectionDialog(QDialog):
+    """Base modal multi-select dialog with a checkable `QListWidget` and bulk selection buttons."""
 
-    def __init__(
-        self,
-        parent: QWidget,
-        existing_continents: set[str] | None = None,
-        *,
-        preselected_continents: Iterable[str] = (),
-        title: str = 'Select Continent(s)',
-    ) -> None:
+    def __init__(self, parent: QWidget, title: str, min_size: tuple[int, int], hint_text: str) -> None:
         super().__init__(parent)
         self.setWindowModality(Qt.WindowModality.WindowModal)
         self.setWindowTitle(title)
-        self.setMinimumWidth(scale_by_ui(420))
-        self.setMinimumHeight(scale_by_ui(360))
+        self.setMinimumWidth(scale_by_ui(min_size[0]))
+        self.setMinimumHeight(scale_by_ui(min_size[1]))
         self.setWindowFlag(Qt.WindowType.WindowContextHelpButtonHint, on=False)
 
-        layout = QVBoxLayout(self)
-
-        hint = QLabel('Select one or more continents:')
+        self._layout = QVBoxLayout(self)
+        hint = QLabel(hint_text)
         hint.setStyleSheet(HINT_LABEL_STYLESHEET)
-        layout.addWidget(hint)
-
-        preselected_normalized = {normalize_continent_name(c) or c for c in preselected_continents if c}
+        self._layout.addWidget(hint)
 
         self._list = QListWidget()
         self._list.setStyleSheet(LIST_WIDGET_STYLE)
         self._list.setSelectionMode(QListWidget.SelectionMode.NoSelection)
-        for continent_code in sorted(CONTINENT_NAMES, key=lambda code: CONTINENT_NAMES[code]):
-            continent_name = CONTINENT_NAMES[continent_code]
-            if existing_continents is not None and continent_name in existing_continents:
-                continue
-            item = QListWidgetItem(f'{continent_code} - {continent_name}')
-            item.setData(Qt.ItemDataRole.UserRole, continent_name)
-            item.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsUserCheckable)
-            item.setCheckState(Qt.CheckState.Checked if continent_name in preselected_normalized else Qt.CheckState.Unchecked)
-            self._list.addItem(item)
         self._list.itemClicked.connect(_toggle_list_item_check_state)
-        layout.addWidget(self._list, stretch=1)
 
-        actions_row = QHBoxLayout()
-        select_all_btn = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square-check.svg')), ' Select All')
-        select_all_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        select_all_btn.clicked.connect(lambda: self._set_all_checked(checked=True))
-        actions_row.addWidget(select_all_btn)
-
-        clear_btn = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square.svg')), ' Clear Selection')
-        clear_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        clear_btn.clicked.connect(lambda: self._set_all_checked(checked=False))
-        actions_row.addWidget(clear_btn)
-        actions_row.addStretch()
-        layout.addLayout(actions_row)
-
-        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
-        buttons.accepted.connect(self.accept)
-        buttons.rejected.connect(self.reject)
-        layout.addWidget(buttons)
-
-    def _set_all_checked(self, *, checked: bool) -> None:
-        state = Qt.CheckState.Checked if checked else Qt.CheckState.Unchecked
-        for i in range(self._list.count()):
-            item = self._list.item(i)
-            if not item.isHidden():
-                item.setCheckState(state)
-
-    def selected_continents(self) -> list[str]:
-        """Return all checked continent names in display order."""
-        selected: list[str] = []
-        for i in range(self._list.count()):
-            item = self._list.item(i)
-            if item.checkState() == Qt.CheckState.Checked:
-                data = item.data(Qt.ItemDataRole.UserRole)
-                if isinstance(data, str) and data:
-                    selected.append(data)
-        return selected
-
-
-class CountrySelectionDialog(QDialog):
-    """Searchable multi-select country selection dialog with flag icons and checkboxes."""
-
-    def __init__(
+    def _populate_items(
         self,
-        parent: QWidget,
-        existing_countries: set[str] | None = None,
-        *,
-        preselected_countries: Iterable[str] = (),
-        title: str = 'Select Country / Countries',
+        names_by_code: dict[str, str],
+        existing_names: set[str] | None,
+        preselected_normalized: set[str],
+        icon_loader: Callable[[str], QIcon | None] | None = None,
     ) -> None:
-        super().__init__(parent)
-        self.setWindowModality(Qt.WindowModality.WindowModal)
-        self.setWindowTitle(title)
-        self.setMinimumWidth(scale_by_ui(460))
-        self.setMinimumHeight(scale_by_ui(480))
-        self.setWindowFlag(Qt.WindowType.WindowContextHelpButtonHint, on=False)
-
-        layout = QVBoxLayout(self)
-
-        hint = QLabel('Type to filter by country name or code, and check one or more countries:')
-        hint.setStyleSheet(HINT_LABEL_STYLESHEET)
-        layout.addWidget(hint)
-
-        self._search_edit = QLineEdit()
-        self._search_edit.setPlaceholderText('e.g. Switzerland, US, Russia…')
-        self._search_edit.setClearButtonEnabled(True)
-        self._search_edit.textChanged.connect(self._filter_items)
-        layout.addWidget(self._search_edit)
-
-        preselected_normalized = {normalize_country_name(c) or c for c in preselected_countries if c}
-
-        self._list = QListWidget()
-        self._list.setStyleSheet(LIST_WIDGET_STYLE)
-        self._list.setSelectionMode(QListWidget.SelectionMode.NoSelection)
-        for country_code in sorted(COUNTRY_NAMES, key=lambda code: COUNTRY_NAMES[code]):
-            country_name = COUNTRY_NAMES[country_code]
-            if existing_countries is not None and country_name in existing_countries:
+        for code in sorted(names_by_code, key=lambda item_code: names_by_code[item_code]):
+            name = names_by_code[code]
+            if existing_names is not None and name in existing_names:
                 continue
-            display = f'{country_code} - {country_name}'
-            item = QListWidgetItem(display)
-            item.setData(Qt.ItemDataRole.UserRole, country_name)
+            item = QListWidgetItem(f'{code} - {name}')
+            item.setData(Qt.ItemDataRole.UserRole, name)
             item.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsUserCheckable)
-            item.setCheckState(Qt.CheckState.Checked if country_name in preselected_normalized else Qt.CheckState.Unchecked)
-            flag_icon = load_country_flag_icon(country_code)
-            if flag_icon is not None:
-                item.setIcon(flag_icon)
+            item.setCheckState(Qt.CheckState.Checked if name in preselected_normalized else Qt.CheckState.Unchecked)
+            if icon_loader is not None and (icon := icon_loader(code)) is not None:
+                item.setIcon(icon)
             self._list.addItem(item)
-        self._list.itemClicked.connect(_toggle_list_item_check_state)
-        layout.addWidget(self._list, stretch=1)
+        self._layout.addWidget(self._list, stretch=1)
 
+    def _add_footer_controls(self, select_button_label: str) -> None:
         actions_row = QHBoxLayout()
-        select_visible_btn = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square-check.svg')), ' Select Visible')
-        select_visible_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        select_visible_btn.clicked.connect(lambda: self._set_visible_checked(checked=True))
-        actions_row.addWidget(select_visible_btn)
+        select_btn = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square-check.svg')), select_button_label)
+        select_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        select_btn.clicked.connect(lambda: self._set_visible_checked(checked=True))
+        actions_row.addWidget(select_btn)
 
         clear_btn = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square.svg')), ' Clear Selection')
         clear_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         clear_btn.clicked.connect(self._clear_all_checked)
         actions_row.addWidget(clear_btn)
         actions_row.addStretch()
-        layout.addLayout(actions_row)
+        self._layout.addLayout(actions_row)
 
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
-        layout.addWidget(buttons)
-
-    def _filter_items(self, text: str) -> None:
-        query = text.strip().casefold()
-        for i in range(self._list.count()):
-            item = self._list.item(i)
-            item.setHidden(bool(query) and query not in item.text().casefold())
+        self._layout.addWidget(buttons)
 
     def _set_visible_checked(self, *, checked: bool) -> None:
         state = Qt.CheckState.Checked if checked else Qt.CheckState.Unchecked
@@ -291,8 +198,7 @@ class CountrySelectionDialog(QDialog):
         for i in range(self._list.count()):
             self._list.item(i).setCheckState(Qt.CheckState.Unchecked)
 
-    def selected_countries(self) -> list[str]:
-        """Return all checked country names in alphabetical order."""
+    def _checked_item_values(self) -> list[str]:
         selected: list[str] = []
         for i in range(self._list.count()):
             item = self._list.item(i)
@@ -301,6 +207,60 @@ class CountrySelectionDialog(QDialog):
                 if isinstance(data, str) and data:
                     selected.append(data)
         return selected
+
+
+class ContinentSelectionDialog(_CheckableSelectionDialog):
+    """Multi-select continent selection dialog with checkboxes."""
+
+    def __init__(
+        self,
+        parent: QWidget,
+        existing_continents: set[str] | None = None,
+        *,
+        preselected_continents: Iterable[str] = (),
+        title: str = 'Select Continent(s)',
+    ) -> None:
+        super().__init__(parent, title, (420, 360), 'Select one or more continents:')
+        preselected_normalized = {normalize_continent_name(c) or c for c in preselected_continents if c}
+        self._populate_items(CONTINENT_NAMES, existing_continents, preselected_normalized)
+        self._add_footer_controls(' Select All')
+
+    def selected_continents(self) -> list[str]:
+        """Return all checked continent names in display order."""
+        return self._checked_item_values()
+
+
+class CountrySelectionDialog(_CheckableSelectionDialog):
+    """Searchable multi-select country selection dialog with flag icons and checkboxes."""
+
+    def __init__(
+        self,
+        parent: QWidget,
+        existing_countries: set[str] | None = None,
+        *,
+        preselected_countries: Iterable[str] = (),
+        title: str = 'Select Country / Countries',
+    ) -> None:
+        super().__init__(parent, title, (460, 480), 'Type to filter by country name or code, and check one or more countries:')
+        self._search_edit = QLineEdit()
+        self._search_edit.setPlaceholderText('e.g. Switzerland, US, Russia…')
+        self._search_edit.setClearButtonEnabled(True)
+        self._search_edit.textChanged.connect(self._filter_items)
+        self._layout.addWidget(self._search_edit)
+
+        preselected_normalized = {normalize_country_name(c) or c for c in preselected_countries if c}
+        self._populate_items(COUNTRY_NAMES, existing_countries, preselected_normalized, icon_loader=load_country_flag_icon)
+        self._add_footer_controls(' Select Visible')
+
+    def _filter_items(self, text: str) -> None:
+        query = text.strip().casefold()
+        for i in range(self._list.count()):
+            item = self._list.item(i)
+            item.setHidden(bool(query) and query not in item.text().casefold())
+
+    def selected_countries(self) -> list[str]:
+        """Return all checked country names in alphabetical order."""
+        return self._checked_item_values()
 
 
 class ComboRuleEditorDialog(QDialog):

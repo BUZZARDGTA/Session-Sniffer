@@ -44,6 +44,7 @@ from session_sniffer.player.userip_loader import (
 )
 from session_sniffer.rendering_core.events import wake_rendering_core
 from session_sniffer.text_utils import pluralize
+from session_sniffer.utils import atomic_write_text
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
@@ -558,11 +559,18 @@ def load_userip_database_model(path: Path) -> UserIPDatabaseFile:
     return parse_userip_database_content(content, default_settings=default_settings, cached_entries=get_cached_userip_database_entries(path))
 
 
+def format_userip_db_display_name(db_path: Path) -> str:
+    """Return *db_path* relative to `USERIP_DATABASES_DIR_PATH` without its `.json` suffix, falling back to `str(db_path)`."""
+    try:
+        return str(db_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix(''))
+    except ValueError:
+        return str(db_path)
+
+
 def save_userip_database_model(path: Path, db_model: UserIPDatabaseFile) -> None:
-    """Serialize and write a `UserIPDatabaseFile` model to *path*."""
-    path.parent.mkdir(parents=True, exist_ok=True)
+    """Serialize and atomically write a `UserIPDatabaseFile` model to *path*."""
     with userip_database_write(path):
-        path.write_text(db_model.serialize_to_json(), encoding='utf-8')
+        atomic_write_text(path, db_model.serialize_to_json())
 
 
 def refresh_userip_and_wake_renderer() -> None:

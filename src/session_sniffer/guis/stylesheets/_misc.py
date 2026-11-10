@@ -48,43 +48,29 @@ GTA5_STATUS_LABEL_STYLESHEET = 'QLabel { background: transparent; padding: 6px 2
 # SETTINGS DIALOG STYLES
 # =============================================================================
 
-DISCORD_INFO_LABEL_STYLESHEET = (
-    'QLabel {'
-    'background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #262b36, stop:1 #1f2430);'
-    'border: 1px solid #3b4455;'
-    'border-left: 4px solid #5865f2;'
-    'border-radius: 10px;'
-    'padding: 12px 14px;'
-    'color: #dbe4f0;'
-    'line-height: 1.35;'
-    '}'
-)
 
-WEBSERVER_HELP_LABEL_STYLESHEET = (
-    'QLabel {'
-    'background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #262b36, stop:1 #1f2430);'
-    'border: 1px solid #3b4455;'
-    'border-left: 4px solid #61afef;'
-    'border-radius: 10px;'
-    'padding: 12px 14px;'
-    'color: #dbe4f0;'
-    'line-height: 1.35;'
-    '}'
-)
+def _settings_info_label_stylesheet(accent_color: str) -> str:
+    """Build the shared settings card info-banner QLabel QSS with *accent_color* left border."""
+    return (
+        'QLabel {'
+        'background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #262b36, stop:1 #1f2430);'
+        'border: 1px solid #3b4455;'
+        f'border-left: 4px solid {accent_color};'
+        'border-radius: 10px;'
+        'padding: 12px 14px;'
+        'color: #dbe4f0;'
+        'line-height: 1.35;'
+        '}'
+    )
+
+
+DISCORD_INFO_LABEL_STYLESHEET = _settings_info_label_stylesheet('#5865f2')
+
+WEBSERVER_HELP_LABEL_STYLESHEET = _settings_info_label_stylesheet('#61afef')
 
 WEBHOOK_NOTE_LABEL_STYLESHEET = 'color: #888; font-size: 8pt;'
 
-LOOKY_INFO_LABEL_STYLESHEET = (
-    'QLabel {'
-    'background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #262b36, stop:1 #1f2430);'
-    'border: 1px solid #3b4455;'
-    'border-left: 4px solid #7c3aed;'
-    'border-radius: 10px;'
-    'padding: 12px 14px;'
-    'color: #dbe4f0;'
-    'line-height: 1.35;'
-    '}'
-)
+LOOKY_INFO_LABEL_STYLESHEET = _settings_info_label_stylesheet('#7c3aed')
 
 LOOKY_ACCOUNT_CARD_STYLESHEET = 'QFrame#lookyAccountCard {background: rgba(76, 29, 149, 0.12);border: 1px solid #3d2d6e;border-radius: 8px;padding: 4px;}'
 
@@ -399,15 +385,18 @@ UPDATE_DOWNLOAD_VERSION_CARD_LABEL_MUTED_STYLESHEET = 'color: #7a8a9c;background
 
 UPDATE_DOWNLOAD_VERSION_CARD_LABEL_ACCENT_STYLESHEET = 'color: #5fb4f5;background: transparent;font-size: 12px;letter-spacing: 0.6px;font-weight: 700;'
 
-UPDATE_DOWNLOAD_VERSION_CARD_BADGE_STABLE_STYLESHEET = (
-    'color: #3dd68c;background: rgba(61, 214, 140, 0.12);border: 1px solid rgba(61, 214, 140, 0.35);'
-    'border-radius: 4px;padding: 1px 5px;font-size: 9.5px;letter-spacing: 0.4px;font-weight: 700;'
-)
 
-UPDATE_DOWNLOAD_VERSION_CARD_BADGE_PRERELEASE_STYLESHEET = (
-    'color: #f5a76c;background: rgba(245, 167, 108, 0.12);border: 1px solid rgba(245, 167, 108, 0.35);'
-    'border-radius: 4px;padding: 1px 5px;font-size: 9.5px;letter-spacing: 0.4px;font-weight: 700;'
-)
+def _version_card_badge_stylesheet(fg_color: str, rgb: str) -> str:
+    """Build the QSS for a release-channel badge on the update download dialog."""
+    return (
+        f'color: {fg_color};background: rgba({rgb}, 0.12);border: 1px solid rgba({rgb}, 0.35);'
+        'border-radius: 4px;padding: 1px 5px;font-size: 9.5px;letter-spacing: 0.4px;font-weight: 700;'
+    )
+
+
+UPDATE_DOWNLOAD_VERSION_CARD_BADGE_STABLE_STYLESHEET = _version_card_badge_stylesheet('#3dd68c', '61, 214, 140')
+
+UPDATE_DOWNLOAD_VERSION_CARD_BADGE_PRERELEASE_STYLESHEET = _version_card_badge_stylesheet('#f5a76c', '245, 167, 108')
 
 UPDATE_DOWNLOAD_VERSION_CARD_VALUE_MUTED_STYLESHEET = 'color: #c4ced9;background: transparent;font-size: 17px;font-weight: 700;'
 
@@ -579,23 +568,29 @@ LOOKY_PROGRESS_BAR_STYLESHEET = (
 
 LOOKY_STATUS_LABEL_STYLESHEET = 'font-size: 10pt; padding: 4px;'
 
-LOOKY_ACTION_BUTTON_STYLESHEET = (
-    'QPushButton {'
-    '    background-color: #1e1030;'
-    '    color: #c084fc;'
-    '    border: 1px solid #5b21b6;'
-    '    border-radius: 6px;'
-    '    padding: 5px 16px;'
-    '    font-weight: 600;'
-    '}'
-    'QPushButton:hover {'
-    '    background-color: #2d1858;'
-    '    border-color: #7c3aed;'
-    '}'
-    'QPushButton:pressed {'
-    '    background-color: #4c1d95;'
-    '}'
-)
+
+def _looky_outline_button_stylesheet(padding: str, extra_props: str = '') -> str:
+    """Build the dark purple outline QPushButton QSS for Looky System dialogs."""
+    return (
+        'QPushButton {'
+        '    background-color: #1e1030;'
+        '    color: #c084fc;'
+        '    border: 1px solid #5b21b6;'
+        '    border-radius: 6px;'
+        f'    padding: {padding};'
+        f'    font-weight: 600;{extra_props}'
+        '}'
+        'QPushButton:hover {'
+        '    background-color: #2d1858;'
+        '    border-color: #7c3aed;'
+        '}'
+        'QPushButton:pressed {'
+        '    background-color: #4c1d95;'
+        '}'
+    )
+
+
+LOOKY_ACTION_BUTTON_STYLESHEET = _looky_outline_button_stylesheet('5px 16px')
 
 LOOKY_PRIMARY_ACTION_BUTTON_STYLESHEET = (
     'QPushButton {'
@@ -752,24 +747,7 @@ LOOKY_REVIEW_SUMMARY_STYLESHEET = (
     '}'
 )
 
-LOOKY_REVIEW_SELECT_BUTTON_STYLESHEET = (
-    'QPushButton {'
-    '    background-color: #1e1030;'
-    '    color: #c084fc;'
-    '    border: 1px solid #5b21b6;'
-    '    border-radius: 6px;'
-    '    padding: 4px 14px;'
-    '    font-weight: 600;'
-    '    font-size: 8pt;'
-    '}'
-    'QPushButton:hover {'
-    '    background-color: #2d1858;'
-    '    border-color: #7c3aed;'
-    '}'
-    'QPushButton:pressed {'
-    '    background-color: #4c1d95;'
-    '}'
-)
+LOOKY_REVIEW_SELECT_BUTTON_STYLESHEET = _looky_outline_button_stylesheet('4px 14px', '    font-size: 8pt;')
 
 LOOKY_REVIEW_MATCHES_TOGGLE_STYLESHEET = (
     'QPushButton {'

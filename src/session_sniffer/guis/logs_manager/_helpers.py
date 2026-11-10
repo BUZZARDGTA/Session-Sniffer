@@ -107,6 +107,18 @@ def backup_file(file_path: Path) -> Path | None:
     return backup_path
 
 
+def backup_and_truncate_log_file(file_path: Path) -> Path | None:
+    """Create a `.bak` backup of *file_path* and truncate or reset its contents."""
+    backup_path = backup_file(file_path)
+    if file_path == DEBUG_LOG_PATH:
+        purge_debug_log()
+    elif file_path == CRASH_LOG_PATH:
+        purge_crash_log()
+    else:
+        file_path.write_text('', encoding='utf-8')
+    return backup_path
+
+
 # ---------------------------------------------------------------------------
 # Log-level syntax highlighter for plain-text log viewers
 # ---------------------------------------------------------------------------
@@ -376,14 +388,8 @@ def purge_log_file(
     )
     if reply != QMessageBox.StandardButton.Yes:
         return None
-    bak = backup_file(file_path)
     try:
-        if file_path == DEBUG_LOG_PATH:
-            purge_debug_log()
-        elif file_path == CRASH_LOG_PATH:
-            purge_crash_log()
-        else:
-            file_path.write_text('', encoding='utf-8')
+        bak = backup_and_truncate_log_file(file_path)
     except OSError as e:
         QMessageBox.warning(parent, TITLE, f'Failed to purge {file_path.name}:\n{e}')
         return None

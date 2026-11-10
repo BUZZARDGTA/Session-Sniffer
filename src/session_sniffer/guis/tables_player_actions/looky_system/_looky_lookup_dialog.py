@@ -34,19 +34,16 @@ from session_sniffer.guis.tables_player_actions.looky_system._looky_crawler_requ
 from session_sniffer.guis.tables_player_actions.looky_system._looky_helpers import (
     check_looky_prerequisites,
     format_looky_request_error,
+    sync_player_looky_usernames_and_userip,
 )
 from session_sniffer.guis.utils import ActiveDialogRegistry, set_dialog_window_flags
-from session_sniffer.models.player import Player
 from session_sniffer.networking.looky_system import (
     get_looky_user_url,
     lookup_ip,
 )
 from session_sniffer.player.registry import PlayersRegistry, SessionTracker
-from session_sniffer.player.userip import UserIPDatabases
-from session_sniffer.player.userip_groups import get_excluded_looky_usernames_cf, record_looky_db_correlation
-from session_sniffer.player.userip_loader import update_userip_databases
+from session_sniffer.player.userip_groups import get_excluded_looky_usernames_cf
 from session_sniffer.rendering_core.events import wake_rendering_core
-from session_sniffer.rendering_core.types import CaptureState
 from session_sniffer.settings.settings import Settings
 
 if TYPE_CHECKING:
@@ -54,6 +51,7 @@ if TYPE_CHECKING:
 
     from session_sniffer.guis.tables_player_actions._ip_lookup_dialog import StandaloneIPLookup
     from session_sniffer.models.looky_system import LookyPlayer
+    from session_sniffer.models.player import Player
 
 logger = logging.getLogger(__name__)
 
@@ -226,33 +224,18 @@ def show_looky_lookup(parent: QWidget, player: Player | StandaloneIPLookup) -> N
         with player.looky_system.lock:
             player_looky_names = list(player.looky_system.usernames)
         live_player = PlayersRegistry.get_player_by_ip(player.ip)
+        live_update: tuple[Player, list[str]] | None = None
         if live_player is not None and live_player is not player:
             live_player.looky_system.apply_results(worker.results, force_reset_userip_checked=True, excluded_cfs=excluded_cfs)
-        matching_snapshots = [
-            snapshot_player
-            for snapshot_player in SessionTracker.get_all_snapshot_players()
-            if snapshot_player is not player and snapshot_player.ip == player.ip
-        ]
-        for snapshot_player in matching_snapshots:
-            snapshot_player.looky_system.apply_results(worker.results, force_reset_userip_checked=True, excluded_cfs=excluded_cfs)
-        record_looky_db_correlation(player_looky_names, UserIPDatabases.get_known_username_dbs_cf())
-        update_userip_databases()
-        player.userip = UserIPDatabases.resolve_userip_for_player(player) if isinstance(player, Player) else UserIPDatabases.resolve_userip(player.ip)
-        if live_player is not None and live_player is not player:
-            live_player.userip = UserIPDatabases.resolve_userip_for_player(live_player)
-        for snapshot_player in matching_snapshots:
-            snapshot_player.userip = UserIPDatabases.resolve_userip_for_player(snapshot_player)
-        include_looky = Settings.looky_enabled and Settings.is_gta5_feature_set() and CaptureState.is_local_capture()
-        active_looky_names = player_looky_names if include_looky else ()
-        player.rebuild_usernames(looky_usernames=active_looky_names)
-        if live_player is not None and live_player is not player:
-            live_player.rebuild_usernames(looky_usernames=active_looky_names)
-            SessionTracker.update_session_player_snapshot(live_player, metadata_only=True)
-        for snapshot_player in matching_snapshots:
-            snapshot_player.rebuild_usernames(looky_usernames=active_looky_names)
-        if isinstance(player, Player) and (live_player is None or live_player is player):
-            SessionTracker.update_session_player_snapshot(player, metadata_only=True)
-        wake_rendering_core()
+            with live_player.looky_system.lock:
+                live_update = (live_player, list(live_player.looky_system.usernames))
+        snapshot_updates: list[tuple[Player, list[str]]] = []
+        for snapshot_player in SessionTracker.get_all_snapshot_players():
+            if snapshot_player is not player and snapshot_player.ip == player.ip:
+                snapshot_player.looky_system.apply_results(worker.results, force_reset_userip_checked=True, excluded_cfs=excluded_cfs)
+                with snapshot_player.looky_system.lock:
+                    snapshot_updates.append((snapshot_player, list(snapshot_player.looky_system.usernames)))
+        sync_player_looky_usernames_and_userip(player, player_looky_names, live_update, snapshot_updates)
 
         if not isValid(parent):
             return

@@ -1,5 +1,10 @@
 """Country name and ISO 3166-1 alpha-2 code mappings for the country detection UI."""
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
 COUNTRY_NAMES: dict[str, str] = {
     'AD': 'Andorra',
     'AE': 'United Arab Emirates',
@@ -277,53 +282,66 @@ _COUNTRY_CODES_CASEFOLDED: dict[str, str] = {
 }
 
 
-def get_country_flag_code(country_name: str) -> str | None:
-    """Return the 2-letter flag file code for a country name, alias, or ISO code, or None if unknown."""
-    stripped = country_name.strip()
+def _resolve_geo_code(
+    raw_value: str,
+    names_by_code: dict[str, str],
+    codes_by_name: dict[str, str],
+    codes_casefolded: dict[str, str],
+) -> str | None:
+    """Resolve a geographic display name, alias, `'CODE - Name'`, `'Name (CODE)'`, or 2-letter code."""
+    stripped = raw_value.strip()
     if not stripped:
         return None
     upper = stripped.upper()
-    if upper in COUNTRY_NAMES:
+    if upper in names_by_code:
         return upper
-    code = COUNTRY_CODES.get(country_name) or _COUNTRY_CODES_CASEFOLDED.get(stripped.casefold())
+    code = codes_by_name.get(raw_value) or codes_casefolded.get(stripped.casefold())
     if code is not None:
         return code
     if ' - ' in stripped:
         prefix, _, suffix = stripped.partition(' - ')
         prefix_upper = prefix.strip().upper()
-        if prefix_upper in COUNTRY_NAMES and _COUNTRY_CODES_CASEFOLDED.get(suffix.strip().casefold()) == prefix_upper:
+        if prefix_upper in names_by_code and codes_casefolded.get(suffix.strip().casefold()) == prefix_upper:
             return prefix_upper
     if stripped.endswith(')') and ' (' in stripped:
         prefix, _, suffix = stripped[:-1].rpartition(' (')
         suffix_upper = suffix.strip().upper()
-        if suffix_upper in COUNTRY_NAMES and _COUNTRY_CODES_CASEFOLDED.get(prefix.strip().casefold()) == suffix_upper:
+        if suffix_upper in names_by_code and codes_casefolded.get(prefix.strip().casefold()) == suffix_upper:
             return suffix_upper
     return None
+
+
+def _matches_geo_target(target: str, candidates: tuple[object, ...], resolve_code: Callable[[str], str | None]) -> bool:
+    """Return True if any lookup candidate string matches *target* by canonical code or casefolded name."""
+    target_stripped = target.strip()
+    if not target_stripped:
+        return False
+    target_code = resolve_code(target_stripped)
+    target_folded = target_stripped.casefold()
+    for candidate in candidates:
+        if not isinstance(candidate, str) or candidate in ('', '...', 'N/A'):
+            continue
+        if target_code is not None and resolve_code(candidate) == target_code:
+            return True
+        if candidate.strip().casefold() == target_folded:
+            return True
+    return False
+
+
+def get_country_flag_code(country_name: str) -> str | None:
+    """Return the 2-letter flag file code for a country name, alias, or ISO code, or None if unknown."""
+    return _resolve_geo_code(country_name, COUNTRY_NAMES, COUNTRY_CODES, _COUNTRY_CODES_CASEFOLDED)
 
 
 def normalize_country_name(country_name: str) -> str | None:
     """Resolve a country name, GeoLite2 alias, or ISO code to its canonical COUNTRY_NAMES display name."""
     code = get_country_flag_code(country_name)
-    if code is not None:
-        return COUNTRY_NAMES.get(code)
-    return None
+    return COUNTRY_NAMES.get(code) if code is not None else None
 
 
 def matches_country(target: str, *candidates: object) -> bool:
     """Return True if any lookup candidate (country name or ISO code) matches *target*."""
-    target_stripped = target.strip()
-    if not target_stripped:
-        return False
-    target_code = get_country_flag_code(target_stripped)
-    target_folded = target_stripped.casefold()
-    for candidate in candidates:
-        if not isinstance(candidate, str) or candidate in ('', '...', 'N/A'):
-            continue
-        if target_code is not None and get_country_flag_code(candidate) == target_code:
-            return True
-        if candidate.strip().casefold() == target_folded:
-            return True
-    return False
+    return _matches_geo_target(target, candidates, get_country_flag_code)
 
 
 CONTINENT_NAMES: dict[str, str] = {
@@ -343,48 +361,15 @@ _CONTINENT_CODES_CASEFOLDED: dict[str, str] = {continent_name.casefold(): contin
 
 def get_continent_code(continent_name: str) -> str | None:
     """Return the 2-letter continent code for a continent name or code, or None if unknown."""
-    stripped = continent_name.strip()
-    if not stripped:
-        return None
-    upper = stripped.upper()
-    if upper in CONTINENT_NAMES:
-        return upper
-    code = CONTINENT_CODES.get(continent_name) or _CONTINENT_CODES_CASEFOLDED.get(stripped.casefold())
-    if code is not None:
-        return code
-    if ' - ' in stripped:
-        prefix, _, suffix = stripped.partition(' - ')
-        prefix_upper = prefix.strip().upper()
-        if prefix_upper in CONTINENT_NAMES and _CONTINENT_CODES_CASEFOLDED.get(suffix.strip().casefold()) == prefix_upper:
-            return prefix_upper
-    if stripped.endswith(')') and ' (' in stripped:
-        prefix, _, suffix = stripped[:-1].rpartition(' (')
-        suffix_upper = suffix.strip().upper()
-        if suffix_upper in CONTINENT_NAMES and _CONTINENT_CODES_CASEFOLDED.get(prefix.strip().casefold()) == suffix_upper:
-            return suffix_upper
-    return None
+    return _resolve_geo_code(continent_name, CONTINENT_NAMES, CONTINENT_CODES, _CONTINENT_CODES_CASEFOLDED)
 
 
 def normalize_continent_name(continent_name: str) -> str | None:
     """Resolve a continent name or 2-letter code to its canonical CONTINENT_NAMES display name."""
     code = get_continent_code(continent_name)
-    if code is not None:
-        return CONTINENT_NAMES.get(code)
-    return None
+    return CONTINENT_NAMES.get(code) if code is not None else None
 
 
 def matches_continent(target: str, *candidates: object) -> bool:
     """Return True if any lookup candidate (continent name or 2-letter code) matches *target*."""
-    target_stripped = target.strip()
-    if not target_stripped:
-        return False
-    target_code = get_continent_code(target_stripped)
-    target_folded = target_stripped.casefold()
-    for candidate in candidates:
-        if not isinstance(candidate, str) or candidate in ('', '...', 'N/A'):
-            continue
-        if target_code is not None and get_continent_code(candidate) == target_code:
-            return True
-        if candidate.strip().casefold() == target_folded:
-            return True
-    return False
+    return _matches_geo_target(target, candidates, get_continent_code)

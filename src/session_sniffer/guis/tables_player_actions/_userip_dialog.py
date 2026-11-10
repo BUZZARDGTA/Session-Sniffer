@@ -8,10 +8,10 @@ from PySide6.QtWidgets import (
 )
 from shiboken6 import isValid
 
-from session_sniffer.constants.local import USERIP_DATABASES_DIR_PATH
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.guis.tables_player_actions._format import format_bool, format_text
 from session_sniffer.guis.tables_player_actions._player_info_dialog_mixin import PlayerInfoDialogMixin
+from session_sniffer.guis.userip_manager_helpers import format_userip_db_display_name
 from session_sniffer.guis.utils import ActiveDialogRegistry, format_player_display, set_dialog_window_flags
 from session_sniffer.models.userip_settings_model import format_iso_timestamp_display
 from session_sniffer.player.userip import UserIP, UserIPDatabases
@@ -92,12 +92,7 @@ class UserIPDetectedDialog(PlayerInfoDialogMixin):
 
     def _get_database_name(self) -> str:
         userip = self._get_userip()
-        if userip is not None:
-            try:
-                return str(userip.db_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix(''))
-            except ValueError:
-                return str(userip.db_path)
-        return 'N/A'
+        return format_userip_db_display_name(userip.db_path) if userip is not None else 'N/A'
 
     def _build_detection_group(self, parent_layout: QVBoxLayout, player: Player) -> None:
         """Add the 'Detection Details' section to the scroll layout."""

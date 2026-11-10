@@ -3,17 +3,15 @@
 from typing import TYPE_CHECKING
 
 from PySide6.QtCore import QPoint, QSize, Qt
-from PySide6.QtGui import QAction, QIcon
+from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QHeaderView, QMenu, QTableView, QTableWidget, QTreeView
 
-from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.constants.tables import (
     DEFAULT_MIN_COLUMN_WIDTH,
     FLEXIBLE_COLUMN_WEIGHTS,
     FLEXIBLE_STRETCH_COLUMNS,
 )
-from session_sniffer.guis.stylesheets import SVG_ICON_CONTEXT_MENU_STYLESHEET
-from session_sniffer.guis.utils import scale_by_ui
+from session_sniffer.guis.utils import add_icon_menu_action, create_styled_context_menu, scale_by_ui
 
 _MINIMUM_VIEWPORT_WIDTH_THRESHOLD = 100
 _STANDARD_ICON_SIZE = 16
@@ -29,7 +27,7 @@ def _get_horizontal_header(table: QTableView | QTreeView | QTableWidget) -> QHea
     return table.header()
 
 
-def _get_column_min_width(
+def get_column_min_width(
     horizontal_header: QHeaderView,
     column_index: int,
     column_label: str,
@@ -101,7 +99,7 @@ def _reclaim_overflow_from_preceding_columns(
         if remaining_overflow <= 0:
             break
         current_width = horizontal_header.sectionSize(col)
-        min_width = _get_column_min_width(horizontal_header, col, label, widths_map)
+        min_width = get_column_min_width(horizontal_header, col, label, widths_map)
         if current_width > min_width:
             reclaimed = min(current_width - min_width, remaining_overflow)
             new_width = current_width - reclaimed
@@ -142,7 +140,7 @@ def adjust_last_visible_column_to_viewport(
     last_column = visible_logical_columns[-1]
     last_label = str(table_model.headerData(last_column, Qt.Orientation.Horizontal) or '')
     widths_map = min_column_widths or {}
-    last_min_width = _get_column_min_width(horizontal_header, last_column, last_label, widths_map)
+    last_min_width = get_column_min_width(horizontal_header, last_column, last_label, widths_map)
 
     preceding_columns = [
         (column, str(table_model.headerData(column, Qt.Orientation.Horizontal) or ''))
@@ -238,29 +236,38 @@ def add_column_sizing_actions(
         if isinstance(header_value, str) and header_value:
             clicked_column_name = header_value
 
-    size_column_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'move-horizontal.svg')), 'Size Column to Fit', menu)
-    size_column_action.setEnabled(is_valid_clicked_column)
-    if bool(clicked_column_name):
-        size_column_action.setToolTip(f"Resize the '{clicked_column_name}' column so all text is fully visible without truncation or ellipses.")
-    else:
-        size_column_action.setToolTip('Resize the selected column so all text is fully visible without truncation or ellipses.')
-
+    size_column_tooltip = (
+        f"Resize the '{clicked_column_name}' column so all text is fully visible without truncation or ellipses."
+        if bool(clicked_column_name)
+        else 'Resize the selected column so all text is fully visible without truncation or ellipses.'
+    )
+    size_column_cb: Callable[[], None] | None = None
     if is_valid_clicked_column and clicked_column is not None:
         target_column = clicked_column
-        size_column_action.triggered.connect(lambda: size_column_to_fit(table, target_column))
 
-    menu.addAction(size_column_action)
+        def _size_clicked() -> None:
+            size_column_to_fit(table, target_column)
 
-    size_all_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'move-vertical.svg')), 'Size All Columns to Fit', menu)
-    size_all_action.setToolTip('Resize all visible columns so that any truncated text across the entire table is fully visible without ellipses.')
-    size_all_action.triggered.connect(lambda: size_all_columns_to_fit(table))
-    menu.addAction(size_all_action)
+        size_column_cb = _size_clicked
+    size_column_action = add_icon_menu_action(menu, 'move-horizontal.svg', 'Size Column to Fit', size_column_cb, tooltip=size_column_tooltip)
+    size_column_action.setEnabled(is_valid_clicked_column)
+
+    add_icon_menu_action(
+        menu,
+        'move-vertical.svg',
+        'Size All Columns to Fit',
+        lambda: size_all_columns_to_fit(table),
+        tooltip='Resize all visible columns so that any truncated text across the entire table is fully visible without ellipses.',
+    )
 
     if on_reset is not None:
-        reset_sizes_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'refresh-cw.svg')), 'Reset Column Sizes', menu)
-        reset_sizes_action.setToolTip('Reset all column widths back to their initial default layout.')
-        reset_sizes_action.triggered.connect(on_reset)
-        menu.addAction(reset_sizes_action)
+        add_icon_menu_action(
+            menu,
+            'refresh-cw.svg',
+            'Reset Column Sizes',
+            on_reset,
+            tooltip='Reset all column widths back to their initial default layout.',
+        )
 
 
 def setup_table_header_context_menu(
@@ -278,12 +285,8 @@ def setup_table_header_context_menu(
 
     def _on_header_context_menu_requested(position: QPoint) -> None:
         clicked_column = horizontal_header.logicalIndexAt(position)
-        menu = QMenu(table)
-        menu.setStyleSheet(SVG_ICON_CONTEXT_MENU_STYLESHEET)
-        menu.setToolTipsVisible(True)
-
+        menu = create_styled_context_menu(table)
         add_column_sizing_actions(menu, table, clicked_column=clicked_column, on_reset=on_reset)
-
         menu.popup(horizontal_header.mapToGlobal(position))
 
     horizontal_header.customContextMenuRequested.connect(_on_header_context_menu_requested)
@@ -481,11 +484,7 @@ class TableColumnResizeController:
         if self.custom_widths is None:
             self.custom_widths = self.get_column_widths()
 
-        widths_map = self.min_column_widths or {}
-        min_width = max(
-            scale_by_ui(widths_map.get(column_name, DEFAULT_MIN_COLUMN_WIDTH)),
-            header.sectionSizeFromContents(logical_index).width(),
-        )
+        min_width = get_column_min_width(header, logical_index, column_name, self.min_column_widths or {})
 
         self.is_programmatic_resizing = True
         try:

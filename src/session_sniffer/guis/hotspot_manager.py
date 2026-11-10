@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from typing import Final, cast, override
 
 from PySide6.QtCore import QPoint, Qt, QTimer, Signal
-from PySide6.QtGui import QAction, QHideEvent, QIcon, QShowEvent
+from PySide6.QtGui import QHideEvent, QIcon, QShowEvent
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -14,7 +14,6 @@ from PySide6.QtWidgets import (
     QHeaderView,
     QLabel,
     QLineEdit,
-    QMenu,
     QMessageBox,
     QPushButton,
     QStackedLayout,
@@ -44,9 +43,10 @@ from session_sniffer.guis.stylesheets import (
     HOTSPOT_FIELD_LABEL_STYLESHEET,
     HOTSPOT_INPUT_STYLESHEET,
     HOTSPOT_PILL_INFO_STYLESHEET,
-    SVG_ICON_CONTEXT_MENU_STYLESHEET,
 )
 from session_sniffer.guis.utils import (
+    add_icon_menu_action,
+    create_styled_context_menu,
     render_svg_icon_from_resource,
     scale_by_ui,
     set_clipboard_text,
@@ -825,27 +825,14 @@ class HotspotManagerWidget(QWidget):
             return
 
         device = self._current_devices[selected_row]
-        menu = QMenu(self)
-        menu.setStyleSheet(SVG_ICON_CONTEXT_MENU_STYLESHEET)
-
-        copy_ip_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), f'Copy IP: {device.ip_address}', self)
-        copy_ip_action.triggered.connect(lambda: set_clipboard_text(device.ip_address))
-        menu.addAction(copy_ip_action)
-
-        copy_mac_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), f'Copy MAC: {device.mac_address}', self)
-        copy_mac_action.triggered.connect(lambda: set_clipboard_text(device.mac_address))
-        menu.addAction(copy_mac_action)
-
+        menu = create_styled_context_menu(self)
+        add_icon_menu_action(menu, 'copy.svg', f'Copy IP: {device.ip_address}', lambda: set_clipboard_text(device.ip_address))
+        add_icon_menu_action(menu, 'copy.svg', f'Copy MAC: {device.mac_address}', lambda: set_clipboard_text(device.mac_address))
         menu.addSeparator()
 
         if device.ip_address and device.ip_address != 'Assigned via DHCP':
-            ping_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'radio-tower.svg')), f'Ping {device.ip_address}...', self)
-            ping_action.triggered.connect(lambda: self._open_ping_dialog(device.ip_address))
-            menu.addAction(ping_action)
-
-            scan_ports_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'radar.svg')), f'Scan Ports: {device.ip_address}...', self)
-            scan_ports_action.triggered.connect(lambda: self._open_port_scanner_dialog(device.ip_address))
-            menu.addAction(scan_ports_action)
+            add_icon_menu_action(menu, 'radio-tower.svg', f'Ping {device.ip_address}...', lambda: self._open_ping_dialog(device.ip_address))
+            add_icon_menu_action(menu, 'radar.svg', f'Scan Ports: {device.ip_address}...', lambda: self._open_port_scanner_dialog(device.ip_address))
 
         menu.exec(self._table.viewport().mapToGlobal(position))
 

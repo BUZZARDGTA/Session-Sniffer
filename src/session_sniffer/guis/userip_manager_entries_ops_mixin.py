@@ -27,6 +27,7 @@ from session_sniffer.guis.userip_manager_helpers import (
     clear_row_looky_badge,
     dedup_userip_entries,
     extract_entry_model_from_row,
+    format_userip_db_display_name,
     is_row_persisted,
     iter_userip_databases,
     mark_row_persisted,
@@ -654,7 +655,7 @@ class UserIPEntriesOperationsMixin(QDialog):
             QMessageBox.information(self, TITLE, 'No valid entries to move.')
             return
 
-        target_display_name = target_db_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix('')
+        target_display_name = format_userip_db_display_name(target_db_path)
         count = len(entries_to_move)
 
         if self._global_search_active:

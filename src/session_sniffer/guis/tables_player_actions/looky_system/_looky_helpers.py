@@ -3,6 +3,7 @@
 import html
 from dataclasses import dataclass
 from http import HTTPStatus
+from typing import TYPE_CHECKING
 
 import requests
 from PySide6.QtCore import Qt
@@ -33,6 +34,7 @@ from session_sniffer.guis.stylesheets import (
     LOOKY_STATUS_LABEL_STYLESHEET,
 )
 from session_sniffer.guis.utils import scale_by_ui
+from session_sniffer.models.player import Player
 from session_sniffer.networking.looky_system import (
     LOOKY_PHASE_IP_BATCHES,
     LOOKY_PHASE_PLAYER_PROFILES,
@@ -41,9 +43,19 @@ from session_sniffer.networking.looky_system import (
     extract_rate_limit_message,
     extract_rate_limit_wait_seconds,
 )
+from session_sniffer.player.registry import SessionTracker
+from session_sniffer.player.userip import UserIPDatabases
+from session_sniffer.player.userip_groups import record_looky_db_correlation
+from session_sniffer.player.userip_loader import update_userip_databases
+from session_sniffer.rendering_core.events import wake_rendering_core
 from session_sniffer.rendering_core.types import CaptureState
 from session_sniffer.settings.settings import Settings
 from session_sniffer.text_utils import pluralize
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+
+    from session_sniffer.guis.tables_player_actions._ip_lookup_dialog import StandaloneIPLookup
 
 _PHASE_DETAILS: dict[str, str] = {
     LOOKY_PHASE_IP_BATCHES: 'Checking which usernames Looky has recorded on your database IP addresses.',
@@ -190,3 +202,30 @@ def format_looky_request_error(exc: Exception) -> str:
     if isinstance(exc, requests.RequestException):
         return f'Looky System request failed: {exc}'
     return f'Looky System response format unexpected: {exc}'
+
+
+def sync_player_looky_usernames_and_userip(
+    player: Player | StandaloneIPLookup,
+    player_looky_names: Sequence[str],
+    live_update: tuple[Player, Sequence[str]] | None,
+    snapshot_updates: Sequence[tuple[Player, Sequence[str]]],
+) -> None:
+    """Correlate Looky usernames with UserIP databases, re-resolve `userip`, rebuild usernames, and wake the renderer."""
+    record_looky_db_correlation(player_looky_names, UserIPDatabases.get_known_username_dbs_cf())
+    update_userip_databases()
+    player.userip = UserIPDatabases.resolve_userip_for_player(player) if isinstance(player, Player) else UserIPDatabases.resolve_userip(player.ip)
+    if live_update is not None:
+        live_update[0].userip = UserIPDatabases.resolve_userip_for_player(live_update[0])
+    for snapshot_player, _ in snapshot_updates:
+        snapshot_player.userip = UserIPDatabases.resolve_userip_for_player(snapshot_player)
+    include_looky = Settings.looky_enabled and Settings.is_gta5_feature_set() and CaptureState.is_local_capture()
+    player.rebuild_usernames(looky_usernames=player_looky_names if include_looky and player.looky_system.is_initialized else ())
+    if live_update is not None:
+        live_player, live_names = live_update
+        live_player.rebuild_usernames(looky_usernames=live_names if include_looky and live_player.looky_system.is_initialized else ())
+        SessionTracker.update_session_player_snapshot(live_player, metadata_only=True)
+    for snapshot_player, snap_names in snapshot_updates:
+        snapshot_player.rebuild_usernames(looky_usernames=snap_names if include_looky and snapshot_player.looky_system.is_initialized else ())
+    if isinstance(player, Player) and live_update is None:
+        SessionTracker.update_session_player_snapshot(player, metadata_only=True)
+    wake_rendering_core()

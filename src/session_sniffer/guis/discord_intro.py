@@ -4,19 +4,19 @@ import sys
 import webbrowser
 from typing import TYPE_CHECKING, override
 
-from PySide6.QtCore import QEasingCurve, QPoint, QPropertyAnimation, Qt, Signal
+from PySide6.QtCore import QEasingCurve, QPropertyAnimation, Qt, Signal
 from PySide6.QtGui import QIcon
-from PySide6.QtWidgets import QDialog, QHBoxLayout, QLabel, QPushButton, QSizePolicy, QSpacerItem, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QSizePolicy, QSpacerItem, QVBoxLayout, QWidget
 
 from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.constants.standalone import DISCORD_INVITE_URL, TITLE
-from session_sniffer.guis.app import app
-from session_sniffer.guis.exceptions import PrimaryScreenNotFoundError
+from session_sniffer.guis._dialog_mixins import DraggableDialogMixin
 from session_sniffer.guis.stylesheets import (
     DISCORD_POPUP_EXIT_BUTTON_STYLESHEET,
     DISCORD_POPUP_JOIN_BUTTON_STYLESHEET,
     DISCORD_POPUP_MAIN_STYLESHEET,
 )
+from session_sniffer.guis.utils import center_window_on_screen
 from session_sniffer.settings import Settings
 
 if TYPE_CHECKING:
@@ -33,10 +33,12 @@ class ClickableLabel(QLabel):
         """Emit `clicked` when left mouse button is pressed."""
         if event and event.button() == Qt.MouseButton.LeftButton:
             self.clicked.emit()
+            event.accept()
+            return
         super().mousePressEvent(event)
 
 
-class DiscordIntro(QDialog):
+class DiscordIntro(DraggableDialogMixin):
     """Show a modal dialog inviting the user to join the Discord server."""
 
     def __init__(self, parent: QWidget | None = None) -> None:
@@ -112,7 +114,7 @@ class DiscordIntro(QDialog):
 
         self.setLayout(layout)
         self.show()
-        self.center_window()
+        center_window_on_screen(self)
 
         if sys.platform == 'win32':
             self.fade_in = QPropertyAnimation(self, b'windowOpacity')
@@ -124,50 +126,6 @@ class DiscordIntro(QDialog):
 
         self.raise_()
         self.activateWindow()
-
-        self._drag_pos: QPoint | None = None
-
-    @override
-    def mousePressEvent(self, a0: QMouseEvent) -> None:
-        """Begin drag when clicking the dialog background."""
-        if (
-            a0
-            and a0.button() == Qt.MouseButton.LeftButton
-            and not self.exit_button.underMouse()
-            and not self.join_button.underMouse()
-            and not self.dont_remind_me_label.underMouse()
-        ):
-            self._drag_pos = a0.globalPosition().toPoint()
-
-        super().mousePressEvent(a0)
-
-    @override
-    def mouseMoveEvent(self, a0: QMouseEvent) -> None:
-        """Move the dialog while dragging."""
-        if a0 and self._drag_pos:
-            delta = a0.globalPosition().toPoint() - self._drag_pos
-            self.move(self.pos() + delta)
-            self._drag_pos = a0.globalPosition().toPoint()
-
-        super().mouseMoveEvent(a0)
-
-    @override
-    def mouseReleaseEvent(self, a0: QMouseEvent) -> None:
-        """Stop dragging the dialog on mouse release."""
-        self._drag_pos = None
-
-        super().mouseReleaseEvent(a0)
-
-    def center_window(self) -> None:
-        """Center the dialog on the primary screen."""
-        screen = app.primaryScreen()
-        if not screen:
-            raise PrimaryScreenNotFoundError
-
-        screen_geometry = screen.geometry()
-        x_position = (screen_geometry.width() - self.width()) // 2
-        y_position = (screen_geometry.height() - self.height()) // 2
-        self.move(x_position, y_position)
 
     def open_discord(self) -> None:
         """Open the Discord invite URL and disable future popup reminders."""

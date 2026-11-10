@@ -27,7 +27,7 @@ from PySide6.QtWidgets import (
 )
 
 from session_sniffer.constants.local import RESOURCES_DIR_PATH
-from session_sniffer.constants.standalone import TITLE
+from session_sniffer.constants.standalone import MAX_PORT, MIN_PORT, TITLE
 from session_sniffer.error_messages import ensure_instance
 from session_sniffer.guis._crashing_qthread import CrashingQThread
 from session_sniffer.guis.fonts import get_monospace_font
@@ -52,8 +52,6 @@ from session_sniffer.settings import Settings
 _DEFAULT_TARGET: Final[str] = '127.0.0.1'
 _RTT_HIGH_THRESHOLD_MS: Final[float] = 120.0
 _DEFAULT_PORT: Final[int] = 80
-_MIN_PORT: Final[int] = 1
-_MAX_PORT: Final[int] = 65535
 
 
 class PingWorkerThread(CrashingQThread):
@@ -209,7 +207,7 @@ class PingTabWidget(QWidget):
         self._port_label = QLabel('Port:')
         self._port_spinbox = QSpinBox()
         self._port_spinbox.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
-        self._port_spinbox.setRange(_MIN_PORT, _MAX_PORT)
+        self._port_spinbox.setRange(MIN_PORT, MAX_PORT)
         self._port_spinbox.setValue(port if port is not None else _DEFAULT_PORT)
         self._port_spinbox.valueChanged.connect(self._on_target_or_port_changed)
 

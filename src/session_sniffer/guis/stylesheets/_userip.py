@@ -23,20 +23,23 @@ QLabel {
 """
 
 
+def _userip_scaled_button_base(scale: Callable[[int], int]) -> str:
+    """Return the shared scaled font/padding/size properties for UserIP manager buttons."""
+    return (
+        f'    font-size: {max(6, scale(9))}pt;\n'
+        '    font-weight: 600;\n'
+        f'    padding: {scale(4)}px {scale(5)}px;\n'
+        f'    min-height: {scale(24)}px;\n'
+        f'    border-radius: {scale(6)}px;'
+    )
+
+
 def userip_dialog_button_stylesheet(scale: Callable[[int], int]) -> str:
     """Return the scaled QSS for standard action buttons in the UserIP manager."""
-    font_pt = max(6, scale(9))
-    pad_v = scale(4)
-    pad_h = scale(5)
-    min_h = scale(24)
-    radius = scale(6)
+    base = _userip_scaled_button_base(scale)
     return f"""
 QPushButton {{
-    font-size: {font_pt}pt;
-    font-weight: 600;
-    padding: {pad_v}px {pad_h}px;
-    min-height: {min_h}px;
-    border-radius: {radius}px;
+{base}
     background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
         stop:0 #2d3e50, stop:0.5 #243342, stop:1 #1c2836);
     color: #d4e4f7;
@@ -64,18 +67,10 @@ QPushButton:disabled {{
 
 def userip_dialog_danger_button_stylesheet(scale: Callable[[int], int]) -> str:
     """Return the scaled QSS for destructive action buttons in the UserIP manager."""
-    font_pt = max(6, scale(9))
-    pad_v = scale(4)
-    pad_h = scale(5)
-    min_h = scale(24)
-    radius = scale(6)
+    base = _userip_scaled_button_base(scale)
     return f"""
 QPushButton {{
-    font-size: {font_pt}pt;
-    font-weight: 600;
-    padding: {pad_v}px {pad_h}px;
-    min-height: {min_h}px;
-    border-radius: {radius}px;
+{base}
     background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
         stop:0 #b33a3a, stop:0.5 #962d2d, stop:1 #7a2222);
     color: #ffffff;
@@ -109,20 +104,26 @@ COLOR_SWATCH_SEPARATOR_STYLESHEET = 'color: #3a3a3a;'
 
 SETTINGS_SEPARATOR_STYLESHEET = 'background-color: rgba(74, 144, 226, 0.2); border: none;'
 
-COLOR_BUTTON_EMPTY_STYLESHEET = (
-    'QPushButton#ColorPickerButton, QPushButton#DatabaseColorButton {'
-    ' background-color: transparent;'
-    ' border: 1px solid #555;'
-    ' border-radius: 4px;'
-    ' min-width: 52px;'
-    ' max-width: 52px;'
-    ' min-height: 26px;'
-    ' max-height: 26px;'
-    ' padding: 0px;'
-    ' margin: 0px;'
-    '}'
-    ' QPushButton#ColorPickerButton:hover, QPushButton#DatabaseColorButton:hover { border-color: #4a90e2; }'
-)
+
+def _color_picker_button_stylesheet(background_color: str, hover_border_color: str) -> str:
+    """Build the QSS for `ColorPickerButton` and `DatabaseColorButton`."""
+    return (
+        'QPushButton#ColorPickerButton, QPushButton#DatabaseColorButton {'
+        f' background-color: {background_color};'
+        ' border: 1px solid #555;'
+        ' border-radius: 4px;'
+        ' min-width: 52px;'
+        ' max-width: 52px;'
+        ' min-height: 26px;'
+        ' max-height: 26px;'
+        ' padding: 0px;'
+        ' margin: 0px;'
+        '}'
+        f' QPushButton#ColorPickerButton:hover, QPushButton#DatabaseColorButton:hover {{ border-color: {hover_border_color}; }}'
+    )
+
+
+COLOR_BUTTON_EMPTY_STYLESHEET = _color_picker_button_stylesheet('transparent', '#4a90e2')
 
 
 def color_swatch_button_stylesheet(bg_color: str, text_color: str, border_width: int, border_color: str, *, font_pt: int = 8) -> str:
@@ -136,20 +137,7 @@ def color_swatch_button_stylesheet(bg_color: str, text_color: str, border_width:
 
 def color_button_filled_stylesheet(color_name: str) -> str:
     """Return the QSS for a color preview button showing the given `color_name`."""
-    return (
-        'QPushButton#ColorPickerButton, QPushButton#DatabaseColorButton {'
-        f' background-color: {color_name};'
-        ' border: 1px solid #555;'
-        ' border-radius: 4px;'
-        ' min-width: 52px;'
-        ' max-width: 52px;'
-        ' min-height: 26px;'
-        ' max-height: 26px;'
-        ' padding: 0px;'
-        ' margin: 0px;'
-        '}'
-        ' QPushButton#ColorPickerButton:hover, QPushButton#DatabaseColorButton:hover { border-color: #ffffff; }'
-    )
+    return _color_picker_button_stylesheet(color_name, '#ffffff')
 
 
 # =============================================================================
@@ -246,6 +234,11 @@ QPushButton:hover {{
 # IP RANGE BUILDER DIALOG STYLES
 # =============================================================================
 
-IP_RANGE_PREVIEW_VALID_STYLESHEET = 'font-family: Menlo, Consolas, "Courier New", monospace; font-size: 10pt; padding: 6px; color: #80c080;'
-IP_RANGE_PREVIEW_ERROR_STYLESHEET = 'font-family: Menlo, Consolas, "Courier New", monospace; font-size: 10pt; padding: 6px; color: #e06060;'
-IP_RANGE_PREVIEW_EMPTY_STYLESHEET = 'font-family: Menlo, Consolas, "Courier New", monospace; font-size: 10pt; padding: 6px; color: #a0a0a0;'
+def _ip_range_preview_stylesheet(color: str) -> str:
+    """Build the monospace QSS for the IP Range Builder preview label."""
+    return f'font-family: Menlo, Consolas, "Courier New", monospace; font-size: 10pt; padding: 6px; color: {color};'
+
+
+IP_RANGE_PREVIEW_VALID_STYLESHEET = _ip_range_preview_stylesheet('#80c080')
+IP_RANGE_PREVIEW_ERROR_STYLESHEET = _ip_range_preview_stylesheet('#e06060')
+IP_RANGE_PREVIEW_EMPTY_STYLESHEET = _ip_range_preview_stylesheet('#a0a0a0')

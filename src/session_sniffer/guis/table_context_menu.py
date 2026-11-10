@@ -4,12 +4,9 @@ import functools
 from typing import TYPE_CHECKING, override
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QAction, QIcon, QKeySequence, QResizeEvent, QShortcut, QShowEvent
-from PySide6.QtWidgets import QBoxLayout, QMenu, QTableWidget, QWidget
+from PySide6.QtGui import QKeySequence, QResizeEvent, QShortcut, QShowEvent
 
-from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.constants.tables import DEFAULT_MIN_COLUMN_WIDTH
-from session_sniffer.guis.stylesheets import SVG_ICON_CONTEXT_MENU_STYLESHEET
 from session_sniffer.guis.table_column_resizing import TableColumnResizeController, setup_table_header_context_menu
 from session_sniffer.guis.tables_player_actions._actions import (
     create_ping_menu,
@@ -20,7 +17,9 @@ from session_sniffer.guis.tables_player_actions._ip_lookup_dialog import (
 )
 from session_sniffer.guis.utils import (
     ToggleAlwaysOnTopMixin,
+    add_icon_menu_action,
     copy_table_selection,
+    create_styled_context_menu,
     popup_menu_at_table,
     scale_by_ui,
     set_clipboard_text,
@@ -31,26 +30,32 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
     from PySide6.QtCore import QPoint
+    from PySide6.QtWidgets import QBoxLayout, QMenu, QTableWidget, QWidget
 
 
 def add_copy_usernames_and_ips_actions(
     menu: QMenu,
-    parent: QWidget,
+    _parent: QWidget,
     usernames: list[str],
     ip_addresses: list[str],
 ) -> None:
     """Add 'Copy Usernames' and 'Copy IPs' actions to *menu* if usernames or IP addresses are present."""
     if usernames:
-        copy_usernames_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), f'Copy Usernames ({len(usernames)})', parent)
-        copy_usernames_action.setToolTip('Copy all selected usernames.')
-        copy_usernames_action.triggered.connect(lambda: set_clipboard_text('\n'.join(usernames)))
-        menu.addAction(copy_usernames_action)
-
+        add_icon_menu_action(
+            menu,
+            'copy.svg',
+            f'Copy Usernames ({len(usernames)})',
+            lambda: set_clipboard_text('\n'.join(usernames)),
+            tooltip='Copy all selected usernames.',
+        )
     if ip_addresses:
-        copy_ips_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), f'Copy IPs ({len(ip_addresses)})', parent)
-        copy_ips_action.setToolTip('Copy all selected IP addresses.')
-        copy_ips_action.triggered.connect(lambda: set_clipboard_text('\n'.join(ip_addresses)))
-        menu.addAction(copy_ips_action)
+        add_icon_menu_action(
+            menu,
+            'copy.svg',
+            f'Copy IPs ({len(ip_addresses)})',
+            lambda: set_clipboard_text('\n'.join(ip_addresses)),
+            tooltip='Copy all selected IP addresses.',
+        )
 
 
 def extract_ip_addresses_from_table_selection(table: QTableWidget) -> list[str]:
@@ -117,42 +122,33 @@ class TableContextMenuManager:
 
         selected_row_count = len({item.row() for item in self._table.selectedItems()})
 
-        menu = QMenu(self._parent)
-        menu.setStyleSheet(SVG_ICON_CONTEXT_MENU_STYLESHEET)
-        menu.setToolTipsVisible(True)
+        menu = create_styled_context_menu(self._parent)
 
         copy_label = f'Copy Rows ({selected_row_count})' if selected_row_count > 1 else 'Copy Row'
-        copy_row_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), copy_label, menu)
+        copy_row_action = add_icon_menu_action(
+            menu,
+            'copy.svg',
+            copy_label,
+            lambda: copy_table_selection(self._table),
+            tooltip=f'Copy the selected row{pluralize(selected_row_count)} to the clipboard as tab-separated text.',
+        )
         copy_row_action.setShortcut('Ctrl+C')
-        copy_row_action.setToolTip(f'Copy the selected row{pluralize(selected_row_count)} to the clipboard as tab-separated text.')
         copy_row_action.setEnabled(selected_row_count > 0)
-        copy_row_action.triggered.connect(lambda: copy_table_selection(self._table))
-        menu.addAction(copy_row_action)
-
-        copy_all_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), 'Copy All', menu)
-        copy_all_action.setToolTip('Select all rows, then copy them to the clipboard.')
-        copy_all_action.setEnabled(self._table.rowCount() > 0)
 
         def _copy_all() -> None:
             self._table.selectAll()
             copy_table_selection(self._table)
 
-        copy_all_action.triggered.connect(_copy_all)
-        menu.addAction(copy_all_action)
+        copy_all_action = add_icon_menu_action(menu, 'copy.svg', 'Copy All', _copy_all, tooltip='Select all rows, then copy them to the clipboard.')
+        copy_all_action.setEnabled(self._table.rowCount() > 0)
 
         menu.addSeparator()
 
-        select_all_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square-check.svg')), 'Select All', menu)
+        select_all_action = add_icon_menu_action(menu, 'square-check.svg', 'Select All', self._table.selectAll, tooltip='Select all rows in the table.')
         select_all_action.setShortcut('Ctrl+A')
-        select_all_action.setToolTip('Select all rows in the table.')
         select_all_action.setEnabled(self._table.rowCount() > 0)
-        select_all_action.triggered.connect(self._table.selectAll)
-        menu.addAction(select_all_action)
 
-        clear_selection_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square.svg')), 'Clear Selection', menu)
-        clear_selection_action.setToolTip('Deselect all currently selected rows.')
-        clear_selection_action.triggered.connect(self._table.clearSelection)
-        menu.addAction(clear_selection_action)
+        add_icon_menu_action(menu, 'square.svg', 'Clear Selection', self._table.clearSelection, tooltip='Deselect all currently selected rows.')
 
         selected_ip_addresses = extract_ip_addresses_from_table_selection(self._table)
         if selected_ip_addresses:
@@ -160,21 +156,23 @@ class TableContextMenuManager:
 
             if len(selected_ip_addresses) == 1:
                 target_ip = selected_ip_addresses[0]
-                lookup_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'search.svg')), 'IP Lookup Details…', menu)
-                lookup_action.setToolTip('Show detailed IP lookup information for this IP address.')
-                lookup_action.triggered.connect(lambda _checked=False, ip_address=target_ip: show_detailed_ip_lookup(ip_address))
-                menu.addAction(lookup_action)
+                add_icon_menu_action(
+                    menu,
+                    'search.svg',
+                    'IP Lookup Details…',
+                    lambda: show_detailed_ip_lookup(target_ip),
+                    tooltip='Show detailed IP lookup information for this IP address.',
+                )
 
             create_ping_menu(self._parent, menu, selected_ip_addresses)
 
-            scan_ports_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'radar.svg')), 'Scan Ports…', menu)
-            scan_ports_action.setToolTip(f'Scan TCP and UDP ports on the selected host{pluralize(len(selected_ip_addresses))}.')
-
-            def _scan_selected_ports() -> None:
-                scan_ports_ip(selected_ip_addresses)
-
-            scan_ports_action.triggered.connect(_scan_selected_ports)
-            menu.addAction(scan_ports_action)
+            add_icon_menu_action(
+                menu,
+                'radar.svg',
+                'Scan Ports…',
+                lambda: scan_ports_ip(selected_ip_addresses),
+                tooltip=f'Scan TCP and UDP ports on the selected host{pluralize(len(selected_ip_addresses))}.',
+            )
 
         popup_menu_at_table(menu, self._table, pos)
 

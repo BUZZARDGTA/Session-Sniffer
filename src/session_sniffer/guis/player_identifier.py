@@ -427,6 +427,18 @@ class PlayerIdentifierWidget(QWidget):
         self._sample_label.setText('')
         self._timer.start(UPDATE_INTERVAL_MS)
 
+    def _set_ready_instructions(self, *, reason: str | None = None) -> None:
+        """Update the instructions panel for the locked-baseline READY phase."""
+        num_ips = len(self._baselines)
+        reason_suffix = f' ({reason})' if reason is not None else ''
+        self._instructions.setText(
+            f'Baseline locked{reason_suffix} with <b>{num_ips}</b> IP{pluralize(num_ips)} '
+            f'over <b>{self._sample_count}</b> sample{pluralize(self._sample_count)}.<br><br>'
+            'Click <b>Resolve</b>, then spectate the target player (Orbital Cannon, CCTV, or walk up to them).<br>'
+            "The tool will detect which IP's traffic spikes when your game loads that player.<br>"
+            '<small>Tip: Detection works best when the target player is <b>moving</b>.</small>',
+        )
+
     def _auto_stop_baseline(self, reason: str) -> None:
         """Finalize baselines and transition to READY (timer keeps running for contamination monitoring)."""
         for bl in self._baselines.values():
@@ -435,14 +447,7 @@ class PlayerIdentifierWidget(QWidget):
         self._update_baseline_button_state()
         self._resolve_button.setEnabled(True)
         self._reset_button.setEnabled(False)
-        num_ips = len(self._baselines)
-        self._instructions.setText(
-            f'Baseline locked ({reason}) with <b>{num_ips}</b> IP{pluralize(num_ips)} '
-            f'over <b>{self._sample_count}</b> sample{pluralize(self._sample_count)}.<br><br>'
-            'Click <b>Resolve</b>, then spectate the target player (Orbital Cannon, CCTV, or walk up to them).<br>'
-            "The tool will detect which IP's traffic spikes when your game loads that player.<br>"
-            '<small>Tip: Detection works best when the target player is <b>moving</b>.</small>',
-        )
+        self._set_ready_instructions(reason=reason)
         self._stability_bar.setFormat('Locked')
         self._stability_bar.setValue(100)
         self._stability_bar.setStyleSheet(PROGRESS_BAR_CHUNK_GREEN_STYLESHEET)
@@ -489,13 +494,7 @@ class PlayerIdentifierWidget(QWidget):
         self._deselect_button.setEnabled(False)
 
         num_ips = len(self._baselines)
-        self._instructions.setText(
-            f'Baseline locked with <b>{num_ips}</b> IP{pluralize(num_ips)} '
-            f'over <b>{self._sample_count}</b> sample{pluralize(self._sample_count)}.<br><br>'
-            'Click <b>Resolve</b>, then spectate the target player (Orbital Cannon, CCTV, or walk up to them).<br>'
-            "The tool will detect which IP's traffic spikes when your game loads that player.<br>"
-            '<small>Tip: Detection works best when the target player is <b>moving</b>.</small>',
-        )
+        self._set_ready_instructions()
         self._update_stability(100, PROGRESS_BAR_CHUNK_GREEN_STYLESHEET, 'Stability: <span style="color:green;">Locked</span>', bar_format='Locked')
         self._update_sample_label(f'{num_ips} IP{pluralize(num_ips)} · {self._sample_count} sample{pluralize(self._sample_count)}')
         self._update_result_label('')
@@ -566,8 +565,8 @@ class PlayerIdentifierWidget(QWidget):
         self._sample_label.setVisible(False)
         self._result_label.setText('')
 
-    def _abort_insufficient_players(self) -> None:
-        """Stop the current phase because too many players disconnected."""
+    def _abort_with_message(self, *, bar_format: str, stability_reason: str, instructions_html: str) -> None:
+        """Stop the active scan, reset selection/button state, and show an abort reason."""
         self._timer.stop()
         self._phase = Phase.IDLE
         if self._currently_selected_ips and self._deselect_ips is not None:
@@ -581,70 +580,48 @@ class PlayerIdentifierWidget(QWidget):
         self._select_button.setEnabled(False)
         self._deselect_button.setEnabled(False)
         self._stability_bar.setValue(0)
-        self._stability_bar.setFormat('Aborted')
+        self._stability_bar.setFormat(bar_format)
         self._stability_bar.setStyleSheet(PROGRESS_BAR_CHUNK_RED_STYLESHEET)
-        self._stability_label.setText(
-            'Stability: <span style="color:red;">Aborted — not enough players remaining</span>',
-        )
-        self._instructions.setText(
-            f'<b style="color:#e74c3c;">Aborted:</b> fewer than {MIN_CONNECTED_PLAYERS} tracked players remain in the session.<br><br>'
-            'Players disconnected while the scan was running. Click <b>Start Baseline</b> to try again…',
+        self._stability_label.setText(f'Stability: <span style="color:red;">{stability_reason}</span>')
+        self._instructions.setText(instructions_html)
+
+    def _abort_insufficient_players(self) -> None:
+        """Stop the current phase because too many players disconnected."""
+        self._abort_with_message(
+            bar_format='Aborted',
+            stability_reason='Aborted — not enough players remaining',
+            instructions_html=(
+                f'<b style="color:#e74c3c;">Aborted:</b> fewer than {MIN_CONNECTED_PLAYERS} tracked players remain in the session.<br><br>'
+                'Players disconnected while the scan was running. Click <b>Start Baseline</b> to try again…'
+            ),
         )
 
     def _abort_contaminated(self, ip: str, zscore: float) -> None:
         """Stop the baseline because a dramatic traffic spike was detected (contamination)."""
-        self._timer.stop()
-        self._phase = Phase.IDLE
-        if self._currently_selected_ips and self._deselect_ips is not None:
-            self._deselect_ips(list(self._currently_selected_ips))
-        self._currently_selected_ips.clear()
-        self._identified_ips.clear()
-        PlayerIdentifierTracker.set_identified_ips(set())
-        self._update_baseline_button_state()
-        self._resolve_button.setEnabled(False)
-        self._reset_button.setEnabled(True)
-        self._select_button.setEnabled(False)
-        self._deselect_button.setEnabled(False)
-        self._stability_bar.setValue(0)
-        self._stability_bar.setFormat('Contaminated')
-        self._stability_bar.setStyleSheet(PROGRESS_BAR_CHUNK_RED_STYLESHEET)
-        self._stability_label.setText(
-            'Stability: <span style="color:red;">Aborted — baseline contaminated</span>',
-        )
-        self._instructions.setText(
-            f'<b style="color:#e74c3c;">Baseline contaminated!</b> IP <b>{ip}</b> showed a dramatic traffic spike '
-            f'(z-score: {zscore:.1f}) while recording.<br><br>'
-            'This usually means you moved, spectated someone, or a player approached you. '
-            'The baseline data is no longer reliable.<br><br>'
-            'Click <b>Start Baseline</b> to start over. Make sure you stay completely still and isolated.',
+        self._abort_with_message(
+            bar_format='Contaminated',
+            stability_reason='Aborted — baseline contaminated',
+            instructions_html=(
+                f'<b style="color:#e74c3c;">Baseline contaminated!</b> IP <b>{ip}</b> showed a dramatic traffic spike '
+                f'(z-score: {zscore:.1f}) while recording.<br><br>'
+                'This usually means you moved, spectated someone, or a player approached you. '
+                'The baseline data is no longer reliable.<br><br>'
+                'Click <b>Start Baseline</b> to start over. Make sure you stay completely still and isolated.'
+            ),
         )
 
     def _abort_session_changed(self) -> None:
         """Stop the current phase because overall session traffic drifted too far from the baseline."""
-        self._timer.stop()
-        self._phase = Phase.IDLE
-        if self._currently_selected_ips and self._deselect_ips is not None:
-            self._deselect_ips(list(self._currently_selected_ips))
-        self._currently_selected_ips.clear()
-        self._identified_ips.clear()
-        PlayerIdentifierTracker.set_identified_ips(set())
-        self._update_baseline_button_state()
-        self._resolve_button.setEnabled(False)
-        self._reset_button.setEnabled(True)
-        self._select_button.setEnabled(False)
-        self._deselect_button.setEnabled(False)
-        self._stability_bar.setValue(0)
-        self._stability_bar.setFormat('Aborted')
-        self._stability_bar.setStyleSheet(PROGRESS_BAR_CHUNK_RED_STYLESHEET)
-        self._stability_label.setText(
-            'Stability: <span style="color:red;">Aborted — session conditions changed</span>',
-        )
-        self._instructions.setText(
-            '<b style="color:#e74c3c;">Baseline invalidated:</b> overall session traffic shifted too dramatically '
-            'from the recorded baseline.<br><br>'
-            'The session may have ended, or a mass game event caused all traffic to spike or drop simultaneously. '
-            'The baseline data is no longer reliable.<br><br>'
-            'Click <b>Start Baseline</b> to start over.',
+        self._abort_with_message(
+            bar_format='Aborted',
+            stability_reason='Aborted — session conditions changed',
+            instructions_html=(
+                '<b style="color:#e74c3c;">Baseline invalidated:</b> overall session traffic shifted too dramatically '
+                'from the recorded baseline.<br><br>'
+                'The session may have ended, or a mass game event caused all traffic to spike or drop simultaneously. '
+                'The baseline data is no longer reliable.<br><br>'
+                'Click <b>Start Baseline</b> to start over.'
+            ),
         )
 
     # -- Periodic tick --------------------------------------------------------
@@ -799,6 +776,18 @@ class PlayerIdentifierWidget(QWidget):
 
         self._update_resolving_display(players, max_streak)
 
+    def _format_spiking_player_bullet(self, player: Player, *, confirmed: bool) -> str:
+        """Format a bullet-list HTML row for a confirmed or candidate spiking player."""
+        name_part = f' ({html.escape(", ".join(player.usernames))})' if player.usernames else ''
+        formatted_bps = PlayerBandwidth.format_bytes(player.bandwidth.bps.calculated_rate)
+        streak = self._spike_streak.get(player.ip, 0)
+        total_duration = self._total_spike_duration.get(player.ip, 0)
+        if confirmed:
+            streak_text = f'streak: {streak}s (total: {total_duration}s)' if streak > 0 else f'total spike: {total_duration}s'
+        else:
+            streak_text = f'streak: {streak}/{self._spike_sustained_seconds}s (total: {total_duration}s)'
+        return f'• <b>{player.ip}</b>{name_part} — {player.packets.pps.calculated_rate} PPS · {formatted_bps} · {streak_text}'
+
     def _update_resolving_display(self, players: list[Player], max_streak: int) -> None:
         player_by_ip = {player.ip: player for player in players}
         identified_players = [player_by_ip[ip] for ip in self._identified_ips if ip in player_by_ip]
@@ -816,24 +805,12 @@ class PlayerIdentifierWidget(QWidget):
         if identified_players:
             num_identified = len(identified_players)
             lines.append(f'<b style="color:#27ae60;">{num_identified} player{pluralize(num_identified)} identified:</b>')
-            for player in identified_players:
-                name_part = f' ({html.escape(", ".join(player.usernames))})' if player.usernames else ''
-                formatted_bps = PlayerBandwidth.format_bytes(player.bandwidth.bps.calculated_rate)
-                streak = self._spike_streak.get(player.ip, 0)
-                total_duration = self._total_spike_duration.get(player.ip, 0)
-                streak_text = f'streak: {streak}s (total: {total_duration}s)' if streak > 0 else f'total spike: {total_duration}s'
-                lines.append(f'• <b>{player.ip}</b>{name_part} — {player.packets.pps.calculated_rate} PPS · {formatted_bps} · {streak_text}')
+            lines.extend(self._format_spiking_player_bullet(player, confirmed=True) for player in identified_players)
 
         if candidate_players:
             num_candidates = len(candidate_players)
             lines.append(f'<b style="color:#f39c12;">{num_candidates} candidate{pluralize(num_candidates)} spiking:</b>')
-            for player in candidate_players:
-                name_part = f' ({html.escape(", ".join(player.usernames))})' if player.usernames else ''
-                formatted_bps = PlayerBandwidth.format_bytes(player.bandwidth.bps.calculated_rate)
-                streak = self._spike_streak.get(player.ip, 0)
-                total_duration = self._total_spike_duration.get(player.ip, 0)
-                streak_text = f'streak: {streak}/{self._spike_sustained_seconds}s (total: {total_duration}s)'
-                lines.append(f'• <b>{player.ip}</b>{name_part} — {player.packets.pps.calculated_rate} PPS · {formatted_bps} · {streak_text}')
+            lines.extend(self._format_spiking_player_bullet(player, confirmed=False) for player in candidate_players)
 
         if identified_players:
             lines.append('<small>Identified players are marked with a target icon in the connected players table.</small>')

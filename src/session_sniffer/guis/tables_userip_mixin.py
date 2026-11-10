@@ -6,12 +6,13 @@ from typing import TYPE_CHECKING
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QInputDialog, QLineEdit, QMessageBox, QWidget
 
-from session_sniffer.constants.local import USERIP_DATABASES_DIR_PATH
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.guis.select_usernames_dialog import SelectUsernamesDialog, UsernameSelectionConfig, prompt_username_input, prompt_usernames_and_notes_input
+from session_sniffer.guis.tables_player_actions.looky_system._looky_helpers import sync_player_looky_usernames_and_userip
 from session_sniffer.guis.userip_manager_helpers import (
     IPRangeBuilderDialog,
     append_userip_entries,
+    format_userip_db_display_name,
     load_userip_database_model,
     refresh_userip_and_wake_renderer,
     rewrite_db_edit_entry_ip,
@@ -30,12 +31,9 @@ from session_sniffer.player.userip_groups import (
     get_excluded_looky_usernames,
     get_excluded_looky_usernames_cf,
     group_usernames,
-    record_looky_db_correlation,
     restore_looky_usernames,
     ungroup_usernames,
 )
-from session_sniffer.player.userip_loader import update_userip_databases
-from session_sniffer.rendering_core.events import wake_rendering_core
 from session_sniffer.rendering_core.types import CaptureState, SessionFilterState
 from session_sniffer.settings import Settings
 from session_sniffer.text_utils import pluralize
@@ -133,7 +131,7 @@ def _prompt_usernames_to_add(
     if Settings.userip_sync_known_alts:
         candidates = UserIPDatabases.expand_with_known_alts(candidates)
 
-    db_display = str(selected_database.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix(''))
+    db_display = format_userip_db_display_name(selected_database)
 
     if len(candidates) > 1:
         dialog = SelectUsernamesDialog.for_add(
@@ -219,7 +217,7 @@ def userip_add(
             group_usernames(chosen_usernames, UserIPDatabases.get_known_alts_clusters_snapshot())
     refresh_userip_and_wake_renderer()
 
-    db_display = selected_database.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix('')
+    db_display = format_userip_db_display_name(selected_database)
     usernames_display = ', '.join(f'"{name}"' for name in chosen_usernames)
     _show_modal_info_on_top(
         parent,
@@ -268,7 +266,7 @@ def userip_add_as_range(
         group_usernames(chosen_usernames, UserIPDatabases.get_known_alts_clusters_snapshot())
     refresh_userip_and_wake_renderer()
 
-    db_display = selected_database.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix('')
+    db_display = format_userip_db_display_name(selected_database)
     usernames_display = ', '.join(f'"{name}"' for name in chosen_usernames)
     _show_modal_info_on_top(
         parent,
@@ -289,7 +287,7 @@ def userip_convert_to_range(parent: QWidget, ip_address: str, player: Player) ->
         return
 
     db_path = player.userip.db_path
-    db_display = player.userip.db_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix('')
+    db_display = format_userip_db_display_name(db_path)
 
     range_dlg = IPRangeBuilderDialog(parent, initial_ip=ip_address, allow_single_ip=False)
     if range_dlg.exec() != IPRangeBuilderDialog.DialogCode.Accepted:
@@ -347,7 +345,7 @@ def userip_convert_to_ip(parent: QWidget, ip_address: str, player: Player) -> No
         return
 
     db_path = player.userip.db_path
-    db_display = player.userip.db_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix('')
+    db_display = format_userip_db_display_name(db_path)
 
     old_range = _select_covering_range_in_db(
         parent,
@@ -385,7 +383,7 @@ def userip_edit_range(parent: QWidget, ip_address: str, player: Player) -> None:
         return
 
     db_path = player.userip.db_path
-    db_display = player.userip.db_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix('')
+    db_display = format_userip_db_display_name(db_path)
 
     old_range = _select_covering_range_in_db(
         parent,
@@ -427,7 +425,7 @@ def userip_edit_note(parent: QWidget, ip_address: str, player: Player) -> None:
         return
 
     db_path = player.userip.db_path
-    db_display = str(db_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix(''))
+    db_display = format_userip_db_display_name(db_path)
     current_note = ', '.join(player.userip.notes) if player.userip.notes else ''
 
     dialog_title = 'Edit Note' if current_note else 'Add Note'
@@ -463,7 +461,7 @@ def userip_add_username(parent: QWidget, ip_address: str, player: Player) -> Non
         return
 
     db_path = player.userip.db_path
-    db_display = player.userip.db_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix('')
+    db_display = format_userip_db_display_name(db_path)
     existing_count = len(player.userip.usernames)
     existing = ', '.join(player.userip.usernames) if player.userip.usernames else 'None'
     candidates = [name for name in resolve_usernames_for_player(player) if name not in player.userip.usernames]
@@ -581,7 +579,7 @@ def userip_rename(parent: QWidget, ip_address: str, player: Player) -> None:
         return
 
     db_path = player.userip.db_path
-    db_display = str(db_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix(''))
+    db_display = format_userip_db_display_name(db_path)
     ip_usernames = collect_persisted_usernames_for_ip(db_path, ip_address)
     if not ip_usernames:
         QMessageBox.information(parent, TITLE, f'No entries found for IP {ip_address} in the database.')
@@ -635,7 +633,7 @@ def _format_database_entries_html_list(entries_by_database: dict[Path, list[str]
     """Format a mapping of database paths to HTML-escaped entry strings as an HTML list."""
     sections: list[str] = []
     for db_path, entry_labels in entries_by_database.items():
-        db_display = html.escape(str(db_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix('')))
+        db_display = html.escape(format_userip_db_display_name(db_path))
         items_html = ''.join(f'<li>{entry_label}</li>' for entry_label in entry_labels)
         sections.append(f'<b>{db_display}:</b><br><ul>{items_html}</ul>')
     return '<br>'.join(sections)
@@ -672,7 +670,7 @@ def userip_move(parent: QWidget, selected_ips: list[str], selected_database: Pat
 
     if deleted_entries_by_database:
         refresh_userip_and_wake_renderer()
-        target_db_display = html.escape(str(selected_database.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix('')))
+        target_db_display = html.escape(format_userip_db_display_name(selected_database))
         header = (
             f'<b>Selected IP{pluralize(len(selected_ips))} moved from the following '
             f'UserIP database{pluralize(len(deleted_entries_by_database))} to UserIP database '
@@ -727,7 +725,7 @@ def userip_remove_username(parent: QWidget, ip_address: str, player: Player) -> 
     if len(ip_usernames) < MIN_USERNAMES_FOR_REMOVAL:
         return
 
-    db_display = str(db_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix(''))
+    db_display = format_userip_db_display_name(db_path)
     dialog = SelectUsernamesDialog.for_remove(parent, ip_usernames, database=db_display, ip_address=ip_address)
     if dialog.exec() != SelectUsernamesDialog.DialogCode.Accepted:
         return
@@ -771,7 +769,7 @@ def _rewrite_database_removing_usernames(parent: QWidget, db_path: Path, ip_addr
     save_userip_database_model(db_path, UserIPDatabaseFile(settings=db_model.settings, entries=kept_entries))
     refresh_userip_and_wake_renderer()
 
-    db_display = db_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix('')
+    db_display = format_userip_db_display_name(db_path)
     entry_word = pluralize(removed_count, 'entry', 'entries')
     removed_names = ', '.join(f'"{name}"' for name in selected)
     QMessageBox.information(parent, TITLE, f'Removed {removed_count} {entry_word} ({removed_names}) for IP {ip_address} from UserIP database "{db_display}".')
@@ -932,10 +930,9 @@ def get_player_looky_username_lists(player: Player) -> tuple[list[str], list[str
 def _refresh_player_looky_exclusions(player: Player, *, reset_userip_checked: bool = False) -> None:
     """Re-apply per-IP Looky username exclusions to *player* (and its live/snapshot counterparts) and wake the renderer."""
     excluded_cfs = get_excluded_looky_usernames_cf(player.ip)
-    include_looky = Settings.looky_enabled and Settings.is_gta5_feature_set() and CaptureState.is_local_capture()
     updated_names = player.looky_system.refresh_filtered_usernames(excluded_cfs)
     live_player = PlayersRegistry.get_player_by_ip(player.ip)
-    live_updated = live_player.looky_system.refresh_filtered_usernames(excluded_cfs) if live_player is not None and live_player is not player else ()
+    live_update = (live_player, live_player.looky_system.refresh_filtered_usernames(excluded_cfs)) if live_player is not None and live_player is not player else None
     if reset_userip_checked:
         for target_p in (player, live_player):
             if target_p is not None:
@@ -944,18 +941,7 @@ def _refresh_player_looky_exclusions(player: Player, *, reset_userip_checked: bo
     snap_updates = [
         (s, s.looky_system.refresh_filtered_usernames(excluded_cfs)) for s in SessionTracker.get_all_snapshot_players() if s is not player and s.ip == player.ip
     ]
-    record_looky_db_correlation(updated_names, UserIPDatabases.get_known_username_dbs_cf())
-    update_userip_databases()
-    for target_p in (player, *([live_player] if live_player is not None else []), *(s for s, _ in snap_updates)):
-        target_p.userip = UserIPDatabases.resolve_userip_for_player(target_p)
-    player.rebuild_usernames(looky_usernames=updated_names if include_looky and player.looky_system.is_initialized else ())
-    if live_player is not None and live_player is not player:
-        live_player.rebuild_usernames(looky_usernames=live_updated if include_looky and live_player.looky_system.is_initialized else ())
-        SessionTracker.update_session_player_snapshot(live_player, metadata_only=True)
-    for snapshot_player, snap_updated in snap_updates:
-        snapshot_player.rebuild_usernames(looky_usernames=snap_updated if include_looky and snapshot_player.looky_system.is_initialized else ())
-    SessionTracker.update_session_player_snapshot(player, metadata_only=True)
-    wake_rendering_core()
+    sync_player_looky_usernames_and_userip(player, updated_names, live_update, snap_updates)
 
 
 def looky_remove_usernames_for_player(parent: QWidget, player: Player, active_looky_names: list[str]) -> None:

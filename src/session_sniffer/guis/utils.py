@@ -7,7 +7,7 @@ from functools import cache
 from pathlib import Path
 from typing import TYPE_CHECKING, cast, override
 
-from PySide6.QtCore import QByteArray, QFileInfo, QPoint, QRectF, Qt, QTimer, QUrl
+from PySide6.QtCore import QByteArray, QFileInfo, QModelIndex, QPoint, QRectF, Qt, QTimer, QUrl
 from PySide6.QtGui import (
     QAction,
     QColor,
@@ -44,6 +44,7 @@ from shiboken6 import isValid
 
 from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.guis.delegates import ElidedTextTooltipDelegate
+from session_sniffer.guis.stylesheets import SVG_ICON_CONTEXT_MENU_STYLESHEET
 from session_sniffer.rendering_core.country_flags import get_country_flag
 from session_sniffer.settings.settings import Settings
 from session_sniffer.text_utils import pluralize
@@ -177,23 +178,17 @@ def create_section_separator(title: str) -> QWidget:
     widget = QWidget()
     layout = QHBoxLayout(widget)
     layout.setContentsMargins(0, 10, 0, 5)
-
-    left_line = QFrame()
-    left_line.setFrameShape(QFrame.Shape.HLine)
-    left_line.setFrameShadow(QFrame.Shadow.Sunken)
-    left_line.setStyleSheet('background-color: transparent; border-top: 1px solid #3b5064; border-bottom: 1px solid #11161d;')
-    layout.addWidget(left_line, 1)
-
-    label = QLabel(title)
-    label.setStyleSheet('color: #88c0d0; font-weight: bold; font-size: 10pt; padding: 0 5px;')
-    layout.addWidget(label)
-
-    right_line = QFrame()
-    right_line.setFrameShape(QFrame.Shape.HLine)
-    right_line.setFrameShadow(QFrame.Shadow.Sunken)
-    right_line.setStyleSheet('background-color: transparent; border-top: 1px solid #3b5064; border-bottom: 1px solid #11161d;')
-    layout.addWidget(right_line, 1)
-
+    line_style = 'background-color: transparent; border-top: 1px solid #3b5064; border-bottom: 1px solid #11161d;'
+    for add_label in (True, False):
+        line = QFrame()
+        line.setFrameShape(QFrame.Shape.HLine)
+        line.setFrameShadow(QFrame.Shadow.Sunken)
+        line.setStyleSheet(line_style)
+        layout.addWidget(line, 1)
+        if add_label:
+            label = QLabel(title)
+            label.setStyleSheet('color: #88c0d0; font-weight: bold; font-size: 10pt; padding: 0 5px;')
+            layout.addWidget(label)
     return widget
 
 
@@ -630,6 +625,41 @@ def setup_stat_table(table: QTableWidget, layout: QVBoxLayout, *, sorting: bool 
     layout.addWidget(table)
 
 
+def create_styled_context_menu(
+    parent: QWidget | None = None,
+    *,
+    title: str = '',
+    icon_name: str | None = None,
+    persistent: bool = False,
+) -> QMenu:
+    """Create a context menu or submenu styled with `SVG_ICON_CONTEXT_MENU_STYLESHEET` and visible tooltips."""
+    menu_cls = PersistentMenu if persistent else QMenu
+    menu = menu_cls(title, parent) if title else menu_cls(parent)
+    if icon_name is not None:
+        menu.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / icon_name)))
+    menu.setStyleSheet(SVG_ICON_CONTEXT_MENU_STYLESHEET)
+    menu.setToolTipsVisible(True)
+    return menu
+
+
+def add_icon_menu_action(
+    menu: QMenu,
+    icon_name: str,
+    text: str,
+    callback: Callable[[], object] | None = None,
+    *,
+    tooltip: str = '',
+) -> QAction:
+    """Create a `QAction` with an icon from `resources/icons/`, attach it to *menu*, and return it."""
+    action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / icon_name)), text, menu)
+    if tooltip:
+        action.setToolTip(tooltip)
+    if callback is not None:
+        action.triggered.connect(callback)
+    menu.addAction(action)
+    return action
+
+
 def popup_menu_at_table(menu: QMenu, table: QTableView, pos: QPoint) -> None:
     """Pop up *menu* at the viewport-relative position *pos* of *table*.
 
@@ -642,46 +672,33 @@ def popup_menu_at_table(menu: QMenu, table: QTableView, pos: QPoint) -> None:
     menu.popup(viewport.mapToGlobal(pos))
 
 
-def copy_table_selection(table: QTableView | QTreeView) -> None:
-    """Copy the selected rows from *table* to the system clipboard as tab-separated values.
-
-    Each selected row is collected once (deduplication by row index) and its columns are
-    joined with a tab character. Hidden columns are excluded. Rows are separated by newlines
-    so the result pastes cleanly into spreadsheets and plain-text editors alike.
-    """
-    selection_model = table.selectionModel()
-    if not selection_model:
-        return
-    selected_indexes = selection_model.selectedIndexes()
-    if not selected_indexes:
-        return
-
+def _format_selected_indexes_tsv(
+    selected_indexes: Sequence[QModelIndex],
+    *,
+    skip_column: Callable[[int], bool] | None = None,
+) -> list[str]:
+    """Group `QModelIndex` items by `(row, column)` and return tab-separated lines ordered by row and column."""
     rows: dict[int, dict[int, str]] = {}
-    for model_index in selected_indexes:
-        column = model_index.column()
-        if table.isColumnHidden(column):
+    for item_index in selected_indexes:
+        column = item_index.column()
+        if skip_column is not None and skip_column(column):
             continue
-        row = model_index.row()
-        cell_data = model_index.data(Qt.ItemDataRole.DisplayRole)
-        rows.setdefault(row, {})[column] = str(cell_data) if cell_data is not None else ''
+        cell_data = item_index.data(Qt.ItemDataRole.DisplayRole)
+        rows.setdefault(item_index.row(), {})[column] = str(cell_data) if cell_data is not None else ''
+    return ['\t'.join(rows[row][column] for column in sorted(rows[row])) for row in sorted(rows)]
 
-    lines: list[str] = []
-    for row in sorted(rows):
-        column_map = rows[row]
-        lines.append('\t'.join(column_map[column] for column in sorted(column_map)))
 
-    if not lines:
+def copy_table_selection(table: QTableView | QTreeView) -> None:
+    """Copy the selected rows from *table* to the system clipboard as tab-separated values."""
+    selection_model = table.selectionModel()
+    if not selection_model or not (selected_indexes := selection_model.selectedIndexes()):
         return
-
-    set_clipboard_text('\n'.join(lines))
+    if lines := _format_selected_indexes_tsv(selected_indexes, skip_column=table.isColumnHidden):
+        set_clipboard_text('\n'.join(lines))
 
 
 def copy_table_all_rows(table: QTableView | QTreeView) -> None:
-    """Copy all rows from *table* model to the system clipboard as tab-separated values.
-
-    Hidden columns are excluded. Rows are separated by newlines so the result pastes cleanly
-    into spreadsheets and plain-text editors alike.
-    """
+    """Copy all rows from *table* model to the system clipboard as tab-separated values."""
     model = table.model()
     if not model:
         return
@@ -689,61 +706,30 @@ def copy_table_all_rows(table: QTableView | QTreeView) -> None:
     row_count = model.rowCount()
     lines: list[str] = []
     for row_index in range(row_count):
-        cells: list[str] = []
-        for column_index in range(column_count):
-            if table.isColumnHidden(column_index):
-                continue
-            index = model.index(row_index, column_index)
-            cell_data = model.data(index, Qt.ItemDataRole.DisplayRole)
-            cells.append(str(cell_data) if cell_data is not None else '')
+        cells = [
+            str(cell_data) if (cell_data := model.data(model.index(row_index, column_index), Qt.ItemDataRole.DisplayRole)) is not None else ''
+            for column_index in range(column_count)
+            if not table.isColumnHidden(column_index)
+        ]
         lines.append('\t'.join(cells))
-
-    if not lines:
-        return
-
-    set_clipboard_text('\n'.join(lines))
+    if lines:
+        set_clipboard_text('\n'.join(lines))
 
 
 def copy_table_cells(table: QAbstractItemView) -> None:
-    """Copy selected cells from *table* to the clipboard.
-
-    - Single cell: plain text.
-    - Single column: newline-separated values.
-    - Single row: tab-separated values.
-    - Multiple rows and columns: tab-separated rows with newline breaks.
-    """
+    """Copy selected cells from *table* to the clipboard."""
     selection_model = table.selectionModel()
-    if not selection_model:
+    if not selection_model or not (selected_indexes := selection_model.selectedIndexes()):
         return
-    selected_indexes = selection_model.selectedIndexes()
-    if not selected_indexes:
-        return
-
     if len(selected_indexes) == 1:
         cell_data = selected_indexes[0].data(Qt.ItemDataRole.DisplayRole)
         set_clipboard_text(str(cell_data) if cell_data is not None else '')
         return
-
-    columns = {index.column() for index in selected_indexes}
-    if len(columns) == 1:
+    if len({index.column() for index in selected_indexes}) == 1:
         sorted_indexes = sorted(selected_indexes, key=lambda item_index: item_index.row())
-        texts = [str(item_index.data(Qt.ItemDataRole.DisplayRole) or '') for item_index in sorted_indexes]
-        set_clipboard_text('\n'.join(texts))
+        set_clipboard_text('\n'.join(str(item_index.data(Qt.ItemDataRole.DisplayRole) or '') for item_index in sorted_indexes))
         return
-
-    rows: dict[int, dict[int, str]] = {}
-    for index in selected_indexes:
-        row = index.row()
-        column = index.column()
-        cell_data = index.data(Qt.ItemDataRole.DisplayRole)
-        rows.setdefault(row, {})[column] = str(cell_data) if cell_data is not None else ''
-
-    lines: list[str] = []
-    for row in sorted(rows):
-        column_map = rows[row]
-        lines.append('\t'.join(column_map[column] for column in sorted(column_map)))
-
-    set_clipboard_text('\n'.join(lines))
+    set_clipboard_text('\n'.join(_format_selected_indexes_tsv(selected_indexes)))
 
 
 def set_clipboard_text(text: str) -> None:

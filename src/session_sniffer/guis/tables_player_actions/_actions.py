@@ -2,7 +2,6 @@
 
 from typing import TYPE_CHECKING
 
-from PySide6.QtGui import QAction, QIcon
 from PySide6.QtWidgets import (
     QDialog,
     QInputDialog,
@@ -12,11 +11,9 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.constants.standalone import MAX_PORT, MIN_PORT
 from session_sniffer.guis.ping_window import PingWindow
 from session_sniffer.guis.port_scanner_window import PortScannerWindow
-from session_sniffer.guis.stylesheets import SVG_ICON_CONTEXT_MENU_STYLESHEET
 from session_sniffer.guis.tables_player_actions._format import (
     format_bool,
     format_loss_pct,
@@ -26,7 +23,7 @@ from session_sniffer.guis.tables_player_actions._format import (
     userip_database_text,
 )
 from session_sniffer.guis.userip_manager_helpers import IPRangeBuilderDialog
-from session_sniffer.guis.utils import set_clipboard_text
+from session_sniffer.guis.utils import add_icon_menu_action, create_styled_context_menu, set_clipboard_text
 from session_sniffer.networking.ping import PingMode
 from session_sniffer.player.registry import SessionTracker
 from session_sniffer.rendering_core.types import SessionFilterState
@@ -170,27 +167,26 @@ def _create_multi_port_ping_menu(
     ping_fn: Callable[[QWidget, str | list[str]], None],
 ) -> None:
     """Create and attach a protocol port ping submenu for multiple IP addresses to `ping_menu`."""
-    submenu = QMenu(f'{protocol_label} Port Ping', ping_menu)
-    icon = QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'radio-tower.svg'))
-    submenu.setIcon(icon)
-    submenu.setStyleSheet(SVG_ICON_CONTEXT_MENU_STYLESHEET)
-    submenu.setToolTipsVisible(True)
-
-    one_action = QAction(icon, 'One Port for All', submenu)
-    one_action.setToolTip(f'Ask for a port once, then {protocol_label} ping all selected IPs on that port.')
-    one_action.triggered.connect(lambda: ping_fn(parent, ip_addresses))
-    submenu.addAction(one_action)
-
-    individual_action = QAction(icon, 'Individual Port per IP', submenu)
-    individual_action.setToolTip('Ask for a separate port for each selected IP.')
+    submenu = create_styled_context_menu(ping_menu, title=f'{protocol_label} Port Ping', icon_name='radio-tower.svg')
+    add_icon_menu_action(
+        submenu,
+        'radio-tower.svg',
+        'One Port for All',
+        lambda: ping_fn(parent, ip_addresses),
+        tooltip=f'Ask for a port once, then {protocol_label} ping all selected IPs on that port.',
+    )
 
     def _do_ping_individual() -> None:
         for ip_address in ip_addresses:
             ping_fn(parent, ip_address)
 
-    individual_action.triggered.connect(_do_ping_individual)
-    submenu.addAction(individual_action)
-
+    add_icon_menu_action(
+        submenu,
+        'radio-tower.svg',
+        'Individual Port per IP',
+        _do_ping_individual,
+        tooltip='Ask for a separate port for each selected IP.',
+    )
     ping_menu.addMenu(submenu)
 
 
@@ -235,55 +231,56 @@ def create_ping_menu(
     ip_addresses: Sequence[str],
 ) -> None:
     """Create and attach a standardized 'Ping' submenu for one or more IP addresses to *menu*."""
-    ping_menu = QMenu('Ping', menu)
-    icon = QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'radio-tower.svg'))
-    ping_menu.setIcon(icon)
-    ping_menu.setStyleSheet(SVG_ICON_CONTEXT_MENU_STYLESHEET)
-    ping_menu.setToolTipsVisible(True)
+    ping_menu = create_styled_context_menu(menu, title='Ping', icon_name='radio-tower.svg')
 
     if len(ip_addresses) == 1:
         target_ip_address = ip_addresses[0]
-        normal_action = QAction(icon, 'Normal (ICMP)', ping_menu)
-        normal_action.setToolTip('Checks if selected IP address responds to pings.')
-        normal_action.triggered.connect(lambda _checked=False, target=target_ip_address: ping_ip(target))
-        ping_menu.addAction(normal_action)
-
-        tcp_action = QAction(icon, 'TCP Port Ping', ping_menu)
-        tcp_action.setToolTip('Checks if selected IP address responds to TCP pings on a given port.')
-        tcp_action.triggered.connect(lambda _checked=False, target=target_ip_address: tcp_port_ping(parent, target))
-        ping_menu.addAction(tcp_action)
-
-        udp_action = QAction(icon, 'UDP Port Ping', ping_menu)
-        udp_action.setToolTip('Checks if selected IP address responds to UDP pings on a given port.')
-        udp_action.triggered.connect(lambda _checked=False, target=target_ip_address: udp_port_ping(parent, target))
-        ping_menu.addAction(udp_action)
-
-        web_action = QAction(icon, 'Web (Check-Host)', ping_menu)
-        web_action.setToolTip('Checks if selected IP address responds via Check-Host.net distributed nodes.')
-        web_action.triggered.connect(lambda _checked=False, target=target_ip_address: web_ping(target))
-        ping_menu.addAction(web_action)
+        add_icon_menu_action(
+            ping_menu,
+            'radio-tower.svg',
+            'Normal (ICMP)',
+            lambda: ping_ip(target_ip_address),
+            tooltip='Checks if selected IP address responds to pings.',
+        )
+        add_icon_menu_action(
+            ping_menu,
+            'radio-tower.svg',
+            'TCP Port Ping',
+            lambda: tcp_port_ping(parent, target_ip_address),
+            tooltip='Checks if selected IP address responds to TCP pings on a given port.',
+        )
+        add_icon_menu_action(
+            ping_menu,
+            'radio-tower.svg',
+            'UDP Port Ping',
+            lambda: udp_port_ping(parent, target_ip_address),
+            tooltip='Checks if selected IP address responds to UDP pings on a given port.',
+        )
+        add_icon_menu_action(
+            ping_menu,
+            'radio-tower.svg',
+            'Web (Check-Host)',
+            lambda: web_ping(target_ip_address),
+            tooltip='Checks if selected IP address responds via Check-Host.net distributed nodes.',
+        )
     elif len(ip_addresses) > 1:
         ip_addresses_list = list(ip_addresses)
-        normal_action = QAction(icon, 'Normal (ICMP)', ping_menu)
-        normal_action.setToolTip('Checks if selected IP addresses respond to pings.')
-
-        def _do_ping_multi() -> None:
-            ping_ip(ip_addresses_list)
-
-        normal_action.triggered.connect(_do_ping_multi)
-        ping_menu.addAction(normal_action)
-
+        add_icon_menu_action(
+            ping_menu,
+            'radio-tower.svg',
+            'Normal (ICMP)',
+            lambda: ping_ip(ip_addresses_list),
+            tooltip='Checks if selected IP addresses respond to pings.',
+        )
         create_multi_tcp_ping_menu(parent, ip_addresses_list, ping_menu)
         create_multi_udp_ping_menu(parent, ip_addresses_list, ping_menu)
-
-        web_action = QAction(icon, 'Web (Check-Host)', ping_menu)
-        web_action.setToolTip('Checks if selected IP addresses respond via Check-Host.net distributed nodes.')
-
-        def _do_web_ping_multi() -> None:
-            web_ping(ip_addresses_list)
-
-        web_action.triggered.connect(_do_web_ping_multi)
-        ping_menu.addAction(web_action)
+        add_icon_menu_action(
+            ping_menu,
+            'radio-tower.svg',
+            'Web (Check-Host)',
+            lambda: web_ping(ip_addresses_list),
+            tooltip='Checks if selected IP addresses respond via Check-Host.net distributed nodes.',
+        )
 
     menu.addMenu(ping_menu)
 

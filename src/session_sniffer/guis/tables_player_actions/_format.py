@@ -3,7 +3,7 @@
 from datetime import UTC
 from typing import TYPE_CHECKING, cast
 
-from session_sniffer.constants.local import USERIP_DATABASES_DIR_PATH
+from session_sniffer.guis.userip_manager_helpers import format_userip_db_display_name
 from session_sniffer.networking.looky_system import LookyState
 from session_sniffer.rendering_core.types import CaptureState
 from session_sniffer.settings.settings import Settings
@@ -129,8 +129,7 @@ def format_userip_database(userip: UserIP | None) -> str:
     """Return the relative UserIP database path or 'No' when not present."""
     if userip is None:
         return 'No'
-    relative_path = userip.db_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix('')
-    return str(relative_path)
+    return format_userip_db_display_name(userip.db_path)
 
 
 def userip_database_text(player: Player) -> str:
