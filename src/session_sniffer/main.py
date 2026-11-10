@@ -22,7 +22,6 @@ from session_sniffer.background import (
     handle_detection_notification,
     hostname_core,
     iplookup_core,
-    is_gta5_relay_ip,
     monitor_gta5_relay_task,
     pinger_core,
     player_rates_core,
@@ -79,6 +78,7 @@ from session_sniffer.networking.ip_range import check_ip_against_ranges
 from session_sniffer.networking.manuf_lookup import MacLookup
 from session_sniffer.networking.ps3_resolver import extract_ps3_username
 from session_sniffer.networking.reverse_dns import reset_resolver_cache
+from session_sniffer.networking.third_party_servers import is_gta5_relay_ip
 from session_sniffer.player.combo_rules import ComboRulesManager
 from session_sniffer.player.detections import GUIDetectionSettings
 from session_sniffer.player.registry import PlayersRegistry, SessionTracker

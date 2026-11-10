@@ -133,6 +133,7 @@ _ALL_THIRD_PARTY_SERVER_NETWORKS = tuple(
     ipaddress.collapse_addresses([network for server in ThirdPartyServers for network in server.ip_networks if isinstance(network, ipaddress.IPv4Network)]),
 )
 _ALL_THIRD_PARTY_SERVER_OBJ_RANGES = _build_ip_obj_ranges(_ALL_THIRD_PARTY_SERVER_NETWORKS)
+_GTA5_RELAY_OBJ_RANGES = ThirdPartyServers.get_ip_obj_ranges_for(('TAKETWO_INTERACTIVE', 'MICROSOFT'))
 
 MAX_IPV4 = IPv4Address('255.255.255.255')
 
@@ -153,3 +154,13 @@ def is_third_party_server_ip(ip: str) -> bool:
     except ipaddress.AddressValueError:
         return False
     return is_ip_in_ranges(ip_obj, _ALL_THIRD_PARTY_SERVER_OBJ_RANGES)
+
+
+@lru_cache(maxsize=65536)
+def is_gta5_relay_ip(ip: str) -> bool:
+    """Return True if `ip` belongs to the GTA V Take-Two Interactive or Microsoft relay IP ranges."""
+    try:
+        ip_obj = IPv4Address(ip)
+    except ipaddress.AddressValueError:
+        return False
+    return is_ip_in_ranges(ip_obj, _GTA5_RELAY_OBJ_RANGES)

@@ -523,7 +523,11 @@ def rendering_core(
                 ModMenuLogsParser.refresh()
                 last_modmenu_refresh_time = time.monotonic()
             all_modmenu_usernames = ModMenuLogsParser.get_all_ip_to_usernames_map()
-            all_relay_usernames = ModMenuLogsParser.get_relay_ip_to_usernames_map()
+            all_relay_usernames = (
+                ModMenuLogsParser.get_relay_ip_to_usernames_map()
+                if CaptureState.gta5_is_running or not CaptureState.is_local_capture()
+                else {}
+            )
         else:
             all_modmenu_usernames = {}
             all_relay_usernames = {}
@@ -572,11 +576,7 @@ def rendering_core(
             else:
                 looky_complete = not _looky_active_changed
             modmenu_usernames_for_player = all_modmenu_usernames.get(player.ip)
-            relay_usernames_for_player = (
-                all_relay_usernames.get(player.ip)
-                if not player.left_event.is_set() or (player.mod_menus is None and player.session_id == current_session_id)
-                else None
-            )
+            relay_usernames_for_player = all_relay_usernames.get(player.ip) if not player.left_event.is_set() else None
             if relay_usernames_for_player is not None and relay_usernames_for_player:
                 modmenu_complete = (
                     player.mod_menus is not None
@@ -584,13 +584,11 @@ def rendering_core(
                     and player.mod_menus.usernames == relay_usernames_for_player
                     and player.is_gta5_relay
                 )
-            elif player.mod_menus is not None and player.mod_menus.is_relay:
-                modmenu_complete = all(name in player.usernames for name in player.mod_menus.usernames)
             else:
                 modmenu_complete = (
                     not bool(modmenu_usernames_for_player)
                     if player.mod_menus is None
-                    else player.mod_menus.usernames == modmenu_usernames_for_player
+                    else (not player.mod_menus.is_relay and player.mod_menus.usernames == modmenu_usernames_for_player)
                 )
             ps3_complete = not bool(player.ps3_username) or player.ps3_username in player.usernames
             usernames_complete = looky_complete and modmenu_complete and ps3_complete and not _auto_feed_retriggered
@@ -631,8 +629,6 @@ def rendering_core(
                 if not player.is_gta5_relay:
                     player.is_gta5_relay = True
                     newly_detected_relay = not player.left_event.is_set()
-            elif player.has_relay_mod_menus:
-                modmenu_changed = False
             elif modmenu_usernames_for_player is not None and modmenu_usernames_for_player:
                 modmenu_changed = (
                     player.mod_menus is None
@@ -647,7 +643,7 @@ def rendering_core(
                     player.mod_menus.usernames[:] = modmenu_usernames_for_player
                     player.mod_menus.is_relay = False
             else:
-                modmenu_changed = False
+                modmenu_changed = player.mod_menus is not None
                 player.mod_menus = None
 
             include_looky = _current_looky_active and looky_initialized
@@ -687,13 +683,12 @@ def rendering_core(
                     _userip_not_found.add(snapshot_player.ip)
                 else:
                     snapshot_player.userip = resolved
-            if snapshot_player.mod_menus is None or not snapshot_player.mod_menus.is_relay:
-                snapshot_modmenu = all_modmenu_usernames.get(snapshot_player.ip)
-                snapshot_player.mod_menus = (
-                    PlayerModMenus(usernames=list(snapshot_modmenu))
-                    if snapshot_modmenu is not None and snapshot_modmenu
-                    else None
-                )
+            snapshot_modmenu = all_modmenu_usernames.get(snapshot_player.ip)
+            snapshot_player.mod_menus = (
+                PlayerModMenus(usernames=list(snapshot_modmenu))
+                if snapshot_modmenu is not None and snapshot_modmenu
+                else None
+            )
             with snapshot_player.looky_system.lock:
                 snapshot_looky_usernames = list(snapshot_player.looky_system.usernames) if _current_looky_active and snapshot_player.looky_system.is_initialized else ()
             snapshot_player.rebuild_usernames(looky_usernames=snapshot_looky_usernames)

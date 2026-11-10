@@ -4,7 +4,6 @@ import csv
 import time
 from concurrent.futures import Future, ThreadPoolExecutor
 from datetime import datetime, timedelta
-from ipaddress import IPv4Address
 from threading import Lock, Thread
 from typing import TYPE_CHECKING, Literal, NamedTuple, TypedDict, cast
 
@@ -28,7 +27,7 @@ from session_sniffer.guis.utils import find_main_window
 from session_sniffer.models.combo_rules import format_combo_conditions_summary
 from session_sniffer.models.player_lookup import PlayerUserIPDetection
 from session_sniffer.networking.geolite2 import query_geolite2_asn, query_geolite2_city, query_geolite2_country
-from session_sniffer.networking.third_party_servers import ThirdPartyServers, is_ip_in_ranges
+from session_sniffer.networking.third_party_servers import is_gta5_relay_ip
 from session_sniffer.player.combo_rules import ComboRulesManager, matches_asn_entry, matches_player_isp
 from session_sniffer.player.detections import GUIDetectionSettings
 from session_sniffer.player.registry import PlayersRegistry
@@ -45,7 +44,6 @@ if TYPE_CHECKING:
 
     from session_sniffer.models.player import Player
 
-_GTA5_RELAY_RANGES = ThirdPartyServers.get_ip_obj_ranges_for(['TAKETWO_INTERACTIVE', 'MICROSOFT'])
 _DETECTION_CSV_HEADERS = ('Detection', 'Usernames', 'IP', 'Date', 'Time', 'Country')
 _USERIP_CSV_HEADERS = ('Database', 'Usernames', 'IP', 'Date', 'Time', 'Country')
 
@@ -482,11 +480,6 @@ def trigger_auto_username_userip(player: Player, detected_usernames: Sequence[st
             player.usernames = dedup_preserve_order(player.usernames, resolved_userip.usernames)
 
     wake_rendering_core()
-
-
-def is_gta5_relay_ip(ip: str) -> bool:
-    """Return True if *ip* belongs to the GTAV Take-Two Interactive or Microsoft relay IP ranges."""
-    return is_ip_in_ranges(IPv4Address(ip), _GTA5_RELAY_RANGES)
 
 
 def monitor_gta5_relay_task(player: Player) -> None:

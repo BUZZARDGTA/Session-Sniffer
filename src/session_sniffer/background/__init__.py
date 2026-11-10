@@ -13,7 +13,6 @@ from session_sniffer.background.cores import (
 )
 from session_sniffer.background.tasks import (
     handle_detection_notification,
-    is_gta5_relay_ip,
     monitor_gta5_relay_task,
     player_rates_core,
     process_userip_task,
@@ -30,7 +29,6 @@ __all__ = [
     'handle_detection_notification',
     'hostname_core',
     'iplookup_core',
-    'is_gta5_relay_ip',
     'monitor_gta5_relay_task',
     'pinger_core',
     'player_rates_core',

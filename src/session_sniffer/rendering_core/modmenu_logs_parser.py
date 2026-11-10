@@ -10,6 +10,7 @@ from threading import Lock
 from typing import TYPE_CHECKING, ClassVar
 
 from session_sniffer.error_messages import format_type_error
+from session_sniffer.networking.third_party_servers import is_gta5_relay_ip
 from session_sniffer.utils import FileSignature, get_documents_dir, get_file_signature
 
 if TYPE_CHECKING:
@@ -139,7 +140,13 @@ class ModMenuLogsParser:
         return newest_menu_name, None, failed_paths
 
     @staticmethod
-    def _parse_ip_usernames_files(paths: Iterable[Path], expected_mod_times: FileModTimes, file_kind: str) -> tuple[dict[str, list[str]], set[Path]]:
+    def _parse_ip_usernames_files(
+        paths: Iterable[Path],
+        expected_mod_times: FileModTimes,
+        file_kind: str,
+        *,
+        skip_relay_ips: bool = False,
+    ) -> tuple[dict[str, list[str]], set[Path]]:
         """Parse mod menu line-based log files into an ordered IP-to-usernames map."""
         temp_map: UsernamesByIP = defaultdict(list)
         failed_paths: set[Path] = set()
@@ -162,6 +169,8 @@ class ModMenuLogsParser:
                             raise TypeError(format_type_error(username, str))
                         if not isinstance(ip, str):
                             raise TypeError(format_type_error(ip, str))
+                        if skip_relay_ips and is_gta5_relay_ip(ip):
+                            continue
 
                         if username not in temp_map[ip]:
                             temp_map[ip].append(username)
@@ -204,7 +213,7 @@ class ModMenuLogsParser:
         frozen_map: dict[str, list[str]] | None = None
         failed_log_paths: set[Path] = set()
         if logs_changed:
-            frozen_map, failed_log_paths = cls._parse_ip_usernames_files(LOGS_PATHS, current_mod_times, 'log')
+            frozen_map, failed_log_paths = cls._parse_ip_usernames_files(LOGS_PATHS, current_mod_times, 'log', skip_relay_ips=True)
 
         # Step 3: atomically update class variables under the lock
         with cls._lock:
@@ -213,7 +222,11 @@ class ModMenuLogsParser:
                     cls._active_host_menu_name = active_host_menu_name
                     cls._session_host_entry = parsed_host_entry
                 cls._last_host_mod_times = {p: (-1, -1, -1, -1) if p in failed_host_paths else sig for p, sig in current_host_mod_times.items()}
-                if parsed_host_entry is not None and parsed_host_entry.username not in cls._host_ip_to_usernames_map[parsed_host_entry.ip]:
+                if (
+                    parsed_host_entry is not None
+                    and not is_gta5_relay_ip(parsed_host_entry.ip)
+                    and parsed_host_entry.username not in cls._host_ip_to_usernames_map[parsed_host_entry.ip]
+                ):
                     cls._host_ip_to_usernames_map[parsed_host_entry.ip].append(parsed_host_entry.username)
             if relays_changed and parsed_relays_map is not None:
                 if not failed_relay_paths:

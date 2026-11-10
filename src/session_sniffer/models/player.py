@@ -152,16 +152,24 @@ class Player:
         """Return True if this player has session-local relay usernames from a mod menu."""
         return self.mod_menus is not None and self.mod_menus.is_relay
 
+    def clear_relay_usernames(self) -> None:
+        """Clear session-local relay mod menu usernames and rebuild `usernames`."""
+        if not self.has_relay_mod_menus:
+            return
+        self.mod_menus = None
+        if self.looky_system.is_initialized:
+            with self.looky_system.lock:
+                looky_names: Sequence[str] = tuple(self.looky_system.usernames)
+        else:
+            looky_names = ()
+        self.rebuild_usernames(looky_usernames=looky_names)
+
     def reset_session_relay_state(self) -> None:
         """Reset session-local relay detection and relay mod menu usernames."""
         self.detection_checked = False
         self.relay_monitor_started = False
         self.is_gta5_relay = False
-        if self.has_relay_mod_menus:
-            self.mod_menus = None
-            self.rebuild_usernames(
-                looky_usernames=self.looky_system.usernames if self.looky_system.is_initialized else (),
-            )
+        self.clear_relay_usernames()
 
     def mark_as_seen(self, *, port: int, packet_datetime: datetime_type, packet_length: int, sent_by_local_host: bool) -> None:
         """Update per-player state from an observed packet."""
@@ -222,6 +230,7 @@ class Player:
         self.left_event.set()
         self.detection_checked = False
         self.relay_monitor_started = False
+        self.clear_relay_usernames()
 
         self.datetime.set_session_time()
         self.packets.pps.reset()
@@ -278,10 +287,10 @@ class Player:
         clone.usernames = list(self.usernames)
         clone.detached_userip_usernames_cf = set(self.detached_userip_usernames_cf)
         if self.mod_menus is not None:
-            clone.mod_menus = PlayerModMenus(
-                usernames=list(self.mod_menus.usernames),
-                is_relay=self.mod_menus.is_relay,
-            )
+            if self.mod_menus.is_relay:
+                clone.clear_relay_usernames()
+            else:
+                clone.mod_menus = PlayerModMenus(usernames=list(self.mod_menus.usernames))
         if self.userip_detection is not None:
             clone.userip_detection = copy.copy(self.userip_detection)
         clone.ping = copy.copy(self.ping)

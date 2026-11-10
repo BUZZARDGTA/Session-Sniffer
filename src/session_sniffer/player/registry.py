@@ -721,25 +721,21 @@ class SessionTracker:
                         snapshot.is_third_party_server = player_snapshot.is_third_party_server
                         snapshot.detached_userip_usernames_cf = set(player_snapshot.detached_userip_usernames_cf)
                         snapshot.userip = player_snapshot.userip
-                        snapshot_is_relay = snapshot.mod_menus is not None and snapshot.mod_menus.is_relay
-                        player_is_relay = player_snapshot.mod_menus is not None and player_snapshot.mod_menus.is_relay
-                        if sid == player_snapshot.session_id or (not snapshot_is_relay and not player_is_relay):
-                            snapshot.mod_menus = (
-                                PlayerModMenus(
-                                    usernames=list(player_snapshot.mod_menus.usernames),
-                                    is_relay=player_snapshot.mod_menus.is_relay,
-                                )
-                                if player_snapshot.mod_menus is not None
-                                else None
-                            )
-                            if sid == player_snapshot.session_id and player_snapshot.is_gta5_relay:
-                                snapshot.is_gta5_relay = True
-                            if snapshot.usernames != player_snapshot.usernames:
-                                snapshot.usernames = list(player_snapshot.usernames)
-                        else:
+                        if sid == player_snapshot.session_id and player_snapshot.is_gta5_relay:
+                            snapshot.is_gta5_relay = True
+                        if snapshot.has_relay_mod_menus or player_snapshot.has_relay_mod_menus:
+                            snapshot.mod_menus = None
                             with snapshot.looky_system.lock:
                                 snapshot_looky = list(snapshot.looky_system.usernames) if snapshot.looky_system.is_initialized else ()
                             snapshot.rebuild_usernames(looky_usernames=snapshot_looky)
+                        else:
+                            snapshot.mod_menus = (
+                                PlayerModMenus(usernames=list(player_snapshot.mod_menus.usernames))
+                                if player_snapshot.mod_menus is not None
+                                else None
+                            )
+                            if snapshot.usernames != player_snapshot.usernames:
+                                snapshot.usernames = list(player_snapshot.usernames)
                 return
             if not player_snapshot.is_third_party_server:
                 cls._session_transition_pending_ips.pop(player_snapshot.session_id, None)
