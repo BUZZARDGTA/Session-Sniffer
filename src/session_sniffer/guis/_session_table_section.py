@@ -27,7 +27,6 @@ from session_sniffer.guis.stylesheets import (
     SECTION_HEADER_SEPARATOR_STYLESHEET,
     STATUS_BAR_LABEL_STYLESHEET,
     STATUS_BAR_PERFORMANCE_LABEL_STYLESHEET,
-    STATUS_BAR_STYLESHEET,
     section_bar_qss,
 )
 from session_sniffer.guis.table_model import SessionTableModel
@@ -49,7 +48,6 @@ class SessionStatusBar(QStatusBar):
         """Create the status bar and add the four section labels."""
         super().__init__(parent)
         self.setSizeGripEnabled(False)
-        self.setStyleSheet(STATUS_BAR_STYLESHEET)
 
         self._capture_label = QLabel()
         self._capture_label.setTextFormat(Qt.TextFormat.RichText)

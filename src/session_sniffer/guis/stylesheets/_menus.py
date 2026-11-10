@@ -152,16 +152,6 @@ QMenu::separator {
 # STATUS BAR STYLES
 # =============================================================================
 
-MENU_BAR_STYLESHEET = ''
-
-
-# =============================================================================
-# STATUS BAR STYLES
-# =============================================================================
-
-STATUS_BAR_STYLESHEET = ''
-
-
 STATUS_BAR_LABEL_STYLESHEET = """
 QLabel {
     background: transparent;

@@ -73,11 +73,6 @@ class StatusBarCaptureInfo:
 class StatusBarCaptureStats:
     """Capture statistics for the status bar."""
 
-    global_bandwidth: int
-    global_download: int
-    global_upload: int
-    global_bps_rate: int
-    global_pps_rate: int
     restarted_times: int
     last_nonzero_latency_ms: float
     last_nonzero_latency_ts: float
@@ -171,11 +166,6 @@ def _capture_global_state(capture: PacketCapture, discord_rpc_manager: DiscordRP
             overflow_timer=Settings.capture_overflow_timer,
         ),
         capture_stats=StatusBarCaptureStats(
-            global_bandwidth=CaptureStats.global_bandwidth,
-            global_download=CaptureStats.global_download,
-            global_upload=CaptureStats.global_upload,
-            global_bps_rate=CaptureStats.global_bps_rate,
-            global_pps_rate=CaptureStats.global_pps_rate,
             restarted_times=CaptureStats.restarted_times,
             last_nonzero_latency_ms=_LATENCY_STATE.last_nonzero_ms,
             last_nonzero_latency_ts=_LATENCY_STATE.last_nonzero_ts,
@@ -263,12 +253,10 @@ def _build_userip_issues_section(snapshot: StatusBarSnapshot) -> str:
     if not snapshot.userip.conflict_ip_count:
         return ''
 
-    issues: list[str] = []
-    if snapshot.userip.conflict_ip_count:
-        issues.append(f'<span style="color: {StatusBarColors.DISABLED};">Conflicts: {snapshot.userip.conflict_ip_count}</span>')
-
-    divider = f' <span style="color: {StatusBarColors.DIVIDER};"> • </span> '
-    return f'<span style="color: {StatusBarColors.DISABLED}; font-weight: bold;">UserIP Issues:</span> {divider.join(issues)}'
+    return (
+        f'<span style="color: {StatusBarColors.DISABLED}; font-weight: bold;">UserIP Issues:</span> '
+        f'<span style="color: {StatusBarColors.DISABLED};">Conflicts: {snapshot.userip.conflict_ip_count}</span>'
+    )
 
 
 def _build_performance_section(snapshot: StatusBarSnapshot) -> str:

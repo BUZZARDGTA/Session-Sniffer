@@ -74,32 +74,12 @@ class Interface:
 
     def is_interface_inactive(self) -> bool:
         """Determine if an interface is inactive based on lack of traffic, IP addresses, and identifying details."""
-        inactive_conditions = (
-            # Obvious inactive states: disabled, disconnected, unconfigured, or no traffic
-            self.state in (NETWORK_ADAPTER_DISABLED, IF_OPER_STATUS_NOT_PRESENT),
-            self.media_connect_state == MEDIA_CONNECT_STATE_DISCONNECTED,
-            not self.ip_addresses,
-            not self.ip_enabled and not self.ip_addresses,
-            not self.traffic.packets_sent and not self.traffic.packets_recv,
-            # Zero link speeds combined with no IP/traffic suggests inactive virtual adapters
-            (
-                not self.traffic.transmit_link_speed
-                and not self.traffic.receive_link_speed
-                and not self.ip_addresses
-                and not self.traffic.packets_sent
-                and not self.traffic.packets_recv
-            ),
-            # Check if all identifying details and traffic data are missing
-            (
-                not self.traffic.packets_sent
-                and not self.traffic.packets_recv
-                and not self.identity.description
-                and not self.ip_addresses
-                and not self.neighbour_entries
-            ),
+        return (
+            self.state in (NETWORK_ADAPTER_DISABLED, IF_OPER_STATUS_NOT_PRESENT)
+            or self.media_connect_state == MEDIA_CONNECT_STATE_DISCONNECTED
+            or not self.ip_addresses
+            or (not self.traffic.packets_sent and not self.traffic.packets_recv)
         )
-
-        return any(inactive_conditions)
 
 
 @dataclass(frozen=True, kw_only=True, slots=True)

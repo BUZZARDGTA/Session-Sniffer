@@ -116,9 +116,8 @@ class LookyLookupDialog(PlayerInfoDialogMixin):
         self._add_header_label(
             outer_layout,
             f'Lookup — {player.ip}',
-            '#1c0a38',
-            '#2e1065',
-        ).setStyleSheet(LOOKY_CRAWLER_HEADER_STYLESHEET)
+            stylesheet=LOOKY_CRAWLER_HEADER_STYLESHEET,
+        )
 
         scroll_layout = self._init_scroll_area(outer_layout)
 

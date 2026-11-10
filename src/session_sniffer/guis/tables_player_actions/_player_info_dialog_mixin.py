@@ -148,12 +148,6 @@ class PlayerInfoDialogMixin(QDialog):
         super().done(r)
 
     @override
-    def reject(self) -> None:
-        """Stop background refresh and reject the dialog."""
-        self._on_dialog_closing()
-        super().reject()
-
-    @override
     def closeEvent(self, event: QCloseEvent) -> None:
         """Stop background refresh when the dialog is closed."""
         self._on_dialog_closing()
@@ -163,11 +157,19 @@ class PlayerInfoDialogMixin(QDialog):
         """Apply a scaled minimum size and an adaptive resize based on the available screen resolution."""
         apply_adaptive_window_size(self, min_size=(560, 420), size_1080p=(700, 560), size_720p=(620, 500))
 
-    def _add_header_label(self, outer_layout: QVBoxLayout, text: str, grad_stop0: str, grad_stop1: str) -> QLabel:
-        """Create a gradient header label, add it to *outer_layout*, and return it."""
+    def _add_header_label(
+        self,
+        outer_layout: QVBoxLayout,
+        text: str,
+        grad_stop0: str = '',
+        grad_stop1: str = '',
+        *,
+        stylesheet: str | None = None,
+    ) -> QLabel:
+        """Create a styled header label, add it to *outer_layout*, and return it."""
         header = QLabel(text)
         header.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        header.setStyleSheet(player_info_header_stylesheet(grad_stop0, grad_stop1))
+        header.setStyleSheet(stylesheet if stylesheet is not None else player_info_header_stylesheet(grad_stop0, grad_stop1))
         header.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse | Qt.TextInteractionFlag.TextSelectableByKeyboard)
         outer_layout.addWidget(header)
         return header

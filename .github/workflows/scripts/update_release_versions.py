@@ -79,8 +79,7 @@ def main() -> None:
     target_key = 'latest_prerelease' if args.prerelease else 'latest_stable'
 
     data[target_key] = {
-        'base_version': version.base_version,
-        'epoch': version.epoch,
+        'version': str(version),
         'release_url': args.release_url,
         'download_url': args.download_url,
         'sha256': args.sha256,
@@ -91,21 +90,10 @@ def main() -> None:
         'darwin_download_url': args.darwin_download_url,
         'darwin_sha256': args.darwin_sha256,
         'darwin_file_size': args.darwin_file_size,
-        'is_devrelease': version.is_devrelease,
-        'is_postrelease': version.is_postrelease,
         'is_prerelease': version.is_prerelease,
-        'local': version.local,
-        'major': version.major,
-        'micro': version.micro,
-        'minor': version.minor,
-        'post': version.post,
-        'pre': version.pre,
-        'public': version.public,
-        'release': version.release,
-        'version': str(version),
     }
 
-    json_path.write_text(json.dumps(data, indent=4) + '\n', encoding='utf-8')
+    json_path.write_text(json.dumps(data, indent=4) + '\n', encoding='utf-8', newline='\r\n')
 
 
 if __name__ == '__main__':

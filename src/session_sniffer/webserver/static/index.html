@@ -193,13 +193,6 @@
             min-width: 0;
         }
 
-        .player-summary-ip {
-            font-size: 12px;
-            color: #8fbcbb;
-            white-space: nowrap;
-            opacity: 0.9;
-        }
-
         .player-summary-chevron {
             font-size: 18px;
             color: #8f9bb3;
@@ -247,31 +240,6 @@
             font-size: 13px;
             text-align: right;
             word-break: break-word;
-        }
-
-        .table-cell {
-            display: flex;
-            flex-direction: column;
-            min-width: 0;
-        }
-
-        .cell-label {
-            font-size: 10px;
-            color: #8f9bb3;
-            margin-bottom: 5px;
-            text-transform: uppercase;
-            letter-spacing: 0.08em;
-        }
-
-        .cell-value {
-            color: #eceff4;
-            font-weight: 700;
-            word-break: break-word;
-            line-height: 1.4;
-        }
-
-        .cell-value.highlight {
-            color: #8fbcbb;
         }
 
         .empty-state {
@@ -354,10 +322,6 @@
 
             .tabs {
                 flex-direction: column;
-            }
-
-            .table-row {
-                grid-template-columns: 1fr;
             }
 
             .table-header {
@@ -473,7 +437,6 @@
     </div>
 
     <script>
-        let lastVersion = 0;
         let isConnected = false;
 
         function switchTab(event, tabId) {
@@ -642,7 +605,6 @@
                         console.log('Keep-alive received');
                         return;
                     }
-                    lastVersion = data.version;
                     updateStatus(data);
                 } catch (e) {
                     console.error('Error parsing message:', e);

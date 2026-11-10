@@ -359,7 +359,7 @@ def _run_elevated_powershell_script(script_text: str) -> tuple[str, str]:
         return output_path.read_text(encoding='utf-8-sig').strip(), ''
 
 
-def _run_powershell_script(script_text: str, *arguments: str, elevate: bool = False) -> dict[str, object]:
+def _run_powershell_script(script_text: str, *, elevate: bool = False) -> dict[str, object]:
     """Execute a PowerShell command string safely and return decoded JSON output."""
     if sys.platform != 'win32':
         return {'Success': False, 'Error': 'Hotspot and ICS management is only supported on Windows.'}
@@ -368,8 +368,6 @@ def _run_powershell_script(script_text: str, *arguments: str, elevate: bool = Fa
         stdout_text, stderr_text = _run_elevated_powershell_script(script_text)
     else:
         command_args = ['powershell.exe', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', script_text]
-        if arguments:
-            command_args.extend(arguments)
 
         creation_flags = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
         try:

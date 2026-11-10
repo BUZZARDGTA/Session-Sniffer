@@ -11,14 +11,13 @@ from session_sniffer.utils import format_project_version, get_app_dir, get_worki
 
 SCRIPT_DIR: Path = get_working_directory_to_script_location()
 
-PYPROJECT_PATH: Path = resource_path(Path('pyproject.toml'))
 RESOURCES_DIR_PATH: Path = resource_path(Path('resources'))
 IMAGES_DIR_PATH: Path = RESOURCES_DIR_PATH / 'images'
 BUILTIN_SCRIPTS_DIR_PATH: Path = resource_path(Path('scripts'))
 TTS_DIR_PATH: Path = RESOURCES_DIR_PATH / 'tts'
 
 
-PYPROJECT_DATA: dict[str, Any] = tomllib.loads(PYPROJECT_PATH.read_text(encoding='utf-8'))
+PYPROJECT_DATA: dict[str, Any] = tomllib.loads(resource_path(Path('pyproject.toml')).read_text(encoding='utf-8'))
 CURRENT_VERSION: Version = Version(str(RELEASE_TAG)) if str(RELEASE_TAG) != '-' else Version(PYPROJECT_DATA['project']['version'])
 VERSION: str = format_project_version(CURRENT_VERSION)
 

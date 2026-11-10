@@ -24,40 +24,6 @@ class ManufLineParseError(ValueError):
         super().__init__(f'Failed to parse manuf line: {line!r}')
 
 
-class InvalidManufEntryFieldError(TypeError):
-    """Base class for all ManufEntry field type errors."""
-
-    def __init__(self, field_name: str, value: object) -> None:
-        """Initialize the exception with field information."""
-        super().__init__(
-            f'Invalid type for {field_name}: expected str but got {type(value).__name__} ({value!r})',
-        )
-
-
-class InvalidMacAddressBlockError(InvalidManufEntryFieldError):
-    """Exception raised when `mac_address_block` is invalid."""
-
-    def __init__(self, value: object) -> None:
-        """Initialize the exception with the invalid MAC address block."""
-        super().__init__('mac_address_block', value)
-
-
-class InvalidPrefixLengthBitsError(InvalidManufEntryFieldError):
-    """Exception raised when `prefix_length_bits` is invalid."""
-
-    def __init__(self, value: object) -> None:
-        """Initialize the exception with the invalid prefix length (bits)."""
-        super().__init__('prefix_length_bits', value)
-
-
-class InvalidFullVendorNameError(InvalidManufEntryFieldError):
-    """Exception raised when the full vendor name is invalid."""
-
-    def __init__(self, value: object) -> None:
-        """Initialize the exception with the invalid full vendor name."""
-        super().__init__('full_vendor_name', value)
-
-
 class AllEndpointsExhaustedError(Exception):
     """Exception raised when all endpoints have been exhausted."""
 

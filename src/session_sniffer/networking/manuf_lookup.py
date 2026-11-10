@@ -7,12 +7,7 @@ import re
 from typing import ClassVar, NamedTuple
 
 from session_sniffer.constants.local import RESOURCES_DIR_PATH
-from session_sniffer.networking.exceptions import (
-    InvalidFullVendorNameError,
-    InvalidMacAddressBlockError,
-    InvalidPrefixLengthBitsError,
-    ManufLineParseError,
-)
+from session_sniffer.networking.exceptions import ManufLineParseError
 from session_sniffer.networking.utils import is_mac_address
 
 type ManufDatabaseType = dict[str, list[ManufEntry]]
@@ -76,19 +71,11 @@ def _parse_and_load_manuf_database() -> ManufDatabaseType:
         if not match:
             raise ManufLineParseError(line)
 
-        mac_address_block, prefix_length_bits, full_vendor_name = match.group(
-            'mac_address_block',
-            'prefix_length_bits',
-            'full_vendor_name',
-        )
-        if not isinstance(mac_address_block, str):
-            raise InvalidMacAddressBlockError(mac_address_block)
-        if not isinstance(prefix_length_bits, (str, type(None))):
-            raise InvalidPrefixLengthBitsError(prefix_length_bits)
-        if not isinstance(full_vendor_name, str):
-            raise InvalidFullVendorNameError(full_vendor_name)
+        mac_address_block = match['mac_address_block']
+        prefix_length_bits = match.group('prefix_length_bits')
+        full_vendor_name = match['full_vendor_name']
 
-        prefix_length_bits_int = int(prefix_length_bits) if isinstance(prefix_length_bits, str) else 24
+        prefix_length_bits_int = int(prefix_length_bits) if prefix_length_bits is not None else 24
         prefix_int = _mac_address_block_str_to_int(mac_address_block)
 
         entry = ManufEntry(
@@ -123,10 +110,10 @@ class MacLookup:
     @classmethod
     def _find_best_match(cls, mac_address: str) -> ManufEntry | None:
         """Find the best matching `ManufEntry` for the given MAC address, with support for longest-prefix matching."""
-        if cls._database is None:
-            cls.load()
-        if cls._database is None:
-            return None
+        database = cls._database
+        if database is None:
+            database = _parse_and_load_manuf_database()
+            cls._database = database
 
         mac_int = _mac_str_to_int(mac_address)
         normalized_mac = mac_address.replace('-', ':').upper()
@@ -140,7 +127,7 @@ class MacLookup:
         best_prefix_length_bits = -1
 
         for candidate_key in candidate_keys:
-            for manuf in cls._database.get(candidate_key, ()):
+            for manuf in database.get(candidate_key, ()):
                 if _matches_prefix(mac_int, manuf.prefix_int, manuf.prefix_length_bits) and manuf.prefix_length_bits > best_prefix_length_bits:
                     best_prefix_length_bits = manuf.prefix_length_bits
                     best_entry = manuf

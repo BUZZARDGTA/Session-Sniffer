@@ -22,25 +22,15 @@ UAUDP_PORT: int = 4569
 CLASSICSTUN_PORT: int = 3478
 LLMNR_PORT: int = 5355
 
-# Setting names for payload-inspection-based capture filters.
-CAPTURE_FILTER_BLOCK_PAYLOAD_SETTINGS: tuple[str, ...] = (
+# Setting names for all capture filter block settings (payload + port).
+CAPTURE_FILTER_BLOCK_SETTINGS: tuple[str, ...] = (
     'CAPTURE_FILTER_BLOCK_RTCP',
     'CAPTURE_FILTER_BLOCK_DTLS',
-)
-
-# Setting names for port-based capture filters.
-CAPTURE_FILTER_BLOCK_PORT_SETTINGS: tuple[str, ...] = (
     'CAPTURE_FILTER_BLOCK_SSDP',
     'CAPTURE_FILTER_BLOCK_RAKNET',
     'CAPTURE_FILTER_BLOCK_UAUDP',
     'CAPTURE_FILTER_BLOCK_CLASSICSTUN',
     'CAPTURE_FILTER_BLOCK_LLMNR',
-)
-
-# Combined tuple of all capture filter block settings (payload + port).
-CAPTURE_FILTER_BLOCK_SETTINGS: tuple[str, ...] = (
-    *CAPTURE_FILTER_BLOCK_PAYLOAD_SETTINGS,
-    *CAPTURE_FILTER_BLOCK_PORT_SETTINGS,
 )
 
 # Maximum duration in seconds for suspend rules and actions.

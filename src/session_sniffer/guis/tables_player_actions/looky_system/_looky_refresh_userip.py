@@ -292,7 +292,7 @@ class LookyRefreshReviewDialog(PlayerInfoDialogMixin):
         self._available_dbs = _list_available_databases(unique_dbs | {entry.target_db_path for entry in pending_entries})
         outer_layout = QVBoxLayout(self)
         outer_layout.setContentsMargins(12, 12, 12, 12)
-        self._add_header_label(outer_layout, '\U0001f441  Looky \u2014 UserIP Refresh Review', '#1c0a38', '#2e1065').setStyleSheet(LOOKY_CRAWLER_HEADER_STYLESHEET)
+        self._add_header_label(outer_layout, '\U0001f441  Looky \u2014 UserIP Refresh Review', stylesheet=LOOKY_CRAWLER_HEADER_STYLESHEET)
         total_new = sum(1 for entry in pending_entries if not entry.is_confirmation and not entry.is_known_in_db)
         total_matches = sum(1 for entry in pending_entries if entry.is_confirmation or entry.is_known_in_db)
         total_suspects = sum(len(entry.suspect_removals) for entry in pending_entries) + len(standalone_removals)

@@ -1,13 +1,12 @@
 """Main window implementation for Session Sniffer."""
 
 import logging
-import sys
 import threading
 import time
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, override
 
-from PySide6.QtCore import QEvent, QObject, Qt, QTimer, Slot
+from PySide6.QtCore import Qt, QTimer, Slot
 from PySide6.QtGui import QAction, QCloseEvent, QIcon, QKeySequence, QShortcut, QShowEvent
 from PySide6.QtWidgets import (
     QLabel,
@@ -39,7 +38,6 @@ from session_sniffer.guis.ping_window import PingWindow
 from session_sniffer.guis.player_resolver import PlayerResolverWindow
 from session_sniffer.guis.port_scanner_window import PortScannerWindow
 from session_sniffer.guis.settings_dialog import SettingsDialog
-from session_sniffer.guis.stylesheets import MENU_BAR_STYLESHEET
 from session_sniffer.guis.tables_player_actions.looky_system._looky_crawler_request_dialog import close_all_crawler_dialogs
 from session_sniffer.guis.tables_player_actions.looky_system._looky_lookup_dialog import close_all_lookup_dialogs
 from session_sniffer.guis.userip_conflict_resolver import open_userip_conflict_resolver
@@ -95,7 +93,6 @@ class _WindowState:
     """Mutable runtime state for the main window."""
 
     worker_thread: GUIWorkerThread
-    window_being_moved: bool
     min_accepted_snapshot_version: int
     last_selected_session: int = SessionFilterState.FILTER_ALL
 
@@ -276,7 +273,6 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
         if not menu_bar:
             message = 'Failed to get menu bar'
             raise RuntimeError(message)
-        menu_bar.setStyleSheet(MENU_BAR_STYLESHEET)
 
         self._actions = self._build_capture_menu(menu_bar)
         self._build_game_menu(menu_bar)
@@ -383,7 +379,6 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
         worker_thread = GUIWorkerThread()
         self._state = _WindowState(
             worker_thread=worker_thread,
-            window_being_moved=False,
             min_accepted_snapshot_version=0,
         )
         self._state.worker_thread.update_signal.connect(self._update_gui)
@@ -492,60 +487,6 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
     def show_discord_intro(self) -> None:
         """Open the Discord intro dialog, retaining a reference to prevent garbage collection."""
         show_or_focus_window(self, '_discord_intro_window', lambda: DiscordIntro(self))
-
-    @override
-    def eventFilter(self, a0: QObject, a1: QEvent) -> bool:
-        """Filter events to detect window movement."""
-        if not isValid(a0):
-            return False
-        if a0 == self and a1:
-            event_type = a1.type()
-
-            if event_type in (QEvent.Type.Move, QEvent.Type.Resize, QEvent.Type.WindowStateChange) and not self._state.window_being_moved:
-                self._start_window_move()
-
-            elif (
-                event_type
-                in (
-                    QEvent.Type.WindowActivate,
-                    QEvent.Type.WindowDeactivate,
-                    QEvent.Type.NonClientAreaMouseButtonRelease,
-                    QEvent.Type.Enter,
-                    QEvent.Type.HoverEnter,
-                )
-                and self._state.window_being_moved
-            ):
-                self._end_window_move()
-
-        return super().eventFilter(a0, a1)
-
-    def _start_window_move(self) -> None:
-        """Apply transparency when window movement/dragging starts."""
-        self._state.window_being_moved = True
-        if sys.platform == 'win32':
-            self.setWindowOpacity(0.85)
-        self._header.setEnabled(False)
-        self._connected.set_all_enabled(enabled=False)
-        self._disconnected.set_all_enabled(enabled=False)
-        self._tables_splitter.setEnabled(False)
-        status_bar = self.statusBar()
-        if not status_bar:
-            return
-        status_bar.setEnabled(False)
-
-    def _end_window_move(self) -> None:
-        """Restore opacity and re-enable UI elements after window movement/dragging ends."""
-        self._state.window_being_moved = False
-        if sys.platform == 'win32':
-            self.setWindowOpacity(1.0)
-        self._header.setEnabled(True)
-        self._connected.set_all_enabled(enabled=True)
-        self._disconnected.set_all_enabled(enabled=True)
-        self._tables_splitter.setEnabled(True)
-        status_bar = self.statusBar()
-        if not status_bar:
-            return
-        status_bar.setEnabled(True)
 
     def _log_thread_health(self) -> None:
         """Periodically log thread health and active workers when thread state changes."""

@@ -15,8 +15,6 @@ from session_sniffer.capture.exceptions import (
     CaptureError,
     CaptureExitError,
     CaptureThreadAlreadyRunningError,
-    InvalidLengthNumericError,
-    InvalidPortNumberError,
     MalformedEthernetFrameTooShortError,
     MalformedEtherTypeError,
     MalformedIPVersionError,
@@ -31,7 +29,6 @@ from session_sniffer.capture.exceptions import (
 )
 from session_sniffer.capture.pcap import DLT_EN10MB, DLT_NULL, DLT_RAW, PcapHandle
 from session_sniffer.capture.utils.npcap_checker import ensure_npcap_adapter_bound, is_npcap_adapter_bound
-from session_sniffer.constants.standalone import MAX_PORT, MIN_PORT
 from session_sniffer.constants.standard import LOCAL_TZ
 
 if TYPE_CHECKING:
@@ -176,12 +173,6 @@ class Packet(NamedTuple):
 
         if not src_port or not dst_port:
             raise MissingPortError
-        if not MIN_PORT <= src_port <= MAX_PORT:
-            raise InvalidPortNumberError(src_port)
-        if not MIN_PORT <= dst_port <= MAX_PORT:
-            raise InvalidPortNumberError(dst_port)
-        if frame_length < 0:
-            raise InvalidLengthNumericError(frame_length)
 
         payload: bytes | None = None
         if include_payload:

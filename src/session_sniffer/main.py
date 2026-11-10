@@ -61,7 +61,6 @@ from session_sniffer.guis.exceptions import UnsupportedScreenResolutionError
 from session_sniffer.guis.interface_selection import select_interface
 from session_sniffer.guis.interface_selection_dialog import InterfaceSelectionDialog
 from session_sniffer.guis.main_window import MainWindow
-from session_sniffer.guis.player_rate_graph import DEFAULT_MAX_HISTORY
 from session_sniffer.guis.relay_conflict import prompt_to_disable_gta5_relay_if_filtered
 from session_sniffer.guis.splash_screen import SplashScreen
 from session_sniffer.guis.theme import get_stylesheet
@@ -179,7 +178,6 @@ def main() -> None:
     register_secret_provider(lambda: Settings.looky_api_key)
     register_secret_provider(lambda: Settings.webserver_password)
     Settings.rebuild_blocked_ip_ranges()
-    CaptureStats.resize_history_deques(DEFAULT_MAX_HISTORY)
 
     GUIDetectionSettings.load_from_file_or_defaults(DETECTIONS_JSON_PATH)
     ComboRulesManager.load_from_file(COMBO_RULES_PATH)

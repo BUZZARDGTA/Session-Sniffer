@@ -959,16 +959,10 @@ class InterfaceSelectionDialog(QDialog):
             InterfaceSelectionDialog._instance = None
 
     @override
-    def accept(self) -> None:
-        """Accept the dialog and cancel any running ARP refresh."""
+    def done(self, r: int) -> None:
+        """Stop timers, cancel any running ARP refresh, and finalize the dialog."""
         self._cleanup_dialog()
-        super().accept()
-
-    @override
-    def reject(self) -> None:
-        """Stop timers, cancel any running ARP refresh, and reject the dialog."""
-        self._cleanup_dialog()
-        super().reject()
+        super().done(r)
 
     @override
     def closeEvent(self, event: QCloseEvent) -> None:

@@ -25,7 +25,6 @@ with contextlib.suppress(ImportError):
     import pwd
 
 from session_sniffer.constants.standalone import TITLE
-from session_sniffer.constants.standard import CMD_EXE
 from session_sniffer.ctypes_windows import (
     get_system32_dir,
     is_admin,
@@ -495,7 +494,8 @@ def run_cmd_script(script: Path, args: list[str] | None = None) -> None:
             _launch_detached_command(command)
         return
 
-    full_command = [str(CMD_EXE), '/K']
+    cmd_exe = str(get_system32_dir() / 'cmd.exe')
+    full_command = [cmd_exe, '/K']
 
     if script.suffix.casefold() == '.py':
         full_command.append('py')
@@ -504,7 +504,7 @@ def run_cmd_script(script: Path, args: list[str] | None = None) -> None:
     if args is not None:
         full_command.extend(args)
 
-    subprocess.run([str(CMD_EXE), '/c', 'start', '', *full_command], check=False)
+    subprocess.run([cmd_exe, '/c', 'start', '', *full_command], check=False)
 
 
 def run_elevated_powershell_command(ps_command: str, *, timeout_ms: int = 15_000) -> bool:

@@ -14,10 +14,7 @@ from PySide6.QtCore import (
     Qt,
 )
 from PySide6.QtGui import QColor, QIcon
-from PySide6.QtWidgets import (
-    QHeaderView,
-    QTableView,
-)
+from PySide6.QtWidgets import QTableView
 from shiboken6 import isValid
 
 from session_sniffer.constants.local import RESOURCES_DIR_PATH
@@ -354,8 +351,6 @@ def sort_table_rows[T: Sequence[str], C: Sequence[CellColor]](
 class SessionTableModel(QAbstractTableModel):
     """Provide a Qt table model for rendering connected/disconnected sessions."""
 
-    TABLE_CELL_TOOLTIP_MARGIN = 8  # Margin in pixels for determining when to show tooltips for truncated text
-
     def __init__(self, headers: list[str]) -> None:
         """Initialize the table model with a set of column headers.
 
@@ -530,49 +525,31 @@ class SessionTableModel(QAbstractTableModel):
             background_color = self._compiled_colors[row_index][column_index].background
             if background_color is not None:
                 output = background_color
-        elif role == Qt.ItemDataRole.ToolTipRole:
-            # Return the tooltip text for the cell
-            horizontal_header = self.view.horizontalHeader()
-            resize_mode = horizontal_header.sectionResizeMode(index.column())
-
-            # Return None if the column resize mode isn't set to Stretch, as it shouldn't be truncated
-            if resize_mode == QHeaderView.ResizeMode.Stretch and column_index != self.username_column_index:
-                cell_text = self._data[row_index][column_index]
-
-                font_metrics = self.view.fontMetrics()
-                text_width = font_metrics.horizontalAdvance(cell_text)
-                column_width = self.view.columnWidth(index.column())
-
-                if text_width > column_width - self.TABLE_CELL_TOOLTIP_MARGIN:
-                    output = cell_text
-
-            if self.ip_column_index >= 0 and self.ip_column_index == column_index:
-                ip = self._get_ip_from_data_safely(self._data[row_index])
-                matched_player = self.resolve_row_player(ip)
-                tooltips: list[str] = []
-                if bool(output):
-                    tooltips.append(str(output))
-                if (not self.view.is_connected_table or TableMergeState.is_merged()) and matched_player is not None:
-                    session_name = SessionTracker.get_session_name(matched_player.session_id)
-                    session_label = (
-                        f'Session #{matched_player.session_id} ({session_name})'
-                        if session_name is not None
-                        else f'Session #{matched_player.session_id}'
-                    )
-                    if matched_player.session_id == SessionTracker.get_current_session_id():
-                        tooltips.append(f'Current Session ({session_label})')
-                    else:
-                        tooltips.append(f'Past Session ({session_label})')
-                if Settings.gui_session_host_icon and Settings.is_session_host_feature_set() and self._is_row_session_host(ip):
-                    tooltips.append('Session Host')
-                if Settings.gta5_relay_icon and Settings.is_gta5_feature_set() and matched_player is not None and matched_player.is_gta5_relay:
-                    tooltips.append('GTA5 Relay')
-                if Settings.high_rate_monitor_icon and HighRateTracker.is_high_rate(ip):
-                    tooltips.append('High-Rate traffic detected (exceeds PPS/BPS thresholds)')
-                if Settings.player_identifier_icon and PlayerIdentifierTracker.is_identified(ip):
-                    tooltips.append('Identified player (Player Identifier)')
-                if tooltips:
-                    output = '\n'.join(tooltips)
+        elif role == Qt.ItemDataRole.ToolTipRole and self.ip_column_index >= 0 and self.ip_column_index == column_index:
+            ip = self._get_ip_from_data_safely(self._data[row_index])
+            matched_player = self.resolve_row_player(ip)
+            tooltips: list[str] = []
+            if (not self.view.is_connected_table or TableMergeState.is_merged()) and matched_player is not None:
+                session_name = SessionTracker.get_session_name(matched_player.session_id)
+                session_label = (
+                    f'Session #{matched_player.session_id} ({session_name})'
+                    if session_name is not None
+                    else f'Session #{matched_player.session_id}'
+                )
+                if matched_player.session_id == SessionTracker.get_current_session_id():
+                    tooltips.append(f'Current Session ({session_label})')
+                else:
+                    tooltips.append(f'Past Session ({session_label})')
+            if Settings.gui_session_host_icon and Settings.is_session_host_feature_set() and self._is_row_session_host(ip):
+                tooltips.append('Session Host')
+            if Settings.gta5_relay_icon and Settings.is_gta5_feature_set() and matched_player is not None and matched_player.is_gta5_relay:
+                tooltips.append('GTA5 Relay')
+            if Settings.high_rate_monitor_icon and HighRateTracker.is_high_rate(ip):
+                tooltips.append('High-Rate traffic detected (exceeds PPS/BPS thresholds)')
+            if Settings.player_identifier_icon and PlayerIdentifierTracker.is_identified(ip):
+                tooltips.append('Identified player (Player Identifier)')
+            if tooltips:
+                output = '\n'.join(tooltips)
 
         return output
 

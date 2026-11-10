@@ -5,8 +5,6 @@ This module contains custom exception classes for packet capture operations.
 
 from typing import override
 
-from session_sniffer.constants.standalone import MAX_PORT, MIN_PORT
-
 
 class CaptureError(Exception):
     """Base exception for all capture-related errors."""
@@ -89,18 +87,6 @@ class MissingPortError(MalformedPacketError):
     """Raised when source or destination port is missing/empty."""
 
     message_template = 'Missing port'
-
-
-class InvalidPortNumberError(MalformedPacketError):
-    """Raised when source or destination ports are not valid."""
-
-    message_template = f'Invalid port number: {{value}}. Port must be a number between {MIN_PORT} and {MAX_PORT}.'
-
-
-class InvalidLengthNumericError(MalformedPacketError):
-    """Raised when a length field is not a valid numeric format."""
-
-    message_template = 'Invalid length format: {value}. Length must be a number.'
 
 
 class CaptureExitError(CaptureError):

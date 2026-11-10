@@ -85,14 +85,14 @@ def _collect_target_ips(interfaces: Iterable[Interface]) -> list[str]:
     return sorted(targets - own_ips)
 
 
-def wake_subnet_devices(
+def refresh_arp_table(
     interfaces: Iterable[Interface],
     progress_callback: ProgressCallback | None = None,
 ) -> None:
-    """Send ICMP probes across the local subnet(s) of *interfaces* to repopulate ARP.
+    """Probe local subnets to repopulate the ARP cache via ICMP.
 
     If *progress_callback* is provided it is invoked from worker threads as
-    `progress_callback(completed, total)` after each ping completes.
+    `progress_callback(completed, total, ip)` while pings run.
     """
     target_ips = _collect_target_ips(interfaces)
     total = len(target_ips)
@@ -116,16 +116,3 @@ def wake_subnet_devices(
                 completed += 1
                 current = completed
             progress_callback(current, total, ip)
-
-
-def refresh_arp_table(
-    interfaces: Iterable[Interface],
-    progress_callback: ProgressCallback | None = None,
-) -> None:
-    """Probe local subnets to repopulate the ARP cache via ICMP.
-
-    If *progress_callback* is provided it is invoked from worker threads with
-    `(completed, total)` updates while pings run.
-    """
-    interfaces_list = list(interfaces)
-    wake_subnet_devices(interfaces_list, progress_callback)

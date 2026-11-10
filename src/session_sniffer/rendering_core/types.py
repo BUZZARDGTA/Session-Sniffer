@@ -27,7 +27,7 @@ if TYPE_CHECKING:
     from session_sniffer.models.player import Player
     from session_sniffer.rdr2.process import RDR2Status
 
-_MAX_LATENCY_ENTRIES = 3600  # default; resized to Settings.gui_rate_graph_max_history after startup
+_MAX_LATENCY_ENTRIES = 3600
 
 
 class PaginationState:
@@ -386,12 +386,6 @@ class CaptureStats:
     peak_bps_rate: ClassVar[int] = 0
     peak_bpm_rate: ClassVar[int] = 0
     peak_pps_rate: ClassVar[int] = 0
-
-    @classmethod
-    def resize_history_deques(cls, maxlen: int) -> None:
-        """Replace the history deques with new ones sized to `maxlen`."""
-        cls.packets_latencies = deque(maxlen=maxlen)
-        cls.capture_health_samples = deque(maxlen=maxlen)
 
     @classmethod
     def reset_capture_stats(cls) -> None:
