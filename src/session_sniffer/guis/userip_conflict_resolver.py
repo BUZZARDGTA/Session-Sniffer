@@ -65,7 +65,8 @@ from session_sniffer.models.userip_settings_model import (
 )
 from session_sniffer.networking.ip_range import entry_ip_covers_ip, parse_ip_range
 from session_sniffer.player.userip import UserIPDatabases
-from session_sniffer.player.userip_loader import enrich_userip_entry_from_logs, find_userip_insert_index
+from session_sniffer.player.userip_loader import find_userip_insert_index, userip_databases_lock
+from session_sniffer.player.userip_log_history import enrich_userip_entry_from_logs
 from session_sniffer.text_utils import pluralize, split_usernames
 
 if TYPE_CHECKING:
@@ -319,81 +320,83 @@ def _rewrite_side_notes(side: _ConflictSide, new_note: str) -> _SideDetails | No
 
 def _merge_and_delete_sides(kept_side: _ConflictSide, sides_to_delete: Sequence[_ConflictSide]) -> None:
     """Merge usernames, notes, and metadata from `sides_to_delete` into `kept_side`, then delete `sides_to_delete`."""
-    entries_to_delete_by_db: dict[Path, set[str]] = {}
-    for side in sides_to_delete:
-        entries_to_delete_by_db.setdefault(side.db_path, set()).add(side.entry)
+    with userip_databases_lock():
+        entries_to_delete_by_db: dict[Path, set[str]] = {}
+        for side in sides_to_delete:
+            entries_to_delete_by_db.setdefault(side.db_path, set()).add(side.entry)
 
-    incoming_entries: list[UserIPEntryModel] = []
-    for db_path, entries_to_delete in entries_to_delete_by_db.items():
-        if not db_path.is_file():
-            continue
-        db_model = load_userip_database_model(db_path)
-        incoming_entries.extend(
-            entry.model_copy(update={'ip': kept_side.entry})
-            for entry in db_model.entries
-            if entry.ip.strip() in entries_to_delete
-        )
+        incoming_entries: list[UserIPEntryModel] = []
+        for db_path, entries_to_delete in entries_to_delete_by_db.items():
+            if not db_path.is_file():
+                continue
+            db_model = load_userip_database_model(db_path)
+            incoming_entries.extend(
+                entry.model_copy(update={'ip': kept_side.entry})
+                for entry in db_model.entries
+                if entry.ip.strip() in entries_to_delete
+            )
 
-    if incoming_entries and kept_side.db_path.is_file():
-        kept_db_model = load_userip_database_model(kept_side.db_path)
-        existing_index_by_cf: dict[str, int] = {
-            entry.username.casefold(): idx
-            for idx, entry in enumerate(kept_db_model.entries)
-            if entry.ip.strip() == kept_side.entry
-        }
-        anchor_username = next(
-            (entry.username for entry in reversed(kept_db_model.entries) if entry.ip.strip() == kept_side.entry),
-            '',
-        )
-        modified = False
-        for incoming in incoming_entries:
-            cf_name = incoming.username.casefold()
-            existing_idx = existing_index_by_cf.get(cf_name)
-            if existing_idx is not None:
-                merged = kept_db_model.entries[existing_idx].merge_duplicate(incoming)
-                if merged != kept_db_model.entries[existing_idx]:
-                    kept_db_model.entries[existing_idx] = merged
+        if incoming_entries and kept_side.db_path.is_file():
+            kept_db_model = load_userip_database_model(kept_side.db_path)
+            existing_index_by_cf: dict[str, int] = {
+                entry.username.casefold(): idx
+                for idx, entry in enumerate(kept_db_model.entries)
+                if entry.ip.strip() == kept_side.entry
+            }
+            anchor_username = next(
+                (entry.username for entry in reversed(kept_db_model.entries) if entry.ip.strip() == kept_side.entry),
+                '',
+            )
+            modified = False
+            for incoming in incoming_entries:
+                cf_name = incoming.username.casefold()
+                existing_idx = existing_index_by_cf.get(cf_name)
+                if existing_idx is not None:
+                    merged = kept_db_model.entries[existing_idx].merge_duplicate(incoming)
+                    if merged != kept_db_model.entries[existing_idx]:
+                        kept_db_model.entries[existing_idx] = merged
+                        modified = True
+                else:
+                    insert_idx = find_userip_insert_index(
+                        kept_db_model.entries,
+                        incoming.username,
+                        kept_side.entry,
+                        anchor_username=anchor_username,
+                    )
+                    enriched, _ = enrich_userip_entry_from_logs(incoming)
+                    kept_db_model.entries.insert(insert_idx, enriched)
+                    anchor_username = enriched.username
+                    existing_index_by_cf = {
+                        entry.username.casefold(): idx
+                        for idx, entry in enumerate(kept_db_model.entries)
+                        if entry.ip.strip() == kept_side.entry
+                    }
                     modified = True
-            else:
-                insert_idx = find_userip_insert_index(
-                    kept_db_model.entries,
-                    incoming.username,
-                    kept_side.entry,
-                    anchor_username=anchor_username,
-                )
-                enriched, _ = enrich_userip_entry_from_logs(incoming)
-                kept_db_model.entries.insert(insert_idx, enriched)
-                anchor_username = enriched.username
-                existing_index_by_cf = {
-                    entry.username.casefold(): idx
-                    for idx, entry in enumerate(kept_db_model.entries)
-                    if entry.ip.strip() == kept_side.entry
-                }
-                modified = True
 
-        if modified:
-            kept_db_model.entries = dedup_userip_entries(kept_db_model.entries)
-            save_userip_database_model(kept_side.db_path, kept_db_model)
+            if modified:
+                kept_db_model.entries = dedup_userip_entries(kept_db_model.entries)
+                save_userip_database_model(kept_side.db_path, kept_db_model)
 
-    _delete_sides(sides_to_delete)
+        _delete_sides(sides_to_delete)
 
 
 def _move_side_to_database(side: _ConflictSide, target_db_path: Path) -> bool:
     """Move all entries of `side` from `side.db_path` to `target_db_path`."""
     if not side.db_path.is_file() or side.db_path == target_db_path:
         return False
-    db_model = load_userip_database_model(side.db_path)
-    now_iso = get_current_iso_timestamp()
-    entries_to_move = [
-        entry.model_copy(update={'updated_at': now_iso})
-        for entry in db_model.entries
-        if entry.ip.strip() == side.entry
-    ]
-    if not entries_to_move:
-        return False
+    with userip_databases_lock():
+        db_model = load_userip_database_model(side.db_path)
+        now_iso = get_current_iso_timestamp()
+        entries_to_move = [
+            entry.model_copy(update={'updated_at': now_iso})
+            for entry in db_model.entries
+            if entry.ip.strip() == side.entry
+        ]
+        if not entries_to_move:
+            return False
 
-    append_userip_entries(target_db_path, entries_to_move)
-    _delete_sides([side])
+        append_userip_entries(target_db_path, entries_to_move)
+        _delete_sides([side])
     UserIPDatabases.renotify_if_conflicting([side.entry])
     return True
 
@@ -404,16 +407,17 @@ def _delete_sides(sides: Sequence[_ConflictSide]) -> None:
     for side in sides:
         entries_to_delete_by_db.setdefault(side.db_path, set()).add(side.entry)
 
-    for db_path, entries_to_delete in entries_to_delete_by_db.items():
-        if not db_path.is_file():
-            continue
-        db_model = load_userip_database_model(db_path)
-        kept_entries = [entry for entry in db_model.entries if entry.ip.strip() not in entries_to_delete]
-        if len(kept_entries) != len(db_model.entries):
-            db_model.entries = kept_entries
-            save_userip_database_model(db_path, db_model)
+    with userip_databases_lock():
+        for db_path, entries_to_delete in entries_to_delete_by_db.items():
+            if not db_path.is_file():
+                continue
+            db_model = load_userip_database_model(db_path)
+            kept_entries = [entry for entry in db_model.entries if entry.ip.strip() not in entries_to_delete]
+            if len(kept_entries) != len(db_model.entries):
+                db_model.entries = kept_entries
+                save_userip_database_model(db_path, db_model)
 
-    refresh_userip_and_wake_renderer()
+        refresh_userip_and_wake_renderer()
 
 
 def _format_side_html(side: _ConflictSide, usernames: Sequence[str]) -> str:

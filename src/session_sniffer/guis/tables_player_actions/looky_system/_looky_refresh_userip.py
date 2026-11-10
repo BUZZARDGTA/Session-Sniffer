@@ -72,6 +72,7 @@ from session_sniffer.networking.ip_range import entry_ip_covers_ip
 from session_sniffer.networking.looky_system import lookup_ip_batches, lookup_username_ips
 from session_sniffer.player.userip import UserIPDatabases
 from session_sniffer.player.userip_groups import get_excluded_looky_usernames_cf, record_looky_db_correlation
+from session_sniffer.player.userip_loader import userip_databases_lock
 from session_sniffer.settings.settings import Settings
 from session_sniffer.text_utils import pluralize
 
@@ -872,39 +873,39 @@ def _apply_accepted_changes(accepted_entries: list[_PendingEntry], accepted_remo
             moved_from_db[entry.db_path].add((entry.username.casefold(), entry.ip))
 
     total_added, total_moved, total_removed = 0, 0, 0
-    for target_db_path, db_entries in by_target_db.items():
-        ordered_entries = sorted(db_entries, key=lambda item: not (item.is_confirmation or item.is_known_in_db))
-        new_models = [
-            UserIPEntryModel(username=e.username, ip=e.ip, is_looky=True, source='Looky', detections_count=e.detections_count, notes=e.notes) for e in ordered_entries
-        ]
-        anchors = {entry.ip: entry.anchor_username for entry in ordered_entries if entry.anchor_username}
-        added_pairs = append_userip_entries(target_db_path, new_models, anchor_usernames_by_ip=anchors)
-        added_pairs_cf = {(u.casefold(), ip) for u, ip in added_pairs}
-        total_added += sum(1 for entry in ordered_entries if entry.target_db_path == entry.db_path and (entry.username.casefold(), entry.ip) in added_pairs_cf)
-        total_moved += sum(1 for entry in ordered_entries if entry.target_db_path != entry.db_path)
-        if added_pairs:
-            affected_dbs.add(target_db_path)
-
-    for rem in accepted_removals:
-        by_db_rem[rem.db_path].add((rem.username_cf, rem.ip))
-
-    for db_path in set(by_db_rem) | set(moved_from_db):
-        removal_pairs, move_pairs = by_db_rem.get(db_path, set()), moved_from_db.get(db_path, set())
-        db_model, kept_entries, removed_suspects_in_db = load_userip_database_model(db_path), list[UserIPEntryModel](), 0
-        for db_entry in db_model.entries:
-            cf_pair = (db_entry.username.casefold(), db_entry.ip)
-            if cf_pair in move_pairs:
-                continue
-            if cf_pair in removal_pairs and not db_entry.is_looky and not db_entry.detections_count:
-                removed_suspects_in_db += 1
-                continue
-            kept_entries.append(db_entry)
-        if len(kept_entries) != len(db_model.entries):
-            db_model.entries = kept_entries
-            save_userip_database_model(db_path, db_model)
-            total_removed += removed_suspects_in_db
-            affected_dbs.add(db_path)
-
+    with userip_databases_lock():
+        for target_db_path, db_entries in by_target_db.items():
+            ordered_entries = sorted(db_entries, key=lambda item: not (item.is_confirmation or item.is_known_in_db))
+            new_models = [
+                UserIPEntryModel(username=e.username, ip=e.ip, is_looky=True, source='Looky', detections_count=e.detections_count, notes=e.notes) for e in ordered_entries
+            ]
+            anchors = {entry.ip: entry.anchor_username for entry in ordered_entries if entry.anchor_username}
+            added_pairs = append_userip_entries(target_db_path, new_models, anchor_usernames_by_ip=anchors)
+            added_pairs_cf = {(u.casefold(), ip) for u, ip in added_pairs}
+            total_added += sum(1 for entry in ordered_entries if entry.target_db_path == entry.db_path and (entry.username.casefold(), entry.ip) in added_pairs_cf)
+            total_moved += sum(1 for entry in ordered_entries if entry.target_db_path != entry.db_path)
+            if added_pairs:
+                affected_dbs.add(target_db_path)
+        for rem in accepted_removals:
+            by_db_rem[rem.db_path].add((rem.username_cf, rem.ip))
+        for db_path in set(by_db_rem) | set(moved_from_db):
+            removal_pairs, move_pairs = by_db_rem.get(db_path, set()), moved_from_db.get(db_path, set())
+            db_model, kept_entries, removed_suspects_in_db = load_userip_database_model(db_path), list[UserIPEntryModel](), 0
+            for db_entry in db_model.entries:
+                cf_pair = (db_entry.username.casefold(), db_entry.ip)
+                if cf_pair in move_pairs:
+                    continue
+                if cf_pair in removal_pairs and not db_entry.is_looky and not db_entry.detections_count:
+                    removed_suspects_in_db += 1
+                    continue
+                kept_entries.append(db_entry)
+            if len(kept_entries) != len(db_model.entries):
+                db_model.entries = kept_entries
+                save_userip_database_model(db_path, db_model)
+                total_removed += removed_suspects_in_db
+                affected_dbs.add(db_path)
+        if total_added or total_moved or total_removed:
+            refresh_userip_and_wake_renderer()
     return total_added, total_moved, total_removed, len(affected_dbs)
 
 
@@ -967,7 +968,6 @@ def looky_refresh_userip_entries(parent: QWidget, entries: list[tuple[Path, list
             total_added, total_moved, total_removed, db_count = _apply_accepted_changes(accepted := dialog.get_accepted_entries(), dialog.get_accepted_removals())
             if not (total_added or total_moved or total_removed):
                 return
-            refresh_userip_and_wake_renderer()
             rejected = {(e.ip, e.username.casefold()) for e in pending_entries} - {(e.ip, e.username.casefold()) for e in accepted}
             dbs_cf = UserIPDatabases.get_known_username_dbs_cf()
             if sum(record_looky_db_correlation([n for lp in lps if (n := lp.name.strip()) and (ip, n.casefold()) not in rejected], dbs_cf) for ip, lps in results.items()):

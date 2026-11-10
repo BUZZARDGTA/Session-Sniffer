@@ -35,13 +35,14 @@ from session_sniffer.networking.ip_range import entry_ip_covers_ip
 from session_sniffer.player.userip import UserIPDatabases
 from session_sniffer.player.userip_groups import compute_row_group_ids_and_prefixes
 from session_sniffer.player.userip_loader import (
-    enrich_userip_entry_from_logs,
     find_userip_insert_index,
     get_cached_userip_database_entries,
     get_cached_userip_databases,
     update_userip_databases,
     userip_database_write,
+    userip_databases_lock,
 )
+from session_sniffer.player.userip_log_history import enrich_userip_entry_from_logs
 from session_sniffer.rendering_core.events import wake_rendering_core
 from session_sniffer.text_utils import pluralize
 from session_sniffer.utils import atomic_write_text
@@ -569,8 +570,9 @@ def format_userip_db_display_name(db_path: Path) -> str:
 
 def save_userip_database_model(path: Path, db_model: UserIPDatabaseFile) -> None:
     """Serialize and atomically write a `UserIPDatabaseFile` model to *path*."""
-    with userip_database_write(path):
-        atomic_write_text(path, db_model.serialize_to_json())
+    serialized = db_model.serialize_to_json()
+    with userip_database_write(path, content=serialized):
+        atomic_write_text(path, serialized)
 
 
 def refresh_userip_and_wake_renderer() -> None:
@@ -604,39 +606,38 @@ def rewrite_db_without_entries(db_path: Path, to_remove: set[tuple[str, str]]) -
     """Remove specific `(username, ip)` pairs from a database file in-place."""
     if not to_remove or not db_path.is_file():
         return
-    db_model = load_userip_database_model(db_path)
-    filtered_entries = [entry for entry in db_model.entries if (entry.username, entry.ip) not in to_remove]
-    if len(filtered_entries) != len(db_model.entries):
-        db_model.entries = filtered_entries
-        save_userip_database_model(db_path, db_model)
+    with userip_databases_lock():
+        db_model = load_userip_database_model(db_path)
+        filtered_entries = [entry for entry in db_model.entries if (entry.username, entry.ip) not in to_remove]
+        if len(filtered_entries) != len(db_model.entries):
+            db_model.entries = filtered_entries
+            save_userip_database_model(db_path, db_model)
 
 
 def rewrite_db_rename_entries(db_path: Path, pairs: list[tuple[str, str]], new_username: str, *, match_ip_ranges: bool = False) -> int:
     """Replace matched `(old_username, ip_or_range)` entries with *new_username* in-place and return the count renamed."""
     if not db_path.is_file() or not pairs:
         return 0
-    db_model = load_userip_database_model(db_path)
-    target_pairs = set(pairs)
-    renamed_count = 0
-    updated_entries: list[UserIPEntryModel] = []
-    now_iso = get_current_iso_timestamp()
+    with userip_databases_lock():
+        db_model, target_pairs, renamed_count, now_iso = load_userip_database_model(db_path), set(pairs), 0, get_current_iso_timestamp()
+        updated_entries: list[UserIPEntryModel] = []
 
-    for entry in db_model.entries:
-        matched = (
-            any(pair_user == entry.username and (entry.ip == pair_ip or entry_ip_covers_ip(entry.ip, pair_ip)) for pair_user, pair_ip in pairs)
-            if match_ip_ranges
-            else (entry.username, entry.ip) in target_pairs
-        )
-        if matched:
-            renamed_count += 1
-            new_source = 'Manual' if entry.source == 'Looky' else entry.source
-            updated_entries.append(entry.model_copy(update={'username': new_username, 'is_looky': False, 'source': new_source, 'updated_at': now_iso}))
-        else:
-            updated_entries.append(entry)
+        for entry in db_model.entries:
+            matched = (
+                any(pair_user == entry.username and (entry.ip == pair_ip or entry_ip_covers_ip(entry.ip, pair_ip)) for pair_user, pair_ip in pairs)
+                if match_ip_ranges
+                else (entry.username, entry.ip) in target_pairs
+            )
+            if matched:
+                renamed_count += 1
+                new_source = 'Manual' if entry.source == 'Looky' else entry.source
+                updated_entries.append(entry.model_copy(update={'username': new_username, 'is_looky': False, 'source': new_source, 'updated_at': now_iso}))
+            else:
+                updated_entries.append(entry)
 
-    if renamed_count:
-        db_model.entries = dedup_userip_entries(updated_entries)
-        save_userip_database_model(db_path, db_model)
+        if renamed_count:
+            db_model.entries = dedup_userip_entries(updated_entries)
+            save_userip_database_model(db_path, db_model)
     return renamed_count
 
 
@@ -644,24 +645,23 @@ def rewrite_db_edit_entry_ip(db_path: Path, old_ip_or_range: str, new_ip_or_rang
     """Replace an entry's IP or range in a database file in-place and return the number of entries replaced."""
     if not db_path.is_file():
         return 0
-    db_model = load_userip_database_model(db_path)
-    replaced_count = 0
-    updated_entries: list[UserIPEntryModel] = []
-    now_iso = get_current_iso_timestamp()
+    with userip_databases_lock():
+        db_model, replaced_count, now_iso = load_userip_database_model(db_path), 0, get_current_iso_timestamp()
+        updated_entries: list[UserIPEntryModel] = []
 
-    for entry in db_model.entries:
-        if entry.ip == old_ip_or_range and (username is None or entry.username == username):
-            replaced_count += 1
-            new_source = 'Manual' if entry.source == 'Looky' else entry.source
-            updated_entries.append(
-                enrich_userip_entry_from_logs(entry.model_copy(update={'ip': new_ip_or_range, 'is_looky': False, 'source': new_source, 'updated_at': now_iso}))[0],
-            )
-        else:
-            updated_entries.append(entry)
+        for entry in db_model.entries:
+            if entry.ip == old_ip_or_range and (username is None or entry.username == username):
+                replaced_count += 1
+                new_source = 'Manual' if entry.source == 'Looky' else entry.source
+                updated_entries.append(
+                    enrich_userip_entry_from_logs(entry.model_copy(update={'ip': new_ip_or_range, 'is_looky': False, 'source': new_source, 'updated_at': now_iso}))[0],
+                )
+            else:
+                updated_entries.append(entry)
 
-    if replaced_count:
-        db_model.entries = dedup_userip_entries(updated_entries)
-        save_userip_database_model(db_path, db_model)
+        if replaced_count:
+            db_model.entries = dedup_userip_entries(updated_entries)
+            save_userip_database_model(db_path, db_model)
     return replaced_count
 
 
@@ -669,13 +669,14 @@ def rewrite_db_edit_entry_note(db_path: Path, username: str, ip_or_range: str, n
     """Update the `notes` field for a specific `(username, ip_or_range)` entry in *db_path*."""
     if not db_path.is_file():
         return False
-    db_model, cleaned_note, modified, now_iso = load_userip_database_model(db_path), new_note.strip(), False, get_current_iso_timestamp()
-    for i, entry in enumerate(db_model.entries):
-        if entry.username == username and entry.ip == ip_or_range and entry.notes != cleaned_note:
-            db_model.entries[i] = entry.model_copy(update={'notes': cleaned_note, 'updated_at': now_iso})
-            modified = True
-    if modified:
-        save_userip_database_model(db_path, db_model)
+    with userip_databases_lock():
+        db_model, cleaned_note, modified, now_iso = load_userip_database_model(db_path), new_note.strip(), False, get_current_iso_timestamp()
+        for i, entry in enumerate(db_model.entries):
+            if entry.username == username and entry.ip == ip_or_range and entry.notes != cleaned_note:
+                db_model.entries[i] = entry.model_copy(update={'notes': cleaned_note, 'updated_at': now_iso})
+                modified = True
+        if modified:
+            save_userip_database_model(db_path, db_model)
     return modified
 
 
@@ -683,52 +684,54 @@ def rewrite_db_edit_ip_notes(db_path: Path, ip_address: str, new_note: str) -> i
     """Update the `notes` field for all entries in *db_path* covering *ip_address* and return the match count."""
     if not db_path.is_file():
         return 0
-    db_model, cleaned_note, matched_count, modified, now_iso = load_userip_database_model(db_path), new_note.strip(), 0, False, get_current_iso_timestamp()
-    for i, entry in enumerate(db_model.entries):
-        if entry_ip_covers_ip(entry.ip, ip_address):
-            matched_count += 1
-            if entry.notes != cleaned_note:
-                db_model.entries[i] = entry.model_copy(update={'notes': cleaned_note, 'updated_at': now_iso})
-                modified = True
-    if modified:
-        save_userip_database_model(db_path, db_model)
+    with userip_databases_lock():
+        db_model, cleaned_note, matched_count, modified, now_iso = load_userip_database_model(db_path), new_note.strip(), 0, False, get_current_iso_timestamp()
+        for i, entry in enumerate(db_model.entries):
+            if entry_ip_covers_ip(entry.ip, ip_address):
+                matched_count += 1
+                if entry.notes != cleaned_note:
+                    db_model.entries[i] = entry.model_copy(update={'notes': cleaned_note, 'updated_at': now_iso})
+                    modified = True
+        if modified:
+            save_userip_database_model(db_path, db_model)
     return matched_count
 
 
 def append_userip_entries(db_path: Path, entries: Sequence[UserIPEntryModel], *, anchor_usernames_by_ip: Mapping[str, str] | None = None) -> set[tuple[str, str]]:
     """Add entries to a UserIP `.json` database file, inserting next to matching IPs or usernames and avoiding duplicates."""
-    db_model = load_userip_database_model(db_path)
-    existing_by_pair: dict[tuple[str, str], UserIPEntryModel] = {(entry.username.casefold(), entry.ip): entry for entry in db_model.entries}
-    added_pairs: set[tuple[str, str]] = set()
-    modified = False
-    now_iso = get_current_iso_timestamp()
+    with userip_databases_lock():
+        db_model = load_userip_database_model(db_path)
+        existing_by_pair: dict[tuple[str, str], UserIPEntryModel] = {(entry.username.casefold(), entry.ip): entry for entry in db_model.entries}
+        added_pairs: set[tuple[str, str]] = set()
+        modified = False
+        now_iso = get_current_iso_timestamp()
 
-    for entry in entries:
-        username, ip_or_range = entry.username.strip(), entry.ip.strip()
-        if not username or not ip_or_range:
-            continue
-        cf_pair = (username.casefold(), ip_or_range)
-        existing_entry = existing_by_pair.get(cf_pair)
-        if existing_entry is None:
-            new_entry, _ = enrich_userip_entry_from_logs(entry.model_copy(update={'username': username, 'ip': ip_or_range, 'notes': entry.notes.strip()}))
-            existing_by_pair[cf_pair] = new_entry
-            added_pairs.add((username, ip_or_range))
-            anchor_user = anchor_usernames_by_ip.get(ip_or_range, '') if anchor_usernames_by_ip is not None else ''
-            db_model.entries.insert(find_userip_insert_index(db_model.entries, username, ip_or_range, anchor_username=anchor_user), new_entry)
-            modified = True
-        elif (entry.is_looky and not existing_entry.is_looky) or (entry.notes.strip() and not existing_entry.notes):
-            existing_index = db_model.entries.index(existing_entry)
-            upgraded_looky = existing_entry.is_looky or entry.is_looky
-            new_src = 'Looky' if upgraded_looky else existing_entry.source
-            upd = {'is_looky': upgraded_looky, 'source': new_src, 'notes': existing_entry.notes or entry.notes.strip(), 'updated_at': now_iso}
-            updated_entry, _ = enrich_userip_entry_from_logs(existing_entry.model_copy(update=upd))
-            db_model.entries[existing_index] = updated_entry
-            existing_by_pair[cf_pair] = updated_entry
-            added_pairs.add((existing_entry.username, ip_or_range))
-            modified = True
+        for entry in entries:
+            username, ip_or_range = entry.username.strip(), entry.ip.strip()
+            if not username or not ip_or_range:
+                continue
+            cf_pair = (username.casefold(), ip_or_range)
+            existing_entry = existing_by_pair.get(cf_pair)
+            if existing_entry is None:
+                new_entry, _ = enrich_userip_entry_from_logs(entry.model_copy(update={'username': username, 'ip': ip_or_range, 'notes': entry.notes.strip()}))
+                existing_by_pair[cf_pair] = new_entry
+                added_pairs.add((username, ip_or_range))
+                anchor_user = anchor_usernames_by_ip.get(ip_or_range, '') if anchor_usernames_by_ip is not None else ''
+                db_model.entries.insert(find_userip_insert_index(db_model.entries, username, ip_or_range, anchor_username=anchor_user), new_entry)
+                modified = True
+            elif (entry.is_looky and not existing_entry.is_looky) or (entry.notes.strip() and not existing_entry.notes):
+                existing_index = db_model.entries.index(existing_entry)
+                upgraded_looky = existing_entry.is_looky or entry.is_looky
+                new_src = 'Looky' if upgraded_looky else existing_entry.source
+                upd = {'is_looky': upgraded_looky, 'source': new_src, 'notes': existing_entry.notes or entry.notes.strip(), 'updated_at': now_iso}
+                updated_entry, _ = enrich_userip_entry_from_logs(existing_entry.model_copy(update=upd))
+                db_model.entries[existing_index] = updated_entry
+                existing_by_pair[cf_pair] = updated_entry
+                added_pairs.add((existing_entry.username, ip_or_range))
+                modified = True
 
-    if modified:
-        save_userip_database_model(db_path, db_model)
+        if modified:
+            save_userip_database_model(db_path, db_model)
     return added_pairs
 
 

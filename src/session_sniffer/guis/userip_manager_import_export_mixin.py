@@ -25,7 +25,7 @@ from session_sniffer.guis.userip_manager_helpers import (
 from session_sniffer.guis.utils import scale_by_ui
 from session_sniffer.models.userip_settings_model import UserIPDatabaseFile, UserIPEntryModel, UserIPSettingsModel
 from session_sniffer.player import backup_userip_databases
-from session_sniffer.player.userip_loader import find_userip_insert_index, userip_database_write
+from session_sniffer.player.userip_loader import find_userip_insert_index, userip_database_write, userip_databases_lock
 from session_sniffer.text_utils import pluralize
 
 
@@ -179,30 +179,32 @@ class UserIPImportExportMixin(QDialog):
         dest_db = load_userip_database_model(dest_path)
         src_db = parse_userip_database_content(src_content)
 
-        chosen_settings = dest_db.settings
+        use_imported_settings = False
         if src_db.settings != dest_db.settings:
             choice = self._prompt_settings_conflict(src_name, f'"{dest_path.name}"')
             if choice is None:
                 return None
-            if choice == 'use':
-                chosen_settings = src_db.settings
+            use_imported_settings = choice == 'use'
 
-        existing_set: set[tuple[str, str]] = {(entry.username.casefold(), entry.ip) for entry in dest_db.entries}
-        new_entries: list[UserIPEntryModel] = []
-        for entry in src_db.entries:
-            key = (entry.username.casefold(), entry.ip)
-            if key in existing_set:
-                continue
-            existing_set.add(key)
-            new_entries.append(
-                entry.model_copy(update={'source': 'Import'}) if entry.source == 'Manual' and not entry.is_looky else entry,
-            )
+        with userip_databases_lock():
+            dest_db = load_userip_database_model(dest_path)
+            chosen_settings = src_db.settings if use_imported_settings else dest_db.settings
+            existing_set: set[tuple[str, str]] = {(entry.username.casefold(), entry.ip) for entry in dest_db.entries}
+            new_entries: list[UserIPEntryModel] = []
+            for entry in src_db.entries:
+                key = (entry.username.casefold(), entry.ip)
+                if key in existing_set:
+                    continue
+                existing_set.add(key)
+                new_entries.append(
+                    entry.model_copy(update={'source': 'Import'}) if entry.source == 'Manual' and not entry.is_looky else entry,
+                )
 
-        merged_entries = list(dest_db.entries)
-        for entry in new_entries:
-            merged_entries.insert(find_userip_insert_index(merged_entries, entry.username, entry.ip), entry)
-        merged_db = UserIPDatabaseFile(settings=chosen_settings, entries=merged_entries)
-        save_userip_database_model(dest_path, merged_db)
+            merged_entries = list(dest_db.entries)
+            for entry in new_entries:
+                merged_entries.insert(find_userip_insert_index(merged_entries, entry.username, entry.ip), entry)
+            merged_db = UserIPDatabaseFile(settings=chosen_settings, entries=merged_entries)
+            save_userip_database_model(dest_path, merged_db)
         return len(new_entries)
 
     def _import_database_files(self) -> None:
@@ -396,10 +398,11 @@ class UserIPImportExportMixin(QDialog):
                 reload_current_view = False
 
                 for member in json_members:
-                    dest = (USERIP_DATABASES_DIR_PATH / member.filename).resolve()
-                    if not dest.is_relative_to(databases_root):
+                    resolved_dest = (USERIP_DATABASES_DIR_PATH / member.filename).resolve()
+                    if not resolved_dest.is_relative_to(databases_root):
                         skipped += 1
                         continue
+                    dest = USERIP_DATABASES_DIR_PATH / resolved_dest.relative_to(databases_root)
                     member_bytes = zf.read(member.filename)
                     src_content = member_bytes.decode('utf-8', errors='replace')
 
@@ -454,8 +457,10 @@ class UserIPImportExportMixin(QDialog):
                     dest.parent.mkdir(parents=True, exist_ok=True)
                     if self._is_current_database_file(dest):
                         reload_current_view = True
-                    with userip_database_write(dest):
-                        dest.write_bytes(member_bytes)
+                    with userip_database_write(dest, content=member_bytes):
+                        tmp_dest = dest.with_name(f'{dest.name}.tmp')
+                        tmp_dest.write_bytes(member_bytes)
+                        tmp_dest.replace(dest)
                     modified_on_disk = True
                     imported += 1
 

@@ -34,6 +34,7 @@ from session_sniffer.player.userip_groups import (
     restore_looky_usernames,
     ungroup_usernames,
 )
+from session_sniffer.player.userip_loader import userip_databases_lock
 from session_sniffer.rendering_core.types import CaptureState, SessionFilterState
 from session_sniffer.settings import Settings
 from session_sniffer.text_utils import pluralize
@@ -200,22 +201,23 @@ def userip_add(
     if not chosen_usernames:
         return
 
-    existing_pairs: set[tuple[str, str]] = set()
-    if selected_database.is_file():
-        db_model = load_userip_database_model(selected_database)
-        existing_pairs = {(entry.username.casefold(), entry.ip) for entry in db_model.entries}
+    with userip_databases_lock():
+        existing_pairs: set[tuple[str, str]] = set()
+        if selected_database.is_file():
+            db_model = load_userip_database_model(selected_database)
+            existing_pairs = {(entry.username.casefold(), entry.ip) for entry in db_model.entries}
 
-    new_entries = [
-        UserIPEntryModel(username=username, ip=ip_address, notes=notes_by_username.get(username, ''))
-        for username in chosen_usernames
-        for ip_address in selected_ips
-        if (username.casefold(), ip_address) not in existing_pairs
-    ]
-    if new_entries:
-        append_userip_entries(selected_database, new_entries)
-        if len(chosen_usernames) >= MIN_GROUP_USERNAMES:
-            group_usernames(chosen_usernames, UserIPDatabases.get_known_alts_clusters_snapshot())
-    refresh_userip_and_wake_renderer()
+        new_entries = [
+            UserIPEntryModel(username=username, ip=ip_address, notes=notes_by_username.get(username, ''))
+            for username in chosen_usernames
+            for ip_address in selected_ips
+            if (username.casefold(), ip_address) not in existing_pairs
+        ]
+        if new_entries:
+            append_userip_entries(selected_database, new_entries)
+            if len(chosen_usernames) >= MIN_GROUP_USERNAMES:
+                group_usernames(chosen_usernames, UserIPDatabases.get_known_alts_clusters_snapshot())
+        refresh_userip_and_wake_renderer()
 
     db_display = format_userip_db_display_name(selected_database)
     usernames_display = ', '.join(f'"{name}"' for name in chosen_usernames)
@@ -561,14 +563,16 @@ def userip_rename_multi(parent: QWidget, players: list[Player]) -> None:
             by_db[db_path].append((old_u, ip))
 
     total_renamed = 0
-    for db_path, pairs in by_db.items():
-        total_renamed += rewrite_db_rename_entries(db_path, pairs, new_username, match_ip_ranges=True)
+    with userip_databases_lock():
+        for db_path, pairs in by_db.items():
+            total_renamed += rewrite_db_rename_entries(db_path, pairs, new_username, match_ip_ranges=True)
+        if total_renamed:
+            refresh_userip_and_wake_renderer()
 
     if not total_renamed:
         QMessageBox.information(parent, TITLE, f'No entries were found for the selected IP{pluralize(len(eligible))}.')
         return
 
-    refresh_userip_and_wake_renderer()
     entry_word = pluralize(total_renamed, 'entry', 'entries')
     QMessageBox.information(parent, TITLE, f'Renamed {total_renamed} {entry_word} to "{new_username}".')
 
@@ -645,31 +649,34 @@ def userip_move(parent: QWidget, selected_ips: list[str], selected_database: Pat
     moved_entry_ips: list[str] = []
     now_iso = get_current_iso_timestamp()
 
-    for db_path in UserIPDatabases.get_userip_database_filepaths():
-        if db_path == selected_database or not db_path.is_file():
-            continue
+    with userip_databases_lock():
+        for db_path in UserIPDatabases.get_userip_database_filepaths():
+            if db_path == selected_database or not db_path.is_file():
+                continue
 
-        db_model = load_userip_database_model(db_path)
-        if not db_model.entries:
-            continue
+            db_model = load_userip_database_model(db_path)
+            if not db_model.entries:
+                continue
 
-        kept_entries: list[UserIPEntryModel] = []
-        moved_entries: list[UserIPEntryModel] = []
+            kept_entries: list[UserIPEntryModel] = []
+            moved_entries: list[UserIPEntryModel] = []
 
-        for entry in db_model.entries:
-            if _entry_ip_matches_any(entry.ip, selected_ips):
-                moved_entries.append(entry.model_copy(update={'updated_at': now_iso}))
-            else:
-                kept_entries.append(entry)
+            for entry in db_model.entries:
+                if _entry_ip_matches_any(entry.ip, selected_ips):
+                    moved_entries.append(entry.model_copy(update={'updated_at': now_iso}))
+                else:
+                    kept_entries.append(entry)
 
-        if moved_entries:
-            append_userip_entries(selected_database, moved_entries)
-            save_userip_database_model(db_path, UserIPDatabaseFile(settings=db_model.settings, entries=kept_entries))
-            moved_entry_ips.extend(entry.ip for entry in moved_entries)
-            deleted_entries_by_database[db_path] = [f'{html.escape(entry.username)}={html.escape(entry.ip)}' for entry in moved_entries]
+            if moved_entries:
+                append_userip_entries(selected_database, moved_entries)
+                save_userip_database_model(db_path, UserIPDatabaseFile(settings=db_model.settings, entries=kept_entries))
+                moved_entry_ips.extend(entry.ip for entry in moved_entries)
+                deleted_entries_by_database[db_path] = [f'{html.escape(entry.username)}={html.escape(entry.ip)}' for entry in moved_entries]
+
+        if deleted_entries_by_database:
+            refresh_userip_and_wake_renderer()
 
     if deleted_entries_by_database:
-        refresh_userip_and_wake_renderer()
         target_db_display = html.escape(format_userip_db_display_name(selected_database))
         header = (
             f'<b>Selected IP{pluralize(len(selected_ips))} moved from the following '
@@ -684,29 +691,32 @@ def userip_delete(parent: QWidget, selected_ips: list[str]) -> None:
     """Remove the selected IP address(es) from all enabled UserIP databases."""
     deleted_entries_by_database: dict[Path, list[str]] = {}
 
-    for db_path in UserIPDatabases.get_userip_database_filepaths():
-        if not db_path.is_file():
-            continue
+    with userip_databases_lock():
+        for db_path in UserIPDatabases.get_userip_database_filepaths():
+            if not db_path.is_file():
+                continue
 
-        db_model = load_userip_database_model(db_path)
-        if not db_model.entries:
-            continue
+            db_model = load_userip_database_model(db_path)
+            if not db_model.entries:
+                continue
 
-        kept_entries: list[UserIPEntryModel] = []
-        deleted_entries: list[UserIPEntryModel] = []
+            kept_entries: list[UserIPEntryModel] = []
+            deleted_entries: list[UserIPEntryModel] = []
 
-        for entry in db_model.entries:
-            if _entry_ip_matches_any(entry.ip, selected_ips):
-                deleted_entries.append(entry)
-            else:
-                kept_entries.append(entry)
+            for entry in db_model.entries:
+                if _entry_ip_matches_any(entry.ip, selected_ips):
+                    deleted_entries.append(entry)
+                else:
+                    kept_entries.append(entry)
 
-        if deleted_entries:
-            save_userip_database_model(db_path, UserIPDatabaseFile(settings=db_model.settings, entries=kept_entries))
-            deleted_entries_by_database[db_path] = [f'{html.escape(entry.username)}={html.escape(entry.ip)}' for entry in deleted_entries]
+            if deleted_entries:
+                save_userip_database_model(db_path, UserIPDatabaseFile(settings=db_model.settings, entries=kept_entries))
+                deleted_entries_by_database[db_path] = [f'{html.escape(entry.username)}={html.escape(entry.ip)}' for entry in deleted_entries]
+
+        if deleted_entries_by_database:
+            refresh_userip_and_wake_renderer()
 
     if deleted_entries_by_database:
-        refresh_userip_and_wake_renderer()
         header = f'<b>Selected IP{pluralize(len(selected_ips))} removed from the following UserIP database{pluralize(len(deleted_entries_by_database))}:</b><br><br><br>'
         QMessageBox.information(parent, TITLE, header + _format_database_entries_html_list(deleted_entries_by_database))
 
@@ -752,22 +762,24 @@ def _rewrite_database_removing_usernames(parent: QWidget, db_path: Path, ip_addr
     if not db_path.is_file():
         return
     usernames_to_remove_cf = {name.casefold() for name in selected}
-    db_model = load_userip_database_model(db_path)
-
-    kept_entries: list[UserIPEntryModel] = []
     removed_count = 0
-    for entry in db_model.entries:
-        if _entry_ip_matches_any(entry.ip, [ip_address]) and entry.username.casefold() in usernames_to_remove_cf:
-            removed_count += 1
-        else:
-            kept_entries.append(entry)
+    with userip_databases_lock():
+        db_model = load_userip_database_model(db_path)
+
+        kept_entries: list[UserIPEntryModel] = []
+        for entry in db_model.entries:
+            if _entry_ip_matches_any(entry.ip, [ip_address]) and entry.username.casefold() in usernames_to_remove_cf:
+                removed_count += 1
+            else:
+                kept_entries.append(entry)
+
+        if removed_count:
+            save_userip_database_model(db_path, UserIPDatabaseFile(settings=db_model.settings, entries=kept_entries))
+            refresh_userip_and_wake_renderer()
 
     if not removed_count:
         QMessageBox.information(parent, TITLE, f'No matching entries found for IP {ip_address} in the database.')
         return
-
-    save_userip_database_model(db_path, UserIPDatabaseFile(settings=db_model.settings, entries=kept_entries))
-    refresh_userip_and_wake_renderer()
 
     db_display = format_userip_db_display_name(db_path)
     entry_word = pluralize(removed_count, 'entry', 'entries')

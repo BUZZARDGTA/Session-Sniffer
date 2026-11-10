@@ -50,6 +50,7 @@ from session_sniffer.guis.userip_manager_helpers import NEW_DATABASE_SETTINGS, l
 from session_sniffer.guis.utils import open_file_location, scale_by_ui
 from session_sniffer.models.userip_settings_model import DEFAULT_USERIP_FILES_SETTINGS, UserIPDatabaseFile
 from session_sniffer.player.userip import UserIPDatabases
+from session_sniffer.player.userip_loader import rebind_in_app_userip_db_path, userip_databases_lock
 from session_sniffer.rendering_core.types import CaptureState
 from session_sniffer.settings.settings import Settings
 from session_sniffer.text_utils import pluralize
@@ -566,12 +567,12 @@ class TreeOperationsMixin(QDialog):
         if is_current:
             self._setting_enabled.setChecked(enabled)
         if not is_current or self._settings_dirty:
-            db_model = load_userip_database_model(path)
-            if is_current:
-                db_model.settings = self.read_settings_from_widgets()
-            else:
-                db_model.settings.ENABLED = enabled
-            with QSignalBlocker(self._fs_watcher):
+            with QSignalBlocker(self._fs_watcher), userip_databases_lock():
+                db_model = load_userip_database_model(path)
+                if is_current:
+                    db_model.settings = self.read_settings_from_widgets()
+                else:
+                    db_model.settings.ENABLED = enabled
                 save_userip_database_model(path, db_model)
                 refresh_userip_and_wake_renderer()
             self._last_seen_build_version = UserIPDatabases.build_version
@@ -734,8 +735,9 @@ class TreeOperationsMixin(QDialog):
             QMessageBox.warning(self, TITLE, f'"{name}" already exists in that location.')
             return
 
-        save_userip_database_model(new_path, UserIPDatabaseFile(settings=NEW_DATABASE_SETTINGS))
-        refresh_userip_and_wake_renderer()
+        with userip_databases_lock():
+            save_userip_database_model(new_path, UserIPDatabaseFile(settings=NEW_DATABASE_SETTINGS))
+            refresh_userip_and_wake_renderer()
         self._rebuild_fs_watch()
 
         self._set_status(f'Created new database: {name}')
@@ -823,14 +825,13 @@ class TreeOperationsMixin(QDialog):
             return
 
         self._unwatch_path(path)
-
-        if path.is_dir():
-            shutil.rmtree(path)
-        else:
-            path.unlink()
-
-        self._db_visual_cache.clear()
-        refresh_userip_and_wake_renderer()
+        with userip_databases_lock():
+            if path.is_dir():
+                shutil.rmtree(path)
+            else:
+                path.unlink()
+            self._db_visual_cache.clear()
+            refresh_userip_and_wake_renderer()
 
         if self._global_search_active:
             if self._current_path is not None and (self._current_path == path or path in self._current_path.parents):
@@ -850,9 +851,10 @@ class TreeOperationsMixin(QDialog):
         if result != QMessageBox.StandardButton.Yes:
             return
 
-        save_userip_database_model(path, UserIPDatabaseFile(settings=DEFAULT_USERIP_FILES_SETTINGS[path.name]))
-        self._refresh_tree_item_visual(path, resort=True)
-        refresh_userip_and_wake_renderer()
+        with userip_databases_lock():
+            save_userip_database_model(path, UserIPDatabaseFile(settings=DEFAULT_USERIP_FILES_SETTINGS[path.name]))
+            self._refresh_tree_item_visual(path, resort=True)
+            refresh_userip_and_wake_renderer()
 
         if self._global_search_active:
             self._load_all_databases()
@@ -889,11 +891,14 @@ class TreeOperationsMixin(QDialog):
 
         # Use the model's rename to avoid file-watcher handle conflicts on Windows
         index = self._fs_model.index(str(path))
-        if not index.isValid() or not self._fs_model.setData(index, new_name, Qt.ItemDataRole.EditRole):
+        with userip_databases_lock():
+            renamed = index.isValid() and self._fs_model.setData(index, new_name, Qt.ItemDataRole.EditRole)
+            if renamed:
+                rebind_in_app_userip_db_path(path, new_path)
+                self._rebind_current_path_and_refresh(path, new_path)
+        if not renamed:
             QMessageBox.critical(self, TITLE, f'Failed to rename "{path.name}".')
             return
-
-        self._rebind_current_path_and_refresh(path, new_path)
         self._set_status(f'Renamed "{path.name}" → "{new_name}"')
 
     def _move_tree_item(self, path: Path) -> None:
@@ -921,8 +926,10 @@ class TreeOperationsMixin(QDialog):
             return
 
         self._unwatch_path(path)
-        shutil.move(str(path), str(new_path))
-        self._rebind_current_path_and_refresh(path, new_path)
+        with userip_databases_lock():
+            shutil.move(str(path), str(new_path))
+            rebind_in_app_userip_db_path(path, new_path)
+            self._rebind_current_path_and_refresh(path, new_path)
         dest_label = 'root' if rel_dest == Path() else str(rel_dest)
         self._set_status(f'Moved "{path.name}" → {dest_label}')
 
@@ -951,28 +958,29 @@ class TreeOperationsMixin(QDialog):
 
         deleted = 0
         restored = 0
-        for json_path in json_files:
-            if json_path.parent == USERIP_DATABASES_DIR_PATH and json_path.name in default_db_names:
-                save_userip_database_model(json_path, UserIPDatabaseFile(settings=DEFAULT_USERIP_FILES_SETTINGS[json_path.name]))
-                restored += 1
-            else:
-                try:
-                    json_path.unlink()
-                    deleted += 1
-                except OSError as e:
-                    logger.warning('Failed to delete user database file %s: %s', json_path, e)
+        with userip_databases_lock():
+            for json_path in json_files:
+                if json_path.parent == USERIP_DATABASES_DIR_PATH and json_path.name in default_db_names:
+                    save_userip_database_model(json_path, UserIPDatabaseFile(settings=DEFAULT_USERIP_FILES_SETTINGS[json_path.name]))
+                    restored += 1
+                else:
+                    try:
+                        json_path.unlink()
+                        deleted += 1
+                    except OSError as e:
+                        logger.warning('Failed to delete user database file %s: %s', json_path, e)
 
-        # Remove user-created subdirectories
-        for entry in USERIP_DATABASES_DIR_PATH.iterdir():
-            if entry.is_dir():
-                self._unwatch_path(entry)
-                try:
-                    shutil.rmtree(entry)
-                except OSError as e:
-                    logger.warning('Failed to remove user database directory %s: %s', entry, e)
+            # Remove user-created subdirectories
+            for entry in USERIP_DATABASES_DIR_PATH.iterdir():
+                if entry.is_dir():
+                    self._unwatch_path(entry)
+                    try:
+                        shutil.rmtree(entry)
+                    except OSError as e:
+                        logger.warning('Failed to remove user database directory %s: %s', entry, e)
 
-        self._refresh_tree_item_visual(resort=True)
-        refresh_userip_and_wake_renderer()
+            self._refresh_tree_item_visual(resort=True)
+            refresh_userip_and_wake_renderer()
         self._refresh_stats()
 
         if self._global_search_active:

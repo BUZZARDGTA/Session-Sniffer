@@ -43,7 +43,8 @@ from session_sniffer.models.userip_settings_model import UserIPDatabaseFile, Use
 from session_sniffer.networking.ip_range import is_valid_ip_range_entry
 from session_sniffer.player.userip import UserIPDatabases
 from session_sniffer.player.userip_groups import MIN_GROUP_USERNAMES, USERIP_GROUPS_PATH, are_usernames_unlinked, group_usernames, ungroup_usernames
-from session_sniffer.player.userip_loader import enrich_userip_entry_from_logs, update_userip_databases
+from session_sniffer.player.userip_loader import is_in_app_userip_db_content, update_userip_databases, userip_databases_lock
+from session_sniffer.player.userip_log_history import enrich_userip_entry_from_logs
 from session_sniffer.rendering_core.events import wake_rendering_core
 from session_sniffer.text_utils import pluralize
 from session_sniffer.utils import dedup_preserve_order
@@ -147,7 +148,7 @@ class UserIPEntriesOperationsMixin(QDialog):
         self._load_database(self._current_path)
         if active_search:
             self._search_input.setText(active_search)
-        self._set_status(f'Reloaded "{self._current_path.name}" after an external change.')
+        self._set_status(f'Reloaded "{self._current_path.name}"{"" if is_in_app_userip_db_content(self._current_path, current_text) else " after an external change"}.')
 
     def _load_all_databases(self) -> None:
         """Populate the table with all cached UserIP database entries."""
@@ -673,7 +674,7 @@ class UserIPEntriesOperationsMixin(QDialog):
                 QMessageBox.information(self, TITLE, f'Selected {pluralize(count, "entry", "entries")} already belong to "{target_display_name}".')
                 return
 
-            with QSignalBlocker(self._fs_watcher):
+            with QSignalBlocker(self._fs_watcher), userip_databases_lock():
                 added_pairs = append_userip_entries(target_db_path, [entry_model for entry_model, _ in valid_moves])
                 for src_db_path, to_remove in entries_by_src.items():
                     if src_db_path.is_file():
@@ -717,16 +718,16 @@ class UserIPEntriesOperationsMixin(QDialog):
             if self._dirty and not self._save_on_close():
                 return
 
-            with QSignalBlocker(self._fs_watcher):
-                append_userip_entries(target_db_path, [entry_model for entry_model, _ in entries_to_move])
-
             for row in sorted({r for _, r in entries_to_move}, reverse=True):
                 self._model.removeRow(row)
 
             self._renumber_indexes()
             self._highlight_duplicates()
             self._update_entry_counts()
-            self._save_database()
+            with userip_databases_lock():
+                with QSignalBlocker(self._fs_watcher):
+                    append_userip_entries(target_db_path, [entry_model for entry_model, _ in entries_to_move])
+                self._save_database(show_errors=False)
             self._set_status(f'Moved {count} {pluralize(count, "entry", "entries")} to "{target_display_name}".')
         UserIPDatabases.renotify_if_conflicting([entry_model.ip for entry_model, _ in entries_to_move])
 
@@ -779,7 +780,7 @@ class UserIPEntriesOperationsMixin(QDialog):
                 entries = dedup_userip_entries(entries)
                 duplicate_count = total_before_dedup - len(entries)
 
-                if duplicate_count > 0:
+                if duplicate_count > 0 and show_errors:
                     QMessageBox.information(self, TITLE, f'{duplicate_count} exact duplicate entr{pluralize(duplicate_count, "y was", "ies were")} removed before saving.')
 
                 with QSignalBlocker(self._model):
@@ -791,8 +792,9 @@ class UserIPEntriesOperationsMixin(QDialog):
 
                 # --- Write new JSON file content ---
                 db_model = UserIPDatabaseFile(settings=settings_model, entries=entries)
-                save_userip_database_model(self._current_path, db_model)
-                refresh_userip_and_wake_renderer()
+                with userip_databases_lock():
+                    save_userip_database_model(self._current_path, db_model)
+                    refresh_userip_and_wake_renderer()
                 self._last_seen_build_version = UserIPDatabases.build_version
                 self._proxy.refresh_groups()
                 self._disk_snapshot = self._current_path.read_text('utf-8')
