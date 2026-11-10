@@ -54,25 +54,46 @@ class BpfProgram(ctypes.Structure):
     ]
 
 
+if sys.platform == 'darwin':
+
+    class _Timeval(ctypes.Structure):
+        """macOS LP64 timeval structure (`time_t` + `suseconds_t`)."""
+
+        _fields_ = [
+            ('tv_sec', c_long),
+            ('tv_usec', ctypes.c_int32),
+        ]
+else:
+
+    class _Timeval(ctypes.Structure):
+        """Win32 and Linux timeval structure."""
+
+        _fields_ = [
+            ('tv_sec', c_long),
+            ('tv_usec', c_long),
+        ]
+
+
 class PcapPkthdr(ctypes.Structure):
     """Packet header containing timestamp and length metadata."""
 
     _fields_ = [
-        ('tv_sec', c_long),
-        ('tv_usec', c_long),
+        ('ts', _Timeval),
         ('caplen', c_uint32),
         ('len', c_uint32),
     ]
 
 
 class PcapStat(ctypes.Structure):
-    """Capture statistics structure."""
+    """Capture statistics structure (includes Win32 Npcap trailing fields)."""
 
     _fields_ = [
         ('ps_recv', c_uint),
         ('ps_drop', c_uint),
         ('ps_ifdrop', c_uint),
         ('ps_capt', c_uint),
+        ('ps_sent', c_uint),
+        ('ps_netdrop', c_uint),
     ]
 
 
@@ -93,7 +114,10 @@ def _load_pcap_library() -> ctypes.CDLL:
         npcap_directory = Path(system_root) / 'System32' / 'Npcap'
 
         if npcap_directory.is_dir():
-            ctypes.windll.kernel32.SetDllDirectoryW(str(npcap_directory))
+            kernel32 = ctypes.WinDLL('kernel32', use_last_error=True)
+            kernel32.SetDllDirectoryW.argtypes = [ctypes.c_wchar_p]
+            kernel32.SetDllDirectoryW.restype = c_int
+            kernel32.SetDllDirectoryW(str(npcap_directory))
             packet_path = npcap_directory / 'Packet.dll'
             wpcap_path = npcap_directory / 'wpcap.dll'
             if packet_path.is_file():
@@ -248,20 +272,6 @@ class PcapHandle:
 
         if not handle:
             error_message = error_buffer.value.decode('utf-8', errors='replace')
-            if sys.platform != 'win32' and ('Operation not permitted' in error_message or 'permission' in error_message.lower()):
-                if sys.platform == 'darwin':
-                    permission_hint = ' (Session Sniffer requires read/write permissions to /dev/bpf*: try running "sudo chmod 666 /dev/bpf*" or running with sudo)'
-                elif getattr(sys, 'frozen', False):
-                    permission_hint = (
-                        ' (Session Sniffer requires root privileges or capture capabilities: '
-                        'try running with sudo or setcap cap_net_raw,cap_net_admin,cap_sys_ptrace=eip on the executable)'
-                    )
-                else:
-                    permission_hint = (
-                        ' (Session Sniffer requires root privileges or CAP_NET_RAW capability: '
-                        'try running with sudo or setcap cap_net_raw,cap_net_admin=eip on the python executable)'
-                    )
-                error_message += permission_hint
             raise PcapOpenError(device_name, error_message)
 
         if hasattr(library, 'pcap_setbuff'):
@@ -288,54 +298,56 @@ class PcapHandle:
             PcapClosedError: If handle is closed.
             PcapFilterError: If BPF compilation or setting fails.
         """
-        if self._is_closed:
-            raise PcapClosedError
+        with self._lock:
+            if self._is_closed:
+                raise PcapClosedError
 
-        library = _load_pcap_library()
-        bpf_program = BpfProgram()
-        filter_bytes = filter_string.encode('utf-8')
+            library = _load_pcap_library()
+            bpf_program = BpfProgram()
+            filter_bytes = filter_string.encode('utf-8')
 
-        compile_result = library.pcap_compile(
-            self._handle,
-            byref(bpf_program),
-            filter_bytes,
-            1,  # optimize
-            c_uint32(PCAP_NETMASK_UNKNOWN),
-        )
+            compile_result = library.pcap_compile(
+                self._handle,
+                byref(bpf_program),
+                filter_bytes,
+                1,  # optimize
+                c_uint32(PCAP_NETMASK_UNKNOWN),
+            )
 
-        if compile_result:
-            error_message = _get_pcap_error_message(library, self._handle)
-            raise PcapFilterError(filter_string, error_message)
-
-        try:
-            setfilter_result = library.pcap_setfilter(self._handle, byref(bpf_program))
-            if setfilter_result:
+            if compile_result:
                 error_message = _get_pcap_error_message(library, self._handle)
                 raise PcapFilterError(filter_string, error_message)
-        finally:
-            library.pcap_freecode(byref(bpf_program))
+
+            try:
+                setfilter_result = library.pcap_setfilter(self._handle, byref(bpf_program))
+                if setfilter_result:
+                    error_message = _get_pcap_error_message(library, self._handle)
+                    raise PcapFilterError(filter_string, error_message)
+            finally:
+                library.pcap_freecode(byref(bpf_program))
 
     def test_filter_compilation(self, filter_string: str) -> bool:
         """Test whether a BPF filter string compiles successfully on this handle."""
-        if self._is_closed:
+        with self._lock:
+            if self._is_closed:
+                return False
+
+            library = _load_pcap_library()
+            bpf_program = BpfProgram()
+            filter_bytes = filter_string.encode('utf-8')
+
+            compile_result = library.pcap_compile(
+                self._handle,
+                byref(bpf_program),
+                filter_bytes,
+                1,  # optimize
+                c_uint32(PCAP_NETMASK_UNKNOWN),
+            )
+
+            if not compile_result:
+                library.pcap_freecode(byref(bpf_program))
+                return True
             return False
-
-        library = _load_pcap_library()
-        bpf_program = BpfProgram()
-        filter_bytes = filter_string.encode('utf-8')
-
-        compile_result = library.pcap_compile(
-            self._handle,
-            byref(bpf_program),
-            filter_bytes,
-            1,  # optimize
-            c_uint32(PCAP_NETMASK_UNKNOWN),
-        )
-
-        if not compile_result:
-            library.pcap_freecode(byref(bpf_program))
-            return True
-        return False
 
     def next_packet(self) -> RawCapturedPacket | None:
         """Read the next packet from the capture handle.
@@ -346,40 +358,41 @@ class PcapHandle:
         Raises:
             PcapReadError: If a non-recoverable capture read error occurs.
         """
-        if self._is_closed:
-            return None
-
-        library = _load_pcap_library()
-
-        result = library.pcap_next_ex(
-            self._handle,
-            byref(self._header_pointer),
-            byref(self._data_pointer),
-        )
-
-        if result == _PCAP_READ_SUCCESS:
-            if not self._header_pointer or not self._data_pointer:
+        with self._lock:
+            if self._is_closed:
                 return None
 
-            header = self._header_pointer.contents
-            captured_length = int(header.caplen)
-            if not 0 < captured_length <= self._snaplen:
-                return None
+            library = _load_pcap_library()
 
-            epoch_seconds = float(header.tv_sec) + (float(header.tv_usec & 0xFFFFFFFF) / 1_000_000.0)
-            packet_bytes = ctypes.string_at(self._data_pointer, captured_length)
-
-            return RawCapturedPacket(
-                timestamp_epoch=epoch_seconds,
-                data=packet_bytes,
-                datalink_type=self._datalink_type,
+            result = library.pcap_next_ex(
+                self._handle,
+                byref(self._header_pointer),
+                byref(self._data_pointer),
             )
 
-        if result in (_PCAP_READ_TIMEOUT, _PCAP_READ_LOOP_BROKEN):
-            return None
+            if result == _PCAP_READ_SUCCESS:
+                if not self._header_pointer or not self._data_pointer:
+                    return None
 
-        error_message = _get_pcap_error_message(library, self._handle)
-        raise PcapReadError(error_message)
+                header = self._header_pointer.contents
+                captured_length = int(header.caplen)
+                if not 0 < captured_length <= self._snaplen:
+                    return None
+
+                epoch_seconds = float(header.ts.tv_sec) + (float(header.ts.tv_usec) / 1_000_000.0)
+                packet_bytes = ctypes.string_at(self._data_pointer, captured_length)
+
+                return RawCapturedPacket(
+                    timestamp_epoch=epoch_seconds,
+                    data=packet_bytes,
+                    datalink_type=self._datalink_type,
+                )
+
+            if result in (_PCAP_READ_TIMEOUT, _PCAP_READ_LOOP_BROKEN):
+                return None
+
+            error_message = _get_pcap_error_message(library, self._handle)
+            raise PcapReadError(error_message)
 
     def next_raw_frame(self) -> bytes | None:
         """Read the next packet data from the capture handle without metadata overhead.
@@ -390,45 +403,47 @@ class PcapHandle:
         Raises:
             PcapReadError: If a non-recoverable capture read error occurs.
         """
-        if self._is_closed:
-            return None
-
-        library = _load_pcap_library()
-
-        result = library.pcap_next_ex(
-            self._handle,
-            byref(self._header_pointer),
-            byref(self._data_pointer),
-        )
-
-        if result == _PCAP_READ_SUCCESS:
-            if not self._header_pointer or not self._data_pointer:
+        with self._lock:
+            if self._is_closed:
                 return None
 
-            header = self._header_pointer.contents
-            captured_length = int(header.caplen)
-            total_length = int(header.len)
-            if captured_length != total_length or not 0 < captured_length <= self._snaplen:
+            library = _load_pcap_library()
+
+            result = library.pcap_next_ex(
+                self._handle,
+                byref(self._header_pointer),
+                byref(self._data_pointer),
+            )
+
+            if result == _PCAP_READ_SUCCESS:
+                if not self._header_pointer or not self._data_pointer:
+                    return None
+
+                header = self._header_pointer.contents
+                captured_length = int(header.caplen)
+                total_length = int(header.len)
+                if captured_length != total_length or not 0 < captured_length <= self._snaplen:
+                    return None
+
+                return ctypes.string_at(self._data_pointer, captured_length)
+
+            if result in (_PCAP_READ_TIMEOUT, _PCAP_READ_LOOP_BROKEN):
                 return None
 
-            return ctypes.string_at(self._data_pointer, captured_length)
-
-        if result in (_PCAP_READ_TIMEOUT, _PCAP_READ_LOOP_BROKEN):
-            return None
-
-        error_message = _get_pcap_error_message(library, self._handle)
-        raise PcapReadError(error_message)
+            error_message = _get_pcap_error_message(library, self._handle)
+            raise PcapReadError(error_message)
 
     def get_drop_count(self) -> int | None:
         """Return cumulative packet drop statistics (`ps_drop` + `ps_ifdrop`)."""
-        if self._is_closed:
-            return None
+        with self._lock:
+            if self._is_closed:
+                return None
 
-        library = _load_pcap_library()
-        stats = PcapStat()
-        if library.pcap_stats(self._handle, byref(stats)):
-            return None
-        return int(stats.ps_drop) + int(stats.ps_ifdrop)
+            library = _load_pcap_library()
+            stats = PcapStat()
+            if library.pcap_stats(self._handle, byref(stats)):
+                return None
+            return int(stats.ps_drop) + int(stats.ps_ifdrop)
 
     def break_loop(self) -> None:
         """Break the capture read loop."""
@@ -446,18 +461,19 @@ class PcapHandle:
             PcapClosedError: If handle is closed.
             PcapSendError: If packet injection fails.
         """
-        if self._is_closed:
-            raise PcapClosedError
+        with self._lock:
+            if self._is_closed:
+                raise PcapClosedError
 
-        if not data:
-            return
+            if not data:
+                return
 
-        library = _load_pcap_library()
-        packet_buffer = (c_ubyte * len(data)).from_buffer_copy(data)
-        result = library.pcap_sendpacket(self._handle, packet_buffer, len(data))
-        if result:
-            error_message = _get_pcap_error_message(library, self._handle)
-            raise PcapSendError(error_message)
+            library = _load_pcap_library()
+            packet_buffer = (c_ubyte * len(data)).from_buffer_copy(data)
+            result = library.pcap_sendpacket(self._handle, packet_buffer, len(data))
+            if result:
+                error_message = _get_pcap_error_message(library, self._handle)
+                raise PcapSendError(error_message)
 
     def close(self) -> None:
         """Close the underlying pcap handle."""

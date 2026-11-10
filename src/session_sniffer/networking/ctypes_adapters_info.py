@@ -1,13 +1,23 @@
 """Low-level ctypes structures and bindings for network adapters, neighbors, WLAN, ICS COM, and ICMP."""
 
 import ctypes
+import functools
 import logging
 import socket
 import sys
 from ctypes import wintypes
 from typing import TYPE_CHECKING, Final, cast
 
-from session_sniffer.ctypes_windows import WindowsGuid, release_com_interface
+from session_sniffer.ctypes_windows import (
+    WindowsGuid,
+    clsid_from_progid,
+    co_create_instance,
+    co_initialize_ex,
+    co_uninitialize,
+    get_com_vtable_entry,
+    query_com_interface,
+    release_com_interface,
+)
 from session_sniffer.networking.adapter_types import GetAdaptersAddressesError
 
 if TYPE_CHECKING:
@@ -36,10 +46,12 @@ _MAC_OCTETS_COUNT = 6
 _DARWIN_AF_LINK = 18
 _DARWIN_AF_INET = 2
 _IFF_UP = 0x1
+_IP_REQ_TIMED_OUT = 11010
 
 _IID_INET_SHARING_MANAGER = WindowsGuid(0xC08956B7, 0x1CD3, 0x11D1, (ctypes.c_ubyte * 8)(0xB1, 0xC5, 0x00, 0x80, 0x5F, 0xC1, 0x27, 0x0E))
 _IID_IENUM_VARIANT = WindowsGuid(0x00020404, 0x0000, 0x0000, (ctypes.c_ubyte * 8)(0xC0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x46))
 _INVALID_HANDLE_VALUE: Final[int] = cast('int', ctypes.c_void_p(-1).value)
+_ACTIVE_MIB_CALLBACKS: set[object] = set()
 
 
 class IP_ADAPTER_UNICAST_ADDRESS(ctypes.Structure):
@@ -269,7 +281,7 @@ class _DarwinSockaddrDl(ctypes.Structure):
         ('sdl_nlen', ctypes.c_uint8),
         ('sdl_alen', ctypes.c_uint8),
         ('sdl_slen', ctypes.c_uint8),
-        ('sdl_data', ctypes.c_char * 24),
+        ('sdl_data', ctypes.c_ubyte * 24),
     ]
 
 
@@ -312,7 +324,7 @@ _DarwinIfAddrs._fields_ = [
 
 
 if sys.platform == 'win32':
-    _iphlpapi = ctypes.windll.iphlpapi
+    _iphlpapi = ctypes.WinDLL('iphlpapi', use_last_error=True)
 
     GetAdaptersAddresses = _iphlpapi.GetAdaptersAddresses
     GetAdaptersAddresses.argtypes = [
@@ -324,7 +336,7 @@ if sys.platform == 'win32':
     ]
     GetAdaptersAddresses.restype = wintypes.ULONG
 
-    GetIfEntry2 = ctypes.windll.Iphlpapi.GetIfEntry2
+    GetIfEntry2 = _iphlpapi.GetIfEntry2
     GetIfEntry2.argtypes = [ctypes.POINTER(MIB_IF_ROW2)]
     GetIfEntry2.restype = wintypes.ULONG
 
@@ -384,6 +396,12 @@ if sys.platform == 'win32':
     _CancelMibChangeNotify2.argtypes = [wintypes.HANDLE]
     _CancelMibChangeNotify2.restype = wintypes.ULONG
 
+    _oleaut32 = ctypes.windll.oleaut32
+    _oleaut32.SysFreeString.argtypes = [ctypes.c_wchar_p]
+    _oleaut32.SysFreeString.restype = None
+    _oleaut32.VariantClear.argtypes = [ctypes.c_void_p]
+    _oleaut32.VariantClear.restype = wintypes.HRESULT
+
 
 def _get_ip_net_table(buf: object, size_ptr: object) -> int:
     """Call GetIpNetTable with required BOOL positional argument."""
@@ -429,7 +447,7 @@ def iter_win32_ip_net_table() -> Iterator[tuple[int, str | None, str | None]]:
         row_ptr = ctypes.cast(base + header_size + i * row_size, ctypes.POINTER(MIB_IPNETROW))
         row = row_ptr.contents
         ipv4 = socket.inet_ntoa(int(row.dwAddr).to_bytes(4, 'little'))
-        mac_address = None if not row.dwPhysAddrLen else ':'.join(f'{byte:02X}' for byte in row.bPhysAddr[: row.dwPhysAddrLen])
+        mac_address = ':'.join(f'{byte:02X}' for byte in row.bPhysAddr[:_MAC_OCTETS_COUNT]) if row.dwPhysAddrLen == _MAC_OCTETS_COUNT else None
         yield int(row.dwIndex), ipv4, mac_address
 
 
@@ -481,8 +499,9 @@ def _populate_darwin_ifaddr(
             ipv4_by_interface_name.setdefault(interface_name_string, []).append(ip_string)
         elif sa_family == _DARWIN_AF_LINK:
             sockaddr_dl = ctypes.cast(address_entry.ifa_addr, ctypes.POINTER(_DarwinSockaddrDl)).contents
-            if sockaddr_dl.sdl_alen == _MAC_OCTETS_COUNT:
-                raw_bytes = bytes(sockaddr_dl.sdl_data)[sockaddr_dl.sdl_nlen : sockaddr_dl.sdl_nlen + _MAC_OCTETS_COUNT]
+            name_length = int(sockaddr_dl.sdl_nlen)
+            if sockaddr_dl.sdl_alen == _MAC_OCTETS_COUNT and name_length + _MAC_OCTETS_COUNT <= len(sockaddr_dl.sdl_data):
+                raw_bytes = bytes(sockaddr_dl.sdl_data)[name_length : name_length + _MAC_OCTETS_COUNT]
                 if any(raw_bytes):
                     mac_by_interface_name[interface_name_string] = ':'.join(f'{byte:02X}' for byte in raw_bytes)
 
@@ -580,7 +599,11 @@ def iter_win32_adapters_addresses() -> Iterator[
     adapter = ctypes.cast(buf, LP_IP_ADAPTER_ADDRESSES)
     while adapter:
         addr = adapter.contents
-        mac_address = None if not addr.PhysicalAddressLength else ':'.join(f'{byte:02X}' for byte in addr.PhysicalAddress[: addr.PhysicalAddressLength])
+        mac_address = (
+            ':'.join(f'{byte:02X}' for byte in addr.PhysicalAddress[:_MAC_OCTETS_COUNT])
+            if addr.PhysicalAddressLength == _MAC_OCTETS_COUNT
+            else None
+        )
         ipv4_list: list[str] = []
 
         uni = addr.FirstUnicastAddress
@@ -634,14 +657,39 @@ def iter_win32_adapters_addresses() -> Iterator[
         adapter = ctypes.cast(addr.Next, LP_IP_ADAPTER_ADDRESSES)
 
 
+@functools.cache
+def _get_wlanapi() -> ctypes.WinDLL | None:
+    """Load and prototype wlanapi.dll once, returning None if unavailable."""
+    if sys.platform != 'win32':
+        return None
+    try:
+        wlanapi = ctypes.WinDLL('wlanapi')
+    except OSError:
+        return None
+    wlanapi.WlanOpenHandle.argtypes = [
+        wintypes.DWORD,
+        ctypes.c_void_p,
+        ctypes.POINTER(wintypes.DWORD),
+        ctypes.POINTER(wintypes.HANDLE),
+    ]
+    wlanapi.WlanOpenHandle.restype = wintypes.DWORD
+    wlanapi.WlanEnumInterfaces.argtypes = [
+        wintypes.HANDLE,
+        ctypes.c_void_p,
+        ctypes.POINTER(ctypes.c_void_p),
+    ]
+    wlanapi.WlanEnumInterfaces.restype = wintypes.DWORD
+    wlanapi.WlanFreeMemory.argtypes = [ctypes.c_void_p]
+    wlanapi.WlanFreeMemory.restype = None
+    wlanapi.WlanCloseHandle.argtypes = [wintypes.HANDLE, ctypes.c_void_p]
+    wlanapi.WlanCloseHandle.restype = wintypes.DWORD
+    return wlanapi
+
+
 def has_wlan_interfaces() -> bool:
     """Return whether at least one wireless LAN interface is enumerated by Win32 wlanapi."""
-    if sys.platform != 'win32':
-        return False
-
-    try:
-        wlanapi = ctypes.windll.wlanapi
-    except (AttributeError, OSError):
+    wlanapi = _get_wlanapi()
+    if wlanapi is None:
         return False
 
     negotiated_version = wintypes.DWORD()
@@ -664,13 +712,12 @@ def has_wlan_interfaces() -> bool:
         wlanapi.WlanCloseHandle(client_handle, None)
 
 
-def _extract_bstr_guid(props_ptr: wintypes.LPVOID, oleaut32: ctypes.WinDLL) -> str | None:
-    props_vtable = ctypes.cast(props_ptr, ctypes.POINTER(ctypes.POINTER(ctypes.c_void_p))).contents
+def _extract_bstr_guid(props_ptr: wintypes.LPVOID) -> str | None:
     get_guid = ctypes.WINFUNCTYPE(
         wintypes.HRESULT,
         wintypes.LPVOID,
         ctypes.POINTER(ctypes.c_wchar_p),
-    )(props_vtable[7])
+    )(get_com_vtable_entry(props_ptr, 7))
     bstr_guid = ctypes.c_wchar_p()
     if get_guid(props_ptr, ctypes.byref(bstr_guid)):
         return None
@@ -678,45 +725,42 @@ def _extract_bstr_guid(props_ptr: wintypes.LPVOID, oleaut32: ctypes.WinDLL) -> s
         return bstr_guid.value
     finally:
         if bstr_guid:
-            oleaut32.SysFreeString(bstr_guid)
+            _oleaut32.SysFreeString(bstr_guid)
 
 
 def _query_connection_sharing_type(
     manager_ptr: wintypes.LPVOID,
     connection_ptr: wintypes.LPVOID,
-    oleaut32: ctypes.WinDLL,
 ) -> tuple[str, int] | None:
     """Extract (raw_guid, sharing_type) for a single COM connection if sharing is enabled."""
-    manager_vtable = ctypes.cast(manager_ptr, ctypes.POINTER(ctypes.POINTER(ctypes.c_void_p))).contents
     get_configuration_for_connection = ctypes.WINFUNCTYPE(
         wintypes.HRESULT,
         wintypes.LPVOID,
         wintypes.LPVOID,
         ctypes.POINTER(wintypes.LPVOID),
-    )(manager_vtable[10])
+    )(get_com_vtable_entry(manager_ptr, 10))
     get_connection_props = ctypes.WINFUNCTYPE(
         wintypes.HRESULT,
         wintypes.LPVOID,
         wintypes.LPVOID,
         ctypes.POINTER(wintypes.LPVOID),
-    )(manager_vtable[12])
+    )(get_com_vtable_entry(manager_ptr, 12))
 
     config_ptr = wintypes.LPVOID()
     if get_configuration_for_connection(manager_ptr, connection_ptr, ctypes.byref(config_ptr)) or not config_ptr:
         return None
 
     try:
-        config_vtable = ctypes.cast(config_ptr, ctypes.POINTER(ctypes.POINTER(ctypes.c_void_p))).contents
         get_sharing_enabled = ctypes.WINFUNCTYPE(
             wintypes.HRESULT,
             wintypes.LPVOID,
             ctypes.POINTER(wintypes.SHORT),
-        )(config_vtable[7])
+        )(get_com_vtable_entry(config_ptr, 7))
         get_sharing_type = ctypes.WINFUNCTYPE(
             wintypes.HRESULT,
             wintypes.LPVOID,
             ctypes.POINTER(ctypes.c_int),
-        )(config_vtable[8])
+        )(get_com_vtable_entry(config_ptr, 8))
 
         sharing_enabled = wintypes.SHORT()
         if get_sharing_enabled(config_ptr, ctypes.byref(sharing_enabled)) or not sharing_enabled.value:
@@ -730,7 +774,7 @@ def _query_connection_sharing_type(
             return None
 
         try:
-            guid_value = _extract_bstr_guid(props_ptr, oleaut32)
+            guid_value = _extract_bstr_guid(props_ptr)
             if guid_value is not None and guid_value:
                 return (guid_value, sharing_type.value)
         finally:
@@ -743,60 +787,42 @@ def _query_connection_sharing_type(
 
 def _get_enum_variant(manager_ptr: wintypes.LPVOID) -> wintypes.LPVOID:
     """Obtain the IEnumVARIANT interface for all network connections."""
-    manager_vtable = ctypes.cast(manager_ptr, ctypes.POINTER(ctypes.POINTER(ctypes.c_void_p))).contents
     get_enum_every_connection = ctypes.WINFUNCTYPE(
         wintypes.HRESULT,
         wintypes.LPVOID,
         ctypes.POINTER(wintypes.LPVOID),
-    )(manager_vtable[11])
+    )(get_com_vtable_entry(manager_ptr, 11))
 
     collection_ptr = wintypes.LPVOID()
     if get_enum_every_connection(manager_ptr, ctypes.byref(collection_ptr)) or not collection_ptr:
         return wintypes.LPVOID()
 
     try:
-        collection_vtable = ctypes.cast(collection_ptr, ctypes.POINTER(ctypes.POINTER(ctypes.c_void_p))).contents
         get_new_enum = ctypes.WINFUNCTYPE(
             wintypes.HRESULT,
             wintypes.LPVOID,
             ctypes.POINTER(wintypes.LPVOID),
-        )(collection_vtable[7])
+        )(get_com_vtable_entry(collection_ptr, 7))
 
         unknown_enum_ptr = wintypes.LPVOID()
         if get_new_enum(collection_ptr, ctypes.byref(unknown_enum_ptr)) or not unknown_enum_ptr:
             return wintypes.LPVOID()
 
         try:
-            unknown_vtable = ctypes.cast(unknown_enum_ptr, ctypes.POINTER(ctypes.POINTER(ctypes.c_void_p))).contents
-            query_interface_unknown = ctypes.WINFUNCTYPE(
-                wintypes.HRESULT,
-                wintypes.LPVOID,
-                ctypes.POINTER(WindowsGuid),
-                ctypes.POINTER(wintypes.LPVOID),
-            )(unknown_vtable[0])
-
-            enum_variant_ptr = wintypes.LPVOID()
-            if query_interface_unknown(unknown_enum_ptr, ctypes.byref(_IID_IENUM_VARIANT), ctypes.byref(enum_variant_ptr)) or not enum_variant_ptr:
-                return wintypes.LPVOID()
-
-            return enum_variant_ptr
+            return query_com_interface(unknown_enum_ptr, _IID_IENUM_VARIANT)
         finally:
             release_com_interface(unknown_enum_ptr)
     finally:
         release_com_interface(collection_ptr)
 
 
-def _collect_ics_sharing_entries(
-    manager_ptr: wintypes.LPVOID,
-    oleaut32: ctypes.WinDLL,
-) -> list[tuple[str, int]]:
+def _collect_ics_sharing_entries(manager_ptr: wintypes.LPVOID) -> list[tuple[str, int]]:
     """Query `manager_ptr` for ICS installation and collect `(guid, sharing_type)` pairs."""
-    manager_vtable = ctypes.cast(manager_ptr, ctypes.POINTER(ctypes.POINTER(ctypes.c_void_p))).contents
     get_sharing_installed = ctypes.WINFUNCTYPE(
         wintypes.HRESULT,
         wintypes.LPVOID,
         ctypes.POINTER(wintypes.SHORT),
-    )(manager_vtable[7])
+    )(get_com_vtable_entry(manager_ptr, 7))
 
     installed = wintypes.SHORT()
     if get_sharing_installed(manager_ptr, ctypes.byref(installed)) or not installed.value:
@@ -807,19 +833,15 @@ def _collect_ics_sharing_entries(
         return []
 
     entries: list[tuple[str, int]] = []
-    variant_clear = oleaut32.VariantClear
-    variant_clear.argtypes = [ctypes.c_void_p]
-    variant_clear.restype = wintypes.HRESULT
 
     try:
-        enum_vtable = ctypes.cast(enum_variant_ptr, ctypes.POINTER(ctypes.POINTER(ctypes.c_void_p))).contents
         next_enum = ctypes.WINFUNCTYPE(
             wintypes.HRESULT,
             wintypes.LPVOID,
             wintypes.ULONG,
             wintypes.LPVOID,
             ctypes.POINTER(wintypes.ULONG),
-        )(enum_vtable[3])
+        )(get_com_vtable_entry(enum_variant_ptr, 3))
 
         variant_buffer = (ctypes.c_byte * 24)()
         fetched_count = wintypes.ULONG()
@@ -830,13 +852,13 @@ def _collect_ics_sharing_entries(
                     continue
                 connection_ptr = wintypes.LPVOID(connection_val)
                 try:
-                    entry = _query_connection_sharing_type(manager_ptr, connection_ptr, oleaut32)
+                    entry = _query_connection_sharing_type(manager_ptr, connection_ptr)
                     if entry is not None:
                         entries.append(entry)
                 except OSError as e:
                     logger.debug('Failed to classify ICS connection: %s', e)
             finally:
-                variant_clear(ctypes.byref(variant_buffer))
+                _oleaut32.VariantClear(ctypes.byref(variant_buffer))
     finally:
         release_com_interface(enum_variant_ptr)
     return entries
@@ -847,22 +869,14 @@ def query_ics_sharing_types() -> list[tuple[str, int]]:
     if sys.platform != 'win32':
         return []
     entries: list[tuple[str, int]] = []
-    ole32 = ctypes.windll.ole32
-    oleaut32 = ctypes.windll.oleaut32
-
-    hr_init = ole32.CoInitializeEx(None, 2)
-    need_uninit = hr_init in (0, 1)
+    need_uninit = co_initialize_ex(2)
 
     try:
-        clsid = WindowsGuid()
-        manager_ptr = wintypes.LPVOID()
-        if (
-            not ole32.CLSIDFromProgID('HNetCfg.HNetShare', ctypes.byref(clsid))
-            and not ole32.CoCreateInstance(ctypes.byref(clsid), None, 5, ctypes.byref(_IID_INET_SHARING_MANAGER), ctypes.byref(manager_ptr))
-            and manager_ptr
-        ):
+        clsid = clsid_from_progid('HNetCfg.HNetShare')
+        manager_ptr = co_create_instance(clsid, 5, _IID_INET_SHARING_MANAGER) if clsid is not None else wintypes.LPVOID()
+        if manager_ptr:
             try:
-                entries = _collect_ics_sharing_entries(manager_ptr, oleaut32)
+                entries = _collect_ics_sharing_entries(manager_ptr)
             except OSError as e:
                 logger.debug('ICS COM query encountered error: %s', e)
             finally:
@@ -871,7 +885,7 @@ def query_ics_sharing_types() -> list[tuple[str, int]]:
         logger.debug('Failed to initialize ICS COM interface: %s', e)
     finally:
         if need_uninit:
-            ole32.CoUninitialize()
+            co_uninitialize()
 
     return entries
 
@@ -913,10 +927,14 @@ def send_icmp_echo(
             timeout_milliseconds,
         ),
     )
+    last_error = ctypes.get_last_error() if not return_value else 0
     reply = _IcmpEchoReply.from_buffer_copy(reply_buffer)
+    status_code = int(reply.Status)
+    if not return_value and not status_code:
+        status_code = last_error or _IP_REQ_TIMED_OUT
     return (
         return_value,
-        int(reply.Status),
+        status_code,
         int(reply.RoundTripTime),
         int(reply.Options.Ttl),
     )
@@ -941,6 +959,9 @@ def register_win32_ip_change_notification(callback: Callable[[], None]) -> Calla
     if _NotifyIpInterfaceChange(AF_INET, c_callback, None, 0, ctypes.byref(interface_handle)) == ERROR_SUCCESS and bool(interface_handle.value):
         handles.append(interface_handle)
 
+    if handles:
+        _ACTIVE_MIB_CALLBACKS.add(c_callback)
+
     closed = False
 
     def _unregister() -> None:
@@ -951,6 +972,6 @@ def register_win32_ip_change_notification(callback: Callable[[], None]) -> Calla
         for handle in handles:
             _CancelMibChangeNotify2(handle)
         handles.clear()
-        _ = c_callback
+        _ACTIVE_MIB_CALLBACKS.discard(c_callback)
 
     return _unregister

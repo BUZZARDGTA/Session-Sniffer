@@ -21,6 +21,7 @@ from session_sniffer.networking.ctypes_adapters_info import (
     query_linux_ifaddrs,
     register_win32_ip_change_notification,
 )
+from session_sniffer.networking.utils import is_mac_address
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
@@ -96,7 +97,7 @@ def _iterate_ipv4_neighbors_linux() -> Iterator[tuple[int, str | None, str | Non
         parts = line.split()
         if len(parts) >= _ARP_MIN_FIELD_COUNT:
             ip_address, _hw_type, flags, mac_address, _mask, device_name = parts[:6]
-            if flags != '0x0' and mac_address != '00:00:00:00:00:00':
+            if flags != '0x0' and mac_address != '00:00:00:00:00:00' and is_mac_address(mac_address):
                 try:
                     interface_index = socket.if_nametoindex(device_name)
                 except OSError:
@@ -166,8 +167,8 @@ def _get_linux_adapters_info() -> Iterator[AdapterData]:
     for interface_index, interface_name in interface_list:
         interface_sys_dir = net_path / interface_name
 
-        mac_text = _read_sys_file(interface_sys_dir / 'address')
-        mac_address = mac_text.upper() if mac_text and mac_text != '00:00:00:00:00:00' else None
+        mac_text = _read_sys_file(interface_sys_dir / 'address').upper()
+        mac_address = mac_text if mac_text != '00:00:00:00:00:00' and is_mac_address(mac_text) else None
 
         operstate = _read_sys_file(interface_sys_dir / 'operstate').lower()
         is_up = operstate in {'up', 'unknown'}

@@ -40,6 +40,17 @@ if sys.platform == 'win32':
         ctypes.POINTER(wintypes.DWORD),
     ]
     _iphlpapi.SendARP.restype = wintypes.DWORD
+
+    _WNDENUMPROC = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+    _user32 = ctypes.windll.user32
+    _user32.EnumWindows.argtypes = [_WNDENUMPROC, wintypes.LPARAM]
+    _user32.EnumWindows.restype = wintypes.BOOL
+    _user32.IsWindowVisible.argtypes = [wintypes.HWND]
+    _user32.IsWindowVisible.restype = wintypes.BOOL
+    _user32.GetWindowTextLengthW.argtypes = [wintypes.HWND]
+    _user32.GetWindowTextLengthW.restype = ctypes.c_int
+    _user32.GetWindowTextW.argtypes = [wintypes.HWND, wintypes.LPWSTR, ctypes.c_int]
+    _user32.GetWindowTextW.restype = ctypes.c_int
 else:
     _SC_MANAGER_CONNECT = 0
     _SERVICE_QUERY_STATUS = 0
@@ -69,30 +80,26 @@ def is_service_running(service_name: str) -> bool:
     return is_running
 
 
-def is_npcap_setup_window_visible() -> bool:
-    """Check if any visible window belongs to the Npcap setup wizard."""
+def iter_visible_window_titles() -> list[str]:
+    """Return the window titles of all currently visible top-level Win32 windows."""
     if sys.platform != 'win32':
-        return False
+        return []
 
-    found = False
-    window_enum_proc = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+    titles: list[str] = []
 
-    def enum_windows_callback(hwnd: wintypes.HWND, _lparam: wintypes.LPARAM) -> bool:
-        nonlocal found
-        if not ctypes.windll.user32.IsWindowVisible(hwnd):
+    def enum_windows_callback(hwnd: int | None, _lparam: int) -> bool:
+        if hwnd is None or not hwnd or not _user32.IsWindowVisible(hwnd):
             return True
-        length = ctypes.windll.user32.GetWindowTextLengthW(hwnd)
+        length = _user32.GetWindowTextLengthW(hwnd)
         if length > 0:
             title_buffer = ctypes.create_unicode_buffer(length + 1)
-            ctypes.windll.user32.GetWindowTextW(hwnd, title_buffer, length + 1)
-            title = title_buffer.value.lower()
-            if 'npcap' in title and 'setup' in title:
-                found = True
-                return False
+            if _user32.GetWindowTextW(hwnd, title_buffer, length + 1) > 0 and title_buffer.value:
+                titles.append(title_buffer.value)
         return True
 
-    ctypes.windll.user32.EnumWindows(window_enum_proc(enum_windows_callback), 0)
-    return found
+    callback = _WNDENUMPROC(enum_windows_callback)
+    _user32.EnumWindows(callback, 0)
+    return titles
 
 
 def send_arp_win32(destination_ip: int, source_ip: int) -> tuple[int, bytes]:

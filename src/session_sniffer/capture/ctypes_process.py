@@ -1,6 +1,7 @@
 """Low-level Win32 and macOS libproc ctypes bindings for process inspection and control."""
 
 import ctypes
+import functools
 import os
 import socket
 import sys
@@ -181,10 +182,25 @@ def _get_creation_time_from_handle(handle: wintypes.HANDLE) -> float | None:
     return (time_100ns - _WINDOWS_EPOCH_DELTA_100NS) / 10000000.0
 
 
+@functools.cache
+def _get_darwin_libc() -> ctypes.CDLL:
+    """Load and prototype macOS libproc functions from libc once."""
+    libc = ctypes.CDLL(None)
+    libc.proc_pidinfo.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_uint64, ctypes.c_void_p, ctypes.c_int]
+    libc.proc_pidinfo.restype = ctypes.c_int
+    libc.proc_pidpath.argtypes = [ctypes.c_int, ctypes.c_void_p, ctypes.c_uint32]
+    libc.proc_pidpath.restype = ctypes.c_int
+    libc.proc_listpids.argtypes = [ctypes.c_uint32, ctypes.c_uint32, ctypes.c_void_p, ctypes.c_int]
+    libc.proc_listpids.restype = ctypes.c_int
+    libc.proc_name.argtypes = [ctypes.c_int, ctypes.c_void_p, ctypes.c_uint32]
+    libc.proc_name.restype = ctypes.c_int
+    return libc
+
+
 def get_process_creation_time_darwin(pid: int) -> float | None:
     """Return creation time of the process on macOS using libproc."""
     try:
-        libc = ctypes.CDLL(None)
+        libc = _get_darwin_libc()
         bsdinfo = _DarwinProcBsdInfo()
         return_bytes = libc.proc_pidinfo(pid, _DARWIN_PROC_PIDTBSDINFO, 0, ctypes.byref(bsdinfo), ctypes.sizeof(bsdinfo))
         if return_bytes == ctypes.sizeof(bsdinfo):
@@ -229,7 +245,7 @@ def is_process_running_win32(pid: int, creation_time: float | None, tolerance_se
 def get_process_image_path_darwin(pid: int) -> Path | None:
     """Return the resolved executable file path for the given PID on macOS via proc_pidpath."""
     try:
-        libc = ctypes.CDLL(None)
+        libc = _get_darwin_libc()
         path_buffer = ctypes.create_string_buffer(4096)
         return_length = libc.proc_pidpath(pid, path_buffer, ctypes.sizeof(path_buffer))
         if return_length > 0:
@@ -261,7 +277,7 @@ def get_process_image_path_win32(pid: int) -> Path | None:
 def iter_running_processes_darwin() -> list[tuple[int, str]]:
     """Return a snapshot list of (pid, name) for all running processes on macOS via libproc."""
     try:
-        libc = ctypes.CDLL(None)
+        libc = _get_darwin_libc()
         bytes_needed = libc.proc_listpids(_DARWIN_PROC_ALL_PIDS, 0, None, 0)
         if bytes_needed <= 0:
             return []
@@ -272,12 +288,20 @@ def iter_running_processes_darwin() -> list[tuple[int, str]]:
         pid_count = actual_bytes // ctypes.sizeof(ctypes.c_int32)
         pids = (ctypes.c_int32 * pid_count).from_buffer(buffer)
         processes: list[tuple[int, str]] = []
+        path_buffer = ctypes.create_string_buffer(4096)
         name_buffer = ctypes.create_string_buffer(256)
         for pid in pids:
             if pid <= 0:
                 continue
-            name_length = libc.proc_name(pid, name_buffer, ctypes.sizeof(name_buffer))
-            name = name_buffer.value.decode('utf-8', errors='replace') if name_length > 0 else ''
+            path_length = libc.proc_pidpath(pid, path_buffer, ctypes.sizeof(path_buffer))
+            if path_length > 0:
+                full_path = path_buffer.value.decode('utf-8', errors='replace')
+                name = Path(full_path).name if full_path else ''
+            else:
+                name = ''
+            if not name:
+                name_length = libc.proc_name(pid, name_buffer, ctypes.sizeof(name_buffer))
+                name = name_buffer.value.decode('utf-8', errors='replace') if name_length > 0 else ''
             processes.append((int(pid), name))
     except (OSError, AttributeError):
         return []
@@ -318,7 +342,7 @@ def set_process_suspended_win32(pid: int, *, suspend: bool) -> None:
 def is_process_suspended_darwin(pid: int) -> bool:
     """Check if process is suspended on macOS via proc_pidinfo."""
     try:
-        libc = ctypes.CDLL(None)
+        libc = _get_darwin_libc()
         bsdinfo = _DarwinProcBsdInfo()
         return_bytes = libc.proc_pidinfo(pid, _DARWIN_PROC_PIDTBSDINFO, 0, ctypes.byref(bsdinfo), ctypes.sizeof(bsdinfo))
         if return_bytes == ctypes.sizeof(bsdinfo):
@@ -391,7 +415,7 @@ def is_process_suspended_win32(pid: int) -> bool:
 def get_current_process_memory_darwin() -> float:
     """Return RSS memory usage of the current process in megabytes on macOS via proc_pidinfo."""
     try:
-        libc = ctypes.CDLL(None)
+        libc = _get_darwin_libc()
         taskinfo = _DarwinProcTaskInfo()
         return_bytes = libc.proc_pidinfo(os.getpid(), _DARWIN_PROC_PIDTASKINFO, 0, ctypes.byref(taskinfo), ctypes.sizeof(taskinfo))
         if return_bytes == ctypes.sizeof(taskinfo):

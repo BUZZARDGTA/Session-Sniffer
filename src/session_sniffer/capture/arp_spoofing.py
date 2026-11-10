@@ -111,13 +111,13 @@ def arp_spoofing_task(
         logger.error('ARP spoofing cannot start: device_name is None')
         return
 
-    if selected_interface.mac_address is None:
-        logger.error('ARP spoofing cannot start: interface MAC address is None')
+    host_mac = selected_interface.interface.identity.mac_address
+    target_mac = selected_interface.mac_address
+    if host_mac is None or target_mac is None:
+        logger.error('ARP spoofing cannot start: host or target MAC address is None')
         return
 
-    host_mac = selected_interface.interface.identity.mac_address or selected_interface.mac_address
     target_ip = selected_interface.ip_address
-    target_mac = selected_interface.mac_address
     source_ip = selected_interface.interface.ip_addresses[0] if selected_interface.interface.ip_addresses else None
     gateway_ip = selected_interface.gateway_ip
     gateway_mac: str | None = None

@@ -7,6 +7,8 @@ import socket
 import struct
 import sys
 import time
+import urllib.parse
+from contextlib import suppress
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Final, Self, cast
 
@@ -48,6 +50,21 @@ _IP_STATUS_DESCRIPTIONS: Final[dict[int, str]] = {
     11050: 'General failure',
 }
 _MIN_SAMPLES_FOR_MDEV: Final[int] = 2
+_CMSG_INT_TTL_BYTES: Final[int] = 4
+_IPV4_VERSION: Final[int] = 4
+_IPV4_MIN_HEADER_BYTES: Final[int] = 20
+_ICMP_HEADER_BYTES: Final[int] = 8
+_ICMP_ECHO_REPLY_TYPE: Final[int] = 0
+_ICMP_ECHO_REQUEST_TYPE: Final[int] = 8
+
+
+def _compute_icmp_checksum(data: bytes) -> int:
+    """Compute the 16-bit RFC 1071 Internet checksum for an ICMP packet."""
+    padded = data + b'\x00' if len(data) % 2 else data
+    total = sum((padded[i] << 8) | padded[i + 1] for i in range(0, len(padded), 2))
+    total = (total >> 16) + (total & 0xFFFF)
+    total += total >> 16
+    return ~total & 0xFFFF
 
 
 class PingMode(enum.StrEnum):
@@ -197,9 +214,8 @@ class IcmpEchoEngine:
                     self._handle = None
         elif self._unix_socket is not None:
             try:
-                self._unix_socket.close()
-            except OSError:
-                pass
+                with suppress(OSError):
+                    self._unix_socket.close()
             finally:
                 self._unix_socket = None
 
@@ -241,20 +257,51 @@ class IcmpEchoEngine:
             )
 
         identifier = sequence & 0xFFFF
-        header = struct.pack('!BBHHH', 8, 0, 0, identifier, sequence & 0xFFFF)
-        packet = header + payload_data
+        sequence_field = sequence & 0xFFFF
+        unchecksummed = struct.pack('!BBHHH', _ICMP_ECHO_REQUEST_TYPE, 0, 0, identifier, sequence_field) + payload_data
+        checksum = _compute_icmp_checksum(unchecksummed)
+        packet = struct.pack('!BBHHH', _ICMP_ECHO_REQUEST_TYPE, 0, checksum, identifier, sequence_field) + payload_data
 
         self._unix_socket.settimeout(timeout_seconds)
         start_time = time.perf_counter()
         try:
             self._unix_socket.sendto(packet, (resolved_ip, 0))
-            _packet_data, ancillary_data, _message_flags, _peer_address = getattr(self._unix_socket, 'recvmsg', _recvmsg_fallback)(1024, 1024)
+            packet_data, ancillary_data, _message_flags, _peer_address = cast(
+                'tuple[bytes, list[tuple[int, int, bytes]], int, tuple[str, int]]',
+                getattr(self._unix_socket, 'recvmsg', _recvmsg_fallback)(1024, 1024),
+            )
             round_trip_time_ms = (time.perf_counter() - start_time) * 1000.0
 
             time_to_live: int | None = None
+            recv_ttl_types = {socket.IP_TTL}
+            if hasattr(socket, 'IP_RECVTTL'):
+                recv_ttl_types.add(socket.IP_RECVTTL)
             for cmsg_level, cmsg_type, cmsg_data in ancillary_data:
-                if cmsg_level == socket.IPPROTO_IP and cmsg_type == socket.IP_TTL:
-                    time_to_live = struct.unpack('i', cmsg_data)[0]
+                if cmsg_level == socket.IPPROTO_IP and cmsg_type in recv_ttl_types:
+                    if len(cmsg_data) >= _CMSG_INT_TTL_BYTES:
+                        time_to_live = int(struct.unpack('i', cmsg_data[:_CMSG_INT_TTL_BYTES])[0])
+                    elif len(cmsg_data) == 1:
+                        time_to_live = cmsg_data[0]
+
+            icmp_payload = packet_data
+            if sys.platform == 'darwin' and len(packet_data) >= _IPV4_MIN_HEADER_BYTES and (packet_data[0] >> 4) == _IPV4_VERSION:
+                ip_header_length = (packet_data[0] & 0x0F) * 4
+                if time_to_live is None:
+                    time_to_live = packet_data[8]
+                icmp_payload = packet_data[ip_header_length:]
+
+            if len(icmp_payload) < _ICMP_HEADER_BYTES or icmp_payload[0] != _ICMP_ECHO_REPLY_TYPE:
+                return PingProbeResult(
+                    sequence=sequence,
+                    target_host=target_ip,
+                    target_ip=resolved_ip,
+                    port=None,
+                    is_successful=False,
+                    round_trip_time_ms=None,
+                    time_to_live=None,
+                    status_message='Unexpected ICMP response',
+                    payload_bytes=payload_bytes,
+                )
 
             return PingProbeResult(
                 sequence=sequence,
@@ -539,7 +586,8 @@ def probe_check_host(target_ip: str, *, sequence: int = 1) -> list[PingProbeResu
     results: list[PingProbeResult] = []
     try:
         request_response = session.get(
-            f'{_CHECK_HOST_API}/check-ping?host={target_ip}',
+            f'{_CHECK_HOST_API}/check-ping',
+            params={'host': target_ip},
             headers={'Accept': 'application/json'},
             timeout=10,
         )
@@ -565,8 +613,9 @@ def probe_check_host(target_ip: str, *, sequence: int = 1) -> list[PingProbeResu
 
         # Poll for results
         time.sleep(4.0)
+        encoded_request_id = urllib.parse.quote(request_id, safe='')
         result_response = session.get(
-            f'{_CHECK_HOST_API}/check-result/{request_id}',
+            f'{_CHECK_HOST_API}/check-result/{encoded_request_id}',
             headers={'Accept': 'application/json'},
             timeout=10,
         )

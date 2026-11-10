@@ -19,6 +19,7 @@ from session_sniffer.networking.bridge_ics import get_adapter_classification
 from session_sniffer.networking.ctypes_adapters_info import has_wlan_interfaces
 from session_sniffer.networking.interface import AllInterfaces
 from session_sniffer.networking.manuf_lookup import MacLookup
+from session_sniffer.networking.utils import is_mac_address
 from session_sniffer.utils import run_elevated_powershell_command
 
 logger = logging.getLogger(__name__)
@@ -549,7 +550,7 @@ def get_connected_devices() -> list[ConnectedDevice]:
                     hostname = raw_list[0]
 
             resolved_ip, neighbour_vendor = _resolve_neighbour_info(mac_raw) if mac_raw else ('', None)
-            vendor_name = neighbour_vendor or (MacLookup.get_vendor_name(mac_raw) if mac_raw else None)
+            vendor_name = neighbour_vendor or (MacLookup.get_vendor_name(mac_raw) if is_mac_address(mac_raw) else None)
 
             devices.append(
                 ConnectedDevice(

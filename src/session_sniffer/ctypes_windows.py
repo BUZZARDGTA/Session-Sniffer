@@ -15,6 +15,7 @@ _SW_HIDE = 0
 _DEFAULT_ELEVATION_TIMEOUT_MS = 15_000
 _TH32CS_SNAPPROCESS = 0x00000002
 _PROCESS_TERMINATE = 0x0001
+_GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT = 0x00000002
 _GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS = 0x00000004
 _SIGABRT = 22
 _WM_HOTKEY = 0x0312
@@ -132,18 +133,103 @@ if sys.platform == 'win32':
     _kernel32.OpenProcess.restype = wintypes.HANDLE
     _kernel32.TerminateProcess.argtypes = [wintypes.HANDLE, wintypes.UINT]
     _kernel32.TerminateProcess.restype = wintypes.BOOL
+    _kernel32.RtlCaptureStackBackTrace.argtypes = [
+        wintypes.DWORD,
+        wintypes.DWORD,
+        ctypes.POINTER(ctypes.c_void_p),
+        ctypes.POINTER(wintypes.DWORD),
+    ]
+    _kernel32.RtlCaptureStackBackTrace.restype = wintypes.WORD
+    _kernel32.GetModuleHandleExW.argtypes = [
+        wintypes.DWORD,
+        ctypes.c_void_p,
+        ctypes.POINTER(ctypes.c_void_p),
+    ]
+    _kernel32.GetModuleHandleExW.restype = wintypes.BOOL
+    _kernel32.GetModuleFileNameW.argtypes = [ctypes.c_void_p, wintypes.LPWSTR, wintypes.DWORD]
+    _kernel32.GetModuleFileNameW.restype = wintypes.DWORD
+
+    _ole32 = ctypes.windll.ole32
+    _ole32.CoInitializeEx.argtypes = [ctypes.c_void_p, wintypes.DWORD]
+    _ole32.CoInitializeEx.restype = wintypes.HRESULT
+    _ole32.CoCreateInstance.argtypes = [
+        ctypes.POINTER(WindowsGuid),
+        ctypes.c_void_p,
+        wintypes.DWORD,
+        ctypes.POINTER(WindowsGuid),
+        ctypes.POINTER(wintypes.LPVOID),
+    ]
+    _ole32.CoCreateInstance.restype = wintypes.HRESULT
+    _ole32.CLSIDFromProgID.argtypes = [wintypes.LPCWSTR, ctypes.POINTER(WindowsGuid)]
+    _ole32.CLSIDFromProgID.restype = wintypes.HRESULT
+    _ole32.CoUninitialize.argtypes = []
+    _ole32.CoUninitialize.restype = None
 else:
     _INVALID_PARAM_HANDLER_TYPE = None
     _PURECALL_HANDLER_TYPE = None
     _SIGNAL_HANDLER_TYPE = None
 
 
+def get_com_vtable_entry(pointer: wintypes.LPVOID, method_index: int) -> int:
+    """Return the COM vtable method address at *method_index* for *pointer*."""
+    vtable = ctypes.cast(pointer, ctypes.POINTER(ctypes.POINTER(ctypes.c_void_p))).contents
+    return int(vtable[method_index] or 0)
+
+
+def query_com_interface(pointer: wintypes.LPVOID, iid: WindowsGuid) -> wintypes.LPVOID:
+    """Query *pointer* for *iid* via IUnknown::QueryInterface, returning a null LPVOID on failure."""
+    result_ptr = wintypes.LPVOID()
+    if not pointer:
+        return result_ptr
+    query_interface = ctypes.WINFUNCTYPE(
+        wintypes.HRESULT,
+        wintypes.LPVOID,
+        ctypes.POINTER(WindowsGuid),
+        ctypes.POINTER(wintypes.LPVOID),
+    )(get_com_vtable_entry(pointer, 0))
+    if query_interface(pointer, ctypes.byref(iid), ctypes.byref(result_ptr)):
+        return wintypes.LPVOID()
+    return result_ptr
+
+
 def release_com_interface(pointer: wintypes.LPVOID) -> None:
     """Releases a COM interface pointer via its IUnknown vtable."""
     if pointer:
-        vtable = ctypes.cast(pointer, ctypes.POINTER(ctypes.POINTER(ctypes.c_void_p))).contents
-        release_function = ctypes.WINFUNCTYPE(wintypes.ULONG, wintypes.LPVOID)(vtable[2])
+        release_function = ctypes.WINFUNCTYPE(wintypes.ULONG, wintypes.LPVOID)(get_com_vtable_entry(pointer, 2))
         release_function(pointer)
+
+
+def co_initialize_ex(coinit_flags: int = 2) -> bool:
+    """Initialize COM on the calling thread and return whether CoUninitialize must be called."""
+    if sys.platform != 'win32':
+        return False
+    return int(_ole32.CoInitializeEx(None, coinit_flags)) in (0, 1)
+
+
+def co_uninitialize() -> None:
+    """Uninitialize COM on the calling thread."""
+    if sys.platform == 'win32':
+        _ole32.CoUninitialize()
+
+
+def clsid_from_progid(progid: str) -> WindowsGuid | None:
+    """Resolve a COM ProgID string to its WindowsGuid CLSID, or None on failure."""
+    if sys.platform != 'win32':
+        return None
+    clsid = WindowsGuid()
+    if _ole32.CLSIDFromProgID(progid, ctypes.byref(clsid)):
+        return None
+    return clsid
+
+
+def co_create_instance(clsid: WindowsGuid, clsctx: int, iid: WindowsGuid) -> wintypes.LPVOID:
+    """Create a COM object instance for *clsid* and *iid*, returning a null LPVOID on failure."""
+    instance_ptr = wintypes.LPVOID()
+    if sys.platform != 'win32':
+        return instance_ptr
+    if _ole32.CoCreateInstance(ctypes.byref(clsid), None, clsctx, ctypes.byref(iid), ctypes.byref(instance_ptr)):
+        return wintypes.LPVOID()
+    return instance_ptr
 
 
 def get_system32_dir() -> Path:
@@ -262,31 +348,14 @@ def resolve_lnk_win32(shortcut_path: Path) -> Path:
     if sys.platform != 'win32':
         return shortcut_path
 
-    ole32 = ctypes.windll.ole32
-    hr_init = ole32.CoInitializeEx(None, 2)
-    need_uninit = hr_init in (0, 1)
-
-    shell_link_ptr = wintypes.LPVOID()
-    hr_create = ole32.CoCreateInstance(
-        ctypes.byref(_CLSID_SHELL_LINK),
-        None,
-        1,
-        ctypes.byref(_IID_ISHELL_LINK_W),
-        ctypes.byref(shell_link_ptr),
-    )
-    if hr_create or not shell_link_ptr:
+    need_uninit = co_initialize_ex(2)
+    shell_link_ptr = co_create_instance(_CLSID_SHELL_LINK, 1, _IID_ISHELL_LINK_W)
+    if not shell_link_ptr:
         if need_uninit:
-            ole32.CoUninitialize()
+            co_uninitialize()
         return shortcut_path
 
     try:
-        link_vtable = ctypes.cast(shell_link_ptr, ctypes.POINTER(ctypes.POINTER(ctypes.c_void_p))).contents
-        query_interface = ctypes.WINFUNCTYPE(
-            wintypes.HRESULT,
-            wintypes.LPVOID,
-            ctypes.POINTER(WindowsGuid),
-            ctypes.POINTER(wintypes.LPVOID),
-        )(link_vtable[0])
         get_path = ctypes.WINFUNCTYPE(
             wintypes.HRESULT,
             wintypes.LPVOID,
@@ -294,13 +363,17 @@ def resolve_lnk_win32(shortcut_path: Path) -> Path:
             ctypes.c_int,
             wintypes.LPVOID,
             wintypes.DWORD,
-        )(link_vtable[3])
+        )(get_com_vtable_entry(shell_link_ptr, 3))
 
-        persist_file_ptr = wintypes.LPVOID()
-        if not query_interface(shell_link_ptr, ctypes.byref(_IID_IPERSIST_FILE), ctypes.byref(persist_file_ptr)) and persist_file_ptr:
+        persist_file_ptr = query_com_interface(shell_link_ptr, _IID_IPERSIST_FILE)
+        if persist_file_ptr:
             try:
-                persist_vtable = ctypes.cast(persist_file_ptr, ctypes.POINTER(ctypes.POINTER(ctypes.c_void_p))).contents
-                load = ctypes.WINFUNCTYPE(wintypes.HRESULT, wintypes.LPVOID, wintypes.LPCWSTR, wintypes.DWORD)(persist_vtable[5])
+                load = ctypes.WINFUNCTYPE(
+                    wintypes.HRESULT,
+                    wintypes.LPVOID,
+                    wintypes.LPCWSTR,
+                    wintypes.DWORD,
+                )(get_com_vtable_entry(persist_file_ptr, 5))
 
                 if not load(persist_file_ptr, str(shortcut_path), 0):
                     path_buffer = ctypes.create_unicode_buffer(1024)
@@ -311,7 +384,7 @@ def resolve_lnk_win32(shortcut_path: Path) -> Path:
     finally:
         release_com_interface(shell_link_ptr)
         if need_uninit:
-            ole32.CoUninitialize()
+            co_uninitialize()
 
     return shortcut_path
 
@@ -332,7 +405,8 @@ def capture_win32_native_stack() -> list[str]:
             address = frames[index]
             if not address:
                 continue
-            if _kernel32.GetModuleHandleExW(_GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS, ctypes.c_void_p(address), ctypes.byref(h_module)):
+            module_flags = _GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | _GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT
+            if _kernel32.GetModuleHandleExW(module_flags, ctypes.c_void_p(address), ctypes.byref(h_module)):
                 _kernel32.GetModuleFileNameW(h_module, buffer, 512)
                 module_name = Path(buffer.value).name
                 base_address = h_module.value or 0
@@ -366,7 +440,7 @@ def install_win32_crt_handlers(on_crash: Callable[[str], None]) -> bool:
         on_crash('SIGABRT received (C runtime abort)')
         prev_handler = int(_crt_state['prev_sigabrt_handler'])
         if prev_handler and prev_handler not in (0, 1, 0xFFFFFFFFFFFFFFFF):
-            with contextlib.suppress(Exception):
+            with contextlib.suppress(OSError, ctypes.ArgumentError):
                 prev_fn = _SIGNAL_HANDLER_TYPE(prev_handler)
                 prev_fn(sig)
 

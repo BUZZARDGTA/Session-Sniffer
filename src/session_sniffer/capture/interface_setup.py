@@ -18,7 +18,7 @@ from session_sniffer.networking.interface import (
     NeighbourEntry,
 )
 from session_sniffer.networking.manuf_lookup import MacLookup
-from session_sniffer.networking.utils import is_valid_private_ipv4
+from session_sniffer.networking.utils import is_mac_address, is_valid_private_ipv4
 
 logger = logging.getLogger(__name__)
 
@@ -56,7 +56,11 @@ def populate_network_interfaces_info() -> None:
                     description=adapter.identity.description,
                     mac_address=adapter.identity.mac_address,
                     device_name=None,
-                    vendor_name=MacLookup.get_vendor_name(adapter.identity.mac_address) if adapter.identity.mac_address is not None else None,
+                    vendor_name=(
+                        MacLookup.get_vendor_name(adapter.identity.mac_address)
+                        if adapter.identity.mac_address is not None and is_mac_address(adapter.identity.mac_address)
+                        else None
+                    ),
                     adapter_guid=adapter.identity.adapter_guid,
                 ),
                 traffic=InterfaceTraffic(

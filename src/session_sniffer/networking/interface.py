@@ -120,14 +120,10 @@ class SelectedInterfaceRow:
     def mac_address(self) -> str | None:
         """MAC for this row: neighbour MAC when `is_neighbour`, else interface MAC (or `None` if unavailable)."""
         if self.is_neighbour:
-            mac = next(
+            return next(
                 (neighbour.mac_address for neighbour in self.interface.neighbour_entries if neighbour.ip_address == self.ip_address),
                 None,
             )
-            if mac is None:
-                message = f'No neighbour entry found for IP {self.ip_address!r} on interface {self.interface.identity.name!r}'
-                raise RuntimeError(message)
-            return mac
         return self.interface.identity.mac_address
 
     @property

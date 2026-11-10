@@ -3,7 +3,10 @@
 This module contains custom exception classes for packet capture operations.
 """
 
+import sys
 from typing import override
+
+from session_sniffer.utils import is_pyinstaller_compiled
 
 
 class CaptureError(Exception):
@@ -132,6 +135,20 @@ class PcapOpenError(PcapError):
 
     def __init__(self, device_name: str, error_message: str) -> None:
         """Initialize the exception with the device name and driver error message."""
+        if sys.platform != 'win32' and ('Operation not permitted' in error_message or 'permission' in error_message.lower()):
+            if sys.platform == 'darwin':
+                permission_hint = ' (Session Sniffer requires read/write permissions to /dev/bpf*: try running "sudo chmod 666 /dev/bpf*" or running with sudo)'
+            elif is_pyinstaller_compiled():
+                permission_hint = (
+                    ' (Session Sniffer requires root privileges or capture capabilities: '
+                    'try running with sudo or setcap cap_net_raw,cap_net_admin,cap_sys_ptrace=eip on the executable)'
+                )
+            else:
+                permission_hint = (
+                    ' (Session Sniffer requires root privileges or CAP_NET_RAW capability: '
+                    'try running with sudo or setcap cap_net_raw,cap_net_admin=eip on the python executable)'
+                )
+            error_message = f'{error_message}{permission_hint}'
         super().__init__(f'Failed to open pcap adapter "{device_name}": {error_message}')
 
 

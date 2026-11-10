@@ -26,7 +26,7 @@ with contextlib.suppress(ImportError):
 
 from session_sniffer.capture.pcap import can_open_pcap_device, is_pcap_library_available
 from session_sniffer.capture.process import iter_running_processes
-from session_sniffer.capture.utils.ctypes_win32 import is_npcap_setup_window_visible, is_service_running
+from session_sniffer.capture.utils.ctypes_win32 import is_service_running, iter_visible_window_titles
 from session_sniffer.error_messages import format_npcap_required_message
 from session_sniffer.guis.dependency_prompt_dialog import show_dependency_prompt
 from session_sniffer.logging_setup import flush_all_loggers
@@ -221,7 +221,7 @@ def _is_npcap_setup_in_progress() -> bool:
     if sys.platform != 'win32':
         return False
 
-    if is_npcap_setup_window_visible():
+    if any('npcap' in title.lower() and 'setup' in title.lower() for title in iter_visible_window_titles()):
         return True
 
     for _pid, process_name in iter_running_processes():
