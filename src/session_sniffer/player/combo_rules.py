@@ -13,7 +13,7 @@ from session_sniffer.guis.country_data import matches_continent, matches_country
 from session_sniffer.models.combo_rules import EVENT_CONDITION, ComboRule, ConditionValue, split_condition_key
 from session_sniffer.models.player import Player
 from session_sniffer.networking.ip_range import IPRange, parse_ip_range
-from session_sniffer.utils import FileSignature, get_file_signature
+from session_sniffer.utils import FileSignature, atomic_write_text, get_file_signature
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -301,12 +301,8 @@ class ComboRulesManager:
     @classmethod
     def save_to_file(cls, file_path: Path) -> None:
         """Save all combo rules to a JSON file."""
-        file_path.parent.mkdir(parents=True, exist_ok=True)
-
         json_str = TypeAdapter(list[ComboRule]).dump_json(cls.rules, indent=4).decode('utf-8')
-        tmp_path = file_path.with_suffix('.tmp')
-        tmp_path.write_text(json_str, encoding='utf-8')
-        tmp_path.replace(file_path)
+        atomic_write_text(file_path, json_str)
         cls._last_file_signature = get_file_signature(file_path)
 
     @classmethod

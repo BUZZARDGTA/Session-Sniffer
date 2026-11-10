@@ -1,5 +1,6 @@
 """Low-level Win32 and macOS libproc ctypes bindings for process inspection and control."""
 
+import contextlib
 import ctypes
 import functools
 import os
@@ -7,8 +8,12 @@ import socket
 import sys
 from ctypes import wintypes
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from session_sniffer.ctypes_windows import iter_win32_toolhelp_processes
+
+if TYPE_CHECKING:
+    from collections.abc import Generator
 
 _PROCESS_SUSPEND_RESUME = 0x0800
 _PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
@@ -210,27 +215,36 @@ def get_process_creation_time_darwin(pid: int) -> float | None:
     return None
 
 
-def get_process_creation_time_win32(pid: int) -> float | None:
-    """Return creation time of the process on Windows via GetProcessTimes."""
+@contextlib.contextmanager
+def _open_query_process_handle(pid: int) -> Generator[wintypes.HANDLE | None]:
+    """Open a Win32 process handle with `PROCESS_QUERY_LIMITED_INFORMATION` and guarantee `CloseHandle`."""
     if sys.platform != 'win32':
-        return None
-    handle = _kernel32.OpenProcess(_PROCESS_QUERY_LIMITED_INFORMATION, 0, pid)
-    if not handle:
-        return None
+        yield None
+        return
+    raw_handle = _kernel32.OpenProcess(_PROCESS_QUERY_LIMITED_INFORMATION, 0, pid)
+    if not raw_handle:
+        yield None
+        return
+    handle = wintypes.HANDLE(raw_handle)
     try:
-        return _get_creation_time_from_handle(handle)
+        yield handle
     finally:
         _kernel32.CloseHandle(handle)
 
 
+def get_process_creation_time_win32(pid: int) -> float | None:
+    """Return creation time of the process on Windows via GetProcessTimes."""
+    with _open_query_process_handle(pid) as handle:
+        if handle is None:
+            return None
+        return _get_creation_time_from_handle(handle)
+
+
 def is_process_running_win32(pid: int, creation_time: float | None, tolerance_seconds: float) -> bool:
     """Check if process is running on Windows and matches *creation_time* within *tolerance_seconds*."""
-    if sys.platform != 'win32':
-        return False
-    handle = _kernel32.OpenProcess(_PROCESS_QUERY_LIMITED_INFORMATION, 0, pid)
-    if not handle:
-        return False
-    try:
+    with _open_query_process_handle(pid) as handle:
+        if handle is None:
+            return False
         exit_code = wintypes.DWORD()
         if not _kernel32.GetExitCodeProcess(handle, ctypes.byref(exit_code)) or exit_code.value != _STILL_ACTIVE:
             return False
@@ -238,8 +252,6 @@ def is_process_running_win32(pid: int, creation_time: float | None, tolerance_se
             actual_creation_time = _get_creation_time_from_handle(handle)
             return not (actual_creation_time is None or abs(actual_creation_time - creation_time) > tolerance_seconds)
         return True
-    finally:
-        _kernel32.CloseHandle(handle)
 
 
 def get_process_image_path_darwin(pid: int) -> Path | None:
@@ -259,19 +271,14 @@ def get_process_image_path_darwin(pid: int) -> Path | None:
 
 def get_process_image_path_win32(pid: int) -> Path | None:
     """Return the resolved executable file path for the given PID on Windows via QueryFullProcessImageNameW."""
-    if sys.platform != 'win32':
-        return None
-    handle = _kernel32.OpenProcess(_PROCESS_QUERY_LIMITED_INFORMATION, 0, pid)
-    if not handle:
-        return None
-    try:
+    with _open_query_process_handle(pid) as handle:
+        if handle is None:
+            return None
         buffer_size = wintypes.DWORD(1024)
         image_path_buffer = ctypes.create_unicode_buffer(buffer_size.value)
         if not _kernel32.QueryFullProcessImageNameW(handle, 0, image_path_buffer, ctypes.byref(buffer_size)):
             return None
         return Path(image_path_buffer.value).resolve()
-    finally:
-        _kernel32.CloseHandle(handle)
 
 
 def iter_running_processes_darwin() -> list[tuple[int, str]]:

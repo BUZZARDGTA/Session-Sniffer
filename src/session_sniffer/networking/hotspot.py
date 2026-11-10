@@ -30,44 +30,64 @@ MAX_SSID_LENGTH: Final[int] = 32
 MIN_PASSPHRASE_LENGTH: Final[int] = 8
 MAX_PASSPHRASE_LENGTH: Final[int] = 63
 
-_WINRT_HOTSPOT_INFO_SCRIPT: Final[str] = """
+_WINRT_RUNTIME_HEADER: Final[str] = """
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 [Windows.System.UserProfile.LockScreen, Windows.System.UserProfile, ContentType = WindowsRuntime] | Out-Null
 Add-Type -AssemblyName System.Runtime.WindowsRuntime
+"""
 
+_WINRT_INIT_MANAGER_FRAGMENT: Final[str] = """
 $netConn = [Windows.Networking.Connectivity.NetworkInformation, Windows.Networking.Connectivity, ContentType = WindowsRuntime]
 $profile = $netConn::GetInternetConnectionProfile()
-if (-not $profile) {
-    Write-Output '{"Success": false, "Error": "No active internet connection available to share."}'
-    exit
-}
 $tetheringType = [Windows.Networking.NetworkOperators.NetworkOperatorTetheringManager, Windows.Networking.NetworkOperators, ContentType = WindowsRuntime]
 $mgr = $null
-try {
-    $mgr = $tetheringType::CreateFromConnectionProfile($profile)
-} catch {
-    $mgr = $null
+if ($profile) {
+    try {
+        $mgr = $tetheringType::CreateFromConnectionProfile($profile)
+    } catch {
+        $mgr = $null
+    }
 }
+"""
 
-if ($mgr) {
+_WINRT_AWAIT_OP_PREAMBLE: Final[str] = f"""{_WINRT_RUNTIME_HEADER}
+$extMethods = [System.WindowsRuntimeSystemExtensions].GetMethods()
+$asTaskGeneric = ($extMethods | Where-Object {{
+    $_.Name -eq 'AsTask' -and $_.GetParameters().Count -eq 1 -and $_.GetParameters()[0].ParameterType.Name -eq 'IAsyncOperation`1'
+}})[0]
+
+function Await-Op($op, $resultType) {{
+    $asTask = $asTaskGeneric.MakeGenericMethod($resultType)
+    $task = $asTask.Invoke($null, @($op))
+    $task.Wait(12000) | Out-Null
+    return $task.Result
+}}
+{_WINRT_INIT_MANAGER_FRAGMENT}"""
+
+_WINRT_HOTSPOT_INFO_SCRIPT: Final[str] = f"""{_WINRT_RUNTIME_HEADER}{_WINRT_INIT_MANAGER_FRAGMENT}
+if (-not $profile) {{
+    Write-Output '{{"Success": false, "Error": "No active internet connection available to share."}}'
+    exit
+}}
+if ($mgr) {{
     $config = $mgr.GetCurrentAccessPointConfiguration()
     $clients = $mgr.GetTetheringClients()
     $clientList = @()
-    if ($clients) {
-        foreach ($client in $clients) {
+    if ($clients) {{
+        foreach ($client in $clients) {{
             $hostnames = @()
-            if ($client.HostNames) {
-                foreach ($hostname in $client.HostNames) {
+            if ($client.HostNames) {{
+                foreach ($hostname in $client.HostNames) {{
                     $hostnames += $hostname.CanonicalName
-                }
-            }
-            $clientList += @{
+                }}
+            }}
+            $clientList += @{{
                 Mac = $client.MacAddress
                 Hostnames = $hostnames
-            }
-        }
-    }
-    $info = @{
+            }}
+        }}
+    }}
+    $info = @{{
         Success = $true
         State = [string]$mgr.TetheringOperationalState
         ClientCount = $mgr.ClientCount
@@ -76,139 +96,67 @@ if ($mgr) {
         Passphrase = $config.Passphrase
         Band = [string]$config.Band
         Clients = $clientList
-    }
+    }}
     Write-Output (ConvertTo-Json -Depth 5 $info)
-} else {
-    Write-Output '{"Success": false, "Error": "No Wi-Fi adapter capable of Mobile Hotspot detected."}'
-}
+}} else {{
+    Write-Output '{{"Success": false, "Error": "No Wi-Fi adapter capable of Mobile Hotspot detected."}}'
+}}
 """
 
-_WINRT_CONFIGURE_HOTSPOT_SCRIPT: Final[str] = """
+_WINRT_CONFIGURE_HOTSPOT_SCRIPT: Final[str] = f"""
 param([string]$NewSsid, [string]$NewPassphrase)
-
-[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-[Windows.System.UserProfile.LockScreen, Windows.System.UserProfile, ContentType = WindowsRuntime] | Out-Null
-Add-Type -AssemblyName System.Runtime.WindowsRuntime
-
+{_WINRT_RUNTIME_HEADER}
 $extMethods = [System.WindowsRuntimeSystemExtensions].GetMethods()
-$asActionGeneric = ($extMethods | Where-Object {
+$asActionGeneric = ($extMethods | Where-Object {{
     $_.Name -eq 'AsTask' -and $_.GetParameters().Count -eq 1 -and $_.GetParameters()[0].ParameterType.Name -eq 'IAsyncAction'
-})[0]
+}})[0]
 
-function Await-Action($action) {
+function Await-Action($action) {{
     $task = $asActionGeneric.Invoke($null, @($action))
     $task.Wait(10000) | Out-Null
-}
-
-$netConn = [Windows.Networking.Connectivity.NetworkInformation, Windows.Networking.Connectivity, ContentType = WindowsRuntime]
-$profile = $netConn::GetInternetConnectionProfile()
-$tetheringType = [Windows.Networking.NetworkOperators.NetworkOperatorTetheringManager, Windows.Networking.NetworkOperators, ContentType = WindowsRuntime]
-$mgr = $null
-if ($profile) {
-    try {
-        $mgr = $tetheringType::CreateFromConnectionProfile($profile)
-    } catch {
-        $mgr = $null
-    }
-}
-
-if ($mgr) {
+}}
+{_WINRT_INIT_MANAGER_FRAGMENT}
+if ($mgr) {{
     $config = $mgr.GetCurrentAccessPointConfiguration()
     $config.Ssid = $NewSsid
     $config.Passphrase = $NewPassphrase
     $action = $mgr.ConfigureAccessPointAsync($config)
     Await-Action $action
-    Write-Output '{"Success": true}'
-} else {
-    Write-Output '{"Success": false, "Error": "Unable to initialize tethering manager to save credentials"}'
-}
+    Write-Output '{{"Success": true}}'
+}} else {{
+    Write-Output '{{"Success": false, "Error": "Unable to initialize tethering manager to save credentials"}}'
+}}
 """
 
-_WINRT_START_HOTSPOT_SCRIPT: Final[str] = """
-[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-[Windows.System.UserProfile.LockScreen, Windows.System.UserProfile, ContentType = WindowsRuntime] | Out-Null
-Add-Type -AssemblyName System.Runtime.WindowsRuntime
-
-$extMethods = [System.WindowsRuntimeSystemExtensions].GetMethods()
-$asTaskGeneric = ($extMethods | Where-Object {
-    $_.Name -eq 'AsTask' -and $_.GetParameters().Count -eq 1 -and $_.GetParameters()[0].ParameterType.Name -eq 'IAsyncOperation`1'
-})[0]
-
-function Await-Op($op, $resultType) {
-    $asTask = $asTaskGeneric.MakeGenericMethod($resultType)
-    $task = $asTask.Invoke($null, @($op))
-    $task.Wait(12000) | Out-Null
-    return $task.Result
-}
-
-$netConn = [Windows.Networking.Connectivity.NetworkInformation, Windows.Networking.Connectivity, ContentType = WindowsRuntime]
-$profile = $netConn::GetInternetConnectionProfile()
-$tetheringType = [Windows.Networking.NetworkOperators.NetworkOperatorTetheringManager, Windows.Networking.NetworkOperators, ContentType = WindowsRuntime]
-$mgr = $null
-if ($profile) {
-    try {
-        $mgr = $tetheringType::CreateFromConnectionProfile($profile)
-    } catch {
-        $mgr = $null
-    }
-}
-
-if ($mgr) {
+_WINRT_START_HOTSPOT_SCRIPT: Final[str] = f"""{_WINRT_AWAIT_OP_PREAMBLE}
+if ($mgr) {{
     $op = $mgr.StartTetheringAsync()
     $result = Await-Op $op ([Windows.Networking.NetworkOperators.NetworkOperatorTetheringOperationResult])
-    if ($result) {
+    if ($result) {{
         $statusStr = [string]$result.Status
         $errStr = [string]$result.AdditionalErrorMessage
-        Write-Output (ConvertTo-Json @{ Success = ($statusStr -eq 'Success'); Status = $statusStr; Error = $errStr })
-    } else {
-        Write-Output '{"Success": false, "Error": "Start operation timed out or returned no result"}'
-    }
-} else {
-    Write-Output '{"Success": false, "Error": "No internet connection profile available to start mobile hotspot"}'
-}
+        Write-Output (ConvertTo-Json @{{ Success = ($statusStr -eq 'Success'); Status = $statusStr; Error = $errStr }})
+    }} else {{
+        Write-Output '{{"Success": false, "Error": "Start operation timed out or returned no result"}}'
+    }}
+}} else {{
+    Write-Output '{{"Success": false, "Error": "No internet connection profile available to start mobile hotspot"}}'
+}}
 """
 
-_WINRT_STOP_HOTSPOT_SCRIPT: Final[str] = """
-[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-[Windows.System.UserProfile.LockScreen, Windows.System.UserProfile, ContentType = WindowsRuntime] | Out-Null
-Add-Type -AssemblyName System.Runtime.WindowsRuntime
-
-$extMethods = [System.WindowsRuntimeSystemExtensions].GetMethods()
-$asTaskGeneric = ($extMethods | Where-Object {
-    $_.Name -eq 'AsTask' -and $_.GetParameters().Count -eq 1 -and $_.GetParameters()[0].ParameterType.Name -eq 'IAsyncOperation`1'
-})[0]
-
-function Await-Op($op, $resultType) {
-    $asTask = $asTaskGeneric.MakeGenericMethod($resultType)
-    $task = $asTask.Invoke($null, @($op))
-    $task.Wait(12000) | Out-Null
-    return $task.Result
-}
-
-$netConn = [Windows.Networking.Connectivity.NetworkInformation, Windows.Networking.Connectivity, ContentType = WindowsRuntime]
-$profile = $netConn::GetInternetConnectionProfile()
-$tetheringType = [Windows.Networking.NetworkOperators.NetworkOperatorTetheringManager, Windows.Networking.NetworkOperators, ContentType = WindowsRuntime]
-$mgr = $null
-if ($profile) {
-    try {
-        $mgr = $tetheringType::CreateFromConnectionProfile($profile)
-    } catch {
-        $mgr = $null
-    }
-}
-
-if ($mgr) {
+_WINRT_STOP_HOTSPOT_SCRIPT: Final[str] = f"""{_WINRT_AWAIT_OP_PREAMBLE}
+if ($mgr) {{
     $op = $mgr.StopTetheringAsync()
     $result = Await-Op $op ([Windows.Networking.NetworkOperators.NetworkOperatorTetheringOperationResult])
-    if ($result) {
+    if ($result) {{
         $statusStr = [string]$result.Status
-        Write-Output (ConvertTo-Json @{ Success = ($statusStr -eq 'Success'); Status = $statusStr })
-    } else {
-        Write-Output '{"Success": false, "Error": "Stop operation timed out or returned no result"}'
-    }
-} else {
-    Write-Output '{"Success": false, "Error": "No tethering manager available to stop"}'
-}
+        Write-Output (ConvertTo-Json @{{ Success = ($statusStr -eq 'Success'); Status = $statusStr }})
+    }} else {{
+        Write-Output '{{"Success": false, "Error": "Stop operation timed out or returned no result"}}'
+    }}
+}} else {{
+    Write-Output '{{"Success": false, "Error": "No tethering manager available to stop"}}'
+}}
 """
 
 _ICS_ENABLE_SCRIPT: Final[str] = """

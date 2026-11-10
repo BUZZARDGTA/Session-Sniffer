@@ -5,6 +5,7 @@ import logging
 from pydantic import BaseModel, ConfigDict, ValidationError
 
 from session_sniffer.constants.local import GUI_STATE_PATH
+from session_sniffer.utils import atomic_write_text
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +40,6 @@ class GUIState(BaseModel):
     def save(self) -> None:
         """Save persistent GUI state to local app data."""
         try:
-            GUI_STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
-            GUI_STATE_PATH.write_text(self.model_dump_json(indent=2), encoding='utf-8')
+            atomic_write_text(GUI_STATE_PATH, self.model_dump_json(indent=2))
         except OSError:
             logger.exception('Failed to save GUI state to %s', GUI_STATE_PATH)

@@ -31,7 +31,7 @@ from session_sniffer.networking.ip_range import entry_ip_covers_ip, is_valid_ip_
 from session_sniffer.player.registry import PlayersRegistry
 from session_sniffer.player.userip import ProtectionSettings, UserIPDatabases, UserIPSettings
 from session_sniffer.player.userip_groups import get_groups_state_token, remove_usernames_from_groups, rename_username_in_groups
-from session_sniffer.utils import FileSignature, get_file_signature, validate_file
+from session_sniffer.utils import FileSignature, atomic_write_text, get_file_signature, validate_file
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Generator, Mapping, Sequence
@@ -862,7 +862,7 @@ def _write_userip_db(db_path: Path, settings: UserIPSettingsModel, entries: list
     db_file = UserIPDatabaseFile(settings=settings, entries=entries)
     try:
         with _update_userip_databases_lock:
-            db_path.write_text(db_file.serialize_to_json(), encoding='utf-8')
+            atomic_write_text(db_path, db_file.serialize_to_json())
             new_sig = get_file_signature(db_path)
             if (
                 _parsed_userip_databases

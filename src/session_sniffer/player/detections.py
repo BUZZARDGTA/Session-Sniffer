@@ -13,7 +13,7 @@ from session_sniffer.models.detections import (
     ListDetectionActionSettings,
 )
 from session_sniffer.player.combo_rules import ComboRulesManager
-from session_sniffer.utils import FileSignature, get_file_signature
+from session_sniffer.utils import FileSignature, atomic_write_text, get_file_signature
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -295,12 +295,8 @@ class GUIDetectionSettings:
     @classmethod
     def export_to_file(cls, file_path: Path) -> None:
         """Export detection settings to a JSON file."""
-        file_path.parent.mkdir(parents=True, exist_ok=True)
-        model = cls.to_model()
-        json_str = model.model_dump_json(indent=4, exclude_none=True, by_alias=True)
-        tmp_path = file_path.with_suffix('.tmp')
-        tmp_path.write_text(json_str, encoding='utf-8')
-        tmp_path.replace(file_path)
+        json_str = cls.to_model().model_dump_json(indent=4, exclude_none=True, by_alias=True)
+        atomic_write_text(file_path, json_str)
         if file_path == DETECTIONS_JSON_PATH:
             cls._last_file_signature = get_file_signature(file_path)
 

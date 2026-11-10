@@ -521,7 +521,7 @@ def monitor_gta5_relay_task(player: Player) -> None:
         if curr_pps_update_time > last_pps_update_time:
             curr_pps = player.packets.pps.calculated_rate if (not CaptureState.is_local_capture() or player.is_gta5_process) else 0
             if not curr_pps:
-                wave_start_exchanged = curr_exchanged - player.packets.pps.accumulated_packets
+                wave_start_exchanged = curr_exchanged - player.packets.pps.accumulated
                 wave_start_download = player.bandwidth.download
                 wave_start_upload = player.bandwidth.upload
                 streak_seconds, max_streak_seconds = 0.0, 0.0

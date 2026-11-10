@@ -241,6 +241,14 @@ def validate_file(file_path: Path) -> None:
         raise InvalidFileError(file_path)
 
 
+def atomic_write_text(file_path: Path, content: str) -> None:
+    """Write UTF-8 text atomically to *file_path* via a sibling temporary file."""
+    file_path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path = file_path.with_name(f'{file_path.name}.tmp')
+    tmp_path.write_text(content, encoding='utf-8')
+    tmp_path.replace(file_path)
+
+
 type FileSignature = tuple[int, int, int, int]
 
 

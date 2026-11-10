@@ -7,10 +7,13 @@ from dataclasses import dataclass
 from operator import itemgetter
 from pathlib import Path
 from threading import Lock
-from typing import ClassVar
+from typing import TYPE_CHECKING, ClassVar
 
 from session_sniffer.error_messages import format_type_error
 from session_sniffer.utils import FileSignature, get_documents_dir, get_file_signature
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
 
 logger = logging.getLogger(__name__)
 
@@ -74,19 +77,24 @@ class ModMenuLogsParser:
     _active_host_menu_name: ClassVar[str | None] = None
 
     @staticmethod
-    def _snapshot_file_mod_times() -> FileModTimes:
+    def _snapshot_paths_mod_times(paths: Iterable[Path]) -> FileModTimes:
+        """Return current file signatures for all existing files in *paths*."""
+        return {path: sig for path in paths if path.is_file() and (sig := get_file_signature(path)) is not None}
+
+    @classmethod
+    def _snapshot_file_mod_times(cls) -> FileModTimes:
         """Return current file signatures of all existing log files."""
-        return {path: sig for path in LOGS_PATHS if path.is_file() and (sig := get_file_signature(path)) is not None}
+        return cls._snapshot_paths_mod_times(LOGS_PATHS)
 
-    @staticmethod
-    def _snapshot_host_file_mod_times() -> FileModTimes:
+    @classmethod
+    def _snapshot_host_file_mod_times(cls) -> FileModTimes:
         """Return current file signatures of all existing session host files."""
-        return {path: sig for _, path in SESSION_HOST_PATHS if path.is_file() and (sig := get_file_signature(path)) is not None}
+        return cls._snapshot_paths_mod_times(path for _, path in SESSION_HOST_PATHS)
 
-    @staticmethod
-    def _snapshot_relays_file_mod_times() -> FileModTimes:
+    @classmethod
+    def _snapshot_relays_file_mod_times(cls) -> FileModTimes:
         """Return current file signatures of all existing session relays files."""
-        return {path: sig for path in SESSION_RELAYS_PATHS if path.is_file() and (sig := get_file_signature(path)) is not None}
+        return cls._snapshot_paths_mod_times(SESSION_RELAYS_PATHS)
 
     @staticmethod
     def _parse_session_host_files(host_mod_times: FileModTimes) -> tuple[str | None, ModMenuSessionHostEntry | None, set[Path]]:
@@ -131,14 +139,14 @@ class ModMenuLogsParser:
         return newest_menu_name, None, failed_paths
 
     @staticmethod
-    def _parse_session_relays_files(relays_mod_times: FileModTimes) -> tuple[dict[str, list[str]], set[Path]]:
-        """Parse all existing session_relays.txt files into an IP-to-usernames map."""
+    def _parse_ip_usernames_files(paths: Iterable[Path], expected_mod_times: FileModTimes, file_kind: str) -> tuple[dict[str, list[str]], set[Path]]:
+        """Parse mod menu line-based log files into an ordered IP-to-usernames map."""
         temp_map: UsernamesByIP = defaultdict(list)
         failed_paths: set[Path] = set()
 
-        for path in SESSION_RELAYS_PATHS:
+        for path in paths:
             if not path.is_file():
-                if path in relays_mod_times:
+                if path in expected_mod_times:
                     failed_paths.add(path)
                 continue
 
@@ -158,7 +166,7 @@ class ModMenuLogsParser:
                         if username not in temp_map[ip]:
                             temp_map[ip].append(username)
             except (OSError, UnicodeDecodeError) as e:
-                logger.debug('Failed to read mod menu session relays file "%s": %s', path, e)
+                logger.debug('Failed to read mod menu %s file "%s": %s', file_kind, path, e)
                 failed_paths.add(path)
 
         return dict(temp_map), failed_paths
@@ -190,42 +198,13 @@ class ModMenuLogsParser:
         parsed_relays_map: dict[str, list[str]] | None = None
         failed_relay_paths: set[Path] = set()
         if relays_changed:
-            parsed_relays_map, failed_relay_paths = cls._parse_session_relays_files(current_relays_mod_times)
+            parsed_relays_map, failed_relay_paths = cls._parse_ip_usernames_files(SESSION_RELAYS_PATHS, current_relays_mod_times, 'session relays')
 
         # Step 2: parse logs into a temporary map outside the lock when logs changed
         frozen_map: dict[str, list[str]] | None = None
         failed_log_paths: set[Path] = set()
         if logs_changed:
-            temp_map: UsernamesByIP = defaultdict(list)
-
-            for path in LOGS_PATHS:
-                if not path.is_file():
-                    if path in current_mod_times:
-                        failed_log_paths.add(path)
-                    continue
-
-                # Parse file line by line
-                try:
-                    with path.open(encoding='utf-8') as file:
-                        for line in file:
-                            match = RE_MODMENU_LOGS_USER_PATTERN.fullmatch(line.rstrip())
-                            if not match:
-                                continue
-
-                            username, ip = match.group('username', 'ip')
-                            if not isinstance(username, str):
-                                raise TypeError(format_type_error(username, str))
-                            if not isinstance(ip, str):
-                                raise TypeError(format_type_error(ip, str))
-
-                            # Preserve order and avoid duplicates
-                            if username not in temp_map[ip]:
-                                temp_map[ip].append(username)
-                except (OSError, UnicodeDecodeError) as e:
-                    logger.debug('Failed to read mod menu log file "%s": %s', path, e)
-                    failed_log_paths.add(path)
-
-            frozen_map = dict(temp_map)
+            frozen_map, failed_log_paths = cls._parse_ip_usernames_files(LOGS_PATHS, current_mod_times, 'log')
 
         # Step 3: atomically update class variables under the lock
         with cls._lock:

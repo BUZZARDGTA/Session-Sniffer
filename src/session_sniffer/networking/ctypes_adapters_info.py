@@ -21,7 +21,7 @@ from session_sniffer.ctypes_windows import (
 from session_sniffer.networking.adapter_types import GetAdaptersAddressesError
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Iterator
+    from collections.abc import Callable, Iterable, Iterator
 
 logger = logging.getLogger(__name__)
 
@@ -409,13 +409,23 @@ def _get_ip_net_table(buf: object, size_ptr: object) -> int:
     return int(GetIpNetTable(buf, size_ptr, order_flag))
 
 
+def _ipv4_from_uint32_le(addr: int) -> str:
+    """Convert a 32-bit IPv4 integer stored in network byte order within a little-endian integer to dotted quad."""
+    return socket.inet_ntoa(addr.to_bytes(4, 'little'))
+
+
+def _format_mac_octets(octets: Iterable[int]) -> str:
+    """Format 6 raw MAC octets as uppercase colon-separated hex (`XX:XX:XX:XX:XX:XX`)."""
+    return ':'.join(f'{byte:02X}' for byte in octets)
+
+
 def _sockaddr_to_ipv4(sockaddr_ptr: int | None) -> str | None:
     """Convert a sockaddr pointer to an IPv4 address string if applicable."""
     if sockaddr_ptr is None or not sockaddr_ptr:
         return None
     sockaddr = ctypes.cast(sockaddr_ptr, ctypes.POINTER(SOCKADDR_IN)).contents
     if sockaddr.sin_family == socket.AF_INET:
-        return socket.inet_ntoa(sockaddr.sin_addr.to_bytes(4, 'little'))
+        return _ipv4_from_uint32_le(sockaddr.sin_addr)
     return None
 
 
@@ -446,8 +456,8 @@ def iter_win32_ip_net_table() -> Iterator[tuple[int, str | None, str | None]]:
     for i in range(valid_entries):
         row_ptr = ctypes.cast(base + header_size + i * row_size, ctypes.POINTER(MIB_IPNETROW))
         row = row_ptr.contents
-        ipv4 = socket.inet_ntoa(int(row.dwAddr).to_bytes(4, 'little'))
-        mac_address = ':'.join(f'{byte:02X}' for byte in row.bPhysAddr[:_MAC_OCTETS_COUNT]) if row.dwPhysAddrLen == _MAC_OCTETS_COUNT else None
+        ipv4 = _ipv4_from_uint32_le(row.dwAddr)
+        mac_address = _format_mac_octets(row.bPhysAddr[:_MAC_OCTETS_COUNT]) if row.dwPhysAddrLen == _MAC_OCTETS_COUNT else None
         yield int(row.dwIndex), ipv4, mac_address
 
 
@@ -470,8 +480,7 @@ def query_linux_ifaddrs() -> dict[str, list[str]]:
                     interface_name_str = address_entry.ifa_name.decode('utf-8', errors='replace')
                     if address_entry.ifa_addr and address_entry.ifa_addr.contents.sa_family == socket.AF_INET:
                         sockaddr_in = ctypes.cast(address_entry.ifa_addr, ctypes.POINTER(_LinuxSockaddrIn)).contents
-                        ip_string = socket.inet_ntoa(sockaddr_in.sin_addr.to_bytes(4, 'little'))
-                        ipv4_by_interface_name.setdefault(interface_name_str, []).append(ip_string)
+                        ipv4_by_interface_name.setdefault(interface_name_str, []).append(_ipv4_from_uint32_le(sockaddr_in.sin_addr))
                 current_address = address_entry.ifa_next
             libc.freeifaddrs(ifaddrs_pointer)
     except (OSError, AttributeError):
@@ -495,15 +504,14 @@ def _populate_darwin_ifaddr(
         sa_family = address_entry.ifa_addr.contents.sa_family
         if sa_family == _DARWIN_AF_INET:
             sockaddr_in = ctypes.cast(address_entry.ifa_addr, ctypes.POINTER(_DarwinSockaddrIn)).contents
-            ip_string = socket.inet_ntoa(sockaddr_in.sin_addr.to_bytes(4, 'little'))
-            ipv4_by_interface_name.setdefault(interface_name_string, []).append(ip_string)
+            ipv4_by_interface_name.setdefault(interface_name_string, []).append(_ipv4_from_uint32_le(sockaddr_in.sin_addr))
         elif sa_family == _DARWIN_AF_LINK:
             sockaddr_dl = ctypes.cast(address_entry.ifa_addr, ctypes.POINTER(_DarwinSockaddrDl)).contents
             name_length = int(sockaddr_dl.sdl_nlen)
             if sockaddr_dl.sdl_alen == _MAC_OCTETS_COUNT and name_length + _MAC_OCTETS_COUNT <= len(sockaddr_dl.sdl_data):
                 raw_bytes = bytes(sockaddr_dl.sdl_data)[name_length : name_length + _MAC_OCTETS_COUNT]
                 if any(raw_bytes):
-                    mac_by_interface_name[interface_name_string] = ':'.join(f'{byte:02X}' for byte in raw_bytes)
+                    mac_by_interface_name[interface_name_string] = _format_mac_octets(raw_bytes)
 
             if address_entry.ifa_data:
                 if_data = ctypes.cast(address_entry.ifa_data, ctypes.POINTER(_DarwinIfData)).contents
@@ -600,7 +608,7 @@ def iter_win32_adapters_addresses() -> Iterator[
     while adapter:
         addr = adapter.contents
         mac_address = (
-            ':'.join(f'{byte:02X}' for byte in addr.PhysicalAddress[:_MAC_OCTETS_COUNT])
+            _format_mac_octets(addr.PhysicalAddress[:_MAC_OCTETS_COUNT])
             if addr.PhysicalAddressLength == _MAC_OCTETS_COUNT
             else None
         )

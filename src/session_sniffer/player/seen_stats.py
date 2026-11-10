@@ -53,17 +53,24 @@ def _parse_first_seen(player_info: dict[str, Any]) -> datetime | None:
     return _parse_iso_datetime(player_info, 'First Seen')
 
 
+def _calendar_period_increments(target_date: date, today: date, current_week: tuple[int, int]) -> tuple[int, int, int, int]:
+    """Return `(today_inc, week_inc, month_inc, year_inc)` for *target_date* relative to *today* and *current_week*."""
+    return (
+        int(target_date == today),
+        int(target_date.isocalendar()[:2] == current_week),
+        int(target_date.year == today.year and target_date.month == today.month),
+        int(target_date.year == today.year),
+    )
+
+
 def _update_stats(first_seen: datetime, stats: SeenStats, now: datetime) -> None:
     """Increment the appropriate counters based on how recent *first_seen* is."""
+    today_inc, week_inc, month_inc, year_inc = _calendar_period_increments(first_seen.date(), now.date(), now.isocalendar()[:2])
     stats.total += 1
-    if first_seen.date() == now.date():
-        stats.today += 1
-    if first_seen.isocalendar()[:2] == now.isocalendar()[:2]:
-        stats.week += 1
-    if first_seen.year == now.year and first_seen.month == now.month:
-        stats.month += 1
-    if first_seen.year == now.year:
-        stats.year += 1
+    stats.today += today_inc
+    stats.week += week_inc
+    stats.month += month_inc
+    stats.year += year_inc
 
 
 type _SeenStatsScope = Literal['today', 'week', 'month', 'year', 'total']
@@ -216,6 +223,8 @@ def _accumulate_session(
 ) -> None:
     """Merge one parsed session snapshot into the running `entries`/`seen_dates` aggregation."""
     all_players = _extract_all_players_from_session(session_log)
+    today = now.date()
+    current_week = now.isocalendar()[:2]
 
     for ip, player_info in all_players.items():
         first_seen = _parse_first_seen(player_info)
@@ -228,18 +237,16 @@ def _accumulate_session(
         entry = entries[ip]
 
         # Track unique calendar date for days-mode counting
-        seen_dates[ip].add(first_seen.date())
+        first_seen_date = first_seen.date()
+        seen_dates[ip].add(first_seen_date)
 
         # Update session counts
+        today_inc, week_inc, month_inc, year_inc = _calendar_period_increments(first_seen_date, today, current_week)
         entry.sessions_total += 1
-        if first_seen.date() == now.date():
-            entry.sessions_today += 1
-        if first_seen.isocalendar()[:2] == now.isocalendar()[:2]:
-            entry.sessions_week += 1
-        if first_seen.year == now.year and first_seen.month == now.month:
-            entry.sessions_month += 1
-        if first_seen.year == now.year:
-            entry.sessions_year += 1
+        entry.sessions_today += today_inc
+        entry.sessions_week += week_inc
+        entry.sessions_month += month_inc
+        entry.sessions_year += year_inc
 
         # Track first/last seen and update metadata from the latest session
         if entry.first_seen is None or first_seen < entry.first_seen:
@@ -265,15 +272,12 @@ def _finalize_days(
     for ip, player_seen_dates in seen_dates.items():
         entry = entries[ip]
         for seen_date in player_seen_dates:
+            today_inc, week_inc, month_inc, year_inc = _calendar_period_increments(seen_date, today, current_week)
             entry.days_total += 1
-            if seen_date == today:
-                entry.days_today += 1
-            if seen_date.isocalendar()[:2] == current_week:
-                entry.days_week += 1
-            if seen_date.year == now.year and seen_date.month == now.month:
-                entry.days_month += 1
-            if seen_date.year == now.year:
-                entry.days_year += 1
+            entry.days_today += today_inc
+            entry.days_week += week_inc
+            entry.days_month += month_inc
+            entry.days_year += year_inc
 
 
 def _copy_entry(entry: LeaderboardEntry) -> LeaderboardEntry:

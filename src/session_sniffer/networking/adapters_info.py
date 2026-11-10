@@ -24,7 +24,7 @@ from session_sniffer.networking.ctypes_adapters_info import (
 from session_sniffer.networking.utils import is_mac_address
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Iterator
+    from collections.abc import Callable, Iterable, Iterator
 
 # OperStatus values
 IF_OPER_STATUS_UP = 1
@@ -133,11 +133,17 @@ def _read_sys_int(path: Path) -> int:
         return 0
 
 
+def _group_neighbors_by_interface(entries: Iterable[tuple[int, str | None, str | None]]) -> dict[int, list[tuple[str | None, str | None]]]:
+    """Group `(interface_index, ip_address, mac_address)` entries by interface index."""
+    grouped: dict[int, list[tuple[str | None, str | None]]] = {}
+    for interface_index, ip_address, mac_address in entries:
+        grouped.setdefault(interface_index, []).append((ip_address, mac_address))
+    return grouped
+
+
 def _get_linux_adapters_info() -> Iterator[AdapterData]:
     """Retrieve network adapter information on Linux systems."""
-    neighbors_by_interface_index: dict[int, list[tuple[str | None, str | None]]] = {}
-    for interface_index, ip_address, mac_address in iterate_ipv4_neighbors():
-        neighbors_by_interface_index.setdefault(interface_index, []).append((ip_address, mac_address))
+    neighbors_by_interface_index = _group_neighbors_by_interface(iterate_ipv4_neighbors())
 
     gateways_by_interface_name: dict[str, list[str]] = {}
     try:
@@ -238,9 +244,7 @@ def _get_darwin_gateways_by_interface() -> dict[str, list[str]]:
 
 def _get_darwin_adapters_info() -> Iterator[AdapterData]:
     """Retrieve network adapter information on macOS systems."""
-    neighbors_by_interface_index: dict[int, list[tuple[str | None, str | None]]] = {}
-    for interface_index, ip_address, mac_address in _iterate_ipv4_neighbors_darwin():
-        neighbors_by_interface_index.setdefault(interface_index, []).append((ip_address, mac_address))
+    neighbors_by_interface_index = _group_neighbors_by_interface(_iterate_ipv4_neighbors_darwin())
 
     gateways_by_interface_name = _get_darwin_gateways_by_interface()
     (
@@ -298,9 +302,7 @@ def get_adapters_info() -> Iterator[AdapterData]:
         yield from _get_linux_adapters_info()
         return
 
-    neighbors_by_if: dict[int, list[tuple[str | None, str | None]]] = {}
-    for if_index, ip, mac in iterate_ipv4_neighbors():
-        neighbors_by_if.setdefault(if_index, []).append((ip, mac))
+    neighbors_by_if = _group_neighbors_by_interface(iterate_ipv4_neighbors())
 
     for raw_adapter in iter_win32_adapters_addresses():
         interface_index, friendly_name, description, mac_address, adapter_guid = raw_adapter[:5]

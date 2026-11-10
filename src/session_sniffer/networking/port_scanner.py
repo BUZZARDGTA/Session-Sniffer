@@ -9,6 +9,8 @@ from dataclasses import dataclass, field
 from threading import Lock
 from typing import TYPE_CHECKING, ClassVar, Final
 
+from session_sniffer.constants.standalone import MAX_PORT, MIN_PORT
+
 if TYPE_CHECKING:
     from collections.abc import Generator
 
@@ -53,8 +55,6 @@ def port_scan_execution(thread_count: int) -> Generator[None]:
         _ActiveScanTracker.remove_threads(thread_count)
 
 
-MIN_PORT: Final[int] = 1
-MAX_PORT: Final[int] = 65535
 DEFAULT_SCAN_TIMEOUT_SECONDS: Final[float] = 0.8
 DEFAULT_SCAN_THREADS: Final[int] = 256
 MAX_SCAN_THREADS: Final[int] = 1024
@@ -316,13 +316,6 @@ def probe_tcp_port(
             state=PortScanState.CLOSED,
             service_name=service_name,
         )
-    except TimeoutError:
-        return PortScanResult(
-            port=port,
-            protocol='TCP',
-            state=PortScanState.FILTERED,
-            service_name=service_name,
-        )
     except OSError:
         return PortScanResult(
             port=port,
@@ -393,15 +386,8 @@ def probe_udp_port(
             service_name=service_name,
             latency_ms=latency_ms,
         )
-    except TimeoutError:
-        # No reply received -> UDP port is open or filtered (standard UDP scanning behavior)
-        return PortScanResult(
-            port=port,
-            protocol='UDP',
-            state=PortScanState.FILTERED,
-            service_name=service_name,
-        )
     except OSError:
+        # No reply received or socket error -> UDP port is open or filtered (standard UDP scanning behavior)
         return PortScanResult(
             port=port,
             protocol='UDP',

@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from session_sniffer.constants.local import APP_DIR_ROAMING
-from session_sniffer.utils import FileSignature, get_file_signature
+from session_sniffer.utils import FileSignature, atomic_write_text, get_file_signature
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
@@ -136,8 +136,7 @@ def _save_locked() -> None:
         excluded_looky_usernames=dict(sorted(_cache.excluded_looky_by_ip.items())),
     )
     try:
-        USERIP_GROUPS_PATH.parent.mkdir(parents=True, exist_ok=True)
-        USERIP_GROUPS_PATH.write_text(data.model_dump_json(indent=2), encoding='utf-8')
+        atomic_write_text(USERIP_GROUPS_PATH, data.model_dump_json(indent=2))
         _cache.file_sig = get_file_signature(USERIP_GROUPS_PATH)
     except OSError:
         logger.exception('Failed to save UserIP groups to %s', USERIP_GROUPS_PATH)

@@ -95,6 +95,8 @@ from session_sniffer.webserver import WebServer, start_webserver_from_settings
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+    from session_sniffer.networking.adapter_types import AdapterData
+
 setup_logging(console_level=logging.INFO)
 install_exception_handlers()
 logger = logging.getLogger(__name__)
@@ -729,6 +731,14 @@ def main() -> None:
             ArpSpoofingController.start(new_selected_interface)
         window.on_interface_switched()
 
+    def _sync_recovered_adapter_identity(current_selected: SelectedInterfaceRow, matching_adapter: AdapterData) -> None:
+        """Sync friendly name and MAC address when an active capture adapter reconnects or changes IP."""
+        if fname := matching_adapter.identity.friendly_name:
+            AllInterfaces.rename_interface(current_selected.name, fname)
+            current_selected.interface.identity.name = Settings.capture_interface_name = fname
+        if bool(mac := matching_adapter.identity.mac_address):
+            current_selected.interface.identity.mac_address = Settings.capture_mac_address = mac
+
     def _try_recover_lost_adapter(current_selected: SelectedInterfaceRow, adapter_guid: str, attempt: int) -> tuple[str, list[str]] | None:
         """Check whether the lost adapter is back online and ready for live capture, returning `(target_ip, ipv4_addresses)` if ready."""
         matching_adapter = next((adapter for adapter in get_adapters_info() if adapter.identity.adapter_guid == adapter_guid), None)
@@ -752,12 +762,7 @@ def main() -> None:
             )
             return None
 
-        if (fname := matching_adapter.identity.friendly_name):
-            AllInterfaces.rename_interface(current_selected.name, fname)
-            current_selected.interface.identity.name = Settings.capture_interface_name = fname
-        if bool(mac := matching_adapter.identity.mac_address):
-            current_selected.interface.identity.mac_address = Settings.capture_mac_address = mac
-
+        _sync_recovered_adapter_identity(current_selected, matching_adapter)
         target_ip = current_selected.ip_address if current_selected.ip_address in matching_adapter.ipv4_addresses else matching_adapter.ipv4_addresses[0]
         return target_ip, matching_adapter.ipv4_addresses
 
@@ -848,11 +853,7 @@ def main() -> None:
             window.on_interface_switched(capture_toggle_enabled=False)
             _adapter_lost_event.set()
         elif current_selected.ip_address not in matching_adapter.ipv4_addresses:
-            if (fname := matching_adapter.identity.friendly_name):
-                AllInterfaces.rename_interface(current_selected.name, fname)
-                current_selected.interface.identity.name = Settings.capture_interface_name = fname
-            if bool(mac := matching_adapter.identity.mac_address):
-                current_selected.interface.identity.mac_address = Settings.capture_mac_address = mac
+            _sync_recovered_adapter_identity(current_selected, matching_adapter)
             new_ip_address = matching_adapter.ipv4_addresses[0]
             logger.info(
                 'Capture interface "%s" IP changed from %s to %s — updating capture filter and restarting capture.',

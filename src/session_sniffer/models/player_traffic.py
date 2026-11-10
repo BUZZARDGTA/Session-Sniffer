@@ -13,6 +13,39 @@ BANDWIDTH_KB_THRESHOLD = 1024  # 1 KB in bytes
 
 
 @dataclass(kw_only=True, slots=True)
+class RateCounter:
+    """Track accumulated units (packets or bytes) over a fixed rate window."""
+
+    is_first_calculation: bool = True
+    last_update_time: float = dataclasses.field(default_factory=time.monotonic)
+    accumulated: int = 0
+    calculated_rate: int = 0
+
+    def calculate_and_update_rate(self, now: float | None = None) -> None:
+        """Calculate rate from accumulated units and reset counter."""
+        self.is_first_calculation = False
+        self.calculated_rate = self.accumulated
+        self.accumulated = 0
+        self.last_update_time = time.monotonic() if now is None else now
+
+    def reset(self, *, initial: int = 0) -> None:
+        """Reset the rate calculator to its initial state."""
+        self.is_first_calculation = True
+        self.last_update_time = time.monotonic()
+        self.accumulated = initial
+        self.calculated_rate = 0
+
+    def snapshot(self) -> Self:
+        """Create a frozen snapshot copy of this rate calculator."""
+        return self.__class__(
+            is_first_calculation=self.is_first_calculation,
+            last_update_time=self.last_update_time,
+            accumulated=self.accumulated,
+            calculated_rate=self.calculated_rate,
+        )
+
+
+@dataclass(kw_only=True, slots=True)
 class PlayerPackets:
     """Class to manage player packet counts and statistics.
 
@@ -27,45 +60,6 @@ class PlayerPackets:
         ppm: Packets Per Minute rate calculator.
     """
 
-    @dataclass(kw_only=True, slots=True)
-    class PacketRate:
-        """Class to manage player packet rate (PPS / PPM) calculations.
-
-        Attributes:
-            is_first_calculation: True until the first rate calculation completes.
-            last_update_time: Timestamp of the last rate calculation.
-            accumulated_packets: Number of packets counted since last calculation.
-            calculated_rate: The final packet rate value to display.
-        """
-
-        is_first_calculation: bool = True
-        last_update_time: float = dataclasses.field(default_factory=time.monotonic)
-        accumulated_packets: int = 0
-        calculated_rate: int = 0
-
-        def calculate_and_update_rate(self, now: float | None = None) -> None:
-            """Calculate rate from accumulated packets and reset counter."""
-            self.is_first_calculation = False
-            self.calculated_rate = self.accumulated_packets
-            self.accumulated_packets = 0
-            self.last_update_time = time.monotonic() if now is None else now
-
-        def reset(self, *, initial_packets: int = 0) -> None:
-            """Reset the packet rate calculator to its initial state."""
-            self.is_first_calculation = True
-            self.last_update_time = time.monotonic()
-            self.accumulated_packets = initial_packets
-            self.calculated_rate = 0
-
-        def snapshot(self) -> Self:
-            """Create a frozen snapshot copy of this packet rate calculator."""
-            return self.__class__(
-                is_first_calculation=self.is_first_calculation,
-                last_update_time=self.last_update_time,
-                accumulated_packets=self.accumulated_packets,
-                calculated_rate=self.calculated_rate,
-            )
-
     exchanged: int = 1
 
     total_received: int = 0
@@ -73,8 +67,8 @@ class PlayerPackets:
     total_sent: int = 0
     sent: int = 0
 
-    pps: PacketRate = dataclasses.field(default_factory=PacketRate)
-    ppm: PacketRate = dataclasses.field(default_factory=PacketRate)
+    pps: RateCounter = dataclasses.field(default_factory=RateCounter)
+    ppm: RateCounter = dataclasses.field(default_factory=RateCounter)
 
     min_len: int = 0
     max_len: int = 0
@@ -118,8 +112,8 @@ class PlayerPackets:
             received=initial_received,
             total_sent=initial_sent,
             sent=initial_sent,
-            pps=cls.PacketRate(accumulated_packets=1),
-            ppm=cls.PacketRate(accumulated_packets=1),
+            pps=RateCounter(accumulated=1),
+            ppm=RateCounter(accumulated=1),
             min_len=packet_length,
             max_len=packet_length,
             session_sum_len=packet_length,
@@ -144,8 +138,8 @@ class PlayerPackets:
             self.total_received += 1
             self.received += 1
 
-        self.pps.accumulated_packets += 1
-        self.ppm.accumulated_packets += 1
+        self.pps.accumulated += 1
+        self.ppm.accumulated += 1
 
         self.min_len = min(self.min_len, packet_length)
         self.max_len = max(self.max_len, packet_length)
@@ -173,8 +167,8 @@ class PlayerPackets:
             self.total_received += 1
             self.received = 1
 
-        self.pps.reset(initial_packets=1)
-        self.ppm.reset(initial_packets=1)
+        self.pps.reset(initial=1)
+        self.ppm.reset(initial=1)
 
         self.min_len = packet_length
         self.max_len = packet_length
@@ -218,45 +212,6 @@ class PlayerBandwidth:
         bpm: Bytes Per Minute rate calculator.
     """
 
-    @dataclass(kw_only=True, slots=True)
-    class ByteRate:
-        """Class to manage player byte rate (BPS / BPM) calculations.
-
-        Attributes:
-            is_first_calculation: True until the first rate calculation completes.
-            last_update_time: Timestamp of the last rate calculation.
-            accumulated_bytes: Number of bytes counted since last calculation.
-            calculated_rate: The final byte rate value to display.
-        """
-
-        is_first_calculation: bool = True
-        last_update_time: float = dataclasses.field(default_factory=time.monotonic)
-        accumulated_bytes: int = 0
-        calculated_rate: int = 0
-
-        def calculate_and_update_rate(self, now: float | None = None) -> None:
-            """Calculate rate from accumulated bytes and reset counter."""
-            self.is_first_calculation = False
-            self.calculated_rate = self.accumulated_bytes
-            self.accumulated_bytes = 0
-            self.last_update_time = time.monotonic() if now is None else now
-
-        def reset(self, *, initial_bytes: int = 0) -> None:
-            """Reset the byte rate calculator to its initial state."""
-            self.is_first_calculation = True
-            self.last_update_time = time.monotonic()
-            self.accumulated_bytes = initial_bytes
-            self.calculated_rate = 0
-
-        def snapshot(self) -> Self:
-            """Create a frozen snapshot copy of this byte rate calculator."""
-            return self.__class__(
-                is_first_calculation=self.is_first_calculation,
-                last_update_time=self.last_update_time,
-                accumulated_bytes=self.accumulated_bytes,
-                calculated_rate=self.calculated_rate,
-            )
-
     exchanged: int = 0
 
     total_download: int = 0
@@ -264,8 +219,8 @@ class PlayerBandwidth:
     total_upload: int = 0
     upload: int = 0
 
-    bps: ByteRate = dataclasses.field(default_factory=ByteRate)
-    bpm: ByteRate = dataclasses.field(default_factory=ByteRate)
+    bps: RateCounter = dataclasses.field(default_factory=RateCounter)
+    bpm: RateCounter = dataclasses.field(default_factory=RateCounter)
 
     @property
     def total_exchanged(self) -> int:
@@ -291,8 +246,8 @@ class PlayerBandwidth:
             download=initial_download,
             total_upload=initial_upload,
             upload=initial_upload,
-            bps=cls.ByteRate(accumulated_bytes=packet_length),
-            bpm=cls.ByteRate(accumulated_bytes=packet_length),
+            bps=RateCounter(accumulated=packet_length),
+            bpm=RateCounter(accumulated=packet_length),
         )
 
     def increment(self, *, packet_length: int, sent_by_local_host: bool) -> None:
@@ -311,8 +266,8 @@ class PlayerBandwidth:
             self.total_download += packet_length
             self.download += packet_length
 
-        self.bps.accumulated_bytes += packet_length
-        self.bpm.accumulated_bytes += packet_length
+        self.bps.accumulated += packet_length
+        self.bpm.accumulated += packet_length
 
     def reset_current_session(self, *, packet_length: int, sent_by_local_host: bool) -> None:
         """Reset current session bandwidth counts (for rejoins).
@@ -332,8 +287,8 @@ class PlayerBandwidth:
             self.upload = 0
             self.download = packet_length
 
-        self.bps.reset(initial_bytes=packet_length)
-        self.bpm.reset(initial_bytes=packet_length)
+        self.bps.reset(initial=packet_length)
+        self.bpm.reset(initial=packet_length)
 
     def snapshot(self) -> Self:
         """Create a frozen snapshot copy of this bandwidth tracking state."""

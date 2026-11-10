@@ -28,7 +28,7 @@ from session_sniffer.networking.ip_range import IPRange, parse_ip_range
 from session_sniffer.networking.third_party_servers import ALL_THIRD_PARTY_SERVER_NAMES
 from session_sniffer.settings.defaults import SETTING_DEFAULTS
 from session_sniffer.text_utils import format_triple_quoted_text
-from session_sniffer.utils import FileSignature, get_file_signature, validate_file
+from session_sniffer.utils import FileSignature, atomic_write_text, get_file_signature, validate_file
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -376,11 +376,7 @@ class Settings:
     @classmethod
     def rewrite_settings_file(cls) -> None:
         """Rewrite the settings file from current in-memory values."""
-        text = cls.serialize_to_json()
-
-        tmp_path: Path = SETTINGS_PATH.with_suffix('.tmp')
-        tmp_path.write_text(text, encoding='utf-8')
-        tmp_path.replace(SETTINGS_PATH)
+        atomic_write_text(SETTINGS_PATH, cls.serialize_to_json())
         cls._last_file_signature = get_file_signature(SETTINGS_PATH)
         clear_secret_cache()
 

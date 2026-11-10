@@ -250,6 +250,16 @@ class SettingsModel(BaseModel):
         },
     )
 
+    _DEFAULTED_INT_BOUNDS: ClassVar[dict[str, tuple[int, int | None, int]]] = {
+        'CAPTURE_OVERFLOW_TIMER': (0, None, 3),
+        'CAPTURE_FILTER_PROCESS_PID': (0, None, 0),
+        'GUI_CONNECTED_TABLE_ROWS_PER_PAGE': (0, 5000, 0),
+        'GUI_DISCONNECTED_TABLE_ROWS_PER_PAGE': (0, 5000, 0),
+        'WEBSERVER_PORT': (MIN_PORT, MAX_PORT, 80),
+        'GUI_DISCONNECTED_PLAYERS_TIMER': (3, None, 10),
+        'GUI_DISCONNECTED_PLAYERS_LIMIT': (0, 20000, 500),
+    }
+
     _CLAMPED_INT_BOUNDS: ClassVar[dict[str, tuple[int, int, int]]] = {
         'DISCORD_WEBHOOK_REFRESH_INTERVAL': (5, 300, 15),
         'SOLO_SESSION_DURATION': (6, 60, 6),
@@ -468,15 +478,16 @@ class SettingsModel(BaseModel):
         cls._set_flag(info)
         return cast('str | None', cls._get_default_for_field(info))
 
-    @field_validator('CAPTURE_OVERFLOW_TIMER', 'CAPTURE_FILTER_PROCESS_PID', mode='before')
+    @field_validator(*_DEFAULTED_INT_BOUNDS, mode='before')
     @classmethod
-    def _parse_non_negative_int(cls, value: object, info: ValidationInfo) -> int:
+    def _parse_defaulted_int(cls, value: object, info: ValidationInfo) -> int:
+        field_name = info.field_name or ''
+        minimum_value, maximum_value, fallback_default = cls._DEFAULTED_INT_BOUNDS[field_name]
         default = cls._get_default_for_field(info)
-        fallback = 3 if info.field_name == 'CAPTURE_OVERFLOW_TIMER' else 0
-        default_int = default if isinstance(default, int) else fallback
+        default_int = default if isinstance(default, int) else fallback_default
 
         parsed, coerced = _parse_int_value(value)
-        if parsed is not None and parsed >= 0:
+        if parsed is not None and parsed >= minimum_value and (maximum_value is None or parsed <= maximum_value):
             if coerced:
                 cls._set_flag(info)
             return parsed
@@ -526,41 +537,6 @@ class SettingsModel(BaseModel):
         cls._set_flag(info)
         return cast('str | None', cls._get_default_for_field(info))
 
-    @field_validator('GUI_CONNECTED_TABLE_ROWS_PER_PAGE', 'GUI_DISCONNECTED_TABLE_ROWS_PER_PAGE', mode='before')
-    @classmethod
-    def _parse_rows_per_page(cls, value: object, info: ValidationInfo) -> int:
-        maximum_rows_per_page = 5000
-        default = cls._get_default_for_field(info)
-        default_int = default if isinstance(default, int) else 0
-
-        parsed, coerced = _parse_int_value(value)
-        if parsed is not None and 0 <= parsed <= maximum_rows_per_page:
-            if coerced:
-                cls._set_flag(info)
-            return parsed
-
-        cls._set_flag(info)
-        return default_int
-
-    @field_validator('WEBSERVER_PORT', mode='before')
-    @classmethod
-    def _parse_webserver_port(cls, value: object, info: ValidationInfo) -> int:
-        default = cls._get_default_for_field(info)
-        default_int = default if isinstance(default, int) else 80
-
-        if isinstance(value, bool):
-            cls._set_flag(info)
-            return default_int
-
-        port, coerced = _parse_int_value(value)
-        if port is not None and MIN_PORT <= port <= MAX_PORT:
-            if coerced:
-                cls._set_flag(info)
-            return port
-
-        cls._set_flag(info)
-        return default_int
-
     @field_validator('WEBSERVER_HOST', mode='before')
     @classmethod
     def _parse_webserver_host(cls, value: object, info: ValidationInfo) -> str:
@@ -570,38 +546,6 @@ class SettingsModel(BaseModel):
             return value
         cls._set_flag(info)
         return default_str
-
-    @field_validator('GUI_DISCONNECTED_PLAYERS_TIMER', mode='before')
-    @classmethod
-    def _parse_disconnected_timer(cls, value: object, info: ValidationInfo) -> int:
-        minimum_timer = 3
-        default = cls._get_default_for_field(info)
-        default_int = default if isinstance(default, int) else 10
-
-        parsed, coerced = _parse_int_value(value)
-        if parsed is not None and parsed >= minimum_timer:
-            if coerced:
-                cls._set_flag(info)
-            return parsed
-
-        cls._set_flag(info)
-        return default_int
-
-    @field_validator('GUI_DISCONNECTED_PLAYERS_LIMIT', mode='before')
-    @classmethod
-    def _parse_disconnected_limit(cls, value: object, info: ValidationInfo) -> int:
-        maximum_limit = 20000
-        default = cls._get_default_for_field(info)
-        default_int = default if isinstance(default, int) else 500
-
-        parsed, coerced = _parse_int_value(value)
-        if parsed is not None and 0 <= parsed <= maximum_limit:
-            if coerced:
-                cls._set_flag(info)
-            return parsed
-
-        cls._set_flag(info)
-        return default_int
 
     @field_validator('DISCORD_PRESENCE_TITLE', mode='before')
     @classmethod
@@ -717,11 +661,8 @@ class SettingsModel(BaseModel):
             cls._set_flag(info)
         return parsed
 
-    @field_validator(*_ENUM_ALLOWED_VALUES, mode='before')
     @classmethod
-    def _parse_enum_field(cls, value: object, info: ValidationInfo) -> str:
-        field_name = info.field_name or ''
-        allowed = cls._ENUM_ALLOWED_VALUES[field_name]
+    def _validate_enum_choice(cls, value: object, allowed: tuple[str, ...], info: ValidationInfo) -> str:
         if isinstance(value, str):
             try:
                 case_match, normalized = check_case_insensitive_and_exact_match(value, allowed)
@@ -733,24 +674,18 @@ class SettingsModel(BaseModel):
             return normalized
         cls._set_flag(info)
         return cast('str', cls._get_default_for_field(info))
+
+    @field_validator(*_ENUM_ALLOWED_VALUES, mode='before')
+    @classmethod
+    def _parse_enum_field(cls, value: object, info: ValidationInfo) -> str:
+        return cls._validate_enum_choice(value, cls._ENUM_ALLOWED_VALUES[info.field_name or ''], info)
 
     @field_validator('GUI_CONNECTED_TABLE_SORT_COLUMN', 'GUI_DISCONNECTED_TABLE_SORT_COLUMN', mode='before')
     @classmethod
     def _parse_table_sort_column(cls, value: object, info: ValidationInfo) -> str:
         context = cls._get_context(info)
         allowed = context.all_connected_columns if context and info.field_name == 'GUI_CONNECTED_TABLE_SORT_COLUMN' else context.all_disconnected_columns if context else ()
-
-        if isinstance(value, str):
-            try:
-                case_match, normalized = check_case_insensitive_and_exact_match(value, allowed)
-            except NoMatchFoundError:
-                cls._set_flag(info)
-                return cast('str', cls._get_default_for_field(info))
-            if not case_match:
-                cls._set_flag(info)
-            return normalized
-        cls._set_flag(info)
-        return cast('str', cls._get_default_for_field(info))
+        return cls._validate_enum_choice(value, allowed, info)
 
     @field_validator('UPDATER_SKIPPED_VERSION', mode='before')
     @classmethod
