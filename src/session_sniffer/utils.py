@@ -7,6 +7,7 @@ import contextlib
 import json
 import logging
 import os
+import shlex
 import shutil
 import signal
 import subprocess
@@ -480,12 +481,17 @@ def run_cmd_script(script: Path, args: list[str] | None = None) -> None:
         script = resolve_lnk(script)
 
     if sys.platform != 'win32':
-        command = [sys.executable, str(script)] if script.suffix.casefold() == '.py' else [str(script)]
+        if script.suffix.casefold() == '.py':
+            python_executable = (shutil.which('python3') or shutil.which('python') or 'python3') if is_pyinstaller_compiled() else sys.executable
+            command = [python_executable, str(script)]
+        else:
+            command = [str(script)]
         if args is not None:
             command.extend(args)
         if sys.platform == 'darwin':
-            open_executable = shutil.which('open') or '/usr/bin/open'
-            subprocess.run([open_executable, '-a', 'Terminal', *command], check=False)
+            osascript_executable = shutil.which('osascript') or '/usr/bin/osascript'
+            applescript = 'on run argv\ntell application "Terminal"\nactivate\ndo script (item 1 of argv)\nend tell\nend run'
+            subprocess.run([osascript_executable, '-e', applescript, shlex.join(command)], check=False)
             return
         terminal_emulator = shutil.which('x-terminal-emulator') or shutil.which('gnome-terminal') or shutil.which('xterm')
         if terminal_emulator:

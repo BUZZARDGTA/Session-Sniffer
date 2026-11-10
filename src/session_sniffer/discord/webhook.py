@@ -14,7 +14,6 @@ import http.client
 import json
 import logging
 import re
-import time
 import urllib.parse
 from datetime import datetime
 from enum import Enum, auto
@@ -398,6 +397,7 @@ class DiscordWebhookSender:
         self._wakeup: SimpleQueue[object] = SimpleQueue()
         self._closed = False
         self._auto_disabled_url: str | None = None  # tracks last URL we permanently failed against
+        self._stop_event = Event()
         self._thread = Thread(
             target=self._run,
             name='DiscordWebhookSender',
@@ -432,6 +432,7 @@ class DiscordWebhookSender:
         if self._closed:
             return
         self._closed = True
+        self._stop_event.set()
         self._wakeup.put(SHUTDOWN_SIGNAL)
         self._thread.join(timeout=3)
 
@@ -651,7 +652,7 @@ class DiscordWebhookSender:
                 logger.warning('Failed to parse Discord rate limit payload: %s', e)
         delay = max(0.1, min(delay, 30.0))
         logger.warning('Discord webhook rate-limited; sleeping %.2fs', delay)
-        time.sleep(delay)
+        self._stop_event.wait(delay)
 
     def _auto_disable(self, url: str, status: int, body: bytes) -> None:
         """Permanently stop targeting *url* until the user changes it."""
@@ -676,7 +677,7 @@ class DiscordWebhookSender:
             f'The configured Discord webhook URL is no longer valid and has been disabled.\n\n'
             f'Reason: {reason} (HTTP {status})\n\n'
             f'URL: {url}\n\n'
-            f'Open Settings -> Discord and paste a new webhook URL to resume posting.'
+            f'Open Settings -> Preferences -> Discord -> Webhook and paste a new webhook URL to resume posting.'
         )
         Thread(
             target=msgbox.show,

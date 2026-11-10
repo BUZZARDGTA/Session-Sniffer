@@ -11,6 +11,7 @@ if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
 
 DEFAULT_MANUAL_SUSPEND_DURATION_SECONDS = 8
+_MAX_SUSPEND_DURATION_SECONDS = 3600
 _ONE_MS = timedelta(milliseconds=1)
 
 
@@ -80,9 +81,9 @@ def parse_suspend_duration_setting(raw: str) -> int | Literal['Auto']:
                 parsed_duration = int(raw.removeprefix('Manual(').removesuffix(')'))
             except ValueError:
                 return DEFAULT_MANUAL_SUSPEND_DURATION_SECONDS
-            return parsed_duration if parsed_duration > 0 else 'Auto'
+            return min(parsed_duration, _MAX_SUSPEND_DURATION_SECONDS) if parsed_duration > 0 else 'Auto'
         return 'Auto'
-    return parsed_duration if parsed_duration > 0 else 'Auto'
+    return min(parsed_duration, _MAX_SUSPEND_DURATION_SECONDS) if parsed_duration > 0 else 'Auto'
 
 
 def format_suspend_duration_setting(value: int | Literal['Auto']) -> str:

@@ -83,9 +83,12 @@ class _DeduplicatedQueue:
 _voice_notification_queue = _DeduplicatedQueue(maxsize=_VOICE_QUEUE_MAXSIZE)
 
 
-def _play_wav_linux(wav_path: str) -> None:
-    """Play a WAV audio file on Linux using available audio player (pw-play, aplay, or paplay)."""
-    player = shutil.which('pw-play') or shutil.which('aplay') or shutil.which('paplay')
+def _play_wav_posix(wav_path: str) -> None:
+    """Play a WAV audio file on macOS (afplay) or Linux (pw-play, aplay, or paplay)."""
+    if sys.platform == 'darwin':
+        player = shutil.which('afplay')
+    else:
+        player = shutil.which('pw-play') or shutil.which('aplay') or shutil.which('paplay')
     if player is not None:
         try:
             subprocess.run([player, wav_path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10.0, check=False)
@@ -129,16 +132,15 @@ def _voice_notification_worker() -> None:
                     continue
 
             try:
-                if sys.platform == 'win32':
+                if not Path(wav_path).is_file():
+                    logger.warning('Voice notification file not found: %s', wav_path)
+                elif sys.platform == 'win32':
                     try:
-                        if not Path(wav_path).is_file():
-                            logger.warning('Voice notification file not found: %s', wav_path)
-                        else:
-                            winsound.PlaySound(wav_path, winsound.SND_FILENAME | winsound.SND_NODEFAULT)
+                        winsound.PlaySound(wav_path, winsound.SND_FILENAME | winsound.SND_NODEFAULT)
                     except (RuntimeError, OSError, ValueError) as e:
                         logger.warning('Failed to play voice notification %s: %s', wav_path, e)
                 else:
-                    _play_wav_linux(wav_path)
+                    _play_wav_posix(wav_path)
                 gui_closed__event.wait(_INTER_SOUND_PAUSE_SECONDS)
             finally:
                 _voice_notification_queue.acknowledge(wav_path)

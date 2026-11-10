@@ -50,7 +50,10 @@ class ScriptControl:
         with cls._lock:
             hooks = list(cls._termination_hooks)
         for hook in hooks:
-            hook()
+            try:
+                hook()
+            except (OSError, RuntimeError, ValueError, TypeError):
+                logger.exception('Termination hook %r failed', hook)
 
     @classmethod
     def set_crashed(cls) -> bool:
@@ -183,11 +186,16 @@ def handle_sigterm(sig: int, _frame: FrameType | None) -> None:
         terminate_script(sig_name)
 
 
+def install_exception_handlers() -> None:
+    """Install global exception and termination signal handlers."""
+    sys.excepthook = handle_exception
+    threading.excepthook = _handle_thread_exception
+    signal.signal(signal.SIGINT, handle_sigint)
+    if hasattr(signal, 'SIGTERM'):
+        signal.signal(signal.SIGTERM, handle_sigterm)
+    if hasattr(signal, 'SIGBREAK'):
+        signal.signal(signal.SIGBREAK, handle_sigterm)
+
+
 # Install global exception/signal handlers at import time
-sys.excepthook = handle_exception
-threading.excepthook = _handle_thread_exception
-signal.signal(signal.SIGINT, handle_sigint)
-if hasattr(signal, 'SIGTERM'):
-    signal.signal(signal.SIGTERM, handle_sigterm)
-if hasattr(signal, 'SIGBREAK'):
-    signal.signal(signal.SIGBREAK, handle_sigterm)
+install_exception_handlers()

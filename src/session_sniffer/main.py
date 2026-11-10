@@ -52,6 +52,7 @@ from session_sniffer.constants.local import (
 )
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.constants.standard import LOCAL_TZ
+from session_sniffer.core import install_exception_handlers
 from session_sniffer.ctypes_console import hide_console_window
 from session_sniffer.error_messages import format_capture_interrupted_message, format_npcap_adapter_binding_disabled_message, format_outdated_packages_message
 from session_sniffer.exceptions import UnsupportedPlatformError
@@ -95,6 +96,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
 setup_logging(console_level=logging.INFO)
+install_exception_handlers()
 logger = logging.getLogger(__name__)
 
 USER_SCRIPTS_DIR_PATH.mkdir(parents=True, exist_ok=True)
@@ -111,7 +113,6 @@ def _on_process_exit() -> None:
 
 def main() -> None:
     """Run environment checks, initialize dependencies, and start the GUI."""
-    atexit.register(logging.shutdown)
     atexit.register(_on_process_exit)
 
     if is_pyinstaller_compiled():

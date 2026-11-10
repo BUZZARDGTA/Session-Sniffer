@@ -9,9 +9,12 @@ The msgbox.show() method can be used to display a message box with custom button
 
 import enum
 import sys
+from dataclasses import dataclass
 
+from PySide6.QtCore import QObject, Qt, QThread, Signal, Slot
 from PySide6.QtWidgets import QMessageBox
 
+from session_sniffer.background.events import gui_closed__event
 from session_sniffer.ctypes_windows import show_win32_message_box
 from session_sniffer.error_messages import ensure_instance
 from session_sniffer.guis.app import app
@@ -117,6 +120,32 @@ def _show_qt(title: str, text: str, style: Style) -> ReturnValues:
     return _QT_BUTTON_TO_RETURN_VALUE.get(QMessageBox.StandardButton(result), ReturnValues.IDOK)
 
 
+@dataclass(slots=True)
+class _MsgBoxRequest:
+    title: str
+    text: str
+    style: Style
+    result: ReturnValues = ReturnValues.IDOK
+
+
+class _MsgBoxDispatcher(QObject):
+    """Thread-safe dispatcher that executes `_show_qt` on the main Qt GUI thread."""
+
+    request_box: Signal = Signal(object)
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.moveToThread(app.thread())
+        self.request_box.connect(self._handle_request, Qt.ConnectionType.BlockingQueuedConnection)
+
+    @Slot(object)
+    def _handle_request(self, request: _MsgBoxRequest) -> None:
+        request.result = _show_qt(request.title, request.text, request.style)
+
+
+_DISPATCHER = _MsgBoxDispatcher()
+
+
 def show(title: str, text: str, style: Style) -> ReturnValues:
     """Display a message box with the specified title, text, and style.
 
@@ -132,7 +161,16 @@ def show(title: str, text: str, style: Style) -> ReturnValues:
         TypeError: If the return value from the MessageBox is not an integer.
     """
     if sys.platform != 'win32':
-        return _show_qt(title, text, style)
+        if QThread.currentThread() == app.thread():
+            return _show_qt(title, text, style)
+        if gui_closed__event.is_set() or app.closingDown():
+            if sys.stderr is not None:
+                sys.stderr.write(f'[{title}] {text}\n')
+                sys.stderr.flush()
+            return ReturnValues.IDOK
+        request = _MsgBoxRequest(title=title, text=text, style=style)
+        _DISPATCHER.request_box.emit(request)
+        return request.result
 
     result = show_win32_message_box(_state['owner_hwnd'], text, title, int(style))
     return ReturnValues(ensure_instance(result, int))

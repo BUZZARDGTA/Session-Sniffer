@@ -36,19 +36,19 @@ class VersionInfo(BaseModel):
 
     @property
     def platform_sha256(self) -> str:
-        """Return platform-specific SHA-256."""
-        if sys.platform == 'darwin' and self.darwin_sha256:
-            return self.darwin_sha256
-        if sys.platform.startswith('linux') and self.linux_sha256:
-            return self.linux_sha256
+        """Return platform-specific SHA-256 paired with the selected download URL."""
+        if sys.platform == 'darwin' and self.darwin_download_url:
+            return self.darwin_sha256 or ''
+        if sys.platform.startswith('linux') and self.linux_download_url:
+            return self.linux_sha256 or ''
         return self.sha256
 
     @property
     def platform_file_size(self) -> int | None:
-        """Return platform-specific file size."""
-        if sys.platform == 'darwin' and self.darwin_file_size is not None:
+        """Return platform-specific file size paired with the selected download URL."""
+        if sys.platform == 'darwin' and self.darwin_download_url:
             return self.darwin_file_size
-        if sys.platform.startswith('linux') and self.linux_file_size is not None:
+        if sys.platform.startswith('linux') and self.linux_download_url:
             return self.linux_file_size
         return self.file_size
 

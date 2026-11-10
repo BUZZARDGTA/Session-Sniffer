@@ -40,6 +40,8 @@ _OPCODE_CLOSE = 2
 _HEADER_FORMAT = '<II'
 _HEADER_LENGTH = struct.calcsize(_HEADER_FORMAT)
 _MAX_PIPE_INDEX = 10
+_MAX_IPC_PAYLOAD_BYTES = 1_048_576
+_UNIX_SOCKET_TIMEOUT_SECONDS = 5.0
 
 
 class _PresenceUpdate(NamedTuple):
@@ -95,6 +97,7 @@ class _DiscordIPCConnection:
                     if not socket_path.exists():
                         continue
                     unix_socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+                    unix_socket.settimeout(_UNIX_SOCKET_TIMEOUT_SECONDS)
                     try:
                         unix_socket.connect(str(socket_path))
                         return cls(pipe_stream=unix_socket.makefile('r+b', buffering=0), unix_socket=unix_socket)
@@ -110,15 +113,31 @@ class _DiscordIPCConnection:
         header_bytes = struct.pack(_HEADER_FORMAT, opcode, len(encoded_data))
         self._stream.write(header_bytes + encoded_data)
 
+    def _read_exact(self, length: int) -> bytes | None:
+        """Read exactly *length* bytes from the IPC stream, or return `None` on EOF."""
+        chunks: list[bytes] = []
+        remaining = length
+        while remaining > 0:
+            chunk = self._stream.read(remaining)
+            if not chunk:
+                return None
+            chunks.append(chunk)
+            remaining -= len(chunk)
+        return b''.join(chunks)
+
     def receive(self) -> DiscordResponsePayload | None:
         """Read and decode a frame from the Discord IPC pipe."""
-        header_bytes = self._stream.read(_HEADER_LENGTH)
-        if len(header_bytes) < _HEADER_LENGTH:
+        header_bytes = self._read_exact(_HEADER_LENGTH)
+        if header_bytes is None:
             return None
 
         _opcode, payload_length = struct.unpack(_HEADER_FORMAT, header_bytes)
-        payload_bytes = self._stream.read(payload_length)
-        if len(payload_bytes) < payload_length:
+        if payload_length > _MAX_IPC_PAYLOAD_BYTES:
+            logger.warning('Discord RPC frame payload length %d exceeds maximum %d', payload_length, _MAX_IPC_PAYLOAD_BYTES)
+            return None
+
+        payload_bytes = self._read_exact(payload_length)
+        if payload_bytes is None:
             return None
 
         try:
@@ -180,7 +199,7 @@ class DiscordRPC:
         self.last_update_time = time.monotonic()
 
         new_update = _PresenceUpdate(state_message, details)
-        if new_update == self._last_queued_update:
+        if new_update == self._last_queued_update and self.connection_status.is_set():
             return
 
         self._last_queued_update = new_update

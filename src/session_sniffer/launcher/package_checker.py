@@ -12,10 +12,14 @@ if TYPE_CHECKING:
 
 
 def get_dependencies_from_pyproject() -> dict[str, Requirement]:
-    """Return dependency requirements parsed from `pyproject.toml`."""
+    """Return dependency requirements parsed from `pyproject.toml` for the current environment."""
     dependencies = PYPROJECT_DATA.get('project', {}).get('dependencies', [])
 
-    return {req.name: req for req in map(Requirement, dependencies)}
+    return {
+        requirement.name: requirement
+        for requirement in map(Requirement, dependencies)
+        if requirement.marker is None or requirement.marker.evaluate()
+    }
 
 
 def check_packages_version(required_packages: dict[str, Requirement]) -> list[tuple[str, SpecifierSet, str]]:

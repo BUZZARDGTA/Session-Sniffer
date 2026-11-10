@@ -149,7 +149,7 @@ def format_geolite2_update_initialize_error_message(
     if initialize_exception is not None:
         msgbox_message += f'Exception Error: {initialize_exception}\n\n'
         msgbox_message += "Now disabling MaxMind's GeoLite2 IP to Country, City and ASN resolutions feature.\n"
-        msgbox_message += "Countrys, Citys and ASN from players won't shows up from the players columns."
+        msgbox_message += "Country, City, and ASN columns won't show up in the players table."
         geoip2_enabled = False
         show_error = True
     else:

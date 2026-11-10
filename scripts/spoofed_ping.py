@@ -4,12 +4,13 @@ It continuously sends ping requests and displays results using ANSI terminal for
 """
 
 import argparse
-import ctypes
 import enum
+import itertools
 import re
 import statistics
 import sys
 import time
+import urllib.parse
 from contextlib import suppress
 from ipaddress import AddressValueError, IPv4Address
 from typing import TYPE_CHECKING, Literal, NoReturn, TypeGuard, cast
@@ -73,8 +74,7 @@ PING_ERROR_MIN_LENGTH = 2
 PING_HOPS_PER_ATTEMPT = 4
 PING_HOP_MIN_VALUES = 2
 NODE_INFO_MIN_LENGTH = 3
-
-MSGBOX_ICON_ERROR = 0x10
+_HTTP_TIMEOUT_SECONDS = 15
 
 
 _ANSI_ESCAPE_PATTERN = re.compile(r'\033\[[0-9;]*m')
@@ -113,16 +113,9 @@ def print_line(message: str = '', end: str = '\n') -> None:
     sys.stdout.flush()
 
 
-def show_error_msgbox(title: str, message: str) -> None:
-    """Show a native Windows error message box and ignore UI failures."""
-    with suppress(Exception):
-        ctypes.windll.user32.MessageBoxW(0, message, title, MSGBOX_ICON_ERROR)
-
-
 def exit_with_error(message: str) -> NoReturn:
-    """Display an error, show a message box, and terminate the script gracefully."""
+    """Display an error and terminate the script gracefully."""
     print_line(f'{Colors.RED}{message}{Colors.RESET}')
-    show_error_msgbox('Spoofed Ping Error', message)
     raise SystemExit(1)
 
 
@@ -247,12 +240,17 @@ def format_ping_table(
     return '\n'.join(lines)
 
 
-def ping_loop(target_ip: str, session: requests.Session) -> None:
-    """Continuously pings the target IP until the user closes the script."""
+def ping_loop(target_ip_list: list[str], session: requests.Session) -> None:
+    """Continuously ping the target IP addresses until the user closes the script."""
 
     def send_ping_request(ip: str) -> tuple[str | None, dict[str, NodeInfo] | None]:
         """Send a ping request to the Check-Host API."""
-        response = session.get(f'{CHECK_HOST_API}/check-ping?host={ip}', headers={'Accept': 'application/json'})
+        response = session.get(
+            f'{CHECK_HOST_API}/check-ping',
+            params={'host': ip},
+            headers={'Accept': 'application/json'},
+            timeout=_HTTP_TIMEOUT_SECONDS,
+        )
         response.raise_for_status()
 
         try:
@@ -280,7 +278,12 @@ def ping_loop(target_ip: str, session: requests.Session) -> None:
             time.sleep(1)
         print_line(' ' * 50, end='\r')
 
-        response = session.get(f'{CHECK_HOST_API}/check-result/{request_id}', headers={'Accept': 'application/json'})
+        encoded_request_id = urllib.parse.quote(request_id, safe='')
+        response = session.get(
+            f'{CHECK_HOST_API}/check-result/{encoded_request_id}',
+            headers={'Accept': 'application/json'},
+            timeout=_HTTP_TIMEOUT_SECONDS,
+        )
         response.raise_for_status()
 
         try:
@@ -388,7 +391,7 @@ def ping_loop(target_ip: str, session: requests.Session) -> None:
 
         return rows
 
-    while True:
+    for target_ip in itertools.cycle(target_ip_list):
         request_id, nodes = send_ping_request(target_ip)
 
         if request_id is None or not request_id or nodes is None or not nodes:
@@ -401,7 +404,8 @@ def ping_loop(target_ip: str, session: requests.Session) -> None:
             print_line('\n')
             continue
 
-        result_url = f'{CHECK_HOST_API}/check-result/{request_id}'
+        encoded_request_id = urllib.parse.quote(request_id, safe='')
+        result_url = f'{CHECK_HOST_API}/check-result/{encoded_request_id}'
         print_line(
             f'{Colors.CYAN}Ping request sent to {Colors.CYAN_LIGHT}{target_ip}{Colors.CYAN}. '
             f'Result API link: {Colors.CYAN_LIGHT}{Colors.BOLD}{result_url}{Colors.RESET}',
@@ -457,19 +461,21 @@ def is_ipv4_address(ip_address: str, /) -> bool:
 
 
 def main() -> None:
-    """Parse arguments and start the ping loop for the target IP."""
-    parser = argparse.ArgumentParser(description='Ping an IP using Check-Host API.')
-    parser.add_argument('ip', metavar='<ip>', type=str, help='Target IP to ping')
+    """Parse arguments and start the ping loop for the target IP addresses."""
+    parser = argparse.ArgumentParser(description='Ping one or more IPv4 addresses using the Check-Host API.')
+    parser.add_argument('target_ips', metavar='<ip>', nargs='+', type=str, help='One or more target IPv4 addresses to ping')
     args = parser.parse_args()
 
-    target_ip = args.ip.strip() if isinstance(args.ip, str) else None
-    if not target_ip:
+    raw_target_ips = cast('list[str]', args.target_ips)
+    target_ip_list = list(dict.fromkeys(candidate.strip() for candidate in raw_target_ips if candidate.strip()))
+    if not target_ip_list:
         print_line(f'{Colors.RED}Error: No IP address provided.{Colors.RESET}')
         sys.exit(1)
 
-    if not is_ipv4_address(target_ip):
-        print_line(f"{Colors.RED}Error: '{Colors.RED_LIGHT}{target_ip}{Colors.RED}' is not a valid IP address.{Colors.RESET}")
-        sys.exit(1)
+    for candidate_ip in target_ip_list:
+        if not is_ipv4_address(candidate_ip):
+            print_line(f"{Colors.RED}Error: '{Colors.RED_LIGHT}{candidate_ip}{Colors.RED}' is not a valid IP address.{Colors.RESET}")
+            sys.exit(1)
 
     try:
         with requests.Session() as session:
@@ -479,7 +485,7 @@ def main() -> None:
                     'Accept': 'application/json',
                 },
             )
-            ping_loop(target_ip, session)
+            ping_loop(target_ip_list, session)
     except KeyboardInterrupt:
         sys.exit(0)
 

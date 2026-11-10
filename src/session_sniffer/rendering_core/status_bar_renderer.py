@@ -1,5 +1,6 @@
 """Status bar section rendering helpers for the GUI."""
 
+import html
 import os
 import threading
 import time
@@ -193,15 +194,17 @@ def _build_capture_section(snapshot: StatusBarSnapshot) -> str:
     interface_name = snapshot.interface.name
     if len(interface_name) > _INTERFACE_NAME_MAX_LEN:
         interface_name = interface_name[:_INTERFACE_NAME_MAX_LEN] + '…'
+    escaped_interface_name = html.escape(interface_name)
+    escaped_ip_address = html.escape(snapshot.capture.ip_address)
     return (
         f'<span style="font-size: 9pt;">'
         f'<span style="color: {StatusBarColors.TITLE_ACCENT}; font-weight: bold;">Capture:</span> '
         f'<span style="color: {StatusBarColors.DIVIDER};"> • </span>'
         f'<span style="color: {StatusBarColors.LABEL_ACCENT};">Interface:</span> '
-        f'<span style="color: {StatusBarColors.ENABLED};">{interface_name}</span> '
+        f'<span style="color: {StatusBarColors.ENABLED};">{escaped_interface_name}</span> '
         f'<span style="color: {StatusBarColors.DIVIDER};"> • </span>'
         f'<span style="color: {StatusBarColors.LABEL_ACCENT};">IP:</span> '
-        f'<span style="color: {StatusBarColors.ENABLED};">{snapshot.capture.ip_address}</span>'
+        f'<span style="color: {StatusBarColors.ENABLED};">{escaped_ip_address}</span>'
         f'</span>'
     )
 
@@ -228,9 +231,10 @@ def _build_config_section(snapshot: StatusBarSnapshot) -> str:
         )
 
     if snapshot.capture.feature_set is not None:
+        escaped_feature_set = html.escape(snapshot.capture.feature_set)
         parts.append(
             f'<span style="color: {StatusBarColors.LABEL_ACCENT};">Feature Set:</span> '
-            f'<span style="color: {StatusBarColors.ENABLED};">{snapshot.capture.feature_set}</span>',
+            f'<span style="color: {StatusBarColors.ENABLED};">{escaped_feature_set}</span>',
         )
 
     if Settings.is_process_filter_active() and CaptureState.is_local_capture():
@@ -239,9 +243,10 @@ def _build_config_section(snapshot: StatusBarSnapshot) -> str:
             or (Settings.capture_filter_process_name if Settings.capture_filter_process_track_by_name else None)
             or (f'PID {Settings.capture_filter_process_pid}' if Settings.capture_filter_process_pid > 0 else 'Target Process')
         )
+        escaped_target_name = html.escape(target_name)
         target_color = StatusBarColors.ENABLED if CaptureState.target_process_running else StatusBarColors.DISABLED
         parts.append(
-            f'<span style="color: {StatusBarColors.LABEL_ACCENT};">Target:</span> <span style="color: {target_color};">{target_name}</span>',
+            f'<span style="color: {StatusBarColors.LABEL_ACCENT};">Target:</span> <span style="color: {target_color};">{escaped_target_name}</span>',
         )
 
     divider = f'<span style="color: {StatusBarColors.DIVIDER};"> • </span>'

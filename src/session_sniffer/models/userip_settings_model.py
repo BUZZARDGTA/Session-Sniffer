@@ -9,6 +9,7 @@ from typing import Any, ClassVar, Literal, Self, cast
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 from PySide6.QtGui import QColor
 
+from session_sniffer.constants.standalone import MAX_SUSPEND_DURATION_SECONDS
 from session_sniffer.constants.standard import LOCAL_TZ
 from session_sniffer.text_utils import DEFAULT_MANUAL_SUSPEND_DURATION_SECONDS
 from session_sniffer.utils import check_case_insensitive_and_exact_match, custom_str_to_bool
@@ -250,15 +251,16 @@ class UserIPSettingsModel(BaseModel):
     @field_validator('PROTECTION_SUSPEND_PROCESS_MODE', mode='before')
     @classmethod
     def _normalize_suspend_mode(cls, value: object, info: ValidationInfo) -> int | Literal['Auto']:
-        """Accept 'Auto' (or False), 'Manual' (or True -> default duration), or a non-negative integer."""
+        """Accept 'Auto' (or False), 'Manual' (or True -> default duration), or a positive integer clamped to MAX_SUSPEND_DURATION_SECONDS."""
         if isinstance(value, bool):
             cls._mark_rewrite(info)
             return DEFAULT_MANUAL_SUSPEND_DURATION_SECONDS if value else 'Auto'
         if isinstance(value, (int, float)):
             int_val = int(value)
-            if isinstance(value, float) or int_val < 0:
+            normalized_num: int | Literal['Auto'] = min(int_val, MAX_SUSPEND_DURATION_SECONDS) if int_val > 0 else 'Auto'
+            if isinstance(value, float) or normalized_num != int_val:
                 cls._mark_rewrite(info)
-            return int_val if int_val >= 0 else 'Auto'
+            return normalized_num
         if isinstance(value, str):
             stripped = value.strip()
             try:
@@ -285,7 +287,7 @@ class UserIPSettingsModel(BaseModel):
                 parsed_int = DEFAULT_MANUAL_SUSPEND_DURATION_SECONDS if is_manual_parens else None
             if parsed_int is not None:
                 cls._mark_rewrite(info)
-                return parsed_int if parsed_int >= 0 else 'Auto'
+                return min(parsed_int, MAX_SUSPEND_DURATION_SECONDS) if parsed_int > 0 else 'Auto'
 
         cls._mark_rewrite(info)
         return 'Auto'

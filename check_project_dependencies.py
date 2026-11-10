@@ -28,6 +28,11 @@ RESET = '\033[0m'
 SEMVER_TWO_PARTS = 2
 
 
+def _pluralize(count: int) -> str:
+    """Return singular or plural suffix for *count*."""
+    return '' if count == 1 else 's'
+
+
 def ensure_virtualenv(repo_root: Path) -> None:
     """Ensure the script runs in the project virtual environment if available."""
     in_virtualenv = sys.prefix != sys.base_prefix
@@ -184,7 +189,8 @@ def check_installed_packages() -> None:
     if not packages:
         print(f'{GREEN}All packages are already up to date!{RESET}')
     else:
-        print(f'{CYAN}Found {len(packages)} package(s) with updates available:{RESET}')
+        package_count = len(packages)
+        print(f'{CYAN}Found {package_count} package{_pluralize(package_count)} with updates available:{RESET}')
         for package in packages:
             name = package.get('name', '')
             version = package.get('version', '')
@@ -252,7 +258,8 @@ def check_workflow_action_pins(repo_root: Path) -> None:
     if not outdated_actions:
         print(f'{GREEN}All scanned GitHub Actions are up to date.{RESET}')
     else:
-        print(f'{CYAN}Found {len(outdated_actions)} outdated GitHub Action pin(s):{RESET}')
+        pin_count = len(outdated_actions)
+        print(f'{CYAN}Found {pin_count} outdated GitHub Action pin{_pluralize(pin_count)}:{RESET}')
         for repository_key, current_ref, latest_tag, workflow_name, line_number in outdated_actions:
             print(f'{GRAY}  - {repository_key}: {current_ref} -> {latest_tag} ({workflow_name}:{line_number}){RESET}')
 

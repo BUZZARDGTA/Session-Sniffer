@@ -31,6 +31,8 @@ __all__ = [
     'clear_secret_cache',
     'dump_crash_diagnostics',
     'flush_all_loggers',
+    'purge_crash_log',
+    'purge_debug_log',
     'redact_text',
     'register_diagnostic_provider',
     'register_secret_provider',
@@ -138,7 +140,7 @@ def _get_secret_values() -> tuple[str, ...]:
         secrets: set[str] = set()
         for provider in providers:
             secret: str | None = None
-            with contextlib.suppress(Exception):
+            with contextlib.suppress(OSError, RuntimeError, ValueError, TypeError, AttributeError):
                 secret = provider()
             if secret is not None and secret:
                 secrets.add(secret)
@@ -231,14 +233,14 @@ def flush_all_loggers() -> None:
     """Flush all logging handlers, standard streams, and crash log stream."""
     root = logging.getLogger()
     for handler in list(root.handlers):
-        with contextlib.suppress(Exception):
+        with contextlib.suppress(OSError, RuntimeError, ValueError):
             handler.flush()
     for stream in (sys.stdout, sys.stderr, sys.__stdout__, sys.__stderr__):
         if stream is not None:
-            with contextlib.suppress(Exception):
+            with contextlib.suppress(OSError, RuntimeError, ValueError):
                 stream.flush()
     if _state.crash_log_file is not None:
-        with contextlib.suppress(OSError):
+        with contextlib.suppress(OSError, ValueError):
             _state.crash_log_file.flush()
 
 
@@ -285,7 +287,7 @@ def dump_crash_diagnostics(
 
     # 1. Write unbuffered directly to raw standard error
     if sys.__stderr__ is not None:
-        with contextlib.suppress(Exception):
+        with contextlib.suppress(OSError, ValueError):
             sys.__stderr__.write(dump_text)
             sys.__stderr__.flush()
 
@@ -297,7 +299,7 @@ def dump_crash_diagnostics(
             crash_log_file.flush()
     except OSError as e:
         if sys.__stderr__ is not None:
-            with contextlib.suppress(Exception):
+            with contextlib.suppress(OSError, ValueError):
                 sys.__stderr__.write(f'Failed to write to crash.log: {e}\n')
                 sys.__stderr__.flush()
 
@@ -467,11 +469,9 @@ def _configure_common_filters(handler: logging.Handler) -> None:
 def _close_crash_log() -> None:
     """Disable faulthandler and close the crash log file cleanly on exit."""
     if _state.crash_log_file is not None:
-        try:
+        with contextlib.suppress(OSError, ValueError):
             faulthandler.disable()
             _state.crash_log_file.close()
-        except OSError:
-            pass
         _state.crash_log_file = None
 
 
@@ -571,16 +571,15 @@ def purge_debug_log() -> None:
 
 def purge_crash_log() -> None:
     """Safely truncate crash.log while handling the active faulthandler file descriptor."""
-    faulthandler.disable()
-    if _state.crash_log_file is not None:
-        try:
-            _state.crash_log_file.flush()
-            _state.crash_log_file.close()
-        except OSError:
-            pass
-        _state.crash_log_file = None
-    CRASH_LOG_PATH.write_text('', encoding='utf-8')
-    _state.crash_log_file = CRASH_LOG_PATH.open('a', encoding='utf-8')
-    faulthandler.enable(file=_state.crash_log_file, all_threads=True)
-    if sys.platform == 'win32':
-        install_win32_crt_handlers(dump_crash_diagnostics)
+    with _setup_lock:
+        faulthandler.disable()
+        if _state.crash_log_file is not None:
+            with contextlib.suppress(OSError, ValueError):
+                _state.crash_log_file.flush()
+                _state.crash_log_file.close()
+            _state.crash_log_file = None
+        CRASH_LOG_PATH.write_text('', encoding='utf-8')
+        _state.crash_log_file = CRASH_LOG_PATH.open('a', encoding='utf-8')
+        faulthandler.enable(file=_state.crash_log_file, all_threads=True)
+        if sys.platform == 'win32':
+            install_win32_crt_handlers(dump_crash_diagnostics)

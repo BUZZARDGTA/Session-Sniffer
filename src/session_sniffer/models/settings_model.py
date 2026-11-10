@@ -27,7 +27,7 @@ from session_sniffer.utils import (
     custom_str_to_nonetype,
     validate_and_strip_balanced_outer_parens,
 )
-from session_sniffer.utils_exceptions import InvalidBooleanValueError, InvalidNoneTypeValueError, NoMatchFoundError
+from session_sniffer.utils_exceptions import InvalidBooleanValueError, InvalidNoneTypeValueError, NoMatchFoundError, ParenthesisMismatchError
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -510,7 +510,14 @@ class SettingsModel(BaseModel):
             try:
                 none_value, _ = custom_str_to_nonetype(value)
             except InvalidNoneTypeValueError:
-                stripped = validate_and_strip_balanced_outer_parens(value)
+                try:
+                    stripped = validate_and_strip_balanced_outer_parens(value)
+                except ParenthesisMismatchError:
+                    cls._set_flag(info)
+                    return None
+                if not stripped:
+                    cls._set_flag(info)
+                    return None
                 if value != stripped:
                     cls._set_flag(info)
                 return stripped
