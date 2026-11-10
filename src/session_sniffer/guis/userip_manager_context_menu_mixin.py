@@ -5,9 +5,9 @@ from ipaddress import IPv4Address
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from PySide6.QtCore import QItemSelectionModel, QModelIndex, QPoint, QSignalBlocker, Qt, QUrl
+from PySide6.QtCore import QItemSelectionModel, QModelIndex, QPoint, Qt, QUrl
 from PySide6.QtGui import QAction, QDesktopServices, QIcon, QStandardItemModel
-from PySide6.QtWidgets import QAbstractItemView, QCheckBox, QDialog, QFileSystemModel, QLineEdit, QMenu, QPushButton, QTreeView
+from PySide6.QtWidgets import QAbstractItemView, QCheckBox, QDialog, QLineEdit, QMenu, QPushButton, QTreeView
 
 from session_sniffer.constants.local import RESOURCES_DIR_PATH, USERIP_DATABASES_DIR_PATH
 from session_sniffer.guis.stylesheets import SVG_ICON_CONTEXT_MENU_STYLESHEET
@@ -60,8 +60,6 @@ class EntriesContextMenuMixin(QDialog):
     _current_path: Path | None
     _global_search_checkbox: QCheckBox
     _open_db_button: QPushButton
-    _tree: QTreeView
-    _fs_model: QFileSystemModel
     _search_input: QLineEdit
 
     if TYPE_CHECKING:
@@ -72,6 +70,9 @@ class EntriesContextMenuMixin(QDialog):
         def _group_selected_rows(self) -> None: ...
         def _group_rows_with(self) -> None: ...
         def _ungroup_rows(self) -> None: ...
+
+        def _select_tree_path(self, path: Path) -> None:
+            del path
 
         def _edit_entry_ip(self, source_row: int) -> None:
             del source_row
@@ -583,16 +584,7 @@ class EntriesContextMenuMixin(QDialog):
             self._load_database(db_path)
             self._open_db_button.setEnabled(True)
 
-        # Select the database in the tree
-        tree_index = self._fs_model.index(str(db_path))
-        if tree_index.isValid():
-            selection = self._tree.selectionModel()
-            if selection:
-                with QSignalBlocker(selection):
-                    selection.select(tree_index, QItemSelectionModel.SelectionFlag.ClearAndSelect | QItemSelectionModel.SelectionFlag.Rows)
-                    self._tree.setCurrentIndex(tree_index)
-                self._tree.scrollTo(tree_index)
-
+        self._select_tree_path(db_path)
         self._select_loaded_entry(username=username, ip_or_range=ip_or_range)
 
     def _select_loaded_entry(self, *, username: str, ip_or_range: str) -> None:

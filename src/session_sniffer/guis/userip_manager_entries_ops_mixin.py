@@ -51,7 +51,7 @@ from session_sniffer.utils import dedup_preserve_order
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from PySide6.QtGui import QColor, QIcon, QStandardItem, QStandardItemModel
+    from PySide6.QtGui import QIcon, QStandardItem, QStandardItemModel
 
     from session_sniffer.guis.file_watch import DebouncedFileWatcher
 
@@ -75,7 +75,6 @@ class UserIPEntriesOperationsMixin(QDialog):
     _search_input: QLineEdit
     _settings_container: QFrame
     _looky_icon: QIcon
-    _db_visual_cache: dict[Path, tuple[int, bool, QColor]]
 
     if TYPE_CHECKING:
         read_settings_from_widgets: Callable[[], UserIPSettingsModel]
@@ -84,6 +83,7 @@ class UserIPEntriesOperationsMixin(QDialog):
         def _update_entry_counts(self) -> None: ...
         def _refresh_stats(self) -> None: ...
         def _clear_dirty_state(self) -> None: ...
+        def _refresh_tree_visuals(self) -> None: ...
 
         def _set_status(self, text: str) -> None:
             del text
@@ -106,7 +106,7 @@ class UserIPEntriesOperationsMixin(QDialog):
 
     def _sync_from_disk(self) -> None:
         """Reconcile the entries view and stats with the current on-disk state."""
-        self._db_visual_cache.clear()
+        self._refresh_tree_visuals()
         _, databases_rebuilt = update_userip_databases()
         if databases_rebuilt:
             wake_rendering_core()

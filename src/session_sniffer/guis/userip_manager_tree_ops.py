@@ -5,7 +5,21 @@ import shutil
 from pathlib import Path
 from typing import TYPE_CHECKING, cast, override
 
-from PySide6.QtCore import QEvent, QModelIndex, QObject, QPersistentModelIndex, QPoint, QRect, QRectF, QSignalBlocker, QSize, Qt, QUrl
+from PySide6.QtCore import (
+    QEvent,
+    QItemSelectionModel,
+    QModelIndex,
+    QObject,
+    QPersistentModelIndex,
+    QPoint,
+    QRect,
+    QRectF,
+    QSignalBlocker,
+    QSize,
+    QSortFilterProxyModel,
+    Qt,
+    QUrl,
+)
 from PySide6.QtGui import QAction, QColor, QDesktopServices, QFont, QFontMetrics, QHelpEvent, QIcon, QMouseEvent, QPainter, QPainterPath, QPen, QStandardItemModel
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -29,17 +43,10 @@ from shiboken6 import isValid
 from session_sniffer.constants.local import RESOURCES_DIR_PATH, USERIP_DATABASES_DIR_PATH
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.guis.delegates import ElidedTextTooltipDelegate
-from session_sniffer.guis.looky_text import (
-    configure_looky_action,
-)
+from session_sniffer.guis.looky_text import configure_looky_action
 from session_sniffer.guis.stylesheets import SVG_ICON_CONTEXT_MENU_STYLESHEET
 from session_sniffer.guis.tables_player_actions.looky_system._looky_refresh_userip import looky_refresh_userip_entries
-from session_sniffer.guis.userip_manager_helpers import (
-    NEW_DATABASE_SETTINGS,
-    load_userip_database_model,
-    refresh_userip_and_wake_renderer,
-    save_userip_database_model,
-)
+from session_sniffer.guis.userip_manager_helpers import NEW_DATABASE_SETTINGS, load_userip_database_model, refresh_userip_and_wake_renderer, save_userip_database_model
 from session_sniffer.guis.utils import open_file_location, scale_by_ui
 from session_sniffer.models.userip_settings_model import DEFAULT_USERIP_FILES_SETTINGS, UserIPDatabaseFile
 from session_sniffer.player.userip import UserIPDatabases
@@ -55,6 +62,36 @@ if TYPE_CHECKING:
     from session_sniffer.models.userip_settings_model import UserIPSettingsModel
 
 logger = logging.getLogger(__name__)
+
+
+class UserIPDatabaseTreeSortProxy(QSortFilterProxyModel):
+    """Sort proxy for the UserIP databases tree: folders first, then enabled databases, then disabled databases."""
+
+    def __init__(self, parent: QObject | None, fs_model: QFileSystemModel, is_db_enabled: Callable[[Path], bool]) -> None:
+        """Initialize the sort proxy with the source filesystem model and database enabled-state lookup."""
+        super().__init__(parent)
+        self._fs_model = fs_model
+        self._is_db_enabled = is_db_enabled
+        self.setSourceModel(fs_model)
+        self.setDynamicSortFilter(True)
+        self.sort(0, Qt.SortOrder.AscendingOrder)
+
+    def _sort_key(self, source_index: QModelIndex | QPersistentModelIndex) -> tuple[int, str, str]:
+        """Return `(group_rank, casefolded_name, raw_name)` for *source_index*."""
+        name = self._fs_model.fileName(source_index)
+        if self._fs_model.isDir(source_index):
+            return 0, name.casefold(), name
+        rank = 1
+        if name.lower().endswith('.json'):
+            file_path = Path(self._fs_model.filePath(source_index))
+            if file_path.is_relative_to(USERIP_DATABASES_DIR_PATH):
+                rank = 1 if self._is_db_enabled(file_path) else 2
+        return rank, name.casefold(), name
+
+    @override
+    def lessThan(self, source_left: QModelIndex | QPersistentModelIndex, source_right: QModelIndex | QPersistentModelIndex) -> bool:
+        """Order folders first, then enabled databases, then disabled databases, alphabetically within each group."""
+        return self._sort_key(source_left) < self._sort_key(source_right)
 
 
 class UserIPDatabaseTreeDelegate(ElidedTextTooltipDelegate):
@@ -123,19 +160,19 @@ class UserIPDatabaseTreeDelegate(ElidedTextTooltipDelegate):
                 self._pressed_index = None
                 if pressed.isValid() and pressed == QPersistentModelIndex(idx) and on_pill:
                     self._on_toggle_db(idx)
+                    new_idx = self._view.indexAt(pos)
+                    still_on_pill = new_idx.isValid() and self._get_db_visual(new_idx) is not None and self._pill_rect(self._view.visualRect(new_idx)).contains(pos)
+                    if still_on_pill:
+                        viewport.setCursor(Qt.CursorShape.PointingHandCursor)
+                    else:
+                        viewport.unsetCursor()
                     viewport.update()
                 return True
 
         return False
 
     @override
-    def helpEvent(
-        self,
-        event: QHelpEvent,
-        view: QAbstractItemView,
-        option: QStyleOptionViewItem,
-        index: QModelIndex | QPersistentModelIndex,
-    ) -> bool:
+    def helpEvent(self, event: QHelpEvent, view: QAbstractItemView, option: QStyleOptionViewItem, index: QModelIndex | QPersistentModelIndex) -> bool:
         """Show a tooltip when a database row's filename is truncated between its color dot and ON/OFF pill."""
         if not event or event.type() != QEvent.Type.ToolTip or self._get_db_visual(index) is None:
             return super().helpEvent(event, view, option, index)
@@ -265,6 +302,7 @@ class TreeOperationsMixin(QDialog):
     # -- Attribute stubs for type checkers --
     _tree: QTreeView
     _fs_model: QFileSystemModel
+    _tree_proxy: UserIPDatabaseTreeSortProxy
     _current_path: Path | None
     _dirty: bool
     _settings_dirty: bool
@@ -314,6 +352,62 @@ class TreeOperationsMixin(QDialog):
         def _export_database_file(self, path: Path) -> None:
             del path
 
+    def _tree_source_index(self, index: QModelIndex | QPersistentModelIndex) -> QModelIndex:
+        """Map a tree proxy *index* back to its source `QFileSystemModel` index."""
+        return self._tree_proxy.mapToSource(index) if index.isValid() else QModelIndex()
+
+    def _tree_index_path(self, index: QModelIndex | QPersistentModelIndex) -> Path | None:
+        """Return the filesystem `Path` for a tree proxy *index*, or `None` if invalid."""
+        source_index = self._tree_source_index(index)
+        if not source_index.isValid():
+            return None
+        file_path_str = self._fs_model.filePath(source_index)
+        return Path(file_path_str) if file_path_str else None
+
+    def _tree_index_from_path(self, path: Path) -> QModelIndex:
+        """Return the tree proxy `QModelIndex` corresponding to *path*."""
+        source_index = self._fs_model.index(str(path))
+        return self._tree_proxy.mapFromSource(source_index) if source_index.isValid() else QModelIndex()
+
+    def _invalidate_tree_sort(self) -> None:
+        """Re-sort the tree proxy model and preserve the root directory index."""
+        self._tree_proxy.invalidate()
+        root_index = self._tree_index_from_path(USERIP_DATABASES_DIR_PATH)
+        if root_index.isValid() and self._tree.rootIndex() != root_index:
+            self._tree.setRootIndex(root_index)
+
+    def _refresh_tree_item_visual(self, path: Path | None = None, *, resort: bool = False) -> None:
+        """Invalidate cached tree visual state for *path* (or all paths), optionally re-sort, and repaint."""
+        if path is None:
+            self._db_visual_cache.clear()
+        else:
+            self._db_visual_cache.pop(path, None)
+        if resort:
+            self._invalidate_tree_sort()
+        if viewport := self._tree.viewport():
+            viewport.update()
+
+    def _refresh_tree_visuals(self) -> None:
+        """Clear all cached tree visuals, re-sort the tree proxy, and repaint the tree viewport."""
+        self._refresh_tree_item_visual(resort=True)
+
+    def _refresh_after_tree_mutation(self) -> None:
+        """Clear cached tree visuals, re-sort the tree, rebuild UserIP state, and re-arm the watcher."""
+        self._refresh_tree_item_visual(resort=True)
+        refresh_userip_and_wake_renderer()
+        self._rebuild_fs_watch()
+
+    def _select_tree_path(self, path: Path) -> None:
+        """Select and scroll to *path* in the tree without emitting selection signals."""
+        tree_index = self._tree_index_from_path(path)
+        selection = self._tree.selectionModel()
+        if not tree_index.isValid() or not selection:
+            return
+        with QSignalBlocker(selection):
+            selection.select(tree_index, QItemSelectionModel.SelectionFlag.ClearAndSelect | QItemSelectionModel.SelectionFlag.Rows)
+            self._tree.setCurrentIndex(tree_index)
+        self._tree.scrollTo(tree_index)
+
     def _unwatch_path(self, path: Path) -> None:
         """Remove *path* and any of its descendants from the filesystem watcher."""
         self._fs_watcher.remove_paths([path])
@@ -346,12 +440,11 @@ class TreeOperationsMixin(QDialog):
             self._configure_delete_tree_button(enabled=False)
             return
 
-        file_path_str = self._fs_model.filePath(indexes[0])
-        if not file_path_str:
+        path = self._tree_index_path(indexes[0])
+        if path is None:
             self._configure_delete_tree_button(enabled=True)
             return
 
-        path = Path(file_path_str)
         is_default_database = path.parent == USERIP_DATABASES_DIR_PATH and path.name in DEFAULT_USERIP_FILES_SETTINGS
         self._configure_delete_tree_button(enabled=True, is_reset=is_default_database)
 
@@ -383,19 +476,12 @@ class TreeOperationsMixin(QDialog):
 
     def _reselect_current_path(self) -> None:
         """Revert the tree selection back to the currently loaded database file."""
-        if self._current_path is None:
+        if self._current_path is None or not (selection := self._tree.selectionModel()):
             return
-
-        selection = self._tree.selectionModel()
-        if not selection:
-            return
-
-        current_index = self._fs_model.index(str(self._current_path))
-        if not current_index.isValid():
-            return
-
-        with QSignalBlocker(selection):
-            self._tree.setCurrentIndex(current_index)
+        current_index = self._tree_index_from_path(self._current_path)
+        if current_index.isValid():
+            with QSignalBlocker(selection):
+                self._tree.setCurrentIndex(current_index)
 
     # ------------------------------------------------------------------
     # Discard confirmation
@@ -434,11 +520,9 @@ class TreeOperationsMixin(QDialog):
 
         looky_refresh_userip_entries(self, entries)
 
-    def _get_tree_index_db_visual(self, index: QModelIndex | QPersistentModelIndex) -> tuple[bool, QColor] | None:
-        """Return `(is_enabled, color)` for a `.json` database tree index, or `None` for folders/non-databases."""
-        file_path_str = self._fs_model.filePath(index) if index.isValid() and not self._fs_model.isDir(index) else ''
-        file_path = Path(file_path_str) if file_path_str else None
-        if file_path is None or file_path.suffix.lower() != '.json':
+    def _get_db_visual_for_path(self, file_path: Path) -> tuple[bool, QColor] | None:
+        """Return `(is_enabled, color)` for a `.json` database path, or `None` for non-databases."""
+        if file_path.suffix.lower() != '.json':
             return None
         if file_path == self._current_path and not self._global_search_active:
             return self._setting_enabled.isChecked(), QColor(self._setting_color.color())
@@ -454,11 +538,25 @@ class TreeOperationsMixin(QDialog):
         self._db_visual_cache[file_path] = (mtime_ns, settings.ENABLED, color)
         return settings.ENABLED, color
 
+    def _is_database_path_enabled(self, file_path: Path) -> bool:
+        """Return whether the `.json` database at *file_path* is enabled."""
+        visual = self._get_db_visual_for_path(file_path)
+        return visual[0] if visual is not None else True
+
+    def _get_tree_index_db_visual(self, index: QModelIndex | QPersistentModelIndex) -> tuple[bool, QColor] | None:
+        """Return `(is_enabled, color)` for a `.json` database tree index, or `None` for folders/non-databases."""
+        source_index = self._tree_source_index(index)
+        if not source_index.isValid() or self._fs_model.isDir(source_index):
+            return None
+        file_path_str = self._fs_model.filePath(source_index)
+        return self._get_db_visual_for_path(Path(file_path_str)) if file_path_str else None
+
     def _toggle_tree_index_db(self, index: QModelIndex | QPersistentModelIndex) -> None:
         """Toggle the enabled state of the `.json` database at *index*."""
         visual = self._get_tree_index_db_visual(index)
-        if visual is not None:
-            self._set_database_enabled(Path(self._fs_model.filePath(index)), enabled=not visual[0])
+        path = self._tree_index_path(index)
+        if visual is not None and path is not None:
+            self._set_database_enabled(path, enabled=not visual[0])
 
     def _set_database_enabled(self, path: Path, *, enabled: bool) -> None:
         """Enable or disable the UserIP database at *path* and persist the setting."""
@@ -481,19 +579,17 @@ class TreeOperationsMixin(QDialog):
                 self._disk_snapshot = path.read_text('utf-8')
                 self._capture_settings_snapshot()
             self._rebuild_fs_watch()
-        self._db_visual_cache.pop(path, None)
-        if viewport := self._tree.viewport():
-            viewport.update()
+        self._refresh_tree_item_visual(path, resort=not is_current)
         self._set_status(f'{"Enabled" if enabled else "Disabled"} database: {path.name}')
 
     def _show_tree_context_menu(self, position: QPoint) -> None:
         """Show a right-click context menu for the file tree."""
         index = self._tree.indexAt(position)
+        file_path = self._tree_index_path(index)
         menu = QMenu(self)
         menu.setStyleSheet(SVG_ICON_CONTEXT_MENU_STYLESHEET)
 
-        if index.isValid():
-            file_path = Path(self._fs_model.filePath(index))
+        if file_path is not None:
 
             if file_path.is_dir():
                 new_db_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'file-plus.svg')), 'New Database Here', self)
@@ -614,8 +710,7 @@ class TreeOperationsMixin(QDialog):
     def _get_selected_tree_directory(self) -> Path:
         """Return the directory of the currently selected tree item, or the root."""
         indexes = self._tree.selectedIndexes()
-        if indexes:
-            item_path = Path(self._fs_model.filePath(indexes[0]))
+        if indexes and (item_path := self._tree_index_path(indexes[0])) is not None:
             return item_path if item_path.is_dir() else item_path.parent
         return USERIP_DATABASES_DIR_PATH
 
@@ -667,19 +762,49 @@ class TreeOperationsMixin(QDialog):
     def _delete_tree_item(self) -> None:
         """Delete the currently selected item in the file tree."""
         indexes = self._tree.selectedIndexes()
-        if not indexes:
+        if not indexes or (path := self._tree_index_path(indexes[0])) is None:
             QMessageBox.information(self, TITLE, 'No item selected in the tree.')
             return
 
-        self._delete_path(Path(self._fs_model.filePath(indexes[0])))
+        self._delete_path(path)
 
     def _reset_tree_item(self) -> None:
         """Reset the currently selected default database to factory content."""
         indexes = self._tree.selectedIndexes()
-        if not indexes:
+        if not indexes or (path := self._tree_index_path(indexes[0])) is None:
             return
 
-        self._reset_default_database(Path(self._fs_model.filePath(indexes[0])))
+        self._reset_default_database(path)
+
+    def _clear_open_database_view(self) -> None:
+        """Clear the currently open single-database view and disable its editing controls."""
+        self._current_path = None
+        self._clear_dirty_state()
+        self._model.removeRows(0, self._model.rowCount())
+        self._update_file_info(None)
+        self._settings_container.setVisible(False)
+        self._add_button.setEnabled(False)
+        self._edit_ip_button.setEnabled(False)
+        self._delete_button.setEnabled(False)
+        self._open_db_button.setEnabled(False)
+        if self._export_selected_action is not None:
+            self._export_selected_action.setEnabled(False)
+        self._update_entry_counts()
+
+    def _rebind_current_path_and_refresh(self, old_path: Path, new_path: Path) -> None:
+        """Update `_current_path` when *old_path* (or an ancestor) was renamed/moved to *new_path*, then refresh."""
+        if self._current_path is not None:
+            if self._current_path == old_path:
+                self._current_path = new_path
+                if not self._global_search_active:
+                    self._update_file_info(self._current_path)
+            elif old_path in self._current_path.parents:
+                self._current_path = new_path / self._current_path.relative_to(old_path)
+                if not self._global_search_active:
+                    self._update_file_info(self._current_path)
+        self._refresh_after_tree_mutation()
+        if self._global_search_active:
+            self._load_all_databases()
 
     def _delete_path(self, path: Path) -> None:
         """Delete a file or folder with user confirmation."""
@@ -693,13 +818,7 @@ class TreeOperationsMixin(QDialog):
         else:
             message = f'Delete database "{path.name}"?'
 
-        result = QMessageBox.warning(
-            self,
-            TITLE,
-            message,
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.No,
-        )
+        result = QMessageBox.warning(self, TITLE, message, QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No)
         if result != QMessageBox.StandardButton.Yes:
             return
 
@@ -718,16 +837,7 @@ class TreeOperationsMixin(QDialog):
                 self._current_path = None
             self._load_all_databases()
         elif self._current_path is not None and (self._current_path == path or path in self._current_path.parents):
-            self._model.removeRows(0, self._model.rowCount())
-            self._current_path = None
-            self._open_db_button.setEnabled(False)
-            self._add_button.setEnabled(False)
-            if self._export_selected_action is not None:
-                self._export_selected_action.setEnabled(False)
-            self._settings_container.setVisible(False)
-            self._clear_dirty_state()
-            self._update_file_info(None)
-            self._update_entry_counts()
+            self._clear_open_database_view()
 
         self._rebuild_fs_watch()
         self._set_status(f'Deleted: {path.name}')
@@ -735,18 +845,13 @@ class TreeOperationsMixin(QDialog):
 
     def _reset_default_database(self, path: Path) -> None:
         """Reset a single default database file to its factory content after user confirmation."""
-        result = QMessageBox.warning(
-            self,
-            TITLE,
-            f'Reset "{path.name}" to factory content?\n\nAll entries and settings in this file will be lost.',
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.No,
-        )
+        prompt = f'Reset "{path.name}" to factory content?\n\nAll entries and settings in this file will be lost.'
+        result = QMessageBox.warning(self, TITLE, prompt, QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No)
         if result != QMessageBox.StandardButton.Yes:
             return
 
         save_userip_database_model(path, UserIPDatabaseFile(settings=DEFAULT_USERIP_FILES_SETTINGS[path.name]))
-        self._db_visual_cache.pop(path, None)
+        self._refresh_tree_item_visual(path, resort=True)
         refresh_userip_and_wake_renderer()
 
         if self._global_search_active:
@@ -788,30 +893,12 @@ class TreeOperationsMixin(QDialog):
             QMessageBox.critical(self, TITLE, f'Failed to rename "{path.name}".')
             return
 
-        if self._current_path is not None:
-            if self._current_path == path:
-                self._current_path = new_path
-                if not self._global_search_active:
-                    self._update_file_info(self._current_path)
-            elif path in self._current_path.parents:
-                self._current_path = new_path / self._current_path.relative_to(path)
-                if not self._global_search_active:
-                    self._update_file_info(self._current_path)
-
-        self._db_visual_cache.clear()
-        refresh_userip_and_wake_renderer()
-        self._rebuild_fs_watch()
-        if self._global_search_active:
-            self._load_all_databases()
+        self._rebind_current_path_and_refresh(path, new_path)
         self._set_status(f'Renamed "{path.name}" → "{new_name}"')
 
     def _move_tree_item(self, path: Path) -> None:
         """Move a file or folder to a different directory via a folder picker."""
-        target_dir = QFileDialog.getExistingDirectory(
-            self,
-            f'Move "{path.name}" to...',
-            str(USERIP_DATABASES_DIR_PATH),
-        )
+        target_dir = QFileDialog.getExistingDirectory(self, f'Move "{path.name}" to...', str(USERIP_DATABASES_DIR_PATH))
         if not target_dir:
             return
 
@@ -834,24 +921,8 @@ class TreeOperationsMixin(QDialog):
             return
 
         self._unwatch_path(path)
-
         shutil.move(str(path), str(new_path))
-
-        if self._current_path is not None:
-            if self._current_path == path:
-                self._current_path = new_path
-                if not self._global_search_active:
-                    self._update_file_info(self._current_path)
-            elif path in self._current_path.parents:
-                self._current_path = new_path / self._current_path.relative_to(path)
-                if not self._global_search_active:
-                    self._update_file_info(self._current_path)
-
-        self._db_visual_cache.clear()
-        refresh_userip_and_wake_renderer()
-        self._rebuild_fs_watch()
-        if self._global_search_active:
-            self._load_all_databases()
+        self._rebind_current_path_and_refresh(path, new_path)
         dest_label = 'root' if rel_dest == Path() else str(rel_dest)
         self._set_status(f'Moved "{path.name}" → {dest_label}')
 
@@ -868,16 +939,11 @@ class TreeOperationsMixin(QDialog):
             return
 
         count = len(json_files)
-        result = QMessageBox.warning(
-            self,
-            TITLE,
+        prompt = (
             f'This will permanently reset all {count} database file{pluralize(count)}.\n\n'
-            'Default databases will be restored to factory content.\n'
-            'User-created databases will be deleted.\n\n'
-            'This cannot be undone. Are you sure?',
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.No,
+            'Default databases will be restored to factory content.\nUser-created databases will be deleted.\n\nThis cannot be undone. Are you sure?'
         )
+        result = QMessageBox.warning(self, TITLE, prompt, QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No)
         if result != QMessageBox.StandardButton.Yes:
             return
 
@@ -905,7 +971,7 @@ class TreeOperationsMixin(QDialog):
                 except OSError as e:
                     logger.warning('Failed to remove user database directory %s: %s', entry, e)
 
-        self._db_visual_cache.clear()
+        self._refresh_tree_item_visual(resort=True)
         refresh_userip_and_wake_renderer()
         self._refresh_stats()
 
@@ -916,23 +982,11 @@ class TreeOperationsMixin(QDialog):
             if self._current_path.is_file():
                 self._load_database(self._current_path)
             else:
-                self._current_path = None
-                self._clear_dirty_state()
-                self._model.removeRows(0, self._model.rowCount())
-                self._update_file_info(None)
-                self._settings_container.setVisible(False)
-                self._add_button.setEnabled(False)
-                self._edit_ip_button.setEnabled(False)
-                self._delete_button.setEnabled(False)
-                self._open_db_button.setEnabled(False)
-                if self._export_selected_action is not None:
-                    self._export_selected_action.setEnabled(False)
+                self._clear_open_database_view()
                 self._rebuild_fs_watch()
         else:
             self._rebuild_fs_watch()
 
-        self._set_status(
-            'Reset complete'
-            + (f'  |  Restored {restored} default file{pluralize(restored)}' if restored else '')
-            + (f'  |  Deleted {deleted} user file{pluralize(deleted)}' if deleted else ''),
-        )
+        restored_part = f'  |  Restored {restored} default file{pluralize(restored)}' if restored else ''
+        deleted_part = f'  |  Deleted {deleted} user file{pluralize(deleted)}' if deleted else ''
+        self._set_status(f'Reset complete{restored_part}{deleted_part}')

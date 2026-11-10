@@ -20,7 +20,6 @@ from session_sniffer.guis.userip_manager_helpers import (
     extract_entry_model_from_row,
     load_userip_database_model,
     parse_userip_database_content,
-    refresh_userip_and_wake_renderer,
     save_userip_database_model,
 )
 from session_sniffer.guis.utils import scale_by_ui
@@ -54,6 +53,7 @@ class UserIPImportExportMixin(QDialog):
         def _refresh_stats(self) -> None: ...
         def _mark_settings_dirty(self) -> None: ...
         def _mark_entries_dirty(self) -> None: ...
+        def _refresh_after_tree_mutation(self) -> None: ...
 
         def _append_row(
             self,
@@ -300,8 +300,7 @@ class UserIPImportExportMixin(QDialog):
             imported += 1
 
         if modified_on_disk:
-            refresh_userip_and_wake_renderer()
-            self._rebuild_fs_watch()
+            self._refresh_after_tree_mutation()
             if self._global_search_active:
                 self._load_all_databases()
             elif reload_current_view and self._current_path is not None:
@@ -465,8 +464,7 @@ class UserIPImportExportMixin(QDialog):
             return
 
         if modified_on_disk:
-            refresh_userip_and_wake_renderer()
-            self._rebuild_fs_watch()
+            self._refresh_after_tree_mutation()
             if self._global_search_active:
                 self._load_all_databases()
             elif reload_current_view and self._current_path is not None:

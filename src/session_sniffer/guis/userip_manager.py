@@ -58,7 +58,7 @@ from session_sniffer.guis.userip_manager_helpers import (
 )
 from session_sniffer.guis.userip_manager_import_export_mixin import UserIPImportExportMixin
 from session_sniffer.guis.userip_manager_settings_mixin import SettingsPanelMixin
-from session_sniffer.guis.userip_manager_tree_ops import TreeOperationsMixin, UserIPDatabaseTreeDelegate
+from session_sniffer.guis.userip_manager_tree_ops import TreeOperationsMixin, UserIPDatabaseTreeDelegate, UserIPDatabaseTreeSortProxy
 from session_sniffer.guis.utils import (
     apply_search_icon,
     consume_maximize_on_show,
@@ -244,14 +244,15 @@ class UserIPDatabasesManager(
         USERIP_DATABASES_DIR_PATH.mkdir(parents=True, exist_ok=True)
 
         self._fs_model = QFileSystemModel(self)
-        self._fs_model.setRootPath(str(USERIP_DATABASES_DIR_PATH))
+        root_source_index = self._fs_model.setRootPath(str(USERIP_DATABASES_DIR_PATH))
         self._fs_model.setReadOnly(False)
         self._fs_model.setNameFilters(['*.json'])
         self._fs_model.setNameFilterDisables(False)
+        self._tree_proxy = UserIPDatabaseTreeSortProxy(self, self._fs_model, self._is_database_path_enabled)
 
         self._tree = QTreeView()
-        self._tree.setModel(self._fs_model)
-        self._tree.setRootIndex(self._fs_model.index(str(USERIP_DATABASES_DIR_PATH)))
+        self._tree.setModel(self._tree_proxy)
+        self._tree.setRootIndex(self._tree_proxy.mapFromSource(root_source_index))
         self._tree.setHeaderHidden(True)
         self._tree.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self._tree.setVerticalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
@@ -565,12 +566,12 @@ class UserIPDatabasesManager(
         """Re-evaluate settings dirtiness against the loaded snapshot and auto-save."""
         if self._global_search_active or self._current_path is None:
             return
+        prev_enabled = self._settings_snapshot.ENABLED
         self._settings_dirty = self.read_settings_from_widgets() != self._settings_snapshot
         self._sync_dirty_state()
         if self._settings_dirty:
             self._save_database(show_errors=False)
-        if viewport := self._tree.viewport():
-            viewport.update()
+        self._refresh_tree_item_visual(self._current_path, resort=self._setting_enabled.isChecked() != prev_enabled)
 
     @override
     def _capture_settings_snapshot(self) -> None:
