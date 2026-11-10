@@ -19,7 +19,7 @@ from session_sniffer.guis.utils import find_main_window
 from session_sniffer.models.userip_settings_model import EntrySource, UserIPEntryModel, pick_earliest_iso, pick_latest_iso
 from session_sniffer.networking.ip_range import IPRange, parse_ip_range
 from session_sniffer.player.registry import PlayersRegistry, SessionTracker
-from session_sniffer.player.userip_groups import build_known_alts_clusters
+from session_sniffer.player.userip_groups import are_usernames_unlinked, build_known_alts_clusters
 from session_sniffer.rendering_core.types import CaptureState
 from session_sniffer.settings import Settings
 from session_sniffer.text_utils import format_triple_quoted_text, split_usernames
@@ -27,6 +27,8 @@ from session_sniffer.utils import dedup_preserve_order
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
+
+    from session_sniffer.models.player import Player
 
 logger = logging.getLogger(__name__)
 
@@ -435,27 +437,15 @@ class UserIPDatabases:
         else:
             range_entries.append(
                 _RangeEntry(
-                    ip_range=ip_range,
-                    db_path=db_path,
-                    settings=settings,
-                    usernames=[username],
-                    notes=[note] if note else [],
-                    sources=[entry_model.source],
-                    detections_count=entry_model.detections_count,
-                    added_at=entry_model.added_at,
-                    updated_at=entry_model.updated_at,
-                    first_seen_at=entry_model.first_seen_at,
-                    last_seen_at=entry_model.last_seen_at,
+                    ip_range=ip_range, db_path=db_path, settings=settings, usernames=[username], notes=[note] if note else [],
+                    sources=[entry_model.source], detections_count=entry_model.detections_count, added_at=entry_model.added_at,
+                    updated_at=entry_model.updated_at, first_seen_at=entry_model.first_seen_at, last_seen_at=entry_model.last_seen_at,
                 ),
             )
 
     @staticmethod
     def _resolve_from_built_structures(
-        ip: str,
-        ip_to_userip: dict[str, UserIP],
-        range_entries: list[_RangeEntry],
-        conflicting_ips: set[str],
-        conflicting_ranges: Sequence[IPRange] = (),
+        ip: str, ip_to_userip: dict[str, UserIP], range_entries: list[_RangeEntry], conflicting_ips: set[str], conflicting_ranges: Sequence[IPRange] = (),
     ) -> UserIP | None:
         """Resolve a UserIP object by combining single-IP and covering range entries."""
         if ip in conflicting_ips:
@@ -488,10 +478,7 @@ class UserIPDatabases:
         combined_notes: list[str] = []
         combined_sources: list[EntrySource] = []
         detections_count = 0
-        added_at: str | None = None
-        updated_at: str | None = None
-        first_seen_at: str | None = None
-        last_seen_at: str | None = None
+        added_at = updated_at = first_seen_at = last_seen_at = None
 
         for matched in matched_entries:
             direct_cfs.update({u.casefold() for u in matched.usernames} - {a.casefold() for a in matched.known_alts})
@@ -506,26 +493,15 @@ class UserIPDatabases:
             last_seen_at = pick_latest_iso(last_seen_at, matched.last_seen_at)
 
         return UserIP(
-            ip=ip,
-            db_path=primary.db_path,
-            settings=primary.settings,
-            usernames=dedup_preserve_order(combined_usernames),
-            notes=dedup_preserve_order(combined_notes),
-            sources=dedup_preserve_order(combined_sources),
-            detections_count=detections_count,
-            added_at=added_at,
-            updated_at=updated_at,
-            first_seen_at=first_seen_at,
-            last_seen_at=last_seen_at,
+            ip=ip, db_path=primary.db_path, settings=primary.settings, usernames=dedup_preserve_order(combined_usernames),
+            notes=dedup_preserve_order(combined_notes), sources=dedup_preserve_order(combined_sources), detections_count=detections_count,
+            added_at=added_at, updated_at=updated_at, first_seen_at=first_seen_at, last_seen_at=last_seen_at,
             known_alts=tuple(alt for alt in dedup_preserve_order(combined_known_alts) if alt.casefold() not in direct_cfs),
         )
 
     @staticmethod
     def _build_username_meta(
-        current_databases: list[_UserIPDatabaseEntry],
-        ambiguous_usernames: set[str],
-        canonical_names: dict[str, str],
-        known_alts_clusters: dict[str, list[str]],
+        current_databases: list[_UserIPDatabaseEntry], ambiguous_usernames: set[str], canonical_names: dict[str, str], known_alts_clusters: dict[str, list[str]],
     ) -> dict[str, _UsernameMeta]:
         """Build a lookup table mapping non-ambiguous casefolded usernames to their aggregated metadata."""
         username_to_meta: dict[str, _UsernameMeta] = {}
@@ -542,16 +518,9 @@ class UserIPDatabases:
                 existing_meta = username_to_meta.get(cf)
                 if existing_meta is None:
                     username_to_meta[cf] = _UsernameMeta(
-                        db_path=db_entry.db_path,
-                        settings=db_entry.settings,
-                        canonical_name=canonical,
-                        notes=[note] if note else [],
-                        sources=[entry_model.source],
-                        detections_count=entry_model.detections_count,
-                        added_at=entry_model.added_at,
-                        updated_at=entry_model.updated_at,
-                        first_seen_at=entry_model.first_seen_at,
-                        last_seen_at=entry_model.last_seen_at,
+                        db_path=db_entry.db_path, settings=db_entry.settings, canonical_name=canonical, notes=[note] if note else [],
+                        sources=[entry_model.source], detections_count=entry_model.detections_count, added_at=entry_model.added_at,
+                        updated_at=entry_model.updated_at, first_seen_at=entry_model.first_seen_at, last_seen_at=entry_model.last_seen_at,
                     )
                 else:
                     if note and note not in existing_meta.notes:
@@ -655,7 +624,10 @@ class UserIPDatabases:
         # Assign or refresh UserIP for all players in a single pass.
         for player in PlayersRegistry.get_all_players():
             prev_userip = player.userip
-            new_userip = cls._resolve_from_built_structures(player.ip, ip_to_userip, range_entries, conflicting_ips, conflicting_ranges)
+            new_userip = cls.filter_userip_for_player(
+                player,
+                cls._resolve_from_built_structures(player.ip, ip_to_userip, range_entries, conflicting_ips, conflicting_ranges),
+            )
             player.userip = new_userip
             with player.looky_system.lock:
                 player_looky = list(player.looky_system.usernames) if include_looky_for_snapshots and player.looky_system.is_initialized else ()
@@ -678,7 +650,10 @@ class UserIPDatabases:
                     player.userip_detection.as_processed_task = False
 
         for snapshot_player in SessionTracker.get_all_snapshot_players():
-            snapshot_player.userip = cls._resolve_from_built_structures(snapshot_player.ip, ip_to_userip, range_entries, conflicting_ips, conflicting_ranges)
+            snapshot_player.userip = cls.filter_userip_for_player(
+                snapshot_player,
+                cls._resolve_from_built_structures(snapshot_player.ip, ip_to_userip, range_entries, conflicting_ips, conflicting_ranges),
+            )
             with snapshot_player.looky_system.lock:
                 snapshot_looky_usernames = (
                     list(snapshot_player.looky_system.usernames)
@@ -831,6 +806,50 @@ class UserIPDatabases:
     def resolve_userip(cls, ip: str) -> UserIP | None:
         """Look up a single IP against the already-built structures without triggering a rebuild."""
         return cls._resolve_from_built_structures(ip, cls._ip_to_userip, cls._range_entries, cls._conflicting_ips, cls._conflicting_ranges)
+
+    @classmethod
+    def filter_userip_for_player(cls, player: Player, userip: UserIP | None) -> UserIP | None:
+        """Filter unlinked or explicitly detached usernames from `userip` for `player`."""
+        if userip is None or (len(userip.usernames) <= 1 and not userip.known_alts and not player.detached_userip_usernames_cf):
+            return userip
+
+        include_looky = Settings.looky_enabled and Settings.is_gta5_feature_set() and CaptureState.is_local_capture()
+        live_usernames = player.get_live_non_userip_usernames(include_looky=include_looky)
+        excluded_cf = set(player.detached_userip_usernames_cf)
+        live_candidates = [u for u in live_usernames if u.casefold() not in excluded_cf]
+        userip_cfs = {u.casefold() for u in userip.usernames}
+        anchors = [u for u in live_candidates if u.casefold() in userip_cfs] or live_candidates
+
+        candidates = [u for u in userip.usernames if u.casefold() not in excluded_cf]
+        if anchors:
+            candidates = [u for u in candidates if not any(are_usernames_unlinked(u, anchor) for anchor in anchors)]
+
+        if len(candidates) > 1:
+            seed = max(candidates, key=lambda u: sum(1 for v in candidates if u.casefold() != v.casefold() and not are_usernames_unlinked(u, v)))
+            cluster = [seed]
+            for candidate in candidates:
+                if candidate.casefold() != seed.casefold() and not any(are_usernames_unlinked(candidate, existing) for existing in cluster):
+                    cluster.append(candidate)
+            cluster_cfs = {u.casefold() for u in cluster}
+            kept_usernames = [u for u in candidates if u.casefold() in cluster_cfs]
+        else:
+            kept_usernames = candidates
+
+        if not kept_usernames and userip.usernames:
+            kept_usernames = [next((u for u in userip.usernames if u.casefold() not in excluded_cf), userip.usernames[0])]
+
+        kept_cfs = {u.casefold() for u in kept_usernames}
+        anchor_and_kept = dedup_preserve_order(anchors, kept_usernames)
+        kept_alts = tuple(
+            alt for alt in userip.known_alts
+            if alt.casefold() not in excluded_cf and alt.casefold() not in kept_cfs and not any(are_usernames_unlinked(alt, ref) for ref in anchor_and_kept)
+        )
+        return userip if kept_usernames == userip.usernames and kept_alts == userip.known_alts else userip._replace(usernames=kept_usernames, known_alts=kept_alts)
+
+    @classmethod
+    def resolve_userip_for_player(cls, player: Player) -> UserIP | None:
+        """Resolve and filter a `UserIP` entry for `player`."""
+        return cls.filter_userip_for_player(player, cls.resolve_userip(player.ip))
 
     @classmethod
     def resolve_userip_by_username(cls, username: str, player_ip: str) -> tuple[UserIP, str] | None:

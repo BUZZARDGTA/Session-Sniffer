@@ -8,12 +8,7 @@ from PySide6.QtWidgets import QInputDialog, QLineEdit, QMessageBox, QWidget
 
 from session_sniffer.constants.local import USERIP_DATABASES_DIR_PATH
 from session_sniffer.constants.standalone import TITLE
-from session_sniffer.guis.select_usernames_dialog import (
-    SelectUsernamesDialog,
-    UsernameSelectionConfig,
-    prompt_username_input,
-    prompt_usernames_and_notes_input,
-)
+from session_sniffer.guis.select_usernames_dialog import SelectUsernamesDialog, UsernameSelectionConfig, prompt_username_input, prompt_usernames_and_notes_input
 from session_sniffer.guis.userip_manager_helpers import (
     IPRangeBuilderDialog,
     append_userip_entries,
@@ -96,22 +91,10 @@ def _entry_ip_matches_any(entry_ip: str, selected_ips: list[str]) -> bool:
 def resolve_usernames_for_player(player: Player) -> list[str]:
     """Return deduplicated usernames associated with the given player from all sources."""
     include_looky = Settings.looky_enabled and Settings.is_gta5_feature_set() and CaptureState.is_local_capture()
-    if include_looky:
-        with player.looky_system.lock:
-            looky_usernames = list(player.looky_system.usernames) if player.looky_system.is_initialized else []
-    else:
-        looky_usernames = []
-    player_names = dedup_preserve_order(
-        [player.ps3_username] if player.ps3_username is not None and player.ps3_username else [],
-        player.userip.usernames if player.userip else [],
-        player.mod_menus.usernames if player.mod_menus else [],
-        looky_usernames,
-        player.usernames,
-    )
+    live_names = player.get_live_non_userip_usernames(include_looky=include_looky)
+    player_names = dedup_preserve_order(live_names[:1] if bool(player.ps3_username) else (), player.userip.usernames if player.userip else (), live_names, player.usernames)
     names: list[str] = [name.strip() for name in player_names if name.strip()]
-    if Settings.userip_sync_known_alts:
-        return UserIPDatabases.expand_with_known_alts(names)
-    return names
+    return UserIPDatabases.expand_with_known_alts(names) if Settings.userip_sync_known_alts else names
 
 
 def resolve_usernames_for_ips(selected_ips: list[str]) -> list[str]:
@@ -745,12 +728,7 @@ def userip_remove_username(parent: QWidget, ip_address: str, player: Player) -> 
         return
 
     db_display = str(db_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix(''))
-    dialog = SelectUsernamesDialog.for_remove(
-        parent,
-        ip_usernames,
-        database=db_display,
-        ip_address=ip_address,
-    )
+    dialog = SelectUsernamesDialog.for_remove(parent, ip_usernames, database=db_display, ip_address=ip_address)
     if dialog.exec() != SelectUsernamesDialog.DialogCode.Accepted:
         return
 
@@ -761,11 +739,8 @@ def userip_remove_username(parent: QWidget, ip_address: str, player: Player) -> 
     # If all usernames are selected, confirm and delegate to full IP deletion
     if dialog.is_all_selected():
         confirm = QMessageBox.question(
-            parent,
-            TITLE,
-            f'You selected all usernames for IP {ip_address}.\n\nThis will remove the IP entirely from the database. Continue?',
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.No,
+            parent, TITLE, f'You selected all usernames for IP {ip_address}.\n\nThis will remove the IP entirely from the database. Continue?',
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No,
         )
         if confirm == QMessageBox.StandardButton.Yes:
             userip_delete(parent, [ip_address])
@@ -774,12 +749,7 @@ def userip_remove_username(parent: QWidget, ip_address: str, player: Player) -> 
     _rewrite_database_removing_usernames(parent, db_path, ip_address, selected)
 
 
-def _rewrite_database_removing_usernames(
-    parent: QWidget,
-    db_path: Path,
-    ip_address: str,
-    selected: list[str],
-) -> None:
+def _rewrite_database_removing_usernames(parent: QWidget, db_path: Path, ip_address: str, selected: list[str]) -> None:
     """Rewrite a UserIP database file, removing only the specified (username, ip) entries."""
     if not db_path.is_file():
         return
@@ -804,11 +774,7 @@ def _rewrite_database_removing_usernames(
     db_display = db_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix('')
     entry_word = pluralize(removed_count, 'entry', 'entries')
     removed_names = ', '.join(f'"{name}"' for name in selected)
-    QMessageBox.information(
-        parent,
-        TITLE,
-        f'Removed {removed_count} {entry_word} ({removed_names}) for IP {ip_address} from UserIP database "{db_display}".',
-    )
+    QMessageBox.information(parent, TITLE, f'Removed {removed_count} {entry_word} ({removed_names}) for IP {ip_address} from UserIP database "{db_display}".')
 
 
 _MAX_GROUP_PROMPT_NAMES = 3
@@ -821,15 +787,42 @@ def _format_group_source_display(names: Sequence[str]) -> str:
     return f'{preview} (+{extra} more)' if extra > 0 else preview
 
 
+def _update_detached_usernames_for_player(player: Player, cfs: set[str], *, detach: bool) -> None:
+    """Add or remove casefolded usernames in `cfs` from `detached_userip_usernames_cf` on `player` and its registry/snapshot counterparts."""
+    if not cfs:
+        return
+    live_player = PlayersRegistry.get_player_by_ip(player.ip)
+    targets = [
+        player,
+        *([live_player] if live_player is not None and live_player is not player else []),
+        *(s for s in SessionTracker.get_all_snapshot_players() if s is not player and s.ip == player.ip),
+    ]
+    for target in targets:
+        if detach:
+            target.detached_userip_usernames_cf.update(cfs)
+        else:
+            target.detached_userip_usernames_cf.difference_update(cfs)
+
+
 def collect_grouped_usernames_for_player(player: Player) -> list[str]:
     """Return all usernames currently grouped with *player* (via known-alts clusters or shared UserIP entries)."""
     base_names: list[str] = []
-    if player.userip is not None:
-        base_names.extend(player.userip.usernames)
-        base_names.extend(collect_persisted_usernames_for_ip(player.userip.db_path, player.ip))
+    filtered_userip = UserIPDatabases.filter_userip_for_player(player, player.userip)
+    if filtered_userip is not None:
+        anchor_names = list(filtered_userip.usernames)
+        persisted_names = [
+            u
+            for u in collect_persisted_usernames_for_ip(filtered_userip.db_path, player.ip)
+            if u.casefold() not in player.detached_userip_usernames_cf and not any(are_usernames_unlinked(u, anchor) for anchor in anchor_names)
+        ]
+        base_names.extend(anchor_names)
+        base_names.extend(persisted_names)
     else:
-        base_names.extend(resolve_usernames_for_player(player))
-    return UserIPDatabases.expand_with_known_alts(dedup_preserve_order(base_names))
+        base_names.extend(u for u in resolve_usernames_for_player(player) if u.casefold() not in player.detached_userip_usernames_cf)
+    candidates = [u for u in UserIPDatabases.expand_with_known_alts(dedup_preserve_order(base_names)) if u.casefold() not in player.detached_userip_usernames_cf]
+    if len(candidates) <= 1:
+        return candidates
+    return [u for u in candidates if any(u.casefold() != v.casefold() and not are_usernames_unlinked(u, v) for v in candidates)]
 
 
 def prompt_and_group_with(parent: QWidget, source_usernames: Sequence[str]) -> tuple[str, str] | None:
@@ -856,21 +849,17 @@ def prompt_and_ungroup(parent: QWidget, group_members: list[str], *, selected_ip
     if len(group_members) < MIN_GROUP_USERNAMES:
         return []
     dlg = SelectUsernamesDialog(
-        parent,
-        group_members,
+        parent, group_members,
         UsernameSelectionConfig(
-            title='Ungroup Usernames',
-            instructions='Select username(s) to unlink from this account group (prevents false-positive grouping):',
-            action_button_text='Ungroup',
-            multiple=True,
-            default_checked=False,
-            selected_ips=selected_ips,
+            title='Ungroup Usernames', instructions='Select username(s) to unlink from this account group (prevents false-positive grouping):',
+            action_button_text='Ungroup', multiple=True, default_checked=False, selected_ips=selected_ips,
         ),
     )
     if dlg.exec() != SelectUsernamesDialog.DialogCode.Accepted:
         return []
     chosen = dlg.selected_usernames()
-    if chosen and ungroup_usernames(chosen, group_members):
+    if chosen:
+        ungroup_usernames(chosen, group_members)
         refresh_userip_and_wake_renderer()
         return chosen
     return []
@@ -889,6 +878,10 @@ def userip_group_with(parent: QWidget, players: Sequence[Player]) -> None:
 
     if result := prompt_and_group_with(parent, source_usernames):
         target_clean, source_display = result
+        grouped_cfs = {u.casefold() for u in (*source_usernames, target_clean)}
+        for player in players:
+            _update_detached_usernames_for_player(player, grouped_cfs, detach=False)
+        refresh_userip_and_wake_renderer()
         QMessageBox.information(parent, TITLE, f'Grouped username "{target_clean}" with {source_display}.')
 
 
@@ -901,6 +894,9 @@ def userip_group_selected(parent: QWidget, players: Sequence[Player]) -> None:
         QMessageBox.information(parent, TITLE, 'Select at least two players with distinct usernames to group them together.')
         return
 
+    grouped_cfs = {u.casefold() for u in usernames}
+    for player in players:
+        _update_detached_usernames_for_player(player, grouped_cfs, detach=False)
     if group_usernames(usernames, UserIPDatabases.get_known_alts_clusters_snapshot()):
         refresh_userip_and_wake_renderer()
         names_display = ', '.join(f'"{name}"' for name in usernames)
@@ -911,6 +907,15 @@ def userip_ungroup(parent: QWidget, player: Player) -> None:
     """Open a selection dialog to ungroup false-positive or unlinked usernames from *player*'s account group."""
     group_members = collect_grouped_usernames_for_player(player)
     if chosen := prompt_and_ungroup(parent, group_members, selected_ips=[player.ip]):
+        if len(chosen) < len(group_members):
+            detached_cf = {u.casefold() for u in chosen}
+        else:
+            include_looky = Settings.looky_enabled and Settings.is_gta5_feature_set() and CaptureState.is_local_capture()
+            live_cfs = {u.casefold() for u in player.get_live_non_userip_usernames(include_looky=include_looky)}
+            matching_live_cfs = {u.casefold() for u in group_members if u.casefold() in live_cfs}
+            detached_cf = {u.casefold() for u in group_members if u.casefold() not in matching_live_cfs} if matching_live_cfs else {u.casefold() for u in group_members[1:]}
+        _update_detached_usernames_for_player(player, detached_cf, detach=True)
+        refresh_userip_and_wake_renderer()
         removed_display = ', '.join(f'"{name}"' for name in chosen)
         QMessageBox.information(parent, TITLE, f'Ungrouped {removed_display} from the account group.')
 
@@ -937,15 +942,12 @@ def _refresh_player_looky_exclusions(player: Player, *, reset_userip_checked: bo
                 with target_p.looky_system.lock:
                     target_p.looky_system.as_userip_checked = False
     snap_updates = [
-        (snapshot_player, snapshot_player.looky_system.refresh_filtered_usernames(excluded_cfs))
-        for snapshot_player in SessionTracker.get_all_snapshot_players()
-        if snapshot_player is not player and snapshot_player.ip == player.ip
+        (s, s.looky_system.refresh_filtered_usernames(excluded_cfs)) for s in SessionTracker.get_all_snapshot_players() if s is not player and s.ip == player.ip
     ]
     record_looky_db_correlation(updated_names, UserIPDatabases.get_known_username_dbs_cf())
-    if update_userip_databases()[1]:
-        resolved_userip = UserIPDatabases.resolve_userip(player.ip)
-        for target_p in (player, *([live_player] if live_player is not None else []), *(s for s, _ in snap_updates)):
-            target_p.userip = resolved_userip
+    update_userip_databases()
+    for target_p in (player, *([live_player] if live_player is not None else []), *(s for s, _ in snap_updates)):
+        target_p.userip = UserIPDatabases.resolve_userip_for_player(target_p)
     player.rebuild_usernames(looky_usernames=updated_names if include_looky and player.looky_system.is_initialized else ())
     if live_player is not None and live_player is not player:
         live_player.rebuild_usernames(looky_usernames=live_updated if include_looky and live_player.looky_system.is_initialized else ())
@@ -959,15 +961,10 @@ def _refresh_player_looky_exclusions(player: Player, *, reset_userip_checked: bo
 def looky_remove_usernames_for_player(parent: QWidget, player: Player, active_looky_names: list[str]) -> None:
     """Open a dialog to exclude/hide selected Looky System usernames on *player*'s IP."""
     dlg = SelectUsernamesDialog(
-        parent,
-        active_looky_names,
+        parent, active_looky_names,
         UsernameSelectionConfig(
-            title='Remove Looky Usernames',
-            instructions=f'Select Looky username{pluralize(len(active_looky_names))} to hide on this IP:',
-            action_button_text='Remove',
-            multiple=True,
-            default_checked=False,
-            selected_ips=[player.ip],
+            title='Remove Looky Usernames', instructions=f'Select Looky username{pluralize(len(active_looky_names))} to hide on this IP:',
+            action_button_text='Remove', multiple=True, default_checked=False, selected_ips=[player.ip],
         ),
     )
     if dlg.exec() == SelectUsernamesDialog.DialogCode.Accepted:
@@ -980,15 +977,10 @@ def looky_remove_usernames_for_player(parent: QWidget, player: Player, active_lo
 def looky_restore_usernames_for_player(parent: QWidget, player: Player, removed_looky_names: list[str]) -> None:
     """Open a dialog to restore previously excluded Looky System usernames on *player*'s IP."""
     dlg = SelectUsernamesDialog(
-        parent,
-        removed_looky_names,
+        parent, removed_looky_names,
         UsernameSelectionConfig(
-            title='Restore Removed Looky Usernames',
-            instructions=f'Select removed Looky username{pluralize(len(removed_looky_names))} to re-add on this IP:',
-            action_button_text='Restore',
-            multiple=True,
-            default_checked=True,
-            selected_ips=[player.ip],
+            title='Restore Removed Looky Usernames', instructions=f'Select removed Looky username{pluralize(len(removed_looky_names))} to re-add on this IP:',
+            action_button_text='Restore', multiple=True, default_checked=True, selected_ips=[player.ip],
         ),
     )
     if dlg.exec() == SelectUsernamesDialog.DialogCode.Accepted:

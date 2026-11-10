@@ -719,6 +719,7 @@ class SessionTracker:
                         if snapshot.ps3_username is None and player_snapshot.ps3_username is not None:
                             snapshot.ps3_username = player_snapshot.ps3_username
                         snapshot.is_third_party_server = player_snapshot.is_third_party_server
+                        snapshot.detached_userip_usernames_cf = set(player_snapshot.detached_userip_usernames_cf)
                         snapshot.userip = player_snapshot.userip
                         snapshot_is_relay = snapshot.mod_menus is not None and snapshot.mod_menus.is_relay
                         player_is_relay = player_snapshot.mod_menus is not None and player_snapshot.mod_menus.is_relay

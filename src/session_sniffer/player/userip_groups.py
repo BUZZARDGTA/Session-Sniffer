@@ -443,6 +443,7 @@ def record_looky_db_correlation(
 
     with _groups_lock:
         _ensure_loaded_locked()
+        expanded_unlinked = _expand_unlinked_across_linked(_cache.linked_pairs, _cache.unlinked_pairs)
         changed = False
 
         for matched_cfs in eligible_groups:
@@ -453,7 +454,7 @@ def record_looky_db_correlation(
             for i, cf1 in enumerate(matched_cfs):
                 for cf2 in matched_cfs[i + 1 :]:
                     pair = _normalize_pair(cf1, cf2)
-                    if pair is not None and pair not in _cache.unlinked_pairs and pair not in _cache.linked_pairs:
+                    if pair is not None and pair not in expanded_unlinked and pair not in _cache.linked_pairs:
                         _cache.linked_pairs.add(pair)
                         changed = True
 

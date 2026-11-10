@@ -464,7 +464,7 @@ def rendering_core(
 
             if player.userip_detection and player.userip_detection.as_processed_task:
                 player.userip_detection.as_processed_task = False
-                disconnected_userip = player.userip or UserIPDatabases.resolve_userip(player.ip)
+                disconnected_userip = player.userip or UserIPDatabases.resolve_userip_for_player(player)
                 if disconnected_userip is None:
                     logger.warning('No UserIP found for disconnecting player ip=%s — skipping disconnected UserIP task', player.ip)
                 else:
@@ -590,7 +590,7 @@ def rendering_core(
                         player.detection_checked = True
                         submit_global_detections_check(player)
             elif player.userip is None and player.ip not in _userip_not_found:
-                resolved = UserIPDatabases.resolve_userip(player.ip)
+                resolved = UserIPDatabases.resolve_userip_for_player(player)
                 if resolved is None:
                     _userip_not_found.add(player.ip)
                 else:
@@ -643,6 +643,9 @@ def rendering_core(
                     player.looky_system.as_userip_checked = True
                 looky_newly_checked = True
 
+            if player.userip is not None and (modmenu_changed or looky_newly_checked):
+                player.userip = UserIPDatabases.resolve_userip_for_player(player)
+
             player.rebuild_usernames(looky_usernames=looky_usernames if include_looky else ())
 
             if newly_detected_relay:
@@ -663,9 +666,9 @@ def rendering_core(
         for snapshot_player in SessionTracker.get_all_snapshot_players():
             _populate_player_geoip_and_flag(snapshot_player)
             if _userip_db_rebuilt:
-                snapshot_player.userip = UserIPDatabases.resolve_userip(snapshot_player.ip)
+                snapshot_player.userip = UserIPDatabases.resolve_userip_for_player(snapshot_player)
             elif snapshot_player.userip is None and snapshot_player.ip not in _userip_not_found:
-                resolved = UserIPDatabases.resolve_userip(snapshot_player.ip)
+                resolved = UserIPDatabases.resolve_userip_for_player(snapshot_player)
                 if resolved is None:
                     _userip_not_found.add(snapshot_player.ip)
                 else:

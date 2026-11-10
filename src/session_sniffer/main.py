@@ -414,6 +414,8 @@ def main() -> None:
             and bool(resolved_ps3_username := extract_ps3_username(packet.payload, sent_by_local_host=sent_by_local_host))
         ):
             matched_player.ps3_username = resolved_ps3_username
+            if matched_player.userip is not None:
+                matched_player.userip = UserIPDatabases.resolve_userip_for_player(matched_player)
 
         if not matched_player.detection_checked:
             matched_player.detection_checked = True
@@ -434,10 +436,10 @@ def main() -> None:
                 ).start()
 
         if (not matched_player.userip_detection or not matched_player.userip_detection.as_processed_task) and UserIPDatabases.is_known_ip(matched_player.ip):
-            resolved_userip = UserIPDatabases.resolve_userip(matched_player.ip)
+            resolved_userip = UserIPDatabases.resolve_userip_for_player(matched_player)
             if resolved_userip is None:
                 # is_known_ip() just returned True, so this should not happen; guard defensively.
-                logger.warning('resolve_userip returned None immediately after is_known_ip for ip=%s — skipping UserIP task', matched_player.ip)
+                logger.warning('resolve_userip_for_player returned None immediately after is_known_ip for ip=%s — skipping UserIP task', matched_player.ip)
             else:
                 matched_player.userip = resolved_userip
                 if resolved_userip.usernames:

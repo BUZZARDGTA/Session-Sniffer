@@ -702,6 +702,8 @@ def looky_core() -> None:
             if groups_updated:
                 update_userip_databases()
             for matched_player, looky_usernames in matched_players_with_looky:
+                if matched_player.userip is not None:
+                    matched_player.userip = UserIPDatabases.resolve_userip_for_player(matched_player)
                 matched_player.rebuild_usernames(looky_usernames=looky_usernames)
                 SessionTracker.update_session_player_snapshot(matched_player, metadata_only=True)
             wake_rendering_core()

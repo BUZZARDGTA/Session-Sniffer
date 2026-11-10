@@ -45,6 +45,7 @@ class Player:
         'bandwidth',
         'country_flag',
         'datetime',
+        'detached_userip_usernames_cf',
         'detection_checked',
         'iplookup',
         'is_gta5_process',
@@ -71,6 +72,7 @@ class Player:
     bandwidth: PlayerBandwidth
     country_flag: PlayerCountryFlag | None
     datetime: PlayerDateTime
+    detached_userip_usernames_cf: set[str]
     detection_checked: bool
     iplookup: PlayerIPLookup
     is_gta5_process: bool
@@ -133,6 +135,7 @@ class Player:
         self.ping = PlayerPing()
 
         self.country_flag = None
+        self.detached_userip_usernames_cf = set()
         self.userip = None
         self.userip_detection = None
         self.mod_menus = None
@@ -231,6 +234,19 @@ class Player:
 
         PlayersRegistry.move_player_to_disconnected(self)
 
+    def get_live_non_userip_usernames(self, *, include_looky: bool) -> list[str]:
+        """Return deduplicated live-resolved usernames (PS3, mod menu, and optional Looky) excluding UserIP."""
+        if include_looky and self.looky_system.is_initialized:
+            with self.looky_system.lock:
+                looky_names: Sequence[str] = tuple(self.looky_system.usernames)
+        else:
+            looky_names = ()
+        return dedup_preserve_order(
+            (self.ps3_username,) if self.ps3_username is not None and self.ps3_username else (),
+            self.mod_menus.usernames if self.mod_menus is not None else (),
+            looky_names,
+        )
+
     def rebuild_usernames(self, *, looky_usernames: Sequence[str] = ()) -> None:
         """Rebuild deduplicated `usernames` from PS3, UserIP, mod menu, and Looky sources."""
         ps3_username = self.ps3_username
@@ -260,6 +276,7 @@ class Player:
         if session_id is not None:
             clone.session_id = session_id
         clone.usernames = list(self.usernames)
+        clone.detached_userip_usernames_cf = set(self.detached_userip_usernames_cf)
         if self.mod_menus is not None:
             clone.mod_menus = PlayerModMenus(
                 usernames=list(self.mod_menus.usernames),
