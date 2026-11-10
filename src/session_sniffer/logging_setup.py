@@ -254,14 +254,14 @@ def dump_crash_diagnostics(
     ]
     if exc_info is not None:
         formatted_exception = ''.join(traceback.format_exception(*exc_info)).rstrip()
-        lines.append(f'Exception traceback:\n{formatted_exception}')
-    lines.append(f'Active Python threads count: {threading.active_count()}')
+        lines.append(f'[{timestamp}] Exception traceback:\n{formatted_exception}')
+    lines.append(f'[{timestamp}] Active Python threads count: {threading.active_count()}')
     try:
         get_current_frames = cast('Callable[[], dict[int, FrameType]] | None', getattr(sys, '_current_frames', None))
         current_frames: dict[int, FrameType] = get_current_frames() if callable(get_current_frames) else {}
         for thread in threading.enumerate():
             native_id = getattr(thread, 'native_id', None)
-            lines.append(f'Thread name="{thread.name}", ident={thread.ident}, native_id={native_id}, daemon={thread.daemon}, alive={thread.is_alive()}')
+            lines.append(f'[{timestamp}] Thread name="{thread.name}", ident={thread.ident}, native_id={native_id}, daemon={thread.daemon}, alive={thread.is_alive()}')
             frame = current_frames.get(thread.ident or 0)
             if frame is not None:
                 stack = ''.join(traceback.format_stack(frame))
@@ -273,13 +273,13 @@ def dump_crash_diagnostics(
             try:
                 lines.extend(provider())
             except (RuntimeError, OSError, ValueError, TypeError) as e:
-                lines.append(f'Diagnostic provider error: {e}')
+                lines.append(f'[{timestamp}] Diagnostic provider error: {e}')
         if sys.platform == 'win32':
             lines.extend(capture_win32_native_stack())
     except (RuntimeError, OSError) as e:
-        lines.append(f'Failed to collect thread diagnostics: {e}')
+        lines.append(f'[{timestamp}] Failed to collect thread diagnostics: {e}')
 
-    lines.append('=== END THREAD DIAGNOSTIC DUMP ===')
+    lines.append(f'=== END THREAD DIAGNOSTIC DUMP [{timestamp}] (triggered by: {reason}) ===')
     redacted_lines = [redact_text(line) for line in lines]
     dump_text = '\n'.join(redacted_lines) + '\n'
 

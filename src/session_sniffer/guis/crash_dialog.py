@@ -2,6 +2,7 @@
 
 import html
 import logging
+import time
 import traceback
 import webbrowser
 from collections import deque
@@ -101,6 +102,7 @@ def _read_debug_log_tail() -> str:
 
 
 def _build_display_traceback_text(
+    timestamp: str,
     thread_name: str,
     terminate_method: str,
     exc_summary: str,
@@ -108,6 +110,7 @@ def _build_display_traceback_text(
 ) -> str:
     """Build the text displayed inside the dialog's read-only traceback box."""
     lines = [
+        f'Timestamp: {timestamp}',
         f'Version:   {VERSION} (Tag: {RELEASE_TAG} | Commit: {COMMIT_SHA})',
         f'System:    {OS_INFO} | PySide6: {PYSIDE6_VERSION}',
         f'Thread:    {thread_name} (Method: {terminate_method})',
@@ -119,6 +122,7 @@ def _build_display_traceback_text(
 
 
 def _build_clipboard_crash_report(
+    timestamp: str,
     thread_name: str,
     terminate_method: str,
     exc_summary: str,
@@ -128,6 +132,7 @@ def _build_clipboard_crash_report(
     sections = [
         f'### {TITLE} Crash Report',
         '```',
+        f'Timestamp:       {timestamp}',
         f'Version:         {VERSION}',
         f'Release Tag:     {RELEASE_TAG} ({RELEASE_DATE})',
         f'Commit SHA:      {COMMIT_SHA} ({COMMIT_DATE})',
@@ -152,6 +157,7 @@ def _build_clipboard_crash_report(
 
 
 def _format_fallback_msgbox_text(
+    timestamp: str,
     thread_name: str,
     terminate_method: str,
     exc_summary: str,
@@ -160,6 +166,7 @@ def _format_fallback_msgbox_text(
     """Format the plain-text crash message used when falling back to a native OS message box."""
     return (
         'An unexpected (uncaught) error occurred.\n\n'
+        f'Timestamp: {timestamp}\n'
         f'Version: {VERSION} ({OS_INFO})\n'
         f'Thread: {thread_name} ({terminate_method})\n'
         f'Error: {exc_summary}\n\n'
@@ -177,6 +184,7 @@ def _format_fallback_msgbox_text(
 class _CrashDialogRequest:
     """Thread-safe request payload for displaying the crash dialog on the main GUI thread."""
 
+    timestamp: str
     thread_name: str
     exc_type_name: str
     display_traceback: str
@@ -274,7 +282,7 @@ class CrashDialog(DraggableDialogMixin, QDialog):
         heading_label.setFont(get_ui_font(scale_by_ui(13), QFont.Weight.Bold))
         heading_label.setStyleSheet(DEPENDENCY_PROMPT_TITLE_LABEL_STYLESHEET)
 
-        meta_label = QLabel(f'{VERSION}  •  {OS_INFO}  •  Thread: {self._request.thread_name}')
+        meta_label = QLabel(f'{self._request.timestamp}  •  {VERSION}  •  {OS_INFO}  •  Thread: {self._request.thread_name}')
         meta_label.setFont(get_ui_font(scale_by_ui(8)))
         meta_label.setStyleSheet(CRASH_DIALOG_SUBTITLE_LABEL_STYLESHEET)
 
@@ -529,11 +537,13 @@ def show_crash_dialog(
     and display the dialog. If the main thread is unresponsive or deadlocked, immediately falls
     back to `msgbox.show` on the calling thread so the crash notification is never lost.
     """
+    timestamp = time.strftime('%Y-%m-%d %H:%M:%S')
     exc_type_name, exc_summary, formatted_traceback = _format_exception_details(exc_info)
-    display_traceback = _build_display_traceback_text(thread_name, terminate_method, exc_summary, formatted_traceback)
-    clipboard_report = _build_clipboard_crash_report(thread_name, terminate_method, exc_summary, formatted_traceback)
+    display_traceback = _build_display_traceback_text(timestamp, thread_name, terminate_method, exc_summary, formatted_traceback)
+    clipboard_report = _build_clipboard_crash_report(timestamp, thread_name, terminate_method, exc_summary, formatted_traceback)
 
     request = _CrashDialogRequest(
+        timestamp=timestamp,
         thread_name=thread_name,
         exc_type_name=exc_type_name,
         display_traceback=display_traceback,
@@ -560,6 +570,6 @@ def show_crash_dialog(
                 _GUI_DISPATCH_TIMEOUT_SECONDS,
             )
 
-    fallback_text = _format_fallback_msgbox_text(thread_name, terminate_method, exc_summary, formatted_traceback)
+    fallback_text = _format_fallback_msgbox_text(timestamp, thread_name, terminate_method, exc_summary, formatted_traceback)
     msgbox_style = msgbox.Style.MB_OK | msgbox.Style.MB_ICONERROR | msgbox.Style.MB_SYSTEMMODAL
     msgbox.show(TITLE, fallback_text, msgbox_style)
