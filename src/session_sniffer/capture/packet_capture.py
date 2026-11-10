@@ -14,7 +14,6 @@ from session_sniffer.capture.exceptions import (
     CaptureAlreadyRunningError,
     CaptureError,
     CaptureExitError,
-    CaptureNotRunningError,
     CaptureThreadAlreadyRunningError,
     InvalidLengthNumericError,
     InvalidPortNumberError,
@@ -54,6 +53,9 @@ _UDP_HEADER_LENGTH = 8
 
 _UNPACK_UINT16_BE = struct.Struct('!H').unpack_from
 _UNPACK_UDP_HEADER = struct.Struct('!HHH').unpack_from
+
+_BLOCKED_READ_THRESHOLD_SECONDS = 0.002
+_CONTINUOUS_OVERFLOW_RESTART_SECONDS = 0.25
 
 
 def _log_malformed_packet_skip(
@@ -231,6 +233,7 @@ class CaptureConfig:
     on_capture_lost: Callable[[], None] | None = None
     max_latency_seconds: Callable[[], float] | None = None
     on_overflow_drop: Callable[[], None] | None = None
+    on_overflow_restart: Callable[[float, float], None] | None = None
 
 
 @dataclass(kw_only=True, slots=True)
@@ -258,6 +261,16 @@ class PacketCapture:
 
     def start(self) -> None:
         """Start packet capture by launching the background capture thread."""
+        existing_thread: threading.Thread | None = None
+        with self._state.control_lock:
+            if self._state.running_event.is_set():
+                raise CaptureAlreadyRunningError
+            if self._state.capture_thread is not None and self._state.capture_thread.is_alive():
+                existing_thread = self._state.capture_thread
+
+        if existing_thread is not None and existing_thread is not threading.current_thread():
+            existing_thread.join(timeout=2.0)
+
         with self._state.control_lock:
             if self._state.running_event.is_set():
                 raise CaptureAlreadyRunningError
@@ -268,15 +281,15 @@ class PacketCapture:
     def stop(self) -> None:
         """Stop packet capture and join the capture thread."""
         with self._state.control_lock:
-            if not self._state.running_event.is_set():
-                raise CaptureNotRunningError
-
+            was_running = self._state.running_event.is_set()
             self._state.running_event.clear()
+            capture_thread = self._state.capture_thread
 
-        self._terminate_handle()
+        if was_running:
+            self._terminate_handle()
 
-        if self._state.capture_thread is not None and self._state.capture_thread.is_alive() and self._state.capture_thread is not threading.current_thread():
-            self._state.capture_thread.join()
+        if capture_thread is not None and capture_thread.is_alive() and capture_thread is not threading.current_thread():
+            capture_thread.join()
 
     def request_restart(self) -> None:
         """Request an async restart of the packet capture.
@@ -396,9 +409,13 @@ class PacketCapture:
             self._state.pcap_handle = pcap_handle
 
         need_payload = self.config.include_payload or (self.config.display_filter_fn is not None)
+        clock_offset: float | None = None
+        buffer_was_empty = True
+        overflow_drop_started_at: float | None = None
 
         try:
             while self._state.running_event.is_set() and not self._state.restart_requested.is_set():
+                read_start = time.time()
                 try:
                     captured_packet = pcap_handle.next_packet()
                 except PcapError as e:
@@ -407,19 +424,39 @@ class PacketCapture:
                     raise CaptureExitError(e) from e
 
                 if captured_packet is None:
+                    buffer_was_empty = True
+                    overflow_drop_started_at = None
                     continue
+
+                now = time.time()
+                raw_delta = now - captured_packet.timestamp_epoch
+                if (
+                    clock_offset is None
+                    or buffer_was_empty
+                    or (now - read_start) >= _BLOCKED_READ_THRESHOLD_SECONDS
+                    or raw_delta < clock_offset
+                ):
+                    clock_offset = raw_delta
+                buffer_was_empty = False
+                packet_latency = max(0.0, raw_delta - clock_offset)
 
                 if self.config.max_latency_seconds is not None:
                     max_latency = self.config.max_latency_seconds()
-                    if max_latency > 0.0:
-                        packet_latency = time.time() - captured_packet.timestamp_epoch
-                        if packet_latency >= max_latency:
-                            if self.config.on_overflow_drop is not None:
-                                self.config.on_overflow_drop()
-                            continue
+                    if 0.0 < max_latency <= packet_latency:
+                        if self.config.on_overflow_drop is not None:
+                            self.config.on_overflow_drop()
+                        if overflow_drop_started_at is None:
+                            overflow_drop_started_at = now
+                        elif (now - overflow_drop_started_at) >= _CONTINUOUS_OVERFLOW_RESTART_SECONDS:
+                            if self.config.on_overflow_restart is not None:
+                                self.config.on_overflow_restart(packet_latency, max_latency)
+                            break
+                        continue
 
+                overflow_drop_started_at = None
+                adjusted_epoch = min(now, captured_packet.timestamp_epoch + clock_offset)
                 try:
-                    packet_time = datetime_type.fromtimestamp(captured_packet.timestamp_epoch, tz=LOCAL_TZ)
+                    packet_time = datetime_type.fromtimestamp(adjusted_epoch, tz=LOCAL_TZ)
                 except (OSError, ValueError, OverflowError):
                     packet_time = datetime_type.now(tz=LOCAL_TZ)
 

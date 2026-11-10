@@ -452,6 +452,23 @@ def rendering_core(
     _last_userip_auto_feed: bool = Settings.userip_auto_feed_from_usernames and Settings.is_gta5_feature_set() and CaptureState.is_local_capture()
     _last_looky_active: bool = Settings.looky_enabled and Settings.is_gta5_feature_set() and CaptureState.is_local_capture()
 
+    def _promote_active_past_session_player(player: Player, active_session_id: int) -> None:
+        if (
+            player.left_event.is_set()
+            or not (0 < player.session_id < active_session_id)
+            or not (player.packets.pps.is_first_calculation or player.packets.pps.calculated_rate)
+        ):
+            return
+        is_past_session_relay = player.is_gta5_relay or player.has_relay_mod_menus
+        if not is_past_session_relay and player in SessionHost.players_pending_for_disconnection:
+            return
+        old_session_id = player.session_id
+        player.session_id = active_session_id
+        if is_past_session_relay:
+            player.reset_session_relay_state()
+        else:
+            SessionTracker.remove_session_player(old_session_id, player.ip, recovered=True)
+
     def _process_player_disconnections(connected: list[Player], disconnected: list[Player]) -> list[int]:
         to_disconnect: list[int] = []
         now = datetime.now(tz=LOCAL_TZ)
@@ -535,10 +552,7 @@ def rendering_core(
 
         current_session_id = SessionTracker.get_current_session_id()
         for player in chain(session_connected, session_disconnected):
-            is_past_session_relay = 0 < player.session_id < current_session_id and (player.is_gta5_relay or player.has_relay_mod_menus)
-            if not player.left_event.is_set() and is_past_session_relay and (player.packets.pps.is_first_calculation or player.packets.pps.calculated_rate):
-                player.session_id = current_session_id
-                player.reset_session_relay_state()
+            _promote_active_past_session_player(player, current_session_id)
 
             has_geo = player.country_flag is not None or (player.iplookup.ipapi.is_initialized and player.iplookup.ipapi.country_code in {'', '...', 'N/A'})
             with player.looky_system.lock:
@@ -779,8 +793,7 @@ def rendering_core(
                     if SessionHost.search_start_time is None:
                         SessionHost.search_start_time = time.monotonic()
                     if (time.monotonic() - SessionHost.search_start_time) >= SESSION_HOST_SEARCH_TIMEOUT_SECONDS:
-                        SessionHost.clear_session_host_data(clear_last_diagnostics=False)
-                        _session_transitioned_for_pending_disconnections = False
+                        SessionHost.clear_session_host_data(clear_pending_disconnections=False, clear_last_diagnostics=False)
                     elif len(p2p_session_connected) != 1 or p2p_session_connected[0].packets.sent >= MINIMUM_PACKETS_FOR_RELAY_SESSION_HOST:
                         SessionHost.get_host_player(session_connected)
                 elif not SessionHost.has_player() and SessionHost.last_timing_gap_candidate is not None and len(p2p_session_connected) >= SESSION_HOST_CANDIDATE_PLAYERS_COUNT:

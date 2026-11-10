@@ -129,14 +129,6 @@ class CaptureAlreadyRunningError(CaptureError):
         super().__init__('Capture is already running')
 
 
-class CaptureNotRunningError(CaptureError):
-    """Exception raised when attempting to stop capture that is not running."""
-
-    def __init__(self) -> None:
-        """Initialize the exception."""
-        super().__init__('Capture is not running')
-
-
 class CaptureThreadAlreadyRunningError(CaptureError):
     """Exception raised when attempting to start a capture thread that is already running."""
 

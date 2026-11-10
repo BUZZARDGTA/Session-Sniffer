@@ -10,6 +10,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from pathlib import Path
 from threading import Event, Thread
+from typing import TYPE_CHECKING
 
 from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QMessageBox
@@ -52,11 +53,7 @@ from session_sniffer.constants.local import (
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.constants.standard import LOCAL_TZ
 from session_sniffer.ctypes_console import hide_console_window
-from session_sniffer.error_messages import (
-    format_capture_interrupted_message,
-    format_npcap_adapter_binding_disabled_message,
-    format_outdated_packages_message,
-)
+from session_sniffer.error_messages import format_capture_interrupted_message, format_npcap_adapter_binding_disabled_message, format_outdated_packages_message
 from session_sniffer.exceptions import UnsupportedPlatformError
 from session_sniffer.guis._crashing_qthread import CrashingQThread
 from session_sniffer.guis.app import app
@@ -94,6 +91,9 @@ from session_sniffer.settings import Settings
 from session_sniffer.updater import UpdateCheckOutcome, check_for_updates
 from session_sniffer.utils import cleanup_session_logs, dedup_preserve_order, ensure_app_dir_ownership, is_pyinstaller_compiled
 from session_sniffer.webserver import WebServer, start_webserver_from_settings
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 setup_logging(console_level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -421,19 +421,10 @@ def main() -> None:
             matched_player.detection_checked = True
             submit_global_detections_check(matched_player)
 
-        if (
-            not matched_player.relay_monitor_started
-            and Settings.is_gta5_feature_set()
-            and (matched_player.is_gta5_process or not is_local_capture)
-        ):
+        if not matched_player.relay_monitor_started and Settings.is_gta5_feature_set() and (matched_player.is_gta5_process or not is_local_capture):
             matched_player.relay_monitor_started = True
             if is_gta5_relay_ip(matched_player.ip):
-                Thread(
-                    target=monitor_gta5_relay_task,
-                    name=f'GTA5RelayMonitor-{matched_player.ip}',
-                    args=(matched_player,),
-                    daemon=True,
-                ).start()
+                Thread(target=monitor_gta5_relay_task, name=f'GTA5RelayMonitor-{matched_player.ip}', args=(matched_player,), daemon=True).start()
 
         if (not matched_player.userip_detection or not matched_player.userip_detection.as_processed_task) and UserIPDatabases.is_known_ip(matched_player.ip):
             resolved_userip = UserIPDatabases.resolve_userip_for_player(matched_player)
@@ -449,10 +440,7 @@ def main() -> None:
                     date_time=packet.datetime.strftime('%Y-%m-%d_%H:%M:%S'),
                 )
                 Thread(
-                    target=process_userip_task,
-                    name=f'ProcessUserIPTask-{matched_player.ip}-connected',
-                    args=(matched_player, resolved_userip, 'connected'),
-                    daemon=True,
+                    target=process_userip_task, name=f'ProcessUserIPTask-{matched_player.ip}-connected', args=(matched_player, resolved_userip, 'connected'), daemon=True,
                 ).start()
 
     _adapter_lost_event = Event()
@@ -461,20 +449,26 @@ def main() -> None:
         CaptureStats.total_packets_captured += 1
         CaptureStats.packets_overflow_dropped += 1
 
-    capture = PacketCapture(
-        CaptureConfig(
-            interface=selected_interface,
-            broadcast_support=broadcast_support,
-            multicast_support=multicast_support,
-            capture_filter=capture_filter_str,
-            display_filter_fn=display_filter_fn,
-            include_payload=Settings.capture_ps3_name_resolver,
-            callback=packet_callback,
-            on_capture_lost=_adapter_lost_event.set,
-            max_latency_seconds=lambda: float(Settings.capture_overflow_timer),
-            on_overflow_drop=on_overflow_drop,
-        ),
-    )
+    def on_overflow_restart(packet_latency: float, max_latency: float) -> None:
+        CaptureStats.restarted_times += 1
+        CaptureStats.packets_latencies.clear()
+        logger.warning(
+            'Packet capture buffer overflow persisted (latency=%.2fs >= %.2fs) — restarting capture handle (#%d).',
+            packet_latency, max_latency, CaptureStats.restarted_times,
+        )
+
+    def _create_capture(
+        iface: SelectedInterfaceRow, *, bcast: bool, mcast: bool, cap_filter: str | None, disp_filter: Callable[[Packet], bool] | None,
+    ) -> PacketCapture:
+        return PacketCapture(
+            CaptureConfig(
+                interface=iface, broadcast_support=bcast, multicast_support=mcast, capture_filter=cap_filter, display_filter_fn=disp_filter,
+                include_payload=Settings.capture_ps3_name_resolver, callback=packet_callback, on_capture_lost=_adapter_lost_event.set,
+                max_latency_seconds=lambda: float(Settings.capture_overflow_timer), on_overflow_drop=on_overflow_drop, on_overflow_restart=on_overflow_restart,
+            ),
+        )
+
+    capture = _create_capture(selected_interface, bcast=broadcast_support, mcast=multicast_support, cap_filter=capture_filter_str, disp_filter=display_filter_fn)
     capture_holder = CaptureHolder(capture)
 
     splash.run_with_spinner(capture.start)
@@ -631,19 +625,12 @@ def main() -> None:
                 window.reset_players_for_interface_switch()
                 window.reset_session_graph()
 
-            new_capture = PacketCapture(
-                CaptureConfig(
-                    interface=new_interface,
-                    broadcast_support=new_broadcast,
-                    multicast_support=new_multicast,
-                    capture_filter=new_capture_filter,
-                    display_filter_fn=new_display_filter_fn,
-                    include_payload=Settings.capture_ps3_name_resolver,
-                    callback=packet_callback,
-                    on_capture_lost=_adapter_lost_event.set,
-                    max_latency_seconds=lambda: float(Settings.capture_overflow_timer),
-                    on_overflow_drop=on_overflow_drop,
-                ),
+            new_capture = _create_capture(
+                new_interface,
+                bcast=new_broadcast,
+                mcast=new_multicast,
+                cap_filter=new_capture_filter,
+                disp_filter=new_display_filter_fn,
             )
             _adapter_lost_attempts = 0
             _adapter_lost_event.clear()
@@ -725,19 +712,12 @@ def main() -> None:
         )
         reset_resolver_cache()
 
-        new_capture = PacketCapture(
-            CaptureConfig(
-                interface=new_selected_interface,
-                broadcast_support=capture_holder.config.broadcast_support,
-                multicast_support=capture_holder.config.multicast_support,
-                capture_filter=new_capture_filter,
-                display_filter_fn=new_display_filter_fn,
-                include_payload=Settings.capture_ps3_name_resolver,
-                callback=packet_callback,
-                on_capture_lost=_adapter_lost_event.set,
-                max_latency_seconds=lambda: float(Settings.capture_overflow_timer),
-                on_overflow_drop=on_overflow_drop,
-            ),
+        new_capture = _create_capture(
+            new_selected_interface,
+            bcast=capture_holder.config.broadcast_support,
+            mcast=capture_holder.config.multicast_support,
+            cap_filter=new_capture_filter,
+            disp_filter=new_display_filter_fn,
         )
 
         _adapter_lost_attempts = 0
@@ -859,6 +839,9 @@ def main() -> None:
         if current_selected.is_neighbour or adapter_guid is None:
             return
         matching_adapter = next((adapter for adapter in get_adapters_info() if adapter.identity.adapter_guid == adapter_guid), None)
+        if _adapter_lost_event.is_set():
+            _on_adapter_lost_poll(count_attempt=False)
+            return
         if matching_adapter is None or matching_adapter.status.operational_status != 1 or not matching_adapter.ipv4_addresses:
             logger.info('Capture interface "%s" went down or lost IPv4 assignment — pausing capture for recovery.', current_selected.name)
             ArpSpoofingController.stop()
