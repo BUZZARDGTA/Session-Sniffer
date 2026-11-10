@@ -276,7 +276,7 @@ class ComboRuleEditorDialog(QDialog):
         'ISP': 'isp',
         'ASN': 'asn',
         'AS Name': 'as_name',
-        'IP Range': 'ip_range',
+        'IP / Range': 'ip_range',
         'Mobile Connection': 'mobile',
         'VPN / Proxy': 'vpn',
         'Hosting / Datacenter': 'hosting',
@@ -507,7 +507,7 @@ class ComboRuleEditorDialog(QDialog):
                     QMessageBox.warning(
                         self,
                         'Validation Error',
-                        'Please enter a valid IP range before adding a new condition.',
+                        'Please enter a valid IP address or range before adding a new condition.',
                     )
                     return
 
@@ -598,7 +598,7 @@ class ComboRuleEditorDialog(QDialog):
                 ip_layout.setSpacing(6)
 
                 ip_edit = QLineEdit()
-                ip_edit.setPlaceholderText('e.g. 192.168.1.0/24 or 10.0.0.1-10.0.0.50 or 1.2.3.*')
+                ip_edit.setPlaceholderText('e.g. 1.2.3.4, 192.168.1.0/24, 10.0.0.1-10.0.0.50, or 1.2.3.*')
                 ip_layout.addWidget(ip_edit, stretch=1)
 
                 builder_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square-pen.svg')), '')
@@ -706,7 +706,7 @@ class ComboRuleEditorDialog(QDialog):
                 QMessageBox.warning(
                     self,
                     'Validation Error',
-                    f'Invalid IP Range: {ip_range_val}\n\n'
+                    f'Invalid IP / Range: {ip_range_val}\n\n'
                     'Please enter a valid IP address, CIDR subnet (e.g. 192.168.1.0/24), '
                     'range (e.g. 192.168.1.1-192.168.1.100), or wildcard (e.g. 192.168.1.*).',
                 )

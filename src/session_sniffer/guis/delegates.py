@@ -570,7 +570,7 @@ _COMBO_CONDITION_LABELS: dict[str, str] = {
     'isp': 'ISP',
     'asn': 'ASN',
     'as_name': 'AS Name',
-    'ip_range': 'IP Range',
+    'ip_range': 'IP / Range',
     'mobile': 'Mobile',
     'vpn': 'VPN / Proxy',
     'hosting': 'Hosting',
