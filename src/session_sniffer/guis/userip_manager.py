@@ -185,6 +185,8 @@ class UserIPDatabasesManager(
         self._next_index, self._last_seen_build_version = 1, UserIPDatabases.build_version
         self._disk_snapshot: str = ''
         self._db_visual_cache: dict[Path, tuple[int, bool, QColor]] = {}
+        self._entries_scroll_db_path: Path | None = None
+        self._entries_scroll_positions: dict[Path, int] = {}
         self._looky_icon = QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'eye.svg'))
 
         root_layout = QVBoxLayout(self)
@@ -600,6 +602,7 @@ class UserIPDatabasesManager(
     @override
     def _load_database(self, path: Path) -> None:
         """Parse the JSON database file and populate the entries table model and settings panel."""
+        self._remember_entries_scroll()
         self._model.removeRows(0, self._model.rowCount())
         self._clear_dirty_state()
         self._search_input.clear()
@@ -638,6 +641,20 @@ class UserIPDatabasesManager(
             status += f' ({duplicate_count} duplicate{pluralize(duplicate_count)} found)'
         self._set_status(status)
         self._rebuild_fs_watch()
+        self._restore_entries_scroll(path)
+
+    def _remember_entries_scroll(self) -> None:
+        """Store the entries table scroll position of the currently displayed database for this manager session."""
+        if self._entries_scroll_db_path is not None and (scrollbar := self._entries_table.verticalScrollBar()):
+            self._entries_scroll_positions[self._entries_scroll_db_path] = scrollbar.value()
+        self._entries_scroll_db_path = None
+
+    def _restore_entries_scroll(self, path: Path) -> None:
+        """Scroll the entries table to the position last seen for *path* in this manager session, or to the top."""
+        self._entries_scroll_db_path = path
+        self._entries_table.doItemsLayout()
+        if scrollbar := self._entries_table.verticalScrollBar():
+            scrollbar.setValue(self._entries_scroll_positions.get(path, 0))
 
     @override
     def _append_row(self, entry: UserIPEntryModel, *, index: int = 0, persisted: bool = True) -> None:
@@ -774,11 +791,13 @@ class UserIPDatabasesManager(
         self._rebuild_fs_watch()
 
         if checked:
+            self._remember_entries_scroll()
             self._update_file_info(None)
             self._load_all_databases()
         elif self._current_path is not None:
             self._load_database(self._current_path)
         else:
+            self._remember_entries_scroll()
             self._model.removeRows(0, self._model.rowCount())
             self._set_status('')
 
