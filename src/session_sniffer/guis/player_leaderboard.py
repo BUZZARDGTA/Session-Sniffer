@@ -410,8 +410,11 @@ class PlayerLeaderboardWindow(ToggleAlwaysOnTopMixin):
         self._table.sortByColumn(COLUMN_SESSIONS, Qt.SortOrder.DescendingOrder)
 
         # Data is loaded on a background thread by `load_and_show` before the window is revealed
-        self._all_entries: list[LeaderboardEntry] = []
         self._baseline: LeaderboardBaseline | None = None
+        self._baseline_server_ips: frozenset[str] = frozenset()
+        # IPs whose rows currently hold live-overlaid values, so they can be reverted to the baseline
+        # once they drop out of the live session snapshot.
+        self._overlaid_ips: frozenset[str] = frozenset()
         self._live_session_file: Path = SESSIONS_LOGGING_PATH.with_suffix('.json')
         self._baseline_worker: LeaderboardBaselineWorker | None = None
         self._overlay_worker: LeaderboardOverlayWorker | None = None
@@ -556,9 +559,13 @@ class PlayerLeaderboardWindow(ToggleAlwaysOnTopMixin):
         connected_ips = frozenset(player.ip for player in connected_players)
         disconnected_ips = frozenset(player.ip for player in disconnected_players)
         preserve_ips = connected_ips | disconnected_ips
-        entries = overlay_live_session(baseline, self._live_session_file, preserve_ips=preserve_ips)
-        self._all_entries = entries
-        self._proxy.set_server_ips(server_ips_for(entries))
+        live_entries = overlay_live_session(baseline, self._live_session_file, preserve_ips=preserve_ips)
+        self._baseline_server_ips = server_ips_for(list(baseline.entries.values()))
+        self._overlaid_ips = frozenset(entry.ip for entry in live_entries)
+        merged = dict(baseline.entries)
+        merged.update((entry.ip, entry) for entry in live_entries)
+        entries = sorted(merged.values(), key=lambda entry: entry.sessions_total, reverse=True)
+        self._proxy.set_server_ips(self._baseline_server_ips | server_ips_for(live_entries))
         self._proxy.set_current_session_ips(connected_ips, disconnected_ips)
         self._model.set_current_session_ips(connected_ips, disconnected_ips)
         self._model.load_data(entries)
@@ -590,15 +597,22 @@ class PlayerLeaderboardWindow(ToggleAlwaysOnTopMixin):
 
     def _on_overlay_ready(self, result: OverlayResult) -> None:
         """Apply a completed background overlay to the model on the GUI thread."""
-        self._all_entries = result.entries
-        self._proxy.set_server_ips(result.server_ips)
+        baseline = self._baseline
+        if baseline is None or result.baseline is not baseline:
+            return  # Computed against a baseline that has since been replaced by a rescan.
+        live_ips = frozenset(entry.ip for entry in result.entries)
+        updates = list(result.entries)
+        # Revert rows that dropped out of the live snapshot back to their baseline values.
+        updates.extend(baseline.entries[ip] for ip in self._overlaid_ips - live_ips if ip in baseline.entries)
+        self._overlaid_ips = live_ips
+        self._proxy.set_server_ips(self._baseline_server_ips | result.server_ips)
         session_changed = (
             result.connected_ips != self._proxy.connected_ips
             or result.disconnected_ips != self._proxy.disconnected_ips
         )
         self._proxy.set_current_session_ips(result.connected_ips, result.disconnected_ips)
         self._model.set_current_session_ips(result.connected_ips, result.disconnected_ips)
-        data_changed = self._model.apply_live_update(result.entries)
+        data_changed = self._model.apply_live_update(updates)
         if data_changed or session_changed:
             self._proxy.refresh_accepted_ips(force_invalidate=False)
         self._update_count_label()
@@ -813,7 +827,7 @@ class PlayerLeaderboardWindow(ToggleAlwaysOnTopMixin):
 
     def _update_count_label(self) -> None:
         visible = self._proxy.rowCount()
-        total = len(self._all_entries)
+        total = len(self._model.entries)
         if self._current_session_checkbox.isChecked():
             session_total = len(self._proxy.current_session_ips)
             self._count_label.setText(f'{visible} of {session_total} session players ({total} total)')

@@ -119,8 +119,13 @@ def server_ips_for(entries: list[LeaderboardEntry]) -> frozenset[str]:
 
 @dataclass(frozen=True, slots=True)
 class OverlayResult:
-    """Result of a background overlay: the sorted leaderboard plus the server IPs found within it."""
+    """Result of a background overlay: the live-affected entries plus the server IPs found within them.
 
+    `baseline` is the baseline the overlay was computed against, so a result that finishes after the
+    baseline was replaced by a rescan can be recognized as stale and discarded.
+    """
+
+    baseline: LeaderboardBaseline
     entries: list[LeaderboardEntry]
     server_ips: frozenset[str]
     connected_ips: frozenset[str]
@@ -130,7 +135,7 @@ class OverlayResult:
 class LeaderboardOverlayWorker(CrashingQThread):
     """Background thread that overlays the live session snapshot onto the cached baseline.
 
-    Emits `finished_ok` with an `OverlayResult` (sorted entries plus their server IPs and session IPs).
+    Emits `finished_ok` with an `OverlayResult` (live-affected entries plus their server IPs and session IPs).
     Running this off the GUI thread keeps the cursor and event loop responsive even for large baselines.
     """
 
@@ -162,6 +167,7 @@ class LeaderboardOverlayWorker(CrashingQThread):
             return
         self.finished_ok.emit(
             OverlayResult(
+                baseline=self._baseline,
                 entries=entries,
                 server_ips=server_ips,
                 connected_ips=self._connected_ips,

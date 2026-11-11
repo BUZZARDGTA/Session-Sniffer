@@ -202,11 +202,10 @@ def _update_entry_metadata(entry: LeaderboardEntry, player_info: dict[str, Any],
 class LeaderboardBaseline(BaseModel):
     """Historical leaderboard aggregation that can be cheaply overlaid with the live session.
 
-    `entries` holds one `LeaderboardEntry` per IP with session counts from finished session logs
-    only (the currently-active session file is excluded). `seen_dates` retains the set of unique
-    calendar dates each IP was seen on, so the live overlay can decide whether today adds a new
-    unique day. Day counts on the entries are intentionally left unfinalized (zero); they are
-    computed by `_finalize_days` after the live session has been merged in.
+    `entries` holds one fully-finalized `LeaderboardEntry` per IP with session and day counts from
+    finished session logs only (the currently-active session file is excluded). `seen_dates` retains
+    the set of unique calendar dates each IP was seen on, so the live overlay can re-derive the day
+    counts of the few IPs present in the live session without touching the rest of the baseline.
     """
 
     entries: dict[str, LeaderboardEntry]
@@ -266,18 +265,23 @@ def _finalize_days(
     seen_dates: dict[str, set[date]],
     now: datetime,
 ) -> None:
-    """Derive each entry's unique-days counts from its collected set of calendar dates."""
+    """Derive (or re-derive) each entry's unique-days counts from its collected set of calendar dates."""
     today = now.date()
     current_week = now.isocalendar()[:2]
     for ip, player_seen_dates in seen_dates.items():
-        entry = entries[ip]
+        days_today = days_week = days_month = days_year = 0
         for seen_date in player_seen_dates:
             today_inc, week_inc, month_inc, year_inc = _calendar_period_increments(seen_date, today, current_week)
-            entry.days_total += 1
-            entry.days_today += today_inc
-            entry.days_week += week_inc
-            entry.days_month += month_inc
-            entry.days_year += year_inc
+            days_today += today_inc
+            days_week += week_inc
+            days_month += month_inc
+            days_year += year_inc
+        entry = entries[ip]
+        entry.days_total = len(player_seen_dates)
+        entry.days_today = days_today
+        entry.days_week = days_week
+        entry.days_month = days_month
+        entry.days_year = days_year
 
 
 def _copy_entry(entry: LeaderboardEntry) -> LeaderboardEntry:
@@ -295,8 +299,7 @@ def build_leaderboard_baseline(
     """Scan finished session logs into a reusable baseline, optionally skipping the live session file.
 
     `exclude_file` is the currently-active session snapshot, which is continuously rewritten and is
-    instead merged live via `overlay_live_session`. Day counts are left unfinalized so the overlay can
-    add today's live encounter before they are computed.
+    instead merged live via `overlay_live_session`.
 
     `should_cancel`, when provided, is polled once per session file; if it returns True the scan stops
     early and returns whatever was accumulated so far (the caller is expected to discard it).
@@ -330,6 +333,7 @@ def build_leaderboard_baseline(
     if progress_callback is not None and (should_cancel is None or not should_cancel()):
         progress_callback(total_files, total_files)
 
+    _finalize_days(entries, seen_dates, now)
     return LeaderboardBaseline(entries=entries, seen_dates=seen_dates)
 
 
@@ -339,16 +343,18 @@ def overlay_live_session(
     *,
     preserve_ips: frozenset[str] | set[str] | None = None,
 ) -> list[LeaderboardEntry]:
-    """Overlay the live session file onto *baseline* and return all entries sorted by total sessions.
+    """Overlay the live session file onto *baseline* and return only the entries it affects.
 
-    The baseline is copied so it can be reused across repeated live refreshes. The live session file
-    (a single continuously-rewritten snapshot) contributes at most one extra session per IP. If the
-    file is missing or read mid-write, the baseline is returned unchanged. Any IPs in *preserve_ips*
-    not yet present in the baseline or live session file are included with an initial session count.
+    Only IPs present in the live session (plus any *preserve_ips* missing from both the baseline and
+    the live session, included with an initial session count) are returned, as merged copies; every
+    other IP is unchanged from `baseline.entries`. The baseline itself is never mutated, so it can be
+    reused across repeated live refreshes. The live session file (a single continuously-rewritten
+    snapshot) contributes at most one extra session per IP. If the file is missing or read mid-write,
+    no live entries are returned.
     """
     now = datetime.now(tz=LOCAL_TZ)
-    entries: dict[str, LeaderboardEntry] = {ip: _copy_entry(entry) for ip, entry in baseline.entries.items()}
-    seen_dates: dict[str, set[date]] = {ip: set(dates) for ip, dates in baseline.seen_dates.items()}
+    entries: dict[str, LeaderboardEntry] = {}
+    seen_dates: dict[str, set[date]] = {}
 
     try:
         live_text = live_file.read_text(encoding='utf-8', errors='replace')
@@ -367,11 +373,17 @@ def overlay_live_session(
     # An empty file is a normal transient race: the writer truncated before finishing the write.
 
     if session_log is not None:
+        # Copy only the baseline entries the live session touches; `_accumulate_session` creates the rest.
+        for ip in _extract_all_players_from_session(session_log):
+            baseline_entry = baseline.entries.get(ip)
+            if baseline_entry is not None:
+                entries[ip] = _copy_entry(baseline_entry)
+                seen_dates[ip] = set(baseline.seen_dates[ip])
         _accumulate_session(entries, seen_dates, session_log, now)
 
     if preserve_ips is not None and preserve_ips:
         for ip in preserve_ips:
-            if ip not in entries:
+            if ip not in entries and ip not in baseline.entries:
                 entries[ip] = LeaderboardEntry(
                     ip=ip,
                     sessions_today=1,
@@ -385,4 +397,4 @@ def overlay_live_session(
                 seen_dates[ip] = {now.date()}
 
     _finalize_days(entries, seen_dates, now)
-    return sorted(entries.values(), key=lambda entry: entry.sessions_total, reverse=True)
+    return list(entries.values())

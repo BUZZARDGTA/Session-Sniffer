@@ -1,6 +1,8 @@
 """Data and sorting models for the Most Seen Players leaderboard window."""
 
+import heapq
 from datetime import datetime
+from operator import attrgetter
 from typing import TYPE_CHECKING, ClassVar, override
 
 from PySide6.QtCore import (
@@ -340,6 +342,11 @@ class LeaderboardTableModel(QAbstractTableModel):
         return int(getattr(entry, self._scope_attr))
 
     @property
+    def count_attr(self) -> str:
+        """Return the `LeaderboardEntry` attribute holding the count for the current mode and time scope."""
+        return self._scope_attr
+
+    @property
     def entries(self) -> list[LeaderboardEntry]:
         """Return the current entries list (read-only access for the sort proxy)."""
         return self._entries
@@ -352,23 +359,24 @@ class LeaderboardTableModel(QAbstractTableModel):
         self.endResetModel()
 
     def apply_live_update(self, entries: list[LeaderboardEntry]) -> bool:
-        """Refresh in place from a live overlay: update only changed rows and append newly-seen players.
+        """Refresh in place from a live overlay delta: update only changed rows and append newly-seen players.
 
+        *entries* holds only the rows affected by the live session; every other row is left untouched.
         Row positions are kept stable so the sort proxy re-sorts and the user's selection and scroll
         position survive. Only rows whose values actually changed emit `dataChanged`, so identical
         ticks (the common case within a run) cost nothing and never trigger a full re-sort.
         Returns `True` if any row was updated or inserted.
         """
-        updated_by_ip = {entry.ip: entry for entry in entries}
-
         changed_rows: list[int] = []
-        for ip, row in self._index_by_ip.items():
-            updated = updated_by_ip.get(ip)
-            if updated is not None and updated != self._entries[row]:
-                self._entries[row] = updated
+        new_entries: list[LeaderboardEntry] = []
+        for entry in entries:
+            row = self._index_by_ip.get(entry.ip)
+            if row is None:
+                new_entries.append(entry)
+            elif entry != self._entries[row]:
+                self._entries[row] = entry
                 changed_rows.append(row)
 
-        new_entries = [entry for entry in entries if entry.ip not in self._index_by_ip]
         if new_entries:
             first_new_row = len(self._entries)
             self.beginInsertRows(QModelIndex(), first_new_row, first_new_row + len(new_entries) - 1)
@@ -411,12 +419,16 @@ class LeaderboardTableModel(QAbstractTableModel):
         """Update active session connection status for players in the model."""
         if connected_ips == self._connected_ips and disconnected_ips == self._disconnected_ips:
             return
+        # Only rows whose status actually changed need repainting; emitting for the whole column would
+        # make the sort proxy re-filter every row of the (potentially huge) leaderboard.
+        changed_ips = (connected_ips ^ self._connected_ips) | (disconnected_ips ^ self._disconnected_ips)
         self._connected_ips = connected_ips
         self._disconnected_ips = disconnected_ips
-        if self._entries:
-            top_left = self.index(0, COLUMN_STATUS)
-            bottom_right = self.index(len(self._entries) - 1, COLUMN_STATUS)
-            self.dataChanged.emit(top_left, bottom_right)
+        for ip in changed_ips:
+            row = self._index_by_ip.get(ip)
+            if row is not None:
+                status_index = self.index(row, COLUMN_STATUS)
+                self.dataChanged.emit(status_index, status_index)
 
     def _refresh_scope_attr(self) -> None:
         scope_map = self._SCOPE_ATTR_DAYS if self._mode == MODE_DAYS else self._SCOPE_ATTR_SESSIONS
@@ -540,17 +552,31 @@ class LeaderboardSortProxy(QSortFilterProxyModel):
             return True
         return self._hide_hosting and entry.hosting is True
 
-    def _entry_passes_filters(self, model: LeaderboardTableModel, entry: LeaderboardEntry) -> bool:
-        """Return True if *entry* passes active session, time-scope count, server/VPN/hosting, and search filters."""
-        if self._current_session_only and entry.ip not in self.current_session_ips:
-            return False
-        if not model.get_session_count(entry):
-            return False
-        if self._is_hidden(entry):
-            return False
+    def _filter_entries(self, model: LeaderboardTableModel) -> list[LeaderboardEntry]:
+        """Return the entries passing active session, time-scope count, server/VPN/hosting, and search filters.
+
+        Each filter runs as its own pass and only when active, so the common unfiltered case stays a
+        single C-level attribute check per entry even on leaderboards with hundreds of thousands of rows.
+        """
+        count_of = attrgetter(model.count_attr)
+        matching = [entry for entry in model.entries if count_of(entry)]
+        if self._current_session_only:
+            session_ips = self.current_session_ips
+            matching = [entry for entry in matching if entry.ip in session_ips]
+        if self._hide_servers or self._hide_vpns or self._hide_hosting:
+            matching = [entry for entry in matching if not self._is_hidden(entry)]
         if self._search_text:
-            return self._entry_matches_search(entry, self._search_text)
-        return True
+            search_text = self._search_text
+            matching = [entry for entry in matching if self._entry_matches_search(entry, search_text)]
+        return matching
+
+    def _sort_key_func(self, model: LeaderboardTableModel, column: int) -> Callable[[LeaderboardEntry], tuple[object, ...]]:
+        """Return a sort-key callable for *column*, ordering entries identically to `_entry_sort_key`."""
+        if column in (COLUMN_RANK, COLUMN_SESSIONS):
+            # Same ordering as `(float(count), '', sessions_total, ip)`, without the per-entry method dispatch.
+            count_of = attrgetter(model.count_attr)
+            return lambda entry: (count_of(entry), entry.sessions_total, entry.ip)
+        return lambda entry: self._entry_sort_key(model, entry, column)
 
     def _entry_sort_key(self, model: LeaderboardTableModel, entry: LeaderboardEntry, column: int) -> tuple[float, str, int, str]:
         """Return a uniform comparable sort key `(primary_num, primary_str, secondary_num, ip)` for *column*."""
@@ -587,11 +613,11 @@ class LeaderboardSortProxy(QSortFilterProxyModel):
         model = self.sourceModel()
         if not isinstance(model, LeaderboardTableModel):
             return
-        matching = [entry for entry in model.entries if self._entry_passes_filters(model, entry)]
+        matching = self._filter_entries(model)
         if 0 < self._limit < len(matching):
-            reverse = self._sort_order == Qt.SortOrder.DescendingOrder
-            matching.sort(key=lambda entry: self._entry_sort_key(model, entry, self._sort_column), reverse=reverse)
-            matching = matching[: self._limit]
+            # `nlargest`/`nsmallest` match `sorted(...)[:limit]` (ties included) without sorting every entry.
+            select_top = heapq.nlargest if self._sort_order == Qt.SortOrder.DescendingOrder else heapq.nsmallest
+            matching = select_top(self._limit, matching, key=self._sort_key_func(model, self._sort_column))
         new_accepted = frozenset(entry.ip for entry in matching)
         if force_invalidate or new_accepted != self._accepted_ips:
             self._accepted_ips = new_accepted
