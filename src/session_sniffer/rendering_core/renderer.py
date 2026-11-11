@@ -31,6 +31,7 @@ from session_sniffer.models.player_traffic import PlayerBandwidth
 from session_sniffer.networking.geolite2 import extract_asn_info, extract_city_info, extract_country_info
 from session_sniffer.networking.looky_system import LookyState
 from session_sniffer.networking.port_scanner import get_active_port_scan_threads
+from session_sniffer.networking.third_party_servers import is_gta5_relay_ip
 from session_sniffer.player.registry import PlayersRegistry, SessionTracker
 from session_sniffer.player.session_host import (
     MINIMUM_PACKETS_FOR_RELAY_SESSION_HOST,
@@ -79,6 +80,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 _THREAD_COUNT_WARN_THRESHOLD = 150
+_RELAY_PROCESS_START_GRACE_SECONDS = 2
 
 
 DISCORD_APPLICATION_ID = 1313304495958261781
@@ -220,7 +222,7 @@ def rendering_core(
             country_name, _ = player.iplookup.resolve_country()
 
             return {
-                'Usernames': format_player_usernames(player),
+                'Usernames': format_player_usernames(player, include_relay_mod_menus=False),
                 'First Seen': format_player_logging_datetime(player.datetime.first_seen),
                 'Last Rejoin': format_player_logging_datetime(player.datetime.last_rejoin),
                 'Last Seen': format_player_logging_datetime(player.datetime.last_seen),
@@ -284,8 +286,9 @@ def rendering_core(
             columns = _player_columns(player)
             continent_name, _ = player.iplookup.resolve_continent()
             country_name, country_code = player.iplookup.resolve_country()
+            include_looky = Settings.looky_enabled and Settings.is_gta5_feature_set() and CaptureState.is_local_capture()
             return {
-                'Usernames': player.usernames,
+                'Usernames': player.get_persisted_usernames(include_looky=include_looky),
                 'First Seen': player.datetime.first_seen.isoformat(),
                 'Last Rejoin': player.datetime.last_rejoin.isoformat(),
                 'Last Seen': player.datetime.last_seen.isoformat(),
@@ -523,11 +526,12 @@ def rendering_core(
                 ModMenuLogsParser.refresh()
                 last_modmenu_refresh_time = time.monotonic()
             all_modmenu_usernames = ModMenuLogsParser.get_all_ip_to_usernames_map()
-            all_relay_usernames = (
-                ModMenuLogsParser.get_relay_ip_to_usernames_map()
-                if CaptureState.gta5_is_running or not CaptureState.is_local_capture()
-                else {}
-            )
+            if CaptureState.is_local_capture() and CaptureState.gta5_is_running:
+                gta5_creation_time = CaptureState.gta5_creation_time
+                min_relay_timestamp = int(gta5_creation_time) - _RELAY_PROCESS_START_GRACE_SECONDS if gta5_creation_time is not None else None
+                all_relay_usernames = ModMenuLogsParser.get_relay_ip_to_usernames_map(min_timestamp=min_relay_timestamp)
+            else:
+                all_relay_usernames = {}
         else:
             all_modmenu_usernames = {}
             all_relay_usernames = {}
@@ -576,7 +580,11 @@ def rendering_core(
             else:
                 looky_complete = not _looky_active_changed
             modmenu_usernames_for_player = all_modmenu_usernames.get(player.ip)
-            relay_usernames_for_player = all_relay_usernames.get(player.ip) if not player.left_event.is_set() else None
+            relay_usernames_for_player = (
+                all_relay_usernames.get(player.ip)
+                if not player.left_event.is_set() and player.is_gta5_process and is_gta5_relay_ip(player.ip)
+                else None
+            )
             if relay_usernames_for_player is not None and relay_usernames_for_player:
                 modmenu_complete = (
                     player.mod_menus is not None

@@ -25,7 +25,7 @@ RE_MODMENU_LOGS_USER_PATTERN = re.compile(
     r'^user:(?P<username>[\w._-]{1,16}), '
     r'scid:\d{1,9}, '
     r'ip:(?P<ip>(?:\d{1,3}\.){3}\d{1,3}), '
-    r'timestamp:\d{10}$',
+    r'timestamp:(?P<timestamp>\d{10})$',
 )
 
 STAND__PLUGIN__LOG_PATH = Path.home() / 'AppData' / 'Roaming' / 'Stand' / 'Lua Scripts' / 'Session_Sniffer-plugin' / 'log.txt'
@@ -73,7 +73,7 @@ class ModMenuLogsParser:
     _last_relays_mod_times: ClassVar[FileModTimes] = {}
     _ip_to_usernames_map: ClassVar[dict[str, list[str]]] = {}
     _host_ip_to_usernames_map: ClassVar[UsernamesByIP] = defaultdict(list)
-    _relay_ip_to_usernames_map: ClassVar[dict[str, list[str]]] = {}
+    _relay_ip_to_entries_map: ClassVar[dict[str, tuple[tuple[str, int], ...]]] = {}
     _session_host_entry: ClassVar[ModMenuSessionHostEntry | None] = None
     _active_host_menu_name: ClassVar[str | None] = None
 
@@ -180,6 +180,45 @@ class ModMenuLogsParser:
 
         return dict(temp_map), failed_paths
 
+    @staticmethod
+    def _parse_session_relays_files(
+        paths: Iterable[Path],
+        expected_mod_times: FileModTimes,
+    ) -> tuple[dict[str, tuple[tuple[str, int], ...]], set[Path]]:
+        """Parse session relay files into an ordered relay-IP-to-(username, timestamp) map."""
+        entries_by_ip: defaultdict[str, dict[str, int]] = defaultdict(dict)
+        failed_paths: set[Path] = set()
+
+        for path in paths:
+            if not path.is_file():
+                if path in expected_mod_times:
+                    failed_paths.add(path)
+                continue
+
+            try:
+                with path.open(encoding='utf-8') as file:
+                    for line in file:
+                        match = RE_MODMENU_LOGS_USER_PATTERN.fullmatch(line.rstrip())
+                        if not match:
+                            continue
+
+                        username, ip, timestamp_str = match.group('username', 'ip', 'timestamp')
+                        if not isinstance(username, str):
+                            raise TypeError(format_type_error(username, str))
+                        if not isinstance(ip, str):
+                            raise TypeError(format_type_error(ip, str))
+                        if not isinstance(timestamp_str, str):
+                            raise TypeError(format_type_error(timestamp_str, str))
+                        if not is_gta5_relay_ip(ip):
+                            continue
+
+                        entries_by_ip[ip][username] = int(timestamp_str)
+            except (OSError, UnicodeDecodeError) as e:
+                logger.debug('Failed to read mod menu session relays file "%s": %s', path, e)
+                failed_paths.add(path)
+
+        return {ip: tuple(user_timestamps.items()) for ip, user_timestamps in entries_by_ip.items()}, failed_paths
+
     @classmethod
     def refresh(cls) -> None:
         """Re-parse logs, session host, and session relays files only if any file changed."""
@@ -204,10 +243,10 @@ class ModMenuLogsParser:
         if host_changed:
             active_host_menu_name, parsed_host_entry, failed_host_paths = cls._parse_session_host_files(current_host_mod_times)
 
-        parsed_relays_map: dict[str, list[str]] | None = None
+        parsed_relays_map: dict[str, tuple[tuple[str, int], ...]] | None = None
         failed_relay_paths: set[Path] = set()
         if relays_changed:
-            parsed_relays_map, failed_relay_paths = cls._parse_ip_usernames_files(SESSION_RELAYS_PATHS, current_relays_mod_times, 'session relays')
+            parsed_relays_map, failed_relay_paths = cls._parse_session_relays_files(SESSION_RELAYS_PATHS, current_relays_mod_times)
 
         # Step 2: parse logs into a temporary map outside the lock when logs changed
         frozen_map: dict[str, list[str]] | None = None
@@ -230,7 +269,7 @@ class ModMenuLogsParser:
                     cls._host_ip_to_usernames_map[parsed_host_entry.ip].append(parsed_host_entry.username)
             if relays_changed and parsed_relays_map is not None:
                 if not failed_relay_paths:
-                    cls._relay_ip_to_usernames_map = parsed_relays_map
+                    cls._relay_ip_to_entries_map = parsed_relays_map
                 cls._last_relays_mod_times = {p: (-1, -1, -1, -1) if p in failed_relay_paths else sig for p, sig in current_relays_mod_times.items()}
             if frozen_map is not None:
                 if failed_log_paths and cls._ip_to_usernames_map:
@@ -264,9 +303,19 @@ class ModMenuLogsParser:
         return cls._ip_to_usernames_map
 
     @classmethod
-    def get_relay_ip_to_usernames_map(cls) -> dict[str, list[str]]:
+    def get_relay_ip_to_usernames_map(cls, *, min_timestamp: int | None = None) -> dict[str, list[str]]:
         """Snapshot mapping of active session relay IPs to lists of usernames."""
-        return cls._relay_ip_to_usernames_map
+        entries_map = cls._relay_ip_to_entries_map
+        if not entries_map:
+            return {}
+        if min_timestamp is None:
+            return {ip: [username for username, _ in entries] for ip, entries in entries_map.items()}
+        result: dict[str, list[str]] = {}
+        for ip, entries in entries_map.items():
+            valid_usernames = [username for username, ts in entries if ts >= min_timestamp]
+            if valid_usernames:
+                result[ip] = valid_usernames
+        return result
 
     @classmethod
     def get_session_host_entry(cls) -> ModMenuSessionHostEntry | None:

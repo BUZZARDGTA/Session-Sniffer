@@ -256,6 +256,26 @@ class Player:
             looky_names,
         )
 
+    def get_persisted_usernames(self, *, include_looky: bool = False) -> list[str]:
+        """Return deduplicated usernames suitable for persistent logs, excluding session-local relay mod menu usernames."""
+        if not self.has_relay_mod_menus:
+            if self.usernames:
+                return list(self.usernames)
+            if include_looky and self.looky_system.is_initialized:
+                with self.looky_system.lock:
+                    return list(self.looky_system.usernames)
+            return []
+        if include_looky and self.looky_system.is_initialized:
+            with self.looky_system.lock:
+                looky_names: Sequence[str] = tuple(self.looky_system.usernames)
+        else:
+            looky_names = ()
+        return dedup_preserve_order(
+            (self.ps3_username,) if self.ps3_username is not None and self.ps3_username else (),
+            self.userip.usernames if self.userip is not None else (),
+            looky_names,
+        )
+
     def rebuild_usernames(self, *, looky_usernames: Sequence[str] = ()) -> None:
         """Rebuild deduplicated `usernames` from PS3, UserIP, mod menu, and Looky sources."""
         ps3_username = self.ps3_username

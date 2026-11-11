@@ -271,6 +271,7 @@ class CaptureState:
     gta5_is_legacy: ClassVar[bool] = False
     gta5_path: ClassVar[Path | None] = None
     gta5_pid: ClassVar[int | None] = None
+    gta5_creation_time: ClassVar[float | None] = None
     gta5_is_suspended: ClassVar[bool] = False
     gta5_udp_ports: ClassVar[frozenset[int]] = frozenset[int]()
     rdr2_is_running: ClassVar[bool] = False
@@ -335,13 +336,14 @@ class CaptureState:
 
     @classmethod
     def update_gta5_status(cls, status: GTA5Status) -> None:
-        """Update GTA5 running/suspended state, path, PID, and UDP socket ports."""
+        """Update GTA5 running/suspended state, path, PID, creation time, and UDP socket ports."""
         with cls._lock:
             cls.gta5_is_running = status.is_running
             cls.gta5_is_enhanced = status.is_enhanced
             cls.gta5_is_legacy = status.is_legacy
             cls.gta5_path = status.path
             cls.gta5_pid = status.pid
+            cls.gta5_creation_time = status.creation_time
             cls.gta5_is_suspended = status.is_suspended
             cls.gta5_udp_ports = status.udp_ports
 

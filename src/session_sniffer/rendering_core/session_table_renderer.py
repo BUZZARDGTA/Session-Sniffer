@@ -14,11 +14,13 @@ from session_sniffer.guis.exceptions import InvalidDateColumnConfigurationError
 from session_sniffer.models.player_traffic import PlayerBandwidth
 from session_sniffer.networking.isp_filter import is_player_isp_filtered
 from session_sniffer.player.registry import SessionTracker
-from session_sniffer.rendering_core.types import CellColor, SessionTableSnapshot
+from session_sniffer.rendering_core.types import CaptureState, CellColor, SessionTableSnapshot
 from session_sniffer.settings import Settings
 from session_sniffer.text_utils import format_elapsed_time
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from session_sniffer.models.player import Player
 
 PPS_MAX_THRESHOLD = 10
@@ -37,9 +39,13 @@ _SERVER_BACKGROUND_COLOR = QColor(TableColors.SERVER_BACKGROUND)
 _RATE_GRADIENT_COLORS: tuple[QColor, ...] = tuple(QColor(0xFF - i, i, 0) for i in range(256))
 
 
-def format_player_usernames(player: Player) -> str:
+def format_player_usernames(player: Player, *, include_relay_mod_menus: bool = True) -> str:
     """Format player usernames as a comma-separated string, optionally appending UserIP notes."""
-    usernames = player.usernames or (player.looky_system.usernames if Settings.looky_enabled and Settings.is_gta5_feature_set() and player.looky_system.is_initialized else [])
+    include_looky = Settings.looky_enabled and Settings.is_gta5_feature_set()
+    if include_relay_mod_menus:
+        usernames: Sequence[str] = player.usernames or (player.looky_system.usernames if include_looky and player.looky_system.is_initialized else ())
+    else:
+        usernames = player.get_persisted_usernames(include_looky=include_looky and CaptureState.is_local_capture())
     usernames_text = ', '.join(usernames) if usernames else ''
     if Settings.gui_columns_usernames_show_notes and player.userip is not None and player.userip.notes:
         notes_text = ', '.join(player.userip.notes)

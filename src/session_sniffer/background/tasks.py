@@ -94,6 +94,12 @@ def _log_to_protection_csv(detection: str, usernames: str, ip: str, country: str
     )
 
 
+def _format_persisted_player_usernames(player: Player) -> str:
+    """Format player usernames for persistent CSV logs, excluding session-local relay mod menu usernames."""
+    include_looky = Settings.looky_enabled and Settings.is_gta5_feature_set() and CaptureState.is_local_capture()
+    return ', '.join(player.get_persisted_usernames(include_looky=include_looky))
+
+
 _active_userip_tasks: set[tuple[str, Literal['connected', 'disconnected']]] = set()
 _active_userip_tasks_lock = Lock()
 _active_detection_check_ips: set[str] = set()
@@ -242,7 +248,14 @@ def handle_detection_notification(player: Player, notification_type: Notificatio
                     _detection_logging_file_write_lock,
                     DETECTION_LOGGING_PATH,
                     _DETECTION_CSV_HEADERS,
-                    [config['title'], ', '.join(player.usernames), player.ip, now.strftime('%Y-%m-%d'), now.strftime('%H:%M:%S'), player.iplookup.resolve_country()[0]],
+                    [
+                        config['title'],
+                        _format_persisted_player_usernames(player),
+                        player.ip,
+                        now.strftime('%Y-%m-%d'),
+                        now.strftime('%H:%M:%S'),
+                        player.iplookup.resolve_country()[0],
+                    ],
                 )
 
             if msgbox_setting:
@@ -273,7 +286,12 @@ def handle_detection_notification(player: Player, notification_type: Notificatio
                     queue_voice_notification(tts_candidate_path)
 
                 if rule.logging:
-                    _log_to_protection_csv(f'COMBO RULE MATCHED: {rule.name}', ', '.join(player.usernames), player.ip, player.iplookup.resolve_country()[0])
+                    _log_to_protection_csv(
+                        f'COMBO RULE MATCHED: {rule.name}',
+                        _format_persisted_player_usernames(player),
+                        player.ip,
+                        player.iplookup.resolve_country()[0],
+                    )
 
                 if rule.message_box:
                     conditions_summary = format_combo_conditions_summary(rule.conditions, include_event=False)
@@ -366,7 +384,7 @@ def process_userip_task(
 
                 relative_database_path = userip.db_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix('')
                 date_part, time_part = userip_detection.date_time.split('_', maxsplit=1)
-                usernames_display = ', '.join(player.usernames) or ', '.join(userip.usernames)
+                usernames_display = _format_persisted_player_usernames(player) or ', '.join(userip.usernames)
 
                 resolved_country, _ = player.iplookup.resolve_country()
 
@@ -434,7 +452,7 @@ def trigger_auto_username_userip(player: Player, detected_usernames: Sequence[st
     if not (Settings.userip_auto_feed_from_usernames and Settings.is_gta5_feature_set() and CaptureState.is_local_capture()):
         return
 
-    if not detected_usernames or player.is_gta5_relay or player.has_relay_mod_menus:
+    if not detected_usernames or player.is_gta5_relay or player.has_relay_mod_menus or is_gta5_relay_ip(player.ip):
         return
 
     if player.userip is not None or UserIPDatabases.is_known_ip(player.ip) or UserIPDatabases.is_conflicting_ip(player.ip):
@@ -619,7 +637,7 @@ def check_global_detections(player: Player) -> None:
             queue_voice_notification(tts_candidate_path)
 
         if effective_log:
-            _log_to_protection_csv(detection_title, ', '.join(player.usernames), player.ip, player.iplookup.resolve_country()[0])
+            _log_to_protection_csv(detection_title, _format_persisted_player_usernames(player), player.ip, player.iplookup.resolve_country()[0])
 
         if effective_msgbox:
             _event_time = datetime.now(tz=LOCAL_TZ).strftime('%H:%M:%S')

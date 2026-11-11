@@ -685,7 +685,7 @@ class TableContextMenuMixin(QTableView):
                 # from the matched player (UserIP, Looky System, PS3, etc.) without string splitting.
                 player = selected_model.get_player_for_row(index.row())
 
-                usernames: list[str] = resolve_usernames_for_player(player) if player else []
+                usernames: list[str] = resolve_usernames_for_player(player, include_relay_mod_menus=True) if player else []
 
                 if not usernames:
                     usernames = [cell_text]

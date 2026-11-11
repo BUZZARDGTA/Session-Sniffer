@@ -74,6 +74,7 @@ class GameProcessStatus:
     Attributes:
         path: Resolved path to the running game executable, or `None` if not running.
         pid: PID of the running game process, or `None` if not running.
+        creation_time: Process creation time in seconds since Unix epoch, or `None` if unavailable.
         is_suspended: `True` if the running game process is currently suspended at the
             OS level (its threads are stopped), regardless of what suspended it.
         udp_ports: Set of local UDP socket ports currently bound by the game process.
@@ -82,6 +83,7 @@ class GameProcessStatus:
 
     path: Path | None
     pid: int | None = None
+    creation_time: float | None = None
     is_suspended: bool = False
     udp_ports: frozenset[int] = frozenset()
     is_running: bool = field(init=False)
@@ -601,6 +603,7 @@ def find_running_game_process[T: GameProcessStatus](
             status_class(
                 path=cached_path,
                 pid=cached_proc.pid,
+                creation_time=cached_proc.creation_time,
                 is_suspended=is_process_suspended(cached_proc.pid),
                 udp_ports=get_process_udp_ports(cached_proc.pid),
             ),
@@ -632,6 +635,7 @@ def find_running_game_process[T: GameProcessStatus](
             status_class(
                 path=resolved_path,
                 pid=pid,
+                creation_time=creation_time,
                 is_suspended=is_process_suspended(pid),
                 udp_ports=get_process_udp_ports(pid),
             ),

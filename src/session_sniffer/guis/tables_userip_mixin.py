@@ -87,11 +87,18 @@ def _entry_ip_matches_any(entry_ip: str, selected_ips: list[str]) -> bool:
     return any(entry_ip_covers_ip(entry_ip, selected_ip) for selected_ip in selected_ips)
 
 
-def resolve_usernames_for_player(player: Player) -> list[str]:
+def resolve_usernames_for_player(player: Player, *, include_relay_mod_menus: bool = False) -> list[str]:
     """Return deduplicated usernames associated with the given player from all sources."""
     include_looky = Settings.looky_enabled and Settings.is_gta5_feature_set() and CaptureState.is_local_capture()
-    live_names = player.get_live_non_userip_usernames(include_looky=include_looky)
-    player_names = dedup_preserve_order(live_names[:1] if bool(player.ps3_username) else (), player.userip.usernames if player.userip else (), live_names, player.usernames)
+    if include_relay_mod_menus or not player.has_relay_mod_menus:
+        live_names = player.get_live_non_userip_usernames(include_looky=include_looky)
+        base_usernames: Sequence[str] = player.usernames
+    else:
+        persisted = player.get_persisted_usernames(include_looky=include_looky)
+        userip_cfs: set[str] = {u.casefold() for u in player.userip.usernames} if player.userip is not None else set()
+        live_names = [u for u in persisted if u.casefold() not in userip_cfs]
+        base_usernames = persisted
+    player_names = dedup_preserve_order(live_names[:1] if bool(player.ps3_username) else (), player.userip.usernames if player.userip else (), live_names, base_usernames)
     names: list[str] = [name.strip() for name in player_names if name.strip()]
     return UserIPDatabases.expand_with_known_alts(names) if Settings.userip_sync_known_alts else names
 
