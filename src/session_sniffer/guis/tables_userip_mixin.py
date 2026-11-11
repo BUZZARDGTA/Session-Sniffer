@@ -646,6 +646,7 @@ def _format_database_entries_html_list(entries_by_database: dict[Path, list[str]
 def userip_move(parent: QWidget, selected_ips: list[str], selected_database: Path) -> None:
     """Move the selected IP address(es) to the chosen UserIP database."""
     deleted_entries_by_database: dict[Path, list[str]] = {}
+    all_moved_entries: list[UserIPEntryModel] = []
     moved_entry_ips: list[str] = []
     now_iso = get_current_iso_timestamp()
 
@@ -668,12 +669,13 @@ def userip_move(parent: QWidget, selected_ips: list[str], selected_database: Pat
                     kept_entries.append(entry)
 
             if moved_entries:
-                append_userip_entries(selected_database, moved_entries)
                 save_userip_database_model(db_path, UserIPDatabaseFile(settings=db_model.settings, entries=kept_entries))
+                all_moved_entries.extend(moved_entries)
                 moved_entry_ips.extend(entry.ip for entry in moved_entries)
                 deleted_entries_by_database[db_path] = [f'{html.escape(entry.username)}={html.escape(entry.ip)}' for entry in moved_entries]
 
-        if deleted_entries_by_database:
+        if all_moved_entries:
+            append_userip_entries(selected_database, all_moved_entries)
             refresh_userip_and_wake_renderer()
 
     if deleted_entries_by_database:
@@ -814,15 +816,16 @@ def _update_detached_usernames_for_player(player: Player, cfs: set[str], *, deta
             target.detached_userip_usernames_cf.difference_update(cfs)
 
 
-def collect_grouped_usernames_for_player(player: Player) -> list[str]:
+def collect_grouped_usernames_for_player(player: Player, *, persisted_usernames: Sequence[str] | None = None) -> list[str]:
     """Return all usernames currently grouped with *player* (via known-alts clusters or shared UserIP entries)."""
     base_names: list[str] = []
     filtered_userip = UserIPDatabases.filter_userip_for_player(player, player.userip)
     if filtered_userip is not None:
         anchor_names = list(filtered_userip.usernames)
+        raw_persisted = persisted_usernames if persisted_usernames is not None else collect_persisted_usernames_for_ip(filtered_userip.db_path, player.ip)
         persisted_names = [
             u
-            for u in collect_persisted_usernames_for_ip(filtered_userip.db_path, player.ip)
+            for u in raw_persisted
             if u.casefold() not in player.detached_userip_usernames_cf and not any(are_usernames_unlinked(u, anchor) for anchor in anchor_names)
         ]
         base_names.extend(anchor_names)

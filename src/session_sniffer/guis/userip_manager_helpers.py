@@ -36,16 +36,15 @@ from session_sniffer.player.userip import UserIPDatabases
 from session_sniffer.player.userip_groups import compute_row_group_ids_and_prefixes
 from session_sniffer.player.userip_loader import (
     find_userip_insert_index,
-    get_cached_userip_database_entries,
+    get_cached_userip_database_model,
     get_cached_userip_databases,
     update_userip_databases,
-    userip_database_write,
     userip_databases_lock,
+    write_userip_database_file,
 )
 from session_sniffer.player.userip_log_history import enrich_userip_entry_from_logs
 from session_sniffer.rendering_core.events import wake_rendering_core
 from session_sniffer.text_utils import pluralize
-from session_sniffer.utils import atomic_write_text
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
@@ -523,7 +522,6 @@ def parse_userip_database_content(
     content: str,
     *,
     default_settings: UserIPSettingsModel | None = None,
-    cached_entries: list[UserIPEntryModel] | None = None,
 ) -> UserIPDatabaseFile:
     """Parse raw JSON *content* into a validated `UserIPDatabaseFile` model."""
     fallback = (default_settings or NEW_DATABASE_SETTINGS).model_copy()
@@ -539,8 +537,6 @@ def parse_userip_database_content(
     typed_data = cast('dict[str, Any]', raw_data)
     raw_settings_obj: object = typed_data.get('settings')
     settings = UserIPSettingsModel.validate_settings(cast('dict[str, Any]', raw_settings_obj))[0] if isinstance(raw_settings_obj, dict) else fallback
-    if cached_entries is not None:
-        return UserIPDatabaseFile(settings=settings, entries=cached_entries)
     raw_entries_obj: object = typed_data.get('entries')
     raw_entries = cast('list[object]', raw_entries_obj) if isinstance(raw_entries_obj, list) else []
     entries = [enrich_userip_entry_from_logs(parsed[0])[0] for raw_entry in raw_entries if (parsed := UserIPEntryModel.parse_raw_entry(raw_entry)) is not None]
@@ -552,12 +548,14 @@ def load_userip_database_model(path: Path) -> UserIPDatabaseFile:
     default_settings = DEFAULT_USERIP_FILES_SETTINGS.get(path.name) if path.parent == USERIP_DATABASES_DIR_PATH else None
     if not path.is_file():
         return UserIPDatabaseFile(settings=(default_settings or NEW_DATABASE_SETTINGS).model_copy(), entries=[])
+    if (cached_model := get_cached_userip_database_model(path)) is not None:
+        return cached_model
     try:
         content = path.read_text(encoding='utf-8')
     except OSError as e:
         logger.warning('Failed to read UserIP database "%s": %s', path, e)
         return UserIPDatabaseFile(settings=(default_settings or NEW_DATABASE_SETTINGS).model_copy(), entries=[])
-    return parse_userip_database_content(content, default_settings=default_settings, cached_entries=get_cached_userip_database_entries(path))
+    return parse_userip_database_content(content, default_settings=default_settings)
 
 
 def format_userip_db_display_name(db_path: Path) -> str:
@@ -568,11 +566,9 @@ def format_userip_db_display_name(db_path: Path) -> str:
         return str(db_path)
 
 
-def save_userip_database_model(path: Path, db_model: UserIPDatabaseFile) -> None:
-    """Serialize and atomically write a `UserIPDatabaseFile` model to *path*."""
-    serialized = db_model.serialize_to_json()
-    with userip_database_write(path, content=serialized):
-        atomic_write_text(path, serialized)
+def save_userip_database_model(path: Path, db_model: UserIPDatabaseFile) -> str:
+    """Serialize and atomically write a `UserIPDatabaseFile` model to *path*, returning the serialized JSON text."""
+    return write_userip_database_file(path, db_model)
 
 
 def refresh_userip_and_wake_renderer() -> None:

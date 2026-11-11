@@ -11,7 +11,7 @@ from bisect import bisect_left, bisect_right
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from pathlib import Path
-from threading import Lock
+from threading import Lock, Thread
 from typing import TYPE_CHECKING, ClassVar, NamedTuple, cast
 
 from session_sniffer.constants.local import SESSIONS_LOGGING_DIR_PATH, USERIP_LOGGING_PATH
@@ -217,6 +217,8 @@ class _UserIPLogHistoryCache:
     _SCAN_THROTTLE_SECONDS: ClassVar[float] = 1.0
     _FULL_TREE_SCAN_INTERVAL_SECONDS: ClassVar[float] = 30.0
     _cache_lock: ClassVar[Lock] = Lock()
+    _warmup_lock: ClassVar[Lock] = Lock()
+    _warmup_started: ClassVar[bool] = False
     _initialized: ClassVar[bool] = False
     _last_scan_monotonic: ClassVar[float] = 0.0
     _last_full_tree_scan_monotonic: ClassVar[float] = 0.0
@@ -226,6 +228,9 @@ class _UserIPLogHistoryCache:
     _session_file_cache: ClassVar[dict[str, tuple[float, int, dict[str, list[_RawSessionRecord]]]]] = {}
     _raw_records_by_ip: ClassVar[dict[str, list[_RawSessionRecord]]] = {}
     _csv_file_state: ClassVar[tuple[float, int] | None] = None
+    _csv_offset: ClassVar[int] = 0
+    _csv_header: ClassVar[list[str] | None] = None
+    _csv_raw_events_by_ip: ClassVar[dict[str, list[tuple[str, float]]]] = {}
     _csv_by_ip: ClassVar[dict[str, tuple[tuple[str, float], ...]]] = {}
     _merged_windows_by_ip: ClassVar[dict[str, tuple[_SessionWindow, ...]]] = {}
     _stats_by_ip: ClassVar[dict[str, _LogIPStats | None]] = {}
@@ -234,38 +239,103 @@ class _UserIPLogHistoryCache:
     _sorted_ip_strings: ClassVar[list[str]] = []
 
     @staticmethod
-    def _parse_userip_csv_file(csv_path: Path) -> dict[str, tuple[tuple[str, float], ...]]:
-        """Extract sorted, deduplicated `(iso_str, posix_ts)` events per IP from `UserIP_Logging.csv`."""
-        raw_events_by_ip: dict[str, list[tuple[str, float]]] = {}
-        try:
-            with csv_path.open('r', newline='', encoding='utf-8') as file:
-                reader = csv.DictReader(file)
-                for row in reader:
-                    raw_ip = row.get('IP')
-                    raw_date = row.get('Date')
-                    raw_time = row.get('Time')
-                    if not isinstance(raw_ip, str) or not isinstance(raw_date, str) or not isinstance(raw_time, str):
-                        continue
-                    ip_val = raw_ip.strip()
-                    date_val = raw_date.strip()
-                    time_val = raw_time.strip()
-                    if not ip_val or not date_val or not time_val:
-                        continue
-                    parsed = _parse_log_datetime_str(f'{date_val} {time_val}')
-                    if parsed is not None:
-                        raw_events_by_ip.setdefault(ip_val, []).append(parsed)
-        except OSError, UnicodeDecodeError, csv.Error:
-            return {}
+    def _dedup_csv_events(events: Sequence[tuple[str, float]]) -> tuple[tuple[str, float], ...]:
+        """Sort and collapse near-simultaneous CSV events for a single IP."""
+        sorted_events = sorted(events, key=lambda item: item[1])
+        collapsed: list[tuple[str, float]] = [sorted_events[0]]
+        for item in sorted_events[1:]:
+            if item[1] - collapsed[-1][1] > _WINDOW_MERGE_TOLERANCE_SECONDS:
+                collapsed.append(item)
+        return tuple(collapsed)
 
-        deduped_by_ip: dict[str, tuple[tuple[str, float], ...]] = {}
-        for ip_str, events in raw_events_by_ip.items():
-            sorted_events = sorted(events, key=lambda item: item[1])
-            collapsed: list[tuple[str, float]] = [sorted_events[0]]
-            for item in sorted_events[1:]:
-                if item[1] - collapsed[-1][1] > _WINDOW_MERGE_TOLERANCE_SECONDS:
-                    collapsed.append(item)
-            deduped_by_ip[ip_str] = tuple(collapsed)
-        return deduped_by_ip
+    @staticmethod
+    def _parse_csv_rows(reader: csv.DictReader[str], raw_events_by_ip: dict[str, list[tuple[str, float]]]) -> set[str]:
+        """Consume rows from `reader` into `raw_events_by_ip` and return modified IP strings."""
+        touched_ips: set[str] = set()
+        for row in reader:
+            raw_ip = row.get('IP')
+            raw_date = row.get('Date')
+            raw_time = row.get('Time')
+            if not isinstance(raw_ip, str) or not isinstance(raw_date, str) or not isinstance(raw_time, str):
+                continue
+            ip_val = raw_ip.strip()
+            date_val = raw_date.strip()
+            time_val = raw_time.strip()
+            if not ip_val or not date_val or not time_val:
+                continue
+            parsed = _parse_log_datetime_str(f'{date_val} {time_val}')
+            if parsed is not None:
+                raw_events_by_ip.setdefault(ip_val, []).append(parsed)
+                touched_ips.add(ip_val)
+        return touched_ips
+
+    @classmethod
+    def _sync_csv_file_locked(cls, csv_sig: tuple[float, int] | None) -> None:
+        """Incrementally or fully refresh `UserIP_Logging.csv` events (caller must hold `_cache_lock`)."""
+        if csv_sig is None:
+            if cls._csv_by_ip:
+                for ip_str in cls._csv_by_ip:
+                    cls._stats_by_ip.pop(ip_str, None)
+                cls._sorted_ips_dirty = True
+            cls._csv_by_ip = {}
+            cls._csv_raw_events_by_ip = {}
+            cls._csv_header = None
+            cls._csv_offset = 0
+            cls._csv_file_state = None
+            return
+
+        if cls._csv_file_state is not None and cls._csv_header is not None and 0 < cls._csv_offset < csv_sig[1]:
+            try:
+                with USERIP_LOGGING_PATH.open('rb') as bin_file:
+                    bin_file.seek(cls._csv_offset)
+                    tail_bytes = bin_file.read()
+                    new_offset = bin_file.tell()
+                tail_lines = tail_bytes.decode('utf-8').splitlines(keepends=True)
+                touched_ips = cls._parse_csv_rows(csv.DictReader(tail_lines, fieldnames=cls._csv_header), cls._csv_raw_events_by_ip)
+            except OSError, UnicodeDecodeError, csv.Error:
+                pass
+            else:
+                for ip_str in touched_ips:
+                    if ip_str not in cls._csv_by_ip:
+                        cls._sorted_ips_dirty = True
+                    new_deduped = cls._dedup_csv_events(cls._csv_raw_events_by_ip[ip_str])
+                    if cls._csv_by_ip.get(ip_str) != new_deduped:
+                        cls._csv_by_ip[ip_str] = new_deduped
+                        cls._stats_by_ip.pop(ip_str, None)
+                cls._csv_offset = new_offset
+                cls._csv_file_state = csv_sig
+                return
+
+        raw_events_by_ip: dict[str, list[tuple[str, float]]] = {}
+        header: list[str] | None = None
+        new_offset = 0
+        try:
+            raw_bytes = USERIP_LOGGING_PATH.read_bytes()
+            new_offset = len(raw_bytes)
+            lines = raw_bytes.decode('utf-8').splitlines(keepends=True)
+            reader = csv.DictReader(lines)
+            if reader.fieldnames is not None and len(reader.fieldnames) > 0:
+                header = list(reader.fieldnames)
+                cls._parse_csv_rows(reader, raw_events_by_ip)
+        except OSError, UnicodeDecodeError, csv.Error:
+            raw_events_by_ip = {}
+            header = None
+            new_offset = 0
+
+        new_csv_by_ip = {ip_str: cls._dedup_csv_events(events) for ip_str, events in raw_events_by_ip.items() if events}
+        changed_csv_ips = set(cls._csv_by_ip) ^ set(new_csv_by_ip)
+        for ip_str in set(cls._csv_by_ip) & set(new_csv_by_ip):
+            if cls._csv_by_ip[ip_str] != new_csv_by_ip[ip_str]:
+                changed_csv_ips.add(ip_str)
+        if set(cls._csv_by_ip) != set(new_csv_by_ip):
+            cls._sorted_ips_dirty = True
+        for ip_str in changed_csv_ips:
+            cls._stats_by_ip.pop(ip_str, None)
+        cls._csv_raw_events_by_ip = raw_events_by_ip
+        cls._csv_by_ip = new_csv_by_ip
+        cls._csv_header = header
+        cls._csv_offset = new_offset
+        cls._csv_file_state = csv_sig
 
     @classmethod
     def _remove_file_records(cls, file_map: dict[str, list[_RawSessionRecord]]) -> None:
@@ -409,17 +479,7 @@ class _UserIPLogHistoryCache:
                     csv_stat = USERIP_LOGGING_PATH.stat()
                     csv_sig = (csv_stat.st_mtime, csv_stat.st_size)
             if csv_sig != cls._csv_file_state:
-                new_csv_by_ip = cls._parse_userip_csv_file(USERIP_LOGGING_PATH) if csv_sig is not None else {}
-                changed_csv_ips = set(cls._csv_by_ip) ^ set(new_csv_by_ip)
-                for ip_str in set(cls._csv_by_ip) & set(new_csv_by_ip):
-                    if cls._csv_by_ip[ip_str] != new_csv_by_ip[ip_str]:
-                        changed_csv_ips.add(ip_str)
-                if set(cls._csv_by_ip) != set(new_csv_by_ip):
-                    cls._sorted_ips_dirty = True
-                for ip_str in changed_csv_ips:
-                    cls._stats_by_ip.pop(ip_str, None)
-                cls._csv_by_ip = new_csv_by_ip
-                cls._csv_file_state = csv_sig
+                cls._sync_csv_file_locked(csv_sig)
 
             cls._initialized = True
             cls._last_scan_monotonic = time.monotonic()
@@ -491,8 +551,8 @@ class _UserIPLogHistoryCache:
         covered_ips: set[str] = set()
         with cls._cache_lock:
             sorted_ints, sorted_strs = cls._ensure_sorted_ips_locked()
-            if (bounds := ip_range.bounds) is not None:
-                covered_ips.update(sorted_strs[bisect_left(sorted_ints, int(bounds[0])) : bisect_right(sorted_ints, int(bounds[1]))])
+            if ip_range.start_int <= ip_range.end_int:
+                covered_ips.update(sorted_strs[bisect_left(sorted_ints, ip_range.start_int) : bisect_right(sorted_ints, ip_range.end_int)])
 
         live_by_ip: dict[str, Player] = {}
         for player in PlayersRegistry.get_all_players():
@@ -511,6 +571,20 @@ class _UserIPLogHistoryCache:
                 last_seen_at = pick_latest_iso(last_seen_at, stats.last_seen_at)
                 detections_count += stats.detections_count
         return _LogIPStats(first_seen_at, last_seen_at, detections_count) if first_seen_at is not None and last_seen_at is not None and detections_count > 0 else None
+
+    @classmethod
+    def warm_async(cls) -> None:
+        """Start a one-time background warm-up scan if the cache has not been initialized yet."""
+        with cls._warmup_lock:
+            if cls._initialized or cls._warmup_started:
+                return
+            cls._warmup_started = True
+        Thread(target=cls._ensure_fresh, name='UserIPLogHistoryWarmup', daemon=True).start()
+
+
+def warm_userip_log_history_cache_async() -> None:
+    """Populate the historical log cache on a background daemon thread so GUI actions do not stall on first use."""
+    _UserIPLogHistoryCache.warm_async()
 
 
 def enrich_userip_entry_from_logs(entry: UserIPEntryModel) -> tuple[UserIPEntryModel, bool]:

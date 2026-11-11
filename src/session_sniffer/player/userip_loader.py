@@ -23,7 +23,7 @@ from session_sniffer.models.userip_settings_model import (
 from session_sniffer.networking.ip_range import entry_ip_covers_ip, is_valid_ip_range_entry
 from session_sniffer.player.userip import ProtectionSettings, UserIPDatabases, UserIPSettings
 from session_sniffer.player.userip_groups import get_groups_state_token, remove_usernames_from_groups, rename_username_in_groups
-from session_sniffer.player.userip_log_history import enrich_userip_entry_from_logs
+from session_sniffer.player.userip_log_history import enrich_userip_entry_from_logs, warm_userip_log_history_cache_async
 from session_sniffer.utils import FileSignature, atomic_write_text, get_file_signature, validate_file
 
 if TYPE_CHECKING:
@@ -41,10 +41,28 @@ _last_userip_db_mod_times: dict[Path, FileSignature] = {}
 _last_in_app_db_digests: dict[Path, bytes] = {}
 _last_userip_groups_token: list[tuple[int, FileSignature | None]] = []
 _parsed_userip_databases: dict[Path, tuple[UserIPSettings, list[UserIPEntryModel]]] = {}
+_parsed_userip_settings_models: dict[Path, UserIPSettingsModel] = {}
+_pending_in_app_prev_entries: dict[Path, list[UserIPEntryModel] | None] = {}
+_in_app_rebuild_pending: list[bool] = [False]
 
 DEFAULT_USERIP_FILES_SETTINGS_BY_PATH: dict[Path, UserIPSettingsModel] = {
     USERIP_DATABASES_DIR_PATH / json_name: settings for json_name, settings in DEFAULT_USERIP_FILES_SETTINGS.items()
 }
+
+
+def _to_runtime_settings(validated_settings: UserIPSettingsModel) -> UserIPSettings:
+    """Convert a persisted `UserIPSettingsModel` into a runtime `UserIPSettings` tuple."""
+    return UserIPSettings(
+        enabled=validated_settings.ENABLED,
+        color=QColor(validated_settings.COLOR) if validated_settings.COLOR else QColor('WHITE'),
+        log=validated_settings.LOG,
+        notifications=validated_settings.NOTIFICATIONS,
+        voice_notifications=validated_settings.VOICE_NOTIFICATIONS,
+        protection=ProtectionSettings(
+            enabled=validated_settings.PROTECTION,
+            suspend_process_mode=validated_settings.PROTECTION_SUSPEND_PROCESS_MODE,
+        ),
+    )
 
 
 def _compute_db_digest(content: str | bytes) -> bytes:
@@ -90,6 +108,9 @@ def rebind_in_app_userip_db_path(old_path: Path, new_path: Path) -> None:
     with _update_userip_databases_lock:
         for tracked_path in [path for path in _last_userip_db_mod_times if path == old_key or old_key in path.parents]:
             _last_userip_db_mod_times.pop(tracked_path, None)
+            _parsed_userip_databases.pop(tracked_path, None)
+            _parsed_userip_settings_models.pop(tracked_path, None)
+            _pending_in_app_prev_entries.pop(tracked_path, None)
         for tracked_key in [path for path in _last_in_app_db_digests if path == old_key or old_key in path.parents]:
             _last_in_app_db_digests.pop(tracked_key, None)
         if new_path.is_file() and new_path.suffix.lower() == '.json':
@@ -151,7 +172,7 @@ def parse_userip_json_file(
     *,
     raw_text: str | None = None,
     record_in_app_rewrite: bool = True,
-) -> tuple[UserIPSettings | None, list[UserIPEntryModel] | None]:
+) -> tuple[UserIPSettingsModel | None, UserIPSettings | None, list[UserIPEntryModel] | None]:
     """Parse, validate, and auto-repair a UserIP `.json` database file."""
     if raw_text is None:
         validate_file(json_path)
@@ -160,11 +181,11 @@ def parse_userip_json_file(
         raw_data: object = json.loads(raw_text)
     except json.JSONDecodeError as e:
         logger.warning('Failed to parse UserIP database "%s": %s; skipping file.', json_path.name, e)
-        return None, None
+        return None, None, None
 
     if not isinstance(raw_data, dict):
         logger.warning('UserIP database "%s" root is not a JSON object; skipping file.', json_path.name)
-        return None, None
+        return None, None, None
 
     typed_data = cast('dict[str, Any]', raw_data)
     # `need_repair` tracks genuine auto-repairs; `need_log_sync` tracks entries only refreshed from log history.
@@ -206,19 +227,7 @@ def parse_userip_json_file(
         if need_repair:
             logger.info('Rewrote "%s" after auto-repairs.', json_path.name)
 
-    runtime_settings = UserIPSettings(
-        enabled=validated_settings.ENABLED,
-        color=QColor(validated_settings.COLOR) if validated_settings.COLOR else QColor('WHITE'),
-        log=validated_settings.LOG,
-        notifications=validated_settings.NOTIFICATIONS,
-        voice_notifications=validated_settings.VOICE_NOTIFICATIONS,
-        protection=ProtectionSettings(
-            enabled=validated_settings.PROTECTION,
-            suspend_process_mode=validated_settings.PROTECTION_SUSPEND_PROCESS_MODE,
-        ),
-    )
-
-    return runtime_settings, repaired_entries
+    return validated_settings, _to_runtime_settings(validated_settings), repaired_entries
 
 
 @contextmanager
@@ -238,10 +247,42 @@ def userip_database_write(db_path: Path, *, content: str | bytes | None = None) 
         finally:
             _last_userip_db_mod_times.pop(key, None)
             _last_userip_db_mod_times.pop(db_path, None)
+            _parsed_userip_databases.pop(key, None)
+            _parsed_userip_databases.pop(db_path, None)
+            _parsed_userip_settings_models.pop(key, None)
+            _parsed_userip_settings_models.pop(db_path, None)
+            _pending_in_app_prev_entries.pop(key, None)
             if db_path.is_file():
                 _record_in_app_db_write(key, content)
             else:
                 _last_in_app_db_digests.pop(key, None)
+
+
+def write_userip_database_file(db_path: Path, db_model: UserIPDatabaseFile) -> str:
+    """Atomically write *db_model* to *db_path*, updating in-memory UserIP caches in-place without disk re-parsing."""
+    serialized = db_model.serialize_to_json()
+    key = _normalize_db_key(db_path)
+    with _update_userip_databases_lock:
+        atomic_write_text(db_path, serialized)
+        _record_in_app_db_write(key, serialized)
+        new_sig = get_file_signature(key) if key.is_file() else get_file_signature(db_path)
+        if (
+            new_sig is not None
+            and key.is_relative_to(USERIP_DATABASES_DIR_PATH)
+            and (_parsed_userip_databases or _last_userip_db_mod_times)
+        ):
+            if key not in _pending_in_app_prev_entries:
+                _pending_in_app_prev_entries[key] = list(_parsed_userip_databases[key][1]) if key in _parsed_userip_databases else None
+            _parsed_userip_databases[key] = (_to_runtime_settings(db_model.settings), list(db_model.entries))
+            _parsed_userip_settings_models[key] = db_model.settings.model_copy()
+            _last_userip_db_mod_times[key] = new_sig
+            _in_app_rebuild_pending[0] = True
+        else:
+            _last_userip_db_mod_times.pop(key, None)
+            _last_userip_db_mod_times.pop(db_path, None)
+            _parsed_userip_databases.pop(key, None)
+            _parsed_userip_settings_models.pop(key, None)
+    return serialized
 
 
 def _snapshot_db_mod_times() -> dict[Path, FileSignature]:
@@ -313,14 +354,14 @@ def _reparse_changed_userip_db(
     userip_path: Path,
     last_sig: FileSignature | None,
     file_sig: FileSignature,
-) -> tuple[UserIPSettings | None, list[UserIPEntryModel] | None]:
+) -> tuple[UserIPSettingsModel | None, UserIPSettings | None, list[UserIPEntryModel] | None]:
     """Read, classify (in-app vs external), and re-parse a modified UserIP `.json` file."""
     validate_file(userip_path)
     try:
         raw_bytes = userip_path.read_bytes()
     except OSError as e:
         logger.warning('Failed to read UserIP database "%s": %s; skipping file.', userip_path.name, e)
-        return None, None
+        return None, None, None
     db_key = _normalize_db_key(userip_path)
     was_in_app = _last_in_app_db_digests.get(db_key) == _compute_db_digest(raw_bytes)
     is_external = last_sig is not None and last_sig != file_sig and not was_in_app
@@ -331,67 +372,102 @@ def _reparse_changed_userip_db(
         raw_text = raw_bytes.decode('utf-8')
     except UnicodeDecodeError as e:
         logger.warning('Failed to decode UserIP database "%s": %s; skipping file.', userip_path.name, e)
-        return None, None
+        return None, None, None
     return parse_userip_json_file(userip_path, raw_text=raw_text, record_in_app_rewrite=not is_external)
 
 
-def update_userip_databases() -> tuple[float, bool]:
+def _update_userip_databases_locked() -> tuple[float, bool]:
+    """Run database change detection and rebuild while `_update_userip_databases_lock` is held."""
+    warm_userip_log_history_cache_async()
+    _ensure_default_userip_files()
+
+    current_userip_db_mod_times = _snapshot_db_mod_times()
+    current_groups_token = get_groups_state_token()
+    rebuild_pending = _in_app_rebuild_pending[0]
+    if (
+        not rebuild_pending
+        and current_userip_db_mod_times == _last_userip_db_mod_times
+        and _last_userip_groups_token == [current_groups_token]
+    ):
+        return time.monotonic(), False
+
+    if _last_userip_db_mod_times and not rebuild_pending:
+        logger.debug('Detected changes in UserIP databases, re-parsing...')
+
+    prev_by_db = {path: list(entries) for path, (_, entries) in _parsed_userip_databases.items()}
+    for pending_path, pending_entries in _pending_in_app_prev_entries.items():
+        if pending_entries is None:
+            prev_by_db.pop(pending_path, None)
+        else:
+            prev_by_db[pending_path] = pending_entries
+    _pending_in_app_prev_entries.clear()
+    _in_app_rebuild_pending[0] = False
+
+    for removed_path in set(_parsed_userip_databases) - set(current_userip_db_mod_times):
+        _parsed_userip_databases.pop(removed_path, None)
+        _parsed_userip_settings_models.pop(removed_path, None)
+        _last_in_app_db_digests.pop(_normalize_db_key(removed_path), None)
+
+    new_databases: list[tuple[Path, UserIPSettings, list[UserIPEntryModel]]] = []
+    parsed_mod_times: dict[Path, FileSignature] = {}
+    for userip_path, file_sig in current_userip_db_mod_times.items():
+        cached = _parsed_userip_databases.get(userip_path)
+        last_sig = _last_userip_db_mod_times.get(userip_path)
+        if cached is None or last_sig != file_sig:
+            settings_model, parsed_settings, parsed_entries = _reparse_changed_userip_db(userip_path, last_sig, file_sig)
+            if settings_model is None or parsed_settings is None or parsed_entries is None:
+                _parsed_userip_databases.pop(userip_path, None)
+                _parsed_userip_settings_models.pop(userip_path, None)
+                prev_by_db.pop(userip_path, None)
+                post_parse_sig = get_file_signature(userip_path)
+                if post_parse_sig is not None:
+                    parsed_mod_times[userip_path] = post_parse_sig
+                continue
+            cached = (parsed_settings, parsed_entries)
+            _parsed_userip_databases[userip_path] = cached
+            _parsed_userip_settings_models[userip_path] = settings_model
+            # Re-snapshot mod time *after* parsing this file because parse_userip_json_file()
+            # may rewrite the file during auto-repair, advancing its mtime beyond file_sig.
+            parsed_mod_times[userip_path] = get_file_signature(userip_path) or file_sig
+        else:
+            parsed_mod_times[userip_path] = file_sig
+
+        new_databases.append((userip_path, *cached))
+
+    if _sync_groups_with_db_changes(prev_by_db, new_databases):
+        current_groups_token = get_groups_state_token()
+
+    UserIPDatabases.populate(new_databases)
+    UserIPDatabases.build()
+
+    _last_userip_db_mod_times.clear()
+    _last_userip_db_mod_times.update(parsed_mod_times)
+    _last_userip_groups_token[:] = [current_groups_token]
+
+    return time.monotonic(), True
+
+
+@contextmanager
+def _try_userip_databases_lock(*, blocking: bool) -> Generator[bool]:
+    """Acquire `_update_userip_databases_lock` with `blocking`, yielding whether it was acquired."""
+    acquired = _update_userip_databases_lock.acquire(blocking=blocking)
+    try:
+        yield acquired
+    finally:
+        if acquired:
+            _update_userip_databases_lock.release()
+
+
+def update_userip_databases(*, blocking: bool = True) -> tuple[float, bool]:
     """Check for changes in UserIP database files, re-parsing and rebuilding when modified.
 
     Returns:
-        A tuple of (current monotonic timestamp, whether databases were rebuilt).
+        A tuple of (current monotonic timestamp or `0.0` when skipped non-blocking, whether databases were rebuilt).
     """
-    with _update_userip_databases_lock:
-        _ensure_default_userip_files()
-
-        current_userip_db_mod_times = _snapshot_db_mod_times()
-        current_groups_token = get_groups_state_token()
-        if current_userip_db_mod_times == _last_userip_db_mod_times and _last_userip_groups_token == [current_groups_token]:
-            return time.monotonic(), False
-
-        if _last_userip_db_mod_times:
-            logger.debug('Detected changes in UserIP databases, re-parsing...')
-
-        prev_by_db = {path: list(entries) for path, (_, entries) in _parsed_userip_databases.items()}
-        for removed_path in set(_parsed_userip_databases) - set(current_userip_db_mod_times):
-            _parsed_userip_databases.pop(removed_path, None)
-            _last_in_app_db_digests.pop(_normalize_db_key(removed_path), None)
-
-        new_databases: list[tuple[Path, UserIPSettings, list[UserIPEntryModel]]] = []
-        parsed_mod_times: dict[Path, FileSignature] = {}
-        for userip_path, file_sig in current_userip_db_mod_times.items():
-            cached = _parsed_userip_databases.get(userip_path)
-            last_sig = _last_userip_db_mod_times.get(userip_path)
-            if cached is None or last_sig != file_sig:
-                parsed_settings, parsed_entries = _reparse_changed_userip_db(userip_path, last_sig, file_sig)
-                if parsed_settings is None or parsed_entries is None:
-                    _parsed_userip_databases.pop(userip_path, None)
-                    prev_by_db.pop(userip_path, None)
-                    post_parse_sig = get_file_signature(userip_path)
-                    if post_parse_sig is not None:
-                        parsed_mod_times[userip_path] = post_parse_sig
-                    continue
-                cached = (parsed_settings, parsed_entries)
-                _parsed_userip_databases[userip_path] = cached
-                # Re-snapshot mod time *after* parsing this file because parse_userip_json_file()
-                # may rewrite the file during auto-repair, advancing its mtime beyond file_sig.
-                parsed_mod_times[userip_path] = get_file_signature(userip_path) or file_sig
-            else:
-                parsed_mod_times[userip_path] = file_sig
-
-            new_databases.append((userip_path, *cached))
-
-        if _sync_groups_with_db_changes(prev_by_db, new_databases):
-            current_groups_token = get_groups_state_token()
-
-        UserIPDatabases.populate(new_databases)
-        UserIPDatabases.build()
-
-        _last_userip_db_mod_times.clear()
-        _last_userip_db_mod_times.update(parsed_mod_times)
-        _last_userip_groups_token[:] = [current_groups_token]
-
-        return time.monotonic(), True
+    with _try_userip_databases_lock(blocking=blocking) as acquired:
+        if not acquired:
+            return 0.0, False
+        return _update_userip_databases_locked()
 
 
 def get_cached_userip_usernames() -> list[str]:
@@ -411,17 +487,26 @@ def get_cached_userip_databases() -> list[tuple[Path, list[UserIPEntryModel]]]:
         return [(path, list(entries)) for path, (_, entries) in sorted(_parsed_userip_databases.items())]
 
 
-def get_cached_userip_database_entries(db_path: Path) -> list[UserIPEntryModel] | None:
-    """Return a shallow copy of cached enriched entries for *db_path* when its on-disk signature is unchanged."""
+def get_cached_userip_database_model(db_path: Path) -> UserIPDatabaseFile | None:
+    """Return a cached `UserIPDatabaseFile` copy for *db_path* when its on-disk signature is unchanged."""
+    key = _normalize_db_key(db_path)
     with _update_userip_databases_lock:
-        cached = _parsed_userip_databases.get(db_path)
-        if cached is not None and (sig := get_file_signature(db_path)) is not None and _last_userip_db_mod_times.get(db_path) == sig:
-            return list(cached[1])
+        cached = _parsed_userip_databases.get(key)
+        settings_model = _parsed_userip_settings_models.get(key)
+        if (
+            cached is not None
+            and settings_model is not None
+            and (sig := get_file_signature(key)) is not None
+            and _last_userip_db_mod_times.get(key) == sig
+        ):
+            return UserIPDatabaseFile(settings=settings_model.model_copy(), entries=list(cached[1]))
     return None
 
 
 def _load_raw_userip_db(db_path: Path, *, action_label: str) -> tuple[UserIPSettingsModel, list[UserIPEntryModel]] | None:
-    """Read and validate the settings and existing entries list from a UserIP database file."""
+    """Read and validate the settings and existing entries list from a UserIP database file, preferring in-memory cache."""
+    if (cached_model := get_cached_userip_database_model(db_path)) is not None:
+        return cached_model.settings, cached_model.entries
     try:
         raw_data: object = json.loads(db_path.read_text(encoding='utf-8'))
     except (OSError, json.JSONDecodeError) as e:
@@ -442,38 +527,43 @@ def _load_raw_userip_db(db_path: Path, *, action_label: str) -> tuple[UserIPSett
     return validated_settings, entries
 
 
-def _write_userip_db(db_path: Path, settings: UserIPSettingsModel, entries: list[UserIPEntryModel], *, action_label: str) -> bool:
+def _write_userip_db(
+    db_path: Path,
+    settings: UserIPSettingsModel,
+    entries: list[UserIPEntryModel],
+    *,
+    action_label: str,
+    sync_groups: bool = True,
+) -> bool:
     """Serialize and write a UserIP database file, updating in-memory caches in-place when available."""
     serialized = UserIPDatabaseFile(settings=settings, entries=entries).serialize_to_json()
+    key = _normalize_db_key(db_path)
     try:
         with _update_userip_databases_lock:
             atomic_write_text(db_path, serialized)
-            _record_in_app_db_write(db_path, serialized)
-            new_sig = get_file_signature(db_path)
+            _record_in_app_db_write(key, serialized)
+            new_sig = get_file_signature(key) if key.is_file() else get_file_signature(db_path)
             if (
                 _parsed_userip_databases
                 and new_sig is not None
-                and db_path in _last_userip_db_mod_times
+                and key in _last_userip_db_mod_times
                 and _last_userip_db_mod_times.keys() == _parsed_userip_databases.keys()
+                and not _in_app_rebuild_pending[0]
             ):
-                prev_by_db = {path: list(db_entries) for path, (_, db_entries) in _parsed_userip_databases.items()}
-                runtime_settings = UserIPSettings(
-                    enabled=settings.ENABLED,
-                    color=QColor(settings.COLOR) if settings.COLOR else QColor('WHITE'),
-                    log=settings.LOG,
-                    notifications=settings.NOTIFICATIONS,
-                    voice_notifications=settings.VOICE_NOTIFICATIONS,
-                    protection=ProtectionSettings(enabled=settings.PROTECTION, suspend_process_mode=settings.PROTECTION_SUSPEND_PROCESS_MODE),
-                )
-                _parsed_userip_databases[db_path] = (runtime_settings, list(entries))
-                _last_userip_db_mod_times[db_path] = new_sig
+                prev_by_db = {path: list(db_entries) for path, (_, db_entries) in _parsed_userip_databases.items()} if sync_groups else {}
+                _parsed_userip_databases[key] = (_to_runtime_settings(settings), list(entries))
+                _parsed_userip_settings_models[key] = settings.model_copy()
+                _last_userip_db_mod_times[key] = new_sig
                 new_databases = [(path, db_settings, db_entries) for path, (db_settings, db_entries) in _parsed_userip_databases.items()]
-                if _sync_groups_with_db_changes(prev_by_db, new_databases):
+                if sync_groups and _sync_groups_with_db_changes(prev_by_db, new_databases):
                     _last_userip_groups_token[:] = [get_groups_state_token()]
                 UserIPDatabases.populate(new_databases)
                 UserIPDatabases.build()
             else:
+                _last_userip_db_mod_times.pop(key, None)
                 _last_userip_db_mod_times.pop(db_path, None)
+                _parsed_userip_databases.pop(key, None)
+                _parsed_userip_settings_models.pop(key, None)
     except OSError as e:
         logger.warning('Failed to write UserIP database "%s" for %s: %s', db_path, action_label, e)
         return False
@@ -530,6 +620,7 @@ def _update_matching_userip_entries(
         return None
 
     modified = False
+    key = _normalize_db_key(db_path)
     with _update_userip_databases_lock:
         loaded = _load_raw_userip_db(db_path, action_label='player activity')
         if loaded is None:
@@ -541,10 +632,10 @@ def _update_matching_userip_entries(
                 if updated_entry != entry:
                     entries[idx] = updated_entry
                     modified = True
-        if modified and not _write_userip_db(db_path, validated_settings, entries, action_label='player activity'):
+        if modified and not _write_userip_db(db_path, validated_settings, entries, action_label='player activity', sync_groups=False):
             return None
 
-    if modified and db_path not in _last_userip_db_mod_times:
+    if modified and key not in _last_userip_db_mod_times:
         update_userip_databases()
     return UserIPDatabases.resolve_userip(cleaned_ip)
 

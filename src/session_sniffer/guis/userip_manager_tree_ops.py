@@ -573,11 +573,11 @@ class TreeOperationsMixin(QDialog):
                     db_model.settings = self.read_settings_from_widgets()
                 else:
                     db_model.settings.ENABLED = enabled
-                save_userip_database_model(path, db_model)
+                serialized = save_userip_database_model(path, db_model)
                 refresh_userip_and_wake_renderer()
             self._last_seen_build_version = UserIPDatabases.build_version
             if is_current:
-                self._disk_snapshot = path.read_text('utf-8')
+                self._disk_snapshot = serialized
                 self._capture_settings_snapshot()
             self._rebuild_fs_watch()
         self._refresh_tree_item_visual(path, resort=not is_current)

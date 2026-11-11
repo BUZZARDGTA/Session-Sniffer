@@ -2,6 +2,8 @@
 
 import logging
 import threading
+import time
+from collections import deque
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
@@ -48,15 +50,20 @@ class UserIPGroupsData(BaseModel):
     model_config = ConfigDict(extra='ignore')
 
 
+_STAT_CHECK_INTERVAL_SECONDS = 0.5
+
+
 @dataclass(slots=True)
 class _GroupsCache:
     """In-memory cache for persistent UserIP grouping state."""
 
     loaded: bool = False
     version: int = 0
+    last_stat_check: float = 0.0
     file_sig: FileSignature | None = None
     linked_pairs: set[tuple[str, str]] = field(default_factory=_empty_pair_set)
     unlinked_pairs: set[tuple[str, str]] = field(default_factory=_empty_pair_set)
+    expanded_unlinked: set[tuple[str, str]] | None = None
     canonical_names: dict[str, str] = field(default_factory=_empty_str_dict)
     excluded_looky_by_ip: dict[str, list[str]] = field(default_factory=_empty_excluded_dict)
 
@@ -74,9 +81,13 @@ def _normalize_pair(u1: str, u2: str) -> tuple[str, str] | None:
     return (cf1, cf2) if cf1 < cf2 else (cf2, cf1)
 
 
-def _ensure_loaded_locked() -> None:
+def _ensure_loaded_locked(*, force_stat: bool = False) -> None:
     """Load `userip_groups.json` into memory if not yet loaded or if modified on disk (caller must hold `_groups_lock`)."""
+    now = time.monotonic()
+    if _cache.loaded and not force_stat and (now - _cache.last_stat_check) < _STAT_CHECK_INTERVAL_SECONDS:
+        return
     current_sig = get_file_signature(USERIP_GROUPS_PATH)
+    _cache.last_stat_check = now
     if _cache.loaded and current_sig == _cache.file_sig:
         return
     if _cache.loaded:
@@ -85,6 +96,7 @@ def _ensure_loaded_locked() -> None:
     _cache.file_sig = current_sig
     _cache.linked_pairs.clear()
     _cache.unlinked_pairs.clear()
+    _cache.expanded_unlinked = None
     _cache.canonical_names.clear()
     _cache.excluded_looky_by_ip.clear()
 
@@ -129,6 +141,7 @@ def _ensure_loaded_locked() -> None:
 def _save_locked() -> None:
     """Persist in-memory grouping state to `userip_groups.json` (caller must hold `_groups_lock`)."""
     _cache.version += 1
+    _cache.expanded_unlinked = None
     data = UserIPGroupsData(
         linked_pairs=sorted(_cache.linked_pairs),
         unlinked_pairs=sorted(_cache.unlinked_pairs),
@@ -138,6 +151,7 @@ def _save_locked() -> None:
     try:
         atomic_write_text(USERIP_GROUPS_PATH, data.model_dump_json(indent=2))
         _cache.file_sig = get_file_signature(USERIP_GROUPS_PATH)
+        _cache.last_stat_check = time.monotonic()
     except OSError:
         logger.exception('Failed to save UserIP groups to %s', USERIP_GROUPS_PATH)
 
@@ -145,7 +159,7 @@ def _save_locked() -> None:
 def get_groups_state_token() -> tuple[int, FileSignature | None]:
     """Return a version and file-signature token representing the current `userip_groups.json` state."""
     with _groups_lock:
-        _ensure_loaded_locked()
+        _ensure_loaded_locked(force_stat=True)
         return _cache.version, _cache.file_sig
 
 
@@ -169,10 +183,10 @@ def _expand_unlinked_across_linked(
         if root in comp_by_cf:
             continue
         comp: list[str] = []
-        queue = [root]
+        queue = deque([root])
         comp_by_cf[root] = comp
         while queue:
-            curr = queue.pop(0)
+            curr = queue.popleft()
             comp.append(curr)
             for nb in link_adj.get(curr, ()):
                 if nb not in comp_by_cf and all(((nb, m) if nb < m else (m, nb)) not in unlinked_pairs for m in comp):
@@ -191,13 +205,20 @@ def _expand_unlinked_across_linked(
     return expanded_unlinked
 
 
+def _get_expanded_unlinked_locked() -> set[tuple[str, str]]:
+    """Return the cached transitive unlinked pairs set (caller must hold `_groups_lock`)."""
+    if _cache.expanded_unlinked is None:
+        _cache.expanded_unlinked = _expand_unlinked_across_linked(_cache.linked_pairs, _cache.unlinked_pairs)
+    return _cache.expanded_unlinked
+
+
 def get_grouping_snapshot() -> tuple[set[tuple[str, str]], set[tuple[str, str]], dict[str, str]]:
     """Return a copy of `(linked_pairs, unlinked_pairs, canonical_names)`."""
     with _groups_lock:
         _ensure_loaded_locked()
         return (
             set(_cache.linked_pairs),
-            _expand_unlinked_across_linked(_cache.linked_pairs, _cache.unlinked_pairs),
+            set(_get_expanded_unlinked_locked()),
             dict(_cache.canonical_names),
         )
 
@@ -209,7 +230,7 @@ def are_usernames_unlinked(u1: str, u2: str) -> bool:
         return False
     with _groups_lock:
         _ensure_loaded_locked()
-        return pair in _expand_unlinked_across_linked(_cache.linked_pairs, _cache.unlinked_pairs)
+        return pair in _get_expanded_unlinked_locked()
 
 
 def group_usernames(
@@ -234,7 +255,7 @@ def group_usernames(
         return False
 
     with _groups_lock:
-        _ensure_loaded_locked()
+        _ensure_loaded_locked(force_stat=True)
         changed = False
 
         for clean in cleaned:
@@ -312,7 +333,7 @@ def ungroup_usernames(
     unlink_all_among_detached = not remaining_cfs
 
     with _groups_lock:
-        _ensure_loaded_locked()
+        _ensure_loaded_locked(force_stat=True)
         changed = False
 
         for d_cf in detach_cfs:
@@ -339,7 +360,7 @@ def rename_username_in_groups(old_username: str, new_username: str) -> bool:
     if not old_cf or not new_cf:
         return False
     with _groups_lock:
-        _ensure_loaded_locked()
+        _ensure_loaded_locked(force_stat=True)
         if old_cf == new_cf:
             if old_cf in _cache.canonical_names and _cache.canonical_names[old_cf] != new_clean:
                 _cache.canonical_names[old_cf] = new_clean
@@ -385,7 +406,7 @@ def remove_usernames_from_groups(usernames_cf: AbstractSet[str]) -> bool:
     if not usernames_cf:
         return False
     with _groups_lock:
-        _ensure_loaded_locked()
+        _ensure_loaded_locked(force_stat=True)
         changed = False
         for cf in usernames_cf:
             if cf in _cache.canonical_names:
@@ -441,8 +462,8 @@ def record_looky_db_correlation(
         return False
 
     with _groups_lock:
-        _ensure_loaded_locked()
-        expanded_unlinked = _expand_unlinked_across_linked(_cache.linked_pairs, _cache.unlinked_pairs)
+        _ensure_loaded_locked(force_stat=True)
+        expanded_unlinked = _get_expanded_unlinked_locked()
         changed = False
 
         for matched_cfs in eligible_groups:
@@ -507,7 +528,7 @@ def exclude_looky_usernames(
     peer_cfs = {p.strip().casefold() for p in peer_usernames if p.strip()}
 
     with _groups_lock:
-        _ensure_loaded_locked()
+        _ensure_loaded_locked(force_stat=True)
         current = list(_cache.excluded_looky_by_ip.get(clean_ip, ()))
         seen_cf = {n.casefold() for n in current}
         changed = False
@@ -549,7 +570,7 @@ def restore_looky_usernames(ip: str, usernames: Sequence[str]) -> bool:
         return False
 
     with _groups_lock:
-        _ensure_loaded_locked()
+        _ensure_loaded_locked(force_stat=True)
         current = _cache.excluded_looky_by_ip.get(clean_ip)
         if current is None or not current:
             return False
@@ -622,10 +643,10 @@ def compute_row_group_ids_and_prefixes(
         if root in visited:
             continue
         comp: list[str] = []
-        queue = [root]
+        queue = deque([root])
         visited.add(root)
         while queue:
-            curr_db, curr_cf = queue.pop(0)
+            curr_db, curr_cf = queue.popleft()
             comp.append(curr_cf)
             for nb_db, nb_cf in adj.get((curr_db, curr_cf), ()):
                 if (nb_db, nb_cf) not in visited and all(((nb_cf, m) if nb_cf < m else (m, nb_cf)) not in unlinked_pairs for m in comp):
@@ -707,10 +728,10 @@ def build_known_alts_clusters(
             continue
         component: list[str] = []
         comp_db: Path | None = single_db_by_cf.get(root)
-        queue = [root]
+        queue = deque([root])
         visited.add(root)
         while queue:
-            curr = queue.pop(0)
+            curr = queue.popleft()
             component.append(curr)
             for neighbor in adj.get(curr, ()):
                 nb_db = single_db_by_cf.get(neighbor)

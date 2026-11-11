@@ -761,12 +761,13 @@ class UserIPEntriesOperationsMixin(QDialog):
 
                     if not username:
                         errors.append(f'Row {row + 1}: Username is empty.')
+                    valid_ip = bool(ip) and is_valid_ip_range_entry(ip)
                     if not ip:
                         errors.append(f'Row {row + 1}: IP or Range is empty.')
-                    elif not is_valid_ip_range_entry(ip):
+                    elif not valid_ip:
                         errors.append(f'Row {row + 1}: "{ip}" is not a valid IP address or range.')
 
-                    if entry_model is not None and is_valid_ip_range_entry(ip):
+                    if entry_model is not None and valid_ip:
                         entries.append(entry_model)
                         persisted_rows.append(row)
 
@@ -779,7 +780,6 @@ class UserIPEntriesOperationsMixin(QDialog):
                 total_before_dedup = len(entries)
                 entries = dedup_userip_entries(entries)
                 duplicate_count = total_before_dedup - len(entries)
-
                 if duplicate_count > 0 and show_errors:
                     QMessageBox.information(self, TITLE, f'{duplicate_count} exact duplicate entr{pluralize(duplicate_count, "y was", "ies were")} removed before saving.')
 
@@ -787,18 +787,15 @@ class UserIPEntriesOperationsMixin(QDialog):
                     for row in persisted_rows:
                         mark_row_persisted(self._model, row)
 
-                # --- Build settings from widgets ---
+                # --- Build settings from widgets and write new JSON file content ---
                 settings_model = self.read_settings_from_widgets()
-
-                # --- Write new JSON file content ---
                 db_model = UserIPDatabaseFile(settings=settings_model, entries=entries)
                 with userip_databases_lock():
-                    save_userip_database_model(self._current_path, db_model)
+                    serialized = save_userip_database_model(self._current_path, db_model)
                     refresh_userip_and_wake_renderer()
                 self._last_seen_build_version = UserIPDatabases.build_version
                 self._proxy.refresh_groups()
-                self._disk_snapshot = self._current_path.read_text('utf-8')
-
+                self._disk_snapshot = serialized
                 self._settings_snapshot = settings_model.model_copy()
                 self._clear_dirty_state()
                 self._update_file_info(self._current_path)

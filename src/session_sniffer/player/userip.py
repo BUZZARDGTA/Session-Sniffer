@@ -2,7 +2,7 @@
 
 import dataclasses
 import logging
-from ipaddress import IPv4Address
+from bisect import bisect_left, bisect_right
 from pathlib import Path
 from threading import Lock
 from typing import TYPE_CHECKING, ClassVar, Literal, NamedTuple
@@ -17,7 +17,7 @@ from session_sniffer.gta5.suspend_manager import GTASuspendManager
 from session_sniffer.guis.dialogs import create_nonmodal_warning
 from session_sniffer.guis.utils import find_main_window
 from session_sniffer.models.userip_settings_model import EntrySource, UserIPEntryModel, pick_earliest_iso, pick_latest_iso
-from session_sniffer.networking.ip_range import IPRange, parse_ip_range
+from session_sniffer.networking.ip_range import IPRange, ipv4_to_int, parse_ip_range
 from session_sniffer.player.registry import PlayersRegistry, SessionTracker
 from session_sniffer.player.userip_groups import are_usernames_unlinked, build_known_alts_clusters
 from session_sniffer.rendering_core.types import CaptureState
@@ -162,6 +162,11 @@ class _BuildState:
     single_userips_by_db: dict[tuple[Path, str], UserIP]
     conflicting_ips: set[str]
     conflicts: list[UserIPConflict]
+    conflict_index_by_key: dict[tuple[str, Path], int] = dataclasses.field(default_factory=dict[tuple[str, Path], int])
+    range_index_by_key: dict[tuple[Path, str], int] = dataclasses.field(default_factory=dict[tuple[Path, str], int])
+
+
+_NEGATIVE_IPS_CACHE_MAX = 65536
 
 
 class UserIPDatabases:
@@ -180,6 +185,7 @@ class UserIPDatabases:
     _conflicting_ips: ClassVar[set[str]] = set()
     _conflicting_ranges: ClassVar[list[IPRange]] = []
     _last_notified_conflicts: ClassVar[list[UserIPConflict]] = []
+    _negative_known_ips: ClassVar[set[str]] = set()
     _open_conflict_dialog: ClassVar[QMessageBox | None] = None
     build_version: ClassVar[int] = 0
 
@@ -262,10 +268,9 @@ class UserIPDatabases:
             single_entries: list[UserIPEntryModel] = []
             range_entries: list[UserIPEntryModel] = []
             for entry in entries:
-                try:
-                    IPv4Address(entry.ip)
+                if ipv4_to_int(entry.ip) is not None:
                     single_entries.append(entry)
-                except ValueError:
+                else:
                     range_entries.append(entry)
             classified.append(_UserIPDatabaseEntry(db_path=db_path, settings=settings, single_entries=single_entries, range_entries=range_entries))
         with cls._update_userip_database_lock:
@@ -302,13 +307,8 @@ class UserIPDatabases:
         build_state.single_userips_by_db[db_key] = merged_db_userip
 
         if entry in build_state.ip_to_userip and build_state.ip_to_userip[entry].db_path != db_entry.db_path:
-            existing_index = next(
-                (
-                    i for i, conflict in enumerate(build_state.conflicts)
-                    if conflict.existing_userip.ip == entry and conflict.conflicting_ip == entry and conflict.conflicting_database_path == db_entry.db_path
-                ),
-                None,
-            )
+            conflict_lookup_key = (entry, db_entry.db_path)
+            existing_index = build_state.conflict_index_by_key.get(conflict_lookup_key)
             if existing_index is not None:
                 existing_conflict = build_state.conflicts[existing_index]
                 if username not in split_usernames(existing_conflict.conflicting_username):
@@ -316,6 +316,7 @@ class UserIPDatabases:
                         conflicting_username=f'{existing_conflict.conflicting_username}, {username}',
                     )
             else:
+                build_state.conflict_index_by_key[conflict_lookup_key] = len(build_state.conflicts)
                 build_state.conflicts.append(
                     UserIPConflict(
                         existing_userip=build_state.ip_to_userip[entry], conflicting_database_path=db_entry.db_path,
@@ -339,10 +340,7 @@ class UserIPDatabases:
 
     @classmethod
     def _detect_range_conflicts(
-        cls,
-        current_databases: Sequence[_UserIPDatabaseEntry],
-        build_state: _BuildState,
-        range_entries: Sequence[_RangeEntry],
+        cls, current_databases: Sequence[_UserIPDatabaseEntry], build_state: _BuildState, range_entries: Sequence[_RangeEntry],
     ) -> set[tuple[Path, str]]:
         """Detect cross-database single-IP-vs-range and range-vs-range conflicts.
 
@@ -354,56 +352,63 @@ class UserIPDatabases:
             return conflicting_range_keys
 
         db_order = {db_entry.db_path: idx for idx, db_entry in enumerate(current_databases)}
-
-        for single_userip in build_state.single_userips_by_db.values():
-            ip = single_userip.ip
-            try:
-                address = IPv4Address(ip)
-            except ValueError:
-                continue
+        sorted_singles = sorted(
+            ((addr_int, single_userip) for single_userip in build_state.single_userips_by_db.values() if (addr_int := ipv4_to_int(single_userip.ip)) is not None),
+            key=lambda item: (item[0], db_order.get(item[1].db_path, 0)),
+        )
+        if sorted_singles:
+            sorted_single_ints = [item[0] for item in sorted_singles]
             for range_entry in range_entries:
-                if single_userip.db_path == range_entry.db_path or address not in range_entry.ip_range:
+                ip_range = range_entry.ip_range
+                if ip_range.end_int < ip_range.start_int:
                     continue
-                if db_order.get(single_userip.db_path, 0) < db_order.get(range_entry.db_path, 0):
-                    build_state.conflicts.append(
-                        UserIPConflict(
-                            existing_userip=single_userip,
-                            conflicting_database_path=range_entry.db_path,
-                            conflicting_username=', '.join(range_entry.usernames),
-                            conflicting_ip=range_entry.ip_range.raw,
-                        ),
-                    )
-                else:
-                    build_state.conflicts.append(
-                        UserIPConflict(
-                            existing_userip=cls._range_entry_to_userip(range_entry),
-                            conflicting_database_path=single_userip.db_path,
-                            conflicting_username=', '.join(single_userip.usernames),
-                            conflicting_ip=ip,
-                        ),
-                    )
-                build_state.conflicting_ips.add(ip)
-                conflicting_range_keys.add((range_entry.db_path, range_entry.ip_range.raw))
+                lo = bisect_left(sorted_single_ints, ip_range.start_int)
+                hi = bisect_right(sorted_single_ints, ip_range.end_int)
+                for _, single_userip in sorted_singles[lo:hi]:
+                    if single_userip.db_path == range_entry.db_path:
+                        continue
+                    ip = single_userip.ip
+                    if db_order.get(single_userip.db_path, 0) < db_order.get(range_entry.db_path, 0):
+                        conflict = UserIPConflict(
+                            existing_userip=single_userip, conflicting_database_path=range_entry.db_path,
+                            conflicting_username=', '.join(range_entry.usernames), conflicting_ip=ip_range.raw,
+                        )
+                    else:
+                        conflict = UserIPConflict(
+                            existing_userip=cls._range_entry_to_userip(range_entry), conflicting_database_path=single_userip.db_path,
+                            conflicting_username=', '.join(single_userip.usernames), conflicting_ip=ip,
+                        )
+                    build_state.conflicts.append(conflict)
+                    build_state.conflicting_ips.add(ip)
+                    conflicting_range_keys.add((range_entry.db_path, ip_range.raw))
 
-        for index, range_a in enumerate(range_entries):
-            for range_b in range_entries[index + 1 :]:
-                if range_a.db_path == range_b.db_path or not range_a.ip_range.overlaps(range_b.ip_range):
+        sorted_ranges = sorted(
+            ((entry.ip_range.start_int, idx, entry) for idx, entry in enumerate(range_entries) if entry.ip_range.start_int <= entry.ip_range.end_int),
+            key=lambda item: (item[0], item[1]),
+        )
+        for pos, (_, idx_a, range_a) in enumerate(sorted_ranges):
+            end_a = range_a.ip_range.end_int
+            for start_b, idx_b, range_b in sorted_ranges[pos + 1 :]:
+                if start_b > end_a:
+                    break
+                if range_a.db_path == range_b.db_path:
                     continue
+                first, second = (range_a, range_b) if idx_a < idx_b else (range_b, range_a)
                 build_state.conflicts.append(
                     UserIPConflict(
-                        existing_userip=cls._range_entry_to_userip(range_a),
-                        conflicting_database_path=range_b.db_path,
-                        conflicting_username=', '.join(range_b.usernames),
-                        conflicting_ip=range_b.ip_range.raw,
+                        existing_userip=cls._range_entry_to_userip(first), conflicting_database_path=second.db_path,
+                        conflicting_username=', '.join(second.usernames), conflicting_ip=second.ip_range.raw,
                     ),
                 )
-                conflicting_range_keys.add((range_a.db_path, range_a.ip_range.raw))
-                conflicting_range_keys.add((range_b.db_path, range_b.ip_range.raw))
+                conflicting_range_keys.add((first.db_path, first.ip_range.raw))
+                conflicting_range_keys.add((second.db_path, second.ip_range.raw))
 
         return conflicting_range_keys
 
     @staticmethod
-    def _process_range_entry(entry_model: UserIPEntryModel, db_path: Path, settings: UserIPSettings, range_entries: list[_RangeEntry]) -> None:
+    def _process_range_entry(
+        entry_model: UserIPEntryModel, db_path: Path, settings: UserIPSettings, range_entries: list[_RangeEntry], range_index_by_key: dict[tuple[Path, str], int],
+    ) -> None:
         """Process a range entry (CIDR, start-end, wildcard) during build."""
         entry = entry_model.ip
         username = entry_model.username
@@ -415,10 +420,8 @@ class UserIPDatabases:
             logger.warning('Skipping unparseable UserIP range entry: %r', entry)
             return
 
-        existing_index = next(
-            (i for i, re in enumerate(range_entries) if re.ip_range.raw == entry and re.db_path == db_path),
-            None,
-        )
+        range_key = (db_path, ip_range.raw)
+        existing_index = range_index_by_key.get(range_key)
         if existing_index is not None:
             existing = range_entries[existing_index]
             if username not in existing.usernames:
@@ -435,6 +438,7 @@ class UserIPDatabases:
                 last_seen_at=pick_latest_iso(existing.last_seen_at, entry_model.last_seen_at),
             )
         else:
+            range_index_by_key[range_key] = len(range_entries)
             range_entries.append(
                 _RangeEntry(
                     ip_range=ip_range, db_path=db_path, settings=settings, usernames=[username], notes=[note] if note else [],
@@ -454,14 +458,11 @@ class UserIPDatabases:
         single_userip = ip_to_userip.get(ip)
         matching_ranges: list[_RangeEntry] = []
         if range_entries or conflicting_ranges:
-            try:
-                address = IPv4Address(ip)
-            except ValueError:
-                address = None
-            if address is not None:
-                if any(address in ip_range for ip_range in conflicting_ranges):
+            addr_int = ipv4_to_int(ip)
+            if addr_int is not None:
+                if any(ip_range.start_int <= addr_int <= ip_range.end_int for ip_range in conflicting_ranges):
                     return None
-                matching_ranges = [entry for entry in range_entries if address in entry.ip_range]
+                matching_ranges = [entry for entry in range_entries if entry.ip_range.start_int <= addr_int <= entry.ip_range.end_int]
 
         matched_entries: list[UserIP | _RangeEntry] = [*([single_userip] if single_userip is not None else ()), *matching_ranges]
         if not matched_entries:
@@ -568,7 +569,7 @@ class UserIPDatabases:
             for single_entry in db_entry.single_entries:
                 cls._process_single_ip(single_entry, db_entry, build_state)
             for range_entry in db_entry.range_entries:
-                cls._process_range_entry(range_entry, db_entry.db_path, db_entry.settings, range_entries)
+                cls._process_range_entry(range_entry, db_entry.db_path, db_entry.settings, range_entries, build_state.range_index_by_key)
 
         conflicting_range_keys = cls._detect_range_conflicts(current_databases, build_state, range_entries)
         unresolved_conflicts = {_conflict_key(conflict) for conflict in conflicts}
@@ -598,7 +599,7 @@ class UserIPDatabases:
                 if stripped:
                     cf = stripped.casefold()
                     username_databases.setdefault(cf, set()).add(db_entry.db_path)
-                    if (db_entry.db_path, range_entry.ip) in conflicting_range_keys:
+                    if (db_entry.db_path, range_entry.ip.strip()) in conflicting_range_keys:
                         conflicting_ip_usernames.add(cf)
         ambiguous_usernames: set[str] = {cf for cf, paths in username_databases.items() if len(paths) > 1} | conflicting_ip_usernames
         single_db_by_cf = {cf: next(iter(paths)) for cf, paths in username_databases.items() if cf not in ambiguous_usernames and len(paths) == 1}
@@ -612,12 +613,14 @@ class UserIPDatabases:
             for ip, userip_obj in list(ip_to_userip.items()):
                 expanded = cls._expand_usernames_with_cluster_dict(userip_obj.usernames, known_alts_clusters)
                 if expanded != userip_obj.usernames:
-                    ip_to_userip[ip] = userip_obj._replace(usernames=expanded, known_alts=tuple(n for n in expanded if n not in userip_obj.usernames))
+                    existing_names = set(userip_obj.usernames)
+                    ip_to_userip[ip] = userip_obj._replace(usernames=expanded, known_alts=tuple(n for n in expanded if n not in existing_names))
 
             for index, range_obj in enumerate(range_entries):
                 expanded = cls._expand_usernames_with_cluster_dict(range_obj.usernames, known_alts_clusters)
                 if expanded != range_obj.usernames:
-                    range_entries[index] = range_obj._replace(usernames=expanded, known_alts=tuple(n for n in expanded if n not in range_obj.usernames))
+                    existing_names = set(range_obj.usernames)
+                    range_entries[index] = range_obj._replace(usernames=expanded, known_alts=tuple(n for n in expanded if n not in existing_names))
 
         include_looky_for_snapshots = Settings.looky_enabled and Settings.is_gta5_feature_set() and CaptureState.is_local_capture()
 
@@ -689,6 +692,7 @@ class UserIPDatabases:
             cls._ip_to_userip = ip_to_userip
             cls._range_entries = range_entries
             cls._username_to_meta = username_to_meta
+            cls._negative_known_ips = set()
             cls.build_version += 1
 
         if unresolved_conflicts and (has_new_conflicts or (conflicts_changed and cls._open_conflict_dialog is not None)):
@@ -749,32 +753,22 @@ class UserIPDatabases:
         """Return whether `ip` matches any conflicting single-IP or range entry."""
         if ip in cls._conflicting_ips:
             return True
-        if not cls._conflicting_ranges:
+        if not cls._conflicting_ranges or (addr_int := ipv4_to_int(ip)) is None:
             return False
-        try:
-            address = IPv4Address(ip)
-        except ValueError:
-            return False
-        return any(address in ip_range for ip_range in cls._conflicting_ranges)
+        return any(ip_range.start_int <= addr_int <= ip_range.end_int for ip_range in cls._conflicting_ranges)
 
     @classmethod
     def is_conflicting_entry(cls, entry: str) -> bool:
         """Return whether a single-IP or range entry string is currently involved in a conflict."""
+        if ipv4_to_int(entry) is not None:
+            return cls.is_conflicting_ip(entry)
         try:
-            IPv4Address(entry)
+            ip_range = parse_ip_range(entry)
         except ValueError:
-            try:
-                ip_range = parse_ip_range(entry)
-            except ValueError:
-                return False
-            for conflict_ip in cls._conflicting_ips:
-                try:
-                    if IPv4Address(conflict_ip) in ip_range:
-                        return True
-                except ValueError:
-                    continue
-            return any(ip_range.overlaps(conflict_range) for conflict_range in cls._conflicting_ranges)
-        return cls.is_conflicting_ip(entry)
+            return False
+        if any((conflict_int := ipv4_to_int(c_ip)) is not None and ip_range.start_int <= conflict_int <= ip_range.end_int for c_ip in cls._conflicting_ips):
+            return True
+        return any(ip_range.overlaps(conflict_range) for conflict_range in cls._conflicting_ranges)
 
     @classmethod
     def renotify_if_conflicting(cls, entries: Sequence[str]) -> None:
@@ -790,17 +784,20 @@ class UserIPDatabases:
 
         Checks the O(1) `ips_set` first, then iterates over range entries.
         """
+        neg = cls._negative_known_ips
+        if ip in neg:
+            return False
         if cls.is_conflicting_ip(ip):
+            if len(neg) < _NEGATIVE_IPS_CACHE_MAX:
+                neg.add(ip)
             return False
         if ip in cls.ips_set:
             return True
-        if not cls._range_entries:
-            return False
-        try:
-            address = IPv4Address(ip)
-        except ValueError:
-            return False
-        return any(address in entry.ip_range for entry in cls._range_entries)
+        if cls._range_entries and (addr_int := ipv4_to_int(ip)) is not None and any(e.ip_range.start_int <= addr_int <= e.ip_range.end_int for e in cls._range_entries):
+            return True
+        if len(neg) < _NEGATIVE_IPS_CACHE_MAX:
+            neg.add(ip)
+        return False
 
     @classmethod
     def resolve_userip(cls, ip: str) -> UserIP | None:
@@ -921,11 +918,10 @@ class UserIPDatabases:
     @classmethod
     def get_matching_range_raws(cls, ip: str) -> list[str]:
         """Return the raw strings of every range entry that covers `ip` (empty when none match)."""
-        try:
-            address = IPv4Address(ip)
-        except ValueError:
+        addr_int = ipv4_to_int(ip)
+        if addr_int is None:
             return []
-        return dedup_preserve_order([entry.ip_range.raw for entry in cls._range_entries if address in entry.ip_range])
+        return dedup_preserve_order([entry.ip_range.raw for entry in cls._range_entries if entry.ip_range.start_int <= addr_int <= entry.ip_range.end_int])
 
     @classmethod
     def get_userip_database_filepaths(cls) -> list[Path]:

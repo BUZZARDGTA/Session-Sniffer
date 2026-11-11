@@ -242,7 +242,8 @@ def build_userip_menu(
         handler=lambda: userip_group_with(parent, [player]),
         icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'user-plus.svg')),
     )
-    grouped_names = collect_grouped_usernames_for_player(player)
+    persisted_usernames = collect_persisted_usernames_for_ip(player.userip.db_path, ip_address)
+    grouped_names = collect_grouped_usernames_for_player(player, persisted_usernames=persisted_usernames)
     if len(grouped_names) >= MIN_GROUP_USERNAMES:
         group_text = ', '.join(grouped_names)
         add_action(
@@ -304,7 +305,6 @@ def build_userip_menu(
             handler=lambda: userip_convert_to_ip(parent, ip_address, player),
             icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'refresh-cw.svg')),
         )
-    persisted_usernames = collect_persisted_usernames_for_ip(player.userip.db_path, ip_address)
     if persisted_usernames:
         add_action(
             userip_menu,
