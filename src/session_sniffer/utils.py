@@ -12,6 +12,7 @@ import shutil
 import signal
 import subprocess
 import sys
+import time
 from datetime import UTC, datetime, tzinfo
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal
@@ -241,12 +242,27 @@ def validate_file(file_path: Path) -> None:
         raise InvalidFileError(file_path)
 
 
+# On Windows, replacing a file fails with `PermissionError` (WinError 5) while any other handle has it
+# open without `FILE_SHARE_DELETE` (e.g. a concurrent reader or antivirus scan). Such handles are brief,
+# so the replace is retried for a short while before the error is propagated.
+_ATOMIC_REPLACE_ATTEMPTS = 10
+_ATOMIC_REPLACE_RETRY_DELAY_SECONDS = 0.02
+
+
 def atomic_write_text(file_path: Path, content: str) -> None:
     """Write UTF-8 text atomically to *file_path* via a sibling temporary file."""
     file_path.parent.mkdir(parents=True, exist_ok=True)
     tmp_path = file_path.with_name(f'{file_path.name}.tmp')
     tmp_path.write_text(content, encoding='utf-8')
-    tmp_path.replace(file_path)
+    for attempt in range(1, _ATOMIC_REPLACE_ATTEMPTS + 1):
+        try:
+            tmp_path.replace(file_path)
+        except PermissionError:
+            if attempt == _ATOMIC_REPLACE_ATTEMPTS:
+                raise
+            time.sleep(_ATOMIC_REPLACE_RETRY_DELAY_SECONDS)
+        else:
+            return
 
 
 type FileSignature = tuple[int, int, int, int]
