@@ -373,8 +373,8 @@ class UserIPDatabasesManager(
         self._sort_mode_combo.setToolTip(
             'Choose how database entries are ordered:\n'
             '• Groups: Keep linked accounts together in consecutive blocks separated by alternating background shades.\n'
-            '• Date Added: Sort entries by when they were added to the database.\n'
-            '• Entry Order (#): Sort entries by their sequential row number in the file.',
+            '• Date Added: Sort entries by when they were added to the database, with alternating row shades.\n'
+            '• Entry Order (#): Sort entries by their sequential row number in the file, with alternating row shades.',
         )
         self._sort_mode_combo.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         initial_sort_mode = UserIPDatabasesManager._cached_sort_mode

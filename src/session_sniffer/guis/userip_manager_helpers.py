@@ -261,7 +261,7 @@ class EntriesSortProxy(QSortFilterProxyModel):
             if base_bg is not None:
                 return base_bg
             if not self._group_sort_enabled:
-                return _GROUP_BG_BRUSH_EVEN
+                return _GROUP_BG_BRUSH_ODD if index.row() % 2 else _GROUP_BG_BRUSH_EVEN
             p_row = index.row()
             if p_row < 0 or p_row >= len(self._proxy_row_alt_shade):
                 self._rebuild_proxy_group_shades()
