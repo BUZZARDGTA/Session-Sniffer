@@ -112,6 +112,7 @@ class ResolutionQueue:
 _IPAPI_MAX_REQUESTS = 15
 _IPAPI_MAX_THROTTLE_TIME = 60
 _IPAPI_MAX_BATCH_IPS = 100
+_IPAPI_BATCH_COALESCE_SECONDS = 0.05
 # Stop ip-api.com lookups after this many consecutive connection failures (e.g. a VPN/firewall silently blocking it).
 _IPAPI_MAX_CONSECUTIVE_FAILURES = 3
 _IPAPI_PROBE_IP = '1.1.1.1'
@@ -143,6 +144,13 @@ _iplookup_queue = ResolutionQueue()
 _hostname_queue = ResolutionQueue()
 _pinger_queue = ResolutionQueue()
 _looky_queue = ResolutionQueue()
+_ipapi_ready_callbacks: list[Callable[[Player], None]] = []
+
+
+def register_ipapi_ready_callback(callback: Callable[[Player], None]) -> None:
+    """Register a callback invoked when a player's ip-api.com lookup completes."""
+    if callback not in _ipapi_ready_callbacks:
+        _ipapi_ready_callbacks.append(callback)
 
 
 def is_looky_eligible(player: Player) -> bool:
@@ -234,6 +242,76 @@ def wake_all_player_cores() -> None:
         enqueue_player_for_resolution(player)
 
 
+def _drain_pending_iplookup_ips(batch: list[str]) -> None:
+    """Pop pending uninitialized player IPs from `_iplookup_queue` into `batch` up to `_IPAPI_MAX_BATCH_IPS`."""
+    while len(batch) < _IPAPI_MAX_BATCH_IPS:
+        target_ip = _iplookup_queue.get()
+        if target_ip is None:
+            break
+        matched_player = PlayersRegistry.get_player_by_ip(target_ip)
+        if matched_player is not None and not matched_player.iplookup.ipapi.is_initialized:
+            batch.append(target_ip)
+
+
+def _dequeue_iplookup_batch() -> list[str]:
+    """Collect up to `_IPAPI_MAX_BATCH_IPS` pending IPs, coalescing simultaneous lobby joins briefly."""
+    batch: list[str] = []
+    _drain_pending_iplookup_ips(batch)
+    if 0 < len(batch) < _IPAPI_MAX_BATCH_IPS and not gui_closed__event.is_set():
+        gui_closed__event.wait(_IPAPI_BATCH_COALESCE_SECONDS)
+        _drain_pending_iplookup_ips(batch)
+    return batch
+
+
+def _apply_ipapi_batch_response(iplookup_results_data: object) -> None:
+    """Validate and apply an `ip-api.com` batch JSON payload and notify listeners."""
+    if not isinstance(iplookup_results_data, list):
+        logger.warning('ip-api.com returned unexpected response shape (expected list): %s', type(iplookup_results_data).__name__)
+        return
+    iplookup_results: list[IpApiResponse] = []
+    updated_players: list[Player] = []
+
+    for raw_item in cast('list[object]', iplookup_results_data):
+        if not isinstance(raw_item, dict):
+            logger.warning('ip-api.com batch response contained a non-dict item: %r', raw_item)
+            continue
+        item = cast('dict[str, object]', raw_item)
+        try:
+            iplookup_results.append(IpApiResponse.model_validate(item))
+        except ValidationError:
+            # Mark IPs with a failed status as initialized so they are never retried.
+            if item.get('status') == 'fail':
+                query_raw = item.get('query', '')
+                failed_player = PlayersRegistry.get_player_by_ip(query_raw if isinstance(query_raw, str) else '')
+                if failed_player is not None:
+                    failed_player.iplookup.ipapi.is_initialized = True
+                    updated_players.append(failed_player)
+                    logger.debug(
+                        'ip-api returned fail for %s (%s) — marking as initialized',
+                        item.get('query'),
+                        item.get('message', ''),
+                    )
+            else:
+                logger.warning('Failed to validate ip-api response item: %s', item)
+
+            continue
+
+    for iplookup in iplookup_results:
+        matched_player = PlayersRegistry.get_player_by_ip(iplookup.query)
+        if matched_player is None:
+            continue
+
+        matched_player.iplookup.ipapi.apply_response(iplookup)
+        updated_players.append(matched_player)
+
+    if updated_players:
+        wake_rendering_core()
+        for player in updated_players:
+            if not player.left_event.is_set() and player.detection_checked:
+                for callback in _ipapi_ready_callbacks:
+                    callback(player)
+
+
 def iplookup_core() -> None:
     """Populate IP lookup data in the background using batch requests."""
     requests_remaining = _IPAPI_MAX_REQUESTS
@@ -245,14 +323,7 @@ def iplookup_core() -> None:
         if ScriptControl.has_crashed():
             return
 
-        ip_addresses_to_lookup: list[str] = []
-        while len(ip_addresses_to_lookup) < _IPAPI_MAX_BATCH_IPS:
-            target_ip = _iplookup_queue.get()
-            if target_ip is None:
-                break
-            matched_player = PlayersRegistry.get_player_by_ip(target_ip)
-            if matched_player is not None and not matched_player.iplookup.ipapi.is_initialized:
-                ip_addresses_to_lookup.append(target_ip)
+        ip_addresses_to_lookup = _dequeue_iplookup_batch()
 
         is_probe = False
         if not ip_addresses_to_lookup:
@@ -343,42 +414,7 @@ def iplookup_core() -> None:
         requests_remaining = int(response.headers.get('X-Rl') or str(_IPAPI_MAX_REQUESTS - 1))
         ttl_seconds = int(response.headers.get('X-Ttl') or str(_IPAPI_MAX_THROTTLE_TIME))
 
-        iplookup_results_data: object = response.json()
-        if not isinstance(iplookup_results_data, list):
-            logger.warning('ip-api.com returned unexpected response shape (expected list): %s', type(iplookup_results_data).__name__)
-            continue
-        iplookup_results: list[IpApiResponse] = []
-
-        for raw_item in cast('list[object]', iplookup_results_data):
-            if not isinstance(raw_item, dict):
-                logger.warning('ip-api.com batch response contained a non-dict item: %r', raw_item)
-                continue
-            item = cast('dict[str, object]', raw_item)
-            try:
-                iplookup_results.append(IpApiResponse.model_validate(item))
-            except ValidationError:
-                # Mark IPs with a failed status as initialized so they are never retried.
-                if item.get('status') == 'fail':
-                    query_raw = item.get('query', '')
-                    failed_player = PlayersRegistry.get_player_by_ip(query_raw if isinstance(query_raw, str) else '')
-                    if failed_player is not None:
-                        failed_player.iplookup.ipapi.is_initialized = True
-                        logger.debug(
-                            'ip-api returned fail for %s (%s) — marking as initialized',
-                            item.get('query'),
-                            item.get('message', ''),
-                        )
-                else:
-                    logger.warning('Failed to validate ip-api response item: %s', item)
-
-                continue
-
-        for iplookup in iplookup_results:
-            matched_player = PlayersRegistry.get_player_by_ip(iplookup.query)
-            if matched_player is None:
-                continue
-
-            matched_player.iplookup.ipapi.apply_response(iplookup)
+        _apply_ipapi_batch_response(response.json())
 
         if requests_remaining <= 0:
             gui_closed__event.wait(max(ttl_seconds, 1))
@@ -432,6 +468,7 @@ def _run_player_future_core[T](
                 continue
 
             done, _ = wait(futures.keys(), timeout=0.1, return_when=FIRST_COMPLETED)
+            any_applied = False
 
             for future in done:
                 target_ip = futures.pop(future)
@@ -450,6 +487,10 @@ def _run_player_future_core[T](
                     continue
 
                 apply_result(matched_player, result)
+                any_applied = True
+
+            if any_applied:
+                wake_rendering_core()
 
 
 def hostname_core() -> None:

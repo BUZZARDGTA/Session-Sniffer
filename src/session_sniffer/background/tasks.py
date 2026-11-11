@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 from threading import Lock, Thread
 from typing import TYPE_CHECKING, Literal, NamedTuple, TypedDict, cast
 
-from session_sniffer.background.cores import enqueue_player_for_resolution
+from session_sniffer.background.cores import enqueue_player_for_resolution, register_ipapi_ready_callback
 from session_sniffer.background.events import gui_closed__event
 from session_sniffer.background.voice_notifications import queue_voice_notification, tts_voice_name
 from session_sniffer.constants.local import DETECTION_LOGGING_PATH, PROTECTION_LOGGING_PATH, TTS_DIR_PATH, USERIP_DATABASES_DIR_PATH, USERIP_LOGGING_PATH
@@ -105,7 +105,7 @@ _fired_detections_lock = Lock()
 _MINUTE_INTERVAL_SECONDS = 60.0
 _ONE_SECOND_TD = timedelta(seconds=1)
 _notification_pool = ThreadPoolExecutor(max_workers=20, thread_name_prefix='Notification')
-_detection_check_pool = ThreadPoolExecutor(max_workers=4, thread_name_prefix='DetectionCheck')
+_detection_check_pool = ThreadPoolExecutor(max_workers=8, thread_name_prefix='DetectionCheck')
 
 
 def _check_userip_usernames(player: Player) -> bool:
@@ -195,6 +195,18 @@ _NOTIFICATION_TO_EVENT: dict[NotificationType, str] = {
 }
 
 
+def _resolve_standalone_notification_data(player: Player, *, msgbox_setting: bool, logging_setting: bool) -> bool:
+    """Prepare enrichment fields required by enabled standalone event notification outputs."""
+    if msgbox_setting:
+        return wait_for_player_data_ready(player, data_fields=('iplookup.geolite2', 'reverse_dns.hostname', 'iplookup.ipapi'), timeout=3.0)
+    if logging_setting:
+        _check_iplookup_geolite2(player)
+        if player.iplookup.geolite2.country_code in ('...', 'N/A'):
+            return wait_for_player_data_ready(player, data_fields=('iplookup.geolite2', 'iplookup.ipapi'), timeout=2.0)
+        return player.iplookup.ipapi.is_initialized
+    return False
+
+
 def handle_detection_notification(player: Player, notification_type: NotificationType) -> None:
     """Handle voice notifications, logging, message box popups, and suspension actions for player connection events."""
     prefix = _NOTIFICATION_TYPE_SETTING_PREFIX[notification_type]
@@ -222,7 +234,7 @@ def handle_detection_notification(player: Player, notification_type: Notificatio
                 tts_candidate_path = TTS_DIR_PATH / tts_voice_name(voice_setting=voice_setting) / 'event' / f'{notification_type}.wav'
                 queue_voice_notification(tts_candidate_path)
 
-            data_ready = wait_for_player_data_ready(player, data_fields=('iplookup.geolite2', 'reverse_dns.hostname', 'iplookup.ipapi'), timeout=3.0)
+            data_ready = _resolve_standalone_notification_data(player, msgbox_setting=msgbox_setting, logging_setting=logging_setting)
 
             if logging_setting:
                 now = datetime.now(tz=LOCAL_TZ)
@@ -558,11 +570,6 @@ def check_global_detections(player: Player) -> None:
         player: The player object to check detections against.
     """
     _check_iplookup_geolite2(player)
-    geo_missing = player.iplookup.geolite2.country_code in ('...', 'N/A') or player.iplookup.geolite2.continent_code in ('...', 'N/A')
-    if GUIDetectionSettings.has_any_ipapi_detection_enabled(geo_country_missing=geo_missing) or ComboRulesManager.needs_ipapi(
-        event_rules=False, geo_country_missing=geo_missing,
-    ):
-        wait_for_player_data_ready(player, data_fields=('iplookup.geolite2', 'iplookup.ipapi'), timeout=10.0)
     if player.left_event.is_set() or not PlayersRegistry.is_player_connected(player):
         return
 
@@ -871,6 +878,9 @@ def submit_global_detections_check(player: Player) -> None:
             return
         _active_detection_check_ips.add(player.ip)
     _detection_check_pool.submit(_run_global_detections_check, player).add_done_callback(_on_pool_task_done)
+
+
+register_ipapi_ready_callback(submit_global_detections_check)
 
 
 def retrigger_detections_scan() -> None:

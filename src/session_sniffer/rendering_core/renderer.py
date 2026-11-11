@@ -430,7 +430,6 @@ def rendering_core(
     last_userip_parse_time = None
     last_session_logging_processing_time = None
     last_modmenu_refresh_time: float | None = None
-    _has_players_for_poll: bool = False
     _last_recorded_host_key: tuple[int, str] | None = None
     _sniffer_just_started: bool = True
     _sniffer_start_time: float = time.monotonic()
@@ -502,9 +501,10 @@ def rendering_core(
             break
 
         _userip_db_rebuilt = False
-        _poll_interval = 1.0 if _has_players_for_poll else 5.0
+        _poll_interval = 1.0 if PlayersRegistry.get_total_count() > 0 else 5.0
         if last_userip_parse_time is None or time.monotonic() - last_userip_parse_time >= 1.0:
-            last_userip_parse_time, _userip_db_rebuilt = update_userip_databases()
+            parse_ts, _userip_db_rebuilt = update_userip_databases(blocking=last_userip_parse_time is None)
+            last_userip_parse_time = parse_ts if parse_ts > 0.0 else last_userip_parse_time
         if UserIPDatabases.build_version != last_seen_userip_build_version:
             last_seen_userip_build_version = UserIPDatabases.build_version
             _userip_db_rebuilt = True
@@ -960,7 +960,6 @@ def rendering_core(
             ),
         )
 
-        _has_players_for_poll = bool(session_connected or session_disconnected)
         if not gui_closed__event.is_set():
             rendering_wake_event.wait(1.0)
             rendering_wake_event.clear()
