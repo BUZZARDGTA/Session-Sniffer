@@ -374,11 +374,12 @@ class Settings:
         return get_file_signature(settings_path) != cls._last_file_signature
 
     @classmethod
-    def rewrite_settings_file(cls) -> None:
-        """Rewrite the settings file from current in-memory values."""
-        atomic_write_text(SETTINGS_PATH, cls.serialize_to_json())
-        cls._last_file_signature = get_file_signature(SETTINGS_PATH)
-        clear_secret_cache()
+    def rewrite_settings_file(cls, settings_path: Path = SETTINGS_PATH) -> None:
+        """Rewrite *settings_path* from current in-memory values."""
+        atomic_write_text(settings_path, cls.serialize_to_json())
+        if settings_path == SETTINGS_PATH:
+            cls._last_file_signature = get_file_signature(SETTINGS_PATH)
+            clear_secret_cache()
 
     @staticmethod
     def parse_settings_json_file(json_path: Path, *, strict: bool = False) -> tuple[dict[str, Any], bool]:
@@ -471,6 +472,6 @@ class Settings:
             )
 
         if rewrite_if_needed and need_rewrite_settings:
-            cls.rewrite_settings_file()
+            cls.rewrite_settings_file(settings_path)
         elif settings_path == SETTINGS_PATH:
             cls._last_file_signature = get_file_signature(settings_path)
