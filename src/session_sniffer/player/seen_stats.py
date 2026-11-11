@@ -206,10 +206,13 @@ class LeaderboardBaseline(BaseModel):
     finished session logs only (the currently-active session file is excluded). `seen_dates` retains
     the set of unique calendar dates each IP was seen on, so the live overlay can re-derive the day
     counts of the few IPs present in the live session without touching the rest of the baseline.
+    `reference_date` is the local calendar date the Today/Week/Month/Year counts were computed
+    against; once the local date moves past it, those counts are stale and the baseline must be rebuilt.
     """
 
     entries: dict[str, LeaderboardEntry]
     seen_dates: dict[str, set[date]]
+    reference_date: date
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -334,7 +337,7 @@ def build_leaderboard_baseline(
         progress_callback(total_files, total_files)
 
     _finalize_days(entries, seen_dates, now)
-    return LeaderboardBaseline(entries=entries, seen_dates=seen_dates)
+    return LeaderboardBaseline(entries=entries, seen_dates=seen_dates, reference_date=now.date())
 
 
 def overlay_live_session(

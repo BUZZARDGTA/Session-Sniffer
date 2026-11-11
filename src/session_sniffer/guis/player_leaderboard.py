@@ -1,5 +1,6 @@
 """Most Seen Players leaderboard window."""
 
+from datetime import datetime
 from pathlib import Path
 from typing import override
 
@@ -42,6 +43,7 @@ from PySide6.QtWidgets import (
 )
 
 from session_sniffer.constants.local import RESOURCES_DIR_PATH, SESSIONS_LOGGING_DIR_PATH
+from session_sniffer.constants.standard import LOCAL_TZ
 from session_sniffer.constants.tables import (
     LEADERBOARD_SEEN_STATS_TABLE_MIN_COLUMN_WIDTHS,
     PLAYER_LEADERBOARD_TABLE_MIN_COLUMN_WIDTHS,
@@ -579,6 +581,9 @@ class PlayerLeaderboardWindow(ToggleAlwaysOnTopMixin):
         """Kick off a background overlay of the live session, unless one is already running."""
         if self._baseline is None or not self.isVisible() or self.isMinimized():
             return
+        if datetime.now(tz=LOCAL_TZ).date() != self._baseline.reference_date:
+            # The baseline's Today/Week/Month/Year counts were computed against a past date; rebuild it.
+            self._reload_baseline_from_disk()
         if self._overlay_worker is not None:
             return
         connected_players, disconnected_players = PlayersRegistry.get_default_sorted_connected_and_disconnected_players()
