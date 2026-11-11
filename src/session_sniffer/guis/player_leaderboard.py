@@ -417,6 +417,8 @@ class PlayerLeaderboardWindow(ToggleAlwaysOnTopMixin):
         # IPs whose rows currently hold live-overlaid values, so they can be reverted to the baseline
         # once they drop out of the live session snapshot.
         self._overlaid_ips: frozenset[str] = frozenset()
+        # Number of players in the current baseline + live overlay (excludes stale rows the model keeps).
+        self._total_players = 0
         self._live_session_file: Path = SESSIONS_LOGGING_PATH.with_suffix('.json')
         self._baseline_worker: LeaderboardBaselineWorker | None = None
         self._overlay_worker: LeaderboardOverlayWorker | None = None
@@ -566,6 +568,7 @@ class PlayerLeaderboardWindow(ToggleAlwaysOnTopMixin):
         self._overlaid_ips = frozenset(entry.ip for entry in live_entries)
         merged = dict(baseline.entries)
         merged.update((entry.ip, entry) for entry in live_entries)
+        self._total_players = len(merged)
         entries = sorted(merged.values(), key=lambda entry: entry.sessions_total, reverse=True)
         self._proxy.set_server_ips(self._baseline_server_ips | server_ips_for(live_entries))
         self._proxy.set_current_session_ips(connected_ips, disconnected_ips)
@@ -610,6 +613,7 @@ class PlayerLeaderboardWindow(ToggleAlwaysOnTopMixin):
         # Revert rows that dropped out of the live snapshot back to their baseline values.
         updates.extend(baseline.entries[ip] for ip in self._overlaid_ips - live_ips if ip in baseline.entries)
         self._overlaid_ips = live_ips
+        self._total_players = len(baseline.entries) + sum(1 for ip in live_ips if ip not in baseline.entries)
         self._proxy.set_server_ips(self._baseline_server_ips | result.server_ips)
         session_changed = (
             result.connected_ips != self._proxy.connected_ips
@@ -832,7 +836,7 @@ class PlayerLeaderboardWindow(ToggleAlwaysOnTopMixin):
 
     def _update_count_label(self) -> None:
         visible = self._proxy.rowCount()
-        total = len(self._model.entries)
+        total = self._total_players
         if self._current_session_checkbox.isChecked():
             session_total = len(self._proxy.current_session_ips)
             self._count_label.setText(f'{visible} of {session_total} session players ({total} total)')
