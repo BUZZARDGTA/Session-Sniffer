@@ -34,7 +34,7 @@ from session_sniffer.guis.logs_manager._helpers import human_readable_timestamp
 from session_sniffer.guis.select_usernames_dialog import configure_username_cell_editor
 from session_sniffer.guis.stylesheets import USERIP_METADATA_CONTAINER_STYLESHEET, userip_dialog_button_stylesheet, userip_dialog_danger_button_stylesheet
 from session_sniffer.guis.table_column_resizing import adjust_last_visible_column_to_viewport, setup_table_header_context_menu
-from session_sniffer.guis.userip_conflict_resolver import open_userip_conflict_resolver
+from session_sniffer.guis.userip_conflict_resolver import open_userip_conflict_resolver, update_resolve_conflicts_button
 from session_sniffer.guis.userip_manager_context_menu_mixin import EntriesContextMenuMixin
 from session_sniffer.guis.userip_manager_entries_ops_mixin import UserIPEntriesOperationsMixin
 from session_sniffer.guis.userip_manager_helpers import (
@@ -314,11 +314,10 @@ class UserIPDatabasesManager(
         export_button.setMenu(export_menu)
         transfer_buttons.addWidget(export_button)
 
-        resolve_conflicts_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'scale.svg')), ' Resolve Conflicts…')
-        resolve_conflicts_button.setToolTip('Open the UserIP Conflict Resolver to fix IPs or ranges claimed by multiple databases')
-        resolve_conflicts_button.setStyleSheet(btn_style)
-        resolve_conflicts_button.clicked.connect(lambda: open_userip_conflict_resolver(None))
-        transfer_buttons.addWidget(resolve_conflicts_button)
+        self._resolve_conflicts_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'scale.svg')), ' Resolve Conflicts…')
+        self._resolve_conflicts_button.setStyleSheet(btn_style)
+        self._resolve_conflicts_button.clicked.connect(lambda: open_userip_conflict_resolver(None))
+        transfer_buttons.addWidget(self._resolve_conflicts_button)
 
         left_layout.addLayout(transfer_buttons)
 
@@ -505,7 +504,7 @@ class UserIPDatabasesManager(
             reset_button,
             import_button,
             export_button,
-            resolve_conflicts_button,
+            self._resolve_conflicts_button,
             self._add_button,
             self._edit_ip_button,
             self._rename_button,
@@ -880,6 +879,7 @@ class UserIPDatabasesManager(
             f'<span style="color:#8a9bad;">Unique IPs:</span> <b style="color:#e0e0e0;">{len(unique_ips)}</b>',
         )
         self._stats_label.setText('<br>'.join(parts))
+        update_resolve_conflicts_button(self._resolve_conflicts_button)
 
     def _has_unsaved_changes_for_close(self) -> bool:
         """Return `True` if there are dirty (unsaved) changes."""

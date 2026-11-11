@@ -6,6 +6,7 @@ import json
 import logging
 import time
 from contextlib import contextmanager
+from dataclasses import dataclass
 from threading import RLock
 from typing import TYPE_CHECKING, cast
 
@@ -17,17 +18,28 @@ from session_sniffer.models.userip_settings_model import (
     UserIPDatabaseFile,
     UserIPEntryModel,
     UserIPSettingsModel,
+    get_current_iso_timestamp,
     pick_earliest_iso,
     pick_latest_iso,
 )
 from session_sniffer.networking.ip_range import entry_ip_covers_ip, is_valid_ip_range_entry
 from session_sniffer.player.userip import ProtectionSettings, UserIPDatabases, UserIPSettings
-from session_sniffer.player.userip_groups import get_groups_state_token, remove_usernames_from_groups, rename_username_in_groups
+from session_sniffer.player.userip_groups import (
+    MIN_GROUP_USERNAMES,
+    UserIPAccountGroup,
+    build_userip_account_groups,
+    find_split_account_groups,
+    get_groups_state_token,
+    remove_usernames_from_groups,
+    rename_username_in_groups,
+)
 from session_sniffer.player.userip_log_history import enrich_userip_entry_from_logs, warm_userip_log_history_cache_async
-from session_sniffer.utils import FileSignature, atomic_write_text, get_file_signature, validate_file
+from session_sniffer.rendering_core.events import wake_rendering_core
+from session_sniffer.utils import FileSignature, atomic_write_text, dedup_preserve_order, get_file_signature, validate_file
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Generator, Mapping, Sequence
+    from collections.abc import Set as AbstractSet
     from datetime import datetime
     from pathlib import Path
     from typing import Any
@@ -673,3 +685,230 @@ def record_userip_last_seen(db_path: Path, ip_address: str, last_seen: datetime)
     return _update_matching_userip_entries(
         db_path, ip_address, lambda entry: enrich_userip_entry_from_logs(entry.model_copy(update={'last_seen_at': pick_latest_iso(entry.last_seen_at, timestamp)}))[0],
     )
+
+
+_FALLBACK_DB_SETTINGS = UserIPSettingsModel(LOG=True, NOTIFICATIONS=True)
+
+
+def _load_or_init_userip_db_model(db_path: Path) -> UserIPDatabaseFile:
+    """Load *db_path* from cache or disk (enriching from logs), or initialize a default empty model when absent."""
+    if db_path.is_file():
+        if (cached_model := get_cached_userip_database_model(db_path)) is not None:
+            return cached_model
+        if (loaded := _load_raw_userip_db(db_path, action_label='database load')) is not None:
+            settings, raw_entries = loaded
+            return UserIPDatabaseFile(settings=settings, entries=[enrich_userip_entry_from_logs(e)[0] for e in raw_entries])
+    default_settings = DEFAULT_USERIP_FILES_SETTINGS_BY_PATH.get(_normalize_db_key(db_path))
+    return UserIPDatabaseFile(settings=(default_settings or _FALLBACK_DB_SETTINGS).model_copy(), entries=[])
+
+
+def append_userip_entries(db_path: Path, entries: Sequence[UserIPEntryModel], *, anchor_usernames_by_ip: Mapping[str, str] | None = None) -> set[tuple[str, str]]:
+    """Add entries to a UserIP `.json` database file, inserting next to matching IPs or usernames and avoiding duplicates."""
+    with _update_userip_databases_lock:
+        db_model = _load_or_init_userip_db_model(db_path)
+        existing_by_pair: dict[tuple[str, str], UserIPEntryModel] = {(entry.username.casefold(), entry.ip): entry for entry in db_model.entries}
+        added_pairs: set[tuple[str, str]] = set()
+        modified = False
+        now_iso = get_current_iso_timestamp()
+
+        for entry in entries:
+            username, ip_or_range = entry.username.strip(), entry.ip.strip()
+            if not username or not ip_or_range:
+                continue
+            cf_pair = (username.casefold(), ip_or_range)
+            existing_entry = existing_by_pair.get(cf_pair)
+            if existing_entry is None:
+                new_entry, _ = enrich_userip_entry_from_logs(entry.model_copy(update={'username': username, 'ip': ip_or_range, 'notes': entry.notes.strip()}))
+                existing_by_pair[cf_pair] = new_entry
+                added_pairs.add((username, ip_or_range))
+                anchor_user = anchor_usernames_by_ip.get(ip_or_range, '') if anchor_usernames_by_ip is not None else ''
+                db_model.entries.insert(find_userip_insert_index(db_model.entries, username, ip_or_range, anchor_username=anchor_user), new_entry)
+                modified = True
+            elif (entry.is_looky and not existing_entry.is_looky) or (entry.notes.strip() and not existing_entry.notes):
+                existing_index = db_model.entries.index(existing_entry)
+                upgraded_looky = existing_entry.is_looky or entry.is_looky
+                new_src = 'Looky' if upgraded_looky else existing_entry.source
+                upd = {'is_looky': upgraded_looky, 'source': new_src, 'notes': existing_entry.notes or entry.notes.strip(), 'updated_at': now_iso}
+                updated_entry, _ = enrich_userip_entry_from_logs(existing_entry.model_copy(update=upd))
+                db_model.entries[existing_index] = updated_entry
+                existing_by_pair[cf_pair] = updated_entry
+                added_pairs.add((existing_entry.username, ip_or_range))
+                modified = True
+
+        if modified:
+            write_userip_database_file(db_path, db_model)
+    return added_pairs
+
+
+@dataclass(frozen=True, slots=True)
+class UserIPMoveResult:
+    """Summary of entries moved across UserIP databases by `move_userip_entries_to_database`."""
+
+    moved_by_db: dict[Path, list[UserIPEntryModel]]
+    added_pairs: set[tuple[str, str]]
+    updated_at: str
+
+    @property
+    def total_moved(self) -> int:
+        """Return total number of entry records moved out of source databases."""
+        return sum(len(items) for items in self.moved_by_db.values())
+
+    @property
+    def moved_ips(self) -> list[str]:
+        """Return deduplicated IP/range strings across all moved entries."""
+        return dedup_preserve_order(entry.ip for items in self.moved_by_db.values() for entry in items)
+
+
+def move_userip_entries_to_database(
+    target_db_path: Path,
+    *,
+    entry_keys: AbstractSet[tuple[Path, str, str]] | None = None,
+    covering_ips: Sequence[str] | None = None,
+    extra_conflict_check_ips: Sequence[str] = (),
+) -> UserIPMoveResult:
+    """Atomically move matching entries from source UserIP databases into *target_db_path*, rebuild caches, and wake renderer."""
+    now_iso = get_current_iso_timestamp()
+    moved_by_db: dict[Path, list[UserIPEntryModel]] = {}
+    added_pairs: set[tuple[str, str]] = set()
+    candidate_dbs = (
+        sorted({db_path for db_path, _, _ in entry_keys if db_path != target_db_path})
+        if entry_keys is not None
+        else [p for p in UserIPDatabases.get_userip_database_filepaths() if p != target_db_path]
+    )
+    if not candidate_dbs or (entry_keys is None and (covering_ips is None or not covering_ips)):
+        return UserIPMoveResult(moved_by_db=moved_by_db, added_pairs=added_pairs, updated_at=now_iso)
+
+    target_ips: Sequence[str] = covering_ips if covering_ips is not None else ()
+    with _update_userip_databases_lock:
+        pending_writes: list[tuple[Path, UserIPSettingsModel, list[UserIPEntryModel], list[UserIPEntryModel]]] = []
+        for src_db in candidate_dbs:
+            if not src_db.is_file():
+                continue
+            db_model = _load_or_init_userip_db_model(src_db)
+            if not db_model.entries:
+                continue
+            kept_entries: list[UserIPEntryModel] = []
+            moved_entries: list[UserIPEntryModel] = []
+            for entry in db_model.entries:
+                matched = (
+                    (src_db, entry.username.strip().casefold(), entry.ip.strip()) in entry_keys
+                    if entry_keys is not None
+                    else any(entry_ip_covers_ip(entry.ip, sel_ip) for sel_ip in target_ips)
+                )
+                if matched:
+                    moved_entries.append(entry.model_copy(update={'updated_at': now_iso}))
+                else:
+                    kept_entries.append(entry)
+            if moved_entries:
+                pending_writes.append((src_db, db_model.settings, kept_entries, moved_entries))
+
+        if pending_writes:
+            all_moved = [entry for _, _, _, moved_entries in pending_writes for entry in moved_entries]
+            added_pairs = append_userip_entries(target_db_path, all_moved)
+            for src_db, settings, kept_entries, moved_entries in pending_writes:
+                write_userip_database_file(src_db, UserIPDatabaseFile(settings=settings, entries=kept_entries))
+                moved_by_db[src_db] = moved_entries
+            update_userip_databases()
+            wake_rendering_core()
+
+    result = UserIPMoveResult(moved_by_db=moved_by_db, added_pairs=added_pairs, updated_at=now_iso)
+    if moved_by_db:
+        UserIPDatabases.renotify_if_conflicting(dedup_preserve_order(extra_conflict_check_ips, result.moved_ips))
+    return result
+
+
+def _read_db_entry_pairs(
+    db_path: Path,
+    cached_by_key: Mapping[Path, tuple[bool, list[UserIPEntryModel]]],
+) -> tuple[bool, list[tuple[str, str]]]:
+    """Return `(is_enabled, [(username, ip), ...])` for *db_path* from cache or disk."""
+    norm_key = _normalize_db_key(db_path)
+    if (cached := cached_by_key.get(norm_key)) is not None:
+        return cached[0], [(entry.username, entry.ip) for entry in cached[1]]
+    if (loaded := _load_raw_userip_db(db_path, action_label='group scan')) is not None:
+        return loaded[0].ENABLED, [(entry.username, entry.ip) for entry in loaded[1]]
+    return True, []
+
+
+def _collect_database_entry_pairs(
+    *,
+    include_disabled: bool = False,
+    override_entries_by_db: Mapping[Path, Sequence[tuple[str, str]]] | None = None,
+) -> tuple[list[tuple[Path, Sequence[tuple[str, str]]]], frozenset[Path]]:
+    """Collect `(databases_entries, disabled_db_paths)` across enabled (and optionally disabled) UserIP databases."""
+    with _update_userip_databases_lock:
+        update_userip_databases()
+        cached_by_key = {path: (settings.enabled, list(entries)) for path, (settings, entries) in _parsed_userip_databases.items()}
+
+    overrides_by_key = {_normalize_db_key(p): (p, pairs) for p, pairs in override_entries_by_db.items()} if override_entries_by_db is not None else {}
+    enabled_paths = [p for p in UserIPDatabases.get_userip_database_filepaths() if p.is_file()]
+    seen_keys: set[Path] = set()
+    disabled_paths: set[Path] = set()
+    databases_entries: list[tuple[Path, Sequence[tuple[str, str]]]] = []
+
+    for db_path in enabled_paths:
+        norm_key = _normalize_db_key(db_path)
+        seen_keys.add(norm_key)
+        _, pairs = _read_db_entry_pairs(db_path, cached_by_key)
+        effective_pairs: Sequence[tuple[str, str]] = overrides_by_key[norm_key][1] if norm_key in overrides_by_key else pairs
+        databases_entries.append((db_path, effective_pairs))
+
+    if include_disabled and USERIP_DATABASES_DIR_PATH.exists():
+        for json_path in sorted(USERIP_DATABASES_DIR_PATH.rglob('*.json')):
+            if not json_path.is_file():
+                continue
+            norm_key = _normalize_db_key(json_path)
+            if norm_key in seen_keys:
+                continue
+            seen_keys.add(norm_key)
+            is_enabled, pairs = _read_db_entry_pairs(json_path, cached_by_key)
+            if not is_enabled:
+                disabled_paths.add(json_path)
+            effective_pairs = overrides_by_key[norm_key][1] if norm_key in overrides_by_key else pairs
+            databases_entries.append((json_path, effective_pairs))
+
+    for norm_key, (orig_path, override_pairs) in overrides_by_key.items():
+        if norm_key not in seen_keys:
+            seen_keys.add(norm_key)
+            is_enabled, _ = _read_db_entry_pairs(orig_path, cached_by_key)
+            if not is_enabled:
+                disabled_paths.add(orig_path)
+            databases_entries.append((orig_path, override_pairs))
+
+    return databases_entries, frozenset(disabled_paths)
+
+
+def collect_userip_account_groups(
+    *,
+    include_disabled: bool = False,
+    excluded_cfs: AbstractSet[str] = frozenset(),
+    extra_seed_usernames: Sequence[str] = (),
+    override_entries_by_db: Mapping[Path, Sequence[tuple[str, str]]] | None = None,
+) -> list[UserIPAccountGroup]:
+    """Return all connected `UserIPAccountGroup`s across enabled (and optionally disabled) UserIP databases."""
+    databases_entries, _ = _collect_database_entry_pairs(include_disabled=include_disabled, override_entries_by_db=override_entries_by_db)
+    return build_userip_account_groups(databases_entries, excluded_cfs=excluded_cfs, extra_seed_usernames=extra_seed_usernames)
+
+
+def collect_split_account_groups(*, include_disabled: bool = False) -> tuple[list[UserIPAccountGroup], frozenset[Path]]:
+    """Scan enabled (and optionally disabled) UserIP databases and return `(split_groups, disabled_db_paths)`."""
+    databases_entries, disabled_paths = _collect_database_entry_pairs(include_disabled=include_disabled)
+    conflicting_entries: set[tuple[Path, str]] = set()
+    for conflict in UserIPDatabases.get_conflicts():
+        conflicting_entries.add((conflict.existing_userip.db_path, conflict.existing_userip.ip))
+        conflicting_entries.add((conflict.conflicting_database_path, conflict.conflicting_ip))
+    return find_split_account_groups(databases_entries, conflicting_entries=conflicting_entries), disabled_paths
+
+
+def get_account_group_clusters_map(
+    *,
+    include_disabled: bool = False,
+    override_entries_by_db: Mapping[Path, Sequence[tuple[str, str]]] | None = None,
+) -> dict[str, list[str]]:
+    """Return `{username_cf: [canonical_member, ...]}` across all multi-member `UserIPAccountGroup`s."""
+    return {
+        cf: list(group.usernames)
+        for group in collect_userip_account_groups(include_disabled=include_disabled, override_entries_by_db=override_entries_by_db)
+        if len(group.usernames) >= MIN_GROUP_USERNAMES
+        for cf in group.usernames_cf
+    }

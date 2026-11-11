@@ -1,25 +1,20 @@
-"""UserIP Conflict Resolver dialog for reviewing and fixing IPs or ranges claimed by multiple UserIP databases."""
+"""UserIP Conflict Resolver dialog for reviewing and fixing conflicting IPs/ranges and split account groups."""
 
 import html
-from dataclasses import dataclass, field
-from ipaddress import IPv4Address
 from pathlib import Path
-from typing import TYPE_CHECKING, NamedTuple, cast, override
+from typing import TYPE_CHECKING, NamedTuple
 
-from PySide6.QtCore import QModelIndex, QPersistentModelIndex, QPoint, QSignalBlocker, Qt, QTimer, QUrl
-from PySide6.QtGui import QDesktopServices, QIcon, QKeySequence, QShortcut
+from PySide6.QtCore import QPoint, QSignalBlocker, Qt, QTimer
+from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QDialog,
     QHBoxLayout,
-    QHeaderView,
     QLabel,
-    QLineEdit,
     QMenu,
     QMessageBox,
     QPushButton,
-    QStyleOptionViewItem,
-    QTreeWidget,
+    QTabWidget,
     QTreeWidgetItem,
     QVBoxLayout,
     QWidget,
@@ -27,15 +22,32 @@ from PySide6.QtWidgets import (
 
 from session_sniffer.constants.local import RESOURCES_DIR_PATH, USERIP_DATABASES_DIR_PATH
 from session_sniffer.constants.standalone import TITLE
-from session_sniffer.guis.delegates import SearchHighlightDelegate
-from session_sniffer.guis.select_usernames_dialog import configure_username_cell_editor, prompt_usernames_and_notes_input
-from session_sniffer.guis.stylesheets import DIALOG_BUTTON_STYLESHEET, DIALOG_DANGER_BUTTON_STYLESHEET
-from session_sniffer.guis.table_column_resizing import setup_table_header_context_menu
-from session_sniffer.guis.tables_player_actions import create_ping_menu, scan_ports_ip, show_detailed_ip_lookup
+from session_sniffer.guis._userip_split_groups_tab import (
+    NO_USERNAME_TEXT,
+    NOTES_COLUMN,
+    SIDE_ROLE,
+    USERNAMES_COLUMN,
+    ResolverTreeCallbacks,
+    SideDetails,
+    SplitGroupsResolverTab,
+    add_resolver_group_header,
+    aggregate_matching_entries,
+    create_configured_resolver_tree,
+    create_resolver_tail_buttons,
+    finish_resolver_tree_refresh,
+    parse_deduped_usernames_cell,
+    populate_resolver_common_menu_prefix,
+    populate_resolver_ip_tools_menu,
+    populate_resolver_side_item,
+    prompt_selected_resolver_ip,
+    resolver_edited_side_details,
+    rewrite_matching_entry_notes,
+    select_resolver_item_at,
+    selected_resolver_side_row,
+)
+from session_sniffer.guis.select_usernames_dialog import prompt_usernames_and_notes_input
+from session_sniffer.guis.stylesheets import DIALOG_BUTTON_STYLESHEET
 from session_sniffer.guis.userip_manager_helpers import (
-    USERIP_METADATA_HEADER_TOOLTIPS,
-    IPRangeBuilderDialog,
-    append_userip_entries,
     dedup_userip_entries,
     format_userip_db_display_name,
     load_userip_database_model,
@@ -49,73 +61,33 @@ from session_sniffer.guis.utils import (
     add_icon_menu_action,
     create_styled_context_menu,
     find_main_window,
-    open_file_location,
     scale_by_ui,
-    set_clipboard_text,
     set_dialog_window_flags,
 )
 from session_sniffer.models.userip_settings_model import (
-    USERIP_SOURCE_TOOLTIPS,
-    EntrySource,
     UserIPEntryModel,
-    format_iso_timestamp_display,
     get_current_iso_timestamp,
-    pick_earliest_iso,
-    pick_latest_iso,
 )
 from session_sniffer.networking.ip_range import entry_ip_covers_ip, parse_ip_range
 from session_sniffer.player.userip import UserIPDatabases
-from session_sniffer.player.userip_loader import find_userip_insert_index, userip_databases_lock
+from session_sniffer.player.userip_loader import (
+    append_userip_entries,
+    collect_split_account_groups,
+    find_userip_insert_index,
+    move_userip_entries_to_database,
+    userip_databases_lock,
+)
 from session_sniffer.player.userip_log_history import enrich_userip_entry_from_logs
-from session_sniffer.text_utils import pluralize, split_usernames
+from session_sniffer.text_utils import pluralize
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-    from session_sniffer.guis._main_window_files_mixin import FilesMixin
     from session_sniffer.player.userip import UserIPConflict
 
 _REFRESH_INTERVAL_MS = 1000
-_SIDE_ROLE = Qt.ItemDataRole.UserRole
-_DATABASE_COLUMN = 0
-_IP_RANGE_COLUMN = 1
-_USERNAMES_COLUMN = 2
-_NOTES_COLUMN = 3
-_SOURCE_COLUMN = 4
-_DETECTIONS_COLUMN = 5
-_ADDED_COLUMN = 6
-_UPDATED_COLUMN = 7
-_FIRST_SEEN_COLUMN = 8
-_LAST_SEEN_COLUMN = 9
-_NO_USERNAME_TEXT = '(no username)'
-
-_CONFLICT_TABLE_HEADERS: list[str] = [
-    'Database', 'IP / Range', 'Usernames', 'Notes', 'Source', 'Detections', 'Added', 'Updated', 'First Seen', 'Last Seen',
-]
-
-_CONFLICT_HEADER_TOOLTIPS: dict[str, str] = {
-    'Database': 'The UserIP database file that claims this IP or range.',
-    'IP / Range': 'The IPv4 address, range, or CIDR subnet claimed by this entry (double-click to edit).',
-    'Usernames': (
-        'The username(s) associated with this entry (double-click to edit).\n'
-        'Purple entries with a Looky icon were automatically added or confirmed via Looky System.'
-    ),
-    'Notes': 'Optional user notes or comments attached to this entry (double-click to edit).',
-    **USERIP_METADATA_HEADER_TOOLTIPS,
-}
-
-_DEFAULT_CONFLICT_COLUMN_WIDTHS: dict[int, int] = {
-    _DATABASE_COLUMN: 170,
-    _IP_RANGE_COLUMN: 155,
-    _USERNAMES_COLUMN: 200,
-    _NOTES_COLUMN: 160,
-    _SOURCE_COLUMN: 85,
-    _DETECTIONS_COLUMN: 85,
-    _ADDED_COLUMN: 145,
-    _UPDATED_COLUMN: 145,
-    _FIRST_SEEN_COLUMN: 145,
-    _LAST_SEEN_COLUMN: 145,
-}
+_CONFLICTS_TAB_INDEX = 0
+_SPLIT_GROUPS_TAB_INDEX = 1
 
 
 class _ConflictSide(NamedTuple):
@@ -129,45 +101,6 @@ class _ConflictGroup(NamedTuple):
     """A connected set of conflicting entries."""
 
     sides: list[_ConflictSide]
-
-
-@dataclass(slots=True)
-class _SideDetails:
-    """Aggregated usernames, notes, Looky state, and timestamps for a `_ConflictSide`."""
-
-    usernames: list[str] = field(default_factory=list[str])
-    looky_usernames: set[str] = field(default_factory=set[str])
-    notes: list[str] = field(default_factory=list[str])
-    sources: list[EntrySource] = field(default_factory=list[EntrySource])
-    detections_count: int = 0
-    added_at: str | None = None
-    updated_at: str | None = None
-    first_seen_at: str | None = None
-    last_seen_at: str | None = None
-
-
-class _ConflictTreeDelegate(SearchHighlightDelegate):
-    """Item delegate for the conflict tree supporting Looky username styling and inline editing."""
-
-    def __init__(self, parent: QWidget) -> None:
-        super().__init__(parent, lambda: '')
-
-    @override
-    def createEditor(self, parent: QWidget, option: QStyleOptionViewItem, index: QModelIndex | QPersistentModelIndex) -> QWidget:
-        editor = super().createEditor(parent, option, index)
-        configure_username_cell_editor(editor, index, username_column=_USERNAMES_COLUMN)
-        return editor
-
-    @override
-    def setEditorData(self, editor: QWidget, index: QModelIndex | QPersistentModelIndex) -> None:
-        if (
-            index.column() == _USERNAMES_COLUMN
-            and isinstance(editor, QLineEdit)
-            and index.data(Qt.ItemDataRole.DisplayRole) == _NO_USERNAME_TEXT
-        ):
-            editor.setText('')
-            return
-        super().setEditorData(editor, index)
 
 
 def _build_conflict_groups(conflicts: Sequence[UserIPConflict]) -> list[_ConflictGroup]:
@@ -205,33 +138,15 @@ def _find_sides_conflicting_with(group: _ConflictGroup, kept_side: _ConflictSide
     return [side for side in group.sides if side.db_path != kept_side.db_path and parse_ip_range(side.entry).overlaps(kept_range)]
 
 
-def _aggregate_side_entries(entries: Sequence[UserIPEntryModel], target_entry: str) -> _SideDetails:
-    """Aggregate all `UserIPEntryModel` records matching `target_entry` into a `_SideDetails` snapshot."""
-    details = _SideDetails()
-    for entry in entries:
-        if entry.ip.strip() != target_entry:
-            continue
-        if entry.username not in details.usernames:
-            details.usernames.append(entry.username)
-        if entry.is_looky:
-            details.looky_usernames.add(entry.username)
-        cleaned_note = entry.notes.strip()
-        if cleaned_note and cleaned_note not in details.notes:
-            details.notes.append(cleaned_note)
-        if entry.source not in details.sources:
-            details.sources.append(entry.source)
-        details.detections_count = max(details.detections_count, entry.detections_count)
-        details.added_at = pick_earliest_iso(details.added_at, entry.added_at)
-        details.updated_at = pick_latest_iso(details.updated_at, entry.updated_at)
-        details.first_seen_at = pick_earliest_iso(details.first_seen_at, entry.first_seen_at)
-        details.last_seen_at = pick_latest_iso(details.last_seen_at, entry.last_seen_at)
-    return details
+def _aggregate_side_entries(entries: Sequence[UserIPEntryModel], target_entry: str) -> SideDetails:
+    """Aggregate all `UserIPEntryModel` records matching `target_entry` into a `SideDetails` snapshot."""
+    return aggregate_matching_entries(entries, lambda entry: entry.ip.strip() == target_entry)
 
 
-def _collect_side_details(sides: Sequence[_ConflictSide]) -> dict[_ConflictSide, _SideDetails]:
+def _collect_side_details(sides: Sequence[_ConflictSide]) -> dict[_ConflictSide, SideDetails]:
     """Read the aggregated entry metadata currently stored on disk for each conflicting side."""
     entries_by_db: dict[Path, list[UserIPEntryModel]] = {}
-    details_by_side: dict[_ConflictSide, _SideDetails] = {}
+    details_by_side: dict[_ConflictSide, SideDetails] = {}
     for side in sides:
         if side.db_path not in entries_by_db:
             entries_by_db[side.db_path] = load_userip_database_model(side.db_path).entries
@@ -239,8 +154,8 @@ def _collect_side_details(sides: Sequence[_ConflictSide]) -> dict[_ConflictSide,
     return details_by_side
 
 
-def _rewrite_side_usernames(side: _ConflictSide, new_usernames: Sequence[str]) -> _SideDetails | None:
-    """Update the username(s) for `side` in its UserIP database file on disk and return updated `_SideDetails`."""
+def _rewrite_side_usernames(side: _ConflictSide, new_usernames: Sequence[str]) -> SideDetails | None:
+    """Update the username(s) for `side` in its UserIP database file on disk and return updated `SideDetails`."""
     if not side.db_path.is_file() or not new_usernames:
         return None
     db_model = load_userip_database_model(side.db_path)
@@ -294,28 +209,9 @@ def _rewrite_side_usernames(side: _ConflictSide, new_usernames: Sequence[str]) -
     return _aggregate_side_entries(db_model.entries, side.entry)
 
 
-def _rewrite_side_notes(side: _ConflictSide, new_note: str) -> _SideDetails | None:
+def _rewrite_side_notes(side: _ConflictSide, new_note: str) -> SideDetails | None:
     """Update the `notes` field for all entries of `side` in its UserIP database file on disk."""
-    if not side.db_path.is_file():
-        return None
-    db_model = load_userip_database_model(side.db_path)
-    cleaned_note = new_note.strip()
-    matched = False
-    modified = False
-    now_iso = get_current_iso_timestamp()
-
-    for i, entry in enumerate(db_model.entries):
-        if entry.ip.strip() == side.entry:
-            matched = True
-            if entry.notes != cleaned_note:
-                db_model.entries[i] = entry.model_copy(update={'notes': cleaned_note, 'updated_at': now_iso})
-                modified = True
-
-    if not matched:
-        return None
-    if modified:
-        save_userip_database_model(side.db_path, db_model)
-    return _aggregate_side_entries(db_model.entries, side.entry)
+    return rewrite_matching_entry_notes(side.db_path, lambda entry: entry.ip.strip() == side.entry, new_note)
 
 
 def _merge_and_delete_sides(kept_side: _ConflictSide, sides_to_delete: Sequence[_ConflictSide]) -> None:
@@ -384,21 +280,12 @@ def _move_side_to_database(side: _ConflictSide, target_db_path: Path) -> bool:
     """Move all entries of `side` from `side.db_path` to `target_db_path`."""
     if not side.db_path.is_file() or side.db_path == target_db_path:
         return False
-    with userip_databases_lock():
-        db_model = load_userip_database_model(side.db_path)
-        now_iso = get_current_iso_timestamp()
-        entries_to_move = [
-            entry.model_copy(update={'updated_at': now_iso})
-            for entry in db_model.entries
-            if entry.ip.strip() == side.entry
-        ]
-        if not entries_to_move:
-            return False
-
-        append_userip_entries(target_db_path, entries_to_move)
-        _delete_sides([side])
-    UserIPDatabases.renotify_if_conflicting([side.entry])
-    return True
+    keys = {
+        (side.db_path, entry.username.strip().casefold(), entry.ip.strip())
+        for entry in load_userip_database_model(side.db_path).entries
+        if entry.ip.strip() == side.entry
+    }
+    return bool(keys and move_userip_entries_to_database(target_db_path, entry_keys=keys, extra_conflict_check_ips=[side.entry]).moved_by_db)
 
 
 def _delete_sides(sides: Sequence[_ConflictSide]) -> None:
@@ -422,77 +309,42 @@ def _delete_sides(sides: Sequence[_ConflictSide]) -> None:
 
 def _format_side_html(side: _ConflictSide, usernames: Sequence[str]) -> str:
     """Return an HTML list item describing one conflicting entry."""
-    usernames_text = ', '.join(usernames) if usernames else _NO_USERNAME_TEXT
+    usernames_text = ', '.join(usernames) if usernames else NO_USERNAME_TEXT
     return f'<li>"{html.escape(format_userip_db_display_name(side.db_path))}": {html.escape(usernames_text)} = {html.escape(side.entry)}</li>'
 
 
-def _is_single_ipv4(entry_text: str) -> bool:
-    """Return `True` if `entry_text` is a single IPv4 address rather than a range or CIDR subnet."""
-    if not entry_text or '/' in entry_text or '-' in entry_text:
-        return False
-    try:
-        IPv4Address(entry_text)
-    except ValueError:
-        return False
-    return True
-
-
-def _navigate_to_database_in_manager(db_path: Path, *, username: str = '', ip_or_range: str = '') -> None:
-    """Open or focus the UserIP Databases Manager on `db_path` and select the matching entry."""
-    main_window = cast('FilesMixin | None', find_main_window())
-    if main_window is not None:
-        main_window.open_userip_manager_and_navigate(db_path, username=username, ip_or_range=ip_or_range)
-
-
 class UserIPConflictResolverDialog(QDialog):
-    """Non-modal window listing UserIP conflicts and letting the user keep, edit, or delete the conflicting entries."""
+    """Non-modal window listing UserIP IP conflicts and split account groups across databases."""
 
     def __init__(self, parent: QWidget | None = None) -> None:
         """Build the UserIP Conflict Resolver dialog."""
         super().__init__(parent)
         self.setWindowTitle(f'UserIP Conflict Resolver - {TITLE}')
         set_dialog_window_flags(self)
-        self.setMinimumSize(scale_by_ui(780), scale_by_ui(420))
+        self.setMinimumSize(scale_by_ui(780), scale_by_ui(450))
 
         self._groups: list[_ConflictGroup] = []
         self._side_rows: list[tuple[_ConflictGroup, _ConflictSide]] = []
-        self._details_by_side: dict[_ConflictSide, _SideDetails] = {}
+        self._details_by_side: dict[_ConflictSide, SideDetails] = {}
         self._pending_focus_entry: str | None = None
         self._last_build_version = -1
         self._looky_icon = QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'eye.svg'))
 
-        layout = QVBoxLayout(self)
+        root_layout = QVBoxLayout(self)
+        self._tabs = QTabWidget()
+        root_layout.addWidget(self._tabs)
+
+        conflicts_tab = QWidget()
+        layout = QVBoxLayout(conflicts_tab)
 
         self._summary_label = QLabel()
         self._summary_label.setWordWrap(True)
         layout.addWidget(self._summary_label)
 
-        self._tree = QTreeWidget()
-        self._tree.setColumnCount(len(_CONFLICT_TABLE_HEADERS))
-        self._tree.setHeaderLabels(_CONFLICT_TABLE_HEADERS)
-        if header_item := self._tree.headerItem():
-            for col, label in enumerate(_CONFLICT_TABLE_HEADERS):
-                if (tooltip := _CONFLICT_HEADER_TOOLTIPS.get(label)) is not None:
-                    header_item.setToolTip(col, tooltip)
-        self._tree.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
-        self._tree.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-        self._tree.setItemDelegate(_ConflictTreeDelegate(self._tree))
-        self._tree.setUniformRowHeights(True)
-        self._tree.setAlternatingRowColors(True)
-        self._tree.setWordWrap(False)
-        self._tree.setVerticalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
-        self._tree.setHorizontalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
-        self._reset_column_sizes()
-        setup_table_header_context_menu(self._tree, on_reset=self._reset_column_sizes)
-        self._tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        self._tree.customContextMenuRequested.connect(self._show_context_menu)
-        self._tree.itemSelectionChanged.connect(self._update_buttons)
-        self._tree.itemDoubleClicked.connect(self._on_item_double_clicked)
-        self._tree.itemChanged.connect(self._on_item_changed)
-        QShortcut(QKeySequence('Ctrl+C'), self._tree).activated.connect(self._copy_selected_row)
-        QShortcut(QKeySequence('F2'), self._tree).activated.connect(self._edit_selected_usernames)
-        QShortcut(QKeySequence('Delete'), self._tree).activated.connect(self._delete_selected)
-        layout.addWidget(self._tree, stretch=1)
+        self._tree, self._edit_selected_usernames, self._edit_selected_note = create_configured_resolver_tree(
+            layout,
+            ResolverTreeCallbacks(self._show_context_menu, self._update_buttons, self._on_item_changed, self._edit_selected, self._delete_selected),
+        )
 
         buttons_layout = QHBoxLayout()
 
@@ -513,29 +365,23 @@ class UserIPConflictResolverDialog(QDialog):
         self._keep_merge_button.clicked.connect(self._keep_and_merge_selected)
         buttons_layout.addWidget(self._keep_merge_button)
 
-        self._edit_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square-pen.svg')), ' Edit Entry…')
-        self._edit_button.setAutoDefault(False)
-        self._edit_button.setToolTip('Change the IP or range of the selected entry using the builder')
-        self._edit_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
-        self._edit_button.clicked.connect(self._edit_selected)
-        buttons_layout.addWidget(self._edit_button)
-
-        self._delete_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')), ' Delete This Entry…')
-        self._delete_button.setAutoDefault(False)
-        self._delete_button.setToolTip('Delete only the selected entry from its database (you will be asked to confirm)')
-        self._delete_button.setStyleSheet(DIALOG_DANGER_BUTTON_STYLESHEET)
-        self._delete_button.clicked.connect(self._delete_selected)
-        buttons_layout.addWidget(self._delete_button)
-
-        buttons_layout.addStretch()
-
-        close_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'x.svg')), ' Close')
-        close_button.setAutoDefault(False)
-        close_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
-        close_button.clicked.connect(self.close)
-        buttons_layout.addWidget(close_button)
+        self._edit_button, self._delete_button = create_resolver_tail_buttons(
+            buttons_layout,
+            on_edit=self._edit_selected,
+            on_delete=self._delete_selected,
+            on_close=self.close,
+        )
 
         layout.addLayout(buttons_layout)
+
+        self._split_groups_tab = SplitGroupsResolverTab(
+            self,
+            on_count_changed=self._update_split_groups_tab_title,
+            on_close=self.close,
+        )
+
+        self._tabs.addTab(conflicts_tab, QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'scale.svg')), 'IP Conflicts')
+        self._tabs.addTab(self._split_groups_tab, QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'link.svg')), 'Split Groups')
 
         # Follow rebuilds triggered elsewhere (UserIP Manager edits, external file changes, ...)
         self._refresh_timer = QTimer(self)
@@ -543,64 +389,47 @@ class UserIPConflictResolverDialog(QDialog):
         self._refresh_timer.timeout.connect(self._refresh_if_rebuilt)
         self._refresh_timer.start()
 
-        self.resize(scale_by_ui(1120), scale_by_ui(520))
+        self.resize(scale_by_ui(1120), scale_by_ui(540))
         self._refresh()
+        self.select_most_relevant_tab()
 
-    def _reset_column_sizes(self) -> None:
-        header = self._tree.header()
-        if not header:
-            return
-        header.setStretchLastSection(True)
-        for col, width in _DEFAULT_CONFLICT_COLUMN_WIDTHS.items():
-            header.setSectionResizeMode(col, QHeaderView.ResizeMode.Interactive)
-            self._tree.setColumnWidth(col, scale_by_ui(width))
+    def _update_split_groups_tab_title(self, count: int) -> None:
+        self._tabs.setTabText(_SPLIT_GROUPS_TAB_INDEX, f'Split Groups ({count})')
 
-    def _populate_side_item(self, item: QTreeWidgetItem, side: _ConflictSide, details: _SideDetails) -> None:
-        item.setText(_DATABASE_COLUMN, format_userip_db_display_name(side.db_path))
-        item.setText(_IP_RANGE_COLUMN, side.entry)
-        item.setText(_USERNAMES_COLUMN, ', '.join(details.usernames) or _NO_USERNAME_TEXT)
-        if details.looky_usernames:
-            item.setIcon(_USERNAMES_COLUMN, self._looky_icon)
-            item.setData(_USERNAMES_COLUMN, Qt.ItemDataRole.UserRole, set(details.looky_usernames))
-        else:
-            item.setIcon(_USERNAMES_COLUMN, QIcon())
-            item.setData(_USERNAMES_COLUMN, Qt.ItemDataRole.UserRole, None)
-        item.setText(_NOTES_COLUMN, ', '.join(details.notes))
-        item.setText(_SOURCE_COLUMN, ', '.join(details.sources))
-        item.setToolTip(
-            _SOURCE_COLUMN,
-            '\n'.join(f'{src}: {desc}' if len(details.sources) > 1 else desc for src in details.sources if (desc := USERIP_SOURCE_TOOLTIPS.get(src)) is not None),
-        )
-        item.setText(_DETECTIONS_COLUMN, str(details.detections_count))
-        for col, raw_iso in (
-            (_ADDED_COLUMN, details.added_at),
-            (_UPDATED_COLUMN, details.updated_at),
-            (_FIRST_SEEN_COLUMN, details.first_seen_at),
-            (_LAST_SEEN_COLUMN, details.last_seen_at),
-        ):
-            item.setText(col, format_iso_timestamp_display(raw_iso))
-            item.setToolTip(col, raw_iso or '')
+    def _populate_side_item(self, item: QTreeWidgetItem, side: _ConflictSide, details: SideDetails) -> None:
+        populate_resolver_side_item(item, format_userip_db_display_name(side.db_path), side.entry, details, self._looky_icon)
+
+    def select_most_relevant_tab(self) -> None:
+        """Select IP Conflicts when conflicts exist, otherwise Split Groups when split groups exist."""
+        if self._groups:
+            self._tabs.setCurrentIndex(_CONFLICTS_TAB_INDEX)
+        elif self._split_groups_tab.group_count > 0:
+            self._tabs.setCurrentIndex(_SPLIT_GROUPS_TAB_INDEX)
 
     def focus_on_entry(self, entry: str | None) -> None:
-        """Select the first conflicting entry covering `entry` (an IP or range), if any."""
+        """Switch to IP Conflicts and select the first conflicting entry covering `entry`, if any."""
         self._pending_focus_entry = entry
         self._refresh()
+        self._tabs.setCurrentIndex(_CONFLICTS_TAB_INDEX)
+
+    def focus_on_split_username(self, username: str) -> None:
+        """Switch to Split Groups and select the split account group containing `username`, if any."""
+        self._tabs.setCurrentIndex(_SPLIT_GROUPS_TAB_INDEX)
+        self._split_groups_tab.focus_on_username(username)
 
     def _refresh_if_rebuilt(self) -> None:
-        if UserIPDatabases.build_version != self._last_build_version and self._tree.state() != QAbstractItemView.State.EditingState:
+        if (
+            UserIPDatabases.build_version != self._last_build_version
+            and self._tree.state() != QAbstractItemView.State.EditingState
+            and not self._split_groups_tab.is_editing
+        ):
             self._refresh()
 
     def _selected_side(self) -> tuple[_ConflictGroup, _ConflictSide] | None:
-        selected_items = self._tree.selectedItems()
-        if not selected_items:
-            return None
-        side_row = selected_items[0].data(0, _SIDE_ROLE)
-        if not isinstance(side_row, int) or not 0 <= side_row < len(self._side_rows):
-            return None
-        return self._side_rows[side_row]
+        return selected_resolver_side_row(self._tree, self._side_rows)
 
     def _refresh(self) -> None:
-        """Rebuild the conflict list from the latest UserIP build, preserving or applying the selection."""
+        """Rebuild both resolver tabs from the latest UserIP build, preserving or applying selection."""
         self._last_build_version = UserIPDatabases.build_version
         previous_selection = self._selected_side()
         previous_side = previous_selection[1] if previous_selection is not None else None
@@ -618,32 +447,24 @@ class UserIPConflictResolverDialog(QDialog):
             self._tree.clear()
             for group_index, group in enumerate(self._groups, start=1):
                 group_entries = list(dict.fromkeys(side.entry for side in group.sides))
-                group_item = QTreeWidgetItem([f'Conflict {group_index}: {" vs ".join(group_entries)}'])
-                font = group_item.font(0)
-                font.setBold(True)
-                group_item.setFont(0, font)
-                self._tree.addTopLevelItem(group_item)
-                group_item.setFirstColumnSpanned(True)
+                group_item = add_resolver_group_header(self._tree, f'Conflict {group_index}: {" vs ".join(group_entries)}')
 
                 for side in group.sides:
-                    details = self._details_by_side.get(side) or _SideDetails()
+                    details = self._details_by_side.get(side) or SideDetails()
                     side_item = QTreeWidgetItem()
                     self._populate_side_item(side_item, side, details)
                     side_item.setFlags(side_item.flags() | Qt.ItemFlag.ItemIsEditable)
-                    side_item.setData(0, _SIDE_ROLE, self._side_rows.index((group, side)))
+                    side_item.setData(0, SIDE_ROLE, self._side_rows.index((group, side)))
                     group_item.addChild(side_item)
                     if item_to_select is None and (
                         (focus_entry is not None and entry_ip_covers_ip(side.entry, focus_entry)) or (focus_entry is None and side == previous_side)
                     ):
                         item_to_select = side_item
 
-            self._tree.expandAll()
-
-        if item_to_select is not None:
-            self._tree.setCurrentItem(item_to_select)
-            self._tree.scrollToItem(item_to_select)
+        finish_resolver_tree_refresh(self._tree, item_to_select)
 
         conflict_group_count = len(self._groups)
+        self._tabs.setTabText(_CONFLICTS_TAB_INDEX, f'IP Conflicts ({conflict_group_count})')
         if conflict_group_count:
             conflict_pair_count = len(conflicts)
             self._summary_label.setText(
@@ -655,38 +476,7 @@ class UserIPConflictResolverDialog(QDialog):
         else:
             self._summary_label.setText('No UserIP conflicts. Every IP and range belongs to a single database.')
         self._update_buttons()
-
-    def _on_item_double_clicked(self, item: QTreeWidgetItem, column: int) -> None:
-        if item.data(0, _SIDE_ROLE) is None:
-            return
-        if column in (_USERNAMES_COLUMN, _NOTES_COLUMN):
-            self._tree.editItem(item, column)
-        elif column == _IP_RANGE_COLUMN:
-            self._tree.setCurrentItem(item)
-            self._edit_selected()
-
-    def _edit_selected_usernames(self) -> None:
-        selected_items = self._tree.selectedItems()
-        if selected_items and selected_items[0].data(0, _SIDE_ROLE) is not None:
-            self._tree.editItem(selected_items[0], _USERNAMES_COLUMN)
-
-    def _edit_selected_note(self) -> None:
-        selected_items = self._tree.selectedItems()
-        if selected_items and selected_items[0].data(0, _SIDE_ROLE) is not None:
-            self._tree.editItem(selected_items[0], _NOTES_COLUMN)
-
-    def _copy_selected_row(self) -> None:
-        selected_items = self._tree.selectedItems()
-        if not selected_items or selected_items[0].data(0, _SIDE_ROLE) is None:
-            return
-        item = selected_items[0]
-        header = self._tree.header()
-        cells = [
-            item.text(col)
-            for col in range(self._tree.columnCount())
-            if not header.isSectionHidden(col)
-        ]
-        set_clipboard_text('\t'.join(cells))
+        self._split_groups_tab.refresh()
 
     def _add_username_to_side(self, side: _ConflictSide) -> None:
         if not side.db_path.is_file():
@@ -719,57 +509,26 @@ class UserIPConflictResolverDialog(QDialog):
             self._refresh()
 
     def _show_context_menu(self, position: QPoint) -> None:
-        item = self._tree.itemAt(position)
-        if item is None or item.data(0, _SIDE_ROLE) is None:
-            return
-        self._tree.setCurrentItem(item)
-        selection = self._selected_side()
+        selection = select_resolver_item_at(self._tree, position, self._side_rows)
         if selection is None:
             return
         _, side = selection
-        details = self._details_by_side.get(side) or _SideDetails()
-        is_single_ip = _is_single_ipv4(side.entry)
+        details = self._details_by_side.get(side) or SideDetails()
 
         menu = create_styled_context_menu(self)
+        single_ip = populate_resolver_common_menu_prefix(
+            menu,
+            self._tree,
+            db_path=side.db_path,
+            entry_ip=side.entry,
+            details=details,
+        )
+        self._populate_resolution_menu_actions(menu, side, details, is_single_ip=single_ip)
 
-        self._populate_copy_menu_actions(menu, side, details, is_single_ip=is_single_ip)
-        menu.addSeparator()
-        self._populate_database_menu_actions(menu, side, details)
-        menu.addSeparator()
-        self._populate_resolution_menu_actions(menu, side, details, is_single_ip=is_single_ip)
-
-        viewport = self._tree.viewport()
-        if viewport:
+        if viewport := self._tree.viewport():
             menu.popup(viewport.mapToGlobal(position))
 
-    def _populate_copy_menu_actions(self, menu: QMenu, side: _ConflictSide, details: _SideDetails, *, is_single_ip: bool) -> None:
-        copy_row_action = add_icon_menu_action(menu, 'copy.svg', 'Copy Row', self._copy_selected_row)
-        copy_row_action.setShortcut('Ctrl+C')
-
-        if details.usernames:
-            usernames_text = ', '.join(details.usernames)
-            add_icon_menu_action(menu, 'copy.svg', f'Copy Username{pluralize(len(details.usernames))}', lambda: set_clipboard_text(usernames_text))
-
-        ip_label = 'IP' if is_single_ip else 'Range'
-        add_icon_menu_action(menu, 'copy.svg', f'Copy {ip_label}', lambda: set_clipboard_text(side.entry))
-
-        if details.notes:
-            notes_text = ', '.join(details.notes)
-            add_icon_menu_action(menu, 'copy.svg', 'Copy Note', lambda: set_clipboard_text(notes_text))
-
-    def _populate_database_menu_actions(self, menu: QMenu, side: _ConflictSide, details: _SideDetails) -> None:
-        first_username = details.usernames[0] if details.usernames else ''
-        add_icon_menu_action(
-            menu,
-            'arrow-right.svg',
-            'Go to Database',
-            lambda: _navigate_to_database_in_manager(side.db_path, username=first_username, ip_or_range=side.entry),
-            tooltip='Open this database in the UserIP Databases Manager and navigate to this entry.',
-        )
-        add_icon_menu_action(menu, 'file-text.svg', 'Open in Text Editor', lambda: QDesktopServices.openUrl(QUrl.fromLocalFile(str(side.db_path))))
-        add_icon_menu_action(menu, 'folder.svg', 'Open in File Manager', lambda: open_file_location(side.db_path))
-
-    def _populate_resolution_menu_actions(self, menu: QMenu, side: _ConflictSide, details: _SideDetails, *, is_single_ip: bool) -> None:
+    def _populate_resolution_menu_actions(self, menu: QMenu, side: _ConflictSide, details: SideDetails, *, is_single_ip: bool) -> None:
         add_icon_menu_action(menu, 'check.svg', 'Keep This Entry…', self._keep_selected)
         add_icon_menu_action(menu, 'user-round-check.svg', 'Keep && Merge…', self._keep_and_merge_selected)
         menu.addSeparator()
@@ -792,11 +551,7 @@ class UserIPConflictResolverDialog(QDialog):
             move_db_menu.setEnabled(False)
         menu.addMenu(move_db_menu)
 
-        if is_single_ip:
-            menu.addSeparator()
-            add_icon_menu_action(menu, 'info.svg', 'IP Lookup Details…', lambda: show_detailed_ip_lookup(side.entry))
-            create_ping_menu(self, menu, [side.entry])
-            add_icon_menu_action(menu, 'radar.svg', 'Scan Ports…', lambda: scan_ports_ip(side.entry))
+        populate_resolver_ip_tools_menu(self, menu, side.entry, single_ip=is_single_ip)
 
         menu.addSeparator()
         add_icon_menu_action(menu, 'plus.svg', 'Add Username…', lambda: self._add_username_to_side(side))
@@ -806,30 +561,20 @@ class UserIPConflictResolverDialog(QDialog):
         delete_action.setShortcut('Delete')
 
     def _on_item_changed(self, item: QTreeWidgetItem, column: int) -> None:
-        if column not in (_USERNAMES_COLUMN, _NOTES_COLUMN):
+        edited = resolver_edited_side_details(item, column, self._side_rows, self._details_by_side)
+        if edited is None:
             return
-        side_row = item.data(0, _SIDE_ROLE)
-        if not isinstance(side_row, int) or not 0 <= side_row < len(self._side_rows):
-            return
-        _, side = self._side_rows[side_row]
-        details = self._details_by_side.get(side) or _SideDetails()
+        side, details = edited
 
-        if column == _USERNAMES_COLUMN:
-            seen_cf: set[str] = set()
-            new_usernames: list[str] = []
-            for raw_name in split_usernames(item.text(_USERNAMES_COLUMN)):
-                if (cleaned := raw_name.strip()) and (folded := cleaned.casefold()) not in seen_cf:
-                    seen_cf.add(folded)
-                    new_usernames.append(cleaned)
-
+        if column == USERNAMES_COLUMN:
+            new_usernames = parse_deduped_usernames_cell(item.text(USERNAMES_COLUMN))
             if not new_usernames or new_usernames == details.usernames:
                 with QSignalBlocker(self._tree):
                     self._populate_side_item(item, side, details)
                 return
-
             updated_details = _rewrite_side_usernames(side, new_usernames)
         else:
-            new_note = item.text(_NOTES_COLUMN).strip()
+            new_note = item.text(NOTES_COLUMN).strip()
             if new_note == ', '.join(details.notes):
                 with QSignalBlocker(self._tree):
                     self._populate_side_item(item, side, details)
@@ -846,6 +591,7 @@ class UserIPConflictResolverDialog(QDialog):
             self._populate_side_item(item, side, updated_details)
         refresh_userip_and_wake_renderer()
         self._last_build_version = UserIPDatabases.build_version
+        self._split_groups_tab.refresh()
 
     def _update_buttons(self) -> None:
         has_side = self._selected_side() is not None
@@ -897,16 +643,10 @@ class UserIPConflictResolverDialog(QDialog):
         self._refresh()
 
     def _edit_selected(self) -> None:
-        selection = self._selected_side()
-        if selection is None:
+        prompted = prompt_selected_resolver_ip(self, self._selected_side(), lambda s: s.entry)
+        if prompted is None:
             return
-        _, side = selection
-        dialog = IPRangeBuilderDialog(self, initial_entry=side.entry)
-        if dialog.exec() != QDialog.DialogCode.Accepted:
-            return
-        new_entry = dialog.result_entry()
-        if not new_entry or new_entry == side.entry:
-            return
+        side, new_entry = prompted
         if not rewrite_db_edit_entry_ip(side.db_path, side.entry, new_entry):
             QMessageBox.warning(self, TITLE, 'The selected entry no longer exists in its database, nothing was changed.')
             self._refresh()
@@ -928,8 +668,33 @@ class UserIPConflictResolverDialog(QDialog):
 _active_resolver_dialogs: ActiveDialogRegistry[str, UserIPConflictResolverDialog] = ActiveDialogRegistry()
 
 
-def open_userip_conflict_resolver(focus_entry: str | None = None) -> None:
-    """Open (or focus) the UserIP Conflict Resolver, optionally selecting the conflict covering `focus_entry`."""
+def count_userip_resolver_issues() -> tuple[int, int]:
+    """Return `(ip_conflict_group_count, split_account_group_count)` across enabled UserIP databases."""
+    conflict_groups = _build_conflict_groups(UserIPDatabases.get_conflicts())
+    split_groups, _ = collect_split_account_groups(include_disabled=False)
+    return len(conflict_groups), len(split_groups)
+
+
+def update_resolve_conflicts_button(button: QPushButton) -> None:
+    """Refresh the label and tooltip of a 'Resolve Conflicts…' button with active conflict and split-group counts."""
+    conflicts_n, split_n = count_userip_resolver_issues()
+    total = conflicts_n + split_n
+    button.setText(f' Resolve Conflicts ({total})…' if total else ' Resolve Conflicts…')
+    if total:
+        button.setToolTip(
+            f'{conflicts_n} IP conflict group{pluralize(conflicts_n)}, '
+            f'{split_n} split account group{pluralize(split_n)} — click to review and resolve',
+        )
+    else:
+        button.setToolTip('Open the UserIP Conflict Resolver to review IP/range conflicts or account groups split across databases')
+
+
+def open_userip_conflict_resolver(focus_entry: str | None = None, *, focus_split_username: str | None = None) -> None:
+    """Open (or focus) the UserIP Conflict Resolver on the IP Conflicts or Split Groups tab."""
     dialog = _active_resolver_dialogs.show_or_focus('userip_conflict_resolver', lambda: UserIPConflictResolverDialog(find_main_window()))
-    if focus_entry is not None:
+    if focus_split_username is not None:
+        dialog.focus_on_split_username(focus_split_username)
+    elif focus_entry is not None:
         dialog.focus_on_entry(focus_entry)
+    else:
+        dialog.select_most_relevant_tab()

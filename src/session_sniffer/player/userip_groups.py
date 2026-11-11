@@ -13,7 +13,7 @@ from session_sniffer.constants.local import APP_DIR_ROAMING
 from session_sniffer.utils import FileSignature, atomic_write_text, get_file_signature
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping, Sequence
+    from collections.abc import Iterable, Mapping, Sequence
     from collections.abc import Set as AbstractSet
     from pathlib import Path
 
@@ -585,9 +585,56 @@ def restore_looky_usernames(ip: str, usernames: Sequence[str]) -> bool:
         return True
 
 
+def _partition_account_group_components(
+    ordered_cfs: Iterable[str],
+    cohosted_groups: Iterable[Sequence[str]],
+    linked_pairs: AbstractSet[tuple[str, str]],
+    unlinked_pairs: AbstractSet[tuple[str, str]],
+    *,
+    excluded_cfs: AbstractSet[str] = frozenset(),
+) -> list[list[str]]:
+    """Partition casefolded usernames into disjoint connected account-group components."""
+    adj: dict[str, dict[str, None]] = {}
+    for u1, u2 in sorted(linked_pairs):
+        if u1 not in excluded_cfs and u2 not in excluded_cfs and _normalize_pair(u1, u2) not in unlinked_pairs:
+            adj.setdefault(u1, {})[u2] = None
+            adj.setdefault(u2, {})[u1] = None
+
+    for cfs in cohosted_groups:
+        unique_cfs = [cf for cf in dict.fromkeys(cfs) if cf and cf not in excluded_cfs]
+        for idx, c1 in enumerate(unique_cfs):
+            for c2 in unique_cfs[idx + 1 :]:
+                if _normalize_pair(c1, c2) not in unlinked_pairs:
+                    adj.setdefault(c1, {})[c2] = None
+                    adj.setdefault(c2, {})[c1] = None
+
+    roots = list(dict.fromkeys(cf for cf in ordered_cfs if cf and cf not in excluded_cfs))
+    visited: set[str] = set()
+    components: list[list[str]] = []
+    for root in roots:
+        if root in visited:
+            continue
+        comp = [root]
+        seen = {root}
+        queue = deque([root])
+        while queue:
+            curr = queue.popleft()
+            for nb_cf in adj.get(curr, ()):
+                if (
+                    nb_cf not in visited
+                    and nb_cf not in seen
+                    and all(_normalize_pair(nb_cf, m_cf) not in unlinked_pairs for m_cf in comp)
+                ):
+                    seen.add(nb_cf)
+                    comp.append(nb_cf)
+                    queue.append(nb_cf)
+        visited.update(comp)
+        components.append(comp)
+    return components
+
+
 def compute_row_group_ids_and_prefixes(
     rows: Sequence[tuple[str, str, int, str]],
-    clusters_snapshot: Mapping[str, Sequence[str]],
     *,
     descending: bool = False,
 ) -> tuple[list[str], list[str]]:
@@ -597,76 +644,32 @@ def compute_row_group_ids_and_prefixes(
         return [], []
 
     linked_pairs, unlinked_pairs, _ = get_grouping_snapshot()
-    ordered_present_nodes = list(dict.fromkeys((db_key, cf) for cf, _, _, db_key in rows if cf))
-    nodes_by_db: dict[str, set[str]] = {}
-    for db_key, cf in ordered_present_nodes:
-        nodes_by_db.setdefault(db_key, set()).add(cf)
-
+    present_cfs = {cf for cf, _, _, _ in rows if cf}
     rows_by_db_ip: dict[tuple[str, str], list[int]] = {}
     for row, (_, ip_val, _, db_key) in enumerate(rows):
         if ip_val:
             rows_by_db_ip.setdefault((db_key, ip_val), []).append(row)
 
-    adj: dict[tuple[str, str], dict[tuple[str, str], None]] = {}
-    for db_key, db_present_cfs in nodes_by_db.items():
-        for u_cf, cluster in clusters_snapshot.items():
-            if u_cf not in db_present_cfs:
-                continue
-            cluster_cfs = [m.casefold() for m in cluster if m.casefold() in db_present_cfs]
-            for idx, c1 in enumerate(cluster_cfs):
-                for c2 in cluster_cfs[idx + 1 :]:
-                    pair = (c1, c2) if c1 < c2 else (c2, c1)
-                    if pair not in unlinked_pairs:
-                        adj.setdefault((db_key, c1), {})[(db_key, c2)] = None
-                        adj.setdefault((db_key, c2), {})[(db_key, c1)] = None
-
-        for u1, u2 in sorted(linked_pairs):
-            if u1 in db_present_cfs and u2 in db_present_cfs:
-                pair = (u1, u2) if u1 < u2 else (u2, u1)
-                if pair not in unlinked_pairs:
-                    adj.setdefault((db_key, u1), {})[(db_key, u2)] = None
-                    adj.setdefault((db_key, u2), {})[(db_key, u1)] = None
-
-    for (db_key, _), ip_rows in rows_by_db_ip.items():
-        if len(ip_rows) > 1:
-            ip_cfs = list(dict.fromkeys(rows[r][0] for r in ip_rows if rows[r][0]))
-            for idx, c1 in enumerate(ip_cfs):
-                for c2 in ip_cfs[idx + 1 :]:
-                    pair = (c1, c2) if c1 < c2 else (c2, c1)
-                    if pair not in unlinked_pairs:
-                        adj.setdefault((db_key, c1), {})[(db_key, c2)] = None
-                        adj.setdefault((db_key, c2), {})[(db_key, c1)] = None
-
-    visited: set[tuple[str, str]] = set()
-    node_to_group_id: dict[tuple[str, str], str] = {}
-    for root in ordered_present_nodes:
-        if root in visited:
+    cohosted_groups = [[rows[r][0] for r in ip_rows if rows[r][0]] for ip_rows in rows_by_db_ip.values() if len(ip_rows) > 1]
+    node_to_group_id: dict[str, str] = {}
+    for comp in _partition_account_group_components((cf for cf, _, _, _ in rows if cf), cohosted_groups, linked_pairs, unlinked_pairs):
+        visible = [cf for cf in comp if cf in present_cfs]
+        if not visible:
             continue
-        comp: list[str] = []
-        queue = deque([root])
-        visited.add(root)
-        while queue:
-            curr_db, curr_cf = queue.popleft()
-            comp.append(curr_cf)
-            for nb_db, nb_cf in adj.get((curr_db, curr_cf), ()):
-                if (nb_db, nb_cf) not in visited and all(((nb_cf, m) if nb_cf < m else (m, nb_cf)) not in unlinked_pairs for m in comp):
-                    visited.add((nb_db, nb_cf))
-                    queue.append((nb_db, nb_cf))
-        db_prefix = f'{root[0]}\x00' if root[0] else ''
-        gid = f'{max(comp) if descending else min(comp)}\x00{db_prefix}u:{min(comp)}'
+        gid = f'{max(visible) if descending else min(visible)}\x00u:{min(visible)}'
         for member in comp:
-            node_to_group_id[(root[0], member)] = gid
+            node_to_group_id[member] = gid
 
     row_gids: list[str] = []
     group_anchor_index: dict[str, int] = {}
     for row, (u_cf, ip_val, r_idx, db_key) in enumerate(rows):
         db_prefix = f'{db_key}\x00' if db_key else ''
         if u_cf:
-            gid = node_to_group_id.get((db_key, u_cf), f'{u_cf}\x00{db_prefix}u:{u_cf}')
+            gid = node_to_group_id.get(u_cf, f'{u_cf}\x00u:{u_cf}')
         elif ip_val:
             nearest_peer = min(((abs(r - row), r, rows[r][0]) for r in rows_by_db_ip.get((db_key, ip_val), ()) if rows[r][0]), default=None)
             peer_cf = nearest_peer[2] if nearest_peer is not None else ''
-            gid = node_to_group_id.get((db_key, peer_cf), f'{peer_cf}\x00{db_prefix}u:{peer_cf}') if peer_cf else f'\x00{db_prefix}ip:{ip_val}'
+            gid = node_to_group_id.get(peer_cf, f'{peer_cf}\x00u:{peer_cf}') if peer_cf else f'\x00{db_prefix}ip:{ip_val}'
         else:
             gid = f'\x00{db_prefix}row:{row}'
         row_gids.append(gid)
@@ -748,66 +751,86 @@ def build_known_alts_clusters(
     return canonical_names, known_alts_clusters
 
 
-def expand_connected_group_usernames(
-    seed_usernames: Sequence[str],
+@dataclass(frozen=True, slots=True)
+class UserIPAccountGroup:
+    """A connected account group resolved across one or more UserIP databases."""
+
+    usernames: tuple[str, ...]
+    usernames_cf: frozenset[str]
+    databases: tuple[Path, ...]
+    entry_keys: frozenset[tuple[Path, str, str]]
+
+
+def build_userip_account_groups(
+    databases_entries: Sequence[tuple[Path, Sequence[tuple[str, str]]]],
     *,
     excluded_cfs: AbstractSet[str] = frozenset(),
-    entry_groups: Sequence[Sequence[str]] = (),
-    clusters_snapshot: Mapping[str, Sequence[str]] | None = None,
-) -> set[str]:
-    """Return casefolded usernames in the connected account group reachable from *seed_usernames*."""
-    with _groups_lock:
-        _ensure_loaded_locked()
-        linked_pairs = set(_cache.linked_pairs)
-        unlinked_pairs = set(_get_expanded_unlinked_locked())
+    extra_seed_usernames: Sequence[str] = (),
+) -> list[UserIPAccountGroup]:
+    """Partition all entries across *databases_entries* (plus *extra_seed_usernames*) into connected `UserIPAccountGroup`s."""
+    linked_pairs, unlinked_pairs, stored_canonical = get_grouping_snapshot()
+    canonical_names: dict[str, str] = {}
+    ordered_cfs: dict[str, None] = {}
+    ordered_dbs: dict[Path, int] = {}
+    keys_by_cf: dict[str, list[tuple[Path, str, str]]] = {}
+    cohosted_by_db_ip: dict[tuple[Path, str], list[str]] = {}
 
-    seeds: list[str] = []
-    for raw_name in seed_usernames:
-        cf = raw_name.strip().casefold()
-        if (
-            cf
-            and cf not in excluded_cfs
-            and cf not in seeds
-            and all(_normalize_pair(cf, prev_cf) not in unlinked_pairs for prev_cf in seeds)
-        ):
-            seeds.append(cf)
-    if not seeds:
-        return set()
+    for db_path, raw_pairs in databases_entries:
+        ordered_dbs.setdefault(db_path, len(ordered_dbs))
+        for raw_user, raw_ip in raw_pairs:
+            user, ip_val = raw_user.strip(), raw_ip.strip()
+            if not user or not ip_val:
+                continue
+            cf = user.casefold()
+            if cf in excluded_cfs:
+                continue
+            canonical_names.setdefault(cf, user)
+            ordered_cfs.setdefault(cf, None)
+            keys_by_cf.setdefault(cf, []).append((db_path, cf, ip_val))
+            cohosted_by_db_ip.setdefault((db_path, ip_val), []).append(cf)
 
-    adj: dict[str, dict[str, None]] = {}
-    for u1, u2 in sorted(linked_pairs):
-        if _normalize_pair(u1, u2) not in unlinked_pairs:
-            adj.setdefault(u1, {})[u2] = None
-            adj.setdefault(u2, {})[u1] = None
+    for raw_seed in extra_seed_usernames:
+        if seed := raw_seed.strip():
+            cf = seed.casefold()
+            if cf not in excluded_cfs:
+                canonical_names.setdefault(cf, seed)
+                ordered_cfs.setdefault(cf, None)
 
-    if clusters_snapshot is not None:
-        for u_cf, cluster in clusters_snapshot.items():
-            for member in cluster:
-                m_cf = member.strip().casefold()
-                if m_cf and m_cf != u_cf and _normalize_pair(u_cf, m_cf) not in unlinked_pairs:
-                    adj.setdefault(u_cf, {})[m_cf] = None
-                    adj.setdefault(m_cf, {})[u_cf] = None
+    if not ordered_cfs:
+        return []
 
-    for names in entry_groups:
-        unique_cfs = list(dict.fromkeys(n.strip().casefold() for n in names if n.strip()))
-        for idx, c1 in enumerate(unique_cfs):
-            for c2 in unique_cfs[idx + 1 :]:
-                if _normalize_pair(c1, c2) not in unlinked_pairs:
-                    adj.setdefault(c1, {})[c2] = None
-                    adj.setdefault(c2, {})[c1] = None
+    for cf, display_name in stored_canonical.items():
+        canonical_names.setdefault(cf, display_name)
 
-    comp = list(seeds)
-    visited = set(seeds)
-    queue = deque(seeds)
-    while queue:
-        curr = queue.popleft()
-        for nb_cf in adj.get(curr, ()):
-            if (
-                nb_cf not in visited
-                and nb_cf not in excluded_cfs
-                and all(_normalize_pair(nb_cf, m_cf) not in unlinked_pairs for m_cf in comp)
-            ):
-                visited.add(nb_cf)
-                comp.append(nb_cf)
-                queue.append(nb_cf)
-    return visited
+    groups: list[UserIPAccountGroup] = []
+    for comp in _partition_account_group_components(
+        ordered_cfs,
+        cohosted_by_db_ip.values(),
+        linked_pairs,
+        unlinked_pairs,
+        excluded_cfs=excluded_cfs,
+    ):
+        entry_keys = frozenset(key for cf in comp for key in keys_by_cf.get(cf, ()))
+        group_dbs = tuple(sorted({db_path for db_path, _, _ in entry_keys}, key=lambda p: ordered_dbs.get(p, 0)))
+        groups.append(
+            UserIPAccountGroup(
+                usernames=tuple(canonical_names.get(cf, cf) for cf in comp),
+                usernames_cf=frozenset(comp),
+                databases=group_dbs,
+                entry_keys=entry_keys,
+            ),
+        )
+    return groups
+
+
+def find_split_account_groups(
+    databases_entries: Sequence[tuple[Path, Sequence[tuple[str, str]]]],
+    *,
+    conflicting_entries: AbstractSet[tuple[Path, str]] = frozenset(),
+) -> list[UserIPAccountGroup]:
+    """Return connected account groups whose non-conflicting entries span two or more databases."""
+    return [
+        group
+        for group in build_userip_account_groups(databases_entries)
+        if len({db_path for db_path, _, ip_val in group.entry_keys if (db_path, ip_val) not in conflicting_entries}) >= MIN_GROUP_USERNAMES
+    ]

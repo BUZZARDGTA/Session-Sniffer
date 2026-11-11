@@ -974,9 +974,3 @@ class UserIPDatabases:
         """Return a mapping of casefolded usernames to their target database path for all indexed usernames."""
         with cls._update_userip_database_lock:
             return {cf: meta.db_path for cf, meta in cls._username_to_meta.items()}
-
-    @classmethod
-    def get_known_alts_clusters_snapshot(cls) -> dict[str, list[str]]:
-        """Return a shallow snapshot of the casefolded username -> cluster mapping."""
-        with cls._update_userip_database_lock:
-            return dict(cls._known_alts_clusters)

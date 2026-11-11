@@ -52,7 +52,6 @@ from session_sniffer.guis.table_column_resizing import setup_table_header_contex
 from session_sniffer.guis.tables_player_actions._player_info_dialog_mixin import PlayerInfoDialogMixin
 from session_sniffer.guis.tables_player_actions.looky_system._looky_helpers import LookyRefreshLoadingDialog, check_looky_prerequisites, format_looky_request_error
 from session_sniffer.guis.userip_manager_helpers import (
-    append_userip_entries,
     load_userip_database_model,
     populate_userip_databases_menu,
     refresh_userip_and_wake_renderer,
@@ -72,7 +71,7 @@ from session_sniffer.networking.ip_range import entry_ip_covers_ip
 from session_sniffer.networking.looky_system import lookup_ip_batches, lookup_username_ips
 from session_sniffer.player.userip import UserIPDatabases
 from session_sniffer.player.userip_groups import get_excluded_looky_usernames_cf, record_looky_db_correlation
-from session_sniffer.player.userip_loader import userip_databases_lock
+from session_sniffer.player.userip_loader import append_userip_entries, userip_databases_lock
 from session_sniffer.settings.settings import Settings
 from session_sniffer.text_utils import pluralize
 

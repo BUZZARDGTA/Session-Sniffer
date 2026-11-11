@@ -11,7 +11,6 @@ from session_sniffer.guis.select_usernames_dialog import SelectUsernamesDialog, 
 from session_sniffer.guis.tables_player_actions.looky_system._looky_helpers import sync_player_looky_usernames_and_userip
 from session_sniffer.guis.userip_manager_helpers import (
     IPRangeBuilderDialog,
-    append_userip_entries,
     format_userip_db_display_name,
     load_userip_database_model,
     refresh_userip_and_wake_renderer,
@@ -20,7 +19,7 @@ from session_sniffer.guis.userip_manager_helpers import (
     rewrite_db_rename_entries,
     save_userip_database_model,
 )
-from session_sniffer.models.userip_settings_model import UserIPDatabaseFile, UserIPEntryModel, get_current_iso_timestamp
+from session_sniffer.models.userip_settings_model import UserIPDatabaseFile, UserIPEntryModel
 from session_sniffer.networking.ip_range import entry_ip_covers_ip
 from session_sniffer.player.registry import PlayersRegistry, SessionTracker
 from session_sniffer.player.userip import UserIPDatabases
@@ -34,7 +33,13 @@ from session_sniffer.player.userip_groups import (
     restore_looky_usernames,
     ungroup_usernames,
 )
-from session_sniffer.player.userip_loader import userip_databases_lock
+from session_sniffer.player.userip_loader import (
+    append_userip_entries,
+    collect_userip_account_groups,
+    get_account_group_clusters_map,
+    move_userip_entries_to_database,
+    userip_databases_lock,
+)
 from session_sniffer.rendering_core.types import CaptureState, SessionFilterState
 from session_sniffer.settings import Settings
 from session_sniffer.text_utils import pluralize
@@ -223,30 +228,21 @@ def userip_add(
         if new_entries:
             append_userip_entries(selected_database, new_entries)
             if len(chosen_usernames) >= MIN_GROUP_USERNAMES:
-                group_usernames(chosen_usernames, UserIPDatabases.get_known_alts_clusters_snapshot())
+                group_usernames(chosen_usernames, get_account_group_clusters_map(include_disabled=True))
         refresh_userip_and_wake_renderer()
 
     db_display = format_userip_db_display_name(selected_database)
     usernames_display = ', '.join(f'"{name}"' for name in chosen_usernames)
+    has_or_have = pluralize(len(selected_ips), singular='s', plural='ve')
     _show_modal_info_on_top(
-        parent,
-        TITLE,
-        (
-            f'Selected IP{pluralize(len(selected_ips))} {", ".join(selected_ips)} '
-            f'ha{pluralize(len(selected_ips), singular="s", plural="ve")} been added with username{pluralize(len(chosen_usernames))} '
-            f'{usernames_display} to UserIP database "{db_display}".'
-        ),
+        parent, TITLE,
+        f'Selected IP{pluralize(len(selected_ips))} {", ".join(selected_ips)} ha{has_or_have} been added with '
+        f'username{pluralize(len(chosen_usernames))} {usernames_display} to UserIP database "{db_display}".',
     )
     UserIPDatabases.renotify_if_conflicting(selected_ips)
 
 
-def userip_add_as_range(
-    parent: QWidget,
-    ip_address: str,
-    selected_database: Path,
-    *,
-    usernames: list[str] | None = None,
-) -> None:
+def userip_add_as_range(parent: QWidget, ip_address: str, selected_database: Path, *, usernames: list[str] | None = None) -> None:
     """Add the selected IP address as a range entry to the chosen UserIP database."""
     range_dialog = IPRangeBuilderDialog(parent, initial_ip=ip_address, allow_single_ip=False)
     if range_dialog.exec() != IPRangeBuilderDialog.DialogCode.Accepted:
@@ -258,10 +254,7 @@ def userip_add_as_range(
 
     candidates = list(usernames) if usernames is not None else None
     prompt_result = _prompt_usernames_to_add(
-        parent,
-        [ip_address],
-        selected_database,
-        candidate_usernames=candidates,
+        parent, [ip_address], selected_database, candidate_usernames=candidates,
         prompt_message=lambda count: f'Enter the username{pluralize(count)} to associate with range "{range_input}":',
     )
     if prompt_result is None:
@@ -272,7 +265,7 @@ def userip_add_as_range(
 
     append_userip_entries(selected_database, [UserIPEntryModel(username=u, ip=range_input, notes=notes_by_username.get(u, '')) for u in chosen_usernames])
     if len(chosen_usernames) >= MIN_GROUP_USERNAMES:
-        group_usernames(chosen_usernames, UserIPDatabases.get_known_alts_clusters_snapshot())
+        group_usernames(chosen_usernames, get_account_group_clusters_map(include_disabled=True))
     refresh_userip_and_wake_renderer()
 
     db_display = format_userip_db_display_name(selected_database)
@@ -514,7 +507,7 @@ def userip_add_username(parent: QWidget, ip_address: str, player: Player) -> Non
     if existing_usernames:
         anchor_name = existing_usernames[0]
         linked_existing = [name for name in existing_usernames if not are_usernames_unlinked(name, anchor_name)]
-        group_usernames([*linked_existing, *entered_usernames], UserIPDatabases.get_known_alts_clusters_snapshot())
+        group_usernames([*linked_existing, *entered_usernames], get_account_group_clusters_map(include_disabled=True))
     refresh_userip_and_wake_renderer()
 
     usernames_display = ', '.join(f'"{username}"' for username in entered_usernames)
@@ -652,45 +645,26 @@ def _format_database_entries_html_list(entries_by_database: dict[Path, list[str]
 
 def userip_move(parent: QWidget, selected_ips: list[str], selected_database: Path, *, group_keys_fn: Callable[[], frozenset[tuple[Path, str, str]]] | None = None) -> None:
     """Move the selected IP address(es) or account group entries to the chosen UserIP database."""
-    deleted_entries_by_database: dict[Path, list[str]] = {}
-    all_moved_entries: list[UserIPEntryModel] = []
-    moved_entry_ips: list[str] = []
-    now_iso = get_current_iso_timestamp()
-
     with userip_databases_lock():
         group_keys = group_keys_fn() if group_keys_fn is not None else None
-        for db_path in UserIPDatabases.get_userip_database_filepaths():
-            if db_path == selected_database or not db_path.is_file():
-                continue
-            db_model = load_userip_database_model(db_path)
-            if not db_model.entries:
-                continue
-            kept_entries: list[UserIPEntryModel] = []
-            moved_entries: list[UserIPEntryModel] = []
-            for entry in db_model.entries:
-                key = (db_path, entry.username.strip().casefold(), entry.ip.strip())
-                if (key in group_keys) if group_keys is not None else _entry_ip_matches_any(entry.ip, selected_ips):
-                    moved_entries.append(entry.model_copy(update={'updated_at': now_iso}))
-                else:
-                    kept_entries.append(entry)
-            if moved_entries:
-                save_userip_database_model(db_path, UserIPDatabaseFile(settings=db_model.settings, entries=kept_entries))
-                all_moved_entries.extend(moved_entries)
-                moved_entry_ips.extend(entry.ip for entry in moved_entries)
-                deleted_entries_by_database[db_path] = [f'{html.escape(entry.username)}={html.escape(entry.ip)}' for entry in moved_entries]
+        result = move_userip_entries_to_database(
+            selected_database,
+            entry_keys=group_keys,
+            covering_ips=None if group_keys is not None else selected_ips,
+            extra_conflict_check_ips=selected_ips,
+        )
 
-        if all_moved_entries:
-            append_userip_entries(selected_database, all_moved_entries)
-            refresh_userip_and_wake_renderer()
-
-    if deleted_entries_by_database:
+    if result.moved_by_db:
+        deleted_entries_by_database = {
+            db_path: [f'{html.escape(entry.username)}={html.escape(entry.ip)}' for entry in entries]
+            for db_path, entries in result.moved_by_db.items()
+        }
         target_db_display = html.escape(format_userip_db_display_name(selected_database))
-        n_moved = len(all_moved_entries)
+        n_moved = result.total_moved
         moved_subject = f'Account group ({n_moved} {pluralize(n_moved, "entry", "entries")})' if group_keys is not None else f'Selected IP{pluralize(len(selected_ips))}'
         db_word = f'UserIP database{pluralize(len(deleted_entries_by_database))}'
         header = f'<b>{moved_subject} moved from the following {db_word} to UserIP database "{target_db_display}":</b><br><br><br>'
         _show_modal_info_on_top(parent, TITLE, header + _format_database_entries_html_list(deleted_entries_by_database))
-        UserIPDatabases.renotify_if_conflicting(dedup_preserve_order(selected_ips, moved_entry_ips))
 
 
 def userip_delete(parent: QWidget, selected_ips: list[str]) -> None:
@@ -820,23 +794,42 @@ def _update_detached_usernames_for_player(player: Player, cfs: set[str], *, deta
             target.detached_userip_usernames_cf.difference_update(cfs)
 
 
-def collect_grouped_usernames_for_player(player: Player, *, persisted_usernames: Sequence[str] | None = None) -> list[str]:
-    """Return all usernames currently grouped with *player* (via known-alts clusters or shared UserIP entries)."""
-    base_names: list[str] = []
-    filtered_userip = UserIPDatabases.filter_userip_for_player(player, player.userip)
-    if filtered_userip is not None:
-        anchor_names = list(filtered_userip.usernames)
-        raw_persisted = persisted_usernames if persisted_usernames is not None else collect_persisted_usernames_for_ip(filtered_userip.db_path, player.ip)
-        persisted_names = [
-            u
-            for u in raw_persisted
-            if u.casefold() not in player.detached_userip_usernames_cf and not any(are_usernames_unlinked(u, anchor) for anchor in anchor_names)
+def get_player_userip_group_seeds(player: Player, *, persisted_usernames: Sequence[str] | None = None, exact_ip_first: bool = False) -> tuple[list[str], frozenset[str]]:
+    """Return `(seed_usernames, excluded_cfs)` for resolving *player*'s UserIP account group(s)."""
+    filtered = UserIPDatabases.filter_userip_for_player(player, player.userip) or UserIPDatabases.resolve_userip_for_player(player)
+    if filtered is None:
+        seeds = [u for u in resolve_usernames_for_player(player) if u.strip() and u.strip().casefold() not in player.detached_userip_usernames_cf]
+        return dedup_preserve_order(seeds), frozenset(player.detached_userip_usernames_cf)
+
+    filtered_cfs = {u.strip().casefold() for u in filtered.usernames if u.strip()}
+    raw_persisted = list(persisted_usernames) if persisted_usernames is not None else collect_persisted_usernames_for_ip(filtered.db_path, player.ip)
+    if exact_ip_first and filtered.db_path.is_file() and (
+        exact_names := [
+            e.username.strip() for e in load_userip_database_model(filtered.db_path).entries
+            if e.username.strip() and e.ip.strip() == player.ip and (not filtered_cfs or e.username.strip().casefold() in filtered_cfs)
         ]
-        base_names.extend(anchor_names)
-        base_names.extend(persisted_names)
-    else:
-        base_names.extend(u for u in resolve_usernames_for_player(player) if u.casefold() not in player.detached_userip_usernames_cf)
-    candidates = [u for u in UserIPDatabases.expand_with_known_alts(dedup_preserve_order(base_names)) if u.casefold() not in player.detached_userip_usernames_cf]
+    ):
+        raw_persisted = dedup_preserve_order(exact_names)
+
+    base_candidates = raw_persisted if (exact_ip_first and raw_persisted) else list(filtered.usernames)
+    non_detached = [u for u in base_candidates if u.strip() and u.strip().casefold() not in player.detached_userip_usernames_cf]
+    anchors = non_detached or [u for u in base_candidates if u.strip()]
+    extra_persisted = [
+        u for u in raw_persisted
+        if u.strip() and u.strip().casefold() not in player.detached_userip_usernames_cf and not any(are_usernames_unlinked(u, a) for a in anchors)
+    ]
+    return dedup_preserve_order(anchors, extra_persisted), frozenset(player.detached_userip_usernames_cf) if non_detached else frozenset()
+
+
+def collect_grouped_usernames_for_player(player: Player, *, persisted_usernames: Sequence[str] | None = None) -> list[str]:
+    """Return all usernames currently grouped with *player* across UserIP databases and persisted links."""
+    seeds, excluded_cfs = get_player_userip_group_seeds(player, persisted_usernames=persisted_usernames)
+    if not seeds:
+        return []
+    seed_cfs = {u.casefold() for u in seeds}
+    groups = collect_userip_account_groups(include_disabled=False, excluded_cfs=excluded_cfs, extra_seed_usernames=seeds)
+    matched_names = [u for group in groups if group.usernames_cf & seed_cfs for u in group.usernames]
+    candidates = [u for u in dedup_preserve_order(seeds, matched_names) if u.casefold() not in excluded_cfs]
     if len(candidates) <= 1:
         return candidates
     return [u for u in candidates if any(u.casefold() != v.casefold() and not are_usernames_unlinked(u, v) for v in candidates)]
@@ -855,7 +848,7 @@ def prompt_and_group_with(parent: QWidget, source_usernames: Sequence[str]) -> t
     if len(combined) < MIN_GROUP_USERNAMES:
         QMessageBox.information(parent, TITLE, 'Please enter a different username to group with.')
         return None
-    if group_usernames(combined, UserIPDatabases.get_known_alts_clusters_snapshot()):
+    if group_usernames(combined, get_account_group_clusters_map(include_disabled=True)):
         refresh_userip_and_wake_renderer()
         return target_clean, source_display
     return None
@@ -914,7 +907,7 @@ def userip_group_selected(parent: QWidget, players: Sequence[Player]) -> None:
     grouped_cfs = {u.casefold() for u in usernames}
     for player in players:
         _update_detached_usernames_for_player(player, grouped_cfs, detach=False)
-    if group_usernames(usernames, UserIPDatabases.get_known_alts_clusters_snapshot()):
+    if group_usernames(usernames, get_account_group_clusters_map(include_disabled=True)):
         refresh_userip_and_wake_renderer()
         names_display = ', '.join(f'"{name}"' for name in usernames)
         QMessageBox.information(parent, TITLE, f'Grouped {len(usernames)} usernames together: {names_display}.')

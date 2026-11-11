@@ -98,7 +98,7 @@ class EntriesContextMenuMixin(QDialog):
         def _move_selected_to_database(self, target_db_path: Path) -> None:
             del target_db_path
 
-        def _collect_group_source_rows(self, source_rows: list[int]) -> list[int]:
+        def _collect_group_entry_keys_for_rows(self, source_rows: list[int]) -> tuple[frozenset[tuple[Path, str, str]], frozenset[tuple[Path, str, str]]]:
             raise NotImplementedError
 
         def _move_group_to_database(self, seed_rows: list[int], target_db_path: Path) -> None:
@@ -365,24 +365,18 @@ class EntriesContextMenuMixin(QDialog):
         menu.addMenu(move_db_menu)
 
         source_rows = sorted({self._proxy.mapToSource(idx).row() for idx in context.selected_rows}) if context.selected_rows else [context.row]
-        group_rows = self._collect_group_source_rows(source_rows)
-        if len(group_rows) > 1 and set(group_rows) != set(source_rows):
-            group_disabled_path = disabled_path
-            if self._global_search_active:
-                group_db_paths = {
-                    db_item.data(Qt.ItemDataRole.UserRole)
-                    for r in group_rows
-                    if (db_item := self._model.item(r, DATABASE_COLUMN))
-                }
-                group_disabled_path = Path(next(iter(group_db_paths))) if len(group_db_paths) == 1 and next(iter(group_db_paths)) else None
-            move_group_menu = QMenu(f'Move Group to Database ({len(group_rows)})', menu)
+        group_keys, selected_keys = self._collect_group_entry_keys_for_rows(source_rows)
+        if len(group_keys) > 1 and group_keys != selected_keys:
+            group_dbs = {db_path for db_path, _, _ in group_keys}
+            group_disabled_path = next(iter(group_dbs)) if len(group_dbs) == 1 else None
+            move_group_menu = QMenu(f'Move Group to Database ({len(group_keys)})', menu)
             move_group_menu.setIcon(box_icon)
             move_group_menu.setStyleSheet(SVG_ICON_CONTEXT_MENU_STYLESHEET)
             move_group_menu.setToolTipsVisible(True)
             enabled_group_targets = populate_userip_databases_menu(
                 move_group_menu,
                 all_db_paths,
-                tooltip=f'Move all {len(group_rows)} entries in this account group to this database.',
+                tooltip=f'Move all {len(group_keys)} entries in this account group to this database.',
                 handler_factory=lambda target_path: lambda: self._move_group_to_database(source_rows, target_path),
                 disabled_path=group_disabled_path,
             )

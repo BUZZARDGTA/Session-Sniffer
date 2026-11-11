@@ -22,7 +22,6 @@ from session_sniffer.guis.userip_manager_helpers import (
     EntriesSortProxy,
     IPRangeBuilderDialog,
     append_entry_rows,
-    append_userip_entries,
     build_entry_row_items,
     clear_row_looky_badge,
     dedup_userip_entries,
@@ -39,11 +38,19 @@ from session_sniffer.guis.userip_manager_helpers import (
     save_userip_database_model,
     set_row_updated_at,
 )
-from session_sniffer.models.userip_settings_model import UserIPDatabaseFile, UserIPEntryModel, UserIPSettingsModel, get_current_iso_timestamp
+from session_sniffer.models.userip_settings_model import UserIPDatabaseFile, UserIPEntryModel, UserIPSettingsModel
 from session_sniffer.networking.ip_range import is_valid_ip_range_entry
 from session_sniffer.player.userip import UserIPDatabases
 from session_sniffer.player.userip_groups import MIN_GROUP_USERNAMES, USERIP_GROUPS_PATH, are_usernames_unlinked, group_usernames, ungroup_usernames
-from session_sniffer.player.userip_loader import is_in_app_userip_db_content, update_userip_databases, userip_databases_lock
+from session_sniffer.player.userip_loader import (
+    append_userip_entries,
+    collect_userip_account_groups,
+    get_account_group_clusters_map,
+    is_in_app_userip_db_content,
+    move_userip_entries_to_database,
+    update_userip_databases,
+    userip_databases_lock,
+)
 from session_sniffer.player.userip_log_history import enrich_userip_entry_from_logs
 from session_sniffer.rendering_core.events import wake_rendering_core
 from session_sniffer.text_utils import pluralize
@@ -55,6 +62,7 @@ if TYPE_CHECKING:
     from PySide6.QtGui import QIcon, QStandardItem, QStandardItemModel
 
     from session_sniffer.guis.file_watch import DebouncedFileWatcher
+    from session_sniffer.player.userip_groups import UserIPAccountGroup
 
 
 class UserIPEntriesOperationsMixin(QDialog):
@@ -351,7 +359,7 @@ class UserIPEntriesOperationsMixin(QDialog):
             if added_pairs:
                 group_candidates = dedup_preserve_order(([anchor_username] if anchor_username else ()), added_usernames)
                 if len(group_candidates) >= MIN_GROUP_USERNAMES:
-                    group_usernames(group_candidates, UserIPDatabases.get_known_alts_clusters_snapshot())
+                    group_usernames(group_candidates, self._account_group_clusters_map())
                 refresh_userip_and_wake_renderer()
         self._last_seen_build_version = UserIPDatabases.build_version
         self._rebuild_fs_watch()
@@ -410,7 +418,7 @@ class UserIPEntriesOperationsMixin(QDialog):
             group_candidates = dedup_preserve_order(linked_existing, ([anchor_username] if anchor_username else ()), added_usernames)
             if len(group_candidates) >= MIN_GROUP_USERNAMES:
                 with QSignalBlocker(self._fs_watcher):
-                    if group_usernames(group_candidates, UserIPDatabases.get_known_alts_clusters_snapshot()):
+                    if group_usernames(group_candidates, self._account_group_clusters_map()):
                         self._refresh_table_after_grouping()
             added_count = max(0, self._model.rowCount() - before_count)
             if added_count > 0:
@@ -617,91 +625,106 @@ class UserIPEntriesOperationsMixin(QDialog):
         self._update_entry_counts()
         self._set_status(f'Deleted {count} {pluralize(count, "entry", "entries")} from database files.')
 
-    def _collect_group_source_rows(self, source_rows: list[int]) -> list[int]:
-        """Return all source-model row indices belonging to the account group(s) of *source_rows*."""
+    def _current_model_override_entries(self) -> dict[Path, list[tuple[str, str]]] | None:
+        """Return live `(username, ip)` pairs from `self._model` when editing a single database."""
+        if self._global_search_active or self._current_path is None:
+            return None
+        pairs = [(u, ip) for r in range(self._model.rowCount()) if (u := self._get_row_username(r)) and (ip := self._get_row_entry_value(r))]
+        return {self._current_path: pairs}
+
+    def _account_group_clusters_map(self) -> dict[str, list[str]]:
+        """Return `{username_cf: [canonical_member, ...]}` across all databases plus live model overrides."""
+        return get_account_group_clusters_map(include_disabled=True, override_entries_by_db=self._current_model_override_entries())
+
+    def _matching_groups_for_seeds(self, seeds: list[str]) -> list[UserIPAccountGroup]:
+        """Return `UserIPAccountGroup`s overlapping *seeds* across active databases (plus live model overrides)."""
+        if not seeds:
+            return []
+        seed_cfs = {u.casefold() for u in seeds}
+        groups = collect_userip_account_groups(
+            include_disabled=self._global_search_active, extra_seed_usernames=seeds, override_entries_by_db=self._current_model_override_entries(),
+        )
+        return [g for g in groups if g.usernames_cf & seed_cfs]
+
+    def _collect_row_seed_usernames(self, source_rows: list[int]) -> list[str]:
+        """Return deduplicated seed usernames from *source_rows* and their co-hosted/grouped table peers."""
         row_gids = self._proxy.get_source_row_group_ids()
         target_gids = {row_gids[r] for r in source_rows if 0 <= r < len(row_gids)}
-        rows_by_db: dict[Path | None, list[int]] = defaultdict(list)
-        for r in source_rows:
-            rows_by_db[self._get_row_database_path(r) if self._global_search_active else None].append(r)
-        cfs_by_db = {db: {u.casefold() for u in self._collect_group_members_for_rows(db_rows)} for db, db_rows in rows_by_db.items()}
-        matched = (
-            r for r in range(self._model.rowCount())
-            if (r < len(row_gids) and row_gids[r] in target_gids)
-            or self._get_row_username(r).casefold() in cfs_by_db.get(self._get_row_database_path(r) if self._global_search_active else None, set())
+        seed_rows = [r for r in range(self._model.rowCount()) if r in source_rows or (r < len(row_gids) and row_gids[r] in target_gids)]
+        return dedup_preserve_order(self._get_row_username(r) for r in seed_rows if self._get_row_username(r))
+
+    def _collect_row_entry_keys(self, source_rows: list[int]) -> frozenset[tuple[Path, str, str]]:
+        """Return `(db_path, username_cf, ip)` entry keys for *source_rows*."""
+        return frozenset(
+            (db_path, u.casefold(), ip)
+            for r in source_rows
+            if (db_path := self._get_row_database_path(r) if self._global_search_active else self._current_path) is not None
+            and (u := self._get_row_username(r))
+            and (ip := self._get_row_entry_value(r))
         )
-        return sorted({*source_rows, *matched})
+
+    def _collect_group_entry_keys_for_rows(self, source_rows: list[int]) -> tuple[frozenset[tuple[Path, str, str]], frozenset[tuple[Path, str, str]]]:
+        """Return `(group_entry_keys, selected_entry_keys)` for the account group(s) of *source_rows*."""
+        selected_keys = self._collect_row_entry_keys(source_rows)
+        group_keys = frozenset(key for g in self._matching_groups_for_seeds(self._collect_row_seed_usernames(source_rows)) for key in g.entry_keys)
+        return group_keys or selected_keys, selected_keys
 
     def _move_selected_to_database(self, target_db_path: Path) -> None:
         """Move the selected entries to a different UserIP database."""
-        if source_rows := self._get_selected_source_rows(warn_if_empty=True):
-            self._move_rows_to_database(source_rows, target_db_path)
+        if not (source_rows := self._get_selected_source_rows(warn_if_empty=True)):
+            return
+        if not (entry_keys := self._collect_row_entry_keys(source_rows)):
+            QMessageBox.information(self, TITLE, 'No valid entries to move.')
+            return
+        if self._global_search_active or not self._dirty or self._save_on_close():
+            self._execute_entry_keys_move(entry_keys, target_db_path)
 
     def _move_group_to_database(self, seed_rows: list[int], target_db_path: Path) -> None:
         """Move all entries in the account group(s) of *seed_rows* to *target_db_path*."""
-        if group_rows := self._collect_group_source_rows(seed_rows):
-            self._move_rows_to_database(group_rows, target_db_path)
+        seeds = self._collect_row_seed_usernames(seed_rows)
+        if not seeds or (not self._global_search_active and self._dirty and not self._save_on_close()):
+            return
+        if entry_keys := frozenset(key for g in self._matching_groups_for_seeds(seeds) for key in g.entry_keys):
+            self._execute_entry_keys_move(entry_keys, target_db_path)
 
-    def _move_rows_to_database(self, source_rows: list[int], target_db_path: Path) -> None:
-        """Move the specified *source_rows* to a different UserIP database."""
-        now_iso = get_current_iso_timestamp()
-
-        entries_to_move: list[tuple[UserIPEntryModel, int]] = []
-        for row in source_rows:
-            _, _, _, entry_model = extract_entry_model_from_row(self._model, row)
-            if entry_model is not None:
-                entries_to_move.append((entry_model.model_copy(update={'updated_at': now_iso}), row))
-
-        if not entries_to_move:
-            QMessageBox.information(self, TITLE, 'No valid entries to move.')
+    def _execute_entry_keys_move(self, entry_keys: frozenset[tuple[Path, str, str]], target_db_path: Path) -> None:
+        """Move *entry_keys* into *target_db_path* via the shared backend and synchronize the table UI."""
+        target_display_name = format_userip_db_display_name(target_db_path)
+        moving_keys = frozenset(key for key in entry_keys if key[0] != target_db_path)
+        if not moving_keys:
+            QMessageBox.information(self, TITLE, f'Selected {pluralize(len(entry_keys), "entry", "entries")} already belong to "{target_display_name}".')
             return
 
-        target_display_name = format_userip_db_display_name(target_db_path)
-        count = len(entries_to_move)
+        with QSignalBlocker(self._fs_watcher):
+            result = move_userip_entries_to_database(target_db_path, entry_keys=moving_keys)
+        self._last_seen_build_version = UserIPDatabases.build_version
+        self._rebuild_fs_watch()
+        if not result.moved_by_db:
+            return
 
         if self._global_search_active:
-            entries_by_src: dict[Path, set[tuple[str, str]]] = defaultdict(set)
-            valid_moves: list[tuple[UserIPEntryModel, int]] = []
-
-            for entry_model, row in entries_to_move:
-                src_db_path = self._get_row_database_path(row)
-                if src_db_path is None or src_db_path == target_db_path:
-                    continue
-                entries_by_src[src_db_path].add((entry_model.username, entry_model.ip))
-                valid_moves.append((entry_model, row))
-
-            if not valid_moves:
-                QMessageBox.information(self, TITLE, f'Selected {pluralize(count, "entry", "entries")} already belong to "{target_display_name}".')
-                return
-
-            with QSignalBlocker(self._fs_watcher), userip_databases_lock():
-                added_pairs = append_userip_entries(target_db_path, [entry_model for entry_model, _ in valid_moves])
-                for src_db_path, to_remove in entries_by_src.items():
-                    if src_db_path.is_file():
-                        rewrite_db_without_entries(src_db_path, to_remove)
-                refresh_userip_and_wake_renderer()
-            self._last_seen_build_version = UserIPDatabases.build_version
-            self._rebuild_fs_watch()
-
-            added_pairs_cf = {(u.casefold(), ip) for u, ip in added_pairs}
+            added_pairs_cf = {(u.casefold(), ip) for u, ip in result.added_pairs}
             rows_to_remove: list[int] = []
             updated_rows: list[int] = []
             with QSignalBlocker(self._model):
-                for entry_model, row in valid_moves:
-                    pair = (entry_model.username.casefold(), entry_model.ip)
+                for row in range(self._model.rowCount()):
+                    row_db = self._get_row_database_path(row)
+                    u_cf, ip_val = self._get_row_username(row).casefold(), self._get_row_entry_value(row)
+                    if row_db is None or (row_db, u_cf, ip_val) not in moving_keys:
+                        continue
+                    pair = (u_cf, ip_val)
                     if pair in added_pairs_cf:
                         added_pairs_cf.discard(pair)
                         if db_item := self._model.item(row, DATABASE_COLUMN):
                             db_item.setText(target_db_path.stem)
                             db_item.setData(str(target_db_path), Qt.ItemDataRole.UserRole)
-                        set_row_updated_at(self._model, row, now_iso)
+                        set_row_updated_at(self._model, row, result.updated_at)
                         updated_rows.append(row)
                     else:
                         rows_to_remove.append(row)
 
             for row in sorted(rows_to_remove, reverse=True):
                 self._model.removeRow(row)
-
             if updated_rows:
                 self._proxy.refresh_rows([r - sum(1 for rem in rows_to_remove if rem < r) for r in updated_rows])
             self._dedup_global_search_rows()
@@ -709,27 +732,14 @@ class UserIPEntriesOperationsMixin(QDialog):
             self._update_entry_counts()
             self._highlight_duplicates()
             self._proxy.refresh_groups()
-            self._refresh_stats()
-            self._set_status(f'Moved {len(valid_moves)} {pluralize(len(valid_moves), "entry", "entries")} to "{target_display_name}".')
-        else:
-            if self._current_path is None or target_db_path == self._current_path:
-                return
+        elif self._current_path is not None and (self._current_path in result.moved_by_db or self._current_path == target_db_path):
+            active_search = self._search_input.text()
+            self._load_database(self._current_path)
+            if active_search:
+                self._search_input.setText(active_search)
 
-            if self._dirty and not self._save_on_close():
-                return
-
-            for row in sorted({r for _, r in entries_to_move}, reverse=True):
-                self._model.removeRow(row)
-
-            self._renumber_indexes()
-            self._highlight_duplicates()
-            self._update_entry_counts()
-            with userip_databases_lock():
-                with QSignalBlocker(self._fs_watcher):
-                    append_userip_entries(target_db_path, [entry_model for entry_model, _ in entries_to_move])
-                self._save_database(show_errors=False)
-            self._set_status(f'Moved {count} {pluralize(count, "entry", "entries")} to "{target_display_name}".')
-        UserIPDatabases.renotify_if_conflicting([entry_model.ip for entry_model, _ in entries_to_move])
+        self._refresh_stats()
+        self._set_status(f'Moved {result.total_moved} {pluralize(result.total_moved, "entry", "entries")} to "{target_display_name}".')
 
     # ------------------------------------------------------------------
     # Save
@@ -916,41 +926,33 @@ class UserIPEntriesOperationsMixin(QDialog):
 
     def _get_row_entry_value(self, row: int) -> str:
         """Return the effective IP or Range value from a row (whichever is non-empty)."""
-        ip_item = self._model.item(row, IP_COLUMN)
-        ip_text = ip_item.text().strip() if ip_item else ''
-        if ip_text:
-            return ip_text
-        range_item = self._model.item(row, RANGE_COLUMN)
-        return range_item.text().strip() if range_item else ''
+        ip_item, range_item = self._model.item(row, IP_COLUMN), self._model.item(row, RANGE_COLUMN)
+        return (ip_item.text().strip() if ip_item else '') or (range_item.text().strip() if range_item else '')
 
     def _collect_group_members_for_rows(self, source_rows: list[int]) -> list[str]:
         """Return all usernames currently grouped with the usernames on *source_rows*."""
-        row_gids = self._proxy.get_source_row_group_ids()
-        target_gids = {row_gids[r] for r in source_rows if 0 <= r < len(row_gids)}
-        seed_rows = [r for r in range(self._model.rowCount()) if r in source_rows or (r < len(row_gids) and row_gids[r] in target_gids)]
-        row_usernames = dedup_preserve_order(self._get_row_username(r) for r in seed_rows if self._get_row_username(r))
-        return UserIPDatabases.expand_with_known_alts(row_usernames) if row_usernames else []
+        return dedup_preserve_order(*(g.usernames for g in self._matching_groups_for_seeds(self._collect_row_seed_usernames(source_rows))))
 
     def _refresh_table_after_grouping(self) -> None:
         """Rebuild UserIP databases and refresh the proxy's group sorting and alternating background shading."""
         refresh_userip_and_wake_renderer()
         self._last_seen_build_version = UserIPDatabases.build_version
         self._rebuild_fs_watch()
+        self._refresh_stats()
         self._proxy.refresh_groups()
         if viewport := self._entries_table.viewport():
             viewport.update()
 
     def _group_selected_rows(self) -> None:
         """Group all distinct usernames across the currently selected rows together."""
-        source_rows = self._get_selected_source_rows(warn_if_empty=True)
-        if not source_rows:
+        if not (source_rows := self._get_selected_source_rows(warn_if_empty=True)):
             return
         usernames = dedup_preserve_order(self._get_row_username(r) for r in source_rows if self._get_row_username(r))
         if len(usernames) < MIN_GROUP_USERNAMES:
             QMessageBox.information(self, TITLE, 'Select at least two rows with distinct usernames to group them together.')
             return
         with QSignalBlocker(self._fs_watcher):
-            if not group_usernames(usernames, UserIPDatabases.get_known_alts_clusters_snapshot()):
+            if not group_usernames(usernames, self._account_group_clusters_map()):
                 return
             self._refresh_table_after_grouping()
         self._set_status(f'Grouped {len(usernames)} usernames together')
@@ -970,7 +972,7 @@ class UserIPEntriesOperationsMixin(QDialog):
             QMessageBox.information(self, TITLE, 'Please enter a different username to group with.')
             return
         with QSignalBlocker(self._fs_watcher):
-            if not group_usernames(combined, UserIPDatabases.get_known_alts_clusters_snapshot()):
+            if not group_usernames(combined, self._account_group_clusters_map()):
                 return
             self._refresh_table_after_grouping()
         self._set_status(f'Grouped "{target_clean}" with {source_display}')

@@ -18,6 +18,7 @@ from session_sniffer.guis.tables_userip_mixin import (
     MIN_USERNAMES_FOR_REMOVAL,
     collect_grouped_usernames_for_player,
     collect_persisted_usernames_for_ip,
+    get_player_userip_group_seeds,
     resolve_usernames_for_player,
     userip_add,
     userip_add_as_range,
@@ -36,11 +37,12 @@ from session_sniffer.guis.tables_userip_mixin import (
     userip_ungroup,
 )
 from session_sniffer.guis.userip_conflict_resolver import open_userip_conflict_resolver
-from session_sniffer.guis.userip_manager_helpers import load_userip_database_model, populate_userip_databases_menu
+from session_sniffer.guis.userip_manager_helpers import populate_userip_databases_menu
 from session_sniffer.guis.utils import set_clipboard_text
 from session_sniffer.networking.ip_range import entry_ip_covers_ip
 from session_sniffer.player.userip import UserIPDatabases
-from session_sniffer.player.userip_groups import MIN_GROUP_USERNAMES, are_usernames_unlinked, expand_connected_group_usernames
+from session_sniffer.player.userip_groups import MIN_GROUP_USERNAMES
+from session_sniffer.player.userip_loader import collect_split_account_groups, collect_userip_account_groups, get_cached_userip_databases
 from session_sniffer.rendering_core.types import CaptureState
 from session_sniffer.settings.settings import Settings
 from session_sniffer.text_utils import pluralize
@@ -154,6 +156,25 @@ def _add_resolve_conflict_action(userip_menu: QMenu, ip_address: str) -> None:
     )
 
 
+def _add_resolve_split_group_if_needed(userip_menu: QMenu, usernames: Sequence[str]) -> bool:
+    """Append a 'Resolve Split Group…' action if any username in *usernames* belongs to a split account group."""
+    candidates = [(u.strip(), u.strip().casefold()) for u in usernames if u.strip()]
+    if not candidates:
+        return False
+    split_groups, _ = collect_split_account_groups(include_disabled=False)
+    matched_user = next((raw for raw, cf in candidates if any(cf in g.usernames_cf for g in split_groups)), None)
+    if matched_user is None:
+        return False
+    add_action(
+        userip_menu,
+        'Resolve Split Group…',
+        tooltip='This account group has entries split across multiple UserIP databases. Open the resolver to consolidate or ungroup them.',
+        handler=lambda: open_userip_conflict_resolver(focus_split_username=matched_user),
+        icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'link.svg')),
+    )
+    return True
+
+
 @dataclass(frozen=True, slots=True)
 class _UserIPGroupMoveSummary:
     """Summary of enabled-database entries belonging to one or more players' account groups."""
@@ -168,54 +189,27 @@ class _UserIPGroupMoveSummary:
 
 def _collect_group_move_summary(players: Sequence[Player], selected_ips: Sequence[str]) -> _UserIPGroupMoveSummary:
     """Collect all enabled-database `(db_path, username_cf, ip)` entry keys for *players*' account groups."""
-    db_models = [(db_path, load_userip_database_model(db_path)) for db_path in UserIPDatabases.get_userip_database_filepaths() if db_path.is_file()]
-    cohosted_by_db_ip: dict[tuple[Path, str], list[str]] = {}
-    direct_keys: set[tuple[Path, str, str]] = set()
+    enabled_set = set(UserIPDatabases.get_userip_database_filepaths())
     ip_list = list(selected_ips)
+    direct_keys = {
+        (db_path, entry.username.strip().casefold(), entry.ip.strip())
+        for db_path, entries in get_cached_userip_databases()
+        if db_path in enabled_set
+        for entry in entries
+        if entry.username.strip() and entry.ip.strip() and any(entry_ip_covers_ip(entry.ip.strip(), sel_ip) for sel_ip in ip_list)
+    }
 
-    for db_path, db_model in db_models:
-        for entry in db_model.entries:
-            username = entry.username.strip()
-            ip_val = entry.ip.strip()
-            if not username or not ip_val:
-                continue
-            cohosted_by_db_ip.setdefault((db_path, ip_val), []).append(username)
-            if any(entry_ip_covers_ip(ip_val, sel_ip) for sel_ip in ip_list):
-                direct_keys.add((db_path, username.casefold(), ip_val))
-
-    clusters_snapshot = UserIPDatabases.get_known_alts_clusters_snapshot()
-    entry_groups = list(cohosted_by_db_ip.values())
-    group_cfs: set[str] = set()
+    matched_keys: set[tuple[Path, str, str]] = set()
     for player in players:
-        filtered = UserIPDatabases.filter_userip_for_player(player, player.userip) or UserIPDatabases.resolve_userip_for_player(player)
-        if filtered is None:
+        seeds, excluded_cfs = get_player_userip_group_seeds(player, exact_ip_first=True)
+        if not seeds:
             continue
-        non_detached = [u for u in filtered.usernames if u.strip() and u.strip().casefold() not in player.detached_userip_usernames_cf]
-        anchors = non_detached or [u for u in filtered.usernames if u.strip()]
-        persisted = [
-            u
-            for u in collect_persisted_usernames_for_ip(filtered.db_path, player.ip)
-            if u.strip()
-            and u.strip().casefold() not in player.detached_userip_usernames_cf
-            and not any(are_usernames_unlinked(u, anchor) for anchor in anchors)
-        ]
-        seeds = dedup_preserve_order(anchors, persisted)
-        excluded_cfs = player.detached_userip_usernames_cf if non_detached else frozenset[str]()
-        group_cfs.update(
-            expand_connected_group_usernames(
-                seeds,
-                excluded_cfs=excluded_cfs,
-                entry_groups=entry_groups,
-                clusters_snapshot=clusters_snapshot,
-            ),
-        )
+        seed_cfs = {u.casefold() for u in seeds}
+        for group in collect_userip_account_groups(include_disabled=False, excluded_cfs=excluded_cfs, extra_seed_usernames=seeds):
+            if group.usernames_cf & seed_cfs:
+                matched_keys.update(group.entry_keys)
 
-    entry_keys = frozenset(
-        (db_path, u_cf, ip_val)
-        for db_path, db_model in db_models
-        for entry in db_model.entries
-        if (u_cf := entry.username.strip().casefold()) in group_cfs and (ip_val := entry.ip.strip())
-    )
+    entry_keys = frozenset(matched_keys)
     distinct_ips = {ip_val for _, _, ip_val in entry_keys}
     ip_count = len(distinct_ips)
     has_single = any('/' not in ip_val and '-' not in ip_val and '*' not in ip_val for ip_val in distinct_ips)
@@ -281,6 +275,8 @@ def build_userip_menu(
     if player.userip is None:
         database_paths = UserIPDatabases.get_userip_database_filepaths()
         player_usernames = resolve_usernames_for_player(player)
+        if _add_resolve_split_group_if_needed(userip_menu, player_usernames):
+            userip_menu.addSeparator()
         add_userip_menu = add_menu(userip_menu, 'Add', tooltip='Add selected IP address to UserIP database.', icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'plus.svg')))
         populate_userip_databases_menu(
             add_userip_menu,
@@ -340,6 +336,10 @@ def build_userip_menu(
         handler=_open_userip_database,
         icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'folder.svg')),
     )
+    persisted_usernames = collect_persisted_usernames_for_ip(player.userip.db_path, ip_address)
+    userip_seeds, _ = get_player_userip_group_seeds(player, persisted_usernames=persisted_usernames)
+    live_non_detached = [u for u in resolve_usernames_for_player(player) if u.casefold() not in player.detached_userip_usernames_cf]
+    _add_resolve_split_group_if_needed(userip_menu, dedup_preserve_order(userip_seeds, live_non_detached))
     userip_menu.addSeparator()
     add_action(
         userip_menu,
@@ -355,7 +355,6 @@ def build_userip_menu(
         handler=lambda: userip_group_with(parent, [player]),
         icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'user-plus.svg')),
     )
-    persisted_usernames = collect_persisted_usernames_for_ip(player.userip.db_path, ip_address)
     grouped_names = collect_grouped_usernames_for_player(player, persisted_usernames=persisted_usernames)
     if len(grouped_names) >= MIN_GROUP_USERNAMES:
         group_text = ', '.join(grouped_names)
