@@ -51,7 +51,7 @@ _IP_REQ_TIMED_OUT = 11010
 _IID_INET_SHARING_MANAGER = WindowsGuid(0xC08956B7, 0x1CD3, 0x11D1, (ctypes.c_ubyte * 8)(0xB1, 0xC5, 0x00, 0x80, 0x5F, 0xC1, 0x27, 0x0E))
 _IID_IENUM_VARIANT = WindowsGuid(0x00020404, 0x0000, 0x0000, (ctypes.c_ubyte * 8)(0xC0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x46))
 _INVALID_HANDLE_VALUE: Final[int] = cast('int', ctypes.c_void_p(-1).value)
-_ACTIVE_MIB_CALLBACKS: set[object] = set()
+_ACTIVE_MIB_CALLBACKS: dict[int, object] = {}
 
 
 class IP_ADAPTER_UNICAST_ADDRESS(ctypes.Structure):
@@ -967,8 +967,9 @@ def register_win32_ip_change_notification(callback: Callable[[], None]) -> Calla
     if _NotifyIpInterfaceChange(AF_INET, c_callback, None, 0, ctypes.byref(interface_handle)) == ERROR_SUCCESS and bool(interface_handle.value):
         handles.append(interface_handle)
 
+    callback_id = id(c_callback)
     if handles:
-        _ACTIVE_MIB_CALLBACKS.add(c_callback)
+        _ACTIVE_MIB_CALLBACKS[callback_id] = c_callback
 
     closed = False
 
@@ -980,6 +981,6 @@ def register_win32_ip_change_notification(callback: Callable[[], None]) -> Calla
         for handle in handles:
             _CancelMibChangeNotify2(handle)
         handles.clear()
-        _ACTIVE_MIB_CALLBACKS.discard(c_callback)
+        _ACTIVE_MIB_CALLBACKS.pop(callback_id, None)
 
     return _unregister
