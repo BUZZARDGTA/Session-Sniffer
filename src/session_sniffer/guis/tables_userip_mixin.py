@@ -650,31 +650,29 @@ def _format_database_entries_html_list(entries_by_database: dict[Path, list[str]
     return '<br>'.join(sections)
 
 
-def userip_move(parent: QWidget, selected_ips: list[str], selected_database: Path) -> None:
-    """Move the selected IP address(es) to the chosen UserIP database."""
+def userip_move(parent: QWidget, selected_ips: list[str], selected_database: Path, *, group_keys_fn: Callable[[], frozenset[tuple[Path, str, str]]] | None = None) -> None:
+    """Move the selected IP address(es) or account group entries to the chosen UserIP database."""
     deleted_entries_by_database: dict[Path, list[str]] = {}
     all_moved_entries: list[UserIPEntryModel] = []
     moved_entry_ips: list[str] = []
     now_iso = get_current_iso_timestamp()
 
     with userip_databases_lock():
+        group_keys = group_keys_fn() if group_keys_fn is not None else None
         for db_path in UserIPDatabases.get_userip_database_filepaths():
             if db_path == selected_database or not db_path.is_file():
                 continue
-
             db_model = load_userip_database_model(db_path)
             if not db_model.entries:
                 continue
-
             kept_entries: list[UserIPEntryModel] = []
             moved_entries: list[UserIPEntryModel] = []
-
             for entry in db_model.entries:
-                if _entry_ip_matches_any(entry.ip, selected_ips):
+                key = (db_path, entry.username.strip().casefold(), entry.ip.strip())
+                if (key in group_keys) if group_keys is not None else _entry_ip_matches_any(entry.ip, selected_ips):
                     moved_entries.append(entry.model_copy(update={'updated_at': now_iso}))
                 else:
                     kept_entries.append(entry)
-
             if moved_entries:
                 save_userip_database_model(db_path, UserIPDatabaseFile(settings=db_model.settings, entries=kept_entries))
                 all_moved_entries.extend(moved_entries)
@@ -687,13 +685,12 @@ def userip_move(parent: QWidget, selected_ips: list[str], selected_database: Pat
 
     if deleted_entries_by_database:
         target_db_display = html.escape(format_userip_db_display_name(selected_database))
-        header = (
-            f'<b>Selected IP{pluralize(len(selected_ips))} moved from the following '
-            f'UserIP database{pluralize(len(deleted_entries_by_database))} to UserIP database '
-            f'"{target_db_display}":</b><br><br><br>'
-        )
+        n_moved = len(all_moved_entries)
+        moved_subject = f'Account group ({n_moved} {pluralize(n_moved, "entry", "entries")})' if group_keys is not None else f'Selected IP{pluralize(len(selected_ips))}'
+        db_word = f'UserIP database{pluralize(len(deleted_entries_by_database))}'
+        header = f'<b>{moved_subject} moved from the following {db_word} to UserIP database "{target_db_display}":</b><br><br><br>'
         _show_modal_info_on_top(parent, TITLE, header + _format_database_entries_html_list(deleted_entries_by_database))
-        UserIPDatabases.renotify_if_conflicting([*selected_ips, *moved_entry_ips])
+        UserIPDatabases.renotify_if_conflicting(dedup_preserve_order(selected_ips, moved_entry_ips))
 
 
 def userip_delete(parent: QWidget, selected_ips: list[str]) -> None:

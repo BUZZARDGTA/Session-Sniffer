@@ -746,3 +746,68 @@ def build_known_alts_clusters(
                 known_alts_clusters[cf] = canonical_cluster
 
     return canonical_names, known_alts_clusters
+
+
+def expand_connected_group_usernames(
+    seed_usernames: Sequence[str],
+    *,
+    excluded_cfs: AbstractSet[str] = frozenset(),
+    entry_groups: Sequence[Sequence[str]] = (),
+    clusters_snapshot: Mapping[str, Sequence[str]] | None = None,
+) -> set[str]:
+    """Return casefolded usernames in the connected account group reachable from *seed_usernames*."""
+    with _groups_lock:
+        _ensure_loaded_locked()
+        linked_pairs = set(_cache.linked_pairs)
+        unlinked_pairs = set(_get_expanded_unlinked_locked())
+
+    seeds: list[str] = []
+    for raw_name in seed_usernames:
+        cf = raw_name.strip().casefold()
+        if (
+            cf
+            and cf not in excluded_cfs
+            and cf not in seeds
+            and all(_normalize_pair(cf, prev_cf) not in unlinked_pairs for prev_cf in seeds)
+        ):
+            seeds.append(cf)
+    if not seeds:
+        return set()
+
+    adj: dict[str, dict[str, None]] = {}
+    for u1, u2 in sorted(linked_pairs):
+        if _normalize_pair(u1, u2) not in unlinked_pairs:
+            adj.setdefault(u1, {})[u2] = None
+            adj.setdefault(u2, {})[u1] = None
+
+    if clusters_snapshot is not None:
+        for u_cf, cluster in clusters_snapshot.items():
+            for member in cluster:
+                m_cf = member.strip().casefold()
+                if m_cf and m_cf != u_cf and _normalize_pair(u_cf, m_cf) not in unlinked_pairs:
+                    adj.setdefault(u_cf, {})[m_cf] = None
+                    adj.setdefault(m_cf, {})[u_cf] = None
+
+    for names in entry_groups:
+        unique_cfs = list(dict.fromkeys(n.strip().casefold() for n in names if n.strip()))
+        for idx, c1 in enumerate(unique_cfs):
+            for c2 in unique_cfs[idx + 1 :]:
+                if _normalize_pair(c1, c2) not in unlinked_pairs:
+                    adj.setdefault(c1, {})[c2] = None
+                    adj.setdefault(c2, {})[c1] = None
+
+    comp = list(seeds)
+    visited = set(seeds)
+    queue = deque(seeds)
+    while queue:
+        curr = queue.popleft()
+        for nb_cf in adj.get(curr, ()):
+            if (
+                nb_cf not in visited
+                and nb_cf not in excluded_cfs
+                and all(_normalize_pair(nb_cf, m_cf) not in unlinked_pairs for m_cf in comp)
+            ):
+                visited.add(nb_cf)
+                comp.append(nb_cf)
+                queue.append(nb_cf)
+    return visited
