@@ -64,6 +64,18 @@ class ModMenuSessionHostEntry:
     ip: str
 
 
+@dataclass(frozen=True, slots=True)
+class _RelayUsernamesCache:
+    """Cached filtered relay IP-to-usernames snapshot for a specific timestamp cutoff."""
+
+    valid: bool
+    min_timestamp: int | None
+    usernames_by_ip: dict[str, list[str]]
+
+
+_EMPTY_RELAY_CACHE = _RelayUsernamesCache(valid=False, min_timestamp=None, usernames_by_ip={})
+
+
 class ModMenuLogsParser:
     """Thread-safe parser to extract and track IP-to-username mappings and session host state from mod menu logs."""
 
@@ -74,6 +86,7 @@ class ModMenuLogsParser:
     _ip_to_usernames_map: ClassVar[dict[str, list[str]]] = {}
     _host_ip_to_usernames_map: ClassVar[UsernamesByIP] = defaultdict(list)
     _relay_ip_to_entries_map: ClassVar[dict[str, tuple[tuple[str, int], ...]]] = {}
+    _cached_relay_usernames: ClassVar[_RelayUsernamesCache] = _EMPTY_RELAY_CACHE
     _session_host_entry: ClassVar[ModMenuSessionHostEntry | None] = None
     _active_host_menu_name: ClassVar[str | None] = None
 
@@ -220,14 +233,16 @@ class ModMenuLogsParser:
         return {ip: tuple(user_timestamps.items()) for ip, user_timestamps in entries_by_ip.items()}, failed_paths
 
     @classmethod
-    def refresh(cls) -> None:
+    def refresh(cls, *, include_relays: bool = True) -> None:
         """Re-parse logs, session host, and session relays files only if any file changed."""
         current_mod_times = cls._snapshot_file_mod_times()
         current_host_mod_times = cls._snapshot_host_file_mod_times()
-        current_relays_mod_times = cls._snapshot_relays_file_mod_times()
+        current_relays_mod_times = cls._snapshot_relays_file_mod_times() if include_relays else None
 
         # Step 1: skip parsing if nothing changed
         with cls._lock:
+            if current_relays_mod_times is None:
+                current_relays_mod_times = cls._last_relays_mod_times
             logs_changed = current_mod_times != cls._last_mod_times
             host_changed = current_host_mod_times != cls._last_host_mod_times
             relays_changed = current_relays_mod_times != cls._last_relays_mod_times
@@ -270,6 +285,7 @@ class ModMenuLogsParser:
             if relays_changed and parsed_relays_map is not None:
                 if not failed_relay_paths:
                     cls._relay_ip_to_entries_map = parsed_relays_map
+                    cls._cached_relay_usernames = _EMPTY_RELAY_CACHE
                 cls._last_relays_mod_times = {p: (-1, -1, -1, -1) if p in failed_relay_paths else sig for p, sig in current_relays_mod_times.items()}
             if frozen_map is not None:
                 if failed_log_paths and cls._ip_to_usernames_map:
@@ -305,17 +321,30 @@ class ModMenuLogsParser:
     @classmethod
     def get_relay_ip_to_usernames_map(cls, *, min_timestamp: int | None = None) -> dict[str, list[str]]:
         """Snapshot mapping of active session relay IPs to lists of usernames."""
-        entries_map = cls._relay_ip_to_entries_map
-        if not entries_map:
-            return {}
-        if min_timestamp is None:
-            return {ip: [username for username, _ in entries] for ip, entries in entries_map.items()}
-        result: dict[str, list[str]] = {}
-        for ip, entries in entries_map.items():
-            valid_usernames = [username for username, ts in entries if ts >= min_timestamp]
-            if valid_usernames:
-                result[ip] = valid_usernames
-        return result
+        cached = cls._cached_relay_usernames
+        if cached.valid and cached.min_timestamp == min_timestamp:
+            return cached.usernames_by_ip
+        with cls._lock:
+            cached = cls._cached_relay_usernames
+            if cached.valid and cached.min_timestamp == min_timestamp:
+                return cached.usernames_by_ip
+            entries_map = cls._relay_ip_to_entries_map
+            if not entries_map:
+                result: dict[str, list[str]] = {}
+            elif min_timestamp is None:
+                result = {ip: [username for username, _ in entries] for ip, entries in entries_map.items()}
+            else:
+                result = {}
+                for ip, entries in entries_map.items():
+                    valid_usernames = [username for username, ts in entries if ts >= min_timestamp]
+                    if valid_usernames:
+                        result[ip] = valid_usernames
+            cls._cached_relay_usernames = _RelayUsernamesCache(
+                valid=True,
+                min_timestamp=min_timestamp,
+                usernames_by_ip=result,
+            )
+            return result
 
     @classmethod
     def get_session_host_entry(cls) -> ModMenuSessionHostEntry | None:

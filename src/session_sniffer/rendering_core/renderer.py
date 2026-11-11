@@ -31,7 +31,6 @@ from session_sniffer.models.player_traffic import PlayerBandwidth
 from session_sniffer.networking.geolite2 import extract_asn_info, extract_city_info, extract_country_info
 from session_sniffer.networking.looky_system import LookyState
 from session_sniffer.networking.port_scanner import get_active_port_scan_threads
-from session_sniffer.networking.third_party_servers import is_gta5_relay_ip
 from session_sniffer.player.registry import PlayersRegistry, SessionTracker
 from session_sniffer.player.session_host import (
     MINIMUM_PACKETS_FOR_RELAY_SESSION_HOST,
@@ -453,6 +452,7 @@ def rendering_core(
     last_seen_userip_build_version: int = UserIPDatabases.build_version
     _last_userip_auto_feed: bool = Settings.userip_auto_feed_from_usernames and Settings.is_gta5_feature_set() and CaptureState.is_local_capture()
     _last_looky_active: bool = Settings.looky_enabled and Settings.is_gta5_feature_set() and CaptureState.is_local_capture()
+    _last_relay_tracking_active: bool = False
 
     def _promote_active_past_session_player(player: Player, active_session_id: int) -> None:
         if (
@@ -522,17 +522,21 @@ def rendering_core(
         _last_looky_active = _current_looky_active
 
         if Settings.is_gta5_feature_set():
-            if last_modmenu_refresh_time is None or time.monotonic() - last_modmenu_refresh_time >= _poll_interval:
-                ModMenuLogsParser.refresh()
+            relay_tracking_active = CaptureState.is_local_capture() and CaptureState.gta5_is_running
+            relay_newly_activated = relay_tracking_active and not _last_relay_tracking_active
+            _last_relay_tracking_active = relay_tracking_active
+            if last_modmenu_refresh_time is None or relay_newly_activated or time.monotonic() - last_modmenu_refresh_time >= _poll_interval:
+                ModMenuLogsParser.refresh(include_relays=relay_tracking_active)
                 last_modmenu_refresh_time = time.monotonic()
             all_modmenu_usernames = ModMenuLogsParser.get_all_ip_to_usernames_map()
-            if CaptureState.is_local_capture() and CaptureState.gta5_is_running:
+            if relay_tracking_active:
                 gta5_creation_time = CaptureState.gta5_creation_time
                 min_relay_timestamp = int(gta5_creation_time) - _RELAY_PROCESS_START_GRACE_SECONDS if gta5_creation_time is not None else None
                 all_relay_usernames = ModMenuLogsParser.get_relay_ip_to_usernames_map(min_timestamp=min_relay_timestamp)
             else:
                 all_relay_usernames = {}
         else:
+            _last_relay_tracking_active = False
             all_modmenu_usernames = {}
             all_relay_usernames = {}
 
@@ -582,7 +586,7 @@ def rendering_core(
             modmenu_usernames_for_player = all_modmenu_usernames.get(player.ip)
             relay_usernames_for_player = (
                 all_relay_usernames.get(player.ip)
-                if not player.left_event.is_set() and player.is_gta5_process and is_gta5_relay_ip(player.ip)
+                if all_relay_usernames and not player.left_event.is_set() and player.is_gta5_process
                 else None
             )
             if relay_usernames_for_player is not None and relay_usernames_for_player:
