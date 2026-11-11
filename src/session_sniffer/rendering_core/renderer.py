@@ -70,7 +70,7 @@ from session_sniffer.rendering_core.types import (
 from session_sniffer.rendering_core.webhook_text_renderer import build_webhook_mobile_text, build_webhook_table_text
 from session_sniffer.settings import Settings
 from session_sniffer.text_utils import format_elapsed_time, pluralize
-from session_sniffer.utils import get_session_log_path
+from session_sniffer.utils import atomic_write_text, get_session_log_path
 
 if TYPE_CHECKING:
     from session_sniffer.capture.packet_capture import CaptureHolder
@@ -396,11 +396,7 @@ def rendering_core(
                 file_exists = json_path.is_file()
                 if json_content == _last_written_session_json and file_exists:
                     return
-                json_path.parent.mkdir(parents=True, exist_ok=True)
-                json_bytes = json_content.encode('utf-8')
-                with json_path.open('r+b' if file_exists else 'wb') as file:
-                    file.write(json_bytes)
-                    file.truncate()
+                atomic_write_text(json_path, json_content)
                 _last_written_session_json = json_content
             except OSError as e:
                 logger.warning('Failed to write session log to %s: %s', json_path, e)
