@@ -12,6 +12,7 @@ from PySide6.QtGui import QIcon, QImage, QPixmap
 if TYPE_CHECKING:
     from collections.abc import Sequence
     from collections.abc import Set as AbstractSet
+    from pathlib import Path
 
     from session_sniffer.models.ip_api import IpApiResponse
     from session_sniffer.models.looky_system import LookyPlayer
@@ -183,6 +184,21 @@ class PlayerUserIPDetection:
 
     as_processed_task: bool = True
     type: Literal['Static IP', 'Username'] = 'Static IP'
+    rejoin_index: int = 0
+    last_db_path: Path | None = None
+    counted_detection: bool = False
+    fired_voice: Literal['Male', 'Female'] | bool = False
+    fired_notification: bool = False
+    fired_log: bool = False
+    fired_protection_log: bool = False
+
+    def reset_fired_actions(self) -> None:
+        """Reset per-database fired action tracking when switching databases mid-join."""
+        self.counted_detection = False
+        self.fired_voice = False
+        self.fired_notification = False
+        self.fired_log = False
+        self.fired_protection_log = False
 
 
 def _empty_usernames() -> list[str]:

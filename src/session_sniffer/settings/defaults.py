@@ -66,6 +66,7 @@ class SettingDefaults(TypedDict):
     gui_disconnected_players_timer: int
     gui_disconnected_players_limit: int
     gui_ignore_screen_resolution_warning: bool
+    visual_notifications_enabled: bool
     voice_notifications_enabled: bool
     pinger_local: bool
     ping_count: int
@@ -208,6 +209,7 @@ SETTING_DEFAULTS: SettingDefaults = {
     'gui_disconnected_players_timer': 10,
     'gui_disconnected_players_limit': 500,
     'gui_ignore_screen_resolution_warning': False,
+    'visual_notifications_enabled': True,
     'voice_notifications_enabled': True,
     'pinger_local': True,
     'ping_count': 4,

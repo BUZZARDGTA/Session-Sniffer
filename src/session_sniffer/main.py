@@ -25,7 +25,7 @@ from session_sniffer.background import (
     monitor_gta5_relay_task,
     pinger_core,
     player_rates_core,
-    process_userip_task,
+    spawn_connected_userip_detection,
     submit_global_detections_check,
     wake_all_player_cores,
     wake_looky_core,
@@ -69,7 +69,6 @@ from session_sniffer.launcher.cache_preloader import preload_application_caches,
 from session_sniffer.launcher.package_checker import check_packages_version, get_dependencies_from_pyproject
 from session_sniffer.logging_setup import register_secret_provider, setup_logging
 from session_sniffer.models.player import Player
-from session_sniffer.models.player_lookup import PlayerUserIPDetection
 from session_sniffer.models.player_traffic import PacketInfo
 from session_sniffer.networking.adapters_info import get_adapters_info, register_adapter_change_notification
 from session_sniffer.networking.geolite2.service import update_and_initialize_geolite2_readers
@@ -89,7 +88,7 @@ from session_sniffer.rendering_core.renderer import SESSIONS_LOGGING_PATH, rende
 from session_sniffer.rendering_core.types import CaptureState, CaptureStats, GeoIP2Readers, GUIRenderingState
 from session_sniffer.settings import Settings
 from session_sniffer.updater import UpdateCheckOutcome, check_for_updates
-from session_sniffer.utils import cleanup_session_logs, dedup_preserve_order, ensure_app_dir_ownership, is_pyinstaller_compiled
+from session_sniffer.utils import cleanup_session_logs, ensure_app_dir_ownership, is_pyinstaller_compiled
 from session_sniffer.webserver import WebServer, start_webserver_from_settings
 
 if TYPE_CHECKING:
@@ -433,16 +432,7 @@ def main() -> None:
                 # is_known_ip() just returned True, so this should not happen; guard defensively.
                 logger.warning('resolve_userip_for_player returned None immediately after is_known_ip for ip=%s — skipping UserIP task', matched_player.ip)
             else:
-                matched_player.userip = resolved_userip
-                if resolved_userip.usernames:
-                    matched_player.usernames = dedup_preserve_order(matched_player.usernames, resolved_userip.usernames)
-                matched_player.userip_detection = PlayerUserIPDetection(
-                    time=packet.datetime.strftime('%H:%M:%S'),
-                    date_time=packet.datetime.strftime('%Y-%m-%d_%H:%M:%S'),
-                )
-                Thread(
-                    target=process_userip_task, name=f'ProcessUserIPTask-{matched_player.ip}-connected', args=(matched_player, resolved_userip, 'connected'), daemon=True,
-                ).start()
+                spawn_connected_userip_detection(matched_player, resolved_userip, detected_at=packet.datetime)
 
     _adapter_lost_event = Event()
 

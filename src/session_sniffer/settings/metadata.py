@@ -41,8 +41,12 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         category='General', group='Interface Selection', display_label='Hide Neighbours',
         setting_type=SettingType.BOOLEAN, tooltip='Hide neighbour entries (devices discovered via ARP on the local network).',
     ),
+    'visual_notifications_enabled': SettingMeta(
+        category='General', group='Notifications', display_label='Visual Notifications', setting_type=SettingType.BOOLEAN,
+        tooltip='Enable or disable all visual popup notifications globally across the application (UserIP Detected, Detections Manager alerts, and Combo Rule popups).',
+    ),
     'voice_notifications_enabled': SettingMeta(
-        category='General', group='Voice Notifications', display_label='Enabled',
+        category='General', group='Notifications', display_label='Voice Notifications',
         setting_type=SettingType.BOOLEAN, tooltip='Enable or disable all voice notifications globally across the application.',
     ),
     'gui_ignore_screen_resolution_warning': SettingMeta(

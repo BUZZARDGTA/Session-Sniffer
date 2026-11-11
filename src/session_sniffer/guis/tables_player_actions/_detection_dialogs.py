@@ -15,6 +15,7 @@ from session_sniffer.guis.stylesheets import DETECTION_WARN_LABEL_STYLESHEET
 from session_sniffer.guis.tables_player_actions._format import format_bool, format_text, format_with_code
 from session_sniffer.guis.tables_player_actions._player_info_dialog_mixin import PlayerInfoDialogMixin
 from session_sniffer.guis.utils import ActiveDialogRegistry, format_player_display, set_dialog_window_flags
+from session_sniffer.settings import Settings
 from session_sniffer.text_utils import pluralize
 
 if TYPE_CHECKING:
@@ -123,6 +124,8 @@ def show_detection_notification_dialog(
     info: DetectionNotificationInfo,
 ) -> None:
     """Open or focus the Detection Notification dialog for *player*."""
+    if not Settings.visual_notifications_enabled:
+        return
     _active_notification_dialogs.show_or_focus((player.ip, info.display_title), lambda: DetectionNotificationDialog(parent, player, info))
 
 
@@ -227,4 +230,12 @@ def show_player_detection_dialog(
     info: PlayerDetectionInfo,
 ) -> None:
     """Open or focus the Player Detection dialog for *player*."""
+    if not Settings.visual_notifications_enabled:
+        return
     _active_player_detection_dialogs.show_or_focus((player.ip, info.event_type), lambda: PlayerDetectionDialog(parent, player, info))
+
+
+def close_all_detection_notification_dialogs() -> None:
+    """Close all open detection and player-event notification dialogs."""
+    _active_notification_dialogs.close_all()
+    _active_player_detection_dialogs.close_all()

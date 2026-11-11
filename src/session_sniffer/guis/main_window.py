@@ -4,7 +4,8 @@ import logging
 import threading
 import time
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, override
+from functools import partial
+from typing import TYPE_CHECKING, Literal, override
 
 from PySide6.QtCore import Qt, QTimer, Slot
 from PySide6.QtGui import QAction, QCloseEvent, QIcon, QKeySequence, QShortcut, QShowEvent
@@ -38,12 +39,15 @@ from session_sniffer.guis.ping_window import PingWindow
 from session_sniffer.guis.player_resolver import PlayerResolverWindow
 from session_sniffer.guis.port_scanner_window import PortScannerWindow
 from session_sniffer.guis.settings_dialog import SettingsDialog
+from session_sniffer.guis.tables_player_actions._detection_dialogs import close_all_detection_notification_dialogs
+from session_sniffer.guis.tables_player_actions._userip_dialog import close_all_userip_detected_dialogs
 from session_sniffer.guis.tables_player_actions.looky_system._looky_crawler_request_dialog import close_all_crawler_dialogs
 from session_sniffer.guis.tables_player_actions.looky_system._looky_lookup_dialog import close_all_lookup_dialogs
 from session_sniffer.guis.userip_conflict_resolver import open_userip_conflict_resolver
 from session_sniffer.guis.utils import (
     apply_always_on_top,
     consume_maximize_on_show,
+    render_svg_icon_from_resource,
     render_svg_pixmap_from_resource,
     resize_window_for_screen,
     scale_by_ui,
@@ -286,6 +290,10 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
 
         self._header = SessionHeader(self)
         self._header.search_changed.connect(self._on_global_search_changed)
+        self._header.visual_notifications_toggle_requested.connect(partial(self._toggle_notifications, 'visual'))
+        self._header.voice_notifications_toggle_requested.connect(partial(self._toggle_notifications, 'voice'))
+        self._header.all_notifications_toggle_requested.connect(partial(self._toggle_notifications, 'all'))
+        self._sync_notification_controls()
 
         search_shortcut = QShortcut(QKeySequence('Ctrl+F'), self)
         search_shortcut.setContext(Qt.ShortcutContext.WindowShortcut)
@@ -484,6 +492,52 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
         open_settings_action.triggered.connect(self._open_settings_dialog)
         settings_menu.addAction(open_settings_action)
 
+        settings_menu.addSeparator()
+        self._visual_notifications_action = settings_menu.addAction('', partial(self._toggle_notifications, 'visual'))
+        self._voice_notifications_action = settings_menu.addAction('', partial(self._toggle_notifications, 'voice'))
+        self._toggle_all_notifications_action = settings_menu.addAction('', partial(self._toggle_notifications, 'all'))
+
+    def _sync_notification_controls(self) -> None:
+        """Synchronize header buttons and Settings menu actions with notification settings."""
+        visual_on, voice_on, icon_px = Settings.visual_notifications_enabled, Settings.voice_notifications_enabled, scale_by_ui(16)
+        any_on = visual_on or voice_on
+        for action, icon_name, color, label, tip in (
+            (
+                self._visual_notifications_action, 'bell.svg' if visual_on else 'bell-off.svg', '#22c55e' if visual_on else '#f87171',
+                f'Visual Notifications: {"Enabled" if visual_on else "Muted"}',
+                f'{"Mute" if visual_on else "Enable"} all visual popup notifications globally',
+            ),
+            (
+                self._voice_notifications_action, 'volume-2.svg' if voice_on else 'volume-x.svg', '#22c55e' if voice_on else '#f87171',
+                f'Voice Notifications: {"Enabled" if voice_on else "Muted"}',
+                f'{"Mute" if voice_on else "Enable"} all voice notifications globally',
+            ),
+            (
+                self._toggle_all_notifications_action, 'bell-off.svg' if any_on else 'bell.svg', '#f87171' if any_on else '#22c55e',
+                'Mute All Notifications' if any_on else 'Enable All Notifications',
+                f'{"Mute" if any_on else "Enable"} both visual popup and voice notifications',
+            ),
+        ):
+            action.setIcon(render_svg_icon_from_resource(icon_name, icon_px, icon_px, color))
+            action.setText(label)
+            action.setToolTip(tip)
+        self._header.sync_notification_buttons(visual_enabled=visual_on, voice_enabled=voice_on)
+
+    def _toggle_notifications(self, mode: Literal['visual', 'voice', 'all']) -> None:
+        """Toggle visual, voice, or both notification settings, persist once, and apply runtime effects."""
+        enable_both = not (Settings.visual_notifications_enabled or Settings.voice_notifications_enabled)
+        target_visual = enable_both if mode == 'all' else (not Settings.visual_notifications_enabled if mode == 'visual' else Settings.visual_notifications_enabled)
+        target_voice = enable_both if mode == 'all' else (not Settings.voice_notifications_enabled if mode == 'voice' else Settings.voice_notifications_enabled)
+        if target_visual == Settings.visual_notifications_enabled and target_voice == Settings.voice_notifications_enabled:
+            return
+        old_values: dict[str, SettingValue] = {name.lower(): value for name, value in Settings.iterate_over_settings()}
+        Settings.visual_notifications_enabled, Settings.voice_notifications_enabled = target_visual, target_voice
+        Settings.rewrite_settings_file()
+        apply_runtime_settings_changes(self.capture.get(), old_values, {name.lower(): value for name, value in Settings.iterate_over_settings()})
+        self._sync_notification_controls()
+        if self._settings_dialog_window is not None and isValid(self._settings_dialog_window):
+            self._settings_dialog_window.refresh_from_external_settings(('visual_notifications_enabled', 'voice_notifications_enabled'))
+
     def show_discord_intro(self) -> None:
         """Open the Discord intro dialog, retaining a reference to prevent garbage collection."""
         show_or_focus_window(self, '_discord_intro_window', lambda: DiscordIntro(self))
@@ -557,6 +611,8 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
 
         close_all_crawler_dialogs()
         close_all_lookup_dialogs()
+        close_all_userip_detected_dialogs()
+        close_all_detection_notification_dialogs()
         if self.capture.is_running():
             logger.debug('MainWindow closeEvent: stopping packet capture')
             self.capture.stop()
@@ -708,6 +764,7 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
                 if 'gui_disconnected_players_enabled' in changed:
                     TableMergeState.reset_override()
                 self._apply_always_on_top()
+                self._sync_notification_controls()
                 self._update_game_toolbar_visibility()
                 self._update_splitter_visibility()
                 self._apply_table_settings(changed)
@@ -747,6 +804,7 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
             for callback in (
                 TableMergeState.reset_override,
                 self._apply_always_on_top,
+                self._sync_notification_controls,
                 self._update_game_toolbar_visibility,
                 self._update_splitter_visibility,
                 self._apply_table_settings,
@@ -818,6 +876,7 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
         menu_bar = self.menuBar()
         if menu_bar:
             menu_bar.setEnabled(not switching)
+        self._header.setEnabled(not switching)
         self._actions.change_interface.setEnabled(not switching)
         self._connected.set_all_enabled(enabled=not switching)
         self._disconnected.set_all_enabled(enabled=not switching)

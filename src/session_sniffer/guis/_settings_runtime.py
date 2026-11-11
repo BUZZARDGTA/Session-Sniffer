@@ -7,6 +7,8 @@ from session_sniffer.background import clear_voice_notification_queue, ensure_lo
 from session_sniffer.capture.filters import build_capture_filters
 from session_sniffer.capture.process_monitor import ensure_process_monitor_running
 from session_sniffer.guis.relay_conflict import prompt_to_disable_gta5_relay_if_filtered
+from session_sniffer.guis.tables_player_actions._detection_dialogs import close_all_detection_notification_dialogs
+from session_sniffer.guis.tables_player_actions._userip_dialog import close_all_userip_detected_dialogs
 from session_sniffer.player import prune_old_backups, run_userip_backup_async
 from session_sniffer.player.registry import PlayersRegistry
 from session_sniffer.rendering_core.events import wake_rendering_core
@@ -66,6 +68,9 @@ def apply_runtime_settings_changes(
 
     if not Settings.voice_notifications_enabled:
         clear_voice_notification_queue()
+    if not Settings.visual_notifications_enabled:
+        close_all_userip_detected_dialogs()
+        close_all_detection_notification_dialogs()
     if dialog_parent is not None:
         prompt_to_disable_gta5_relay_if_filtered(dialog_parent, context='settings')
 
@@ -78,15 +83,16 @@ def apply_runtime_settings_changes(
             prune_old_backups()
 
     voice_newly_enabled = bool(new_values.get('voice_notifications_enabled')) and not bool(old_values.get('voice_notifications_enabled'))
-    gta5_newly_enabled = new_values.get('capture_feature_set') == 'GTA V' and old_values.get('capture_feature_set') != 'GTA V'
-    if voice_newly_enabled or gta5_newly_enabled:
+    visual_newly_enabled = bool(new_values.get('visual_notifications_enabled')) and not bool(old_values.get('visual_notifications_enabled'))
+    gta5_local_newly_enabled = new_values.get('capture_feature_set') == 'GTA V' and old_values.get('capture_feature_set') != 'GTA V' and CaptureState.is_local_capture()
+    if voice_newly_enabled or visual_newly_enabled or gta5_local_newly_enabled:
         retrigger_userip = False
         for player in PlayersRegistry.get_connected_players():
             if player.left_event.is_set() or player.userip is None or player.userip_detection is None or not player.userip_detection.as_processed_task:
                 continue
-            if (voice_newly_enabled and bool(player.userip.settings.voice_notifications)) or (
-                gta5_newly_enabled and player.userip.settings.protection.enabled and CaptureState.is_local_capture()
-            ):
+            db_settings = player.userip.settings
+            notif_retrigger = (voice_newly_enabled and bool(db_settings.voice_notifications)) or (visual_newly_enabled and db_settings.notifications)
+            if notif_retrigger or (gta5_local_newly_enabled and db_settings.protection.enabled):
                 player.userip_detection.as_processed_task = False
                 retrigger_userip = True
         if retrigger_userip:

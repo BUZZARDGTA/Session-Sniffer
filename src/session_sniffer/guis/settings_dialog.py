@@ -91,7 +91,7 @@ from session_sniffer.utils import validate_and_strip_balanced_outer_parens
 from session_sniffer.utils_exceptions import ParenthesisMismatchError
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Sequence
 
     from session_sniffer.capture.packet_capture import PacketCapture
 
@@ -777,15 +777,21 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
         self._capture = capture
         self._refresh_interface_info_labels()
 
-    def refresh_from_external_settings(self) -> None:
-        """Reload widget values from `Settings` when `settings.json` changes externally and there are no unsaved edits."""
-        self._refresh_interface_info_labels()
-        if not self.isVisible() or self._has_unsaved_changes_for_close():
-            return
-        self._old_values = {key: getattr(Settings, key) for key in SETTING_METADATA}
-        self._initial_values = dict(self._old_values)
-        self._load_current_values()
-        self._sync_loaded_process_baseline()
+    def refresh_from_external_settings(self, keys: Sequence[str] | None = None) -> None:
+        """Reload widget values from `Settings` (or only *keys* when specified)."""
+        if keys is None:
+            self._refresh_interface_info_labels()
+            if not self.isVisible() or self._has_unsaved_changes_for_close():
+                return
+            self._old_values = {key: getattr(Settings, key) for key in SETTING_METADATA}
+            self._initial_values = dict(self._old_values)
+            self._load_current_values()
+            self._sync_loaded_process_baseline()
+        else:
+            for key in keys:
+                self._old_values[key] = self._initial_values[key] = current = cast('SettingValue', getattr(Settings, key))
+                if (widget := self._widgets.get(key)) is not None:
+                    self._set_widget_value(key, widget, current)
         self._update_restart_notice()
 
     @property

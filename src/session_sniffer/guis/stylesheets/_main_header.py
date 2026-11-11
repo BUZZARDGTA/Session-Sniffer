@@ -110,10 +110,43 @@ QComboBox#headerSearchCombo QAbstractItemView::item:focus {
 """.strip()
 
 HEADER_STAT_CARD_STYLESHEET = """
-QFrame#headerStatsContainer {
+QFrame#headerStatsContainer,
+QFrame#headerNotificationsContainer {
     background-color: rgba(255, 255, 255, 0.03);
     border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 8px;
+}
+""".strip()
+
+HEADER_NOTIFICATION_BUTTON_ENABLED_STYLESHEET = """
+QPushButton {
+    background-color: rgba(34, 197, 94, 0.08);
+    border: 1px solid rgba(34, 197, 94, 0.25);
+    border-radius: 5px;
+    padding: 0;
+}
+QPushButton:hover {
+    background-color: rgba(34, 197, 94, 0.18);
+    border: 1px solid rgba(34, 197, 94, 0.45);
+}
+QPushButton:pressed {
+    background-color: rgba(34, 197, 94, 0.26);
+}
+""".strip()
+
+HEADER_NOTIFICATION_BUTTON_MUTED_STYLESHEET = """
+QPushButton {
+    background-color: rgba(239, 68, 68, 0.14);
+    border: 1px solid rgba(239, 68, 68, 0.38);
+    border-radius: 5px;
+    padding: 0;
+}
+QPushButton:hover {
+    background-color: rgba(239, 68, 68, 0.24);
+    border: 1px solid rgba(239, 68, 68, 0.55);
+}
+QPushButton:pressed {
+    background-color: rgba(239, 68, 68, 0.32);
 }
 """.strip()
 

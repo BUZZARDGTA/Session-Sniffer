@@ -3,7 +3,7 @@
 from typing import TYPE_CHECKING, override
 
 from PySide6.QtCore import QEvent, QObject, QSize, Qt, Signal
-from PySide6.QtGui import QIcon, QKeyEvent
+from PySide6.QtGui import QIcon, QKeyEvent, QMouseEvent
 from PySide6.QtWidgets import (
     QComboBox,
     QFrame,
@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QPushButton,
     QSizePolicy,
     QVBoxLayout,
     QWidget,
@@ -20,6 +21,8 @@ from session_sniffer.constants.local import VERSION
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.constants.tables import SEARCHABLE_COLUMN_EXCLUSIONS
 from session_sniffer.guis.stylesheets import (
+    HEADER_NOTIFICATION_BUTTON_ENABLED_STYLESHEET,
+    HEADER_NOTIFICATION_BUTTON_MUTED_STYLESHEET,
     HEADER_SEARCH_BAR_STYLESHEET,
     HEADER_SEARCH_COMBO_STYLESHEET,
     HEADER_STAT_CARD_STYLESHEET,
@@ -32,7 +35,7 @@ from session_sniffer.guis.stylesheets import (
     STAT_CARD_TITLE_STYLESHEET,
     STAT_CARD_VALUE_STYLESHEET,
 )
-from session_sniffer.guis.utils import render_svg_pixmap_from_resource, scale_by_ui
+from session_sniffer.guis.utils import render_svg_icon_from_resource, render_svg_pixmap_from_resource, scale_by_ui
 from session_sniffer.rendering_core.types import TableMergeState
 from session_sniffer.settings import Settings
 
@@ -72,10 +75,27 @@ class _HeaderSearchBar(QLineEdit):
         return QSize(scale_by_ui(120), default_hint.height())
 
 
+class _NotificationToggleButton(QPushButton):
+    """Compact header icon button supporting left-click single toggle and right-click toggle-all."""
+
+    right_clicked = Signal()
+
+    @override
+    def mouseReleaseEvent(self, e: QMouseEvent) -> None:
+        if e.button() == Qt.MouseButton.RightButton and self.rect().contains(e.position().toPoint()):
+            self.right_clicked.emit()
+            e.accept()
+            return
+        super().mouseReleaseEvent(e)
+
+
 class SessionHeader(QFrame):
     """Application dashboard header with branding, unified global search, and live metrics."""
 
     search_changed = Signal(str, str)
+    visual_notifications_toggle_requested = Signal()
+    voice_notifications_toggle_requested = Signal()
+    all_notifications_toggle_requested = Signal()
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -163,8 +183,42 @@ class SessionHeader(QFrame):
         main_layout.addLayout(search_layout, 0, 1, Qt.AlignmentFlag.AlignCenter)
 
         # ---------------------------------------------------------------------
-        # Right Section: Live Metrics Unified Container
+        # Right Section: Notification Toggles + Live Metrics Container
         # ---------------------------------------------------------------------
+        right_layout = QHBoxLayout()
+        right_layout.setContentsMargins(0, 0, 0, 0)
+        right_layout.setSpacing(scale_by_ui(8))
+
+        notifications_card = QFrame()
+        notifications_card.setObjectName('headerNotificationsContainer')
+        notifications_card.setStyleSheet(HEADER_STAT_CARD_STYLESHEET)
+        notifications_layout = QHBoxLayout(notifications_card)
+        notifications_layout.setContentsMargins(scale_by_ui(4), scale_by_ui(4), scale_by_ui(4), scale_by_ui(4))
+        notifications_layout.setSpacing(scale_by_ui(4))
+
+        btn_size = QSize(scale_by_ui(30), scale_by_ui(28))
+        icon_size = QSize(scale_by_ui(16), scale_by_ui(16))
+
+        self._visual_btn = _NotificationToggleButton()
+        self._visual_btn.setFixedSize(btn_size)
+        self._visual_btn.setIconSize(icon_size)
+        self._visual_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._visual_btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self._visual_btn.clicked.connect(self.visual_notifications_toggle_requested.emit)
+        self._visual_btn.right_clicked.connect(self.all_notifications_toggle_requested.emit)
+        notifications_layout.addWidget(self._visual_btn)
+
+        self._voice_btn = _NotificationToggleButton()
+        self._voice_btn.setFixedSize(btn_size)
+        self._voice_btn.setIconSize(icon_size)
+        self._voice_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._voice_btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self._voice_btn.clicked.connect(self.voice_notifications_toggle_requested.emit)
+        self._voice_btn.right_clicked.connect(self.all_notifications_toggle_requested.emit)
+        notifications_layout.addWidget(self._voice_btn)
+
+        right_layout.addWidget(notifications_card)
+
         stats_card = QFrame()
         stats_card.setObjectName('headerStatsContainer')
         stats_card.setStyleSheet(HEADER_STAT_CARD_STYLESHEET)
@@ -209,10 +263,38 @@ class SessionHeader(QFrame):
         packets_layout.addWidget(self._packets_value)
         stats_card_layout.addLayout(packets_layout)
 
-        main_layout.addWidget(stats_card, 0, 2, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        right_layout.addWidget(stats_card)
+
+        main_layout.addLayout(right_layout, 0, 2, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         main_layout.setColumnStretch(0, 1)
         main_layout.setColumnStretch(1, 0)
         main_layout.setColumnStretch(2, 1)
+
+        self.sync_notification_buttons(
+            visual_enabled=Settings.visual_notifications_enabled,
+            voice_enabled=Settings.voice_notifications_enabled,
+        )
+
+    def sync_notification_buttons(self, *, visual_enabled: bool, voice_enabled: bool) -> None:
+        """Update visual and voice quick-toggle button icons, styles, and tooltips."""
+        icon_px = scale_by_ui(16)
+        all_hint = 'Mute all notifications' if (visual_enabled or voice_enabled) else 'Enable all notifications'
+
+        self._visual_btn.setIcon(
+            render_svg_icon_from_resource('bell.svg' if visual_enabled else 'bell-off.svg', icon_px, icon_px, '#22c55e' if visual_enabled else '#f87171'),
+        )
+        self._visual_btn.setStyleSheet(HEADER_NOTIFICATION_BUTTON_ENABLED_STYLESHEET if visual_enabled else HEADER_NOTIFICATION_BUTTON_MUTED_STYLESHEET)
+        visual_status = 'Enabled' if visual_enabled else 'Muted'
+        visual_action = 'Mute visual popup notifications' if visual_enabled else 'Enable visual popup notifications'
+        self._visual_btn.setToolTip(f'Visual Notifications: {visual_status}\nLeft-click: {visual_action}\nRight-click: {all_hint}')
+
+        self._voice_btn.setIcon(
+            render_svg_icon_from_resource('volume-2.svg' if voice_enabled else 'volume-x.svg', icon_px, icon_px, '#22c55e' if voice_enabled else '#f87171'),
+        )
+        self._voice_btn.setStyleSheet(HEADER_NOTIFICATION_BUTTON_ENABLED_STYLESHEET if voice_enabled else HEADER_NOTIFICATION_BUTTON_MUTED_STYLESHEET)
+        voice_status = 'Enabled' if voice_enabled else 'Muted'
+        voice_action = 'Mute voice notifications' if voice_enabled else 'Enable voice notifications'
+        self._voice_btn.setToolTip(f'Voice Notifications: {voice_status}\nLeft-click: {voice_action}\nRight-click: {all_hint}')
 
     def _populate_searchable_columns(self) -> None:
         """Populate the column chooser with All Columns and common searchable columns."""

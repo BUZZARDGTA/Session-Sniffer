@@ -105,7 +105,7 @@ _active_userip_tasks_lock = Lock()
 _active_detection_check_ips: set[str] = set()
 _pending_detection_rescan_ips: set[str] = set()
 _detection_check_lock = Lock()
-_fired_detections: dict[tuple[str, int], dict[str, tuple[object, ...]]] = {}
+_fired_detections: dict[tuple[str, int], dict[str, tuple[bool, int | Literal['Auto'] | None, Literal['Male', 'Female'] | bool, bool, bool]]] = {}
 _active_global_suspend_reasons: dict[str, set[str]] = {}
 _fired_detections_lock = Lock()
 _MINUTE_INTERVAL_SECONDS = 60.0
@@ -222,7 +222,12 @@ def handle_detection_notification(player: Player, notification_type: Notificatio
     msgbox_setting = cast('bool', getattr(GUIDetectionSettings, f'{prefix}_message_box'))
 
     has_event_combo_rules = any(rule.has_event_condition for rule in ComboRulesManager.rules if rule.enabled)
-    standalone_active = enabled or voice_setting or logging_setting or msgbox_setting
+    standalone_active = (
+        enabled
+        or (Settings.voice_notifications_enabled and bool(voice_setting))
+        or logging_setting
+        or (Settings.visual_notifications_enabled and msgbox_setting)
+    )
     if not standalone_active and not has_event_combo_rules:
         return
 
@@ -240,7 +245,8 @@ def handle_detection_notification(player: Player, notification_type: Notificatio
                 tts_candidate_path = TTS_DIR_PATH / tts_voice_name(voice_setting=voice_setting) / 'event' / f'{notification_type}.wav'
                 queue_voice_notification(tts_candidate_path)
 
-            data_ready = _resolve_standalone_notification_data(player, msgbox_setting=msgbox_setting, logging_setting=logging_setting)
+            effective_msgbox = Settings.visual_notifications_enabled and msgbox_setting
+            data_ready = _resolve_standalone_notification_data(player, msgbox_setting=effective_msgbox, logging_setting=logging_setting)
 
             if logging_setting:
                 now = datetime.now(tz=LOCAL_TZ)
@@ -258,7 +264,7 @@ def handle_detection_notification(player: Player, notification_type: Notificatio
                     ],
                 )
 
-            if msgbox_setting:
+            if effective_msgbox:
                 _info = PlayerDetectionInfo(
                     event_type=notification_type, title=config['title'], description=config['description'],
                     event_time=datetime.now(tz=LOCAL_TZ).strftime('%H:%M:%S'), data_ready=data_ready,
@@ -293,7 +299,7 @@ def handle_detection_notification(player: Player, notification_type: Notificatio
                         player.iplookup.resolve_country()[0],
                     )
 
-                if rule.message_box:
+                if Settings.visual_notifications_enabled and rule.message_box:
                     conditions_summary = format_combo_conditions_summary(rule.conditions, include_event=False)
                     _display_title = f'Combo Rule Matched: {rule.name}'
                     _extra: list[tuple[str, str]] = [('Event', combo_event), ('Conditions', conditions_summary)]
@@ -338,6 +344,11 @@ def process_userip_task(
         _active_userip_tasks.add(task_key)
 
     try:
+        if connection_type == 'connected':
+            if userip_detection.last_db_path is not None and userip_detection.last_db_path != userip.db_path:
+                userip_detection.reset_fired_actions()
+            userip_detection.last_db_path = userip.db_path
+
         # We want to run this as fast as possible so it's on top of the function.
         # Protection actions are skipped when protection is not supported.
         protection_triggered = (
@@ -353,14 +364,20 @@ def process_userip_task(
                 duration=userip.settings.protection.suspend_process_mode,
             )
 
-        if Settings.voice_notifications_enabled and userip.settings.voice_notifications:
-            tts_candidate_path = TTS_DIR_PATH / tts_voice_name(voice_setting=userip.settings.voice_notifications) / 'userip' / f'{connection_type}.wav'
-            queue_voice_notification(tts_candidate_path)
-
+        effective_voice: Literal['Male', 'Female'] | bool = (
+            userip.settings.voice_notifications if Settings.voice_notifications_enabled and userip.settings.voice_notifications else False
+        )
         if connection_type == 'connected':
-            updated_userip = record_userip_detection(userip.db_path, player.ip, player.datetime.last_rejoin)
+            if effective_voice and effective_voice != userip_detection.fired_voice:
+                queue_voice_notification(TTS_DIR_PATH / tts_voice_name(voice_setting=effective_voice) / 'userip' / 'connected.wav')
+            userip_detection.fired_voice = effective_voice
+            updated_userip = record_userip_detection(userip.db_path, player.ip, player.datetime.last_rejoin) if not userip_detection.counted_detection else None
+            userip_detection.counted_detection = True
         else:
+            if effective_voice:
+                queue_voice_notification(TTS_DIR_PATH / tts_voice_name(voice_setting=effective_voice) / 'userip' / 'disconnected.wav')
             updated_userip = record_userip_last_seen(userip.db_path, player.ip, player.datetime.last_seen)
+
         if updated_userip is not None:
             userip = updated_userip
             player.userip = updated_userip
@@ -372,43 +389,31 @@ def process_userip_task(
             player.usernames = dedup_preserve_order(player.usernames, userip.usernames)
 
         if connection_type == 'connected':
-            if userip.settings.notifications:
+            effective_visual = Settings.visual_notifications_enabled and userip.settings.notifications
+            if effective_visual and not userip_detection.fired_notification:
+                gui_dispatcher.invoke(lambda: show_userip_detected_dialog(find_main_window(), player, userip))
+            userip_detection.fired_notification = effective_visual
 
-                def _show_userip_dialog() -> None:
-                    show_userip_detected_dialog(find_main_window(), player, userip)
-
-                gui_dispatcher.invoke(_show_userip_dialog)
-
-            if protection_triggered or userip.settings.log:
+            need_prot_log = protection_triggered and not userip_detection.fired_protection_log
+            need_userip_log = userip.settings.log and not userip_detection.fired_log
+            if need_prot_log or need_userip_log:
                 wait_for_player_data_ready(player, data_fields=('userip.usernames', 'iplookup.geolite2'), timeout=10.0)
-
                 relative_database_path = userip.db_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix('')
                 date_part, time_part = userip_detection.date_time.split('_', maxsplit=1)
                 usernames_display = _format_persisted_player_usernames(player) or ', '.join(userip.usernames)
-
                 resolved_country, _ = player.iplookup.resolve_country()
 
-                if protection_triggered:
-                    _log_to_protection_csv(
-                        f'USERIP PROTECTION: {relative_database_path}',
-                        usernames_display,
-                        player.ip,
-                        resolved_country,
-                    )
+                if need_prot_log:
+                    userip_detection.fired_protection_log = True
+                    _log_to_protection_csv(f'USERIP PROTECTION: {relative_database_path}', usernames_display, player.ip, resolved_country)
 
-                if userip.settings.log:
+                if need_userip_log:
+                    userip_detection.fired_log = True
                     _append_csv_log_row(
                         _userip_logging_file_write_lock,
                         USERIP_LOGGING_PATH,
                         _USERIP_CSV_HEADERS,
-                        [
-                            str(relative_database_path),
-                            ', '.join(userip.usernames),
-                            player.ip,
-                            date_part,
-                            time_part,
-                            resolved_country,
-                        ],
+                        [str(relative_database_path), ', '.join(userip.usernames), player.ip, date_part, time_part, resolved_country],
                     )
     finally:
         with _active_userip_tasks_lock:
@@ -420,28 +425,26 @@ def spawn_connected_userip_detection(
     userip: UserIP,
     *,
     detection_type: Literal['Static IP', 'Username'] | None = None,
+    detected_at: datetime | None = None,
 ) -> None:
     """Assign `userip` and `userip_detection` on `player` and start `process_userip_task`."""
-    now = datetime.now(tz=LOCAL_TZ)
-    effective_type: Literal['Static IP', 'Username'] = (
-        detection_type
-        if detection_type is not None
-        else (player.userip_detection.type if player.userip_detection is not None else 'Static IP')
-    )
     player.userip = userip
     if userip.usernames:
         player.usernames = dedup_preserve_order(player.usernames, userip.usernames)
-    player.userip_detection = PlayerUserIPDetection(
-        time=now.strftime('%H:%M:%S'),
-        date_time=now.strftime('%Y-%m-%d_%H:%M:%S'),
-        type=effective_type,
-    )
-    Thread(
-        target=process_userip_task,
-        name=f'ProcessUserIPTask-{player.ip}-connected',
-        args=(player, userip, 'connected'),
-        daemon=True,
-    ).start()
+    prev = player.userip_detection
+    if prev is not None and prev.rejoin_index == player.rejoins and not player.left_event.is_set():
+        prev.as_processed_task = True
+        if detection_type is not None:
+            prev.type = detection_type
+    else:
+        ts = detected_at if detected_at is not None else datetime.now(tz=LOCAL_TZ)
+        player.userip_detection = PlayerUserIPDetection(
+            time=ts.strftime('%H:%M:%S'),
+            date_time=ts.strftime('%Y-%m-%d_%H:%M:%S'),
+            rejoin_index=player.rejoins,
+            type=detection_type if detection_type is not None else (prev.type if prev is not None else 'Static IP'),
+        )
+    Thread(target=process_userip_task, name=f'ProcessUserIPTask-{player.ip}-connected', args=(player, userip, 'connected'), daemon=True).start()
 
 
 def trigger_auto_username_userip(player: Player, detected_usernames: Sequence[str]) -> None:
@@ -473,6 +476,7 @@ def trigger_auto_username_userip(player: Player, detected_usernames: Sequence[st
         player.userip_detection = PlayerUserIPDetection(
             time=now.strftime('%H:%M:%S'),
             date_time=now.strftime('%Y-%m-%d_%H:%M:%S'),
+            rejoin_index=player.rejoins,
             type='Username',
         )
 
@@ -615,31 +619,34 @@ def check_global_detections(player: Player) -> None:
     ) -> None:
         """Handle per-join deduplication, suspension, voice, logging, and message box for a detection."""
         effective_suspend = settings.suspend_enabled and bool(settings.suspension_name) and Settings.is_gta5_feature_set() and CaptureState.is_local_capture()
+        effective_duration = settings.suspend_duration if effective_suspend else None
         effective_voice: Literal['Male', 'Female'] | bool = settings.voice if Settings.voice_notifications_enabled and settings.voice else False
         effective_log = settings.log
-        effective_msgbox = settings.msgbox and (player.userip is None or allow_userip_message_box)
+        effective_msgbox = Settings.visual_notifications_enabled and settings.msgbox and (player.userip is None or allow_userip_message_box)
         if not (effective_suspend or bool(effective_voice) or effective_log or effective_msgbox):
             return
         current_active_titles.add(detection_title)
         if effective_suspend:
             current_suspend_reasons.add(f'global:{settings.suspension_name}:{player.ip}')
-        signature = (detection_title, effective_suspend, settings.suspend_duration if effective_suspend else None, effective_voice, effective_log, effective_msgbox)
+        signature = (effective_suspend, effective_duration, effective_voice, effective_log, effective_msgbox)
         with _fired_detections_lock:
-            if fired_map.get(detection_title) == signature:
+            prev_sig = fired_map.get(detection_title)
+            if prev_sig == signature:
                 return
             fired_map[detection_title] = signature
+        prev_suspend, prev_duration, prev_voice, prev_log, prev_msgbox = prev_sig if prev_sig is not None else (False, None, False, False, False)
 
-        if effective_suspend:
+        if effective_suspend and (not prev_suspend or prev_duration != effective_duration):
             execute_suspension_action(settings.suspend_duration, settings.suspension_name)
 
-        if effective_voice:
+        if effective_voice and effective_voice != prev_voice:
             tts_candidate_path = TTS_DIR_PATH / tts_voice_name(voice_setting=effective_voice) / 'detection' / f'{settings.tts_filename}.wav'
             queue_voice_notification(tts_candidate_path)
 
-        if effective_log:
+        if effective_log and not prev_log:
             _log_to_protection_csv(detection_title, _format_persisted_player_usernames(player), player.ip, player.iplookup.resolve_country()[0])
 
-        if effective_msgbox:
+        if effective_msgbox and not prev_msgbox:
             _event_time = datetime.now(tz=LOCAL_TZ).strftime('%H:%M:%S')
 
             def _show_detection_notif() -> None:
