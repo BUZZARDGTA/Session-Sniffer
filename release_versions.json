@@ -1,36 +1,17 @@
 {
     "latest_prerelease": {
-        "base_version": "1.5.0",
-        "epoch": 0,
-        "release_url": "https://github.com/BUZZARDGTA/Session-Sniffer/releases/tag/v1.5.0rc.100%2B20261110.0655",
-        "download_url": "https://github.com/BUZZARDGTA/Session-Sniffer/releases/download/v1.5.0rc.100%2B20261110.0655/Session_Sniffer.exe",
-        "sha256": "b0c49080a6c0867132d50d8876ba19a399c7b7f7c59f642232ac393465b18997",
-        "file_size": 46618692,
-        "linux_download_url": "https://github.com/BUZZARDGTA/Session-Sniffer/releases/download/v1.5.0rc.100%2B20261110.0655/Session_Sniffer",
-        "linux_sha256": "1877f5ed66390a7f4f6144cf6521e3172c4dd89c89a33452784cec072f9b295c",
-        "linux_file_size": 94626480,
-        "darwin_download_url": "https://github.com/BUZZARDGTA/Session-Sniffer/releases/download/v1.5.0rc.100%2B20261110.0655/Session_Sniffer_macOS",
-        "darwin_sha256": "c01a32e46dedb04d7e4ecc635a1d1b4da4a1c9cfe2e4da0cd925f6b42e4fd6b7",
-        "darwin_file_size": 44225968,
-        "is_devrelease": false,
-        "is_postrelease": false,
-        "is_prerelease": true,
-        "local": "20261110.655",
-        "major": 1,
-        "micro": 0,
-        "minor": 5,
-        "post": null,
-        "pre": [
-            "rc",
-            100
-        ],
-        "public": "1.5.0rc100",
-        "release": [
-            1,
-            5,
-            0
-        ],
-        "version": "1.5.0rc100+20261110.655"
+        "version": "1.5.0rc101+20261111.1819",
+        "release_url": "https://github.com/BUZZARDGTA/Session-Sniffer/releases/tag/v1.5.0rc.101%2B20261111.1819",
+        "download_url": "https://github.com/BUZZARDGTA/Session-Sniffer/releases/download/v1.5.0rc.101%2B20261111.1819/Session_Sniffer.exe",
+        "sha256": "b8de123784efc9cd02051795aeb157a908693ac5810d9ee0a50c3c25ce0f1bde",
+        "file_size": 46699349,
+        "linux_download_url": "https://github.com/BUZZARDGTA/Session-Sniffer/releases/download/v1.5.0rc.101%2B20261111.1819/Session_Sniffer",
+        "linux_sha256": "6148744c5aa40892fb8fbe1f4b0574803dc4f3df3f693e39c0846325aada5284",
+        "linux_file_size": 94706928,
+        "darwin_download_url": "https://github.com/BUZZARDGTA/Session-Sniffer/releases/download/v1.5.0rc.101%2B20261111.1819/Session_Sniffer_macOS",
+        "darwin_sha256": "b465c09d1ea3dc5db16834e5d60661f69e1b18ae1094763e64ba57124a80bd0f",
+        "darwin_file_size": 44307696,
+        "is_prerelease": true
     },
     "latest_stable": {
         "base_version": "1.4.3",
