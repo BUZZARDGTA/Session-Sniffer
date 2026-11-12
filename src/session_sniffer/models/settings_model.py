@@ -142,8 +142,6 @@ class SettingsModel(BaseModel):
     GUI_DISCONNECTED_PLAYERS_TIMER: int
     GUI_DISCONNECTED_PLAYERS_LIMIT: int
     GUI_IGNORE_SCREEN_RESOLUTION_WARNING: bool
-    VISUAL_NOTIFICATIONS_ENABLED: bool
-    VOICE_NOTIFICATIONS_ENABLED: bool
 
     # Discord / updater / misc
     DISCORD_PRESENCE: bool
@@ -240,8 +238,6 @@ class SettingsModel(BaseModel):
             'LOOKY_ENABLED',
             'PINGER_LOCAL',
             'SHOW_DISCORD_POPUP',
-            'VISUAL_NOTIFICATIONS_ENABLED',
-            'VOICE_NOTIFICATIONS_ENABLED',
             'HIGH_RATE_MONITOR_ICON',
             'HIGH_RATE_MONITOR_RUN_IN_BACKGROUND',
             'HIGH_RATE_MONITOR_AUTO_SELECT',

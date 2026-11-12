@@ -93,8 +93,6 @@ class Settings:
     gui_disconnected_players_timer: int = SETTING_DEFAULTS['gui_disconnected_players_timer']
     gui_disconnected_players_limit: int = SETTING_DEFAULTS['gui_disconnected_players_limit']
     gui_ignore_screen_resolution_warning: bool = SETTING_DEFAULTS['gui_ignore_screen_resolution_warning']
-    visual_notifications_enabled: bool = SETTING_DEFAULTS['visual_notifications_enabled']
-    voice_notifications_enabled: bool = SETTING_DEFAULTS['voice_notifications_enabled']
     pinger_local: bool = SETTING_DEFAULTS['pinger_local']
     ping_count: int = SETTING_DEFAULTS['ping_count']
     ping_interval_ms: int = SETTING_DEFAULTS['ping_interval_ms']
@@ -203,8 +201,6 @@ class Settings:
         'GUI_DISCONNECTED_PLAYERS_TIMER',
         'GUI_DISCONNECTED_PLAYERS_LIMIT',
         'GUI_IGNORE_SCREEN_RESOLUTION_WARNING',
-        'VISUAL_NOTIFICATIONS_ENABLED',
-        'VOICE_NOTIFICATIONS_ENABLED',
         'DISCORD_PRESENCE',
         'DISCORD_PRESENCE_TITLE',
         'SHOW_DISCORD_POPUP',

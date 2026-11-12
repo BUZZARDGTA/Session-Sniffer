@@ -14,8 +14,8 @@ from session_sniffer.guis.tables_player_actions._player_info_dialog_mixin import
 from session_sniffer.guis.userip_manager_helpers import format_userip_db_display_name
 from session_sniffer.guis.utils import ActiveDialogRegistry, format_player_display, set_dialog_window_flags
 from session_sniffer.models.userip_settings_model import format_iso_timestamp_display
+from session_sniffer.notifications_state import notifications_state
 from session_sniffer.player.userip import UserIP, UserIPDatabases
-from session_sniffer.settings import Settings
 from session_sniffer.text_utils import pluralize
 from session_sniffer.utils import dedup_preserve_order
 
@@ -187,7 +187,7 @@ def show_userip_detected_dialog(parent: QWidget | None, player: Player, userip: 
     """Open or focus the UserIP Detected dialog for *player*."""
     if userip is not None and player.userip is None:
         player.userip = userip
-    if not Settings.visual_notifications_enabled:
+    if not notifications_state.visual_enabled:
         return
     _active_dialogs.show_or_focus(player.ip, lambda: UserIPDetectedDialog(parent, player, userip))
 

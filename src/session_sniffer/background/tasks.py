@@ -28,6 +28,7 @@ from session_sniffer.models.combo_rules import format_combo_conditions_summary
 from session_sniffer.models.player_lookup import PlayerUserIPDetection
 from session_sniffer.networking.geolite2 import query_geolite2_asn, query_geolite2_city, query_geolite2_country
 from session_sniffer.networking.third_party_servers import is_gta5_relay_ip
+from session_sniffer.notifications_state import notifications_state
 from session_sniffer.player.combo_rules import ComboRulesManager, matches_asn_entry, matches_player_isp
 from session_sniffer.player.detections import GUIDetectionSettings
 from session_sniffer.player.registry import PlayersRegistry
@@ -224,9 +225,9 @@ def handle_detection_notification(player: Player, notification_type: Notificatio
     has_event_combo_rules = any(rule.has_event_condition for rule in ComboRulesManager.rules if rule.enabled)
     standalone_active = (
         enabled
-        or (Settings.voice_notifications_enabled and bool(voice_setting))
+        or (notifications_state.voice_enabled and bool(voice_setting))
         or logging_setting
-        or (Settings.visual_notifications_enabled and msgbox_setting)
+        or (notifications_state.visual_enabled and msgbox_setting)
     )
     if not standalone_active and not has_event_combo_rules:
         return
@@ -241,11 +242,11 @@ def handle_detection_notification(player: Player, notification_type: Notificatio
             if enabled and Settings.is_gta5_feature_set() and CaptureState.is_local_capture():
                 GTASuspendManager.request_suspend(reason_key=f'event:{notification_type}:{player.ip}', left_event=player.left_event, duration=duration)
 
-            if Settings.voice_notifications_enabled and voice_setting:
+            if notifications_state.voice_enabled and voice_setting:
                 tts_candidate_path = TTS_DIR_PATH / tts_voice_name(voice_setting=voice_setting) / 'event' / f'{notification_type}.wav'
                 queue_voice_notification(tts_candidate_path)
 
-            effective_msgbox = Settings.visual_notifications_enabled and msgbox_setting
+            effective_msgbox = notifications_state.visual_enabled and msgbox_setting
             data_ready = _resolve_standalone_notification_data(player, msgbox_setting=effective_msgbox, logging_setting=logging_setting)
 
             if logging_setting:
@@ -287,7 +288,7 @@ def handle_detection_notification(player: Player, notification_type: Notificatio
                 if rule.protection_enabled and Settings.is_gta5_feature_set() and CaptureState.is_local_capture():
                     GTASuspendManager.request_suspend(reason_key=f'combo:{rule.name}:{player.ip}', left_event=player.left_event, duration=rule.duration)
 
-                if Settings.voice_notifications_enabled and rule.voice_notifications:
+                if notifications_state.voice_enabled and rule.voice_notifications:
                     tts_candidate_path = TTS_DIR_PATH / tts_voice_name(voice_setting=rule.voice_notifications) / 'detection' / 'combo_rule_detected.wav'
                     queue_voice_notification(tts_candidate_path)
 
@@ -299,7 +300,7 @@ def handle_detection_notification(player: Player, notification_type: Notificatio
                         player.iplookup.resolve_country()[0],
                     )
 
-                if Settings.visual_notifications_enabled and rule.message_box:
+                if notifications_state.visual_enabled and rule.message_box:
                     conditions_summary = format_combo_conditions_summary(rule.conditions, include_event=False)
                     _display_title = f'Combo Rule Matched: {rule.name}'
                     _extra: list[tuple[str, str]] = [('Event', combo_event), ('Conditions', conditions_summary)]
@@ -365,7 +366,7 @@ def process_userip_task(
             )
 
         effective_voice: Literal['Male', 'Female'] | bool = (
-            userip.settings.voice_notifications if Settings.voice_notifications_enabled and userip.settings.voice_notifications else False
+            userip.settings.voice_notifications if notifications_state.voice_enabled and userip.settings.voice_notifications else False
         )
         if connection_type == 'connected':
             if effective_voice and effective_voice != userip_detection.fired_voice:
@@ -389,7 +390,7 @@ def process_userip_task(
             player.usernames = dedup_preserve_order(player.usernames, userip.usernames)
 
         if connection_type == 'connected':
-            effective_visual = Settings.visual_notifications_enabled and userip.settings.notifications
+            effective_visual = notifications_state.visual_enabled and userip.settings.notifications
             if effective_visual and not userip_detection.fired_notification:
                 gui_dispatcher.invoke(lambda: show_userip_detected_dialog(find_main_window(), player, userip))
             userip_detection.fired_notification = effective_visual
@@ -620,9 +621,9 @@ def check_global_detections(player: Player) -> None:
         """Handle per-join deduplication, suspension, voice, logging, and message box for a detection."""
         effective_suspend = settings.suspend_enabled and bool(settings.suspension_name) and Settings.is_gta5_feature_set() and CaptureState.is_local_capture()
         effective_duration = settings.suspend_duration if effective_suspend else None
-        effective_voice: Literal['Male', 'Female'] | bool = settings.voice if Settings.voice_notifications_enabled and settings.voice else False
+        effective_voice: Literal['Male', 'Female'] | bool = settings.voice if notifications_state.voice_enabled and settings.voice else False
         effective_log = settings.log
-        effective_msgbox = Settings.visual_notifications_enabled and settings.msgbox and (player.userip is None or allow_userip_message_box)
+        effective_msgbox = notifications_state.visual_enabled and settings.msgbox and (player.userip is None or allow_userip_message_box)
         if not (effective_suspend or bool(effective_voice) or effective_log or effective_msgbox):
             return
         current_active_titles.add(detection_title)

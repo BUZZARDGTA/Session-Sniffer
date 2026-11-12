@@ -36,6 +36,7 @@ from session_sniffer.guis.stylesheets import (
     STAT_CARD_VALUE_STYLESHEET,
 )
 from session_sniffer.guis.utils import render_svg_icon_from_resource, render_svg_pixmap_from_resource, scale_by_ui
+from session_sniffer.notifications_state import notifications_state
 from session_sniffer.rendering_core.types import TableMergeState
 from session_sniffer.settings import Settings
 
@@ -271,8 +272,8 @@ class SessionHeader(QFrame):
         main_layout.setColumnStretch(2, 1)
 
         self.sync_notification_buttons(
-            visual_enabled=Settings.visual_notifications_enabled,
-            voice_enabled=Settings.voice_notifications_enabled,
+            visual_enabled=notifications_state.visual_enabled,
+            voice_enabled=notifications_state.voice_enabled,
         )
 
     def sync_notification_buttons(self, *, visual_enabled: bool, voice_enabled: bool) -> None:
@@ -286,7 +287,7 @@ class SessionHeader(QFrame):
         self._visual_btn.setStyleSheet(HEADER_NOTIFICATION_BUTTON_ENABLED_STYLESHEET if visual_enabled else HEADER_NOTIFICATION_BUTTON_MUTED_STYLESHEET)
         visual_status = 'Enabled' if visual_enabled else 'Muted'
         visual_action = 'Mute visual popup notifications' if visual_enabled else 'Enable visual popup notifications'
-        self._visual_btn.setToolTip(f'Visual Notifications: {visual_status}\nLeft-click: {visual_action}\nRight-click: {all_hint}')
+        self._visual_btn.setToolTip(f'Visual Notifications: {visual_status} (this session only)\nLeft-click: {visual_action}\nRight-click: {all_hint}')
 
         self._voice_btn.setIcon(
             render_svg_icon_from_resource('volume-2.svg' if voice_enabled else 'volume-x.svg', icon_px, icon_px, '#22c55e' if voice_enabled else '#f87171'),
@@ -294,7 +295,7 @@ class SessionHeader(QFrame):
         self._voice_btn.setStyleSheet(HEADER_NOTIFICATION_BUTTON_ENABLED_STYLESHEET if voice_enabled else HEADER_NOTIFICATION_BUTTON_MUTED_STYLESHEET)
         voice_status = 'Enabled' if voice_enabled else 'Muted'
         voice_action = 'Mute voice notifications' if voice_enabled else 'Enable voice notifications'
-        self._voice_btn.setToolTip(f'Voice Notifications: {voice_status}\nLeft-click: {voice_action}\nRight-click: {all_hint}')
+        self._voice_btn.setToolTip(f'Voice Notifications: {voice_status} (this session only)\nLeft-click: {voice_action}\nRight-click: {all_hint}')
 
     def _populate_searchable_columns(self) -> None:
         """Populate the column chooser with All Columns and common searchable columns."""

@@ -14,7 +14,7 @@ if sys.platform == 'win32':
     import winsound
 
 from session_sniffer.background.events import gui_closed__event
-from session_sniffer.settings import Settings
+from session_sniffer.notifications_state import notifications_state
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +36,7 @@ class _DeduplicatedQueue:
 
     def put(self, item: str) -> None:
         """Enqueue *item* unless it is already present or the queue is full."""
-        if not Settings.voice_notifications_enabled:
+        if not notifications_state.voice_enabled:
             return
         with self._lock:
             if item in self._set:
@@ -106,7 +106,7 @@ _voice_notification_worker_state = _VoiceNotificationWorkerState()
 
 def ensure_voice_notification_worker_running() -> None:
     """Start the `VoiceNotificationWorker` thread if it is not already running."""
-    if not Settings.voice_notifications_enabled:
+    if not notifications_state.voice_enabled:
         return
     with _voice_notification_lock:
         if _voice_notification_worker_state.is_running:
@@ -119,7 +119,7 @@ def _voice_notification_worker() -> None:
     """Worker that sequentially plays queued voice notification WAV files until drained."""
     try:
         while not gui_closed__event.is_set():
-            if not Settings.voice_notifications_enabled:
+            if not notifications_state.voice_enabled:
                 _voice_notification_queue.clear()
                 return
 
