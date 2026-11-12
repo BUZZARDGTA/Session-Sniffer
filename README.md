@@ -2,7 +2,7 @@
 
 # Session Sniffer
 
-![399083506-81ca21ce-bf6a-4437-a995-205245fbd795](https://github.com/user-attachments/assets/d9d94105-d1e6-4967-9d23-f9b695364e10)
+![python_2026-11-12_19-39](https://github.com/user-attachments/assets/529c8a1d-8302-4e54-b324-ce215e002390)
 
 </div>
 
