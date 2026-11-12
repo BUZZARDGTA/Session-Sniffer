@@ -74,6 +74,7 @@ from session_sniffer.settings.settings import Settings
 from session_sniffer.text_utils import pluralize
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
     from pathlib import Path
 
     from session_sniffer.models.userip_settings_model import UserIPEntryModel, UserIPSettingsModel
@@ -199,6 +200,16 @@ class UserIPDatabasesManager(
         btn_icon_size = QSize(scale_by_ui(14), scale_by_ui(14))
         btn_row_spacing = scale_by_ui(4)
 
+        def make_button(icon_name: str, text: str, tooltip: str, slot: Callable[[], object] | None = None, *, danger: bool = False) -> QPushButton:
+            button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / icon_name)), text)
+            button.setToolTip(tooltip)
+            button.setStyleSheet(danger_btn_style if danger else btn_style)
+            button.setAutoDefault(False)
+            button.setIconSize(btn_icon_size)
+            if slot is not None:
+                button.clicked.connect(slot)
+            return button
+
         # === Main splitter: file tree (left) | entries editor (right) ===
         self._splitter = QSplitter(Qt.Orientation.Horizontal)
         self._splitter.setChildrenCollapsible(False)
@@ -212,34 +223,15 @@ class UserIPDatabasesManager(
         # Tree toolbar buttons
         tree_buttons = QHBoxLayout()
         tree_buttons.setSpacing(btn_row_spacing)
-
-        new_db_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'file-plus.svg')), ' New DB')
-        new_db_button.setToolTip('Create a new UserIP database file')
-        new_db_button.setStyleSheet(btn_style)
-        new_db_button.clicked.connect(self._new_database)
-        tree_buttons.addWidget(new_db_button)
-
-        new_folder_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'folder.svg')), ' New Folder')
-        new_folder_button.setToolTip('Create a new folder to organize databases')
-        new_folder_button.setStyleSheet(btn_style)
-        new_folder_button.clicked.connect(self._new_folder)
-        tree_buttons.addWidget(new_folder_button)
-
-        self._delete_tree_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')), ' Delete')
-        self._delete_tree_button.setIconSize(btn_icon_size)
-        self._delete_tree_button.setToolTip('Delete the selected database or folder')
-        self._delete_tree_button.setStyleSheet(danger_btn_style)
+        tree_buttons.addWidget(make_button('file-plus.svg', ' New DB', 'Create a new UserIP database file', self._new_database))
+        tree_buttons.addWidget(make_button('folder.svg', ' New Folder', 'Create a new folder to organize databases', self._new_folder))
+        # Delete slot is reconnected dynamically in _on_tree_selection_changed
+        self._delete_tree_button = make_button('remove.svg', ' Delete', 'Delete the selected database or folder', self._delete_tree_item, danger=True)
         self._delete_tree_button.setMinimumWidth(self._delete_tree_button.sizeHint().width())
         self._delete_tree_button.setEnabled(False)
-        self._delete_tree_button.clicked.connect(self._delete_tree_item)  # reconnected dynamically in _on_tree_selection_changed
         tree_buttons.addWidget(self._delete_tree_button)
-
-        reset_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'rotate-ccw.svg')), ' Reset all…')
-        reset_button.setToolTip('Permanently delete all user databases and restore defaults')
-        reset_button.setStyleSheet(danger_btn_style)
-        reset_button.clicked.connect(self._reset_all_databases)
-        tree_buttons.addWidget(reset_button)
-
+        reset_tooltip = 'Permanently delete all user databases and restore defaults'
+        tree_buttons.addWidget(make_button('rotate-ccw.svg', ' Reset all…', reset_tooltip, self._reset_all_databases, danger=True))
         left_layout.addLayout(tree_buttons)
 
         # Filesystem-backed tree view
@@ -290,10 +282,8 @@ class UserIPDatabasesManager(
             if act := import_menu.addAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / icon_name)), label):
                 act.triggered.connect(slot)
 
-        import_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'import.svg')), ' Import…')
+        import_button = make_button('import.svg', ' Import…', 'Import database files into the databases directory')
         import_button.setMaximumWidth(scale_by_ui(130))
-        import_button.setToolTip('Import database files into the databases directory')
-        import_button.setStyleSheet(btn_style)
         import_button.setMenu(import_menu)
         transfer_buttons.addWidget(import_button)
 
@@ -309,16 +299,12 @@ class UserIPDatabasesManager(
             if act := export_menu.addAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / icon_name)), label):
                 act.triggered.connect(slot)
 
-        export_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'upload.svg')), ' Export…')
+        export_button = make_button('upload.svg', ' Export…', 'Export databases to an external location')
         export_button.setMaximumWidth(scale_by_ui(130))
-        export_button.setToolTip('Export databases to an external location')
-        export_button.setStyleSheet(btn_style)
         export_button.setMenu(export_menu)
         transfer_buttons.addWidget(export_button)
 
-        self._resolve_conflicts_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'scale.svg')), ' Resolve Conflicts…')
-        self._resolve_conflicts_button.setStyleSheet(btn_style)
-        self._resolve_conflicts_button.clicked.connect(lambda: open_userip_conflict_resolver(None))
+        self._resolve_conflicts_button = make_button('scale.svg', ' Resolve Conflicts…', '', lambda: open_userip_conflict_resolver(None))
         transfer_buttons.addWidget(self._resolve_conflicts_button)
 
         left_layout.addLayout(transfer_buttons)
@@ -455,68 +441,18 @@ class UserIPDatabasesManager(
         # Entry action buttons
         entry_buttons = QHBoxLayout()
         entry_buttons.setSpacing(btn_row_spacing)
-
-        self._add_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'plus.svg')), ' Add Entry')
-        self._add_button.setToolTip('Add a new entry (single IP, IP range, or subnet) to the current database')
-        self._add_button.setStyleSheet(btn_style)
-        self._add_button.setEnabled(False)
-        self._add_button.clicked.connect(self._add_entry)
-        entry_buttons.addWidget(self._add_button)
-
-        self._edit_ip_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square-pen.svg')), ' Edit IP/Range…')
-        self._edit_ip_button.setToolTip('Edit the IP or range of the selected entry using the builder')
-        self._edit_ip_button.setStyleSheet(btn_style)
-        self._edit_ip_button.setEnabled(False)
-        self._edit_ip_button.clicked.connect(self._edit_selected_entry_ip)
-        entry_buttons.addWidget(self._edit_ip_button)
-
-        self._rename_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square-pen.svg')), ' Rename')
-        self._rename_button.setToolTip('Rename the username of the selected entry or entries')
-        self._rename_button.setStyleSheet(btn_style)
-        self._rename_button.setEnabled(False)
-        self._rename_button.clicked.connect(self._rename_selected)
-        entry_buttons.addWidget(self._rename_button)
-
-        self._open_db_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'file-text.svg')), ' Open DB')
-        self._open_db_button.setToolTip('Open the current database file in the default text editor')
-        self._open_db_button.setStyleSheet(btn_style)
-        self._open_db_button.setEnabled(False)
-        self._open_db_button.clicked.connect(self._open_db_in_editor)
-        entry_buttons.addWidget(self._open_db_button)
-
+        self._add_button = make_button('plus.svg', ' Add Entry', 'Add a new entry (single IP, IP range, or subnet) to the current database', self._add_entry)
+        self._edit_ip_button = make_button('square-pen.svg', ' Edit IP/Range…', 'Edit the IP or range of the selected entry using the builder', self._edit_selected_entry_ip)
+        self._rename_button = make_button('square-pen.svg', ' Rename', 'Rename the username of the selected entry or entries', self._rename_selected)
+        self._open_db_button = make_button('file-text.svg', ' Open DB', 'Open the current database file in the default text editor', self._open_db_in_editor)
+        self._delete_button = make_button('remove.svg', ' Delete Selected', 'Delete the selected entries (with confirmation)', self._delete_selected, danger=True)
+        for entry_button in (self._add_button, self._edit_ip_button, self._rename_button, self._open_db_button):
+            entry_button.setEnabled(False)
+            entry_buttons.addWidget(entry_button)
         entry_buttons.addStretch()
-
-        self._delete_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')), ' Delete Selected')
-        self._delete_button.setToolTip('Delete the selected entries (with confirmation)')
-        self._delete_button.setStyleSheet(danger_btn_style)
         self._delete_button.setEnabled(False)
-        self._delete_button.clicked.connect(self._delete_selected)
         entry_buttons.addWidget(self._delete_button)
-
-        close_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'x.svg')), ' Close')
-        close_button.setToolTip('Close the UserIP Databases Manager')
-        close_button.setStyleSheet(btn_style)
-        close_button.clicked.connect(self.close)
-        entry_buttons.addWidget(close_button)
-
-        for action_button in (
-            new_db_button,
-            new_folder_button,
-            self._delete_tree_button,
-            reset_button,
-            import_button,
-            export_button,
-            self._resolve_conflicts_button,
-            self._add_button,
-            self._edit_ip_button,
-            self._rename_button,
-            self._open_db_button,
-            self._delete_button,
-            close_button,
-        ):
-            action_button.setAutoDefault(False)
-            action_button.setIconSize(btn_icon_size)
-
+        entry_buttons.addWidget(make_button('x.svg', ' Close', 'Close the UserIP Databases Manager', self.close))
         right_layout.addLayout(entry_buttons)
 
         self._splitter.addWidget(right_panel)
