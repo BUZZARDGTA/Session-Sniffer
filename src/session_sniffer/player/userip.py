@@ -19,7 +19,7 @@ from session_sniffer.guis.utils import find_main_window
 from session_sniffer.models.userip_settings_model import EntrySource, UserIPEntryModel, pick_earliest_iso, pick_latest_iso
 from session_sniffer.networking.ip_range import IPRange, ipv4_to_int, parse_ip_range
 from session_sniffer.player.registry import PlayersRegistry, SessionTracker
-from session_sniffer.player.userip_groups import are_usernames_unlinked, build_known_alts_clusters
+from session_sniffer.player.userip_groups import are_usernames_unlinked, build_known_alts_clusters, is_searchlist_database
 from session_sniffer.rendering_core.types import CaptureState
 from session_sniffer.settings import Settings
 from session_sniffer.text_utils import format_triple_quoted_text, split_usernames
@@ -603,8 +603,12 @@ class UserIPDatabases:
                         conflicting_ip_usernames.add(cf)
         ambiguous_usernames: set[str] = {cf for cf, paths in username_databases.items() if len(paths) > 1} | conflicting_ip_usernames
         single_db_by_cf = {cf: next(iter(paths)) for cf, paths in username_databases.items() if cf not in ambiguous_usernames and len(paths) == 1}
+        # Searchlist IPs are unconfirmed candidates, so usernames sharing one must not be linked as known alts.
         canonical_names, known_alts_clusters = build_known_alts_clusters(
-            [*(u.usernames for u in ip_to_userip.values()), *(r.usernames for r in range_entries)],
+            [
+                *(u.usernames for u in ip_to_userip.values() if not is_searchlist_database(u.db_path)),
+                *(r.usernames for r in range_entries if not is_searchlist_database(r.db_path)),
+            ],
             ambiguous_usernames,
             single_db_by_cf,
         )

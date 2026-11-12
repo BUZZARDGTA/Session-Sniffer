@@ -5,6 +5,7 @@ import threading
 import time
 from collections import deque
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
@@ -15,12 +16,16 @@ from session_sniffer.utils import FileSignature, atomic_write_text, get_file_sig
 if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping, Sequence
     from collections.abc import Set as AbstractSet
-    from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
 USERIP_GROUPS_PATH: Path = APP_DIR_ROAMING / 'userip_groups.json'
 MIN_GROUP_USERNAMES = 2
+
+
+def is_searchlist_database(db_path: Path | str) -> bool:
+    """Return True if *db_path* is the Searchlist database of unconfirmed candidate IPs."""
+    return Path(db_path).stem.casefold() == 'searchlist'
 
 
 def _empty_pair_list() -> list[tuple[str, str]]:
@@ -650,7 +655,11 @@ def compute_row_group_ids_and_prefixes(
         if ip_val:
             rows_by_db_ip.setdefault((db_key, ip_val), []).append(row)
 
-    cohosted_groups = [[rows[r][0] for r in ip_rows if rows[r][0]] for ip_rows in rows_by_db_ip.values() if len(ip_rows) > 1]
+    cohosted_groups = [
+        [rows[r][0] for r in ip_rows if rows[r][0]]
+        for (db_key, _), ip_rows in rows_by_db_ip.items()
+        if len(ip_rows) > 1 and not (db_key and is_searchlist_database(db_key))
+    ]
     node_to_group_id: dict[str, str] = {}
     for comp in _partition_account_group_components((cf for cf, _, _, _ in rows if cf), cohosted_groups, linked_pairs, unlinked_pairs):
         visible = [cf for cf in comp if cf in present_cfs]
@@ -787,7 +796,8 @@ def build_userip_account_groups(
             canonical_names.setdefault(cf, user)
             ordered_cfs.setdefault(cf, None)
             keys_by_cf.setdefault(cf, []).append((db_path, cf, ip_val))
-            cohosted_by_db_ip.setdefault((db_path, ip_val), []).append(cf)
+            if not is_searchlist_database(db_path):
+                cohosted_by_db_ip.setdefault((db_path, ip_val), []).append(cf)
 
     for raw_seed in extra_seed_usernames:
         if seed := raw_seed.strip():
@@ -828,9 +838,24 @@ def find_split_account_groups(
     *,
     conflicting_entries: AbstractSet[tuple[Path, str]] = frozenset(),
 ) -> list[UserIPAccountGroup]:
-    """Return connected account groups whose non-conflicting entries span two or more databases."""
-    return [
-        group
-        for group in build_userip_account_groups(databases_entries)
-        if len({db_path for db_path, _, ip_val in group.entry_keys if (db_path, ip_val) not in conflicting_entries}) >= MIN_GROUP_USERNAMES
-    ]
+    """Return connected account groups whose non-conflicting entries span two or more non-Searchlist databases.
+
+    Searchlist entries (unconfirmed candidate IPs) are stripped from the returned groups so they are never
+    counted, displayed, or consolidated as part of a split.
+    """
+    split_groups: list[UserIPAccountGroup] = []
+    for group in build_userip_account_groups(databases_entries):
+        entry_keys = frozenset(key for key in group.entry_keys if not is_searchlist_database(key[0]))
+        if len({db_path for db_path, _, ip_val in entry_keys if (db_path, ip_val) not in conflicting_entries}) < MIN_GROUP_USERNAMES:
+            continue
+        kept_cfs = {u_cf for _, u_cf, _ in entry_keys}
+        kept_usernames = [(name, name.casefold()) for name in group.usernames if name.casefold() in kept_cfs]
+        split_groups.append(
+            UserIPAccountGroup(
+                usernames=tuple(name for name, _ in kept_usernames),
+                usernames_cf=frozenset(cf for _, cf in kept_usernames),
+                databases=tuple(db_path for db_path in group.databases if not is_searchlist_database(db_path)),
+                entry_keys=entry_keys,
+            ),
+        )
+    return split_groups
