@@ -138,6 +138,9 @@ def _format_username_source_lines(
         value_html = _format_looky_tooltip_html(joined_text, looky_names, is_disconnected=is_disconnected) if looky_names is not None else html.escape(joined_text)
         lines.append(f'<span style="color: #9ca3af;">{label}:</span> {value_html}')
 
+    if player.mod_menus is not None and player.mod_menus.usernames:
+        modmenu_label = 'Relay Username' if player.mod_menus.is_relay else 'Mod Menu Username'
+        _append_source_line(modmenu_label, player.mod_menus.usernames)
     if player.userip is not None and player.userip.usernames:
         if player.userip.known_alts:
             known_alts_cf = {alt.casefold() for alt in player.userip.known_alts}
@@ -148,9 +151,6 @@ def _format_username_source_lines(
             _append_source_line('DB Username', player.userip.usernames)
     if player.ps3_username is not None and player.ps3_username:
         _append_source_line('PS3 Username', (player.ps3_username,))
-    if player.mod_menus is not None and player.mod_menus.usernames:
-        modmenu_label = 'Relay Username' if player.mod_menus.is_relay else 'Mod Menu Username'
-        _append_source_line(modmenu_label, player.mod_menus.usernames)
     if looky_names is not None:
         with player.looky_system.lock:
             looky_list = list(player.looky_system.usernames) if player.looky_system.is_initialized else []

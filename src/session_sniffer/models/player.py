@@ -244,15 +244,15 @@ class Player:
         PlayersRegistry.move_player_to_disconnected(self)
 
     def get_live_non_userip_usernames(self, *, include_looky: bool) -> list[str]:
-        """Return deduplicated live-resolved usernames (PS3, mod menu, and optional Looky) excluding UserIP."""
+        """Return deduplicated live-resolved usernames (mod menu, PS3, and optional Looky) excluding UserIP."""
         if include_looky and self.looky_system.is_initialized:
             with self.looky_system.lock:
                 looky_names: Sequence[str] = tuple(self.looky_system.usernames)
         else:
             looky_names = ()
         return dedup_preserve_order(
-            (self.ps3_username,) if self.ps3_username is not None and self.ps3_username else (),
             self.mod_menus.usernames if self.mod_menus is not None else (),
+            (self.ps3_username,) if self.ps3_username is not None and self.ps3_username else (),
             looky_names,
         )
 
@@ -277,7 +277,7 @@ class Player:
         )
 
     def rebuild_usernames(self, *, looky_usernames: Sequence[str] = ()) -> None:
-        """Rebuild deduplicated `usernames` from PS3, UserIP, mod menu, and Looky sources."""
+        """Rebuild deduplicated `usernames` from mod menu, PS3, UserIP, and Looky sources (mod menu first as the source of truth)."""
         ps3_username = self.ps3_username
         has_usernames = bool(
             ps3_username
@@ -290,9 +290,9 @@ class Player:
                 self.usernames = []
             return
         self.usernames = dedup_preserve_order(
+            self.mod_menus.usernames if self.mod_menus is not None else (),
             (ps3_username,) if ps3_username is not None and ps3_username else (),
             self.userip.usernames if self.userip is not None else (),
-            self.mod_menus.usernames if self.mod_menus is not None else (),
             looky_usernames,
         )
 
