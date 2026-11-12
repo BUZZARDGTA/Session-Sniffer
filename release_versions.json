@@ -1,16 +1,16 @@
 {
     "latest_prerelease": {
-        "version": "1.5.0rc103+20261112.559",
-        "release_url": "https://github.com/BUZZARDGTA/Session-Sniffer/releases/tag/v1.5.0rc.103%2B20261112.0559",
-        "download_url": "https://github.com/BUZZARDGTA/Session-Sniffer/releases/download/v1.5.0rc.103%2B20261112.0559/Session_Sniffer.exe",
-        "sha256": "b6cd67a21648dd060658c0b14c1e7901d77b0e2827d433e8012a4e073fab0b33",
-        "file_size": 46701562,
-        "linux_download_url": "https://github.com/BUZZARDGTA/Session-Sniffer/releases/download/v1.5.0rc.103%2B20261112.0559/Session_Sniffer",
-        "linux_sha256": "d5162f26e1c818f4a076cd09570a416b627b14ad47539458a4d83ed1021e4fec",
-        "linux_file_size": 94709944,
-        "darwin_download_url": "https://github.com/BUZZARDGTA/Session-Sniffer/releases/download/v1.5.0rc.103%2B20261112.0559/Session_Sniffer_macOS",
-        "darwin_sha256": "26001f9e4ea3151c2d2648be8a020ce231c5852683f6f9357d30c76c6358c3fa",
-        "darwin_file_size": 44310896,
+        "version": "1.5.0rc104+20261112.2013",
+        "release_url": "https://github.com/BUZZARDGTA/Session-Sniffer/releases/tag/v1.5.0rc.104%2B20261112.2013",
+        "download_url": "https://github.com/BUZZARDGTA/Session-Sniffer/releases/download/v1.5.0rc.104%2B20261112.2013/Session_Sniffer.exe",
+        "sha256": "bcc3876079e911f6f9572caabacdcd4b56012c8fdaba7f62d0988b31353e6b0b",
+        "file_size": 46704498,
+        "linux_download_url": "https://github.com/BUZZARDGTA/Session-Sniffer/releases/download/v1.5.0rc.104%2B20261112.2013/Session_Sniffer",
+        "linux_sha256": "dd3fe2d888dc3c44e4b4eb9d4293707231cf8f42e189060f2a64f46ba941d136",
+        "linux_file_size": 94711000,
+        "darwin_download_url": "https://github.com/BUZZARDGTA/Session-Sniffer/releases/download/v1.5.0rc.104%2B20261112.2013/Session_Sniffer_macOS",
+        "darwin_sha256": "fe6e7e90d1aae9f7c1db26e12921bf9ae55652c86d0dcc6fa5324c5852a2a792",
+        "darwin_file_size": 44311200,
         "is_prerelease": true
     },
     "latest_stable": {
