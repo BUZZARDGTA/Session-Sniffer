@@ -5,7 +5,7 @@ from ipaddress import IPv4Address
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from PySide6.QtCore import QItemSelectionModel, QModelIndex, QSignalBlocker, Qt
+from PySide6.QtCore import QItemSelectionModel, QModelIndex, QPersistentModelIndex, QSignalBlocker, Qt
 from PySide6.QtWidgets import QAbstractItemView, QDialog, QFrame, QInputDialog, QLineEdit, QMessageBox, QTreeView
 
 from session_sniffer.constants.local import APP_DIR_ROAMING, USERIP_DATABASES_DIR_PATH
@@ -311,10 +311,11 @@ class UserIPEntriesOperationsMixin(QDialog):
         """Prompt for an IP/range and username(s) and insert the resulting rows at *source_row*."""
         if self._current_path is None:
             return
+        insert_before = QPersistentModelIndex(self._model.index(source_row, 0))
         dialog = IPRangeBuilderDialog(self)
         if dialog.exec() != QDialog.DialogCode.Accepted or not (ip_text := dialog.result_entry()):
             return
-        self._insert_usernames_single_db(ip_text, insert_at=source_row)
+        self._insert_usernames_single_db(ip_text, insert_before=insert_before)
 
     def _prompt_new_usernames(self, prompt: str | Callable[[int], str]) -> tuple[list[str], dict[str, str]]:
         """Prompt the user for one or more usernames and their optional notes."""
@@ -338,6 +339,9 @@ class UserIPEntriesOperationsMixin(QDialog):
         database_path = self._get_row_database_path(source_row)
         if not database_path or not database_path.is_file():
             return
+        # The modal prompt below may let a disk reload rebuild the model (deleting this row's items), so snapshot by value.
+        database_label = database_item.text() if database_item else database_path.stem
+        insert_before = QPersistentModelIndex(self._model.index(source_row + 1, 0))
 
         existing_names = self._collect_existing_usernames_for_entry(entry_value, database_path=database_path)
         header = f'Current username{pluralize(len(existing_names))} for {entry_value}: {", ".join(existing_names)}\n\n' if existing_names else ''
@@ -368,13 +372,9 @@ class UserIPEntriesOperationsMixin(QDialog):
             QMessageBox.information(self, TITLE, f'All specified username{pluralize(len(new_usernames))} already exist for {entry_value} in "{database_path.stem}".')
             return
 
-        database_label = database_item.text() if database_item else database_path.stem
-        insert_at = source_row + 1
-        for entry_model in new_entry_models:
-            if (entry_model.username, entry_value) not in added_pairs:
-                continue
-            self._model.insertRow(insert_at, build_entry_row_items(entry_model, database=(database_label, database_path), looky_icon=self._looky_icon, persisted=True))
-            insert_at += 1
+        insert_at = insert_before.row() if insert_before.isValid() else self._model.rowCount()
+        for offset, entry_model in enumerate(model for model in new_entry_models if (model.username, entry_value) in added_pairs):
+            self._model.insertRow(insert_at + offset, build_entry_row_items(entry_model, database=(database_label, database_path), looky_icon=self._looky_icon, persisted=True))
 
         self._renumber_indexes()
         self._highlight_duplicates()
@@ -384,28 +384,27 @@ class UserIPEntriesOperationsMixin(QDialog):
         self._set_status(f'Added {added_count} username{pluralize(added_count)} for {entry_value} in {database_path.name}.')
         UserIPDatabases.renotify_if_conflicting([entry_value])
 
-    def _insert_usernames_single_db(self, entry_value: str, *, insert_at: int, anchor_username: str = '') -> None:
-        """Prompt for one or more usernames + notes and insert enriched rows into the current single-DB model."""
-        existing_names = self._collect_existing_usernames_for_entry(entry_value)
+    def _insert_usernames_single_db(self, entry_value: str, *, insert_before: QPersistentModelIndex, anchor_username: str = '') -> None:
+        """Prompt for usernames + notes and insert enriched rows before *insert_before* (appended if invalidated by a disk reload)."""
+        database_path, existing_names = self._current_path, self._collect_existing_usernames_for_entry(entry_value)
         header = f'Current username{pluralize(len(existing_names))} for {entry_value}: {", ".join(existing_names)}\n\n' if existing_names else ''
         new_usernames, entered_notes = self._prompt_new_usernames(
             lambda count: f'{header}Enter the new username{pluralize(count)} to add for {entry_value}:',
         )
-        if not new_usernames:
+        if not new_usernames or self._current_path != database_path:
             return
 
+        existing_names = self._collect_existing_usernames_for_entry(entry_value)
         existing_cf = {name.casefold() for name in existing_names}
         added_usernames = [name for name in new_usernames if name.casefold() not in existing_cf]
         if not added_usernames:
             QMessageBox.information(self, TITLE, f'All specified username{pluralize(len(new_usernames))} already exist for {entry_value}.')
             return
 
-        before_count = self._model.rowCount()
-        current_insert = insert_at
-        for added_name in added_usernames:
+        insert_at, before_count = (insert_before.row() if insert_before.isValid() else self._model.rowCount()), self._model.rowCount()
+        for offset, added_name in enumerate(added_usernames):
             enriched_entry, _ = enrich_userip_entry_from_logs(UserIPEntryModel(username=added_name, ip=entry_value, notes=entered_notes.get(added_name, '')))
-            self._model.insertRow(current_insert, build_entry_row_items(enriched_entry, looky_icon=self._looky_icon, persisted=False))
-            current_insert += 1
+            self._model.insertRow(insert_at + offset, build_entry_row_items(enriched_entry, looky_icon=self._looky_icon, persisted=False))
 
         self._renumber_indexes()
         self._mark_entries_dirty()
@@ -444,7 +443,8 @@ class UserIPEntriesOperationsMixin(QDialog):
         if self._global_search_active:
             self._add_username_global_search(source_row, ip_text, range_text)
             return
-        self._insert_usernames_single_db(ip_text or range_text, insert_at=source_row + 1, anchor_username=self._get_row_username(source_row))
+        insert_before = QPersistentModelIndex(self._model.index(source_row + 1, 0))
+        self._insert_usernames_single_db(ip_text or range_text, insert_before=insert_before, anchor_username=self._get_row_username(source_row))
 
     def _move_rows(self, proxy_index: QModelIndex, direction: int) -> None:
         """Move selected rows up (direction=-1) or down (direction=+1) in the source model."""
