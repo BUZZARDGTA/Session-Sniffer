@@ -831,7 +831,6 @@ class IPRangeBuilderDialog(QDialog):
             self._single_input.setText(initial_ip)
             self._range_from_input.setText(initial_ip)
             self._subnet_ip_input.setText(initial_ip)
-            self._radio_subnet.setChecked(True)
 
         if initial_entry is not None:
             if '/' in initial_entry:
