@@ -261,9 +261,12 @@ def add_resolver_group_header(tree: QTreeWidget, title: str) -> QTreeWidgetItem:
     return group_item
 
 
-def finish_resolver_tree_refresh(tree: QTreeWidget, item_to_select: QTreeWidgetItem | None) -> None:
-    """Expand all groups in *tree* and select/scroll to *item_to_select* when provided."""
+def finish_resolver_tree_refresh(tree: QTreeWidget, item_to_select: QTreeWidgetItem | None, *, scroll_value: int | None) -> None:
+    """Expand all groups in *tree*, restore the vertical *scroll_value* when provided, and select/scroll to *item_to_select*."""
     tree.expandAll()
+    if scroll_value is not None:
+        tree.doItemsLayout()
+        tree.verticalScrollBar().setValue(scroll_value)
     if item_to_select is not None:
         tree.setCurrentItem(item_to_select)
         tree.scrollToItem(item_to_select)
@@ -690,6 +693,7 @@ class SplitGroupsResolverTab(QWidget):
 
         item_to_select: QTreeWidgetItem | None = None
         row_cursor = 0
+        scroll_value = self._tree.verticalScrollBar().value() if focus_cf is None else None
         with QSignalBlocker(self._tree):
             self._tree.clear()
             for idx, (group, group_sides) in enumerate(zip(self._groups, sides_per_group, strict=True), start=1):
@@ -714,7 +718,7 @@ class SplitGroupsResolverTab(QWidget):
                     ):
                         item_to_select = side_item
 
-        finish_resolver_tree_refresh(self._tree, item_to_select)
+        finish_resolver_tree_refresh(self._tree, item_to_select, scroll_value=scroll_value)
 
         count = len(self._groups)
         if count:

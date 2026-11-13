@@ -442,6 +442,7 @@ class UserIPConflictResolverDialog(QDialog):
         item_to_select: QTreeWidgetItem | None = None
         focus_entry = self._pending_focus_entry
         self._pending_focus_entry = None
+        scroll_value = self._tree.verticalScrollBar().value() if focus_entry is None else None
 
         with QSignalBlocker(self._tree):
             self._tree.clear()
@@ -461,7 +462,7 @@ class UserIPConflictResolverDialog(QDialog):
                     ):
                         item_to_select = side_item
 
-        finish_resolver_tree_refresh(self._tree, item_to_select)
+        finish_resolver_tree_refresh(self._tree, item_to_select, scroll_value=scroll_value)
 
         conflict_group_count = len(self._groups)
         self._tabs.setTabText(_CONFLICTS_TAB_INDEX, f'IP Conflicts ({conflict_group_count})')
