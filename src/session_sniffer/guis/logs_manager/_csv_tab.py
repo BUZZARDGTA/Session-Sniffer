@@ -2,7 +2,6 @@
 
 import csv
 import shutil
-from contextlib import nullcontext
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from ipaddress import IPv4Address
@@ -38,7 +37,7 @@ from session_sniffer.constants.standalone import TITLE
 from session_sniffer.constants.standard import LOCAL_TZ
 from session_sniffer.guis.delegates import SearchHighlightDelegate
 from session_sniffer.guis.file_watch import DebouncedFileWatcher
-from session_sniffer.guis.loading_overlay import loading_overlay_scope, pump_active_loading_overlays, run_with_active_loading
+from session_sniffer.guis.loading_overlay import run_blocking_with_loading
 from session_sniffer.guis.logs_manager._helpers import (
     DATE_COLUMN_NAME,
     DATE_FILTER_7_DAYS,
@@ -66,8 +65,6 @@ from session_sniffer.text_utils import pluralize
 if TYPE_CHECKING:
     from pathlib import Path
 
-
-_LARGE_CSV_OVERLAY_BYTES = 1024 * 1024
 
 _DEFAULT_HEADER_BASE_WIDTHS: dict[str, int] = {
     'Database': 120,
@@ -241,7 +238,7 @@ class CsvLogTab(QWidget):
         layout.addLayout(button_row)
 
         # --- Auto-refresh from disk ---
-        self._watcher = DebouncedFileWatcher(self, lambda: self.load_data(background_sync=True))
+        self._watcher = DebouncedFileWatcher(self, self.load_data)
         self._watching_stopped = False
 
         # Initial load
@@ -252,7 +249,7 @@ class CsvLogTab(QWidget):
         self._watcher.watch(files=[self._file_path], directories=[self._file_path.parent])
         if self._watching_stopped:
             self._watching_stopped = False
-            self.load_data(background_sync=True)
+            self.load_data()
 
     def stop_watching(self) -> None:
         """Stop auto-refresh watcher from disk."""
@@ -289,7 +286,7 @@ class CsvLogTab(QWidget):
                 valid_rows.append(row)
             return file_headers, valid_rows, skipped, truncated
 
-    def load_data(self, *, background_sync: bool = False) -> None:
+    def load_data(self) -> None:
         """Read the CSV file and populate the table model."""
         self._purge_button.setEnabled(False)
         self._open_file_button.setEnabled(self._file_path.is_file())
@@ -306,44 +303,31 @@ class CsvLogTab(QWidget):
             self.purge_state_changed.emit()
             return
 
-        use_overlay = not background_sync and self.isVisible() and self._file_path.is_file() and self._file_path.stat().st_size >= _LARGE_CSV_OVERLAY_BYTES
-        scope = (
-            loading_overlay_scope(self.window(), 'Loading CSV Log\u2026', f'Reading {self._file_path.name}\u2026')
-            if use_overlay
-            else nullcontext()
-        )
-        with scope:
-            file_headers, valid_rows, skipped, self._truncated = (
-                run_with_active_loading(self._parse_csv_file, self._file_path)
-                if use_overlay
-                else self._parse_csv_file(self._file_path)
-            )
-            if file_headers is None:
-                self._update_counts()
-                self._metadata_label.setText(file_metadata_text(self._file_path))
-                self.purge_state_changed.emit()
-                return
+        file_headers, valid_rows, skipped, self._truncated = self._parse_csv_file(self._file_path)
+        if file_headers is None:
+            self._update_counts()
+            self._metadata_label.setText(file_metadata_text(self._file_path))
+            self.purge_state_changed.emit()
+            return
 
-            self._model.setHorizontalHeaderLabels(file_headers)
-            self._rebuild_column_combo(file_headers)
+        self._model.setHorizontalHeaderLabels(file_headers)
+        self._rebuild_column_combo(file_headers)
 
-            if valid_rows:
-                dynamic_sort_filter = self._proxy.dynamicSortFilter()
-                self._proxy.setDynamicSortFilter(False)
-                try:
-                    self._model.insertRows(0, len(valid_rows))
-                    with QSignalBlocker(self._model):
-                        for row_idx, row in enumerate(valid_rows):
-                            if use_overlay and not row_idx % 2000:
-                                pump_active_loading_overlays()
-                            for col_idx, cell in enumerate(row):
-                                item = QStandardItem(cell)
-                                item.setEditable(False)
-                                self._model.setItem(row_idx, col_idx, item)
-                    self._proxy.set_source_rows(valid_rows)
-                finally:
-                    self._proxy.setDynamicSortFilter(dynamic_sort_filter)
-                    self._proxy.invalidate()
+        if valid_rows:
+            dynamic_sort_filter = self._proxy.dynamicSortFilter()
+            self._proxy.setDynamicSortFilter(False)
+            try:
+                self._model.insertRows(0, len(valid_rows))
+                with QSignalBlocker(self._model):
+                    for row_idx, row in enumerate(valid_rows):
+                        for col_idx, cell in enumerate(row):
+                            item = QStandardItem(cell)
+                            item.setEditable(False)
+                            self._model.setItem(row_idx, col_idx, item)
+                self._proxy.set_source_rows(valid_rows)
+            finally:
+                self._proxy.setDynamicSortFilter(dynamic_sort_filter)
+                self._proxy.invalidate()
 
         # Only surface malformed-row warnings on the first load; auto-refreshes stay silent.
         if skipped and not self._initial_loaded:
@@ -730,7 +714,15 @@ class CsvLogTab(QWidget):
         )
         if not path:
             return
-        shutil.copy2(self._file_path, path)
+        if self.isVisible():
+            run_blocking_with_loading(
+                self.window(),
+                'Exporting CSV Log\u2026',
+                f'Copying {self._file_path.name}\u2026',
+                lambda: shutil.copy2(self._file_path, path),
+            )
+        else:
+            shutil.copy2(self._file_path, path)
         self._show_status(f'Exported to {path}')
 
     def _delete_selected_rows(self) -> None:
@@ -782,25 +774,38 @@ class CsvLogTab(QWidget):
 
     def _rewrite_csv_from_model(self) -> None:
         """Rewrite the CSV file from the current model contents."""
-        overflow_rows: list[list[str]] = []
-        if self._truncated and self._file_path.exists():
-            with self._file_path.open(newline='', encoding='utf-8') as file:
-                reader = csv.reader(file)
-                next(reader, None)
-                overflow_rows = [row for row_num, row in enumerate(reader) if row_num >= MAX_CSV_ROWS]
-
         headers = [self._model.headerData(i, Qt.Orientation.Horizontal) for i in range(self._model.columnCount())]
-        with self._file_path.open('w', newline='', encoding='utf-8') as file:
-            writer = csv.writer(file)
-            writer.writerow(headers)
-            for row_index in range(self._model.rowCount()):
-                cells: list[str] = []
-                for column in range(self._model.columnCount()):
-                    item = self._model.item(row_index, column)
-                    cells.append(item.text() if item else '')
-                writer.writerow(cells)
-            if overflow_rows:
-                writer.writerows(overflow_rows)
+        model_rows = [
+            [(item.text() if (item := self._model.item(row_index, column)) else '') for column in range(self._model.columnCount())]
+            for row_index in range(self._model.rowCount())
+        ]
+        truncated = self._truncated
+        file_path = self._file_path
+
+        def _write_csv() -> None:
+            overflow_rows: list[list[str]] = []
+            if truncated and file_path.exists():
+                with file_path.open(newline='', encoding='utf-8') as file:
+                    reader = csv.reader(file)
+                    next(reader, None)
+                    overflow_rows = [row for row_num, row in enumerate(reader) if row_num >= MAX_CSV_ROWS]
+
+            with file_path.open('w', newline='', encoding='utf-8') as file:
+                writer = csv.writer(file)
+                writer.writerow(headers)
+                writer.writerows(model_rows)
+                if overflow_rows:
+                    writer.writerows(overflow_rows)
+
+        if self.isVisible():
+            run_blocking_with_loading(
+                self.window(),
+                'Updating CSV Log\u2026',
+                f'Writing {file_path.name}\u2026',
+                _write_csv,
+            )
+        else:
+            _write_csv()
 
     def _show_status(self, message: str) -> None:
         QMessageBox.information(self, TITLE, message)

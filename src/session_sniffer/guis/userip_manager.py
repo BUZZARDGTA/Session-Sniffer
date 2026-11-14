@@ -1,7 +1,6 @@
 """UserIP Databases Manager dialog for browsing, editing, and managing UserIP database files and entries."""
 
 import html
-from contextlib import nullcontext
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, ClassVar, override
 
@@ -31,7 +30,7 @@ from session_sniffer.constants.standalone import TITLE
 from session_sniffer.guis._dialog_mixins import prompt_unsaved_changes_close
 from session_sniffer.guis.delegates import SearchHighlightDelegate
 from session_sniffer.guis.file_watch import DebouncedFileWatcher
-from session_sniffer.guis.loading_overlay import has_active_loading_overlay, loading_overlay_scope, pump_active_loading_overlays, run_with_active_loading
+from session_sniffer.guis.loading_overlay import loading_overlay_scope
 from session_sniffer.guis.logs_manager._helpers import human_readable_timestamp
 from session_sniffer.guis.select_usernames_dialog import configure_username_cell_editor
 from session_sniffer.guis.stylesheets import USERIP_METADATA_CONTAINER_STYLESHEET, userip_dialog_button_stylesheet, userip_dialog_danger_button_stylesheet
@@ -83,8 +82,6 @@ if TYPE_CHECKING:
     from PySide6.QtGui import QStandardItem
 
     from session_sniffer.models.userip_settings_model import UserIPEntryModel, UserIPSettingsModel
-
-_LARGE_DB_OVERLAY_BYTES = 512 * 1024
 
 _ENTRY_TABLE_HEADER_TOOLTIPS: dict[str, str] = {
     '#': 'The sequential row number of the entry in the database.',
@@ -482,16 +479,7 @@ class UserIPDatabasesManager(
         root_layout.addWidget(self._splitter)
 
         # --- Real-time filesystem sync ---
-        self._in_disk_sync = False
-
-        def _sync_from_disk_guarded() -> None:
-            self._in_disk_sync = True
-            try:
-                self._sync_from_disk()
-            finally:
-                self._in_disk_sync = False
-
-        self._fs_watcher = DebouncedFileWatcher(self, _sync_from_disk_guarded, interval_ms=250, poll_interval_ms=250)
+        self._fs_watcher = DebouncedFileWatcher(self, self._sync_from_disk, interval_ms=250, poll_interval_ms=250)
         self._rebuild_fs_watch()
 
         self._refresh_stats()
@@ -568,43 +556,31 @@ class UserIPDatabasesManager(
             self._rebuild_fs_watch()
             return
 
-        use_overlay = (
-            self.isVisible()
-            and not self._in_disk_sync
-            and not has_active_loading_overlay()
-            and path.stat().st_size >= _LARGE_DB_OVERLAY_BYTES
-        )
-        scope = loading_overlay_scope(self, 'Loading Database\u2026', f'Reading {path.name}\u2026') if use_overlay else nullcontext()
-        with scope:
-            self._disk_snapshot, db_model = (
-                run_with_active_loading(lambda: (path.read_text('utf-8'), load_userip_database_model(path)))
-                if use_overlay
-                else (path.read_text('utf-8'), load_userip_database_model(path))
-            )
+        self._disk_snapshot = path.read_text('utf-8')
+        db_model = load_userip_database_model(path)
 
-            # Load settings panel
-            self.populate_settings_widgets(db_model.settings)
-            self._capture_settings_snapshot()
-            self._settings_container.setVisible(True)
+        # Load settings panel
+        self.populate_settings_widgets(db_model.settings)
+        self._capture_settings_snapshot()
+        self._settings_container.setVisible(True)
 
-            built_rows: list[list[QStandardItem]] = []
-            for entry_count, entry in enumerate(db_model.entries, start=1):
-                if use_overlay and not entry_count % 1500:
-                    pump_active_loading_overlays()
-                built_rows.append(build_entry_row_items(entry, index=entry_count, looky_icon=self._looky_icon))
-            dynamic_sort_filter = self._proxy.dynamicSortFilter()
-            self._proxy.setDynamicSortFilter(False)
-            try:
-                append_entry_rows(self._model, built_rows)
-            finally:
-                self._proxy.prepare_sort_and_invalidate()
-                self._proxy.setDynamicSortFilter(dynamic_sort_filter)
-            entry_count = len(built_rows)
-            self._last_seen_build_version = UserIPDatabases.build_version
+        built_rows: list[list[QStandardItem]] = [
+            build_entry_row_items(entry, index=entry_count, looky_icon=self._looky_icon)
+            for entry_count, entry in enumerate(db_model.entries, start=1)
+        ]
+        dynamic_sort_filter = self._proxy.dynamicSortFilter()
+        self._proxy.setDynamicSortFilter(False)
+        try:
+            append_entry_rows(self._model, built_rows)
+        finally:
+            self._proxy.prepare_sort_and_invalidate()
+            self._proxy.setDynamicSortFilter(dynamic_sort_filter)
+        entry_count = len(built_rows)
+        self._last_seen_build_version = UserIPDatabases.build_version
 
-            self._next_index = entry_count + 1
-            self._update_file_info(path)
-            duplicate_count = self._highlight_duplicates()
+        self._next_index = entry_count + 1
+        self._update_file_info(path)
+        duplicate_count = self._highlight_duplicates()
         status = f'Loaded {entry_count} entries from {path.name}'
         if duplicate_count > 0:
             status += f' ({duplicate_count} duplicate{pluralize(duplicate_count)} found)'

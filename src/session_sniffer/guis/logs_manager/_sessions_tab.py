@@ -67,8 +67,6 @@ logger = logging.getLogger(__name__)
 _SINGLE_FILE_VIEWER_PLACEHOLDER = 'Select a session JSON file from the tree to view its contents.'
 _GLOBAL_SEARCH_VIEWER_PLACEHOLDER = 'Press Enter to search across all session JSON files.'
 _GLOBAL_SEARCH_WORKERS = 16
-_BATCH_DELETE_LOADING_THRESHOLD = 5
-_LARGE_SESSION_FILE_OVERLAY_BYTES = 512 * 1024
 
 
 class SessionsLogTab(QWidget):
@@ -377,7 +375,7 @@ class SessionsLogTab(QWidget):
     def _apply_file_selection(self, file_path: Path) -> None:
         """Select *file_path*, render its contents, and enable file action buttons."""
         self._selected_path = file_path
-        self._load_file(file_path, user_initiated=True)
+        self._load_file(file_path)
         self._delete_button.setText(' Delete File')
         self._delete_button.setToolTip('Delete the currently selected session JSON file')
         self._delete_button.setEnabled(True)
@@ -399,20 +397,10 @@ class SessionsLogTab(QWidget):
         self._open_location_button.setText(' Open Folder Location')
         self._open_file_button.setEnabled(False)
 
-    def _load_file(self, file_path: Path, *, user_initiated: bool = False) -> None:
+    def _load_file(self, file_path: Path) -> None:
         self._current_file = file_path
         self._file_watcher.watch(files=[file_path])
-        use_overlay = user_initiated and self.isVisible() and file_path.is_file() and file_path.stat().st_size >= _LARGE_SESSION_FILE_OVERLAY_BYTES
-        text = (
-            run_blocking_with_loading(
-                self.window(),
-                'Loading Session Log\u2026',
-                f'Rendering {file_path.name}\u2026',
-                lambda: self._render_session_file(file_path),
-            )
-            if use_overlay
-            else self._render_session_file(file_path)
-        )
+        text = self._render_session_file(file_path)
         if text is None:
             self._current_file = None
             self._set_viewer_content('', f'[Failed to parse JSON session file: {file_path.name}]')
@@ -787,20 +775,20 @@ class SessionsLogTab(QWidget):
             return
 
         self._file_watcher.stop()
-        has_dirs = any(p.is_dir() for p in top_paths)
 
         def _do_delete() -> tuple[int, int, bool]:
             return delete_session_paths(top_paths, protected_active_file=protected_active)
 
-        if has_dirs or len(top_paths) >= _BATCH_DELETE_LOADING_THRESHOLD:
-            _, _, skipped_active = run_blocking_with_loading(
+        _, _, skipped_active = (
+            run_blocking_with_loading(
                 self.window(),
                 'Deleting Session Logs\u2026',
                 'Removing selected session files and folders\u2026',
                 _do_delete,
             )
-        else:
-            _, _, skipped_active = _do_delete()
+            if self.isVisible()
+            else _do_delete()
+        )
 
         with self._cache_lock:
             stale = [p for p in self._session_file_cache if not p.exists()]

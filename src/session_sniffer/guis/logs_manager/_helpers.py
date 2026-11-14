@@ -32,6 +32,7 @@ from session_sniffer.constants.local import CRASH_LOG_PATH, DEBUG_LOG_PATH
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.constants.standard import LOCAL_TZ
 from session_sniffer.guis.fonts import get_monospace_font
+from session_sniffer.guis.loading_overlay import run_blocking_with_loading
 from session_sniffer.guis.stylesheets import DIALOG_BUTTON_STYLESHEET, DIALOG_DANGER_BUTTON_STYLESHEET
 from session_sniffer.guis.theming import ICONS_DIR_PATH, themed_qcolor, themed_text_qcolor
 from session_sniffer.guis.userip_manager_helpers import BYTES_PER_UNIT, human_readable_size
@@ -390,7 +391,16 @@ def purge_log_file(
     if reply != QMessageBox.StandardButton.Yes:
         return None
     try:
-        bak = backup_and_truncate_log_file(file_path)
+        bak = (
+            run_blocking_with_loading(
+                parent.window(),
+                'Purging Log\u2026',
+                f'Creating backup and clearing {file_path.name}\u2026',
+                lambda: backup_and_truncate_log_file(file_path),
+            )
+            if parent.isVisible()
+            else backup_and_truncate_log_file(file_path)
+        )
     except OSError as e:
         QMessageBox.warning(parent, TITLE, f'Failed to purge {file_path.name}:\n{e}')
         return None

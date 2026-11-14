@@ -4,7 +4,6 @@ import html
 import logging
 import shutil
 import zipfile
-from contextlib import nullcontext
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -15,7 +14,7 @@ from PySide6.QtWidgets import QDialog, QFileDialog, QMenu, QMessageBox, QTreeVie
 
 from session_sniffer.constants.local import USERIP_DATABASES_DIR_PATH
 from session_sniffer.constants.standalone import TITLE
-from session_sniffer.guis.loading_overlay import loading_overlay_scope, run_async_with_loading, run_with_active_loading
+from session_sniffer.guis.loading_overlay import run_async_with_loading, run_blocking_with_loading
 from session_sniffer.guis.looky_text import configure_looky_action
 from session_sniffer.guis.theming import ICONS_DIR_PATH, themed_qss
 from session_sniffer.guis.userip_manager_helpers import (
@@ -36,8 +35,6 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-_BATCH_OVERLAY_DB_THRESHOLD = 5
-_BATCH_DELETE_OVERLAY_THRESHOLD = 3
 _MAX_LISTED_COLLISIONS = 5
 
 
@@ -150,12 +147,6 @@ def set_databases_enabled_batch(hooks: TreeBatchHooks, db_paths: Sequence[Path],
         return
 
     action_title = 'Enabling Databases\u2026' if enabled else 'Disabling Databases\u2026'
-    use_overlay = hooks.dialog.isVisible() and len(targets) >= _BATCH_OVERLAY_DB_THRESHOLD
-    scope = (
-        loading_overlay_scope(hooks.dialog, action_title, f'Updating {len(targets)} databases\u2026')
-        if use_overlay
-        else nullcontext()
-    )
 
     def _apply() -> None:
         with userip_databases_lock():
@@ -165,9 +156,14 @@ def set_databases_enabled_batch(hooks: TreeBatchHooks, db_paths: Sequence[Path],
                 save_userip_database_model(path, db_model)
             refresh_userip_and_wake_renderer()
 
-    with scope, QSignalBlocker(hooks.fs_watcher):
-        if use_overlay:
-            run_with_active_loading(_apply)
+    with QSignalBlocker(hooks.fs_watcher):
+        if hooks.dialog.isVisible():
+            run_blocking_with_loading(
+                hooks.dialog,
+                action_title,
+                f'Updating {len(targets)} database{pluralize(len(targets))}\u2026',
+                _apply,
+            )
         else:
             _apply()
 
@@ -225,12 +221,25 @@ def move_selected_tree_items(hooks: TreeBatchHooks, selected_paths: Sequence[Pat
     for old_path, _ in to_move:
         hooks.unwatch_path(old_path)
 
-    with userip_databases_lock():
-        for old_path, new_path in to_move:
-            shutil.move(str(old_path), str(new_path))
-            rebind_in_app_userip_db_path(old_path, new_path)
-            hooks.rebind_open_path(old_path, new_path)
-        refresh_userip_and_wake_renderer()
+    def _move_batch() -> None:
+        with userip_databases_lock():
+            for old_path, new_path in to_move:
+                shutil.move(str(old_path), str(new_path))
+                rebind_in_app_userip_db_path(old_path, new_path)
+            refresh_userip_and_wake_renderer()
+
+    if hooks.dialog.isVisible():
+        run_blocking_with_loading(
+            hooks.dialog,
+            'Moving Databases\u2026',
+            f'Moving {len(to_move)} item{pluralize(len(to_move))}\u2026',
+            _move_batch,
+        )
+    else:
+        _move_batch()
+
+    for old_path, new_path in to_move:
+        hooks.rebind_open_path(old_path, new_path)
 
     dest_label = 'root' if rel_dest == Path() else str(rel_dest)
     note = f' ({skipped_defaults} default database{pluralize(skipped_defaults)} kept in root)' if skipped_defaults else ''
@@ -257,11 +266,23 @@ def move_single_tree_item(hooks: TreeBatchHooks, path: Path) -> None:
         return
 
     hooks.unwatch_path(path)
-    with userip_databases_lock():
-        shutil.move(str(path), str(new_path))
-        rebind_in_app_userip_db_path(path, new_path)
-        hooks.rebind_open_path(path, new_path)
-        refresh_userip_and_wake_renderer()
+
+    def _move_one() -> None:
+        with userip_databases_lock():
+            shutil.move(str(path), str(new_path))
+            rebind_in_app_userip_db_path(path, new_path)
+            refresh_userip_and_wake_renderer()
+
+    if hooks.dialog.isVisible():
+        run_blocking_with_loading(
+            hooks.dialog,
+            'Moving Database\u2026',
+            f'Moving "{path.name}"\u2026',
+            _move_one,
+        )
+    else:
+        _move_one()
+    hooks.rebind_open_path(path, new_path)
 
     dest_label = 'root' if rel_dest == Path() else str(rel_dest)
     hooks.on_mutated(f'Moved "{path.name}" \u2192 {dest_label}')
@@ -291,12 +312,24 @@ def delete_single_tree_path(hooks: TreeBatchHooks, path: Path) -> None:
 
     hooks.unwatch_path(path)
     hooks.clear_if_open_deleted(path)
-    with userip_databases_lock():
-        if path.is_dir():
-            shutil.rmtree(path)
-        else:
-            path.unlink()
-        refresh_userip_and_wake_renderer()
+
+    def _delete_one() -> None:
+        with userip_databases_lock():
+            if path.is_dir():
+                shutil.rmtree(path)
+            else:
+                path.unlink()
+            refresh_userip_and_wake_renderer()
+
+    if hooks.dialog.isVisible():
+        run_blocking_with_loading(
+            hooks.dialog,
+            'Deleting Database\u2026',
+            f'Removing "{path.name}"\u2026',
+            _delete_one,
+        )
+    else:
+        _delete_one()
 
     hooks.on_mutated(f'Deleted: {path.name}')
 
@@ -417,9 +450,11 @@ def delete_selected_tree_items(hooks: TreeBatchHooks, selected_paths: Sequence[P
             refresh_userip_and_wake_renderer()
         return removed
 
-    use_overlay = hooks.dialog.isVisible() and (len(deletable) >= _BATCH_DELETE_OVERLAY_THRESHOLD or dir_count > 0)
-    with loading_overlay_scope(hooks.dialog, 'Deleting Databases\u2026', 'Removing selected items\u2026') if use_overlay else nullcontext():
-        removed_count = run_with_active_loading(_delete_work) if use_overlay else _delete_work()
+    removed_count = (
+        run_blocking_with_loading(hooks.dialog, 'Deleting Databases\u2026', 'Removing selected items\u2026', _delete_work)
+        if hooks.dialog.isVisible()
+        else _delete_work()
+    )
 
     kept_suffix = f' ({len(default_dbs)} default kept)' if default_dbs else ''
     hooks.on_mutated(f'Deleted {removed_count} selected item{pluralize(removed_count)}{kept_suffix}')
@@ -449,10 +484,21 @@ def reset_selected_default_databases(hooks: TreeBatchHooks, default_paths: Seque
     if result != QMessageBox.StandardButton.Yes:
         return
 
-    with userip_databases_lock():
-        for path in targets:
-            save_userip_database_model(path, UserIPDatabaseFile(settings=DEFAULT_USERIP_FILES_SETTINGS[path.name]))
-        refresh_userip_and_wake_renderer()
+    def _reset_work() -> None:
+        with userip_databases_lock():
+            for path in targets:
+                save_userip_database_model(path, UserIPDatabaseFile(settings=DEFAULT_USERIP_FILES_SETTINGS[path.name]))
+            refresh_userip_and_wake_renderer()
+
+    if hooks.dialog.isVisible():
+        run_blocking_with_loading(
+            hooks.dialog,
+            'Resetting Databases\u2026',
+            'Restoring factory defaults\u2026',
+            _reset_work,
+        )
+    else:
+        _reset_work()
 
     status = (
         f'Reset "{targets[0].name}" to factory defaults.'
