@@ -26,13 +26,14 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from session_sniffer.constants.local import RESOURCES_DIR_PATH, USERIP_DATABASES_DIR_PATH
+from session_sniffer.constants.local import USERIP_DATABASES_DIR_PATH
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.guis.delegates import SearchHighlightDelegate
 from session_sniffer.guis.select_usernames_dialog import SelectUsernamesDialog, UsernameSelectionConfig, configure_username_cell_editor
 from session_sniffer.guis.stylesheets import DIALOG_BUTTON_STYLESHEET, DIALOG_DANGER_BUTTON_STYLESHEET
 from session_sniffer.guis.table_column_resizing import setup_table_header_context_menu
 from session_sniffer.guis.tables_player_actions import create_ping_menu, scan_ports_ip, show_detailed_ip_lookup
+from session_sniffer.guis.theming import ICONS_DIR_PATH
 from session_sniffer.guis.userip_manager_helpers import (
     USERIP_METADATA_HEADER_TOOLTIPS,
     IPRangeBuilderDialog,
@@ -43,14 +44,7 @@ from session_sniffer.guis.userip_manager_helpers import (
     refresh_userip_and_wake_renderer,
     save_userip_database_model,
 )
-from session_sniffer.guis.utils import (
-    add_icon_menu_action,
-    create_styled_context_menu,
-    find_main_window,
-    open_file_location,
-    scale_by_ui,
-    set_clipboard_text,
-)
+from session_sniffer.guis.utils import add_icon_menu_action, create_styled_context_menu, find_main_window, open_file_location, scale_by_ui, set_clipboard_text
 from session_sniffer.models.userip_settings_model import (
     USERIP_SOURCE_TOOLTIPS,
     EntrySource,
@@ -171,7 +165,7 @@ def _configure_resolver_tree(tree: QTreeWidget) -> None:
         for col, label in enumerate(RESOLVER_TABLE_HEADERS):
             if (tooltip := RESOLVER_HEADER_TOOLTIPS.get(label)) is not None:
                 header_item.setToolTip(col, tooltip)
-    tree.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+    tree.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
     tree.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
     tree.setItemDelegate(ResolverTreeDelegate(tree))
     tree.setUniformRowHeights(True)
@@ -217,14 +211,16 @@ def populate_resolver_side_item(item: QTreeWidgetItem, db_label: str, entry_ip: 
 
 
 def copy_resolver_selected_row(tree: QTreeWidget) -> None:
-    """Copy visible cell values of the selected child row in *tree* as tab-separated text."""
-    selected_items = tree.selectedItems()
-    if not selected_items or selected_items[0].data(0, SIDE_ROLE) is None:
+    """Copy visible cell values of selected child row(s) in *tree* as tab-separated lines."""
+    child_items = sorted(
+        (item for item in tree.selectedItems() if isinstance(item.data(0, SIDE_ROLE), int)),
+        key=lambda item: int(item.data(0, SIDE_ROLE)),
+    )
+    if not child_items:
         return
-    item = selected_items[0]
     header = tree.header()
-    cells = [item.text(col) for col in range(tree.columnCount()) if not header.isSectionHidden(col)]
-    set_clipboard_text('\t'.join(cells))
+    visible_cols = [col for col in range(tree.columnCount()) if not header.isSectionHidden(col)]
+    set_clipboard_text('\n'.join('\t'.join(item.text(col) for col in visible_cols) for item in child_items))
 
 
 def resolver_side_row_for_item[T](item: QTreeWidgetItem, side_rows: Sequence[T]) -> T | None:
@@ -235,24 +231,45 @@ def resolver_side_row_for_item[T](item: QTreeWidgetItem, side_rows: Sequence[T])
     return side_rows[side_row]
 
 
+def selected_resolver_side_rows[T](tree: QTreeWidget, side_rows: Sequence[T]) -> list[T]:
+    """Return the row records of all selected child items in *tree* in visual order."""
+    indexed = sorted(
+        ((idx, row) for item in tree.selectedItems() if isinstance(idx := item.data(0, SIDE_ROLE), int) and (row := resolver_side_row_for_item(item, side_rows)) is not None),
+        key=lambda pair: pair[0],
+    )
+    return [row for _, row in indexed]
+
+
 def selected_resolver_side_row[T](tree: QTreeWidget, side_rows: Sequence[T]) -> T | None:
-    """Return the row record of the currently selected child item in *tree*, or `None`."""
-    selected_items = tree.selectedItems()
-    return resolver_side_row_for_item(selected_items[0], side_rows) if selected_items else None
+    """Return the row record when exactly one child item is selected in *tree*, else `None`."""
+    rows = selected_resolver_side_rows(tree, side_rows)
+    return rows[0] if len(rows) == 1 else None
 
 
-def select_resolver_item_at[T](tree: QTreeWidget, position: QPoint, side_rows: Sequence[T]) -> T | None:
-    """Select the child row at *position* in *tree* and return its row record, or `None`."""
-    item = tree.itemAt(position)
-    if item is None or item.data(0, SIDE_ROLE) is None:
-        return None
-    tree.setCurrentItem(item)
-    return selected_resolver_side_row(tree, side_rows)
+def popup_resolver_context_menu[T](
+    tree: QTreeWidget, position: QPoint, side_rows: Sequence[T], *, populate_single: Callable[[QMenu, T], None], populate_multi: Callable[[QMenu, list[T]], None],
+) -> None:
+    """Select the child row(s) at *position* and open the single- or multi-selection context menu."""
+    if (item := tree.itemAt(position)) is None or item.data(0, SIDE_ROLE) is None:
+        return
+    if not item.isSelected():
+        tree.clearSelection()
+        tree.setCurrentItem(item)
+    if not (selections := selected_resolver_side_rows(tree, side_rows)):
+        return
+    menu = create_styled_context_menu(tree.parentWidget() or tree)
+    if len(selections) > 1:
+        populate_multi(menu, selections)
+    else:
+        populate_single(menu, selections[0])
+    if viewport := tree.viewport():
+        menu.popup(viewport.mapToGlobal(position))
 
 
 def add_resolver_group_header(tree: QTreeWidget, title: str) -> QTreeWidgetItem:
-    """Append and return a bold, full-width top-level group header item in *tree*."""
+    """Append and return a bold, full-width, non-selectable top-level group header item in *tree*."""
     group_item = QTreeWidgetItem([title])
+    group_item.setFlags(Qt.ItemFlag.ItemIsEnabled)
     font = group_item.font(0)
     font.setBold(True)
     group_item.setFont(0, font)
@@ -388,9 +405,9 @@ def create_configured_resolver_tree(
     tree.itemChanged.connect(callbacks.on_item_changed)
 
     def _edit_selected_column(column: int) -> None:
-        selected_items = tree.selectedItems()
-        if selected_items and selected_items[0].data(0, SIDE_ROLE) is not None:
-            tree.editItem(selected_items[0], column)
+        child_items = [it for it in tree.selectedItems() if it.data(0, SIDE_ROLE) is not None]
+        if len(child_items) == 1:
+            tree.editItem(child_items[0], column)
 
     def _edit_usernames() -> None:
         _edit_selected_column(USERNAMES_COLUMN)
@@ -419,14 +436,14 @@ def create_resolver_tail_buttons(
     buttons_layout: QHBoxLayout, *, on_edit: Callable[[], object], on_delete: Callable[[], object], on_close: Callable[[], object],
 ) -> tuple[QPushButton, QPushButton]:
     """Append `Edit Entry…`, `Delete This Entry…`, stretch, and `Close` buttons; return `(edit_btn, delete_btn)`."""
-    edit_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square-pen.svg')), ' Edit Entry…')
+    edit_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'square-pen.svg')), ' Edit Entry…')
     edit_button.setAutoDefault(False)
     edit_button.setToolTip('Change the IP or range of the selected entry using the builder')
     edit_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
     edit_button.clicked.connect(on_edit)
     buttons_layout.addWidget(edit_button)
 
-    delete_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')), ' Delete This Entry…')
+    delete_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'remove.svg')), ' Delete This Entry…')
     delete_button.setAutoDefault(False)
     delete_button.setToolTip('Delete only the selected entry from its database (you will be asked to confirm)')
     delete_button.setStyleSheet(DIALOG_DANGER_BUTTON_STYLESHEET)
@@ -435,7 +452,7 @@ def create_resolver_tail_buttons(
 
     buttons_layout.addStretch()
 
-    close_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'x.svg')), ' Close')
+    close_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'x.svg')), ' Close')
     close_button.setAutoDefault(False)
     close_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
     close_button.clicked.connect(on_close)
@@ -603,7 +620,7 @@ class SplitGroupsResolverTab(QWidget):
         self._side_rows: list[tuple[UserIPAccountGroup, _SplitSide]] = []
         self._details_by_side: dict[_SplitSide, SideDetails] = {}
         self._pending_focus_username_cf: str | None = None
-        self._looky_icon = QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'eye.svg'))
+        self._looky_icon = QIcon(str(ICONS_DIR_PATH / 'eye.svg'))
 
         layout = QVBoxLayout(self)
 
@@ -625,14 +642,14 @@ class SplitGroupsResolverTab(QWidget):
 
         buttons_layout = QHBoxLayout()
 
-        self._consolidate_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'check.svg')), ' Move Group Here…')
+        self._consolidate_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'check.svg')), ' Move Group Here…')
         self._consolidate_button.setAutoDefault(False)
         self._consolidate_button.setToolTip("Move all entries of this account group from other databases into the selected entry's database")
         self._consolidate_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
         self._consolidate_button.clicked.connect(self._consolidate_into_selected)
         buttons_layout.addWidget(self._consolidate_button)
 
-        self._ungroup_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'user-round-x.svg')), ' Ungroup…')
+        self._ungroup_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'user-round-x.svg')), ' Ungroup…')
         self._ungroup_button.setAutoDefault(False)
         self._ungroup_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
         self._ungroup_button.clicked.connect(self._ungroup_selected)
@@ -668,6 +685,9 @@ class SplitGroupsResolverTab(QWidget):
 
     def _selected_side(self) -> tuple[UserIPAccountGroup, _SplitSide] | None:
         return selected_resolver_side_row(self._tree, self._side_rows)
+
+    def _selected_sides(self) -> list[tuple[UserIPAccountGroup, _SplitSide]]:
+        return selected_resolver_side_rows(self._tree, self._side_rows)
 
     def refresh(self, *_args: object) -> None:
         """Rebuild the split account groups tree from the current UserIP databases."""
@@ -734,19 +754,39 @@ class SplitGroupsResolverTab(QWidget):
         self._update_buttons()
         self._on_count_changed(count)
 
+    @staticmethod
+    def _unique_groups(selections: Sequence[tuple[UserIPAccountGroup, _SplitSide]]) -> list[UserIPAccountGroup]:
+        seen_ids: set[int] = set()
+        groups: list[UserIPAccountGroup] = []
+        for group, _ in selections:
+            if id(group) not in seen_ids:
+                seen_ids.add(id(group))
+                groups.append(group)
+        return groups
+
     def _update_buttons(self) -> None:
-        selection = self._selected_side()
-        has_side = selection is not None
-        can_ungroup = selection is not None and len(selection[0].usernames) >= MIN_GROUP_USERNAMES
-        self._consolidate_button.setEnabled(has_side)
+        selections = self._selected_sides()
+        single = selections[0] if len(selections) == 1 else None
+        target_dbs = {side.db_path for _, side in selections}
+        unique_groups = self._unique_groups(selections)
+        can_consolidate = len(target_dbs) == 1
+        can_ungroup = single is not None and len(single[0].usernames) >= MIN_GROUP_USERNAMES
+        self._consolidate_button.setEnabled(can_consolidate)
+        self._consolidate_button.setText(f' Move Groups Here ({len(unique_groups)})…' if can_consolidate and len(unique_groups) > 1 else ' Move Group Here…')
+        self._consolidate_button.setToolTip(
+            "Move all entries of the selected account group(s) from other databases into the selected entry's database"
+            if can_consolidate or not selections
+            else 'Select entries from a single target database (or right-click to choose a target database)',
+        )
         self._ungroup_button.setEnabled(can_ungroup)
         self._ungroup_button.setToolTip(
             'Unlink false-positive or separate accounts from this group so they can remain in different databases'
             if can_ungroup
-            else 'Ungrouping requires at least 2 distinct usernames in the group (this group uses the same username across databases)',
+            else 'Select a single entry in a group with at least 2 distinct usernames to ungroup',
         )
-        self._edit_button.setEnabled(has_side)
-        self._delete_button.setEnabled(has_side)
+        self._edit_button.setEnabled(single is not None)
+        self._delete_button.setEnabled(bool(selections))
+        self._delete_button.setText(f' Delete Selected ({len(selections)})…' if len(selections) > 1 else ' Delete This Entry…')
 
     def _on_item_changed(self, item: QTreeWidgetItem, column: int) -> None:
         edited = resolver_edited_side_details(item, column, self._side_rows, self._details_by_side)
@@ -793,33 +833,36 @@ class SplitGroupsResolverTab(QWidget):
         usernames_text = ', '.join(details.usernames) if details and details.usernames else NO_USERNAME_TEXT
         return f'<li>"{html.escape(self._format_db_label(side.db_path))}": {html.escape(usernames_text)} = {html.escape(side.entry)}</li>'
 
-    def _consolidate_group_into(self, group: UserIPAccountGroup, target_db_path: Path) -> None:
-        moving_sides = [side for g, side in self._side_rows if g == group and side.db_path != target_db_path]
+    def _consolidate_groups_into(self, groups: Sequence[UserIPAccountGroup], target_db_path: Path) -> None:
+        group_ids = {id(g) for g in groups}
+        moving_sides = [side for g, side in self._side_rows if id(g) in group_ids and side.db_path != target_db_path]
         if not moving_sides:
             return
         target_label = html.escape(self._format_db_label(target_db_path))
         items_html = ''.join(self._format_side_html(s) for s in moving_sides)
-        entry_count = sum(1 for db_path, _, _ in group.entry_keys if db_path != target_db_path)
+        combined_keys = frozenset(key for g in groups for key in g.entry_keys)
+        entry_count = sum(1 for db_path, _, _ in combined_keys if db_path != target_db_path)
         entry_word = pluralize(entry_count, 'entry', 'entries')
-        prompt = f'Move the following {entry_count} {entry_word} into <b>"{target_label}"</b> so this account group resides in a single database?<ul>{items_html}</ul>Continue?'
+        group_phrase = 'this account group resides' if len(groups) == 1 else f'these {len(groups)} account groups reside'
+        prompt = f'Move the following {entry_count} {entry_word} into <b>"{target_label}"</b> so {group_phrase} in a single database?<ul>{items_html}</ul>Continue?'
         box = QMessageBox(QMessageBox.Icon.Question, TITLE, prompt, parent=self)
         box.setTextFormat(Qt.TextFormat.RichText)
         box.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
         box.setDefaultButton(QMessageBox.StandardButton.Yes)
         if box.exec() != QMessageBox.StandardButton.Yes:
             return
-        if move_userip_entries_to_database(target_db_path, entry_keys=group.entry_keys).moved_by_db:
+        if move_userip_entries_to_database(target_db_path, entry_keys=combined_keys).moved_by_db:
             self.refresh()
 
     def _consolidate_into_selected(self) -> None:
-        selection = self._selected_side()
-        if selection is not None:
-            group, side = selection
-            self._consolidate_group_into(group, side.db_path)
+        selections = self._selected_sides()
+        target_dbs = {side.db_path for _, side in selections}
+        if len(target_dbs) == 1:
+            self._consolidate_groups_into(self._unique_groups(selections), next(iter(target_dbs)))
 
-    def _move_single_side(self, side: _SplitSide, target_db_path: Path) -> None:
-        keys = frozenset((side.db_path, u_cf, side.entry) for u_cf in side.usernames_cf)
-        if move_userip_entries_to_database(target_db_path, entry_keys=keys).moved_by_db:
+    def _move_sides_to_db(self, sides: Sequence[_SplitSide], target_db_path: Path) -> None:
+        keys = frozenset((side.db_path, u_cf, side.entry) for side in sides if side.db_path != target_db_path for u_cf in side.usernames_cf)
+        if keys and move_userip_entries_to_database(target_db_path, entry_keys=keys).moved_by_db:
             self.refresh()
 
     def _ungroup_selected(self) -> None:
@@ -864,34 +907,58 @@ class SplitGroupsResolverTab(QWidget):
         self.refresh()
 
     def _delete_selected(self) -> None:
-        selection = self._selected_side()
-        if selection is None:
+        selections = self._selected_sides()
+        if not selections:
             return
-        _, side = selection
-        items_html = self._format_side_html(side)
-        box = QMessageBox(QMessageBox.Icon.Warning, TITLE, f'Delete the following entry?<ul>{items_html}</ul>Continue?', parent=self)
+        sides = [side for _, side in selections]
+        items_html = ''.join(self._format_side_html(side) for side in sides)
+        header = 'Delete the following entry?' if len(sides) == 1 else f'Delete the following {len(sides)} entries?'
+        box = QMessageBox(QMessageBox.Icon.Warning, TITLE, f'{header}<ul>{items_html}</ul>Continue?', parent=self)
         box.setTextFormat(Qt.TextFormat.RichText)
         box.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
         box.setDefaultButton(QMessageBox.StandardButton.No)
         if box.exec() != QMessageBox.StandardButton.Yes:
             return
-        keys = frozenset((side.db_path, u_cf, side.entry) for u_cf in side.usernames_cf)
+        keys = frozenset((side.db_path, u_cf, side.entry) for side in sides for u_cf in side.usernames_cf)
         _delete_entry_keys(keys)
         self.refresh()
 
     def _show_context_menu(self, position: QPoint) -> None:
-        selection = select_resolver_item_at(self._tree, position, self._side_rows)
-        if selection is None:
-            return
-        group, side = selection
-        details = self._details_by_side.get(side) or SideDetails()
+        def _single(menu: QMenu, row: tuple[UserIPAccountGroup, _SplitSide]) -> None:
+            group, side = row
+            details = self._details_by_side.get(side) or SideDetails()
+            single_ip = populate_resolver_common_menu_prefix(menu, self._tree, db_path=side.db_path, entry_ip=side.entry, details=details)
+            self._populate_resolution_menu(menu, group, side, details, single_ip=single_ip)
 
-        menu = create_styled_context_menu(self)
-        single_ip = populate_resolver_common_menu_prefix(menu, self._tree, db_path=side.db_path, entry_ip=side.entry, details=details)
-        self._populate_resolution_menu(menu, group, side, details, single_ip=single_ip)
+        popup_resolver_context_menu(self._tree, position, self._side_rows, populate_single=_single, populate_multi=self._populate_multi_menu)
 
-        if viewport := self._tree.viewport():
-            menu.popup(viewport.mapToGlobal(position))
+    def _populate_multi_menu(self, menu: QMenu, selections: Sequence[tuple[UserIPAccountGroup, _SplitSide]]) -> None:
+        sides = [side for _, side in selections]
+        groups = self._unique_groups(selections)
+        all_db_paths = [json_path for json_path in USERIP_DATABASES_DIR_PATH.rglob('*.json') if json_path.is_file()]
+        copy_act = add_icon_menu_action(menu, 'copy.svg', f'Copy Rows ({len(sides)})', lambda: copy_resolver_selected_row(self._tree))
+        copy_act.setShortcut('Ctrl+C')
+        menu.addSeparator()
+        if len({s.db_path for s in sides}) == 1:
+            add_icon_menu_action(menu, 'check.svg', f'Move Groups Here ({len(groups)})…' if len(groups) > 1 else 'Move Group Here…', self._consolidate_into_selected)
+        move_groups_menu = create_styled_context_menu(menu, title=f'Move Selected Groups ({len(groups)}) to Database', icon_name='box.svg')
+        if not populate_userip_databases_menu(
+            move_groups_menu, all_db_paths, tooltip='Consolidate the selected account group(s) into this database.',
+            handler_factory=lambda target_path: lambda: self._consolidate_groups_into(groups, target_path), disabled_path=None,
+        ):
+            move_groups_menu.setEnabled(False)
+        menu.addMenu(move_groups_menu)
+        move_entries_menu = create_styled_context_menu(menu, title=f'Move Selected Entries ({len(sides)}) to Database', icon_name='box.svg')
+        only_db = sides[0].db_path if len({s.db_path for s in sides}) == 1 else None
+        if not populate_userip_databases_menu(
+            move_entries_menu, all_db_paths, tooltip='Move the selected entries to this database.',
+            handler_factory=lambda target_path: lambda: self._move_sides_to_db(sides, target_path), disabled_path=only_db,
+        ):
+            move_entries_menu.setEnabled(False)
+        menu.addMenu(move_entries_menu)
+        menu.addSeparator()
+        del_act = add_icon_menu_action(menu, 'remove.svg', f'Delete Selected ({len(sides)})…', self._delete_selected)
+        del_act.setShortcut('Delete')
 
     def _populate_resolution_menu(self, menu: QMenu, group: UserIPAccountGroup, side: _SplitSide, details: SideDetails, *, single_ip: bool) -> None:
         all_db_paths = [json_path for json_path in USERIP_DATABASES_DIR_PATH.rglob('*.json') if json_path.is_file()]
@@ -899,22 +966,16 @@ class SplitGroupsResolverTab(QWidget):
 
         move_group_menu = create_styled_context_menu(menu, title=f'Move Group to Database ({len(group.entry_keys)})', icon_name='box.svg')
         if not populate_userip_databases_menu(
-            move_group_menu,
-            all_db_paths,
-            tooltip=f'Move all {len(group.entry_keys)} entries in this account group to this database.',
-            handler_factory=lambda target_path: lambda: self._consolidate_group_into(group, target_path),
-            disabled_path=None,
+            move_group_menu, all_db_paths, tooltip=f'Move all {len(group.entry_keys)} entries in this account group to this database.',
+            handler_factory=lambda target_path: lambda: self._consolidate_groups_into([group], target_path), disabled_path=None,
         ):
             move_group_menu.setEnabled(False)
         menu.addMenu(move_group_menu)
 
         move_entry_menu = create_styled_context_menu(menu, title='Move This Entry to Database', icon_name='box.svg')
         if not populate_userip_databases_menu(
-            move_entry_menu,
-            all_db_paths,
-            tooltip='Move only this entry to this database.',
-            handler_factory=lambda target_path: lambda: self._move_single_side(side, target_path),
-            disabled_path=side.db_path,
+            move_entry_menu, all_db_paths, tooltip='Move only this entry to this database.',
+            handler_factory=lambda target_path: lambda: self._move_sides_to_db([side], target_path), disabled_path=side.db_path,
         ):
             move_entry_menu.setEnabled(False)
         menu.addMenu(move_entry_menu)

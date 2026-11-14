@@ -10,17 +10,19 @@ from ipaddress import IPv4Address
 from typing import TYPE_CHECKING, cast, override
 
 from PySide6.QtCore import QAbstractItemModel, QModelIndex, QObject, QPersistentModelIndex, QRegularExpression, QSignalBlocker, QSortFilterProxyModel, Qt
-from PySide6.QtGui import QBrush, QColor, QIcon, QRegularExpressionValidator, QStandardItem, QStandardItemModel
+from PySide6.QtGui import QBrush, QIcon, QRegularExpressionValidator, QStandardItem, QStandardItemModel
 from PySide6.QtWidgets import QButtonGroup, QDialog, QDialogButtonBox, QGridLayout, QGroupBox, QLabel, QLineEdit, QMenu, QRadioButton, QSlider, QVBoxLayout, QWidget
 
-from session_sniffer.constants.local import RESOURCES_DIR_PATH, USERIP_DATABASES_DIR_PATH
+from session_sniffer.constants.local import USERIP_DATABASES_DIR_PATH
 from session_sniffer.constants.standalone import TITLE
+from session_sniffer.guis.loading_overlay import pump_active_loading_overlays
 from session_sniffer.guis.stylesheets import (
     IP_RANGE_PREVIEW_EMPTY_STYLESHEET,
     IP_RANGE_PREVIEW_ERROR_STYLESHEET,
     IP_RANGE_PREVIEW_VALID_STYLESHEET,
     SUBNET_DESC_LABEL_STYLESHEET,
 )
+from session_sniffer.guis.theming import ICONS_DIR_PATH, register_theme_change_callback, themed_qcolor, themed_text_qcolor
 from session_sniffer.guis.utils import scale_by_ui
 from session_sniffer.models.userip_settings_model import (
     DEFAULT_USERIP_FILES_SETTINGS,
@@ -69,8 +71,24 @@ USERIP_METADATA_HEADER_TOOLTIPS: dict[str, str] = {
 
 IS_PERSISTED_ROLE, SEARCH_TEXT_ROLE, SORT_KEY_ROLE = Qt.ItemDataRole.UserRole + 1, Qt.ItemDataRole.UserRole + 2, Qt.ItemDataRole.UserRole + 3
 
-DUPLICATE_HIGHLIGHT_BRUSH = QBrush(QColor(255, 165, 0, 60))
-_GROUP_BG_BRUSH_EVEN, _GROUP_BG_BRUSH_ODD, _LOOKY_FOREGROUND_BRUSH = QBrush(QColor('#1e1e1e')), QBrush(QColor('#252526')), QBrush(QColor('#a855f7'))
+DUPLICATE_HIGHLIGHT_BRUSH = QBrush()
+_GROUP_BG_BRUSH_EVEN = QBrush()
+_GROUP_BG_BRUSH_ODD = QBrush()
+_LOOKY_FOREGROUND_BRUSH = QBrush()
+
+
+def _refresh_userip_theme_brushes() -> None:
+    """Update cached UserIP manager `QBrush` colors in place for the active theme."""
+    dup_color = themed_qcolor('#ffa500')
+    dup_color.setAlpha(60)
+    DUPLICATE_HIGHLIGHT_BRUSH.setColor(dup_color)
+    _GROUP_BG_BRUSH_EVEN.setColor(themed_qcolor('#1e1e1e'))
+    _GROUP_BG_BRUSH_ODD.setColor(themed_qcolor('#252526'))
+    _LOOKY_FOREGROUND_BRUSH.setColor(themed_text_qcolor('#a855f7', '#1e1e1e'))
+
+
+_refresh_userip_theme_brushes()
+register_theme_change_callback(_refresh_userip_theme_brushes)
 _READONLY_ITEM_FLAGS = Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsDragEnabled | Qt.ItemFlag.ItemIsDropEnabled
 _IPV4_BROADCAST_FREE_PREFIX, _IPV4_VERSION, _EPOCH_SORT_OFFSET_MS = 31, 4, 10_000_000_000_000
 
@@ -429,6 +447,7 @@ def append_entry_rows(model: QStandardItemModel, rows: list[list[QStandardItem]]
         for row_index, row_items in enumerate(rows, start=first_row):
             for column, item in enumerate(row_items):
                 model.setItem(row_index, column, item)
+            pump_active_loading_overlays()
 
 
 def is_row_persisted(model: QStandardItemModel, row: int) -> bool:
@@ -577,7 +596,9 @@ def refresh_userip_and_wake_renderer() -> None:
 def iter_userip_databases() -> Iterator[tuple[Path, list[UserIPEntryModel]]]:
     """Yield `(database_path, entries)` for every UserIP `.json` database file, sorted by path."""
     USERIP_DATABASES_DIR_PATH.mkdir(parents=True, exist_ok=True)
-    yield from get_cached_userip_databases()
+    for item in get_cached_userip_databases():
+        pump_active_loading_overlays()
+        yield item
 
 
 def dedup_userip_entries(entries: Iterable[UserIPEntryModel]) -> list[UserIPEntryModel]:
@@ -713,7 +734,7 @@ def populate_userip_databases_menu(
         for depth in range(len(rel.parts) - 1):
             folder_key = rel.parts[: depth + 1]
             if folder_key not in folder_menus:
-                folder_menu = current_menu.addMenu(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'folder.svg')), rel.parts[depth])
+                folder_menu = current_menu.addMenu(QIcon(str(ICONS_DIR_PATH / 'folder.svg')), rel.parts[depth])
                 folder_menu.setToolTipsVisible(True)
                 folder_menus[folder_key] = folder_menu
                 menus_with_folders.add(current_menu)
@@ -723,7 +744,7 @@ def populate_userip_databases_menu(
             current_menu.addSeparator()
             menus_with_folders.remove(current_menu)
 
-        action = current_menu.addAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'database.svg')), rel.parts[-1])
+        action = current_menu.addAction(QIcon(str(ICONS_DIR_PATH / 'database.svg')), rel.parts[-1])
         action.setToolTip(tooltip)
         action.triggered.connect(handler_factory(db_path))
         if disabled_path is not None and db_path == disabled_path:

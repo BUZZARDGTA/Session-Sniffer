@@ -1,6 +1,7 @@
 """UserIP Databases Manager dialog for browsing, editing, and managing UserIP database files and entries."""
 
 import html
+from contextlib import nullcontext
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, ClassVar, override
 
@@ -25,15 +26,17 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from session_sniffer.constants.local import GUI_STATE_PATH, RESOURCES_DIR_PATH, USERIP_DATABASES_DIR_PATH
+from session_sniffer.constants.local import GUI_STATE_PATH, USERIP_DATABASES_DIR_PATH
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.guis._dialog_mixins import prompt_unsaved_changes_close
 from session_sniffer.guis.delegates import SearchHighlightDelegate
 from session_sniffer.guis.file_watch import DebouncedFileWatcher
+from session_sniffer.guis.loading_overlay import has_active_loading_overlay, loading_overlay_scope, pump_active_loading_overlays, run_with_active_loading
 from session_sniffer.guis.logs_manager._helpers import human_readable_timestamp
 from session_sniffer.guis.select_usernames_dialog import configure_username_cell_editor
 from session_sniffer.guis.stylesheets import USERIP_METADATA_CONTAINER_STYLESHEET, userip_dialog_button_stylesheet, userip_dialog_danger_button_stylesheet
 from session_sniffer.guis.table_column_resizing import adjust_last_visible_column_to_viewport, setup_table_header_context_menu
+from session_sniffer.guis.theming import ICONS_DIR_PATH, themed_qss
 from session_sniffer.guis.userip_conflict_resolver import open_userip_conflict_resolver, update_resolve_conflicts_button
 from session_sniffer.guis.userip_manager_context_menu_mixin import EntriesContextMenuMixin
 from session_sniffer.guis.userip_manager_entries_ops_mixin import UserIPEntriesOperationsMixin
@@ -77,7 +80,11 @@ if TYPE_CHECKING:
     from collections.abc import Callable
     from pathlib import Path
 
+    from PySide6.QtGui import QStandardItem
+
     from session_sniffer.models.userip_settings_model import UserIPEntryModel, UserIPSettingsModel
+
+_LARGE_DB_OVERLAY_BYTES = 512 * 1024
 
 _ENTRY_TABLE_HEADER_TOOLTIPS: dict[str, str] = {
     '#': 'The sequential row number of the entry in the database.',
@@ -188,7 +195,7 @@ class UserIPDatabasesManager(
         self._db_visual_cache: dict[Path, tuple[int, bool, QColor]] = {}
         self._entries_scroll_db_path: Path | None = None
         self._entries_scroll_positions: dict[Path, int] = {}
-        self._looky_icon = QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'eye.svg'))
+        self._looky_icon = QIcon(str(ICONS_DIR_PATH / 'eye.svg'))
 
         root_layout = QVBoxLayout(self)
         root_margin = scale_by_ui(6)
@@ -201,7 +208,7 @@ class UserIPDatabasesManager(
         btn_row_spacing = scale_by_ui(4)
 
         def make_button(icon_name: str, text: str, tooltip: str, slot: Callable[[], object] | None = None, *, danger: bool = False) -> QPushButton:
-            button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / icon_name)), text)
+            button = QPushButton(QIcon(str(ICONS_DIR_PATH / icon_name)), text)
             button.setToolTip(tooltip)
             button.setStyleSheet(danger_btn_style if danger else btn_style)
             button.setAutoDefault(False)
@@ -248,7 +255,9 @@ class UserIPDatabasesManager(
         self._tree.setModel(self._tree_proxy)
         self._tree.setRootIndex(self._tree_proxy.mapFromSource(root_source_index))
         self._tree.setHeaderHidden(True)
+        self._tree.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         self._tree.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        QShortcut(QKeySequence('Delete'), self._tree, context=Qt.ShortcutContext.WidgetShortcut).activated.connect(self._delete_tree_button.click)
         self._tree.setVerticalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
         self._tree.setHorizontalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
         self._tree.setItemDelegate(UserIPDatabaseTreeDelegate(self._tree, self._get_tree_index_db_visual, self._toggle_tree_index_db))
@@ -279,7 +288,7 @@ class UserIPDatabasesManager(
 
         import_menu = QMenu(self)
         for icon_name, label, slot in (('folder.svg', 'Import .json file(s)…', self._import_database_files), ('import.svg', 'Import from ZIP…', self._import_from_zip)):
-            if act := import_menu.addAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / icon_name)), label):
+            if act := import_menu.addAction(QIcon(str(ICONS_DIR_PATH / icon_name)), label):
                 act.triggered.connect(slot)
 
         import_button = make_button('import.svg', ' Import…', 'Import database files into the databases directory')
@@ -288,15 +297,15 @@ class UserIPDatabasesManager(
         transfer_buttons.addWidget(import_button)
 
         export_menu = QMenu(self)
-        self._export_selected_action = export_menu.addAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'upload.svg')), 'Export selected database…')
+        self._export_selected_action = export_menu.addAction(QIcon(str(ICONS_DIR_PATH / 'upload.svg')), 'Export selected database…')
         if self._export_selected_action:
             self._export_selected_action.triggered.connect(self._export_selected_database)
             self._export_selected_action.setEnabled(False)
-        if export_zip_action := export_menu.addAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'upload.svg')), 'Export all as ZIP…'):
+        if export_zip_action := export_menu.addAction(QIcon(str(ICONS_DIR_PATH / 'upload.svg')), 'Export all as ZIP…'):
             export_zip_action.triggered.connect(self._export_all_as_zip)
         export_menu.addSeparator()
         for icon_name, label, slot in (('upload.svg', 'Backup databases now', self._backup_databases_now), ('folder.svg', 'Open backups folder', self._open_backups_folder)):
-            if act := export_menu.addAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / icon_name)), label):
+            if act := export_menu.addAction(QIcon(str(ICONS_DIR_PATH / icon_name)), label):
                 act.triggered.connect(slot)
 
         export_button = make_button('upload.svg', ' Export…', 'Export databases to an external location')
@@ -473,7 +482,16 @@ class UserIPDatabasesManager(
         root_layout.addWidget(self._splitter)
 
         # --- Real-time filesystem sync ---
-        self._fs_watcher = DebouncedFileWatcher(self, self._sync_from_disk, interval_ms=250, poll_interval_ms=250)
+        self._in_disk_sync = False
+
+        def _sync_from_disk_guarded() -> None:
+            self._in_disk_sync = True
+            try:
+                self._sync_from_disk()
+            finally:
+                self._in_disk_sync = False
+
+        self._fs_watcher = DebouncedFileWatcher(self, _sync_from_disk_guarded, interval_ms=250, poll_interval_ms=250)
         self._rebuild_fs_watch()
 
         self._refresh_stats()
@@ -550,28 +568,43 @@ class UserIPDatabasesManager(
             self._rebuild_fs_watch()
             return
 
-        self._disk_snapshot = path.read_text('utf-8')
-        db_model = load_userip_database_model(path)
+        use_overlay = (
+            self.isVisible()
+            and not self._in_disk_sync
+            and not has_active_loading_overlay()
+            and path.stat().st_size >= _LARGE_DB_OVERLAY_BYTES
+        )
+        scope = loading_overlay_scope(self, 'Loading Database\u2026', f'Reading {path.name}\u2026') if use_overlay else nullcontext()
+        with scope:
+            self._disk_snapshot, db_model = (
+                run_with_active_loading(lambda: (path.read_text('utf-8'), load_userip_database_model(path)))
+                if use_overlay
+                else (path.read_text('utf-8'), load_userip_database_model(path))
+            )
 
-        # Load settings panel
-        self.populate_settings_widgets(db_model.settings)
-        self._capture_settings_snapshot()
-        self._settings_container.setVisible(True)
+            # Load settings panel
+            self.populate_settings_widgets(db_model.settings)
+            self._capture_settings_snapshot()
+            self._settings_container.setVisible(True)
 
-        rows = [build_entry_row_items(entry, index=entry_count, looky_icon=self._looky_icon) for entry_count, entry in enumerate(db_model.entries, start=1)]
-        dynamic_sort_filter = self._proxy.dynamicSortFilter()
-        self._proxy.setDynamicSortFilter(False)
-        try:
-            append_entry_rows(self._model, rows)
-        finally:
-            self._proxy.prepare_sort_and_invalidate()
-            self._proxy.setDynamicSortFilter(dynamic_sort_filter)
-        entry_count = len(rows)
-        self._last_seen_build_version = UserIPDatabases.build_version
+            built_rows: list[list[QStandardItem]] = []
+            for entry_count, entry in enumerate(db_model.entries, start=1):
+                if use_overlay and not entry_count % 1500:
+                    pump_active_loading_overlays()
+                built_rows.append(build_entry_row_items(entry, index=entry_count, looky_icon=self._looky_icon))
+            dynamic_sort_filter = self._proxy.dynamicSortFilter()
+            self._proxy.setDynamicSortFilter(False)
+            try:
+                append_entry_rows(self._model, built_rows)
+            finally:
+                self._proxy.prepare_sort_and_invalidate()
+                self._proxy.setDynamicSortFilter(dynamic_sort_filter)
+            entry_count = len(built_rows)
+            self._last_seen_build_version = UserIPDatabases.build_version
 
-        self._next_index = entry_count + 1
-        self._update_file_info(path)
-        duplicate_count = self._highlight_duplicates()
+            self._next_index = entry_count + 1
+            self._update_file_info(path)
+            duplicate_count = self._highlight_duplicates()
         status = f'Loaded {entry_count} entries from {path.name}'
         if duplicate_count > 0:
             status += f' ({duplicate_count} duplicate{pluralize(duplicate_count)} found)'
@@ -579,6 +612,7 @@ class UserIPDatabasesManager(
         self._rebuild_fs_watch()
         self._restore_entries_scroll(path)
 
+    @override
     def _remember_entries_scroll(self) -> None:
         """Store the entries table scroll position of the currently displayed database for this manager session."""
         if self._entries_scroll_db_path is not None and (scrollbar := self._entries_table.verticalScrollBar()):
@@ -729,7 +763,11 @@ class UserIPDatabasesManager(
         if checked:
             self._remember_entries_scroll()
             self._update_file_info(None)
-            self._load_all_databases()
+            if self.isVisible():
+                with loading_overlay_scope(self, 'Loading Databases\u2026', 'Scanning all UserIP databases\u2026'):
+                    self._load_all_databases()
+            else:
+                self._load_all_databases()
         elif self._current_path is not None:
             self._load_database(self._current_path)
         else:
@@ -779,7 +817,7 @@ class UserIPDatabasesManager(
     @override
     def _set_status(self, text: str) -> None:
         """Update the status label at the bottom of the right panel."""
-        self._status_label.setText(f'<i style="color:#50c878;">{html.escape(text)}</i>')
+        self._status_label.setText(themed_qss(f'<i style="color:#50c878;">{html.escape(text)}</i>'))
 
     @override
     def _update_entry_counts(self) -> None:
@@ -789,29 +827,31 @@ class UserIPDatabasesManager(
 
         # In global search without filters, the total table rows match the global stats block exactly
         if self._global_search_active and visible == total:
-            self._status_label.setText('<span style="color:#a0b0c0;"><i>Showing all databases</i></span>')
+            self._status_label.setText(themed_qss('<span style="color:#a0b0c0;"><i>Showing all databases</i></span>'))
             return
 
         text = f'<span style="color:#8a9bad;">Table Entries:</span> <b style="color:#e0e0e0;">{total}</b>'
         if visible != total:
             text += f'<br><span style="color:#8a9bad;">Visible (Filtered):</span> <b style="color:#6db3f2;">{visible}</b>'
 
-        self._status_label.setText(text)
+        self._status_label.setText(themed_qss(text))
 
     @override
     def _update_file_info(self, path: Path | None) -> None:
         """Update the file metadata label for the given database file."""
         if path is None or not path.is_file():
-            self._file_info_label.setText('<span style="color:#607080;"><i>No database selected</i></span>')
+            self._file_info_label.setText(themed_qss('<span style="color:#607080;"><i>No database selected</i></span>'))
             return
         stat = path.stat()
         size = human_readable_size(stat.st_size)
         modified = datetime.fromtimestamp(stat.st_mtime, tz=UTC).astimezone()
 
         self._file_info_label.setText(
-            f'<span style="color:#8a9bad;">File:</span> <b style="color:#6db3f2;">{html.escape(path.name)}</b><br>'
-            f'<span style="color:#8a9bad;">Size:</span> <b style="color:#e0e0e0;">{size}</b><br>'
-            f'<span style="color:#8a9bad;">Modified:</span> <span style="color:#a0b0c0;">{human_readable_timestamp(modified)}</span>',
+            themed_qss(
+                f'<span style="color:#8a9bad;">File:</span> <b style="color:#6db3f2;">{html.escape(path.name)}</b><br>'
+                f'<span style="color:#8a9bad;">Size:</span> <b style="color:#e0e0e0;">{size}</b><br>'
+                f'<span style="color:#8a9bad;">Modified:</span> <span style="color:#a0b0c0;">{human_readable_timestamp(modified)}</span>',
+            ),
         )
 
     @override
@@ -833,7 +873,7 @@ class UserIPDatabasesManager(
             f'<span style="color:#8a9bad;">Unique Users:</span> <b style="color:#e0e0e0;">{len(unique_usernames)}</b>',
             f'<span style="color:#8a9bad;">Unique IPs:</span> <b style="color:#e0e0e0;">{len(unique_ips)}</b>',
         )
-        self._stats_label.setText('<br>'.join(parts))
+        self._stats_label.setText(themed_qss('<br>'.join(parts)))
         update_resolve_conflicts_button(self._resolve_conflicts_button)
 
     def _has_unsaved_changes_for_close(self) -> bool:
