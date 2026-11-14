@@ -1,22 +1,27 @@
 """Mixin providing tab-building, group-factory, and combo-rule management methods for DetectionsManagerDialog."""
 
+import json
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QIcon
+from pydantic import TypeAdapter, ValidationError
+from PySide6.QtCore import QPoint, QSignalBlocker, Qt
+from PySide6.QtGui import QIcon, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QDialog,
+    QFileDialog,
     QGroupBox,
     QHBoxLayout,
     QInputDialog,
     QLabel,
     QListWidget,
     QListWidgetItem,
+    QMenu,
     QMessageBox,
     QPushButton,
     QScrollArea,
@@ -27,7 +32,7 @@ from PySide6.QtWidgets import (
 from shiboken6 import isValid
 
 from session_sniffer.background import clear_voice_notification_queue, retrigger_detections_scan
-from session_sniffer.constants.local import COMBO_RULES_PATH, RESOURCES_DIR_PATH
+from session_sniffer.constants.local import COMBO_RULES_PATH
 from session_sniffer.constants.standalone import MAX_SUSPEND_DURATION_SECONDS, TITLE
 from session_sniffer.guis._combo_rule_editor import ComboRuleEditorDialog, ContinentSelectionDialog, CountrySelectionDialog
 from session_sniffer.guis.country_data import (
@@ -43,9 +48,11 @@ from session_sniffer.guis.stylesheets import (
     GROUPBOX_STYLE,
     LIST_WIDGET_STYLE,
     RELAY_FILTER_WARNING_STYLESHEET,
+    SVG_ICON_CONTEXT_MENU_STYLESHEET,
     WARNING_ICON_LABEL_STYLESHEET,
     WARNING_TEXT_LABEL_STYLESHEET,
 )
+from session_sniffer.guis.theming import ICONS_DIR_PATH
 from session_sniffer.guis.utils import (
     SUSPEND_TOOLTIP_AUTO,
     SUSPEND_TOOLTIP_DISABLED,
@@ -56,11 +63,12 @@ from session_sniffer.guis.utils import (
     scale_by_ui,
 )
 from session_sniffer.models.combo_rules import ComboRule
+from session_sniffer.models.detections import DetectionsFile
 from session_sniffer.networking.third_party_servers import ThirdPartyServers
 from session_sniffer.player.combo_rules import ComboRulesManager
 from session_sniffer.rendering_core.types import CaptureState
 from session_sniffer.settings import Settings
-from session_sniffer.text_utils import DEFAULT_MANUAL_SUSPEND_DURATION_SECONDS
+from session_sniffer.text_utils import DEFAULT_MANUAL_SUSPEND_DURATION_SECONDS, pluralize
 
 
 class DetectionsManagerTabsMixin(QDialog):
@@ -70,8 +78,10 @@ class DetectionsManagerTabsMixin(QDialog):
         _loading_settings: bool
         _relay_filter_warning: QWidget
         _combo_rules_list: QListWidget
+        _combo_toggle_button: QPushButton
         _combo_edit_button: QPushButton
         _combo_duplicate_button: QPushButton
+        _combo_export_button: QPushButton
         _combo_remove_button: QPushButton
         _combo_clear_button: QPushButton
         continent_list: QListWidget
@@ -228,7 +238,7 @@ class DetectionsManagerTabsMixin(QDialog):
         warning_text_label.setWordWrap(True)
         warning_text_label.setStyleSheet(WARNING_TEXT_LABEL_STYLESHEET)
         filter_warning_layout.addWidget(warning_text_label, 1)
-        fix_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'settings.svg')), ' Fix It')
+        fix_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'settings.svg')), ' Fix It')
         fix_button.setToolTip("Remove 'Take-Two Interactive Software, Inc.' and 'Microsoft' from the blocked servers list and save the setting")
         fix_button.setCursor(Qt.CursorShape.PointingHandCursor)
         fix_button.clicked.connect(self._remove_relay_servers_from_blocked_servers)
@@ -267,11 +277,13 @@ class DetectionsManagerTabsMixin(QDialog):
         # Rule list
         self._combo_rules_list = QListWidget()
         self._combo_rules_list.setStyleSheet(COMBO_RULES_LIST_STYLE)
-        self._combo_rules_list.setSelectionMode(QListWidget.SelectionMode.SingleSelection)
+        self._combo_rules_list.setSelectionMode(QListWidget.SelectionMode.ExtendedSelection)
         self._combo_rules_list.setResizeMode(QListWidget.ResizeMode.Adjust)
         self._combo_rules_list.setVerticalScrollMode(QListWidget.ScrollMode.ScrollPerPixel)
         self._combo_rules_list.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self._combo_rules_list.setMouseTracking(True)
+        self._combo_rules_list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self._combo_rules_list.customContextMenuRequested.connect(self._on_combo_rules_context_menu)
         self._combo_rules_list.setItemDelegate(
             ComboRuleCardDelegate(
                 self._combo_rules_list,
@@ -280,42 +292,50 @@ class DetectionsManagerTabsMixin(QDialog):
                 scale_by_ui,
             ),
         )
+        QShortcut(QKeySequence('Delete'), self._combo_rules_list, context=Qt.ShortcutContext.WidgetShortcut).activated.connect(self._remove_combo_rule)
         layout.addWidget(self._combo_rules_list, stretch=1)
 
         # Buttons row
         button_layout = QHBoxLayout()
 
-        add_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'plus.svg')), ' Add Rule')
+        add_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'plus.svg')), ' Add Rule')
         add_button.setCursor(Qt.CursorShape.PointingHandCursor)
         add_button.clicked.connect(self._add_combo_rule)
         button_layout.addWidget(add_button)
 
-        self._combo_toggle_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'toggle-right.svg')), ' Toggle State')
+        self._combo_toggle_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'toggle-right.svg')), ' Toggle State')
         self._combo_toggle_button.setEnabled(False)
         self._combo_toggle_button.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._combo_toggle_button.setFixedWidth(scale_by_ui(125))
+        self._combo_toggle_button.setMinimumWidth(scale_by_ui(125))
         self._combo_toggle_button.clicked.connect(self._toggle_combo_rule)
         button_layout.addWidget(self._combo_toggle_button)
 
-        self._combo_edit_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square-pen.svg')), ' Edit')
+        self._combo_edit_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'square-pen.svg')), ' Edit')
         self._combo_edit_button.setEnabled(False)
         self._combo_edit_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self._combo_edit_button.clicked.connect(self._edit_combo_rule)
         button_layout.addWidget(self._combo_edit_button)
 
-        self._combo_duplicate_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), ' Duplicate')
+        self._combo_duplicate_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'copy.svg')), ' Duplicate')
         self._combo_duplicate_button.setEnabled(False)
         self._combo_duplicate_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self._combo_duplicate_button.clicked.connect(self._duplicate_combo_rule)
         button_layout.addWidget(self._combo_duplicate_button)
 
-        self._combo_remove_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')), ' Remove')
+        self._combo_export_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'upload.svg')), ' Export Rule')
+        self._combo_export_button.setEnabled(False)
+        self._combo_export_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._combo_export_button.setToolTip('Export the selected combo rule(s) to a JSON file')
+        self._combo_export_button.clicked.connect(self._export_selected_combo_rules)
+        button_layout.addWidget(self._combo_export_button)
+
+        self._combo_remove_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'remove.svg')), ' Remove')
         self._combo_remove_button.setEnabled(False)
         self._combo_remove_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self._combo_remove_button.clicked.connect(self._remove_combo_rule)
         button_layout.addWidget(self._combo_remove_button)
 
-        self._combo_clear_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')), ' Clear All')
+        self._combo_clear_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'remove.svg')), ' Clear All')
         self._combo_clear_button.setEnabled(False)
         self._combo_clear_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self._combo_clear_button.clicked.connect(self._clear_combo_rules)
@@ -324,7 +344,7 @@ class DetectionsManagerTabsMixin(QDialog):
         button_layout.addStretch()
         layout.addLayout(button_layout)
 
-        self._combo_rules_list.currentRowChanged.connect(self._update_combo_rule_buttons)
+        self._combo_rules_list.itemSelectionChanged.connect(self._update_combo_rule_buttons)
         self._combo_rules_list.itemActivated.connect(self._on_combo_item_activated)
 
         return widget
@@ -376,48 +396,127 @@ class DetectionsManagerTabsMixin(QDialog):
     # Combo rule management
     # ------------------------------------------------------------------
 
+    def _get_selected_combo_rule_indices(self) -> list[int]:
+        """Return sorted valid rule indices for all currently selected combo rule items."""
+        total = len(ComboRulesManager.rules)
+        return sorted({row for item in self._combo_rules_list.selectedItems() if 0 <= (row := self._combo_rules_list.row(item)) < total})
+
+    def _get_selected_combo_rule_index(self) -> int | None:
+        """Return the index of the single selected combo rule, or None."""
+        indices = self._get_selected_combo_rule_indices()
+        return indices[0] if len(indices) == 1 else None
+
     def _update_combo_rule_buttons(self) -> None:
-        """Synchronize the enabled/disabled state of combo rule management buttons."""
-        has_selection = self._combo_rules_list.currentRow() >= 0
+        """Synchronize the enabled/disabled state and labels of combo rule management buttons."""
+        indices = self._get_selected_combo_rule_indices()
+        sel_count = len(indices)
+        has_selection = sel_count > 0
         has_items = self._combo_rules_list.count() > 0
-        self._combo_edit_button.setEnabled(has_selection)
+        self._combo_edit_button.setEnabled(sel_count == 1)
         self._combo_duplicate_button.setEnabled(has_selection)
+        self._combo_duplicate_button.setText(f' Duplicate ({sel_count})' if sel_count > 1 else ' Duplicate')
+        self._combo_export_button.setEnabled(has_selection)
+        self._combo_export_button.setText(f' Export ({sel_count})' if sel_count > 1 else ' Export Rule')
         self._combo_remove_button.setEnabled(has_selection)
+        self._combo_remove_button.setText(f' Remove ({sel_count})' if sel_count > 1 else ' Remove')
         self._combo_toggle_button.setEnabled(has_selection)
         self._combo_clear_button.setEnabled(has_items)
 
-        if has_selection:
-            index = self._get_selected_combo_rule_index()
-            if index is not None:
-                rule = ComboRulesManager.rules[index]
-                self._combo_toggle_button.setText(' Disable Rule' if rule.enabled else ' Enable Rule')
-                self._combo_toggle_button.setIcon(
-                    QIcon(str(RESOURCES_DIR_PATH / 'icons' / ('toggle-left.svg' if rule.enabled else 'toggle-right.svg'))),
-                )
+        if sel_count == 1:
+            all_enabled = ComboRulesManager.rules[indices[0]].enabled
+            self._combo_toggle_button.setText(' Disable Rule' if all_enabled else ' Enable Rule')
+            self._combo_toggle_button.setIcon(QIcon(str(ICONS_DIR_PATH / ('toggle-left.svg' if all_enabled else 'toggle-right.svg'))))
+        elif sel_count > 1:
+            all_enabled = all(ComboRulesManager.rules[i].enabled for i in indices)
+            self._combo_toggle_button.setText(f' Disable Rules ({sel_count})' if all_enabled else f' Enable Rules ({sel_count})')
+            self._combo_toggle_button.setIcon(QIcon(str(ICONS_DIR_PATH / ('toggle-left.svg' if all_enabled else 'toggle-right.svg'))))
         else:
             self._combo_toggle_button.setText(' Toggle State')
-            self._combo_toggle_button.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'toggle-right.svg')))
+            self._combo_toggle_button.setIcon(QIcon(str(ICONS_DIR_PATH / 'toggle-right.svg')))
 
-    def refresh_combo_rules_list(self) -> None:
-        """Reload the combo rules QListWidget from ComboRulesManager."""
-        current_row = self._combo_rules_list.currentRow()
-        self._combo_rules_list.clear()
-        for rule in ComboRulesManager.rules:
-            item = QListWidgetItem(rule.name)
-            item.setData(Qt.ItemDataRole.UserRole, id(rule))
-            self._combo_rules_list.addItem(item)
+    def refresh_combo_rules_list(self, selected_rows: list[int] | None = None) -> None:
+        """Reload the combo rules QListWidget from ComboRulesManager, preserving selection."""
+        rows_to_select = self._get_selected_combo_rule_indices() if selected_rows is None else selected_rows
+        with QSignalBlocker(self._combo_rules_list):
+            self._combo_rules_list.clear()
+            for rule in ComboRulesManager.rules:
+                item = QListWidgetItem(rule.name)
+                item.setData(Qt.ItemDataRole.UserRole, id(rule))
+                self._combo_rules_list.addItem(item)
 
-        if 0 <= current_row < self._combo_rules_list.count():
-            self._combo_rules_list.setCurrentRow(current_row)
+            count = self._combo_rules_list.count()
+            valid_rows = [row for row in rows_to_select if 0 <= row < count]
+            if valid_rows:
+                self._combo_rules_list.setCurrentRow(valid_rows[0])
+                for row in valid_rows:
+                    self._combo_rules_list.item(row).setSelected(True)
 
         self._update_combo_rule_buttons()
 
-    def _get_selected_combo_rule_index(self) -> int | None:
-        """Return the index of the selected combo rule, or None."""
-        current = self._combo_rules_list.currentRow()
-        if current < 0 or current >= len(ComboRulesManager.rules):
-            return None
-        return current
+    def _on_combo_rules_context_menu(self, pos: QPoint) -> None:
+        """Show a context menu for managing single or multi-selected combo rules."""
+        clicked_item = self._combo_rules_list.itemAt(pos)
+        if clicked_item is not None and not clicked_item.isSelected():
+            self._combo_rules_list.clearSelection()
+            self._combo_rules_list.setCurrentItem(clicked_item)
+            clicked_item.setSelected(True)
+
+        indices = self._get_selected_combo_rule_indices()
+        sel_count = len(indices)
+        has_selection = sel_count > 0
+        has_items = self._combo_rules_list.count() > 0
+
+        menu = QMenu(self)
+        menu.setStyleSheet(SVG_ICON_CONTEXT_MENU_STYLESHEET)
+
+        add_act = menu.addAction(QIcon(str(ICONS_DIR_PATH / 'plus.svg')), 'Add Rule…')
+        add_act.triggered.connect(self._add_combo_rule)
+
+        edit_act = menu.addAction(QIcon(str(ICONS_DIR_PATH / 'square-pen.svg')), 'Edit Rule…')
+        edit_act.setEnabled(sel_count == 1)
+        edit_act.triggered.connect(self._edit_combo_rule)
+
+        all_enabled = has_selection and all(ComboRulesManager.rules[i].enabled for i in indices)
+        toggle_label = (
+            ('Disable Rule' if all_enabled else 'Enable Rule')
+            if sel_count <= 1
+            else (f'Disable Rules ({sel_count})' if all_enabled else f'Enable Rules ({sel_count})')
+        )
+        toggle_act = menu.addAction(QIcon(str(ICONS_DIR_PATH / ('toggle-left.svg' if all_enabled else 'toggle-right.svg'))), toggle_label)
+        toggle_act.setEnabled(has_selection)
+        toggle_act.triggered.connect(self._toggle_combo_rule)
+
+        dup_act = menu.addAction(QIcon(str(ICONS_DIR_PATH / 'copy.svg')), f'Duplicate ({sel_count})' if sel_count > 1 else 'Duplicate')
+        dup_act.setEnabled(has_selection)
+        dup_act.triggered.connect(self._duplicate_combo_rule)
+
+        menu.addSeparator()
+
+        export_act = menu.addAction(QIcon(str(ICONS_DIR_PATH / 'upload.svg')), f'Export Selected Rules ({sel_count})…' if sel_count > 1 else 'Export Selected Rule…')
+        export_act.setEnabled(has_selection)
+        export_act.triggered.connect(self._export_selected_combo_rules)
+
+        import_act = menu.addAction(QIcon(str(ICONS_DIR_PATH / 'download.svg')), 'Import Combo Rules…')
+        import_act.triggered.connect(self._import_combo_rules_file)
+
+        menu.addSeparator()
+
+        select_all_act = menu.addAction(QIcon(str(ICONS_DIR_PATH / 'square-check.svg')), 'Select All')
+        select_all_act.setShortcut('Ctrl+A')
+        select_all_act.setEnabled(has_items)
+        select_all_act.triggered.connect(self._combo_rules_list.selectAll)
+
+        remove_act = menu.addAction(QIcon(str(ICONS_DIR_PATH / 'remove.svg')), f'Remove ({sel_count})' if sel_count > 1 else 'Remove')
+        remove_act.setShortcut('Delete')
+        remove_act.setEnabled(has_selection)
+        remove_act.triggered.connect(self._remove_combo_rule)
+
+        clear_act = menu.addAction(QIcon(str(ICONS_DIR_PATH / 'remove.svg')), 'Clear All')
+        clear_act.setEnabled(has_items)
+        clear_act.triggered.connect(self._clear_combo_rules)
+
+        if viewport := self._combo_rules_list.viewport():
+            menu.exec(viewport.mapToGlobal(pos))
 
     def _add_combo_rule(self) -> None:
         """Open editor dialog to create a new combo rule."""
@@ -425,18 +524,19 @@ class DetectionsManagerTabsMixin(QDialog):
         if dialog.exec() == QDialog.DialogCode.Accepted:
             ComboRulesManager.rules.append(dialog.get_rule())
             ComboRulesManager.save_to_file(COMBO_RULES_PATH)
-            self.refresh_combo_rules_list()
+            self.refresh_combo_rules_list(selected_rows=[len(ComboRulesManager.rules) - 1])
             retrigger_detections_scan()
 
     def _on_combo_item_activated(self, _item: QListWidgetItem) -> None:
-        """Handle double-click/activation on a combo rule list item."""
-        self._edit_combo_rule()
+        """Handle double-click/activation on a single combo rule list item."""
+        if len(self._get_selected_combo_rule_indices()) == 1:
+            self._edit_combo_rule()
 
     def _edit_combo_rule(self) -> None:
         """Open editor dialog to edit the selected combo rule."""
         index = self._get_selected_combo_rule_index()
         if index is None:
-            QMessageBox.information(self, TITLE, 'Select a rule to edit.')
+            QMessageBox.information(self, TITLE, 'Select a single rule to edit.')
             return
         existing_rule = ComboRulesManager.rules[index]
         dialog = ComboRuleEditorDialog(self, rule=existing_rule)
@@ -446,65 +546,118 @@ class DetectionsManagerTabsMixin(QDialog):
                 clear_voice_notification_queue()
             ComboRulesManager.rules[index] = new_rule
             ComboRulesManager.save_to_file(COMBO_RULES_PATH)
-            self.refresh_combo_rules_list()
+            self.refresh_combo_rules_list(selected_rows=[index])
             retrigger_detections_scan()
 
     def _toggle_combo_rule(self) -> None:
-        """Toggle the enabled state of the selected combo rule."""
-        index = self._get_selected_combo_rule_index()
-        if index is None:
+        """Toggle the enabled state of the selected combo rule(s)."""
+        indices = self._get_selected_combo_rule_indices()
+        if not indices:
             return
-        rule = ComboRulesManager.rules[index]
-        rule.enabled = not rule.enabled
-        if not rule.enabled and rule.voice_notifications:
+        target_enabled = not all(ComboRulesManager.rules[i].enabled for i in indices)
+        if not target_enabled and any(ComboRulesManager.rules[i].enabled and ComboRulesManager.rules[i].voice_notifications for i in indices):
             clear_voice_notification_queue()
+        for index in indices:
+            ComboRulesManager.rules[index].enabled = target_enabled
         ComboRulesManager.save_to_file(COMBO_RULES_PATH)
-        self.refresh_combo_rules_list()
+        self.refresh_combo_rules_list(selected_rows=indices)
         retrigger_detections_scan()
 
     def _duplicate_combo_rule(self) -> None:
-        """Duplicate the selected combo rule."""
-        index = self._get_selected_combo_rule_index()
-        if index is None:
-            QMessageBox.information(self, TITLE, 'Select a rule to duplicate.')
+        """Duplicate the selected combo rule(s)."""
+        indices = self._get_selected_combo_rule_indices()
+        if not indices:
+            QMessageBox.information(self, TITLE, 'Select at least one rule to duplicate.')
             return
-        original = ComboRulesManager.rules[index]
-        copy = ComboRule(
-            name=f'{original.name} (Copy)',
-            enabled=original.enabled,
-            conditions=dict(original.conditions),
-            protection_enabled=original.protection_enabled,
-            duration=original.duration,
-            voice_notifications=original.voice_notifications,
-            logging=original.logging,
-            message_box=original.message_box,
-        )
-        ComboRulesManager.rules.append(copy)
+        start_index = len(ComboRulesManager.rules)
+        any_enabled = False
+        for index in indices:
+            original = ComboRulesManager.rules[index]
+            copy = ComboRule(
+                name=f'{original.name} (Copy)',
+                enabled=original.enabled,
+                conditions=dict(original.conditions),
+                protection_enabled=original.protection_enabled,
+                duration=original.duration,
+                voice_notifications=original.voice_notifications,
+                logging=original.logging,
+                message_box=original.message_box,
+            )
+            ComboRulesManager.rules.append(copy)
+            any_enabled = any_enabled or copy.enabled
         ComboRulesManager.save_to_file(COMBO_RULES_PATH)
-        self.refresh_combo_rules_list()
-        if copy.enabled:
+        self.refresh_combo_rules_list(selected_rows=list(range(start_index, len(ComboRulesManager.rules))))
+        if any_enabled:
             retrigger_detections_scan()
 
-    def _remove_combo_rule(self) -> None:
-        """Remove the selected combo rule."""
-        index = self._get_selected_combo_rule_index()
-        if index is None:
-            QMessageBox.information(self, TITLE, 'Select a rule to remove.')
+    def _export_selected_combo_rules(self) -> None:
+        """Export the currently selected combo rule(s) to a standalone JSON file."""
+        indices = self._get_selected_combo_rule_indices()
+        if not indices:
+            QMessageBox.information(self, TITLE, 'Select at least one rule to export.')
             return
-        rule = ComboRulesManager.rules[index]
-        reply = QMessageBox.question(
-            self,
-            TITLE,
-            f'Remove rule "{rule.name}"?',
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-        )
-        if reply == QMessageBox.StandardButton.Yes:
-            if rule.enabled and rule.voice_notifications:
-                clear_voice_notification_queue()
-            del ComboRulesManager.rules[index]
-            ComboRulesManager.save_to_file(COMBO_RULES_PATH)
-            self.refresh_combo_rules_list()
+        selected_rules = [ComboRulesManager.rules[i] for i in indices]
+        default_name = f'{selected_rules[0].name}.json' if len(selected_rules) == 1 else 'combo_rules.json'
+        file_path, _ = QFileDialog.getSaveFileName(self, 'Export Selected Combo Rules', default_name, 'JSON Files (*.json);;All Files (*.*)')
+        if not file_path:
+            return
+        target = Path(file_path)
+        try:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(TypeAdapter(list[ComboRule]).dump_json(selected_rules, indent=4).decode('utf-8'), encoding='utf-8')
+        except OSError as e:
+            QMessageBox.critical(self, 'Export Error', f'Failed to export combo rules:\n{e}')
+            return
+        QMessageBox.information(self, TITLE, f'Exported {len(selected_rules)} combo rule{pluralize(len(selected_rules))} successfully.')
+
+    def _import_combo_rules_file(self) -> None:
+        """Import combo rules from either a combo-rules list JSON or a detections JSON file and append them."""
+        file_path, _ = QFileDialog.getOpenFileName(self, 'Import Combo Rules', '', 'JSON Files (*.json);;All Files (*.*)')
+        if not file_path:
+            return
+        try:
+            raw_text = Path(file_path).read_text(encoding='utf-8')
+            parsed = json.loads(raw_text)
+            imported: list[ComboRule] = (
+                TypeAdapter(list[ComboRule]).validate_python(parsed)
+                if isinstance(parsed, list)
+                else (DetectionsFile.model_validate(parsed).combo_rules or [])
+            )
+        except (ValidationError, OSError, json.JSONDecodeError) as e:
+            QMessageBox.critical(self, 'Import Error', f'Failed to import combo rules:\n{e}')
+            return
+        if not imported:
+            QMessageBox.information(self, TITLE, 'No combo rules were found in the selected file.')
+            return
+        start_index = len(ComboRulesManager.rules)
+        ComboRulesManager.rules.extend(imported)
+        ComboRulesManager.save_to_file(COMBO_RULES_PATH)
+        self.refresh_combo_rules_list(selected_rows=list(range(start_index, len(ComboRulesManager.rules))))
+        if any(rule.enabled for rule in imported):
             retrigger_detections_scan()
+        QMessageBox.information(self, TITLE, f'Imported {len(imported)} combo rule{pluralize(len(imported))} successfully.')
+
+    def _remove_combo_rule(self) -> None:
+        """Remove the selected combo rule(s)."""
+        indices = self._get_selected_combo_rule_indices()
+        if not indices:
+            return
+        prompt = (
+            f'Remove rule "{ComboRulesManager.rules[indices[0]].name}"?'
+            if len(indices) == 1
+            else f'Remove {len(indices)} selected combo rules?'
+        )
+        reply = QMessageBox.question(self, TITLE, prompt, QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+        if any(ComboRulesManager.rules[i].enabled and ComboRulesManager.rules[i].voice_notifications for i in indices):
+            clear_voice_notification_queue()
+        for index in reversed(indices):
+            del ComboRulesManager.rules[index]
+        ComboRulesManager.save_to_file(COMBO_RULES_PATH)
+        next_row = min(indices[0], len(ComboRulesManager.rules) - 1)
+        self.refresh_combo_rules_list(selected_rows=[next_row] if next_row >= 0 else [])
+        retrigger_detections_scan()
 
     def _clear_combo_rules(self, *, confirm: bool = True) -> None:
         """Remove all combo rules."""
@@ -523,7 +676,7 @@ class DetectionsManagerTabsMixin(QDialog):
             clear_voice_notification_queue()
         ComboRulesManager.rules.clear()
         ComboRulesManager.save_to_file(COMBO_RULES_PATH)
-        self.refresh_combo_rules_list()
+        self.refresh_combo_rules_list(selected_rows=[])
         retrigger_detections_scan()
 
     # ------------------------------------------------------------------
@@ -600,54 +753,92 @@ class DetectionsManagerTabsMixin(QDialog):
         *,
         on_add: Callable[[], None],
     ) -> QListWidget:
-        """Create a styled `QListWidget` with Add/Remove/Clear All buttons and attach it to *group_layout*."""
+        """Create a styled `QListWidget` with multi-select Add/Remove/Clear All support and attach it to *group_layout*."""
         list_layout = QHBoxLayout()
 
         list_widget = QListWidget()
         list_widget.setStyleSheet(LIST_WIDGET_STYLE)
         list_widget.setItemDelegate(ElidedTextTooltipDelegate(list_widget))
         list_widget.setWordWrap(False)
+        list_widget.setSelectionMode(QListWidget.SelectionMode.ExtendedSelection)
+        list_widget.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         setattr(self, attr_name, list_widget)
         list_layout.addWidget(list_widget)
 
         buttons_layout = QVBoxLayout()
-        add_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'plus.svg')), ' Add')
+        add_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'plus.svg')), ' Add')
         add_button.setCursor(Qt.CursorShape.PointingHandCursor)
         add_button.clicked.connect(on_add)
         buttons_layout.addWidget(add_button)
 
-        def _on_remove_selected() -> None:
-            current_item = list_widget.currentItem()
-            if current_item:
-                list_widget.takeItem(list_widget.row(current_item))
-                self._auto_save_detections()
-
-        remove_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')), ' Remove')
+        remove_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'remove.svg')), ' Remove')
+        remove_button.setEnabled(False)
         remove_button.setCursor(Qt.CursorShape.PointingHandCursor)
-        remove_button.clicked.connect(_on_remove_selected)
         buttons_layout.addWidget(remove_button)
+
+        clear_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'remove.svg')), ' Clear All')
+        clear_button.setEnabled(False)
+        clear_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        buttons_layout.addWidget(clear_button)
+
+        def _sync_list_buttons(*_args: object) -> None:
+            if not (isValid(list_widget) and isValid(remove_button) and isValid(clear_button)):
+                return
+            sel_count = len(list_widget.selectedItems())
+            remove_button.setEnabled(sel_count > 0)
+            remove_button.setText(f' Remove ({sel_count})' if sel_count > 1 else ' Remove')
+            clear_button.setEnabled(list_widget.count() > 0)
+
+        def _on_remove_selected() -> None:
+            selected_rows = sorted({list_widget.row(item) for item in list_widget.selectedItems()}, reverse=True)
+            if not selected_rows:
+                return
+            for row in selected_rows:
+                list_widget.takeItem(row)
+            self._auto_save_detections()
+            _sync_list_buttons()
 
         def _on_clear_list() -> None:
             if list_widget.count() > 0:
                 list_widget.clear()
                 self._auto_save_detections()
-            if isValid(list_widget) and isValid(clear_button):
-                clear_button.setEnabled(list_widget.count() > 0)
+            _sync_list_buttons()
 
-        def _on_list_model_changed(*_args: object) -> None:
-            if isValid(list_widget) and isValid(clear_button):
-                clear_button.setEnabled(list_widget.count() > 0)
+        def _on_list_context_menu(pos: QPoint) -> None:
+            clicked_item = list_widget.itemAt(pos)
+            if clicked_item is not None and not clicked_item.isSelected():
+                list_widget.clearSelection()
+                list_widget.setCurrentItem(clicked_item)
+                clicked_item.setSelected(True)
+            sel_count = len(list_widget.selectedItems())
+            has_items = list_widget.count() > 0
+            menu = QMenu(self)
+            menu.setStyleSheet(SVG_ICON_CONTEXT_MENU_STYLESHEET)
+            menu.addAction(QIcon(str(ICONS_DIR_PATH / 'plus.svg')), 'Add…').triggered.connect(on_add)
+            rm_act = menu.addAction(QIcon(str(ICONS_DIR_PATH / 'remove.svg')), f'Remove ({sel_count})' if sel_count > 1 else 'Remove')
+            rm_act.setShortcut('Delete')
+            rm_act.setEnabled(sel_count > 0)
+            rm_act.triggered.connect(_on_remove_selected)
+            menu.addSeparator()
+            sel_all_act = menu.addAction(QIcon(str(ICONS_DIR_PATH / 'square-check.svg')), 'Select All')
+            sel_all_act.setShortcut('Ctrl+A')
+            sel_all_act.setEnabled(has_items)
+            sel_all_act.triggered.connect(list_widget.selectAll)
+            clr_act = menu.addAction(QIcon(str(ICONS_DIR_PATH / 'remove.svg')), 'Clear All')
+            clr_act.setEnabled(has_items)
+            clr_act.triggered.connect(_on_clear_list)
+            if viewport := list_widget.viewport():
+                menu.exec(viewport.mapToGlobal(pos))
 
-        clear_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')), ' Clear All')
-        clear_button.setEnabled(list_widget.count() > 0)
-        clear_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        remove_button.clicked.connect(_on_remove_selected)
         clear_button.clicked.connect(_on_clear_list)
-        buttons_layout.addWidget(clear_button)
-        list_model = list_widget.model()
-        if list_model:
-            list_model.rowsInserted.connect(_on_list_model_changed)
-            list_model.rowsRemoved.connect(_on_list_model_changed)
-            list_model.modelReset.connect(_on_list_model_changed)
+        list_widget.itemSelectionChanged.connect(_sync_list_buttons)
+        list_widget.customContextMenuRequested.connect(_on_list_context_menu)
+        QShortcut(QKeySequence('Delete'), list_widget, context=Qt.ShortcutContext.WidgetShortcut).activated.connect(_on_remove_selected)
+        if list_model := list_widget.model():
+            list_model.rowsInserted.connect(_sync_list_buttons)
+            list_model.rowsRemoved.connect(_sync_list_buttons)
+            list_model.modelReset.connect(_sync_list_buttons)
 
         buttons_layout.addStretch()
         list_layout.addLayout(buttons_layout)
@@ -735,7 +926,7 @@ class DetectionsManagerTabsMixin(QDialog):
         display_text = f'{canonical} ({code})' if code is not None and code else canonical
         item = QListWidgetItem(display_text)
         item.setData(Qt.ItemDataRole.UserRole, canonical)
-        item.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'globe.svg')))
+        item.setIcon(QIcon(str(ICONS_DIR_PATH / 'globe.svg')))
         self.continent_list.addItem(item)
 
     def _add_country(self) -> None:

@@ -4,7 +4,6 @@ from typing import TYPE_CHECKING, override
 
 from PySide6.QtCore import QAbstractItemModel, QEvent, QItemSelection, QItemSelectionModel, QModelIndex, QObject, QRect, QRectF, QSize, Qt
 from PySide6.QtGui import (
-    QColor,
     QFont,
     QFontMetrics,
     QHoverEvent,
@@ -18,6 +17,7 @@ from PySide6.QtGui import (
 from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtWidgets import (
     QHeaderView,
+    QMessageBox,
     QSizePolicy,
     QTableView,
     QToolTip,
@@ -25,7 +25,7 @@ from PySide6.QtWidgets import (
 )
 from shiboken6 import isValid
 
-from session_sniffer.constants.local import RESOURCES_DIR_PATH
+from session_sniffer.constants.standalone import TITLE
 from session_sniffer.constants.tables import (
     DEFAULT_MIN_COLUMN_WIDTH,
     SESSION_TABLE_MAX_COLUMN_WIDTHS,
@@ -37,6 +37,7 @@ from session_sniffer.guis.fonts import get_ui_font
 from session_sniffer.guis.table_model import SessionTableModel
 from session_sniffer.guis.tables_context_menu_mixin import TableContextMenuMixin
 from session_sniffer.guis.tables_header_menu_mixin import TableHeaderMenuMixin
+from session_sniffer.guis.theming import ICONS_DIR_PATH, themed_text_qcolor
 from session_sniffer.guis.utils import scale_by_ui, set_clipboard_text
 from session_sniffer.player.registry import PlayersRegistry, SessionTracker
 from session_sniffer.rendering_core.types import PaginationState, SearchState, SessionFilterState, SortState, TableMergeState
@@ -77,6 +78,8 @@ class SessionTableView(TableHeaderMenuMixin, TableContextMenuMixin, QTableView):
         self.is_high_rate_blacklisted_callback: Callable[[str], bool] | None = None  # Optional callback to check if an IP is blacklisted in High Rate Monitor
         self._drag_selecting: bool = False  # Track if the mouse is being dragged with Ctrl key
         self._previous_cell: QModelIndex | None = None  # Track the previously selected cell
+        self._selection_anchor: QModelIndex | None = None  # Anchor cell for Shift+Click range selection
+        self._saved_anchor: tuple[str, int] | None = None  # (ip, column) anchor across model refreshes
         self._previous_sort_section_index: int | None = sort_column
         self._saved_selection: list[tuple[str, int]] = []  # (ip, column) pairs for selection preservation
         self._saved_h_scroll: int | None = None
@@ -86,7 +89,7 @@ class SessionTableView(TableHeaderMenuMixin, TableContextMenuMixin, QTableView):
         self._has_auto_sized_with_data: bool = False
         self._recalculation_payloads_remaining: int = 0
         empty_icon_filename = 'user-round-check.svg' if is_connected_table else 'user-round-x.svg'
-        self._empty_icon_renderer = QSvgRenderer((RESOURCES_DIR_PATH / 'icons' / empty_icon_filename).as_posix())
+        self._empty_icon_renderer = QSvgRenderer((ICONS_DIR_PATH / empty_icon_filename).as_posix())
 
         self.setModel(model)
         self.setMouseTracking(True)  # Track mouse without clicks
@@ -177,10 +180,7 @@ class SessionTableView(TableHeaderMenuMixin, TableContextMenuMixin, QTableView):
 
     @override
     def keyPressEvent(self, event: QKeyEvent) -> None:
-        """Handle key press events to capture Ctrl+A for selecting all and Ctrl+C for copying selected data to the clipboard.
-
-        Fall back to default behavior for other key presses.
-        """
+        """Handle Ctrl+A, Ctrl+C, and (on Disconnected only) Delete with confirmation."""
         if event.modifiers() == Qt.KeyboardModifier.ControlModifier:
             if event.key() == Qt.Key.Key_A:
                 self.select_all_cells()
@@ -188,32 +188,92 @@ class SessionTableView(TableHeaderMenuMixin, TableContextMenuMixin, QTableView):
                 self.copy_selected_cells(self.model(), self.selectionModel().selectedIndexes())
             return
 
+        if not self.is_connected_table and event.modifiers() == Qt.KeyboardModifier.NoModifier and event.key() == Qt.Key.Key_Delete:
+            self._confirm_and_remove_selected_disconnected_players()
+            return
+
         # Fall back to default behavior
         super().keyPressEvent(event)
 
+    def _confirm_and_remove_selected_disconnected_players(self) -> None:
+        """Prompt for confirmation and remove selected player row(s) from the Disconnected table."""
+        model = self.model()
+        selected_rows = sorted({idx.row() for idx in self.selectionModel().selectedIndexes() if idx.isValid()})
+        if not selected_rows:
+            return
+        ips: list[str] = []
+        first_user = ''
+        user_col = model.get_column_index('User')
+        for row in selected_rows:
+            if not 0 <= row < model.rowCount():
+                continue
+            ip = model.get_ip_for_row(row)
+            if ip and ip not in ips:
+                if not ips and user_col is not None:
+                    raw_user = model.get_display_text(model.index(row, user_col))
+                    first_user = raw_user.strip() if raw_user is not None and raw_user.strip() not in {'', '...', 'N/A'} else ''
+                ips.append(ip)
+        if not ips:
+            return
+        if len(ips) == 1:
+            target = f'"{first_user}" ({ips[0]})' if first_user else ips[0]
+            prompt = f'Remove {target} from Disconnected?'
+        else:
+            prompt = f'Remove {len(ips)} selected players from Disconnected?'
+        reply = QMessageBox.question(
+            self.window(),
+            TITLE,
+            prompt,
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if reply == QMessageBox.StandardButton.Yes:
+            self.remove_players_by_ip_from_table(set(ips))
+
     @override
     def mousePressEvent(self, event: QMouseEvent) -> None:
-        """Handle mouse press events for selecting multiple items with Ctrl or single items otherwise.
+        """Handle mouse press events for single-cell, Ctrl toggle/drag, and Shift range selection.
 
         Fall back to default behavior for non-cell areas.
         """
         index = self.indexAt(event.position().toPoint())  # Determine the index of the clicked item
         if index.isValid():
             selection_model = self.selectionModel()
+            modifiers = event.modifiers()
             selection_flag = None
 
             if event.button() == Qt.MouseButton.LeftButton:
-                if event.modifiers() == Qt.KeyboardModifier.ControlModifier:
+                if bool(modifiers & Qt.KeyboardModifier.ShiftModifier):
+                    model = self.model()
+                    anchor = self._selection_anchor
+                    if anchor is None or not anchor.isValid() or anchor.model() is not model:
+                        current = selection_model.currentIndex()
+                        anchor = current if current.isValid() and current.model() is model else None
+                    if anchor is not None and 0 <= anchor.row() < model.rowCount() and 0 <= anchor.column() < model.columnCount():
+                        if not bool(modifiers & Qt.KeyboardModifier.ControlModifier):
+                            selection_model.clearSelection()
+                        top_row, bottom_row = min(anchor.row(), index.row()), max(anchor.row(), index.row())
+                        left_col, right_col = min(anchor.column(), index.column()), max(anchor.column(), index.column())
+                        self._set_cell_range_selected(top_row, left_col, bottom_row, right_col, select=True)
+                        selection_model.setCurrentIndex(index, QItemSelectionModel.SelectionFlag.NoUpdate)
+                        self._selection_anchor = anchor
+                        return
+                    selection_flag = QItemSelectionModel.SelectionFlag.Select
+                    self._selection_anchor = index
+                elif modifiers == Qt.KeyboardModifier.ControlModifier:
                     selection_flag = QItemSelectionModel.SelectionFlag.Deselect if selection_model.isSelected(index) else QItemSelectionModel.SelectionFlag.Select
                     self._drag_selecting = True
                     self._previous_cell = index
-                elif event.modifiers() == Qt.KeyboardModifier.NoModifier:
-                    was_selection_index_selected = selection_model.isSelected(index)
+                    self._selection_anchor = index
+                elif modifiers == Qt.KeyboardModifier.NoModifier:
+                    was_sole_selected = selection_model.isSelected(index) and len(selection_model.selectedIndexes()) == 1
                     selection_model.clearSelection()
-                    selection_flag = QItemSelectionModel.SelectionFlag.Deselect if was_selection_index_selected else QItemSelectionModel.SelectionFlag.Select
+                    selection_flag = QItemSelectionModel.SelectionFlag.Deselect if was_sole_selected else QItemSelectionModel.SelectionFlag.Select
+                    self._selection_anchor = None if was_sole_selected else index
 
             elif event.button() == Qt.MouseButton.RightButton and not selection_model.isSelected(index):
                 selection_flag = QItemSelectionModel.SelectionFlag.ClearAndSelect
+                self._selection_anchor = index
 
             if selection_flag is not None:
                 selection_model.setCurrentIndex(index, QItemSelectionModel.SelectionFlag.NoUpdate)
@@ -329,13 +389,13 @@ class SessionTableView(TableHeaderMenuMixin, TableContextMenuMixin, QTableView):
             curr_y = start_y + icon_size + icon_spacing
             title_rect = QRect(0, curr_y, viewport_rect.width(), title_fm.height())
             painter.setFont(title_font)
-            painter.setPen(QColor('#e2e8f0'))
+            painter.setPen(themed_text_qcolor('#e2e8f0', '#101412'))
             painter.drawText(title_rect, Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter, title)
 
             curr_y += title_fm.height() + title_spacing
             subtitle_rect = QRect(0, curr_y, viewport_rect.width(), subtitle_fm.height())
             painter.setFont(subtitle_font)
-            painter.setPen(QColor('#64748b'))
+            painter.setPen(themed_text_qcolor('#64748b', '#101412'))
             painter.drawText(subtitle_rect, Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter, subtitle)
         finally:
             painter.end()
@@ -461,13 +521,20 @@ class SessionTableView(TableHeaderMenuMixin, TableContextMenuMixin, QTableView):
         selected_indexes = selection_model.selectedIndexes()
         if not selected_indexes:
             self._saved_selection.clear()
+            self._saved_anchor = None
             return
 
         model = self.model()
         if not isValid(model):
             self._saved_selection.clear()
+            self._saved_anchor = None
             return
         self._saved_selection.clear()
+        self._saved_anchor = None
+        if self._selection_anchor is not None and self._selection_anchor.isValid():
+            anchor_row, anchor_col = self._selection_anchor.row(), self._selection_anchor.column()
+            if 0 <= anchor_row < model.rowCount() and 0 <= anchor_col < model.columnCount() and (anchor_ip := model.get_ip_for_row(anchor_row)):
+                self._saved_anchor = (anchor_ip, anchor_col)
         for model_index in selected_indexes:
             if not model_index.isValid():
                 continue
@@ -504,6 +571,14 @@ class SessionTableView(TableHeaderMenuMixin, TableContextMenuMixin, QTableView):
                 index = model.index(row, column)
                 if index.isValid():
                     selection.select(index, index)
+
+        if self._saved_anchor is not None:
+            anchor_ip, anchor_col = self._saved_anchor
+            anchor_row = model.get_row_index_by_ip(anchor_ip)
+            if anchor_row is not None and 0 <= anchor_row < model.rowCount() and 0 <= anchor_col < model.columnCount():
+                restored_anchor = model.index(anchor_row, anchor_col)
+                self._selection_anchor = restored_anchor if restored_anchor.isValid() else None
+            self._saved_anchor = None
 
         selection_model.select(selection, QItemSelectionModel.SelectionFlag.ClearAndSelect)
         self._saved_selection.clear()

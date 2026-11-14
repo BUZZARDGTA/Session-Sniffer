@@ -3,8 +3,8 @@
 import re
 from typing import TYPE_CHECKING, cast, override
 
-from PySide6.QtCore import QRegularExpression, QSignalBlocker, QSize, Qt, Signal
-from PySide6.QtGui import QAction, QIcon, QKeySequence, QRegularExpressionValidator
+from PySide6.QtCore import QPoint, QRegularExpression, QSignalBlocker, QSize, Qt, Signal
+from PySide6.QtGui import QAction, QIcon, QKeySequence, QRegularExpressionValidator, QShortcut
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QListWidget,
+    QMenu,
     QPushButton,
     QSizePolicy,
     QSpinBox,
@@ -26,7 +27,6 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.constants.standalone import DISCORD_INVITE_URL
 from session_sniffer.guis.color_picker_dialog import ColorPickerButton
 from session_sniffer.guis.delegates import ElidedTextTooltipDelegate
@@ -35,8 +35,10 @@ from session_sniffer.guis.stylesheets import (
     COMPACT_BUTTON_STYLESHEET,
     COMPACT_DANGER_BUTTON_STYLESHEET,
     DISCORD_INFO_LABEL_STYLESHEET,
+    SVG_ICON_CONTEXT_MENU_STYLESHEET,
     WEBSERVER_HELP_LABEL_STYLESHEET,
 )
+from session_sniffer.guis.theming import ICONS_DIR_PATH, themed_qss
 from session_sniffer.guis.userip_manager_helpers import IPRangeBuilderDialog
 from session_sniffer.guis.utils import scale_by_ui
 from session_sniffer.settings import SETTING_DEFAULTS, SettingMeta, SettingType
@@ -116,7 +118,7 @@ class HotkeyEditWidget(QWidget):
         if inner_line_edit is not None:
             inner_line_edit.setPlaceholderText('None (click and press shortcut...)')
 
-        self._clear_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'x.svg')), ' Clear')
+        self._clear_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'x.svg')), ' Clear')
         self._clear_button.setToolTip('Clear shortcut (disable hotkey)')
         self._clear_button.setStyleSheet(COMPACT_BUTTON_STYLESHEET)
         self._clear_button.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -222,7 +224,7 @@ def create_text_widget(meta: SettingMeta) -> QLineEdit:
     if meta.max_width is not None:
         le.setMaximumWidth(meta.max_width)
     if isinstance(le, SecretLineEdit):
-        _icons_dir = RESOURCES_DIR_PATH / 'icons'
+        _icons_dir = ICONS_DIR_PATH
         icon_show = QIcon(str(_icons_dir / 'eye.svg'))
         icon_hide = QIcon(str(_icons_dir / 'eye-off.svg'))
         reveal_action = le.addAction(icon_hide, QLineEdit.ActionPosition.TrailingPosition)
@@ -312,9 +314,9 @@ def _create_checklist_button_row(
     on_reset: Callable[[], None] | None = None,
 ) -> tuple[QHBoxLayout, QPushButton, QPushButton, QPushButton]:
     """Create a compact 'Select All' / 'Unselect All' / 'Reset to Default' button row."""
-    button_select_all = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square-check.svg')), ' Select All')
-    button_deselect_all = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square.svg')), ' Unselect All')
-    button_reset = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'undo.svg')), ' Reset to Default')
+    button_select_all = QPushButton(QIcon(str(ICONS_DIR_PATH / 'square-check.svg')), ' Select All')
+    button_deselect_all = QPushButton(QIcon(str(ICONS_DIR_PATH / 'square.svg')), ' Unselect All')
+    button_reset = QPushButton(QIcon(str(ICONS_DIR_PATH / 'undo.svg')), ' Reset to Default')
     button_reset.setToolTip(reset_tooltip)
     for button in (button_select_all, button_deselect_all):
         button.setStyleSheet(COMPACT_BUTTON_STYLESHEET)
@@ -817,12 +819,7 @@ class _AutoFitListWidget(QListWidget):
         return QSize(hint.width(), hint.height() + 10)
 
 
-def _create_editable_list_group(
-    meta: SettingMeta,
-    *,
-    add_tooltip: str,
-    prompt_entry: Callable[[], str | None],
-) -> QGroupBox:
+def _create_editable_list_group(meta: SettingMeta, *, add_tooltip: str, prompt_entry: Callable[[], str | None]) -> QGroupBox:
     """Create an add/remove `_AutoFitListWidget` group box for a string-tuple setting."""
     group = QGroupBox(meta.display_label.replace('&', '&&'))
     tooltip = format_setting_tooltip(meta)
@@ -838,33 +835,61 @@ def _create_editable_list_group(
     list_widget.setWordWrap(False)
     list_widget.setSelectionMode(QListWidget.SelectionMode.ExtendedSelection)
     list_widget.setSortingEnabled(True)
+    list_widget.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
 
-    add_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'plus.svg')), ' Add')
-    add_button.setToolTip(add_tooltip)
-    add_button.setStyleSheet(COMPACT_BUTTON_STYLESHEET)
-    add_button.setCursor(Qt.CursorShape.PointingHandCursor)
-    add_button.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
+    def _make_btn(icon_name: str, text: str, tip: str, style: str) -> QPushButton:
+        btn = QPushButton(QIcon(str(ICONS_DIR_PATH / icon_name)), text)
+        btn.setToolTip(tip)
+        btn.setStyleSheet(style)
+        btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
+        return btn
 
-    remove_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')), ' Remove')
-    remove_button.setToolTip('Remove the selected entries')
-    remove_button.setStyleSheet(COMPACT_DANGER_BUTTON_STYLESHEET)
-    remove_button.setCursor(Qt.CursorShape.PointingHandCursor)
-    remove_button.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
+    add_button = _make_btn('plus.svg', ' Add', add_tooltip, COMPACT_BUTTON_STYLESHEET)
+    remove_button = _make_btn('remove.svg', ' Remove', 'Remove the selected entries (Delete)', COMPACT_DANGER_BUTTON_STYLESHEET)
     remove_button.setEnabled(False)
-    list_widget.itemSelectionChanged.connect(lambda: remove_button.setEnabled(bool(list_widget.selectedItems())))
+
+    def _sync_remove_button() -> None:
+        sel_count = len(list_widget.selectedItems())
+        remove_button.setEnabled(sel_count > 0)
+        remove_button.setText(f' Remove ({sel_count})' if sel_count > 1 else ' Remove')
 
     def _add_entry() -> None:
         entry = prompt_entry()
         if entry is None or not entry:
             return
-        existing = {item.text() for i in range(list_widget.count()) if (item := list_widget.item(i))}
-        if entry not in existing:
+        if entry not in {item.text() for i in range(list_widget.count()) if (item := list_widget.item(i))}:
             list_widget.addItem(entry)
 
     def _remove_entries() -> None:
-        for item in list_widget.selectedItems():
-            list_widget.takeItem(list_widget.row(item))
+        for row in sorted({list_widget.row(item) for item in list_widget.selectedItems()}, reverse=True):
+            list_widget.takeItem(row)
+        _sync_remove_button()
 
+    def _on_context_menu(pos: QPoint) -> None:
+        if (clicked := list_widget.itemAt(pos)) is not None and not clicked.isSelected():
+            list_widget.clearSelection()
+            list_widget.setCurrentItem(clicked)
+            clicked.setSelected(True)
+        sel_count = len(list_widget.selectedItems())
+        menu = QMenu(group)
+        menu.setStyleSheet(SVG_ICON_CONTEXT_MENU_STYLESHEET)
+        menu.addAction(QIcon(str(ICONS_DIR_PATH / 'plus.svg')), 'Add…').triggered.connect(_add_entry)
+        rm_act = menu.addAction(QIcon(str(ICONS_DIR_PATH / 'remove.svg')), f'Remove ({sel_count})' if sel_count > 1 else 'Remove')
+        rm_act.setShortcut('Delete')
+        rm_act.setEnabled(sel_count > 0)
+        rm_act.triggered.connect(_remove_entries)
+        menu.addSeparator()
+        sel_all_act = menu.addAction(QIcon(str(ICONS_DIR_PATH / 'square-check.svg')), 'Select All')
+        sel_all_act.setShortcut('Ctrl+A')
+        sel_all_act.setEnabled(list_widget.count() > 0)
+        sel_all_act.triggered.connect(list_widget.selectAll)
+        if viewport := list_widget.viewport():
+            menu.exec(viewport.mapToGlobal(pos))
+
+    list_widget.itemSelectionChanged.connect(_sync_remove_button)
+    list_widget.customContextMenuRequested.connect(_on_context_menu)
+    QShortcut(QKeySequence('Delete'), list_widget, context=Qt.ShortcutContext.WidgetShortcut).activated.connect(_remove_entries)
     add_button.clicked.connect(_add_entry)
     remove_button.clicked.connect(_remove_entries)
 
@@ -887,35 +912,19 @@ def create_ip_range_tuple_widget(meta: SettingMeta, parent: QWidget) -> QGroupBo
 
     def _prompt_ip_range() -> str | None:
         dialog = IPRangeBuilderDialog(parent)
-        if dialog.exec() != QDialog.DialogCode.Accepted:
-            return None
-        return dialog.result_entry() or None
+        return (dialog.result_entry() or None) if dialog.exec() == QDialog.DialogCode.Accepted else None
 
-    return _create_editable_list_group(
-        meta,
-        add_tooltip='Add a new blocked IP address, range, or subnet',
-        prompt_entry=_prompt_ip_range,
-    )
+    return _create_editable_list_group(meta, add_tooltip='Add a new blocked IP address, range, or subnet', prompt_entry=_prompt_ip_range)
 
 
 def create_string_tuple_widget(meta: SettingMeta, parent: QWidget) -> QGroupBox:
     """Create an add/remove list widget for managing a tuple of strings."""
 
     def _prompt_string() -> str | None:
-        text, success = QInputDialog.getText(
-            parent,
-            'Add Filtered ISP / ASN',
-            'Enter ISP or ASN name (e.g. Take-Two, Amazon, Hetzner, AS15169):',
-        )
-        if not success or not (entry := text.strip()):
-            return None
-        return entry
+        text, success = QInputDialog.getText(parent, 'Add Filtered ISP / ASN', 'Enter ISP or ASN name (e.g. Take-Two, Amazon, Hetzner, AS15169):')
+        return entry if success and (entry := text.strip()) else None
 
-    return _create_editable_list_group(
-        meta,
-        add_tooltip='Add a new entry to the list',
-        prompt_entry=_prompt_string,
-    )
+    return _create_editable_list_group(meta, add_tooltip='Add a new entry to the list', prompt_entry=_prompt_string)
 
 
 def set_all_checkboxes(container: QWidget, *, checked: bool) -> None:
@@ -937,8 +946,10 @@ def build_discord_info_group() -> QGroupBox:
     layout = QVBoxLayout(group_box)
 
     info_label = QLabel(
-        'Join the Session Sniffer Discord server for support, announcements, and community discussion.<br><br>'
-        f'<a href="{DISCORD_INVITE_URL}" title="{DISCORD_INVITE_URL}" style="color: #61afef; text-decoration: underline;">{DISCORD_INVITE_URL}</a>',
+        themed_qss(
+            'Join the Session Sniffer Discord server for support, announcements, and community discussion.<br><br>'
+            f'<a href="{DISCORD_INVITE_URL}" title="{DISCORD_INVITE_URL}" style="color: #61afef; text-decoration: underline;">{DISCORD_INVITE_URL}</a>',
+        ),
     )
     info_label.setWordWrap(True)
     info_label.setTextFormat(Qt.TextFormat.RichText)

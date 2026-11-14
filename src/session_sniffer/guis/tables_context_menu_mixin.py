@@ -7,7 +7,7 @@ from PySide6.QtCore import QItemSelectionModel, QUrl
 from PySide6.QtGui import QAction, QDesktopServices, QIcon
 from PySide6.QtWidgets import QInputDialog, QMenu, QTableView
 
-from session_sniffer.constants.local import BUILTIN_SCRIPTS_DIR_PATH, RESOURCES_DIR_PATH, USER_SCRIPTS_DIR_PATH
+from session_sniffer.constants.local import BUILTIN_SCRIPTS_DIR_PATH, USER_SCRIPTS_DIR_PATH
 from session_sniffer.constants.standalone import LOOKY_BASE_HOST
 from session_sniffer.constants.standard import LOCAL_TZ
 from session_sniffer.error_messages import ensure_instance
@@ -36,6 +36,7 @@ from session_sniffer.guis.tables_userip_mixin import (
     looky_restore_usernames_for_player,
     resolve_usernames_for_player,
 )
+from session_sniffer.guis.theming import ICONS_DIR_PATH
 from session_sniffer.networking.ip_range import check_ip_against_ranges
 from session_sniffer.networking.isp_filter import get_player_primary_isp, is_player_isp_filtered
 from session_sniffer.networking.looky_system import get_looky_user_url
@@ -135,7 +136,7 @@ class TableContextMenuMixin(QTableView):
                     'Copy for Discord',
                     tooltip='Copy a detailed player info report formatted for Discord to the clipboard.',
                     handler=lambda: copy_player_info_for_discord(players[0]),
-                    icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')),
+                    icon=QIcon(str(ICONS_DIR_PATH / 'copy.svg')),
                 )
                 return
 
@@ -144,7 +145,7 @@ class TableContextMenuMixin(QTableView):
                 'Copy for Discord',
                 tooltip='Copy Discord-formatted reports for all selected players to the clipboard.',
                 handler=lambda: copy_players_info_for_discord(players),
-                icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')),
+                icon=QIcon(str(ICONS_DIR_PATH / 'copy.svg')),
             )
 
         def add_remove_players_action(ip_addresses: list[str]) -> None:
@@ -159,13 +160,15 @@ class TableContextMenuMixin(QTableView):
                 label = f'Remove {len(ips_to_remove)} Players'
                 tooltip = f'Remove {len(ips_to_remove)} selected players from the table and registry.'
 
-            add_action(
+            remove_action = add_action(
                 context_menu,
                 label,
                 tooltip=tooltip,
                 handler=lambda: self.remove_players_by_ip_from_table(ips_to_remove),
-                icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')),
+                icon=QIcon(str(ICONS_DIR_PATH / 'remove.svg')),
             )
+            if not self.is_connected_table:
+                remove_action.setShortcut('Delete')
 
         def add_exclude_ips_action(ip_addresses: list[str]) -> None:
             if not ip_addresses:
@@ -183,7 +186,7 @@ class TableContextMenuMixin(QTableView):
                     'Exclude IP / Range',
                     tooltip='Exclude this IP or a range/subnet from appearing in the session. Persisted to settings.',
                     handler=_do_block_single_ip,
-                    icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'x.svg')),
+                    icon=QIcon(str(ICONS_DIR_PATH / 'x.svg')),
                 )
                 return
 
@@ -199,7 +202,7 @@ class TableContextMenuMixin(QTableView):
                 'Exclude IPs / Ranges',
                 tooltip='For each selected IP, prompt whether to exclude as single IP, range, or subnet. Persisted to settings.',
                 handler=_do_block_multi_ips,
-                icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'x.svg')),
+                icon=QIcon(str(ICONS_DIR_PATH / 'x.svg')),
             )
 
         def remove_isp_filtered_players_from_tables() -> None:
@@ -228,7 +231,7 @@ class TableContextMenuMixin(QTableView):
                     f"Filter ISP '{isp_name}'",
                     tooltip=f"Exclude players whose ISP or ASN matches '{isp_name}'. Persisted to settings.",
                     handler=create_filter_isp_handler(isp_name),
-                    icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'globe.svg')),
+                    icon=QIcon(str(ICONS_DIR_PATH / 'globe.svg')),
                 )
                 return
 
@@ -236,7 +239,7 @@ class TableContextMenuMixin(QTableView):
                 context_menu,
                 'Filter ISPs',
                 tooltip='Exclude players belonging to the selected ISP or ASN. Persisted to settings.',
-                icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'globe.svg')),
+                icon=QIcon(str(ICONS_DIR_PATH / 'globe.svg')),
             )
             for isp_name in unique_isps:
                 add_action(
@@ -244,7 +247,7 @@ class TableContextMenuMixin(QTableView):
                     f"'{isp_name}'",
                     tooltip=f"Exclude players whose ISP or ASN matches '{isp_name}'.",
                     handler=create_filter_isp_handler(isp_name),
-                    icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'globe.svg')),
+                    icon=QIcon(str(ICONS_DIR_PATH / 'globe.svg')),
                 )
 
         def add_per_item_action[T](
@@ -259,7 +262,7 @@ class TableContextMenuMixin(QTableView):
                 return
 
             single_tooltip, multi_tooltip = tooltips
-            icon = QIcon(str(RESOURCES_DIR_PATH / 'icons' / icon_name))
+            icon = QIcon(str(ICONS_DIR_PATH / icon_name))
             if len(items) == 1:
                 add_action(
                     context_menu,
@@ -321,7 +324,7 @@ class TableContextMenuMixin(QTableView):
             blacklisted_ip_addresses = [ip_address for ip_address in ip_addresses if is_blacklisted(ip_address)]
             unblacklisted_ip_addresses = [ip_address for ip_address in ip_addresses if not is_blacklisted(ip_address)]
 
-            icon = QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'gauge.svg'))
+            icon = QIcon(str(ICONS_DIR_PATH / 'gauge.svg'))
 
             def _blacklist_handler(target_ip_addresses: list[str]) -> None:
                 blacklist_callback(target_ip_addresses)
@@ -426,7 +429,7 @@ class TableContextMenuMixin(QTableView):
                 parent_menu,
                 'Looky System',
                 'Looky System tools and shortcuts.',
-                icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'scan-eye.svg')),
+                icon=QIcon(str(ICONS_DIR_PATH / 'scan-eye.svg')),
             )
 
             def _open_looky_website() -> None:
@@ -437,7 +440,7 @@ class TableContextMenuMixin(QTableView):
                 'Open Website',
                 tooltip='Open the Looky System website in your default browser.',
                 handler=_open_looky_website,
-                icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'globe.svg')),
+                icon=QIcon(str(ICONS_DIR_PATH / 'globe.svg')),
             )
 
             if len(players) == 1:
@@ -457,14 +460,14 @@ class TableContextMenuMixin(QTableView):
                             'View on Website',
                             tooltip=f"Open {target_name}'s profile on the Looky System website ({profile_url}).",
                             handler=_open_single_profile,
-                            icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'globe.svg')),
+                            icon=QIcon(str(ICONS_DIR_PATH / 'globe.svg')),
                         )
                     else:
                         view_website_menu = add_menu(
                             looky_menu,
                             'View on Website',
                             "Open this player's profile on the Looky System website.",
-                            icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'globe.svg')),
+                            icon=QIcon(str(ICONS_DIR_PATH / 'globe.svg')),
                         )
 
                         def _make_profile_opener(url: str) -> Callable[[], None]:
@@ -485,7 +488,7 @@ class TableContextMenuMixin(QTableView):
                                 label,
                                 tooltip=f"Open {target_name}'s profile on the Looky System website ({profile_url}).",
                                 handler=_make_profile_opener(profile_url),
-                                icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'globe.svg')),
+                                icon=QIcon(str(ICONS_DIR_PATH / 'globe.svg')),
                             )
                         view_website_menu.addSeparator()
 
@@ -498,7 +501,7 @@ class TableContextMenuMixin(QTableView):
                             f'Open All ({len(rockstar_ids)})',
                             tooltip=f'Open all {len(rockstar_ids)} player profiles on the Looky System website.',
                             handler=_open_all_player_profiles,
-                            icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'globe.svg')),
+                            icon=QIcon(str(ICONS_DIR_PATH / 'globe.svg')),
                         )
 
                 looky_menu.addSeparator()
@@ -508,7 +511,7 @@ class TableContextMenuMixin(QTableView):
                     'Lookup',
                     tooltip='Query the Looky System API to find players associated with this IP.',
                     handler=lambda: show_looky_lookup(self, players[0]),
-                    icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'user.svg')),
+                    icon=QIcon(str(ICONS_DIR_PATH / 'user.svg')),
                 )
                 _apply_looky_gating(lookup_action)
 
@@ -518,7 +521,7 @@ class TableContextMenuMixin(QTableView):
                         'Call Crawler',
                         tooltip='Call the crawler bot to resolve usernames for players in the session associated with this IP.',
                         handler=lambda: show_crawler_request(self, players[0]),
-                        icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'bot.svg')),
+                        icon=QIcon(str(ICONS_DIR_PATH / 'bot.svg')),
                     )
                     _apply_looky_gating(crawler_action)
 
@@ -527,7 +530,7 @@ class TableContextMenuMixin(QTableView):
                         'Proxy Join',
                         tooltip="Call the Looky System proxy bot to join this player's session.",
                         handler=lambda: show_proxy_join_request(self, players[0]),
-                        icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'user-plus.svg')),
+                        icon=QIcon(str(ICONS_DIR_PATH / 'user-plus.svg')),
                     )
                     _apply_looky_gating(proxy_join_action)
 
@@ -541,7 +544,7 @@ class TableContextMenuMixin(QTableView):
                         'Remove Looky Usernames…',
                         tooltip='Hide selected Looky System usernames on this IP (useful for VPN or shared IPs).',
                         handler=lambda: looky_remove_usernames_for_player(self, target_player, active_looky_names),
-                        icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')),
+                        icon=QIcon(str(ICONS_DIR_PATH / 'remove.svg')),
                     )
                 if removed_looky_names:
                     add_action(
@@ -549,7 +552,7 @@ class TableContextMenuMixin(QTableView):
                         'Restore Removed Looky Usernames…',
                         tooltip='Re-add previously removed Looky System usernames on this IP.',
                         handler=lambda: looky_restore_usernames_for_player(self, target_player, removed_looky_names),
-                        icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'rotate-ccw.svg')),
+                        icon=QIcon(str(ICONS_DIR_PATH / 'rotate-ccw.svg')),
                     )
                 return
 
@@ -571,7 +574,7 @@ class TableContextMenuMixin(QTableView):
                     'View on Website (All Selected)',
                     tooltip=f'Open {profile_count} player profile{pluralize(profile_count)} on the Looky System website.',
                     handler=_open_all_selected_profiles,
-                    icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'globe.svg')),
+                    icon=QIcon(str(ICONS_DIR_PATH / 'globe.svg')),
                 )
 
             looky_menu.addSeparator()
@@ -585,7 +588,7 @@ class TableContextMenuMixin(QTableView):
                 'Lookup (All Selected)',
                 tooltip='Query the Looky System API for each selected player IP.',
                 handler=_show_looky_lookup_for_all,
-                icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'user.svg')),
+                icon=QIcon(str(ICONS_DIR_PATH / 'user.svg')),
             )
             _apply_looky_gating(lookup_all_action)
 
@@ -602,7 +605,7 @@ class TableContextMenuMixin(QTableView):
                 'Scan Ports…',
                 tooltip=f'Scan TCP and UDP ports on the selected host{pluralize(len(ip_addresses))}.',
                 handler=lambda: scan_ports_ip(ip_addresses),
-                icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'radar.svg')),
+                icon=QIcon(str(ICONS_DIR_PATH / 'radar.svg')),
             )
 
         def get_script_candidates(directory: Path) -> list[Path]:
@@ -631,7 +634,7 @@ class TableContextMenuMixin(QTableView):
             add_scripts_to_menu(menu, user_scripts, ip_addresses, per_ip=per_ip)
 
         def add_user_scripts_menu(ip_addresses: list[str]) -> None:
-            scripts_menu = add_menu(context_menu, 'User Scripts', icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'code.svg')))
+            scripts_menu = add_menu(context_menu, 'User Scripts', icon=QIcon(str(ICONS_DIR_PATH / 'code.svg')))
             builtin_scripts = get_script_candidates(BUILTIN_SCRIPTS_DIR_PATH)
             user_scripts = get_script_candidates(USER_SCRIPTS_DIR_PATH)
 
@@ -644,7 +647,7 @@ class TableContextMenuMixin(QTableView):
                     scripts_menu,
                     'All IPs as Args',
                     'Pass all selected IPs as arguments to the script in one call.',
-                    icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'folder.svg')),
+                    icon=QIcon(str(ICONS_DIR_PATH / 'folder.svg')),
                 )
                 _populate_scripts_menu(all_at_once_menu, builtin_scripts, user_scripts, ip_addresses)
 
@@ -652,7 +655,7 @@ class TableContextMenuMixin(QTableView):
                     scripts_menu,
                     'One Process per IP',
                     'Spawn a separate script process for each selected IP.',
-                    icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'file-plus.svg')),
+                    icon=QIcon(str(ICONS_DIR_PATH / 'file-plus.svg')),
                 )
                 _populate_scripts_menu(per_ip_menu, builtin_scripts, user_scripts, ip_addresses, per_ip=True)
 
@@ -662,7 +665,7 @@ class TableContextMenuMixin(QTableView):
             if not players:
                 return
 
-            detections_menu = add_menu(context_menu, 'Detections', icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'shield.svg')))
+            detections_menu = add_menu(context_menu, 'Detections', icon=QIcon(str(ICONS_DIR_PATH / 'shield.svg')))
             if len(players) == 1:
                 build_detections_menu(detections_menu, add_action, players[0], self)
                 return
@@ -719,28 +722,28 @@ class TableContextMenuMixin(QTableView):
                 context_menu,
                 'Search in\u2026',
                 "Search this cell's text in logs and the UserIP database.",
-                icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'search.svg')),
+                icon=QIcon(str(ICONS_DIR_PATH / 'search.svg')),
             )
             add_action(
                 search_menu,
                 'UserIP All Databases',
                 tooltip='Open the UserIP Manager searching across all databases with this text pre-filled.',
                 handler=_make_search_handler(main_window.open_userip_manager_and_search),
-                icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'database.svg')),
+                icon=QIcon(str(ICONS_DIR_PATH / 'database.svg')),
             )
             add_action(
                 search_menu,
                 'UserIP Logging',
                 tooltip='Open the Logs Manager on the UserIP Logging tab and filter by this text.',
                 handler=_make_search_handler(main_window.open_logs_manager_and_search_userip),
-                icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'file-text.svg')),
+                icon=QIcon(str(ICONS_DIR_PATH / 'file-text.svg')),
             )
             add_action(
                 search_menu,
                 'Sessions Logging',
                 tooltip='Open the Logs Manager on the Sessions Logging tab and search across all session files for this text.',
                 handler=_make_search_handler(main_window.open_logs_manager_and_search_sessions),
-                icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'folder.svg')),
+                icon=QIcon(str(ICONS_DIR_PATH / 'folder.svg')),
             )
 
         def add_shared_selected_players_actions(ip_addresses: list[str], players: list[Player]) -> None:
@@ -770,7 +773,7 @@ class TableContextMenuMixin(QTableView):
                     clear_pending_disconnections=False,
                     mark_manually_cleared=True,
                 ),
-                icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'x.svg')),
+                icon=QIcon(str(ICONS_DIR_PATH / 'x.svg')),
             )
 
         def add_host_diagnostics_action(ip_address: str) -> None:
@@ -807,13 +810,13 @@ class TableContextMenuMixin(QTableView):
                         'Host Diagnostics…',
                         tooltip='Show session host detection diagnostics recorded for this player.',
                         handler=_build_diagnostics_handler(history_diagnostics, history_entry.dialog_key),
-                        icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'bug.svg')),
+                        icon=QIcon(str(ICONS_DIR_PATH / 'bug.svg')),
                     )
             elif len(player_history_entries) > 1:
                 host_diagnostics_menu = add_menu(
                     context_menu,
                     'Host Diagnostics',
-                    icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'bug.svg')),
+                    icon=QIcon(str(ICONS_DIR_PATH / 'bug.svg')),
                 )
                 now = datetime.now(tz=LOCAL_TZ)
                 for history_entry in reversed(player_history_entries):
@@ -835,7 +838,7 @@ class TableContextMenuMixin(QTableView):
                     'Host Diagnostics…',
                     tooltip='Show session host detection diagnostics for the currently detected host.',
                     handler=_build_diagnostics_handler(current_host_diagnostics, 'host_diagnostics'),
-                    icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'bug.svg')),
+                    icon=QIcon(str(ICONS_DIR_PATH / 'bug.svg')),
                 )
             elif SessionHost.last_diagnostics is not None:
                 latest_diagnostics = SessionHost.last_diagnostics
@@ -844,7 +847,7 @@ class TableContextMenuMixin(QTableView):
                     'Host Diagnostics…',
                     tooltip='Show session host detection diagnostics from the last evaluation.',
                     handler=_build_diagnostics_handler(latest_diagnostics, 'host_diagnostics'),
-                    icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'bug.svg')),
+                    icon=QIcon(str(ICONS_DIR_PATH / 'bug.svg')),
                 )
             else:
                 action = add_action(
@@ -852,7 +855,7 @@ class TableContextMenuMixin(QTableView):
                     'Host Diagnostics…',
                     tooltip='No session host detection diagnostics are available yet.',
                     handler=None,
-                    icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'bug.svg')),
+                    icon=QIcon(str(ICONS_DIR_PATH / 'bug.svg')),
                 )
                 action.setEnabled(False)
 
@@ -861,19 +864,19 @@ class TableContextMenuMixin(QTableView):
             'Copy Selection',
             tooltip='Copy selected cells to your clipboard.',
             handler=lambda: self.copy_selected_cells(selected_model, selected_indexes),
-            icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')),
+            icon=QIcon(str(ICONS_DIR_PATH / 'copy.svg')),
         )
         copy_selection_action.setShortcut('Ctrl+C')
         add_copy_for_discord_action(selected_players)
         context_menu.addSeparator()
 
-        select_menu = add_menu(context_menu, 'Select', icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square-check.svg')))
+        select_menu = add_menu(context_menu, 'Select', icon=QIcon(str(ICONS_DIR_PATH / 'square-check.svg')))
         select_all_action = add_action(
             select_menu,
             'Select All',
             tooltip='Select all cells in the table.',
             handler=self.select_all_cells,
-            icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square-check.svg')),
+            icon=QIcon(str(ICONS_DIR_PATH / 'square-check.svg')),
         )
         select_all_action.setShortcut('Ctrl+A')
         add_action(
@@ -881,37 +884,37 @@ class TableContextMenuMixin(QTableView):
             'Select Row',
             tooltip='Select all cells in this row.',
             handler=lambda: self.select_row_cells(index.row()),
-            icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'arrow-right.svg')),
+            icon=QIcon(str(ICONS_DIR_PATH / 'arrow-right.svg')),
         )
         add_action(
             select_menu,
             'Select Column',
             tooltip='Select all cells in this column.',
             handler=lambda: self.select_column_cells(index.column()),
-            icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'arrow-down.svg')),
+            icon=QIcon(str(ICONS_DIR_PATH / 'arrow-down.svg')),
         )
 
-        unselect_menu = add_menu(context_menu, 'Unselect', icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square.svg')))
+        unselect_menu = add_menu(context_menu, 'Unselect', icon=QIcon(str(ICONS_DIR_PATH / 'square.svg')))
         add_action(
             unselect_menu,
             'Unselect All',
             tooltip='Unselect all cells in the table.',
             handler=self.unselect_all_cells,
-            icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square.svg')),
+            icon=QIcon(str(ICONS_DIR_PATH / 'square.svg')),
         )
         add_action(
             unselect_menu,
             'Unselect Row',
             tooltip='Unselect all cells in this row.',
             handler=lambda: self.unselect_row_cells(index.row()),
-            icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'arrow-right.svg')),
+            icon=QIcon(str(ICONS_DIR_PATH / 'arrow-right.svg')),
         )
         add_action(
             unselect_menu,
             'Unselect Column',
             tooltip='Unselect all cells in this column.',
             handler=lambda: self.unselect_column_cells(index.column()),
-            icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'arrow-down.svg')),
+            icon=QIcon(str(ICONS_DIR_PATH / 'arrow-down.svg')),
         )
         context_menu.addSeparator()
 

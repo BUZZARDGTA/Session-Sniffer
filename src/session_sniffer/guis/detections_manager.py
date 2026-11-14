@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 from typing import TYPE_CHECKING, ClassVar, cast, override
 
-from pydantic import ValidationError
+from pydantic import TypeAdapter, ValidationError
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (
@@ -22,7 +22,7 @@ from PySide6.QtWidgets import (
 )
 
 from session_sniffer.background import clear_voice_notification_queue, retrigger_detections_scan
-from session_sniffer.constants.local import COMBO_RULES_PATH, DETECTIONS_JSON_PATH, RESOURCES_DIR_PATH
+from session_sniffer.constants.local import COMBO_RULES_PATH, DETECTIONS_JSON_PATH
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.guis._combo_rule_editor import (
     ComboRuleEditorDialog,
@@ -38,6 +38,7 @@ from session_sniffer.guis._dialog_mixins import (
 )
 from session_sniffer.guis.country_data import normalize_continent_name, normalize_country_name
 from session_sniffer.guis.stylesheets import DETECTIONS_MANAGER_HEADER_STYLESHEET, DIALOG_BUTTON_STYLESHEET
+from session_sniffer.guis.theming import ICONS_DIR_PATH
 from session_sniffer.guis.utils import (
     consume_maximize_on_show,
     resize_window_for_screen,
@@ -49,7 +50,7 @@ from session_sniffer.player.combo_rules import ComboRulesManager
 from session_sniffer.player.detections import GUIDetectionSettings
 from session_sniffer.rendering_core.types import CaptureState
 from session_sniffer.settings import Settings
-from session_sniffer.text_utils import DEFAULT_MANUAL_SUSPEND_DURATION_SECONDS
+from session_sniffer.text_utils import DEFAULT_MANUAL_SUSPEND_DURATION_SECONDS, pluralize
 
 if TYPE_CHECKING:
     from PySide6.QtGui import QKeyEvent, QShowEvent
@@ -118,34 +119,34 @@ class DetectionsManagerDialog(DetectionsManagerTabsMixin, QDialog):
 
         # Tabs
         self._tabs = QTabWidget()
-        self._tabs.addTab(self.create_player_events_tab(), QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'user-round.svg')), 'Player Events')
-        self._tabs.addTab(self.create_network_based_tab(), QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'ethernet-port.svg')), 'Network-Based')
-        self._tabs.addTab(self.create_geo_based_tab(), QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'globe.svg')), 'Geography-Based')
-        self._tabs.addTab(self.create_combo_rules_tab(), QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'link.svg')), 'Combo Rules')
+        self._tabs.addTab(self.create_player_events_tab(), QIcon(str(ICONS_DIR_PATH / 'user-round.svg')), 'Player Events')
+        self._tabs.addTab(self.create_network_based_tab(), QIcon(str(ICONS_DIR_PATH / 'ethernet-port.svg')), 'Network-Based')
+        self._tabs.addTab(self.create_geo_based_tab(), QIcon(str(ICONS_DIR_PATH / 'globe.svg')), 'Geography-Based')
+        self._tabs.addTab(self.create_combo_rules_tab(), QIcon(str(ICONS_DIR_PATH / 'link.svg')), 'Combo Rules')
         if Settings.is_gta5_feature_set():
-            self._tabs.addTab(self.create_gta5_relays_tab(), QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'route.svg')), 'GTA5 Relays')
+            self._tabs.addTab(self.create_gta5_relays_tab(), QIcon(str(ICONS_DIR_PATH / 'route.svg')), 'GTA5 Relays')
         layout.addWidget(self._tabs)
 
         # Bottom buttons
         button_row = QHBoxLayout()
 
-        import_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'import.svg')), ' Import')
+        import_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'import.svg')), ' Import')
         import_button.setToolTip('Import detection settings from a JSON file')
         import_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
         import_button.clicked.connect(self._import_detections)
         button_row.addWidget(import_button)
 
-        export_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'upload.svg')), ' Export')
+        export_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'upload.svg')), ' Export')
         export_button.setToolTip('Export detection settings to a JSON file')
         export_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
         export_button.clicked.connect(self._export_detections)
         button_row.addWidget(export_button)
 
-        reset_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'rotate-ccw.svg')), ' Reset all…')
+        reset_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'rotate-ccw.svg')), ' Reset all…')
         reset_button.setToolTip('Reset all detection settings to defaults')
         setup_tab_reset_buttons(button_row, reset_button, self._reset_to_defaults, self._reset_current_tab)
 
-        close_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'x.svg')), ' Close')
+        close_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'x.svg')), ' Close')
         close_button.setToolTip('Close the Detections Manager')
         close_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
         close_button.clicked.connect(self.close)
@@ -308,23 +309,37 @@ class DetectionsManagerDialog(DetectionsManagerTabsMixin, QDialog):
             QMessageBox.information(self, TITLE, 'Detection settings exported successfully.')
 
     def _import_detections(self) -> None:
-        """Import detection settings (including combo rules) from a JSON file."""
+        """Import detection settings (or a standalone combo-rules list) from a JSON file."""
         file_path, _ = QFileDialog.getOpenFileName(
             self,
             'Import Detection Settings',
             '',
             'JSON Files (*.json);;All Files (*.*)',
         )
-        if file_path:
-            try:
-                GUIDetectionSettings.import_from_file(Path(file_path))
-                GUIDetectionSettings.export_to_file(DETECTIONS_JSON_PATH)
-            except (ValidationError, OSError, json.JSONDecodeError) as e:
-                QMessageBox.critical(self, 'Import Error', f'Failed to import settings:\n{e}')
+        if not file_path:
+            return
+        source = Path(file_path)
+        try:
+            raw_text = source.read_text(encoding='utf-8')
+            parsed = json.loads(raw_text)
+            if isinstance(parsed, list):
+                imported_rules = TypeAdapter(list[ComboRule]).validate_python(parsed)
+                start_index = len(ComboRulesManager.rules)
+                ComboRulesManager.rules.extend(imported_rules)
+                ComboRulesManager.save_to_file(COMBO_RULES_PATH)
+                self.refresh_combo_rules_list(selected_rows=list(range(start_index, len(ComboRulesManager.rules))))
+                if any(rule.enabled for rule in imported_rules):
+                    retrigger_detections_scan()
+                QMessageBox.information(self, TITLE, f'Imported {len(imported_rules)} combo rule{pluralize(len(imported_rules))} successfully.')
                 return
-            self.load_current_settings()
-            retrigger_detections_scan()
-            QMessageBox.information(self, TITLE, 'Detection settings imported successfully.')
+            GUIDetectionSettings.import_from_file(source)
+            GUIDetectionSettings.export_to_file(DETECTIONS_JSON_PATH)
+        except (ValidationError, OSError, json.JSONDecodeError) as e:
+            QMessageBox.critical(self, 'Import Error', f'Failed to import settings:\n{e}')
+            return
+        self.load_current_settings()
+        retrigger_detections_scan()
+        QMessageBox.information(self, TITLE, 'Detection settings imported successfully.')
 
     def _reset_tab_to_defaults(self, prefixes: tuple[str, ...]) -> None:
         """Reset all detection widgets for the given *prefixes* to their default values and persist."""
