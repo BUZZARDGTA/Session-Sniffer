@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Final, cast, override
 from PySide6.QtCore import QSignalBlocker, Qt, QTimer, Signal
 from PySide6.QtGui import QCloseEvent, QIcon
 from PySide6.QtWidgets import (
+    QCheckBox,
     QComboBox,
     QDialog,
     QFormLayout,
@@ -23,6 +24,7 @@ from shiboken6 import isValid
 from session_sniffer.background.events import gui_closed__event
 from session_sniffer.guis._crashing_qthread import CrashingQThread
 from session_sniffer.guis._dialog_mixins import UnsavedChangesMixin
+from session_sniffer.guis._settings_widget_builders import format_setting_tooltip
 from session_sniffer.guis._theme_preview_card import ThemePreviewCard
 from session_sniffer.guis.live_theme import (
     PreparedTheme,
@@ -30,7 +32,10 @@ from session_sniffer.guis.live_theme import (
     apply_runtime_theme,
     prepare_theme_assets,
     prime_current_theme_icon_tags,
+    register_post_theme_refresh,
+    resolve_effective_theme,
     resolve_theme_by_name,
+    set_live_follow_system_checkbox,
 )
 from session_sniffer.guis.loading_overlay import LoadingOverlay, loading_overlay_scope, pump_active_loading_overlays
 from session_sniffer.guis.stylesheets import COMPACT_BUTTON_STYLESHEET
@@ -40,11 +45,13 @@ from session_sniffer.guis.theming import (
     DEFAULT_THEME_NAME,
     ICONS_DIR_PATH,
     Theme,
+    detect_system_theme_name,
     get_active_theme,
     load_themes_file,
     themed_qss,
 )
 from session_sniffer.guis.utils import get_ui_scale
+from session_sniffer.settings import SETTING_METADATA
 from session_sniffer.settings.settings import Settings
 
 if TYPE_CHECKING:
@@ -85,6 +92,7 @@ class SettingsDialogThemeMixin(UnsavedChangesMixin, QDialog):
     """Themes tab preview gallery and `ThemeManagerDialog` synchronization helpers."""
 
     _widgets: dict[str, QWidget]
+    _labels: dict[str, QLabel]
     _old_values: dict[str, SettingValue]
     _initial_values: dict[str, SettingValue]
     _loading_settings: bool
@@ -121,9 +129,9 @@ class SettingsDialogThemeMixin(UnsavedChangesMixin, QDialog):
             self._theme_loading_overlay = None
 
     def _revert_live_theme_to_persisted(self) -> None:
-        """Restore the active runtime theme to the persisted `Settings.gui_theme` when changes are discarded."""
+        """Restore the active runtime theme to the persisted effective theme when changes are discarded."""
         self.cancel_pending_live_theme_switch()
-        persisted_theme = resolve_theme_by_name(Settings.gui_theme)
+        persisted_theme = resolve_effective_theme()
         if persisted_theme == get_active_theme():
             return
         if self.isVisible():
@@ -158,8 +166,41 @@ class SettingsDialogThemeMixin(UnsavedChangesMixin, QDialog):
             self._restart_notice_banner.setToolTip('One or more modified settings require a capture restart upon saving.')
         self._restart_notice_banner.setVisible(needs_capture_restart)
 
+    def _is_follow_system_checked(self) -> bool:
+        follow_cb = self._widgets.get('gui_theme_follow_system')
+        return follow_cb.isChecked() if isinstance(follow_cb, QCheckBox) else Settings.gui_theme_follow_system
+
+    def _effective_dialog_theme_name(self) -> str:
+        if self._is_follow_system_checked():
+            return detect_system_theme_name()
+        combo = self._widgets.get('gui_theme')
+        return combo.currentText() if isinstance(combo, QComboBox) and combo.currentText() else Settings.gui_theme
+
+    def _sync_follow_system_ui_state(self) -> None:
+        follow_system = self._is_follow_system_checked()
+        combo = self._widgets.get('gui_theme')
+        label = self._labels.get('gui_theme')
+        base_tooltip = format_setting_tooltip(SETTING_METADATA['gui_theme']) or ''
+        if follow_system:
+            system_name = detect_system_theme_name()
+            note = f'Disabled while Follow System Theme is enabled (currently following system {system_name} theme).'
+            tooltip = f'{base_tooltip}\n\n{note}' if base_tooltip else note
+        else:
+            tooltip = base_tooltip
+        if label is not None:
+            label.setEnabled(not follow_system)
+            label.setToolTip(tooltip)
+        if isinstance(combo, QComboBox):
+            combo.setEnabled(not follow_system)
+            combo.setToolTip(tooltip)
+
     def _build_theme_setting_row(self, form: QFormLayout, label: QLabel, widget: QWidget) -> None:
         """Append the `Theme` selector paired with the `Theme Manager…` button to *form*."""
+        follow_cb = self._widgets.get('gui_theme_follow_system')
+        if isinstance(follow_cb, QCheckBox):
+            follow_cb.toggled.connect(self._apply_selected_theme_live)
+            set_live_follow_system_checkbox(follow_cb)
+        register_post_theme_refresh(self, self._sync_selected_theme_card)
         if isinstance(widget, QComboBox):
             widget.currentTextChanged.connect(self._apply_selected_theme_live)
 
@@ -217,9 +258,8 @@ class SettingsDialogThemeMixin(UnsavedChangesMixin, QDialog):
     def _rebuild_theme_preview_cards(self) -> None:
         """Rebuild built-in and custom theme preview cards to match `self._cached_themes_file`."""
         self._theme_preview_cards.clear()
-        combo = self._widgets.get('gui_theme')
-        selected_name = combo.currentText() if isinstance(combo, QComboBox) and combo.currentText() else Settings.gui_theme
-        selected_cf = selected_name.casefold()
+        self._sync_follow_system_ui_state()
+        selected_cf = self._effective_dialog_theme_name().casefold()
 
         self._fill_preview_grid(self._builtin_preview_grid, BUILTIN_THEMES, selected_cf)
         custom_themes = [model.to_theme() for model in self._cached_themes_file.custom_themes]
@@ -227,9 +267,9 @@ class SettingsDialogThemeMixin(UnsavedChangesMixin, QDialog):
         self._custom_themes_group.setVisible(bool(custom_themes))
 
     def _sync_selected_theme_card(self, *_args: object) -> None:
-        """Update the highlighted preview card to match the `gui_theme` combo box."""
-        combo = self._widgets.get('gui_theme')
-        selected_cf = (combo.currentText() if isinstance(combo, QComboBox) else Settings.gui_theme).casefold()
+        """Synchronize Follow System Theme control state and highlight the effective preview card."""
+        self._sync_follow_system_ui_state()
+        selected_cf = self._effective_dialog_theme_name().casefold()
         for card in self._theme_preview_cards:
             card.set_selected(selected=card.theme_name.casefold() == selected_cf)
 
@@ -290,21 +330,27 @@ class SettingsDialogThemeMixin(UnsavedChangesMixin, QDialog):
         self._launch_pending_theme_worker()
 
     def _apply_selected_theme_live(self, *_args: object) -> None:
-        """Apply the currently selected `gui_theme` live across the application and update preview cards."""
+        """Apply the effective dialog theme live across the application and update preview cards."""
         self._sync_selected_theme_card()
         if self._loading_settings:
             return
-        combo = self._widgets.get('gui_theme')
-        selected_name = combo.currentText() if isinstance(combo, QComboBox) and combo.currentText() else Settings.gui_theme
-        self._request_live_theme_switch(resolve_theme_by_name(selected_name))
+        self._request_live_theme_switch(resolve_theme_by_name(self._effective_dialog_theme_name()))
 
     def _on_preview_card_clicked(self, theme_name: str) -> None:
-        """Select *theme_name* in the `gui_theme` dropdown and apply it live immediately."""
+        """Uncheck Follow System Theme if active, select *theme_name*, and apply it live immediately."""
+        follow_cb = self._widgets.get('gui_theme_follow_system')
+        follow_was_checked = False
+        if isinstance(follow_cb, QCheckBox) and follow_cb.isChecked():
+            follow_was_checked = True
+            with QSignalBlocker(follow_cb):
+                follow_cb.setChecked(False)
         combo = self._widgets.get('gui_theme')
         if isinstance(combo, QComboBox) and combo.currentText() != theme_name:
             self._set_enum(combo, theme_name)
         else:
             self._apply_selected_theme_live()
+        if follow_was_checked:
+            self._update_restart_notice()
 
     def _refresh_theme_combo_options(self, selected_name: str | None = None) -> None:
         """Reload built-in and custom theme names into the `gui_theme` combo box and preview gallery."""
@@ -320,15 +366,33 @@ class SettingsDialogThemeMixin(UnsavedChangesMixin, QDialog):
         self._rebuild_theme_preview_cards()
 
     def _open_theme_manager(self) -> None:
-        """Open the modal Theme Manager dialog and synchronize any custom theme updates."""
+        """Open the modal Theme Manager dialog and synchronize custom theme and system-theme updates."""
         self.cancel_pending_live_theme_switch()
         combo = self._widgets.get('gui_theme')
-        current_selection = combo.currentText() if isinstance(combo, QComboBox) else Settings.gui_theme
-        dialog = ThemeManagerDialog(self, initial_theme_name=current_selection)
+        manual_name = combo.currentText() if isinstance(combo, QComboBox) and combo.currentText() else Settings.gui_theme
+        follow_checked = self._is_follow_system_checked()
+        initial_selection = detect_system_theme_name() if follow_checked else manual_name
+        dialog = ThemeManagerDialog(
+            self,
+            initial_theme_name=initial_selection,
+            follow_system=follow_checked,
+            manual_theme_name=manual_name,
+        )
+        dialog.follow_system_toggled.connect(self._on_theme_manager_follow_system_toggled)
         dialog.theme_renamed.connect(self._on_custom_theme_renamed)
         dialog.themes_deleted.connect(self._on_custom_themes_deleted)
         dialog.themes_changed.connect(self._on_themes_changed)
         dialog.exec()
+
+    def _on_theme_manager_follow_system_toggled(self, raw_checked: object) -> None:
+        """Synchronize `gui_theme_follow_system` in `SettingsDialog` when toggled inside `ThemeManagerDialog`."""
+        checked = bool(raw_checked)
+        follow_cb = self._widgets.get('gui_theme_follow_system')
+        if isinstance(follow_cb, QCheckBox) and follow_cb.isChecked() != checked:
+            with QSignalBlocker(follow_cb):
+                follow_cb.setChecked(checked)
+        self._sync_selected_theme_card()
+        self._update_restart_notice()
 
     def _on_custom_theme_renamed(self, old_name: str, new_name: str) -> None:
         """Keep `Settings.gui_theme` and the active runtime theme aligned when a custom theme is renamed."""

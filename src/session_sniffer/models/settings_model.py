@@ -112,6 +112,7 @@ class SettingsModel(BaseModel):
     CAPTURE_FILTER_BLOCK_LLMNR: bool
 
     # GUI settings
+    GUI_THEME_FOLLOW_SYSTEM: bool
     GUI_THEME: str
     GUI_ALWAYS_ON_TOP: bool
     GUI_REMEMBER_WINDOW_LAYOUT: bool
@@ -218,6 +219,7 @@ class SettingsModel(BaseModel):
             'DISCORD_WEBHOOK_INCLUDE_CONNECTED',
             'DISCORD_WEBHOOK_INCLUDE_DISCONNECTED',
             'WEBSERVER_ENABLED',
+            'GUI_THEME_FOLLOW_SYSTEM',
             'GUI_ALWAYS_ON_TOP',
             'GUI_REMEMBER_WINDOW_LAYOUT',
             'GUI_SERVERS_COLOR_ENABLED',

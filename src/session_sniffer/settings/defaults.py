@@ -35,6 +35,7 @@ class SettingDefaults(TypedDict):
     capture_filter_block_uaudp: bool
     capture_filter_block_classicstun: bool
     capture_filter_block_llmnr: bool
+    gui_theme_follow_system: bool
     gui_theme: str
     gui_always_on_top: bool
     gui_remember_window_layout: bool
@@ -149,6 +150,7 @@ SETTING_DEFAULTS: SettingDefaults = {
     'capture_filter_block_uaudp': True,
     'capture_filter_block_classicstun': True,
     'capture_filter_block_llmnr': True,
+    'gui_theme_follow_system': True,
     'gui_theme': DEFAULT_THEME_NAME,
     'gui_always_on_top': False,
     'gui_remember_window_layout': False,

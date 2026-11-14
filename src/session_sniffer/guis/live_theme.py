@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (
     QAbstractButton,
     QAbstractItemView,
     QApplication,
+    QCheckBox,
     QLabel,
     QLineEdit,
     QListWidget,
@@ -38,6 +39,7 @@ from session_sniffer.guis.theming import (
     ThemeColors,
     ThemeTransform,
     commit_prepared_theme,
+    detect_system_theme_name,
     get_active_theme,
     get_theme_generation,
     get_theme_transform,
@@ -48,6 +50,7 @@ from session_sniffer.guis.theming import (
 )
 from session_sniffer.guis.theming._icons import lookup_rendered_svg_spec
 from session_sniffer.guis.utils import get_ui_scale, make_padded_icon, render_svg_pixmap_with_pair
+from session_sniffer.settings.settings import Settings
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -97,7 +100,9 @@ class _DetachedTabGroup(NamedTuple):
 class _LiveSyncState:
     applying: bool = False
     filter_installed: bool = False
+    watcher_installed: bool = False
     global_stylesheet: str = ''
+    dialog_follow_checkbox: weakref.ref[QCheckBox] | None = None
 
 
 _SYNC_STATE = _LiveSyncState()
@@ -636,6 +641,37 @@ def resolve_theme_by_name(theme_name: str) -> Theme:
     """Resolve *theme_name* from `themes.json` / built-in presets, falling back to `Dark`."""
     found = load_themes_file()[0].find_theme(theme_name)
     return found if found is not None else Theme(DEFAULT_THEME_NAME, DARK_THEME_COLORS, builtin=True)
+
+
+def resolve_effective_theme(theme_name: str | None = None, *, follow_system: bool | None = None) -> Theme:
+    """Resolve the effective runtime `Theme`, honoring *follow_system* (or `Settings.gui_theme_follow_system`)."""
+    use_system = Settings.gui_theme_follow_system if follow_system is None else follow_system
+    effective_name = detect_system_theme_name() if use_system else (Settings.gui_theme if theme_name is None else theme_name)
+    return resolve_theme_by_name(effective_name)
+
+
+def set_live_follow_system_checkbox(checkbox: QCheckBox | None) -> None:
+    """Track an open `SettingsDialog` Follow System Theme checkbox so OS scheme changes respect unsaved previews."""
+    _SYNC_STATE.dialog_follow_checkbox = weakref.ref(checkbox) if checkbox is not None else None
+
+
+def _on_os_color_scheme_changed(_scheme: Qt.ColorScheme) -> None:
+    if _SYNC_STATE.applying:
+        return
+    checkbox = _SYNC_STATE.dialog_follow_checkbox() if _SYNC_STATE.dialog_follow_checkbox is not None else None
+    follow_active = checkbox.isChecked() if checkbox is not None and isValid(checkbox) and checkbox.window().isVisible() else Settings.gui_theme_follow_system
+    if not follow_active:
+        return
+    apply_runtime_theme(resolve_effective_theme(follow_system=True))
+
+
+def install_system_theme_watcher() -> None:
+    """Reconcile the startup theme with `Settings` / OS scheme and watch live OS color-scheme changes."""
+    apply_runtime_theme(resolve_effective_theme())
+    if _SYNC_STATE.watcher_installed:
+        return
+    _SYNC_STATE.watcher_installed = True
+    app.styleHints().colorSchemeChanged.connect(_on_os_color_scheme_changed)
 
 
 def apply_runtime_theme(theme: Theme) -> None:

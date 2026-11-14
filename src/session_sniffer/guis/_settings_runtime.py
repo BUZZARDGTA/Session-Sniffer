@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 from session_sniffer.background import clear_voice_notification_queue, ensure_looky_core_running, retrigger_detections_scan, wake_looky_core
 from session_sniffer.capture.filters import build_capture_filters
 from session_sniffer.capture.process_monitor import ensure_process_monitor_running
-from session_sniffer.guis.live_theme import apply_runtime_theme, resolve_theme_by_name
+from session_sniffer.guis.live_theme import apply_runtime_theme, resolve_effective_theme
 from session_sniffer.guis.loading_overlay import loading_overlay_scope, run_with_active_loading
 from session_sniffer.guis.relay_conflict import prompt_to_disable_gta5_relay_if_filtered
 from session_sniffer.guis.tables_player_actions._detection_dialogs import close_all_detection_notification_dialogs
@@ -37,7 +37,7 @@ def apply_runtime_settings_changes(
     dialog_parent: QWidget | None = None,
 ) -> None:
     """Apply runtime side effects after `Settings` attributes have been updated from `old_values` to `new_values`."""
-    selected_theme = resolve_theme_by_name(Settings.gui_theme)
+    selected_theme = resolve_effective_theme()
     theme_needs_apply = selected_theme != get_active_theme()
 
     capture_settings_changed = any(

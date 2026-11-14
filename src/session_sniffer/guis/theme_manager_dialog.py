@@ -6,9 +6,10 @@ from typing import TYPE_CHECKING, override
 
 from pydantic import ValidationError
 from PySide6.QtCore import QItemSelectionModel, QPoint, QRegularExpression, QSignalBlocker, Qt, Signal
-from PySide6.QtGui import QColor, QIcon, QKeySequence, QPainter, QPen, QPixmap, QRegularExpressionValidator, QShortcut
+from PySide6.QtGui import QColor, QIcon, QKeySequence, QRegularExpressionValidator, QShortcut
 from PySide6.QtWidgets import (
     QAbstractItemView,
+    QCheckBox,
     QColorDialog,
     QDialog,
     QFileDialog,
@@ -24,13 +25,18 @@ from PySide6.QtWidgets import (
     QMenu,
     QMessageBox,
     QPushButton,
-    QSizePolicy,
     QVBoxLayout,
     QWidget,
 )
 
 from session_sniffer.constants.local import THEMES_PATH
 from session_sniffer.constants.standalone import TITLE
+from session_sniffer.guis._theme_preview_card import (
+    PREVIEW_BASE_QSS,
+    build_theme_preview_group,
+    create_theme_list_icon,
+    token_swatch_stylesheet,
+)
 from session_sniffer.guis.delegates import ElidedTextTooltipDelegate
 from session_sniffer.guis.live_theme import apply_runtime_theme
 from session_sniffer.guis.loading_overlay import loading_overlay_scope
@@ -52,6 +58,7 @@ from session_sniffer.guis.theming import (
     ThemeColors,
     ThemeColorsModel,
     ThemesFile,
+    detect_system_theme_name,
     get_active_theme,
     load_themes_file,
     save_themes_file,
@@ -59,6 +66,7 @@ from session_sniffer.guis.theming import (
 )
 from session_sniffer.guis.theming._engine import ThemeTransform
 from session_sniffer.guis.utils import resize_window_for_screen, scale_by_ui, set_dialog_window_flags
+from session_sniffer.settings.settings import Settings
 from session_sniffer.text_utils import pluralize
 
 if TYPE_CHECKING:
@@ -67,70 +75,9 @@ if TYPE_CHECKING:
     from PySide6.QtGui import QCloseEvent, QKeyEvent
 
 _HEX_COLOR_RE = re.compile(r'^#?[0-9a-fA-F]{6}$')
-_LUMINANCE_LIGHT_THRESHOLD = 140.0
 _MAX_DELETE_LISTED_NAMES = 10
 
 _STATUS_LABEL_STYLESHEET = themed_qss('color: #9ca3af; font-size: 8.5pt; background: transparent;')
-
-_PREVIEW_BASE_QSS = (
-    'QFrame#themePreviewRoot { background-color: #121212; border: 1px solid #3e3e42; border-radius: 8px; }\n'
-    'QFrame#themePreviewCard { background-color: #1e1e1e; border: 1px solid #3e3e42; border-radius: 6px; }\n'
-    'QLabel#themePreviewTitle { color: #ffffff; background: transparent; font-size: 10pt; font-weight: 700; }\n'
-    'QLabel#themePreviewBody { color: #e0e0e0; background: transparent; font-size: 9pt; }\n'
-    'QLabel#themePreviewMuted { color: #9ca3af; background: transparent; font-size: 8.5pt; }\n'
-    'QLineEdit#themePreviewInput { background-color: #1e1e1e; color: #e0e0e0; border: 1px solid #3e3e42;'
-    ' border-radius: 4px; padding: 4px 8px; selection-background-color: #007acc; selection-color: #ffffff; }\n'
-    'QLineEdit#themePreviewInput:focus { border: 1px solid #007acc; }\n'
-    'QPushButton#themePreviewPrimaryButton { background-color: #007acc; color: #ffffff; border: 1px solid #007acc;'
-    ' border-radius: 5px; padding: 4px 12px; font-size: 8.5pt; font-weight: 700; }\n'
-    'QPushButton#themePreviewStandardButton { background-color: #2d2d30; color: #ffffff; border: 1px solid #3e3e42;'
-    ' border-radius: 5px; padding: 4px 12px; font-size: 8.5pt; font-weight: 600; }\n'
-    'QPushButton#themePreviewDangerButton { background-color: rgba(239, 68, 68, 0.22); color: #ef4444;'
-    ' border: 1px solid rgba(239, 68, 68, 0.55); border-radius: 5px; padding: 4px 12px; font-size: 8.5pt; font-weight: 700; }\n'
-    'QLabel#themePreviewBadgeAccent { background-color: rgba(0, 122, 204, 0.18); color: #007acc;'
-    ' border: 1px solid rgba(0, 122, 204, 0.50); border-radius: 4px; padding: 2px 8px; font-size: 8pt; font-weight: 700; }\n'
-    'QLabel#themePreviewBadgeSecondary { background-color: rgba(124, 58, 237, 0.18); color: #7c3aed;'
-    ' border: 1px solid rgba(124, 58, 237, 0.50); border-radius: 4px; padding: 2px 8px; font-size: 8pt; font-weight: 700; }\n'
-    'QLabel#themePreviewBadgeSuccess { background-color: rgba(34, 197, 94, 0.18); color: #22c55e;'
-    ' border: 1px solid rgba(34, 197, 94, 0.50); border-radius: 4px; padding: 2px 8px; font-size: 8pt; font-weight: 700; }\n'
-    'QLabel#themePreviewBadgeWarning { background-color: rgba(245, 158, 11, 0.18); color: #f59e0b;'
-    ' border: 1px solid rgba(245, 158, 11, 0.50); border-radius: 4px; padding: 2px 8px; font-size: 8pt; font-weight: 700; }\n'
-    'QLabel#themePreviewBadgeDanger { background-color: rgba(239, 68, 68, 0.18); color: #ef4444;'
-    ' border: 1px solid rgba(239, 68, 68, 0.50); border-radius: 4px; padding: 2px 8px; font-size: 8pt; font-weight: 700; }'
-)
-
-
-def _token_swatch_stylesheet(hex_color: str) -> str:
-    """Build an untransformed QSS string showing the literal *hex_color* token swatch."""
-    parsed = QColor(hex_color)
-    luminance = 0.299 * parsed.red() + 0.587 * parsed.green() + 0.114 * parsed.blue()
-    border_hex = '#333333' if luminance > _LUMINANCE_LIGHT_THRESHOLD else '#d0d7de'
-    return (
-        f'QPushButton {{ background-color: {hex_color}; border: 1px solid {border_hex}; border-radius: 4px; }}'
-        f' QPushButton:hover {{ border: 2px solid {border_hex}; }}'
-        f' QPushButton:disabled {{ background-color: {hex_color}; border: 1px solid #6e7681; }}'
-    )
-
-
-def _create_theme_list_icon(colors: ThemeColors) -> QIcon:
-    """Render a small two-tone swatch icon representing *colors* (`background` + `accent`)."""
-    size = scale_by_ui(16)
-    pixmap = QPixmap(size, size)
-    pixmap.fill(Qt.GlobalColor.transparent)
-
-    painter = QPainter(pixmap)
-    painter.setRenderHint(QPainter.RenderHint.Antialiasing, on=True)
-    painter.setPen(QPen(QColor(colors.border), 1))
-    painter.setBrush(QColor(colors.background))
-    painter.drawRoundedRect(1, 1, size - 2, size - 2, 3, 3)
-
-    dot_radius = max(2, (size - 6) // 2)
-    center = size // 2
-    painter.setPen(Qt.PenStyle.NoPen)
-    painter.setBrush(QColor(colors.accent))
-    painter.drawEllipse(center - dot_radius, center - dot_radius, dot_radius * 2, dot_radius * 2)
-    painter.end()
-    return QIcon(pixmap)
 
 
 def _make_unique_theme_name(desired_base: str, existing_casefold: set[str]) -> str:
@@ -167,13 +114,23 @@ class ThemeManagerDialog(QDialog):
     themes_changed = Signal()
     theme_renamed = Signal(str, str)
     themes_deleted = Signal(object)
+    follow_system_toggled = Signal(bool)
 
-    def __init__(self, parent: QWidget | None = None, *, initial_theme_name: str = DEFAULT_THEME_NAME, themes_path: Path = THEMES_PATH) -> None:
+    def __init__(
+        self,
+        parent: QWidget | None = None,
+        *,
+        initial_theme_name: str = DEFAULT_THEME_NAME,
+        follow_system: bool | None = None,
+        manual_theme_name: str | None = None,
+        themes_path: Path = THEMES_PATH,
+    ) -> None:
         """Initialize the Theme Manager dialog and load `themes.json`."""
         super().__init__(parent)
         self._themes_path = themes_path
         self._themes_file, load_error = load_themes_file(self._themes_path)
         self._selected_theme_name: str = DEFAULT_THEME_NAME
+        self._manual_theme_name: str = manual_theme_name or initial_theme_name or Settings.gui_theme
         self._edited_theme_name: str | None = None
         self._populating_editor = False
         self._committing_rename = False
@@ -187,6 +144,8 @@ class ThemeManagerDialog(QDialog):
 
         self._swatch_buttons: dict[str, QPushButton] = {}
         self._hex_edits: dict[str, QLineEdit] = {}
+        self._follow_system_checkbox = QCheckBox('Follow System Theme')
+        self._follow_system_checkbox.setChecked(Settings.gui_theme_follow_system if follow_system is None else follow_system)
         self._theme_list = QListWidget()
         self._new_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'plus.svg')), ' New')
         self._duplicate_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'copy.svg')), ' Duplicate')
@@ -198,7 +157,8 @@ class ThemeManagerDialog(QDialog):
         self._preview_root = QFrame()
 
         self._build_ui()
-        self._rebuild_theme_list(select_names=[initial_theme_name])
+        effective_initial = detect_system_theme_name() if self._follow_system_checkbox.isChecked() else initial_theme_name
+        self._rebuild_theme_list(select_names=[effective_initial])
 
         if load_error is not None:
             QMessageBox.warning(self, TITLE, f'{load_error}\n\nDefault built-in themes have been loaded.')
@@ -207,6 +167,11 @@ class ThemeManagerDialog(QDialog):
     def selected_theme_name(self) -> str:
         """Return the currently selected theme name in the manager list."""
         return self._selected_theme_name
+
+    @property
+    def follow_system_enabled(self) -> bool:
+        """Return whether the Follow System Theme checkbox is currently checked."""
+        return self._follow_system_checkbox.isChecked()
 
     # ------------------------------------------------------------------
     # UI construction
@@ -241,6 +206,13 @@ class ThemeManagerDialog(QDialog):
         group.setFixedWidth(scale_by_ui(315))
         layout = QVBoxLayout(group)
         layout.setSpacing(8)
+
+        self._follow_system_checkbox.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._follow_system_checkbox.setToolTip(
+            'Automatically apply the built-in Dark or Light theme to match your operating system color scheme.',
+        )
+        self._follow_system_checkbox.toggled.connect(self._on_follow_system_toggled)
+        layout.addWidget(self._follow_system_checkbox)
 
         self._theme_list.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         self._theme_list.setItemDelegate(ElidedTextTooltipDelegate(self._theme_list))
@@ -357,79 +329,22 @@ class ThemeManagerDialog(QDialog):
             self._hex_edits[token.name] = hex_edit
 
         layout.addWidget(palette_group)
-        layout.addWidget(self._build_preview_group(), 1)
+        layout.addWidget(build_theme_preview_group(self._preview_root), 1)
         return pane
 
-    def _build_preview_group(self) -> QGroupBox:
-        preview_group = QGroupBox('Live Preview')
-        outer_layout = QVBoxLayout(preview_group)
-
-        self._preview_root.setObjectName('themePreviewRoot')
-        root_layout = QVBoxLayout(self._preview_root)
-        root_layout.setContentsMargins(12, 12, 12, 12)
-        root_layout.setSpacing(10)
-
-        card = QFrame()
-        card.setObjectName('themePreviewCard')
-        card_layout = QVBoxLayout(card)
-        card_layout.setContentsMargins(12, 10, 12, 10)
-        card_layout.setSpacing(8)
-
-        header_row = QHBoxLayout()
-        title_label = QLabel('Session Sniffer Preview')
-        title_label.setObjectName('themePreviewTitle')
-        body_label = QLabel('Connected players: 12')
-        body_label.setObjectName('themePreviewBody')
-        header_row.addWidget(title_label)
-        header_row.addStretch()
-        header_row.addWidget(body_label)
-        card_layout.addLayout(header_row)
-
-        muted_label = QLabel('Interface: Ethernet  •  Filtering active  •  Uptime: 01h 14m 22s')
-        muted_label.setObjectName('themePreviewMuted')
-        card_layout.addWidget(muted_label)
-
-        controls_row = QHBoxLayout()
-        controls_row.setSpacing(8)
-        sample_input = QLineEdit('Search players or IPs…')
-        sample_input.setObjectName('themePreviewInput')
-        sample_input.setReadOnly(True)
-        sample_input.setCursorPosition(0)
-        sample_input.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        controls_row.addWidget(sample_input, 1)
-
-        for button_text, object_name in (
-            ('Primary', 'themePreviewPrimaryButton'),
-            ('Control', 'themePreviewStandardButton'),
-            ('Danger', 'themePreviewDangerButton'),
-        ):
-            sample_button = QPushButton(button_text)
-            sample_button.setObjectName(object_name)
-            sample_button.setAutoDefault(False)
-            sample_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-            controls_row.addWidget(sample_button)
-        card_layout.addLayout(controls_row)
-
-        badges_row = QHBoxLayout()
-        badges_row.setSpacing(6)
-        for badge_text, object_name in (
-            ('Host', 'themePreviewBadgeAccent'),
-            ('Looky', 'themePreviewBadgeSecondary'),
-            ('Connected • 24 ms', 'themePreviewBadgeSuccess'),
-            ('High Rate', 'themePreviewBadgeWarning'),
-            ('Disconnected', 'themePreviewBadgeDanger'),
-        ):
-            badge = QLabel(badge_text)
-            badge.setObjectName(object_name)
-            badge.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Fixed)
-            badges_row.addWidget(badge)
-        badges_row.addStretch()
-        card_layout.addLayout(badges_row)
-
-        root_layout.addWidget(card)
-        root_layout.addStretch()
-        outer_layout.addWidget(self._preview_root)
-        return preview_group
+    def _on_follow_system_toggled(self) -> None:
+        self._commit_all_pending_edits()
+        checked = self._follow_system_checkbox.isChecked()
+        target_name = detect_system_theme_name() if checked else self._manual_theme_name
+        self._rebuild_theme_list(select_names=[target_name])
+        target_theme = self._themes_file.find_theme(target_name) or Theme(DEFAULT_THEME_NAME, DARK_THEME_COLORS, builtin=True)
+        if target_theme != get_active_theme():
+            if self.isVisible():
+                with loading_overlay_scope(self, 'Applying Theme\u2026', f'Switching to "{target_theme.name}"\u2026'):
+                    apply_runtime_theme(target_theme)
+            else:
+                apply_runtime_theme(target_theme)
+        self.follow_system_toggled.emit(checked)
 
     # ------------------------------------------------------------------
     # State synchronization & persistence
@@ -480,7 +395,7 @@ class ThemeManagerDialog(QDialog):
             self._theme_list.clear()
             for i, theme in enumerate(all_themes):
                 display_text = f'{theme.name} (Built-in)' if theme.builtin else theme.name
-                item = QListWidgetItem(_create_theme_list_icon(theme.colors), display_text)
+                item = QListWidgetItem(create_theme_list_icon(theme.colors), display_text)
                 item.setData(Qt.ItemDataRole.UserRole, theme.name)
                 self._theme_list.addItem(item)
                 name_cf = theme.name.casefold()
@@ -603,7 +518,7 @@ class ThemeManagerDialog(QDialog):
             for token_name, hex_value in theme.colors.as_dict().items():
                 swatch = self._swatch_buttons[token_name]
                 swatch.setEnabled(is_editable)
-                swatch.setStyleSheet(_token_swatch_stylesheet(hex_value))
+                swatch.setStyleSheet(token_swatch_stylesheet(hex_value))
                 hex_edit = self._hex_edits[token_name]
                 with QSignalBlocker(hex_edit):
                     hex_edit.setText(hex_value)
@@ -614,7 +529,7 @@ class ThemeManagerDialog(QDialog):
             self._populating_editor = False
 
     def _refresh_live_preview(self, colors: ThemeColors) -> None:
-        self._preview_root.setStyleSheet(ThemeTransform(colors).qss(_PREVIEW_BASE_QSS))
+        self._preview_root.setStyleSheet(ThemeTransform(colors).qss(PREVIEW_BASE_QSS))
 
     def _update_list_item_visuals(self, lookup_name: str, theme: Theme) -> None:
         target_cf = lookup_name.casefold()
@@ -624,7 +539,7 @@ class ThemeManagerDialog(QDialog):
             if isinstance(raw_name, str) and raw_name.casefold() == target_cf:
                 item.setData(Qt.ItemDataRole.UserRole, theme.name)
                 item.setText(f'{theme.name} (Built-in)' if theme.builtin else theme.name)
-                item.setIcon(_create_theme_list_icon(theme.colors))
+                item.setIcon(create_theme_list_icon(theme.colors))
                 return
 
     # ------------------------------------------------------------------
@@ -758,6 +673,8 @@ class ThemeManagerDialog(QDialog):
 
             if self._selected_theme_name.casefold() == old_name.casefold():
                 self._selected_theme_name = proposed_name
+            if self._manual_theme_name.casefold() == old_name.casefold():
+                self._manual_theme_name = proposed_name
             self._edited_theme_name = proposed_name
             self._set_name_edit_text(proposed_name)
             self._update_list_item_visuals(old_name, custom_model.to_theme())
@@ -783,7 +700,7 @@ class ThemeManagerDialog(QDialog):
             custom_model.colors = ThemeColorsModel(**updated_dict)
             return
 
-        self._swatch_buttons[token_name].setStyleSheet(_token_swatch_stylesheet(normalized_hex))
+        self._swatch_buttons[token_name].setStyleSheet(token_swatch_stylesheet(normalized_hex))
         with QSignalBlocker(self._hex_edits[token_name]):
             self._hex_edits[token_name].setText(normalized_hex)
 
@@ -864,6 +781,8 @@ class ThemeManagerDialog(QDialog):
         fallback_name = remaining[next_index].name if remaining else DEFAULT_THEME_NAME
         self._rebuild_theme_list(select_names=[fallback_name])
 
+        if self._manual_theme_name.casefold() in deleted_cf:
+            self._manual_theme_name = DEFAULT_THEME_NAME
         if get_active_theme().name.casefold() in deleted_cf:
             default_theme = Theme(DEFAULT_THEME_NAME, DARK_THEME_COLORS, builtin=True)
             if self.isVisible():

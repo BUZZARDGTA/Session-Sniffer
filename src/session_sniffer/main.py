@@ -60,6 +60,7 @@ from session_sniffer.guis.app import app
 from session_sniffer.guis.exceptions import UnsupportedScreenResolutionError
 from session_sniffer.guis.interface_selection import select_interface
 from session_sniffer.guis.interface_selection_dialog import InterfaceSelectionDialog
+from session_sniffer.guis.live_theme import install_system_theme_watcher
 from session_sniffer.guis.loading_overlay import run_with_active_loading
 from session_sniffer.guis.main_window import MainWindow
 from session_sniffer.guis.relay_conflict import prompt_to_disable_gta5_relay_if_filtered
@@ -156,6 +157,7 @@ def main() -> None:
     initialize_ui_scale(screen_size)
     app.setStyle('Fusion')
     app.setStyleSheet(get_stylesheet(compute_ui_scale(screen_size)))
+    install_system_theme_watcher()
 
     splash = SplashScreen()
     splash.show()

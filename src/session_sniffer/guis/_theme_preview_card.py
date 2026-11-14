@@ -8,6 +8,7 @@ from PySide6.QtGui import (
     QEnterEvent,
     QFont,
     QFontMetrics,
+    QIcon,
     QKeyEvent,
     QMouseEvent,
     QPainter,
@@ -15,9 +16,9 @@ from PySide6.QtGui import (
     QPen,
     QPixmap,
 )
-from PySide6.QtWidgets import QFrame, QSizePolicy, QWidget
+from PySide6.QtWidgets import QFrame, QGroupBox, QHBoxLayout, QLabel, QLineEdit, QPushButton, QSizePolicy, QVBoxLayout, QWidget
 
-from session_sniffer.guis.theming import Theme, get_active_theme, themed_qcolor, themed_text_qcolor
+from session_sniffer.guis.theming import Theme, ThemeColors, get_active_theme, themed_qcolor, themed_text_qcolor
 from session_sniffer.guis.theming._engine import ThemeTransform
 from session_sniffer.guis.utils import scale_by_ui
 
@@ -29,6 +30,140 @@ _CARD_MIN_WIDTH: Final = 248
 _CAPTION_HEIGHT: Final = 34
 _CARD_RADIUS: Final = 8.0
 _SCENE_RADIUS: Final = 5.0
+_LUMINANCE_LIGHT_THRESHOLD: Final = 140.0
+
+PREVIEW_BASE_QSS: Final = (
+    'QFrame#themePreviewRoot { background-color: #121212; border: 1px solid #3e3e42; border-radius: 8px; }\n'
+    'QFrame#themePreviewCard { background-color: #1e1e1e; border: 1px solid #3e3e42; border-radius: 6px; }\n'
+    'QLabel#themePreviewTitle { color: #ffffff; background: transparent; font-size: 10pt; font-weight: 700; }\n'
+    'QLabel#themePreviewBody { color: #e0e0e0; background: transparent; font-size: 9pt; }\n'
+    'QLabel#themePreviewMuted { color: #9ca3af; background: transparent; font-size: 8.5pt; }\n'
+    'QLineEdit#themePreviewInput { background-color: #1e1e1e; color: #e0e0e0; border: 1px solid #3e3e42;'
+    ' border-radius: 4px; padding: 4px 8px; selection-background-color: #007acc; selection-color: #ffffff; }\n'
+    'QLineEdit#themePreviewInput:focus { border: 1px solid #007acc; }\n'
+    'QPushButton#themePreviewPrimaryButton { background-color: #007acc; color: #ffffff; border: 1px solid #007acc;'
+    ' border-radius: 5px; padding: 4px 12px; font-size: 8.5pt; font-weight: 700; }\n'
+    'QPushButton#themePreviewStandardButton { background-color: #2d2d30; color: #ffffff; border: 1px solid #3e3e42;'
+    ' border-radius: 5px; padding: 4px 12px; font-size: 8.5pt; font-weight: 600; }\n'
+    'QPushButton#themePreviewDangerButton { background-color: rgba(239, 68, 68, 0.22); color: #ef4444;'
+    ' border: 1px solid rgba(239, 68, 68, 0.55); border-radius: 5px; padding: 4px 12px; font-size: 8.5pt; font-weight: 700; }\n'
+    'QLabel#themePreviewBadgeAccent { background-color: rgba(0, 122, 204, 0.18); color: #007acc;'
+    ' border: 1px solid rgba(0, 122, 204, 0.50); border-radius: 4px; padding: 2px 8px; font-size: 8pt; font-weight: 700; }\n'
+    'QLabel#themePreviewBadgeSecondary { background-color: rgba(124, 58, 237, 0.18); color: #7c3aed;'
+    ' border: 1px solid rgba(124, 58, 237, 0.50); border-radius: 4px; padding: 2px 8px; font-size: 8pt; font-weight: 700; }\n'
+    'QLabel#themePreviewBadgeSuccess { background-color: rgba(34, 197, 94, 0.18); color: #22c55e;'
+    ' border: 1px solid rgba(34, 197, 94, 0.50); border-radius: 4px; padding: 2px 8px; font-size: 8pt; font-weight: 700; }\n'
+    'QLabel#themePreviewBadgeWarning { background-color: rgba(245, 158, 11, 0.18); color: #f59e0b;'
+    ' border: 1px solid rgba(245, 158, 11, 0.50); border-radius: 4px; padding: 2px 8px; font-size: 8pt; font-weight: 700; }\n'
+    'QLabel#themePreviewBadgeDanger { background-color: rgba(239, 68, 68, 0.18); color: #ef4444;'
+    ' border: 1px solid rgba(239, 68, 68, 0.50); border-radius: 4px; padding: 2px 8px; font-size: 8pt; font-weight: 700; }'
+)
+
+
+def token_swatch_stylesheet(hex_color: str) -> str:
+    """Build an untransformed QSS string showing the literal *hex_color* token swatch."""
+    parsed = QColor(hex_color)
+    luminance = 0.299 * parsed.red() + 0.587 * parsed.green() + 0.114 * parsed.blue()
+    border_hex = '#333333' if luminance > _LUMINANCE_LIGHT_THRESHOLD else '#d0d7de'
+    return (
+        f'QPushButton {{ background-color: {hex_color}; border: 1px solid {border_hex}; border-radius: 4px; }}'
+        f' QPushButton:hover {{ border: 2px solid {border_hex}; }}'
+        f' QPushButton:disabled {{ background-color: {hex_color}; border: 1px solid #6e7681; }}'
+    )
+
+
+def create_theme_list_icon(colors: ThemeColors) -> QIcon:
+    """Render a small two-tone swatch icon representing *colors* (`background` + `accent`)."""
+    size = scale_by_ui(16)
+    pixmap = QPixmap(size, size)
+    pixmap.fill(Qt.GlobalColor.transparent)
+
+    painter = QPainter(pixmap)
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing, on=True)
+    painter.setPen(QPen(QColor(colors.border), 1))
+    painter.setBrush(QColor(colors.background))
+    painter.drawRoundedRect(1, 1, size - 2, size - 2, 3, 3)
+
+    dot_radius = max(2, (size - 6) // 2)
+    center = size // 2
+    painter.setPen(Qt.PenStyle.NoPen)
+    painter.setBrush(QColor(colors.accent))
+    painter.drawEllipse(center - dot_radius, center - dot_radius, dot_radius * 2, dot_radius * 2)
+    painter.end()
+    return QIcon(pixmap)
+
+
+def build_theme_preview_group(preview_root: QFrame) -> QGroupBox:
+    """Build the sample widgets Live Preview group box for `ThemeManagerDialog`."""
+    preview_group = QGroupBox('Live Preview')
+    outer_layout = QVBoxLayout(preview_group)
+
+    preview_root.setObjectName('themePreviewRoot')
+    root_layout = QVBoxLayout(preview_root)
+    root_layout.setContentsMargins(12, 12, 12, 12)
+    root_layout.setSpacing(10)
+
+    card = QFrame()
+    card.setObjectName('themePreviewCard')
+    card_layout = QVBoxLayout(card)
+    card_layout.setContentsMargins(12, 10, 12, 10)
+    card_layout.setSpacing(8)
+
+    header_row = QHBoxLayout()
+    title_label = QLabel('Session Sniffer Preview')
+    title_label.setObjectName('themePreviewTitle')
+    body_label = QLabel('Connected players: 12')
+    body_label.setObjectName('themePreviewBody')
+    header_row.addWidget(title_label)
+    header_row.addStretch()
+    header_row.addWidget(body_label)
+    card_layout.addLayout(header_row)
+
+    muted_label = QLabel('Interface: Ethernet  •  Filtering active  •  Uptime: 01h 14m 22s')
+    muted_label.setObjectName('themePreviewMuted')
+    card_layout.addWidget(muted_label)
+
+    controls_row = QHBoxLayout()
+    controls_row.setSpacing(8)
+    sample_input = QLineEdit('Search players or IPs…')
+    sample_input.setObjectName('themePreviewInput')
+    sample_input.setReadOnly(True)
+    sample_input.setCursorPosition(0)
+    sample_input.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+    controls_row.addWidget(sample_input, 1)
+
+    for button_text, object_name in (
+        ('Primary', 'themePreviewPrimaryButton'),
+        ('Control', 'themePreviewStandardButton'),
+        ('Danger', 'themePreviewDangerButton'),
+    ):
+        sample_button = QPushButton(button_text)
+        sample_button.setObjectName(object_name)
+        sample_button.setAutoDefault(False)
+        sample_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        controls_row.addWidget(sample_button)
+    card_layout.addLayout(controls_row)
+
+    badges_row = QHBoxLayout()
+    badges_row.setSpacing(6)
+    for badge_text, object_name in (
+        ('Host', 'themePreviewBadgeAccent'),
+        ('Looky', 'themePreviewBadgeSecondary'),
+        ('Connected • 24 ms', 'themePreviewBadgeSuccess'),
+        ('High Rate', 'themePreviewBadgeWarning'),
+        ('Disconnected', 'themePreviewBadgeDanger'),
+    ):
+        badge = QLabel(badge_text)
+        badge.setObjectName(object_name)
+        badge.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Fixed)
+        badges_row.addWidget(badge)
+    badges_row.addStretch()
+    card_layout.addLayout(badges_row)
+
+    root_layout.addWidget(card)
+    root_layout.addStretch()
+    outer_layout.addWidget(preview_root)
+    return preview_group
 
 
 class _PreviewRow(NamedTuple):

@@ -7,7 +7,8 @@ from typing import TYPE_CHECKING, Annotated, Final, Self, cast
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, ValidationError, field_validator, model_validator
 
 from session_sniffer.constants.local import SETTINGS_PATH, THEMES_PATH
-from session_sniffer.utils import atomic_write_text
+from session_sniffer.utils import atomic_write_text, custom_str_to_bool
+from session_sniffer.utils_exceptions import InvalidBooleanValueError
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -80,6 +81,7 @@ class Theme:
 
 
 DEFAULT_THEME_NAME: Final = 'Dark'
+LIGHT_THEME_NAME: Final = 'Light'
 
 DARK_THEME_COLORS: Final = ThemeColors(
     background='#121212',
@@ -100,7 +102,7 @@ DARK_THEME_COLORS: Final = ThemeColors(
 BUILTIN_THEMES: Final[tuple[Theme, ...]] = (
     Theme(DEFAULT_THEME_NAME, DARK_THEME_COLORS, builtin=True),
     Theme(
-        'Light',
+        LIGHT_THEME_NAME,
         ThemeColors(
             background='#f3f4f6',
             surface='#ffffff',
@@ -290,23 +292,36 @@ def save_themes_file(themes_file: ThemesFile, themes_path: Path = THEMES_PATH) -
     atomic_write_text(themes_path, themes_file.model_dump_json(indent=4) + '\n')
 
 
-def peek_configured_theme_name(settings_path: Path = SETTINGS_PATH) -> tuple[str, str | None]:
-    """Read `GUI_THEME` from *settings_path* before full `Settings` initialization.
+def peek_theme_config(settings_path: Path = SETTINGS_PATH) -> tuple[str, bool, str | None]:
+    """Read `GUI_THEME` and `GUI_THEME_FOLLOW_SYSTEM` from *settings_path* before full `Settings` initialization.
 
-    Returns `(theme_name, warning_or_none)`, falling back to `DEFAULT_THEME_NAME` when the settings
-    file does not exist, omits `GUI_THEME`, or cannot be parsed.
+    Returns `(theme_name, follow_system, warning_or_none)`, defaulting to `(DEFAULT_THEME_NAME, True, ...)`
+    when the settings file does not exist (first launch), omits either key, or cannot be parsed.
     """
     if not settings_path.is_file():
-        return DEFAULT_THEME_NAME, None
+        return DEFAULT_THEME_NAME, True, None
     try:
         parsed: object = json.loads(settings_path.read_text(encoding='utf-8'))
-    except (OSError, json.JSONDecodeError) as e:
-        return DEFAULT_THEME_NAME, f'Failed to read GUI_THEME from {settings_path}: {e}'
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as e:
+        return DEFAULT_THEME_NAME, True, f'Failed to read theme settings from {settings_path}: {e}'
     if not isinstance(parsed, dict):
-        return DEFAULT_THEME_NAME, None
+        return DEFAULT_THEME_NAME, True, None
+
+    theme_name = DEFAULT_THEME_NAME
+    follow_system = True
     for raw_key, raw_value in cast('dict[object, object]', parsed).items():
-        if isinstance(raw_key, str) and raw_key.upper() == 'GUI_THEME':
+        if not isinstance(raw_key, str):
+            continue
+        upper_key = raw_key.strip().upper()
+        if upper_key == 'GUI_THEME':
             if isinstance(raw_value, str) and raw_value.strip():
-                return raw_value.strip(), None
-            return DEFAULT_THEME_NAME, None
-    return DEFAULT_THEME_NAME, None
+                theme_name = raw_value.strip()
+        elif upper_key == 'GUI_THEME_FOLLOW_SYSTEM':
+            if isinstance(raw_value, bool):
+                follow_system = raw_value
+            elif isinstance(raw_value, str):
+                try:
+                    follow_system, _ = custom_str_to_bool(raw_value)
+                except InvalidBooleanValueError:
+                    follow_system = True
+    return theme_name, follow_system, None
