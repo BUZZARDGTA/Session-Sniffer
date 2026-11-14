@@ -36,6 +36,7 @@ from session_sniffer.guis._settings_runtime import SettingValue, apply_notificat
 from session_sniffer.guis.discord_intro import DiscordIntro
 from session_sniffer.guis.file_watch import DebouncedFileWatcher
 from session_sniffer.guis.live_theme import register_post_theme_refresh
+from session_sniffer.guis.loading_overlay import LoadingOverlay, run_blocking_with_loading
 from session_sniffer.guis.ping_window import PingWindow
 from session_sniffer.guis.player_resolver import PlayerResolverWindow
 from session_sniffer.guis.port_scanner_window import PortScannerWindow
@@ -265,6 +266,7 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
         self._port_heatmap_window = None
         self._session_duration_window = None
         self._capture_statistics_window = None
+        self._interface_switching_overlay: LoadingOverlay | None = None
 
         self.setWindowTitle(TITLE)
         self.setMinimumSize(scale_by_ui(1024), scale_by_ui(600))
@@ -834,10 +836,9 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
 
     def _toggle_capture(self) -> None:
         """Toggle the packet capture on/off."""
-        if self.capture.is_running():
-            self.capture.stop()
-        else:
-            self.capture.start()
+        stopping = self.capture.is_running()
+        title = 'Stopping Capture\u2026' if stopping else 'Starting Capture\u2026'
+        run_blocking_with_loading(self, title, 'Updating packet capture engine\u2026', self.capture.stop if stopping else self.capture.start)
 
         self._sync_capture_toggle_action()
         self._update_header_capture_status()
@@ -845,6 +846,18 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
 
     def set_interface_switching_mode(self, *, switching: bool) -> None:
         """Disable or re-enable the UI while an interface switch is in progress."""
+        if switching:
+            if self._interface_switching_overlay is None:
+                self._interface_switching_overlay = LoadingOverlay(
+                    self,
+                    'Switching Network Interface\u2026',
+                    'Reconfiguring packet capture and filters\u2026',
+                )
+            self._interface_switching_overlay.present_immediately()
+        elif self._interface_switching_overlay is not None:
+            self._interface_switching_overlay.close_overlay()
+            self._interface_switching_overlay = None
+
         menu_bar = self.menuBar()
         if menu_bar:
             menu_bar.setEnabled(not switching)

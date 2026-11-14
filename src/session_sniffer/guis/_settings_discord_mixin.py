@@ -18,7 +18,6 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.discord.webhook import send_test_message
 from session_sniffer.guis._settings_widget_builders import (
@@ -27,10 +26,12 @@ from session_sniffer.guis._settings_widget_builders import (
     create_standard_form_layout,
     create_text_widget,
 )
+from session_sniffer.guis.loading_overlay import run_async_with_loading
 from session_sniffer.guis.stylesheets import (
     DIALOG_DANGER_BUTTON_STYLESHEET,
     WEBHOOK_NOTE_LABEL_STYLESHEET,
 )
+from session_sniffer.guis.theming import ICONS_DIR_PATH
 from session_sniffer.settings.settings import Settings
 
 if TYPE_CHECKING:
@@ -90,7 +91,7 @@ class SettingsDialogDiscordMixin(QDialog):
             url_row_layout.setSpacing(6)
             url_row_layout.addWidget(url_line, 1)
 
-            test_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'settings.svg')), ' Test')
+            test_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'settings.svg')), ' Test')
             test_button.setFixedHeight(url_line.sizeHint().height())
             test_button.setToolTip('Send a one-time test message to this webhook URL')
             test_button.clicked.connect(partial(self._test_webhook, url_line))
@@ -129,7 +130,7 @@ class SettingsDialogDiscordMixin(QDialog):
         # Reset Stored Messages button (separate row, also gated on enabled).
         reset_messages_row = QHBoxLayout()
         reset_messages_row.addStretch()
-        reset_messages_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'refresh-cw.svg')), ' Reset Stored Messages')
+        reset_messages_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'refresh-cw.svg')), ' Reset Stored Messages')
         reset_messages_button.setToolTip(
             'Forget the IDs of the two posted messages so the next refresh creates fresh ones.\n'
             'Use this after changing channels or after Wick/automod deletes the old messages.',
@@ -200,13 +201,23 @@ class SettingsDialogDiscordMixin(QDialog):
         QMessageBox.information(self, TITLE, 'Stored Discord message IDs will be cleared when you click Save.')
 
     def _test_webhook(self, url_widget: QLineEdit) -> None:
-        """Send a test message to the URL currently in the URL widget."""
+        """Send a test message asynchronously to the URL currently in the URL widget."""
         url = url_widget.text().strip()
         if not url:
             QMessageBox.warning(self, TITLE, 'Please enter a Discord webhook URL first.')
             return
-        success, message = send_test_message(url)
-        if success:
-            QMessageBox.information(self, TITLE, message)
-        else:
-            QMessageBox.critical(self, TITLE, message)
+
+        def _on_done(result: tuple[bool, str]) -> None:
+            success, message = result
+            if success:
+                QMessageBox.information(self, TITLE, message)
+            else:
+                QMessageBox.critical(self, TITLE, message)
+
+        run_async_with_loading(
+            self,
+            'Testing Discord Webhook\u2026',
+            'Sending test message to Discord\u2026',
+            lambda: send_test_message(url),
+            _on_done,
+        )

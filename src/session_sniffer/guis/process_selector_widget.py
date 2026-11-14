@@ -21,9 +21,10 @@ from session_sniffer.capture.process import (
     is_process_running,
     matches_process_name,
 )
-from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.guis._settings_widget_builders import format_setting_tooltip
+from session_sniffer.guis.loading_overlay import run_async_with_loading, run_blocking_with_loading
 from session_sniffer.guis.target_process_dialog import TargetProcessDialog
+from session_sniffer.guis.theming import ICONS_DIR_PATH, themed_qss
 from session_sniffer.guis.utils import get_process_icon, render_svg_icon_from_resource
 from session_sniffer.rendering_core.types import CaptureState
 from session_sniffer.settings import SettingMeta, Settings
@@ -91,10 +92,10 @@ class ProcessSelectorWidget(QWidget):
         scope_layout.setSpacing(6)
         self._scope_button_group = QButtonGroup(self)
         self._scope_button_group.setExclusive(True)
-        scope_button_style = (
+        scope_button_style = themed_qss(
             'QPushButton#captureScopeButton { padding: 5px 14px; }'
             'QPushButton#captureScopeButton:checked { background-color: #347fa8; color: #ffffff; border: 1px solid #61b2df; }'
-            'QPushButton#captureScopeButton:checked:hover { background-color: #3c91bd; }'
+            'QPushButton#captureScopeButton:checked:hover { background-color: #3c91bd; }',
         )
 
         self._all_traffic_button = QPushButton('All Traffic', self)
@@ -134,7 +135,7 @@ class ProcessSelectorWidget(QWidget):
         self._combo.currentIndexChanged.connect(self._on_combo_index_changed)
         process_layout.addWidget(self._combo, 1)
 
-        browse_icon = QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'target.svg'))
+        browse_icon = QIcon(str(ICONS_DIR_PATH / 'target.svg'))
         self._browse_button = QPushButton(browse_icon, '', self)
         self._browse_button.setAccessibleName('Open advanced process selector')
         self._browse_button.setToolTip('Open the advanced process selector.')
@@ -143,7 +144,7 @@ class ProcessSelectorWidget(QWidget):
         self._browse_button.clicked.connect(self._on_browse_clicked)
         process_layout.addWidget(self._browse_button)
 
-        refresh_icon = QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'refresh-cw.svg'))
+        refresh_icon = QIcon(str(ICONS_DIR_PATH / 'refresh-cw.svg'))
         self._refresh_button = QPushButton(refresh_icon, '', self)
         self._refresh_button.setToolTip('Refresh running processes list.')
         self._refresh_button.setFixedSize(34, 34)
@@ -188,6 +189,33 @@ class ProcessSelectorWidget(QWidget):
             tooltip_parts.append(self._setting_tooltip)
         self._combo.setToolTip('\n\n'.join(tooltip_parts))
 
+    def _populate_combo_from_apps(
+        self,
+        apps: list[tuple[int, str, str]],
+        *,
+        bg_apps: list[tuple[int, str, str]] | None = None,
+    ) -> None:
+        current_pid = self._selected_pid
+        current_name = self._selected_name
+        scope_was_requested = self._specific_process_requested
+        stashed_target = self._stashed_untracked_target
+        with QSignalBlocker(self._combo):
+            self._combo.clear()
+            for pid, name, exe_path in apps:
+                self._combo.addItem(get_process_icon(exe_path), f'{name} (PID: {pid})', pid)
+                index = self._combo.count() - 1
+                item_tooltip = f'{name} (PID: {pid})\n{exe_path}' if exe_path else f'{name} (PID: {pid})'
+                self._combo.setItemData(index, item_tooltip, Qt.ItemDataRole.ToolTipRole)
+                self._combo.setItemData(index, name, _PROCESS_NAME_ROLE)
+
+            self.set_value(current_pid, current_name, _prefetched_bg_apps=bg_apps)
+            if self.value() <= 0:
+                self._stashed_untracked_target = stashed_target
+            if current_pid <= 0 and current_name is None and scope_was_requested:
+                self._specific_process_requested = True
+                self.sync_scope_state()
+        self._update_combo_tooltip()
+
     def refresh_process_list(self) -> None:
         """Refresh running processes while preserving the current selection."""
         if not CaptureState.is_local_capture():
@@ -199,28 +227,32 @@ class ProcessSelectorWidget(QWidget):
             self.sync_scope_state()
             return
 
-        current_pid = self._selected_pid
-        current_name = self._selected_name
-        scope_was_requested = self._specific_process_requested
-        stashed_target = self._stashed_untracked_target
-        with QSignalBlocker(self._combo):
-            self._combo.clear()
-            for pid, name, exe_path in get_running_applications(user_apps_only=True):
-                self._combo.addItem(get_process_icon(exe_path), f'{name} (PID: {pid})', pid)
-                index = self._combo.count() - 1
-                item_tooltip = f'{name} (PID: {pid})\n{exe_path}' if exe_path else f'{name} (PID: {pid})'
-                self._combo.setItemData(index, item_tooltip, Qt.ItemDataRole.ToolTipRole)
-                self._combo.setItemData(index, name, _PROCESS_NAME_ROLE)
+        if not self.isVisible():
+            self._populate_combo_from_apps(get_running_applications(user_apps_only=True))
+            return
 
-            self.set_value(current_pid, current_name)
-            if self.value() <= 0:
-                self._stashed_untracked_target = stashed_target
-            if current_pid <= 0 and current_name is None and scope_was_requested:
-                self._specific_process_requested = True
-                self.sync_scope_state()
-        self._update_combo_tooltip()
+        tracked_name = self._selected_name if self._track_by_name else None
 
-    def _find_combo_index_by_name(self, target_name: str) -> int:
+        def _scan_processes() -> tuple[list[tuple[int, str, str]], list[tuple[int, str, str]] | None]:
+            user_apps = get_running_applications(user_apps_only=True)
+            if tracked_name is not None and tracked_name and not any(matches_process_name(name, tracked_name) for _pid, name, _exe in user_apps):
+                return user_apps, get_running_applications(user_apps_only=False)
+            return user_apps, None
+
+        run_async_with_loading(
+            self.window(),
+            'Refreshing Processes\u2026',
+            'Scanning running applications\u2026',
+            _scan_processes,
+            lambda outcome: self._populate_combo_from_apps(outcome[0], bg_apps=outcome[1]),
+        )
+
+    def _find_combo_index_by_name(
+        self,
+        target_name: str,
+        *,
+        bg_apps: list[tuple[int, str, str]] | None = None,
+    ) -> int:
         """Return the combo index of a running process matching *target_name*."""
         for index in range(self._combo.count()):
             item_pid = self._combo.itemData(index)
@@ -229,7 +261,18 @@ class ProcessSelectorWidget(QWidget):
             item_name = self._combo.itemData(index, _PROCESS_NAME_ROLE)
             if isinstance(item_name, str) and matches_process_name(item_name, target_name):
                 return index
-        for bg_pid, bg_name, bg_exe_path in get_running_applications(user_apps_only=False):
+        resolved_bg_apps = bg_apps
+        if resolved_bg_apps is None:
+            if self.isVisible():
+                resolved_bg_apps = run_blocking_with_loading(
+                    self.window(),
+                    'Refreshing Processes\u2026',
+                    'Scanning background processes\u2026',
+                    lambda: get_running_applications(user_apps_only=False),
+                )
+            else:
+                resolved_bg_apps = get_running_applications(user_apps_only=False)
+        for bg_pid, bg_name, bg_exe_path in resolved_bg_apps:
             if matches_process_name(bg_name, target_name):
                 display_text = f'{bg_name} (PID: {bg_pid})'
                 self._combo.addItem(get_process_icon(bg_exe_path), display_text, bg_pid)
@@ -264,6 +307,7 @@ class ProcessSelectorWidget(QWidget):
         process_name: str | None = None,
         *,
         track_by_name: bool | None = None,
+        _prefetched_bg_apps: list[tuple[int, str, str]] | None = None,
     ) -> None:
         """Set the selected process in the built-in dropdown."""
         self._stashed_untracked_target = None
@@ -340,7 +384,7 @@ class ProcessSelectorWidget(QWidget):
 
             if pid <= 0:
                 if target_name is not None and self._track_by_name:
-                    matched_index = self._find_combo_index_by_name(target_name)
+                    matched_index = self._find_combo_index_by_name(target_name, bg_apps=_prefetched_bg_apps)
                     if matched_index < 0:
                         warning_icon = render_svg_icon_from_resource('triangle-alert.svg', 16, 16, '#f59e0b')
                         self._combo.addItem(warning_icon, f'{target_name} (Not Running)', 0)

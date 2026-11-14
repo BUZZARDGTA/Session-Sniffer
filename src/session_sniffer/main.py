@@ -60,6 +60,7 @@ from session_sniffer.guis.app import app
 from session_sniffer.guis.exceptions import UnsupportedScreenResolutionError
 from session_sniffer.guis.interface_selection import select_interface
 from session_sniffer.guis.interface_selection_dialog import InterfaceSelectionDialog
+from session_sniffer.guis.loading_overlay import run_with_active_loading
 from session_sniffer.guis.main_window import MainWindow
 from session_sniffer.guis.relay_conflict import prompt_to_disable_gta5_relay_if_filtered
 from session_sniffer.guis.splash_screen import SplashScreen
@@ -554,21 +555,19 @@ def main() -> None:
 
         _is_switching_interface = True
         try:
+            window.set_interface_switching_mode(switching=True)
             # Stop ARP spoofing first: the old ARP thread must not observe the new capture starting.
-            ArpSpoofingController.stop()
+            run_with_active_loading(ArpSpoofingController.stop)
 
             was_running = capture_holder.is_running()
             if was_running:
-                capture_holder.stop()
-            window.set_interface_switching_mode(switching=True)
+                run_with_active_loading(capture_holder.stop)
 
             # Run the filter probe off the Qt thread so the UI stays responsive.
-            with ThreadPoolExecutor(max_workers=1, thread_name_prefix='InterfaceReselect') as _pool:
-                _future = _pool.submit(check_broadcast_multicast_support, new_interface.device_name or new_interface.name)
-                while not _future.done():
-                    app.processEvents()
-                    time.sleep(0.016)
-                new_broadcast, new_multicast = _future.result()
+            new_broadcast, new_multicast = run_with_active_loading(
+                check_broadcast_multicast_support,
+                new_interface.device_name or new_interface.name,
+            )
 
             CaptureState.apply_interface_names(
                 is_neighbour=new_interface.is_neighbour,
@@ -630,9 +629,9 @@ def main() -> None:
             _arp_failed_event.clear()
             capture_holder.set(new_capture)
             CaptureStats.capture_started_at = time.monotonic()
-            new_capture.start()
+            run_with_active_loading(new_capture.start)
             if Settings.capture_arp_spoofing:
-                ArpSpoofingController.start(new_interface)
+                run_with_active_loading(ArpSpoofingController.start, new_interface)
             window.on_interface_switched()
         finally:
             window.set_interface_switching_mode(switching=False)

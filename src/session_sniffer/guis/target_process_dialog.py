@@ -27,15 +27,16 @@ from session_sniffer.capture.process import (
     is_process_running,
     matches_process_name,
 )
-from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.constants.tables import (
     DEFAULT_MIN_COLUMN_WIDTH,
     TARGET_PROCESS_TABLE_MIN_COLUMN_WIDTHS,
 )
 from session_sniffer.guis.delegates import SearchHighlightDelegate
+from session_sniffer.guis.loading_overlay import run_async_with_loading
 from session_sniffer.guis.stylesheets import SVG_ICON_CONTEXT_MENU_STYLESHEET
 from session_sniffer.guis.table_column_resizing import TableColumnResizeController, setup_table_header_context_menu
+from session_sniffer.guis.theming import ICONS_DIR_PATH, themed_qss
 from session_sniffer.guis.utils import (
     apply_search_icon,
     get_process_icon,
@@ -74,7 +75,7 @@ class TargetProcessDialog(QDialog):
         # Status banner
         self._status_label = QLabel()
         self._status_label.setTextFormat(Qt.TextFormat.RichText)
-        self._status_label.setStyleSheet('padding: 8px; background-color: rgba(255, 255, 255, 0.05); border-radius: 4px;')
+        self._status_label.setStyleSheet(themed_qss('padding: 8px; background-color: rgba(255, 255, 255, 0.05); border-radius: 4px;'))
         main_layout.addWidget(self._status_label)
 
         # Search bar and filter controls
@@ -87,7 +88,7 @@ class TargetProcessDialog(QDialog):
         search_layout.addWidget(search_label)
         search_layout.addWidget(self._search_input)
 
-        refresh_icon = QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'refresh-cw.svg'))
+        refresh_icon = QIcon(str(ICONS_DIR_PATH / 'refresh-cw.svg'))
         refresh_button = QPushButton(refresh_icon, ' Refresh')
         refresh_button.setToolTip('Refresh the list of currently running processes')
         refresh_button.clicked.connect(self._populate_process_table)
@@ -170,7 +171,7 @@ class TargetProcessDialog(QDialog):
 
         action_layout.addStretch()
 
-        target_icon = QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'target.svg'))
+        target_icon = QIcon(str(ICONS_DIR_PATH / 'target.svg'))
         self._sniff_selected_button = QPushButton(target_icon, ' Sniff Selected Process')
         self._sniff_selected_button.setEnabled(False)
         self._sniff_selected_button.setStyleSheet('font-weight: bold; padding: 6px 16px;')
@@ -200,8 +201,10 @@ class TargetProcessDialog(QDialog):
         """Update the status label describing the dialog's target process filter state."""
         if not CaptureState.is_local_capture():
             self._status_label.setText(
-                '<b>Status:</b> Process PID sniffing is <span style="color: #f44336; font-weight: bold;">DISABLED</span> '
-                'when capturing an external device (ARP spoofing / neighbour capture).',
+                themed_qss(
+                    '<b>Status:</b> Process PID sniffing is <span style="color: #f44336; font-weight: bold;">DISABLED</span> '
+                    'when capturing an external device (ARP spoofing / neighbour capture).',
+                ),
             )
             return
 
@@ -221,12 +224,12 @@ class TargetProcessDialog(QDialog):
         process_name = html.escape(matched_name or tracked_name or 'Unknown Process')
 
         if is_running:
-            status_badge = '<span style="color: #4CAF50; font-weight: bold;">● RUNNING</span>'
+            status_badge = themed_qss('<span style="color: #4CAF50; font-weight: bold;">● RUNNING</span>')
             pid_info = f' (PID: {display_pid})' if display_pid > 0 else ''
             mode_info = ' [Tracking by Name]' if track_by_name else ''
             self._status_label.setText(f'<b>Status:</b> Exclusively sniffing <b>{process_name}</b>{pid_info}{mode_info} — {status_badge}')
         else:
-            status_badge = '<span style="color: #f44336; font-weight: bold;">● NOT RUNNING</span>'
+            status_badge = themed_qss('<span style="color: #f44336; font-weight: bold;">● NOT RUNNING</span>')
             if track_by_name and tracked_name is not None:
                 self._status_label.setText(
                     f'<b>Status:</b> Exclusively tracking <b>{html.escape(tracked_name)}</b> by name — {status_badge} (waiting to launch)',
@@ -307,10 +310,9 @@ class TargetProcessDialog(QDialog):
             return self._user_selected_name
         return self.selected_process_name
 
-    def _populate_process_table(self) -> None:
-        """Populate the process table with running applications and games."""
-        user_apps_only = self._user_apps_only_checkbox.isChecked()
-        self._cached_processes = get_running_applications(user_apps_only=user_apps_only)
+    def _apply_loaded_processes(self, processes: list[tuple[int, str, str]]) -> None:
+        """Apply enumerated *processes* to cached search metadata and refresh the table."""
+        self._cached_processes = processes
         self._cached_search_meta = [
             (
                 proc,
@@ -341,6 +343,20 @@ class TargetProcessDialog(QDialog):
         self._update_status_label()
         self._filter_process_list(self._search_input.text())
         self._column_resizer.setup_column_resizing()
+
+    def _populate_process_table(self) -> None:
+        """Populate the process table with running applications and games."""
+        user_apps_only = self._user_apps_only_checkbox.isChecked()
+        if not self.isVisible():
+            self._apply_loaded_processes(get_running_applications(user_apps_only=user_apps_only))
+            return
+        run_async_with_loading(
+            self,
+            'Refreshing Processes\u2026',
+            'Enumerating running applications\u2026',
+            lambda: get_running_applications(user_apps_only=user_apps_only),
+            self._apply_loaded_processes,
+        )
 
     def _filter_process_list(self, filter_text: str) -> None:
         """Filter and sort table rows according to the search query."""
@@ -632,7 +648,7 @@ class TargetProcessDialog(QDialog):
         menu.setStyleSheet(SVG_ICON_CONTEXT_MENU_STYLESHEET)
         menu.setToolTipsVisible(True)
 
-        target_icon = QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'target.svg'))
+        target_icon = QIcon(str(ICONS_DIR_PATH / 'target.svg'))
         sniff_action = QAction(target_icon, f"Sniff '{process_name}'", menu)
         sniff_action.setToolTip(f'Select {process_name} (PID: {pid_str}) and filter network capture to it.')
         sniff_action.triggered.connect(self._on_sniff_selected_clicked)
@@ -640,20 +656,20 @@ class TargetProcessDialog(QDialog):
 
         menu.addSeparator()
 
-        copy_row_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), 'Copy Row', menu)
+        copy_row_action = QAction(QIcon(str(ICONS_DIR_PATH / 'copy.svg')), 'Copy Row', menu)
         copy_row_action.setShortcut('Ctrl+C')
         copy_row_action.setToolTip('Copy selected row details to the clipboard.')
         copy_row_action.triggered.connect(self._copy_selected_row)
         menu.addAction(copy_row_action)
 
         if exe_path:
-            copy_path_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), 'Copy Executable Path', menu)
+            copy_path_action = QAction(QIcon(str(ICONS_DIR_PATH / 'copy.svg')), 'Copy Executable Path', menu)
             copy_path_action.setToolTip('Copy the full executable path to the clipboard.')
             copy_path_action.triggered.connect(lambda: set_clipboard_text(exe_path))
             menu.addAction(copy_path_action)
 
         if process_name:
-            copy_name_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), 'Copy Process Name', menu)
+            copy_name_action = QAction(QIcon(str(ICONS_DIR_PATH / 'copy.svg')), 'Copy Process Name', menu)
             copy_name_action.setToolTip('Copy the process name to the clipboard.')
             copy_name_action.triggered.connect(lambda: set_clipboard_text(process_name))
             menu.addAction(copy_name_action)
