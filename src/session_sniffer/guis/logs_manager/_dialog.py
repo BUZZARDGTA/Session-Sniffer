@@ -18,16 +18,17 @@ from session_sniffer.constants.local import (
     DEBUG_LOG_PATH,
     DETECTION_LOGGING_PATH,
     PROTECTION_LOGGING_PATH,
-    RESOURCES_DIR_PATH,
     SESSIONS_LOGGING_DIR_PATH,
     USERIP_LOGGING_PATH,
 )
 from session_sniffer.constants.standalone import TITLE
+from session_sniffer.guis.loading_overlay import run_async_with_loading
 from session_sniffer.guis.logs_manager._csv_tab import CsvLogTab, CsvLogTabConfig
 from session_sniffer.guis.logs_manager._helpers import backup_and_truncate_log_file
 from session_sniffer.guis.logs_manager._sessions_tab import SessionsLogTab
 from session_sniffer.guis.logs_manager._text_tab import TextLogTab
 from session_sniffer.guis.stylesheets import DIALOG_BUTTON_STYLESHEET, DIALOG_DANGER_BUTTON_STYLESHEET
+from session_sniffer.guis.theming import ICONS_DIR_PATH
 from session_sniffer.guis.utils import consume_maximize_on_show, resize_window_for_screen, scale_by_ui, set_dialog_window_flags
 from session_sniffer.rendering_core.renderer import SESSIONS_LOGGING_PATH
 from session_sniffer.settings import Settings
@@ -62,7 +63,7 @@ class LogsManager(QDialog):
                 column_min_widths={5: 160},
             ),
         )
-        tabs.addTab(self._userip_tab, QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'database.svg')), 'UserIP Logging')
+        tabs.addTab(self._userip_tab, QIcon(str(ICONS_DIR_PATH / 'database.svg')), 'UserIP Logging')
 
         self._detection_tab = CsvLogTab(
             CsvLogTabConfig(
@@ -73,7 +74,7 @@ class LogsManager(QDialog):
                 column_min_widths={0: 220, 5: 160},
             ),
         )
-        tabs.addTab(self._detection_tab, QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'bell.svg')), 'Detection Logging')
+        tabs.addTab(self._detection_tab, QIcon(str(ICONS_DIR_PATH / 'bell.svg')), 'Detection Logging')
         self._protection_tab = CsvLogTab(
             CsvLogTabConfig(
                 file_path=PROTECTION_LOGGING_PATH,
@@ -83,13 +84,13 @@ class LogsManager(QDialog):
                 column_min_widths={0: 220, 5: 160},
             ),
         )
-        tabs.addTab(self._protection_tab, QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'shield.svg')), 'Protection Logging')
+        tabs.addTab(self._protection_tab, QIcon(str(ICONS_DIR_PATH / 'shield.svg')), 'Protection Logging')
         self._sessions_tab = SessionsLogTab(sessions_dir=SESSIONS_LOGGING_DIR_PATH)
-        tabs.addTab(self._sessions_tab, QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'folder.svg')), 'Sessions Logging')
+        tabs.addTab(self._sessions_tab, QIcon(str(ICONS_DIR_PATH / 'folder.svg')), 'Sessions Logging')
         self._debug_tab = TextLogTab(file_path=DEBUG_LOG_PATH, enable_severity_filter=True)
-        tabs.addTab(self._debug_tab, QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'bug.svg')), 'Debug Log')
+        tabs.addTab(self._debug_tab, QIcon(str(ICONS_DIR_PATH / 'bug.svg')), 'Debug Log')
         self._crash_tab = TextLogTab(file_path=CRASH_LOG_PATH)
-        tabs.addTab(self._crash_tab, QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'triangle-alert.svg')), 'Crash Log')
+        tabs.addTab(self._crash_tab, QIcon(str(ICONS_DIR_PATH / 'triangle-alert.svg')), 'Crash Log')
 
         self._purgeable_tabs = (self._userip_tab, self._detection_tab, self._protection_tab, self._debug_tab, self._crash_tab)
         self._all_tabs = (self._userip_tab, self._detection_tab, self._protection_tab, self._sessions_tab, self._debug_tab, self._crash_tab)
@@ -101,7 +102,7 @@ class LogsManager(QDialog):
         button_row = QHBoxLayout()
         button_row.addStretch()
 
-        purge_all_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')), ' Purge All Logs')
+        purge_all_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'remove.svg')), ' Purge All Logs')
         purge_all_button.setStyleSheet(DIALOG_DANGER_BUTTON_STYLESHEET)
         purge_all_button.setToolTip('Clear ALL log files at once (creates backups first)')
         purge_all_button.clicked.connect(self.purge_all_logs)
@@ -111,13 +112,13 @@ class LogsManager(QDialog):
             tab.purge_state_changed.connect(self._update_purge_all_button)
         self._update_purge_all_button()
 
-        clean_empty_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'trash.svg')), ' Clean Empty Sessions')
+        clean_empty_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'trash.svg')), ' Clean Empty Sessions')
         clean_empty_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
         clean_empty_button.setToolTip('Delete empty session logs and empty folders (keeps active session)')
         clean_empty_button.clicked.connect(self.clean_empty_sessions)
         button_row.addWidget(clean_empty_button)
 
-        close_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'x.svg')), ' Close')
+        close_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'x.svg')), ' Close')
         close_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
         close_button.setToolTip('Close the Logs Manager')
         close_button.clicked.connect(self.close)
@@ -145,18 +146,33 @@ class LogsManager(QDialog):
 
     def clean_empty_sessions(self) -> None:
         """Manually clean up empty session log files and empty directories."""
-        files_deleted, folders_deleted = cleanup_session_logs(
-            sessions_dir=SESSIONS_LOGGING_DIR_PATH,
-            delete_empty_files=True,
-            delete_empty_folders=True,
-            gui_sessions_logging=Settings.gui_sessions_logging,
-            active_session_path=SESSIONS_LOGGING_PATH.with_suffix('.json'),
-        )
-        self._sessions_tab.update_dir_metadata()
-        QMessageBox.information(
+        gui_sessions_logging = Settings.gui_sessions_logging
+        active_session_path = SESSIONS_LOGGING_PATH.with_suffix('.json')
+
+        def _run_cleanup() -> tuple[int, int]:
+            return cleanup_session_logs(
+                sessions_dir=SESSIONS_LOGGING_DIR_PATH,
+                delete_empty_files=True,
+                delete_empty_folders=True,
+                gui_sessions_logging=gui_sessions_logging,
+                active_session_path=active_session_path,
+            )
+
+        def _on_cleanup_done(outcome: tuple[int, int]) -> None:
+            files_deleted, folders_deleted = outcome
+            self._sessions_tab.update_dir_metadata()
+            QMessageBox.information(
+                self,
+                TITLE,
+                f'Cleaned up empty session logs:\n\n  • Files deleted: {files_deleted}\n  • Folders deleted: {folders_deleted}',
+            )
+
+        run_async_with_loading(
             self,
-            TITLE,
-            f'Cleaned up empty session logs:\n\n  • Files deleted: {files_deleted}\n  • Folders deleted: {folders_deleted}',
+            'Cleaning Session Logs\u2026',
+            'Scanning and removing empty session logs\u2026',
+            _run_cleanup,
+            _on_cleanup_done,
         )
 
     # ------------------------------------------------------------------
@@ -187,38 +203,52 @@ class LogsManager(QDialog):
         if reply != QMessageBox.StandardButton.Yes:
             return
 
-        purged: list[str] = []
-        errors: list[str] = []
+        paths_to_purge = [
+            path
+            for path, tab in (
+                (USERIP_LOGGING_PATH, self._userip_tab),
+                (DETECTION_LOGGING_PATH, self._detection_tab),
+                (PROTECTION_LOGGING_PATH, self._protection_tab),
+                (DEBUG_LOG_PATH, self._debug_tab),
+                (CRASH_LOG_PATH, self._crash_tab),
+            )
+            if tab.can_purge and path.exists()
+        ]
 
-        log_tabs_and_paths = (
-            (USERIP_LOGGING_PATH, self._userip_tab),
-            (DETECTION_LOGGING_PATH, self._detection_tab),
-            (PROTECTION_LOGGING_PATH, self._protection_tab),
-            (DEBUG_LOG_PATH, self._debug_tab),
-            (CRASH_LOG_PATH, self._crash_tab),
+        def _backup_and_purge() -> tuple[list[str], list[str]]:
+            purged: list[str] = []
+            errors: list[str] = []
+            for path in paths_to_purge:
+                try:
+                    backup_and_truncate_log_file(path)
+                except OSError as e:
+                    errors.append(f'{path.name} ({e.strerror or e})')
+                    continue
+                purged.append(path.name)
+            return purged, errors
+
+        def _on_purge_done(outcome: tuple[list[str], list[str]]) -> None:
+            purged, errors = outcome
+            for tab in self._purgeable_tabs:
+                tab.load_data()
+
+            parts: list[str] = []
+            if purged:
+                parts.append(f'Purged: {", ".join(purged)}')
+            if errors:
+                parts.append(f'Errors: {"; ".join(errors)}')
+            if not parts:
+                parts.append('No log files to purge.')
+
+            QMessageBox.information(self, TITLE, '\n'.join(parts))
+
+        run_async_with_loading(
+            self,
+            'Purging Logs\u2026',
+            'Creating backups and clearing log files\u2026',
+            _backup_and_purge,
+            _on_purge_done,
         )
-        for path, tab in log_tabs_and_paths:
-            if not tab.can_purge or not path.exists():
-                continue
-            try:
-                backup_and_truncate_log_file(path)
-            except OSError as e:
-                errors.append(f'{path.name} ({e.strerror or e})')
-                continue
-            purged.append(path.name)
-
-        for tab in self._purgeable_tabs:
-            tab.load_data()
-
-        parts: list[str] = []
-        if purged:
-            parts.append(f'Purged: {", ".join(purged)}')
-        if errors:
-            parts.append(f'Errors: {"; ".join(errors)}')
-        if not parts:
-            parts.append('No log files to purge.')
-
-        QMessageBox.information(self, TITLE, '\n'.join(parts))
 
     @override
     def showEvent(self, a0: QShowEvent) -> None:

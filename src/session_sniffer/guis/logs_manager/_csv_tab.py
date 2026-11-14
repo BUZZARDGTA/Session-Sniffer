@@ -2,6 +2,7 @@
 
 import csv
 import shutil
+from contextlib import nullcontext
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from ipaddress import IPv4Address
@@ -33,11 +34,11 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.constants.standard import LOCAL_TZ
 from session_sniffer.guis.delegates import SearchHighlightDelegate
 from session_sniffer.guis.file_watch import DebouncedFileWatcher
+from session_sniffer.guis.loading_overlay import loading_overlay_scope, pump_active_loading_overlays, run_with_active_loading
 from session_sniffer.guis.logs_manager._helpers import (
     DATE_COLUMN_NAME,
     DATE_FILTER_7_DAYS,
@@ -58,12 +59,15 @@ from session_sniffer.guis.tables_player_actions import (
     scan_ports_ip,
     show_detailed_ip_lookup,
 )
+from session_sniffer.guis.theming import ICONS_DIR_PATH
 from session_sniffer.guis.utils import animate_button_feedback, set_clipboard_text
 from session_sniffer.text_utils import pluralize
 
 if TYPE_CHECKING:
     from pathlib import Path
 
+
+_LARGE_CSV_OVERLAY_BYTES = 1024 * 1024
 
 _DEFAULT_HEADER_BASE_WIDTHS: dict[str, int] = {
     'Database': 120,
@@ -161,6 +165,7 @@ class CsvLogTab(QWidget):
 
         QShortcut(QKeySequence('Ctrl+C'), self._table).activated.connect(self._copy_selected)
         QShortcut(QKeySequence('Ctrl+A'), self._table).activated.connect(self._table.selectAll)
+        QShortcut(QKeySequence('Delete'), self._table, context=Qt.ShortcutContext.WidgetShortcut).activated.connect(self._delete_selected_rows)
 
         v_header = self._table.verticalHeader()
         if v_header:
@@ -197,7 +202,7 @@ class CsvLogTab(QWidget):
         # --- Bottom buttons ---
         button_row = QHBoxLayout()
 
-        copy_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), ' Copy Selected')
+        copy_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'copy.svg')), ' Copy Selected')
         copy_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
         copy_button.setToolTip('Copy selected rows to clipboard')
         copy_button.setEnabled(False)
@@ -205,7 +210,7 @@ class CsvLogTab(QWidget):
         button_row.addWidget(copy_button)
         self._copy_button = copy_button
 
-        export_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'upload.svg')), ' Export As...')
+        export_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'upload.svg')), ' Export As...')
         export_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
         export_button.setToolTip('Export the full log to a new CSV file')
         export_button.setEnabled(False)
@@ -215,7 +220,7 @@ class CsvLogTab(QWidget):
 
         button_row.addStretch()
 
-        delete_rows_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')), ' Delete Selected Rows')
+        delete_rows_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'remove.svg')), ' Delete Selected Rows')
         delete_rows_button.setStyleSheet(DIALOG_DANGER_BUTTON_STYLESHEET)
         delete_rows_button.setToolTip('Remove selected rows from the log file')
         delete_rows_button.setEnabled(False)
@@ -236,7 +241,7 @@ class CsvLogTab(QWidget):
         layout.addLayout(button_row)
 
         # --- Auto-refresh from disk ---
-        self._watcher = DebouncedFileWatcher(self, self.load_data)
+        self._watcher = DebouncedFileWatcher(self, lambda: self.load_data(background_sync=True))
         self._watching_stopped = False
 
         # Initial load
@@ -247,7 +252,7 @@ class CsvLogTab(QWidget):
         self._watcher.watch(files=[self._file_path], directories=[self._file_path.parent])
         if self._watching_stopped:
             self._watching_stopped = False
-            self.load_data()
+            self.load_data(background_sync=True)
 
     def stop_watching(self) -> None:
         """Stop auto-refresh watcher from disk."""
@@ -263,7 +268,28 @@ class CsvLogTab(QWidget):
     # Data loading
     # ------------------------------------------------------------------
 
-    def load_data(self) -> None:
+    @staticmethod
+    def _parse_csv_file(file_path: Path) -> tuple[list[str] | None, list[list[str]], int, bool]:
+        """Read *file_path* up to `MAX_CSV_ROWS` and return `(headers, valid_rows, skipped, truncated)`."""
+        with file_path.open(newline='', encoding='utf-8') as file:
+            reader = csv.reader(file)
+            file_headers = next(reader, None)
+            if file_headers is None:
+                return None, [], 0, False
+            skipped = 0
+            truncated = False
+            valid_rows: list[list[str]] = []
+            for row_num, row in enumerate(reader):
+                if row_num >= MAX_CSV_ROWS:
+                    truncated = True
+                    break
+                if len(row) != len(file_headers):
+                    skipped += 1
+                    continue
+                valid_rows.append(row)
+            return file_headers, valid_rows, skipped, truncated
+
+    def load_data(self, *, background_sync: bool = False) -> None:
         """Read the CSV file and populate the table model."""
         self._purge_button.setEnabled(False)
         self._open_file_button.setEnabled(self._file_path.is_file())
@@ -280,9 +306,18 @@ class CsvLogTab(QWidget):
             self.purge_state_changed.emit()
             return
 
-        with self._file_path.open(newline='', encoding='utf-8') as file:
-            reader = csv.reader(file)
-            file_headers = next(reader, None)
+        use_overlay = not background_sync and self.isVisible() and self._file_path.is_file() and self._file_path.stat().st_size >= _LARGE_CSV_OVERLAY_BYTES
+        scope = (
+            loading_overlay_scope(self.window(), 'Loading CSV Log\u2026', f'Reading {self._file_path.name}\u2026')
+            if use_overlay
+            else nullcontext()
+        )
+        with scope:
+            file_headers, valid_rows, skipped, self._truncated = (
+                run_with_active_loading(self._parse_csv_file, self._file_path)
+                if use_overlay
+                else self._parse_csv_file(self._file_path)
+            )
             if file_headers is None:
                 self._update_counts()
                 self._metadata_label.setText(file_metadata_text(self._file_path))
@@ -292,17 +327,6 @@ class CsvLogTab(QWidget):
             self._model.setHorizontalHeaderLabels(file_headers)
             self._rebuild_column_combo(file_headers)
 
-            skipped = 0
-            valid_rows: list[list[str]] = []
-            for row_num, row in enumerate(reader):
-                if row_num >= MAX_CSV_ROWS:
-                    self._truncated = True
-                    break
-                if len(row) != len(file_headers):
-                    skipped += 1
-                    continue
-                valid_rows.append(row)
-
             if valid_rows:
                 dynamic_sort_filter = self._proxy.dynamicSortFilter()
                 self._proxy.setDynamicSortFilter(False)
@@ -310,6 +334,8 @@ class CsvLogTab(QWidget):
                     self._model.insertRows(0, len(valid_rows))
                     with QSignalBlocker(self._model):
                         for row_idx, row in enumerate(valid_rows):
+                            if use_overlay and not row_idx % 2000:
+                                pump_active_loading_overlays()
                             for col_idx, cell in enumerate(row):
                                 item = QStandardItem(cell)
                                 item.setEditable(False)
@@ -319,13 +345,13 @@ class CsvLogTab(QWidget):
                     self._proxy.setDynamicSortFilter(dynamic_sort_filter)
                     self._proxy.invalidate()
 
-            # Only surface malformed-row warnings on the first load; auto-refreshes stay silent.
-            if skipped and not self._initial_loaded:
-                QMessageBox.warning(
-                    self,
-                    TITLE,
-                    f'Skipped {skipped} malformed row{pluralize(skipped)} while loading {self._file_path.name}.',
-                )
+        # Only surface malformed-row warnings on the first load; auto-refreshes stay silent.
+        if skipped and not self._initial_loaded:
+            QMessageBox.warning(
+                self,
+                TITLE,
+                f'Skipped {skipped} malformed row{pluralize(skipped)} while loading {self._file_path.name}.',
+            )
 
         if self._initial_loaded:
             if scrollbar:
@@ -425,9 +451,13 @@ class CsvLogTab(QWidget):
 
     def _update_selection_buttons(self, *_args: object) -> None:
         selection_model = self._table.selectionModel()
-        has_selection = bool(selection_model and selection_model.selectedRows())
+        selected_rows = selection_model.selectedRows() if selection_model else []
+        sel_count = len(selected_rows)
+        has_selection = sel_count > 0
         self._copy_button.setEnabled(has_selection)
+        self._copy_button.setText(f' Copy Selected ({sel_count})' if sel_count > 1 else ' Copy Selected')
         self._delete_rows_button.setEnabled(has_selection)
+        self._delete_rows_button.setText(f' Delete Selected Rows ({sel_count})' if sel_count > 1 else ' Delete Selected Rows')
 
     def _update_counts(self) -> None:
         total = self._model.rowCount()
@@ -543,14 +573,14 @@ class CsvLogTab(QWidget):
         menu.setToolTipsVisible(True)
 
         copy_label = f'Copy Selected Rows ({len(selected_rows)})' if len(selected_rows) > 1 else 'Copy Selected Row'
-        copy_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), copy_label, menu)
+        copy_action = QAction(QIcon(str(ICONS_DIR_PATH / 'copy.svg')), copy_label, menu)
         copy_action.setShortcut('Ctrl+C')
         copy_action.setToolTip(f'Copy selected row{pluralize(len(selected_rows))} to the clipboard as comma-separated values.')
         copy_action.setEnabled(has_selection)
         copy_action.triggered.connect(self._copy_selected)
         menu.addAction(copy_action)
 
-        copy_all_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), 'Copy All', menu)
+        copy_all_action = QAction(QIcon(str(ICONS_DIR_PATH / 'copy.svg')), 'Copy All', menu)
         copy_all_action.setToolTip('Copy all visible rows to the clipboard as comma-separated values.')
         copy_all_action.setEnabled(self._proxy.rowCount() > 0)
         copy_all_action.triggered.connect(self._copy_all)
@@ -558,14 +588,14 @@ class CsvLogTab(QWidget):
 
         menu.addSeparator()
 
-        select_all_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square-check.svg')), 'Select All', menu)
+        select_all_action = QAction(QIcon(str(ICONS_DIR_PATH / 'square-check.svg')), 'Select All', menu)
         select_all_action.setShortcut('Ctrl+A')
         select_all_action.setToolTip('Select all visible rows.')
         select_all_action.setEnabled(self._proxy.rowCount() > 0)
         select_all_action.triggered.connect(self._table.selectAll)
         menu.addAction(select_all_action)
 
-        clear_selection_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square.svg')), 'Clear Selection', menu)
+        clear_selection_action = QAction(QIcon(str(ICONS_DIR_PATH / 'square.svg')), 'Clear Selection', menu)
         clear_selection_action.setToolTip('Deselect all rows.')
         clear_selection_action.triggered.connect(self._table.clearSelection)
         menu.addAction(clear_selection_action)
@@ -575,14 +605,14 @@ class CsvLogTab(QWidget):
         if len(selected_ips) == 1:
             menu.addSeparator()
 
-            lookup_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'info.svg')), 'IP Lookup Details…', menu)
+            lookup_action = QAction(QIcon(str(ICONS_DIR_PATH / 'info.svg')), 'IP Lookup Details…', menu)
             lookup_action.setToolTip('Show detailed IP lookup information for this IP address.')
             lookup_action.triggered.connect(lambda _checked=False, ip_address=selected_ips[0]: show_detailed_ip_lookup(ip_address))
             menu.addAction(lookup_action)
 
             create_ping_menu(self, menu, selected_ips)
 
-            scan_ports_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'radar.svg')), 'Scan Ports…', menu)
+            scan_ports_action = QAction(QIcon(str(ICONS_DIR_PATH / 'radar.svg')), 'Scan Ports…', menu)
             scan_ports_action.setToolTip('Scan TCP and UDP ports on this host.')
             scan_ports_action.triggered.connect(lambda _checked=False, ip_address=selected_ips[0]: scan_ports_ip(ip_address))
             menu.addAction(scan_ports_action)
@@ -591,7 +621,7 @@ class CsvLogTab(QWidget):
             _target_ips = list(selected_ips)
             create_ping_menu(self, menu, _target_ips)
 
-            scan_ports_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'radar.svg')), 'Scan Ports…', menu)
+            scan_ports_action = QAction(QIcon(str(ICONS_DIR_PATH / 'radar.svg')), 'Scan Ports…', menu)
             scan_ports_action.setToolTip('Scan TCP and UDP ports on the selected hosts.')
 
             def _scan_all_csv() -> None:
@@ -602,7 +632,9 @@ class CsvLogTab(QWidget):
 
         menu.addSeparator()
 
-        delete_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')), 'Delete Selected Rows', menu)
+        delete_label = f'Delete Selected Rows ({len(selected_rows)})' if len(selected_rows) > 1 else 'Delete Selected Row'
+        delete_action = QAction(QIcon(str(ICONS_DIR_PATH / 'remove.svg')), delete_label, menu)
+        delete_action.setShortcut('Delete')
         delete_action.setToolTip('Remove selected rows from the log file permanently.')
         delete_action.setEnabled(has_selection)
         delete_action.triggered.connect(self._delete_selected_rows)
@@ -707,7 +739,6 @@ class CsvLogTab(QWidget):
             return
         indexes = selection_model.selectedRows()
         if not indexes:
-            QMessageBox.information(self, TITLE, 'No rows selected.')
             return
         count = len(indexes)
         reply = QMessageBox.question(

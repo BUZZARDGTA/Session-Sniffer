@@ -1,21 +1,17 @@
 """Sessions logging tab — folder tree + file viewer."""
 
 import logging
-import os
 import queue
-import shutil
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass
-from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, cast
 
 from pydantic import ValidationError
 from PySide6.QtCore import QItemSelectionModel, QModelIndex, QPoint, QSignalBlocker, Qt, QTimer, QUrl
-from PySide6.QtGui import QDesktopServices, QIcon
+from PySide6.QtGui import QDesktopServices, QIcon, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
+    QAbstractItemView,
     QCheckBox,
     QComboBox,
     QFileDialog,
@@ -31,12 +27,10 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.constants.standalone import TITLE
-from session_sniffer.constants.standard import LOCAL_TZ
-from session_sniffer.constants.tables import DATETIME_TRACKING_COLUMNS, SEARCHABLE_COLUMN_EXCLUSIONS
 from session_sniffer.guis.delegates import ElidedTextTooltipDelegate
 from session_sniffer.guis.file_watch import DebouncedFileWatcher
+from session_sniffer.guis.loading_overlay import run_blocking_with_loading
 from session_sniffer.guis.logs_manager._helpers import (
     copy_viewer_text_to_clipboard,
     create_log_viewer,
@@ -46,87 +40,48 @@ from session_sniffer.guis.logs_manager._helpers import (
     setup_copy_save_button_row,
     setup_metadata_label,
 )
+from session_sniffer.guis.logs_manager._sessions_render import (
+    SEARCH_ALL,
+    SEARCHABLE_COLUMNS,
+    CachedSessionFile,
+    build_cached_session_file,
+    collect_session_json_files,
+    collect_structured_matches_from_cached,
+    count_json_files_and_size,
+    delete_session_paths,
+    ensure_cached_session_rendered,
+    normalize_fs_path,
+    prune_nested_paths,
+    render_aligned_line_matches,
+)
 from session_sniffer.guis.stylesheets import DIALOG_BUTTON_STYLESHEET, DIALOG_DANGER_BUTTON_STYLESHEET, SVG_ICON_CONTEXT_MENU_STYLESHEET
+from session_sniffer.guis.theming import ICONS_DIR_PATH
 from session_sniffer.guis.userip_manager_helpers import human_readable_size
 from session_sniffer.guis.utils import SPINNER_FRAMES, open_file_location
-from session_sniffer.models import SessionLogFile
+from session_sniffer.rendering_core.renderer import SESSIONS_LOGGING_PATH
 from session_sniffer.settings import Settings
-from session_sniffer.text_utils import format_single_border_table, pluralize
+from session_sniffer.text_utils import pluralize
 
 logger = logging.getLogger(__name__)
 
-if TYPE_CHECKING:
-    from typing import Any
-
-_SEARCH_ALL = 'All Searchable Columns'
 _SINGLE_FILE_VIEWER_PLACEHOLDER = 'Select a session JSON file from the tree to view its contents.'
 _GLOBAL_SEARCH_VIEWER_PLACEHOLDER = 'Press Enter to search across all session JSON files.'
-
-
-def _build_searchable_columns() -> tuple[str, ...]:
-    columns: list[str] = []
-    seen: set[str] = set()
-    for source_columns in (Settings.GUI_ALL_CONNECTED_COLUMNS, Settings.GUI_ALL_DISCONNECTED_COLUMNS):
-        for column in source_columns:
-            if column not in SEARCHABLE_COLUMN_EXCLUSIONS and column not in seen:
-                seen.add(column)
-                columns.append(column)
-    return (_SEARCH_ALL, *columns)
-
-
-_SEARCHABLE_COLUMNS: tuple[str, ...] = _build_searchable_columns()
 _GLOBAL_SEARCH_WORKERS = 16
-
-
-@dataclass(frozen=True, slots=True)
-class _SessionTableRenderConfig:
-    title: str
-    sort_column: str
-    descending: bool
-
-
-@dataclass(frozen=True, slots=True)
-class _CachedPlayerSearchEntry:
-    section_name: str
-    ip: str
-    fields: dict[str, str]
-    fields_lower: dict[str, str]
-    all_fields_lower: str
-    fallback_all_text_lower: str
-    non_empty_columns: tuple[str, ...]
-
-
-@dataclass(frozen=True, slots=True)
-class _CachedTableRow:
-    line_num: int
-    line: str
-    parsed_cells: list[str]
-    cells_by_col_lower: dict[str, str]
-    all_cells_lower: str
-    has_headers: bool
-
-
-@dataclass(slots=True)
-class _CachedSessionFile:
-    mtime_ns: int
-    size: int
-    session_log: SessionLogFile
-    player_entries: tuple[_CachedPlayerSearchEntry, ...]
-    combined_haystack_lower: str
-    rendered_text: str | None = None
-    line_number_width: int = 0
-    table_rows: tuple[_CachedTableRow, ...] | None = None
+_BATCH_DELETE_LOADING_THRESHOLD = 5
+_LARGE_SESSION_FILE_OVERLAY_BYTES = 512 * 1024
 
 
 class SessionsLogTab(QWidget):
     """Browse and view session JSON files in a YYYY/MM/DD folder hierarchy."""
 
     def __init__(self, sessions_dir: Path, parent: QWidget | None = None) -> None:
+        """Initialize the sessions log tab for *sessions_dir*."""
         super().__init__(parent)
         self._sessions_dir = sessions_dir
         self._current_file: Path | None = None
         self._saved_file_before_global_search: Path | None = None
         self._selected_path: Path | None = None
+        self._multi_selected: bool = False
         self._global_search_active = False
         self._current_rendered_text = ''
         self._global_search_generation = 0
@@ -134,7 +89,7 @@ class SessionsLogTab(QWidget):
         self._global_search_results_queue: queue.SimpleQueue[tuple[int, list[str], int, int]] = queue.SimpleQueue()
         self._loading_spinner_index = 0
         self._cache_lock = threading.Lock()
-        self._session_file_cache: dict[Path, _CachedSessionFile] = {}
+        self._session_file_cache: dict[Path, CachedSessionFile] = {}
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(6, 6, 6, 6)
@@ -144,7 +99,7 @@ class SessionsLogTab(QWidget):
         self._search_input.returnPressed.connect(self._on_search_return_pressed)
 
         self._search_column_combo = QComboBox()
-        self._search_column_combo.addItems(_SEARCHABLE_COLUMNS)
+        self._search_column_combo.addItems(SEARCHABLE_COLUMNS)
         self._search_column_combo.setToolTip('Select which session fields to search')
         self._search_column_combo.currentTextChanged.connect(self._on_search_column_changed)
         top_bar.addWidget(QLabel('Column:'))
@@ -184,6 +139,7 @@ class SessionsLogTab(QWidget):
         self._tree.setModel(self._fs_model)
         self._tree.setRootIndex(self._fs_model.index(str(self._sessions_dir)))
         self._tree.setHeaderHidden(True)
+        self._tree.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         self._tree.setItemDelegate(ElidedTextTooltipDelegate(self._tree))
         self._tree.setWordWrap(False)
         self._tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
@@ -193,7 +149,9 @@ class SessionsLogTab(QWidget):
         self._tree.clicked.connect(self._on_tree_clicked)
         self._tree.activated.connect(self._on_tree_activated)
         if selection_model := self._tree.selectionModel():
+            selection_model.selectionChanged.connect(self._on_tree_selection_changed)
             selection_model.currentChanged.connect(self._on_tree_current_changed)
+        QShortcut(QKeySequence('Delete'), self._tree, context=Qt.ShortcutContext.WidgetShortcut).activated.connect(self._delete_selected)
         self._tree.setMinimumWidth(200)
 
         tree_container_layout.addWidget(self._tree)
@@ -220,20 +178,20 @@ class SessionsLogTab(QWidget):
         )
         button_row.addStretch()
 
-        self._delete_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')), ' Delete')
+        self._delete_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'remove.svg')), ' Delete')
         self._delete_button.setStyleSheet(DIALOG_DANGER_BUTTON_STYLESHEET)
         self._delete_button.setToolTip('Delete the currently selected file or folder')
         self._delete_button.setEnabled(False)
         self._delete_button.clicked.connect(self._delete_selected)
         button_row.addWidget(self._delete_button)
 
-        self._open_location_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'folder.svg')), ' Open Folder Location')
+        self._open_location_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'folder.svg')), ' Open Folder Location')
         self._open_location_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
         self._open_location_button.setToolTip('Open the containing folder in your file manager')
         self._open_location_button.clicked.connect(self._open_location)
         button_row.addWidget(self._open_location_button)
 
-        self._open_file_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'file-text.svg')), ' Open File')
+        self._open_file_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'file-text.svg')), ' Open File')
         self._open_file_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
         self._open_file_button.setToolTip('Open the selected log file in the default text editor')
         self._open_file_button.clicked.connect(self._open_file)
@@ -251,7 +209,7 @@ class SessionsLogTab(QWidget):
             self.update_dir_metadata()
             if self._global_search_active and self._search_input.text() and not self._viewer.toPlainText():
                 self._start_global_search(self._search_input.text())
-            elif not self._global_search_active and self._selected_path is not None and self._selected_path.is_file():
+            elif not self._global_search_active and not self._multi_selected and self._selected_path is not None and self._selected_path.is_file():
                 self._file_watcher.watch(files=[self._selected_path])
                 self._on_current_file_changed()
 
@@ -262,92 +220,134 @@ class SessionsLogTab(QWidget):
         self._global_search_generation += 1
         self._stop_loading_animation()
 
-    @classmethod
-    def _count_json_files_and_size(cls, directory: Path) -> tuple[int, int]:
-        """Return `(total_bytes, file_count)` for all `.json` files under *directory*."""
-        files = cls._collect_session_json_files(directory)
-        return sum(size for _, _, size in files), len(files)
-
-    @staticmethod
-    def _collect_session_json_files(directory: Path) -> list[tuple[Path, int, int]]:
-        """Return sorted `(file_path, mtime_ns, size)` tuples for all `.json` files under *directory*."""
-        if not directory.is_dir():
-            return []
-        collected: list[tuple[Path, int, int]] = []
-        stack = [str(directory)]
-        while stack:
-            try:
-                with os.scandir(stack.pop()) as it:
-                    for entry in it:
-                        if entry.is_dir(follow_symlinks=False):
-                            stack.append(entry.path)
-                        elif entry.name.endswith('.json') and entry.is_file(follow_symlinks=False):
-                            st = entry.stat(follow_symlinks=False)
-                            collected.append((Path(entry.path), st.st_mtime_ns, st.st_size))
-            except OSError:
+    def _get_selected_tree_paths(self) -> list[Path]:
+        """Return existing filesystem paths for all currently selected rows in the tree."""
+        selection_model = self._tree.selectionModel()
+        indexes = selection_model.selectedRows(0)
+        if not indexes:
+            current = selection_model.currentIndex()
+            if current.isValid():
+                indexes = [current.siblingAtColumn(0)]
+        paths: list[Path] = []
+        seen: set[str] = set()
+        for index in indexes:
+            if not index.isValid():
                 continue
-        collected.sort(key=lambda item: item[0])
-        return collected
+            raw_path = self._fs_model.filePath(index)
+            if not raw_path:
+                continue
+            path = Path(raw_path)
+            norm = normalize_fs_path(path)
+            if norm not in seen and path.exists():
+                seen.add(norm)
+                paths.append(path)
+        return paths
 
     def update_dir_metadata(self) -> None:
         """Update the metadata label with total size and file count of the sessions directory."""
-        if self._selected_path is not None:
+        if not self._multi_selected and self._selected_path is not None:
             if not self._selected_path.exists():
                 self._clear_tree_selection()
             elif self._selected_path.is_dir() and not self._global_search_active:
-                folder_size, folder_count = self._count_json_files_and_size(self._selected_path)
+                folder_size, folder_count = count_json_files_and_size(self._selected_path)
                 size_str = human_readable_size(folder_size)
                 self._file_info_label.setText(f'{self._selected_path.name}  (folder)  |  {size_str}  |  {folder_count} json file{pluralize(folder_count)}')
         if not self._sessions_dir.exists():
             self._metadata_label.setText(f'{self._sessions_dir.name}  —  Directory not found')
             return
-        total_size, file_count = self._count_json_files_and_size(self._sessions_dir)
+        total_size, file_count = count_json_files_and_size(self._sessions_dir)
         self._metadata_label.setText(f'{self._sessions_dir.name}  |  {human_readable_size(total_size)}  |  {file_count} json file{pluralize(file_count)}')
 
-    def _on_tree_clicked(self, index: QModelIndex) -> None:
-        self._handle_tree_selection(index)
+    def _on_tree_clicked(self, _index: QModelIndex) -> None:
+        self._sync_tree_selection()
 
-    def _on_tree_activated(self, index: QModelIndex) -> None:
-        self._handle_tree_selection(index)
+    def _on_tree_activated(self, _index: QModelIndex) -> None:
+        self._sync_tree_selection()
+
+    def _on_tree_selection_changed(self, *_args: object) -> None:
+        self._sync_tree_selection()
+
+    def _on_tree_current_changed(self, current: QModelIndex, _previous: QModelIndex) -> None:
+        if self._tree.selectionModel().selectedRows(0):
+            return
+        if not current.isValid():
+            self._file_watcher.stop()
+            self._reset_selection_display()
+
+    def _sync_tree_selection(self) -> None:
+        """Synchronize viewer content and action buttons with single or multi-item tree selection."""
+        selected_paths = self._get_selected_tree_paths()
+        if not selected_paths:
+            self._file_watcher.stop()
+            self._reset_selection_display()
+            return
+        if len(selected_paths) == 1:
+            only = selected_paths[0]
+            if only == self._selected_path and not self._multi_selected:
+                return
+            self._multi_selected = False
+            if only.is_file():
+                self._apply_file_selection(only)
+            elif only.is_dir():
+                self._apply_folder_selection(only)
+            return
+
+        self._multi_selected = True
+        self._selected_path = selected_paths[0]
+        self._file_watcher.stop()
+        self._current_file = None
+        sel_count = len(selected_paths)
+        file_sel = sum(1 for p in selected_paths if p.is_file())
+        dir_sel = sel_count - file_sel
+        parts: list[str] = []
+        if file_sel:
+            parts.append(f'{file_sel} file{pluralize(file_sel)}')
+        if dir_sel:
+            parts.append(f'{dir_sel} folder{pluralize(dir_sel)}')
+        self._set_viewer_content('', f'{sel_count} items selected ({", ".join(parts)}).')
+        self._file_info_label.setText(f'{sel_count} items selected  ({", ".join(parts)})')
+        self._match_label.setText('')
+        self._delete_button.setText(f' Delete ({sel_count})')
+        self._delete_button.setToolTip('Delete all selected files and folders')
+        self._delete_button.setEnabled(True)
+        self._open_location_button.setText(' Open Folder Location')
+        self._open_file_button.setEnabled(False)
 
     def _on_tree_context_menu(self, pos: QPoint) -> None:
         index = self._tree.indexAt(pos)
         if not index.isValid():
             return
-        self._tree.setCurrentIndex(index)
-        path = Path(self._fs_model.filePath(index))
-        is_dir = path.is_dir()
+        selection_model = self._tree.selectionModel()
+        if not selection_model.isSelected(index):
+            selection_model.select(index, QItemSelectionModel.SelectionFlag.ClearAndSelect | QItemSelectionModel.SelectionFlag.Rows)
+            selection_model.setCurrentIndex(index, QItemSelectionModel.SelectionFlag.NoUpdate)
+        selected_paths = self._get_selected_tree_paths()
+        if not selected_paths:
+            return
+        sel_count = len(selected_paths)
         menu = QMenu(self)
         menu.setStyleSheet(SVG_ICON_CONTEXT_MENU_STYLESHEET)
 
-        if not is_dir and (open_action := menu.addAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'file-text.svg')), 'Open File')):
-            open_action.triggered.connect(self._open_file)
+        if sel_count == 1:
+            is_dir = selected_paths[0].is_dir()
+            if not is_dir and (open_action := menu.addAction(QIcon(str(ICONS_DIR_PATH / 'file-text.svg')), 'Open File')):
+                open_action.triggered.connect(self._open_file)
+            if location_action := menu.addAction(QIcon(str(ICONS_DIR_PATH / 'folder.svg')), 'Open Folder Location' if is_dir else 'Open File Location'):
+                location_action.triggered.connect(self._open_location)
+            menu.addSeparator()
 
-        if location_action := menu.addAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'folder.svg')), 'Open Folder Location' if is_dir else 'Open File Location'):
-            location_action.triggered.connect(self._open_location)
+        if select_all_action := menu.addAction(QIcon(str(ICONS_DIR_PATH / 'square-check.svg')), 'Select All'):
+            select_all_action.setShortcut('Ctrl+A')
+            select_all_action.triggered.connect(self._tree.selectAll)
 
         menu.addSeparator()
-        if delete_action := menu.addAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')), 'Delete'):
+        delete_label = f'Delete ({sel_count})' if sel_count > 1 else 'Delete'
+        if delete_action := menu.addAction(QIcon(str(ICONS_DIR_PATH / 'remove.svg')), delete_label):
+            delete_action.setShortcut('Delete')
             delete_action.triggered.connect(self._delete_selected)
 
         if viewport := self._tree.viewport():
             menu.exec(viewport.mapToGlobal(pos))
-
-    def _on_tree_current_changed(self, current: QModelIndex, _previous: QModelIndex) -> None:
-        self._handle_tree_selection(current)
-
-    def _handle_tree_selection(self, index: QModelIndex) -> None:
-        if not index.isValid():
-            self._file_watcher.stop()
-            self._reset_selection_display()
-            return
-        selected = Path(self._fs_model.filePath(index))
-        if selected == self._selected_path:
-            return
-        if selected.is_file():
-            self._apply_file_selection(selected)
-        elif selected.is_dir():
-            self._apply_folder_selection(selected)
 
     def _set_viewer_content(self, text: str, placeholder_text: str) -> None:
         """Update the viewer content, placeholder text, and Copy/Save button states."""
@@ -363,6 +363,7 @@ class SessionsLogTab(QWidget):
     def _reset_selection_display(self) -> None:
         """Clear the selected path, viewer state, and disable file/folder action buttons."""
         self._selected_path = None
+        self._multi_selected = False
         self._current_file = None
         self._file_info_label.setText('')
         self._match_label.setText('')
@@ -376,7 +377,7 @@ class SessionsLogTab(QWidget):
     def _apply_file_selection(self, file_path: Path) -> None:
         """Select *file_path*, render its contents, and enable file action buttons."""
         self._selected_path = file_path
-        self._load_file(file_path)
+        self._load_file(file_path, user_initiated=True)
         self._delete_button.setText(' Delete File')
         self._delete_button.setToolTip('Delete the currently selected session JSON file')
         self._delete_button.setEnabled(True)
@@ -389,7 +390,7 @@ class SessionsLogTab(QWidget):
         self._file_watcher.stop()
         self._current_file = None
         self._set_viewer_content('', _SINGLE_FILE_VIEWER_PLACEHOLDER)
-        total_size, file_count = self._count_json_files_and_size(folder_path)
+        total_size, file_count = count_json_files_and_size(folder_path)
         self._file_info_label.setText(f'{folder_path.name}  (folder)  |  {human_readable_size(total_size)}  |  {file_count} json file{pluralize(file_count)}')
         self._match_label.setText('')
         self._delete_button.setText(' Delete Folder')
@@ -398,10 +399,20 @@ class SessionsLogTab(QWidget):
         self._open_location_button.setText(' Open Folder Location')
         self._open_file_button.setEnabled(False)
 
-    def _load_file(self, file_path: Path) -> None:
+    def _load_file(self, file_path: Path, *, user_initiated: bool = False) -> None:
         self._current_file = file_path
         self._file_watcher.watch(files=[file_path])
-        text = self._render_session_file(file_path)
+        use_overlay = user_initiated and self.isVisible() and file_path.is_file() and file_path.stat().st_size >= _LARGE_SESSION_FILE_OVERLAY_BYTES
+        text = (
+            run_blocking_with_loading(
+                self.window(),
+                'Loading Session Log\u2026',
+                f'Rendering {file_path.name}\u2026',
+                lambda: self._render_session_file(file_path),
+            )
+            if use_overlay
+            else self._render_session_file(file_path)
+        )
         if text is None:
             self._current_file = None
             self._set_viewer_content('', f'[Failed to parse JSON session file: {file_path.name}]')
@@ -420,7 +431,7 @@ class SessionsLogTab(QWidget):
     def _on_current_file_changed(self) -> None:
         """Re-render the displayed session file after it changes on disk."""
         target_file = self._current_file or (self._selected_path if self._selected_path is not None and not self._selected_path.is_dir() else None)
-        if self._global_search_active or target_file is None:
+        if self._global_search_active or self._multi_selected or target_file is None:
             return
         if not target_file.is_file():
             self._clear_tree_selection()
@@ -481,7 +492,7 @@ class SessionsLogTab(QWidget):
         """Switch between single-file view mode and global search mode."""
         if self._global_search_checkbox.isChecked():
             self._file_watcher.stop()
-            self._saved_file_before_global_search = self._selected_path
+            self._saved_file_before_global_search = self._selected_path if not self._multi_selected else None
             self._global_search_active = True
             self._clear_tree_selection()
             self._tree_container.setVisible(False)
@@ -556,7 +567,7 @@ class SessionsLogTab(QWidget):
         parsed_table_rows_by_length: dict[int, list[list[str]]] = {}
         total_matches, files_with_matches = 0, 0
 
-        all_files = self._collect_session_json_files(self._sessions_dir)
+        all_files = collect_session_json_files(self._sessions_dir)
         if generation and generation != self._global_search_generation:
             return [], 0, 0
 
@@ -571,10 +582,10 @@ class SessionsLogTab(QWidget):
                     to_load.append((json_path, mtime_ns, size))
 
         if to_load:
-            def _load_task(item: tuple[Path, int, int]) -> tuple[Path, _CachedSessionFile | None]:
+            def _load_task(item: tuple[Path, int, int]) -> tuple[Path, CachedSessionFile | None]:
                 if generation and generation != self._global_search_generation:
                     return item[0], None
-                return item[0], self._build_cached_session_file(item[0], item[1], item[2])
+                return item[0], build_cached_session_file(item[0], item[1], item[2])
 
             if len(to_load) == 1:
                 loaded_items = [_load_task(to_load[0])]
@@ -597,14 +608,14 @@ class SessionsLogTab(QWidget):
             cached = self._get_or_load_cached_file(json_path, (mtime_ns, size))
             if cached is None or search_lower not in cached.combined_haystack_lower:
                 continue
-            structured_matches = self._collect_structured_matches_from_cached(cached, search_lower, selected_column)
+            structured_matches = collect_structured_matches_from_cached(cached, search_lower, selected_column)
             if not structured_matches:
                 continue
 
-            _, line_number_width, table_rows = self._ensure_rendered(cached)
+            _, line_number_width, table_rows = ensure_cached_session_rendered(cached, self._cache_lock)
             relative = json_path.relative_to(self._sessions_dir)
             line_matches: list[tuple[int, str, list[str] | None]] = []
-            is_search_all = selected_column == _SEARCH_ALL
+            is_search_all = selected_column == SEARCH_ALL
             for row in table_rows:
                 matched = search_lower in row.all_cells_lower if is_search_all else (row.has_headers and search_lower in row.cells_by_col_lower.get(selected_column, ''))
                 if matched:
@@ -636,7 +647,7 @@ class SessionsLogTab(QWidget):
             result_lines.append(f'── {relative} ──')
             if line_matches:
                 result_lines.extend(
-                    self._render_aligned_line_matches(line_matches=line_matches, line_number_width=line_number_width, column_widths_by_length=column_widths_by_length),
+                    render_aligned_line_matches(line_matches=line_matches, line_number_width=line_number_width, column_widths_by_length=column_widths_by_length),
                 )
             else:
                 result_lines.extend(structured_matches)
@@ -693,128 +704,7 @@ class SessionsLogTab(QWidget):
         self._search_poll_timer.stop()
         self._loading_label.setVisible(False)
 
-    @staticmethod
-    def _normalize_search_value(value: object) -> str:
-        if isinstance(value, list):
-            return ', '.join(str(item) for item in cast('list[object]', value))
-        if value is None:
-            return ''
-        text = str(value)
-        return '' if text in {'N/A', '...'} else text
-
-    @staticmethod
-    def _try_parse_table_row(line: str) -> list[str] | None:
-        stripped = line.strip()
-        if not (stripped.startswith('│') and stripped.endswith('│')):
-            return None
-        raw_cells = stripped.split('│')[1:-1]
-        return [cell.strip() for cell in raw_cells] if raw_cells else None
-
-    @staticmethod
-    def _format_table_row(cells: list[str], column_widths: list[int]) -> str:
-        padded = [cell.ljust(column_widths[i]) if i < len(column_widths) else cell for i, cell in enumerate(cells)]
-        return f'│ {" │ ".join(padded)} │'
-
-    @staticmethod
-    def _build_effective_column_widths(base_widths: list[int], header_cells: list[str]) -> list[int]:
-        effective_widths = list(base_widths)
-        for i, header_cell in enumerate(header_cells):
-            if i >= len(effective_widths):
-                effective_widths.append(len(header_cell))
-            else:
-                effective_widths[i] = max(effective_widths[i], len(header_cell))
-        return effective_widths
-
-    @staticmethod
-    def _format_table_separator(column_widths: list[int], column_count: int) -> str:
-        if column_count <= 0:
-            return ''
-        widths = [column_widths[i] if i < len(column_widths) else 0 for i in range(column_count)]
-        return f'├─{"─┼─".join("─" * width for width in widths)}─┤'
-
-    @staticmethod
-    def _column_headers_for_row_length(row_length: int) -> list[str] | None:
-        if row_length == len(Settings.GUI_ALL_CONNECTED_COLUMNS):
-            return list(Settings.GUI_ALL_CONNECTED_COLUMNS)
-        if row_length == len(Settings.GUI_ALL_DISCONNECTED_COLUMNS):
-            return list(Settings.GUI_ALL_DISCONNECTED_COLUMNS)
-        return None
-
-    def _render_aligned_line_matches(
-        self, *, line_matches: list[tuple[int, str, list[str] | None]], line_number_width: int, column_widths_by_length: dict[int, list[int]],
-    ) -> list[str]:
-        rendered_lines: list[str] = []
-        active_row_length = -1
-        active_column_widths: list[int] = []
-        has_rendered_schema_header = False
-
-        for line_num, line, parsed_cells in line_matches:
-            rendered_line = line
-            if parsed_cells is not None:
-                row_length = len(parsed_cells)
-                if row_length != active_row_length:
-                    if has_rendered_schema_header:
-                        rendered_lines.append('')
-                    active_row_length = row_length
-                    active_column_widths = list(column_widths_by_length.get(row_length, []))
-                    if (header_cells := self._column_headers_for_row_length(row_length)) is not None:
-                        if (schema_label := self._schema_label_for_row_length(row_length)) is not None:
-                            rendered_lines.append(f'  {" " * line_number_width}  ── {schema_label} ──')
-                        active_column_widths = self._build_effective_column_widths(active_column_widths, header_cells)
-                        rendered_lines.append(f'  {" " * line_number_width}  {self._format_table_row(header_cells, active_column_widths)}')
-                        rendered_lines.append(f'  {" " * line_number_width}  {self._format_table_separator(active_column_widths, len(header_cells))}')
-                        has_rendered_schema_header = True
-                rendered_line = self._format_table_row(parsed_cells, active_column_widths)
-            rendered_lines.append(f'  {line_num:>{line_number_width}}: {rendered_line}')
-        return rendered_lines
-
-    @staticmethod
-    def _schema_label_for_row_length(row_length: int) -> str | None:
-        if row_length == len(Settings.GUI_ALL_CONNECTED_COLUMNS):
-            return 'Connected Columns'
-        if row_length == len(Settings.GUI_ALL_DISCONNECTED_COLUMNS):
-            return 'Disconnected Columns'
-        return None
-
-    @classmethod
-    def _build_player_search_fields(cls, ip: str, info: dict[str, Any]) -> dict[str, str]:
-        columns = cls._get_column_snapshot(info)
-        return {column: ip if column == 'IP Address' else cls._normalize_search_value(columns.get(column, info.get(column))) for column in _SEARCHABLE_COLUMNS[1:]}
-
-    @classmethod
-    def _iter_json_text_values(cls, value: object) -> list[str]:
-        if isinstance(value, dict):
-            return [text for k, v in cast('dict[object, object]', value).items() if k not in SEARCHABLE_COLUMN_EXCLUSIONS for text in cls._iter_json_text_values(v)]
-        if isinstance(value, list):
-            return [text for item in cast('list[object]', value) for text in cls._iter_json_text_values(item)]
-        return [normalized] if (normalized := cls._normalize_search_value(value)) else []
-
-    @staticmethod
-    def _load_session_log_file(file_path: Path) -> SessionLogFile:
-        return SessionLogFile.model_validate_json(file_path.read_text(encoding='utf-8', errors='replace'))
-
-    @classmethod
-    def _build_cached_session_file(cls, file_path: Path, mtime_ns: int, size: int) -> _CachedSessionFile | None:
-        try:
-            session_log = cls._load_session_log_file(file_path)
-        except (OSError, ValidationError) as e:
-            logger.warning('Failed to load session log from %s: %s', file_path, e)
-            return None
-
-        player_entries: list[_CachedPlayerSearchEntry] = []
-        haystack_parts: list[str] = []
-        for section_name, players in (('connected', session_log.connected), ('disconnected', session_log.disconnected)):
-            for ip, info in players.items():
-                fields = cls._build_player_search_fields(ip, info)
-                fields_lower = {column: value.lower() for column, value in fields.items()}
-                all_fields_lower = '\x00'.join(fields_lower.values())
-                fallback_all_text_lower = ' '.join((ip, *cls._iter_json_text_values(info))).lower()
-                non_empty_columns = tuple(column for column, value in fields.items() if value)
-                haystack_parts.extend((all_fields_lower, fallback_all_text_lower))
-                player_entries.append(_CachedPlayerSearchEntry(section_name, ip, fields, fields_lower, all_fields_lower, fallback_all_text_lower, non_empty_columns))
-        return _CachedSessionFile(mtime_ns, size, session_log, tuple(player_entries), '\x00'.join(haystack_parts))
-
-    def _get_or_load_cached_file(self, file_path: Path, stat_sig: tuple[int, int] | None = None) -> _CachedSessionFile | None:
+    def _get_or_load_cached_file(self, file_path: Path, stat_sig: tuple[int, int] | None = None) -> CachedSessionFile | None:
         if stat_sig is None:
             try:
                 st = file_path.stat()
@@ -826,58 +716,14 @@ class SessionsLogTab(QWidget):
         with self._cache_lock:
             if (cached := self._session_file_cache.get(file_path)) is not None and cached.mtime_ns == mtime_ns and cached.size == size:
                 return cached
-        if (built := self._build_cached_session_file(file_path, mtime_ns, size)) is not None:
+        if (built := build_cached_session_file(file_path, mtime_ns, size)) is not None:
             with self._cache_lock:
                 self._session_file_cache[file_path] = built
         return built
 
-    def _ensure_rendered(self, cached: _CachedSessionFile) -> tuple[str, int, tuple[_CachedTableRow, ...]]:
-        if cached.rendered_text is not None and cached.table_rows is not None:
-            return cached.rendered_text, cached.line_number_width, cached.table_rows
-        rendered = f'{self._build_connected_table(cached.session_log.connected)}\n{self._build_disconnected_table(cached.session_log.disconnected)}'
-        lines = rendered.splitlines()
-        line_number_width = max(len(str(len(lines))), 1)
-        table_rows: list[_CachedTableRow] = []
-        for line_num, line in enumerate(lines, start=1):
-            if (parsed_cells := self._try_parse_table_row(line)) is None:
-                continue
-            header_cells = self._column_headers_for_row_length(len(parsed_cells))
-            if header_cells is not None and parsed_cells[0] == header_cells[0]:
-                continue
-            if header_cells is None:
-                cells_by_col_lower, all_cells_lower, has_headers = {}, line.lower(), False
-            else:
-                cells_by_col_lower = {
-                    col: cell.lower() for col, cell in zip(header_cells, parsed_cells, strict=False) if col not in SEARCHABLE_COLUMN_EXCLUSIONS and cell not in {'N/A', '...'}
-                }
-                all_cells_lower, has_headers = '\x00'.join(cells_by_col_lower.values()), True
-            table_rows.append(_CachedTableRow(line_num, line, parsed_cells, cells_by_col_lower, all_cells_lower, has_headers))
-        rows_tuple = tuple(table_rows)
-        with self._cache_lock:
-            cached.rendered_text, cached.line_number_width, cached.table_rows = rendered, line_number_width, rows_tuple
-        return rendered, line_number_width, rows_tuple
-
-    @staticmethod
-    def _collect_structured_matches_from_cached(cached: _CachedSessionFile, search_lower: str, selected_column: str) -> list[str]:
-        if search_lower not in cached.combined_haystack_lower:
-            return []
-        matches: list[str] = []
-        is_search_all = selected_column == _SEARCH_ALL
-        for entry in cached.player_entries:
-            if is_search_all:
-                if search_lower in entry.all_fields_lower:
-                    matched_columns = [column for column, val_lower in entry.fields_lower.items() if search_lower in val_lower]
-                else:
-                    matched_columns = list(entry.non_empty_columns) if search_lower in entry.fallback_all_text_lower else []
-            else:
-                matched_columns = [selected_column] if search_lower in entry.fields_lower.get(selected_column, '') else []
-            if matched_columns:
-                matches.append(f'  [{entry.section_name}] {entry.ip}  |  {", ".join(f"{column}: {entry.fields[column]}" for column in matched_columns)}')
-        return matches
-
     def _collect_structured_search_matches(self, file_path: Path, search_lower: str, selected_column: str) -> list[str]:
         cached = self._get_or_load_cached_file(file_path)
-        return self._collect_structured_matches_from_cached(cached, search_lower, selected_column) if cached is not None else []
+        return collect_structured_matches_from_cached(cached, search_lower, selected_column) if cached is not None else []
 
     def _file_has_search_match(self, file_path: Path, text: str, selected_column: str) -> bool:
         return bool(self._collect_structured_search_matches(file_path, text.lower(), selected_column))
@@ -895,95 +741,80 @@ class SessionsLogTab(QWidget):
             Path(path).write_text(self._current_rendered_text or self._viewer.toPlainText(), encoding='utf-8')
             QMessageBox.information(self, TITLE, f'Saved to {path}')
 
-    @staticmethod
-    def _format_session_datetime(value: object) -> str:
-        if not isinstance(value, str) or not value:
-            return 'N/A'
-        try:
-            return datetime.fromisoformat(value).strftime('%H:%M:%S.%f')[:-3]
-        except ValueError:
-            return value
-
-    @staticmethod
-    def _format_table_value(value: object) -> str:
-        if value is None:
-            return 'N/A'
-        if isinstance(value, bool):
-            return 'Yes' if value else 'No'
-        return ', '.join(str(item) for item in cast('list[object]', value)) if isinstance(value, list) else str(value)
-
-    @staticmethod
-    def _get_column_snapshot(player_info: dict[str, Any]) -> dict[str, Any]:
-        columns_raw = player_info.get('columns')
-        return cast('dict[str, Any]', columns_raw) if isinstance(columns_raw, dict) else player_info
-
-    @classmethod
-    def _player_datetime_sort_key(cls, player_info: dict[str, Any], sort_column: str) -> datetime:
-        for candidate in (player_info.get(sort_column), cls._get_column_snapshot(player_info).get(sort_column)):
-            if not isinstance(candidate, str) or not candidate:
-                continue
-            try:
-                parsed = datetime.fromisoformat(candidate)
-                return parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=LOCAL_TZ)
-            except ValueError:
-                try:
-                    return datetime.strptime(candidate, '%m/%d/%Y %H:%M:%S.%f').replace(tzinfo=LOCAL_TZ)
-                except ValueError:
-                    continue
-        return datetime.min.replace(tzinfo=LOCAL_TZ)
-
-    @classmethod
-    def _build_session_table(cls, *, players: dict[str, dict[str, Any]], column_names: tuple[str, ...], config: _SessionTableRenderConfig) -> str:
-        headers = [f'{col} ↓' if col == config.sort_column and config.descending else f'{col} ↑' if col == config.sort_column else col for col in column_names]
-        sorted_players = sorted(players.items(), key=lambda item: cls._player_datetime_sort_key(item[1], config.sort_column), reverse=not config.descending)
-        rows = [
-            [
-                cls._format_session_datetime(columns.get(col, info.get(col, 'N/A')))
-                if col in DATETIME_TRACKING_COLUMNS
-                else cls._format_table_value(columns.get(col, info.get(col, 'N/A')) if col != 'IP Address' else ip)
-                for col in column_names
-            ]
-            for ip, info in sorted_players
-            for columns in (cls._get_column_snapshot(info),)
-        ]
-        return format_single_border_table(headers, rows, title=config.title)
-
-    @classmethod
-    def _build_connected_table(cls, players: dict[str, dict[str, Any]]) -> str:
-        config = _SessionTableRenderConfig(f'Players connected in your session ({len(players)}):', 'Last Rejoin', descending=True)
-        return cls._build_session_table(players=players, column_names=Settings.GUI_ALL_CONNECTED_COLUMNS, config=config)
-
-    @classmethod
-    def _build_disconnected_table(cls, players: dict[str, dict[str, Any]]) -> str:
-        config = _SessionTableRenderConfig(f"Players who've left your session ({len(players)}):", 'Last Seen', descending=False)
-        return cls._build_session_table(players=players, column_names=Settings.GUI_ALL_DISCONNECTED_COLUMNS, config=config)
-
     def _render_session_file(self, file_path: Path) -> str | None:
         cached = self._get_or_load_cached_file(file_path)
-        return self._ensure_rendered(cached)[0] if cached is not None else None
+        return ensure_cached_session_rendered(cached, self._cache_lock)[0] if cached is not None else None
 
     def _delete_selected(self) -> None:
-        if self._selected_path is None or not self._selected_path.exists():
-            QMessageBox.information(self, TITLE, 'No file or folder selected.')
+        selected_paths = self._get_selected_tree_paths()
+        if not selected_paths and self._selected_path is not None and self._selected_path.exists():
+            selected_paths = [self._selected_path]
+        if not selected_paths:
             return
-        is_dir = self._selected_path.is_dir()
-        kind = 'folder' if is_dir else 'file'
-        extra = '\n\nAll contents within the folder will be removed.' if is_dir else ''
-        msg = f'Delete {kind} "{self._selected_path.name}"?{extra}\n\nThis cannot be undone.'
+
+        top_paths = prune_nested_paths(selected_paths)
+        protected_active = SESSIONS_LOGGING_PATH.with_suffix('.json') if Settings.gui_sessions_logging else None
+        if (
+            len(top_paths) == 1
+            and top_paths[0].is_file()
+            and protected_active is not None
+            and normalize_fs_path(top_paths[0]) == normalize_fs_path(protected_active)
+        ):
+            QMessageBox.warning(
+                self,
+                TITLE,
+                'Cannot delete the active session log file while GUI session logging is enabled.',
+            )
+            return
+
+        if len(selected_paths) == 1:
+            only = selected_paths[0]
+            is_dir = only.is_dir()
+            kind = 'folder' if is_dir else 'file'
+            extra = '\n\nAll contents within the folder will be removed.' if is_dir else ''
+            msg = f'Delete {kind} "{only.name}"?{extra}\n\nThis cannot be undone.'
+        else:
+            file_sel = sum(1 for p in selected_paths if p.is_file())
+            dir_sel = len(selected_paths) - file_sel
+            parts: list[str] = []
+            if file_sel:
+                parts.append(f'{file_sel} file{pluralize(file_sel)}')
+            if dir_sel:
+                parts.append(f'{dir_sel} folder{pluralize(dir_sel)} (and all their contents)')
+            msg = f'Delete {", ".join(parts)}?\n\nThis cannot be undone.'
+
         if QMessageBox.warning(self, TITLE, msg, QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No) != QMessageBox.StandardButton.Yes:
             return
-        deleted_path = self._selected_path
-        if is_dir:
-            shutil.rmtree(deleted_path)
-            with self._cache_lock:
-                for cached_path in [p for p in self._session_file_cache if deleted_path in p.parents]:
-                    self._session_file_cache.pop(cached_path, None)
+
+        self._file_watcher.stop()
+        has_dirs = any(p.is_dir() for p in top_paths)
+
+        def _do_delete() -> tuple[int, int, bool]:
+            return delete_session_paths(top_paths, protected_active_file=protected_active)
+
+        if has_dirs or len(top_paths) >= _BATCH_DELETE_LOADING_THRESHOLD:
+            _, _, skipped_active = run_blocking_with_loading(
+                self.window(),
+                'Deleting Session Logs\u2026',
+                'Removing selected session files and folders\u2026',
+                _do_delete,
+            )
         else:
-            deleted_path.unlink()
-            with self._cache_lock:
-                self._session_file_cache.pop(deleted_path, None)
+            _, _, skipped_active = _do_delete()
+
+        with self._cache_lock:
+            stale = [p for p in self._session_file_cache if not p.exists()]
+            for cached_path in stale:
+                self._session_file_cache.pop(cached_path, None)
+
         self._clear_tree_selection()
         self.update_dir_metadata()
+        if skipped_active:
+            QMessageBox.information(
+                self,
+                TITLE,
+                'The active session log file was kept because GUI session logging is currently enabled.',
+            )
 
     def _open_location(self) -> None:
         if self._selected_path and self._selected_path.exists():
@@ -995,5 +826,5 @@ class SessionsLogTab(QWidget):
             QDesktopServices.openUrl(QUrl.fromLocalFile(str(self._sessions_dir)))
 
     def _open_file(self) -> None:
-        if self._selected_path and self._selected_path.is_file():
+        if not self._multi_selected and self._selected_path and self._selected_path.is_file():
             QDesktopServices.openUrl(QUrl.fromLocalFile(str(self._selected_path)))
