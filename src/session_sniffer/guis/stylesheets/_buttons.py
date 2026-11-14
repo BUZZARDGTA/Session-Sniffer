@@ -1,10 +1,13 @@
 """Dialog and compact button QSS."""
 
+from session_sniffer.guis.theming import themed_qss
+
 # =============================================================================
 # DIALOG BUTTON STYLES
 # =============================================================================
 
-DIALOG_BUTTON_STYLESHEET = """
+DIALOG_BUTTON_STYLESHEET = themed_qss(
+    """
 QPushButton {
     background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
         stop:0 rgba(236, 240, 241, 0.12), stop:1 rgba(189, 195, 199, 0.18));
@@ -36,9 +39,11 @@ QPushButton:disabled {
     color: #666672;
     border: 1px solid rgba(80, 80, 80, 0.3);
 }
-""".strip()
+""".strip(),
+)
 
-DIALOG_PRIMARY_BUTTON_STYLESHEET = """
+DIALOG_PRIMARY_BUTTON_STYLESHEET = themed_qss(
+    """
 QPushButton {
     background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
         stop:0 #3d8ec9, stop:1 #2a6fa0);
@@ -69,9 +74,11 @@ QPushButton:disabled {
     color: #666672;
     border: 1px solid rgba(80, 80, 80, 0.3);
 }
-""".strip()
+""".strip(),
+)
 
-DIALOG_DANGER_BUTTON_STYLESHEET = """
+DIALOG_DANGER_BUTTON_STYLESHEET = themed_qss(
+    """
 QPushButton {
     background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
         stop:0 rgba(192, 57, 43, 0.7), stop:1 rgba(146, 43, 33, 0.8));
@@ -102,33 +109,35 @@ QPushButton:disabled {
     color: #666672;
     border: 1px solid rgba(80, 80, 80, 0.3);
 }
-""".strip()
+""".strip(),
+)
 
 # =============================================================================
 # COMPACT BUTTON STYLE (shared across settings widgets)
 # =============================================================================
 
-COMPACT_BUTTON_STYLESHEET = (
+COMPACT_BUTTON_STYLESHEET = themed_qss(
     'QPushButton { background-color: #1a1e24; color: #a5b4c4; border: 1px solid #2d3640;'
     ' border-radius: 6px; padding: 6px 16px; font-size: 8pt; font-weight: bold; }'
     ' QPushButton:hover { background-color: #212830; color: #ffffff; border: 1px solid #4a5968; }'
     ' QPushButton:pressed { background-color: #14181d; color: #ffffff; border: 1px solid #3d8ec9; }'
-    ' QPushButton:disabled { background-color: #111317; color: #40464f; border: 1px solid #1a1e24; }'
+    ' QPushButton:disabled { background-color: #111317; color: #40464f; border: 1px solid #1a1e24; }',
 )
 
-COMPACT_DANGER_BUTTON_STYLESHEET = (
+COMPACT_DANGER_BUTTON_STYLESHEET = themed_qss(
     'QPushButton { background-color: #2a1618; color: #d67a83; border: 1px solid #422528;'
     ' border-radius: 6px; padding: 6px 16px; font-size: 8pt; font-weight: bold; }'
     ' QPushButton:hover { background-color: #3b1f22; color: #ffffff; border: 1px solid #5c3237; }'
     ' QPushButton:pressed { background-color: #1c0e10; color: #ffffff; border: 1px solid #e74c3c; }'
-    ' QPushButton:disabled { background-color: #161111; color: #4d3839; border: 1px solid #21191a; }'
+    ' QPushButton:disabled { background-color: #161111; color: #4d3839; border: 1px solid #21191a; }',
 )
 
 # =============================================================================
 # GRAPH POPOUT BUTTON STYLES
 # =============================================================================
 
-GRAPH_BPS_POPOUT_BUTTON_STYLESHEET = """
+GRAPH_BPS_POPOUT_BUTTON_STYLESHEET = themed_qss(
+    """
 QPushButton {
     background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
         stop:0 rgba(0, 188, 212, 0.15),
@@ -152,9 +161,11 @@ QPushButton:pressed {
     border: 1px solid #0097a7;
     color: #ffffff;
 }
-""".strip()
+""".strip(),
+)
 
-GRAPH_PPS_POPOUT_BUTTON_STYLESHEET = """
+GRAPH_PPS_POPOUT_BUTTON_STYLESHEET = themed_qss(
+    """
 QPushButton {
     background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
         stop:0 rgba(76, 175, 80, 0.15),
@@ -178,9 +189,11 @@ QPushButton:pressed {
     border: 1px solid #388e3c;
     color: #ffffff;
 }
-""".strip()
+""".strip(),
+)
 
-GRAPH_LATENCY_POPOUT_BUTTON_STYLESHEET = """
+GRAPH_LATENCY_POPOUT_BUTTON_STYLESHEET = themed_qss(
+    """
 QPushButton {
     background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
         stop:0 rgba(255, 152, 0, 0.15),
@@ -204,4 +217,5 @@ QPushButton:pressed {
     border: 1px solid #e65100;
     color: #ffffff;
 }
-""".strip()
+""".strip(),
+)

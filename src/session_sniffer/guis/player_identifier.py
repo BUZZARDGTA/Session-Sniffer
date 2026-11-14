@@ -36,6 +36,7 @@ from session_sniffer.guis.stylesheets import (
     PROGRESS_BAR_CHUNK_RED_STYLESHEET,
     PROGRESS_BAR_IDLE_STYLESHEET,
 )
+from session_sniffer.guis.theming import register_theme_change_callback, themed_color, themed_qcolor, themed_qss, themed_text_qcolor
 from session_sniffer.models.player_traffic import PlayerBandwidth
 from session_sniffer.player.registry import PlayersRegistry
 from session_sniffer.settings import Settings
@@ -47,26 +48,23 @@ if TYPE_CHECKING:
     from session_sniffer.models.player import Player
 
 
-_PROGRESS_BAR_BLUE_GRADIENT: list[tuple[float, QColor]] = [
-    (0.0, QColor('#1d4ed8')),
-    (0.5, QColor('#3b82f6')),
-    (1.0, QColor('#60a5fa')),
-]
-_PROGRESS_BAR_GREEN_GRADIENT: list[tuple[float, QColor]] = [
-    (0.0, QColor('#059669')),
-    (0.5, QColor('#10b981')),
-    (1.0, QColor('#34d399')),
-]
-_PROGRESS_BAR_ORANGE_GRADIENT: list[tuple[float, QColor]] = [
-    (0.0, QColor('#d97706')),
-    (0.5, QColor('#f59e0b')),
-    (1.0, QColor('#fbbf24')),
-]
-_PROGRESS_BAR_RED_GRADIENT: list[tuple[float, QColor]] = [
-    (0.0, QColor('#b91c1c')),
-    (0.5, QColor('#ef4444')),
-    (1.0, QColor('#f87171')),
-]
+_PROGRESS_BAR_BLUE_GRADIENT: list[tuple[float, QColor]] = []
+_PROGRESS_BAR_GREEN_GRADIENT: list[tuple[float, QColor]] = []
+_PROGRESS_BAR_ORANGE_GRADIENT: list[tuple[float, QColor]] = []
+_PROGRESS_BAR_RED_GRADIENT: list[tuple[float, QColor]] = []
+_CHUNK_TEXT_MIDPOINT = 50
+
+
+def _refresh_progress_bar_gradients() -> None:
+    """Recompute capsule progress bar gradient stops for the active theme."""
+    _PROGRESS_BAR_BLUE_GRADIENT[:] = [(0.0, themed_qcolor('#1d4ed8')), (0.5, themed_qcolor('#3b82f6')), (1.0, themed_qcolor('#60a5fa'))]
+    _PROGRESS_BAR_GREEN_GRADIENT[:] = [(0.0, themed_qcolor('#059669')), (0.5, themed_qcolor('#10b981')), (1.0, themed_qcolor('#34d399'))]
+    _PROGRESS_BAR_ORANGE_GRADIENT[:] = [(0.0, themed_qcolor('#d97706')), (0.5, themed_qcolor('#f59e0b')), (1.0, themed_qcolor('#fbbf24'))]
+    _PROGRESS_BAR_RED_GRADIENT[:] = [(0.0, themed_qcolor('#b91c1c')), (0.5, themed_qcolor('#ef4444')), (1.0, themed_qcolor('#f87171'))]
+
+
+_refresh_progress_bar_gradients()
+register_theme_change_callback(_refresh_progress_bar_gradients)
 
 
 class PlayerIdentifierProgressBar(QProgressBar):
@@ -81,19 +79,17 @@ class PlayerIdentifierProgressBar(QProgressBar):
         self.setTextVisible(True)
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._chunk_gradient: list[tuple[float, QColor]] | None = None
-        self._background_color = QColor('#0d131a')
-        self._border_color = QColor('#253040')
 
     @override
     def setStyleSheet(self, styleSheet: str) -> None:
         super().setStyleSheet(styleSheet)
-        if '#1d4ed8' in styleSheet:
+        if styleSheet == PROGRESS_BAR_CHUNK_BLUE_STYLESHEET or themed_color('#1d4ed8') in styleSheet:
             self._chunk_gradient = _PROGRESS_BAR_BLUE_GRADIENT
-        elif '#059669' in styleSheet:
+        elif styleSheet == PROGRESS_BAR_CHUNK_GREEN_STYLESHEET or themed_color('#059669') in styleSheet:
             self._chunk_gradient = _PROGRESS_BAR_GREEN_GRADIENT
-        elif '#d97706' in styleSheet:
+        elif styleSheet == PROGRESS_BAR_CHUNK_ORANGE_STYLESHEET or themed_color('#d97706') in styleSheet:
             self._chunk_gradient = _PROGRESS_BAR_ORANGE_GRADIENT
-        elif '#b91c1c' in styleSheet:
+        elif styleSheet == PROGRESS_BAR_CHUNK_RED_STYLESHEET or themed_color('#b91c1c') in styleSheet:
             self._chunk_gradient = _PROGRESS_BAR_RED_GRADIENT
         else:
             self._chunk_gradient = None
@@ -112,8 +108,8 @@ class PlayerIdentifierProgressBar(QProgressBar):
 
             outer_path = QPainterPath()
             outer_path.addRoundedRect(bounding_rect, capsule_radius, capsule_radius)
-            painter.fillPath(outer_path, self._background_color)
-            painter.setPen(QPen(self._border_color, 1.0))
+            painter.fillPath(outer_path, themed_qcolor('#0d131a'))
+            painter.setPen(QPen(themed_qcolor('#253040'), 1.0))
             painter.drawPath(outer_path)
 
             current_value = self.value()
@@ -138,7 +134,8 @@ class PlayerIdentifierProgressBar(QProgressBar):
 
             displayed_text = self.text()
             if displayed_text and self.isTextVisible():
-                painter.setPen(QColor('#ffffff'))
+                on_chunk = current_value >= _CHUNK_TEXT_MIDPOINT and self._chunk_gradient is not None
+                painter.setPen(themed_text_qcolor('#ffffff', '#10b981') if on_chunk else themed_text_qcolor('#ffffff', '#0d131a'))
                 text_font = self.font()
                 text_font.setPointSize(9)
                 text_font.setBold(True)
@@ -451,7 +448,7 @@ class PlayerIdentifierWidget(QWidget):
         self._stability_bar.setFormat('Locked')
         self._stability_bar.setValue(100)
         self._stability_bar.setStyleSheet(PROGRESS_BAR_CHUNK_GREEN_STYLESHEET)
-        self._stability_label.setText('Stability: <span style="color:green;">Locked</span>')
+        self._stability_label.setText(themed_qss('Stability: <span style="color:green;">Locked</span>'))
         self._contamination_streak.clear()
 
     def _on_resolve(self) -> None:
@@ -582,8 +579,8 @@ class PlayerIdentifierWidget(QWidget):
         self._stability_bar.setValue(0)
         self._stability_bar.setFormat(bar_format)
         self._stability_bar.setStyleSheet(PROGRESS_BAR_CHUNK_RED_STYLESHEET)
-        self._stability_label.setText(f'Stability: <span style="color:red;">{stability_reason}</span>')
-        self._instructions.setText(instructions_html)
+        self._stability_label.setText(themed_qss(f'Stability: <span style="color:red;">{stability_reason}</span>'))
+        self._instructions.setText(themed_qss(instructions_html))
 
     def _abort_insufficient_players(self) -> None:
         """Stop the current phase because too many players disconnected."""
@@ -844,7 +841,7 @@ class PlayerIdentifierWidget(QWidget):
             self._stability_bar.setStyleSheet(style)
             self._prev_stability_style = style
         if label_text != self._prev_stability_text:
-            self._stability_label.setText(label_text)
+            self._stability_label.setText(themed_qss(label_text))
             self._prev_stability_text = label_text
 
     def _update_sample_label(self, text: str) -> None:
@@ -856,7 +853,7 @@ class PlayerIdentifierWidget(QWidget):
     def _update_result_label(self, text: str) -> None:
         """Update result label only when text actually changes."""
         if text != self._prev_result_text:
-            self._result_label.setText(text)
+            self._result_label.setText(themed_qss(text))
             self._prev_result_text = text
 
     @property

@@ -19,7 +19,6 @@ from PySide6.QtWidgets import (
 )
 from shiboken6 import isValid
 
-from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.guis._crashing_qthread import CrashingQThread
 from session_sniffer.guis.looky_text import LOOKY_TITLE, get_looky_restriction
 from session_sniffer.guis.stylesheets import (
@@ -36,6 +35,7 @@ from session_sniffer.guis.tables_player_actions.looky_system._looky_helpers impo
     format_looky_request_error,
     sync_player_looky_usernames_and_userip,
 )
+from session_sniffer.guis.theming import ICONS_DIR_PATH
 from session_sniffer.guis.utils import ActiveDialogRegistry, set_dialog_window_flags
 from session_sniffer.networking.looky_system import (
     get_looky_user_url,
@@ -144,7 +144,7 @@ class LookyLookupDialog(PlayerInfoDialogMixin):
 
             profile_url = get_looky_user_url(entry.rockstarid)
             target_name = entry.name or str(entry.rockstarid)
-            view_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'globe.svg')), ' View on Website')
+            view_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'globe.svg')), ' View on Website')
             view_button.setCursor(Qt.CursorShape.PointingHandCursor)
             view_button.setStyleSheet(LOOKY_ACTION_BUTTON_STYLESHEET)
             view_button.setToolTip(f"Open {target_name}'s profile on the Looky System website ({profile_url}).")
@@ -157,7 +157,7 @@ class LookyLookupDialog(PlayerInfoDialogMixin):
 
                 return _call_crawler
 
-            crawler_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'bot.svg')), ' Call Crawler')
+            crawler_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'bot.svg')), ' Call Crawler')
             crawler_button.setCursor(Qt.CursorShape.PointingHandCursor)
             crawler_button.setStyleSheet(LOOKY_ACTION_BUTTON_STYLESHEET)
             crawler_button.setToolTip(f"Call the Looky System crawler bot to resolve usernames in {target_name}'s session.")
@@ -170,7 +170,7 @@ class LookyLookupDialog(PlayerInfoDialogMixin):
 
                 return _proxy_join
 
-            proxy_join_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'user-plus.svg')), ' Proxy Join')
+            proxy_join_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'user-plus.svg')), ' Proxy Join')
             proxy_join_button.setCursor(Qt.CursorShape.PointingHandCursor)
             proxy_join_button.setStyleSheet(LOOKY_ACTION_BUTTON_STYLESHEET)
             proxy_join_button.setToolTip(f"Call the Looky System proxy bot to join {target_name}'s session.")

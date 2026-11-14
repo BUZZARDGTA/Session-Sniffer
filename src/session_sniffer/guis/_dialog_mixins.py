@@ -3,12 +3,13 @@
 from typing import TYPE_CHECKING, override
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QIcon
+from PySide6.QtGui import QColor
 from PySide6.QtWidgets import QDialog, QHBoxLayout, QMessageBox, QPushButton, QWidget
 
-from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.guis.stylesheets import DIALOG_DANGER_BUTTON_STYLESHEET, DIALOG_PRIMARY_BUTTON_STYLESHEET
+from session_sniffer.guis.theming import themed_text_qcolor
+from session_sniffer.guis.utils import render_svg_icon_from_resource, scale_by_ui
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -124,11 +125,14 @@ def setup_tab_reset_buttons(
     """Finalize *reset_button*, add a stretch, and add the per-tab reset button to *button_row*."""
     button_row.addStretch()
 
+    danger_icon_color = themed_text_qcolor('#ffffff', '#c0392b').name(QColor.NameFormat.HexArgb)
+    reset_button.setIcon(render_svg_icon_from_resource('rotate-ccw.svg', scale_by_ui(16), scale_by_ui(16), danger_icon_color))
     reset_button.setStyleSheet(DIALOG_DANGER_BUTTON_STYLESHEET)
     reset_button.clicked.connect(reset_to_defaults)
     button_row.addWidget(reset_button)
 
-    reset_tab_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'refresh-cw.svg')), ' Reset')
+    reset_tab_icon = render_svg_icon_from_resource('refresh-cw.svg', scale_by_ui(16), scale_by_ui(16), danger_icon_color)
+    reset_tab_button = QPushButton(reset_tab_icon, ' Reset')
     reset_tab_button.setToolTip(reset_tab_tooltip)
     reset_tab_button.setStyleSheet(DIALOG_DANGER_BUTTON_STYLESHEET)
     reset_tab_button.clicked.connect(reset_current_tab)
@@ -154,7 +158,9 @@ def setup_tab_dialog_buttons(
         reset_tab_tooltip='Reset current tab settings to their default values (review before saving)',
     )
 
-    save_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'save.svg')), ' Save')
+    primary_icon_color = themed_text_qcolor('#ffffff', '#3d8ec9').name(QColor.NameFormat.HexArgb)
+    save_icon = render_svg_icon_from_resource('save.svg', scale_by_ui(16), scale_by_ui(16), primary_icon_color)
+    save_button = QPushButton(save_icon, ' Save')
     save_button.setStyleSheet(DIALOG_PRIMARY_BUTTON_STYLESHEET)
     save_button.setDefault(True)
     return save_button

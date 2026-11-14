@@ -7,6 +7,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QBrush, QColor, QPainter, QPainterPath, QPaintEvent, QPen
 from PySide6.QtWidgets import QWidget
 
+from session_sniffer.guis.theming import themed_qcolor, themed_text_qcolor
 from session_sniffer.guis.utils import scale_by_ui
 
 INTEGER_FORMAT_THRESHOLD = 10
@@ -35,10 +36,12 @@ class RateGraphWidget(QWidget):
         """Initialize the rate graph widget."""
         super().__init__(parent)
         self.left_label = left_label
-        self.line_color = QColor(theme.line_color)
-        self.fill_color = QColor(theme.fill_color)
-        self.avg_color = QColor(theme.avg_color)
-        self.threshold_color = QColor(theme.threshold_color) if bool(theme.threshold_color) else None
+        self._graph_theme = theme
+        self.line_color = QColor()
+        self.fill_color = QColor()
+        self.avg_color = QColor()
+        self.threshold_color: QColor | None = None
+        self.refresh_theme_colors()
         self.visible_window = visible_window
 
         self._data: list[float] = []
@@ -49,6 +52,15 @@ class RateGraphWidget(QWidget):
 
         self.setMinimumSize(scale_by_ui(200), scale_by_ui(100))
         self.setAttribute(Qt.WidgetAttribute.WA_OpaquePaintEvent, on=True)
+
+    def refresh_theme_colors(self) -> None:
+        """Recompute graph line, fill, average, and threshold colors for the active theme."""
+        theme = self._graph_theme
+        self.line_color = themed_text_qcolor(theme.line_color, '#000000')
+        self.fill_color = themed_qcolor(theme.fill_color)
+        self.avg_color = themed_text_qcolor(theme.avg_color, '#000000')
+        self.threshold_color = themed_text_qcolor(theme.threshold_color, '#000000') if theme.threshold_color is not None else None
+        self.update()
 
     def set_data(self, data: list[float]) -> None:
         """Set the data to be drawn (should be up to visible_window items)."""
@@ -118,7 +130,7 @@ class RateGraphWidget(QWidget):
         painter = QPainter(self)
         try:
             painter.setRenderHint(QPainter.RenderHint.Antialiasing, on=True)
-            painter.fillRect(a0.rect(), Qt.GlobalColor.black)
+            painter.fillRect(a0.rect(), themed_qcolor('#000000'))
 
             rect = self.rect()
             margin_left = 60
@@ -133,7 +145,7 @@ class RateGraphWidget(QWidget):
                 return
 
             # Draw grid
-            painter.setPen(QPen(QColor(50, 50, 50), 1, Qt.PenStyle.SolidLine))
+            painter.setPen(QPen(themed_qcolor(QColor(50, 50, 50)), 1, Qt.PenStyle.SolidLine))
             num_x_lines = 6
             for i in range(num_x_lines + 1):
                 x_position = margin_left + i * graph_width / num_x_lines
@@ -156,7 +168,8 @@ class RateGraphWidget(QWidget):
                 painter.drawText(0, int(y_position) - 10, margin_left - 5, 20, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter, text)
 
             # X-axis labels
-            painter.setPen(QPen(QColor(200, 200, 200), 1))
+            axis_label_color = themed_text_qcolor(QColor(200, 200, 200), '#000000')
+            painter.setPen(QPen(axis_label_color, 1))
             for i in range(num_x_lines + 1):
                 x_value = self.visible_window * (num_x_lines - i) / num_x_lines
                 x_position = margin_left + i * graph_width / num_x_lines
@@ -171,7 +184,7 @@ class RateGraphWidget(QWidget):
             painter.drawText(-100, -10, 200, 20, Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop, self.left_label)
             painter.restore()
 
-            painter.setPen(QPen(QColor(200, 200, 200), 1))
+            painter.setPen(QPen(axis_label_color, 1))
             painter.drawText(margin_left, margin_top + graph_height + 20, graph_width, 20, Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop, 'Time (seconds ago)')
 
             # Draw data

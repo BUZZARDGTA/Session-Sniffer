@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QPushButton,
     QScrollArea,
+    QSizePolicy,
     QSpinBox,
     QTabWidget,
     QVBoxLayout,
@@ -31,18 +32,14 @@ from PySide6.QtWidgets import (
 
 from session_sniffer.capture.arp_spoofing import ArpSpoofingController
 from session_sniffer.capture.process import matches_process_name
-from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.discord.webhook import is_valid_webhook_url
 from session_sniffer.error_messages import format_invalid_datetime_columns_settings_message
-from session_sniffer.guis._dialog_mixins import (
-    UnsavedChangesMixin,
-    equalize_button_sizes,
-    setup_tab_dialog_buttons,
-)
+from session_sniffer.guis._dialog_mixins import UnsavedChangesMixin, equalize_button_sizes, setup_tab_dialog_buttons
 from session_sniffer.guis._settings_discord_mixin import SettingsDialogDiscordMixin
 from session_sniffer.guis._settings_looky_mixin import SettingsDialogLookyMixin
 from session_sniffer.guis._settings_runtime import SettingValue, apply_runtime_settings_changes
+from session_sniffer.guis._settings_theme_mixin import SettingsDialogThemeMixin
 from session_sniffer.guis._settings_widget_builders import (
     HotkeyEditWidget,
     build_discord_info_group,
@@ -75,7 +72,9 @@ from session_sniffer.guis.stylesheets import (
     INTERFACE_INFO_VALUE_LABEL_STYLESHEET,
     SETTINGS_RESTART_BANNER_STYLESHEET,
 )
+from session_sniffer.guis.theming import DEFAULT_THEME_NAME, ICONS_DIR_PATH, load_themes_file, themed_color, themed_qss, themed_text_qcolor
 from session_sniffer.guis.utils import (
+    render_svg_icon_from_resource,
     render_svg_pixmap_from_resource,
     resize_window_for_screen,
     scale_by_ui,
@@ -99,7 +98,7 @@ _NONE_PLACEHOLDER = 'None'
 _DISCORD_PRESENCE_TITLE_MIN_LEN = 2
 
 
-class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, UnsavedChangesMixin, QDialog):
+class SettingsDialog(SettingsDialogThemeMixin, SettingsDialogLookyMixin, SettingsDialogDiscordMixin, UnsavedChangesMixin, QDialog):
     """Non-modal dialog exposing every settings.json option for viewing, editing, saving, and resetting."""
 
     def __init__(self, parent: QWidget | None, capture: PacketCapture, on_change_interface: Callable[[], None]) -> None:
@@ -157,32 +156,33 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
         banner_layout.setSpacing(8)
 
         banner_icon_label = QLabel()
-        banner_icon_label.setPixmap(render_svg_pixmap_from_resource('triangle-alert.svg', 16, 16, '#f59e0b'))
+        banner_icon_label.setPixmap(render_svg_pixmap_from_resource('triangle-alert.svg', 16, 16, themed_color('#f59e0b')))
         banner_layout.addWidget(banner_icon_label)
 
-        banner_text_label = QLabel('Saving changes will restart packet capture.')
-        banner_text_label.setStyleSheet('color: #f59e0b; font-size: 9pt; font-weight: 600;')
-        banner_layout.addWidget(banner_text_label)
+        self._restart_notice_label = QLabel('Saving changes will restart packet capture.')
+        self._restart_notice_label.setStyleSheet(themed_qss('color: #f59e0b; font-size: 9pt; font-weight: 600;'))
+        banner_layout.addWidget(self._restart_notice_label)
         banner_layout.addStretch()
 
         self._restart_notice_banner.setVisible(False)
         root_layout.addWidget(self._restart_notice_banner)
 
         button_row = QHBoxLayout()
-
-        import_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'import.svg')), ' Import')
+        import_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'import.svg')), ' Import')
         import_button.setToolTip('Import settings from a settings.json file (review before saving)')
         import_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
         import_button.clicked.connect(self._import_settings)
         button_row.addWidget(import_button)
 
-        export_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'upload.svg')), ' Export')
+        export_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'upload.svg')), ' Export')
         export_button.setToolTip('Export current settings to a settings.json file')
         export_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
         export_button.clicked.connect(self._export_settings)
         button_row.addWidget(export_button)
 
-        reset_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'rotate-ccw.svg')), ' Reset all…')
+        reset_fg = themed_text_qcolor('#ffffff', '#c0392b').name(QColor.NameFormat.HexArgb)
+        reset_icon = render_svg_icon_from_resource('rotate-ccw.svg', scale_by_ui(16), scale_by_ui(16), reset_fg)
+        reset_button = QPushButton(reset_icon, ' Reset all…')
         reset_button.setToolTip('Reset all settings across all tabs to their default values (review before saving)')
         reset_button.setStyleSheet(DIALOG_DANGER_BUTTON_STYLESHEET)
         save_button = setup_tab_dialog_buttons(button_row, reset_button, self._reset_to_defaults, self._reset_current_tab)
@@ -190,19 +190,18 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
         save_button.clicked.connect(self._save_settings)
         button_row.addWidget(save_button)
 
-        cancel_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'x.svg')), ' Cancel')
+        cancel_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'x.svg')), ' Cancel')
         cancel_button.setToolTip('Discard changes and close')
         cancel_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
         cancel_button.clicked.connect(self.reject)
         button_row.addWidget(cancel_button)
-
         equalize_button_sizes(button_row)
-
         root_layout.addLayout(button_row)
 
         self._connect_widget_change_signals()
         self._load_current_values()
         self._sync_loaded_process_baseline()
+        self._update_restart_notice()
 
         # Force the webhook enable cascade once even if the value matches the
         # default (in which case `setChecked` would not fire `toggled`).
@@ -317,6 +316,9 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
                     self._add_setting_row(group_form, key, meta)
             outer_layout.addWidget(group_box)
 
+        if category == 'Themes':
+            self._populate_themes_tab(outer_layout)
+
         outer_layout.addStretch()
         scroll.setWidget(container)
         page_layout.addWidget(scroll)
@@ -333,7 +335,7 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
 
         def _make_label(text: str) -> QLabel:
             label = QLabel(text + ':')
-            label.setStyleSheet('color: #a5b4c4; font-weight: 600; background: transparent;')
+            label.setStyleSheet(themed_qss('color: #a5b4c4; font-weight: 600; background: transparent;'))
             label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
             return label
 
@@ -369,10 +371,12 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
         separator = QFrame()
         separator.setFrameShape(QFrame.Shape.HLine)
         separator.setFrameShadow(QFrame.Shadow.Sunken)
-        separator.setStyleSheet('background: rgba(61, 142, 201, 0.25); border: none; max-height: 1px;')
+        separator.setStyleSheet(themed_qss('background: rgba(61, 142, 201, 0.25); border: none; max-height: 1px;'))
         layout.addWidget(separator)
 
-        change_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'refresh-cw.svg')), ' Change Interface\u2026')
+        change_fg = themed_text_qcolor('#ffffff', '#3d8ec9').name(QColor.NameFormat.HexArgb)
+        change_icon = render_svg_icon_from_resource('refresh-cw.svg', scale_by_ui(16), scale_by_ui(16), change_fg)
+        change_button = QPushButton(change_icon, ' Change Interface\u2026')
         change_button.setToolTip('Close settings and open the network interface selection screen')
         change_button.setStyleSheet(DIALOG_PRIMARY_BUTTON_STYLESHEET)
         change_button.clicked.connect(self._open_interface_selection)
@@ -405,6 +409,10 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
         self._labels[key] = label
         if tooltip := label.toolTip():
             widget.setToolTip(tooltip)
+
+        if key == 'gui_theme':
+            self._build_theme_setting_row(form, label, widget)
+            return
 
         if key == 'capture_filter_process_pid' and not CaptureState.is_local_capture():
             label.setEnabled(False)
@@ -451,38 +459,23 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
             if connected_rpp_widget is not None:
                 connected_rpp_widget.setToolTip(rpp_tooltip)
 
-        disconnected_rpp_label = self._labels.get('gui_disconnected_table_rows_per_page')
-        disconnected_rpp_widget = self._widgets.get('gui_disconnected_table_rows_per_page')
-        if disconnected_rpp_label is not None:
-            disconnected_rpp_label.setEnabled(checked)
-        if disconnected_rpp_widget is not None:
-            disconnected_rpp_widget.setEnabled(checked)
-
-        disconnected_timer_label = self._labels.get('gui_disconnected_players_timer')
-        disconnected_timer_widget = self._widgets.get('gui_disconnected_players_timer')
-        if disconnected_timer_label is not None:
-            disconnected_timer_label.setEnabled(checked)
-        if disconnected_timer_widget is not None:
-            disconnected_timer_widget.setEnabled(checked)
-
-        disconnected_limit_label = self._labels.get('gui_disconnected_players_limit')
-        disconnected_limit_widget = self._widgets.get('gui_disconnected_players_limit')
-        if disconnected_limit_label is not None:
-            disconnected_limit_label.setEnabled(checked)
-        if disconnected_limit_widget is not None:
-            disconnected_limit_widget.setEnabled(checked)
-
         connected_sort_col_label = self._labels.get('gui_connected_table_sort_column')
         if connected_sort_col_label is not None:
             connected_sort_col_label.setText('Connected Sort Column:' if checked else 'Sort Column:')
         connected_sort_order_label = self._labels.get('gui_connected_table_sort_order')
         if connected_sort_order_label is not None:
             connected_sort_order_label.setText('Connected Sort Order:' if checked else 'Sort Order:')
-        for sort_key in ('gui_disconnected_table_sort_column', 'gui_disconnected_table_sort_order'):
-            if (label := self._labels.get(sort_key)) is not None:
+        for dep_key in (
+            'gui_disconnected_table_rows_per_page',
+            'gui_disconnected_players_timer',
+            'gui_disconnected_players_limit',
+            'gui_disconnected_table_sort_column',
+            'gui_disconnected_table_sort_order',
+        ):
+            if (label := self._labels.get(dep_key)) is not None:
                 label.setEnabled(checked)
-            if (sort_widget := self._widgets.get(sort_key)) is not None:
-                sort_widget.setEnabled(checked)
+            if (dep_widget := self._widgets.get(dep_key)) is not None:
+                dep_widget.setEnabled(checked)
 
     def _on_high_rate_monitor_mode_changed(self, mode: str) -> None:
         """Enable or disable manual threshold inputs based on whether High Rate Monitor is in Smart or Manual mode."""
@@ -515,6 +508,12 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
         """Return the appropriate input widget for a single setting."""
         if key == 'capture_filter_process_pid':
             return ProcessSelectorWidget(self, meta=meta)
+        if key == 'gui_theme':
+            combo = create_enum_widget(meta)
+            combo.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+            combo.clear()
+            combo.addItems([theme.name for theme in self._cached_themes_file.all_themes()])
+            return combo
 
         dispatch: dict[SettingType, Callable[[], QWidget]] = {
             SettingType.BOOLEAN: partial(create_boolean_widget, meta),
@@ -543,10 +542,12 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
         """Populate every widget using values returned by *getter* without triggering intermediate notices."""
         self._loading_settings = True
         try:
+            self._refresh_theme_combo_options()
             for key, widget in self._widgets.items():
                 self._set_widget_value(key, widget, getter(key), source_getter=getter)
             self._update_sort_column_options()
             self._update_high_rate_monitor_mode_state()
+            self._sync_selected_theme_card()
         finally:
             self._loading_settings = False
 
@@ -591,11 +592,14 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
                     list_widget.clear()
                     list_widget.addItems(list(entries))
 
+    @override
     def _set_enum(self, widget: QWidget, value: SettingValue) -> None:
         """Set value for an enum combo box."""
         combo = cast('QComboBox', widget)
         text = _NONE_PLACEHOLDER if value is None else str(value)
         index = combo.findText(text, Qt.MatchFlag.MatchFixedString)
+        if index < 0:
+            index = combo.findText(DEFAULT_THEME_NAME, Qt.MatchFlag.MatchFixedString)
         if index >= 0:
             combo.setCurrentIndex(index)
 
@@ -742,6 +746,7 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
             self._old_values['discord_webhook_message_ids'] = None
             self._pending_webhook_message_ids_reset = False
 
+        self.cancel_pending_live_theme_switch()
         Settings.rewrite_settings_file()
         apply_runtime_settings_changes(self._capture, runtime_old_values, new_values, dialog_parent=self)
 
@@ -782,6 +787,7 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
         self._refresh_interface_info_labels()
         if not self.isVisible() or self._has_unsaved_changes_for_close():
             return
+        self._cached_themes_file = load_themes_file()[0]
         self._old_values = {key: getattr(Settings, key) for key in SETTING_METADATA}
         self._initial_values = dict(self._old_values)
         self._load_current_values()
@@ -817,6 +823,7 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
         """Populate all widgets with default values without saving."""
         defaults_dict = cast('dict[str, SettingValue]', SETTING_DEFAULTS)
         self._populate_widgets(defaults_dict.get)
+        self._apply_selected_theme_live()
         self._update_restart_notice()
 
     def _export_settings(self) -> None:
@@ -842,6 +849,7 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
             QMessageBox.critical(self, TITLE, f'Failed to import settings:\n\n{e}')
             return
         self._populate_widgets(lambda key: cast('SettingValue', getattr(validated, key.upper())))
+        self._apply_selected_theme_live()
         if 'invalid_datetime_columns_corrected' in flags:
             QMessageBox.warning(self, TITLE, format_triple_quoted_text(format_invalid_datetime_columns_settings_message()))
         self._update_restart_notice()
@@ -923,12 +931,6 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
                 disconnected_sort_widget.addItems(available_disconnected)
                 disconnected_sort_widget.setCurrentText(target_selected)
 
-    def _update_restart_notice(self, *_args: object) -> None:
-        """Update visibility of the capture restart notice banner."""
-        if self._loading_settings:
-            return
-        self._restart_notice_banner.setVisible(self._has_unsaved_restart_changes())
-
     def _on_process_selection_applied(self) -> None:
         """Synchronize dialog widgets after TargetProcessDialog updates the process selector."""
         process_selector = self._widgets.get('capture_filter_process_pid')
@@ -961,6 +963,7 @@ class SettingsDialog(SettingsDialogLookyMixin, SettingsDialogDiscordMixin, Unsav
             return sorted(current_value if isinstance(current_value, tuple) else ()) != sorted(original_value if isinstance(original_value, tuple) else ())
         return current_value != original_value
 
+    @override
     def _has_unsaved_restart_changes(self) -> bool:
         """Return `True` if any modified setting requires a packet capture restart."""
         return any(SETTING_METADATA[key].requires_capture_restart and self._is_setting_modified(key, widget) for key, widget in self._widgets.items())

@@ -24,6 +24,7 @@ from session_sniffer.constants.tables import (
 from session_sniffer.error_messages import format_invalid_datetime_columns_settings_message
 from session_sniffer.logging_setup import clear_secret_cache
 from session_sniffer.models.settings_model import SettingsModel, SettingsValidationConfig
+from session_sniffer.models.themes import load_themes_file
 from session_sniffer.networking.ip_range import IPRange, parse_ip_range
 from session_sniffer.networking.third_party_servers import ALL_THIRD_PARTY_SERVER_NAMES
 from session_sniffer.settings.defaults import SETTING_DEFAULTS
@@ -61,6 +62,7 @@ class Settings:
     capture_filter_block_uaudp: bool = SETTING_DEFAULTS['capture_filter_block_uaudp']
     capture_filter_block_classicstun: bool = SETTING_DEFAULTS['capture_filter_block_classicstun']
     capture_filter_block_llmnr: bool = SETTING_DEFAULTS['capture_filter_block_llmnr']
+    gui_theme: str = SETTING_DEFAULTS['gui_theme']
     gui_always_on_top: bool = SETTING_DEFAULTS['gui_always_on_top']
     gui_remember_window_layout: bool = SETTING_DEFAULTS['gui_remember_window_layout']
     gui_servers_color_enabled: bool = SETTING_DEFAULTS['gui_servers_color_enabled']
@@ -169,6 +171,7 @@ class Settings:
         'CAPTURE_PS3_NAME_RESOLVER',
         'CAPTURE_PREPEND_CUSTOM_CAPTURE_FILTER',
         *CAPTURE_FILTER_BLOCK_SETTINGS,
+        'GUI_THEME',
         'GUI_ALWAYS_ON_TOP',
         'GUI_REMEMBER_WINDOW_LAYOUT',
         'GUI_SERVERS_COLOR_ENABLED',
@@ -432,6 +435,7 @@ class Settings:
                 all_connected_columns=cls.GUI_ALL_CONNECTED_COLUMNS,
                 all_disconnected_columns=cls.GUI_ALL_DISCONNECTED_COLUMNS,
                 all_third_party_servers=ALL_THIRD_PARTY_SERVER_NAMES,
+                available_theme_names=tuple(theme.name for theme in load_themes_file()[0].all_themes()),
             ),
         )
 

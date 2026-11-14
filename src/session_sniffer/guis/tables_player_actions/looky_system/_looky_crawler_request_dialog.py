@@ -43,6 +43,7 @@ from session_sniffer.guis.tables_player_actions.looky_system._looky_helpers impo
     build_looky_progress_widgets,
     check_looky_prerequisites,
 )
+from session_sniffer.guis.theming import themed_qss
 from session_sniffer.guis.utils import scale_by_ui, set_dialog_window_flags
 from session_sniffer.networking.looky_system import (
     LookyInstructionContext,
@@ -403,8 +404,10 @@ class _CrawlerRequestDialog(QDialog):
         """Refresh the amber rate-limit countdown text."""
         header_text = html.escape(self._rate_limit_message or 'Server rate limit active')
         self._widgets.status_label.setText(
-            f'<span style="color: #fbbf24; font-weight: 600;">{header_text}<br>'
-            f'Automatically retrying in {self._retry_remaining} second{pluralize(self._retry_remaining)}…</span>',
+            themed_qss(
+                f'<span style="color: #fbbf24; font-weight: 600;">{header_text}<br>'
+                f'Automatically retrying in {self._retry_remaining} second{pluralize(self._retry_remaining)}…</span>',
+            ),
         )
 
     # ------------------------------------------------------------------
@@ -431,7 +434,7 @@ class _CrawlerRequestDialog(QDialog):
         self._append_log_line(text)
         if status_lower not in {'completed', 'failed', 'canceled'} and not is_terminal_failure_instruction_status(status_lower):
             color = '#fbbf24' if status_lower == 'queued' else '#d8b4fe'
-            self._widgets.status_label.setText(f'<span style="color: {color}; font-weight: 600;">{html.escape(text)}</span>')
+            self._widgets.status_label.setText(themed_qss(f'<span style="color: {color}; font-weight: 600;">{html.escape(text)}</span>'))
             self._widgets.status_label.show()
 
     def _on_reconnect_triggered(self, attempt: int) -> None:
@@ -443,7 +446,7 @@ class _CrawlerRequestDialog(QDialog):
         self._is_completed = True
         self._retry_timer.stop()
         self._widgets.progress_bar.hide()
-        self._widgets.status_label.setText('<span style="color: #4ade80; font-weight: 600;">Completed</span>')
+        self._widgets.status_label.setText(themed_qss('<span style="color: #4ade80; font-weight: 600;">Completed</span>'))
         self._widgets.status_label.show()
         self._log.setPlaceholderText('')
         if self._request.on_completed is not None:
@@ -473,7 +476,7 @@ class _CrawlerRequestDialog(QDialog):
         self._retry_timer.stop()
         self._auto_close_timer.stop()
         self._widgets.progress_bar.hide()
-        self._widgets.status_label.setText(status_html)
+        self._widgets.status_label.setText(themed_qss(status_html))
         self._widgets.status_label.show()
         self._widgets.try_again_button.setText('Try Again')
         self._widgets.try_again_button.show()

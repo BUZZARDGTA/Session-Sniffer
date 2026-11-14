@@ -19,6 +19,7 @@ from session_sniffer.guis.stylesheets import (
     SPLASH_SUBTITLE_READY_STYLESHEET,
     SPLASH_TITLE_LABEL_STYLESHEET,
 )
+from session_sniffer.guis.theming import themed_qss
 from session_sniffer.guis.utils import SPINNER_FRAMES, center_window_on_screen, scale_by_ui
 
 _P = ParamSpec('_P')
@@ -95,7 +96,7 @@ class SplashScreen(QWidget):
         html = f'<span style="color:{icon_color}; font-weight:bold;">{icon}</span>&nbsp;&nbsp;<span style="color:{_TEXT_COLOR};">{text}</span>'
         if bool(detail):
             html = f'{html}<br>&nbsp;&nbsp;&nbsp;<span style="color:{_DETAIL_COLOR};">{detail}</span>'
-        return html
+        return themed_qss(html)
 
     def _replace_last_line(self, html: str) -> None:
         """Replace the last line in the log area with new HTML content."""
@@ -183,7 +184,7 @@ class SplashScreen(QWidget):
         self._subtitle.setText('Ready!')
         self._subtitle.setStyleSheet(SPLASH_SUBTITLE_READY_STYLESHEET)
 
-        ready_html = f'<br><span style="color:{_READY_COLOR}; font-weight:bold;">&#x2714;&nbsp;&nbsp;All systems go &mdash; launching!</span>'
+        ready_html = themed_qss(f'<br><span style="color:{_READY_COLOR}; font-weight:bold;">&#x2714;&nbsp;&nbsp;All systems go &mdash; launching!</span>')
         self._log_area.append(ready_html)
 
         scrollbar = self._log_area.verticalScrollBar()

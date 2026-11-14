@@ -36,6 +36,7 @@ from session_sniffer.guis.stylesheets import (
     DEPENDENCY_PROMPT_TITLE_LABEL_STYLESHEET,
     UPDATE_DOWNLOAD_DIVIDER_STYLESHEET,
 )
+from session_sniffer.guis.theming import themed_qss, themed_text_qcolor
 from session_sniffer.guis.utils import (
     SPINNER_FRAMES,
     center_window_on_screen,
@@ -200,7 +201,8 @@ class DependencyPromptDialog(DraggableDialogMixin, QDialog):
         action_button.setStyleSheet(DEPENDENCY_PROMPT_ACTION_BUTTON_STYLESHEET)
         action_button.setFont(get_ui_font(scale_by_ui(9), QFont.Weight.Bold))
         action_button.setCursor(Qt.CursorShape.PointingHandCursor)
-        action_icon = render_svg_pixmap_from_resource('globe.svg', scale_by_ui(16), scale_by_ui(16))
+        action_tint = themed_text_qcolor('#ffffff', '#1c62a4').name(QColor.NameFormat.HexArgb)
+        action_icon = render_svg_pixmap_from_resource('globe.svg', scale_by_ui(16), scale_by_ui(16), tint_color=action_tint)
         action_button.setIcon(QIcon(action_icon))
         action_button.setFixedHeight(scale_by_ui(34))
         action_button.clicked.connect(self._handle_action_clicked)
@@ -220,7 +222,7 @@ class DependencyPromptDialog(DraggableDialogMixin, QDialog):
 
         self._spinner_label = QLabel(SPINNER_FRAMES[0])
         self._spinner_label.setFont(get_monospace_font(scale_by_ui(13), QFont.Weight.Bold))
-        self._spinner_label.setStyleSheet(f'color: {_SPINNER_COLOR}; background: transparent;')
+        self._spinner_label.setStyleSheet(themed_qss(f'color: {_SPINNER_COLOR}; background: transparent;'))
         self._spinner_label.setFixedWidth(scale_by_ui(22))
         self._spinner_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self._spinner_label)

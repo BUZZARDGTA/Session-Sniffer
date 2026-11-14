@@ -4,12 +4,12 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QColor
 from PySide6.QtWidgets import QTableWidget, QTableWidgetItem
 
 from session_sniffer.constants.tables import SESSION_TIMELINE_TABLE_MIN_COLUMN_WIDTHS
 from session_sniffer.exceptions import PlayerDateTimeCorruptionError
 from session_sniffer.guis.table_context_menu import StatTableWindowMixin, skip_if_menu_open
+from session_sniffer.guis.theming import register_theme_change_callback, themed_text_qcolor
 from session_sniffer.guis.utils import (
     NumericTableWidgetItem,
     format_duration,
@@ -34,8 +34,16 @@ _COLUMN_REJOINS = 7
 
 _HEADERS = ['Player', 'Status', 'First Seen', 'Last Rejoin', 'Last Seen', 'Session Time', 'Total Time', 'Rejoins']
 
-_COLOR_CONNECTED = QColor(80, 200, 80)
-_COLOR_DISCONNECTED = QColor(220, 80, 60)
+_COLOR_CONNECTED = themed_text_qcolor('#50c850', '#1e1e1e')
+_COLOR_DISCONNECTED = themed_text_qcolor('#dc503c', '#1e1e1e')
+
+
+def _refresh_timeline_colors() -> None:
+    _COLOR_CONNECTED.setRgba(themed_text_qcolor('#50c850', '#1e1e1e').rgba())
+    _COLOR_DISCONNECTED.setRgba(themed_text_qcolor('#dc503c', '#1e1e1e').rgba())
+
+
+register_theme_change_callback(_refresh_timeline_colors)
 
 
 def _calculate_player_session_times(player: Player, now: datetime) -> tuple[float, float]:

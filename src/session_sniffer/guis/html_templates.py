@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 
 from session_sniffer.constants.local import VERSION
 from session_sniffer.constants.standalone import TITLE
+from session_sniffer.guis.theming import themed_qss
 
 if TYPE_CHECKING:
     from session_sniffer.capture.packet_capture import PacketCapture
@@ -39,8 +40,10 @@ def generate_gui_header_html(*, capture: PacketCapture) -> str:
     """Generate the GUI header HTML based on capture state."""
     stop_status = '' if capture.is_running() else CAPTURE_STOPPED_HTML
 
-    return GUI_HEADER_HTML_TEMPLATE.format(
-        title=TITLE,
-        version=VERSION,
-        stop_status=stop_status,
+    return themed_qss(
+        GUI_HEADER_HTML_TEMPLATE.format(
+            title=TITLE,
+            version=VERSION,
+            stop_status=stop_status,
+        ),
     )

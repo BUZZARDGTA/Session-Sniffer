@@ -7,7 +7,6 @@ from PySide6.QtCore import QUrl
 from PySide6.QtGui import QAction, QDesktopServices, QIcon
 from PySide6.QtWidgets import QMenu
 
-from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.error_messages import ensure_instance
 from session_sniffer.guis.looky_text import (
     configure_looky_action,
@@ -36,6 +35,7 @@ from session_sniffer.guis.tables_userip_mixin import (
     userip_rename_multi,
     userip_ungroup,
 )
+from session_sniffer.guis.theming import ICONS_DIR_PATH
 from session_sniffer.guis.userip_conflict_resolver import open_userip_conflict_resolver
 from session_sniffer.guis.userip_manager_helpers import populate_userip_databases_menu
 from session_sniffer.guis.utils import set_clipboard_text
@@ -152,7 +152,7 @@ def _add_resolve_conflict_action(userip_menu: QMenu, ip_address: str) -> None:
         'Resolve Conflict…',
         tooltip='This IP is claimed by multiple UserIP databases. Open the UserIP Conflict Resolver to fix it.',
         handler=lambda: open_userip_conflict_resolver(ip_address),
-        icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'scale.svg')),
+        icon=QIcon(str(ICONS_DIR_PATH / 'scale.svg')),
     )
 
 
@@ -170,7 +170,7 @@ def _add_resolve_split_group_if_needed(userip_menu: QMenu, usernames: Sequence[s
         'Resolve Split Group…',
         tooltip='This account group has entries split across multiple UserIP databases. Open the resolver to consolidate or ungroup them.',
         handler=lambda: open_userip_conflict_resolver(focus_split_username=matched_user),
-        icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'link.svg')),
+        icon=QIcon(str(ICONS_DIR_PATH / 'link.svg')),
     )
     return True
 
@@ -242,7 +242,7 @@ def _add_move_group_menu(
         userip_menu,
         f'Move Group ({count})',
         tooltip=f'Move all {count} entries in {group_scope} ({u_count} username{pluralize(u_count)}, {summary.ip_count} {summary.ip_noun}) to another UserIP database.',
-        icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'box.svg')),
+        icon=QIcon(str(ICONS_DIR_PATH / 'box.svg')),
     )
     disabled_db = next(iter(summary.source_databases)) if len(summary.source_databases) == 1 else None
     populate_userip_databases_menu(
@@ -266,7 +266,7 @@ def build_userip_menu(
     parent: QWidget,
 ) -> None:
     """Build the UserIP submenu for a single selected player."""
-    userip_menu = add_menu(context_menu, 'UserIP', icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'database.svg')))
+    userip_menu = add_menu(context_menu, 'UserIP', icon=QIcon(str(ICONS_DIR_PATH / 'database.svg')))
 
     if UserIPDatabases.is_conflicting_ip(ip_address):
         _add_resolve_conflict_action(userip_menu, ip_address)
@@ -277,7 +277,7 @@ def build_userip_menu(
         player_usernames = resolve_usernames_for_player(player)
         if _add_resolve_split_group_if_needed(userip_menu, player_usernames):
             userip_menu.addSeparator()
-        add_userip_menu = add_menu(userip_menu, 'Add', tooltip='Add selected IP address to UserIP database.', icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'plus.svg')))
+        add_userip_menu = add_menu(userip_menu, 'Add', tooltip='Add selected IP address to UserIP database.', icon=QIcon(str(ICONS_DIR_PATH / 'plus.svg')))
         populate_userip_databases_menu(
             add_userip_menu,
             database_paths,
@@ -288,7 +288,7 @@ def build_userip_menu(
             userip_menu,
             'Add as Range',
             tooltip='Add selected IP as a range entry to a UserIP database.',
-            icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'plus.svg')),
+            icon=QIcon(str(ICONS_DIR_PATH / 'plus.svg')),
         )
         populate_userip_databases_menu(
             add_range_userip_menu,
@@ -303,7 +303,7 @@ def build_userip_menu(
                 'Group With…',
                 tooltip='Group this player with another username in your UserIP databases.',
                 handler=lambda: userip_group_with(parent, [player]),
-                icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'user-plus.svg')),
+                icon=QIcon(str(ICONS_DIR_PATH / 'user-plus.svg')),
             )
             grouped_names = collect_grouped_usernames_for_player(player)
             if len(grouped_names) >= MIN_GROUP_USERNAMES:
@@ -313,14 +313,14 @@ def build_userip_menu(
                     f'Copy Usernames ({len(grouped_names)})',
                     tooltip=f'Copy all {len(grouped_names)} usernames in this account group ({group_text}) to the clipboard.',
                     handler=lambda: set_clipboard_text(group_text),
-                    icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')),
+                    icon=QIcon(str(ICONS_DIR_PATH / 'copy.svg')),
                 )
                 add_action(
                     userip_menu,
                     'Ungroup…',
                     tooltip='Ungroup linked usernames from this account group.',
                     handler=lambda: userip_ungroup(parent, player),
-                    icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')),
+                    icon=QIcon(str(ICONS_DIR_PATH / 'remove.svg')),
                 )
         return
 
@@ -334,7 +334,7 @@ def build_userip_menu(
         'Open Database',
         tooltip="Open this player's UserIP database file in the default text editor.",
         handler=_open_userip_database,
-        icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'folder.svg')),
+        icon=QIcon(str(ICONS_DIR_PATH / 'folder.svg')),
     )
     persisted_usernames = collect_persisted_usernames_for_ip(player.userip.db_path, ip_address)
     userip_seeds, _ = get_player_userip_group_seeds(player, persisted_usernames=persisted_usernames)
@@ -346,14 +346,14 @@ def build_userip_menu(
         'Add Username…',
         tooltip='Add an additional username for this IP address in its UserIP database.',
         handler=lambda: userip_add_username(parent, ip_address, player),
-        icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'plus.svg')),
+        icon=QIcon(str(ICONS_DIR_PATH / 'plus.svg')),
     )
     add_action(
         userip_menu,
         'Group With…',
         tooltip='Group this player with another username so their accounts stay linked in UserIP.',
         handler=lambda: userip_group_with(parent, [player]),
-        icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'user-plus.svg')),
+        icon=QIcon(str(ICONS_DIR_PATH / 'user-plus.svg')),
     )
     grouped_names = collect_grouped_usernames_for_player(player, persisted_usernames=persisted_usernames)
     if len(grouped_names) >= MIN_GROUP_USERNAMES:
@@ -363,14 +363,14 @@ def build_userip_menu(
             f'Copy Usernames ({len(grouped_names)})',
             tooltip=f'Copy all {len(grouped_names)} usernames in this account group ({group_text}) to the clipboard.',
             handler=lambda: set_clipboard_text(group_text),
-            icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')),
+            icon=QIcon(str(ICONS_DIR_PATH / 'copy.svg')),
         )
         add_action(
             userip_menu,
             'Ungroup…',
             tooltip='Ungroup linked usernames from this account group (prevents false-positive grouping).',
             handler=lambda: userip_ungroup(parent, player),
-            icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')),
+            icon=QIcon(str(ICONS_DIR_PATH / 'remove.svg')),
         )
     if Settings.is_gta5_feature_set() and CaptureState.is_local_capture() and not player.is_third_party_server:
         userip_menu.addSeparator()
@@ -385,7 +385,7 @@ def build_userip_menu(
                 else 'Look up this IP via Looky System to confirm existing usernames and discover any additional usernames.'
             ),
             handler=lambda: looky_refresh_userip_entries(parent, [(player.userip.db_path, [ip_address])], restriction=restriction) if player.userip else None,
-            icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'eye.svg')),
+            icon=QIcon(str(ICONS_DIR_PATH / 'eye.svg')),
         )
         configure_looky_action(refresh_action, default_tooltip=refresh_action.toolTip(), restriction=restriction)
         userip_menu.addSeparator()
@@ -398,7 +398,7 @@ def build_userip_menu(
             'Convert to Range',
             tooltip=f'Replace this single IP entry with a range, e.g. a VPN or subnet, keeping its username{pluralize(len(player.userip.usernames))}.',
             handler=lambda: userip_convert_to_range(parent, ip_address, player),
-            icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'refresh-cw.svg')),
+            icon=QIcon(str(ICONS_DIR_PATH / 'refresh-cw.svg')),
         )
     if matching_ranges:
         range_labels = {_classify_range_raw(raw) for raw in matching_ranges}
@@ -408,14 +408,14 @@ def build_userip_menu(
             'Edit Range',
             tooltip=f'Edit this {range_desc} entry, or narrow it back to a single IP, keeping its username{pluralize(len(player.userip.usernames))}.',
             handler=lambda: userip_edit_range(parent, ip_address, player),
-            icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square-pen.svg')),
+            icon=QIcon(str(ICONS_DIR_PATH / 'square-pen.svg')),
         )
         add_action(
             userip_menu,
             'Convert to IP',
             tooltip=f'Replace this {range_desc} entry with single IP {ip_address}, keeping its username{pluralize(len(player.userip.usernames))}.',
             handler=lambda: userip_convert_to_ip(parent, ip_address, player),
-            icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'refresh-cw.svg')),
+            icon=QIcon(str(ICONS_DIR_PATH / 'refresh-cw.svg')),
         )
     if persisted_usernames:
         add_action(
@@ -423,7 +423,7 @@ def build_userip_menu(
             'Rename',
             tooltip='Rename all entries for this IP address by picking from existing usernames in its database.',
             handler=lambda: userip_rename(parent, ip_address, player),
-            icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square-pen.svg')),
+            icon=QIcon(str(ICONS_DIR_PATH / 'square-pen.svg')),
         )
     note_action = 'Edit' if player.userip.notes else 'Add'
     note_label = f'{note_action} Note…'
@@ -432,13 +432,13 @@ def build_userip_menu(
         note_label,
         tooltip=f'{note_action} the note for this IP address in its UserIP database.',
         handler=lambda: userip_edit_note(parent, ip_address, player),
-        icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'notepad-text.svg')),
+        icon=QIcon(str(ICONS_DIR_PATH / 'notepad-text.svg')),
     )
     move_userip_menu = add_menu(
         userip_menu,
         'Move',
         tooltip=f'Move this {entry_desc} entry to another UserIP database.',
-        icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'box.svg')),
+        icon=QIcon(str(ICONS_DIR_PATH / 'box.svg')),
     )
     populate_userip_databases_menu(
         move_userip_menu,
@@ -454,14 +454,14 @@ def build_userip_menu(
             'Remove Username…',
             tooltip='Remove selected usernames for this IP address while keeping others.',
             handler=lambda: userip_remove_username(parent, ip_address, player),
-            icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')),
+            icon=QIcon(str(ICONS_DIR_PATH / 'remove.svg')),
         )
     add_action(
         userip_menu,
         'Delete',
         tooltip=f'Delete this {entry_desc} entry from its UserIP database.',
         handler=lambda: userip_delete(parent, [ip_address]),
-        icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')),
+        icon=QIcon(str(ICONS_DIR_PATH / 'remove.svg')),
     )
 
 
@@ -474,14 +474,14 @@ def build_userip_menu_multi(
     """Build the UserIP submenu for multiple selected players."""
     conflicting_ip = next((ip for ip in ip_addresses if UserIPDatabases.is_conflicting_ip(ip)), None)
     if conflicting_ip is not None:
-        userip_menu = add_menu(context_menu, 'UserIP', icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'database.svg')))
+        userip_menu = add_menu(context_menu, 'UserIP', icon=QIcon(str(ICONS_DIR_PATH / 'database.svg')))
         _add_resolve_conflict_action(userip_menu, conflicting_ip)
         return
 
     if all(not UserIPDatabases.is_known_ip(ip) for ip in ip_addresses):
-        userip_menu = add_menu(context_menu, 'UserIP', icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'database.svg')))
+        userip_menu = add_menu(context_menu, 'UserIP', icon=QIcon(str(ICONS_DIR_PATH / 'database.svg')))
         add_count = '' if len(ip_addresses) == 1 else f'{len(ip_addresses)} '
-        add_userip_menu = add_menu(userip_menu, 'Add Selected', icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'plus.svg')))
+        add_userip_menu = add_menu(userip_menu, 'Add Selected', icon=QIcon(str(ICONS_DIR_PATH / 'plus.svg')))
         all_usernames = dedup_preserve_order(*(resolve_usernames_for_player(player) for player in players))
         populate_userip_databases_menu(
             add_userip_menu,
@@ -496,7 +496,7 @@ def build_userip_menu_multi(
                 'Group Selected',
                 tooltip='Group all usernames across the selected players together.',
                 handler=lambda: userip_group_selected(parent, players),
-                icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'user-plus.svg')),
+                icon=QIcon(str(ICONS_DIR_PATH / 'user-plus.svg')),
             )
         if all_usernames:
             add_action(
@@ -504,12 +504,12 @@ def build_userip_menu_multi(
                 'Group With…',
                 tooltip='Group the selected players with another username.',
                 handler=lambda: userip_group_with(parent, players),
-                icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'user-plus.svg')),
+                icon=QIcon(str(ICONS_DIR_PATH / 'user-plus.svg')),
             )
         return
 
     if all(UserIPDatabases.is_known_ip(ip) for ip in ip_addresses):
-        userip_menu = add_menu(context_menu, 'UserIP', icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'database.svg')))
+        userip_menu = add_menu(context_menu, 'UserIP', icon=QIcon(str(ICONS_DIR_PATH / 'database.svg')))
         entries_phrase = _describe_selected_userip_entries(ip_addresses)
 
         rename_players = [player for player in players if player.userip is not None]
@@ -520,7 +520,7 @@ def build_userip_menu_multi(
                 'Rename Selected',
                 tooltip=f'Rename the username for {rename_phrase} in its UserIP database.',
                 handler=lambda: userip_rename_multi(parent, rename_players),
-                icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square-pen.svg')),
+                icon=QIcon(str(ICONS_DIR_PATH / 'square-pen.svg')),
             )
 
         selected_usernames = dedup_preserve_order(
@@ -532,7 +532,7 @@ def build_userip_menu_multi(
                 'Group Selected',
                 tooltip='Group all usernames across the selected players together.',
                 handler=lambda: userip_group_selected(parent, players),
-                icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'user-plus.svg')),
+                icon=QIcon(str(ICONS_DIR_PATH / 'user-plus.svg')),
             )
         if selected_usernames:
             add_action(
@@ -540,7 +540,7 @@ def build_userip_menu_multi(
                 'Group With…',
                 tooltip='Group the selected players with another username.',
                 handler=lambda: userip_group_with(parent, players),
-                icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'user-plus.svg')),
+                icon=QIcon(str(ICONS_DIR_PATH / 'user-plus.svg')),
             )
 
         if Settings.is_gta5_feature_set() and CaptureState.is_local_capture() and all(not p.is_third_party_server for p in players):
@@ -563,7 +563,7 @@ def build_userip_menu_multi(
                         else f'Look up {entries_phrase} via Looky System to confirm existing usernames and discover any additional usernames.'
                     ),
                     handler=lambda: looky_refresh_userip_entries(parent, list(_refresh_by_db.items()), restriction=restriction),
-                    icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'eye.svg')),
+                    icon=QIcon(str(ICONS_DIR_PATH / 'eye.svg')),
                 )
                 configure_looky_action(refresh_multi_action, default_tooltip=refresh_multi_action.toolTip(), restriction=restriction)
                 userip_menu.addSeparator()
@@ -572,7 +572,7 @@ def build_userip_menu_multi(
             userip_menu,
             'Move Selected',
             tooltip=f'Move {entries_phrase} to another UserIP database.',
-            icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'box.svg')),
+            icon=QIcon(str(ICONS_DIR_PATH / 'box.svg')),
         )
         populate_userip_databases_menu(
             move_userip_menu,
@@ -588,5 +588,5 @@ def build_userip_menu_multi(
             'Delete Selected',
             tooltip=f'Delete {entries_phrase} from the UserIP databases.',
             handler=lambda: userip_delete(parent, ip_addresses),
-            icon=QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')),
+            icon=QIcon(str(ICONS_DIR_PATH / 'remove.svg')),
         )

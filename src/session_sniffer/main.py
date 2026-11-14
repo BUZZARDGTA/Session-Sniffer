@@ -64,6 +64,7 @@ from session_sniffer.guis.main_window import MainWindow
 from session_sniffer.guis.relay_conflict import prompt_to_disable_gta5_relay_if_filtered
 from session_sniffer.guis.splash_screen import SplashScreen
 from session_sniffer.guis.theme import get_stylesheet
+from session_sniffer.guis.theming import log_theme_startup_warnings
 from session_sniffer.guis.utils import compute_ui_scale, get_screen_size, initialize_ui_scale
 from session_sniffer.launcher.cache_preloader import preload_application_caches, warm_table_gui_assets
 from session_sniffer.launcher.package_checker import check_packages_version, get_dependencies_from_pyproject
@@ -115,6 +116,7 @@ def _on_process_exit() -> None:
 def main() -> None:
     """Run environment checks, initialize dependencies, and start the GUI."""
     atexit.register(_on_process_exit)
+    log_theme_startup_warnings()
 
     if is_pyinstaller_compiled():
         old_exe = Path(sys.executable).with_name(f'{Path(sys.executable).name}.old')

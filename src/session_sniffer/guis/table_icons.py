@@ -5,13 +5,13 @@ from itertools import combinations
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QIcon, QPainter, QPixmap
 
-from session_sniffer.constants.local import RESOURCES_DIR_PATH
+from session_sniffer.guis.theming import ICONS_DIR_PATH, register_theme_change_callback
 from session_sniffer.settings import Settings
 
-CROWN_ICON_PATH = str(RESOURCES_DIR_PATH / 'icons' / 'crown.svg')
-SPEEDOMETER_ICON_PATH = str(RESOURCES_DIR_PATH / 'icons' / 'gauge.svg')
-TARGET_ICON_PATH = str(RESOURCES_DIR_PATH / 'icons' / 'target.svg')
-RELAY_ICON_PATH = str(RESOURCES_DIR_PATH / 'icons' / 'route.svg')
+CROWN_ICON_PATH = str(ICONS_DIR_PATH / 'crown.svg')
+SPEEDOMETER_ICON_PATH = str(ICONS_DIR_PATH / 'gauge.svg')
+TARGET_ICON_PATH = str(ICONS_DIR_PATH / 'target.svg')
+RELAY_ICON_PATH = str(ICONS_DIR_PATH / 'route.svg')
 
 
 def _create_composite_icon(icon_paths: tuple[str, ...]) -> QIcon:
@@ -86,3 +86,12 @@ def preload_table_icons() -> None:
     for r in range(1, len(active_paths) + 1):
         for combo in combinations(active_paths, r):
             get_composite_ip_icon(combo)
+
+
+def _refresh_table_icons_for_theme() -> None:
+    """Clear cached composite IP status icons and pre-warm them for the active theme."""
+    _IP_COMPOSITE_ICONS_CACHE.clear()
+    preload_table_icons()
+
+
+register_theme_change_callback(_refresh_table_icons_for_theme)

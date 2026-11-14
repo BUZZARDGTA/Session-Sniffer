@@ -7,7 +7,6 @@ from PySide6.QtCore import QItemSelection, QItemSelectionModel
 from PySide6.QtGui import QAction, QIcon
 from PySide6.QtWidgets import QMainWindow, QMenuBar
 
-from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.gta5.suspend_manager import GTASuspendManager
 from session_sniffer.guis.capture_statistics_window import CaptureStatisticsWindow
 from session_sniffer.guis.country_breakdown import CountryBreakdownWindow
@@ -20,6 +19,7 @@ from session_sniffer.guis.session_duration import SessionDurationWindow
 from session_sniffer.guis.session_pps_graph import SessionPpsGraphWindow
 from session_sniffer.guis.session_rate_graph import SessionRateGraphWindow
 from session_sniffer.guis.session_timeline import SessionTimelineWindow
+from session_sniffer.guis.theming import ICONS_DIR_PATH
 from session_sniffer.guis.utils import show_or_focus_window
 from session_sniffer.player.registry import PlayersRegistry, SessionTracker
 from session_sniffer.player.session_host import SessionHost
@@ -269,41 +269,41 @@ class StatsMixin(QMainWindow):
             raise RuntimeError(message)
         statistics_menu.setToolTipsVisible(True)
 
-        capture_health_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'chart-line.svg')), 'Capture Statistics', self)
+        capture_health_action = QAction(QIcon(str(ICONS_DIR_PATH / 'chart-line.svg')), 'Capture Statistics', self)
         capture_health_action.setToolTip('Capture restart count and packet latency statistics')
         capture_health_action.triggered.connect(self._open_capture_health)
         statistics_menu.addAction(capture_health_action)
 
-        session_rate_graph_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'gauge.svg')), 'Session Rate Graph', self)
+        session_rate_graph_action = QAction(QIcon(str(ICONS_DIR_PATH / 'gauge.svg')), 'Session Rate Graph', self)
         session_rate_graph_action.setToolTip('Live PPS and BPS graphs for the whole session')
         session_rate_graph_action.triggered.connect(self._open_session_rate_graph)
         statistics_menu.addAction(session_rate_graph_action)
 
         statistics_menu.addSeparator()
 
-        session_timeline_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'calendar-days.svg')), 'Session Timeline', self)
+        session_timeline_action = QAction(QIcon(str(ICONS_DIR_PATH / 'calendar-days.svg')), 'Session Timeline', self)
         session_timeline_action.setToolTip('Gantt chart showing when each player was present')
         session_timeline_action.triggered.connect(self._open_session_timeline)
         statistics_menu.addAction(session_timeline_action)
 
         statistics_menu.addSeparator()
 
-        country_breakdown_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'globe.svg')), 'Country Breakdown', self)
+        country_breakdown_action = QAction(QIcon(str(ICONS_DIR_PATH / 'globe.svg')), 'Country Breakdown', self)
         country_breakdown_action.setToolTip('Rank players by country of origin')
         country_breakdown_action.triggered.connect(self._open_country_breakdown)
         statistics_menu.addAction(country_breakdown_action)
 
-        reconnect_frequency_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'activity.svg')), 'Reconnect Frequency', self)
+        reconnect_frequency_action = QAction(QIcon(str(ICONS_DIR_PATH / 'activity.svg')), 'Reconnect Frequency', self)
         reconnect_frequency_action.setToolTip('List players sorted by reconnect count')
         reconnect_frequency_action.triggered.connect(self._open_reconnect_frequency)
         statistics_menu.addAction(reconnect_frequency_action)
 
-        avg_session_duration_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'timer.svg')), 'Session Duration', self)
+        avg_session_duration_action = QAction(QIcon(str(ICONS_DIR_PATH / 'timer.svg')), 'Session Duration', self)
         avg_session_duration_action.setToolTip('Disconnected players ranked by their session duration')
         avg_session_duration_action.triggered.connect(self._open_session_duration)
         statistics_menu.addAction(avg_session_duration_action)
 
-        port_heatmap_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'chart-scatter.svg')), 'Port Heatmap', self)
+        port_heatmap_action = QAction(QIcon(str(ICONS_DIR_PATH / 'chart-scatter.svg')), 'Port Heatmap', self)
         port_heatmap_action.setToolTip('Rank observed ports by frequency across all players')
         port_heatmap_action.triggered.connect(self._open_port_heatmap)
         statistics_menu.addAction(port_heatmap_action)

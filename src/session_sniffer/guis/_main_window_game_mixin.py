@@ -14,7 +14,6 @@ from shiboken6 import isValid
 
 from session_sniffer import msgbox
 from session_sniffer.background.events import gui_closed__event
-from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.constants.standard import LOCAL_TZ
 from session_sniffer.ctypes_windows import parse_win32_hotkey_message, register_win32_hotkey, unregister_win32_hotkey
@@ -24,6 +23,7 @@ from session_sniffer.guis.session_host_diagnostics_dialog import show_session_ho
 from session_sniffer.guis.session_host_history_window import SessionHostActionCallbacks, populate_host_history_submenu, setup_session_host_actions
 from session_sniffer.guis.stylesheets import GTA5_STATUS_LABEL_STYLESHEET
 from session_sniffer.guis.tables_player_actions import prompt_rename_session
+from session_sniffer.guis.theming import ICONS_DIR_PATH, themed_qss
 from session_sniffer.guis.utils import format_duration, format_menu_usernames, format_player_action_tooltip, load_country_flag_icon
 from session_sniffer.player.registry import PlayersRegistry, SessionTracker
 from session_sniffer.player.session_host import SessionHost
@@ -220,7 +220,7 @@ class GameMixin(QMainWindow):
         game_status_label = QLabel()
         game_status_label.setTextFormat(Qt.TextFormat.RichText)
         game_status_label.setStyleSheet(GTA5_STATUS_LABEL_STYLESHEET)
-        game_status_label.setText('<span style="color: #f44336;">●</span> GTA V not running')
+        game_status_label.setText(themed_qss('<span style="color: #f44336;">●</span> GTA V not running'))
         game_status_label.setToolTip('GTA V process detection state')
         game_status_widget_action = QWidgetAction(self)
         game_status_widget_action.setDefaultWidget(game_status_label)
@@ -232,7 +232,7 @@ class GameMixin(QMainWindow):
         game_menu.aboutToShow.connect(self._update_game_status_label)
         self._game_menu_status_separator = game_menu.addSeparator()
 
-        player_resolver_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'search.svg')), 'Player Resolver', self)
+        player_resolver_action = QAction(QIcon(str(ICONS_DIR_PATH / 'search.svg')), 'Player Resolver', self)
         player_resolver_action.setToolTip('Find the exact IP of a player in your current session.')
         player_resolver_action.triggered.connect(self._open_player_resolver)
         game_menu.addAction(player_resolver_action)
@@ -241,7 +241,7 @@ class GameMixin(QMainWindow):
         self._build_looky_submenu(game_menu)
         self._game_menu_gta5_separator = game_menu.addSeparator()
 
-        current_session_submenu = game_menu.addMenu(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'radio.svg')), 'Current Session')
+        current_session_submenu = game_menu.addMenu(QIcon(str(ICONS_DIR_PATH / 'radio.svg')), 'Current Session')
         if not current_session_submenu:
             message = 'Failed to create Current Session submenu'
             raise RuntimeError(message)
@@ -250,7 +250,7 @@ class GameMixin(QMainWindow):
         current_session_submenu.aboutToShow.connect(self._update_current_session_menu)
         self._current_session_submenu = current_session_submenu
 
-        session_history_submenu = game_menu.addMenu(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'rotate-ccw-clock.svg')), 'Session History')
+        session_history_submenu = game_menu.addMenu(QIcon(str(ICONS_DIR_PATH / 'rotate-ccw-clock.svg')), 'Session History')
         if not session_history_submenu:
             message = 'Failed to create Session History submenu'
             raise RuntimeError(message)
@@ -261,10 +261,10 @@ class GameMixin(QMainWindow):
 
         self._game_menu_process_separator = game_menu.addSeparator()
 
-        self._icon_controller = QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'gamepad-2.svg'))
-        self._icon_user = QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'user.svg'))
-        self._icon_pause = QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'circle-pause.svg'))
-        self._icon_play = QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'circle-play.svg'))
+        self._icon_controller = QIcon(str(ICONS_DIR_PATH / 'gamepad-2.svg'))
+        self._icon_user = QIcon(str(ICONS_DIR_PATH / 'user.svg'))
+        self._icon_pause = QIcon(str(ICONS_DIR_PATH / 'circle-pause.svg'))
+        self._icon_play = QIcon(str(ICONS_DIR_PATH / 'circle-play.svg'))
 
         game_process_submenu = game_menu.addMenu(self._icon_controller, 'GTA5 Process')
         if not game_process_submenu:
@@ -541,15 +541,15 @@ class GameMixin(QMainWindow):
         if running:
             if suspended:
                 visible_text = f'{version_text} (Suspended)'
-                self._game_status_label.setText(f'<span style="color: #ff9800;">●</span> {visible_text}')
+                self._game_status_label.setText(themed_qss(f'<span style="color: #ff9800;">●</span> {visible_text}'))
                 self._game_status_label.setToolTip(f'{path_tooltip}\nProcess is currently suspended')
             else:
                 visible_text = version_text
-                self._game_status_label.setText(f'<span style="color: #4caf50;">●</span> {visible_text}')
+                self._game_status_label.setText(themed_qss(f'<span style="color: #4caf50;">●</span> {visible_text}'))
                 self._game_status_label.setToolTip(path_tooltip)
         else:
             visible_text = f'{game_label} not running'
-            self._game_status_label.setText(f'<span style="color: #f44336;">●</span> {visible_text}')
+            self._game_status_label.setText(themed_qss(f'<span style="color: #f44336;">●</span> {visible_text}'))
             self._game_status_label.setToolTip(f'{game_label} process detection state')
         self._resize_game_status_label(f'● {visible_text}')
         self._last_game_status_key = self._get_current_game_status_key()
@@ -650,7 +650,7 @@ class GameMixin(QMainWindow):
             usernames = matched_player.usernames if matched_player is not None and matched_player.usernames else fallback_names
             formatted_usernames = format_menu_usernames(usernames)
             host_text = f'Host: Detected: {current_session_host.ip}' + (f'  |  {formatted_usernames}' if formatted_usernames else '')
-            flag_icon = load_country_flag_icon(current_session_host.iplookup.resolve_country_code()) or QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'crown.svg'))
+            flag_icon = load_country_flag_icon(current_session_host.iplookup.resolve_country_code()) or QIcon(str(ICONS_DIR_PATH / 'crown.svg'))
             host_action = QAction(flag_icon, host_text, self._current_session_submenu)
             host_action.setToolTip(format_player_action_tooltip('Select this host player in the table and open host diagnostics', usernames))
             host_action.triggered.connect(partial(self._select_and_show_current_host_diagnostics, current_session_host.ip))
@@ -661,21 +661,21 @@ class GameMixin(QMainWindow):
             usernames = matched_player.usernames if matched_player is not None and matched_player.usernames else fallback_names
             formatted_usernames = format_menu_usernames(usernames)
             host_text = f'Host: Detected: {last_host.ip}' + (f'  |  {formatted_usernames}' if formatted_usernames else '') + ' (Left)'
-            flag_icon = load_country_flag_icon(last_host.country_code) or QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'crown.svg'))
+            flag_icon = load_country_flag_icon(last_host.country_code) or QIcon(str(ICONS_DIR_PATH / 'crown.svg'))
             host_action = QAction(flag_icon, host_text, self._current_session_submenu)
             host_action.setToolTip(format_player_action_tooltip('Select this host player in the table and open host diagnostics (Host has left the session)', usernames))
             host_action.triggered.connect(self._create_past_host_action_handler(last_host))
             self._current_session_submenu.addAction(host_action)
             if SessionHost.search_player:
-                searching_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'crown.svg')), 'Host: Searching…', self._current_session_submenu)
+                searching_action = QAction(QIcon(str(ICONS_DIR_PATH / 'crown.svg')), 'Host: Searching…', self._current_session_submenu)
                 searching_action.setEnabled(False)
                 self._current_session_submenu.addAction(searching_action)
         elif SessionHost.search_player:
-            searching_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'crown.svg')), 'Host: Searching…', self._current_session_submenu)
+            searching_action = QAction(QIcon(str(ICONS_DIR_PATH / 'crown.svg')), 'Host: Searching…', self._current_session_submenu)
             searching_action.setEnabled(False)
             self._current_session_submenu.addAction(searching_action)
         else:
-            no_host_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'crown.svg')), 'Host: No host', self._current_session_submenu)
+            no_host_action = QAction(QIcon(str(ICONS_DIR_PATH / 'crown.svg')), 'Host: No host', self._current_session_submenu)
             no_host_action.setEnabled(False)
             self._current_session_submenu.addAction(no_host_action)
 
@@ -694,7 +694,7 @@ class GameMixin(QMainWindow):
         connected_noun = f'connected player{pluralize(connected_count)}'
         disconnected_noun = f'disconnected player{pluralize(disconnected_count)}'
 
-        players_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'user-round.svg')), f'Players: {player_count} {player_noun}', self._current_session_submenu)
+        players_action = QAction(QIcon(str(ICONS_DIR_PATH / 'user-round.svg')), f'Players: {player_count} {player_noun}', self._current_session_submenu)
         players_action.setToolTip(f'{connected_count} {connected_noun}, {disconnected_count} {disconnected_noun}')
         players_action.triggered.connect(partial(self._apply_session_filter, SessionFilterState.FILTER_CURRENT))
         self._current_session_submenu.addAction(players_action)
@@ -712,13 +712,13 @@ class GameMixin(QMainWindow):
             time_action_text = 'Time: Current session'
             time_action_tooltip = 'Current active session'
 
-        time_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'timer.svg')), time_action_text, self._current_session_submenu)
+        time_action = QAction(QIcon(str(ICONS_DIR_PATH / 'timer.svg')), time_action_text, self._current_session_submenu)
         time_action.setToolTip(time_action_tooltip)
         time_action.triggered.connect(partial(self._apply_session_filter, SessionFilterState.FILTER_CURRENT))
         self._current_session_submenu.addAction(time_action)
         self._current_session_submenu.addSeparator()
 
-        rename_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square-pen.svg')), f"Rename Session '{display_name}'…", self._current_session_submenu)
+        rename_action = QAction(QIcon(str(ICONS_DIR_PATH / 'square-pen.svg')), f"Rename Session '{display_name}'…", self._current_session_submenu)
         rename_action.setToolTip(f"Rename Session '{display_name}'")
         rename_action.triggered.connect(partial(self._prompt_rename_session, current_session_id))
         self._current_session_submenu.addAction(rename_action)
@@ -729,7 +729,7 @@ class GameMixin(QMainWindow):
             or any(not p.is_third_party_server for p in SessionTracker.get_all_snapshot_players())
         )
 
-        filter_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'search.svg')), 'Filter to this Session', self._current_session_submenu)
+        filter_action = QAction(QIcon(str(ICONS_DIR_PATH / 'search.svg')), 'Filter to this Session', self._current_session_submenu)
         filter_action.setCheckable(True)
         filter_action.setChecked(is_filter_active)
 
@@ -798,7 +798,7 @@ class GameMixin(QMainWindow):
                 if duration_label is not None:
                     label_parts.append(duration_label)
                 session_label = '  |  '.join(label_parts)
-                session_icon = QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'rotate-ccw-clock.svg'))
+                session_icon = QIcon(str(ICONS_DIR_PATH / 'rotate-ccw-clock.svg'))
                 session_menu = self._session_history_submenu.addMenu(session_icon, session_label)
                 if not session_menu:
                     continue
@@ -810,11 +810,11 @@ class GameMixin(QMainWindow):
                 session_menu.setToolTip(menu_tooltip)
                 session_menu.menuAction().setToolTip(menu_tooltip)
 
-                players_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'user-round.svg')), f'Players: {player_count}', session_menu)
+                players_action = QAction(QIcon(str(ICONS_DIR_PATH / 'user-round.svg')), f'Players: {player_count}', session_menu)
                 players_action.setToolTip(f'{player_count} {player_noun} recorded in this session')
                 players_action.triggered.connect(partial(self._apply_session_filter, session_id))
 
-                time_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'timer.svg')), time_action_text, session_menu)
+                time_action = QAction(QIcon(str(ICONS_DIR_PATH / 'timer.svg')), time_action_text, session_menu)
                 time_action.setToolTip(time_action_tooltip)
                 time_action.triggered.connect(partial(self._apply_session_filter, session_id))
 
@@ -826,7 +826,7 @@ class GameMixin(QMainWindow):
                     usernames = matched_player.usernames if matched_player is not None and matched_player.usernames else fallback_names
                     formatted_usernames = format_menu_usernames(usernames)
                     host_label = f'Host: {last_host.ip}' + (f'  |  {formatted_usernames}' if formatted_usernames else '')
-                    flag_icon = load_country_flag_icon(last_host.country_code) or QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'crown.svg'))
+                    flag_icon = load_country_flag_icon(last_host.country_code) or QIcon(str(ICONS_DIR_PATH / 'crown.svg'))
                     host_action = QAction(flag_icon, host_label, session_menu)
                     host_action.setToolTip(format_player_action_tooltip('Select this host player in the table and open host diagnostics', usernames))
                     host_action.triggered.connect(self._create_past_host_action_handler(last_host))
@@ -834,30 +834,30 @@ class GameMixin(QMainWindow):
                     session_menu.addAction(players_action)
                     session_menu.addAction(time_action)
 
-                    diagnostics_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'bug.svg')), 'Host Diagnostics…', session_menu)
+                    diagnostics_action = QAction(QIcon(str(ICONS_DIR_PATH / 'bug.svg')), 'Host Diagnostics…', session_menu)
                     diagnostics_action.setToolTip('Show diagnostics recorded for this host detection')
                     diagnostics_action.triggered.connect(partial(self._open_host_history_diagnostics, last_host))
                     session_menu.addSeparator()
                     session_menu.addAction(diagnostics_action)
                 else:
-                    no_host_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'crown.svg')), 'Host: None recorded', session_menu)
+                    no_host_action = QAction(QIcon(str(ICONS_DIR_PATH / 'crown.svg')), 'Host: None recorded', session_menu)
                     no_host_action.setEnabled(False)
                     session_menu.addAction(no_host_action)
                     session_menu.addAction(players_action)
                     session_menu.addAction(time_action)
 
                 session_menu.addSeparator()
-                rename_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square-pen.svg')), f"Rename Session '{display_name}'…", session_menu)
+                rename_action = QAction(QIcon(str(ICONS_DIR_PATH / 'square-pen.svg')), f"Rename Session '{display_name}'…", session_menu)
                 rename_action.setToolTip(f"Rename Session '{display_name}'")
                 rename_action.triggered.connect(partial(self._prompt_rename_session, session_id))
                 session_menu.addAction(rename_action)
 
-                delete_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')), f"Delete Session '{display_name}'…", session_menu)
+                delete_action = QAction(QIcon(str(ICONS_DIR_PATH / 'remove.svg')), f"Delete Session '{display_name}'…", session_menu)
                 delete_action.setToolTip(f"Delete Session '{display_name}' and remove its player history")
                 delete_action.triggered.connect(partial(self._prompt_delete_session, session_id, display_name))
                 session_menu.addAction(delete_action)
 
-                filter_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'search.svg')), 'Filter to this Session', session_menu)
+                filter_action = QAction(QIcon(str(ICONS_DIR_PATH / 'search.svg')), 'Filter to this Session', session_menu)
                 filter_action.setCheckable(True)
                 is_filter_active_past = current_filter == session_id
                 filter_action.setChecked(is_filter_active_past)
@@ -868,13 +868,13 @@ class GameMixin(QMainWindow):
                 session_menu.addAction(filter_action)
 
         self._session_history_submenu.addSeparator()
-        history_menu = self._session_history_submenu.addMenu(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'host_history.svg')), 'Host History')
+        history_menu = self._session_history_submenu.addMenu(QIcon(str(ICONS_DIR_PATH / 'host_history.svg')), 'Host History')
         if history_menu:
             history_menu.setToolTipsVisible(True)
             history_menu.aboutToShow.connect(partial(populate_host_history_submenu, history_menu, self._select_ips, self._open_host_history_diagnostics))
 
         self._session_history_submenu.addSeparator()
-        clear_history_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'rotate-ccw.svg')), 'Clear Past Sessions && History…', self._session_history_submenu)
+        clear_history_action = QAction(QIcon(str(ICONS_DIR_PATH / 'rotate-ccw.svg')), 'Clear Past Sessions && History…', self._session_history_submenu)
         clear_history_action.setToolTip('Clear all past sessions, their player logs, and session host history')
         clear_history_action.setEnabled(bool(past_session_ids) or bool(SessionHost.get_history()))
         clear_history_action.triggered.connect(self._prompt_clear_past_sessions_and_history)

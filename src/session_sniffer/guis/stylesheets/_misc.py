@@ -1,48 +1,54 @@
 """Miscellaneous QSS: Discord popups, section headers, main window, settings labels, splash screen."""
 
-from session_sniffer.constants.local import RESOURCES_DIR_PATH
+from session_sniffer.guis.theming import CHECKBOX_CHECK_ICON_PATH, ICONS_DIR_PATH, themed_qss
 
-_CHEVRON_RIGHT_PATH = (RESOURCES_DIR_PATH / 'icons' / 'branch_chevron_right.svg').as_posix()
-_CHEVRON_DOWN_PATH = (RESOURCES_DIR_PATH / 'icons' / 'branch_chevron_down.svg').as_posix()
-_CHECK_PATH = (RESOURCES_DIR_PATH / 'icons' / 'check.svg').as_posix()
+_CHEVRON_RIGHT_PATH = (ICONS_DIR_PATH / 'branch_chevron_right.svg').as_posix()
+_CHEVRON_DOWN_PATH = (ICONS_DIR_PATH / 'branch_chevron_down.svg').as_posix()
+_CHECK_PATH = CHECKBOX_CHECK_ICON_PATH.as_posix()
 
 # =============================================================================
 # DISCORD DIALOG STYLES
 # =============================================================================
 
-DISCORD_POPUP_MAIN_STYLESHEET = """
+DISCORD_POPUP_MAIN_STYLESHEET = themed_qss(
+    """
 background-color: #222244;  /* Dark blueish background */
 border-radius: 15px;        /* Rounded corners */
 color: white;
-""".strip()
+""".strip(),
+)
 
-DISCORD_POPUP_EXIT_BUTTON_STYLESHEET = """
+DISCORD_POPUP_EXIT_BUTTON_STYLESHEET = themed_qss(
+    """
 font-size: 8pt;
 color: white;
 background-color: #ff4c4c;  /* Light red background */
 border-radius: 15px;        /* Make it circular */
-""".strip()
+""".strip(),
+)
 
-DISCORD_POPUP_JOIN_BUTTON_STYLESHEET = """
+DISCORD_POPUP_JOIN_BUTTON_STYLESHEET = themed_qss(
+    """
 font-size: 10pt;
 padding: 7px;
 background-color: #5865f2;  /* Discord blue */
 color: white;
 border-radius: 10px;
 border: none;
-""".strip()
+""".strip(),
+)
 
 # =============================================================================
 # SECTION TABLE HEADER STYLES
 # =============================================================================
 
-SECTION_HEADER_SEPARATOR_STYLESHEET = 'background-color: rgba(255, 255, 255, 0.12); border: none; max-width: 1px; min-width: 1px; margin: 4px 4px;'
+SECTION_HEADER_SEPARATOR_STYLESHEET = themed_qss('background-color: rgba(255, 255, 255, 0.12); border: none; max-width: 1px; min-width: 1px; margin: 4px 4px;')
 
 # =============================================================================
 # MAIN WINDOW STYLES
 # =============================================================================
 
-GTA5_STATUS_LABEL_STYLESHEET = 'QLabel { background: transparent; padding: 6px 28px 6px 16px; font-size: 10pt; }'
+GTA5_STATUS_LABEL_STYLESHEET = themed_qss('QLabel { background: transparent; padding: 6px 28px 6px 16px; font-size: 10pt; }')
 
 # =============================================================================
 # SETTINGS DIALOG STYLES
@@ -51,7 +57,7 @@ GTA5_STATUS_LABEL_STYLESHEET = 'QLabel { background: transparent; padding: 6px 2
 
 def _settings_info_label_stylesheet(accent_color: str) -> str:
     """Build the shared settings card info-banner QLabel QSS with *accent_color* left border."""
-    return (
+    return themed_qss(
         'QLabel {'
         'background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #262b36, stop:1 #1f2430);'
         'border: 1px solid #3b4455;'
@@ -60,7 +66,7 @@ def _settings_info_label_stylesheet(accent_color: str) -> str:
         'padding: 12px 14px;'
         'color: #dbe4f0;'
         'line-height: 1.35;'
-        '}'
+        '}',
     )
 
 
@@ -68,13 +74,13 @@ DISCORD_INFO_LABEL_STYLESHEET = _settings_info_label_stylesheet('#5865f2')
 
 WEBSERVER_HELP_LABEL_STYLESHEET = _settings_info_label_stylesheet('#61afef')
 
-WEBHOOK_NOTE_LABEL_STYLESHEET = 'color: #888; font-size: 8pt;'
+WEBHOOK_NOTE_LABEL_STYLESHEET = themed_qss('color: #888; font-size: 8pt;')
 
 LOOKY_INFO_LABEL_STYLESHEET = _settings_info_label_stylesheet('#7c3aed')
 
-LOOKY_ACCOUNT_CARD_STYLESHEET = 'QFrame#lookyAccountCard {background: rgba(76, 29, 149, 0.12);border: 1px solid #3d2d6e;border-radius: 8px;padding: 4px;}'
+LOOKY_ACCOUNT_CARD_STYLESHEET = themed_qss('QFrame#lookyAccountCard {background: rgba(76, 29, 149, 0.12);border: 1px solid #3d2d6e;border-radius: 8px;padding: 4px;}')
 
-INTERFACE_INFO_CARD_STYLESHEET = (
+INTERFACE_INFO_CARD_STYLESHEET = themed_qss(
     'QGroupBox {'
     'background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #262b36, stop:1 #1f2430);'
     'border: 1px solid #3b4455;'
@@ -91,75 +97,69 @@ INTERFACE_INFO_CARD_STYLESHEET = (
     'color: #ffffff;'
     'border-radius: 4px;'
     'font-weight: bold;'
-    '}'
+    '}',
 )
 
-INTERFACE_INFO_VALUE_LABEL_STYLESHEET = 'color: #61afef; font-weight: bold; padding: 2px 6px;background: rgba(61, 142, 201, 0.10); border-radius: 3px;'
+INTERFACE_INFO_VALUE_LABEL_STYLESHEET = themed_qss('color: #61afef; font-weight: bold; padding: 2px 6px;background: rgba(61, 142, 201, 0.10); border-radius: 3px;')
 
-SETTINGS_RESTART_BANNER_STYLESHEET = (
+SETTINGS_RESTART_BANNER_STYLESHEET = themed_qss(
     'QFrame#restartNoticeBanner {'
     'background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #262b36, stop:1 #1f2430);'
     'border: 1px solid #3b4455;'
     'border-left: 4px solid #f59e0b;'
     'border-radius: 6px;'
-    '}'
+    '}',
 )
 
 # =============================================================================
 # SPLASH SCREEN STYLES
 # =============================================================================
 
-SPLASH_SCREEN_STYLESHEET = 'background-color: #19232d;'
+SPLASH_SCREEN_STYLESHEET = themed_qss('background-color: #19232d;')
 
-SPLASH_TITLE_LABEL_STYLESHEET = 'color: #e0e6ee; background: transparent; font-size: 20pt; font-weight: bold;'
+SPLASH_TITLE_LABEL_STYLESHEET = themed_qss('color: #e0e6ee; background: transparent; font-size: 20pt; font-weight: bold;')
 
-SPLASH_SUBTITLE_LABEL_STYLESHEET = 'color: #667788; background: transparent; font-size: 11pt;'
+SPLASH_SUBTITLE_LABEL_STYLESHEET = themed_qss('color: #667788; background: transparent; font-size: 11pt;')
 
-SPLASH_SUBTITLE_READY_STYLESHEET = 'color: #44cc66; background: transparent; font-size: 11pt;'
+SPLASH_SUBTITLE_READY_STYLESHEET = themed_qss('color: #44cc66; background: transparent; font-size: 11pt;')
 
-SPLASH_LOG_AREA_STYLESHEET = 'QTextEdit {  background-color: #141922;  color: #8899aa;  border: 1px solid #2a3544;  border-radius: 6px;  padding: 8px;}'
+SPLASH_LOG_AREA_STYLESHEET = themed_qss('QTextEdit {  background-color: #141922;  color: #8899aa;  border: 1px solid #2a3544;  border-radius: 6px;  padding: 8px;}')
 
 # =============================================================================
 # CRASH DIALOG STYLES
 # =============================================================================
 
-CRASH_DIALOG_FRAME_STYLESHEET = (
+CRASH_DIALOG_FRAME_STYLESHEET = themed_qss(
     'QFrame#crashDialogFrame {'
     '    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #26202a, stop:0.25 #1f2531, stop:1 #161d26);'
     '    border: 1px solid #5a3540;'
     '    border-radius: 14px;'
-    '}'
+    '}',
 )
 
-CRASH_DIALOG_ICON_CONTAINER_STYLESHEET = (
+CRASH_DIALOG_ICON_CONTAINER_STYLESHEET = themed_qss(
     'QFrame#crashDialogIconContainer {'
     '    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 rgba(239, 68, 68, 0.24), stop:1 rgba(185, 28, 28, 0.12));'
     '    border: 1px solid rgba(248, 113, 113, 0.42);'
     '    border-radius: 10px;'
-    '}'
+    '}',
 )
 
-CRASH_DIALOG_KICKER_LABEL_STYLESHEET = 'color: #f87171; background: transparent; font-size: 8pt; font-weight: 700; letter-spacing: 1px;'
+CRASH_DIALOG_KICKER_LABEL_STYLESHEET = themed_qss('color: #f87171; background: transparent; font-size: 8pt; font-weight: 700; letter-spacing: 1px;')
 
-CRASH_DIALOG_SUBTITLE_LABEL_STYLESHEET = 'color: #8b9bb0; background: transparent; font-size: 8.5pt;'
+CRASH_DIALOG_SUBTITLE_LABEL_STYLESHEET = themed_qss('color: #8b9bb0; background: transparent; font-size: 8.5pt;')
 
-CRASH_DIALOG_INFO_CARD_STYLESHEET = (
-    'QFrame#crashDialogInfoCard {    background: rgba(16, 23, 33, 0.82);    border: 1px solid #2c3a4d;    border-left: 3px solid #ef4444;    border-radius: 10px;}'
+CRASH_DIALOG_INFO_CARD_STYLESHEET = themed_qss(
+    'QFrame#crashDialogInfoCard {    background: rgba(16, 23, 33, 0.82);    border: 1px solid #2c3a4d;    border-left: 3px solid #ef4444;    border-radius: 10px;}',
 )
 
-CRASH_DIALOG_SECTION_LABEL_STYLESHEET = 'color: #94a3b8; background: transparent; font-size: 8pt; font-weight: 700; letter-spacing: 0.8px;'
+CRASH_DIALOG_SECTION_LABEL_STYLESHEET = themed_qss('color: #94a3b8; background: transparent; font-size: 8pt; font-weight: 700; letter-spacing: 0.8px;')
 
-CRASH_DIALOG_BADGE_STYLESHEET = (
-    'color: #fca5a5;'
-    'background: rgba(239, 68, 68, 0.12);'
-    'border: 1px solid rgba(248, 113, 113, 0.28);'
-    'border-radius: 8px;'
-    'padding: 2px 10px;'
-    'font-size: 8pt;'
-    'font-weight: 700;'
+CRASH_DIALOG_BADGE_STYLESHEET = themed_qss(
+    'color: #fca5a5;background: rgba(239, 68, 68, 0.12);border: 1px solid rgba(248, 113, 113, 0.28);border-radius: 8px;padding: 2px 10px;font-size: 8pt;font-weight: 700;',
 )
 
-CRASH_DIALOG_TRACEBACK_EDIT_STYLESHEET = (
+CRASH_DIALOG_TRACEBACK_EDIT_STYLESHEET = themed_qss(
     'QPlainTextEdit#crashDialogTracebackEdit {'
     '    background-color: #0d131c;'
     '    color: #e2e8f0;'
@@ -168,11 +168,11 @@ CRASH_DIALOG_TRACEBACK_EDIT_STYLESHEET = (
     '    padding: 8px 10px;'
     '    selection-background-color: #2b4c7e;'
     '    selection-color: #ffffff;'
-    '}'
+    '}',
 )
 
 # =============================================================================
-CRASH_DIALOG_PRIMARY_BUTTON_STYLESHEET = (
+CRASH_DIALOG_PRIMARY_BUTTON_STYLESHEET = themed_qss(
     'QPushButton {'
     '    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #388ecc, stop:1 #1c62a4);'
     '    color: #ffffff;'
@@ -190,10 +190,10 @@ CRASH_DIALOG_PRIMARY_BUTTON_STYLESHEET = (
     'QPushButton:pressed {'
     '    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #17548f, stop:1 #2974b8);'
     '    border: 1px solid #3d8ec9;'
-    '}'
+    '}',
 )
 
-CRASH_DIALOG_SECONDARY_BUTTON_STYLESHEET = (
+CRASH_DIALOG_SECONDARY_BUTTON_STYLESHEET = themed_qss(
     'QPushButton {'
     '    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #253140, stop:1 #1a222d);'
     '    color: #c8d6e5;'
@@ -211,10 +211,10 @@ CRASH_DIALOG_SECONDARY_BUTTON_STYLESHEET = (
     'QPushButton:pressed {'
     '    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #1a222d, stop:1 #253140);'
     '    border: 1px solid #28374a;'
-    '}'
+    '}',
 )
 
-CRASH_DIALOG_EXIT_BUTTON_STYLESHEET = (
+CRASH_DIALOG_EXIT_BUTTON_STYLESHEET = themed_qss(
     'QPushButton {'
     '    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 rgba(192, 57, 43, 0.75), stop:1 rgba(146, 43, 33, 0.85));'
     '    color: #ffffff;'
@@ -232,35 +232,35 @@ CRASH_DIALOG_EXIT_BUTTON_STYLESHEET = (
     'QPushButton:pressed {'
     '    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 rgba(146, 43, 33, 0.95), stop:1 rgba(120, 35, 27, 1.0));'
     '    border: 1px solid rgba(192, 57, 43, 1.0);'
-    '}'
+    '}',
 )
 
 # DEPENDENCY PROMPT DIALOG STYLES
 # =============================================================================
 
-DEPENDENCY_PROMPT_DIALOG_STYLESHEET = 'QDialog { background-color: transparent; }'
+DEPENDENCY_PROMPT_DIALOG_STYLESHEET = themed_qss('QDialog { background-color: transparent; }')
 
-DEPENDENCY_PROMPT_FRAME_STYLESHEET = (
+DEPENDENCY_PROMPT_FRAME_STYLESHEET = themed_qss(
     'QFrame#dependencyPromptFrame {'
     '    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #232f3e, stop:1 #18212c);'
     '    border: 1px solid #3a4a5c;'
     '    border-radius: 14px;'
-    '}'
+    '}',
 )
 
-DEPENDENCY_PROMPT_ICON_CONTAINER_STYLESHEET = (
+DEPENDENCY_PROMPT_ICON_CONTAINER_STYLESHEET = themed_qss(
     'QFrame#dependencyPromptIconContainer {'
     '    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 rgba(95, 180, 245, 0.20), stop:1 rgba(31, 108, 200, 0.10));'
     '    border: 1px solid rgba(95, 180, 245, 0.35);'
     '    border-radius: 10px;'
-    '}'
+    '}',
 )
 
-DEPENDENCY_PROMPT_KICKER_LABEL_STYLESHEET = 'color: #5fb4f5;background: transparent;font-size: 8pt;font-weight: 700;letter-spacing: 1px;'
+DEPENDENCY_PROMPT_KICKER_LABEL_STYLESHEET = themed_qss('color: #5fb4f5;background: transparent;font-size: 8pt;font-weight: 700;letter-spacing: 1px;')
 
-DEPENDENCY_PROMPT_TITLE_LABEL_STYLESHEET = 'color: #f0f4fa;background: transparent;font-size: 15pt;font-weight: 700;letter-spacing: 0.3px;'
+DEPENDENCY_PROMPT_TITLE_LABEL_STYLESHEET = themed_qss('color: #f0f4fa;background: transparent;font-size: 15pt;font-weight: 700;letter-spacing: 0.3px;')
 
-DEPENDENCY_PROMPT_CLOSE_BUTTON_STYLESHEET = (
+DEPENDENCY_PROMPT_CLOSE_BUTTON_STYLESHEET = themed_qss(
     'QPushButton#dependencyPromptCloseButton {'
     '    background: transparent;'
     '    color: #6f7e91;'
@@ -279,14 +279,16 @@ DEPENDENCY_PROMPT_CLOSE_BUTTON_STYLESHEET = (
     '}'
     'QPushButton#dependencyPromptCloseButton:pressed {'
     '    background: rgba(231, 76, 60, 0.38);'
-    '}'
+    '}',
 )
 
-DEPENDENCY_PROMPT_INFO_CARD_STYLESHEET = 'QFrame#dependencyPromptInfoCard {    background: rgba(18, 26, 38, 0.75);    border: 1px solid #2c3a4d;    border-radius: 10px;}'
+DEPENDENCY_PROMPT_INFO_CARD_STYLESHEET = themed_qss(
+    'QFrame#dependencyPromptInfoCard {    background: rgba(18, 26, 38, 0.75);    border: 1px solid #2c3a4d;    border-radius: 10px;}',
+)
 
-DEPENDENCY_PROMPT_MESSAGE_LABEL_STYLESHEET = 'color: #c8d4e2; background: transparent; font-size: 9.5pt;'
+DEPENDENCY_PROMPT_MESSAGE_LABEL_STYLESHEET = themed_qss('color: #c8d4e2; background: transparent; font-size: 9.5pt;')
 
-DEPENDENCY_PROMPT_ACTION_BUTTON_STYLESHEET = (
+DEPENDENCY_PROMPT_ACTION_BUTTON_STYLESHEET = themed_qss(
     'QPushButton {'
     '    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #388ecc, stop:1 #1c62a4);'
     '    color: #ffffff;'
@@ -305,22 +307,22 @@ DEPENDENCY_PROMPT_ACTION_BUTTON_STYLESHEET = (
     'QPushButton:pressed {'
     '    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #17548f, stop:1 #2974b8);'
     '    border: 1px solid #3d8ec9;'
-    '}'
+    '}',
 )
 
-DEPENDENCY_PROMPT_STATUS_CARD_STYLESHEET = (
+DEPENDENCY_PROMPT_STATUS_CARD_STYLESHEET = themed_qss(
     'QFrame#dependencyPromptStatusCard {'
     '    background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 rgba(14, 21, 32, 0.95), stop:1 rgba(19, 30, 45, 0.85));'
     '    border: 1px solid rgba(95, 180, 245, 0.28);'
     '    border-radius: 9px;'
-    '}'
+    '}',
 )
 
-DEPENDENCY_PROMPT_STATUS_TITLE_STYLESHEET = 'color: #e2eaf4; background: transparent; font-size: 9pt; font-weight: 700;'
+DEPENDENCY_PROMPT_STATUS_TITLE_STYLESHEET = themed_qss('color: #e2eaf4; background: transparent; font-size: 9pt; font-weight: 700;')
 
-DEPENDENCY_PROMPT_STATUS_SUBTITLE_STYLESHEET = 'color: #728498; background: transparent; font-size: 8pt;'
+DEPENDENCY_PROMPT_STATUS_SUBTITLE_STYLESHEET = themed_qss('color: #728498; background: transparent; font-size: 8pt;')
 
-DEPENDENCY_PROMPT_STATUS_BADGE_STYLESHEET = (
+DEPENDENCY_PROMPT_STATUS_BADGE_STYLESHEET = themed_qss(
     'color: #3dd68c;'
     'background: rgba(61, 214, 140, 0.12);'
     'border: 1px solid rgba(61, 214, 140, 0.35);'
@@ -328,12 +330,12 @@ DEPENDENCY_PROMPT_STATUS_BADGE_STYLESHEET = (
     'padding: 2px 7px;'
     'font-size: 7.5pt;'
     'letter-spacing: 0.5px;'
-    'font-weight: 800;'
+    'font-weight: 800;',
 )
 
-DEPENDENCY_PROMPT_FOOTER_HINT_STYLESHEET = 'color: #5c6d80; background: transparent; font-size: 8pt;'
+DEPENDENCY_PROMPT_FOOTER_HINT_STYLESHEET = themed_qss('color: #5c6d80; background: transparent; font-size: 8pt;')
 
-DEPENDENCY_PROMPT_EXIT_BUTTON_STYLESHEET = (
+DEPENDENCY_PROMPT_EXIT_BUTTON_STYLESHEET = themed_qss(
     'QPushButton {'
     '    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #253140, stop:1 #1a222d);'
     '    color: #b0c0d0;'
@@ -351,46 +353,50 @@ DEPENDENCY_PROMPT_EXIT_BUTTON_STYLESHEET = (
     'QPushButton:pressed {'
     '    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #1a222d, stop:1 #253140);'
     '    border: 1px solid #28374a;'
-    '}'
+    '}',
 )
 
 # =============================================================================
 # UPDATE DOWNLOAD DIALOG STYLES
 # =============================================================================
 
-UPDATE_DOWNLOAD_DIALOG_STYLESHEET = 'QDialog {  background-color: transparent;}'
+UPDATE_DOWNLOAD_DIALOG_STYLESHEET = themed_qss('QDialog {  background-color: transparent;}')
 
-UPDATE_DOWNLOAD_FRAME_STYLESHEET = (
-    'QFrame#updateDownloadFrame {  background: qlineargradient(x1:0, y1:0, x2:0, y2:1,      stop:0 #232f3e, stop:1 #18212c);  border: 1px solid #3a4a5c;  border-radius: 14px;}'
+UPDATE_DOWNLOAD_FRAME_STYLESHEET = themed_qss(
+    'QFrame#updateDownloadFrame {'
+    '  background: qlineargradient(x1:0, y1:0, x2:0, y2:1,      stop:0 #232f3e, stop:1 #18212c);'
+    '  border: 1px solid #3a4a5c;'
+    '  border-radius: 14px;'
+    '}',
 )
 
-UPDATE_DOWNLOAD_TITLE_LABEL_STYLESHEET = 'color: #f0f4fa;background: transparent;letter-spacing: 0.5px;'
+UPDATE_DOWNLOAD_TITLE_LABEL_STYLESHEET = themed_qss('color: #f0f4fa;background: transparent;letter-spacing: 0.5px;')
 
-UPDATE_DOWNLOAD_DIVIDER_STYLESHEET = 'background: rgba(255, 255, 255, 0.07);min-height: 1px;max-height: 1px;border: none;'
+UPDATE_DOWNLOAD_DIVIDER_STYLESHEET = themed_qss('background: rgba(255, 255, 255, 0.07);min-height: 1px;max-height: 1px;border: none;')
 
-UPDATE_DOWNLOAD_VERSION_CARD_CURRENT_STYLESHEET = (
-    'QFrame#updateDownloadVersionCardCurrent {  background: rgba(20, 28, 40, 0.55);  border: 1px solid #2f3e52;  border-radius: 10px;}'
+UPDATE_DOWNLOAD_VERSION_CARD_CURRENT_STYLESHEET = themed_qss(
+    'QFrame#updateDownloadVersionCardCurrent {  background: rgba(20, 28, 40, 0.55);  border: 1px solid #2f3e52;  border-radius: 10px;}',
 )
 
-UPDATE_DOWNLOAD_VERSION_CARD_NEW_STYLESHEET = (
+UPDATE_DOWNLOAD_VERSION_CARD_NEW_STYLESHEET = themed_qss(
     'QFrame#updateDownloadVersionCardNew {'
     '  background: qlineargradient(x1:0, y1:0, x2:0, y2:1,'
     '      stop:0 rgba(95, 180, 245, 0.18), stop:1 rgba(31, 108, 200, 0.08));'
     '  border: 1px solid #4aa3ee;'
     '  border-radius: 10px;'
-    '}'
+    '}',
 )
 
-UPDATE_DOWNLOAD_VERSION_CARD_LABEL_MUTED_STYLESHEET = 'color: #7a8a9c;background: transparent;font-size: 12px;letter-spacing: 0.6px;font-weight: 700;'
+UPDATE_DOWNLOAD_VERSION_CARD_LABEL_MUTED_STYLESHEET = themed_qss('color: #7a8a9c;background: transparent;font-size: 12px;letter-spacing: 0.6px;font-weight: 700;')
 
-UPDATE_DOWNLOAD_VERSION_CARD_LABEL_ACCENT_STYLESHEET = 'color: #5fb4f5;background: transparent;font-size: 12px;letter-spacing: 0.6px;font-weight: 700;'
+UPDATE_DOWNLOAD_VERSION_CARD_LABEL_ACCENT_STYLESHEET = themed_qss('color: #5fb4f5;background: transparent;font-size: 12px;letter-spacing: 0.6px;font-weight: 700;')
 
 
 def _version_card_badge_stylesheet(fg_color: str, rgb: str) -> str:
     """Build the QSS for a release-channel badge on the update download dialog."""
-    return (
+    return themed_qss(
         f'color: {fg_color};background: rgba({rgb}, 0.12);border: 1px solid rgba({rgb}, 0.35);'
-        'border-radius: 4px;padding: 1px 5px;font-size: 9.5px;letter-spacing: 0.4px;font-weight: 700;'
+        'border-radius: 4px;padding: 1px 5px;font-size: 9.5px;letter-spacing: 0.4px;font-weight: 700;',
     )
 
 
@@ -398,23 +404,23 @@ UPDATE_DOWNLOAD_VERSION_CARD_BADGE_STABLE_STYLESHEET = _version_card_badge_style
 
 UPDATE_DOWNLOAD_VERSION_CARD_BADGE_PRERELEASE_STYLESHEET = _version_card_badge_stylesheet('#f5a76c', '245, 167, 108')
 
-UPDATE_DOWNLOAD_VERSION_CARD_VALUE_MUTED_STYLESHEET = 'color: #c4ced9;background: transparent;font-size: 17px;font-weight: 700;'
+UPDATE_DOWNLOAD_VERSION_CARD_VALUE_MUTED_STYLESHEET = themed_qss('color: #c4ced9;background: transparent;font-size: 17px;font-weight: 700;')
 
-UPDATE_DOWNLOAD_VERSION_CARD_VALUE_ACCENT_STYLESHEET = 'color: #f0f4fa;background: transparent;font-size: 17px;font-weight: 700;'
+UPDATE_DOWNLOAD_VERSION_CARD_VALUE_ACCENT_STYLESHEET = themed_qss('color: #f0f4fa;background: transparent;font-size: 17px;font-weight: 700;')
 
-UPDATE_DOWNLOAD_VERSION_CARD_DATE_STYLESHEET = 'color: #6f7e91;background: transparent;font-family: Menlo, Consolas, "Courier New", monospace;'
+UPDATE_DOWNLOAD_VERSION_CARD_DATE_STYLESHEET = themed_qss('color: #6f7e91;background: transparent;font-family: Menlo, Consolas, "Courier New", monospace;')
 
-UPDATE_DOWNLOAD_VERSION_CARD_SHA_STYLESHEET = 'color: #6f7e91;background: transparent;font-family: Menlo, Consolas, "Courier New", monospace;font-size: 11.5px;'
+UPDATE_DOWNLOAD_VERSION_CARD_SHA_STYLESHEET = themed_qss('color: #6f7e91;background: transparent;font-family: Menlo, Consolas, "Courier New", monospace;font-size: 11.5px;')
 
-UPDATE_DOWNLOAD_VERSION_ARROW_STYLESHEET = 'color: #4aa3ee;background: transparent;font-weight: 800;'
+UPDATE_DOWNLOAD_VERSION_ARROW_STYLESHEET = themed_qss('color: #4aa3ee;background: transparent;font-weight: 800;')
 
-UPDATE_DOWNLOAD_STATUS_LABEL_STYLESHEET = 'color: #a0b0c4;background: transparent;'
+UPDATE_DOWNLOAD_STATUS_LABEL_STYLESHEET = themed_qss('color: #a0b0c4;background: transparent;')
 
-UPDATE_DOWNLOAD_SIZE_PILL_STYLESHEET = 'QFrame#updateDownloadSizePill {  background: rgba(20, 28, 40, 0.65);  border: 1px solid #2f3e52;  border-radius: 12px;}'
+UPDATE_DOWNLOAD_SIZE_PILL_STYLESHEET = themed_qss('QFrame#updateDownloadSizePill {  background: rgba(20, 28, 40, 0.65);  border: 1px solid #2f3e52;  border-radius: 12px;}')
 
-UPDATE_DOWNLOAD_SIZE_LABEL_STYLESHEET = 'color: #c8d4e4;background: transparent;font-family: Menlo, Consolas, "Courier New", monospace;font-weight: 600;'
+UPDATE_DOWNLOAD_SIZE_LABEL_STYLESHEET = themed_qss('color: #c8d4e4;background: transparent;font-family: Menlo, Consolas, "Courier New", monospace;font-weight: 600;')
 
-UPDATE_DOWNLOAD_PROGRESS_BAR_STYLESHEET = (
+UPDATE_DOWNLOAD_PROGRESS_BAR_STYLESHEET = themed_qss(
     'QProgressBar {'
     '  background-color: #0f1620;'
     '  border: 1px solid #2a3544;'
@@ -430,10 +436,10 @@ UPDATE_DOWNLOAD_PROGRESS_BAR_STYLESHEET = (
     '      stop:0 #1f6cc8, stop:0.5 #4aa3ee, stop:1 #7fc8ff);'
     '  border-radius: 8px;'
     '  margin: 2px;'
-    '}'
+    '}',
 )
 
-UPDATE_DOWNLOAD_CANCEL_BUTTON_STYLESHEET = (
+UPDATE_DOWNLOAD_CANCEL_BUTTON_STYLESHEET = themed_qss(
     'QPushButton {'
     '  background: qlineargradient(x1:0, y1:0, x2:0, y2:1,'
     '      stop:0 #4a2030, stop:1 #2a1018);'
@@ -458,10 +464,10 @@ UPDATE_DOWNLOAD_CANCEL_BUTTON_STYLESHEET = (
     '  border: 1px solid #5a2030;'
     '  padding-top: 8px;'
     '  padding-bottom: 6px;'
-    '}'
+    '}',
 )
 
-UPDATE_DOWNLOAD_SKIP_BUTTON_STYLESHEET = (
+UPDATE_DOWNLOAD_SKIP_BUTTON_STYLESHEET = themed_qss(
     'QPushButton {'
     '  background: qlineargradient(x1:0, y1:0, x2:0, y2:1,'
     '      stop:0 #253140, stop:1 #1a222d);'
@@ -486,10 +492,10 @@ UPDATE_DOWNLOAD_SKIP_BUTTON_STYLESHEET = (
     '  border: 1px solid #2f3e52;'
     '  padding-top: 8px;'
     '  padding-bottom: 6px;'
-    '}'
+    '}',
 )
 
-UPDATE_DOWNLOAD_UPDATE_BUTTON_STYLESHEET = (
+UPDATE_DOWNLOAD_UPDATE_BUTTON_STYLESHEET = themed_qss(
     'QPushButton {'
     '  background: qlineargradient(x1:0, y1:0, x2:1, y2:0,'
     '      stop:0 #1f6cc8, stop:0.5 #3d8ec9, stop:1 #5fb4f5);'
@@ -514,22 +520,22 @@ UPDATE_DOWNLOAD_UPDATE_BUTTON_STYLESHEET = (
     '  border: 1px solid #3d8ec9;'
     '  padding-top: 8px;'
     '  padding-bottom: 6px;'
-    '}'
+    '}',
 )
 
 # =============================================================================
 # LOOKY SYSTEM ACCOUNT CARD STYLES
 # =============================================================================
 
-LOOKY_CARD_LABEL_STYLESHEET = 'color: #c4b5fd; font-size: 10.5pt;'
+LOOKY_CARD_LABEL_STYLESHEET = themed_qss('color: #c4b5fd; font-size: 10.5pt;')
 
-LOOKY_CARD_VALUE_STYLESHEET = 'color: #d4c8f0; font-size: 10.5pt;'
+LOOKY_CARD_VALUE_STYLESHEET = themed_qss('color: #d4c8f0; font-size: 10.5pt;')
 
 # =============================================================================
 # LOOKY SYSTEM CRAWLER DIALOG STYLES
 # =============================================================================
 
-LOOKY_CRAWLER_HEADER_STYLESHEET = (
+LOOKY_CRAWLER_HEADER_STYLESHEET = themed_qss(
     'font-size: 11pt;'
     'font-weight: 700;'
     'padding: 10px 14px;'
@@ -537,10 +543,10 @@ LOOKY_CRAWLER_HEADER_STYLESHEET = (
     'background: qlineargradient(x1:0, y1:0, x2:1, y2:0,'
     '    stop:0 #1c0a38, stop:0.5 #2e1065, stop:1 #1c0a38);'
     'border: 1px solid #4c1d95;'
-    'border-radius: 8px;'
+    'border-radius: 8px;',
 )
 
-LOOKY_CRAWLER_LOG_STYLESHEET = (
+LOOKY_CRAWLER_LOG_STYLESHEET = themed_qss(
     'QPlainTextEdit {'
     '    background-color: #0e0a1c;'
     '    color: #c4b5fd;'
@@ -550,10 +556,10 @@ LOOKY_CRAWLER_LOG_STYLESHEET = (
     '    font-size: 10pt;'
     '    padding: 6px;'
     '    selection-background-color: #4c1d95;'
-    '}'
+    '}',
 )
 
-LOOKY_PROGRESS_BAR_STYLESHEET = (
+LOOKY_PROGRESS_BAR_STYLESHEET = themed_qss(
     'QProgressBar {'
     '    background-color: #1a1325;'
     '    border: 1px solid #3b2060;'
@@ -563,15 +569,15 @@ LOOKY_PROGRESS_BAR_STYLESHEET = (
     '    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,'
     '        stop:0 #6d28d9, stop:0.5 #a855f7, stop:1 #ec4899);'
     '    border-radius: 7px;'
-    '}'
+    '}',
 )
 
-LOOKY_STATUS_LABEL_STYLESHEET = 'font-size: 10pt; padding: 4px;'
+LOOKY_STATUS_LABEL_STYLESHEET = themed_qss('font-size: 10pt; padding: 4px;')
 
 
 def _looky_outline_button_stylesheet(padding: str, extra_props: str = '') -> str:
     """Build the dark purple outline QPushButton QSS for Looky System dialogs."""
-    return (
+    return themed_qss(
         'QPushButton {'
         '    background-color: #1e1030;'
         '    color: #c084fc;'
@@ -586,13 +592,13 @@ def _looky_outline_button_stylesheet(padding: str, extra_props: str = '') -> str
         '}'
         'QPushButton:pressed {'
         '    background-color: #4c1d95;'
-        '}'
+        '}',
     )
 
 
 LOOKY_ACTION_BUTTON_STYLESHEET = _looky_outline_button_stylesheet('5px 16px')
 
-LOOKY_PRIMARY_ACTION_BUTTON_STYLESHEET = (
+LOOKY_PRIMARY_ACTION_BUTTON_STYLESHEET = themed_qss(
     'QPushButton {'
     '    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,'
     '        stop:0 #6d28d9, stop:0.5 #a855f7, stop:1 #ec4899);'
@@ -609,10 +615,10 @@ LOOKY_PRIMARY_ACTION_BUTTON_STYLESHEET = (
     '}'
     'QPushButton:pressed {'
     '    background: #4c1d95;'
-    '}'
+    '}',
 )
 
-LOOKY_LIST_WIDGET_STYLESHEET = (
+LOOKY_LIST_WIDGET_STYLESHEET = themed_qss(
     'QListWidget {'
     '    background-color: #0e0a1c;'
     '    color: #c4b5fd;'
@@ -633,18 +639,18 @@ LOOKY_LIST_WIDGET_STYLESHEET = (
     'QListWidget::item:selected {'
     '    background-color: #4c1d95;'
     '    color: #ffffff;'
-    '}'
+    '}',
 )
 
-LOOKY_BODY_LABEL_STYLESHEET = 'color: #d4c8f0; font-size: 12pt; padding: 2px;'
+LOOKY_BODY_LABEL_STYLESHEET = themed_qss('color: #d4c8f0; font-size: 12pt; padding: 2px;')
 
 # =============================================================================
 # LOOKY SYSTEM REFRESH REVIEW DIALOG STYLES
 # =============================================================================
 
-LOOKY_REVIEW_DIALOG_STYLESHEET = 'QDialog {    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,        stop:0 #1a0e2e, stop:1 #0f0a1c);}'
+LOOKY_REVIEW_DIALOG_STYLESHEET = themed_qss('QDialog {    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,        stop:0 #1a0e2e, stop:1 #0f0a1c);}')
 
-LOOKY_REVIEW_TABLE_STYLESHEET = (
+LOOKY_REVIEW_TABLE_STYLESHEET = themed_qss(
     'QTreeWidget {'
     '    background-color: #0e0a1c;'
     '    color: #d4c8f0;'
@@ -734,22 +740,22 @@ LOOKY_REVIEW_TABLE_STYLESHEET = (
     '    padding: 6px 10px;'
     '    font-weight: 700;'
     '    font-size: 8pt;'
-    '}'
+    '}',
 )
 
-LOOKY_REVIEW_SUMMARY_STYLESHEET = (
+LOOKY_REVIEW_SUMMARY_STYLESHEET = themed_qss(
     'QFrame {'
     '    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,'
     '        stop:0 rgba(76, 29, 149, 0.15), stop:1 rgba(30, 16, 48, 0.25));'
     '    border: 1px solid #3d2d6e;'
     '    border-radius: 10px;'
     '    padding: 10px 14px;'
-    '}'
+    '}',
 )
 
 LOOKY_REVIEW_SELECT_BUTTON_STYLESHEET = _looky_outline_button_stylesheet('4px 14px', '    font-size: 8pt;')
 
-LOOKY_REVIEW_MATCHES_TOGGLE_STYLESHEET = (
+LOOKY_REVIEW_MATCHES_TOGGLE_STYLESHEET = themed_qss(
     'QPushButton {'
     '    background-color: #161024;'
     '    color: #9ca3af;'
@@ -775,5 +781,5 @@ LOOKY_REVIEW_MATCHES_TOGGLE_STYLESHEET = (
     '        stop:0 #0ea5e9, stop:0.5 #7c3aed, stop:1 #c084fc);'
     '    border: 1px solid #7dd3fc;'
     '    color: #ffffff;'
-    '}'
+    '}',
 )

@@ -18,7 +18,6 @@ from PySide6.QtWidgets import (
 )
 from shiboken6 import isValid
 
-from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.constants.tables import COLUMN_FORMAT_SETTING_TO_COLUMNS
 from session_sniffer.guis.delegates import SearchHighlightDelegate
 from session_sniffer.guis.stylesheets import (
@@ -31,7 +30,8 @@ from session_sniffer.guis.stylesheets import (
 )
 from session_sniffer.guis.table_model import SessionTableModel
 from session_sniffer.guis.tables import SessionTableView
-from session_sniffer.guis.utils import make_padded_icon, render_svg_pixmap_from_resource, scale_by_ui
+from session_sniffer.guis.theming import ICONS_DIR_PATH, themed_qss
+from session_sniffer.guis.utils import make_padded_icon, render_svg_icon_from_resource, render_svg_pixmap_from_resource, scale_by_ui
 from session_sniffer.player.registry import SessionTracker
 from session_sniffer.rendering_core.types import PaginationState, SearchState, SessionFilterState, TableMergeState
 from session_sniffer.settings import Settings
@@ -175,7 +175,7 @@ class SessionTableSection(QWidget):
 
         self.collapse_button = QToolButton()
         self.collapse_button.setObjectName('sectionCollapseButton')
-        self.collapse_button.setIcon(QIcon((RESOURCES_DIR_PATH / 'icons' / 'arrow-down-to-line.svg').as_posix()))
+        self.collapse_button.setIcon(QIcon((ICONS_DIR_PATH / 'arrow-down-to-line.svg').as_posix()))
         self.collapse_button.setIconSize(QSize(16, 16))
         self.collapse_button.setToolTip(collapse_tooltip)
         self.collapse_button.clicked.connect(self.minimize)
@@ -282,17 +282,18 @@ class SessionTableSection(QWidget):
                 self._get_highlight_search_column,
             ),
         )
-        scrollbar_arrow_up_path = (RESOURCES_DIR_PATH / 'icons' / 'scrollbar_arrow_up.svg').as_posix()
-        scrollbar_arrow_down_path = (RESOURCES_DIR_PATH / 'icons' / 'scrollbar_arrow_down.svg').as_posix()
-        scrollbar_arrow_left_path = (RESOURCES_DIR_PATH / 'icons' / 'scrollbar_arrow_left.svg').as_posix()
-        scrollbar_arrow_right_path = (RESOURCES_DIR_PATH / 'icons' / 'scrollbar_arrow_right.svg').as_posix()
+        scrollbar_arrow_up_path = (ICONS_DIR_PATH / 'scrollbar_arrow_up.svg').as_posix()
+        scrollbar_arrow_down_path = (ICONS_DIR_PATH / 'scrollbar_arrow_down.svg').as_posix()
+        scrollbar_arrow_left_path = (ICONS_DIR_PATH / 'scrollbar_arrow_left.svg').as_posix()
+        scrollbar_arrow_right_path = (ICONS_DIR_PATH / 'scrollbar_arrow_right.svg').as_posix()
 
         sb_track_bg = '#111215'
         sb_handle_bg = '#2a2d36'
         sb_handle_hover = '#3d4250'
         sb_handle_pressed = '#4b5163'
 
-        self.table_view.setStyleSheet(f"""
+        self.table_view.setStyleSheet(
+            themed_qss(f"""
             QTableView {{
                 border-left: 1px solid {border_color};
                 border-right: 1px solid {border_color};
@@ -469,14 +470,15 @@ class SessionTableSection(QWidget):
                 background-color: {table_bg};
                 border: none;
             }}
-        """)
+        """),
+        )
         self.table_view.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Custom)
         self.table_view.setup_static_column_resizing()
         self.table_model.view = self.table_view
 
         # Expand button (shown when section is collapsed; laid out by MainWindow, not this section)
         self.expand_button = QPushButton(f'Show {self._expand_button_noun()} (0)')
-        _expand_icon = QIcon((RESOURCES_DIR_PATH / 'icons' / 'arrow-up-from-line.svg').as_posix())
+        _expand_icon = render_svg_icon_from_resource('arrow-up-from-line.svg', 16, 16)
         self.expand_button.setIcon(make_padded_icon(_expand_icon, (16, 16), 8))
         self.expand_button.setIconSize(QSize(16 + 8, 16))
         self.expand_button.setToolTip(expand_tooltip)

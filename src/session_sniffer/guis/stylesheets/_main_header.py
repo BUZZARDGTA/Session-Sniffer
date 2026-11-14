@@ -1,10 +1,13 @@
 """Stylesheets for the main application dashboard header."""
 
-MAIN_HEADER_CONTAINER_STYLESHEET = 'QFrame#mainHeader { background-color: transparent; border: none; }'
+from session_sniffer.guis.theming import themed_qss
 
-HEADER_TITLE_STYLESHEET = 'font-size: 13pt; font-weight: 700; color: #ffffff;'
+MAIN_HEADER_CONTAINER_STYLESHEET = themed_qss('QFrame#mainHeader { background-color: transparent; border: none; }')
 
-HEADER_VERSION_BADGE_STYLESHEET = """
+HEADER_TITLE_STYLESHEET = themed_qss('font-size: 13pt; font-weight: 700; color: #ffffff;')
+
+HEADER_VERSION_BADGE_STYLESHEET = themed_qss(
+    """
 color: #94a3b8;
 background-color: rgba(255, 255, 255, 0.06);
 border: 1px solid rgba(255, 255, 255, 0.1);
@@ -12,11 +15,13 @@ border-radius: 4px;
 padding: 1px 6px;
 font-size: 8pt;
 font-weight: 500;
-""".strip()
+""".strip(),
+)
 
-HEADER_SUBTITLE_STYLESHEET = 'font-size: 8.5pt; color: #64748b;'
+HEADER_SUBTITLE_STYLESHEET = themed_qss('font-size: 8.5pt; color: #64748b;')
 
-HEADER_STOPPED_BADGE_STYLESHEET = """
+HEADER_STOPPED_BADGE_STYLESHEET = themed_qss(
+    """
 color: #ef4444;
 background-color: rgba(239, 68, 68, 0.12);
 border: 1px solid rgba(239, 68, 68, 0.35);
@@ -25,9 +30,11 @@ padding: 1px 7px;
 font-size: 8pt;
 font-weight: 700;
 letter-spacing: 0.5px;
-""".strip()
+""".strip(),
+)
 
-HEADER_SEARCH_BAR_STYLESHEET = """
+HEADER_SEARCH_BAR_STYLESHEET = themed_qss(
+    """
 QLineEdit#headerSearchBar {
     min-height: 28px;
     max-height: 30px;
@@ -46,9 +53,11 @@ QLineEdit#headerSearchBar:focus {
     border: 1px solid #22c55e;
     background-color: rgba(0, 0, 0, 0.45);
 }
-""".strip()
+""".strip(),
+)
 
-HEADER_SEARCH_COMBO_STYLESHEET = """
+HEADER_SEARCH_COMBO_STYLESHEET = themed_qss(
+    """
 QComboBox#headerSearchCombo {
     min-height: 28px;
     max-height: 30px;
@@ -107,18 +116,22 @@ QComboBox#headerSearchCombo QAbstractItemView::item:focus {
     color: #ffffff;
     outline: none;
 }
-""".strip()
+""".strip(),
+)
 
-HEADER_STAT_CARD_STYLESHEET = """
+HEADER_STAT_CARD_STYLESHEET = themed_qss(
+    """
 QFrame#headerStatsContainer,
 QFrame#headerNotificationsContainer {
     background-color: rgba(255, 255, 255, 0.03);
     border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 8px;
 }
-""".strip()
+""".strip(),
+)
 
-HEADER_NOTIFICATION_BUTTON_ENABLED_STYLESHEET = """
+HEADER_NOTIFICATION_BUTTON_ENABLED_STYLESHEET = themed_qss(
+    """
 QPushButton {
     background-color: rgba(34, 197, 94, 0.08);
     border: 1px solid rgba(34, 197, 94, 0.25);
@@ -132,9 +145,11 @@ QPushButton:hover {
 QPushButton:pressed {
     background-color: rgba(34, 197, 94, 0.26);
 }
-""".strip()
+""".strip(),
+)
 
-HEADER_NOTIFICATION_BUTTON_MUTED_STYLESHEET = """
+HEADER_NOTIFICATION_BUTTON_MUTED_STYLESHEET = themed_qss(
+    """
 QPushButton {
     background-color: rgba(239, 68, 68, 0.14);
     border: 1px solid rgba(239, 68, 68, 0.38);
@@ -148,10 +163,11 @@ QPushButton:hover {
 QPushButton:pressed {
     background-color: rgba(239, 68, 68, 0.32);
 }
-""".strip()
+""".strip(),
+)
 
-STAT_CARD_TITLE_STYLESHEET = 'font-size: 7.5pt; font-weight: 600; color: #64748b; letter-spacing: 0.3px;'
+STAT_CARD_TITLE_STYLESHEET = themed_qss('font-size: 7.5pt; font-weight: 600; color: #64748b; letter-spacing: 0.3px;')
 
-STAT_CARD_VALUE_STYLESHEET = "font-size: 10.5pt; font-weight: 700; color: #22c55e; font-family: 'Menlo', 'Consolas', 'Courier New', monospace;"
+STAT_CARD_VALUE_STYLESHEET = themed_qss("font-size: 10.5pt; font-weight: 700; color: #22c55e; font-family: 'Menlo', 'Consolas', 'Courier New', monospace;")
 
-HEADER_STATS_DIVIDER_STYLESHEET = 'background-color: rgba(255, 255, 255, 0.08); border: none; max-width: 1px; min-width: 1px; margin: 4px 8px;'
+HEADER_STATS_DIVIDER_STYLESHEET = themed_qss('background-color: rgba(255, 255, 255, 0.08); border: none; max-width: 1px; min-width: 1px; margin: 4px 8px;')

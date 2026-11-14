@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
 
 from session_sniffer.constants.standard import LOCAL_TZ
 from session_sniffer.guis.player_rate_graph import DEFAULT_MAX_HISTORY, PlayerRateGraphWindow
+from session_sniffer.guis.theming import themed_qss
 from session_sniffer.guis.utils import activate_window, scale_by_ui
 from session_sniffer.models.player_traffic import PlayerBandwidth
 from session_sniffer.player.registry import PlayersRegistry
@@ -324,7 +325,9 @@ class HighRateMonitorWidget(QWidget):
 
         threshold_text = f'threshold{pluralize(2)}' if self.mode == 'Manual' else 'threshold'
         lines: list[str] = [
-            f'<b style="color:#e74c3c;">{num_flagged} player{pluralize(num_flagged)} currently exceeding {threshold_text}:</b> <small>({mode_info})</small>',
+            themed_qss(
+                f'<b style="color:#e74c3c;">{num_flagged} player{pluralize(num_flagged)} currently exceeding {threshold_text}:</b> <small>({mode_info})</small>',
+            ),
         ]
         for player in flagged_players:
             name_part = f' ({html.escape(", ".join(player.usernames))})' if player.usernames else ''

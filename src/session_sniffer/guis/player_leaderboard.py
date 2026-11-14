@@ -42,7 +42,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from session_sniffer.constants.local import RESOURCES_DIR_PATH, SESSIONS_LOGGING_DIR_PATH
+from session_sniffer.constants.local import SESSIONS_LOGGING_DIR_PATH
 from session_sniffer.constants.standard import LOCAL_TZ
 from session_sniffer.constants.tables import (
     LEADERBOARD_SEEN_STATS_TABLE_MIN_COLUMN_WIDTHS,
@@ -81,6 +81,7 @@ from session_sniffer.guis.tables_player_actions import (
     scan_ports_ip,
     show_detailed_ip_lookup,
 )
+from session_sniffer.guis.theming import ICONS_DIR_PATH
 from session_sniffer.guis.utils import (
     ToggleAlwaysOnTopMixin,
     apply_search_icon,
@@ -732,13 +733,13 @@ class PlayerLeaderboardWindow(ToggleAlwaysOnTopMixin):
 
         if len(selected_entries) == 1:
             entry = selected_entries[0]
-            copy_row_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), 'Copy Row', self)
+            copy_row_action = QAction(QIcon(str(ICONS_DIR_PATH / 'copy.svg')), 'Copy Row', self)
             copy_row_action.setShortcut('Ctrl+C')
             copy_row_action.setToolTip('Copy the selected player row to the clipboard as tab-separated text.')
             copy_row_action.triggered.connect(self._table.copy_selection)
             menu.addAction(copy_row_action)
 
-            copy_all_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), 'Copy All', self)
+            copy_all_action = QAction(QIcon(str(ICONS_DIR_PATH / 'copy.svg')), 'Copy All', self)
             copy_all_action.setToolTip('Copy all visible leaderboard rows to the clipboard as tab-separated text.')
             copy_all_action.setEnabled(self._proxy.rowCount() > 0)
             copy_all_action.triggered.connect(self._copy_all_rows)
@@ -747,13 +748,13 @@ class PlayerLeaderboardWindow(ToggleAlwaysOnTopMixin):
             menu.addSeparator()
 
             usernames_text = ', '.join(entry.usernames)
-            copy_usernames_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), f'Copy Username{pluralize(len(entry.usernames))}', self)
+            copy_usernames_action = QAction(QIcon(str(ICONS_DIR_PATH / 'copy.svg')), f'Copy Username{pluralize(len(entry.usernames))}', self)
             copy_usernames_action.setToolTip(f'Copy the username{pluralize(len(entry.usernames))} for this player to the clipboard.')
             copy_usernames_action.setEnabled(bool(entry.usernames))
             copy_usernames_action.triggered.connect(lambda: set_clipboard_text(usernames_text))
             menu.addAction(copy_usernames_action)
 
-            copy_ip_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), 'Copy IP', self)
+            copy_ip_action = QAction(QIcon(str(ICONS_DIR_PATH / 'copy.svg')), 'Copy IP', self)
             copy_ip_action.setToolTip("Copy this player's IP address to the clipboard.")
             copy_ip_action.triggered.connect(lambda: set_clipboard_text(entry.ip))
             menu.addAction(copy_ip_action)
@@ -761,13 +762,13 @@ class PlayerLeaderboardWindow(ToggleAlwaysOnTopMixin):
             all_usernames = [username for entry in selected_entries for username in entry.usernames]
             all_ips = [entry.ip for entry in selected_entries]
 
-            copy_rows_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), f'Copy Rows ({len(selected_entries)})', self)
+            copy_rows_action = QAction(QIcon(str(ICONS_DIR_PATH / 'copy.svg')), f'Copy Rows ({len(selected_entries)})', self)
             copy_rows_action.setShortcut('Ctrl+C')
             copy_rows_action.setToolTip('Copy the selected player rows to the clipboard as tab-separated text.')
             copy_rows_action.triggered.connect(self._table.copy_selection)
             menu.addAction(copy_rows_action)
 
-            copy_all_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), 'Copy All', self)
+            copy_all_action = QAction(QIcon(str(ICONS_DIR_PATH / 'copy.svg')), 'Copy All', self)
             copy_all_action.setToolTip('Copy all visible leaderboard rows to the clipboard as tab-separated text.')
             copy_all_action.setEnabled(self._proxy.rowCount() > 0)
             copy_all_action.triggered.connect(self._copy_all_rows)
@@ -777,14 +778,14 @@ class PlayerLeaderboardWindow(ToggleAlwaysOnTopMixin):
 
         menu.addSeparator()
 
-        select_all_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square-check.svg')), 'Select All', self)
+        select_all_action = QAction(QIcon(str(ICONS_DIR_PATH / 'square-check.svg')), 'Select All', self)
         select_all_action.setShortcut('Ctrl+A')
         select_all_action.setToolTip('Select all rows in the leaderboard.')
         select_all_action.setEnabled(self._proxy.rowCount() > 0)
         select_all_action.triggered.connect(self._table.selectAll)
         menu.addAction(select_all_action)
 
-        clear_selection_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square.svg')), 'Clear Selection', self)
+        clear_selection_action = QAction(QIcon(str(ICONS_DIR_PATH / 'square.svg')), 'Clear Selection', self)
         clear_selection_action.setToolTip('Deselect all currently selected rows.')
         clear_selection_action.triggered.connect(self._table.clearSelection)
         menu.addAction(clear_selection_action)
@@ -794,21 +795,21 @@ class PlayerLeaderboardWindow(ToggleAlwaysOnTopMixin):
         if len(selected_entries) == 1:
             entry = selected_entries[0]
 
-            lookup_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'info.svg')), 'IP Lookup Details…', self)
+            lookup_action = QAction(QIcon(str(ICONS_DIR_PATH / 'info.svg')), 'IP Lookup Details…', self)
             lookup_action.setToolTip('Show detailed IP lookup information for this player.')
             lookup_action.triggered.connect(lambda _checked=False, ip_address=entry.ip: show_detailed_ip_lookup(ip_address))
             menu.addAction(lookup_action)
 
             create_ping_menu(self, menu, [entry.ip])
 
-            scan_ports_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'radar.svg')), 'Scan Ports…', self)
+            scan_ports_action = QAction(QIcon(str(ICONS_DIR_PATH / 'radar.svg')), 'Scan Ports…', self)
             scan_ports_action.setToolTip('Scan TCP and UDP ports on this host.')
             scan_ports_action.triggered.connect(lambda _checked=False, ip_address=entry.ip: scan_ports_ip(ip_address))
             menu.addAction(scan_ports_action)
 
             menu.addSeparator()
 
-            seen_stats_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'info.svg')), 'View Seen Stats', self)
+            seen_stats_action = QAction(QIcon(str(ICONS_DIR_PATH / 'info.svg')), 'View Seen Stats', self)
             seen_stats_action.setToolTip('Show a breakdown of how many days and sessions this player has appeared in.')
             seen_stats_action.triggered.connect(lambda: self._show_seen_stats_for_entry(entry))
             menu.addAction(seen_stats_action)
@@ -816,7 +817,7 @@ class PlayerLeaderboardWindow(ToggleAlwaysOnTopMixin):
             all_ips = [entry.ip for entry in selected_entries]
             create_ping_menu(self, menu, all_ips)
 
-            scan_ports_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'radar.svg')), 'Scan Ports…', self)
+            scan_ports_action = QAction(QIcon(str(ICONS_DIR_PATH / 'radar.svg')), 'Scan Ports…', self)
             scan_ports_action.setToolTip('Scan TCP and UDP ports on the selected hosts.')
 
             def _scan_all_leaderboard() -> None:

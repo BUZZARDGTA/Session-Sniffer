@@ -19,7 +19,6 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.guis.stylesheets import (
     COMPACT_BUTTON_STYLESHEET,
@@ -37,6 +36,7 @@ from session_sniffer.guis.stylesheets import (
     HOST_DIAGNOSTICS_SECTION_CARD_STYLESHEET,
     HOST_DIAGNOSTICS_STAT_BOX_STYLESHEET,
 )
+from session_sniffer.guis.theming import ICONS_DIR_PATH, themed_qss
 from session_sniffer.guis.utils import (
     ActiveDialogRegistry,
     animate_button_feedback,
@@ -196,7 +196,7 @@ class SessionHostDiagnosticsDialog(QDialog):
         title_font.setPointSize(11)
         title_font.setBold(True)
         title_label.setFont(title_font)
-        title_label.setStyleSheet('color: #10b981;' if is_success else 'color: #fbbf24;')
+        title_label.setStyleSheet(themed_qss('color: #10b981;' if is_success else 'color: #fbbf24;'))
         info_layout.addWidget(title_label)
 
         if is_success and self._snapshot.detected_host_ip:
@@ -215,14 +215,14 @@ class SessionHostDiagnosticsDialog(QDialog):
             ip_font.setPointSize(13)
             ip_font.setBold(True)
             ip_label.setFont(ip_font)
-            ip_label.setStyleSheet('color: #ffffff;')
+            ip_label.setStyleSheet(themed_qss('color: #ffffff;'))
             ip_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
             host_row.addWidget(ip_label)
 
             if self._snapshot.detected_host_usernames:
                 usernames_text = ', '.join(self._snapshot.detected_host_usernames)
                 user_label = QLabel(f'(@{usernames_text})')
-                user_label.setStyleSheet('color: #94a3b8; font-size: 9.5pt;')
+                user_label.setStyleSheet(themed_qss('color: #94a3b8; font-size: 9.5pt;'))
                 host_row.addWidget(user_label)
 
             host_row.addStretch(1)
@@ -231,13 +231,13 @@ class SessionHostDiagnosticsDialog(QDialog):
             reason = self._snapshot.rejection_reason or self._snapshot.outcome
             reason_label = QLabel(reason)
             reason_label.setWordWrap(True)
-            reason_label.setStyleSheet('color: #e2e8f0; font-size: 9pt;')
+            reason_label.setStyleSheet(themed_qss('color: #e2e8f0; font-size: 9pt;'))
             reason_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
             info_layout.addWidget(reason_label)
 
         time_str = self._snapshot.timestamp.strftime('%H:%M:%S')
         timestamp_label = QLabel(f'Evaluation performed at {time_str}')
-        timestamp_label.setStyleSheet('color: #64748b; font-size: 8pt;')
+        timestamp_label.setStyleSheet(themed_qss('color: #64748b; font-size: 8pt;'))
         info_layout.addWidget(timestamp_label)
 
         layout.addLayout(info_layout, stretch=1)
@@ -247,7 +247,7 @@ class SessionHostDiagnosticsDialog(QDialog):
             actions_layout.setContentsMargins(0, 0, 0, 0)
             actions_layout.setSpacing(6)
 
-            copy_host_ip_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), ' Copy Host IP')
+            copy_host_ip_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'copy.svg')), ' Copy Host IP')
             copy_host_ip_button.setStyleSheet(COMPACT_BUTTON_STYLESHEET)
             detected_ip = self._snapshot.detected_host_ip
             copy_host_ip_button.clicked.connect(lambda: self._copy_text(copy_host_ip_button, detected_ip))
@@ -256,7 +256,7 @@ class SessionHostDiagnosticsDialog(QDialog):
             if self._snapshot.detected_host_usernames:
                 usernames_count = len(self._snapshot.detected_host_usernames)
                 copy_host_usernames_button = QPushButton(
-                    QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')),
+                    QIcon(str(ICONS_DIR_PATH / 'copy.svg')),
                     f' Copy Host Username{pluralize(usernames_count)}',
                 )
                 copy_host_usernames_button.setStyleSheet(COMPACT_BUTTON_STYLESHEET)
@@ -291,7 +291,7 @@ class SessionHostDiagnosticsDialog(QDialog):
             box_layout.setSpacing(2)
 
             title_lbl = QLabel(label_text)
-            title_lbl.setStyleSheet('color: #8b9bb4; font-size: 8pt; font-weight: bold; text-transform: uppercase;')
+            title_lbl.setStyleSheet(themed_qss('color: #8b9bb4; font-size: 8pt; font-weight: bold; text-transform: uppercase;'))
             box_layout.addWidget(title_lbl)
 
             val_lbl = QLabel(value_text)
@@ -299,7 +299,7 @@ class SessionHostDiagnosticsDialog(QDialog):
             val_font.setPointSize(14)
             val_font.setBold(True)
             val_lbl.setFont(val_font)
-            val_lbl.setStyleSheet(f'color: {accent_color};')
+            val_lbl.setStyleSheet(themed_qss(f'color: {accent_color};'))
             box_layout.addWidget(val_lbl)
 
             layout.addWidget(box)
@@ -320,13 +320,13 @@ class SessionHostDiagnosticsDialog(QDialog):
         header_layout.setSpacing(8)
 
         icon_label = QLabel()
-        icon_path = RESOURCES_DIR_PATH / 'icons' / 'check.svg'
+        icon_path = ICONS_DIR_PATH / 'check.svg'
         if icon_path.exists():
             icon_label.setPixmap(QIcon(str(icon_path)).pixmap(scale_by_ui(16), scale_by_ui(16)))
         header_layout.addWidget(icon_label)
 
         title = QLabel('Detection Criteria Checklist')
-        title.setStyleSheet('color: #f1f5f9; font-weight: bold; font-size: 9.5pt;')
+        title.setStyleSheet(themed_qss('color: #f1f5f9; font-weight: bold; font-size: 9.5pt;'))
         header_layout.addWidget(title)
 
         header_layout.addStretch(1)
@@ -371,11 +371,11 @@ class SessionHostDiagnosticsDialog(QDialog):
             title_font.setBold(True)
             title_font.setPointSize(9)
             title_label.setFont(title_font)
-            title_label.setStyleSheet('color: #e2e8f0;' if item.passed else 'color: #fca5a5;')
+            title_label.setStyleSheet(themed_qss('color: #e2e8f0;' if item.passed else 'color: #fca5a5;'))
             text_layout.addWidget(title_label)
 
             detail_label = QLabel(item.detail)
-            detail_label.setStyleSheet('color: #94a3b8; font-size: 8.5pt;')
+            detail_label.setStyleSheet(themed_qss('color: #94a3b8; font-size: 8.5pt;'))
             detail_label.setWordWrap(True)
             text_layout.addWidget(detail_label)
 
@@ -629,7 +629,7 @@ class SessionHostDiagnosticsDialog(QDialog):
 
         count = len(self._snapshot.candidates)
         section_title = QLabel(f'Evaluated Candidates ({count})')
-        section_title.setStyleSheet('color: #e2e8f0; font-weight: bold; font-size: 10pt;')
+        section_title.setStyleSheet(themed_qss('color: #e2e8f0; font-weight: bold; font-size: 10pt;'))
         layout.addWidget(section_title)
 
         if not self._snapshot.candidates:
@@ -638,7 +638,7 @@ class SessionHostDiagnosticsDialog(QDialog):
             empty_card.setStyleSheet(HOST_DIAGNOSTICS_SECTION_CARD_STYLESHEET)
             empty_layout = QVBoxLayout(empty_card)
             empty_lbl = QLabel('No direct peer-to-peer player candidates were evaluated in this session.')
-            empty_lbl.setStyleSheet('color: #64748b; font-style: italic; font-size: 9pt;')
+            empty_lbl.setStyleSheet(themed_qss('color: #64748b; font-style: italic; font-size: 9pt;'))
             empty_layout.addWidget(empty_lbl)
             layout.addWidget(empty_card)
             return container
@@ -663,7 +663,7 @@ class SessionHostDiagnosticsDialog(QDialog):
         header.setSpacing(8)
 
         index_badge = QLabel(f'#{index}')
-        index_badge.setStyleSheet('color: #64748b; font-weight: bold; font-size: 8.5pt;')
+        index_badge.setStyleSheet(themed_qss('color: #64748b; font-weight: bold; font-size: 8.5pt;'))
         header.addWidget(index_badge)
 
         if candidate.country_code:
@@ -674,13 +674,13 @@ class SessionHostDiagnosticsDialog(QDialog):
                 header.addWidget(flag_lbl)
 
         ip_lbl = QLabel(candidate.ip)
-        ip_lbl.setStyleSheet('color: #ffffff; font-weight: bold; font-size: 10pt;')
+        ip_lbl.setStyleSheet(themed_qss('color: #ffffff; font-weight: bold; font-size: 10pt;'))
         ip_lbl.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         header.addWidget(ip_lbl)
 
         if candidate.usernames:
             users_lbl = QLabel(f'(@{", ".join(candidate.usernames)})')
-            users_lbl.setStyleSheet('color: #94a3b8; font-size: 9pt;')
+            users_lbl.setStyleSheet(themed_qss('color: #94a3b8; font-size: 9pt;'))
             header.addWidget(users_lbl)
 
         # Status pills
@@ -703,7 +703,7 @@ class SessionHostDiagnosticsDialog(QDialog):
 
         header.addStretch(1)
 
-        copy_btn = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), ' Copy')
+        copy_btn = QPushButton(QIcon(str(ICONS_DIR_PATH / 'copy.svg')), ' Copy')
         copy_btn.setStyleSheet(COMPACT_BUTTON_STYLESHEET)
         cand_ip = candidate.ip
         copy_btn.clicked.connect(lambda: self._copy_text(copy_btn, cand_ip))
@@ -722,20 +722,20 @@ class SessionHostDiagnosticsDialog(QDialog):
 
         # Row 0: Connection time
         rejoin_title = QLabel('Last Rejoin:')
-        rejoin_title.setStyleSheet('color: #64748b; font-size: 8.5pt;')
+        rejoin_title.setStyleSheet(themed_qss('color: #64748b; font-size: 8.5pt;'))
         rejoin_val = QLabel(f'{rejoin_str} ({elapsed_str} ago)')
-        rejoin_val.setStyleSheet('color: #cbd5e1; font-size: 8.5pt;')
+        rejoin_val.setStyleSheet(themed_qss('color: #cbd5e1; font-size: 8.5pt;'))
         grid.addWidget(rejoin_title, 0, 0)
         grid.addWidget(rejoin_val, 0, 1)
 
         # Row 1: Sent packets & eligibility
         sent_title = QLabel('Packets Sent:')
-        sent_title.setStyleSheet('color: #64748b; font-size: 8.5pt;')
+        sent_title.setStyleSheet(themed_qss('color: #64748b; font-size: 8.5pt;'))
 
         sent_val_box = QHBoxLayout()
         sent_val_box.setSpacing(6)
         sent_val = QLabel(str(candidate.packets_sent))
-        sent_val.setStyleSheet('color: #f1f5f9; font-weight: bold; font-size: 8.5pt;')
+        sent_val.setStyleSheet(themed_qss('color: #f1f5f9; font-weight: bold; font-size: 8.5pt;'))
         sent_val_box.addWidget(sent_val)
 
         packet_pill = QLabel()
@@ -762,9 +762,9 @@ class SessionHostDiagnosticsDialog(QDialog):
 
         # Row 2: Received & Exchanged
         recv_title = QLabel('Packets Received / Exchanged:')
-        recv_title.setStyleSheet('color: #64748b; font-size: 8.5pt;')
+        recv_title.setStyleSheet(themed_qss('color: #64748b; font-size: 8.5pt;'))
         recv_val = QLabel(f'{candidate.packets_received} recv / {candidate.packets_exchanged} total')
-        recv_val.setStyleSheet('color: #94a3b8; font-size: 8.5pt;')
+        recv_val.setStyleSheet(themed_qss('color: #94a3b8; font-size: 8.5pt;'))
         grid.addWidget(recv_title, 2, 0)
         grid.addWidget(recv_val, 2, 1)
 
@@ -783,13 +783,13 @@ class SessionHostDiagnosticsDialog(QDialog):
 
         count = len(self._snapshot.filtered_servers)
         title = QLabel(f'Filtered Game & Relay Server(s) ({count})')
-        title.setStyleSheet('color: #8b9bb4; font-weight: bold; font-size: 9pt;')
+        title.setStyleSheet(themed_qss('color: #8b9bb4; font-weight: bold; font-size: 9pt;'))
         layout.addWidget(title)
 
         servers_text = ', '.join(f'{server_ip} ({exchanged} pkts)' for server_ip, exchanged in self._snapshot.filtered_servers)
         desc = QLabel(servers_text)
         desc.setWordWrap(True)
-        desc.setStyleSheet('color: #64748b; font-size: 8pt;')
+        desc.setStyleSheet(themed_qss('color: #64748b; font-size: 8pt;'))
         desc.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         layout.addWidget(desc)
 
@@ -802,14 +802,14 @@ class SessionHostDiagnosticsDialog(QDialog):
         layout.setSpacing(10)
 
         # Copy full host details button
-        copy_details_btn = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), ' Copy Host Details')
+        copy_details_btn = QPushButton(QIcon(str(ICONS_DIR_PATH / 'copy.svg')), ' Copy Host Details')
         copy_details_btn.setStyleSheet(COMPACT_BUTTON_STYLESHEET)
         copy_details_btn.clicked.connect(lambda: self._copy_details(copy_details_btn))
         layout.addWidget(copy_details_btn)
 
         # In-place re-detect host button
         if self._redetect_callback is not None:
-            redetect_btn = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'refresh-cw.svg')), ' Re-detect Host')
+            redetect_btn = QPushButton(QIcon(str(ICONS_DIR_PATH / 'refresh-cw.svg')), ' Re-detect Host')
             redetect_btn.setStyleSheet(COMPACT_BUTTON_STYLESHEET)
             redetect_btn.clicked.connect(self._on_redetect_clicked)
             layout.addWidget(redetect_btn)

@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
 
 from session_sniffer.guis.fonts import get_ui_font
 from session_sniffer.guis.stylesheets import DIALOG_BUTTON_STYLESHEET
+from session_sniffer.guis.theming import themed_qss
 from session_sniffer.guis.utils import scale_by_ui
 
 
@@ -36,13 +37,13 @@ class LeaderboardLoadingWidget(QWidget):
 
         loading_frame = QFrame(self)
         loading_frame.setObjectName('loadingFrame')
-        loading_frame.setStyleSheet("""
+        loading_frame.setStyleSheet(themed_qss("""
             QFrame#loadingFrame {
                 background-color: #1e1e1e;
                 border: 1px solid #3e3e42;
                 border-radius: 8px;
             }
-        """)
+        """))
         loading_frame.setFixedSize(scale_by_ui(420), scale_by_ui(210))
 
         shadow_effect = QGraphicsDropShadowEffect(loading_frame)
@@ -57,7 +58,7 @@ class LeaderboardLoadingWidget(QWidget):
 
         self._header_label = QLabel('Building Leaderboard')
         self._header_label.setFont(get_ui_font(15, QFont.Weight.Bold))
-        self._header_label.setStyleSheet('color: #88c0d0;')
+        self._header_label.setStyleSheet(themed_qss('color: #88c0d0;'))
         self._header_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         frame_layout.addWidget(self._header_label)
 
@@ -65,7 +66,7 @@ class LeaderboardLoadingWidget(QWidget):
 
         self._status_label = QLabel('Scanning session logs...\nPlease wait...')
         self._status_label.setFont(get_ui_font(10))
-        self._status_label.setStyleSheet('color: #a0a0a0;')
+        self._status_label.setStyleSheet(themed_qss('color: #a0a0a0;'))
         self._status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._status_label.setWordWrap(True)
         frame_layout.addWidget(self._status_label)
@@ -74,7 +75,7 @@ class LeaderboardLoadingWidget(QWidget):
         self._progress_bar.setRange(0, 0)
         self._progress_bar.setFixedHeight(6)
         self._progress_bar.setTextVisible(False)
-        self._progress_bar.setStyleSheet("""
+        self._progress_bar.setStyleSheet(themed_qss("""
             QProgressBar {
                 background-color: #2d2d30;
                 border: none;
@@ -84,7 +85,7 @@ class LeaderboardLoadingWidget(QWidget):
                 background-color: #007acc;
                 border-radius: 3px;
             }
-        """)
+        """))
         frame_layout.addWidget(self._progress_bar)
 
         frame_layout.addSpacing(6)

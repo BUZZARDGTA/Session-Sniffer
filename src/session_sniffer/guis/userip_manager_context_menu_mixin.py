@@ -9,13 +9,14 @@ from PySide6.QtCore import QItemSelectionModel, QModelIndex, QPoint, Qt, QUrl
 from PySide6.QtGui import QAction, QDesktopServices, QIcon, QStandardItemModel
 from PySide6.QtWidgets import QAbstractItemView, QCheckBox, QDialog, QLineEdit, QMenu, QPushButton, QTreeView
 
-from session_sniffer.constants.local import RESOURCES_DIR_PATH, USERIP_DATABASES_DIR_PATH
+from session_sniffer.constants.local import USERIP_DATABASES_DIR_PATH
 from session_sniffer.guis.stylesheets import SVG_ICON_CONTEXT_MENU_STYLESHEET
 from session_sniffer.guis.tables_player_actions import (
     create_ping_menu,
     scan_ports_ip,
     show_detailed_ip_lookup,
 )
+from session_sniffer.guis.theming import ICONS_DIR_PATH
 from session_sniffer.guis.userip_manager_helpers import (
     DATABASE_COLUMN,
     NOTES_COLUMN,
@@ -131,7 +132,7 @@ class EntriesContextMenuMixin(QDialog):
             if index.isValid():
                 self._build_entry_context_menu(menu, index)
             else:
-                add_entry_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'plus.svg')), 'Add Entry', self)
+                add_entry_action = QAction(QIcon(str(ICONS_DIR_PATH / 'plus.svg')), 'Add Entry', self)
                 add_entry_action.setToolTip('Open the IP Range Builder dialog and insert the result as a new entry.')
                 add_entry_action.triggered.connect(self._add_entry)
                 menu.addAction(add_entry_action)
@@ -165,7 +166,7 @@ class EntriesContextMenuMixin(QDialog):
 
     def _add_copy_actions(self, menu: QMenu, context: _RowMenuContext) -> None:
         """Add row copy, Copy All, and cell-value copy actions to *menu*."""
-        copy_icon = QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg'))
+        copy_icon = QIcon(str(ICONS_DIR_PATH / 'copy.svg'))
         copy_row_label = f'Copy Rows ({context.selected_count})' if context.selected_count > 1 else 'Copy Row'
         copy_row_action = QAction(copy_icon, copy_row_label, self)
         copy_row_action.setShortcut('Ctrl+C')
@@ -243,14 +244,14 @@ class EntriesContextMenuMixin(QDialog):
 
     def _add_selection_actions(self, menu: QMenu, *, select_all_tooltip: str) -> None:
         """Add Select All and Clear Selection actions to *menu*."""
-        select_all_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square-check.svg')), 'Select All', self)
+        select_all_action = QAction(QIcon(str(ICONS_DIR_PATH / 'square-check.svg')), 'Select All', self)
         select_all_action.setShortcut('Ctrl+A')
         select_all_action.setToolTip(select_all_tooltip)
         select_all_action.setEnabled(self._proxy.rowCount() > 0)
         select_all_action.triggered.connect(self._entries_table.selectAll)
         menu.addAction(select_all_action)
 
-        clear_selection_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square.svg')), 'Clear Selection', self)
+        clear_selection_action = QAction(QIcon(str(ICONS_DIR_PATH / 'square.svg')), 'Clear Selection', self)
         clear_selection_action.setToolTip('Deselect all currently selected rows.')
         clear_selection_action.triggered.connect(self._entries_table.clearSelection)
         menu.addAction(clear_selection_action)
@@ -281,7 +282,7 @@ class EntriesContextMenuMixin(QDialog):
 
     def _add_edit_actions(self, menu: QMenu, *, target_row: int, selected_count: int) -> None:
         """Add Rename, Edit IP/Range, and Edit Note actions to *menu*."""
-        pen_icon = QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square-pen.svg'))
+        pen_icon = QIcon(str(ICONS_DIR_PATH / 'square-pen.svg'))
         rename_label = f'Rename Selected ({selected_count})' if selected_count > 1 else 'Rename'
         rename_action = QAction(pen_icon, rename_label, self)
         rename_action.setShortcut('F2')
@@ -300,7 +301,7 @@ class EntriesContextMenuMixin(QDialog):
             has_note = bool(notes_item and notes_item.text().strip())
             note_action = 'Edit' if has_note else 'Add'
             note_label = f'{note_action} Note…'
-            note_icon = QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'notepad-text.svg'))
+            note_icon = QIcon(str(ICONS_DIR_PATH / 'notepad-text.svg'))
             edit_note_action = QAction(note_icon, note_label, self)
             tooltip = 'Edit the note for this entry.' if has_note else 'Add a note to this entry.'
             edit_note_action.setToolTip(tooltip)
@@ -323,7 +324,7 @@ class EntriesContextMenuMixin(QDialog):
         if not distinct_usernames:
             return
 
-        group_icon = QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'user-plus.svg'))
+        group_icon = QIcon(str(ICONS_DIR_PATH / 'user-plus.svg'))
         if len(distinct_usernames) >= MIN_GROUP_USERNAMES:
             group_selected_action = QAction(group_icon, f'Group Selected Usernames ({len(distinct_usernames)})', self)
             group_selected_action.setToolTip('Link all selected usernames into the same account group.')
@@ -337,14 +338,14 @@ class EntriesContextMenuMixin(QDialog):
 
         group_members = self._collect_group_members_for_rows(source_rows)
         if len(group_members) >= MIN_GROUP_USERNAMES:
-            ungroup_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')), 'Ungroup…', self)
+            ungroup_action = QAction(QIcon(str(ICONS_DIR_PATH / 'remove.svg')), 'Ungroup…', self)
             ungroup_action.setToolTip('Unlink usernames from this account group so false positives stay separated.')
             ungroup_action.triggered.connect(self._ungroup_rows)
             menu.addAction(ungroup_action)
 
     def _add_move_to_database_menu(self, menu: QMenu, context: _RowMenuContext, *, disabled_path: Path | None) -> None:
         """Build and append the 'Move to Database' (and 'Move Group to Database' when applicable) submenu to *menu*."""
-        box_icon = QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'box.svg'))
+        box_icon = QIcon(str(ICONS_DIR_PATH / 'box.svg'))
         all_db_paths = [json_path for json_path in USERIP_DATABASES_DIR_PATH.rglob('*.json') if json_path.is_file()]
         selected_count = context.selected_count
         move_db_label = f'Move Selected to Database ({selected_count})' if selected_count > 1 else 'Move to Database'
@@ -400,13 +401,13 @@ class EntriesContextMenuMixin(QDialog):
         menu.addSeparator()
 
         if is_single_ip and len(selected_ips) <= 1:
-            lookup_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'info.svg')), 'IP Lookup Details…', self)
+            lookup_action = QAction(QIcon(str(ICONS_DIR_PATH / 'info.svg')), 'IP Lookup Details…', self)
             lookup_action.triggered.connect(lambda _checked=False, ip_address=ip_or_range: show_detailed_ip_lookup(ip_address))
             menu.addAction(lookup_action)
 
         create_ping_menu(self, menu, list(selected_ips) if len(selected_ips) > 1 else [ip_or_range])
 
-        scan_ports_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'radar.svg')), 'Scan Ports…', self)
+        scan_ports_action = QAction(QIcon(str(ICONS_DIR_PATH / 'radar.svg')), 'Scan Ports…', self)
         scan_ports_action.setToolTip(f'Scan TCP and UDP ports on the selected host{pluralize(max(1, len(selected_ips)))}.')
         scan_target = list(selected_ips) if len(selected_ips) > 1 else ip_or_range
         scan_ports_action.triggered.connect(lambda _checked=False, target=scan_target: scan_ports_ip(target))
@@ -415,14 +416,14 @@ class EntriesContextMenuMixin(QDialog):
     def _add_username_action(self, menu: QMenu, *, target_row: int, tooltip: str) -> None:
         """Add the 'Add Username' action with a preceding separator to *menu*."""
         menu.addSeparator()
-        add_username_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'plus.svg')), 'Add Username', self)
+        add_username_action = QAction(QIcon(str(ICONS_DIR_PATH / 'plus.svg')), 'Add Username', self)
         add_username_action.setToolTip(tooltip)
         add_username_action.triggered.connect(lambda _checked=False, row=target_row: self._add_username(row))
         menu.addAction(add_username_action)
 
     def _add_delete_selected_action(self, menu: QMenu) -> None:
         """Add the 'Delete Selected Row(s)' action with a preceding separator to *menu*."""
-        delete_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')), 'Delete Selected Row(s)', self)
+        delete_action = QAction(QIcon(str(ICONS_DIR_PATH / 'remove.svg')), 'Delete Selected Row(s)', self)
         delete_action.triggered.connect(self._delete_selected)
         menu.addSeparator()
         menu.addAction(delete_action)
@@ -437,7 +438,7 @@ class EntriesContextMenuMixin(QDialog):
         menu.addSeparator()
 
         if context.selected_count <= 1:
-            go_to_entry_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'arrow-right.svg')), 'Go to Entry', self)
+            go_to_entry_action = QAction(QIcon(str(ICONS_DIR_PATH / 'arrow-right.svg')), 'Go to Entry', self)
             go_to_entry_action.setToolTip('Clear the search filter and navigate to this entry in the full database list.')
             go_to_entry_action.setEnabled(bool(self._search_input.text().strip()))
             go_to_entry_action.triggered.connect(lambda: self._go_to_entry(context.row))
@@ -448,22 +449,22 @@ class EntriesContextMenuMixin(QDialog):
         can_reorder_rows = not self._proxy.group_sort_enabled and not self._proxy.sortColumn() and self._proxy.sortOrder() == Qt.SortOrder.AscendingOrder
 
         if can_reorder_rows and context.row > 0:
-            move_up_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'arrow-up.svg')), 'Move Up', self)
+            move_up_action = QAction(QIcon(str(ICONS_DIR_PATH / 'arrow-up.svg')), 'Move Up', self)
             move_up_action.triggered.connect(lambda: self._move_rows(index, -1))
             menu.addAction(move_up_action)
         if can_reorder_rows and context.row < self._model.rowCount() - 1:
-            move_down_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'arrow-down.svg')), 'Move Down', self)
+            move_down_action = QAction(QIcon(str(ICONS_DIR_PATH / 'arrow-down.svg')), 'Move Down', self)
             move_down_action.triggered.connect(lambda: self._move_rows(index, 1))
             menu.addAction(move_down_action)
 
         if can_reorder_rows and (context.row > 0 or context.row < self._model.rowCount() - 1):
             menu.addSeparator()
 
-        insert_above_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'arrow-up.svg')), 'Insert Entry Above', self)
+        insert_above_action = QAction(QIcon(str(ICONS_DIR_PATH / 'arrow-up.svg')), 'Insert Entry Above', self)
         insert_above_action.triggered.connect(lambda: self._insert_entry_at(context.row))
         menu.addAction(insert_above_action)
 
-        insert_below_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'arrow-down.svg')), 'Insert Entry Below', self)
+        insert_below_action = QAction(QIcon(str(ICONS_DIR_PATH / 'arrow-down.svg')), 'Insert Entry Below', self)
         insert_below_action.triggered.connect(lambda: self._insert_entry_at(context.row + 1))
         menu.addAction(insert_below_action)
 
@@ -498,18 +499,18 @@ class EntriesContextMenuMixin(QDialog):
         if db_path_str:
             db_path = Path(db_path_str)
 
-            go_to_db_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'arrow-right.svg')), 'Go to Database', self)
+            go_to_db_action = QAction(QIcon(str(ICONS_DIR_PATH / 'arrow-right.svg')), 'Go to Database', self)
             go_to_db_action.setToolTip('Open this database and navigate to this entry.')
             go_to_db_action.triggered.connect(
                 lambda: self.navigate_to_database(db_path, username=context.username, ip_or_range=context.ip_or_range),
             )
             menu.addAction(go_to_db_action)
 
-            open_editor_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'file-text.svg')), 'Open in Text Editor', self)
+            open_editor_action = QAction(QIcon(str(ICONS_DIR_PATH / 'file-text.svg')), 'Open in Text Editor', self)
             open_editor_action.triggered.connect(lambda: QDesktopServices.openUrl(QUrl.fromLocalFile(str(db_path))))
             menu.addAction(open_editor_action)
 
-            open_explorer_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'folder.svg')), 'Open in File Manager', self)
+            open_explorer_action = QAction(QIcon(str(ICONS_DIR_PATH / 'folder.svg')), 'Open in File Manager', self)
             open_explorer_action.triggered.connect(lambda: open_file_location(db_path))
             menu.addAction(open_explorer_action)
 

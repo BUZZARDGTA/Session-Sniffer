@@ -54,6 +54,7 @@ from session_sniffer.guis.stylesheets import (
     UPDATE_DOWNLOAD_VERSION_CARD_VALUE_ACCENT_STYLESHEET,
     UPDATE_DOWNLOAD_VERSION_CARD_VALUE_MUTED_STYLESHEET,
 )
+from session_sniffer.guis.theming import themed_qss
 from session_sniffer.guis.utils import center_window_on_screen, render_svg_pixmap_from_resource
 from session_sniffer.networking.http_session import session
 from session_sniffer.utils import format_project_version, is_pyinstaller_compiled
@@ -313,9 +314,7 @@ class UpdateDownloadDialog(DraggableDialogMixin, QDialog):
         if accent:
             dot = QLabel()
             dot.setFixedSize(6, 6)
-            dot.setStyleSheet(
-                'background-color: #5fb4f5;border-radius: 3px;',
-            )
+            dot.setStyleSheet(themed_qss('background-color: #5fb4f5; border-radius: 3px;'))
             label_row.addWidget(dot, 0, Qt.AlignmentFlag.AlignVCenter)
 
         label_widget = QLabel(label)
@@ -608,7 +607,7 @@ class UpdateDownloadDialog(DraggableDialogMixin, QDialog):
 
         initial_total_size = self._format_size_mb(self._candidate.size_bytes) if self._candidate.size_bytes is not None else 'xx.x MB'
         self._size_label.setText(
-            f'0.0 MB<span style="color: #5a6878;">&nbsp;&nbsp;/&nbsp;&nbsp;</span>{initial_total_size}',
+            themed_qss(f'0.0 MB<span style="color: #5a6878;">&nbsp;&nbsp;/&nbsp;&nbsp;</span>{initial_total_size}'),
         )
 
         self._worker = _DownloadWorker(self._candidate.download_url, self._dest_path)
@@ -631,7 +630,9 @@ class UpdateDownloadDialog(DraggableDialogMixin, QDialog):
         if total > 0:
             self._progress_bar.setValue(int(done / total * 100))
             self._size_label.setText(
-                f'{self._format_size_mb(done)}<span style="color: #5a6878;">&nbsp;&nbsp;/&nbsp;&nbsp;</span>{self._format_size_mb(total)}',
+                themed_qss(
+                    f'{self._format_size_mb(done)}<span style="color: #5a6878;">&nbsp;&nbsp;/&nbsp;&nbsp;</span>{self._format_size_mb(total)}',
+                ),
             )
             if self._new_size_label is not None:
                 self._new_size_label.setText(self._format_size_mb(total))

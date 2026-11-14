@@ -12,15 +12,17 @@ from PySide6.QtCore import (
     QSortFilterProxyModel,
     Qt,
 )
-from PySide6.QtGui import QColor, QIcon
 
 from session_sniffer.constants.standard import LOCAL_TZ
 from session_sniffer.guis.tables_player_actions._format import format_bool
+from session_sniffer.guis.theming import themed_text_qcolor
 from session_sniffer.guis.utils import load_country_flag_icon
 from session_sniffer.text_utils import pluralize
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+
+    from PySide6.QtGui import QColor, QIcon
 
     from session_sniffer.player.seen_stats import LeaderboardEntry
 
@@ -248,10 +250,10 @@ class LeaderboardTableModel(QAbstractTableModel):
 
     def _status_foreground_color(self, ip_address: str) -> QColor:
         if ip_address in self._connected_ips:
-            return QColor('#22c55e')
+            return themed_text_qcolor('#22c55e', '#1e1e1e')
         if ip_address in self._disconnected_ips:
-            return QColor('#ef4444')
-        return QColor('#6b7280')
+            return themed_text_qcolor('#ef4444', '#1e1e1e')
+        return themed_text_qcolor('#6b7280', '#1e1e1e')
 
     def _tooltip_data(self, column: int, entry: LeaderboardEntry) -> object:
         if column in (COLUMN_FIRST_SEEN, COLUMN_LAST_SEEN):

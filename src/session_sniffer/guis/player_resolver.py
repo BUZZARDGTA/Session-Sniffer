@@ -9,9 +9,9 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
-from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.guis.high_rate_monitor import HighRateMonitorWidget
 from session_sniffer.guis.player_identifier import PlayerIdentifierWidget
+from session_sniffer.guis.theming import ICONS_DIR_PATH
 from session_sniffer.guis.utils import ToggleAlwaysOnTopMixin, activate_window, scale_by_ui
 from session_sniffer.settings import Settings
 
@@ -51,11 +51,11 @@ class PlayerResolverWindow(ToggleAlwaysOnTopMixin):
 
         # Tab 1: Player High Rate Monitor
         self.high_rate_monitor = HighRateMonitorWidget(select_ips_callback, deselect_ips_callback, self)
-        self._tabs.addTab(self.high_rate_monitor, QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'gauge.svg')), 'Player High Rate Monitor')
+        self._tabs.addTab(self.high_rate_monitor, QIcon(str(ICONS_DIR_PATH / 'gauge.svg')), 'Player High Rate Monitor')
 
         # Tab 2: Player Identifier
         self.player_identifier = PlayerIdentifierWidget(select_ips_callback, deselect_ips_callback, self)
-        self._tabs.addTab(self.player_identifier, QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'user-round-search.svg')), 'Player Identifier')
+        self._tabs.addTab(self.player_identifier, QIcon(str(ICONS_DIR_PATH / 'user-round-search.svg')), 'Player Identifier')
 
         # Always on top checkbox (shared across tabs)
         self.add_always_on_top_checkbox(layout, always_on_top=False, alignment=Qt.AlignmentFlag.AlignHCenter)

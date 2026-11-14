@@ -18,7 +18,6 @@ from PySide6.QtWidgets import (
 )
 from shiboken6 import isValid
 
-from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.constants.standalone import LOOKY_BASE_HOST, TITLE
 from session_sniffer.guis.looky_text import configure_looky_action, get_looky_restriction
 from session_sniffer.guis.tables_player_actions._actions import ping_ip, tcp_port_ping, web_ping
@@ -36,6 +35,7 @@ from session_sniffer.guis.tables_player_actions._format import (
 )
 from session_sniffer.guis.tables_player_actions._player_info_dialog_mixin import PlayerInfoDialogMixin
 from session_sniffer.guis.tables_player_actions.looky_system._looky_lookup_dialog import show_looky_lookup
+from session_sniffer.guis.theming import ICONS_DIR_PATH
 from session_sniffer.guis.userip_manager_helpers import refresh_userip_and_wake_renderer
 from session_sniffer.guis.utils import (
     ActiveDialogRegistry,
@@ -325,7 +325,7 @@ class IPLookupDetailsDialog(PlayerInfoDialogMixin):
         buttons_layout.setContentsMargins(0, 6, 0, 0)
         buttons_layout.setSpacing(10)
 
-        lookup_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'user.svg')), ' Looky Lookup…')
+        lookup_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'user.svg')), ' Looky Lookup…')
         lookup_button.clicked.connect(lambda: show_looky_lookup(self, self._target))
         self._looky_lookup_button = lookup_button
         configure_looky_action(
@@ -335,7 +335,7 @@ class IPLookupDetailsDialog(PlayerInfoDialogMixin):
         )
         buttons_layout.addWidget(lookup_button)
 
-        website_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'globe.svg')), ' Looky Website')
+        website_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'globe.svg')), ' Looky Website')
         website_button.setToolTip('Open the Looky System website in your default browser.')
 
         def _on_website_clicked() -> None:
@@ -403,17 +403,17 @@ class IPLookupDetailsDialog(PlayerInfoDialogMixin):
         buttons_layout.setContentsMargins(0, 6, 0, 0)
         buttons_layout.setSpacing(10)
 
-        icmp_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'radio-tower.svg')), ' ICMP Ping')
+        icmp_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'radio-tower.svg')), ' ICMP Ping')
         icmp_button.setToolTip('Launch continuous ICMP ping diagnostics window for this IP.')
         icmp_button.clicked.connect(lambda: ping_ip(self._target.ip))
         buttons_layout.addWidget(icmp_button)
 
-        tcp_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'radio-tower.svg')), ' TCP Port Ping…')
+        tcp_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'radio-tower.svg')), ' TCP Port Ping…')
         tcp_button.setToolTip('Launch TCP port ping diagnostics window for this IP.')
         tcp_button.clicked.connect(lambda: tcp_port_ping(self, self._target.ip))
         buttons_layout.addWidget(tcp_button)
 
-        web_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'radio-tower.svg')), ' Web (Check-Host)…')
+        web_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'radio-tower.svg')), ' Web (Check-Host)…')
         web_button.setToolTip('Launch multi-vantage Check-Host.net ping diagnostics window for this IP.')
         web_button.clicked.connect(lambda: web_ping(self._target.ip))
         buttons_layout.addWidget(web_button)

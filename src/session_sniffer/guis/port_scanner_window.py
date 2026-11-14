@@ -10,7 +10,7 @@ from threading import Event
 from typing import Final, override
 
 from PySide6.QtCore import QPoint, Qt, Signal
-from PySide6.QtGui import QCloseEvent, QIcon, QResizeEvent, QShowEvent
+from PySide6.QtGui import QCloseEvent, QColor, QIcon, QResizeEvent, QShowEvent
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -32,7 +32,6 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.constants.tables import (
     DEFAULT_MIN_COLUMN_WIDTH,
@@ -49,9 +48,11 @@ from session_sniffer.guis.stylesheets import (
     SVG_ICON_CONTEXT_MENU_STYLESHEET,
 )
 from session_sniffer.guis.table_column_resizing import TableColumnResizeController, setup_table_header_context_menu
+from session_sniffer.guis.theming import ICONS_DIR_PATH, themed_qss, themed_text_qcolor
 from session_sniffer.guis.utils import (
     activate_window,
     animate_button_feedback,
+    render_svg_icon_from_resource,
     scale_by_ui,
     set_clipboard_text,
 )
@@ -223,7 +224,7 @@ class PortScannerTabWidget(QWidget):
         self._progress_bar.setFixedHeight(scale_by_ui(18))
 
         self._metrics_label = QLabel('Ready. Press Start Scan to begin.')
-        self._metrics_label.setStyleSheet('color: #a5b4c4; font-size: 8.5pt;')
+        self._metrics_label.setStyleSheet(themed_qss('color: #a5b4c4; font-size: 8.5pt;'))
 
         progress_layout.addWidget(self._progress_bar, stretch=1)
         progress_layout.addWidget(self._metrics_label)
@@ -262,9 +263,11 @@ class PortScannerTabWidget(QWidget):
         table_font = get_monospace_font(9)
         self._results_table.setFont(table_font)
         self._results_table.setStyleSheet(
-            'QTableWidget { background-color: #141414; alternate-background-color: #1b1b1b; '
-            'color: #e0e0e0; gridline-color: #2d3640; border: 1px solid #2d3640; border-radius: 4px; } '
-            'QHeaderView::section { background-color: #202020; color: #a5b4c4; padding: 4px; border: 1px solid #2d3640; }',
+            themed_qss(
+                'QTableWidget { background-color: #141414; alternate-background-color: #1b1b1b; '
+                'color: #e0e0e0; gridline-color: #2d3640; border: 1px solid #2d3640; border-radius: 4px; } '
+                'QHeaderView::section { background-color: #202020; color: #a5b4c4; padding: 4px; border: 1px solid #2d3640; }',
+            ),
         )
         main_layout.addWidget(self._results_table, stretch=1)
 
@@ -276,25 +279,29 @@ class PortScannerTabWidget(QWidget):
         self._show_open_only_checkbox.setChecked(True)
         self._show_open_only_checkbox.toggled.connect(self._apply_table_filter)
 
-        self._start_stop_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'circle-play.svg')), ' Start Scan')
+        primary_tint = themed_text_qcolor('#ffffff', '#007acc').name(QColor.NameFormat.HexArgb)
+        self._start_stop_button = QPushButton(
+            render_svg_icon_from_resource('circle-play.svg', scale_by_ui(16), scale_by_ui(16), primary_tint),
+            ' Start Scan',
+        )
         self._start_stop_button.setStyleSheet(DIALOG_PRIMARY_BUTTON_STYLESHEET)
         self._start_stop_button.clicked.connect(self._toggle_start_stop)
 
-        copy_selected_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), ' Copy Selected')
+        copy_selected_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'copy.svg')), ' Copy Selected')
         copy_selected_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
         copy_selected_button.clicked.connect(self._copy_selected_rows)
         self._copy_selected_button = copy_selected_button
 
-        copy_all_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), ' Copy All Open')
+        copy_all_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'copy.svg')), ' Copy All Open')
         copy_all_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
         copy_all_button.clicked.connect(self._copy_all_open)
         self._copy_all_button = copy_all_button
 
-        export_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'save.svg')), ' Export…')
+        export_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'save.svg')), ' Export…')
         export_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
         export_button.clicked.connect(self._export_results)
 
-        clear_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'trash.svg')), ' Clear')
+        clear_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'trash.svg')), ' Clear')
         clear_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
         clear_button.setEnabled(False)
         clear_button.clicked.connect(self._clear_results)
@@ -457,8 +464,9 @@ class PortScannerTabWidget(QWidget):
         self._progress_bar.setValue(0)
         self._metrics_label.setText(f'Resolving {target_host}…')
 
+        danger_tint = themed_text_qcolor('#ffffff', '#b91c1c').name(QColor.NameFormat.HexArgb)
         self._start_stop_button.setText(' Stop Scan')
-        self._start_stop_button.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'circle-stop.svg')))
+        self._start_stop_button.setIcon(render_svg_icon_from_resource('circle-stop.svg', scale_by_ui(16), scale_by_ui(16), danger_tint))
         self._start_stop_button.setStyleSheet(DIALOG_DANGER_BUTTON_STYLESHEET)
         self._target_input.setEnabled(False)
         self._preset_combo.setEnabled(False)
@@ -513,8 +521,9 @@ class PortScannerTabWidget(QWidget):
     def _on_worker_finished(self) -> None:
         """Restore control states upon worker thread completion."""
         self._worker_thread = None
+        primary_tint = themed_text_qcolor('#ffffff', '#007acc').name(QColor.NameFormat.HexArgb)
         self._start_stop_button.setText(' Start Scan')
-        self._start_stop_button.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'circle-play.svg')))
+        self._start_stop_button.setIcon(render_svg_icon_from_resource('circle-play.svg', scale_by_ui(16), scale_by_ui(16), primary_tint))
         self._start_stop_button.setStyleSheet(DIALOG_PRIMARY_BUTTON_STYLESHEET)
         self._target_input.setEnabled(True)
         self._preset_combo.setEnabled(True)
@@ -542,10 +551,12 @@ class PortScannerTabWidget(QWidget):
         duration_string = f'{duration_minutes:02d}:{duration_remainder_seconds:02d}'
 
         self._metrics_label.setText(
-            f'Scanned: {completed_probes} / {total_probes} ({percentage}%) | '
-            f'Open: <b style="color: #2ecc71;">{open_count}</b> | '
-            f'Speed: {speed_ports_per_sec:.0f} ports/s | '
-            f'Elapsed: {duration_string}',
+            themed_qss(
+                f'Scanned: {completed_probes} / {total_probes} ({percentage}%) | '
+                f'Open: <b style="color: #2ecc71;">{open_count}</b> | '
+                f'Speed: {speed_ports_per_sec:.0f} ports/s | '
+                f'Elapsed: {duration_string}',
+            ),
         )
 
     def _on_result_received(self, result_object: object) -> None:
@@ -573,11 +584,11 @@ class PortScannerTabWidget(QWidget):
         state_item = QTableWidgetItem(result.state.value)
         state_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
         if result.state == PortScanState.OPEN:
-            state_item.setForeground(Qt.GlobalColor.green)
+            state_item.setForeground(themed_text_qcolor('#2ecc71', '#141414'))
         elif result.state == PortScanState.CLOSED:
-            state_item.setForeground(Qt.GlobalColor.red)
+            state_item.setForeground(themed_text_qcolor('#e74c3c', '#141414'))
         else:
-            state_item.setForeground(Qt.GlobalColor.yellow)
+            state_item.setForeground(themed_text_qcolor('#f1c40f', '#141414'))
 
         service_item = QTableWidgetItem(result.service_name)
         latency_text = f'{result.latency_ms:.1f}' if result.latency_ms is not None else '-'
@@ -721,12 +732,12 @@ class PortScannerTabWidget(QWidget):
         menu = QMenu(self)
         menu.setStyleSheet(SVG_ICON_CONTEXT_MENU_STYLESHEET)
 
-        copy_port_action = menu.addAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), f'Copy Port ({port_str})')
+        copy_port_action = menu.addAction(QIcon(str(ICONS_DIR_PATH / 'copy.svg')), f'Copy Port ({port_str})')
         copy_port_action.triggered.connect(lambda: set_clipboard_text(port_str))
 
         target_host = self._scanned_target or self.target
         copy_target_port_action = menu.addAction(
-            QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')),
+            QIcon(str(ICONS_DIR_PATH / 'copy.svg')),
             f'Copy {target_host}:{port_str}',
         )
         copy_target_port_action.triggered.connect(lambda: set_clipboard_text(f'{target_host}:{port_str}'))
@@ -734,7 +745,7 @@ class PortScannerTabWidget(QWidget):
         menu.addSeparator()
 
         ping_action = menu.addAction(
-            QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'circle-play.svg')),
+            QIcon(str(ICONS_DIR_PATH / 'circle-play.svg')),
             f'Ping {target_host}:{port_str} ({proto_str})',
         )
 
@@ -748,7 +759,7 @@ class PortScannerTabWidget(QWidget):
             url_scheme = 'https' if port_num in (443, 8443) else 'http'
             browser_url = f'{url_scheme}://{target_host}:{port_num}'
             open_browser_action = menu.addAction(
-                QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'globe.svg')),
+                QIcon(str(ICONS_DIR_PATH / 'globe.svg')),
                 f'Open in Browser ({browser_url})',
             )
             open_browser_action.triggered.connect(lambda: webbrowser.open(browser_url))
@@ -768,7 +779,7 @@ class PortScannerWindow(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
         self.destroyed.connect(lambda: setattr(PortScannerWindow, '_instance', None) if PortScannerWindow._instance is self else None)
         self.setWindowTitle(f'{TITLE} - Port Scanner')
-        self.setWindowIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'radar.svg')))
+        self.setWindowIcon(QIcon(str(ICONS_DIR_PATH / 'radar.svg')))
         self.resize(scale_by_ui(920), scale_by_ui(640))
 
         window_layout = QVBoxLayout(self)
@@ -797,19 +808,19 @@ class PortScannerWindow(QWidget):
         bar_layout.setContentsMargins(4, 4, 4, 4)
         bar_layout.setSpacing(8)
 
-        scan_all_btn = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'circle-play.svg')), ' Scan All')
+        scan_all_btn = QPushButton(QIcon(str(ICONS_DIR_PATH / 'circle-play.svg')), ' Scan All')
         scan_all_btn.setStyleSheet(DIALOG_PRIMARY_BUTTON_STYLESHEET)
         scan_all_btn.clicked.connect(self.start_all_tabs)
 
-        stop_all_btn = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'circle-stop.svg')), ' Stop All')
+        stop_all_btn = QPushButton(QIcon(str(ICONS_DIR_PATH / 'circle-stop.svg')), ' Stop All')
         stop_all_btn.setStyleSheet(DIALOG_DANGER_BUTTON_STYLESHEET)
         stop_all_btn.clicked.connect(self.stop_all_tabs)
 
-        add_target_btn = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'plus.svg')), ' Add Target…')
+        add_target_btn = QPushButton(QIcon(str(ICONS_DIR_PATH / 'plus.svg')), ' Add Target…')
         add_target_btn.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
         add_target_btn.clicked.connect(self._prompt_add_target)
 
-        close_btn = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'x.svg')), ' Close')
+        close_btn = QPushButton(QIcon(str(ICONS_DIR_PATH / 'x.svg')), ' Close')
         close_btn.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
         close_btn.clicked.connect(self.close)
 

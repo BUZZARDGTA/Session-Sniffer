@@ -34,6 +34,7 @@ from session_sniffer.guis.stylesheets import (
     LOOKY_CARD_VALUE_STYLESHEET,
     LOOKY_INFO_LABEL_STYLESHEET,
 )
+from session_sniffer.guis.theming import themed_qss
 from session_sniffer.networking.looky_system import LookyState, verify_token
 
 if TYPE_CHECKING:
@@ -49,8 +50,8 @@ if TYPE_CHECKING:
 def _bool_badge(*, value: bool, true_text: str, false_text: str) -> str:
     """Return an HTML-coloured badge string: green for `True`, red for `False`."""
     if value:
-        return f'<span style="color:#4ade80; font-size:10.5pt; font-weight:600;">{true_text}</span>'
-    return f'<span style="color:#f87171; font-size:10.5pt; font-weight:600;">{false_text}</span>'
+        return themed_qss(f'<span style="color:#4ade80; font-size:10.5pt; font-weight:600;">{true_text}</span>')
+    return themed_qss(f'<span style="color:#f87171; font-size:10.5pt; font-weight:600;">{false_text}</span>')
 
 
 class _LookyVerifyWorker(CrashingQThread):
@@ -114,13 +115,15 @@ class SettingsDialogLookyMixin(QDialog):
         outer = create_standard_vbox_layout(group_box)
 
         info_label = QLabel(
-            '<b>Looky System is a paid API for GTA Online PC username resolution.</b><br><br>'
-            'To obtain an API key, purchase access through their official '
-            '<a href="https://discord.gg/umZ4yXRVfE" title="https://discord.gg/umZ4yXRVfE" style="color: #a78bfa; text-decoration: underline;">Discord server</a> or visit '
-            f'<a href="{LOOKY_BASE_HOST}" title="{LOOKY_BASE_HOST}" style="color: #a78bfa; text-decoration: underline;">{LOOKY_BASE_HOST}</a>.<br><br>'
-            'Once you have your key, paste it in the <b>API Key</b> field below.<br><br>'
-            'Player names will be resolved automatically in the background and shown in the <b>Usernames</b> column.<br><br>'
-            '<i>Note: Looky System features are only active when the <b>Feature Set</b> under <b>Capture → General</b> is set to <b>GTA V</b>.</i>',
+            themed_qss(
+                '<b>Looky System is a paid API for GTA Online PC username resolution.</b><br><br>'
+                'To obtain an API key, purchase access through their official '
+                '<a href="https://discord.gg/umZ4yXRVfE" title="https://discord.gg/umZ4yXRVfE" style="color: #a78bfa; text-decoration: underline;">Discord server</a> or visit '
+                f'<a href="{LOOKY_BASE_HOST}" title="{LOOKY_BASE_HOST}" style="color: #a78bfa; text-decoration: underline;">{LOOKY_BASE_HOST}</a>.<br><br>'
+                'Once you have your key, paste it in the <b>API Key</b> field below.<br><br>'
+                'Player names will be resolved automatically in the background and shown in the <b>Usernames</b> column.<br><br>'
+                '<i>Note: Looky System features are only active when the <b>Feature Set</b> under <b>Capture → General</b> is set to <b>GTA V</b>.</i>',
+            ),
         )
         info_label.setWordWrap(True)
         info_label.setTextFormat(Qt.TextFormat.RichText)

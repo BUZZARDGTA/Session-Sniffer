@@ -3,7 +3,7 @@
 from typing import TYPE_CHECKING, override
 
 from PySide6.QtCore import QSignalBlocker, Qt, QTimer
-from PySide6.QtGui import QCloseEvent, QColor, QIcon
+from PySide6.QtGui import QCloseEvent, QIcon
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
@@ -13,11 +13,11 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.constants.tables import PLAYER_JOINS_TABLE_MIN_COLUMN_WIDTHS
 from session_sniffer.guis.stylesheets import player_info_header_stylesheet
 from session_sniffer.guis.table_context_menu import StatTableWindowMixin, skip_if_menu_open
+from session_sniffer.guis.theming import ICONS_DIR_PATH, register_theme_change_callback, themed_qss, themed_text_qcolor
 from session_sniffer.guis.utils import (
     ActiveDialogRegistry,
     NumericTableWidgetItem,
@@ -93,8 +93,16 @@ _HEADER_TOOLTIPS: dict[str, str] = {
     'Upload': 'Bandwidth uploaded during this join session only.',
 }
 
-_COLOR_CONNECTED = QColor(80, 200, 80)
-_COLOR_DISCONNECTED = QColor(220, 80, 60)
+_COLOR_CONNECTED = themed_text_qcolor('#50c850', '#1e1e1e')
+_COLOR_DISCONNECTED = themed_text_qcolor('#dc503c', '#1e1e1e')
+
+
+def _refresh_player_joins_colors() -> None:
+    _COLOR_CONNECTED.setRgba(themed_text_qcolor('#50c850', '#1e1e1e').rgba())
+    _COLOR_DISCONNECTED.setRgba(themed_text_qcolor('#dc503c', '#1e1e1e').rgba())
+
+
+register_theme_change_callback(_refresh_player_joins_colors)
 
 
 class PlayerJoinsWindow(StatTableWindowMixin):
@@ -106,7 +114,7 @@ class PlayerJoinsWindow(StatTableWindowMixin):
         self._player: Player = player
 
         self.setWindowTitle(f'{TITLE} - Player Joins ({format_player_display(self._player.ip, self._player.usernames)})')
-        self.setWindowIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'rotate-ccw-clock.svg')))
+        self.setWindowIcon(QIcon(str(ICONS_DIR_PATH / 'rotate-ccw-clock.svg')))
 
         layout = self.setup_window_layout(always_on_top=True, spacing=6)
 
@@ -118,7 +126,7 @@ class PlayerJoinsWindow(StatTableWindowMixin):
 
         self._info_label = QLabel()
         self._info_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._info_label.setStyleSheet('color: #cbd5e0; font-size: 9pt; font-weight: 600; padding: 2px 4px;')
+        self._info_label.setStyleSheet(themed_qss('color: #cbd5e0; font-size: 9pt; font-weight: 600; padding: 2px 4px;'))
         self._info_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse | Qt.TextInteractionFlag.TextSelectableByKeyboard)
         layout.addWidget(self._info_label)
 
@@ -136,7 +144,7 @@ class PlayerJoinsWindow(StatTableWindowMixin):
         bottom_layout.addStretch(1)
 
         self._count_label = QLabel()
-        self._count_label.setStyleSheet('color: #a0aec0; font-size: 9pt;')
+        self._count_label.setStyleSheet(themed_qss('color: #a0aec0; font-size: 9pt;'))
         bottom_layout.addWidget(self._count_label)
         bottom_layout.addSpacing(12)
 

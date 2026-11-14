@@ -7,7 +7,7 @@ from threading import Event
 from typing import Final, override
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QCloseEvent, QIcon, QTextCursor
+from PySide6.QtGui import QCloseEvent, QColor, QIcon, QTextCursor
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -26,7 +26,6 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.constants.standalone import MAX_PORT, MIN_PORT, TITLE
 from session_sniffer.error_messages import ensure_instance
 from session_sniffer.guis._crashing_qthread import CrashingQThread
@@ -36,7 +35,8 @@ from session_sniffer.guis.stylesheets import (
     DIALOG_DANGER_BUTTON_STYLESHEET,
     DIALOG_PRIMARY_BUTTON_STYLESHEET,
 )
-from session_sniffer.guis.utils import activate_window, animate_button_feedback, scale_by_ui
+from session_sniffer.guis.theming import ICONS_DIR_PATH, themed_qss, themed_text_qcolor
+from session_sniffer.guis.utils import activate_window, animate_button_feedback, render_svg_icon_from_resource, scale_by_ui
 from session_sniffer.networking.ping import (
     IcmpEchoEngine,
     PingMode,
@@ -193,10 +193,10 @@ class PingTabWidget(QWidget):
         mode_label = QLabel('Protocol:')
         self._mode_combo = QComboBox()
         self._mode_combo.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
-        self._mode_combo.addItem(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'radio-tower.svg')), 'ICMP (Standard)', PingMode.ICMP)
-        self._mode_combo.addItem(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'radio-tower.svg')), 'TCP Port', PingMode.TCP)
-        self._mode_combo.addItem(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'radio-tower.svg')), 'UDP Port', PingMode.UDP)
-        self._mode_combo.addItem(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'globe.svg')), 'Web (Check-Host)', PingMode.WEB)
+        self._mode_combo.addItem(QIcon(str(ICONS_DIR_PATH / 'radio-tower.svg')), 'ICMP (Standard)', PingMode.ICMP)
+        self._mode_combo.addItem(QIcon(str(ICONS_DIR_PATH / 'radio-tower.svg')), 'TCP Port', PingMode.TCP)
+        self._mode_combo.addItem(QIcon(str(ICONS_DIR_PATH / 'radio-tower.svg')), 'UDP Port', PingMode.UDP)
+        self._mode_combo.addItem(QIcon(str(ICONS_DIR_PATH / 'globe.svg')), 'Web (Check-Host)', PingMode.WEB)
         if mode == PingMode.TCP:
             self._mode_combo.setCurrentIndex(1)
         elif mode == PingMode.UDP:
@@ -264,7 +264,7 @@ class PingTabWidget(QWidget):
         row2_layout.addStretch()
 
         self._hint_label = QLabel()
-        self._hint_label.setStyleSheet('color: #8c9ba8; font-size: 8.5pt;')
+        self._hint_label.setStyleSheet(themed_qss('color: #8c9ba8; font-size: 8.5pt;'))
 
         controls_layout.addLayout(row1_layout)
         controls_layout.addLayout(row2_layout)
@@ -278,7 +278,7 @@ class PingTabWidget(QWidget):
         console_font = get_monospace_font(10)
         self._console_log.setFont(console_font)
         self._console_log.setStyleSheet(
-            'QTextEdit { background-color: #141414; color: #e0e0e0; border: 1px solid #2d3640; border-radius: 4px; padding: 6px; }',
+            themed_qss('QTextEdit { background-color: #141414; color: #e0e0e0; border: 1px solid #2d3640; border-radius: 4px; padding: 6px; }'),
         )
         main_layout.addWidget(self._console_log, stretch=1)
 
@@ -289,7 +289,7 @@ class PingTabWidget(QWidget):
         stats_layout.setSpacing(12)
 
         self._stats_label = QLabel('Ready. Press Start to begin pinging.')
-        self._stats_label.setStyleSheet('color: #a5b4c4; font-size: 9pt;')
+        self._stats_label.setStyleSheet(themed_qss('color: #a5b4c4; font-size: 9pt;'))
         stats_layout.addWidget(self._stats_label, stretch=1)
 
         main_layout.addWidget(stats_group)
@@ -301,16 +301,20 @@ class PingTabWidget(QWidget):
         self._autoscroll_checkbox = QCheckBox('Auto-scroll')
         self._autoscroll_checkbox.setChecked(True)
 
-        self._start_stop_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'circle-play.svg')), ' Start')
+        primary_tint = themed_text_qcolor('#ffffff', '#007acc').name(QColor.NameFormat.HexArgb)
+        self._start_stop_button = QPushButton(
+            render_svg_icon_from_resource('circle-play.svg', scale_by_ui(16), scale_by_ui(16), primary_tint),
+            ' Start',
+        )
         self._start_stop_button.setStyleSheet(DIALOG_PRIMARY_BUTTON_STYLESHEET)
         self._start_stop_button.clicked.connect(self._toggle_start_stop)
 
-        copy_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), ' Copy Log')
+        copy_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'copy.svg')), ' Copy Log')
         copy_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
         copy_button.clicked.connect(self._copy_log)
         self._copy_button = copy_button
 
-        clear_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'trash.svg')), ' Clear')
+        clear_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'trash.svg')), ' Clear')
         clear_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
         clear_button.setEnabled(False)
         clear_button.clicked.connect(self._clear_log)
@@ -381,8 +385,9 @@ class PingTabWidget(QWidget):
         count_value = self._count_spinbox.value()
         payload_size_value = self._payload_spinbox.value()
 
+        danger_tint = themed_text_qcolor('#ffffff', '#b91c1c').name(QColor.NameFormat.HexArgb)
         self._start_stop_button.setText(' Stop')
-        self._start_stop_button.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'circle-stop.svg')))
+        self._start_stop_button.setIcon(render_svg_icon_from_resource('circle-stop.svg', scale_by_ui(16), scale_by_ui(16), danger_tint))
         self._start_stop_button.setStyleSheet(DIALOG_DANGER_BUTTON_STYLESHEET)
         self._target_input.setEnabled(False)
         self._mode_combo.setEnabled(False)
@@ -445,8 +450,9 @@ class PingTabWidget(QWidget):
     def _on_worker_finished(self) -> None:
         """Handle worker thread termination."""
         self._worker_thread = None
+        primary_tint = themed_text_qcolor('#ffffff', '#007acc').name(QColor.NameFormat.HexArgb)
         self._start_stop_button.setText(' Start')
-        self._start_stop_button.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'circle-play.svg')))
+        self._start_stop_button.setIcon(render_svg_icon_from_resource('circle-play.svg', scale_by_ui(16), scale_by_ui(16), primary_tint))
         self._start_stop_button.setStyleSheet(DIALOG_PRIMARY_BUTTON_STYLESHEET)
         self._target_input.setEnabled(True)
         self._mode_combo.setEnabled(True)
@@ -535,11 +541,11 @@ class PingTabWidget(QWidget):
                 f'<b>RTT:</b> Min = {stats.minimum_rtt_ms:.2f} ms, Avg = {stats.average_rtt_ms:.2f} ms, Max = {stats.maximum_rtt_ms:.2f} ms{jitter_string}',
             )
 
-        self._stats_label.setText(' | '.join(summary_parts))
+        self._stats_label.setText(themed_qss(' | '.join(summary_parts)))
 
     def _append_log_line(self, html_line: str) -> None:
         """Append a formatted HTML line to the console log."""
-        self._console_log.append(html_line)
+        self._console_log.append(themed_qss(html_line))
         self._clear_log_button.setEnabled(True)
         if self._autoscroll_checkbox.isChecked():
             cursor = self._console_log.textCursor()
@@ -581,7 +587,7 @@ class PingWindow(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
         self.destroyed.connect(lambda: setattr(PingWindow, '_instance', None) if PingWindow._instance is self else None)
         self.setWindowTitle(f'{TITLE} - Ping Diagnostics')
-        self.setWindowIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'radio-tower.svg')))
+        self.setWindowIcon(QIcon(str(ICONS_DIR_PATH / 'radio-tower.svg')))
         self.resize(scale_by_ui(860), scale_by_ui(560))
 
         main_layout = QVBoxLayout(self)
@@ -598,19 +604,19 @@ class PingWindow(QWidget):
         footer_layout.setContentsMargins(4, 4, 4, 4)
         footer_layout.setSpacing(8)
 
-        start_all_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'circle-play.svg')), ' Start All')
+        start_all_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'circle-play.svg')), ' Start All')
         start_all_button.setStyleSheet(DIALOG_PRIMARY_BUTTON_STYLESHEET)
         start_all_button.clicked.connect(self.start_all_tabs)
 
-        stop_all_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'circle-stop.svg')), ' Stop All')
+        stop_all_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'circle-stop.svg')), ' Stop All')
         stop_all_button.setStyleSheet(DIALOG_DANGER_BUTTON_STYLESHEET)
         stop_all_button.clicked.connect(self.stop_all_tabs)
 
-        add_target_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'plus.svg')), ' Add Target…')
+        add_target_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'plus.svg')), ' Add Target…')
         add_target_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
         add_target_button.clicked.connect(self._prompt_add_target)
 
-        close_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'x.svg')), ' Close')
+        close_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'x.svg')), ' Close')
         close_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
         close_button.clicked.connect(self.close)
 

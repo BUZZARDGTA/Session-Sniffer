@@ -18,7 +18,6 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.guis.file_watch import DebouncedFileWatcher
 from session_sniffer.guis.logs_manager._helpers import (
@@ -35,6 +34,7 @@ from session_sniffer.guis.logs_manager._helpers import (
     setup_copy_save_button_row,
     setup_metadata_label,
 )
+from session_sniffer.guis.theming import ICONS_DIR_PATH
 from session_sniffer.guis.userip_manager_helpers import human_readable_size
 from session_sniffer.text_utils import pluralize
 
@@ -95,13 +95,13 @@ class TextLogTab(QWidget):
         self._search_input = create_search_input(top_bar, 'Search in log…', self._on_search_changed, debounce_ms=100)
         self._search_input.returnPressed.connect(self._find_next)
 
-        prev_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'arrow-left.svg')), '')
+        prev_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'arrow-left.svg')), '')
         prev_button.setToolTip('Previous match')
         prev_button.setFixedWidth(30)
         prev_button.clicked.connect(self._find_prev)
         top_bar.addWidget(prev_button)
 
-        next_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'arrow-right.svg')), '')
+        next_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'arrow-right.svg')), '')
         next_button.setToolTip('Next match')
         next_button.setFixedWidth(30)
         next_button.clicked.connect(self._find_next)

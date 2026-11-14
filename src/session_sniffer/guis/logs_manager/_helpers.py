@@ -28,11 +28,12 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from session_sniffer.constants.local import CRASH_LOG_PATH, DEBUG_LOG_PATH, RESOURCES_DIR_PATH
+from session_sniffer.constants.local import CRASH_LOG_PATH, DEBUG_LOG_PATH
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.constants.standard import LOCAL_TZ
 from session_sniffer.guis.fonts import get_monospace_font
 from session_sniffer.guis.stylesheets import DIALOG_BUTTON_STYLESHEET, DIALOG_DANGER_BUTTON_STYLESHEET
+from session_sniffer.guis.theming import ICONS_DIR_PATH, themed_qcolor, themed_text_qcolor
 from session_sniffer.guis.userip_manager_helpers import BYTES_PER_UNIT, human_readable_size
 from session_sniffer.guis.utils import (
     animate_button_feedback,
@@ -133,18 +134,18 @@ class LogLevelHighlighter(QSyntaxHighlighter):
         self._log_level_formats: list[tuple[str, QTextCharFormat]] = []
 
         warning_format = QTextCharFormat()
-        warning_format.setForeground(QColor('#e5c07b'))
+        warning_format.setForeground(themed_text_qcolor('#e5c07b', '#1e1e1e'))
         self._log_level_formats.append(('WARNING', warning_format))
 
         error_format = QTextCharFormat()
-        error_format.setForeground(QColor('#e06c75'))
+        error_format.setForeground(themed_text_qcolor('#e06c75', '#1e1e1e'))
         error_format.setFontWeight(QFont.Weight.Bold)
         self._log_level_formats.append(('ERROR', error_format))
 
         critical_format = QTextCharFormat()
-        critical_format.setForeground(QColor('#ff6b6b'))
+        critical_format.setForeground(themed_text_qcolor('#ff6b6b', '#501414'))
         critical_format.setFontWeight(QFont.Weight.Bold)
-        critical_format.setBackground(QColor(80, 20, 20))
+        critical_format.setBackground(themed_qcolor(QColor(80, 20, 20)))
         self._log_level_formats.append(('CRITICAL', critical_format))
 
     @override
@@ -344,7 +345,7 @@ def add_purge_and_location_buttons(
     if add_stretch:
         layout.addStretch()
 
-    purge_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')), ' Purge File')
+    purge_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'remove.svg')), ' Purge File')
     purge_button.setStyleSheet(DIALOG_DANGER_BUTTON_STYLESHEET)
     purge_button.setToolTip('Clear all contents from this log file (creates a backup first)')
     purge_button.setEnabled(file_path.is_file() and file_path.stat().st_size > 0)
@@ -352,13 +353,13 @@ def add_purge_and_location_buttons(
     layout.addWidget(purge_button)
 
     label = ' Open Folder Location' if file_path.is_dir() else ' Open File Location'
-    open_location_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'folder.svg')), label)
+    open_location_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'folder.svg')), label)
     open_location_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
     open_location_button.setToolTip('Open the containing folder in your file manager')
     open_location_button.clicked.connect(lambda: open_file_location(file_path))
     layout.addWidget(open_location_button)
 
-    open_file_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'file-text.svg')), ' Open File')
+    open_file_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'file-text.svg')), ' Open File')
     open_file_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
     open_file_button.setToolTip('Open the log file in the default text editor')
     open_file_button.setEnabled(file_path.is_file())
@@ -426,7 +427,7 @@ def setup_copy_save_button_row(
     """Create a button row with Copy All and Save As buttons, add it to *layout*, and return it with the buttons."""
     button_row = QHBoxLayout()
 
-    copy_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'copy.svg')), ' Copy All')
+    copy_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'copy.svg')), ' Copy All')
     copy_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
     copy_button.setToolTip(copy_tooltip)
     copy_button.setEnabled(False)
@@ -438,7 +439,7 @@ def setup_copy_save_button_row(
     copy_button.clicked.connect(_on_copy_clicked)
     button_row.addWidget(copy_button)
 
-    save_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'save.svg')), ' Save As...')
+    save_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'save.svg')), ' Save As...')
     save_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
     save_button.setToolTip(save_tooltip)
     save_button.setEnabled(False)
@@ -472,8 +473,8 @@ def find_and_highlight_matches(document: QTextDocument, text: str, viewer: QPlai
         cursor = document.find(text, cursor)
 
     highlight_format = QTextCharFormat()
-    highlight_format.setBackground(QColor('#e3b341'))
-    highlight_format.setForeground(QColor('#000000'))
+    highlight_format.setBackground(themed_qcolor('#e3b341'))
+    highlight_format.setForeground(themed_text_qcolor('#000000', '#e3b341'))
 
     selections: list[Any] = []
     for match_cursor in matched_cursors[:_MAX_HIGHLIGHT_SELECTIONS]:

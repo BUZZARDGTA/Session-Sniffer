@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, override
 from PySide6.QtGui import QColor
 
 from session_sniffer.guis.rate_graph_widget import RateGraphTheme, RateGraphWidget
+from session_sniffer.guis.theming import themed_text_qcolor
 from session_sniffer.guis.utils import RateGraphWindowMixin, format_player_display, scale_by_ui
 
 if TYPE_CHECKING:
@@ -247,12 +248,12 @@ class PlayerRateGraphWindow(DualRateGraphBase):
 
     @override
     def _configure_pps_widget(self) -> None:
-        self._pps_widget.threshold_color = QColor('#66bb6a')
+        self._pps_widget.threshold_color = themed_text_qcolor('#66bb6a', '#000000')
         self.set_pps_threshold(self._initial_pps_threshold)
 
     @override
     def _configure_bps_widget(self) -> None:
-        self._bps_widget.threshold_color = QColor('#4dd0e1')
+        self._bps_widget.threshold_color = themed_text_qcolor('#4dd0e1', '#000000')
         self.set_bps_threshold(self._initial_bps_threshold)
 
     def update_usernames(self, usernames: list[str]) -> None:

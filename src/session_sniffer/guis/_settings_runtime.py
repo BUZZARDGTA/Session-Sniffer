@@ -1,14 +1,18 @@
 """Runtime side effects for saved settings changes."""
 
+from contextlib import nullcontext
 from dataclasses import replace
 from typing import TYPE_CHECKING
 
 from session_sniffer.background import clear_voice_notification_queue, ensure_looky_core_running, retrigger_detections_scan, wake_looky_core
 from session_sniffer.capture.filters import build_capture_filters
 from session_sniffer.capture.process_monitor import ensure_process_monitor_running
+from session_sniffer.guis.live_theme import apply_runtime_theme, resolve_theme_by_name
+from session_sniffer.guis.loading_overlay import loading_overlay_scope, run_with_active_loading
 from session_sniffer.guis.relay_conflict import prompt_to_disable_gta5_relay_if_filtered
 from session_sniffer.guis.tables_player_actions._detection_dialogs import close_all_detection_notification_dialogs
 from session_sniffer.guis.tables_player_actions._userip_dialog import close_all_userip_detected_dialogs
+from session_sniffer.guis.theming import get_active_theme
 from session_sniffer.notifications_state import notifications_state
 from session_sniffer.player import prune_old_backups, run_userip_backup_async
 from session_sniffer.player.registry import PlayersRegistry
@@ -33,23 +37,13 @@ def apply_runtime_settings_changes(
     dialog_parent: QWidget | None = None,
 ) -> None:
     """Apply runtime side effects after `Settings` attributes have been updated from `old_values` to `new_values`."""
-    Settings.rebuild_blocked_ip_ranges()
-    ensure_process_monitor_running()
-    ensure_looky_core_running()
-    if Settings.looky_enabled and Settings.is_gta5_feature_set():
-        wake_looky_core()
+    selected_theme = resolve_theme_by_name(Settings.gui_theme)
+    theme_needs_apply = selected_theme != get_active_theme()
 
     capture_settings_changed = any(
         value != old_values.get(key) for key, value in new_values.items() if key in SETTING_METADATA and SETTING_METADATA[key].requires_capture_restart
     )
-    if capture_settings_changed and capture.is_running():
-        capture_filter_str, display_filter_fn = build_capture_filters(
-            capture_ip_address=capture.config.interface.ip_address,
-            broadcast_support=capture.config.broadcast_support,
-            multicast_support=capture.config.multicast_support,
-        )
-        capture.config = replace(capture.config, capture_filter=capture_filter_str, display_filter_fn=display_filter_fn)
-        capture.request_restart()
+    capture_will_restart = capture_settings_changed and capture.is_running()
 
     webserver_enabled_changed = new_values.get('webserver_enabled') != old_values.get('webserver_enabled')
     webserver_host_changed = new_values.get('webserver_host') != old_values.get('webserver_host')
@@ -57,15 +51,41 @@ def apply_runtime_settings_changes(
     webserver_credentials_changed = new_values.get('webserver_username') != old_values.get('webserver_username') or new_values.get('webserver_password') != old_values.get(
         'webserver_password',
     )
-    if webserver_enabled_changed:
-        if Settings.webserver_enabled:
-            start_webserver_from_settings()
-        else:
-            WebServer.stop_server()
-    elif Settings.webserver_enabled and (webserver_host_changed or webserver_port_changed):
-        start_webserver_from_settings()
-    elif Settings.webserver_enabled and webserver_credentials_changed:
-        WebServer.update_auth_credentials(auth_username=Settings.webserver_username, auth_password=Settings.webserver_password)
+    webserver_will_rebind = webserver_enabled_changed or (Settings.webserver_enabled and (webserver_host_changed or webserver_port_changed))
+
+    busy_ctx = (
+        loading_overlay_scope(dialog_parent, 'Applying Settings\u2026', 'Updating runtime services and capture configuration\u2026')
+        if dialog_parent is not None and dialog_parent.isVisible() and (theme_needs_apply or capture_will_restart or webserver_will_rebind)
+        else nullcontext()
+    )
+    with busy_ctx:
+        if theme_needs_apply:
+            apply_runtime_theme(selected_theme)
+
+        run_with_active_loading(Settings.rebuild_blocked_ip_ranges)
+        ensure_process_monitor_running()
+        ensure_looky_core_running()
+        if Settings.looky_enabled and Settings.is_gta5_feature_set():
+            wake_looky_core()
+
+        if capture_will_restart:
+            capture_filter_str, display_filter_fn = build_capture_filters(
+                capture_ip_address=capture.config.interface.ip_address,
+                broadcast_support=capture.config.broadcast_support,
+                multicast_support=capture.config.multicast_support,
+            )
+            capture.config = replace(capture.config, capture_filter=capture_filter_str, display_filter_fn=display_filter_fn)
+            capture.request_restart()
+
+        if webserver_enabled_changed:
+            if Settings.webserver_enabled:
+                run_with_active_loading(start_webserver_from_settings)
+            else:
+                run_with_active_loading(WebServer.stop_server)
+        elif Settings.webserver_enabled and (webserver_host_changed or webserver_port_changed):
+            run_with_active_loading(start_webserver_from_settings)
+        elif Settings.webserver_enabled and webserver_credentials_changed:
+            WebServer.update_auth_credentials(auth_username=Settings.webserver_username, auth_password=Settings.webserver_password)
 
     if dialog_parent is not None:
         prompt_to_disable_gta5_relay_if_filtered(dialog_parent, context='settings')

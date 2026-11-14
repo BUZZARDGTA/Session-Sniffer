@@ -1,11 +1,11 @@
 """Context menu, menu bar, and status bar QSS."""
 
-from session_sniffer.constants.local import RESOURCES_DIR_PATH
+from session_sniffer.guis.theming import ICONS_DIR_PATH, themed_qss
 
-_CHEVRON_RIGHT_PATH = (RESOURCES_DIR_PATH / 'icons' / 'chevron-right.svg').as_posix()
-_CHEVRON_RIGHT_DISABLED_PATH = (RESOURCES_DIR_PATH / 'icons' / 'chevron-right-disabled.svg').as_posix()
-_CHECKBOX_CHECKED_PATH = (RESOURCES_DIR_PATH / 'icons' / 'square-check.svg').as_posix()
-_CHECKBOX_UNCHECKED_PATH = (RESOURCES_DIR_PATH / 'icons' / 'square.svg').as_posix()
+_CHEVRON_RIGHT_PATH = (ICONS_DIR_PATH / 'chevron-right.svg').as_posix()
+_CHEVRON_RIGHT_DISABLED_PATH = (ICONS_DIR_PATH / 'chevron-right-disabled.svg').as_posix()
+_CHECKBOX_CHECKED_PATH = (ICONS_DIR_PATH / 'square-check.svg').as_posix()
+_CHECKBOX_UNCHECKED_PATH = (ICONS_DIR_PATH / 'square.svg').as_posix()
 
 # =============================================================================
 # CONTEXT MENU STYLES
@@ -23,7 +23,7 @@ QMenu::right-arrow:disabled {
 }
 """
 
-SVG_ICON_CONTEXT_MENU_STYLESHEET = (
+SVG_ICON_CONTEXT_MENU_STYLESHEET = themed_qss(
     (
         """
 QMenu {
@@ -85,11 +85,11 @@ QMenu::separator {
     .replace('{chevron_right_path}', _CHEVRON_RIGHT_PATH)
     .replace('{chevron_right_disabled_path}', _CHEVRON_RIGHT_DISABLED_PATH)
     .replace('{checkbox_checked_path}', _CHECKBOX_CHECKED_PATH)
-    .replace('{checkbox_unchecked_path}', _CHECKBOX_UNCHECKED_PATH)
+    .replace('{checkbox_unchecked_path}', _CHECKBOX_UNCHECKED_PATH),
 )
 
 
-CATEGORY_SUBMENU_CHECKBOX_STYLESHEET = (
+CATEGORY_SUBMENU_CHECKBOX_STYLESHEET = themed_qss(
     (
         """
 QMenu {
@@ -144,7 +144,7 @@ QMenu::separator {
     .replace('{chevron_right_path}', _CHEVRON_RIGHT_PATH)
     .replace('{chevron_right_disabled_path}', _CHEVRON_RIGHT_DISABLED_PATH)
     .replace('{checkbox_checked_path}', _CHECKBOX_CHECKED_PATH)
-    .replace('{checkbox_unchecked_path}', _CHECKBOX_UNCHECKED_PATH)
+    .replace('{checkbox_unchecked_path}', _CHECKBOX_UNCHECKED_PATH),
 )
 
 
@@ -152,21 +152,25 @@ QMenu::separator {
 # STATUS BAR STYLES
 # =============================================================================
 
-STATUS_BAR_LABEL_STYLESHEET = """
+STATUS_BAR_LABEL_STYLESHEET = themed_qss(
+    """
 QLabel {
     background: transparent;
     color: #d8dee9;
     border: none;
     padding: 4px 8px;
 }
-""".strip()
+""".strip(),
+)
 
 
-STATUS_BAR_PERFORMANCE_LABEL_STYLESHEET = """
+STATUS_BAR_PERFORMANCE_LABEL_STYLESHEET = themed_qss(
+    """
 QLabel {
     background: transparent;
     color: #d8dee9;
     border: none;
     padding: 4px 8px 4px 4px;
 }
-""".strip()
+""".strip(),
+)

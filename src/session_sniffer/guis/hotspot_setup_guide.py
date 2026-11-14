@@ -16,7 +16,6 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.guis._dialog_mixins import DraggableDialogMixin
 from session_sniffer.guis.stylesheets import (
@@ -26,6 +25,7 @@ from session_sniffer.guis.stylesheets import (
     HOTSPOT_GUIDE_CONTAINER_STYLESHEET,
     HOTSPOT_STEP_NUMBER_STYLESHEET,
 )
+from session_sniffer.guis.theming import ICONS_DIR_PATH, themed_qss
 from session_sniffer.guis.utils import scale_by_ui
 from session_sniffer.networking.hotspot import has_wifi_adapter
 
@@ -86,18 +86,20 @@ class HotspotSetupGuideDialog(DraggableDialogMixin, QDialog):
         top_bar_layout.addStretch()
         close_button = QPushButton('✕')
         close_button.setStyleSheet(
-            'QPushButton {'
-            '    background: transparent;'
-            '    color: #6f7e91;'
-            '    border: none;'
-            '    font-size: 11pt;'
-            '    font-weight: bold;'
-            '    min-width: 24px;'
-            '    max-width: 24px;'
-            '    min-height: 24px;'
-            '    max-height: 24px;'
-            '}'
-            'QPushButton:hover { color: #ffffff; }',
+            themed_qss(
+                'QPushButton {'
+                '    background: transparent;'
+                '    color: #6f7e91;'
+                '    border: none;'
+                '    font-size: 11pt;'
+                '    font-weight: bold;'
+                '    min-width: 24px;'
+                '    max-width: 24px;'
+                '    min-height: 24px;'
+                '    max-height: 24px;'
+                '}'
+                'QPushButton:hover { color: #ffffff; }',
+            ),
         )
         close_button.clicked.connect(self.reject)
         top_bar_layout.addWidget(close_button)
@@ -125,13 +127,13 @@ class HotspotSetupGuideDialog(DraggableDialogMixin, QDialog):
         wifi_pill = QLabel()
         wifi_pill.setFixedSize(scale_by_ui(38), scale_by_ui(38))
         wifi_pill.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        wifi_pill.setPixmap(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'wifi.svg')).pixmap(scale_by_ui(22), scale_by_ui(22)))
-        wifi_pill.setStyleSheet('padding: 8px; background: rgba(61, 142, 201, 0.15); border-radius: 8px; border: 1px solid rgba(61, 142, 201, 0.35);')
+        wifi_pill.setPixmap(QIcon(str(ICONS_DIR_PATH / 'wifi.svg')).pixmap(scale_by_ui(22), scale_by_ui(22)))
+        wifi_pill.setStyleSheet(themed_qss('padding: 8px; background: rgba(61, 142, 201, 0.15); border-radius: 8px; border: 1px solid rgba(61, 142, 201, 0.35);'))
         ethernet_pill = QLabel()
         ethernet_pill.setFixedSize(scale_by_ui(38), scale_by_ui(38))
         ethernet_pill.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        ethernet_pill.setPixmap(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'ethernet-port.svg')).pixmap(scale_by_ui(22), scale_by_ui(22)))
-        ethernet_pill.setStyleSheet('padding: 8px; background: rgba(61, 142, 201, 0.15); border-radius: 8px; border: 1px solid rgba(61, 142, 201, 0.35);')
+        ethernet_pill.setPixmap(QIcon(str(ICONS_DIR_PATH / 'ethernet-port.svg')).pixmap(scale_by_ui(22), scale_by_ui(22)))
+        ethernet_pill.setStyleSheet(themed_qss('padding: 8px; background: rgba(61, 142, 201, 0.15); border-radius: 8px; border: 1px solid rgba(61, 142, 201, 0.35);'))
         icons_layout.addWidget(wifi_pill)
         icons_layout.addSpacing(scale_by_ui(8))
         icons_layout.addWidget(ethernet_pill)
@@ -140,7 +142,7 @@ class HotspotSetupGuideDialog(DraggableDialogMixin, QDialog):
 
         title_label = QLabel('Internet Sharing Setup')
         title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        title_label.setStyleSheet('color: #f0f4fa; font-size: 14pt; font-weight: 700;')
+        title_label.setStyleSheet(themed_qss('color: #f0f4fa; font-size: 14pt; font-weight: 700;'))
         layout.addWidget(title_label)
 
         description_label = QLabel(
@@ -149,7 +151,7 @@ class HotspotSetupGuideDialog(DraggableDialogMixin, QDialog):
         )
         description_label.setWordWrap(True)
         description_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        description_label.setStyleSheet('color: #9cb0c6; font-size: 9pt; line-height: 1.4;')
+        description_label.setStyleSheet(themed_qss('color: #9cb0c6; font-size: 9pt; line-height: 1.4;'))
         layout.addWidget(description_label)
         layout.addSpacing(scale_by_ui(4))
 
@@ -163,11 +165,13 @@ class HotspotSetupGuideDialog(DraggableDialogMixin, QDialog):
         wifi_icon_label = QLabel()
         wifi_icon_label.setFixedSize(scale_by_ui(40), scale_by_ui(40))
         wifi_icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        wifi_icon_label.setPixmap(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'wifi.svg')).pixmap(scale_by_ui(24), scale_by_ui(24)))
+        wifi_icon_label.setPixmap(QIcon(str(ICONS_DIR_PATH / 'wifi.svg')).pixmap(scale_by_ui(24), scale_by_ui(24)))
         wifi_icon_label.setStyleSheet(
-            'padding: 8px; background: rgba(61, 142, 201, 0.20); border-radius: 8px;'
-            if wifi_available
-            else 'padding: 8px; background: rgba(82, 97, 115, 0.12); border-radius: 8px;',
+            themed_qss(
+                'padding: 8px; background: rgba(61, 142, 201, 0.20); border-radius: 8px;'
+                if wifi_available
+                else 'padding: 8px; background: rgba(82, 97, 115, 0.12); border-radius: 8px;',
+            ),
         )
         wifi_card_layout.addWidget(wifi_icon_label, 0, Qt.AlignmentFlag.AlignCenter)
 
@@ -175,19 +179,23 @@ class HotspotSetupGuideDialog(DraggableDialogMixin, QDialog):
         wifi_header_layout = QHBoxLayout()
         wifi_title = QLabel('Wi-Fi Hotspot')
         wifi_title.setStyleSheet(
-            'color: #ffffff; font-size: 10.5pt; font-weight: 700;' if wifi_available else 'color: #5c6d80; font-size: 10.5pt; font-weight: 700;',
+            themed_qss(
+                'color: #ffffff; font-size: 10.5pt; font-weight: 700;' if wifi_available else 'color: #5c6d80; font-size: 10.5pt; font-weight: 700;',
+            ),
         )
         wifi_header_layout.addWidget(wifi_title)
         wifi_badge = QLabel('RECOMMENDED' if wifi_available else 'UNAVAILABLE')
         wifi_badge.setStyleSheet(
-            (
-                'color: #38bdf8; background: rgba(56, 189, 248, 0.12); border: 1px solid rgba(56, 189, 248, 0.4); '
-                'border-radius: 4px; padding: 1px 6px; font-size: 7pt; font-weight: 800;'
-            )
-            if wifi_available
-            else (
-                'color: #6b7c90; background: rgba(107, 124, 144, 0.12); border: 1px solid rgba(107, 124, 144, 0.3); '
-                'border-radius: 4px; padding: 1px 6px; font-size: 7pt; font-weight: 800;'
+            themed_qss(
+                (
+                    'color: #38bdf8; background: rgba(56, 189, 248, 0.12); border: 1px solid rgba(56, 189, 248, 0.4); '
+                    'border-radius: 4px; padding: 1px 6px; font-size: 7pt; font-weight: 800;'
+                )
+                if wifi_available
+                else (
+                    'color: #6b7c90; background: rgba(107, 124, 144, 0.12); border: 1px solid rgba(107, 124, 144, 0.3); '
+                    'border-radius: 4px; padding: 1px 6px; font-size: 7pt; font-weight: 800;'
+                ),
             ),
         )
         wifi_header_layout.addWidget(wifi_badge)
@@ -198,7 +206,7 @@ class HotspotSetupGuideDialog(DraggableDialogMixin, QDialog):
             'Create a wireless hotspot from your PC. Your console connects over Wi-Fi.' if wifi_available else 'No Wi-Fi adapter detected on this PC.',
         )
         wifi_desc.setWordWrap(True)
-        wifi_desc.setStyleSheet('color: #c8ddf0; font-size: 8.5pt;' if wifi_available else 'color: #526173; font-size: 8.5pt;')
+        wifi_desc.setStyleSheet(themed_qss('color: #c8ddf0; font-size: 8.5pt;' if wifi_available else 'color: #526173; font-size: 8.5pt;'))
         wifi_text_layout.addWidget(wifi_desc)
         wifi_card_layout.addLayout(wifi_text_layout, 1)
         if not wifi_available:
@@ -215,17 +223,17 @@ class HotspotSetupGuideDialog(DraggableDialogMixin, QDialog):
         ethernet_icon_label = QLabel()
         ethernet_icon_label.setFixedSize(scale_by_ui(40), scale_by_ui(40))
         ethernet_icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        ethernet_icon_label.setPixmap(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'ethernet-port.svg')).pixmap(scale_by_ui(24), scale_by_ui(24)))
-        ethernet_icon_label.setStyleSheet('padding: 8px; background: rgba(167, 139, 250, 0.18); border-radius: 8px;')
+        ethernet_icon_label.setPixmap(QIcon(str(ICONS_DIR_PATH / 'ethernet-port.svg')).pixmap(scale_by_ui(24), scale_by_ui(24)))
+        ethernet_icon_label.setStyleSheet(themed_qss('padding: 8px; background: rgba(167, 139, 250, 0.18); border-radius: 8px;'))
         ethernet_card_layout.addWidget(ethernet_icon_label, 0, Qt.AlignmentFlag.AlignCenter)
 
         ethernet_text_layout = QVBoxLayout()
         ethernet_title = QLabel('Ethernet Bridge (ICS)')
-        ethernet_title.setStyleSheet('color: #ffffff; font-size: 10.5pt; font-weight: 700;')
+        ethernet_title.setStyleSheet(themed_qss('color: #ffffff; font-size: 10.5pt; font-weight: 700;'))
         ethernet_text_layout.addWidget(ethernet_title)
         ethernet_desc = QLabel('Share your Wi-Fi or VPN connection over an Ethernet cable plugged directly into your console.')
         ethernet_desc.setWordWrap(True)
-        ethernet_desc.setStyleSheet('color: #c8ddf0; font-size: 8.5pt;')
+        ethernet_desc.setStyleSheet(themed_qss('color: #c8ddf0; font-size: 8.5pt;'))
         ethernet_text_layout.addWidget(ethernet_desc)
         ethernet_card_layout.addLayout(ethernet_text_layout, 1)
         layout.addWidget(ethernet_card)
@@ -263,15 +271,15 @@ class HotspotSetupGuideDialog(DraggableDialogMixin, QDialog):
         pill = QLabel()
         pill.setFixedSize(scale_by_ui(46), scale_by_ui(46))
         pill.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        pill.setPixmap(QIcon(str(RESOURCES_DIR_PATH / 'icons' / icon_name)).pixmap(scale_by_ui(26), scale_by_ui(26)))
-        pill.setStyleSheet(pill_stylesheet)
+        pill.setPixmap(QIcon(str(ICONS_DIR_PATH / icon_name)).pixmap(scale_by_ui(26), scale_by_ui(26)))
+        pill.setStyleSheet(themed_qss(pill_stylesheet))
         icon_row.addWidget(pill)
         icon_row.addStretch()
         layout.addLayout(icon_row)
 
         title = QLabel(title_text)
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        title.setStyleSheet('color: #f0f4fa; font-size: 13.5pt; font-weight: 700;')
+        title.setStyleSheet(themed_qss('color: #f0f4fa; font-size: 13.5pt; font-weight: 700;'))
         layout.addWidget(title)
 
         steps_container = QVBoxLayout()
@@ -284,7 +292,7 @@ class HotspotSetupGuideDialog(DraggableDialogMixin, QDialog):
             num_label.setStyleSheet(HOTSPOT_STEP_NUMBER_STYLESHEET)
             text_label = QLabel(step_text)
             text_label.setWordWrap(True)
-            text_label.setStyleSheet('color: #d0dbe8; font-size: 9pt; line-height: 1.35;')
+            text_label.setStyleSheet(themed_qss('color: #d0dbe8; font-size: 9pt; line-height: 1.35;'))
             step_row.addWidget(num_label, 0, Qt.AlignmentFlag.AlignTop)
             step_row.addWidget(text_label, 1)
             steps_container.addLayout(step_row)

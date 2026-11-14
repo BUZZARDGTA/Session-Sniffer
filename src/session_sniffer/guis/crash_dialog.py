@@ -48,6 +48,7 @@ from session_sniffer.guis.stylesheets import (
     DEPENDENCY_PROMPT_TITLE_LABEL_STYLESHEET,
     UPDATE_DOWNLOAD_DIVIDER_STYLESHEET,
 )
+from session_sniffer.guis.theming import themed_qss, themed_text_qcolor
 from session_sniffer.guis.utils import (
     animate_button_feedback,
     center_window_on_screen,
@@ -320,7 +321,7 @@ class CrashDialog(DraggableDialogMixin, QDialog):
         escaped_crash_log = html.escape(str(CRASH_LOG_PATH))
         escaped_debug_log = html.escape(str(DEBUG_LOG_PATH))
 
-        info_html = (
+        info_html = themed_qss(
             '<div style="line-height: 1.45;">'
             'Please kindly report this error on <b>GitHub Issues</b> or our <b>Discord server</b>:<br>'
             f'&bull; <b>GitHub Issues:</b><br>&nbsp;&nbsp;&nbsp;<a href="{escaped_github}" style="color: #5fb4f5; text-decoration: none;">{escaped_github}</a><br>'
@@ -330,7 +331,7 @@ class CrashDialog(DraggableDialogMixin, QDialog):
             'or attach these log files:<br>'
             f'&bull; <span style="color: #93c5fd; font-family: Consolas, Menlo, monospace;">{escaped_crash_log}</span><br>'
             f'&bull; <span style="color: #93c5fd; font-family: Consolas, Menlo, monospace;">{escaped_debug_log}</span>'
-            '</div>'
+            '</div>',
         )
 
         msg_label = QLabel(info_html, card)
@@ -358,7 +359,9 @@ class CrashDialog(DraggableDialogMixin, QDialog):
             badge_text = f'{badge_text[: _MAX_BADGE_TEXT_LEN - 1]}…'
         escaped_badge = html.escape(badge_text)
         badge_label = QLabel(
-            f'<span style="color: #ef4444;">●</span>&nbsp;<span style="color: #94a3b8; font-weight: 600;">TYPE:</span>&nbsp;{escaped_badge}',
+            themed_qss(
+                f'<span style="color: #ef4444;">●</span>&nbsp;<span style="color: #94a3b8; font-weight: 600;">TYPE:</span>&nbsp;{escaped_badge}',
+            ),
         )
         badge_label.setTextFormat(Qt.TextFormat.RichText)
         badge_label.setFont(get_monospace_font(scale_by_ui(8), QFont.Weight.Bold))
@@ -405,7 +408,7 @@ class CrashDialog(DraggableDialogMixin, QDialog):
         btn.setToolTip(tooltip)
         if icon_file is not None:
             icon_px = scale_by_ui(15)
-            tint = '#ffffff' if icon_file == 'copy.svg' else None
+            tint = themed_text_qcolor('#ffffff', '#1d64b8').name(QColor.NameFormat.HexArgb) if icon_file == 'copy.svg' else None
             btn.setIcon(QIcon(render_svg_pixmap_from_resource(icon_file, icon_px, icon_px, tint_color=tint)))
         btn.clicked.connect(callback)
         return btn

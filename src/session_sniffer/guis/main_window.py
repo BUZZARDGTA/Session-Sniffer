@@ -21,7 +21,7 @@ from shiboken6 import isValid
 
 from session_sniffer.background import clear_resolution_queues, retrigger_detections_scan, wake_all_player_cores
 from session_sniffer.background.events import gui_closed__event
-from session_sniffer.constants.local import COMBO_RULES_PATH, DETECTIONS_JSON_PATH, RESOURCES_DIR_PATH, SETTINGS_PATH
+from session_sniffer.constants.local import COMBO_RULES_PATH, DETECTIONS_JSON_PATH, SETTINGS_PATH
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.core import terminate_script
 from session_sniffer.gta5.suspend_manager import GTASuspendManager
@@ -35,6 +35,7 @@ from session_sniffer.guis._session_table_section import SessionStatusBar, Sessio
 from session_sniffer.guis._settings_runtime import SettingValue, apply_notifications_toggle_changes, apply_runtime_settings_changes
 from session_sniffer.guis.discord_intro import DiscordIntro
 from session_sniffer.guis.file_watch import DebouncedFileWatcher
+from session_sniffer.guis.live_theme import register_post_theme_refresh
 from session_sniffer.guis.ping_window import PingWindow
 from session_sniffer.guis.player_resolver import PlayerResolverWindow
 from session_sniffer.guis.port_scanner_window import PortScannerWindow
@@ -43,6 +44,7 @@ from session_sniffer.guis.tables_player_actions._detection_dialogs import close_
 from session_sniffer.guis.tables_player_actions._userip_dialog import close_all_userip_detected_dialogs
 from session_sniffer.guis.tables_player_actions.looky_system._looky_crawler_request_dialog import close_all_crawler_dialogs
 from session_sniffer.guis.tables_player_actions.looky_system._looky_lookup_dialog import close_all_lookup_dialogs
+from session_sniffer.guis.theming import ICONS_DIR_PATH, themed_qss
 from session_sniffer.guis.userip_conflict_resolver import open_userip_conflict_resolver
 from session_sniffer.guis.utils import (
     apply_always_on_top,
@@ -119,12 +121,12 @@ class _MinimizedTablesPlaceholder(QWidget):
 
         title_label = QLabel('All Tables Minimized')
         title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        title_label.setStyleSheet('color: #94a3b8; font-size: 11pt; font-weight: 600;')
+        title_label.setStyleSheet(themed_qss('color: #94a3b8; font-size: 11pt; font-weight: 600;'))
         layout.addWidget(title_label)
 
         subtitle_label = QLabel('Expand connected or disconnected players below to view session data')
         subtitle_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        subtitle_label.setStyleSheet('color: #475569; font-size: 9pt;')
+        subtitle_label.setStyleSheet(themed_qss('color: #475569; font-size: 9pt;'))
         layout.addWidget(subtitle_label)
 
 
@@ -379,6 +381,7 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
                 self._disconnected.table_view.apply_column_widths(gui_state.disconnected_table_column_widths)
 
         self._update_splitter_visibility()
+        register_post_theme_refresh(self, self._refresh_after_theme_change)
 
         self.raise_()
         self.activateWindow()
@@ -416,19 +419,19 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
             raise RuntimeError(message)
         capture_menu.setToolTipsVisible(True)
 
-        toggle_capture_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'circle-stop.svg')), 'Stop Capture', self)
+        toggle_capture_action = QAction(QIcon(str(ICONS_DIR_PATH / 'circle-stop.svg')), 'Stop Capture', self)
         toggle_capture_action.setToolTip('Stop packet capture')
         toggle_capture_action.triggered.connect(self._toggle_capture)
         capture_menu.addAction(toggle_capture_action)
 
         capture_menu.addSeparator()
 
-        change_interface_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'refresh-cw.svg')), 'Change Interface', self)
+        change_interface_action = QAction(QIcon(str(ICONS_DIR_PATH / 'refresh-cw.svg')), 'Change Interface', self)
         change_interface_action.setToolTip('Stop capture, select a different network interface, and restart capture')
         change_interface_action.triggered.connect(self._on_change_interface)
         capture_menu.addAction(change_interface_action)
 
-        hotspot_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'router.svg')), 'Hotspot && Sharing', self)
+        hotspot_action = QAction(QIcon(str(ICONS_DIR_PATH / 'router.svg')), 'Hotspot && Sharing', self)
         hotspot_action.setToolTip('Create a Wi-Fi hotspot or configure Internet Connection Sharing (ICS) to capture console traffic')
         hotspot_action.triggered.connect(self._open_hotspot_manager)
         capture_menu.addAction(hotspot_action)
@@ -446,34 +449,34 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
             raise RuntimeError(message)
         tools_menu.setToolTipsVisible(True)
 
-        detections_manager_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'shield.svg')), 'Detections Manager', self)
+        detections_manager_action = QAction(QIcon(str(ICONS_DIR_PATH / 'shield.svg')), 'Detections Manager', self)
         detections_manager_action.setToolTip('Configure detection, notifications, and protection rules')
         detections_manager_action.triggered.connect(self._open_detections_manager)
         tools_menu.addAction(detections_manager_action)
 
-        userip_manager_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'database.svg')), 'UserIP Manager', self)
+        userip_manager_action = QAction(QIcon(str(ICONS_DIR_PATH / 'database.svg')), 'UserIP Manager', self)
         userip_manager_action.setToolTip('Browse, edit, add, and delete entries in UserIP database files')
         userip_manager_action.triggered.connect(self._open_userip_manager)
         tools_menu.addAction(userip_manager_action)
 
-        logs_manager_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'file-text.svg')), 'Logs Manager', self)
+        logs_manager_action = QAction(QIcon(str(ICONS_DIR_PATH / 'file-text.svg')), 'Logs Manager', self)
         logs_manager_action.setToolTip('View, search, filter, and manage application log files')
         logs_manager_action.triggered.connect(self._open_logs_manager)
         tools_menu.addAction(logs_manager_action)
 
         tools_menu.addSeparator()
 
-        leaderboard_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'trophy.svg')), 'Most Seen Players', self)
+        leaderboard_action = QAction(QIcon(str(ICONS_DIR_PATH / 'trophy.svg')), 'Most Seen Players', self)
         leaderboard_action.setToolTip('View a leaderboard of the most frequently seen players across sessions')
         leaderboard_action.triggered.connect(self._open_player_leaderboard)
         tools_menu.addAction(leaderboard_action)
 
-        port_scanner_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'radar.svg')), 'Port Scanner', self)
+        port_scanner_action = QAction(QIcon(str(ICONS_DIR_PATH / 'radar.svg')), 'Port Scanner', self)
         port_scanner_action.setToolTip('Perform multi-threaded TCP and UDP port scanning with service banner detection')
         port_scanner_action.triggered.connect(self._open_port_scanner)
         tools_menu.addAction(port_scanner_action)
 
-        ping_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'radio-tower.svg')), 'Ping Diagnostics', self)
+        ping_action = QAction(QIcon(str(ICONS_DIR_PATH / 'radio-tower.svg')), 'Ping Diagnostics', self)
         ping_action.setToolTip('Send ICMP echo, TCP connect, UDP reachability, or Web latency probes')
         ping_action.triggered.connect(self._open_ping_diagnostics)
         tools_menu.addAction(ping_action)
@@ -486,7 +489,7 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
             raise RuntimeError(message)
         settings_menu.setToolTipsVisible(True)
 
-        open_settings_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'settings.svg')), 'Open Settings', self)
+        open_settings_action = QAction(QIcon(str(ICONS_DIR_PATH / 'settings.svg')), 'Open Settings', self)
         open_settings_action.setToolTip('View and edit all application settings')
         open_settings_action.triggered.connect(self._open_settings_dialog)
         settings_menu.addAction(open_settings_action)
@@ -804,6 +807,15 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
             performance=performance_section,
         )
 
+    def _refresh_after_theme_change(self) -> None:
+        """Refresh dynamic header, status bar, and session table views after a runtime theme switch."""
+        self._header.set_capture_running(is_running=self.capture.is_running())
+        self._header.sync_notification_buttons(visual_enabled=notifications_state.visual_enabled, voice_enabled=notifications_state.voice_enabled)
+        self._update_status_bar()
+        wake_rendering_core()
+        self._connected.table_view.viewport().update()
+        self._disconnected.table_view.viewport().update()
+
     def _sync_capture_toggle_action(self) -> None:
         """Synchronize the toggle capture action icon, text, and tooltip with the current capture state."""
         is_running = self.capture.is_running()
@@ -813,11 +825,11 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
 
         if is_running:
             self._actions.toggle_capture.setText('Stop Capture')
-            self._actions.toggle_capture.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'circle-stop.svg')))
+            self._actions.toggle_capture.setIcon(QIcon(str(ICONS_DIR_PATH / 'circle-stop.svg')))
             self._actions.toggle_capture.setToolTip('Stop packet capture')
         else:
             self._actions.toggle_capture.setText('Start Capture')
-            self._actions.toggle_capture.setIcon(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'circle-play.svg')))
+            self._actions.toggle_capture.setIcon(QIcon(str(ICONS_DIR_PATH / 'circle-play.svg')))
             self._actions.toggle_capture.setToolTip('Start packet capture')
 
     def _toggle_capture(self) -> None:

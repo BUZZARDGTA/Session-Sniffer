@@ -1,10 +1,12 @@
 """Combo rule editor, detections manager, and country selector QSS."""
 
+from session_sniffer.guis.theming import themed_qss
+
 # =============================================================================
 # COMBO RULE / DETECTIONS MANAGER STYLES
 # =============================================================================
 
-GROUPBOX_STYLE = """
+GROUPBOX_STYLE = themed_qss("""
     QGroupBox {
         font-weight: bold;
         border: 1px solid #3b5064;
@@ -112,9 +114,9 @@ GROUPBOX_STYLE = """
         background-color: #007acc;
         border-color: #007acc;
     }
-"""
+""")
 
-LIST_WIDGET_STYLE = """
+LIST_WIDGET_STYLE = themed_qss("""
     QListWidget {
         background: #1a1f26;
         border: 1px solid #2a3f4a;
@@ -133,9 +135,9 @@ LIST_WIDGET_STYLE = """
         background: #007acc;
         color: white;
     }
-"""
+""")
 
-COMBO_RULES_LIST_STYLE = """
+COMBO_RULES_LIST_STYLE = themed_qss("""
     QListWidget {
         background: #12171e;
         border: 1px solid #2a3f4a;
@@ -154,26 +156,26 @@ COMBO_RULES_LIST_STYLE = """
     QListWidget::item:selected {
         background: transparent;
     }
-"""
+""")
 
-DESC_LABEL_STYLESHEET = 'color: #a0b8c0; font-style: italic; font-size: 10pt; padding: 5px;'
+DESC_LABEL_STYLESHEET = themed_qss('color: #a0b8c0; font-style: italic; font-size: 10pt; padding: 5px;')
 
-HINT_LABEL_STYLESHEET = 'color: #a0a0a0; font-style: italic; padding-bottom: 4px;'
+HINT_LABEL_STYLESHEET = themed_qss('color: #a0a0a0; font-style: italic; padding-bottom: 4px;')
 
-RELAY_FILTER_WARNING_STYLESHEET = (
+RELAY_FILTER_WARNING_STYLESHEET = themed_qss(
     'QWidget { background-color: #3a2400; border: 1px solid #c87800; border-radius: 6px; padding: 2px; }'
     'QLabel { border: none; }'
     'QPushButton { border: 1px solid #c87800; border-radius: 4px; background-color: #5a3a00;'
     ' color: #ffcc66; padding: 4px 10px; font-weight: bold; }'
-    'QPushButton:hover { background-color: #7a5200; }'
+    'QPushButton:hover { background-color: #7a5200; }',
 )
 
-WARNING_ICON_LABEL_STYLESHEET = 'font-size: 18pt; border: none;'
+WARNING_ICON_LABEL_STYLESHEET = themed_qss('font-size: 18pt; border: none;')
 
-WARNING_TEXT_LABEL_STYLESHEET = 'color: #ffcc66; border: none;'
+WARNING_TEXT_LABEL_STYLESHEET = themed_qss('color: #ffcc66; border: none;')
 
-DETECTIONS_MANAGER_HEADER_STYLESHEET = (
+DETECTIONS_MANAGER_HEADER_STYLESHEET = themed_qss(
     'font-size: 16pt; font-weight: bold; color: #88c0d0; padding: 10px;'
     'background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #0f1923, stop:0.5 #1a2d3d, stop:1 #0f1923);'
-    'border-radius: 6px; border: 1px solid #2a3f4a;'
+    'border-radius: 6px; border: 1px solid #2a3f4a;',
 )

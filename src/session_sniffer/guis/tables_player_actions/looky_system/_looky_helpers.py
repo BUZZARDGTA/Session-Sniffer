@@ -33,6 +33,7 @@ from session_sniffer.guis.stylesheets import (
     LOOKY_PROGRESS_BAR_STYLESHEET,
     LOOKY_STATUS_LABEL_STYLESHEET,
 )
+from session_sniffer.guis.theming import themed_qss
 from session_sniffer.guis.utils import scale_by_ui
 from session_sniffer.models.player import Player
 from session_sniffer.networking.looky_system import (
@@ -132,8 +133,10 @@ class LookyRefreshLoadingDialog(QDialog):
         layout.addWidget(header)
         self._widgets = build_looky_progress_widgets(layout, self)
         self._widgets.status_label.setText(
-            '<span style="color: #d8b4fe; font-weight: 600;">Preparing Looky System lookup...</span>'
-            '<br><span style="color: #9ca3af; font-size: 8.5pt;">Collecting database IP addresses and usernames to query.</span>',
+            themed_qss(
+                '<span style="color: #d8b4fe; font-weight: 600;">Preparing Looky System lookup...</span>'
+                '<br><span style="color: #9ca3af; font-size: 8.5pt;">Collecting database IP addresses and usernames to query.</span>',
+            ),
         )
         self._widgets.status_label.show()
 
@@ -145,14 +148,14 @@ class LookyRefreshLoadingDialog(QDialog):
         detail_text = next((detail for phase_label, detail in _PHASE_DETAILS.items() if status_text.startswith(phase_label)), '')
         detail_html = f'<br><span style="color: #9ca3af; font-size: 8.5pt;">{html.escape(detail_text)}</span>' if detail_text else ''
         self._widgets.status_label.setText(
-            f'<span style="color: #d8b4fe; font-weight: 600;">{html.escape(status_text)}: <b>{current} / {total}</b> ({pct}%)</span>{detail_html}',
+            themed_qss(f'<span style="color: #d8b4fe; font-weight: 600;">{html.escape(status_text)}: <b>{current} / {total}</b> ({pct}%)</span>{detail_html}'),
         )
         self._widgets.status_label.show()
 
     def show_error(self, message: str) -> None:
         """Hide the progress bar and show the error message."""
         self._widgets.progress_bar.hide()
-        self._widgets.status_label.setText(f'<span style="color: #f87171; font-weight: 600;">\u2717 Failed: {html.escape(message)}</span>')
+        self._widgets.status_label.setText(themed_qss(f'<span style="color: #f87171; font-weight: 600;">\u2717 Failed: {html.escape(message)}</span>'))
         self._widgets.status_label.show()
 
 

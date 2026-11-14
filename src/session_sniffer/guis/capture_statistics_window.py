@@ -11,7 +11,6 @@ from PySide6.QtWidgets import QCheckBox, QFormLayout, QGroupBox, QHBoxLayout, QL
 
 from session_sniffer.capture.arp_spoofing import ArpSpoofingController
 from session_sniffer.capture.process import get_process_creation_time
-from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.guis.player_rate_graph import DEFAULT_MAX_HISTORY, HISTORY_OPTIONS, VISIBLE_WINDOW
 from session_sniffer.guis.rate_graph_widget import RateGraphWidget
 from session_sniffer.guis.stylesheets import (
@@ -19,6 +18,7 @@ from session_sniffer.guis.stylesheets import (
     GRAPH_LATENCY_POPOUT_BUTTON_STYLESHEET,
     GRAPH_PPS_POPOUT_BUTTON_STYLESHEET,
 )
+from session_sniffer.guis.theming import ICONS_DIR_PATH
 from session_sniffer.guis.utils import RateGraphWindowMixin, format_duration, scale_by_ui
 from session_sniffer.models.player_traffic import PlayerBandwidth
 from session_sniffer.player.registry import PlayersRegistry
@@ -285,7 +285,7 @@ class CaptureStatisticsWindow(RateGraphWindowMixin):
         popout_row = QHBoxLayout()
         popout_row.setContentsMargins(0, 0, 0, 0)
         popout_row.addStretch()
-        popout_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'external-link.svg')), ' Pop Out')
+        popout_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'external-link.svg')), ' Pop Out')
         popout_button.setToolTip(popout_tooltip)
         popout_button.setCursor(Qt.CursorShape.PointingHandCursor)
         popout_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)

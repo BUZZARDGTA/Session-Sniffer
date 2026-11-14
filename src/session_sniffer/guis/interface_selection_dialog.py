@@ -12,7 +12,7 @@ from threading import Thread
 from typing import TYPE_CHECKING, ClassVar, override
 
 from PySide6.QtCore import QItemSelectionModel, QSize, Qt, QTimer, Signal
-from PySide6.QtGui import QCloseEvent, QFont, QIcon, QResizeEvent, QShowEvent
+from PySide6.QtGui import QCloseEvent, QColor, QFont, QIcon, QResizeEvent, QShowEvent
 from PySide6.QtWidgets import (
     QButtonGroup,
     QCheckBox,
@@ -32,7 +32,6 @@ from shiboken6 import isValid
 
 from session_sniffer.capture.interface_setup import refresh_available_interfaces
 from session_sniffer.capture.utils.arp_refresh import refresh_arp_table
-from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.constants.tables import DEFAULT_MIN_COLUMN_WIDTH, INTERFACE_SELECTION_TABLE_MIN_COLUMN_WIDTHS
 from session_sniffer.error_messages import ensure_instance
 from session_sniffer.guis.delegates import ElidedTextTooltipDelegate
@@ -53,6 +52,7 @@ from session_sniffer.guis.stylesheets import (
     interface_table_stylesheet,
 )
 from session_sniffer.guis.table_column_resizing import TableColumnResizeController, setup_table_header_context_menu
+from session_sniffer.guis.theming import ICONS_DIR_PATH, themed_qss, themed_text_qcolor
 from session_sniffer.guis.utils import (
     compute_ui_scale,
     consume_maximize_on_show,
@@ -385,7 +385,7 @@ class InterfaceSelectionDialog(QDialog):
         _refresh_pad = scale(8)
         _refresh_w, _refresh_h = scale(28), scale(22)
         self._refresh_arp_icon = make_padded_icon(
-            QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'refresh-cw.svg')),
+            QIcon(str(ICONS_DIR_PATH / 'refresh-cw.svg')),
             (_refresh_w, _refresh_h),
             _refresh_pad,
         )
@@ -500,7 +500,14 @@ class InterfaceSelectionDialog(QDialog):
         select_button.setEnabled(False)  # Initially disabled
         select_button.setMinimumSize(scale(330), scale(56))
         _play_size, _play_pad = scale(26), scale(10)
-        select_button.setIcon(make_padded_icon(render_svg_icon_from_resource('circle-play.svg', _play_size, _play_size, '#ffffff'), (_play_size, _play_size), _play_pad))
+        _play_tint = themed_text_qcolor('#ffffff', '#175bb0').name(QColor.NameFormat.HexArgb)
+        select_button.setIcon(
+            make_padded_icon(
+                render_svg_icon_from_resource('circle-play.svg', _play_size, _play_size, _play_tint),
+                (_play_size, _play_size),
+                _play_pad,
+            ),
+        )
 
         select_button.setIconSize(QSize(_play_size + _play_pad, _play_size))
         select_button.clicked.connect(self.select_interface)
@@ -620,7 +627,7 @@ class InterfaceSelectionDialog(QDialog):
         main_style = f'color:#ffffff; font-weight:700; font-size:{font_pt_main}pt; letter-spacing:1px;'
         sub_style = f'color:#ffd166; font-family:Menlo,Consolas,monospace; font-size:{font_pt_sub}pt; letter-spacing:0.5px; margin-top:6px;'
         self._refresh_arp_overlay.setText(
-            f'<div style="{main_style}">{main_text}</div><div style="{sub_style}">{sub_text}</div>',
+            themed_qss(f'<div style="{main_style}">{main_text}</div><div style="{sub_style}">{sub_text}</div>'),
         )
         self._controls.refresh_arp_button.setStyleSheet(format_interface_refresh_arp_progress_style(self._ui_scale, fraction, dimmed=hide_neighbours))
 

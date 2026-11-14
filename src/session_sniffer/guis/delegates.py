@@ -34,6 +34,7 @@ from PySide6.QtWidgets import (
 
 from session_sniffer.constants.local import USERIP_DATABASES_DIR_PATH
 from session_sniffer.guis.colors import TableColors
+from session_sniffer.guis.theming import register_theme_change_callback, themed_color, themed_qcolor, themed_text_qcolor
 from session_sniffer.models.combo_rules import ComboRule, split_condition_key
 from session_sniffer.models.userip_settings_model import format_iso_timestamp_display
 from session_sniffer.text_utils import pluralize, split_usernames
@@ -47,22 +48,48 @@ if TYPE_CHECKING:
 _STANDARD_ICON_SIZE = 16
 _DISCONNECTED_TEXT_COLOR = QColor(TableColors.DISCONNECTED_TEXT)
 
-_COLOR_WHITE = QColor('#ffffff')
-_COLOR_CONNECTED_SEL_TOP = QColor(42, 110, 85, 160)
-_COLOR_CONNECTED_SEL_BOTTOM = QColor(28, 75, 58, 160)
-_COLOR_CONNECTED_UNSEL_TOP = QColor(42, 110, 85, 100)
-_COLOR_CONNECTED_UNSEL_BOTTOM = QColor(28, 75, 58, 100)
-_COLOR_DISCONNECTED_SEL_TOP = QColor(130, 45, 45, 160)
-_COLOR_DISCONNECTED_SEL_BOTTOM = QColor(85, 28, 28, 160)
-_COLOR_DISCONNECTED_UNSEL_TOP = QColor(130, 45, 45, 100)
-_COLOR_DISCONNECTED_UNSEL_BOTTOM = QColor(85, 28, 28, 100)
-_COLOR_DEFAULT_SEL = QColor('#2f4f64')
-_COLOR_DEFAULT_UNSEL = QColor('#2d2d30')
+_COLOR_WHITE = themed_text_qcolor('#ffffff', '#1e3246')
+_COLOR_CONNECTED_SEL_TOP = themed_qcolor(QColor(42, 110, 85, 160))
+_COLOR_CONNECTED_SEL_BOTTOM = themed_qcolor(QColor(28, 75, 58, 160))
+_COLOR_CONNECTED_UNSEL_TOP = themed_qcolor(QColor(42, 110, 85, 100))
+_COLOR_CONNECTED_UNSEL_BOTTOM = themed_qcolor(QColor(28, 75, 58, 100))
+_COLOR_DISCONNECTED_SEL_TOP = themed_qcolor(QColor(130, 45, 45, 160))
+_COLOR_DISCONNECTED_SEL_BOTTOM = themed_qcolor(QColor(85, 28, 28, 160))
+_COLOR_DISCONNECTED_UNSEL_TOP = themed_qcolor(QColor(130, 45, 45, 100))
+_COLOR_DISCONNECTED_UNSEL_BOTTOM = themed_qcolor(QColor(85, 28, 28, 100))
+_COLOR_DEFAULT_SEL = themed_qcolor('#2f4f64')
+_COLOR_DEFAULT_UNSEL = themed_qcolor('#2d2d30')
 _LOOKY_TEXT_COLOR = QColor(TableColors.LOOKY_TEXT)
 _DISCONNECTED_LOOKY_TEXT_COLOR = QColor(TableColors.DISCONNECTED_LOOKY_TEXT)
-_SEARCH_HIGHLIGHT_BG_COLOR = QColor('#e3b341')
-_SEARCH_HIGHLIGHT_FG_COLOR = QColor('#000000')
+_SEARCH_HIGHLIGHT_BG_COLOR = themed_qcolor('#e3b341')
+_SEARCH_HIGHLIGHT_FG_COLOR = themed_text_qcolor('#000000', '#e3b341')
 _OPAQUE_ALPHA = 255
+
+
+def _refresh_delegate_theme_colors() -> None:
+    """Update cached delegate `QColor` instances in place for the active theme."""
+    for target, updated in (
+        (_DISCONNECTED_TEXT_COLOR, QColor(TableColors.DISCONNECTED_TEXT)),
+        (_COLOR_WHITE, themed_text_qcolor('#ffffff', '#1e3246')),
+        (_COLOR_CONNECTED_SEL_TOP, themed_qcolor(QColor(42, 110, 85, 160))),
+        (_COLOR_CONNECTED_SEL_BOTTOM, themed_qcolor(QColor(28, 75, 58, 160))),
+        (_COLOR_CONNECTED_UNSEL_TOP, themed_qcolor(QColor(42, 110, 85, 100))),
+        (_COLOR_CONNECTED_UNSEL_BOTTOM, themed_qcolor(QColor(28, 75, 58, 100))),
+        (_COLOR_DISCONNECTED_SEL_TOP, themed_qcolor(QColor(130, 45, 45, 160))),
+        (_COLOR_DISCONNECTED_SEL_BOTTOM, themed_qcolor(QColor(85, 28, 28, 160))),
+        (_COLOR_DISCONNECTED_UNSEL_TOP, themed_qcolor(QColor(130, 45, 45, 100))),
+        (_COLOR_DISCONNECTED_UNSEL_BOTTOM, themed_qcolor(QColor(85, 28, 28, 100))),
+        (_COLOR_DEFAULT_SEL, themed_qcolor('#2f4f64')),
+        (_COLOR_DEFAULT_UNSEL, themed_qcolor('#2d2d30')),
+        (_LOOKY_TEXT_COLOR, QColor(TableColors.LOOKY_TEXT)),
+        (_DISCONNECTED_LOOKY_TEXT_COLOR, QColor(TableColors.DISCONNECTED_LOOKY_TEXT)),
+        (_SEARCH_HIGHLIGHT_BG_COLOR, themed_qcolor('#e3b341')),
+        (_SEARCH_HIGHLIGHT_FG_COLOR, themed_text_qcolor('#000000', '#e3b341')),
+    ):
+        target.setRgba(updated.rgba())
+
+
+register_theme_change_callback(_refresh_delegate_theme_colors)
 
 
 def _get_option_rect(option: QStyleOptionViewItem) -> QRect:
@@ -136,7 +163,7 @@ def _format_username_source_lines(
         label = f'{label_prefix}{pluralize(len(unique_names))}'
         joined_text = ', '.join(unique_names)
         value_html = _format_looky_tooltip_html(joined_text, looky_names, is_disconnected=is_disconnected) if looky_names is not None else html.escape(joined_text)
-        lines.append(f'<span style="color: #9ca3af;">{label}:</span> {value_html}')
+        lines.append(f'<span style="color: {themed_color("#9ca3af")};">{label}:</span> {value_html}')
 
     if player.mod_menus is not None and player.mod_menus.usernames:
         modmenu_label = 'Relay Username' if player.mod_menus.is_relay else 'Mod Menu Username'
@@ -168,12 +195,13 @@ def _format_userip_tooltip_lines(
     is_disconnected: bool = False,
 ) -> list[str]:
     """Format HTML lines describing a player's UserIP metadata and timestamps for tooltips."""
+    label_color = themed_color('#9ca3af')
     lines: list[str] = []
     try:
         db_display = str(userip.db_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix(''))
     except ValueError:
         db_display = str(userip.db_path)
-    lines.append(f'<span style="color: #9ca3af;">Database:</span> {html.escape(db_display)}')
+    lines.append(f'<span style="color: {label_color};">Database:</span> {html.escape(db_display)}')
     lines.extend(
         _format_username_source_lines(
             player,
@@ -183,11 +211,11 @@ def _format_userip_tooltip_lines(
     )
     if userip.notes:
         notes_label = f'Note{pluralize(len(userip.notes))}'
-        lines.append(f'<span style="color: #9ca3af;">{notes_label}:</span> {html.escape(", ".join(userip.notes))}')
+        lines.append(f'<span style="color: {label_color};">{notes_label}:</span> {html.escape(", ".join(userip.notes))}')
     if userip.sources:
         sources_label = f'Source{pluralize(len(userip.sources))}'
-        lines.append(f'<span style="color: #9ca3af;">{sources_label}:</span> {html.escape(", ".join(userip.sources))}')
-    lines.append(f'<span style="color: #9ca3af;">Detections:</span> {userip.detections_count}')
+        lines.append(f'<span style="color: {label_color};">{sources_label}:</span> {html.escape(", ".join(userip.sources))}')
+    lines.append(f'<span style="color: {label_color};">Detections:</span> {userip.detections_count}')
     for label_text, raw_timestamp in (
         ('Added', userip.added_at),
         ('Updated', userip.updated_at),
@@ -196,7 +224,7 @@ def _format_userip_tooltip_lines(
     ):
         formatted_display = format_iso_timestamp_display(raw_timestamp)
         if formatted_display:
-            lines.append(f'<span style="color: #9ca3af;">{label_text}:</span> {html.escape(formatted_display)}')
+            lines.append(f'<span style="color: {label_color};">{label_text}:</span> {html.escape(formatted_display)}')
     return lines
 
 
@@ -624,15 +652,40 @@ class ComboRuleCardDelegate(QStyledItemDelegate):
         badges: list[tuple[str, QColor, QColor, QColor]] = []
         if self._is_suspend_supported() and rule.protection_enabled:
             dur_str = 'Auto' if rule.duration == 'Auto' else f'{rule.duration}s'
-            badges.append((f'Suspend: {dur_str}', QColor(245, 158, 11, 38), QColor(245, 158, 11, 115), QColor('#fbbf24')))
+            badges.append((
+                f'Suspend: {dur_str}',
+                themed_qcolor(QColor(245, 158, 11, 38)),
+                themed_qcolor(QColor(245, 158, 11, 115)),
+                themed_text_qcolor('#fbbf24', '#17212c'),
+            ))
         if rule.voice_notifications:
-            badges.append((f'Voice: {rule.voice_notifications}', QColor(56, 189, 248, 38), QColor(56, 189, 248, 115), QColor('#38bdf8')))
+            badges.append((
+                f'Voice: {rule.voice_notifications}',
+                themed_qcolor(QColor(56, 189, 248, 38)),
+                themed_qcolor(QColor(56, 189, 248, 115)),
+                themed_text_qcolor('#38bdf8', '#17212c'),
+            ))
         if rule.message_box:
-            badges.append(('Message Box', QColor(168, 85, 247, 38), QColor(168, 85, 247, 115), QColor('#c084fc')))
+            badges.append((
+                'Message Box',
+                themed_qcolor(QColor(168, 85, 247, 38)),
+                themed_qcolor(QColor(168, 85, 247, 115)),
+                themed_text_qcolor('#c084fc', '#17212c'),
+            ))
         if rule.logging:
-            badges.append(('Logging', QColor(45, 212, 191, 34), QColor(45, 212, 191, 105), QColor('#2dd4bf')))
+            badges.append((
+                'Logging',
+                themed_qcolor(QColor(45, 212, 191, 34)),
+                themed_qcolor(QColor(45, 212, 191, 105)),
+                themed_text_qcolor('#2dd4bf', '#17212c'),
+            ))
         if not badges:
-            badges.append(('No Actions', QColor(148, 163, 184, 24), QColor(148, 163, 184, 65), QColor('#64748b')))
+            badges.append((
+                'No Actions',
+                themed_qcolor(QColor(148, 163, 184, 24)),
+                themed_qcolor(QColor(148, 163, 184, 65)),
+                themed_text_qcolor('#64748b', '#17212c'),
+            ))
         return badges
 
     @staticmethod
@@ -742,24 +795,24 @@ class ComboRuleCardDelegate(QStyledItemDelegate):
 
         bg_grad = QLinearGradient(card_rect.topLeft(), card_rect.bottomLeft())
         if is_selected:
-            bg_grad.setColorAt(0.0, QColor('#1e3246'))
-            bg_grad.setColorAt(1.0, QColor('#152434'))
-            border_color = QColor('#38bdf8')
+            bg_grad.setColorAt(0.0, themed_qcolor('#1e3246'))
+            bg_grad.setColorAt(1.0, themed_qcolor('#152434'))
+            border_color = themed_qcolor('#38bdf8')
             border_width = 1.5
         elif is_hovered:
-            bg_grad.setColorAt(0.0, QColor('#1b2735'))
-            bg_grad.setColorAt(1.0, QColor('#141d28'))
-            border_color = QColor('#3b556e')
+            bg_grad.setColorAt(0.0, themed_qcolor('#1b2735'))
+            bg_grad.setColorAt(1.0, themed_qcolor('#141d28'))
+            border_color = themed_qcolor('#3b556e')
             border_width = 1.0
         elif is_enabled:
-            bg_grad.setColorAt(0.0, QColor('#17212c'))
-            bg_grad.setColorAt(1.0, QColor('#111820'))
-            border_color = QColor('#263747')
+            bg_grad.setColorAt(0.0, themed_qcolor('#17212c'))
+            bg_grad.setColorAt(1.0, themed_qcolor('#111820'))
+            border_color = themed_qcolor('#263747')
             border_width = 1.0
         else:
-            bg_grad.setColorAt(0.0, QColor('#131820'))
-            bg_grad.setColorAt(1.0, QColor('#0e1218'))
-            border_color = QColor('#1e2832')
+            bg_grad.setColorAt(0.0, themed_qcolor('#131820'))
+            bg_grad.setColorAt(1.0, themed_qcolor('#0e1218'))
+            border_color = themed_qcolor('#1e2832')
             border_width = 1.0
 
         painter.fillPath(card_path, bg_grad)
@@ -767,7 +820,7 @@ class ComboRuleCardDelegate(QStyledItemDelegate):
         painter.save()
         painter.setClipPath(card_path)
         accent_rect = QRect(card_rect.left(), card_rect.top(), accent_w, card_rect.height())
-        painter.fillRect(accent_rect, QColor('#10b981') if is_enabled else QColor('#475569'))
+        painter.fillRect(accent_rect, themed_qcolor('#10b981') if is_enabled else themed_qcolor('#475569'))
         painter.restore()
 
         painter.setPen(QPen(border_color, border_width))
@@ -804,15 +857,15 @@ class ComboRuleCardDelegate(QStyledItemDelegate):
             painter.fillPath(b_path, b_bg)
             painter.setPen(QPen(b_border, 1.0))
             painter.drawPath(b_path)
-            painter.setPen(b_fg if is_enabled else QColor('#7c8d9e'))
+            painter.setPen(b_fg if is_enabled else themed_text_qcolor('#7c8d9e', '#131820'))
             painter.drawText(b_rect, Qt.AlignmentFlag.AlignCenter, badge_text)
             badges_right_x = b_rect.left() - badge_gap
 
         # --- Left-aligned Status Pill + Rule Name + Condition Count ---
         status_text = '✓ ENABLED' if is_enabled else '✕ DISABLED'
-        status_bg = QColor(16, 185, 129, 42) if is_enabled else QColor(239, 68, 68, 34)
-        status_border = QColor(16, 185, 129, 120) if is_enabled else QColor(239, 68, 68, 95)
-        status_fg = QColor('#34d399') if is_enabled else QColor('#f87171')
+        status_bg = themed_qcolor(QColor(16, 185, 129, 42)) if is_enabled else themed_qcolor(QColor(239, 68, 68, 34))
+        status_border = themed_qcolor(QColor(16, 185, 129, 120)) if is_enabled else themed_qcolor(QColor(239, 68, 68, 95))
+        status_fg = themed_text_qcolor('#34d399', '#17212c') if is_enabled else themed_text_qcolor('#f87171', '#131820')
         status_w = badge_fm.horizontalAdvance(status_text) + badge_pad_h * 2
         status_rect = QRect(content_left, badge_y, status_w, badge_h)
         status_path = QPainterPath()
@@ -831,7 +884,11 @@ class ComboRuleCardDelegate(QStyledItemDelegate):
         name_font.setBold(True)
         name_fm = QFontMetrics(name_font)
         painter.setFont(name_font)
-        painter.setPen(QColor('#ffffff') if is_selected else (QColor('#f1f5f9') if is_enabled else QColor('#94a3b8')))
+        painter.setPen(
+            themed_text_qcolor('#ffffff', '#1e3246')
+            if is_selected
+            else (themed_text_qcolor('#f1f5f9', '#17212c') if is_enabled else themed_text_qcolor('#94a3b8', '#131820')),
+        )
 
         avail_title_w = max(0, title_max_right - title_left)
         elided_name = name_fm.elidedText(rule.name, Qt.TextElideMode.ElideRight, avail_title_w)
@@ -846,13 +903,13 @@ class ComboRuleCardDelegate(QStyledItemDelegate):
         reg_chip_fm = QFontMetrics(reg_chip_font)
         if count_left + reg_chip_fm.horizontalAdvance(count_text) <= title_max_right:
             painter.setFont(reg_chip_font)
-            painter.setPen(QColor('#64748b'))
+            painter.setPen(themed_text_qcolor('#64748b', '#17212c'))
             count_rect = QRect(count_left, header_rect.top(), title_max_right - count_left, header_rect.height())
             painter.drawText(count_rect, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, count_text)
 
         # --- Horizontal Divider ---
         divider_y = header_rect.bottom() + scale(6)
-        painter.setPen(QPen(QColor(255, 255, 255, 16), 1.0))
+        painter.setPen(QPen(themed_qcolor(QColor(255, 255, 255, 16)), 1.0))
         painter.drawLine(content_left, divider_y, content_right, divider_y)
 
         # --- Flow-Wrapped Condition Chips ---
@@ -867,14 +924,14 @@ class ComboRuleCardDelegate(QStyledItemDelegate):
             chip_path = QPainterPath()
             chip_path.addRoundedRect(QRectF(chip_rect), chip_radius, chip_radius)
             if is_negated:
-                c_bg = QColor(239, 68, 68, 30 if is_enabled else 16)
-                c_border = QColor(239, 68, 68, 90 if is_enabled else 45)
-                prefix_color = QColor('#fca5a5') if is_enabled else QColor('#9ca3af')
+                c_bg = themed_qcolor(QColor(239, 68, 68, 30 if is_enabled else 16))
+                c_border = themed_qcolor(QColor(239, 68, 68, 90 if is_enabled else 45))
+                prefix_color = themed_text_qcolor('#fca5a5', '#17212c') if is_enabled else themed_text_qcolor('#9ca3af', '#131820')
             else:
-                c_bg = QColor(56, 189, 248, 22 if is_enabled else 12)
-                c_border = QColor(136, 192, 208, 72 if is_enabled else 38)
-                prefix_color = QColor('#88c0d0') if is_enabled else QColor('#7c8d9e')
-            value_color = QColor('#f1f5f9') if is_enabled else QColor('#94a3b8')
+                c_bg = themed_qcolor(QColor(56, 189, 248, 22 if is_enabled else 12))
+                c_border = themed_qcolor(QColor(136, 192, 208, 72 if is_enabled else 38))
+                prefix_color = themed_text_qcolor('#88c0d0', '#17212c') if is_enabled else themed_text_qcolor('#7c8d9e', '#131820')
+            value_color = themed_text_qcolor('#f1f5f9', '#17212c') if is_enabled else themed_text_qcolor('#94a3b8', '#131820')
 
             painter.fillPath(chip_path, c_bg)
             painter.setPen(QPen(c_border, 1.0))

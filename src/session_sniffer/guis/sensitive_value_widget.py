@@ -13,14 +13,14 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.guis.fonts import get_monospace_font
+from session_sniffer.guis.theming import ICONS_DIR_PATH, themed_qss
 from session_sniffer.guis.utils import set_clipboard_text
 
 _SENSITIVE_BLUR_RADIUS: Final[float] = 10.0
 _SENSITIVE_CONTAINER_WIDTH: Final[int] = 240
 
-_REDACTED_PILL_STYLESHEET_BLURRED: Final[str] = (
+_REDACTED_PILL_STYLESHEET_BLURRED: Final[str] = themed_qss(
     'QWidget#sensitive_container {'
     '    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,'
     '        stop:0 rgba(26, 15, 46, 0.85), stop:1 rgba(42, 18, 72, 0.85));'
@@ -31,14 +31,14 @@ _REDACTED_PILL_STYLESHEET_BLURRED: Final[str] = (
     '    border-color: rgba(192, 132, 252, 0.75);'
     '    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,'
     '        stop:0 rgba(36, 20, 64, 0.95), stop:1 rgba(58, 26, 98, 0.95));'
-    '}'
+    '}',
 )
 
-_REDACTED_PILL_STYLESHEET_REVEALED: Final[str] = (
-    'QWidget#sensitive_container {    background-color: rgba(20, 12, 36, 0.6);    border: 1px solid rgba(167, 139, 250, 0.25);    border-radius: 6px;}'
+_REDACTED_PILL_STYLESHEET_REVEALED: Final[str] = themed_qss(
+    'QWidget#sensitive_container {    background-color: rgba(20, 12, 36, 0.6);    border: 1px solid rgba(167, 139, 250, 0.25);    border-radius: 6px;}',
 )
 
-_SENSITIVE_ACTION_BUTTON_STYLESHEET: Final[str] = (
+_SENSITIVE_ACTION_BUTTON_STYLESHEET: Final[str] = themed_qss(
     'QPushButton {'
     '    background-color: rgba(124, 58, 237, 0.3);'
     '    border: 1px solid rgba(167, 139, 250, 0.45);'
@@ -51,7 +51,7 @@ _SENSITIVE_ACTION_BUTTON_STYLESHEET: Final[str] = (
     '}'
     'QPushButton:pressed {'
     '    background-color: #7c3aed;'
-    '}'
+    '}',
 )
 
 
@@ -63,10 +63,6 @@ class SensitiveValueWidget(QWidget):
         super().__init__()
         self._text = text
         self._revealed = False
-
-        icons_directory = RESOURCES_DIR_PATH / 'icons'
-        self._icon_copy = QIcon(str(icons_directory / 'copy.svg'))
-        self._icon_check = QIcon(str(icons_directory / 'check.svg'))
 
         outer_layout = QHBoxLayout(self)
         outer_layout.setContentsMargins(0, 0, 0, 0)
@@ -84,7 +80,7 @@ class SensitiveValueWidget(QWidget):
         font = get_monospace_font(13)
         font.setBold(True)
         self._label.setFont(font)
-        self._label.setStyleSheet('color: #f3e8ff; background: transparent; padding: 0 2px;')
+        self._label.setStyleSheet(themed_qss('color: #f3e8ff; background: transparent; padding: 0 2px;'))
 
         self._blur_effect = QGraphicsBlurEffect(self._label)
         self._blur_effect.setBlurRadius(_SENSITIVE_BLUR_RADIUS)
@@ -92,7 +88,7 @@ class SensitiveValueWidget(QWidget):
 
         self._copy_button = QPushButton(self._container)
         self._copy_button.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._copy_button.setIcon(self._icon_copy)
+        self._copy_button.setIcon(QIcon(str(ICONS_DIR_PATH / 'copy.svg')))
         self._copy_button.setIconSize(QSize(16, 16))
         self._copy_button.setFixedSize(26, 26)
         self._copy_button.setStyleSheet(_SENSITIVE_ACTION_BUTTON_STYLESHEET)
@@ -133,13 +129,13 @@ class SensitiveValueWidget(QWidget):
     def _copy_to_clipboard(self) -> None:
         """Copy the underlying text to clipboard and briefly acknowledge."""
         set_clipboard_text(self._text)
-        self._copy_button.setIcon(self._icon_check)
+        self._copy_button.setIcon(QIcon(str(ICONS_DIR_PATH / 'check.svg')))
         self._copy_button.setToolTip('Copied!')
         QTimer.singleShot(1200, self, self._reset_copy_button)
 
     def _reset_copy_button(self) -> None:
         """Reset copy button icon and tooltip after acknowledgment timeout."""
-        self._copy_button.setIcon(self._icon_copy)
+        self._copy_button.setIcon(QIcon(str(ICONS_DIR_PATH / 'copy.svg')))
         self._copy_button.setToolTip('Copy to clipboard')
 
     def set_revealed(self, *, revealed: bool) -> None:

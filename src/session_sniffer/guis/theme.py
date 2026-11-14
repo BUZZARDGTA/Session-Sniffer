@@ -1,60 +1,55 @@
-"""Custom sleek dark theme for Session Sniffer."""
+"""Global application stylesheet and palette, mapped onto the active theme."""
 
 import sys
 
-from PySide6.QtGui import QColor, QPalette
+from PySide6.QtGui import QPalette
 
-from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.guis.stylesheets._menus import SHARED_QMENU_RIGHT_ARROW_STYLESHEET
+from session_sniffer.guis.theming import CHECKBOX_CHECK_ICON_PATH, ICONS_DIR_PATH, themed_qcolor, themed_qss, themed_text_qcolor
 
 _SCALE_THRESHOLD_XLARGE = 1.10
 _SCALE_THRESHOLD_LARGE = 0.85
 _SCALE_THRESHOLD_MEDIUM = 0.75
+_CANONICAL_STYLESHEET_CACHE: dict[float, str] = {}
 
 
-def get_dark_palette() -> QPalette:
-    """Return a unified dark QPalette for Qt widgets and window decorations."""
+def get_palette() -> QPalette:
+    """Return the unified QPalette of the active theme for Qt widgets and window decorations."""
     palette = QPalette()
-    palette.setColor(QPalette.ColorRole.Window, QColor('#1e1e1e'))
-    palette.setColor(QPalette.ColorRole.WindowText, QColor('#e0e0e0'))
-    palette.setColor(QPalette.ColorRole.Base, QColor('#121212'))
-    palette.setColor(QPalette.ColorRole.AlternateBase, QColor('#252526'))
-    palette.setColor(QPalette.ColorRole.ToolTipBase, QColor('#1e1e1e'))
-    palette.setColor(QPalette.ColorRole.ToolTipText, QColor('#e0e0e0'))
-    palette.setColor(QPalette.ColorRole.Text, QColor('#e0e0e0'))
-    palette.setColor(QPalette.ColorRole.Button, QColor('#2d2d30'))
-    palette.setColor(QPalette.ColorRole.ButtonText, QColor('#ffffff'))
-    palette.setColor(QPalette.ColorRole.BrightText, QColor('#ffffff'))
-    palette.setColor(QPalette.ColorRole.Link, QColor('#007acc'))
-    palette.setColor(QPalette.ColorRole.Highlight, QColor('#007acc'))
-    palette.setColor(QPalette.ColorRole.HighlightedText, QColor('#ffffff'))
+    palette.setColor(QPalette.ColorRole.Window, themed_qcolor('#1e1e1e'))
+    palette.setColor(QPalette.ColorRole.WindowText, themed_qcolor('#e0e0e0'))
+    palette.setColor(QPalette.ColorRole.Base, themed_qcolor('#121212'))
+    palette.setColor(QPalette.ColorRole.AlternateBase, themed_qcolor('#252526'))
+    palette.setColor(QPalette.ColorRole.ToolTipBase, themed_qcolor('#1e1e1e'))
+    palette.setColor(QPalette.ColorRole.ToolTipText, themed_qcolor('#e0e0e0'))
+    palette.setColor(QPalette.ColorRole.Text, themed_qcolor('#e0e0e0'))
+    palette.setColor(QPalette.ColorRole.Button, themed_qcolor('#2d2d30'))
+    palette.setColor(QPalette.ColorRole.ButtonText, themed_qcolor('#ffffff'))
+    palette.setColor(QPalette.ColorRole.BrightText, themed_qcolor('#ffffff'))
+    palette.setColor(QPalette.ColorRole.Link, themed_qcolor('#007acc'))
+    palette.setColor(QPalette.ColorRole.Highlight, themed_qcolor('#007acc'))
+    palette.setColor(QPalette.ColorRole.HighlightedText, themed_text_qcolor('#ffffff', '#007acc'))
     return palette
 
 
-def get_stylesheet(ui_scale: float = 1.0) -> str:
-    """Return the custom PySide6 stylesheet.
-
-    Args:
-        ui_scale: The UI scale factor from `compute_ui_scale`. Controls font
-            sizes throughout the stylesheet so the UI reads clearly at every
-            supported screen resolution.
-
-    Returns:
-        The QSS stylesheet as a string.
-    """
-    branch_vline_path = (RESOURCES_DIR_PATH / 'icons' / 'branch_vline.svg').as_posix()
-    branch_more_path = (RESOURCES_DIR_PATH / 'icons' / 'branch_more.svg').as_posix()
-    branch_end_path = (RESOURCES_DIR_PATH / 'icons' / 'branch_end.svg').as_posix()
-    chevron_right_path = (RESOURCES_DIR_PATH / 'icons' / 'chevron-right.svg').as_posix()
-    chevron_right_disabled_path = (RESOURCES_DIR_PATH / 'icons' / 'chevron-right-disabled.svg').as_posix()
-    chevron_right_more_path = (RESOURCES_DIR_PATH / 'icons' / 'chevron_right_more.svg').as_posix()
-    chevron_right_end_path = (RESOURCES_DIR_PATH / 'icons' / 'chevron_right_end.svg').as_posix()
-    chevron_down_more_path = (RESOURCES_DIR_PATH / 'icons' / 'chevron_down_more.svg').as_posix()
-    chevron_down_end_path = (RESOURCES_DIR_PATH / 'icons' / 'chevron_down_end.svg').as_posix()
-    arrow_up_path = (RESOURCES_DIR_PATH / 'icons' / 'chevron-up.svg').as_posix()
-    arrow_down_path = (RESOURCES_DIR_PATH / 'icons' / 'chevron-down.svg').as_posix()
-    check_path = (RESOURCES_DIR_PATH / 'icons' / 'check.svg').as_posix()
-    close_path = (RESOURCES_DIR_PATH / 'icons' / 'x.svg').as_posix()
+def build_canonical_stylesheet(ui_scale: float = 1.0) -> str:
+    """Return the canonical Dark-palette application QSS template for *ui_scale* (thread-safe)."""
+    cached = _CANONICAL_STYLESHEET_CACHE.get(ui_scale)
+    if cached is not None:
+        return cached
+    branch_vline_path = (ICONS_DIR_PATH / 'branch_vline.svg').as_posix()
+    branch_more_path = (ICONS_DIR_PATH / 'branch_more.svg').as_posix()
+    branch_end_path = (ICONS_DIR_PATH / 'branch_end.svg').as_posix()
+    chevron_right_path = (ICONS_DIR_PATH / 'chevron-right.svg').as_posix()
+    chevron_right_disabled_path = (ICONS_DIR_PATH / 'chevron-right-disabled.svg').as_posix()
+    chevron_right_more_path = (ICONS_DIR_PATH / 'chevron_right_more.svg').as_posix()
+    chevron_right_end_path = (ICONS_DIR_PATH / 'chevron_right_end.svg').as_posix()
+    chevron_down_more_path = (ICONS_DIR_PATH / 'chevron_down_more.svg').as_posix()
+    chevron_down_end_path = (ICONS_DIR_PATH / 'chevron_down_end.svg').as_posix()
+    arrow_up_path = (ICONS_DIR_PATH / 'chevron-up.svg').as_posix()
+    arrow_down_path = (ICONS_DIR_PATH / 'chevron-down.svg').as_posix()
+    check_path = CHECKBOX_CHECK_ICON_PATH.as_posix()
+    close_path = (ICONS_DIR_PATH / 'x.svg').as_posix()
 
     # Scale the base font size proportionally to the screen resolution.
     # 10pt is the design baseline (2K / 1.0 scale).  4K displays step up to
@@ -856,4 +851,11 @@ def get_stylesheet(ui_scale: float = 1.0) -> str:
     css = css.replace('{group_title_pad_v}', str(max(2, round(4 * ui_scale))))
     css = css.replace('{group_title_pad_h}', str(max(6, round(12 * ui_scale))))
     css = css.replace('{group_title_font_pt}', str(base_font_pt + 1))
-    return css.replace('{base_font_pt}', str(base_font_pt))
+    canonical_css = css.replace('{base_font_pt}', str(base_font_pt))
+    _CANONICAL_STYLESHEET_CACHE[ui_scale] = canonical_css
+    return canonical_css
+
+
+def get_stylesheet(ui_scale: float = 1.0) -> str:
+    """Return the custom PySide6 stylesheet mapped onto the active theme."""
+    return themed_qss(build_canonical_stylesheet(ui_scale))

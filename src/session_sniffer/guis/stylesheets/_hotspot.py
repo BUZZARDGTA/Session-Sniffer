@@ -1,6 +1,9 @@
 """Hotspot and connection sharing QSS."""
 
-HOTSPOT_CARD_STYLESHEET = """
+from session_sniffer.guis.theming import themed_qss
+
+HOTSPOT_CARD_STYLESHEET = themed_qss(
+    """
 QFrame#hotspotCard, QFrame#bridgeCard, QFrame#devicesCard {
     background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #232f3e, stop:1 #18212c);
     border: 1px solid #2c3a4d;
@@ -20,9 +23,11 @@ QFrame#devicesCard QCheckBox {
     background: transparent;
     background-color: transparent;
 }
-""".strip()
+""".strip(),
+)
 
-HOTSPOT_CHECKBOX_STYLESHEET = """
+HOTSPOT_CHECKBOX_STYLESHEET = themed_qss(
+    """
 QCheckBox {
     background: transparent;
     background-color: transparent;
@@ -33,9 +38,11 @@ QCheckBox {
 QCheckBox:hover {
     color: #e0e0e0;
 }
-""".strip()
+""".strip(),
+)
 
-HOTSPOT_CARD_HEADER_STYLESHEET = """
+HOTSPOT_CARD_HEADER_STYLESHEET = themed_qss(
+    """
 QLabel {
     color: #f0f4fa;
     font-size: 11pt;
@@ -45,9 +52,11 @@ QLabel {
 QLabel:disabled {
     color: #5c6d80;
 }
-""".strip()
+""".strip(),
+)
 
-HOTSPOT_BADGE_ACTIVE_STYLESHEET = """
+HOTSPOT_BADGE_ACTIVE_STYLESHEET = themed_qss(
+    """
 QLabel {
     color: #3dd68c;
     background: rgba(61, 214, 140, 0.12);
@@ -58,9 +67,11 @@ QLabel {
     font-weight: 800;
     letter-spacing: 0.5px;
 }
-""".strip()
+""".strip(),
+)
 
-HOTSPOT_BADGE_INACTIVE_STYLESHEET = """
+HOTSPOT_BADGE_INACTIVE_STYLESHEET = themed_qss(
+    """
 QLabel {
     color: #9cb0c6;
     background: rgba(156, 176, 198, 0.12);
@@ -71,9 +82,11 @@ QLabel {
     font-weight: 800;
     letter-spacing: 0.5px;
 }
-""".strip()
+""".strip(),
+)
 
-HOTSPOT_BADGE_TRANSITION_STYLESHEET = """
+HOTSPOT_BADGE_TRANSITION_STYLESHEET = themed_qss(
+    """
 QLabel {
     color: #f59e0b;
     background: rgba(245, 158, 11, 0.12);
@@ -84,9 +97,11 @@ QLabel {
     font-weight: 800;
     letter-spacing: 0.5px;
 }
-""".strip()
+""".strip(),
+)
 
-HOTSPOT_PILL_INFO_STYLESHEET = """
+HOTSPOT_PILL_INFO_STYLESHEET = themed_qss(
+    """
 QLabel {
     color: #61afef;
     background: rgba(97, 175, 239, 0.10);
@@ -96,9 +111,11 @@ QLabel {
     font-size: 8pt;
     font-weight: 600;
 }
-""".strip()
+""".strip(),
+)
 
-HOTSPOT_FIELD_LABEL_STYLESHEET = """
+HOTSPOT_FIELD_LABEL_STYLESHEET = themed_qss(
+    """
 QLabel {
     color: #9cb0c6;
     font-size: 9pt;
@@ -108,9 +125,11 @@ QLabel {
 QLabel:disabled {
     color: #526173;
 }
-""".strip()
+""".strip(),
+)
 
-HOTSPOT_INPUT_STYLESHEET = """
+HOTSPOT_INPUT_STYLESHEET = themed_qss(
+    """
 QLineEdit, QComboBox {
     background-color: #141922;
     color: #e0e6ee;
@@ -135,9 +154,11 @@ QComboBox::drop-down {
     border: none;
     padding-right: 8px;
 }
-""".strip()
+""".strip(),
+)
 
-HOTSPOT_EMPTY_STATE_STYLESHEET = """
+HOTSPOT_EMPTY_STATE_STYLESHEET = themed_qss(
+    """
 QLabel {
     color: #5c6d80;
     font-size: 9.5pt;
@@ -145,9 +166,11 @@ QLabel {
     background: transparent;
     background-color: transparent;
 }
-""".strip()
+""".strip(),
+)
 
-HOTSPOT_GUIDE_CONTAINER_STYLESHEET = """
+HOTSPOT_GUIDE_CONTAINER_STYLESHEET = themed_qss(
+    """
 QFrame#guideContainer {
     background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #1a222d, stop:1 #121820);
     border: 1px solid #2d3b4d;
@@ -164,9 +187,11 @@ QFrame#guideContainer QStackedWidget {
     background: transparent;
     background-color: transparent;
 }
-""".strip()
+""".strip(),
+)
 
-HOTSPOT_GUIDE_CARD_STYLESHEET = """
+HOTSPOT_GUIDE_CARD_STYLESHEET = themed_qss(
+    """
 QFrame#guideOptionCard {
     background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #1e2836, stop:1 #141d28);
     border: 1px solid #2f3e52;
@@ -187,9 +212,11 @@ QFrame#guideOptionCard QLabel {
     background: transparent;
     border: none;
 }
-""".strip()
+""".strip(),
+)
 
-HOTSPOT_STEP_NUMBER_STYLESHEET = """
+HOTSPOT_STEP_NUMBER_STYLESHEET = themed_qss(
+    """
 QLabel {
     color: #ffffff;
     background-color: #2b7bb9;
@@ -202,4 +229,5 @@ QLabel {
     max-height: 22px;
     qproperty-alignment: AlignCenter;
 }
-""".strip()
+""".strip(),
+)

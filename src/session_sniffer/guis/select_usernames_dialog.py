@@ -23,7 +23,6 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.guis.delegates import SearchHighlightDelegate
 from session_sniffer.guis.stylesheets import (
@@ -31,6 +30,7 @@ from session_sniffer.guis.stylesheets import (
     DIALOG_BUTTON_STYLESHEET,
     DIALOG_PRIMARY_BUTTON_STYLESHEET,
 )
+from session_sniffer.guis.theming import ICONS_DIR_PATH
 from session_sniffer.guis.utils import apply_search_icon, scale_by_ui
 from session_sniffer.networking.looky_system import get_cached_looky_usernames
 from session_sniffer.player.registry import PlayersRegistry, SessionTracker
@@ -243,7 +243,7 @@ def _run_username_input_dialog(
 
     add_row_button: QPushButton | None = None
     if allow_multiple:
-        add_row_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'plus.svg')), ' Add another username', dialog)
+        add_row_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'plus.svg')), ' Add another username', dialog)
         add_row_button.setAutoDefault(False)
         add_row_button.setCursor(Qt.CursorShape.PointingHandCursor)
         add_row_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
@@ -375,7 +375,7 @@ def _run_username_input_dialog(
 
         remove_btn: QPushButton | None = None
         if allow_multiple:
-            remove_btn = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')), '', row_widget)
+            remove_btn = QPushButton(QIcon(str(ICONS_DIR_PATH / 'remove.svg')), '', row_widget)
             remove_btn.setAutoDefault(False)
             remove_btn.setMaximumWidth(scale_by_ui(36))
             remove_btn.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -559,13 +559,13 @@ class SelectUsernamesDialog(QDialog):
 
         if self._multiple:
             quick_select_row = QHBoxLayout()
-            select_all_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square-check.svg')), ' Select All')
+            select_all_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'square-check.svg')), ' Select All')
             select_all_button.setStyleSheet(COMPACT_BUTTON_STYLESHEET)
             select_all_button.setCursor(Qt.CursorShape.PointingHandCursor)
             select_all_button.clicked.connect(self._select_all)
             quick_select_row.addWidget(select_all_button)
 
-            deselect_all_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square.svg')), ' Deselect All')
+            deselect_all_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'square.svg')), ' Deselect All')
             deselect_all_button.setStyleSheet(COMPACT_BUTTON_STYLESHEET)
             deselect_all_button.setCursor(Qt.CursorShape.PointingHandCursor)
             deselect_all_button.clicked.connect(self._deselect_all)

@@ -25,7 +25,6 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.constants.standalone import MAX_SUSPEND_DURATION_SECONDS
 from session_sniffer.guis.country_data import (
     CONTINENT_NAMES,
@@ -34,6 +33,7 @@ from session_sniffer.guis.country_data import (
     normalize_country_name,
 )
 from session_sniffer.guis.stylesheets import GROUPBOX_STYLE, HINT_LABEL_STYLESHEET, LIST_WIDGET_STYLE
+from session_sniffer.guis.theming import ICONS_DIR_PATH, themed_qss
 from session_sniffer.guis.userip_manager_helpers import IPRangeBuilderDialog
 from session_sniffer.guis.utils import (
     SUSPEND_TOOLTIP_AUTO,
@@ -170,12 +170,12 @@ class _CheckableSelectionDialog(QDialog):
 
     def _add_footer_controls(self, select_button_label: str) -> None:
         actions_row = QHBoxLayout()
-        select_btn = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square-check.svg')), select_button_label)
+        select_btn = QPushButton(QIcon(str(ICONS_DIR_PATH / 'square-check.svg')), select_button_label)
         select_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         select_btn.clicked.connect(lambda: self._set_visible_checked(checked=True))
         actions_row.addWidget(select_btn)
 
-        clear_btn = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square.svg')), ' Clear Selection')
+        clear_btn = QPushButton(QIcon(str(ICONS_DIR_PATH / 'square.svg')), ' Clear Selection')
         clear_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         clear_btn.clicked.connect(self._clear_all_checked)
         actions_row.addWidget(clear_btn)
@@ -322,7 +322,7 @@ class ComboRuleEditorDialog(QDialog):
         self._conditions_container.setSpacing(scale_by_ui(8))
         conditions_layout.addLayout(self._conditions_container)
 
-        self._add_condition_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'plus.svg')), ' Add Condition')
+        self._add_condition_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'plus.svg')), ' Add Condition')
         self._add_condition_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self._add_condition_button.clicked.connect(self._on_add_condition_clicked)
         conditions_layout.addWidget(self._add_condition_button)
@@ -575,7 +575,9 @@ class ComboRuleEditorDialog(QDialog):
                 events_widget = QFrame()
                 events_widget.setObjectName('EventsContainer')
                 events_widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-                events_widget.setStyleSheet('#EventsContainer { background-color: #1e1e1e; border: 1px solid #3e3e42; border-radius: 4px; min-height: 24px; }')
+                events_widget.setStyleSheet(
+                    themed_qss('#EventsContainer { background-color: #1e1e1e; border: 1px solid #3e3e42; border-radius: 4px; min-height: 24px; }'),
+                )
                 events_layout = QHBoxLayout(events_widget)
                 events_layout.setContentsMargins(12, 4, 12, 4)
 
@@ -601,7 +603,7 @@ class ComboRuleEditorDialog(QDialog):
                 ip_edit.setPlaceholderText('e.g. 1.2.3.4, 192.168.1.0/24, 10.0.0.1-10.0.0.50, or 1.2.3.*')
                 ip_layout.addWidget(ip_edit, stretch=1)
 
-                builder_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square-pen.svg')), '')
+                builder_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'square-pen.svg')), '')
                 builder_button.setToolTip('Open IP Range Builder')
                 builder_button.setMaximumWidth(scale_by_ui(40))
                 builder_button.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -625,7 +627,7 @@ class ComboRuleEditorDialog(QDialog):
 
         type_combo.currentTextChanged.connect(on_type_changed)
 
-        remove_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'remove.svg')), '')
+        remove_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'remove.svg')), '')
         remove_button.setMaximumWidth(scale_by_ui(40))
         remove_button.setCursor(Qt.CursorShape.PointingHandCursor)
 
@@ -811,7 +813,7 @@ class ComboRuleEditorDialog(QDialog):
         display_edit.setProperty('selected_items', [])
         picker_layout.addWidget(display_edit, stretch=1)
 
-        picker_button = QPushButton(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'square-pen.svg')), '')
+        picker_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'square-pen.svg')), '')
         picker_button.setToolTip(button_tooltip)
         picker_button.setMaximumWidth(scale_by_ui(40))
         picker_button.setCursor(Qt.CursorShape.PointingHandCursor)

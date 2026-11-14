@@ -1,5 +1,7 @@
 """Section header bar and expand-button QSS."""
 
+from session_sniffer.guis.theming import themed_qss
+
 # =============================================================================
 # SECTION HEADER BAR STYLES
 # =============================================================================
@@ -11,7 +13,8 @@ def section_bar_qss(accent: str) -> str:
     bg_top = f'#{int(red * 0.12) + 14:02x}{int(green * 0.12) + 16:02x}{int(blue * 0.12) + 18:02x}'
     bg_bottom = f'#{int(red * 0.06) + 10:02x}{int(green * 0.06) + 11:02x}{int(blue * 0.06) + 13:02x}'
     border_color = f'#{int(red * 0.3) + 18:02x}{int(green * 0.3) + 20:02x}{int(blue * 0.3) + 22:02x}'
-    return f"""
+    return themed_qss(
+        f"""
     QFrame#sectionBar {{
         background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
                                     stop:0 {bg_top},
@@ -213,12 +216,14 @@ def section_bar_qss(accent: str) -> str:
         color: rgba(255, 255, 255, 0.35);
         background: transparent;
     }}
-    """.strip()
+    """.strip(),
+    )
 
 
 def get_expand_button_stylesheet(accent_rgba: str, text_color: str) -> str:
     """Generate a stylesheet for an expand button with the given accent and text color."""
-    return f"""
+    return themed_qss(
+        f"""
 QPushButton {{
     background-color: rgba({accent_rgba}, 0.12);
     color: {text_color};
@@ -239,7 +244,8 @@ QPushButton:hover {{
 QPushButton:pressed {{
     background-color: rgba({accent_rgba}, 0.08);
 }}
-""".strip()
+""".strip(),
+    )
 
 
 CONNECTED_EXPAND_BUTTON_STYLESHEET = get_expand_button_stylesheet('34, 197, 94', '#4ade80')

@@ -6,7 +6,6 @@ from PySide6.QtGui import QAction, QIcon
 from PySide6.QtWidgets import QMainWindow, QMenu, QMessageBox
 
 from session_sniffer.background import trigger_looky_rescan_all_players
-from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.guis.looky_text import (
     LOOKY_TITLE,
     configure_looky_action,
@@ -14,6 +13,7 @@ from session_sniffer.guis.looky_text import (
 )
 from session_sniffer.guis.tables_player_actions import show_crawlme_request
 from session_sniffer.guis.tables_player_actions.looky_system._looky_helpers import check_looky_prerequisites
+from session_sniffer.guis.theming import ICONS_DIR_PATH
 from session_sniffer.player.registry import PlayersRegistry
 from session_sniffer.rendering_core.types import CaptureState
 from session_sniffer.text_utils import pluralize
@@ -39,7 +39,7 @@ class LookyMixin(QMainWindow):
 
     def _build_looky_submenu(self, gta5_menu: QMenu) -> None:
         """Build the Looky System submenu and attach it to `gta5_menu`."""
-        looky_submenu = gta5_menu.addMenu(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'scan-eye.svg')), 'Looky System')
+        looky_submenu = gta5_menu.addMenu(QIcon(str(ICONS_DIR_PATH / 'scan-eye.svg')), 'Looky System')
         if not looky_submenu:
             message = 'Failed to create Looky System submenu'
             raise RuntimeError(message)
@@ -47,20 +47,20 @@ class LookyMixin(QMainWindow):
         looky_submenu.menuAction().setToolTip('Looky System tools and shortcuts for GTA5 sessions')
         self._looky_submenu = looky_submenu
 
-        looky_open_website_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'globe.svg')), 'Open Website', self)
+        looky_open_website_action = QAction(QIcon(str(ICONS_DIR_PATH / 'globe.svg')), 'Open Website', self)
         looky_open_website_action.setToolTip('Open the Looky System website in your default browser')
         looky_open_website_action.triggered.connect(self._open_looky_website)
         looky_submenu.addAction(looky_open_website_action)
 
         looky_submenu.addSeparator()
 
-        looky_crawler_join_own_session_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'bot.svg')), 'Request Crawler in My Session', self)
+        looky_crawler_join_own_session_action = QAction(QIcon(str(ICONS_DIR_PATH / 'bot.svg')), 'Request Crawler in My Session', self)
         looky_crawler_join_own_session_action.setToolTip('Call the crawler bot to resolve usernames for players in your current session.')
         looky_crawler_join_own_session_action.triggered.connect(self._request_crawler_own_session)
         looky_submenu.addAction(looky_crawler_join_own_session_action)
         self._looky_crawler_join_own_session_action = looky_crawler_join_own_session_action
 
-        looky_rescan_all_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'refresh-cw.svg')), 'Rescan All Players', self)
+        looky_rescan_all_action = QAction(QIcon(str(ICONS_DIR_PATH / 'refresh-cw.svg')), 'Rescan All Players', self)
         looky_rescan_all_action.setToolTip('Immediately refresh Looky System data for all players without waiting for the next automatic update.')
         looky_rescan_all_action.triggered.connect(self._rescan_all_looky_players)
         looky_submenu.addAction(looky_rescan_all_action)

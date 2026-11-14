@@ -20,8 +20,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from session_sniffer.constants.local import RESOURCES_DIR_PATH
-from session_sniffer.guis.theme import get_dark_palette
+from session_sniffer.guis.theme import get_palette
+from session_sniffer.guis.theming import ICONS_DIR_PATH
 from session_sniffer.logging_setup import dump_crash_diagnostics
 
 logger = logging.getLogger(__name__)
@@ -136,11 +136,11 @@ _configure_platform_qt_environment()
 # The stylesheet is applied later in main() after the screen size and UI scale
 # factor are resolved, so fonts and sizes are correct for every display tier.
 app = QApplication([])  # Passing an empty list for application arguments
-app.setPalette(get_dark_palette())
+app.setPalette(get_palette())
 
-_icon_path = (RESOURCES_DIR_PATH / 'icons' / 'ico' / 'app_icon.ico') if sys.platform == 'win32' else (RESOURCES_DIR_PATH / 'icons' / 'app_icon.svg')
+_icon_path = (ICONS_DIR_PATH / 'ico' / 'app_icon.ico') if sys.platform == 'win32' else (ICONS_DIR_PATH / 'app_icon.svg')
 if not _icon_path.is_file():
-    _icon_path = RESOURCES_DIR_PATH / 'icons' / 'app_icon.svg'
+    _icon_path = ICONS_DIR_PATH / 'app_icon.svg'
 app.setWindowIcon(QIcon(str(_icon_path)))
 
 _wheel_filter = _DisableScrollValueChangeFilter(app)

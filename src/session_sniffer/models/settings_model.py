@@ -68,6 +68,7 @@ class SettingsValidationConfig:
     all_connected_columns: tuple[str, ...]
     all_disconnected_columns: tuple[str, ...]
     all_third_party_servers: tuple[str, ...]
+    available_theme_names: tuple[str, ...]
 
 
 @dataclass(slots=True)
@@ -79,6 +80,7 @@ class _ValidatorContext:
     all_connected_columns: tuple[str, ...]
     all_disconnected_columns: tuple[str, ...]
     all_third_party_servers: tuple[str, ...]
+    available_theme_names: tuple[str, ...]
 
 
 class SettingsModel(BaseModel):
@@ -110,6 +112,7 @@ class SettingsModel(BaseModel):
     CAPTURE_FILTER_BLOCK_LLMNR: bool
 
     # GUI settings
+    GUI_THEME: str
     GUI_ALWAYS_ON_TOP: bool
     GUI_REMEMBER_WINDOW_LAYOUT: bool
     GUI_SERVERS_COLOR_ENABLED: bool
@@ -678,6 +681,13 @@ class SettingsModel(BaseModel):
     def _parse_enum_field(cls, value: object, info: ValidationInfo) -> str:
         return cls._validate_enum_choice(value, cls._ENUM_ALLOWED_VALUES[info.field_name or ''], info)
 
+    @field_validator('GUI_THEME', mode='before')
+    @classmethod
+    def _parse_gui_theme(cls, value: object, info: ValidationInfo) -> str:
+        context = cls._get_context(info)
+        allowed = context.available_theme_names if context else ()
+        return cls._validate_enum_choice(value, allowed, info)
+
     @field_validator('GUI_CONNECTED_TABLE_SORT_COLUMN', 'GUI_DISCONNECTED_TABLE_SORT_COLUMN', mode='before')
     @classmethod
     def _parse_table_sort_column(cls, value: object, info: ValidationInfo) -> str:
@@ -808,6 +818,7 @@ class SettingsModel(BaseModel):
             all_connected_columns=config.all_connected_columns,
             all_disconnected_columns=config.all_disconnected_columns,
             all_third_party_servers=config.all_third_party_servers,
+            available_theme_names=config.available_theme_names,
         )
         parsed = cls.model_validate(full_input, context=context)
 

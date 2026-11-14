@@ -38,11 +38,13 @@ CRASH_LOG_PATH: Path = DEBUG_DIR_PATH / 'crash.log'
 
 GEOLITE2_DATABASES_DIR_PATH: Path = APP_DIR_LOCAL / 'GeoLite2 Databases'
 GUI_STATE_PATH: Path = APP_DIR_LOCAL / 'gui_state.json'
+THEME_CACHE_DIR_PATH: Path = APP_DIR_LOCAL / 'Theme Cache'
 
 # Roaming (syncable): settings, user databases, user scripts
 COMBO_RULES_PATH: Path = APP_DIR_ROAMING / 'combo_rules.json'
 DETECTIONS_JSON_PATH: Path = APP_DIR_ROAMING / 'detections.json'
 SETTINGS_PATH: Path = APP_DIR_ROAMING / 'settings.json'
+THEMES_PATH: Path = APP_DIR_ROAMING / 'themes.json'
 USERIP_DATABASES_DIR_PATH: Path = APP_DIR_ROAMING / 'UserIP Databases'
 USERIP_DATABASES_BACKUP_DIR_PATH: Path = APP_DIR_ROAMING / 'UserIP Databases Backups'
 USER_SCRIPTS_DIR_PATH: Path = APP_DIR_ROAMING / 'scripts'

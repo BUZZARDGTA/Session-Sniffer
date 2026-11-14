@@ -11,6 +11,7 @@ from PySide6.QtGui import QColor
 from session_sniffer.constants.standard import LOCAL_TZ
 from session_sniffer.guis.colors import TableColors
 from session_sniffer.guis.exceptions import InvalidDateColumnConfigurationError
+from session_sniffer.guis.theming import DARK_THEME_COLORS, get_active_theme, register_theme_change_callback, themed_text_qcolor
 from session_sniffer.models.player_traffic import PlayerBandwidth
 from session_sniffer.networking.isp_filter import is_player_isp_filtered
 from session_sniffer.player.registry import SessionTracker
@@ -36,7 +37,45 @@ _DISCONNECTED_PAST_SESSION_TEXT_COLOR = QColor(TableColors.DISCONNECTED_PAST_SES
 _DISCONNECTED_PAST_SESSION_USERIP_TEXT_COLOR = QColor(TableColors.DISCONNECTED_PAST_SESSION_USERIP_TEXT)
 _DISCONNECTED_USERIP_TEXT_COLOR = QColor(TableColors.DISCONNECTED_USERIP_TEXT)
 _SERVER_BACKGROUND_COLOR = QColor(TableColors.SERVER_BACKGROUND)
-_RATE_GRADIENT_COLORS: tuple[QColor, ...] = tuple(QColor(0xFF - i, i, 0) for i in range(256))
+_RAW_USERIP_LIGHT_TEXT_COLOR = QColor('white')
+_RAW_PAST_USERIP_LIGHT_TEXT_COLOR = QColor('#a8a8a8')
+_RAW_USERIP_DARK_TEXT_COLOR = QColor('#111111')
+_RAW_PAST_USERIP_DARK_TEXT_COLOR = QColor('#4b5563')
+_CUSTOM_BG_LIGHT_THRESHOLD = 140.0
+_DARK_BG_RATE_GRADIENT_COLORS: tuple[QColor, ...] = tuple(QColor(0xFF - i, i, 0) for i in range(256))
+_LIGHT_BG_RATE_GRADIENT_COLORS: tuple[QColor, ...] = tuple(QColor(round((0xFF - i) * 0.72), round(i * 0.58), 0) for i in range(256))
+_RATE_GRADIENT_COLORS: list[QColor] = []
+
+
+def _refresh_session_table_theme_colors() -> None:
+    """Refresh cached session table foreground and rate-gradient `QColor` objects for the active theme."""
+    _CONNECTED_TEXT_COLOR.setRgba(QColor(TableColors.CONNECTED_TEXT).rgba())
+    _CONNECTED_USERIP_TEXT_COLOR.setRgba(QColor(TableColors.CONNECTED_USERIP_TEXT).rgba())
+    _DISCONNECTED_CURRENT_SESSION_TEXT_COLOR.setRgba(QColor(TableColors.DISCONNECTED_TEXT).rgba())
+    _DISCONNECTED_PAST_SESSION_TEXT_COLOR.setRgba(QColor(TableColors.DISCONNECTED_PAST_SESSION_TEXT).rgba())
+    _DISCONNECTED_PAST_SESSION_USERIP_TEXT_COLOR.setRgba(QColor(TableColors.DISCONNECTED_PAST_SESSION_USERIP_TEXT).rgba())
+    _DISCONNECTED_USERIP_TEXT_COLOR.setRgba(QColor(TableColors.DISCONNECTED_USERIP_TEXT).rgba())
+    _RATE_GRADIENT_COLORS[:] = (
+        list(_DARK_BG_RATE_GRADIENT_COLORS)
+        if get_active_theme().colors == DARK_THEME_COLORS
+        else [themed_text_qcolor(color, '#121212') for color in _DARK_BG_RATE_GRADIENT_COLORS]
+    )
+
+
+_refresh_session_table_theme_colors()
+register_theme_change_callback(_refresh_session_table_theme_colors)
+
+
+def _is_bright_custom_background(background: QColor) -> bool:
+    return (0.2126 * background.red() + 0.7152 * background.green() + 0.0722 * background.blue()) > _CUSTOM_BG_LIGHT_THRESHOLD
+
+
+def _foreground_for_custom_background(background: QColor | None, *, default_fg: QColor, past_session: bool = False) -> QColor:
+    if background is None:
+        return default_fg
+    if get_active_theme().colors != DARK_THEME_COLORS and _is_bright_custom_background(background):
+        return _RAW_PAST_USERIP_DARK_TEXT_COLOR if past_session else _RAW_USERIP_DARK_TEXT_COLOR
+    return _RAW_PAST_USERIP_LIGHT_TEXT_COLOR if past_session else _RAW_USERIP_LIGHT_TEXT_COLOR
 
 
 def format_player_usernames(player: Player, *, include_relay_mod_menus: bool = True) -> str:
@@ -175,13 +214,24 @@ def format_player_boolean(value: object, *, is_initialized: bool) -> str:
     return 'Yes' if value else 'No'
 
 
-def _get_rate_gradient_color(default_color: QColor, rate: int, threshold: int, *, is_first_calculation: bool = False) -> QColor:
+def _get_rate_gradient_color(
+    default_color: QColor,
+    rate: int,
+    threshold: int,
+    *,
+    is_first_calculation: bool = False,
+    background: QColor | None = None,
+) -> QColor:
     """Return a red-to-green gradient color based on rate relative to threshold."""
     if is_first_calculation:
         return default_color
 
     scaled_rate_value = min(max(rate, 0), threshold) * 0xFF // threshold
-    return _RATE_GRADIENT_COLORS[scaled_rate_value]
+    if background is None:
+        return _RATE_GRADIENT_COLORS[scaled_rate_value]
+    if get_active_theme().colors != DARK_THEME_COLORS and _is_bright_custom_background(background):
+        return _LIGHT_BG_RATE_GRADIENT_COLORS[scaled_rate_value]
+    return _DARK_BG_RATE_GRADIENT_COLORS[scaled_rate_value]
 
 
 @dataclass(frozen=True, slots=True)
@@ -228,14 +278,25 @@ def build_disconnected_player_row(
     )
     _past_session_disconnected_row_colors = (_past_session_disconnected_cell,) * context.disconnected_num_columns
 
-    _current_server_disconnected_cell = CellColor(foreground=_DISCONNECTED_USERIP_TEXT_COLOR, background=server_bg_color)
+    _current_server_disconnected_cell = CellColor(
+        foreground=_foreground_for_custom_background(server_bg_color, default_fg=_DISCONNECTED_USERIP_TEXT_COLOR),
+        background=server_bg_color,
+    )
     _current_server_disconnected_row_colors = (_current_server_disconnected_cell,) * context.disconnected_num_columns
 
-    _past_server_disconnected_cell = CellColor(foreground=_DISCONNECTED_PAST_SESSION_USERIP_TEXT_COLOR, background=server_bg_color)
+    _past_server_disconnected_cell = CellColor(
+        foreground=_foreground_for_custom_background(server_bg_color, default_fg=_DISCONNECTED_PAST_SESSION_USERIP_TEXT_COLOR, past_session=True),
+        background=server_bg_color,
+    )
     _past_server_disconnected_row_colors = (_past_server_disconnected_cell,) * context.disconnected_num_columns
 
     if player.userip and player.userip.usernames:
-        userip_fg = _DISCONNECTED_USERIP_TEXT_COLOR if is_current_session else _DISCONNECTED_PAST_SESSION_USERIP_TEXT_COLOR
+        default_userip_fg = _DISCONNECTED_USERIP_TEXT_COLOR if is_current_session else _DISCONNECTED_PAST_SESSION_USERIP_TEXT_COLOR
+        userip_fg = _foreground_for_custom_background(
+            player.userip.settings.color,
+            default_fg=default_userip_fg,
+            past_session=not is_current_session,
+        )
         disconnected_row_colors = (CellColor(foreground=userip_fg, background=player.userip.settings.color),) * context.disconnected_num_columns
     elif Settings.gui_servers_color_enabled and player.is_third_party_server:
         disconnected_row_colors = _current_server_disconnected_row_colors if is_current_session else _past_server_disconnected_row_colors
@@ -365,7 +426,8 @@ def build_session_table_snapshot(
 
     _base_connected_cell = CellColor(foreground=_CONNECTED_TEXT_COLOR, background=HARDCODED_DEFAULT_TABLE_BACKGROUND_CELL_COLOR)
     _base_connected_row_colors = [_base_connected_cell] * context.connected_num_columns
-    _server_connected_cell = CellColor(foreground=_CONNECTED_USERIP_TEXT_COLOR, background=server_bg_color)
+    _server_connected_fg = _foreground_for_custom_background(server_bg_color, default_fg=_CONNECTED_USERIP_TEXT_COLOR)
+    _server_connected_cell = CellColor(foreground=_server_connected_fg, background=server_bg_color)
     _server_connected_row_colors = [_server_connected_cell] * context.connected_num_columns
 
     current_session_id = SessionTracker.get_current_session_id()
@@ -375,22 +437,32 @@ def build_session_table_snapshot(
     _base_disconnected_past_cell = CellColor(foreground=_DISCONNECTED_PAST_SESSION_TEXT_COLOR, background=HARDCODED_DEFAULT_TABLE_BACKGROUND_CELL_COLOR)
     _base_disconnected_past_row_colors = [_base_disconnected_past_cell] * context.connected_num_columns
 
-    _server_disconnected_curr_cell = CellColor(foreground=_DISCONNECTED_USERIP_TEXT_COLOR, background=server_bg_color)
+    _server_disconnected_curr_fg = _foreground_for_custom_background(server_bg_color, default_fg=_DISCONNECTED_USERIP_TEXT_COLOR)
+    _server_disconnected_curr_cell = CellColor(foreground=_server_disconnected_curr_fg, background=server_bg_color)
     _server_disconnected_curr_row_colors = [_server_disconnected_curr_cell] * context.connected_num_columns
-    _server_disconnected_past_cell = CellColor(foreground=_DISCONNECTED_PAST_SESSION_USERIP_TEXT_COLOR, background=server_bg_color)
+    _server_disconnected_past_fg = _foreground_for_custom_background(
+        server_bg_color,
+        default_fg=_DISCONNECTED_PAST_SESSION_USERIP_TEXT_COLOR,
+        past_session=True,
+    )
+    _server_disconnected_past_cell = CellColor(foreground=_server_disconnected_past_fg, background=server_bg_color)
     _server_disconnected_past_row_colors = [_server_disconnected_past_cell] * context.connected_num_columns
 
     for player in context.session_connected:
         if Settings.capture_filtered_isps and is_player_isp_filtered(player, Settings.capture_filtered_isps):
             continue
 
+        row_bg_color: QColor | None = HARDCODED_DEFAULT_TABLE_BACKGROUND_CELL_COLOR
         if player.left_event.is_set():
             is_current_session = player.session_id == current_session_id
             if player.userip and player.userip.usernames:
-                row_fg_color = _DISCONNECTED_USERIP_TEXT_COLOR if is_current_session else _DISCONNECTED_PAST_SESSION_USERIP_TEXT_COLOR
-                row_colors = [CellColor(foreground=row_fg_color, background=player.userip.settings.color)] * context.connected_num_columns
+                row_bg_color = player.userip.settings.color
+                default_fg = _DISCONNECTED_USERIP_TEXT_COLOR if is_current_session else _DISCONNECTED_PAST_SESSION_USERIP_TEXT_COLOR
+                row_fg_color = _foreground_for_custom_background(row_bg_color, default_fg=default_fg, past_session=not is_current_session)
+                row_colors = [CellColor(foreground=row_fg_color, background=row_bg_color)] * context.connected_num_columns
             elif Settings.gui_servers_color_enabled and player.is_third_party_server:
-                row_fg_color = _DISCONNECTED_USERIP_TEXT_COLOR if is_current_session else _DISCONNECTED_PAST_SESSION_USERIP_TEXT_COLOR
+                row_bg_color = server_bg_color
+                row_fg_color = _server_disconnected_curr_fg if is_current_session else _server_disconnected_past_fg
                 row_colors = _server_disconnected_curr_row_colors.copy() if is_current_session else _server_disconnected_past_row_colors.copy()
             elif is_current_session:
                 row_fg_color = _DISCONNECTED_CURRENT_SESSION_TEXT_COLOR
@@ -399,10 +471,12 @@ def build_session_table_snapshot(
                 row_fg_color = _DISCONNECTED_PAST_SESSION_TEXT_COLOR
                 row_colors = _base_disconnected_past_row_colors.copy()
         elif player.userip and player.userip.usernames:
-            row_fg_color = _CONNECTED_USERIP_TEXT_COLOR
-            row_colors = [CellColor(foreground=row_fg_color, background=player.userip.settings.color)] * context.connected_num_columns
+            row_bg_color = player.userip.settings.color
+            row_fg_color = _foreground_for_custom_background(row_bg_color, default_fg=_CONNECTED_USERIP_TEXT_COLOR)
+            row_colors = [CellColor(foreground=row_fg_color, background=row_bg_color)] * context.connected_num_columns
         elif Settings.gui_servers_color_enabled and player.is_third_party_server:
-            row_fg_color = _CONNECTED_USERIP_TEXT_COLOR
+            row_bg_color = server_bg_color
+            row_fg_color = _server_connected_fg
             row_colors = _server_connected_row_colors.copy()
         else:
             row_fg_color = _CONNECTED_TEXT_COLOR
@@ -453,6 +527,7 @@ def build_session_table_snapshot(
                     player.packets.pps.calculated_rate,
                     PPS_MAX_THRESHOLD,
                     is_first_calculation=player.packets.pps.is_first_calculation,
+                    background=row_bg_color,
                 ),
             )
             connected_row_texts.append(f'{player.packets.pps.calculated_rate}')
@@ -463,6 +538,7 @@ def build_session_table_snapshot(
                     player.packets.ppm.calculated_rate,
                     PPM_MAX_THRESHOLD,
                     is_first_calculation=player.packets.ppm.is_first_calculation,
+                    background=row_bg_color,
                 ),
             )
             connected_row_texts.append(f'{player.packets.ppm.calculated_rate}')
@@ -485,6 +561,7 @@ def build_session_table_snapshot(
                     player.bandwidth.bps.calculated_rate,
                     BPS_MAX_THRESHOLD,
                     is_first_calculation=player.bandwidth.bps.is_first_calculation,
+                    background=row_bg_color,
                 ),
             )
             connected_row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.bps.calculated_rate))
@@ -495,6 +572,7 @@ def build_session_table_snapshot(
                     player.bandwidth.bpm.calculated_rate,
                     BPM_MAX_THRESHOLD,
                     is_first_calculation=player.bandwidth.bpm.is_first_calculation,
+                    background=row_bg_color,
                 ),
             )
             connected_row_texts.append(PlayerBandwidth.format_bytes(player.bandwidth.bpm.calculated_rate))

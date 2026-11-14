@@ -35,6 +35,7 @@ from session_sniffer.guis.stylesheets import (
     STAT_CARD_TITLE_STYLESHEET,
     STAT_CARD_VALUE_STYLESHEET,
 )
+from session_sniffer.guis.theming import themed_qss
 from session_sniffer.guis.utils import render_svg_icon_from_resource, render_svg_pixmap_from_resource, scale_by_ui
 from session_sniffer.notifications_state import notifications_state
 from session_sniffer.rendering_core.types import TableMergeState
@@ -140,7 +141,9 @@ class SessionHeader(QFrame):
         brand_layout.addLayout(title_row)
 
         subtitle_label = QLabel(
-            'The best <span style="color: #22c55e; font-weight: 600;">FREE</span> and <span style="color: #22c55e; font-weight: 600;">Open-Source</span> packet sniffer',
+            themed_qss(
+                'The best <span style="color: #22c55e; font-weight: 600;">FREE</span> and <span style="color: #22c55e; font-weight: 600;">Open-Source</span> packet sniffer',
+            ),
         )
         subtitle_label.setObjectName('headerSubtitle')
         subtitle_label.setStyleSheet(HEADER_SUBTITLE_STYLESHEET)

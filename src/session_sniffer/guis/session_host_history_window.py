@@ -6,8 +6,8 @@ from typing import TYPE_CHECKING
 
 from PySide6.QtGui import QAction, QIcon
 
-from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.constants.standard import LOCAL_TZ
+from session_sniffer.guis.theming import ICONS_DIR_PATH
 from session_sniffer.guis.utils import (
     format_menu_usernames,
     format_player_action_tooltip,
@@ -87,17 +87,17 @@ def setup_session_host_actions(
     callbacks: SessionHostActionCallbacks,
 ) -> None:
     """Populate common session host control actions."""
-    redetect_host_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'refresh-cw.svg')), 'Re-detect Host', menu)
+    redetect_host_action = QAction(QIcon(str(ICONS_DIR_PATH / 'refresh-cw.svg')), 'Re-detect Host', menu)
     redetect_host_action.setToolTip('Clear the current host and immediately re-trigger host detection')
     redetect_host_action.triggered.connect(callbacks.redetect_host)
     menu.addAction(redetect_host_action)
 
-    clear_host_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'x.svg')), 'Clear Session Host', menu)
+    clear_host_action = QAction(QIcon(str(ICONS_DIR_PATH / 'x.svg')), 'Clear Session Host', menu)
     clear_host_action.setToolTip('Manually clear the currently detected session host')
     clear_host_action.triggered.connect(callbacks.clear_host)
     menu.addAction(clear_host_action)
 
-    diagnostics_action = QAction(QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'bug.svg')), 'Host Diagnostics…', menu)
+    diagnostics_action = QAction(QIcon(str(ICONS_DIR_PATH / 'bug.svg')), 'Host Diagnostics…', menu)
     diagnostics_action.setToolTip('Show detailed diagnostics and debug information from the last session host detection')
     diagnostics_action.triggered.connect(callbacks.show_diagnostics)
     menu.addAction(diagnostics_action)

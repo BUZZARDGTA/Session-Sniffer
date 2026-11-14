@@ -2,6 +2,8 @@
 
 from typing import TYPE_CHECKING
 
+from session_sniffer.guis.theming import themed_color, themed_qss
+
 if TYPE_CHECKING:
     from collections.abc import Callable
 
@@ -9,7 +11,7 @@ if TYPE_CHECKING:
 # USERIP MANAGER STYLES
 # =============================================================================
 
-USERIP_METADATA_CONTAINER_STYLESHEET = """
+USERIP_METADATA_CONTAINER_STYLESHEET = themed_qss("""
 QFrame {
     background-color: rgba(16, 20, 26, 0.85);
     border: 1px solid rgba(50, 65, 80, 0.7);
@@ -20,7 +22,7 @@ QLabel {
     border: none;
     line-height: 1.4;
 }
-"""
+""")
 
 
 def _userip_scaled_button_base(scale: Callable[[int], int]) -> str:
@@ -37,7 +39,7 @@ def _userip_scaled_button_base(scale: Callable[[int], int]) -> str:
 def userip_dialog_button_stylesheet(scale: Callable[[int], int]) -> str:
     """Return the scaled QSS for standard action buttons in the UserIP manager."""
     base = _userip_scaled_button_base(scale)
-    return f"""
+    return themed_qss(f"""
 QPushButton {{
 {base}
     background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
@@ -62,13 +64,13 @@ QPushButton:disabled {{
     color: #556270;
     border: 1px solid #2a3440;
 }}
-"""
+""")
 
 
 def userip_dialog_danger_button_stylesheet(scale: Callable[[int], int]) -> str:
     """Return the scaled QSS for destructive action buttons in the UserIP manager."""
     base = _userip_scaled_button_base(scale)
-    return f"""
+    return themed_qss(f"""
 QPushButton {{
 {base}
     background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
@@ -93,24 +95,26 @@ QPushButton:disabled {{
     color: #705555;
     border: 1px solid #402a2a;
 }}
-"""
+""")
 
 
-SUBNET_DESC_LABEL_STYLESHEET = 'color: #a0a0a0; font-style: italic;'
+SUBNET_DESC_LABEL_STYLESHEET = themed_qss('color: #a0a0a0; font-style: italic;')
 
-COLOR_SWATCH_GROUP_HEADER_STYLESHEET = 'color: #8ab4d4; font-size: 8pt; font-weight: bold; padding: 4px 0px 1px 2px;'
+COLOR_SWATCH_GROUP_HEADER_STYLESHEET = themed_qss('color: #8ab4d4; font-size: 8pt; font-weight: bold; padding: 4px 0px 1px 2px;')
 
-COLOR_SWATCH_SEPARATOR_STYLESHEET = 'color: #3a3a3a;'
+COLOR_SWATCH_SEPARATOR_STYLESHEET = themed_qss('color: #3a3a3a;')
 
-SETTINGS_SEPARATOR_STYLESHEET = 'background-color: rgba(74, 144, 226, 0.2); border: none;'
+SETTINGS_SEPARATOR_STYLESHEET = themed_qss('background-color: rgba(74, 144, 226, 0.2); border: none;')
 
 
 def _color_picker_button_stylesheet(background_color: str, hover_border_color: str) -> str:
-    """Build the QSS for `ColorPickerButton` and `DatabaseColorButton`."""
+    """Build the QSS for `ColorPickerButton` and `DatabaseColorButton` (preserving user swatch `background_color`)."""
+    border_color = themed_color('#555')
+    themed_hover_border = themed_color(hover_border_color)
     return (
         'QPushButton#ColorPickerButton, QPushButton#DatabaseColorButton {'
         f' background-color: {background_color};'
-        ' border: 1px solid #555;'
+        f' border: 1px solid {border_color};'
         ' border-radius: 4px;'
         ' min-width: 52px;'
         ' max-width: 52px;'
@@ -119,7 +123,7 @@ def _color_picker_button_stylesheet(background_color: str, hover_border_color: s
         ' padding: 0px;'
         ' margin: 0px;'
         '}'
-        f' QPushButton#ColorPickerButton:hover, QPushButton#DatabaseColorButton:hover {{ border-color: {hover_border_color}; }}'
+        f' QPushButton#ColorPickerButton:hover, QPushButton#DatabaseColorButton:hover {{ border-color: {themed_hover_border}; }}'
     )
 
 
@@ -127,10 +131,10 @@ COLOR_BUTTON_EMPTY_STYLESHEET = _color_picker_button_stylesheet('transparent', '
 
 
 def color_swatch_button_stylesheet(bg_color: str, text_color: str, border_width: int, border_color: str, *, font_pt: int = 8) -> str:
-    """Return the QSS for a color swatch button in the SVG color picker."""
+    """Return the QSS for a color swatch button in the SVG color picker (preserving user swatch colors)."""
     return (
         f'background-color: {bg_color}; color: {text_color};'
-        f' border: {border_width}px solid {border_color}; border-radius: 2px;'
+        f' border: {border_width}px solid {themed_color(border_color)}; border-radius: 2px;'
         f' font-size: {font_pt}pt; font-weight: bold; text-align: center; padding: 0px;'
     )
 
@@ -144,13 +148,13 @@ def color_button_filled_stylesheet(color_name: str) -> str:
 # USERIP MANAGER SETTINGS PANEL STYLES
 # =============================================================================
 
-USERIP_SETTINGS_CONTAINER_STYLESHEET = """
+USERIP_SETTINGS_CONTAINER_STYLESHEET = themed_qss("""
 #SettingsContainer {
     border: 2px solid #455364;
     border-radius: 8px;
     background: transparent;
 }
-"""
+""")
 
 
 def userip_settings_toggle_stylesheet(scale: Callable[[int], int]) -> str:
@@ -158,7 +162,7 @@ def userip_settings_toggle_stylesheet(scale: Callable[[int], int]) -> str:
     font_pt = max(7, scale(11))
     pad_v = scale(4)
     pad_h = scale(8)
-    return f"""
+    return themed_qss(f"""
 QPushButton {{
     background: transparent;
     border: none;
@@ -171,7 +175,7 @@ QPushButton {{
 QPushButton:hover {{
     color: #6db3f2;
 }}
-"""
+""")
 
 
 def userip_settings_body_stylesheet(scale: Callable[[int], int]) -> str:
@@ -184,7 +188,7 @@ def userip_settings_body_stylesheet(scale: Callable[[int], int]) -> str:
     btn_min_h = scale(24)
     btn_pad_v = scale(2)
     btn_pad_h = scale(6)
-    return f"""
+    return themed_qss(f"""
 QLabel {{
     color: #b0bec5;
     font-size: {font_pt}pt;
@@ -227,16 +231,17 @@ QPushButton:hover {{
     color: white;
     border-color: #4a90e2;
 }}
-"""
+""")
 
 
 # =============================================================================
 # IP RANGE BUILDER DIALOG STYLES
 # =============================================================================
 
+
 def _ip_range_preview_stylesheet(color: str) -> str:
     """Build the monospace QSS for the IP Range Builder preview label."""
-    return f'font-family: Menlo, Consolas, "Courier New", monospace; font-size: 10pt; padding: 6px; color: {color};'
+    return themed_qss(f'font-family: Menlo, Consolas, "Courier New", monospace; font-size: 10pt; padding: 6px; color: {color};')
 
 
 IP_RANGE_PREVIEW_VALID_STYLESHEET = _ip_range_preview_stylesheet('#80c080')

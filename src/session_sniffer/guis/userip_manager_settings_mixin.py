@@ -17,7 +17,6 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.constants.standalone import MAX_SUSPEND_DURATION_SECONDS
 from session_sniffer.guis._combo_rule_editor import (
     read_duration_widgets_helper,
@@ -32,6 +31,7 @@ from session_sniffer.guis.stylesheets import (
     userip_settings_body_stylesheet,
     userip_settings_toggle_stylesheet,
 )
+from session_sniffer.guis.theming import ICONS_DIR_PATH
 from session_sniffer.guis.utils import (
     SUSPEND_TOOLTIP_AUTO,
     SUSPEND_TOOLTIP_DISABLED,
@@ -89,8 +89,8 @@ class SettingsPanelMixin(QDialog):
         group_outer.setContentsMargins(scale_by_ui(8), scale_by_ui(4), scale_by_ui(8), scale_by_ui(8))
         group_outer.setSpacing(0)
 
-        self._icon_arrow_right = QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'chevron-right.svg'))
-        self._icon_arrow_down = QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'chevron-down.svg'))
+        self._icon_arrow_right = QIcon(str(ICONS_DIR_PATH / 'chevron-right.svg'))
+        self._icon_arrow_down = QIcon(str(ICONS_DIR_PATH / 'chevron-down.svg'))
         self._settings_toggle = QPushButton(self._icon_arrow_right, ' Database Settings')
         self._settings_toggle.setAutoDefault(False)
         self._settings_toggle.setCursor(Qt.CursorShape.PointingHandCursor)

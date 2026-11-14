@@ -268,7 +268,7 @@ def _build_performance_section(snapshot: StatusBarSnapshot) -> str:
     has_latency = snapshot.capture_stats.last_nonzero_latency_ts > 0 and time.monotonic() - snapshot.capture_stats.last_nonzero_latency_ts < _LATENCY_DISPLAY_WINDOW_SECONDS
     display_latency_ms = snapshot.capture_stats.last_nonzero_latency_ms if has_latency else 0.0
 
-    latency_color: StatusBarColors | ThresholdColors
+    latency_color: str
     if not has_latency or snapshot.capture.overflow_timer <= 0:
         latency_color = StatusBarColors.DIVIDER
     else:
@@ -279,7 +279,7 @@ def _build_performance_section(snapshot: StatusBarSnapshot) -> str:
             latency_color = ThresholdColors.WARNING
         else:
             latency_color = ThresholdColors.HEALTHY
-    restart_color: ThresholdColors = ThresholdColors.HEALTHY if not snapshot.capture_stats.restarted_times else ThresholdColors.CRITICAL
+    restart_color: str = ThresholdColors.HEALTHY if not snapshot.capture_stats.restarted_times else ThresholdColors.CRITICAL
     latency_text = f'{round(display_latency_ms, 1)}ms' if has_latency else '— ms'
 
     restarts_display = (

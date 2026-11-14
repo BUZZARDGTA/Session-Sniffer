@@ -17,7 +17,6 @@ from PySide6.QtGui import QColor, QIcon
 from PySide6.QtWidgets import QTableView
 from shiboken6 import isValid
 
-from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.constants.tables import (
     BANDWIDTH_RATE_STAT_COLUMNS,
     LOCATION_COLUMNS,
@@ -30,6 +29,7 @@ from session_sniffer.guis.exceptions import TableDataConsistencyError, Unsupport
 from session_sniffer.guis.high_rate_monitor import HighRateTracker
 from session_sniffer.guis.player_identifier import PlayerIdentifierTracker
 from session_sniffer.guis.table_icons import get_ip_column_composite_icon
+from session_sniffer.guis.theming import ICONS_DIR_PATH
 from session_sniffer.player.registry import PlayersRegistry, SessionTracker
 from session_sniffer.player.session_host import SessionHost
 from session_sniffer.rendering_core.types import SessionFilterState, TableMergeState
@@ -371,7 +371,7 @@ class SessionTableModel(QAbstractTableModel):
             country=self.get_column_index('Country'),
         )
         self._ip_to_row_index: dict[str, int] = {}  # O(1) row lookup by IP
-        self._looky_icon = QIcon(str(RESOURCES_DIR_PATH / 'icons' / 'eye.svg'))
+        self._looky_icon = QIcon(str(ICONS_DIR_PATH / 'eye.svg'))
 
     @staticmethod
     def _is_player_looky_resolved(player: Player) -> bool:
