@@ -842,7 +842,7 @@ def set_checkboxes_to(container: QWidget, selected: tuple[str, ...]) -> None:
 
 def build_webserver_help_group() -> QGroupBox:
     """Build an explanatory guide for Web Server host/port behavior and common usage patterns."""
-    group_box = QGroupBox(tr('Web Server Usage Guide'))
+    group_box = QGroupBox(tr('Web Server Usage Guide').replace('&', '&&'))
     layout = QVBoxLayout(group_box)
 
     help_label = QLabel(
@@ -885,7 +885,7 @@ def build_shortcuts_help_group() -> QGroupBox:
     layout.addWidget(help_label)
 
     def _refresh_text() -> None:
-        group_box.setTitle(tr('Keyboard Shortcuts Guide'))
+        group_box.setTitle(tr('Keyboard Shortcuts Guide').replace('&', '&&'))
         help_label.setText(
             tr(
                 '<b>Global Hotkeys</b> (<i>Capture &amp; Notifications</i>, <i>Game Process &amp; Session</i>, <i>Looky System</i>): '
