@@ -112,7 +112,21 @@ class SettingDefaults(TypedDict):
     high_rate_monitor_auto_select: bool
     high_rate_monitor_spike_sound: bool
     solo_session_duration: int
+    shortcut_focus_search: str | None
+    shortcut_merge_tables: str | None
+    shortcut_open_settings: str | None
+    shortcut_clear_connected: str | None
+    shortcut_clear_disconnected: str | None
+    toggle_capture_hotkey: str | None
+    toggle_visual_notifications_hotkey: str | None
+    toggle_voice_notifications_hotkey: str | None
+    toggle_all_notifications_hotkey: str | None
     solo_session_hotkey: str | None
+    suspend_process_hotkey: str | None
+    player_resolver_hotkey: str | None
+    redetect_host_hotkey: str | None
+    looky_crawler_hotkey: str | None
+    looky_rescan_hotkey: str | None
     high_rate_monitor_pps_threshold: int
     high_rate_monitor_bps_threshold: int
     high_rate_monitor_duration_threshold: int
@@ -274,7 +288,21 @@ SETTING_DEFAULTS: SettingDefaults = {
     'high_rate_monitor_auto_select': True,
     'high_rate_monitor_spike_sound': True,
     'solo_session_duration': 6,
+    'shortcut_focus_search': 'Ctrl+F',
+    'shortcut_merge_tables': 'Ctrl+M',
+    'shortcut_open_settings': 'Ctrl+,',
+    'shortcut_clear_connected': None,
+    'shortcut_clear_disconnected': None,
+    'toggle_capture_hotkey': None,
+    'toggle_visual_notifications_hotkey': None,
+    'toggle_voice_notifications_hotkey': None,
+    'toggle_all_notifications_hotkey': None,
     'solo_session_hotkey': None,
+    'suspend_process_hotkey': None,
+    'player_resolver_hotkey': None,
+    'redetect_host_hotkey': None,
+    'looky_crawler_hotkey': None,
+    'looky_rescan_hotkey': None,
     'high_rate_monitor_pps_threshold': 30,
     'high_rate_monitor_bps_threshold': 5,
     'high_rate_monitor_duration_threshold': 3,

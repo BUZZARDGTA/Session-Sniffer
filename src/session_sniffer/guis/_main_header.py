@@ -319,7 +319,12 @@ class SessionHeader(QFrame):
         self._visual_btn.setStyleSheet(HEADER_NOTIFICATION_BUTTON_ENABLED_STYLESHEET if visual_enabled else HEADER_NOTIFICATION_BUTTON_MUTED_STYLESHEET)
         visual_header = tr('Visual Notifications: Enabled (this session only)') if visual_enabled else tr('Visual Notifications: Muted (this session only)')
         visual_left = tr('Left-click: Mute visual popup notifications') if visual_enabled else tr('Left-click: Enable visual popup notifications')
-        self._visual_btn.setToolTip(f'{visual_header}\n{visual_left}\n{all_hint}')
+        visual_tooltip_lines = [visual_header, visual_left, all_hint]
+        if bool(Settings.toggle_visual_notifications_hotkey):
+            visual_tooltip_lines.append(tr('Global Hotkey: {hotkey}', hotkey=Settings.toggle_visual_notifications_hotkey))
+        if bool(Settings.toggle_all_notifications_hotkey):
+            visual_tooltip_lines.append(tr('Global Hotkey (All): {hotkey}', hotkey=Settings.toggle_all_notifications_hotkey))
+        self._visual_btn.setToolTip('\n'.join(visual_tooltip_lines))
 
         self._voice_btn.setIcon(
             render_svg_icon_from_resource('volume-2.svg' if voice_enabled else 'volume-x.svg', icon_px, icon_px, '#22c55e' if voice_enabled else '#f87171'),
@@ -327,7 +332,12 @@ class SessionHeader(QFrame):
         self._voice_btn.setStyleSheet(HEADER_NOTIFICATION_BUTTON_ENABLED_STYLESHEET if voice_enabled else HEADER_NOTIFICATION_BUTTON_MUTED_STYLESHEET)
         voice_header = tr('Voice Notifications: Enabled (this session only)') if voice_enabled else tr('Voice Notifications: Muted (this session only)')
         voice_left = tr('Left-click: Mute voice notifications') if voice_enabled else tr('Left-click: Enable voice notifications')
-        self._voice_btn.setToolTip(f'{voice_header}\n{voice_left}\n{all_hint}')
+        voice_tooltip_lines = [voice_header, voice_left, all_hint]
+        if bool(Settings.toggle_voice_notifications_hotkey):
+            voice_tooltip_lines.append(tr('Global Hotkey: {hotkey}', hotkey=Settings.toggle_voice_notifications_hotkey))
+        if bool(Settings.toggle_all_notifications_hotkey):
+            voice_tooltip_lines.append(tr('Global Hotkey (All): {hotkey}', hotkey=Settings.toggle_all_notifications_hotkey))
+        self._voice_btn.setToolTip('\n'.join(voice_tooltip_lines))
 
     def _populate_searchable_columns(self) -> None:
         """Populate the column chooser with All Columns and common searchable columns."""
@@ -361,6 +371,7 @@ class SessionHeader(QFrame):
         else:
             self.search_bar.setPlaceholderText(tr('Search connected + disconnected players...'))
             self.search_combo.setToolTip(tr('Filter search to a specific column across both tables'))
+        self.search_bar.setToolTip(tr('Shortcut: {shortcut}', shortcut=Settings.shortcut_focus_search) if bool(Settings.shortcut_focus_search) else '')
 
     def set_capture_running(self, *, is_running: bool) -> None:
         """Toggle the visibility of the capture stopped badge."""

@@ -132,13 +132,11 @@ class SessionTableSection(QWidget):
             role_key = 'success'
             expand_button_stylesheet = CONNECTED_EXPAND_BUTTON_STYLESHEET
             collapse_tooltip = tr('Hide the connected players table')
-            clear_tooltip = tr('Clear all players') if TableMergeState.is_merged() else tr('Clear all connected players')
             expand_tooltip = tr('Show the connected players table')
         else:
             role_key = 'danger'
             expand_button_stylesheet = DISCONNECTED_EXPAND_BUTTON_STYLESHEET
             collapse_tooltip = tr('Hide the disconnected players table')
-            clear_tooltip = tr('Clear all disconnected players')
             expand_tooltip = tr('Show the disconnected players table')
 
         accent = f'@{role_key}'
@@ -174,7 +172,7 @@ class SessionTableSection(QWidget):
         self._clear_button = QPushButton(tr('CLEAR'))
         self._clear_button.setObjectName('sectionClearButton')
         self._clear_button.setEnabled(False)
-        self._clear_button.setToolTip(clear_tooltip)
+        self._update_clear_button_tooltip()
         self._clear_button.clicked.connect(clear_slot)
 
         self.collapse_button = QToolButton()
@@ -532,6 +530,16 @@ class SessionTableSection(QWidget):
         """True when the section content (header + table) is visible."""
         return self._is_expanded
 
+    @property
+    def is_clear_enabled(self) -> bool:
+        """Return `True` when the section clear button is currently enabled."""
+        return self._clear_button.isEnabled()
+
+    def refresh_shortcut_tooltips(self) -> None:
+        """Refresh merge and clear button tooltips to reflect configured shortcuts."""
+        self.update_merge_button_state()
+        self._update_clear_button_tooltip()
+
     def expand(self) -> None:
         """Show section content and hide the expand button."""
         self._is_expanded = True
@@ -619,9 +627,13 @@ class SessionTableSection(QWidget):
         self._merge_button.setVisible(not is_past_session)
         is_merged = TableMergeState.is_merged()
         self._merge_button.setText(tr('SPLIT') if is_merged else tr('MERGE'))
-        self._merge_button.setToolTip(
-            tr('Split into connected and disconnected tables (Ctrl+M)') if is_merged else tr('Merge connected and disconnected tables into one (Ctrl+M)'),
-        )
+        shortcut = Settings.shortcut_merge_tables
+        if shortcut == 'Ctrl+M':
+            tooltip = tr('Split into connected and disconnected tables (Ctrl+M)') if is_merged else tr('Merge connected and disconnected tables into one (Ctrl+M)')
+        else:
+            base_tooltip = tr('Split into connected and disconnected tables') if is_merged else tr('Merge connected and disconnected tables into one')
+            tooltip = f'{base_tooltip} ({shortcut})' if bool(shortcut) else base_tooltip
+        self._merge_button.setToolTip(tooltip)
 
     def update_disconnected_players_state(self) -> None:
         """Update header label and tooltips when the disconnected players setting changes."""
@@ -672,15 +684,18 @@ class SessionTableSection(QWidget):
     def _update_clear_button_tooltip(self) -> None:
         if self._is_connected:
             is_merged = TableMergeState.is_merged()
-            self._clear_button.setToolTip(tr('Clear all players') if is_merged else tr('Clear all connected players'))
+            base_tooltip = tr('Clear all players') if is_merged else tr('Clear all connected players')
+            shortcut = Settings.shortcut_clear_connected
         else:
             selected_session = SessionFilterState.get_selected_session()
             current_session_id = SessionTracker.get_current_session_id()
             if 0 < selected_session < current_session_id:
                 display_name = SessionTracker.get_session_display_name(selected_session)
-                self._clear_button.setToolTip(tr("Clear all players from session '{name}'", name=display_name))
+                base_tooltip = tr("Clear all players from session '{name}'", name=display_name)
             else:
-                self._clear_button.setToolTip(tr('Clear all disconnected players'))
+                base_tooltip = tr('Clear all disconnected players')
+            shortcut = Settings.shortcut_clear_disconnected
+        self._clear_button.setToolTip(f'{base_tooltip} ({shortcut})' if bool(shortcut) else base_tooltip)
 
     def _update_header_label(self) -> None:
         if not isValid(self._header_label):

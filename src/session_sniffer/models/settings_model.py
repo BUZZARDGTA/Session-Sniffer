@@ -186,7 +186,21 @@ class SettingsModel(BaseModel):
     PING_TIMEOUT_MS: int
     PING_PAYLOAD_BYTES: int
     SOLO_SESSION_DURATION: int
+    SHORTCUT_FOCUS_SEARCH: str | None
+    SHORTCUT_MERGE_TABLES: str | None
+    SHORTCUT_OPEN_SETTINGS: str | None
+    SHORTCUT_CLEAR_CONNECTED: str | None
+    SHORTCUT_CLEAR_DISCONNECTED: str | None
+    TOGGLE_CAPTURE_HOTKEY: str | None
+    TOGGLE_VISUAL_NOTIFICATIONS_HOTKEY: str | None
+    TOGGLE_VOICE_NOTIFICATIONS_HOTKEY: str | None
+    TOGGLE_ALL_NOTIFICATIONS_HOTKEY: str | None
     SOLO_SESSION_HOTKEY: str | None
+    SUSPEND_PROCESS_HOTKEY: str | None
+    PLAYER_RESOLVER_HOTKEY: str | None
+    REDETECT_HOST_HOTKEY: str | None
+    LOOKY_CRAWLER_HOTKEY: str | None
+    LOOKY_RESCAN_HOTKEY: str | None
     HIGH_RATE_MONITOR_MODE: str
     HIGH_RATE_MONITOR_ICON: bool
     HIGH_RATE_MONITOR_RUN_IN_BACKGROUND: bool
@@ -598,7 +612,14 @@ class SettingsModel(BaseModel):
         cls._set_flag(info)
         return cast('str | None', cls._get_default_for_field(info))
 
-    @field_validator('SOLO_SESSION_HOTKEY', mode='before')
+    _HOTKEY_FIELDS: ClassVar[tuple[str, ...]] = (
+        'SOLO_SESSION_HOTKEY', 'SUSPEND_PROCESS_HOTKEY', 'PLAYER_RESOLVER_HOTKEY', 'REDETECT_HOST_HOTKEY',
+        'LOOKY_CRAWLER_HOTKEY', 'LOOKY_RESCAN_HOTKEY', 'TOGGLE_CAPTURE_HOTKEY', 'TOGGLE_VISUAL_NOTIFICATIONS_HOTKEY',
+        'TOGGLE_VOICE_NOTIFICATIONS_HOTKEY', 'TOGGLE_ALL_NOTIFICATIONS_HOTKEY', 'SHORTCUT_CLEAR_CONNECTED', 'SHORTCUT_CLEAR_DISCONNECTED',
+        'SHORTCUT_FOCUS_SEARCH', 'SHORTCUT_MERGE_TABLES', 'SHORTCUT_OPEN_SETTINGS',
+    )
+
+    @field_validator(*_HOTKEY_FIELDS, mode='before')
     @classmethod
     def _parse_hotkey(cls, value: object, info: ValidationInfo) -> str | None:
         if value is None:
@@ -789,6 +810,25 @@ class SettingsModel(BaseModel):
                 updates[setting_key] = fallback_sort
                 self._set_flag(info)
 
+        if updates:
+            return self.model_copy(update=updates)
+        return self
+
+    @model_validator(mode='after')
+    def _deduplicate_hotkeys(self, info: ValidationInfo) -> Self:
+        """Clear later duplicate shortcut chords so no two actions share the same keybind."""
+        seen_chords: set[str] = set()
+        updates: dict[str, Any] = {}
+        for field_name in self._HOTKEY_FIELDS:
+            chord = getattr(self, field_name)
+            if not isinstance(chord, str) or not chord:
+                continue
+            key = chord.casefold()
+            if key in seen_chords:
+                updates[field_name] = None
+                self._set_flag(info)
+            else:
+                seen_chords.add(key)
         if updates:
             return self.model_copy(update=updates)
         return self

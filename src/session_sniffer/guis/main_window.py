@@ -8,7 +8,7 @@ from functools import partial
 from typing import TYPE_CHECKING, Literal, override
 
 from PySide6.QtCore import Qt, QTimer, Slot
-from PySide6.QtGui import QAction, QCloseEvent, QIcon, QKeySequence, QShortcut, QShowEvent
+from PySide6.QtGui import QAction, QCloseEvent, QIcon, QShowEvent
 from PySide6.QtWidgets import QLabel, QMainWindow, QMenuBar, QSplitter, QVBoxLayout, QWidget
 from shiboken6 import isValid
 
@@ -23,6 +23,7 @@ from session_sniffer.guis._main_header import SessionHeader
 from session_sniffer.guis._main_window_files_mixin import FilesMixin
 from session_sniffer.guis._main_window_game_mixin import GameMixin
 from session_sniffer.guis._main_window_looky_mixin import LookyMixin
+from session_sniffer.guis._main_window_shortcuts_mixin import ShortcutsMixin, append_shortcut_tooltip, format_action_with_shortcut
 from session_sniffer.guis._main_window_stats_mixin import StatsMixin
 from session_sniffer.guis._session_table_section import SessionStatusBar, SessionTableSection
 from session_sniffer.guis._settings_runtime import SettingValue, apply_notifications_toggle_changes, apply_runtime_settings_changes
@@ -77,7 +78,7 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
-class _MenuActions:
+class MainMenuActions:
     """Menu bar QAction references."""
 
     toggle_capture: QAction
@@ -127,10 +128,11 @@ class _MinimizedTablesPlaceholder(QWidget):
         self._subtitle_label.setText(tr('Expand connected or disconnected players below to view session data'))
 
 
-class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
+class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, ShortcutsMixin, QMainWindow):
     """Main Qt window that hosts session tables and control UI."""
 
-    _actions: _MenuActions
+    _actions: MainMenuActions
+    _open_settings_action: QAction
     _connected: SessionTableSection
     _disconnected: SessionTableSection
     _placeholder: _MinimizedTablesPlaceholder
@@ -216,6 +218,7 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
                     self._tables_splitter.setSizes(restored_sizes)
                     self._saved_splitter_sizes = restored_sizes
 
+    @override
     def _toggle_tables_merged(self) -> None:
         """Toggle merging connected and disconnected tables on the fly."""
         selected_session = SessionFilterState.get_selected_session()
@@ -298,14 +301,6 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
         self._header.voice_notifications_toggle_requested.connect(partial(self._toggle_notifications, 'voice'))
         self._header.all_notifications_toggle_requested.connect(partial(self._toggle_notifications, 'all'))
 
-        search_shortcut = QShortcut(QKeySequence('Ctrl+F'), self)
-        search_shortcut.setContext(Qt.ShortcutContext.WindowShortcut)
-        search_shortcut.activated.connect(self._header.focus_search)
-
-        merge_shortcut = QShortcut(QKeySequence('Ctrl+M'), self)
-        merge_shortcut.setContext(Qt.ShortcutContext.WindowShortcut)
-        merge_shortcut.activated.connect(self._toggle_tables_merged)
-
         connected_column_names = [
             column for column in Settings.GUI_ALL_CONNECTED_COLUMNS if column in set(Settings.gui_columns_connected_shown) or column in Settings.GUI_FORCED_COLUMNS
         ]
@@ -336,6 +331,8 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
         self._disconnected.table_view.blacklist_high_rate_callback = self._player_resolver_window.high_rate_monitor.blacklist_ips
         self._disconnected.table_view.unblacklist_high_rate_callback = self._player_resolver_window.high_rate_monitor.unblacklist_ips
         self._disconnected.table_view.is_high_rate_blacklisted_callback = self._player_resolver_window.high_rate_monitor.is_ip_blacklisted
+
+        self._init_shortcuts()
 
         self._tables_splitter = QSplitter(Qt.Orientation.Vertical, self)
         self._tables_splitter.setChildrenCollapsible(False)
@@ -414,7 +411,7 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
         self._update_header_capture_status()
         self._update_status_bar()
 
-    def _build_capture_menu(self, menu_bar: QMenuBar) -> _MenuActions:
+    def _build_capture_menu(self, menu_bar: QMenuBar) -> MainMenuActions:
         """Build the Capture menu and return key action references."""
         capture_menu = menu_bar.addMenu(tr('Capture'))
         if not capture_menu:
@@ -423,8 +420,12 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
         capture_menu.setToolTipsVisible(True)
         self._main_i18n_menus.append((capture_menu, 'Capture'))
 
-        toggle_capture_action = QAction(QIcon(str(ICONS_DIR_PATH / 'circle-stop.svg')), tr('Stop Capture'), self)
-        toggle_capture_action.setToolTip(tr('Stop packet capture'))
+        toggle_capture_action = QAction(
+            QIcon(str(ICONS_DIR_PATH / 'circle-stop.svg')),
+            format_action_with_shortcut(tr('Stop Capture'), Settings.toggle_capture_hotkey),
+            self,
+        )
+        toggle_capture_action.setToolTip(append_shortcut_tooltip(tr('Stop packet capture'), Settings.toggle_capture_hotkey, is_global=True))
         toggle_capture_action.triggered.connect(self._toggle_capture)
         capture_menu.addAction(toggle_capture_action)
 
@@ -444,7 +445,7 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
             self._main_i18n_actions,
         )
 
-        return _MenuActions(toggle_capture=toggle_capture_action, change_interface=actions[0])
+        return MainMenuActions(toggle_capture=toggle_capture_action, change_interface=actions[0])
 
     def _build_tools_menu(self, menu_bar: QMenuBar) -> None:
         """Build the Tools menu and attach tool launcher actions."""
@@ -480,14 +481,16 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
         settings_menu.setToolTipsVisible(True)
         self._main_i18n_menus.append((settings_menu, 'Settings'))
 
-        add_i18n_menu_actions(
+        actions = add_i18n_menu_actions(
             self,
             settings_menu,
             ICONS_DIR_PATH,
             [('settings.svg', 'Open Settings', 'View and edit all application settings', self._open_settings_dialog)],
             self._main_i18n_actions,
         )
+        self._open_settings_action = actions[0]
 
+    @override
     def _toggle_notifications(self, mode: Literal['visual', 'voice', 'all']) -> None:
         """Toggle visual, voice, or both session-only notification states (never persisted) and apply runtime effects."""
         visual_was_enabled, voice_was_enabled = notifications_state.visual_enabled, notifications_state.voice_enabled
@@ -522,7 +525,7 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
     def closeEvent(self, a0: QCloseEvent | None) -> None:
         """Handle the main window close event and terminate background work."""
         self._thread_health_timer.stop()
-        self._unregister_solo_session_hotkeys()
+        self._unregister_global_hotkeys()
         self._stats_timer.stop()
         self._config_watcher.stop()
         if Settings.gui_remember_window_layout:
@@ -749,16 +752,17 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
             retrigger_detections_scan()
             wake_rendering_core()
 
+    @override
     def _open_settings_dialog(self) -> None:
         """Open the Settings window, or focus the existing one."""
-        self._unregister_solo_session_hotkeys()
+        self._unregister_global_hotkeys()
         created = False
 
         def _factory() -> SettingsDialog:
             nonlocal created
             created = True
             window = SettingsDialog(None, self.capture.get(), self._on_change_interface)
-            window.rejected.connect(self._sync_solo_session_hotkey)
+            window.rejected.connect(self._sync_shortcuts)
             for callback in (
                 TableMergeState.reset_override,
                 self._apply_always_on_top,
@@ -767,14 +771,14 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
                 self._apply_table_settings,
                 self._sync_player_resolver_settings,
                 self._apply_userip_settings,
-                self._sync_solo_session_hotkey,
+                self._sync_shortcuts,
             ):
                 window.accepted.connect(callback)
             return window
 
         dialog = show_or_focus_window(self, '_settings_dialog_window', _factory)
         if created:
-            dialog.destroyed.connect(self._sync_solo_session_hotkey)
+            dialog.destroyed.connect(self._sync_shortcuts)
 
     def _on_global_search_changed(self, text: str, column_name: str) -> None:
         """Update global search state across connected and disconnected tables."""
@@ -818,18 +822,21 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
         for action, text_key, tooltip_key in self._main_i18n_actions:
             action.setText(tr(text_key))
             action.setToolTip(tr(tooltip_key))
-        self._sync_capture_toggle_action()
         self._refresh_game_menu_language_texts()
+        self._sync_shortcut_action_labels()
         self._refresh_statistics_menu_language_texts()
         self._refresh_files_menu_language_texts()
         self._update_status_bar()
         wake_rendering_core()
 
+    @override
     def _sync_capture_toggle_action(self) -> None:
         """Synchronize the toggle capture action icon, text, and tooltip with the current capture state."""
         is_running = self.capture.is_running()
-        expected_text = tr('Stop Capture') if is_running else tr('Start Capture')
-        expected_tooltip = tr('Stop packet capture') if is_running else tr('Start packet capture')
+        base_text = tr('Stop Capture') if is_running else tr('Start Capture')
+        base_tooltip = tr('Stop packet capture') if is_running else tr('Start packet capture')
+        expected_text = format_action_with_shortcut(base_text, Settings.toggle_capture_hotkey)
+        expected_tooltip = append_shortcut_tooltip(base_tooltip, Settings.toggle_capture_hotkey, is_global=True)
         if self._actions.toggle_capture.text() == expected_text and self._actions.toggle_capture.toolTip() == expected_tooltip:
             return
 
@@ -840,6 +847,7 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
         else:
             self._actions.toggle_capture.setIcon(QIcon(str(ICONS_DIR_PATH / 'circle-play.svg')))
 
+    @override
     def _toggle_capture(self) -> None:
         """Toggle the packet capture on/off."""
         stopping = self.capture.is_running()
@@ -905,6 +913,7 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
         """Advance the minimum accepted rendering snapshot version."""
         self._state.min_accepted_snapshot_version = GUIRenderingState.get_version() + 1
 
+    @override
     def _clear_connected_players(self) -> None:
         """Clear all connected players from the table and registry."""
         current_session_id = SessionTracker.get_current_session_id()
@@ -927,6 +936,7 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
         self._refresh_session_gui_state()
         self.recalculate_capture_stats()
 
+    @override
     def _clear_disconnected_players(self) -> None:
         """Clear all disconnected players from the table and registry (or active session filter)."""
         selected_session = SessionFilterState.get_selected_session()

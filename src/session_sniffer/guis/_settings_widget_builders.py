@@ -117,22 +117,23 @@ class HotkeyEditWidget(QWidget):
         self._key_edit = QKeySequenceEdit()
         self._key_edit.setMaximumSequenceLength(1)
         self._key_edit.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        inner_line_edit = self._key_edit.findChild(QLineEdit)
-        if inner_line_edit is not None:
-            shortcut_edit: QLineEdit = inner_line_edit
-
-            def _apply_placeholder() -> None:
-                shortcut_edit.setPlaceholderText(tr('None (click and press shortcut...)'))
-
-            _apply_placeholder()
-            register_language_refresh(self, _apply_placeholder)
-
         self._clear_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'x.svg')), f" {tr('Clear')}")
         self._clear_button.setToolTip(tr('Clear shortcut (disable hotkey)'))
         self._clear_button.setStyleSheet(COMPACT_BUTTON_STYLESHEET)
         self._clear_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self._clear_button.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
         self._clear_button.setEnabled(False)
+
+        inner_line_edit = self._key_edit.findChild(QLineEdit)
+
+        def _apply_language() -> None:
+            if inner_line_edit is not None:
+                inner_line_edit.setPlaceholderText(tr('None (click and press shortcut...)'))
+            self._clear_button.setText(f" {tr('Clear')}")
+            self._clear_button.setToolTip(tr('Clear shortcut (disable hotkey)'))
+
+        _apply_language()
+        register_language_refresh(self, _apply_language)
 
         self._key_edit.keySequenceChanged.connect(self._on_sequence_changed)
         self._clear_button.clicked.connect(self._clear_shortcut)
@@ -857,4 +858,32 @@ def build_webserver_help_group() -> QGroupBox:
     help_label.setStyleSheet(WEBSERVER_HELP_LABEL_STYLESHEET)
     layout.addWidget(help_label)
 
+    return group_box
+
+
+def build_shortcuts_help_group() -> QGroupBox:
+    """Build an explanatory header for global hotkeys and main window shortcuts."""
+    group_box = QGroupBox()
+    layout = QVBoxLayout(group_box)
+
+    help_label = QLabel()
+    help_label.setWordWrap(True)
+    help_label.setTextFormat(Qt.TextFormat.RichText)
+    help_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+    help_label.setStyleSheet(WEBSERVER_HELP_LABEL_STYLESHEET)
+    layout.addWidget(help_label)
+
+    def _refresh_text() -> None:
+        group_box.setTitle(tr('Keyboard Shortcuts Guide'))
+        help_label.setText(
+            tr(
+                '<b>Global Hotkeys</b> (<i>Capture &amp; Notifications</i>, <i>Game Process &amp; Session</i>, <i>Looky System</i>): '
+                'Registered system-wide so they work at any time, including while playing fullscreen in-game.<br>'
+                '<b>Window Shortcuts</b> (<i>Main Window</i>): Active while the main Session Sniffer window is focused.<br><br>'
+                'Click any shortcut field and press a key combination to assign it, or click <b>Clear</b> (or press <b>Esc</b>) to disable it.',
+            ),
+        )
+
+    _refresh_text()
+    register_language_refresh(group_box, _refresh_text)
     return group_box

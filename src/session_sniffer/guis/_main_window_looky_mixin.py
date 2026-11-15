@@ -2,10 +2,11 @@
 
 from typing import TYPE_CHECKING
 
-from PySide6.QtGui import QAction, QIcon, QKeySequence
+from PySide6.QtGui import QAction, QIcon
 from PySide6.QtWidgets import QMainWindow, QMenu, QMessageBox
 
 from session_sniffer.background import trigger_looky_rescan_all_players
+from session_sniffer.guis._main_window_shortcuts_mixin import append_shortcut_tooltip, format_action_with_shortcut
 from session_sniffer.guis.looky_text import (
     configure_looky_action,
     get_looky_restriction,
@@ -22,61 +23,6 @@ from session_sniffer.settings import Settings
 if TYPE_CHECKING:
     from collections.abc import Callable
     from datetime import date, datetime
-
-_MOD_ALT = 0x0001
-_MOD_CONTROL = 0x0002
-_MOD_SHIFT = 0x0004
-_MOD_WIN = 0x0008
-_MAX_F_KEY_NUMBER = 24
-
-_PORTABLE_KEY_TO_WIN32_VKS: dict[str, tuple[int, ...]] = {
-    'backspace': (0x08,), 'tab': (0x09,), 'clear': (0x0C,), 'return': (0x0D,), 'enter': (0x0D,), 'pause': (0x13,), 'capslock': (0x14,),
-    'space': (0x20,), 'pgup': (0x21,), 'pgdown': (0x22,), 'end': (0x23,), 'home': (0x24,), 'left': (0x25,),
-    'up': (0x26,), 'right': (0x27,), 'down': (0x28,), 'print': (0x2C,), 'ins': (0x2D,), 'del': (0x2E,),
-    '!': (0x31,), '@': (0x32,), '#': (0x33,), '$': (0x34,), '%': (0x35,), '^': (0x36,), '&': (0x37,), '(': (0x39,), ')': (0x30,),
-    '-': (0x6D, 0xBD), '_': (0xBD,), '.': (0x6E, 0xBE), '/': (0x6F, 0xBF), '?': (0xBF,),
-    'numlock': (0x90,), 'scrolllock': (0x91,), ';': (0xBA,), ':': (0xBA,), '=': (0xBB,), ',': (0xBC,), '<': (0xBC,), '>': (0xBE,),
-    '`': (0xC0,), '~': (0xC0,), '[': (0xDB,), '{': (0xDB,), '\\': (0xDC,), '|': (0xDC,), ']': (0xDD,), '}': (0xDD,), "'": (0xDE,), '"': (0xDE,),
-}
-
-
-def _resolve_portable_key_vks(portable_key: str, *, mod_flags: int = 0, is_numpad: bool = False) -> tuple[int, ...] | None:
-    """Resolve a lowercase portable key string to one or more Win32 virtual-key codes."""
-    if portable_key == '*':
-        return (0x38, 0x6A) if (mod_flags & _MOD_SHIFT) and not is_numpad else (0x6A,)
-    if portable_key == '+':
-        return (0x6B, 0xBB) if (mod_flags & _MOD_SHIFT) and not is_numpad else (0x6B,)
-    if (mapped := _PORTABLE_KEY_TO_WIN32_VKS.get(portable_key)) is not None:
-        return mapped
-    if len(portable_key) == 1 and ('a' <= portable_key <= 'z' or '0' <= portable_key <= '9'):
-        return (ord(portable_key.upper()),) if 'a' <= portable_key <= 'z' else (ord(portable_key), 0x60 + ord(portable_key) - ord('0'))
-    if portable_key.startswith('f') and portable_key[1:].isdigit() and 1 <= (fn_num := int(portable_key[1:])) <= _MAX_F_KEY_NUMBER:
-        return (0x70 + fn_num - 1,)
-    return None
-
-
-def parse_win32_hotkey_spec(hotkey: str | None) -> tuple[int, tuple[int, ...]] | None:
-    """Translate a portable `QKeySequence` string into `(win32_modifier_flags, primary_vks)`."""
-    if hotkey is None or not hotkey:
-        return None
-    seq = QKeySequence.fromString(hotkey, QKeySequence.SequenceFormat.PortableText)
-    portable = seq.toString(QKeySequence.SequenceFormat.PortableText).split(', ', 1)[0].strip().lower()
-    if not portable:
-        return None
-
-    mod_flags, is_numpad = 0, False
-    for _ in range(5):
-        if portable.startswith('num+'):
-            is_numpad, portable = True, portable[4:]
-            continue
-        for mod_prefix, flag in (('ctrl+', _MOD_CONTROL), ('shift+', _MOD_SHIFT), ('alt+', _MOD_ALT), ('meta+', _MOD_WIN)):
-            if portable.startswith(mod_prefix):
-                mod_flags |= flag
-                portable = portable[len(mod_prefix) :]
-                break
-
-    primary_vks = _resolve_portable_key_vks(portable, mod_flags=mod_flags, is_numpad=is_numpad)
-    return (mod_flags, primary_vks) if primary_vks is not None else None
 
 
 def format_game_solo_action_text() -> str:
@@ -146,14 +92,34 @@ class LookyMixin(QMainWindow):
 
         looky_submenu.addSeparator()
 
-        looky_crawler_join_own_session_action = QAction(QIcon(str(ICONS_DIR_PATH / 'bot.svg')), tr('Request Crawler in My Session'), self)
-        looky_crawler_join_own_session_action.setToolTip(tr('Call the crawler bot to resolve usernames for players in your current session.'))
+        looky_crawler_join_own_session_action = QAction(
+            QIcon(str(ICONS_DIR_PATH / 'bot.svg')),
+            format_action_with_shortcut(tr('Request Crawler in My Session'), Settings.looky_crawler_hotkey),
+            self,
+        )
+        looky_crawler_join_own_session_action.setToolTip(
+            append_shortcut_tooltip(
+                tr('Call the crawler bot to resolve usernames for players in your current session.'),
+                Settings.looky_crawler_hotkey,
+                is_global=True,
+            ),
+        )
         looky_crawler_join_own_session_action.triggered.connect(self._request_crawler_own_session)
         looky_submenu.addAction(looky_crawler_join_own_session_action)
         self._looky_crawler_join_own_session_action = looky_crawler_join_own_session_action
 
-        looky_rescan_all_action = QAction(QIcon(str(ICONS_DIR_PATH / 'refresh-cw.svg')), tr('Rescan All Players'), self)
-        looky_rescan_all_action.setToolTip(tr('Immediately refresh Looky System data for all players without waiting for the next automatic update.'))
+        looky_rescan_all_action = QAction(
+            QIcon(str(ICONS_DIR_PATH / 'refresh-cw.svg')),
+            format_action_with_shortcut(tr('Rescan All Players'), Settings.looky_rescan_hotkey),
+            self,
+        )
+        looky_rescan_all_action.setToolTip(
+            append_shortcut_tooltip(
+                tr('Immediately refresh Looky System data for all players without waiting for the next automatic update.'),
+                Settings.looky_rescan_hotkey,
+                is_global=True,
+            ),
+        )
         looky_rescan_all_action.triggered.connect(self._rescan_all_looky_players)
         looky_submenu.addAction(looky_rescan_all_action)
         self._looky_rescan_all_action = looky_rescan_all_action
@@ -166,20 +132,30 @@ class LookyMixin(QMainWindow):
         self._looky_submenu.menuAction().setToolTip(tr('Looky System tools and shortcuts for GTA5 sessions'))
         self._looky_open_website_action.setText(tr('Open Website'))
         self._looky_open_website_action.setToolTip(tr('Open the Looky System website in your default browser'))
-        self._looky_crawler_join_own_session_action.setText(tr('Request Crawler in My Session'))
-        self._looky_rescan_all_action.setText(tr('Rescan All Players'))
+        self._looky_crawler_join_own_session_action.setText(
+            format_action_with_shortcut(tr('Request Crawler in My Session'), Settings.looky_crawler_hotkey),
+        )
+        self._looky_rescan_all_action.setText(format_action_with_shortcut(tr('Rescan All Players'), Settings.looky_rescan_hotkey))
         self._update_looky_actions()
 
     def _update_looky_actions(self) -> None:
         """Update enabled state and tooltips for Looky System submenu actions based on current settings."""
         configure_looky_action(
             self._looky_crawler_join_own_session_action,
-            tr('Call the crawler bot to resolve usernames for players in your current session.'),
+            append_shortcut_tooltip(
+                tr('Call the crawler bot to resolve usernames for players in your current session.'),
+                Settings.looky_crawler_hotkey,
+                is_global=True,
+            ),
             is_gta5_running=CaptureState.gta5_is_running,
         )
         configure_looky_action(
             self._looky_rescan_all_action,
-            tr('Immediately refresh Looky System data for all players without waiting for the next automatic update.'),
+            append_shortcut_tooltip(
+                tr('Immediately refresh Looky System data for all players without waiting for the next automatic update.'),
+                Settings.looky_rescan_hotkey,
+                is_global=True,
+            ),
             restriction=self._get_rescan_all_restriction(),
         )
 

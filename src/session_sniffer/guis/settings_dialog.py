@@ -37,6 +37,7 @@ from session_sniffer.guis._settings_runtime import SettingValue, apply_runtime_s
 from session_sniffer.guis._settings_theme_mixin import SettingsDialogThemeMixin
 from session_sniffer.guis._settings_widget_builders import (
     HotkeyEditWidget,
+    build_shortcuts_help_group,
     build_webserver_help_group,
     combo_canonical_value,
     create_boolean_widget,
@@ -273,6 +274,8 @@ class SettingsDialog(SettingsDialogThemeMixin, SettingsDialogLookyMixin, Setting
 
         if category == 'Web Server':
             outer_layout.addWidget(build_webserver_help_group())
+        elif category == 'Shortcuts':
+            outer_layout.addWidget(build_shortcuts_help_group())
         elif category == 'Discord':
             outer_layout.addWidget(build_discord_info_group())
         elif category == 'Capture':
@@ -693,6 +696,26 @@ class SettingsDialog(SettingsDialogThemeMixin, SettingsDialogLookyMixin, Setting
                     options=options_list,
                 ),
             )
+
+        hotkey_bindings: dict[str, list[tuple[str, str]]] = {}
+        for key, meta in SETTING_METADATA.items():
+            if meta.setting_type != SettingType.HOTKEY:
+                continue
+            chord_val = values.get(key)
+            if isinstance(chord_val, str) and chord_val:
+                label_text = f'{tr(meta.group)} \u2014 {tr(meta.display_label)}' if meta.group is not None and meta.group else tr(meta.display_label)
+                hotkey_bindings.setdefault(chord_val.casefold(), []).append((chord_val, label_text))
+        for bound_items in hotkey_bindings.values():
+            if len(bound_items) > 1:
+                display_chord = bound_items[0][0]
+                actions_list = '\n'.join(f'  - {item_label}' for _, item_label in bound_items)
+                errors.append(
+                    tr(
+                        'Shortcut "{shortcut}" is assigned to multiple actions:\n{actions}',
+                        shortcut=display_chord,
+                        actions=actions_list,
+                    ),
+                )
 
         return errors, values
 
