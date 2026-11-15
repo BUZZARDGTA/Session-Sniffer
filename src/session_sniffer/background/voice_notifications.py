@@ -33,6 +33,10 @@ _SPIKE_SOUND_FILES: Final[dict[str, str]] = {
     'Geiger Click': 'spike_click.wav',
     'Siren Pulse': 'spike_alert.wav',
     'End': 'spike_end.wav',
+    'Geiger1': 'spike_geiger_1.wav',
+    'Geiger2': 'spike_geiger_2.wav',
+    'Geiger3': 'spike_geiger_3.wav',
+    'Geiger4': 'spike_geiger_4.wav',
     'Critical': 'spike_critical.wav',
 }
 _DEFAULT_SPIKE_SOUND_COOLDOWN_SECONDS: Final[float] = 0.25

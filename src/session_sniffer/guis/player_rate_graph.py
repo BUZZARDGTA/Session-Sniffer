@@ -6,12 +6,17 @@ from typing import TYPE_CHECKING, override
 
 from PySide6.QtCore import QSignalBlocker, Qt
 from PySide6.QtGui import QColor
-from PySide6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QToolButton, QWidget
+from PySide6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QSpinBox, QToolButton, QWidget
 
 from session_sniffer.background.voice_notifications import play_spike_sound
 from session_sniffer.constants.standalone import SPIKE_SOUND_MODES, SPIKE_SOUND_SCOPES
 from session_sniffer.guis.live_language import register_language_refresh, set_i18n_colon_label
-from session_sniffer.guis.rate_graph_widget import RateGraphTheme, RateGraphWidget
+from session_sniffer.guis.rate_graph_widget import (
+    RateGraphTheme,
+    RateGraphWidget,
+    SpikeOverlayState,
+    ThresholdDragConfig,
+)
 from session_sniffer.guis.stylesheets import COMPACT_BUTTON_STYLESHEET
 from session_sniffer.guis.theming import themed_text_qcolor
 from session_sniffer.guis.utils import RateGraphWindowMixin, format_player_display, render_svg_icon_from_resource, scale_by_ui
@@ -165,12 +170,24 @@ class DualRateGraphBase(RateGraphWindowMixin):
     def _configure_bps_widget(self) -> None:
         """Override to add BPS-specific configuration (threshold lines, etc.)."""
 
+    def _add_pre_footer_controls(self, layout: QVBoxLayout) -> None:
+        """Override to insert an additional controls bar directly above the footer controls."""
+
+    def _pps_y_ceiling(self, visible_max: float) -> float:
+        """Return the upper Y-axis bound for the PPS graph."""
+        return max(visible_max * 1.2, self.PPS_Y_FLOOR)
+
+    def _bps_y_ceiling(self, visible_max: float) -> float:
+        """Return the upper Y-axis bound for the BPS graph."""
+        return max(visible_max * 1.2, self.BPS_Y_FLOOR)
+
     def _finish_graph_init(self) -> None:
         """Initialize the common window layout, widgets, and history buffers."""
         self._max_history = DEFAULT_MAX_HISTORY
         self.resize(scale_by_ui(700), scale_by_ui(500))
         layout = self.setup_window_layout(always_on_top=True, margins=(0, 0, 0, 0), spacing=0)
         self._setup_dual_graph_widgets(layout)
+        self._add_pre_footer_controls(layout)
         self.add_rate_graph_controls(layout, HISTORY_OPTIONS, default_history=DEFAULT_MAX_HISTORY)
         self._setup_history_buffers()
 
@@ -228,27 +245,73 @@ class DualRateGraphBase(RateGraphWindowMixin):
 
         self._pps_widget.set_data(pps_list)
         pps_visible_max = max(pps_list[-VISIBLE_WINDOW:]) if pps_list else 0.0
-        self._pps_widget.set_y_range(0, max(pps_visible_max * 1.2, self.PPS_Y_FLOOR))
+        self._pps_widget.set_y_range(0, self._pps_y_ceiling(pps_visible_max))
         self._pps_widget.set_average(self._pps_running_sum / len(self._pps_buffer) if self._pps_buffer else 0.0)
 
         self._bps_widget.set_data(bps_list)
         bps_visible_max = max(bps_list[-VISIBLE_WINDOW:]) if bps_list else 0.0
-        self._bps_widget.set_y_range(0, max(bps_visible_max * 1.2, self.BPS_Y_FLOOR))
+        self._bps_widget.set_y_range(0, self._bps_y_ceiling(bps_visible_max))
         self._bps_widget.set_average(self._bps_running_sum / len(self._bps_buffer) if self._bps_buffer else 0.0)
 
         return pps_list, bps_list
 
 
-@dataclass(frozen=True, slots=True)
-class SpikeAlertGraphConfig:
-    """Initial Spike Alert settings and persistence callbacks for `PlayerRateGraphWindow`."""
+_MONITOR_MODES: tuple[str, ...] = ('Smart', 'Manual')
+_PPS_THRESHOLD_MIN = 20
+_PPS_THRESHOLD_MAX = 50
+_BPS_THRESHOLD_KB_MIN = 3
+_BPS_THRESHOLD_KB_MAX = 500
+_REPEAT_INTERVAL_MIN = 1
+_REPEAT_INTERVAL_MAX = 30
 
+
+@dataclass(frozen=True, slots=True)
+class SpikeAlertGraphState:
+    """Synchronized monitor threshold and Spike Alert state for `PlayerRateGraphWindow`."""
+
+    monitor_mode: str = 'Smart'
+    manual_pps_threshold: int = 30
+    bps_threshold_kb: int = 5
     sound_scope: str = 'Open Graphs'
     sound_mode: str = 'Repeating'
+    repeat_interval: int = 2
     sound_preset: str = 'Ding'
     visual_alert: bool = True
+
+
+@dataclass(frozen=True, slots=True)
+class ThresholdAdjustment:
+    """Live threshold change emitted from `PlayerRateGraphWindow`."""
+
+    value: int
+    persist: bool = True
+
+
+@dataclass(frozen=True, slots=True)
+class SpikeAlertGraphConfig:
+    """Initial Spike Alert settings and live persistence callbacks for `PlayerRateGraphWindow`."""
+
+    state: SpikeAlertGraphState = SpikeAlertGraphState()
+    on_monitor_mode_changed: Callable[[str], None] | None = None
+    on_pps_threshold_changed: Callable[[ThresholdAdjustment], None] | None = None
+    on_bps_threshold_changed: Callable[[ThresholdAdjustment], None] | None = None
     on_scope_changed: Callable[[str], None] | None = None
     on_mode_changed: Callable[[str], None] | None = None
+    on_repeat_interval_changed: Callable[[int], None] | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class PlayerSpikeVisualUpdate:
+    """Per-tick visual spike and proximity telemetry pushed to `PlayerRateGraphWindow`."""
+
+    pps_spiking: bool = False
+    bps_spiking: bool = False
+    pps: int = 0
+    bps: int = 0
+    pps_proximity: float = 0.0
+    bps_proximity: float = 0.0
+    pps_approaching: bool = False
+    bps_approaching: bool = False
 
 
 class PlayerRateGraphWindow(DualRateGraphBase):
@@ -268,23 +331,40 @@ class PlayerRateGraphWindow(DualRateGraphBase):
         """Initialize the split rate graph window for the given player IP."""
         super().__init__()
         cfg = spike_config or SpikeAlertGraphConfig()
+        state = cfg.state
 
         self.ip = ip
         self._usernames: list[str] = []
         self._pps_threshold_value = initial_pps_threshold
         self._bps_threshold_value = initial_bps_threshold
+        self._monitor_mode = state.monitor_mode
+        self._manual_pps_threshold = state.manual_pps_threshold
+        self._bps_threshold_kb = state.bps_threshold_kb
+        self._repeat_interval = state.repeat_interval
         self._pps_spiking = False
         self._bps_spiking = False
         self._pps_spike_streak = 0
         self._pps_spike_peak = 0
         self._bps_spike_streak = 0
         self._bps_spike_peak = 0
-        self._spike_sound_scope = cfg.sound_scope
-        self._spike_sound_mode = cfg.sound_mode
-        self._spike_sound_preset = cfg.sound_preset
-        self._visual_alert_enabled = cfg.visual_alert
+        self._last_visual_update = PlayerSpikeVisualUpdate()
+        self._spike_sound_scope = state.sound_scope
+        self._spike_sound_mode = state.sound_mode
+        self._spike_sound_preset = state.sound_preset
+        self._visual_alert_enabled = state.visual_alert
+        self._on_monitor_mode_changed = cfg.on_monitor_mode_changed
+        self._on_pps_threshold_changed = cfg.on_pps_threshold_changed
+        self._on_bps_threshold_changed = cfg.on_bps_threshold_changed
         self._on_spike_sound_scope_changed = cfg.on_scope_changed
         self._on_spike_sound_mode_changed = cfg.on_mode_changed
+        self._on_repeat_interval_changed = cfg.on_repeat_interval_changed
+        self._monitor_mode_combo: QComboBox | None = None
+        self._pps_label: QLabel | None = None
+        self._pps_spinbox: QSpinBox | None = None
+        self._bps_label: QLabel | None = None
+        self._bps_spinbox: QSpinBox | None = None
+        self._interval_label: QLabel | None = None
+        self._interval_spinbox: QSpinBox | None = None
         self._scope_combo: QComboBox | None = None
         self._mode_combo: QComboBox | None = None
         self._preview_button: QToolButton | None = None
@@ -292,7 +372,113 @@ class PlayerRateGraphWindow(DualRateGraphBase):
         self._update_window_title()
         register_language_refresh(self, self._update_window_title)
         self._finish_graph_init()
-        self.resize(scale_by_ui(780), scale_by_ui(500))
+        self.resize(scale_by_ui(780), scale_by_ui(535))
+
+    @override
+    def _pps_y_ceiling(self, visible_max: float) -> float:
+        base = max(visible_max * 1.2, self._pps_threshold_value * 1.15, self.PPS_Y_FLOOR)
+        return max(base, self._pps_widget.y_max) if self._pps_widget.is_dragging_threshold else base
+
+    @override
+    def _bps_y_ceiling(self, visible_max: float) -> float:
+        bps_kb = self._bps_threshold_value / self._BYTES_TO_KBS
+        base = max(visible_max * 1.2, bps_kb * 1.15, self.BPS_Y_FLOOR)
+        return max(base, self._bps_widget.y_max) if self._bps_widget.is_dragging_threshold else base
+
+    @override
+    def _add_pre_footer_controls(self, layout: QVBoxLayout) -> None:
+        controls_bar = QWidget()
+        row = QHBoxLayout(controls_bar)
+        row.setContentsMargins(8, 6, 8, 0)
+        row.setSpacing(scale_by_ui(6))
+
+        thresholds_label = QLabel()
+        set_i18n_colon_label(thresholds_label, 'Thresholds')
+        row.addWidget(thresholds_label)
+
+        monitor_mode_combo = QComboBox()
+        monitor_mode_combo.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        for mode_opt in _MONITOR_MODES:
+            monitor_mode_combo.addItem(tr(mode_opt), mode_opt)
+        if (m_idx := monitor_mode_combo.findData(self._monitor_mode)) >= 0:
+            monitor_mode_combo.setCurrentIndex(m_idx)
+        monitor_mode_combo.currentIndexChanged.connect(self._handle_monitor_mode_combo_changed)
+        row.addWidget(monitor_mode_combo)
+        self._monitor_mode_combo = monitor_mode_combo
+
+        row.addSpacing(scale_by_ui(6))
+
+        pps_label = QLabel()
+        set_i18n_colon_label(pps_label, 'PPS')
+        row.addWidget(pps_label)
+        self._pps_label = pps_label
+
+        pps_spin = QSpinBox()
+        pps_spin.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        pps_spin.setRange(_PPS_THRESHOLD_MIN, _PPS_THRESHOLD_MAX)
+        pps_spin.setValue(
+            self._manual_pps_threshold
+            if self._monitor_mode == 'Manual'
+            else min(_PPS_THRESHOLD_MAX, max(_PPS_THRESHOLD_MIN, self._pps_threshold_value)),
+        )
+        pps_spin.lineEdit().setTextMargins(scale_by_ui(5), 0, 0, 0)
+        pps_spin.valueChanged.connect(self._handle_pps_spinbox_changed)
+        row.addWidget(pps_spin)
+        self._pps_spinbox = pps_spin
+
+        row.addSpacing(scale_by_ui(6))
+
+        bps_label = QLabel()
+        set_i18n_colon_label(bps_label, 'BPS')
+        row.addWidget(bps_label)
+        self._bps_label = bps_label
+
+        bps_spin = QSpinBox()
+        bps_spin.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        bps_spin.setRange(_BPS_THRESHOLD_KB_MIN, _BPS_THRESHOLD_KB_MAX)
+        bps_spin.setValue(min(_BPS_THRESHOLD_KB_MAX, max(_BPS_THRESHOLD_KB_MIN, self._bps_threshold_kb)))
+        bps_spin.lineEdit().setTextMargins(scale_by_ui(5), 0, 0, 0)
+        bps_spin.valueChanged.connect(self._handle_bps_spinbox_changed)
+        row.addWidget(bps_spin)
+        self._bps_spinbox = bps_spin
+
+        row.addSpacing(scale_by_ui(10))
+
+        interval_label = QLabel()
+        set_i18n_colon_label(interval_label, 'Interval')
+        row.addWidget(interval_label)
+        self._interval_label = interval_label
+
+        interval_spin = QSpinBox()
+        interval_spin.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        interval_spin.setRange(_REPEAT_INTERVAL_MIN, _REPEAT_INTERVAL_MAX)
+        interval_spin.setValue(min(_REPEAT_INTERVAL_MAX, max(_REPEAT_INTERVAL_MIN, self._repeat_interval)))
+        interval_spin.lineEdit().setTextMargins(scale_by_ui(5), 0, 0, 0)
+        interval_spin.valueChanged.connect(self._handle_interval_spinbox_changed)
+        row.addWidget(interval_spin)
+        self._interval_spinbox = interval_spin
+
+        row.addStretch()
+
+        def _refresh_threshold_bar_language() -> None:
+            for i, canonical_mode in enumerate(_MONITOR_MODES):
+                if i < monitor_mode_combo.count():
+                    monitor_mode_combo.setItemText(i, tr(canonical_mode))
+            pps_spin.setSuffix(f" {tr('PPS')}")
+            bps_spin.setSuffix(f" {tr('KB/s')}")
+            interval_spin.setSuffix(f" {tr('seconds')}")
+            mode_tip = tr(
+                'Detection mode for flagging high packet-rate players.\n\n'
+                'Smart: Dynamically calculates the average PPS of connected players and flags players exceeding the session average with a margin and minimum floor.\n'
+                'Manual: Flags players exceeding fixed PPS and BPS thresholds.',
+            )
+            thresholds_label.setToolTip(mode_tip)
+            monitor_mode_combo.setToolTip(mode_tip)
+            self._refresh_dependent_control_states()
+
+        _refresh_threshold_bar_language()
+        register_language_refresh(controls_bar, _refresh_threshold_bar_language)
+        layout.addWidget(controls_bar)
 
     @override
     def _create_extra_rate_graph_controls(self) -> list[QWidget]:
@@ -330,7 +516,9 @@ class PlayerRateGraphWindow(DualRateGraphBase):
         tint_hex = themed_text_qcolor('@text[#e5e7eb]', '@surface[#1f2937]').name()
         preview_btn.setIcon(render_svg_icon_from_resource('volume-2.svg', 14, 14, tint_hex))
         preview_btn.setStyleSheet(COMPACT_BUTTON_STYLESHEET)
-        preview_btn.clicked.connect(lambda: play_spike_sound(self._spike_sound_preset, bypass_cooldown=True))
+        preview_btn.clicked.connect(
+            lambda: play_spike_sound('Geiger3' if self._spike_sound_mode == 'Adaptive Geiger' else self._spike_sound_preset, bypass_cooldown=True),
+        )
         row.addWidget(preview_btn)
         self._preview_button = preview_btn
 
@@ -351,7 +539,38 @@ class PlayerRateGraphWindow(DualRateGraphBase):
 
     def _refresh_dependent_control_states(self) -> None:
         sound_active = self._spike_sound_scope != 'Disabled'
+        repeats_active = sound_active and self._spike_sound_mode in ('Repeating', 'Repeating + End', 'Adaptive Geiger')
+        is_manual = self._monitor_mode == 'Manual'
         scope_disabled_note = tr('Disabled when Spike Sound Scope is set to Disabled.')
+        repeat_disabled_note = tr('Only applies when Spike Sound Behavior repeats while spiking (Repeating, Repeating + End, or Adaptive Geiger).')
+        smart_disabled_note = tr('Disabled in Smart mode (packet rate thresholds are calculated dynamically from the session average).')
+        drag_tip = tr('Tip: Drag the dashed threshold line directly on the graph to adjust it on the fly.')
+
+        if self._pps_label is not None and self._pps_spinbox is not None:
+            self._pps_label.setEnabled(is_manual)
+            self._pps_spinbox.setEnabled(is_manual)
+            pps_base_tip = f"{tr('Minimum Packets Per Second required to flag a player as high-rate traffic.')}\n\n{drag_tip}"
+            pps_tip = pps_base_tip if is_manual else f'{pps_base_tip}\n\n{smart_disabled_note}'
+            self._pps_label.setToolTip(pps_tip)
+            self._pps_spinbox.setToolTip(pps_tip)
+
+        if self._bps_label is not None and self._bps_spinbox is not None:
+            bps_tip = f"{tr('Minimum bandwidth in kilobytes per second (KB/s) required to flag a player as high-rate traffic.')}\n\n{drag_tip}"
+            self._bps_label.setToolTip(bps_tip)
+            self._bps_spinbox.setToolTip(bps_tip)
+
+        if self._interval_label is not None and self._interval_spinbox is not None:
+            self._interval_label.setEnabled(repeats_active)
+            self._interval_spinbox.setEnabled(repeats_active)
+            interval_base_tip = tr(
+                'Base interval in seconds between repeated spike sounds while a spike remains active '
+                '(used as the baseline cadence in Adaptive Geiger mode).',
+            )
+            disabled_reason = scope_disabled_note if not sound_active else repeat_disabled_note
+            interval_tip = interval_base_tip if repeats_active else f'{interval_base_tip}\n\n{disabled_reason}'
+            self._interval_label.setToolTip(interval_tip)
+            self._interval_spinbox.setToolTip(interval_tip)
+
         if self._mode_combo is not None:
             self._mode_combo.setEnabled(sound_active)
             mode_tip = tr('Choose how spike alert sounds behave when traffic crosses above the threshold.')
@@ -360,6 +579,74 @@ class PlayerRateGraphWindow(DualRateGraphBase):
             self._preview_button.setEnabled(sound_active)
             preview_tip = tr('Play a preview of the selected spike sound preset.')
             self._preview_button.setToolTip(preview_tip if sound_active else f'{preview_tip}\n\n{scope_disabled_note}')
+
+    def _handle_monitor_mode_combo_changed(self, index: int) -> None:
+        if self._monitor_mode_combo is None:
+            return
+        mode = str(self._monitor_mode_combo.itemData(index))
+        self._monitor_mode = mode
+        if mode == 'Manual' and self._pps_spinbox is not None:
+            with QSignalBlocker(self._pps_spinbox):
+                self._pps_spinbox.setValue(self._manual_pps_threshold)
+        self._refresh_dependent_control_states()
+        if self._on_monitor_mode_changed is not None:
+            self._on_monitor_mode_changed(mode)
+
+    def _handle_pps_spinbox_changed(self, value: int) -> None:
+        self._manual_pps_threshold = value
+        self.set_pps_threshold(value)
+        if self._on_pps_threshold_changed is not None:
+            self._on_pps_threshold_changed(ThresholdAdjustment(value, persist=True))
+
+    def _handle_bps_spinbox_changed(self, value: int) -> None:
+        self._bps_threshold_kb = value
+        self.set_bps_threshold(value * self._BYTES_TO_KBS)
+        if self._on_bps_threshold_changed is not None:
+            self._on_bps_threshold_changed(ThresholdAdjustment(value, persist=True))
+
+    def _handle_interval_spinbox_changed(self, value: int) -> None:
+        self._repeat_interval = value
+        if self._on_repeat_interval_changed is not None:
+            self._on_repeat_interval_changed(value)
+
+    def _on_pps_drag_preview(self, value: int) -> None:
+        self._pps_threshold_value = value
+        self._manual_pps_threshold = value
+        if self._monitor_mode != 'Manual':
+            self._monitor_mode = 'Manual'
+            if self._monitor_mode_combo is not None:
+                with QSignalBlocker(self._monitor_mode_combo):
+                    if (m_idx := self._monitor_mode_combo.findData('Manual')) >= 0:
+                        self._monitor_mode_combo.setCurrentIndex(m_idx)
+            self._refresh_dependent_control_states()
+        if self._pps_spinbox is not None:
+            with QSignalBlocker(self._pps_spinbox):
+                self._pps_spinbox.setValue(value)
+        if self._on_pps_threshold_changed is not None:
+            self._on_pps_threshold_changed(ThresholdAdjustment(value, persist=False))
+
+    def _on_pps_drag_commit(self, value: int) -> None:
+        self._on_pps_drag_preview(value)
+        if self._on_pps_threshold_changed is not None:
+            self._on_pps_threshold_changed(ThresholdAdjustment(value, persist=True))
+        if hasattr(self, '_pps_buffer'):
+            self._render_buffers()
+
+    def _on_bps_drag_preview(self, value_kb: int) -> None:
+        self._bps_threshold_kb = value_kb
+        self._bps_threshold_value = value_kb * self._BYTES_TO_KBS
+        if self._bps_spinbox is not None:
+            with QSignalBlocker(self._bps_spinbox):
+                self._bps_spinbox.setValue(value_kb)
+        if self._on_bps_threshold_changed is not None:
+            self._on_bps_threshold_changed(ThresholdAdjustment(value_kb, persist=False))
+
+    def _on_bps_drag_commit(self, value_kb: int) -> None:
+        self._on_bps_drag_preview(value_kb)
+        if self._on_bps_threshold_changed is not None:
+            self._on_bps_threshold_changed(ThresholdAdjustment(value_kb, persist=True))
+        if hasattr(self, '_bps_buffer'):
+            self._render_buffers()
 
     def _handle_scope_combo_changed(self, index: int) -> None:
         if self._scope_combo is None:
@@ -375,33 +662,50 @@ class PlayerRateGraphWindow(DualRateGraphBase):
             return
         mode = str(self._mode_combo.itemData(index))
         self._spike_sound_mode = mode
+        self._refresh_dependent_control_states()
         if self._on_spike_sound_mode_changed is not None:
             self._on_spike_sound_mode_changed(mode)
 
-    def sync_spike_alert_settings(
-        self,
-        *,
-        scope: str,
-        mode: str,
-        preset: str,
-        visual_alert: bool,
-    ) -> None:
-        """Synchronize Spike Alert settings into this graph window without triggering persistence callbacks."""
-        self._spike_sound_scope = scope
-        self._spike_sound_mode = mode
-        self._spike_sound_preset = preset
-        visual_changed = self._visual_alert_enabled != visual_alert
-        self._visual_alert_enabled = visual_alert
+    def sync_spike_alert_settings(self, state: SpikeAlertGraphState) -> None:
+        """Synchronize threshold and Spike Alert settings into this graph window without triggering persistence callbacks."""
+        self._monitor_mode = state.monitor_mode
+        self._manual_pps_threshold = state.manual_pps_threshold
+        self._bps_threshold_kb = state.bps_threshold_kb
+        self._repeat_interval = state.repeat_interval
+        self._spike_sound_scope = state.sound_scope
+        self._spike_sound_mode = state.sound_mode
+        self._spike_sound_preset = state.sound_preset
+        visual_changed = self._visual_alert_enabled != state.visual_alert
+        self._visual_alert_enabled = state.visual_alert
+        if self._monitor_mode_combo is not None:
+            with QSignalBlocker(self._monitor_mode_combo):
+                if (m_idx := self._monitor_mode_combo.findData(state.monitor_mode)) >= 0:
+                    self._monitor_mode_combo.setCurrentIndex(m_idx)
+        if self._pps_spinbox is not None and not self._pps_widget.is_dragging_threshold:
+            with QSignalBlocker(self._pps_spinbox):
+                self._pps_spinbox.setValue(
+                    state.manual_pps_threshold
+                    if state.monitor_mode == 'Manual'
+                    else min(_PPS_THRESHOLD_MAX, max(_PPS_THRESHOLD_MIN, self._pps_threshold_value)),
+                )
+        if self._bps_spinbox is not None and not self._bps_widget.is_dragging_threshold:
+            with QSignalBlocker(self._bps_spinbox):
+                self._bps_spinbox.setValue(min(_BPS_THRESHOLD_KB_MAX, max(_BPS_THRESHOLD_KB_MIN, state.bps_threshold_kb)))
+        if self._interval_spinbox is not None:
+            with QSignalBlocker(self._interval_spinbox):
+                self._interval_spinbox.setValue(min(_REPEAT_INTERVAL_MAX, max(_REPEAT_INTERVAL_MIN, state.repeat_interval)))
         if self._scope_combo is not None:
             with QSignalBlocker(self._scope_combo):
-                if (scope_idx := self._scope_combo.findData(scope)) >= 0:
+                if (scope_idx := self._scope_combo.findData(state.sound_scope)) >= 0:
                     self._scope_combo.setCurrentIndex(scope_idx)
         if self._mode_combo is not None:
             with QSignalBlocker(self._mode_combo):
-                if (mode_idx := self._mode_combo.findData(mode)) >= 0:
+                if (mode_idx := self._mode_combo.findData(state.sound_mode)) >= 0:
                     self._mode_combo.setCurrentIndex(mode_idx)
         self._refresh_dependent_control_states()
         if visual_changed:
+            self._pps_widget.set_heat_gradient(enabled=self._visual_alert_enabled)
+            self._bps_widget.set_heat_gradient(enabled=self._visual_alert_enabled)
             self._apply_visual_spike_widgets()
 
     def _update_window_title(self) -> None:
@@ -412,11 +716,31 @@ class PlayerRateGraphWindow(DualRateGraphBase):
     @override
     def _configure_pps_widget(self) -> None:
         self._pps_widget.set_threshold_color('#66bb6a')
+        self._pps_widget.set_heat_gradient(enabled=self._visual_alert_enabled)
+        self._pps_widget.set_threshold_drag_config(
+            ThresholdDragConfig(
+                min_value=_PPS_THRESHOLD_MIN,
+                max_value=_PPS_THRESHOLD_MAX,
+                unit_label='PPS',
+                on_preview=self._on_pps_drag_preview,
+                on_commit=self._on_pps_drag_commit,
+            ),
+        )
         self.set_pps_threshold(self._pps_threshold_value)
 
     @override
     def _configure_bps_widget(self) -> None:
         self._bps_widget.set_threshold_color('#4dd0e1')
+        self._bps_widget.set_heat_gradient(enabled=self._visual_alert_enabled)
+        self._bps_widget.set_threshold_drag_config(
+            ThresholdDragConfig(
+                min_value=_BPS_THRESHOLD_KB_MIN,
+                max_value=_BPS_THRESHOLD_KB_MAX,
+                unit_label='KB/s',
+                on_preview=self._on_bps_drag_preview,
+                on_commit=self._on_bps_drag_commit,
+            ),
+        )
         self.set_bps_threshold(self._bps_threshold_value)
 
     def update_usernames(self, usernames: list[str]) -> None:
@@ -426,28 +750,44 @@ class PlayerRateGraphWindow(DualRateGraphBase):
 
     def set_pps_threshold(self, threshold: int) -> None:
         """Update the PPS threshold marker line."""
+        if self._pps_widget.is_dragging_threshold:
+            return
         self._pps_threshold_value = threshold
         self._pps_widget.set_threshold(float(threshold))
+        if self._monitor_mode == 'Smart' and self._pps_spinbox is not None:
+            with QSignalBlocker(self._pps_spinbox):
+                self._pps_spinbox.setValue(min(_PPS_THRESHOLD_MAX, max(_PPS_THRESHOLD_MIN, threshold)))
+        if hasattr(self, '_pps_buffer'):
+            pps_visible_max = max(list(self._pps_buffer)[-VISIBLE_WINDOW:]) if self._pps_buffer else 0.0
+            self._pps_widget.set_y_range(0, self._pps_y_ceiling(pps_visible_max))
 
     def set_bps_threshold(self, threshold: int) -> None:
         """Update the BPS threshold marker line (accepts bytes/s, converts to KB/s)."""
+        if self._bps_widget.is_dragging_threshold:
+            return
         self._bps_threshold_value = threshold
         self._bps_widget.set_threshold(threshold / self._BYTES_TO_KBS)
+        if hasattr(self, '_bps_buffer'):
+            bps_visible_max = max(list(self._bps_buffer)[-VISIBLE_WINDOW:]) if self._bps_buffer else 0.0
+            self._bps_widget.set_y_range(0, self._bps_y_ceiling(bps_visible_max))
 
-    def update_spike_visuals(self, *, pps_spiking: bool, bps_spiking: bool, pps: int, bps: int) -> None:
-        """Update per-panel spike streak counters, peak values, and visual alert overlays."""
-        self._pps_spiking = pps_spiking
-        self._bps_spiking = bps_spiking
-        if pps_spiking:
-            self._pps_spike_streak += 1
-            self._pps_spike_peak = max(self._pps_spike_peak, pps)
+    def update_spike_visuals(self, update: PlayerSpikeVisualUpdate, *, advance_streak: bool = True) -> None:
+        """Update per-panel spike streak counters, peak values, and heat/proximity overlays."""
+        self._last_visual_update = update
+        self._pps_spiking = update.pps_spiking
+        self._bps_spiking = update.bps_spiking
+        if update.pps_spiking:
+            if advance_streak or not self._pps_spike_streak:
+                self._pps_spike_streak += 1
+            self._pps_spike_peak = max(self._pps_spike_peak, update.pps)
         else:
             self._pps_spike_streak = 0
             self._pps_spike_peak = 0
 
-        if bps_spiking:
-            self._bps_spike_streak += 1
-            self._bps_spike_peak = max(self._bps_spike_peak, bps)
+        if update.bps_spiking:
+            if advance_streak or not self._bps_spike_streak:
+                self._bps_spike_streak += 1
+            self._bps_spike_peak = max(self._bps_spike_peak, update.bps)
         else:
             self._bps_spike_streak = 0
             self._bps_spike_peak = 0
@@ -455,23 +795,32 @@ class PlayerRateGraphWindow(DualRateGraphBase):
         self._apply_visual_spike_widgets()
 
     def _apply_visual_spike_widgets(self) -> None:
-        if self._visual_alert_enabled and self._pps_spiking:
-            self._pps_widget.set_spike_state(
-                active=True,
-                streak_seconds=self._pps_spike_streak,
-                peak_text=f'{self._pps_spike_peak} PPS',
-            )
-        else:
-            self._pps_widget.set_spike_state(active=False)
+        if not self._visual_alert_enabled:
+            self._pps_widget.set_spike_state(SpikeOverlayState())
+            self._bps_widget.set_spike_state(SpikeOverlayState())
+            return
 
-        if self._visual_alert_enabled and self._bps_spiking:
-            self._bps_widget.set_spike_state(
-                active=True,
+        upd = self._last_visual_update
+        self._pps_widget.set_spike_state(
+            SpikeOverlayState(
+                active=self._pps_spiking,
+                proximity_level=upd.pps_proximity,
+                approaching=upd.pps_approaching,
+                streak_seconds=self._pps_spike_streak,
+                peak_text=f'{self._pps_spike_peak} PPS' if self._pps_spiking else '',
+                current_rate_text=f'{upd.pps} PPS',
+            ),
+        )
+        self._bps_widget.set_spike_state(
+            SpikeOverlayState(
+                active=self._bps_spiking,
+                proximity_level=upd.bps_proximity,
+                approaching=upd.bps_approaching,
                 streak_seconds=self._bps_spike_streak,
-                peak_text=PlayerBandwidth.format_bytes(self._bps_spike_peak),
-            )
-        else:
-            self._bps_widget.set_spike_state(active=False)
+                peak_text=PlayerBandwidth.format_bytes(self._bps_spike_peak) if self._bps_spiking else '',
+                current_rate_text=PlayerBandwidth.format_bytes(upd.bps),
+            ),
+        )
 
     def load_history(self, *, pps_history: list[int], bps_history: list[int]) -> None:
         """Backfill both graphs with previously recorded rate samples."""
