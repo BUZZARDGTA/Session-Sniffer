@@ -202,11 +202,12 @@ class GameMixin(QMainWindow):
         game_process_submenu.addAction(game_solo_menu_action)
         game_process_submenu.addSeparator()
 
-        game_suspend_resume_action = QAction(self._icon_pause, format_action_with_shortcut(tr('Suspend Process'), Settings.suspend_process_hotkey), self)
+        initial_suspend_hotkey = Settings.get_active_shortcut('suspend_process_hotkey')
+        game_suspend_resume_action = QAction(self._icon_pause, format_action_with_shortcut(tr('Suspend Process'), initial_suspend_hotkey), self)
         game_suspend_resume_action.setToolTip(
             append_shortcut_tooltip(
                 tr('Manually suspend the game process — stays suspended until you click it again to resume'),
-                Settings.suspend_process_hotkey,
+                initial_suspend_hotkey,
                 is_global=True,
             ),
         )
@@ -227,13 +228,14 @@ class GameMixin(QMainWindow):
 
     def _refresh_player_resolver_action_texts(self) -> None:
         """Refresh the Player Resolver menu action text and tooltip with its configured global hotkey."""
-        self._player_resolver_action.setText(format_action_with_shortcut(tr('Player Resolver'), Settings.player_resolver_hotkey))
+        resolver_hotkey = Settings.get_active_shortcut('player_resolver_hotkey')
+        self._player_resolver_action.setText(format_action_with_shortcut(tr('Player Resolver'), resolver_hotkey))
         base_tooltip = (
             tr('Find the exact IP of a player in your current {game} session.', game=self._active_game_label())
             if Settings.is_rockstar_feature_set()
             else tr('Find the exact IP of a player in your current session.')
         )
-        self._player_resolver_action.setToolTip(append_shortcut_tooltip(base_tooltip, Settings.player_resolver_hotkey, is_global=True))
+        self._player_resolver_action.setToolTip(append_shortcut_tooltip(base_tooltip, resolver_hotkey, is_global=True))
 
     def toggle_manual_game_suspend(self) -> None:
         """Toggle manual process suspend on or off for the active game."""
@@ -321,10 +323,11 @@ class GameMixin(QMainWindow):
         game_label = self._active_game_process_name()
         process_menu_title = tr('{game} Process', game=game_label)
         can_act = self._game_has_any_process_path() and CaptureState.is_local_capture()
-        suspend_hotkey = Settings.suspend_process_hotkey
+        solo_hotkey = Settings.get_active_shortcut('solo_session_hotkey')
+        suspend_hotkey = Settings.get_active_shortcut('suspend_process_hotkey')
         status_key = (
             can_act, self._manual_game_suspend_active, self._game_solo_active, self._game_process_suspended, self._game_externally_suspended,
-            self._game_process_detected, game_label, Settings.solo_session_duration, Settings.solo_session_hotkey, suspend_hotkey, get_active_language(),
+            self._game_process_detected, game_label, Settings.solo_session_duration, solo_hotkey, suspend_hotkey, get_active_language(),
         )
         if status_key == self._last_game_process_button_key:
             return

@@ -103,16 +103,20 @@ def create_color_widget(meta: SettingMeta) -> ColorPickerButton:
 
 
 class HotkeyEditWidget(QWidget):
-    """Single-chord keyboard shortcut editor with a clear button."""
+    """Single-chord keyboard shortcut editor with an enable checkbox and a clear button."""
 
     hotkey_changed = Signal()
 
     def __init__(self, parent: QWidget | None = None) -> None:
-        """Initialize the shortcut editor and clear button."""
+        """Initialize the shortcut enable checkbox, chord editor, and clear button."""
         super().__init__(parent)
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(6)
+
+        self.enabled_checkbox = QCheckBox()
+        self.enabled_checkbox.setChecked(True)
+        self.enabled_checkbox.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
 
         self._key_edit = QKeySequenceEdit()
         self._key_edit.setMaximumSequenceLength(1)
@@ -135,18 +139,25 @@ class HotkeyEditWidget(QWidget):
         _apply_language()
         register_language_refresh(self, _apply_language)
 
+        self.enabled_checkbox.toggled.connect(self._sync_controls_enabled)
         self._key_edit.keySequenceChanged.connect(self._on_sequence_changed)
         self._clear_button.clicked.connect(self._clear_shortcut)
 
+        layout.addWidget(self.enabled_checkbox)
         layout.addWidget(self._key_edit, 1)
         layout.addWidget(self._clear_button)
+
+    def _sync_controls_enabled(self) -> None:
+        shortcut_enabled = self.enabled_checkbox.isChecked()
+        self._key_edit.setEnabled(shortcut_enabled)
+        self._clear_button.setEnabled(shortcut_enabled and not self._key_edit.keySequence().isEmpty())
 
     def _on_sequence_changed(self, sequence: QKeySequence) -> None:
         portable = sequence.toString(QKeySequence.SequenceFormat.PortableText).strip()
         if not sequence.isEmpty() and (not portable or portable == 'Esc' or '\ufffd' in portable):
             with QSignalBlocker(self._key_edit):
                 self._key_edit.clear()
-        self._clear_button.setEnabled(not self._key_edit.keySequence().isEmpty())
+        self._sync_controls_enabled()
         self.hotkey_changed.emit()
 
     def _clear_shortcut(self) -> None:
@@ -165,7 +176,7 @@ class HotkeyEditWidget(QWidget):
         seq = QKeySequence.fromString(value, QKeySequence.SequenceFormat.PortableText) if value is not None and value else QKeySequence()
         with QSignalBlocker(self._key_edit):
             self._key_edit.setKeySequence(seq)
-        self._clear_button.setEnabled(not seq.isEmpty())
+        self._sync_controls_enabled()
 
 
 def create_hotkey_widget(meta: SettingMeta) -> HotkeyEditWidget:
@@ -880,7 +891,9 @@ def build_shortcuts_help_group() -> QGroupBox:
                 '<b>Global Hotkeys</b> (<i>Capture &amp; Notifications</i>, <i>Game Process &amp; Session</i>, <i>Looky System</i>): '
                 'Registered system-wide so they work at any time, including while playing fullscreen in-game.<br>'
                 '<b>Window Shortcuts</b> (<i>Main Window</i>): Active while the main Session Sniffer window is focused.<br><br>'
-                'Click any shortcut field and press a key combination to assign it, or click <b>Clear</b> (or press <b>Esc</b>) to disable it.',
+                'Use <b>Enable Shortcuts</b> to mute or enable all shortcuts at once, or toggle the checkbox next to any action to enable or disable it '
+                'while keeping its assigned keybind. Click any shortcut field and press a key combination to assign it, '
+                'or click <b>Clear</b> (or press <b>Esc</b>) to unbind it.',
             ),
         )
 

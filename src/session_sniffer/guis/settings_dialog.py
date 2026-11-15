@@ -133,6 +133,7 @@ class SettingsDialog(SettingsDialogThemeMixin, SettingsDialogLookyMixin, Setting
         self._tabs = QTabWidget()
         self._game_tab_index: int = -1
         self._session_relays_group_box: QGroupBox | None = None
+        self._shortcut_group_boxes: list[QGroupBox] = []
         for i, category in enumerate(SETTING_CATEGORIES_ORDER):
             tab_widget = self._build_tab(category)
             tab_widget.setProperty('category', category)
@@ -224,6 +225,12 @@ class SettingsDialog(SettingsDialogThemeMixin, SettingsDialogLookyMixin, Setting
             disconnected_enabled_widget.toggled.connect(self._on_disconnected_players_enabled_toggled)
             self._on_disconnected_players_enabled_toggled()
 
+        # Enable/disable shortcut groups based on the master Enable Shortcuts toggle.
+        shortcuts_enabled_widget = self._widgets.get('shortcuts_enabled')
+        if isinstance(shortcuts_enabled_widget, QCheckBox):
+            shortcuts_enabled_widget.toggled.connect(self._on_shortcuts_enabled_toggled)
+            self._on_shortcuts_enabled_toggled()
+
         # Enable/disable High Rate Monitor threshold fields based on Smart vs Manual mode.
         hrm_mode_widget = self._widgets.get('high_rate_monitor_mode')
         if isinstance(hrm_mode_widget, QComboBox):
@@ -302,6 +309,8 @@ class SettingsDialog(SettingsDialogThemeMixin, SettingsDialogLookyMixin, Setting
             group_box = QGroupBox(tr(group_name).replace('&', '&&'))
             if category == 'GTA V' and group_name == 'Session Relays':
                 self._session_relays_group_box = group_box
+            elif category == 'Shortcuts' and group_name != 'General':
+                self._shortcut_group_boxes.append(group_box)
             direct_items = [(setting_key, setting_meta) for setting_key, setting_meta in items if setting_meta.subgroup is None or not setting_meta.subgroup]
             subgrouped: dict[str, list[tuple[str, SettingMeta]]] = {}
             for setting_key, setting_meta in items:
@@ -338,11 +347,17 @@ class SettingsDialog(SettingsDialogThemeMixin, SettingsDialogLookyMixin, Setting
 
     def _add_setting_row(self, form: QFormLayout, key: str, meta: SettingMeta) -> None:
         """Create a widget for *key* and append a labeled row to *form*."""
+        if key.endswith('_enabled') and SETTING_METADATA.get(key[:-8], meta).setting_type == SettingType.HOTKEY:
+            return
         widget = self._create_widget(key, meta)
         if meta.min_width is not None:
             widget.setMinimumWidth(meta.min_width)
         if meta.max_width is not None:
             widget.setMaximumWidth(meta.max_width)
+        if isinstance(widget, HotkeyEditWidget) and (enabled_meta := SETTING_METADATA.get(f'{key}_enabled')) is not None:
+            self._widgets[f'{key}_enabled'] = widget.enabled_checkbox
+            if (enabled_tooltip := format_setting_tooltip(enabled_meta)) is not None:
+                widget.enabled_checkbox.setToolTip(enabled_tooltip)
         self._widgets[key] = widget
 
         # COLUMN_TUPLE, IP_RANGE_TUPLE, STRING_TUPLE and THIRD_PARTY_SERVERS_TUPLE widgets carry their label as the QGroupBox title — add
@@ -426,6 +441,13 @@ class SettingsDialog(SettingsDialogThemeMixin, SettingsDialogLookyMixin, Setting
                 label.setEnabled(checked)
             if (dep_widget := self._widgets.get(dep_key)) is not None:
                 dep_widget.setEnabled(checked)
+
+    def _on_shortcuts_enabled_toggled(self) -> None:
+        """Enable or disable all shortcut group boxes based on the master Enable Shortcuts toggle."""
+        shortcuts_enabled_widget = self._widgets.get('shortcuts_enabled')
+        enabled = not isinstance(shortcuts_enabled_widget, QCheckBox) or shortcuts_enabled_widget.isChecked()
+        for group_box in self._shortcut_group_boxes:
+            group_box.setEnabled(enabled)
 
     def _on_high_rate_monitor_mode_changed(self, mode: str) -> None:
         """Enable or disable manual threshold inputs based on whether High Rate Monitor is in Smart or Manual mode."""
@@ -542,6 +564,7 @@ class SettingsDialog(SettingsDialogThemeMixin, SettingsDialogLookyMixin, Setting
             for key, widget in self._widgets.items():
                 self._set_widget_value(key, widget, getter(key), source_getter=getter)
             self._sync_follow_system_language_ui_state()
+            self._on_shortcuts_enabled_toggled()
             self._update_sort_column_options()
             self._update_high_rate_monitor_mode_state()
             self._sync_selected_theme_card()
@@ -824,6 +847,7 @@ class SettingsDialog(SettingsDialogThemeMixin, SettingsDialogLookyMixin, Setting
                     continue
                 self._set_widget_value(key, widget, defaults_dict[key])
         self._apply_selected_language_live()
+        self._on_shortcuts_enabled_toggled()
         self._update_sort_column_options()
         self._update_high_rate_monitor_mode_state()
         self._update_restart_notice()

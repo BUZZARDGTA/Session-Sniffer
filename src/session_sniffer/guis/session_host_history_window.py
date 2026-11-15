@@ -111,9 +111,10 @@ def setup_session_host_actions(
     menu.addAction(diagnostics_action)
 
     def _apply_translations() -> None:
-        redetect_host_action.setText(format_action_with_shortcut(tr('Re-detect Host'), Settings.redetect_host_hotkey))
+        redetect_hotkey = Settings.get_active_shortcut('redetect_host_hotkey')
+        redetect_host_action.setText(format_action_with_shortcut(tr('Re-detect Host'), redetect_hotkey))
         redetect_host_action.setToolTip(
-            append_shortcut_tooltip(tr('Clear the current host and immediately re-trigger host detection'), Settings.redetect_host_hotkey, is_global=True),
+            append_shortcut_tooltip(tr('Clear the current host and immediately re-trigger host detection'), redetect_hotkey, is_global=True),
         )
         clear_host_action.setText(tr('Clear Session Host'))
         clear_host_action.setToolTip(tr('Manually clear the currently detected session host'))

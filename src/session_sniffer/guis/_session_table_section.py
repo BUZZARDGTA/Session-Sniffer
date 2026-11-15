@@ -634,7 +634,7 @@ class SessionTableSection(QWidget):
         self._merge_button.setVisible(not is_past_session)
         is_merged = TableMergeState.is_merged()
         self._merge_button.setText(tr('SPLIT') if is_merged else tr('MERGE'))
-        shortcut = Settings.shortcut_merge_tables
+        shortcut = Settings.get_active_shortcut('shortcut_merge_tables')
         if shortcut == 'Ctrl+M':
             tooltip = tr('Split into connected and disconnected tables (Ctrl+M)') if is_merged else tr('Merge connected and disconnected tables into one (Ctrl+M)')
         else:
@@ -692,7 +692,7 @@ class SessionTableSection(QWidget):
         if self._is_connected:
             is_merged = TableMergeState.is_merged()
             base_tooltip = tr('Clear all players') if is_merged else tr('Clear all connected players')
-            shortcut = Settings.shortcut_clear_connected
+            shortcut = Settings.get_active_shortcut('shortcut_clear_connected')
         else:
             selected_session = SessionFilterState.get_selected_session()
             current_session_id = SessionTracker.get_current_session_id()
@@ -701,7 +701,7 @@ class SessionTableSection(QWidget):
                 base_tooltip = tr("Clear all players from session '{name}'", name=display_name)
             else:
                 base_tooltip = tr('Clear all disconnected players')
-            shortcut = Settings.shortcut_clear_disconnected
+            shortcut = Settings.get_active_shortcut('shortcut_clear_disconnected')
         self._clear_button.setToolTip(f'{base_tooltip} ({shortcut})' if bool(shortcut) else base_tooltip)
 
     def _update_header_label(self) -> None:

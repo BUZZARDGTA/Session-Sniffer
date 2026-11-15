@@ -752,45 +752,93 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         category='GTA V', group='Solo Public Session', display_label='Solo Session Suspend Duration', setting_type=SettingType.INTEGER,
         tooltip='Duration in seconds to suspend the game process to trigger a solo public session.', min_value=6, max_value=60, step=1, suffix=' seconds',
     ),
+    'shortcuts_enabled': SettingMeta(
+        category='Shortcuts', group='General', display_label='Enable Shortcuts', setting_type=SettingType.BOOLEAN,
+        tooltip='Master toggle for all global hotkeys and main window keyboard shortcuts. Uncheck to temporarily disable all shortcuts while keeping their assigned keybinds.',
+    ),
+    'shortcut_focus_search_enabled': SettingMeta(
+        category='Shortcuts', group='Main Window', display_label='Enable Focus Global Search', setting_type=SettingType.BOOLEAN,
+        tooltip='Enable or disable the Focus Global Search shortcut while keeping its assigned keybind.',
+    ),
     'shortcut_focus_search': SettingMeta(
         category='Shortcuts', group='Main Window', display_label='Focus Global Search', setting_type=SettingType.HOTKEY,
         tooltip='Keyboard shortcut to focus the global search bar when the main window is active. Leave empty to disable.',
+    ),
+    'shortcut_merge_tables_enabled': SettingMeta(
+        category='Shortcuts', group='Main Window', display_label='Enable Merge / Split Tables', setting_type=SettingType.BOOLEAN,
+        tooltip='Enable or disable the Merge / Split Tables shortcut while keeping its assigned keybind.',
     ),
     'shortcut_merge_tables': SettingMeta(
         category='Shortcuts', group='Main Window', display_label='Merge / Split Tables', setting_type=SettingType.HOTKEY,
         tooltip='Keyboard shortcut to merge or split the connected and disconnected player tables when the main window is active. Leave empty to disable.',
     ),
+    'shortcut_open_settings_enabled': SettingMeta(
+        category='Shortcuts', group='Main Window', display_label='Enable Open Settings', setting_type=SettingType.BOOLEAN,
+        tooltip='Enable or disable the Open Settings shortcut while keeping its assigned keybind.',
+    ),
     'shortcut_open_settings': SettingMeta(
         category='Shortcuts', group='Main Window', display_label='Open Settings', setting_type=SettingType.HOTKEY,
         tooltip='Keyboard shortcut to open the Settings dialog when the main window is active. Leave empty to disable.',
+    ),
+    'shortcut_clear_connected_enabled': SettingMeta(
+        category='Shortcuts', group='Main Window', display_label='Enable Clear Connected Players', setting_type=SettingType.BOOLEAN,
+        tooltip='Enable or disable the Clear Connected Players shortcut while keeping its assigned keybind.',
     ),
     'shortcut_clear_connected': SettingMeta(
         category='Shortcuts', group='Main Window', display_label='Clear Connected Players', setting_type=SettingType.HOTKEY,
         tooltip='Keyboard shortcut to clear all connected players when the main window is active. Leave empty to disable.',
     ),
+    'shortcut_clear_disconnected_enabled': SettingMeta(
+        category='Shortcuts', group='Main Window', display_label='Enable Clear Disconnected Players', setting_type=SettingType.BOOLEAN,
+        tooltip='Enable or disable the Clear Disconnected Players shortcut while keeping its assigned keybind.',
+    ),
     'shortcut_clear_disconnected': SettingMeta(
         category='Shortcuts', group='Main Window', display_label='Clear Disconnected Players', setting_type=SettingType.HOTKEY,
         tooltip='Keyboard shortcut to clear all disconnected players when the main window is active. Leave empty to disable.',
+    ),
+    'toggle_capture_hotkey_enabled': SettingMeta(
+        category='Shortcuts', group='Capture & Notifications', display_label='Enable Start / Stop Capture', setting_type=SettingType.BOOLEAN,
+        tooltip='Enable or disable the Start / Stop Capture global hotkey while keeping its assigned keybind.',
     ),
     'toggle_capture_hotkey': SettingMeta(
         category='Shortcuts', group='Capture & Notifications', display_label='Start / Stop Capture', setting_type=SettingType.HOTKEY,
         tooltip='Global keyboard shortcut to start or stop packet capture at any time (including while in-game). Leave empty to disable.',
     ),
+    'toggle_visual_notifications_hotkey_enabled': SettingMeta(
+        category='Shortcuts', group='Capture & Notifications', display_label='Enable Toggle Visual Notifications', setting_type=SettingType.BOOLEAN,
+        tooltip='Enable or disable the Toggle Visual Notifications global hotkey while keeping its assigned keybind.',
+    ),
     'toggle_visual_notifications_hotkey': SettingMeta(
         category='Shortcuts', group='Capture & Notifications', display_label='Toggle Visual Notifications', setting_type=SettingType.HOTKEY,
         tooltip='Global keyboard shortcut to mute or enable visual popup notifications at any time (including while in-game). Leave empty to disable.',
+    ),
+    'toggle_voice_notifications_hotkey_enabled': SettingMeta(
+        category='Shortcuts', group='Capture & Notifications', display_label='Enable Toggle Voice Notifications', setting_type=SettingType.BOOLEAN,
+        tooltip='Enable or disable the Toggle Voice Notifications global hotkey while keeping its assigned keybind.',
     ),
     'toggle_voice_notifications_hotkey': SettingMeta(
         category='Shortcuts', group='Capture & Notifications', display_label='Toggle Voice Notifications', setting_type=SettingType.HOTKEY,
         tooltip='Global keyboard shortcut to mute or enable voice notifications at any time (including while in-game). Leave empty to disable.',
     ),
+    'toggle_all_notifications_hotkey_enabled': SettingMeta(
+        category='Shortcuts', group='Capture & Notifications', display_label='Enable Toggle All Notifications', setting_type=SettingType.BOOLEAN,
+        tooltip='Enable or disable the Toggle All Notifications global hotkey while keeping its assigned keybind.',
+    ),
     'toggle_all_notifications_hotkey': SettingMeta(
         category='Shortcuts', group='Capture & Notifications', display_label='Toggle All Notifications', setting_type=SettingType.HOTKEY,
         tooltip='Global keyboard shortcut to mute or enable all visual and voice notifications at any time (including while in-game). Leave empty to disable.',
     ),
+    'solo_session_hotkey_enabled': SettingMeta(
+        category='Shortcuts', group='Game Process & Session', display_label='Enable Solo Public Session', setting_type=SettingType.BOOLEAN,
+        tooltip='Enable or disable the Solo Public Session global hotkey while keeping its assigned keybind.',
+    ),
     'solo_session_hotkey': SettingMeta(
         category='Shortcuts', group='Game Process & Session', display_label='Solo Public Session', setting_type=SettingType.HOTKEY,
         tooltip='Global keyboard shortcut to trigger a Solo Public Session at any time (including while in-game). Leave empty to disable.',
+    ),
+    'suspend_process_hotkey_enabled': SettingMeta(
+        category='Shortcuts', group='Game Process & Session', display_label='Enable Suspend / Resume Process', setting_type=SettingType.BOOLEAN,
+        tooltip='Enable or disable the Suspend / Resume Process global hotkey while keeping its assigned keybind.',
     ),
     'suspend_process_hotkey': SettingMeta(
         category='Shortcuts', group='Game Process & Session', display_label='Suspend / Resume Process', setting_type=SettingType.HOTKEY,
@@ -799,17 +847,33 @@ SETTING_METADATA: dict[str, SettingMeta] = {
             '(including while in-game). Press once to suspend, press again to resume. Leave empty to disable.'
         ),
     ),
+    'player_resolver_hotkey_enabled': SettingMeta(
+        category='Shortcuts', group='Game Process & Session', display_label='Enable Player Resolver', setting_type=SettingType.BOOLEAN,
+        tooltip='Enable or disable the Player Resolver global hotkey while keeping its assigned keybind.',
+    ),
     'player_resolver_hotkey': SettingMeta(
         category='Shortcuts', group='Game Process & Session', display_label='Player Resolver', setting_type=SettingType.HOTKEY,
         tooltip='Global keyboard shortcut to open or focus the Player Resolver window (GTA V / RDR2). Leave empty to disable.',
+    ),
+    'redetect_host_hotkey_enabled': SettingMeta(
+        category='Shortcuts', group='Game Process & Session', display_label='Enable Re-detect Host', setting_type=SettingType.BOOLEAN,
+        tooltip='Enable or disable the Re-detect Host global hotkey while keeping its assigned keybind.',
     ),
     'redetect_host_hotkey': SettingMeta(
         category='Shortcuts', group='Game Process & Session', display_label='Re-detect Host', setting_type=SettingType.HOTKEY,
         tooltip='Global keyboard shortcut to clear and immediately re-evaluate session host detection (GTA V / RDR2). Leave empty to disable.',
     ),
+    'looky_crawler_hotkey_enabled': SettingMeta(
+        category='Shortcuts', group='Looky System', display_label='Enable Request Crawler in My Session', setting_type=SettingType.BOOLEAN,
+        tooltip='Enable or disable the Request Crawler in My Session global hotkey while keeping its assigned keybind.',
+    ),
     'looky_crawler_hotkey': SettingMeta(
         category='Shortcuts', group='Looky System', display_label='Request Crawler in My Session', setting_type=SettingType.HOTKEY,
         tooltip='Global keyboard shortcut to request the Looky System crawler bot in your current GTA5 session. Leave empty to disable.',
+    ),
+    'looky_rescan_hotkey_enabled': SettingMeta(
+        category='Shortcuts', group='Looky System', display_label='Enable Rescan All Players', setting_type=SettingType.BOOLEAN,
+        tooltip='Enable or disable the Rescan All Players global hotkey while keeping its assigned keybind.',
     ),
     'looky_rescan_hotkey': SettingMeta(
         category='Shortcuts', group='Looky System', display_label='Rescan All Players', setting_type=SettingType.HOTKEY,

@@ -420,12 +420,9 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, ShortcutsMixin, 
         capture_menu.setToolTipsVisible(True)
         self._main_i18n_menus.append((capture_menu, 'Capture'))
 
-        toggle_capture_action = QAction(
-            QIcon(str(ICONS_DIR_PATH / 'circle-stop.svg')),
-            format_action_with_shortcut(tr('Stop Capture'), Settings.toggle_capture_hotkey),
-            self,
-        )
-        toggle_capture_action.setToolTip(append_shortcut_tooltip(tr('Stop packet capture'), Settings.toggle_capture_hotkey, is_global=True))
+        toggle_hotkey = Settings.get_active_shortcut('toggle_capture_hotkey')
+        toggle_capture_action = QAction(QIcon(str(ICONS_DIR_PATH / 'circle-stop.svg')), format_action_with_shortcut(tr('Stop Capture'), toggle_hotkey), self)
+        toggle_capture_action.setToolTip(append_shortcut_tooltip(tr('Stop packet capture'), toggle_hotkey, is_global=True))
         toggle_capture_action.triggered.connect(self._toggle_capture)
         capture_menu.addAction(toggle_capture_action)
 
@@ -731,6 +728,7 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, ShortcutsMixin, 
                 self._apply_table_settings(changed)
                 self._sync_player_resolver_settings()
                 self._apply_userip_settings(changed)
+                self._sync_shortcuts()
                 if self._settings_dialog_window is not None:
                     self._settings_dialog_window.refresh_from_external_settings()
                 wake_rendering_core()
@@ -835,8 +833,9 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, ShortcutsMixin, 
         is_running = self.capture.is_running()
         base_text = tr('Stop Capture') if is_running else tr('Start Capture')
         base_tooltip = tr('Stop packet capture') if is_running else tr('Start packet capture')
-        expected_text = format_action_with_shortcut(base_text, Settings.toggle_capture_hotkey)
-        expected_tooltip = append_shortcut_tooltip(base_tooltip, Settings.toggle_capture_hotkey, is_global=True)
+        toggle_hotkey = Settings.get_active_shortcut('toggle_capture_hotkey')
+        expected_text = format_action_with_shortcut(base_text, toggle_hotkey)
+        expected_tooltip = append_shortcut_tooltip(base_tooltip, toggle_hotkey, is_global=True)
         if self._actions.toggle_capture.text() == expected_text and self._actions.toggle_capture.toolTip() == expected_tooltip:
             return
 

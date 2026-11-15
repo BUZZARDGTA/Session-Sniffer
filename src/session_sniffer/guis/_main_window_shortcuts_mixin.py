@@ -221,8 +221,8 @@ class ShortcutsMixin(QMainWindow):
 
         for setting_key, _handler in self._window_shortcut_specs():
             shortcut = self._window_shortcuts[setting_key]
-            chord = getattr(Settings, setting_key, None)
-            if isinstance(chord, str) and chord:
+            chord = Settings.get_active_shortcut(setting_key)
+            if chord is not None:
                 shortcut.setKey(QKeySequence.fromString(chord, QKeySequence.SequenceFormat.PortableText))
                 shortcut.setEnabled(True)
             else:
@@ -238,8 +238,8 @@ class ShortcutsMixin(QMainWindow):
         hwnd = self.winId() if sys.platform == 'win32' else 0
         for setting_key, is_applicable, handler in self._global_hotkey_specs():
             fallback_shortcut = self._global_fallback_shortcuts[setting_key]
-            chord = getattr(Settings, setting_key, None) if is_applicable() else None
-            if not isinstance(chord, str) or not chord:
+            chord = Settings.get_active_shortcut(setting_key) if is_applicable() else None
+            if chord is None:
                 continue
             if sys.platform == 'win32':
                 spec = parse_win32_hotkey_spec(chord)
@@ -266,8 +266,9 @@ class ShortcutsMixin(QMainWindow):
         if not self._shortcuts_initialized:
             return
         self._sync_capture_toggle_action()
-        self._open_settings_action.setText(format_action_with_shortcut(tr('Open Settings'), Settings.shortcut_open_settings))
-        self._open_settings_action.setToolTip(append_shortcut_tooltip(tr('View and edit all application settings'), Settings.shortcut_open_settings))
+        open_settings_shortcut = Settings.get_active_shortcut('shortcut_open_settings')
+        self._open_settings_action.setText(format_action_with_shortcut(tr('Open Settings'), open_settings_shortcut))
+        self._open_settings_action.setToolTip(append_shortcut_tooltip(tr('View and edit all application settings'), open_settings_shortcut))
         self._refresh_player_resolver_action_texts()
         self._refresh_looky_language_texts()
         self._last_game_process_button_key = ()
@@ -291,7 +292,7 @@ class ShortcutsMixin(QMainWindow):
 
     def _can_trigger_shortcut(self) -> bool:
         """Return `True` when the main window is in an interactive state eligible to handle shortcuts."""
-        if gui_closed__event.is_set() or not isValid(self):
+        if not Settings.shortcuts_enabled or gui_closed__event.is_set() or not isValid(self):
             return False
         if self._settings_dialog_window is not None and isValid(self._settings_dialog_window) and self._settings_dialog_window.isVisible():
             return False

@@ -138,20 +138,36 @@ class Settings:
     high_rate_monitor_auto_select: bool = SETTING_DEFAULTS['high_rate_monitor_auto_select']
     high_rate_monitor_spike_sound: bool = SETTING_DEFAULTS['high_rate_monitor_spike_sound']
     solo_session_duration: int = SETTING_DEFAULTS['solo_session_duration']
+    shortcuts_enabled: bool = SETTING_DEFAULTS['shortcuts_enabled']
+    shortcut_focus_search_enabled: bool = SETTING_DEFAULTS['shortcut_focus_search_enabled']
     shortcut_focus_search: str | None = SETTING_DEFAULTS['shortcut_focus_search']
+    shortcut_merge_tables_enabled: bool = SETTING_DEFAULTS['shortcut_merge_tables_enabled']
     shortcut_merge_tables: str | None = SETTING_DEFAULTS['shortcut_merge_tables']
+    shortcut_open_settings_enabled: bool = SETTING_DEFAULTS['shortcut_open_settings_enabled']
     shortcut_open_settings: str | None = SETTING_DEFAULTS['shortcut_open_settings']
+    shortcut_clear_connected_enabled: bool = SETTING_DEFAULTS['shortcut_clear_connected_enabled']
     shortcut_clear_connected: str | None = SETTING_DEFAULTS['shortcut_clear_connected']
+    shortcut_clear_disconnected_enabled: bool = SETTING_DEFAULTS['shortcut_clear_disconnected_enabled']
     shortcut_clear_disconnected: str | None = SETTING_DEFAULTS['shortcut_clear_disconnected']
+    toggle_capture_hotkey_enabled: bool = SETTING_DEFAULTS['toggle_capture_hotkey_enabled']
     toggle_capture_hotkey: str | None = SETTING_DEFAULTS['toggle_capture_hotkey']
+    toggle_visual_notifications_hotkey_enabled: bool = SETTING_DEFAULTS['toggle_visual_notifications_hotkey_enabled']
     toggle_visual_notifications_hotkey: str | None = SETTING_DEFAULTS['toggle_visual_notifications_hotkey']
+    toggle_voice_notifications_hotkey_enabled: bool = SETTING_DEFAULTS['toggle_voice_notifications_hotkey_enabled']
     toggle_voice_notifications_hotkey: str | None = SETTING_DEFAULTS['toggle_voice_notifications_hotkey']
+    toggle_all_notifications_hotkey_enabled: bool = SETTING_DEFAULTS['toggle_all_notifications_hotkey_enabled']
     toggle_all_notifications_hotkey: str | None = SETTING_DEFAULTS['toggle_all_notifications_hotkey']
+    solo_session_hotkey_enabled: bool = SETTING_DEFAULTS['solo_session_hotkey_enabled']
     solo_session_hotkey: str | None = SETTING_DEFAULTS['solo_session_hotkey']
+    suspend_process_hotkey_enabled: bool = SETTING_DEFAULTS['suspend_process_hotkey_enabled']
     suspend_process_hotkey: str | None = SETTING_DEFAULTS['suspend_process_hotkey']
+    player_resolver_hotkey_enabled: bool = SETTING_DEFAULTS['player_resolver_hotkey_enabled']
     player_resolver_hotkey: str | None = SETTING_DEFAULTS['player_resolver_hotkey']
+    redetect_host_hotkey_enabled: bool = SETTING_DEFAULTS['redetect_host_hotkey_enabled']
     redetect_host_hotkey: str | None = SETTING_DEFAULTS['redetect_host_hotkey']
+    looky_crawler_hotkey_enabled: bool = SETTING_DEFAULTS['looky_crawler_hotkey_enabled']
     looky_crawler_hotkey: str | None = SETTING_DEFAULTS['looky_crawler_hotkey']
+    looky_rescan_hotkey_enabled: bool = SETTING_DEFAULTS['looky_rescan_hotkey_enabled']
     looky_rescan_hotkey: str | None = SETTING_DEFAULTS['looky_rescan_hotkey']
     high_rate_monitor_pps_threshold: int = SETTING_DEFAULTS['high_rate_monitor_pps_threshold']
     high_rate_monitor_bps_threshold: int = SETTING_DEFAULTS['high_rate_monitor_bps_threshold']
@@ -265,20 +281,36 @@ class Settings:
         'HIGH_RATE_MONITOR_AUTO_SELECT',
         'HIGH_RATE_MONITOR_SPIKE_SOUND',
         'SOLO_SESSION_DURATION',
+        'SHORTCUTS_ENABLED',
+        'SHORTCUT_FOCUS_SEARCH_ENABLED',
         'SHORTCUT_FOCUS_SEARCH',
+        'SHORTCUT_MERGE_TABLES_ENABLED',
         'SHORTCUT_MERGE_TABLES',
+        'SHORTCUT_OPEN_SETTINGS_ENABLED',
         'SHORTCUT_OPEN_SETTINGS',
+        'SHORTCUT_CLEAR_CONNECTED_ENABLED',
         'SHORTCUT_CLEAR_CONNECTED',
+        'SHORTCUT_CLEAR_DISCONNECTED_ENABLED',
         'SHORTCUT_CLEAR_DISCONNECTED',
+        'TOGGLE_CAPTURE_HOTKEY_ENABLED',
         'TOGGLE_CAPTURE_HOTKEY',
+        'TOGGLE_VISUAL_NOTIFICATIONS_HOTKEY_ENABLED',
         'TOGGLE_VISUAL_NOTIFICATIONS_HOTKEY',
+        'TOGGLE_VOICE_NOTIFICATIONS_HOTKEY_ENABLED',
         'TOGGLE_VOICE_NOTIFICATIONS_HOTKEY',
+        'TOGGLE_ALL_NOTIFICATIONS_HOTKEY_ENABLED',
         'TOGGLE_ALL_NOTIFICATIONS_HOTKEY',
+        'SOLO_SESSION_HOTKEY_ENABLED',
         'SOLO_SESSION_HOTKEY',
+        'SUSPEND_PROCESS_HOTKEY_ENABLED',
         'SUSPEND_PROCESS_HOTKEY',
+        'PLAYER_RESOLVER_HOTKEY_ENABLED',
         'PLAYER_RESOLVER_HOTKEY',
+        'REDETECT_HOST_HOTKEY_ENABLED',
         'REDETECT_HOST_HOTKEY',
+        'LOOKY_CRAWLER_HOTKEY_ENABLED',
         'LOOKY_CRAWLER_HOTKEY',
+        'LOOKY_RESCAN_HOTKEY_ENABLED',
         'LOOKY_RESCAN_HOTKEY',
         'HIGH_RATE_MONITOR_PPS_THRESHOLD',
         'HIGH_RATE_MONITOR_BPS_THRESHOLD',
@@ -384,6 +416,14 @@ class Settings:
     def is_session_host_feature_set(cls) -> bool:
         """Return `True` when the active capture feature set supports session host detection."""
         return cls.is_rockstar_feature_set()
+
+    @classmethod
+    def get_active_shortcut(cls, setting_key: str) -> str | None:
+        """Return the configured shortcut chord for *setting_key* when shortcuts and this binding are enabled, else `None`."""
+        if not cls.shortcuts_enabled or not bool(getattr(cls, f'{setting_key}_enabled', False)):
+            return None
+        chord = getattr(cls, setting_key, None)
+        return chord if isinstance(chord, str) and chord else None
 
     @classmethod
     def rebuild_blocked_ip_ranges(cls) -> None:

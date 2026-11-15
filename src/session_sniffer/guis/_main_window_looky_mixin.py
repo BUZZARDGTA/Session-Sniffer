@@ -27,22 +27,23 @@ if TYPE_CHECKING:
 
 def format_game_solo_action_text() -> str:
     """Return the label for the solo public session action."""
-    hotkey = Settings.solo_session_hotkey
-    if bool(hotkey):
+    hotkey = Settings.get_active_shortcut('solo_session_hotkey')
+    if hotkey is not None:
         return tr('Solo Public Session ({duration}s) [{hotkey}]', duration=Settings.solo_session_duration, hotkey=hotkey)
     return tr('Solo Public Session ({duration}s)', duration=Settings.solo_session_duration)
 
 
 def format_game_solo_tooltip(game_label: str) -> str:
     """Return the tooltip text for the solo public session action."""
-    if bool(Settings.solo_session_hotkey):
+    hotkey = Settings.get_active_shortcut('solo_session_hotkey')
+    if hotkey is not None:
         return tr(
             'Suspend {game_label} for {duration} seconds then auto-resume.\n'
             'This forces the game to spawn you alone in a public session.\n\n'
             'Global Hotkey: {hotkey}',
             game_label=game_label,
             duration=Settings.solo_session_duration,
-            hotkey=Settings.solo_session_hotkey,
+            hotkey=hotkey,
         )
     return tr(
         'Suspend {game_label} for {duration} seconds then auto-resume.\n'
@@ -92,15 +93,16 @@ class LookyMixin(QMainWindow):
 
         looky_submenu.addSeparator()
 
+        crawler_hotkey = Settings.get_active_shortcut('looky_crawler_hotkey')
         looky_crawler_join_own_session_action = QAction(
             QIcon(str(ICONS_DIR_PATH / 'bot.svg')),
-            format_action_with_shortcut(tr('Request Crawler in My Session'), Settings.looky_crawler_hotkey),
+            format_action_with_shortcut(tr('Request Crawler in My Session'), crawler_hotkey),
             self,
         )
         looky_crawler_join_own_session_action.setToolTip(
             append_shortcut_tooltip(
                 tr('Call the crawler bot to resolve usernames for players in your current session.'),
-                Settings.looky_crawler_hotkey,
+                crawler_hotkey,
                 is_global=True,
             ),
         )
@@ -108,15 +110,16 @@ class LookyMixin(QMainWindow):
         looky_submenu.addAction(looky_crawler_join_own_session_action)
         self._looky_crawler_join_own_session_action = looky_crawler_join_own_session_action
 
+        rescan_hotkey = Settings.get_active_shortcut('looky_rescan_hotkey')
         looky_rescan_all_action = QAction(
             QIcon(str(ICONS_DIR_PATH / 'refresh-cw.svg')),
-            format_action_with_shortcut(tr('Rescan All Players'), Settings.looky_rescan_hotkey),
+            format_action_with_shortcut(tr('Rescan All Players'), rescan_hotkey),
             self,
         )
         looky_rescan_all_action.setToolTip(
             append_shortcut_tooltip(
                 tr('Immediately refresh Looky System data for all players without waiting for the next automatic update.'),
-                Settings.looky_rescan_hotkey,
+                rescan_hotkey,
                 is_global=True,
             ),
         )
@@ -133,9 +136,9 @@ class LookyMixin(QMainWindow):
         self._looky_open_website_action.setText(tr('Open Website'))
         self._looky_open_website_action.setToolTip(tr('Open the Looky System website in your default browser'))
         self._looky_crawler_join_own_session_action.setText(
-            format_action_with_shortcut(tr('Request Crawler in My Session'), Settings.looky_crawler_hotkey),
+            format_action_with_shortcut(tr('Request Crawler in My Session'), Settings.get_active_shortcut('looky_crawler_hotkey')),
         )
-        self._looky_rescan_all_action.setText(format_action_with_shortcut(tr('Rescan All Players'), Settings.looky_rescan_hotkey))
+        self._looky_rescan_all_action.setText(format_action_with_shortcut(tr('Rescan All Players'), Settings.get_active_shortcut('looky_rescan_hotkey')))
         self._update_looky_actions()
 
     def _update_looky_actions(self) -> None:
@@ -144,7 +147,7 @@ class LookyMixin(QMainWindow):
             self._looky_crawler_join_own_session_action,
             append_shortcut_tooltip(
                 tr('Call the crawler bot to resolve usernames for players in your current session.'),
-                Settings.looky_crawler_hotkey,
+                Settings.get_active_shortcut('looky_crawler_hotkey'),
                 is_global=True,
             ),
             is_gta5_running=CaptureState.gta5_is_running,
@@ -153,7 +156,7 @@ class LookyMixin(QMainWindow):
             self._looky_rescan_all_action,
             append_shortcut_tooltip(
                 tr('Immediately refresh Looky System data for all players without waiting for the next automatic update.'),
-                Settings.looky_rescan_hotkey,
+                Settings.get_active_shortcut('looky_rescan_hotkey'),
                 is_global=True,
             ),
             restriction=self._get_rescan_all_restriction(),
