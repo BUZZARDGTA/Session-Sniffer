@@ -25,10 +25,19 @@ _INTER_SOUND_PAUSE_SECONDS = 0.5
 _VOICE_NOTIFICATION_THREAD_NAME = 'VoiceNotificationWorker'
 _voice_notification_lock = Lock()
 
-_SPIKE_DING_WAV_PATH: Final[Path] = RESOURCES_DIR_PATH / 'sounds' / 'spike_ding.wav'
-_SPIKE_DING_COOLDOWN_SECONDS: Final[float] = 1.5
-_SPIKE_DING_THREAD_NAME: Final[str] = 'SpikeDingAudioWorker'
-_spike_ding_lock = Lock()
+_SPIKE_SOUNDS_DIR: Final[Path] = RESOURCES_DIR_PATH / 'sounds'
+_SPIKE_SOUND_FILES: Final[dict[str, str]] = {
+    'Ding': 'spike_ding.wav',
+    'Radar Ping': 'spike_ping.wav',
+    'Double Beep': 'spike_beep.wav',
+    'Geiger Click': 'spike_click.wav',
+    'Siren Pulse': 'spike_alert.wav',
+    'End': 'spike_end.wav',
+    'Critical': 'spike_critical.wav',
+}
+_DEFAULT_SPIKE_SOUND_COOLDOWN_SECONDS: Final[float] = 0.25
+_SPIKE_SOUND_THREAD_NAME: Final[str] = 'SpikeSoundAudioWorker'
+_spike_sound_lock = Lock()
 
 
 class _DeduplicatedQueue:
@@ -172,50 +181,61 @@ def tts_voice_name(*, voice_setting: Literal['Male', 'Female'] | bool) -> Litera
 
 
 @dataclass(slots=True)
-class _SpikeDingState:
+class _SpikeSoundState:
     last_played_monotonic: float = 0.0
     posix_playing: bool = False
 
 
-_spike_ding_state = _SpikeDingState()
+_spike_sound_state = _SpikeSoundState()
 
 
-def _play_spike_ding_posix_worker(wav_path: str) -> None:
-    """Play the spike ding WAV file on POSIX systems without blocking the GUI thread."""
+def _play_spike_sound_posix_worker(wav_path: str) -> None:
+    """Play a spike alert WAV file on POSIX systems without blocking the GUI thread."""
     try:
         _play_wav_posix(wav_path)
     finally:
-        with _spike_ding_lock:
-            _spike_ding_state.posix_playing = False
+        with _spike_sound_lock:
+            _spike_sound_state.posix_playing = False
 
 
-def play_spike_ding() -> None:
-    """Play a short ding chime immediately for a Rate Graph traffic spike, rate-limited by a brief cooldown."""
+def play_spike_sound(
+    sound_kind: str = 'Ding',
+    *,
+    min_cooldown: float = _DEFAULT_SPIKE_SOUND_COOLDOWN_SECONDS,
+    bypass_cooldown: bool = False,
+) -> None:
+    """Play a built-in spike alert WAV file immediately, guarded by a configurable minimum cooldown."""
     if gui_closed__event.is_set():
         return
 
     now = time.monotonic()
-    with _spike_ding_lock:
-        if _spike_ding_state.last_played_monotonic and (now - _spike_ding_state.last_played_monotonic) < _SPIKE_DING_COOLDOWN_SECONDS:
+    with _spike_sound_lock:
+        if (
+            not bypass_cooldown
+            and _spike_sound_state.last_played_monotonic
+            and (now - _spike_sound_state.last_played_monotonic) < min_cooldown
+        ):
             return
-        if sys.platform != 'win32' and _spike_ding_state.posix_playing:
+        if sys.platform != 'win32' and _spike_sound_state.posix_playing:
             return
-        _spike_ding_state.last_played_monotonic = now
+        _spike_sound_state.last_played_monotonic = now
         if sys.platform != 'win32':
-            _spike_ding_state.posix_playing = True
+            _spike_sound_state.posix_playing = True
 
-    if not _SPIKE_DING_WAV_PATH.is_file():
+    sound_filename = _SPIKE_SOUND_FILES.get(sound_kind, 'spike_ding.wav')
+    wav_file_path = _SPIKE_SOUNDS_DIR / sound_filename
+    if not wav_file_path.is_file():
         if sys.platform != 'win32':
-            with _spike_ding_lock:
-                _spike_ding_state.posix_playing = False
-        logger.warning('Spike ding sound file not found: %s', _SPIKE_DING_WAV_PATH)
+            with _spike_sound_lock:
+                _spike_sound_state.posix_playing = False
+        logger.warning('Spike sound file not found: %s', wav_file_path)
         return
 
-    wav_path = str(_SPIKE_DING_WAV_PATH)
+    wav_path = str(wav_file_path)
     if sys.platform == 'win32':
         try:
             winsound.PlaySound(wav_path, winsound.SND_FILENAME | winsound.SND_NODEFAULT | winsound.SND_ASYNC)
         except (RuntimeError, OSError, ValueError) as e:
-            logger.warning('Failed to play spike ding %s: %s', wav_path, e)
+            logger.warning('Failed to play spike sound %s: %s', wav_path, e)
     else:
-        Thread(target=_play_spike_ding_posix_worker, args=(wav_path,), name=_SPIKE_DING_THREAD_NAME, daemon=True).start()
+        Thread(target=_play_spike_sound_posix_worker, args=(wav_path,), name=_SPIKE_SOUND_THREAD_NAME, daemon=True).start()

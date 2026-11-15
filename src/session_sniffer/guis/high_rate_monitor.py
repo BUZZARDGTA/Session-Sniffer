@@ -1,26 +1,32 @@
 """High Rate Monitor — tracks players exceeding configurable PPS and BPS thresholds."""
 
 import html
+import time
 from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import TYPE_CHECKING, ClassVar, override
 
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import QSignalBlocker, Qt, QTimer
 from PySide6.QtWidgets import (
     QCheckBox,
+    QComboBox,
     QHBoxLayout,
     QLabel,
     QPushButton,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
 
+from session_sniffer.background.voice_notifications import play_spike_sound
+from session_sniffer.constants.standalone import SPIKE_SOUND_MODES, SPIKE_SOUND_SCOPES
 from session_sniffer.constants.standard import LOCAL_TZ
-from session_sniffer.guis.live_language import register_language_refresh
-from session_sniffer.guis.player_rate_graph import DEFAULT_MAX_HISTORY, PlayerRateGraphWindow
-from session_sniffer.guis.theming import themed_qss
-from session_sniffer.guis.utils import activate_window, scale_by_ui
+from session_sniffer.guis.live_language import register_language_refresh, set_i18n_colon_label
+from session_sniffer.guis.player_rate_graph import DEFAULT_MAX_HISTORY, PlayerRateGraphWindow, SpikeAlertGraphConfig
+from session_sniffer.guis.stylesheets import COMPACT_BUTTON_STYLESHEET
+from session_sniffer.guis.theming import themed_qss, themed_text_qcolor
+from session_sniffer.guis.utils import activate_window, render_svg_icon_from_resource, scale_by_ui
 from session_sniffer.i18n import tr, tr_plural
 from session_sniffer.models.player_traffic import PlayerBandwidth
 from session_sniffer.player.registry import PlayersRegistry
@@ -32,10 +38,14 @@ if TYPE_CHECKING:
     from PySide6.QtGui import QHideEvent, QShowEvent
 
 _UPDATE_INTERVAL_MS = 1_000
+_PULSE_CHECK_INTERVAL_MS = 150
 _KBS_TO_BYTES = 1024
 _SMART_MIN_PPS_FLOOR = 20
 _SMART_PPS_MULTIPLIER = 1.20
 _SMART_MIN_PPS_DELTA = 3
+_GEIGER_MIN_INTERVAL_SECONDS = 0.35
+_GEIGER_CRITICAL_RATIO = 2.0
+_MAX_AUTO_OPEN_GRAPHS = 6
 
 
 def _make_rate_history() -> deque[int]:
@@ -139,11 +149,22 @@ class HighRateMonitorWidget(QWidget):
         self._blacklisted_ips: set[str] = set()
         self._graph_windows: dict[str, PlayerRateGraphWindow] = {}
         self._currently_selected_ips: set[str] = set()
+        self._previously_flagged_ips: set[str] = set()
+        self._spiking_ips: set[str] = set()
+        self._active_max_intensity_ratio: float = 1.0
+        self._last_repeat_monotonic: float = 0.0
+
         self.mode: str = Settings.high_rate_monitor_mode
         self._current_avg_pps: float = 0.0
         self._current_smart_threshold: int = _SMART_MIN_PPS_FLOOR
         self._auto_select: bool = Settings.high_rate_monitor_auto_select
-        self._spike_sound: bool = Settings.high_rate_monitor_spike_sound
+        self._spike_sound_scope: str = Settings.high_rate_monitor_spike_sound_scope
+        self._spike_sound_mode: str = Settings.high_rate_monitor_spike_sound_mode
+        self._spike_repeat_interval: int = Settings.high_rate_monitor_spike_repeat_interval
+        self._spike_sound_preset: str = Settings.high_rate_monitor_spike_sound_preset
+        self._spike_trigger_metric: str = Settings.high_rate_monitor_spike_trigger_metric
+        self._spike_visual_alert: bool = Settings.high_rate_monitor_spike_visual_alert
+        self._auto_open_graph: bool = Settings.high_rate_monitor_auto_open_graph
 
         self.pps_threshold = Settings.high_rate_monitor_pps_threshold
         self.bps_threshold = Settings.high_rate_monitor_bps_threshold * _KBS_TO_BYTES
@@ -182,6 +203,52 @@ class HighRateMonitorWidget(QWidget):
 
         layout.addLayout(selection_layout)
 
+        # Spike Alerts quick-controls row
+        spike_controls_layout = QHBoxLayout()
+        spike_controls_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        spike_controls_layout.setSpacing(scale_by_ui(6))
+
+        self._spike_sound_label = QLabel()
+        set_i18n_colon_label(self._spike_sound_label, 'Spike Sound')
+        spike_controls_layout.addWidget(self._spike_sound_label)
+
+        self._spike_scope_combo = QComboBox()
+        self._spike_scope_combo.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        for scope in SPIKE_SOUND_SCOPES:
+            self._spike_scope_combo.addItem(tr(scope), scope)
+        if (scope_idx := self._spike_scope_combo.findData(self._spike_sound_scope)) >= 0:
+            self._spike_scope_combo.setCurrentIndex(scope_idx)
+        self._spike_scope_combo.currentIndexChanged.connect(self._on_spike_scope_combo_changed)
+        spike_controls_layout.addWidget(self._spike_scope_combo)
+
+        self._spike_mode_combo = QComboBox()
+        self._spike_mode_combo.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        for mode in SPIKE_SOUND_MODES:
+            self._spike_mode_combo.addItem(tr(mode), mode)
+        if (mode_idx := self._spike_mode_combo.findData(self._spike_sound_mode)) >= 0:
+            self._spike_mode_combo.setCurrentIndex(mode_idx)
+        self._spike_mode_combo.currentIndexChanged.connect(self._on_spike_mode_combo_changed)
+        spike_controls_layout.addWidget(self._spike_mode_combo)
+
+        self._spike_preview_button = QToolButton()
+        self._spike_preview_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self._spike_preview_button.setIcon(
+            render_svg_icon_from_resource('volume-2.svg', 14, 14, themed_text_qcolor('@text[#e5e7eb]', '@surface[#1f2937]').name()),
+        )
+        self._spike_preview_button.setStyleSheet(COMPACT_BUTTON_STYLESHEET)
+        self._spike_preview_button.clicked.connect(lambda: play_spike_sound(self._spike_sound_preset, bypass_cooldown=True))
+        spike_controls_layout.addWidget(self._spike_preview_button)
+
+        spike_controls_layout.addSpacing(scale_by_ui(8))
+
+        self._auto_open_graph_checkbox = QCheckBox()
+        self._auto_open_graph_checkbox.setChecked(self._auto_open_graph)
+        self._auto_open_graph_checkbox.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self._auto_open_graph_checkbox.toggled.connect(self._on_auto_open_graph_toggled)
+        spike_controls_layout.addWidget(self._auto_open_graph_checkbox)
+
+        layout.addLayout(spike_controls_layout)
+
         # Action buttons row
         actions_layout = QHBoxLayout()
         actions_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -204,6 +271,10 @@ class HighRateMonitorWidget(QWidget):
         self._clear_blacklist_button = clear_bl_button
 
         layout.addLayout(actions_layout)
+
+        # Pulse timer for repeating / Adaptive Geiger spike sounds (active only during active spikes)
+        self._pulse_timer = QTimer(self)
+        self._pulse_timer.timeout.connect(self._on_pulse_timer_tick)
 
         self._apply_translations()
         register_language_refresh(self, self._apply_translations)
@@ -228,6 +299,20 @@ class HighRateMonitorWidget(QWidget):
                 'Live updates occur with every scan. Turn off for manual selection control.',
             ),
         )
+        for i, canonical_scope in enumerate(SPIKE_SOUND_SCOPES):
+            if i < self._spike_scope_combo.count():
+                self._spike_scope_combo.setItemText(i, tr(canonical_scope))
+        for i, canonical_mode in enumerate(SPIKE_SOUND_MODES):
+            if i < self._spike_mode_combo.count():
+                self._spike_mode_combo.setItemText(i, tr(canonical_mode))
+        scope_tip = tr('Choose where spike alert sounds are active (Disabled, Open Graphs, or Global).')
+        self._spike_sound_label.setToolTip(scope_tip)
+        self._spike_scope_combo.setToolTip(scope_tip)
+        self._auto_open_graph_checkbox.setText(tr('Auto-open Graphs'))
+        self._auto_open_graph_checkbox.setToolTip(
+            tr('Automatically open a live Rate Graph window (without stealing focus) whenever a player is newly flagged.'),
+        )
+        self._refresh_spike_controls_state()
         self._open_all_graphs_button.setText(tr('Open Graphs for Flagged Players'))
         self._open_all_graphs_button.setToolTip(
             tr(
@@ -247,6 +332,16 @@ class HighRateMonitorWidget(QWidget):
             ),
         )
         self._refresh_status_label()
+
+    def _refresh_spike_controls_state(self) -> None:
+        sound_active = self._spike_sound_scope != 'Disabled'
+        scope_disabled_note = tr('Disabled when Spike Sound Scope is set to Disabled.')
+        self._spike_mode_combo.setEnabled(sound_active)
+        mode_tip = tr('Choose how spike alert sounds behave when traffic crosses above the threshold.')
+        self._spike_mode_combo.setToolTip(mode_tip if sound_active else f'{mode_tip}\n\n{scope_disabled_note}')
+        self._spike_preview_button.setEnabled(sound_active)
+        preview_tip = tr('Play a preview of the selected spike sound preset.')
+        self._spike_preview_button.setToolTip(preview_tip if sound_active else f'{preview_tip}\n\n{scope_disabled_note}')
 
     def _refresh_status_label(self) -> None:
         """Render the status summary label according to the current monitor state."""
@@ -326,17 +421,137 @@ class HighRateMonitorWidget(QWidget):
                 self._deselect_ips(list(self._currently_selected_ips))
             self._currently_selected_ips = set(flagged_ips)
 
+        newly_flagged_ips = flagged_ips - self._previously_flagged_ips
+        self._previously_flagged_ips = set(flagged_ips)
+        if self._auto_open_graph and newly_flagged_ips:
+            for ip in sorted(newly_flagged_ips):
+                if len(self._graph_windows) >= _MAX_AUTO_OPEN_GRAPHS:
+                    break
+                if ip not in self._graph_windows:
+                    self.open_graph(ip, focus=False)
+
         for ip, graph in list(self._graph_windows.items()):
             data = self._tracked.get(ip)
+            pps_val = data.pps if data is not None else 0
+            bps_val = data.bps if data is not None else 0
+            _, pps_vis, bps_vis, _ = self._evaluate_ip_spike(data, active_pps_threshold=active_pps_threshold)
             graph.set_pps_threshold(active_pps_threshold)
-            graph.update_rates(
-                pps=data.pps if data else 0,
-                bps=data.bps if data else 0,
-            )
+            graph.update_rates(pps=pps_val, bps=bps_val)
+            graph.update_spike_visuals(pps_spiking=pps_vis, bps_spiking=bps_vis, pps=pps_val, bps=bps_val)
             matched_player = PlayersRegistry.get_player_by_ip(ip)
             graph.update_usernames(matched_player.usernames if matched_player is not None else [])
 
+        self._process_spike_sound_alerts(active_pps_threshold=active_pps_threshold)
         self._update_status_display(flagged_players)
+
+    def _evaluate_ip_spike(self, data: _PlayerRateData | None, *, active_pps_threshold: int) -> tuple[bool, bool, bool, float]:
+        """Return `(is_alert_spiking, pps_visual_spiking, bps_visual_spiking, intensity_ratio)` for a tracked IP."""
+        if data is None:
+            return False, False, False, 0.0
+
+        pps = data.pps
+        bps = data.bps
+        pps_over = 0 < active_pps_threshold <= pps
+        bps_over = 0 < self.bps_threshold <= bps
+        pps_ratio = (pps / active_pps_threshold) if active_pps_threshold > 0 else 0.0
+        bps_ratio = (bps / self.bps_threshold) if self.bps_threshold > 0 else 0.0
+
+        match self._spike_trigger_metric:
+            case 'Follow Monitor':
+                is_spiking = data.is_high_pps if self.mode == 'Smart' else (data.is_high_pps and data.is_high_bps)
+                pps_vis = is_spiking
+                bps_vis = is_spiking and self.mode == 'Manual'
+                raw_ratio = pps_ratio if self.mode == 'Smart' else max(pps_ratio, bps_ratio)
+            case 'Both (PPS and BPS)':
+                is_spiking = pps_over and bps_over
+                pps_vis = is_spiking
+                bps_vis = is_spiking
+                raw_ratio = max(pps_ratio, bps_ratio)
+            case 'PPS Only':
+                is_spiking = pps_over
+                pps_vis = pps_over
+                bps_vis = False
+                raw_ratio = pps_ratio
+            case 'BPS Only':
+                is_spiking = bps_over
+                pps_vis = False
+                bps_vis = bps_over
+                raw_ratio = bps_ratio
+            case _:
+                is_spiking = pps_over or bps_over
+                pps_vis = pps_over
+                bps_vis = bps_over
+                raw_ratio = max(pps_ratio if pps_over else 0.0, bps_ratio if bps_over else 0.0)
+
+        return is_spiking, pps_vis, bps_vis, (max(1.0, raw_ratio) if is_spiking else 0.0)
+
+    def _process_spike_sound_alerts(self, *, active_pps_threshold: int) -> None:
+        """Evaluate rising/falling spike edges and manage repeating/Adaptive Geiger audio cadence."""
+        if self._spike_sound_scope == 'Disabled':
+            self._spiking_ips.clear()
+            if self._pulse_timer.isActive():
+                self._pulse_timer.stop()
+            return
+
+        eligible_ips = (
+            set(self._graph_windows.keys())
+            if self._spike_sound_scope == 'Open Graphs'
+            else (set(self._tracked.keys()) | set(self._graph_windows.keys()))
+        )
+
+        current_spiking_ips: set[str] = set()
+        max_ratio = 1.0
+        for ip in eligible_ips:
+            is_spiking, _, _, ratio = self._evaluate_ip_spike(self._tracked.get(ip), active_pps_threshold=active_pps_threshold)
+            if is_spiking:
+                current_spiking_ips.add(ip)
+                max_ratio = max(max_ratio, ratio)
+
+        # Exclude IPs whose graph window was merely closed while still connected in 'Open Graphs' scope.
+        genuinely_ended_ips = {
+            ip for ip in (self._spiking_ips - current_spiking_ips) if ip in eligible_ips or ip not in self._tracked
+        }
+        started_ips = current_spiking_ips - self._spiking_ips
+        self._spiking_ips = current_spiking_ips
+        self._active_max_intensity_ratio = max_ratio
+
+        if started_ips:
+            self._last_repeat_monotonic = time.monotonic()
+            self._emit_active_spike_sound()
+        elif genuinely_ended_ips and not current_spiking_ips and self._spike_sound_mode in ('Start & End', 'Repeating + End'):
+            play_spike_sound('End', min_cooldown=0.20)
+
+        if current_spiking_ips and self._spike_sound_mode in ('Repeating', 'Repeating + End', 'Adaptive Geiger'):
+            if not self._pulse_timer.isActive():
+                self._pulse_timer.start(_PULSE_CHECK_INTERVAL_MS)
+            self._on_pulse_timer_tick()
+        elif self._pulse_timer.isActive():
+            self._pulse_timer.stop()
+
+    def _on_pulse_timer_tick(self) -> None:
+        if not self._spiking_ips or self._spike_sound_scope == 'Disabled':
+            self._pulse_timer.stop()
+            return
+        if self._spike_sound_mode == 'Adaptive Geiger':
+            target_interval = max(_GEIGER_MIN_INTERVAL_SECONDS, self._spike_repeat_interval / (self._active_max_intensity_ratio ** 1.5))
+        elif self._spike_sound_mode in ('Repeating', 'Repeating + End'):
+            target_interval = float(self._spike_repeat_interval)
+        else:
+            self._pulse_timer.stop()
+            return
+
+        now_mono = time.monotonic()
+        if (now_mono - self._last_repeat_monotonic) >= target_interval:
+            self._last_repeat_monotonic = now_mono
+            self._emit_active_spike_sound()
+
+    def _emit_active_spike_sound(self) -> None:
+        sound_kind = (
+            'Critical'
+            if self._spike_sound_mode == 'Adaptive Geiger' and self._active_max_intensity_ratio >= _GEIGER_CRITICAL_RATIO
+            else self._spike_sound_preset
+        )
+        play_spike_sound(sound_kind, min_cooldown=0.20)
 
     def _update_status_display(self, flagged_players: list[_PlayerRateData]) -> None:
         self._status_mode = 'scanned'
@@ -400,30 +615,56 @@ class HighRateMonitorWidget(QWidget):
         self._status_label.setText('<br>'.join(lines))
 
     def apply_settings(self) -> None:
-        """Apply updated threshold, spike-sound, and auto-select settings from `Settings`."""
+        """Apply updated threshold, spike-alert, and auto-select settings from `Settings`."""
         self.mode = Settings.high_rate_monitor_mode
         self.pps_threshold = Settings.high_rate_monitor_pps_threshold
         self.bps_threshold = Settings.high_rate_monitor_bps_threshold * _KBS_TO_BYTES
         self.required_duration = Settings.high_rate_monitor_duration_threshold
-        spike_sound_changed = Settings.high_rate_monitor_spike_sound != self._spike_sound
-        self._spike_sound = Settings.high_rate_monitor_spike_sound
+
+        self._spike_sound_scope = Settings.high_rate_monitor_spike_sound_scope
+        self._spike_sound_mode = Settings.high_rate_monitor_spike_sound_mode
+        self._spike_repeat_interval = Settings.high_rate_monitor_spike_repeat_interval
+        self._spike_sound_preset = Settings.high_rate_monitor_spike_sound_preset
+        self._spike_trigger_metric = Settings.high_rate_monitor_spike_trigger_metric
+        self._spike_visual_alert = Settings.high_rate_monitor_spike_visual_alert
+        self._auto_open_graph = Settings.high_rate_monitor_auto_open_graph
+
+        with QSignalBlocker(self._spike_scope_combo):
+            if (scope_idx := self._spike_scope_combo.findData(self._spike_sound_scope)) >= 0:
+                self._spike_scope_combo.setCurrentIndex(scope_idx)
+        with QSignalBlocker(self._spike_mode_combo):
+            if (mode_idx := self._spike_mode_combo.findData(self._spike_sound_mode)) >= 0:
+                self._spike_mode_combo.setCurrentIndex(mode_idx)
+        with QSignalBlocker(self._auto_open_graph_checkbox):
+            self._auto_open_graph_checkbox.setChecked(self._auto_open_graph)
+        self._refresh_spike_controls_state()
+
         active_pps_threshold = self._current_smart_threshold if self.mode == 'Smart' else self.pps_threshold
         for graph in self._graph_windows.values():
             graph.set_pps_threshold(active_pps_threshold)
             graph.set_bps_threshold(self.bps_threshold)
-            if spike_sound_changed:
-                graph.set_spike_sound_enabled(enabled=self._spike_sound)
+            graph.sync_spike_alert_settings(
+                scope=self._spike_sound_scope,
+                mode=self._spike_sound_mode,
+                preset=self._spike_sound_preset,
+                visual_alert=self._spike_visual_alert,
+            )
         self._auto_select_checkbox.setChecked(Settings.high_rate_monitor_auto_select)
-        if self._tracked:
+        if self._tracked or self._graph_windows:
             self._scan_players()
 
     # Graphs -----------------------------------------------------------------
 
-    def open_graph(self, ip: str) -> None:
-        """Open or focus a live rate graph window for the given player IP."""
+    def has_open_graphs(self) -> bool:
+        """Return whether any live Player Rate Graph windows are currently open."""
+        return bool(self._graph_windows)
+
+    def open_graph(self, ip: str, *, focus: bool = True) -> None:
+        """Open (and optionally focus) a live rate graph window for the given player IP."""
         existing = self._graph_windows.get(ip)
         if existing:
-            activate_window(existing)
+            if focus:
+                activate_window(existing)
             return
 
         active_pps_threshold = self._current_smart_threshold if self.mode == 'Smart' else self.pps_threshold
@@ -431,27 +672,98 @@ class HighRateMonitorWidget(QWidget):
             ip=ip,
             initial_pps_threshold=active_pps_threshold,
             initial_bps_threshold=self.bps_threshold,
-            initial_spike_sound=self._spike_sound,
-            on_spike_sound_toggled=lambda checked: self._on_spike_sound_toggled(checked=checked),
+            spike_config=SpikeAlertGraphConfig(
+                sound_scope=self._spike_sound_scope,
+                sound_mode=self._spike_sound_mode,
+                sound_preset=self._spike_sound_preset,
+                visual_alert=self._spike_visual_alert,
+                on_scope_changed=self._set_spike_sound_scope,
+                on_mode_changed=self._set_spike_sound_mode,
+            ),
         )
         data = self._tracked.get(ip)
         if data is not None:
             graph.load_history(pps_history=list(data.pps_history), bps_history=list(data.bps_history))
+            is_spiking, pps_vis, bps_vis, _ = self._evaluate_ip_spike(data, active_pps_threshold=active_pps_threshold)
+            graph.update_spike_visuals(pps_spiking=pps_vis, bps_spiking=bps_vis, pps=data.pps, bps=data.bps)
+            if is_spiking and self._spike_sound_scope == 'Open Graphs':
+                self._spiking_ips.add(ip)
         matched_player = PlayersRegistry.get_player_by_ip(ip)
         if matched_player is not None:
             graph.update_usernames(matched_player.usernames)
+        if not focus:
+            graph.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating, on=True)
         graph.show()
-        graph.destroyed.connect(lambda: self._graph_windows.pop(ip, None))
+        if not focus:
+            graph.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating, on=False)
+        graph.destroyed.connect(lambda: self._on_graph_destroyed(ip))
         self._graph_windows[ip] = graph
+        if not self._timer.isActive():
+            self._timer.start(_UPDATE_INTERVAL_MS)
+            self._scan_players()
+
+    def _on_graph_destroyed(self, ip: str) -> None:
+        self._graph_windows.pop(ip, None)
+        if not self._graph_windows and not Settings.high_rate_monitor_run_in_background and not self.window().isVisible():
+            self.stop_monitoring()
 
     def _open_all_graphs(self) -> None:
         for player in self._get_flagged_players():
             self.open_graph(player.ip)
 
-    def _on_spike_sound_toggled(self, *, checked: bool) -> None:
-        self._spike_sound = checked
-        if Settings.high_rate_monitor_spike_sound != checked:
-            Settings.high_rate_monitor_spike_sound = checked
+    def _on_spike_scope_combo_changed(self, index: int) -> None:
+        self._set_spike_sound_scope(str(self._spike_scope_combo.itemData(index)))
+
+    def _on_spike_mode_combo_changed(self, index: int) -> None:
+        self._set_spike_sound_mode(str(self._spike_mode_combo.itemData(index)))
+
+    def _set_spike_sound_scope(self, scope: str) -> None:
+        self._spike_sound_scope = scope
+        with QSignalBlocker(self._spike_scope_combo):
+            if (scope_idx := self._spike_scope_combo.findData(scope)) >= 0:
+                self._spike_scope_combo.setCurrentIndex(scope_idx)
+        self._refresh_spike_controls_state()
+        if Settings.high_rate_monitor_spike_sound_scope != scope:
+            Settings.high_rate_monitor_spike_sound_scope = scope
+            Settings.rewrite_settings_file()
+        for graph in self._graph_windows.values():
+            graph.sync_spike_alert_settings(
+                scope=self._spike_sound_scope,
+                mode=self._spike_sound_mode,
+                preset=self._spike_sound_preset,
+                visual_alert=self._spike_visual_alert,
+            )
+        if scope == 'Disabled':
+            self._spiking_ips.clear()
+            self._pulse_timer.stop()
+
+    def _set_spike_sound_mode(self, mode: str) -> None:
+        self._spike_sound_mode = mode
+        with QSignalBlocker(self._spike_mode_combo):
+            if (mode_idx := self._spike_mode_combo.findData(mode)) >= 0:
+                self._spike_mode_combo.setCurrentIndex(mode_idx)
+        if Settings.high_rate_monitor_spike_sound_mode != mode:
+            Settings.high_rate_monitor_spike_sound_mode = mode
+            Settings.rewrite_settings_file()
+        for graph in self._graph_windows.values():
+            graph.sync_spike_alert_settings(
+                scope=self._spike_sound_scope,
+                mode=self._spike_sound_mode,
+                preset=self._spike_sound_preset,
+                visual_alert=self._spike_visual_alert,
+            )
+        if self._spiking_ips and self._spike_sound_scope != 'Disabled':
+            if mode in ('Repeating', 'Repeating + End', 'Adaptive Geiger'):
+                if not self._pulse_timer.isActive():
+                    self._pulse_timer.start(_PULSE_CHECK_INTERVAL_MS)
+            elif self._pulse_timer.isActive():
+                self._pulse_timer.stop()
+
+    def _on_auto_open_graph_toggled(self) -> None:
+        checked = self._auto_open_graph_checkbox.isChecked()
+        self._auto_open_graph = checked
+        if Settings.high_rate_monitor_auto_open_graph != checked:
+            Settings.high_rate_monitor_auto_open_graph = checked
             Settings.rewrite_settings_file()
 
     # Actions ----------------------------------------------------------------
@@ -492,10 +804,15 @@ class HighRateMonitorWidget(QWidget):
         if self._currently_selected_ips and self._deselect_ips is not None:
             self._deselect_ips(list(self._currently_selected_ips))
         self._currently_selected_ips.clear()
+        self._previously_flagged_ips.clear()
+        self._spiking_ips.clear()
+        self._pulse_timer.stop()
         self._tracked.clear()
         self._current_avg_pps = 0.0
         self._current_smart_threshold = _SMART_MIN_PPS_FLOOR
         HighRateTracker.set_flagged_ips(set())
+        for graph in self._graph_windows.values():
+            graph.update_spike_visuals(pps_spiking=False, bps_spiking=False, pps=0, bps=0)
         self._status_mode = 'reset'
         self._refresh_status_label()
 

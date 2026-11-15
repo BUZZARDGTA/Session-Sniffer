@@ -46,3 +46,31 @@ USERIP_BACKUP_FREQUENCIES: tuple[str, ...] = (
     'Daily',
     'Weekly',
 )
+
+# Player High Rate Monitor spike alert option tuples.
+SPIKE_SOUND_SCOPES: tuple[str, ...] = (
+    'Disabled',
+    'Open Graphs',
+    'Global',
+)
+SPIKE_SOUND_MODES: tuple[str, ...] = (
+    'Once on Spike',
+    'Repeating',
+    'Start & End',
+    'Repeating + End',
+    'Adaptive Geiger',
+)
+SPIKE_SOUND_PRESETS: tuple[str, ...] = (
+    'Ding',
+    'Radar Ping',
+    'Double Beep',
+    'Geiger Click',
+    'Siren Pulse',
+)
+SPIKE_TRIGGER_METRICS: tuple[str, ...] = (
+    'Either (PPS or BPS)',
+    'Follow Monitor',
+    'Both (PPS and BPS)',
+    'PPS Only',
+    'BPS Only',
+)

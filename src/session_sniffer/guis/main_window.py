@@ -694,7 +694,7 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, ShortcutsMixin, 
         self._player_resolver_window.player_identifier.apply_settings()
         if Settings.high_rate_monitor_run_in_background:
             self._player_resolver_window.high_rate_monitor.start_monitoring()
-        elif not self._player_resolver_window.isVisible():
+        elif not self._player_resolver_window.isVisible() and not self._player_resolver_window.high_rate_monitor.has_open_graphs():
             self._player_resolver_window.high_rate_monitor.stop_monitoring()
         self._connected.table_view.viewport().update()
         self._disconnected.table_view.viewport().update()

@@ -35,7 +35,7 @@ class PlayerResolverWindow(ToggleAlwaysOnTopMixin):
         """Initialize the Player Resolver window."""
         super().__init__(parent)
 
-        self.setMinimumSize(scale_by_ui(540), scale_by_ui(360))
+        self.setMinimumSize(scale_by_ui(600), scale_by_ui(390))
         flags = (
             Qt.WindowType.Window
             | Qt.WindowType.WindowCloseButtonHint
@@ -84,6 +84,6 @@ class PlayerResolverWindow(ToggleAlwaysOnTopMixin):
     @override
     def closeEvent(self, event: QCloseEvent) -> None:
         """Handle window close event to stop monitoring when background running is disabled."""
-        if not Settings.high_rate_monitor_run_in_background:
+        if not Settings.high_rate_monitor_run_in_background and not self.high_rate_monitor.has_open_graphs():
             self.high_rate_monitor.stop_monitoring()
         super().closeEvent(event)

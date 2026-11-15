@@ -1,9 +1,9 @@
 """A native PySide6 widget for drawing rate graphs."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import override
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QRectF, Qt
 from PySide6.QtGui import QBrush, QColor, QPainter, QPainterPath, QPaintEvent, QPen
 from PySide6.QtWidgets import QWidget
 
@@ -51,6 +51,9 @@ class RateGraphWidget(QWidget):
         self._threshold: float | None = None
         self._y_max: float = 10.0
         self._y_min: float = 0.0
+        self._spike_active: bool = False
+        self._spike_streak_seconds: int = 0
+        self._spike_peak_text: str = ''
 
         self.setMinimumSize(scale_by_ui(200), scale_by_ui(100))
         self.setAttribute(Qt.WidgetAttribute.WA_OpaquePaintEvent, on=True)
@@ -78,6 +81,24 @@ class RateGraphWidget(QWidget):
     def set_threshold(self, threshold: float | None) -> None:
         """Set the threshold value for the dashed line."""
         self._threshold = threshold
+        self.update()
+
+    def set_threshold_color(self, color: str | QColor | None) -> None:
+        """Persist and apply the threshold marker color across theme refreshes."""
+        self._graph_theme = replace(self._graph_theme, threshold_color=color)
+        self.refresh_theme_colors()
+
+    def set_spike_state(self, *, active: bool, streak_seconds: int = 0, peak_text: str = '') -> None:
+        """Update the active visual spike highlight state and badge metrics."""
+        if (
+            self._spike_active == active
+            and self._spike_streak_seconds == streak_seconds
+            and self._spike_peak_text == peak_text
+        ):
+            return
+        self._spike_active = active
+        self._spike_streak_seconds = streak_seconds
+        self._spike_peak_text = peak_text
         self.update()
 
     def set_y_range(self, y_min: float, y_max: float) -> None:
@@ -201,6 +222,18 @@ class RateGraphWidget(QWidget):
                 normalized = (value - self._y_min) / span
                 return margin_top + graph_height * (1 - normalized)
 
+            if self._spike_active:
+                zone_bottom = (
+                    max(float(margin_top), min(float(margin_top + graph_height), value_to_y(self._threshold)))
+                    if self._threshold is not None
+                    else float(margin_top + graph_height)
+                )
+                if zone_bottom > margin_top:
+                    painter.fillRect(
+                        QRectF(margin_left, margin_top, graph_width, zone_bottom - margin_top),
+                        QColor(239, 68, 68, 36),
+                    )
+
             path = QPainterPath()
             num_points = len(self._data)
             dx = graph_width / (self.visible_window - 1) if self.visible_window > 1 else 0
@@ -245,8 +278,49 @@ class RateGraphWidget(QWidget):
             if self._threshold is not None and self.threshold_color:
                 y_position = value_to_y(self._threshold)
                 if margin_top <= y_position <= margin_top + graph_height:
-                    pen = QPen(self.threshold_color, 1.5, Qt.PenStyle.DashLine)
+                    line_color = QColor('#ef4444') if self._spike_active else self.threshold_color
+                    pen = QPen(line_color, 2.0 if self._spike_active else 1.5, Qt.PenStyle.DashLine)
                     painter.setPen(pen)
                     painter.drawLine(margin_left, int(y_position), margin_left + graph_width, int(y_position))
+
+            if self._spike_active:
+                self._paint_spike_overlay(painter, margin_left=margin_left, margin_top=margin_top, graph_width=graph_width, graph_height=graph_height)
         finally:
             painter.end()
+
+    def _paint_spike_overlay(
+        self,
+        painter: QPainter,
+        *,
+        margin_left: int,
+        margin_top: int,
+        graph_width: int,
+        graph_height: int,
+    ) -> None:
+        """Draw the active spike alert frame and top-right status pill badge."""
+        painter.setPen(QPen(QColor('#ef4444'), 1.5, Qt.PenStyle.SolidLine))
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.drawRect(margin_left, margin_top, graph_width, graph_height)
+
+        badge_text = (
+            tr('SPIKE · {seconds}s · Peak {peak}', seconds=max(1, self._spike_streak_seconds), peak=self._spike_peak_text)
+            if self._spike_peak_text
+            else tr('SPIKE')
+        )
+        badge_font = painter.font()
+        badge_font.setPointSize(8)
+        badge_font.setBold(True)
+        painter.setFont(badge_font)
+        metrics = painter.fontMetrics()
+        pad_x = scale_by_ui(8)
+        pad_y = scale_by_ui(3)
+        badge_w = min(graph_width - scale_by_ui(12), metrics.horizontalAdvance(badge_text) + pad_x * 2)
+        badge_h = metrics.height() + pad_y * 2
+        if badge_w <= 0:
+            return
+        badge_rect = QRectF(margin_left + graph_width - badge_w - scale_by_ui(6), margin_top + scale_by_ui(6), badge_w, badge_h)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QBrush(QColor(220, 38, 38, 225)))
+        painter.drawRoundedRect(badge_rect, 4.0, 4.0)
+        painter.setPen(QPen(QColor('#ffffff'), 1))
+        painter.drawText(badge_rect, Qt.AlignmentFlag.AlignCenter, badge_text)

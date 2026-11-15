@@ -136,7 +136,13 @@ class Settings:
     high_rate_monitor_icon: bool = SETTING_DEFAULTS['high_rate_monitor_icon']
     high_rate_monitor_run_in_background: bool = SETTING_DEFAULTS['high_rate_monitor_run_in_background']
     high_rate_monitor_auto_select: bool = SETTING_DEFAULTS['high_rate_monitor_auto_select']
-    high_rate_monitor_spike_sound: bool = SETTING_DEFAULTS['high_rate_monitor_spike_sound']
+    high_rate_monitor_spike_sound_scope: str = SETTING_DEFAULTS['high_rate_monitor_spike_sound_scope']
+    high_rate_monitor_spike_sound_mode: str = SETTING_DEFAULTS['high_rate_monitor_spike_sound_mode']
+    high_rate_monitor_spike_repeat_interval: int = SETTING_DEFAULTS['high_rate_monitor_spike_repeat_interval']
+    high_rate_monitor_spike_sound_preset: str = SETTING_DEFAULTS['high_rate_monitor_spike_sound_preset']
+    high_rate_monitor_spike_trigger_metric: str = SETTING_DEFAULTS['high_rate_monitor_spike_trigger_metric']
+    high_rate_monitor_spike_visual_alert: bool = SETTING_DEFAULTS['high_rate_monitor_spike_visual_alert']
+    high_rate_monitor_auto_open_graph: bool = SETTING_DEFAULTS['high_rate_monitor_auto_open_graph']
     solo_session_duration: int = SETTING_DEFAULTS['solo_session_duration']
     shortcuts_enabled: bool = SETTING_DEFAULTS['shortcuts_enabled']
     shortcut_focus_search_enabled: bool = SETTING_DEFAULTS['shortcut_focus_search_enabled']
@@ -279,7 +285,13 @@ class Settings:
         'HIGH_RATE_MONITOR_ICON',
         'HIGH_RATE_MONITOR_RUN_IN_BACKGROUND',
         'HIGH_RATE_MONITOR_AUTO_SELECT',
-        'HIGH_RATE_MONITOR_SPIKE_SOUND',
+        'HIGH_RATE_MONITOR_SPIKE_SOUND_SCOPE',
+        'HIGH_RATE_MONITOR_SPIKE_SOUND_MODE',
+        'HIGH_RATE_MONITOR_SPIKE_REPEAT_INTERVAL',
+        'HIGH_RATE_MONITOR_SPIKE_SOUND_PRESET',
+        'HIGH_RATE_MONITOR_SPIKE_TRIGGER_METRIC',
+        'HIGH_RATE_MONITOR_SPIKE_VISUAL_ALERT',
+        'HIGH_RATE_MONITOR_AUTO_OPEN_GRAPH',
         'SOLO_SESSION_DURATION',
         'SHORTCUTS_ENABLED',
         'SHORTCUT_FOCUS_SEARCH_ENABLED',

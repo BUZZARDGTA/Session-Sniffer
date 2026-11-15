@@ -110,7 +110,13 @@ class SettingDefaults(TypedDict):
     high_rate_monitor_icon: bool
     high_rate_monitor_run_in_background: bool
     high_rate_monitor_auto_select: bool
-    high_rate_monitor_spike_sound: bool
+    high_rate_monitor_spike_sound_scope: str
+    high_rate_monitor_spike_sound_mode: str
+    high_rate_monitor_spike_repeat_interval: int
+    high_rate_monitor_spike_sound_preset: str
+    high_rate_monitor_spike_trigger_metric: str
+    high_rate_monitor_spike_visual_alert: bool
+    high_rate_monitor_auto_open_graph: bool
     solo_session_duration: int
     shortcuts_enabled: bool
     shortcut_focus_search_enabled: bool
@@ -302,7 +308,13 @@ SETTING_DEFAULTS: SettingDefaults = {
     'high_rate_monitor_icon': True,
     'high_rate_monitor_run_in_background': True,
     'high_rate_monitor_auto_select': True,
-    'high_rate_monitor_spike_sound': True,
+    'high_rate_monitor_spike_sound_scope': 'Open Graphs',
+    'high_rate_monitor_spike_sound_mode': 'Repeating',
+    'high_rate_monitor_spike_repeat_interval': 2,
+    'high_rate_monitor_spike_sound_preset': 'Ding',
+    'high_rate_monitor_spike_trigger_metric': 'Either (PPS or BPS)',
+    'high_rate_monitor_spike_visual_alert': True,
+    'high_rate_monitor_auto_open_graph': False,
     'solo_session_duration': 6,
     'shortcuts_enabled': True,
     'shortcut_focus_search_enabled': True,

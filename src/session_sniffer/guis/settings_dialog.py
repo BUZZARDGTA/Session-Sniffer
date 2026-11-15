@@ -32,6 +32,7 @@ from session_sniffer.constants.standalone import TITLE
 from session_sniffer.discord.webhook import is_valid_webhook_url
 from session_sniffer.guis._dialog_mixins import UnsavedChangesMixin, equalize_button_sizes, setup_tab_dialog_buttons
 from session_sniffer.guis._settings_discord_mixin import SettingsDialogDiscordMixin, build_discord_info_group
+from session_sniffer.guis._settings_hrm_mixin import SettingsDialogHighRateMonitorMixin
 from session_sniffer.guis._settings_looky_mixin import SettingsDialogLookyMixin
 from session_sniffer.guis._settings_runtime import SettingValue, apply_runtime_settings_changes
 from session_sniffer.guis._settings_theme_mixin import SettingsDialogThemeMixin
@@ -92,7 +93,14 @@ _NONE_PLACEHOLDER = 'None'
 _DISCORD_PRESENCE_TITLE_MIN_LEN = 2
 
 
-class SettingsDialog(SettingsDialogThemeMixin, SettingsDialogLookyMixin, SettingsDialogDiscordMixin, UnsavedChangesMixin, QDialog):
+class SettingsDialog(
+    SettingsDialogThemeMixin,
+    SettingsDialogLookyMixin,
+    SettingsDialogDiscordMixin,
+    SettingsDialogHighRateMonitorMixin,
+    UnsavedChangesMixin,
+    QDialog,
+):
     """Non-modal dialog exposing every settings.json option for viewing, editing, saving, and resetting."""
 
     def __init__(self, parent: QWidget | None, capture: PacketCapture, on_change_interface: Callable[[], None]) -> None:
@@ -133,6 +141,7 @@ class SettingsDialog(SettingsDialogThemeMixin, SettingsDialogLookyMixin, Setting
         self._tabs = QTabWidget()
         self._game_tab_index: int = -1
         self._session_relays_group_box: QGroupBox | None = None
+        self._spike_sound_preview_button: QPushButton | None = None
         self._shortcut_group_boxes: list[QGroupBox] = []
         for i, category in enumerate(SETTING_CATEGORIES_ORDER):
             tab_widget = self._build_tab(category)
@@ -231,11 +240,18 @@ class SettingsDialog(SettingsDialogThemeMixin, SettingsDialogLookyMixin, Setting
             shortcuts_enabled_widget.toggled.connect(self._on_shortcuts_enabled_toggled)
             self._on_shortcuts_enabled_toggled()
 
-        # Enable/disable High Rate Monitor threshold fields based on Smart vs Manual mode.
+        # Enable/disable High Rate Monitor threshold and Spike Alert fields dynamically.
         hrm_mode_widget = self._widgets.get('high_rate_monitor_mode')
         if isinstance(hrm_mode_widget, QComboBox):
             hrm_mode_widget.currentIndexChanged.connect(lambda _index=0, hw=hrm_mode_widget: self._on_high_rate_monitor_mode_changed(combo_canonical_value(hw)))
-            self._on_high_rate_monitor_mode_changed(combo_canonical_value(hrm_mode_widget))
+        for spike_combo_key in ('high_rate_monitor_spike_sound_scope', 'high_rate_monitor_spike_sound_mode'):
+            spike_combo = self._widgets.get(spike_combo_key)
+            if isinstance(spike_combo, QComboBox):
+                spike_combo.currentIndexChanged.connect(lambda _index=0: self._update_spike_alerts_state())
+        spike_visual_widget = self._widgets.get('high_rate_monitor_spike_visual_alert')
+        if isinstance(spike_visual_widget, QCheckBox):
+            spike_visual_widget.toggled.connect(lambda _checked=False: self._update_spike_alerts_state())
+        self._update_high_rate_monitor_mode_state()
 
         # Wire live language preview & Follow System Language toggling (never mutates Settings until Save).
         lang_widget = self._widgets.get('gui_language')
@@ -375,6 +391,10 @@ class SettingsDialog(SettingsDialogThemeMixin, SettingsDialogLookyMixin, Setting
             self._build_theme_setting_row(form, label, widget)
             return
 
+        if key == 'high_rate_monitor_spike_sound_preset':
+            form.addRow(label, self._build_spike_sound_preset_row(widget))
+            return
+
         if key == 'capture_filter_process_pid' and not CaptureState.is_local_capture():
             label.setEnabled(False)
             widget.setEnabled(False)
@@ -448,33 +468,6 @@ class SettingsDialog(SettingsDialogThemeMixin, SettingsDialogLookyMixin, Setting
         enabled = not isinstance(shortcuts_enabled_widget, QCheckBox) or shortcuts_enabled_widget.isChecked()
         for group_box in self._shortcut_group_boxes:
             group_box.setEnabled(enabled)
-
-    def _on_high_rate_monitor_mode_changed(self, mode: str) -> None:
-        """Enable or disable manual threshold inputs based on whether High Rate Monitor is in Smart or Manual mode."""
-        is_manual = mode == 'Manual'
-        for setting_key in ('high_rate_monitor_pps_threshold', 'high_rate_monitor_bps_threshold'):
-            label = self._labels.get(setting_key)
-            widget = self._widgets.get(setting_key)
-            meta = SETTING_METADATA.get(setting_key)
-            if label is not None:
-                label.setEnabled(is_manual)
-            if widget is not None:
-                widget.setEnabled(is_manual)
-            if meta is not None:
-                tooltip = format_setting_tooltip(meta) or ''
-                if not is_manual:
-                    disabled_note = tr('Disabled in Smart mode (packet rate thresholds are calculated dynamically from the session average).')
-                    tooltip = f'{tooltip}\n\n{disabled_note}' if tooltip else disabled_note
-                if label is not None:
-                    label.setToolTip(tooltip)
-                if widget is not None:
-                    widget.setToolTip(tooltip)
-
-    def _update_high_rate_monitor_mode_state(self) -> None:
-        """Update enabled state of High Rate Monitor threshold fields based on current combo selection."""
-        hrm_mode_widget = self._widgets.get('high_rate_monitor_mode')
-        if isinstance(hrm_mode_widget, QComboBox):
-            self._on_high_rate_monitor_mode_changed(combo_canonical_value(hrm_mode_widget))
 
     def _on_language_refreshed(self) -> None:
         """Refresh window title, dynamic tabs, compound tooltips, and dependent UI states after a language switch."""

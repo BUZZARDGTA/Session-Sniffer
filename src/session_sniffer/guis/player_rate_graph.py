@@ -1,23 +1,27 @@
 """Live PPS + BPS split graph window for an individual player."""
 
 from collections import deque
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, override
 
 from PySide6.QtCore import QSignalBlocker, Qt
 from PySide6.QtGui import QColor
-from PySide6.QtWidgets import QCheckBox
+from PySide6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QToolButton, QWidget
 
-from session_sniffer.background.voice_notifications import play_spike_ding
-from session_sniffer.guis.live_language import register_language_refresh
+from session_sniffer.background.voice_notifications import play_spike_sound
+from session_sniffer.constants.standalone import SPIKE_SOUND_MODES, SPIKE_SOUND_SCOPES
+from session_sniffer.guis.live_language import register_language_refresh, set_i18n_colon_label
 from session_sniffer.guis.rate_graph_widget import RateGraphTheme, RateGraphWidget
+from session_sniffer.guis.stylesheets import COMPACT_BUTTON_STYLESHEET
 from session_sniffer.guis.theming import themed_text_qcolor
-from session_sniffer.guis.utils import RateGraphWindowMixin, format_player_display, scale_by_ui
+from session_sniffer.guis.utils import RateGraphWindowMixin, format_player_display, render_svg_icon_from_resource, scale_by_ui
 from session_sniffer.i18n import tr
+from session_sniffer.models.player_traffic import PlayerBandwidth
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from PySide6.QtWidgets import QVBoxLayout, QWidget
+    from PySide6.QtWidgets import QVBoxLayout
 
 VISIBLE_WINDOW = 60
 DEFAULT_MAX_HISTORY = 3600
@@ -235,6 +239,18 @@ class DualRateGraphBase(RateGraphWindowMixin):
         return pps_list, bps_list
 
 
+@dataclass(frozen=True, slots=True)
+class SpikeAlertGraphConfig:
+    """Initial Spike Alert settings and persistence callbacks for `PlayerRateGraphWindow`."""
+
+    sound_scope: str = 'Open Graphs'
+    sound_mode: str = 'Repeating'
+    sound_preset: str = 'Ding'
+    visual_alert: bool = True
+    on_scope_changed: Callable[[str], None] | None = None
+    on_mode_changed: Callable[[str], None] | None = None
+
+
 class PlayerRateGraphWindow(DualRateGraphBase):
     """A standalone window with separate PPS and BPS graphs stacked vertically."""
 
@@ -247,11 +263,11 @@ class PlayerRateGraphWindow(DualRateGraphBase):
         ip: str,
         initial_pps_threshold: int,
         initial_bps_threshold: int,
-        initial_spike_sound: bool = True,
-        on_spike_sound_toggled: Callable[[bool], None] | None = None,
+        spike_config: SpikeAlertGraphConfig | None = None,
     ) -> None:
         """Initialize the split rate graph window for the given player IP."""
         super().__init__()
+        cfg = spike_config or SpikeAlertGraphConfig()
 
         self.ip = ip
         self._usernames: list[str] = []
@@ -259,44 +275,134 @@ class PlayerRateGraphWindow(DualRateGraphBase):
         self._bps_threshold_value = initial_bps_threshold
         self._pps_spiking = False
         self._bps_spiking = False
-        self._spike_sound_enabled = initial_spike_sound
-        self._on_spike_sound_toggled = on_spike_sound_toggled
-        self._spike_sound_checkbox: QCheckBox | None = None
+        self._pps_spike_streak = 0
+        self._pps_spike_peak = 0
+        self._bps_spike_streak = 0
+        self._bps_spike_peak = 0
+        self._spike_sound_scope = cfg.sound_scope
+        self._spike_sound_mode = cfg.sound_mode
+        self._spike_sound_preset = cfg.sound_preset
+        self._visual_alert_enabled = cfg.visual_alert
+        self._on_spike_sound_scope_changed = cfg.on_scope_changed
+        self._on_spike_sound_mode_changed = cfg.on_mode_changed
+        self._scope_combo: QComboBox | None = None
+        self._mode_combo: QComboBox | None = None
+        self._preview_button: QToolButton | None = None
 
         self._update_window_title()
         register_language_refresh(self, self._update_window_title)
         self._finish_graph_init()
+        self.resize(scale_by_ui(780), scale_by_ui(500))
 
     @override
     def _create_extra_rate_graph_controls(self) -> list[QWidget]:
-        checkbox = QCheckBox()
-        checkbox.setChecked(self._spike_sound_enabled)
-        checkbox.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-        checkbox.toggled.connect(self._handle_spike_sound_toggled)
+        container = QWidget()
+        row = QHBoxLayout(container)
+        row.setContentsMargins(0, 0, 0, 0)
+        row.setSpacing(scale_by_ui(6))
 
-        def _apply_checkbox_translations() -> None:
-            checkbox.setText(tr('Sound on Spike'))
-            checkbox.setToolTip(tr('Play a ding sound when PPS or KB/s crosses its threshold line.'))
+        sound_label = QLabel()
+        set_i18n_colon_label(sound_label, 'Spike Sound')
+        row.addWidget(sound_label)
 
-        _apply_checkbox_translations()
-        register_language_refresh(checkbox, _apply_checkbox_translations)
-        self._spike_sound_checkbox = checkbox
-        return [checkbox]
+        scope_combo = QComboBox()
+        scope_combo.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        for scope in SPIKE_SOUND_SCOPES:
+            scope_combo.addItem(tr(scope), scope)
+        if (scope_idx := scope_combo.findData(self._spike_sound_scope)) >= 0:
+            scope_combo.setCurrentIndex(scope_idx)
+        scope_combo.currentIndexChanged.connect(self._handle_scope_combo_changed)
+        row.addWidget(scope_combo)
+        self._scope_combo = scope_combo
 
-    def _handle_spike_sound_toggled(self) -> None:
-        if self._spike_sound_checkbox is None:
+        mode_combo = QComboBox()
+        mode_combo.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        for mode in SPIKE_SOUND_MODES:
+            mode_combo.addItem(tr(mode), mode)
+        if (mode_idx := mode_combo.findData(self._spike_sound_mode)) >= 0:
+            mode_combo.setCurrentIndex(mode_idx)
+        mode_combo.currentIndexChanged.connect(self._handle_mode_combo_changed)
+        row.addWidget(mode_combo)
+        self._mode_combo = mode_combo
+
+        preview_btn = QToolButton()
+        preview_btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        tint_hex = themed_text_qcolor('@text[#e5e7eb]', '@surface[#1f2937]').name()
+        preview_btn.setIcon(render_svg_icon_from_resource('volume-2.svg', 14, 14, tint_hex))
+        preview_btn.setStyleSheet(COMPACT_BUTTON_STYLESHEET)
+        preview_btn.clicked.connect(lambda: play_spike_sound(self._spike_sound_preset, bypass_cooldown=True))
+        row.addWidget(preview_btn)
+        self._preview_button = preview_btn
+
+        def _refresh_spike_controls_language() -> None:
+            for i, canonical_scope in enumerate(SPIKE_SOUND_SCOPES):
+                if i < scope_combo.count():
+                    scope_combo.setItemText(i, tr(canonical_scope))
+            for i, canonical_mode in enumerate(SPIKE_SOUND_MODES):
+                if i < mode_combo.count():
+                    mode_combo.setItemText(i, tr(canonical_mode))
+            sound_label.setToolTip(tr('Choose where spike alert sounds are active (Disabled, Open Graphs, or Global).'))
+            scope_combo.setToolTip(tr('Choose where spike alert sounds are active (Disabled, Open Graphs, or Global).'))
+            self._refresh_dependent_control_states()
+
+        _refresh_spike_controls_language()
+        register_language_refresh(container, _refresh_spike_controls_language)
+        return [container]
+
+    def _refresh_dependent_control_states(self) -> None:
+        sound_active = self._spike_sound_scope != 'Disabled'
+        scope_disabled_note = tr('Disabled when Spike Sound Scope is set to Disabled.')
+        if self._mode_combo is not None:
+            self._mode_combo.setEnabled(sound_active)
+            mode_tip = tr('Choose how spike alert sounds behave when traffic crosses above the threshold.')
+            self._mode_combo.setToolTip(mode_tip if sound_active else f'{mode_tip}\n\n{scope_disabled_note}')
+        if self._preview_button is not None:
+            self._preview_button.setEnabled(sound_active)
+            preview_tip = tr('Play a preview of the selected spike sound preset.')
+            self._preview_button.setToolTip(preview_tip if sound_active else f'{preview_tip}\n\n{scope_disabled_note}')
+
+    def _handle_scope_combo_changed(self, index: int) -> None:
+        if self._scope_combo is None:
             return
-        checked = self._spike_sound_checkbox.isChecked()
-        self._spike_sound_enabled = checked
-        if self._on_spike_sound_toggled is not None:
-            self._on_spike_sound_toggled(checked)
+        scope = str(self._scope_combo.itemData(index))
+        self._spike_sound_scope = scope
+        self._refresh_dependent_control_states()
+        if self._on_spike_sound_scope_changed is not None:
+            self._on_spike_sound_scope_changed(scope)
 
-    def set_spike_sound_enabled(self, *, enabled: bool) -> None:
-        """Synchronize the 'Sound on Spike' toggle state without triggering persistence callbacks."""
-        self._spike_sound_enabled = enabled
-        if self._spike_sound_checkbox is not None:
-            with QSignalBlocker(self._spike_sound_checkbox):
-                self._spike_sound_checkbox.setChecked(enabled)
+    def _handle_mode_combo_changed(self, index: int) -> None:
+        if self._mode_combo is None:
+            return
+        mode = str(self._mode_combo.itemData(index))
+        self._spike_sound_mode = mode
+        if self._on_spike_sound_mode_changed is not None:
+            self._on_spike_sound_mode_changed(mode)
+
+    def sync_spike_alert_settings(
+        self,
+        *,
+        scope: str,
+        mode: str,
+        preset: str,
+        visual_alert: bool,
+    ) -> None:
+        """Synchronize Spike Alert settings into this graph window without triggering persistence callbacks."""
+        self._spike_sound_scope = scope
+        self._spike_sound_mode = mode
+        self._spike_sound_preset = preset
+        visual_changed = self._visual_alert_enabled != visual_alert
+        self._visual_alert_enabled = visual_alert
+        if self._scope_combo is not None:
+            with QSignalBlocker(self._scope_combo):
+                if (scope_idx := self._scope_combo.findData(scope)) >= 0:
+                    self._scope_combo.setCurrentIndex(scope_idx)
+        if self._mode_combo is not None:
+            with QSignalBlocker(self._mode_combo):
+                if (mode_idx := self._mode_combo.findData(mode)) >= 0:
+                    self._mode_combo.setCurrentIndex(mode_idx)
+        self._refresh_dependent_control_states()
+        if visual_changed:
+            self._apply_visual_spike_widgets()
 
     def _update_window_title(self) -> None:
         """Update the window title to reflect the current player identity and language."""
@@ -305,12 +411,12 @@ class PlayerRateGraphWindow(DualRateGraphBase):
 
     @override
     def _configure_pps_widget(self) -> None:
-        self._pps_widget.threshold_color = themed_text_qcolor('#66bb6a', '#000000')
+        self._pps_widget.set_threshold_color('#66bb6a')
         self.set_pps_threshold(self._pps_threshold_value)
 
     @override
     def _configure_bps_widget(self) -> None:
-        self._bps_widget.threshold_color = themed_text_qcolor('#4dd0e1', '#000000')
+        self._bps_widget.set_threshold_color('#4dd0e1')
         self.set_bps_threshold(self._bps_threshold_value)
 
     def update_usernames(self, usernames: list[str]) -> None:
@@ -328,19 +434,44 @@ class PlayerRateGraphWindow(DualRateGraphBase):
         self._bps_threshold_value = threshold
         self._bps_widget.set_threshold(threshold / self._BYTES_TO_KBS)
 
-    @override
-    def update_rates(self, *, pps: int, bps: int) -> None:
-        """Append new PPS and BPS samples, refresh both graphs, and ding on threshold crossing."""
-        super().update_rates(pps=pps, bps=bps)
+    def update_spike_visuals(self, *, pps_spiking: bool, bps_spiking: bool, pps: int, bps: int) -> None:
+        """Update per-panel spike streak counters, peak values, and visual alert overlays."""
+        self._pps_spiking = pps_spiking
+        self._bps_spiking = bps_spiking
+        if pps_spiking:
+            self._pps_spike_streak += 1
+            self._pps_spike_peak = max(self._pps_spike_peak, pps)
+        else:
+            self._pps_spike_streak = 0
+            self._pps_spike_peak = 0
 
-        is_pps_spiking = 0 < self._pps_threshold_value <= pps
-        is_bps_spiking = 0 < self._bps_threshold_value <= bps
-        crossed_threshold = (is_pps_spiking and not self._pps_spiking) or (is_bps_spiking and not self._bps_spiking)
-        self._pps_spiking = is_pps_spiking
-        self._bps_spiking = is_bps_spiking
+        if bps_spiking:
+            self._bps_spike_streak += 1
+            self._bps_spike_peak = max(self._bps_spike_peak, bps)
+        else:
+            self._bps_spike_streak = 0
+            self._bps_spike_peak = 0
 
-        if crossed_threshold and self._spike_sound_enabled:
-            play_spike_ding()
+        self._apply_visual_spike_widgets()
+
+    def _apply_visual_spike_widgets(self) -> None:
+        if self._visual_alert_enabled and self._pps_spiking:
+            self._pps_widget.set_spike_state(
+                active=True,
+                streak_seconds=self._pps_spike_streak,
+                peak_text=f'{self._pps_spike_peak} PPS',
+            )
+        else:
+            self._pps_widget.set_spike_state(active=False)
+
+        if self._visual_alert_enabled and self._bps_spiking:
+            self._bps_widget.set_spike_state(
+                active=True,
+                streak_seconds=self._bps_spike_streak,
+                peak_text=PlayerBandwidth.format_bytes(self._bps_spike_peak),
+            )
+        else:
+            self._bps_widget.set_spike_state(active=False)
 
     def load_history(self, *, pps_history: list[int], bps_history: list[int]) -> None:
         """Backfill both graphs with previously recorded rate samples."""
@@ -362,10 +493,5 @@ class PlayerRateGraphWindow(DualRateGraphBase):
 
         self._pps_running_sum = int(sum(self._pps_buffer))
         self._bps_running_sum = sum(self._bps_buffer)
-
-        last_pps = pps_trimmed[-1] if pps_trimmed else 0
-        last_bps = bps_trimmed[-1] if bps_trimmed else 0
-        self._pps_spiking = 0 < self._pps_threshold_value <= last_pps
-        self._bps_spiking = 0 < self._bps_threshold_value <= last_bps
 
         self._render_buffers()
