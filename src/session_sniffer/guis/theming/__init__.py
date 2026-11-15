@@ -266,6 +266,11 @@ def themed_text_qcolor(foreground: str | QColor | Qt.GlobalColor, background: st
     return result
 
 
+def proprietary_text_qcolor(hex_color: str, background: str | QColor | Qt.GlobalColor) -> QColor:
+    """Return a brand-locked color (e.g. Looky System purple) with fixed hue, adjusted only in lightness if needed for contrast on *background*."""
+    return themed_text_qcolor(f'@lock[{hex_color}]', background)
+
+
 def resolve_canonical_tint_pair(tint_color: str) -> tuple[str, str]:
     """Resolve *tint_color* back to its canonical `(foreground, background)` design color pair."""
     if tint_color.lstrip().startswith('@'):
@@ -308,6 +313,7 @@ __all__ = [
     'load_themes_file',
     'log_theme_startup_warnings',
     'parse_color',
+    'proprietary_text_qcolor',
     'register_theme_change_callback',
     'resolve_canonical_tint_pair',
     'save_themes_file',

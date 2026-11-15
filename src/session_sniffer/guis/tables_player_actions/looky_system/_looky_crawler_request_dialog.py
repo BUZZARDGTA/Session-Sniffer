@@ -486,7 +486,7 @@ class _CrawlerRequestDialog(QDialog):
         text = label if result is None else f'{label} — {result}'
         self._append_log_line(text)
         if status_lower not in {'completed', 'failed', 'canceled'} and not is_terminal_failure_instruction_status(status_lower):
-            color = '#fbbf24' if status_lower == 'queued' else '#d8b4fe'
+            color = '@warning[#fbbf24]' if status_lower == 'queued' else '@lock[#d8b4fe]'
             self._widgets.status_label.setText(themed_qss(f'<span style="color: {color}; font-weight: 600;">{html.escape(text)}</span>'))
             self._widgets.status_label.show()
 

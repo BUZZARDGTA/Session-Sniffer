@@ -21,7 +21,7 @@ type ThemeName = Annotated[str, StringConstraints(strip_whitespace=True, min_len
 
 @dataclass(frozen=True, slots=True)
 class ThemeColors:
-    """The 21 semantic color tokens that fully describe a theme (all lowercase `#rrggbb` strings)."""
+    """The 20 semantic color tokens that fully describe a theme (all lowercase `#rrggbb` strings)."""
 
     # Surfaces & Bars
     background: str
@@ -45,7 +45,6 @@ class ThemeColors:
     text_strong: str
     # Accents & Status
     accent: str
-    secondary: str
     success: str
     warning: str
     danger: str
@@ -96,7 +95,6 @@ THEME_COLOR_TOKENS: Final[tuple[ThemeColorToken, ...]] = (
     ThemeColorToken('text_strong', 'Strong Text', 'Typography', 'Headings, titles, active tabs, and button labels.'),
     # Accents & Status
     ThemeColorToken('accent', 'Primary Accent', 'Accents & Status', 'Primary buttons, focus rings, checked controls, active tab bars, and links.'),
-    ThemeColorToken('secondary', 'Secondary Accent', 'Accents & Status', 'Secondary purple-family accent (e.g. Looky System badges and actions).'),
     ThemeColorToken('success', 'Success / Connected', 'Accents & Status', 'Connected player headers and rows, active capture states, and healthy metrics.'),
     ThemeColorToken('warning', 'Warning / Alert', 'Accents & Status', 'Warning banners, cautionary alerts, and high-rate indicators.'),
     ThemeColorToken('danger', 'Danger / Disconnected', 'Accents & Status', 'Destructive buttons, disconnected player headers, and error states.'),
@@ -120,20 +118,19 @@ DARK_THEME_COLORS: Final = ThemeColors(
     surface='#1e1e1e',
     menubar='#252526',
     statusbar='#252526',
-    popup='#1e1e22',
+    popup='#252526',
     control='#2d2d30',
-    input='#151518',
-    scrollbar='#3a3c44',
-    border='#333337',
-    table='#0f1012',
-    table_alt='#141518',
-    table_header='#16181b',
+    input='#1e1e1e',
+    scrollbar='#424242',
+    border='#3e3e42',
+    table='#1e1e1e',
+    table_alt='#252526',
+    table_header='#2d2d30',
     selection='#1f4260',
     text='#e0e0e0',
     text_muted='#9ca3af',
     text_strong='#ffffff',
     accent='#007acc',
-    secondary='#7c3aed',
     success='#22c55e',
     warning='#f59e0b',
     danger='#ef4444',
@@ -162,7 +159,6 @@ BUILTIN_THEMES: Final[tuple[Theme, ...]] = (
             text_muted='#57606a',
             text_strong='#0b0d10',
             accent='#0969da',
-            secondary='#7a3fd1',
             success='#1a7f37',
             warning='#b26a00',
             danger='#cf222e',
@@ -189,7 +185,6 @@ BUILTIN_THEMES: Final[tuple[Theme, ...]] = (
             text_muted='#8b8b94',
             text_strong='#ffffff',
             accent='#3b82f6',
-            secondary='#8b5cf6',
             success='#22c55e',
             warning='#f59e0b',
             danger='#ef4444',
@@ -216,7 +211,6 @@ BUILTIN_THEMES: Final[tuple[Theme, ...]] = (
             text_muted='#9ea8c7',
             text_strong='#ffffff',
             accent='#bd93f9',
-            secondary='#ff79c6',
             success='#50fa7b',
             warning='#ffb86c',
             danger='#ff5555',
@@ -243,7 +237,6 @@ BUILTIN_THEMES: Final[tuple[Theme, ...]] = (
             text_muted='#9aa5b8',
             text_strong='#eceff4',
             accent='#5e81ac',
-            secondary='#b48ead',
             success='#a3be8c',
             warning='#ebcb8b',
             danger='#bf616a',
@@ -270,7 +263,6 @@ BUILTIN_THEMES: Final[tuple[Theme, ...]] = (
             text_muted='#657b83',
             text_strong='#002b36',
             accent='#268bd2',
-            secondary='#6c71c4',
             success='#859900',
             warning='#b58900',
             danger='#dc322f',
@@ -304,7 +296,6 @@ class ThemeColorsModel(BaseModel):
     text_muted: HexColor
     text_strong: HexColor
     accent: HexColor
-    secondary: HexColor
     success: HexColor
     warning: HexColor
     danger: HexColor

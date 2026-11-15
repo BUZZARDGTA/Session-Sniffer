@@ -109,12 +109,12 @@ class SettingsDialogLookyMixin(QDialog):
         discord_link = (
             '<a href="https://discord.gg/umZ4yXRVfE" '
             'title="https://discord.gg/umZ4yXRVfE" '
-            'style="color: #a78bfa; text-decoration: underline;">'
+            'style="color: @lock[#a78bfa]; text-decoration: underline;">'
             f"{html_lib.escape(tr('Discord server'))}</a>"
         )
         site_link = (
             f'<a href="{LOOKY_BASE_HOST}" title="{LOOKY_BASE_HOST}" '
-            f'style="color: #a78bfa; text-decoration: underline;">{LOOKY_BASE_HOST}</a>'
+            f'style="color: @lock[#a78bfa]; text-decoration: underline;">{LOOKY_BASE_HOST}</a>'
         )
         field_html = f"<b>{html_lib.escape(tr('API Key'))}</b>"
         column_html = f"<b>{html_lib.escape(tr('Usernames'))}</b>"

@@ -102,7 +102,7 @@ def _build_themed_svg_texts(transform: ThemeTransform, inventory: _BundledInvent
 def _cache_key(transform: ThemeTransform, inventory: _BundledInventory) -> str:
     """Return a key that changes whenever the theme colors, app version, or bundled icon files change."""
     fingerprint = {
-        'schema': 4,
+        'schema': 5,
         'version': VERSION,
         'colors': transform.colors.as_dict(),
         'icons': inventory.signature,

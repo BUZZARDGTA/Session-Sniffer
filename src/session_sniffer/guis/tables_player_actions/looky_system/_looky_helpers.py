@@ -151,8 +151,8 @@ class LookyRefreshLoadingDialog(QDialog):
             collecting = html.escape(tr('Collecting database IP addresses and usernames to query.'))
             self._widgets.status_label.setText(
                 themed_qss(
-                    f'<span style="color: #d8b4fe; font-weight: 600;">{preparing}</span>'
-                    f'<br><span style="color: #9ca3af; font-size: 8.5pt;">{collecting}</span>',
+                    f'<span style="color: @lock[#d8b4fe]; font-weight: 600;">{preparing}</span>'
+                    f'<br><span style="color: @text_muted[#9ca3af]; font-size: 8.5pt;">{collecting}</span>',
                 ),
             )
 
@@ -175,9 +175,9 @@ class LookyRefreshLoadingDialog(QDialog):
                 translated_status = tr('{phase} (rate limited — resuming in {seconds}s)', phase=tr(phase_label), seconds=seconds_part)
                 detail_text = tr(phase_detail)
                 break
-        detail_html = f'<br><span style="color: #9ca3af; font-size: 8.5pt;">{html.escape(detail_text)}</span>' if detail_text else ''
+        detail_html = f'<br><span style="color: @text_muted[#9ca3af]; font-size: 8.5pt;">{html.escape(detail_text)}</span>' if detail_text else ''
         self._widgets.status_label.setText(
-            themed_qss(f'<span style="color: #d8b4fe; font-weight: 600;">{html.escape(translated_status)}: <b>{current} / {total}</b> ({pct}%)</span>{detail_html}'),
+            themed_qss(f'<span style="color: @lock[#d8b4fe]; font-weight: 600;">{html.escape(translated_status)}: <b>{current} / {total}</b> ({pct}%)</span>{detail_html}'),
         )
         self._widgets.status_label.show()
 

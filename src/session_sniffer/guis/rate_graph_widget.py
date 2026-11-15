@@ -59,10 +59,10 @@ class RateGraphWidget(QWidget):
     def refresh_theme_colors(self) -> None:
         """Recompute graph line, fill, average, and threshold colors for the active theme."""
         theme = self._graph_theme
-        self.line_color = themed_text_qcolor(theme.line_color, '@table')
+        self.line_color = themed_text_qcolor(theme.line_color, '@table[#000000]')
         self.fill_color = themed_qcolor(theme.fill_color)
-        self.avg_color = themed_text_qcolor(theme.avg_color, '@table')
-        self.threshold_color = themed_text_qcolor(theme.threshold_color, '@table') if theme.threshold_color is not None else None
+        self.avg_color = themed_text_qcolor(theme.avg_color, '@table[#000000]')
+        self.threshold_color = themed_text_qcolor(theme.threshold_color, '@table[#000000]') if theme.threshold_color is not None else None
         self.update()
 
     def set_data(self, data: list[float]) -> None:
@@ -133,7 +133,7 @@ class RateGraphWidget(QWidget):
         painter = QPainter(self)
         try:
             painter.setRenderHint(QPainter.RenderHint.Antialiasing, on=True)
-            painter.fillRect(a0.rect(), themed_qcolor('@table'))
+            painter.fillRect(a0.rect(), themed_qcolor('@table[#000000]'))
 
             rect = self.rect()
             margin_left = 60
@@ -148,7 +148,7 @@ class RateGraphWidget(QWidget):
                 return
 
             # Draw grid
-            painter.setPen(QPen(themed_qcolor('@border/65'), 1, Qt.PenStyle.SolidLine))
+            painter.setPen(QPen(themed_qcolor('@border[#323232]'), 1, Qt.PenStyle.SolidLine))
             num_x_lines = 6
             for i in range(num_x_lines + 1):
                 x_position = margin_left + i * graph_width / num_x_lines
@@ -171,7 +171,7 @@ class RateGraphWidget(QWidget):
                 painter.drawText(0, int(y_position) - 10, margin_left - 5, 20, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter, text)
 
             # X-axis labels
-            axis_label_color = themed_text_qcolor('@text_muted', '@table')
+            axis_label_color = themed_text_qcolor('@text_muted[#c8c8c8]', '@table[#000000]')
             painter.setPen(QPen(axis_label_color, 1))
             for i in range(num_x_lines + 1):
                 x_value = self.visible_window * (num_x_lines - i) / num_x_lines

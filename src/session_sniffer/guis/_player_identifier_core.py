@@ -16,7 +16,13 @@ from session_sniffer.guis.stylesheets import (
     PROGRESS_BAR_CHUNK_ORANGE_STYLESHEET,
     PROGRESS_BAR_CHUNK_RED_STYLESHEET,
 )
-from session_sniffer.guis.theming import register_theme_change_callback, themed_color, themed_qcolor, themed_text_qcolor
+from session_sniffer.guis.theming import (
+    register_theme_change_callback,
+    themed_color,
+    themed_qcolor,
+    themed_qss,
+    themed_text_qcolor,
+)
 
 if TYPE_CHECKING:
     from session_sniffer.models.player import Player
@@ -39,10 +45,26 @@ _PROGRESS_BAR_RED_GRADIENT: list[tuple[float, QColor]] = []
 
 def _refresh_progress_bar_gradients() -> None:
     """Recompute capsule progress bar gradient stops for the active theme."""
-    _PROGRESS_BAR_BLUE_GRADIENT[:] = [(0.0, themed_qcolor('#1d4ed8')), (0.5, themed_qcolor('#3b82f6')), (1.0, themed_qcolor('#60a5fa'))]
-    _PROGRESS_BAR_GREEN_GRADIENT[:] = [(0.0, themed_qcolor('#059669')), (0.5, themed_qcolor('#10b981')), (1.0, themed_qcolor('#34d399'))]
-    _PROGRESS_BAR_ORANGE_GRADIENT[:] = [(0.0, themed_qcolor('#d97706')), (0.5, themed_qcolor('#f59e0b')), (1.0, themed_qcolor('#fbbf24'))]
-    _PROGRESS_BAR_RED_GRADIENT[:] = [(0.0, themed_qcolor('#b91c1c')), (0.5, themed_qcolor('#ef4444')), (1.0, themed_qcolor('#f87171'))]
+    _PROGRESS_BAR_BLUE_GRADIENT[:] = [
+        (0.0, themed_qcolor('@accent[#1d4ed8]')),
+        (0.5, themed_qcolor('@accent[#3b82f6]')),
+        (1.0, themed_qcolor('@accent[#60a5fa]')),
+    ]
+    _PROGRESS_BAR_GREEN_GRADIENT[:] = [
+        (0.0, themed_qcolor('@success[#059669]')),
+        (0.5, themed_qcolor('@success[#10b981]')),
+        (1.0, themed_qcolor('@success[#34d399]')),
+    ]
+    _PROGRESS_BAR_ORANGE_GRADIENT[:] = [
+        (0.0, themed_qcolor('@warning[#d97706]')),
+        (0.5, themed_qcolor('@warning[#f59e0b]')),
+        (1.0, themed_qcolor('@warning[#fbbf24]')),
+    ]
+    _PROGRESS_BAR_RED_GRADIENT[:] = [
+        (0.0, themed_qcolor('@danger[#b91c1c]')),
+        (0.5, themed_qcolor('@danger[#ef4444]')),
+        (1.0, themed_qcolor('@danger[#f87171]')),
+    ]
 
 
 _refresh_progress_bar_gradients()
@@ -65,13 +87,22 @@ class PlayerIdentifierProgressBar(QProgressBar):
     @override
     def setStyleSheet(self, styleSheet: str) -> None:
         super().setStyleSheet(styleSheet)
-        if styleSheet == PROGRESS_BAR_CHUNK_BLUE_STYLESHEET or themed_color('#1d4ed8') in styleSheet:
+        lower_qss = styleSheet.lower()
+        if styleSheet in (PROGRESS_BAR_CHUNK_BLUE_STYLESHEET, themed_qss(PROGRESS_BAR_CHUNK_BLUE_STYLESHEET)) or (
+            themed_color('@accent[#1d4ed8]').lower() in lower_qss
+        ):
             self._chunk_gradient = _PROGRESS_BAR_BLUE_GRADIENT
-        elif styleSheet == PROGRESS_BAR_CHUNK_GREEN_STYLESHEET or themed_color('#059669') in styleSheet:
+        elif styleSheet in (PROGRESS_BAR_CHUNK_GREEN_STYLESHEET, themed_qss(PROGRESS_BAR_CHUNK_GREEN_STYLESHEET)) or (
+            themed_color('@success[#059669]').lower() in lower_qss
+        ):
             self._chunk_gradient = _PROGRESS_BAR_GREEN_GRADIENT
-        elif styleSheet == PROGRESS_BAR_CHUNK_ORANGE_STYLESHEET or themed_color('#d97706') in styleSheet:
+        elif styleSheet in (PROGRESS_BAR_CHUNK_ORANGE_STYLESHEET, themed_qss(PROGRESS_BAR_CHUNK_ORANGE_STYLESHEET)) or (
+            themed_color('@warning[#d97706]').lower() in lower_qss
+        ):
             self._chunk_gradient = _PROGRESS_BAR_ORANGE_GRADIENT
-        elif styleSheet == PROGRESS_BAR_CHUNK_RED_STYLESHEET or themed_color('#b91c1c') in styleSheet:
+        elif styleSheet in (PROGRESS_BAR_CHUNK_RED_STYLESHEET, themed_qss(PROGRESS_BAR_CHUNK_RED_STYLESHEET)) or (
+            themed_color('@danger[#b91c1c]').lower() in lower_qss
+        ):
             self._chunk_gradient = _PROGRESS_BAR_RED_GRADIENT
         else:
             self._chunk_gradient = None
@@ -90,8 +121,8 @@ class PlayerIdentifierProgressBar(QProgressBar):
 
             outer_path = QPainterPath()
             outer_path.addRoundedRect(bounding_rect, capsule_radius, capsule_radius)
-            painter.fillPath(outer_path, themed_qcolor('#0d131a'))
-            painter.setPen(QPen(themed_qcolor('#253040'), 1.0))
+            painter.fillPath(outer_path, themed_qcolor('@input[#0d131a]'))
+            painter.setPen(QPen(themed_qcolor('@border[#253040]'), 1.0))
             painter.drawPath(outer_path)
 
             current_value = self.value()
@@ -117,7 +148,12 @@ class PlayerIdentifierProgressBar(QProgressBar):
             displayed_text = self.text()
             if displayed_text and self.isTextVisible():
                 on_chunk = current_value >= _CHUNK_TEXT_MIDPOINT and self._chunk_gradient is not None
-                painter.setPen(themed_text_qcolor('#ffffff', '#10b981') if on_chunk else themed_text_qcolor('#ffffff', '#0d131a'))
+                chunk_mid_bg = self._chunk_gradient[1][1] if self._chunk_gradient is not None else '@success[#10b981]'
+                painter.setPen(
+                    themed_text_qcolor('@text_strong[#ffffff]', chunk_mid_bg)
+                    if on_chunk
+                    else themed_text_qcolor('@text_strong[#ffffff]', '@input[#0d131a]'),
+                )
                 text_font = self.font()
                 text_font.setPointSize(9)
                 text_font.setBold(True)

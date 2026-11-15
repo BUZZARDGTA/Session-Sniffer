@@ -411,16 +411,17 @@ class SessionTableView(TableHeaderMenuMixin, TableContextMenuMixin, QTableView):
                 title = tr('No disconnected players')
                 subtitle = tr('Disconnected players will appear here.')
 
+            empty_bg = '@table~success[#101412]' if self.is_connected_table else '@table~danger[#180e11]'
             curr_y = start_y + icon_size + icon_spacing
             title_rect = QRect(0, curr_y, viewport_rect.width(), title_fm.height())
             painter.setFont(title_font)
-            painter.setPen(themed_text_qcolor('@text', '@table'))
+            painter.setPen(themed_text_qcolor('@text[#e2e8f0]', empty_bg))
             painter.drawText(title_rect, Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter, title)
 
             curr_y += title_fm.height() + title_spacing
             subtitle_rect = QRect(0, curr_y, viewport_rect.width(), subtitle_fm.height())
             painter.setFont(subtitle_font)
-            painter.setPen(themed_text_qcolor('@text_muted', '@table'))
+            painter.setPen(themed_text_qcolor('@text_muted[#64748b]', empty_bg))
             painter.drawText(subtitle_rect, Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter, subtitle)
         finally:
             painter.end()

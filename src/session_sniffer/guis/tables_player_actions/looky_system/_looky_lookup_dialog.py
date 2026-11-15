@@ -131,7 +131,7 @@ class LookyLookupDialog(PlayerInfoDialogMixin):
 
         for entry in results:
             title = entry.name or tr('Rockstar ID: {rid}', rid=entry.rockstarid)
-            group, form = self._make_group(title, accent='#4c1d95')
+            group, form = self._make_group(title, accent='@lock[#4c1d95]')
             if not entry.name:
                 self._rid_groups.append((group, entry.rockstarid))
             self._add_row(form, 'Rockstar ID', str(entry.rockstarid))

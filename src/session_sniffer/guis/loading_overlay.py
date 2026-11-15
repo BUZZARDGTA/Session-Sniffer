@@ -75,12 +75,12 @@ class _SpinnerArcWidget(QWidget):
         inset = pen_width / 2.0 + 1.5
         arc_rect = QRectF(inset, inset, self.width() - inset * 2.0, self.height() - inset * 2.0)
 
-        track_pen = QPen(themed_qcolor('@border'), pen_width)
+        track_pen = QPen(themed_qcolor('@control[#2d2d30]'), pen_width)
         painter.setPen(track_pen)
         painter.setBrush(Qt.BrushStyle.NoBrush)
         painter.drawEllipse(arc_rect)
 
-        sweep_pen = QPen(themed_qcolor('@accent'), pen_width, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap)
+        sweep_pen = QPen(themed_qcolor('@accent[#007acc]'), pen_width, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap)
         painter.setPen(sweep_pen)
         painter.drawArc(arc_rect, round(-self._angle_deg * 16.0), -_SPINNER_SPAN_SIXTEENTHS)
         painter.end()
@@ -115,8 +115,8 @@ class LoadingOverlay(QWidget):
         self._card.setStyleSheet(
             themed_qss(
                 'QFrame#loadingOverlayCard {'
-                ' background-color: @popup;'
-                ' border: 1px solid @border;'
+                ' background-color: @popup[#1e1e1e];'
+                ' border: 1px solid @border[#3e3e42];'
                 ' border-radius: 10px;'
                 '}',
             ),
@@ -135,12 +135,12 @@ class LoadingOverlay(QWidget):
 
         self._title_label = QLabel(title, self._card)
         self._title_label.setFont(get_ui_font(11, QFont.Weight.Bold))
-        self._title_label.setStyleSheet(themed_qss('color: @accent; background: transparent; border: none;'))
+        self._title_label.setStyleSheet(themed_qss('color: @accent[#88c0d0]; background: transparent; border: none;'))
         text_col.addWidget(self._title_label)
 
         self._status_label = QLabel(status, self._card)
         self._status_label.setFont(get_ui_font(9))
-        self._status_label.setStyleSheet(themed_qss('color: @text_muted; background: transparent; border: none;'))
+        self._status_label.setStyleSheet(themed_qss('color: @text_muted[#a0a0a0]; background: transparent; border: none;'))
         self._status_label.setWordWrap(True)
         self._status_label.setVisible(bool(status))
         text_col.addWidget(self._status_label)

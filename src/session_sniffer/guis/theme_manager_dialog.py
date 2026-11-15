@@ -313,7 +313,7 @@ class ThemeManagerDialog(QDialog):
                 self._reset_palette_button,
                 COMPACT_BUTTON_STYLESHEET,
                 self._open_reset_palette_menu,
-                tr('Copy all 21 color tokens from any built-in preset (or right-click an individual token below)'),
+                tr('Copy all 20 color tokens from any built-in preset (or right-click an individual token below)'),
             ),
             0,
         )

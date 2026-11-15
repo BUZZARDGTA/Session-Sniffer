@@ -307,7 +307,7 @@ class IPLookupDetailsDialog(PlayerInfoDialogMixin):
     def _build_looky_group(self, parent_layout: QVBoxLayout) -> None:
         """Add the 'Looky System' section to the scroll layout."""
         target = self._target
-        group, form = self._make_group(tr('Looky System'), accent='#4c1d95')
+        group, form = self._make_group(tr('Looky System'), accent='@lock[#4c1d95]')
 
         def _looky_usernames_label() -> str:
             with target.looky_system.lock:

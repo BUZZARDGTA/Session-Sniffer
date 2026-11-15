@@ -59,7 +59,7 @@ from session_sniffer.guis.tables_player_actions.looky_system._looky_refresh_engi
     is_single_ipv4,
     list_available_databases,
 )
-from session_sniffer.guis.theming import ICONS_DIR_PATH, register_theme_change_callback, themed_qss, themed_text_qcolor
+from session_sniffer.guis.theming import ICONS_DIR_PATH
 from session_sniffer.guis.userip_manager_helpers import refresh_userip_and_wake_renderer
 from session_sniffer.guis.utils import (
     activate_window,
@@ -83,25 +83,17 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-_COLOR_CONFIRMED = themed_text_qcolor('#38bdf8', '#161021')
-_COLOR_MATCH_TAG = themed_text_qcolor('#fbbf24', '#161021')
-_COLOR_REMOVE_SUSPECT = themed_text_qcolor('#f87171', '#161021')
-_COLOR_NEW = themed_text_qcolor('#a855f7', '#161021')
-_COLOR_NEW_TAG = themed_text_qcolor('#22c55e', '#161021')
-_COLOR_DB_LABEL = themed_text_qcolor('#9ca3af', '#161021')
+_COLOR_CONFIRMED = QColor('#38bdf8')
+_COLOR_MATCH_TAG = QColor('#fbbf24')
+_COLOR_REMOVE_SUSPECT = QColor('#f87171')
+_COLOR_NEW = QColor('#a855f7')
+_COLOR_NEW_TAG = QColor('#22c55e')
+_COLOR_DB_LABEL = QColor('#9ca3af')
 
-
-def _refresh_looky_review_colors() -> None:
-    pairs = ((_COLOR_CONFIRMED, '#38bdf8'), (_COLOR_MATCH_TAG, '#fbbf24'), (_COLOR_REMOVE_SUSPECT, '#f87171'), (_COLOR_NEW, '#a855f7'), (_COLOR_NEW_TAG, '#22c55e'))
-    for target, fg in (*pairs, (_COLOR_DB_LABEL, '#9ca3af')):
-        target.setRgba(themed_text_qcolor(fg, '#161021').rgba())
-
-
-register_theme_change_callback(_refresh_looky_review_colors)
-_COMBO_STYLESHEET = themed_qss(
+_COMBO_STYLESHEET = (
     'QComboBox { background-color: #1a1325; color: #e9d5ff; border: 1px solid #3d2d6e; border-radius: 4px; padding: 2px 6px; font-size: 8.5pt; }'
     'QComboBox:hover { border: 1px solid #7c3aed; }'
-    'QComboBox QAbstractItemView { background-color: #161021; color: #e9d5ff; selection-background-color: #4c1d95; border: 1px solid #4c1d95; }',
+    'QComboBox QAbstractItemView { background-color: #161021; color: #e9d5ff; selection-background-color: #4c1d95; border: 1px solid #4c1d95; }'
 )
 
 _TREE_HEADERS = ['Username', 'IP', 'Looky Username', 'Action', 'Notes', 'Detections', 'Why / Details', 'Target Database']
@@ -245,11 +237,11 @@ class LookyRefreshReviewDialog(PlayerInfoDialogMixin):
             stat_layout.setSpacing(2)
             tip_text = tip_fn()
             val_lbl = QLabel(value_text, alignment=Qt.AlignmentFlag.AlignCenter)
-            val_lbl.setStyleSheet(themed_qss('color: #d8b4fe; font-size: 14pt; font-weight: 700; background: transparent;'))
+            val_lbl.setStyleSheet('color: #d8b4fe; font-size: 14pt; font-weight: 700; background: transparent;')
             val_lbl.setToolTip(tip_text)
             stat_layout.addWidget(val_lbl)
             desc_lbl = QLabel(label_fn(), alignment=Qt.AlignmentFlag.AlignCenter)
-            desc_lbl.setStyleSheet(themed_qss('color: #9ca3af; font-size: 8pt; font-weight: 600; letter-spacing: 1px; background: transparent;'))
+            desc_lbl.setStyleSheet('color: #9ca3af; font-size: 8pt; font-weight: 600; letter-spacing: 1px; background: transparent;')
             desc_lbl.setToolTip(tip_text)
             stat_layout.addWidget(desc_lbl)
             self._stat_cards.append((val_lbl, desc_lbl, label_fn, tip_fn))
@@ -264,7 +256,7 @@ class LookyRefreshReviewDialog(PlayerInfoDialogMixin):
         info_bar.addWidget(self._legend_label)
         info_bar.addStretch(1)
         self._counter_label = QLabel()
-        self._counter_label.setStyleSheet(themed_qss('color: #9ca3af; font-size: 8pt; background: transparent;'))
+        self._counter_label.setStyleSheet('color: #9ca3af; font-size: 8pt; background: transparent;')
         self._counter_label.setToolTip(tr('Summary of currently checked Looky additions/moves and Searchlist candidate deletions.'))
         info_bar.addWidget(self._counter_label)
         outer_layout.addLayout(info_bar)
@@ -286,7 +278,7 @@ class LookyRefreshReviewDialog(PlayerInfoDialogMixin):
         self._search_input.setMinimumWidth(scale_by_ui(200))
         self._search_input.setToolTip(tr('Filter the table by username, IP address, notes, action, or target database.'))
         search_qss = 'QLineEdit { background-color: #1a1325; color: #d4c8f0; border: 1px solid #3d2d6e; border-radius: 6px; padding: 4px 8px; font-size: 9pt; }'
-        self._search_input.setStyleSheet(themed_qss(f'{search_qss} QLineEdit:focus {{ border: 1px solid #7c3aed; }}'))
+        self._search_input.setStyleSheet(f'{search_qss} QLineEdit:focus {{ border: 1px solid #7c3aed; }}')
         apply_search_icon(self._search_input)
         self._search_input.textChanged.connect(self._apply_tree_visibility)
         controls_bar.addWidget(self._search_input, stretch=1)
@@ -297,7 +289,7 @@ class LookyRefreshReviewDialog(PlayerInfoDialogMixin):
         if pending_entries:
             move_label = QLabel()
             set_i18n_colon_label(move_label, 'Target DB for Checked')
-            move_label.setStyleSheet(themed_qss('color: #d8b4fe; font-size: 8.5pt; font-weight: 600; background: transparent;'))
+            move_label.setStyleSheet('color: #d8b4fe; font-size: 8.5pt; font-weight: 600; background: transparent;')
             controls_bar.addWidget(move_label)
             self._bulk_db_combo.setMinimumWidth(scale_by_ui(145))
             self._bulk_db_combo.setToolTip(self._get_bulk_combo_tooltip())
@@ -386,7 +378,7 @@ class LookyRefreshReviewDialog(PlayerInfoDialogMixin):
         suspect_legend = (f'<span style="color: #f87171;">\u25cf {tr("Delete Wrong IP")}</span>',) if self._total_suspects > 0 else ()
         new_legend = (f'<span style="color: #22c55e;">\u25cf {tr("Add New Username")}</span>',) if self._total_new > 0 else ()
         legend_parts = [*(match_legends if self._total_matches > 0 or not self._total_suspects else ()), *suspect_legend, *new_legend]
-        self._legend_label.setText(themed_qss('&nbsp;&nbsp;&nbsp;'.join(legend_parts)))
+        self._legend_label.setText('&nbsp;&nbsp;&nbsp;'.join(legend_parts))
         tip_lines = (
             tr('Row Legend:'),
             tr('\u2022 Confirm Looky / Move: Confirms the username on this IP (or moves it to your chosen Target Database).'),
@@ -671,7 +663,7 @@ class LookyRefreshReviewDialog(PlayerInfoDialogMixin):
         )
         self._matches_only_btn.setToolTip(matches_tip)
         self._matches_only_btn.setText(tr('Matches Only: ON ({count})', count=self._total_matches) if is_on else tr('Matches Only: OFF (Show All)'))
-        toggle_tint = themed_text_qcolor('#ffffff', '#6d28d9').name(QColor.NameFormat.HexArgb) if is_on else '#9ca3af'
+        toggle_tint = '#ffffff' if is_on else '#9ca3af'
         self._matches_only_btn.setIcon(render_svg_icon_from_resource('toggle-right.svg' if is_on else 'toggle-left.svg', 16, 16, toggle_tint))
         self._matches_only_btn.ensurePolished()
         self._matches_only_btn.setMinimumWidth(self._matches_only_btn.sizeHint().width() + 10)

@@ -9,11 +9,12 @@ from session_sniffer.guis.theming import themed_qss
 GROUPBOX_STYLE = themed_qss("""
     QGroupBox {
         font-weight: bold;
-        border: 1px solid @border;
+        border: 1px solid @border[#3b5064];
         border-radius: 8px;
         margin-top: 14px;
         padding-top: 25px;
-        background: @surface;
+        background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+            stop:0 @surface[#1a232c], stop:1 @background[#11161d]);
     }
     QGroupBox::title {
         subcontrol-origin: margin;
@@ -21,34 +22,36 @@ GROUPBOX_STYLE = themed_qss("""
         left: 15px;
         top: 0px;
         padding: 4px 14px;
-        color: @accent;
-        background-color: @table_header;
-        border: 1px solid @border;
+        color: @accent[#88c0d0];
+        background-color: @table_header[#212f3d];
+        border: 1px solid @border[#3b5064];
         border-radius: 6px;
     }
 
-    QGroupBox .QWidget {
+    /* Make inner container widgets transparent so the group box gradient shows through */
+    QGroupBox QWidget {
         background-color: transparent;
     }
 
+    /* Re-specify backgrounds for form controls that need them */
     QGroupBox QComboBox,
     QGroupBox QLineEdit,
     QGroupBox QTextEdit,
     QGroupBox QPlainTextEdit {
-        background-color: @input;
-        border: 1px solid @border;
+        background-color: @input[#1e1e1e];
+        border: 1px solid @border[#3e3e42];
         border-radius: 4px;
-        color: @text;
+        color: @text[#e0e0e0];
         padding: 4px 8px;
         min-height: 24px;
         font-size: 9pt;
     }
     QGroupBox QSpinBox,
     QGroupBox QDoubleSpinBox {
-        background-color: @input;
-        border: 1px solid @border;
+        background-color: @input[#1e1e1e];
+        border: 1px solid @border[#3e3e42];
         border-radius: 4px;
-        color: @text;
+        color: @text[#e0e0e0];
         padding: 2px 4px;
         min-height: 24px;
         min-width: 100px;
@@ -56,33 +59,27 @@ GROUPBOX_STYLE = themed_qss("""
     }
     QGroupBox QPushButton {
         min-height: 26px;
-        background-color: @control;
-        border: 1px solid @border;
+        background-color: @control[#212f3d];
+        border: 1px solid @border[#3b5064];
         border-radius: 4px;
-        color: @text_strong;
+        color: @text[#e0e0e0];
         font-size: 9pt;
     }
     QGroupBox QPushButton:hover {
-        background-color: @control:hover;
-        border-color: @accent;
-    }
-    QGroupBox QPushButton:pressed {
-        background-color: @control:pressed;
+        background-color: @control[#2a3f4a];
     }
     QGroupBox QComboBox:focus,
     QGroupBox QSpinBox:focus,
     QGroupBox QDoubleSpinBox:focus,
     QGroupBox QLineEdit:focus {
-        border: 1px solid @accent;
+        border: 1px solid @accent[#007acc];
     }
     QGroupBox QComboBox QAbstractItemView {
-        background-color: @popup;
-        color: @text;
-        border: 1px solid @border;
+        background-color: @popup[#1a232c];
+        border: 1px solid @border[#3b5064];
         border-radius: 4px;
         padding: 2px 1px;
-        selection-background-color: @selection;
-        selection-color: @text_strong;
+        selection-background-color: @selection[#2a3f4a];
         outline: none;
     }
     QGroupBox QComboBox QAbstractItemView::item {
@@ -91,41 +88,38 @@ GROUPBOX_STYLE = themed_qss("""
         margin: 1px 0px;
         border-radius: 3px;
         border: none;
-        color: @text;
     }
     QGroupBox QComboBox QAbstractItemView::item:hover {
-        background-color: @selection/65;
-        color: @text_strong;
+        background-color: @selection[#243040];
         border-radius: 3px;
         padding: 2px 6px;
     }
     QGroupBox QComboBox QAbstractItemView::item:selected {
-        background-color: @selection;
-        color: @text_strong;
+        background-color: @selection[#2a3f4a];
+        color: @text_strong[white];
         border-radius: 3px;
         padding: 2px 6px;
     }
     QGroupBox QCheckBox::indicator {
         width: 14px;
         height: 14px;
-        background-color: @input;
-        border: 1px solid @border;
+        background-color: @input[#1e1e1e];
+        border: 1px solid @border[#3e3e42];
         border-radius: 3px;
     }
     QGroupBox QCheckBox::indicator:hover {
-        border-color: @accent;
+        border-color: @accent[#007acc];
     }
     QGroupBox QCheckBox::indicator:checked {
-        background-color: @accent;
-        border-color: @accent;
+        background-color: @accent[#007acc];
+        border-color: @accent[#007acc];
     }
 """)
 
 LIST_WIDGET_STYLE = themed_qss("""
     QListWidget {
-        background: @table;
-        color: @text;
-        border: 1px solid @border;
+        background: @table[#1a1f26];
+        border: 1px solid @border[#2a3f4a];
         border-radius: 4px;
         padding: 5px;
         font-family: 'Menlo', 'Consolas', 'Courier New', monospace;
@@ -135,18 +129,18 @@ LIST_WIDGET_STYLE = themed_qss("""
         border-radius: 3px;
     }
     QListWidget::item:hover {
-        background: @selection/45;
+        background: @selection[#243040];
     }
     QListWidget::item:selected {
-        background: @selection;
-        color: @text_strong;
+        background: @selection[#007acc];
+        color: @text_strong[white];
     }
 """)
 
 COMBO_RULES_LIST_STYLE = themed_qss("""
     QListWidget {
-        background: @table;
-        border: 1px solid @border;
+        background: @table[#12171e];
+        border: 1px solid @border[#2a3f4a];
         border-radius: 6px;
         padding: 4px;
         outline: none;
@@ -164,24 +158,24 @@ COMBO_RULES_LIST_STYLE = themed_qss("""
     }
 """)
 
-DESC_LABEL_STYLESHEET = themed_qss('color: @text_muted; font-style: italic; font-size: 10pt; padding: 5px;')
+DESC_LABEL_STYLESHEET = themed_qss('color: @text_muted[#a0b8c0]; font-style: italic; font-size: 10pt; padding: 5px;')
 
-HINT_LABEL_STYLESHEET = themed_qss('color: @text_muted; font-style: italic; padding-bottom: 4px;')
+HINT_LABEL_STYLESHEET = themed_qss('color: @text_muted[#a0a0a0]; font-style: italic; padding-bottom: 4px;')
 
 RELAY_FILTER_WARNING_STYLESHEET = themed_qss(
-    'QWidget { background-color: @surface~warning/20; border: 1px solid @warning; border-radius: 6px; padding: 2px; }'
-    'QLabel { border: none; background: transparent; }'
-    'QPushButton { border: 1px solid @warning; border-radius: 4px; background-color: @control~warning/28;'
-    ' color: @warning; padding: 4px 10px; font-weight: bold; }'
-    'QPushButton:hover { background-color: @control~warning/42; color: @text_strong; }',
+    'QWidget { background-color: @surface~warning[#3a2400]; border: 1px solid @warning[#c87800]; border-radius: 6px; padding: 2px; }'
+    'QLabel { border: none; }'
+    'QPushButton { border: 1px solid @warning[#c87800]; border-radius: 4px; background-color: @control~warning[#5a3a00];'
+    ' color: @warning[#ffcc66]; padding: 4px 10px; font-weight: bold; }'
+    'QPushButton:hover { background-color: @control~warning[#7a5200]; }',
 )
 
 WARNING_ICON_LABEL_STYLESHEET = themed_qss('font-size: 18pt; border: none;')
 
-WARNING_TEXT_LABEL_STYLESHEET = themed_qss('color: @warning; border: none;')
+WARNING_TEXT_LABEL_STYLESHEET = themed_qss('color: @warning[#ffcc66]; border: none;')
 
 DETECTIONS_MANAGER_HEADER_STYLESHEET = themed_qss(
-    'font-size: 16pt; font-weight: bold; color: @accent; padding: 10px;'
-    'background: @table_header;'
-    'border-radius: 6px; border: 1px solid @border;',
+    'font-size: 16pt; font-weight: bold; color: @accent[#88c0d0]; padding: 10px;'
+    'background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 @table_header[#0f1923], stop:0.5 @table_header[#1a2d3d], stop:1 @table_header[#0f1923]);'
+    'border-radius: 6px; border: 1px solid @border[#2a3f4a];',
 )

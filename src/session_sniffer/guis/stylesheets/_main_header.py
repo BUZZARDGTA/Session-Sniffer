@@ -4,13 +4,13 @@ from session_sniffer.guis.theming import themed_qss
 
 MAIN_HEADER_CONTAINER_STYLESHEET = themed_qss('QFrame#mainHeader { background-color: transparent; border: none; }')
 
-HEADER_TITLE_STYLESHEET = themed_qss('font-size: 13pt; font-weight: 700; color: @text_strong;')
+HEADER_TITLE_STYLESHEET = themed_qss('font-size: 13pt; font-weight: 700; color: @text_strong[#ffffff];')
 
 HEADER_VERSION_BADGE_STYLESHEET = themed_qss(
     """
-color: @text_muted;
-background-color: @surface/65;
-border: 1px solid @border/65;
+color: @text_muted[#94a3b8];
+background-color: @surface[rgba(255, 255, 255, 0.06)];
+border: 1px solid @border[rgba(255, 255, 255, 0.1)];
 border-radius: 4px;
 padding: 1px 6px;
 font-size: 8pt;
@@ -18,13 +18,13 @@ font-weight: 500;
 """.strip(),
 )
 
-HEADER_SUBTITLE_STYLESHEET = themed_qss('font-size: 8.5pt; color: @text_muted;')
+HEADER_SUBTITLE_STYLESHEET = themed_qss('font-size: 8.5pt; color: @text_muted[#64748b];')
 
 HEADER_STOPPED_BADGE_STYLESHEET = themed_qss(
     """
-color: @danger;
-background-color: @surface~danger/16;
-border: 1px solid @danger/45;
+color: @danger[#ef4444];
+background-color: @danger[rgba(239, 68, 68, 0.12)];
+border: 1px solid @danger[rgba(239, 68, 68, 0.35)];
 border-radius: 4px;
 padding: 1px 7px;
 font-size: 8pt;
@@ -39,21 +39,19 @@ QLineEdit#headerSearchBar {
     min-height: 28px;
     max-height: 30px;
     padding: 0 10px 0 8px;
-    color: @text;
-    background-color: @input/78;
-    border: 1px solid @border/68;
+    color: @text[#f1f5f9];
+    background-color: @input[rgba(255, 255, 255, 0.04)];
+    border: 1px solid @border[rgba(255, 255, 255, 0.1)];
     border-radius: 6px;
     font-size: 9pt;
-    selection-background-color: @selection;
-    selection-color: @text_strong;
 }
 QLineEdit#headerSearchBar:hover {
-    background-color: @input:hover/88;
-    border: 1px solid @border:hover;
+    background-color: @input[rgba(255, 255, 255, 0.06)];
+    border: 1px solid @border[rgba(255, 255, 255, 0.18)];
 }
 QLineEdit#headerSearchBar:focus {
-    border: 1px solid @success;
-    background-color: @input;
+    border: 1px solid @success[#22c55e];
+    background-color: @input[rgba(0, 0, 0, 0.45)];
 }
 """.strip(),
 )
@@ -64,21 +62,20 @@ QComboBox#headerSearchCombo {
     min-height: 28px;
     max-height: 30px;
     padding: 0 24px 0 10px;
-    color: @text;
-    background-color: @input/78;
-    border: 1px solid @border/68;
+    color: @text[#cbd5e1];
+    background-color: @input[rgba(255, 255, 255, 0.04)];
+    border: 1px solid @border[rgba(255, 255, 255, 0.1)];
     border-radius: 6px;
     font-size: 9pt;
-    selection-background-color: @selection;
-    selection-color: @text_strong;
+    selection-background-color: @selection[#3e3e42];
 }
 QComboBox#headerSearchCombo:hover {
-    background-color: @input:hover/88;
-    border: 1px solid @border:hover;
+    background-color: @input[rgba(255, 255, 255, 0.06)];
+    border: 1px solid @border[rgba(255, 255, 255, 0.18)];
 }
 QComboBox#headerSearchCombo:focus,
 QComboBox#headerSearchCombo:on {
-    border: 1px solid @success;
+    border: 1px solid @success[#22c55e];
 }
 QComboBox#headerSearchCombo::drop-down {
     subcontrol-origin: padding;
@@ -87,14 +84,14 @@ QComboBox#headerSearchCombo::drop-down {
     border-left: none;
 }
 QComboBox#headerSearchCombo QAbstractItemView {
-    background-color: @popup;
-    color: @text;
-    border: 1px solid @border;
+    background-color: @popup[#1a1b20];
+    color: @text[#e2e8f0];
+    border: 1px solid @border[#2d3039];
     border-radius: 6px;
     padding: 4px 2px;
     outline: none;
-    selection-background-color: @selection;
-    selection-color: @text_strong;
+    selection-background-color: @selection[#3e3e42];
+    selection-color: @text_strong[#ffffff];
 }
 QComboBox#headerSearchCombo QAbstractItemView::item {
     min-height: 24px;
@@ -103,23 +100,20 @@ QComboBox#headerSearchCombo QAbstractItemView::item {
     border-radius: 4px;
     border: none;
     background-color: transparent;
-    color: @text;
+    color: @text[#cbd5e1];
 }
-QComboBox#headerSearchCombo QAbstractItemView::item:hover {
-    background-color: @selection/65;
-    color: @text_strong;
-}
+QComboBox#headerSearchCombo QAbstractItemView::item:hover,
 QComboBox#headerSearchCombo QAbstractItemView::item:selected {
-    background-color: @selection;
-    color: @text_strong;
+    background-color: @selection[#3e3e42];
+    color: @text_strong[#ffffff];
 }
 QComboBox#headerSearchCombo QAbstractItemView::item:selected:hover {
-    background-color: @selection:hover;
-    color: @text_strong;
+    background-color: @selection[#4a4a50];
+    color: @text_strong[#ffffff];
 }
 QComboBox#headerSearchCombo QAbstractItemView::item:focus {
-    background-color: @selection;
-    color: @text_strong;
+    background-color: @selection[#3e3e42];
+    color: @text_strong[#ffffff];
     outline: none;
 }
 """.strip(),
@@ -129,8 +123,8 @@ HEADER_STAT_CARD_STYLESHEET = themed_qss(
     """
 QFrame#headerStatsContainer,
 QFrame#headerNotificationsContainer {
-    background-color: @surface/55;
-    border: 1px solid @border/58;
+    background-color: @surface[rgba(255, 255, 255, 0.03)];
+    border: 1px solid @border[rgba(255, 255, 255, 0.08)];
     border-radius: 8px;
 }
 """.strip(),
@@ -139,17 +133,17 @@ QFrame#headerNotificationsContainer {
 HEADER_NOTIFICATION_BUTTON_ENABLED_STYLESHEET = themed_qss(
     """
 QPushButton {
-    background-color: @control~success/16;
-    border: 1px solid @success/40;
+    background-color: @success[rgba(34, 197, 94, 0.08)];
+    border: 1px solid @success[rgba(34, 197, 94, 0.25)];
     border-radius: 5px;
     padding: 0;
 }
 QPushButton:hover {
-    background-color: @control~success/28;
-    border: 1px solid @success/65;
+    background-color: @success[rgba(34, 197, 94, 0.18)];
+    border: 1px solid @success[rgba(34, 197, 94, 0.45)];
 }
 QPushButton:pressed {
-    background-color: @control~success/22:pressed;
+    background-color: @success[rgba(34, 197, 94, 0.26)];
 }
 """.strip(),
 )
@@ -157,23 +151,23 @@ QPushButton:pressed {
 HEADER_NOTIFICATION_BUTTON_MUTED_STYLESHEET = themed_qss(
     """
 QPushButton {
-    background-color: @control~danger/20;
-    border: 1px solid @danger/45;
+    background-color: @danger[rgba(239, 68, 68, 0.14)];
+    border: 1px solid @danger[rgba(239, 68, 68, 0.38)];
     border-radius: 5px;
     padding: 0;
 }
 QPushButton:hover {
-    background-color: @control~danger/32;
-    border: 1px solid @danger/70;
+    background-color: @danger[rgba(239, 68, 68, 0.24)];
+    border: 1px solid @danger[rgba(239, 68, 68, 0.55)];
 }
 QPushButton:pressed {
-    background-color: @control~danger/26:pressed;
+    background-color: @danger[rgba(239, 68, 68, 0.32)];
 }
 """.strip(),
 )
 
-STAT_CARD_TITLE_STYLESHEET = themed_qss('font-size: 7.5pt; font-weight: 600; color: @text_muted; letter-spacing: 0.3px;')
+STAT_CARD_TITLE_STYLESHEET = themed_qss('font-size: 7.5pt; font-weight: 600; color: @text_muted[#64748b]; letter-spacing: 0.3px;')
 
-STAT_CARD_VALUE_STYLESHEET = themed_qss("font-size: 10.5pt; font-weight: 700; color: @success; font-family: 'Menlo', 'Consolas', 'Courier New', monospace;")
+STAT_CARD_VALUE_STYLESHEET = themed_qss("font-size: 10.5pt; font-weight: 700; color: @success[#22c55e]; font-family: 'Menlo', 'Consolas', 'Courier New', monospace;")
 
-HEADER_STATS_DIVIDER_STYLESHEET = themed_qss('background-color: @border; border: none; max-width: 1px; min-width: 1px; margin: 4px 8px;')
+HEADER_STATS_DIVIDER_STYLESHEET = themed_qss('background-color: @border[rgba(255, 255, 255, 0.08)]; border: none; max-width: 1px; min-width: 1px; margin: 4px 8px;')

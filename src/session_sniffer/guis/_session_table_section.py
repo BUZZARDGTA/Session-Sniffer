@@ -130,23 +130,30 @@ class SessionTableSection(QWidget):
 
         if is_connected:
             role_key = 'success'
+            accent = '@success[#22c55e]'
+            border_color = '@border~success[#1c4f32]'
+            table_bg = '@table~success[#101412]'
+            alt_bg = '@table_alt~success[#131915]'
+            grid_color = '@border~success[#18241d]'
+            sel_bg = '@selection~success[#1a3826]'
+            header_bg = '@table_header~success[#141d17]'
             expand_button_stylesheet = CONNECTED_EXPAND_BUTTON_STYLESHEET
             collapse_tooltip = tr('Hide the connected players table')
             expand_tooltip = tr('Show the connected players table')
         else:
             role_key = 'danger'
+            accent = '@danger[#ef4444]'
+            border_color = '@border~danger[#59282a]'
+            table_bg = '@table~danger[#180e11]'
+            alt_bg = '@table_alt~danger[#241317]'
+            grid_color = '@border~danger[#2d181c]'
+            sel_bg = '@selection~danger[#3d1a1e]'
+            header_bg = '@table_header~danger[#1d1315]'
             expand_button_stylesheet = DISCONNECTED_EXPAND_BUTTON_STYLESHEET
             collapse_tooltip = tr('Hide the disconnected players table')
             expand_tooltip = tr('Show the disconnected players table')
 
-        accent = f'@{role_key}'
-        border_color = f'@border~{role_key}/55/52'
-        table_bg = f'@table~{role_key}/3' if is_connected else f'@table~{role_key}/4'
-        alt_bg = f'@table_alt~{role_key}/4' if is_connected else f'@table_alt~{role_key}/6'
-        grid_color = f'@border~{role_key}/32/28'
-        sel_bg = f'@selection~{role_key}/45/52'
-        header_bg = f'@table_header~{role_key}/5'
-        header_text = '@text_muted'
+        header_text = '@text_muted[#94a3b8]'
 
         sort_column_name, sort_order = self._resolve_sort_from_settings(column_names)
 
@@ -289,10 +296,10 @@ class SessionTableSection(QWidget):
         scrollbar_arrow_left_path = (ICONS_DIR_PATH / 'scrollbar_arrow_left.svg').as_posix()
         scrollbar_arrow_right_path = (ICONS_DIR_PATH / 'scrollbar_arrow_right.svg').as_posix()
 
-        sb_track_bg = '@table'
-        sb_handle_bg = '@scrollbar'
-        sb_handle_hover = '@scrollbar:hover'
-        sb_handle_pressed = '@scrollbar:pressed'
+        sb_track_bg = '@table[#111215]'
+        sb_handle_bg = '@scrollbar[#2a2d36]'
+        sb_handle_hover = '@scrollbar[#3d4250]'
+        sb_handle_pressed = '@scrollbar[#4b5163]'
 
         self.table_view.setStyleSheet(
             themed_qss(f"""
@@ -305,10 +312,10 @@ class SessionTableSection(QWidget):
                 border-bottom-right-radius: 8px;
                 background-color: {table_bg};
                 alternate-background-color: {alt_bg};
-                color: @text;
+                color: @text[#e0e0e0];
                 gridline-color: {grid_color};
                 selection-background-color: {sel_bg};
-                selection-color: @text_strong;
+                selection-color: @text_strong[#ffffff];
             }}
             QTableView::viewport {{
                 border-bottom-left-radius: 7px;
@@ -316,12 +323,12 @@ class SessionTableSection(QWidget):
                 background-color: {table_bg};
             }}
             QTableView::item {{
-                border: none;
+                border-bottom: 1px solid {grid_color};
                 background-color: transparent;
             }}
             QTableView::item:selected {{
                 background-color: {sel_bg};
-                color: @text_strong;
+                color: @text_strong[#ffffff];
             }}
             QHeaderView {{
                 background-color: {header_bg};
@@ -368,11 +375,11 @@ class SessionTableSection(QWidget):
                 border: none;
             }}
             QScrollBar::sub-line:vertical:hover {{
-                background-color: @scrollbar/35;
+                background-color: @scrollbar[rgba(255, 255, 255, 0.08)];
                 border-radius: 3px;
             }}
             QScrollBar::sub-line:vertical:pressed {{
-                background-color: @scrollbar/55;
+                background-color: @scrollbar[rgba(255, 255, 255, 0.15)];
                 border-radius: 3px;
             }}
             QScrollBar::add-line:vertical {{
@@ -384,11 +391,11 @@ class SessionTableSection(QWidget):
                 border: none;
             }}
             QScrollBar::add-line:vertical:hover {{
-                background-color: @scrollbar/35;
+                background-color: @scrollbar[rgba(255, 255, 255, 0.08)];
                 border-radius: 3px;
             }}
             QScrollBar::add-line:vertical:pressed {{
-                background-color: @scrollbar/55;
+                background-color: @scrollbar[rgba(255, 255, 255, 0.15)];
                 border-radius: 3px;
             }}
             QScrollBar::up-arrow:vertical {{
@@ -432,11 +439,11 @@ class SessionTableSection(QWidget):
                 border: none;
             }}
             QScrollBar::sub-line:horizontal:hover {{
-                background-color: @scrollbar/35;
+                background-color: @scrollbar[rgba(255, 255, 255, 0.08)];
                 border-radius: 3px;
             }}
             QScrollBar::sub-line:horizontal:pressed {{
-                background-color: @scrollbar/55;
+                background-color: @scrollbar[rgba(255, 255, 255, 0.15)];
                 border-radius: 3px;
             }}
             QScrollBar::add-line:horizontal {{
@@ -448,11 +455,11 @@ class SessionTableSection(QWidget):
                 border: none;
             }}
             QScrollBar::add-line:horizontal:hover {{
-                background-color: @scrollbar/35;
+                background-color: @scrollbar[rgba(255, 255, 255, 0.08)];
                 border-radius: 3px;
             }}
             QScrollBar::add-line:horizontal:pressed {{
-                background-color: @scrollbar/55;
+                background-color: @scrollbar[rgba(255, 255, 255, 0.15)];
                 border-radius: 3px;
             }}
             QScrollBar::left-arrow:horizontal {{

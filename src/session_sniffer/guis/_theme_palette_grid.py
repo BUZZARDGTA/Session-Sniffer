@@ -1,4 +1,4 @@
-"""Categorized 21-token Color Palette editor and preset-reset menus for `ThemeManagerDialog`."""
+"""Categorized 20-token Color Palette editor and preset-reset menus for `ThemeManagerDialog`."""
 
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Final

@@ -1,12 +1,14 @@
 """Theme engine that resolves semantic `@token` bindings and maps canonical Dark design colors onto any theme.
 
-Stylesheets and painting helpers can bind directly to any of the 21 `ThemeColors` tokens via `@<token>`
-expressions (with optional `~<tint>/<mix_pct>` color mixing, `:hover` / `:pressed` / `:disabled` state steps,
-and `/<alpha_pct>` opacity), guaranteeing strict single-token isolation with zero cross-bleeding.
+Stylesheets and painting helpers can bind directly to any of the 20 `ThemeColors` tokens via `@<token>`
+expressions (with optional `~<tint>/<mix_pct>` color mixing, `[<canonical_color>]` exact Dark-palette anchors,
+`:hover` / `:pressed` / `:disabled` state steps, and `/<alpha_pct>` opacity), guaranteeing strict single-token
+isolation with zero cross-bleeding while preserving rich gradients and translucent surfaces. Proprietary brand
+colors (such as Looky System purple) can be locked via `@lock[<color>]` so themes never alter their hue.
 
 Un-tokenized literal colors authored against `DARK_THEME_COLORS` are mapped onto the active theme in perceptual
 OKLab space along a neutral lightness ramp (`background`, `surface`, `text_muted`, `text`, `text_strong`) and
-five chromatic hue anchors (`danger`, `warning`, `success`, `accent`, `secondary`).
+four chromatic hue anchors (`danger`, `warning`, `success`, `accent`).
 """
 
 import functools
@@ -27,8 +29,10 @@ if TYPE_CHECKING:
     from PySide6.QtCore import Qt
 
 _NEUTRAL_TOKENS: Final = ('background', 'surface', 'text_muted', 'text', 'text_strong')
-_CHROMATIC_TOKENS: Final = ('danger', 'warning', 'success', 'accent', 'secondary')
+_CHROMATIC_TOKENS: Final = ('danger', 'warning', 'success', 'accent')
+_CHROMATIC_TOKEN_SET: Final[frozenset[str]] = frozenset(_CHROMATIC_TOKENS)
 _TOKEN_NAMES: Final[frozenset[str]] = frozenset(field.name for field in fields(ThemeColors))
+_BRAND_LOCK_DIRECTIVE: Final = 'lock'
 
 _DARK_DEEPEST_FACTOR: Final = 0.55
 _MAX_NEUTRAL_CHROMA: Final = 0.035
@@ -36,6 +40,13 @@ _CHROMA_RATIO_RANGE: Final = (0.25, 2.5)
 _ANCHOR_LIGHTNESS_SIGMA: Final = 0.12
 _ANCHOR_FULL_CHROMA: Final = 0.06
 _MIN_HUE_CHROMA: Final = 1e-5
+_LIGHT_INVERT_DL_THRESHOLD: Final = 0.14
+_TRANSLUCENT_BOOST_MAX_ALPHA: Final = 0.92
+_SELECTION_CHROMA_THRESHOLD: Final = 0.04
+_LIGHT_SELECTION_MIN_ALPHA: Final = 0.22
+_LIGHT_MID_LIGHTNESS: Final = 0.5
+_LOW_ALPHA_TIER_THRESHOLD: Final = 0.08
+_TINTED_NEUTRAL_CHROMA_THRESHOLD: Final = 0.008
 _FULL_CIRCLE: Final = 360.0
 _HALF_CIRCLE: Final = 180.0
 
@@ -57,7 +68,8 @@ _NAMED_COLORS: Final = '|'.join(sorted((name for name in QColor.colorNames() if 
 
 _AT_EXPR_PATTERN: Final = (
     r'(?<![\w#-])@(?P<t_base>[a-z_]+)'
-    r'(?:~(?P<t_tint>[a-z_]+)/(?P<t_mix>\d{1,3}))?'
+    r'(?:~(?P<t_tint>[a-z_]+)(?:/(?P<t_mix>\d{1,3}))?)?'
+    r'(?:\[(?P<t_canon>[^\]]+)\])?'
     r'(?::(?P<t_state>hover|pressed|disabled))?'
     r'(?:/(?P<t_alpha>\d{1,3}))?(?![\w-])'
 )
@@ -124,29 +136,6 @@ def _apply_token_state(rgb: Rgb, state: str, background_rgb: Rgb) -> Rgb:
     return oklab_to_rgb((min(1.0, max(0.0, lab_l + delta)), lab_a, lab_b))
 
 
-def _resolve_token_color(spec: str, palette: dict[str, Rgb]) -> QColor | None:
-    """Resolve a `@token` expression against *palette*, or return `None` when *spec* is not a valid token."""
-    match = _AT_EXPR_FULL_RE.match(spec.strip())
-    if match is None:
-        return None
-    base = match.group('t_base')
-    tint = match.group('t_tint')
-    if base not in _TOKEN_NAMES or (tint is not None and tint not in _TOKEN_NAMES):
-        return None
-
-    rgb = palette[base]
-    if tint is not None:
-        mix_fraction = min(100, max(0, int(match.group('t_mix')))) / 100.0
-        rgb = _mix_rgb(rgb, palette[tint], mix_fraction)
-    if (state := match.group('t_state')) is not None:
-        rgb = _apply_token_state(rgb, state, palette['background'])
-
-    color = QColor.fromRgbF(rgb[0], rgb[1], rgb[2])
-    if (alpha_text := match.group('t_alpha')) is not None:
-        color.setAlphaF(min(100, max(0, int(alpha_text))) / 100.0)
-    return color
-
-
 def _parse_rgb_function(stripped: str) -> QColor | None:
     components = [component.strip() for component in stripped[stripped.index('(') + 1:-1].split(',')]
     if len(components) not in (_RGB_COMPONENT_COUNT, _RGBA_COMPONENT_COUNT):
@@ -169,15 +158,162 @@ def _parse_rgb_function(stripped: str) -> QColor | None:
     return color
 
 
+def _parse_literal_color(value: str) -> QColor | None:
+    """Parse a non-`@token` CSS/QSS color literal (`#hex`, `rgb()`, `rgba()`, or named color)."""
+    stripped = value.strip()
+    if not stripped or stripped.startswith('@'):
+        return None
+    if stripped.lower().startswith(('rgb(', 'rgba(')):
+        return _parse_rgb_function(stripped)
+    color = QColor(stripped)
+    return color if color.isValid() else None
+
+
+def _map_canonical_chromatic(canon_rgb: Rgb, canon_alpha: float, canon_tok_rgb: Rgb, target_tok_rgb: Rgb, *, is_dark_theme: bool) -> tuple[Rgb, float]:
+    canon_l, canon_c, canon_h = _lch(rgb_to_oklab(canon_rgb))
+    ctok_l, ctok_c, ctok_h = _lch(rgb_to_oklab(canon_tok_rgb))
+    ttok_l, ttok_c, ttok_h = _lch(rgb_to_oklab(target_tok_rgb))
+
+    dh = _signed_hue_delta(ctok_h, ttok_h) if ttok_c > _MIN_HUE_CHROMA and ctok_c > _MIN_HUE_CHROMA else 0.0
+    c_ratio = min(2.2, max(0.2, ttok_c / ctok_c)) if ctok_c > _MIN_HUE_CHROMA else 1.0
+    mapped_c = canon_c * c_ratio
+    mapped_h = math.radians((canon_h + dh) % _FULL_CIRCLE)
+
+    dl = canon_l - ctok_l
+    mapped_l = min(0.92, max(0.12, ttok_l - dl * 0.25)) if not is_dark_theme and dl > _LIGHT_INVERT_DL_THRESHOLD else min(0.96, max(0.08, ttok_l + dl * 0.9))
+
+    alpha = (
+        min(0.94, canon_alpha + 0.18)
+        if not is_dark_theme and _MIN_BACKGROUND_ALPHA <= canon_alpha < _TRANSLUCENT_BOOST_MAX_ALPHA
+        else canon_alpha
+    )
+    return oklab_to_rgb((mapped_l, mapped_c * math.cos(mapped_h), mapped_c * math.sin(mapped_h))), alpha
+
+
+def _map_canonical_low_alpha(base: str, canon_rgb: Rgb, canon_alpha: float, palette: dict[str, Rgb], *, is_dark_theme: bool) -> tuple[Rgb, float]:
+    canon_lab = rgb_to_oklab(canon_rgb)
+    canon_c = math.hypot(canon_lab[1], canon_lab[2])
+    target_tok_rgb = palette[base]
+    if base == 'selection' and canon_c > _SELECTION_CHROMA_THRESHOLD:
+        rgb, _ = _map_canonical_chromatic(canon_rgb, 1.0, _CANONICAL_PALETTE[base], target_tok_rgb, is_dark_theme=is_dark_theme)
+        alpha = max(canon_alpha, _LIGHT_SELECTION_MIN_ALPHA) if not is_dark_theme and canon_alpha < _LIGHT_SELECTION_MIN_ALPHA else canon_alpha
+        return rgb, alpha
+    if is_dark_theme:
+        return _mix_rgb(canon_rgb, target_tok_rgb, 0.35), canon_alpha
+    ttok_lab = rgb_to_oklab(target_tok_rgb)
+    contrast_pole = oklab_to_rgb((0.20, ttok_lab[1] * 0.5, ttok_lab[2] * 0.5)) if canon_lab[0] > _LIGHT_MID_LIGHTNESS else (1.0, 0.0, 0.0)
+    boosted_alpha = max(canon_alpha, 0.14) if canon_alpha >= _LOW_ALPHA_TIER_THRESHOLD else max(canon_alpha, 0.06)
+    return _mix_rgb(target_tok_rgb, contrast_pole, 0.65), boosted_alpha
+
+
+def _map_canonical_neutral(
+    base: str,
+    tint: str | None,
+    canon_color: QColor,
+    palette: dict[str, Rgb],
+    *,
+    is_dark_theme: bool,
+) -> tuple[Rgb, float]:
+    canon_rgb = _to_rgb(canon_color)
+    canon_alpha = canon_color.alphaF()
+    if canon_alpha < _MIN_BACKGROUND_ALPHA:
+        return _map_canonical_low_alpha(base, canon_rgb, canon_alpha, palette, is_dark_theme=is_dark_theme)
+
+    canon_lab = rgb_to_oklab(canon_rgb)
+    ctok_lab = rgb_to_oklab(_CANONICAL_PALETTE[base])
+    ttok_lab = rgb_to_oklab(palette[base])
+
+    dl = canon_lab[0] - ctok_lab[0]
+    mapped_l = min(1.0, max(0.0, ttok_lab[0] + dl * 0.9 if is_dark_theme else ttok_lab[0] - dl * 0.75))
+
+    da, db = canon_lab[1] - ctok_lab[1], canon_lab[2] - ctok_lab[2]
+    dev_c = math.hypot(da, db)
+    if tint is not None and dev_c > _MIN_HUE_CHROMA:
+        _, ctint_c, ctint_h = _lch(rgb_to_oklab(_CANONICAL_PALETTE[tint]))
+        _, ttint_c, ttint_h = _lch(rgb_to_oklab(palette[tint]))
+        dh = _signed_hue_delta(ctint_h, ttint_h) if ttint_c > _MIN_HUE_CHROMA and ctint_c > _MIN_HUE_CHROMA else 0.0
+        c_scale = min(1.8, max(0.4, ttint_c / ctint_c)) if ctint_c > _MIN_HUE_CHROMA else 1.0
+        dev_h = math.radians((math.degrees(math.atan2(db, da)) + dh) % _FULL_CIRCLE)
+        scaled_c = dev_c * c_scale * (1.0 if is_dark_theme else 0.75)
+        mapped_a = ttok_lab[1] + scaled_c * math.cos(dev_h)
+        mapped_b = ttok_lab[2] + scaled_c * math.sin(dev_h)
+    else:
+        ttok_c = math.hypot(ttok_lab[1], ttok_lab[2])
+        keep = (0.35 if ttok_c > _TINTED_NEUTRAL_CHROMA_THRESHOLD else 0.75) * (1.0 if is_dark_theme else 0.6)
+        mapped_a = ttok_lab[1] + da * keep
+        mapped_b = ttok_lab[2] + db * keep
+
+    return oklab_to_rgb((mapped_l, mapped_a, mapped_b)), canon_alpha
+
+
+def _resolve_anchored_rgb_alpha(
+    base: str,
+    tint: str | None,
+    canon_color: QColor,
+    palette: dict[str, Rgb],
+) -> tuple[Rgb, float]:
+    canon_rgb = _to_rgb(canon_color)
+    canon_alpha = canon_color.alphaF()
+    if base == _BRAND_LOCK_DIRECTIVE:
+        return canon_rgb, canon_alpha
+
+    is_dark_theme = rgb_to_oklab(palette['text'])[0] >= rgb_to_oklab(palette['background'])[0]
+    same_tokens = palette[base] == _CANONICAL_PALETTE[base] and (tint is None or palette[tint] == _CANONICAL_PALETTE[tint])
+    if same_tokens and (canon_alpha >= _MIN_BACKGROUND_ALPHA or is_dark_theme):
+        return canon_rgb, canon_alpha
+
+    if base in _CHROMATIC_TOKEN_SET:
+        return _map_canonical_chromatic(canon_rgb, canon_alpha, _CANONICAL_PALETTE[base], palette[base], is_dark_theme=is_dark_theme)
+    return _map_canonical_neutral(base, tint, canon_color, palette, is_dark_theme=is_dark_theme)
+
+
+def _resolve_token_color(spec: str, palette: dict[str, Rgb]) -> QColor | None:
+    """Resolve a `@token` expression against *palette*, or return `None` when *spec* is not a valid token."""
+    match = _AT_EXPR_FULL_RE.match(spec.strip())
+    if match is None:
+        return None
+    base = match.group('t_base')
+    tint = match.group('t_tint')
+    canon_text = match.group('t_canon')
+    mix_text = match.group('t_mix')
+
+    if base == _BRAND_LOCK_DIRECTIVE:
+        if canon_text is None or tint is not None:
+            return None
+    elif base not in _TOKEN_NAMES or (tint is not None and tint not in _TOKEN_NAMES):
+        return None
+
+    if canon_text is not None:
+        canon_color = _parse_literal_color(canon_text)
+        if canon_color is None:
+            return None
+        rgb, alpha = _resolve_anchored_rgb_alpha(base, tint, canon_color, palette)
+    else:
+        if tint is not None and mix_text is None:
+            return None
+        rgb = palette[base]
+        alpha = 1.0
+        if tint is not None and mix_text is not None:
+            mix_fraction = min(100, max(0, int(mix_text))) / 100.0
+            rgb = _mix_rgb(rgb, palette[tint], mix_fraction)
+
+    if (state := match.group('t_state')) is not None and base != _BRAND_LOCK_DIRECTIVE:
+        rgb = _apply_token_state(rgb, state, palette['background'])
+
+    color = QColor.fromRgbF(rgb[0], rgb[1], rgb[2])
+    if (alpha_text := match.group('t_alpha')) is not None:
+        color.setAlphaF(min(100, max(0, int(alpha_text))) / 100.0)
+    else:
+        color.setAlphaF(alpha)
+    return color
+
+
 def parse_color(value: str) -> QColor | None:
     """Parse a CSS/QSS color token (`@token`, hex, `rgb()`, `rgba()`, or named color) into a canonical `QColor`."""
     stripped = value.strip()
     if stripped.startswith('@'):
         return _resolve_token_color(stripped, _CANONICAL_PALETTE)
-    if stripped.lower().startswith(('rgb(', 'rgba(')):
-        return _parse_rgb_function(stripped)
-    color = QColor(stripped)
-    return color if color.isValid() else None
+    return _parse_literal_color(stripped)
 
 
 def _is_themed_marker(value: str) -> bool:
@@ -366,7 +502,7 @@ class ThemeTransform:
         if fg_spec is None:
             return None
         if bg_pair is None:
-            if fg_spec.startswith('@'):
+            if fg_spec.startswith('@') and not fg_spec.startswith('@lock[') and '[' not in fg_spec:
                 return self.color(fg_spec)
             bg_pair = (QColor(DARK_THEME_COLORS.background), QColor(self.colors.background))
         canon_fg = self.resolve_canonical(fg_spec)

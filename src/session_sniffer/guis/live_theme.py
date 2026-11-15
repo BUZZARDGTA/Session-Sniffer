@@ -152,6 +152,16 @@ def _sync_root_window_stylesheet(win: QWidget, global_qss: str) -> None:
         win.setProperty('_ss_root_qss_gen', gen)
         if existing_qss != merged:
             win.setStyleSheet(merged)
+        return
+
+    unthemed_custom = win.property('_ss_root_custom_unthemed')
+    if not isinstance(unthemed_custom, str):
+        unthemed_custom = existing_qss
+        win.setProperty('_ss_root_custom_unthemed', unthemed_custom)
+    merged_unthemed = f'{global_qss}\n{unthemed_custom}'
+    win.setProperty('_ss_root_qss_gen', gen)
+    if existing_qss != merged_unthemed:
+        win.setStyleSheet(merged_unthemed)
 
 
 class _LiveThemeStyleFilter(QObject):

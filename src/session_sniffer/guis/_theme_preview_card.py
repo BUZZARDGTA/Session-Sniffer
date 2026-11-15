@@ -58,8 +58,6 @@ PREVIEW_BASE_QSS: Final = (
     ' border: 1px solid @danger/55; border-radius: 5px; padding: 3px 10px; font-size: 8pt; font-weight: 700; }\n'
     'QLabel#themePreviewBadgeAccent { background-color: @accent/18; color: @accent;'
     ' border: 1px solid @accent/50; border-radius: 4px; padding: 1px 7px; font-size: 7.5pt; font-weight: 700; }\n'
-    'QLabel#themePreviewBadgeSecondary { background-color: @secondary/18; color: @secondary;'
-    ' border: 1px solid @secondary/50; border-radius: 4px; padding: 1px 7px; font-size: 7.5pt; font-weight: 700; }\n'
     'QLabel#themePreviewBadgeSuccess { background-color: @success/18; color: @success;'
     ' border: 1px solid @success/50; border-radius: 4px; padding: 1px 7px; font-size: 7.5pt; font-weight: 700; }\n'
     'QLabel#themePreviewBadgeWarning { background-color: @warning/18; color: @warning;'
@@ -76,7 +74,6 @@ PREVIEW_BASE_QSS: Final = (
     'QLabel#themePreviewCellStrong { background: transparent; color: @text_strong; font-size: 8pt; font-weight: 700; }\n'
     'QLabel#themePreviewCellNormal { background: transparent; color: @text; font-size: 8pt; }\n'
     'QLabel#themePreviewCellMuted { background: transparent; color: @text_muted; font-size: 8pt; }\n'
-    'QLabel#themePreviewCellSecondary { background: transparent; color: @secondary; font-size: 8pt; font-weight: 600; }\n'
     'QLabel#themePreviewCellSuccess { background: transparent; color: @success; font-size: 8pt; font-weight: 700; }\n'
     'QLabel#themePreviewCellWarning { background: transparent; color: @warning; font-size: 8pt; font-weight: 700; }\n'
     'QLabel#themePreviewCellDanger { background: transparent; color: @danger; font-size: 8pt; font-weight: 700; }\n'
@@ -187,7 +184,6 @@ def _build_preview_surface_card() -> tuple[QFrame, QLineEdit]:
     badges_row.setSpacing(5)
     for badge_text, object_name in (
         ('Host', 'themePreviewBadgeAccent'),
-        ('Looky', 'themePreviewBadgeSecondary'),
         ('Connected • 24 ms', 'themePreviewBadgeSuccess'),
         ('High Rate', 'themePreviewBadgeWarning'),
         ('Disconnected', 'themePreviewBadgeDanger'),
@@ -251,7 +247,7 @@ def _build_preview_mini_table() -> QFrame:
         _build_preview_table_row(
             'themePreviewTableRowAlt',
             (
-                ('NightRider99', 'themePreviewCellSecondary', 3),
+                ('NightRider99', 'themePreviewCellSuccess', 3),
                 ('203.0.113.42', 'themePreviewCellNormal', 3),
                 (tr('{ms} ms', ms=148), 'themePreviewCellWarning', 2),
                 (tr('Alternate Row'), 'themePreviewCellMuted', 2),
@@ -303,7 +299,7 @@ def _build_preview_statusbar() -> QFrame:
 
 
 def build_theme_preview_group(preview_root: QFrame) -> QGroupBox:
-    """Build the 21-token miniature Session Sniffer Live Preview group box for `ThemeManagerDialog`."""
+    """Build the 20-token miniature Session Sniffer Live Preview group box for `ThemeManagerDialog`."""
     preview_group = QGroupBox(tr('Live Preview'))
     outer_layout = QVBoxLayout(preview_group)
     outer_layout.setContentsMargins(8, 8, 8, 8)
@@ -350,7 +346,7 @@ class _PreviewRow(NamedTuple):
 
 _PREVIEW_ROWS: Final[tuple[_PreviewRow, ...]] = (
     _PreviewRow('★ HostPlayer', '198.51.100.14', '22 ms', 'Host', 'accent', 'strong', bold_user=True, bold_ping=True, green_ping=True, muted_ip=False, row_bg_kind='selected'),
-    _PreviewRow('NightRider99', '203.0.113.42', '41 ms', 'Looky', 'secondary', 'role', bold_user=False, bold_ping=False, green_ping=True, muted_ip=False, row_bg_kind='alt'),
+    _PreviewRow('NightRider99', '203.0.113.42', '41 ms', 'Active', 'success', 'role', bold_user=False, bold_ping=False, green_ping=True, muted_ip=False, row_bg_kind='alt'),
     _PreviewRow('PacketStorm', '192.0.2.188', '148 ms', 'High', 'warning', 'normal', bold_user=False, bold_ping=True, green_ping=False, muted_ip=False, row_bg_kind='even'),
     _PreviewRow('KnownModder', '198.51.100.99', '265 ms', 'Alert', 'danger', 'role', bold_user=True, bold_ping=False, green_ping=False, muted_ip=True, row_bg_kind='alt'),
 )
@@ -382,7 +378,6 @@ def _draw_preview_toolbar(painter: QPainter, rect: QRectF, transform: ThemeTrans
     c_control = QColor(colors.control)
     c_border = QColor(colors.border)
     c_accent = QColor(colors.accent)
-    c_secondary = QColor(colors.secondary)
     c_success = QColor(colors.success)
 
     painter.fillRect(rect, c_menubar)
@@ -402,7 +397,7 @@ def _draw_preview_toolbar(painter: QPainter, rect: QRectF, transform: ThemeTrans
     _draw_pill(painter, cap_rect, f"● {tr('Capturing')}", c_success, transform.text_on('@success', c_menubar))
 
     game_rect = QRectF(cap_rect.right() + float(scale_by_ui(4)), pill_y, float(scale_by_ui(34)), pill_h)
-    _draw_pill(painter, game_rect, tr('GTA V'), c_secondary, transform.text_on('@secondary', c_menubar))
+    _draw_pill(painter, game_rect, tr('GTA V'), c_accent, transform.text_on('@accent', c_menubar))
 
     btn_w = float(scale_by_ui(32))
     btn_rect = QRectF(rect.right() - pad - btn_w, pill_y, btn_w, pill_h)
@@ -478,7 +473,7 @@ def _draw_preview_table(painter: QPainter, rect: QRectF, transform: ThemeTransfo
     row_h = (rect.bottom() - rows_top) / len(_PREVIEW_ROWS)
     token_colors = {
         'accent': (c_accent, '@accent'),
-        'secondary': (QColor(colors.secondary), '@secondary'),
+        'success': (QColor(colors.success), '@success'),
         'warning': (QColor(colors.warning), '@warning'),
         'danger': (QColor(colors.danger), '@danger'),
     }
@@ -748,7 +743,6 @@ class ThemePreviewCard(QFrame):
             self._theme.colors.surface,
             self._theme.colors.control,
             self._theme.colors.accent,
-            self._theme.colors.secondary,
             self._theme.colors.success,
             self._theme.colors.warning,
             self._theme.colors.danger,
