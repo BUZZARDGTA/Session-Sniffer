@@ -2,7 +2,7 @@
 
 # Session Sniffer
 
-**Real-time P2P session monitor, player tracker, and network security suite for PC, PlayStation, Xbox, and mobile.**
+**Real-time P2P session monitor, player tracker, and network analysis suite for PC, PlayStation, Xbox, and mobile.**
 
 [![Latest Release](https://img.shields.io/github/v/release/BUZZARDGTA/Session-Sniffer?style=for-the-badge&logo=github&label=Release&color=007ACC)](https://github.com/BUZZARDGTA/Session-Sniffer/releases/latest)
 [![Total Downloads](https://img.shields.io/github/downloads/BUZZARDGTA/Session-Sniffer/total?style=for-the-badge&logo=github&label=Downloads&color=2ea44f)](https://github.com/BUZZARDGTA/Session-Sniffer/releases)
