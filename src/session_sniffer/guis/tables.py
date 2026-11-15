@@ -38,7 +38,7 @@ from session_sniffer.guis.live_language import CANONICAL_HEADER_ROLE, register_l
 from session_sniffer.guis.table_model import SessionTableModel
 from session_sniffer.guis.tables_context_menu_mixin import TableContextMenuMixin
 from session_sniffer.guis.tables_header_menu_mixin import TableHeaderMenuMixin
-from session_sniffer.guis.theming import ICONS_DIR_PATH, themed_text_qcolor
+from session_sniffer.guis.theming import ICONS_DIR_PATH, get_theme_generation, themed_text_qcolor
 from session_sniffer.guis.utils import scale_by_ui, set_clipboard_text
 from session_sniffer.i18n import tr, tr_plural
 from session_sniffer.player.registry import PlayersRegistry, SessionTracker
@@ -90,8 +90,9 @@ class SessionTableView(TableHeaderMenuMixin, TableContextMenuMixin, QTableView):
         self._is_programmatic_resizing: bool = False
         self._has_auto_sized_with_data: bool = False
         self._recalculation_payloads_remaining: int = 0
-        empty_icon_filename = 'user-round-check.svg' if is_connected_table else 'user-round-x.svg'
-        self._empty_icon_renderer = QSvgRenderer((ICONS_DIR_PATH / empty_icon_filename).as_posix())
+        self._empty_icon_filename = 'user-round-check.svg' if is_connected_table else 'user-round-x.svg'
+        self._empty_icon_gen = get_theme_generation()
+        self._empty_icon_renderer = QSvgRenderer((ICONS_DIR_PATH / self._empty_icon_filename).as_posix())
 
         self.setModel(model)
         self.setMouseTracking(True)  # Track mouse without clicks
@@ -375,6 +376,11 @@ class SessionTableView(TableHeaderMenuMixin, TableContextMenuMixin, QTableView):
             total_height = icon_size + icon_spacing + title_fm.height() + title_spacing + subtitle_fm.height()
             start_y = max(scale_by_ui(10), (viewport_rect.height() - total_height) // 2)
 
+            current_gen = get_theme_generation()
+            if self._empty_icon_gen != current_gen:
+                self._empty_icon_gen = current_gen
+                self._empty_icon_renderer.load((ICONS_DIR_PATH / self._empty_icon_filename).as_posix())
+
             icon_x = (viewport_rect.width() - icon_size) // 2
             icon_rect = QRectF(icon_x, start_y, icon_size, icon_size)
             self._empty_icon_renderer.render(painter, icon_rect)
@@ -408,13 +414,13 @@ class SessionTableView(TableHeaderMenuMixin, TableContextMenuMixin, QTableView):
             curr_y = start_y + icon_size + icon_spacing
             title_rect = QRect(0, curr_y, viewport_rect.width(), title_fm.height())
             painter.setFont(title_font)
-            painter.setPen(themed_text_qcolor('#e2e8f0', '#101412'))
+            painter.setPen(themed_text_qcolor('@text', '@table'))
             painter.drawText(title_rect, Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter, title)
 
             curr_y += title_fm.height() + title_spacing
             subtitle_rect = QRect(0, curr_y, viewport_rect.width(), subtitle_fm.height())
             painter.setFont(subtitle_font)
-            painter.setPen(themed_text_qcolor('#64748b', '#101412'))
+            painter.setPen(themed_text_qcolor('@text_muted', '@table'))
             painter.drawText(subtitle_rect, Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter, subtitle)
         finally:
             painter.end()

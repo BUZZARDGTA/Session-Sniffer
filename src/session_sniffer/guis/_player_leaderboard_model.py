@@ -251,10 +251,10 @@ class LeaderboardTableModel(QAbstractTableModel):
 
     def _status_foreground_color(self, ip_address: str) -> QColor:
         if ip_address in self._connected_ips:
-            return themed_text_qcolor('#22c55e', '#1e1e1e')
+            return themed_text_qcolor('@success', '@table')
         if ip_address in self._disconnected_ips:
-            return themed_text_qcolor('#ef4444', '#1e1e1e')
-        return themed_text_qcolor('#6b7280', '#1e1e1e')
+            return themed_text_qcolor('@danger', '@table')
+        return themed_text_qcolor('@text_muted', '@table')
 
     def _tooltip_data(self, column: int, entry: LeaderboardEntry) -> object:
         if column in (COLUMN_FIRST_SEEN, COLUMN_LAST_SEEN):

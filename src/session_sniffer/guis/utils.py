@@ -179,7 +179,7 @@ def create_section_separator(title: str) -> QWidget:
     widget = QWidget()
     layout = QHBoxLayout(widget)
     layout.setContentsMargins(0, 10, 0, 5)
-    line_style = themed_qss('background-color: transparent; border-top: 1px solid #3b5064; border-bottom: 1px solid #11161d;')
+    line_style = themed_qss('background-color: transparent; border-top: 1px solid @border; border-bottom: 1px solid @background;')
     for add_label in (True, False):
         line = QFrame()
         line.setFrameShape(QFrame.Shape.HLine)
@@ -188,7 +188,7 @@ def create_section_separator(title: str) -> QWidget:
         layout.addWidget(line, 1)
         if add_label:
             label = QLabel(title)
-            label.setStyleSheet(themed_qss('color: #88c0d0; font-weight: bold; font-size: 10pt; padding: 0 5px;'))
+            label.setStyleSheet(themed_qss('color: @accent; font-weight: bold; font-size: 10pt; padding: 0 5px;'))
             layout.addWidget(label)
     return widget
 

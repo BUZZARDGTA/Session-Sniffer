@@ -1,4 +1,4 @@
-"""Clickable miniature UI preview card widget for browsing built-in and custom themes."""
+"""Clickable miniature UI preview card widget and live preview builder for browsing and editing themes."""
 
 from typing import TYPE_CHECKING, Final, NamedTuple, override
 
@@ -18,9 +18,11 @@ from PySide6.QtGui import (
 )
 from PySide6.QtWidgets import QFrame, QGroupBox, QHBoxLayout, QLabel, QLineEdit, QPushButton, QSizePolicy, QVBoxLayout, QWidget
 
+from session_sniffer.guis.live_language import register_language_refresh
 from session_sniffer.guis.theming import Theme, ThemeColors, get_active_theme, themed_qcolor, themed_text_qcolor
 from session_sniffer.guis.theming._engine import ThemeTransform
 from session_sniffer.guis.utils import scale_by_ui
+from session_sniffer.i18n import tr
 
 if TYPE_CHECKING:
     from PySide6.QtGui import QPaintEvent
@@ -33,30 +35,60 @@ _SCENE_RADIUS: Final = 5.0
 _LUMINANCE_LIGHT_THRESHOLD: Final = 140.0
 
 PREVIEW_BASE_QSS: Final = (
-    'QFrame#themePreviewRoot { background-color: #121212; border: 1px solid #3e3e42; border-radius: 8px; }\n'
-    'QFrame#themePreviewCard { background-color: #1e1e1e; border: 1px solid #3e3e42; border-radius: 6px; }\n'
-    'QLabel#themePreviewTitle { color: #ffffff; background: transparent; font-size: 10pt; font-weight: 700; }\n'
-    'QLabel#themePreviewBody { color: #e0e0e0; background: transparent; font-size: 9pt; }\n'
-    'QLabel#themePreviewMuted { color: #9ca3af; background: transparent; font-size: 8.5pt; }\n'
-    'QLineEdit#themePreviewInput { background-color: #1e1e1e; color: #e0e0e0; border: 1px solid #3e3e42;'
-    ' border-radius: 4px; padding: 4px 8px; selection-background-color: #007acc; selection-color: #ffffff; }\n'
-    'QLineEdit#themePreviewInput:focus { border: 1px solid #007acc; }\n'
-    'QPushButton#themePreviewPrimaryButton { background-color: #007acc; color: #ffffff; border: 1px solid #007acc;'
-    ' border-radius: 5px; padding: 4px 12px; font-size: 8.5pt; font-weight: 700; }\n'
-    'QPushButton#themePreviewStandardButton { background-color: #2d2d30; color: #ffffff; border: 1px solid #3e3e42;'
-    ' border-radius: 5px; padding: 4px 12px; font-size: 8.5pt; font-weight: 600; }\n'
-    'QPushButton#themePreviewDangerButton { background-color: rgba(239, 68, 68, 0.22); color: #ef4444;'
-    ' border: 1px solid rgba(239, 68, 68, 0.55); border-radius: 5px; padding: 4px 12px; font-size: 8.5pt; font-weight: 700; }\n'
-    'QLabel#themePreviewBadgeAccent { background-color: rgba(0, 122, 204, 0.18); color: #007acc;'
-    ' border: 1px solid rgba(0, 122, 204, 0.50); border-radius: 4px; padding: 2px 8px; font-size: 8pt; font-weight: 700; }\n'
-    'QLabel#themePreviewBadgeSecondary { background-color: rgba(124, 58, 237, 0.18); color: #7c3aed;'
-    ' border: 1px solid rgba(124, 58, 237, 0.50); border-radius: 4px; padding: 2px 8px; font-size: 8pt; font-weight: 700; }\n'
-    'QLabel#themePreviewBadgeSuccess { background-color: rgba(34, 197, 94, 0.18); color: #22c55e;'
-    ' border: 1px solid rgba(34, 197, 94, 0.50); border-radius: 4px; padding: 2px 8px; font-size: 8pt; font-weight: 700; }\n'
-    'QLabel#themePreviewBadgeWarning { background-color: rgba(245, 158, 11, 0.18); color: #f59e0b;'
-    ' border: 1px solid rgba(245, 158, 11, 0.50); border-radius: 4px; padding: 2px 8px; font-size: 8pt; font-weight: 700; }\n'
-    'QLabel#themePreviewBadgeDanger { background-color: rgba(239, 68, 68, 0.18); color: #ef4444;'
-    ' border: 1px solid rgba(239, 68, 68, 0.50); border-radius: 4px; padding: 2px 8px; font-size: 8pt; font-weight: 700; }'
+    'QFrame#themePreviewRoot { background-color: @background; border: 1px solid @border; border-radius: 8px; }\n'
+    'QFrame#themePreviewMenuBar { background-color: @menubar; border-bottom: 1px solid @border;'
+    ' border-top-left-radius: 7px; border-top-right-radius: 7px; }\n'
+    'QLabel#themePreviewMenuActive { background-color: @selection; color: @text_strong; border-radius: 4px;'
+    ' padding: 2px 8px; font-size: 8.5pt; font-weight: 600; }\n'
+    'QLabel#themePreviewMenuItem { background: transparent; color: @text; padding: 2px 6px; font-size: 8.5pt; }\n'
+    'QLabel#themePreviewPopupChip { background-color: @popup; color: @text; border: 1px solid @border;'
+    ' border-radius: 4px; padding: 2px 8px; font-size: 8pt; }\n'
+    'QFrame#themePreviewCard { background-color: @surface; border: 1px solid @border; border-radius: 6px; }\n'
+    'QLabel#themePreviewTitle { color: @text_strong; background: transparent; font-size: 9.5pt; font-weight: 700; }\n'
+    'QLabel#themePreviewBody { color: @text; background: transparent; font-size: 8.5pt; }\n'
+    'QLabel#themePreviewMuted { color: @text_muted; background: transparent; font-size: 8pt; }\n'
+    'QLineEdit#themePreviewInput { background-color: @input; color: @text; border: 1px solid @border;'
+    ' border-radius: 4px; padding: 3px 8px; font-size: 8.5pt; selection-background-color: @selection; selection-color: @text_strong; }\n'
+    'QLineEdit#themePreviewInput:focus { border: 1px solid @accent; }\n'
+    'QPushButton#themePreviewPrimaryButton { background-color: @accent; color: @text_strong; border: 1px solid @accent;'
+    ' border-radius: 5px; padding: 3px 10px; font-size: 8pt; font-weight: 700; }\n'
+    'QPushButton#themePreviewStandardButton { background-color: @control; color: @text; border: 1px solid @border;'
+    ' border-radius: 5px; padding: 3px 10px; font-size: 8pt; font-weight: 600; }\n'
+    'QPushButton#themePreviewDangerButton { background-color: @control~danger/22; color: @danger;'
+    ' border: 1px solid @danger/55; border-radius: 5px; padding: 3px 10px; font-size: 8pt; font-weight: 700; }\n'
+    'QLabel#themePreviewBadgeAccent { background-color: @accent/18; color: @accent;'
+    ' border: 1px solid @accent/50; border-radius: 4px; padding: 1px 7px; font-size: 7.5pt; font-weight: 700; }\n'
+    'QLabel#themePreviewBadgeSecondary { background-color: @secondary/18; color: @secondary;'
+    ' border: 1px solid @secondary/50; border-radius: 4px; padding: 1px 7px; font-size: 7.5pt; font-weight: 700; }\n'
+    'QLabel#themePreviewBadgeSuccess { background-color: @success/18; color: @success;'
+    ' border: 1px solid @success/50; border-radius: 4px; padding: 1px 7px; font-size: 7.5pt; font-weight: 700; }\n'
+    'QLabel#themePreviewBadgeWarning { background-color: @warning/18; color: @warning;'
+    ' border: 1px solid @warning/50; border-radius: 4px; padding: 1px 7px; font-size: 7.5pt; font-weight: 700; }\n'
+    'QLabel#themePreviewBadgeDanger { background-color: @danger/18; color: @danger;'
+    ' border: 1px solid @danger/50; border-radius: 4px; padding: 1px 7px; font-size: 7.5pt; font-weight: 700; }\n'
+    'QFrame#themePreviewTable { background-color: @table; border: 1px solid @border; border-radius: 6px; }\n'
+    'QFrame#themePreviewTableHeader { background-color: @table_header; border-bottom: 1px solid @accent;'
+    ' border-top-left-radius: 5px; border-top-right-radius: 5px; }\n'
+    'QFrame#themePreviewTableRowEven { background-color: @table; border-bottom: 1px solid @border/45; }\n'
+    'QFrame#themePreviewTableRowAlt { background-color: @table_alt; border-bottom: 1px solid @border/45; }\n'
+    'QFrame#themePreviewTableRowSelected { background-color: @selection; border-bottom-left-radius: 5px; }\n'
+    'QLabel#themePreviewTableHeaderCell { background: transparent; color: @text_muted; font-size: 7.5pt; font-weight: 700; }\n'
+    'QLabel#themePreviewCellStrong { background: transparent; color: @text_strong; font-size: 8pt; font-weight: 700; }\n'
+    'QLabel#themePreviewCellNormal { background: transparent; color: @text; font-size: 8pt; }\n'
+    'QLabel#themePreviewCellMuted { background: transparent; color: @text_muted; font-size: 8pt; }\n'
+    'QLabel#themePreviewCellSecondary { background: transparent; color: @secondary; font-size: 8pt; font-weight: 600; }\n'
+    'QLabel#themePreviewCellSuccess { background: transparent; color: @success; font-size: 8pt; font-weight: 700; }\n'
+    'QLabel#themePreviewCellWarning { background: transparent; color: @warning; font-size: 8pt; font-weight: 700; }\n'
+    'QLabel#themePreviewCellDanger { background: transparent; color: @danger; font-size: 8pt; font-weight: 700; }\n'
+    'QFrame#themePreviewScrollTrack { background-color: @table; border-left: 1px solid @border/45;'
+    ' border-bottom-right-radius: 5px; }\n'
+    'QFrame#themePreviewScrollThumb { background-color: @scrollbar; border-radius: 3px; }\n'
+    'QFrame#themePreviewStatusBar { background-color: @statusbar; border-top: 1px solid @accent;'
+    ' border-bottom-left-radius: 7px; border-bottom-right-radius: 7px; }\n'
+    'QLabel#themePreviewStatusAccent { background: transparent; color: @accent; font-size: 8pt; font-weight: 600; }\n'
+    'QLabel#themePreviewStatusSuccess { background: transparent; color: @success; font-size: 8pt; font-weight: 600; }\n'
+    'QLabel#themePreviewStatusWarning { background: transparent; color: @warning; font-size: 8pt; font-weight: 600; }\n'
+    'QLabel#themePreviewStatusMuted { background: transparent; color: @text_muted; font-size: 8pt; }'
 )
 
 
@@ -93,39 +125,46 @@ def create_theme_list_icon(colors: ThemeColors) -> QIcon:
     return QIcon(pixmap)
 
 
-def build_theme_preview_group(preview_root: QFrame) -> QGroupBox:
-    """Build the sample widgets Live Preview group box for `ThemeManagerDialog`."""
-    preview_group = QGroupBox('Live Preview')
-    outer_layout = QVBoxLayout(preview_group)
+def _make_preview_label(text: str, object_name: str) -> QLabel:
+    label = QLabel(text)
+    label.setObjectName(object_name)
+    return label
 
-    preview_root.setObjectName('themePreviewRoot')
-    root_layout = QVBoxLayout(preview_root)
-    root_layout.setContentsMargins(12, 12, 12, 12)
-    root_layout.setSpacing(10)
 
+def _build_preview_menubar() -> QFrame:
+    menu_bar = QFrame()
+    menu_bar.setObjectName('themePreviewMenuBar')
+    layout = QHBoxLayout(menu_bar)
+    layout.setContentsMargins(8, 4, 8, 4)
+    layout.setSpacing(6)
+    layout.addWidget(_make_preview_label(tr('Capture'), 'themePreviewMenuActive'))
+    for title in ('GTA V', 'Tools', 'Settings'):
+        layout.addWidget(_make_preview_label(tr(title), 'themePreviewMenuItem'))
+    layout.addStretch()
+    popup_chip = _make_preview_label(tr('Popup / Tooltip'), 'themePreviewPopupChip')
+    popup_chip.setToolTip(tr('Previews the Popup & Tooltip surface token'))
+    layout.addWidget(popup_chip)
+    return menu_bar
+
+
+def _build_preview_surface_card() -> tuple[QFrame, QLineEdit]:
     card = QFrame()
     card.setObjectName('themePreviewCard')
     card_layout = QVBoxLayout(card)
-    card_layout.setContentsMargins(12, 10, 12, 10)
-    card_layout.setSpacing(8)
+    card_layout.setContentsMargins(10, 7, 10, 7)
+    card_layout.setSpacing(6)
 
     header_row = QHBoxLayout()
-    title_label = QLabel('Session Sniffer Preview')
-    title_label.setObjectName('themePreviewTitle')
-    body_label = QLabel('Connected players: 12')
-    body_label.setObjectName('themePreviewBody')
-    header_row.addWidget(title_label)
+    header_row.addWidget(_make_preview_label(tr('Session Sniffer Preview'), 'themePreviewTitle'))
     header_row.addStretch()
-    header_row.addWidget(body_label)
+    header_row.addWidget(_make_preview_label(tr('Interface: Ethernet  •  Filtering active'), 'themePreviewMuted'))
+    header_row.addSpacing(8)
+    header_row.addWidget(_make_preview_label(tr('Uptime: 01:14:22'), 'themePreviewBody'))
     card_layout.addLayout(header_row)
 
-    muted_label = QLabel('Interface: Ethernet  •  Filtering active  •  Uptime: 01h 14m 22s')
-    muted_label.setObjectName('themePreviewMuted')
-    card_layout.addWidget(muted_label)
-
     controls_row = QHBoxLayout()
-    controls_row.setSpacing(8)
-    sample_input = QLineEdit('Search players or IPs…')
+    controls_row.setSpacing(6)
+    sample_input = QLineEdit(tr('Search players or IPs…'))
     sample_input.setObjectName('themePreviewInput')
     sample_input.setReadOnly(True)
     sample_input.setCursorPosition(0)
@@ -137,7 +176,7 @@ def build_theme_preview_group(preview_root: QFrame) -> QGroupBox:
         ('Control', 'themePreviewStandardButton'),
         ('Danger', 'themePreviewDangerButton'),
     ):
-        sample_button = QPushButton(button_text)
+        sample_button = QPushButton(tr(button_text))
         sample_button.setObjectName(object_name)
         sample_button.setAutoDefault(False)
         sample_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
@@ -145,7 +184,7 @@ def build_theme_preview_group(preview_root: QFrame) -> QGroupBox:
     card_layout.addLayout(controls_row)
 
     badges_row = QHBoxLayout()
-    badges_row.setSpacing(6)
+    badges_row.setSpacing(5)
     for badge_text, object_name in (
         ('Host', 'themePreviewBadgeAccent'),
         ('Looky', 'themePreviewBadgeSecondary'),
@@ -153,16 +192,145 @@ def build_theme_preview_group(preview_root: QFrame) -> QGroupBox:
         ('High Rate', 'themePreviewBadgeWarning'),
         ('Disconnected', 'themePreviewBadgeDanger'),
     ):
-        badge = QLabel(badge_text)
-        badge.setObjectName(object_name)
+        badge = _make_preview_label(tr(badge_text), object_name)
         badge.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Fixed)
         badges_row.addWidget(badge)
     badges_row.addStretch()
     card_layout.addLayout(badges_row)
+    return card, sample_input
 
-    root_layout.addWidget(card)
+
+def _build_preview_table_row(row_object_name: str, cells: tuple[tuple[str, str, int], ...]) -> QFrame:
+    row = QFrame()
+    row.setObjectName(row_object_name)
+    layout = QHBoxLayout(row)
+    layout.setContentsMargins(8, 3, 8, 3)
+    layout.setSpacing(8)
+    for text, cell_object_name, stretch in cells:
+        layout.addWidget(_make_preview_label(text, cell_object_name), stretch)
+    return row
+
+
+def _build_preview_mini_table() -> QFrame:
+    table = QFrame()
+    table.setObjectName('themePreviewTable')
+    outer = QVBoxLayout(table)
+    outer.setContentsMargins(0, 0, 0, 0)
+    outer.setSpacing(0)
+
+    header = _build_preview_table_row(
+        'themePreviewTableHeader',
+        (
+            (tr('Username'), 'themePreviewTableHeaderCell', 3),
+            (tr('IP Address'), 'themePreviewTableHeaderCell', 3),
+            (tr('Ping'), 'themePreviewTableHeaderCell', 2),
+            (tr('Status'), 'themePreviewTableHeaderCell', 2),
+        ),
+    )
+    outer.addWidget(header)
+
+    body_row = QHBoxLayout()
+    body_row.setContentsMargins(0, 0, 0, 0)
+    body_row.setSpacing(0)
+
+    rows_col = QVBoxLayout()
+    rows_col.setContentsMargins(0, 0, 0, 0)
+    rows_col.setSpacing(0)
+    rows_col.addWidget(
+        _build_preview_table_row(
+            'themePreviewTableRowEven',
+            (
+                ('★ HostPlayer', 'themePreviewCellStrong', 3),
+                ('198.51.100.14', 'themePreviewCellNormal', 3),
+                (tr('{ms} ms', ms=22), 'themePreviewCellSuccess', 2),
+                (tr('Table Row'), 'themePreviewCellMuted', 2),
+            ),
+        ),
+    )
+    rows_col.addWidget(
+        _build_preview_table_row(
+            'themePreviewTableRowAlt',
+            (
+                ('NightRider99', 'themePreviewCellSecondary', 3),
+                ('203.0.113.42', 'themePreviewCellNormal', 3),
+                (tr('{ms} ms', ms=148), 'themePreviewCellWarning', 2),
+                (tr('Alternate Row'), 'themePreviewCellMuted', 2),
+            ),
+        ),
+    )
+    rows_col.addWidget(
+        _build_preview_table_row(
+            'themePreviewTableRowSelected',
+            (
+                ('KnownModder', 'themePreviewCellStrong', 3),
+                ('198.51.100.99', 'themePreviewCellMuted', 3),
+                (tr('{ms} ms', ms=265), 'themePreviewCellDanger', 2),
+                (tr('Selected Row'), 'themePreviewCellStrong', 2),
+            ),
+        ),
+    )
+    body_row.addLayout(rows_col, 1)
+
+    scroll_track = QFrame()
+    scroll_track.setObjectName('themePreviewScrollTrack')
+    scroll_track.setFixedWidth(scale_by_ui(11))
+    track_layout = QVBoxLayout(scroll_track)
+    track_layout.setContentsMargins(2, 4, 2, 4)
+    track_layout.setSpacing(0)
+    scroll_thumb = QFrame()
+    scroll_thumb.setObjectName('themePreviewScrollThumb')
+    scroll_thumb.setMinimumHeight(scale_by_ui(26))
+    track_layout.addWidget(scroll_thumb)
+    track_layout.addStretch()
+    body_row.addWidget(scroll_track)
+
+    outer.addLayout(body_row)
+    return table
+
+
+def _build_preview_statusbar() -> QFrame:
+    status = QFrame()
+    status.setObjectName('themePreviewStatusBar')
+    layout = QHBoxLayout(status)
+    layout.setContentsMargins(8, 3, 8, 3)
+    layout.setSpacing(6)
+    layout.addWidget(_make_preview_label(tr('Capture: Active'), 'themePreviewStatusSuccess'))
+    layout.addWidget(_make_preview_label('|', 'themePreviewStatusMuted'))
+    layout.addWidget(_make_preview_label(tr('Connected Players: 12'), 'themePreviewStatusAccent'))
+    layout.addStretch()
+    layout.addWidget(_make_preview_label(tr('Bandwidth: 48.2 KB/s'), 'themePreviewStatusWarning'))
+    return status
+
+
+def build_theme_preview_group(preview_root: QFrame) -> QGroupBox:
+    """Build the 21-token miniature Session Sniffer Live Preview group box for `ThemeManagerDialog`."""
+    preview_group = QGroupBox(tr('Live Preview'))
+    outer_layout = QVBoxLayout(preview_group)
+    outer_layout.setContentsMargins(8, 8, 8, 8)
+
+    preview_root.setObjectName('themePreviewRoot')
+    root_layout = QVBoxLayout(preview_root)
+    root_layout.setContentsMargins(0, 0, 0, 0)
+    root_layout.setSpacing(6)
+
+    root_layout.addWidget(_build_preview_menubar())
+
+    content_layout = QVBoxLayout()
+    content_layout.setContentsMargins(8, 2, 8, 2)
+    content_layout.setSpacing(6)
+    surface_card, sample_input = _build_preview_surface_card()
+    content_layout.addWidget(surface_card)
+    content_layout.addWidget(_build_preview_mini_table())
+    root_layout.addLayout(content_layout)
+
     root_layout.addStretch()
+    root_layout.addWidget(_build_preview_statusbar())
     outer_layout.addWidget(preview_root)
+
+    register_language_refresh(
+        preview_group,
+        lambda: sample_input.setText(tr('Search players or IPs…')),
+    )
     return preview_group
 
 
@@ -177,14 +345,14 @@ class _PreviewRow(NamedTuple):
     bold_ping: bool
     green_ping: bool
     muted_ip: bool
-    tint_kind: str  # 'accent' | 'control' | 'role' | 'none'
+    row_bg_kind: str  # 'selected' | 'even' | 'alt'
 
 
 _PREVIEW_ROWS: Final[tuple[_PreviewRow, ...]] = (
-    _PreviewRow('★ HostPlayer', '198.51.100.14', '22 ms', 'Host', 'accent', 'strong', bold_user=True, bold_ping=True, green_ping=True, muted_ip=False, tint_kind='accent'),
-    _PreviewRow('NightRider99', '203.0.113.42', '41 ms', 'Looky', 'secondary', 'role', bold_user=False, bold_ping=False, green_ping=True, muted_ip=False, tint_kind='none'),
-    _PreviewRow('PacketStorm', '192.0.2.188', '148 ms', 'High', 'warning', 'normal', bold_user=False, bold_ping=True, green_ping=False, muted_ip=False, tint_kind='control'),
-    _PreviewRow('KnownModder', '198.51.100.99', '265 ms', 'Alert', 'danger', 'role', bold_user=True, bold_ping=False, green_ping=False, muted_ip=True, tint_kind='role'),
+    _PreviewRow('★ HostPlayer', '198.51.100.14', '22 ms', 'Host', 'accent', 'strong', bold_user=True, bold_ping=True, green_ping=True, muted_ip=False, row_bg_kind='selected'),
+    _PreviewRow('NightRider99', '203.0.113.42', '41 ms', 'Looky', 'secondary', 'role', bold_user=False, bold_ping=False, green_ping=True, muted_ip=False, row_bg_kind='alt'),
+    _PreviewRow('PacketStorm', '192.0.2.188', '148 ms', 'High', 'warning', 'normal', bold_user=False, bold_ping=True, green_ping=False, muted_ip=False, row_bg_kind='even'),
+    _PreviewRow('KnownModder', '198.51.100.99', '265 ms', 'Alert', 'danger', 'role', bold_user=True, bold_ping=False, green_ping=False, muted_ip=True, row_bg_kind='alt'),
 )
 _SPARKLINE_POINTS: Final[tuple[float, ...]] = (0.30, 0.48, 0.38, 0.72, 0.56, 0.85, 0.62, 0.76, 0.50, 0.90)
 
@@ -209,14 +377,15 @@ def _draw_pill(painter: QPainter, rect: QRectF, text: str, base_color: QColor, t
 
 def _draw_preview_toolbar(painter: QPainter, rect: QRectF, transform: ThemeTransform, base_font: QFont) -> None:
     colors = transform.colors
-    c_surface = QColor(colors.surface)
+    c_menubar = QColor(colors.menubar)
+    c_input = QColor(colors.input)
     c_control = QColor(colors.control)
     c_border = QColor(colors.border)
     c_accent = QColor(colors.accent)
     c_secondary = QColor(colors.secondary)
     c_success = QColor(colors.success)
 
-    painter.fillRect(rect, c_surface)
+    painter.fillRect(rect, c_menubar)
     painter.setPen(QPen(c_border, 1.0))
     painter.drawLine(QPointF(rect.left(), rect.bottom()), QPointF(rect.right(), rect.bottom()))
 
@@ -230,40 +399,53 @@ def _draw_preview_toolbar(painter: QPainter, rect: QRectF, transform: ThemeTrans
     pill_y = rect.top() + (rect.height() - pill_h) / 2.0
 
     cap_rect = QRectF(rect.left() + pad, pill_y, float(scale_by_ui(58)), pill_h)
-    _draw_pill(painter, cap_rect, '● Capturing', c_success, transform.text_on(QColor('#22c55e'), c_surface))
+    _draw_pill(painter, cap_rect, f"● {tr('Capturing')}", c_success, transform.text_on('@success', c_menubar))
 
     game_rect = QRectF(cap_rect.right() + float(scale_by_ui(4)), pill_y, float(scale_by_ui(34)), pill_h)
-    _draw_pill(painter, game_rect, 'GTA V', c_secondary, transform.text_on(QColor('#a78bfa'), c_surface))
+    _draw_pill(painter, game_rect, tr('GTA V'), c_secondary, transform.text_on('@secondary', c_menubar))
 
-    btn_w = float(scale_by_ui(34))
+    btn_w = float(scale_by_ui(32))
     btn_rect = QRectF(rect.right() - pad - btn_w, pill_y, btn_w, pill_h)
     btn_path = QPainterPath()
     btn_path.addRoundedRect(btn_rect, 3.0, 3.0)
     painter.fillPath(btn_path, c_accent)
-    painter.setPen(transform.text_on(QColor('#ffffff'), QColor('#3d8ec9')))
-    painter.drawText(btn_rect, Qt.AlignmentFlag.AlignCenter, 'Filter')
+    painter.setPen(transform.text_on('@text_strong', c_accent))
+    painter.drawText(btn_rect, Qt.AlignmentFlag.AlignCenter, tr('Filter'))
 
-    search_left = game_rect.right() + float(scale_by_ui(6))
-    search_right = btn_rect.left() - float(scale_by_ui(5))
-    if search_right - search_left >= float(scale_by_ui(36)):
+    ctrl_w = float(scale_by_ui(28))
+    ctrl_rect = QRectF(btn_rect.left() - float(scale_by_ui(3)) - ctrl_w, pill_y, ctrl_w, pill_h)
+    ctrl_path = QPainterPath()
+    ctrl_path.addRoundedRect(ctrl_rect, 3.0, 3.0)
+    painter.fillPath(ctrl_path, c_control)
+    painter.setPen(QPen(c_border, 1.0))
+    painter.drawPath(ctrl_path)
+    painter.setPen(transform.text_on('@text', c_control))
+    painter.drawText(ctrl_rect, Qt.AlignmentFlag.AlignCenter, tr('Clear'))
+
+    search_left = game_rect.right() + float(scale_by_ui(5))
+    search_right = ctrl_rect.left() - float(scale_by_ui(4))
+    if search_right - search_left >= float(scale_by_ui(30)):
         search_rect = QRectF(search_left, pill_y, search_right - search_left, pill_h)
         search_path = QPainterPath()
         search_path.addRoundedRect(search_rect, 3.0, 3.0)
-        painter.fillPath(search_path, c_control)
+        painter.fillPath(search_path, c_input)
         painter.setPen(QPen(c_border, 1.0))
         painter.drawPath(search_path)
         search_font = QFont(base_font)
         search_font.setPointSizeF(6.0)
         painter.setFont(search_font)
-        painter.setPen(QColor(colors.text_muted))
+        painter.setPen(transform.text_on('@text_muted', c_input))
         text_rect = search_rect.adjusted(float(scale_by_ui(5)), 0.0, -float(scale_by_ui(3)), 0.0)
-        painter.drawText(text_rect, Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft, 'Search…')
+        painter.drawText(text_rect, Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft, tr('Search…'))
 
 
 def _draw_preview_table(painter: QPainter, rect: QRectF, transform: ThemeTransform, base_font: QFont) -> None:
     colors = transform.colors
-    c_surface = QColor(colors.surface)
-    c_control = QColor(colors.control)
+    c_table = QColor(colors.table)
+    c_table_alt = QColor(colors.table_alt)
+    c_table_header = QColor(colors.table_header)
+    c_selection = QColor(colors.selection)
+    c_scrollbar = QColor(colors.scrollbar)
     c_border = QColor(colors.border)
     c_accent = QColor(colors.accent)
 
@@ -271,33 +453,34 @@ def _draw_preview_table(painter: QPainter, rect: QRectF, transform: ThemeTransfo
     table_path.addRoundedRect(rect, 4.0, 4.0)
     painter.save()
     painter.setClipPath(table_path)
-    painter.fillRect(rect, c_surface)
+    painter.fillRect(rect, c_table)
 
     header_h = float(scale_by_ui(15))
     header_rect = QRectF(rect.left(), rect.top(), rect.width(), header_h)
-    painter.fillRect(header_rect, c_control)
-    painter.setPen(QPen(c_border, 1.0))
+    painter.fillRect(header_rect, c_table_header)
+    painter.setPen(QPen(c_accent, 1.0))
     painter.drawLine(QPointF(rect.left(), header_rect.bottom()), QPointF(rect.right(), header_rect.bottom()))
 
-    w = rect.width()
+    sb_w = float(scale_by_ui(5))
+    w = rect.width() - sb_w
     col_x = (rect.left() + float(scale_by_ui(6)), rect.left() + w * 0.39, rect.left() + w * 0.67, rect.left() + w * 0.82)
     hdr_font = QFont(base_font)
     hdr_font.setPointSizeF(5.8)
     hdr_font.setBold(True)
     painter.setFont(hdr_font)
-    painter.setPen(QColor(colors.text_muted))
+    painter.setPen(transform.text_on('@text_muted', c_table_header))
     for idx, title in enumerate(('Username', 'IP Address', 'Ping', 'Tag')):
-        right_edge = col_x[idx + 1] if idx + 1 < len(col_x) else rect.right() - float(scale_by_ui(4))
+        right_edge = col_x[idx + 1] if idx + 1 < len(col_x) else rect.left() + w - float(scale_by_ui(4))
         col_rect = QRectF(col_x[idx], header_rect.top(), right_edge - col_x[idx], header_h)
-        painter.drawText(col_rect, Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft, title)
+        painter.drawText(col_rect, Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft, tr(title))
 
     rows_top = header_rect.bottom()
     row_h = (rect.bottom() - rows_top) / len(_PREVIEW_ROWS)
     token_colors = {
-        'accent': (c_accent, '#38bdf8'),
-        'secondary': (QColor(colors.secondary), '#a78bfa'),
-        'warning': (QColor(colors.warning), '#f59e0b'),
-        'danger': (QColor(colors.danger), '#f87171'),
+        'accent': (c_accent, '@accent'),
+        'secondary': (QColor(colors.secondary), '@secondary'),
+        'warning': (QColor(colors.warning), '@warning'),
+        'danger': (QColor(colors.danger), '@danger'),
     }
     row_font = QFont(base_font)
     row_font.setPointSizeF(6.1)
@@ -306,40 +489,47 @@ def _draw_preview_table(painter: QPainter, rect: QRectF, transform: ThemeTransfo
 
     for row_idx, row in enumerate(_PREVIEW_ROWS):
         row_rect = QRectF(rect.left(), rows_top + row_idx * row_h, w, row_h)
-        role_qcolor, canonical_fg = token_colors[row.role]
-        if row.tint_kind == 'accent':
-            painter.fillRect(row_rect, _with_alpha(c_accent, 42))
-        elif row.tint_kind == 'control':
-            painter.fillRect(row_rect, _with_alpha(c_control, 95))
-        elif row.tint_kind == 'role':
-            painter.fillRect(row_rect, _with_alpha(role_qcolor, 22))
+        role_qcolor, role_token = token_colors[row.role]
+        if row.row_bg_kind == 'selected':
+            row_bg = c_selection
+            painter.fillRect(row_rect, row_bg)
+        elif row.row_bg_kind == 'alt':
+            row_bg = c_table_alt
+            painter.fillRect(row_rect, row_bg)
+        else:
+            row_bg = c_table
 
         painter.setFont(bold_font if row.bold_user else row_font)
         if row.user_style == 'strong':
-            user_fg = QColor(colors.text_strong)
+            user_fg = transform.text_on('@text_strong', row_bg)
         elif row.user_style == 'role':
-            user_fg = transform.text_on(QColor(canonical_fg), c_surface)
+            user_fg = transform.text_on(role_token, row_bg)
         else:
-            user_fg = QColor(colors.text)
+            user_fg = transform.text_on('@text', row_bg)
         painter.setPen(user_fg)
         user_rect = QRectF(col_x[0], row_rect.top(), col_x[1] - col_x[0] - 2.0, row_h)
         painter.drawText(user_rect, Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft, row.username)
 
         painter.setFont(row_font)
-        painter.setPen(QColor(colors.text_muted if row.muted_ip else colors.text))
+        painter.setPen(transform.text_on('@text_muted' if row.muted_ip else '@text', row_bg))
         ip_rect = QRectF(col_x[1], row_rect.top(), col_x[2] - col_x[1] - 2.0, row_h)
         painter.drawText(ip_rect, Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft, row.ip_text)
 
-        ping_canonical = '#22c55e' if row.green_ping else canonical_fg
+        ping_token = '@success' if row.green_ping else role_token
         painter.setFont(bold_font if row.bold_ping else row_font)
-        painter.setPen(transform.text_on(QColor(ping_canonical), c_surface))
+        painter.setPen(transform.text_on(ping_token, row_bg))
         ping_rect = QRectF(col_x[2], row_rect.top(), col_x[3] - col_x[2] - 2.0, row_h)
         painter.drawText(ping_rect, Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft, row.ping_text)
 
         pill_pad_y = max(1.5, (row_h - float(scale_by_ui(12))) / 2.0)
-        tag_rect = QRectF(col_x[3], row_rect.top() + pill_pad_y, rect.right() - col_x[3] - float(scale_by_ui(5)), row_h - pill_pad_y * 2.0)
+        tag_rect = QRectF(col_x[3], row_rect.top() + pill_pad_y, rect.left() + w - col_x[3] - float(scale_by_ui(4)), row_h - pill_pad_y * 2.0)
         painter.setFont(hdr_font)
-        _draw_pill(painter, tag_rect, row.tag_text, role_qcolor, transform.text_on(QColor(canonical_fg), c_surface))
+        _draw_pill(painter, tag_rect, tr(row.tag_text), role_qcolor, transform.text_on(role_token, row_bg))
+
+    thumb_rect = QRectF(rect.right() - sb_w + 1.0, rows_top + 3.0, max(2.0, sb_w - 2.0), max(10.0, (rect.bottom() - rows_top) * 0.48))
+    thumb_path = QPainterPath()
+    thumb_path.addRoundedRect(thumb_rect, 1.5, 1.5)
+    painter.fillPath(thumb_path, c_scrollbar)
 
     painter.restore()
     painter.setPen(QPen(c_border, 1.0))
@@ -349,14 +539,21 @@ def _draw_preview_table(painter: QPainter, rect: QRectF, transform: ThemeTransfo
 
 def _draw_preview_status_sparkline(painter: QPainter, rect: QRectF, transform: ThemeTransform, base_font: QFont) -> None:
     colors = transform.colors
+    c_statusbar = QColor(colors.statusbar)
+    c_accent = QColor(colors.accent)
+    painter.fillRect(rect, c_statusbar)
+    painter.setPen(QPen(c_accent, 1.0))
+    painter.drawLine(QPointF(rect.left(), rect.top()), QPointF(rect.right(), rect.top()))
+
+    inner_rect = rect.adjusted(float(scale_by_ui(6)), 1.0, -float(scale_by_ui(6)), -1.0)
     status_font = QFont(base_font)
     status_font.setPointSizeF(5.9)
     painter.setFont(status_font)
-    painter.setPen(QColor(colors.text_muted))
-    painter.drawText(rect, Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft, '01:14:22 • 48.2 KB/s')
+    painter.setPen(transform.text_on('@text_muted', c_statusbar))
+    painter.drawText(inner_rect, Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft, tr('01:14:22 • 48.2 KB/s'))
 
-    spark_w = min(float(scale_by_ui(74)), rect.width() * 0.36)
-    spark_rect = QRectF(rect.right() - spark_w, rect.top() + 2.0, spark_w, max(6.0, rect.height() - 4.0))
+    spark_w = min(float(scale_by_ui(74)), inner_rect.width() * 0.36)
+    spark_rect = QRectF(inner_rect.right() - spark_w, inner_rect.top() + 2.0, spark_w, max(5.0, inner_rect.height() - 4.0))
     step_x = spark_rect.width() / (len(_SPARKLINE_POINTS) - 1)
     line_path = QPainterPath()
     for idx, sample in enumerate(_SPARKLINE_POINTS):
@@ -370,7 +567,6 @@ def _draw_preview_status_sparkline(painter: QPainter, rect: QRectF, transform: T
     fill_path.lineTo(QPointF(spark_rect.right(), spark_rect.bottom()))
     fill_path.lineTo(QPointF(spark_rect.left(), spark_rect.bottom()))
     fill_path.closeSubpath()
-    c_accent = QColor(colors.accent)
     painter.fillPath(fill_path, _with_alpha(c_accent, 48))
     painter.setPen(QPen(c_accent, 1.3))
     painter.setBrush(Qt.BrushStyle.NoBrush)
@@ -401,29 +597,34 @@ def _render_scene_pixmap(theme: Theme, size: QSize, dpr: float, base_font: QFont
     _draw_preview_toolbar(painter, QRectF(scene_rect.left(), scene_rect.top(), scene_rect.width(), toolbar_h), transform, base_font)
 
     pad_x = float(scale_by_ui(6))
-    sec_top = scene_rect.top() + toolbar_h + float(scale_by_ui(4))
+    sec_top = scene_rect.top() + toolbar_h + float(scale_by_ui(3))
     sec_h = float(scale_by_ui(13))
-    painter.fillRect(QRectF(scene_rect.left() + pad_x, sec_top + 2.0, 2.5, sec_h - 4.0), QColor(colors.accent))
+    sec_rect = QRectF(scene_rect.left() + pad_x, sec_top, scene_rect.width() - pad_x * 2.0, sec_h)
+    sec_path = QPainterPath()
+    sec_path.addRoundedRect(sec_rect, 2.5, 2.5)
+    c_surface = QColor(colors.surface)
+    painter.fillPath(sec_path, c_surface)
+    painter.fillRect(QRectF(sec_rect.left() + 2.0, sec_top + 2.0, 2.5, sec_h - 4.0), QColor(colors.success))
     sec_font = QFont(base_font)
-    sec_font.setPointSizeF(6.2)
+    sec_font.setPointSizeF(6.1)
     sec_font.setBold(True)
     painter.setFont(sec_font)
-    painter.setPen(QColor(colors.text_strong))
-    sec_text_rect = QRectF(scene_rect.left() + pad_x + float(scale_by_ui(6)), sec_top, scene_rect.width() - pad_x * 2.0 - float(scale_by_ui(6)), sec_h)
-    painter.drawText(sec_text_rect, Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft, 'Connected Players (4)')
+    painter.setPen(transform.text_on('@text_strong', c_surface))
+    sec_text_rect = QRectF(sec_rect.left() + float(scale_by_ui(7)), sec_top, sec_rect.width() - float(scale_by_ui(11)), sec_h)
+    painter.drawText(sec_text_rect, Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft, tr('Connected Players ({count})', count=4))
     sec_font.setBold(False)
-    sec_font.setPointSizeF(5.8)
+    sec_font.setPointSizeF(5.7)
     painter.setFont(sec_font)
-    painter.setPen(QColor(colors.text_muted))
-    painter.drawText(sec_text_rect, Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight, '148 PPS')
+    painter.setPen(transform.text_on('@text_muted', c_surface))
+    painter.drawText(sec_text_rect, Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight, tr('{rate} PPS', rate=148))
 
     status_h = float(scale_by_ui(15))
-    table_top = sec_top + sec_h + float(scale_by_ui(3))
-    table_bottom = scene_rect.bottom() - status_h - float(scale_by_ui(4))
+    table_top = sec_top + sec_h + float(scale_by_ui(2))
+    table_bottom = scene_rect.bottom() - status_h - float(scale_by_ui(3))
     table_rect = QRectF(scene_rect.left() + pad_x, table_top, scene_rect.width() - pad_x * 2.0, max(float(scale_by_ui(40)), table_bottom - table_top))
     _draw_preview_table(painter, table_rect, transform, base_font)
 
-    status_rect = QRectF(scene_rect.left() + pad_x, table_rect.bottom() + float(scale_by_ui(2)), scene_rect.width() - pad_x * 2.0, status_h)
+    status_rect = QRectF(scene_rect.left(), scene_rect.bottom() - status_h, scene_rect.width(), status_h)
     _draw_preview_status_sparkline(painter, status_rect, transform, base_font)
 
     painter.restore()
@@ -455,11 +656,21 @@ class ThemePreviewCard(QFrame):
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
 
         self._update_tooltip()
+        register_language_refresh(self, self._on_language_refreshed)
+
+    def _on_language_refreshed(self) -> None:
+        """Invalidate cached preview pixmap and refresh localized labels/tooltips."""
+        self._cached_scene = None
+        self._cached_key = None
+        self._update_tooltip()
+        self.update()
 
     def _update_tooltip(self) -> None:
-        kind = 'Built-in preset' if self._theme.builtin else 'Custom theme'
-        active_suffix = ' (currently active)' if self.is_active_theme else ''
-        self.setToolTip(f'{self._theme.name} — {kind}{active_suffix}\nClick to apply this theme live.')
+        kind = tr('Built-in preset') if self._theme.builtin else tr('Custom theme')
+        if self.is_active_theme:
+            self.setToolTip(tr('{name} — {kind} (currently active)\nClick to apply this theme live.', name=self._theme.name, kind=kind))
+        else:
+            self.setToolTip(tr('{name} — {kind}\nClick to apply this theme live.', name=self._theme.name, kind=kind))
 
     @property
     def theme_name(self) -> str:
@@ -510,11 +721,11 @@ class ThemePreviewCard(QFrame):
         super().keyPressEvent(event)
 
     def _draw_caption_bar(self, painter: QPainter, caption_rect: QRectF) -> None:
-        active_accent = themed_qcolor('#3d8ec9')
-        caption_bg_hex = '#243447' if self._selected else '#252526'
-        caption_bg = themed_qcolor(caption_bg_hex)
+        active_accent = themed_qcolor('@accent')
+        caption_bg_token = '@selection' if self._selected else '@table_header'
+        caption_bg = themed_qcolor(caption_bg_token)
         painter.fillRect(caption_rect, caption_bg)
-        painter.setPen(QPen(themed_qcolor('#3e3e42'), 1.0))
+        painter.setPen(QPen(themed_qcolor('@border'), 1.0))
         painter.drawLine(QPointF(caption_rect.left(), caption_rect.top()), QPointF(caption_rect.right(), caption_rect.top()))
 
         pad_x = float(scale_by_ui(9))
@@ -525,27 +736,29 @@ class ThemePreviewCard(QFrame):
             painter.setPen(Qt.PenStyle.NoPen)
             painter.drawEllipse(radio_rect)
             inner = radio_rect.adjusted(dot_size * 0.28, dot_size * 0.28, -dot_size * 0.28, -dot_size * 0.28)
-            painter.setBrush(themed_text_qcolor('#ffffff', '#3d8ec9'))
+            painter.setBrush(themed_text_qcolor('@text_strong', '@accent'))
             painter.drawEllipse(inner)
         else:
             painter.setBrush(Qt.BrushStyle.NoBrush)
-            painter.setPen(QPen(themed_qcolor('#6b7280'), 1.4))
+            painter.setPen(QPen(themed_qcolor('@text_muted'), 1.4))
             painter.drawEllipse(radio_rect)
 
         swatch_hexes = (
             self._theme.colors.background,
+            self._theme.colors.surface,
+            self._theme.colors.control,
             self._theme.colors.accent,
             self._theme.colors.secondary,
             self._theme.colors.success,
             self._theme.colors.warning,
             self._theme.colors.danger,
         )
-        swatch_d = float(scale_by_ui(9))
+        swatch_d = float(scale_by_ui(8))
         swatch_gap = float(scale_by_ui(3))
         swatches_total_w = len(swatch_hexes) * swatch_d + (len(swatch_hexes) - 1) * swatch_gap
         swatches_left = caption_rect.right() - pad_x - swatches_total_w
         swatch_y = caption_rect.center().y() - swatch_d / 2.0
-        swatch_border = QPen(themed_qcolor('#6b7280'), 0.8)
+        swatch_border = QPen(themed_qcolor('@border'), 0.8)
         for idx, color_hex in enumerate(swatch_hexes):
             sx = swatches_left + idx * (swatch_d + swatch_gap)
             painter.setBrush(QColor(color_hex))
@@ -554,14 +767,15 @@ class ThemePreviewCard(QFrame):
 
         right_limit = swatches_left - float(scale_by_ui(7))
         if self.is_active_theme:
+            active_label = tr('Active')
             badge_font = QFont(self.font())
             badge_font.setPointSizeF(6.8)
             badge_font.setBold(True)
             painter.setFont(badge_font)
-            badge_w = float(QFontMetrics(badge_font).horizontalAdvance('Active') + scale_by_ui(12))
+            badge_w = float(QFontMetrics(badge_font).horizontalAdvance(active_label) + scale_by_ui(12))
             badge_h = float(scale_by_ui(16))
             badge_rect = QRectF(right_limit - badge_w, caption_rect.center().y() - badge_h / 2.0, badge_w, badge_h)
-            _draw_pill(painter, badge_rect, 'Active', themed_qcolor('#22c55e'), themed_text_qcolor('#4ade80', caption_bg_hex))
+            _draw_pill(painter, badge_rect, active_label, themed_qcolor('@success'), themed_text_qcolor('@success', caption_bg_token))
             right_limit = badge_rect.left() - float(scale_by_ui(6))
 
         name_left = radio_rect.right() + float(scale_by_ui(7))
@@ -571,7 +785,7 @@ class ThemePreviewCard(QFrame):
             name_font.setPointSizeF(8.8)
             name_font.setBold(self._selected)
             painter.setFont(name_font)
-            painter.setPen(themed_text_qcolor('#ffffff' if self._selected else '#e0e0e0', caption_bg_hex))
+            painter.setPen(themed_text_qcolor('@text_strong' if self._selected else '@text', caption_bg_token))
             elided = QFontMetrics(name_font).elidedText(self._theme.name, Qt.TextElideMode.ElideRight, name_w)
             text_rect = QRect(int(name_left), int(caption_rect.top()), name_w, int(caption_rect.height()))
             painter.drawText(text_rect, Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft, elided)
@@ -605,11 +819,11 @@ class ThemePreviewCard(QFrame):
         painter.restore()
 
         if self._selected:
-            border_pen = QPen(themed_qcolor('#3d8ec9'), 2.2)
+            border_pen = QPen(themed_qcolor('@accent'), 2.2)
         elif self._hovered or self.hasFocus():
-            border_pen = QPen(themed_qcolor('#8b949e'), 1.5)
+            border_pen = QPen(themed_qcolor('@text_muted'), 1.5)
         else:
-            border_pen = QPen(themed_qcolor('#3e3e42'), 1.0)
+            border_pen = QPen(themed_qcolor('@border'), 1.0)
         painter.setPen(border_pen)
         painter.setBrush(Qt.BrushStyle.NoBrush)
         painter.drawPath(card_path)

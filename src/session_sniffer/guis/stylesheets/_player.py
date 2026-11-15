@@ -8,11 +8,11 @@ from session_sniffer.guis.theming import themed_qss
 
 _PROGRESS_BAR_BASE = (
     'QProgressBar {'
-    ' background-color: #0d131a;'
-    ' border: 1px solid #253040;'
+    ' background-color: @input;'
+    ' border: 1px solid @border;'
     ' border-radius: 12px;'
     ' text-align: center;'
-    ' color: #ffffff;'
+    ' color: @text_strong;'
     ' font-weight: 700;'
     ' font-size: 9pt;'
     ' min-height: 24px;'
@@ -20,11 +20,11 @@ _PROGRESS_BAR_BASE = (
     '}'
 )
 
-PROGRESS_BAR_IDLE_STYLESHEET = themed_qss(_PROGRESS_BAR_BASE + 'QProgressBar::chunk { background-color: transparent;}')
+PROGRESS_BAR_IDLE_STYLESHEET = themed_qss(_PROGRESS_BAR_BASE + 'QProgressBar::chunk { background-color: transparent; }')
 
 PROGRESS_BAR_CHUNK_BLUE_STYLESHEET = themed_qss(
     _PROGRESS_BAR_BASE + 'QProgressBar::chunk {'
-    ' background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #1d4ed8, stop:0.5 #3b82f6, stop:1 #60a5fa);'
+    ' background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 @accent:pressed, stop:0.5 @accent, stop:1 @accent:hover);'
     ' border-radius: 10px;'
     ' margin: 2px;'
     '}',
@@ -32,7 +32,7 @@ PROGRESS_BAR_CHUNK_BLUE_STYLESHEET = themed_qss(
 
 PROGRESS_BAR_CHUNK_GREEN_STYLESHEET = themed_qss(
     _PROGRESS_BAR_BASE + 'QProgressBar::chunk {'
-    ' background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #059669, stop:0.5 #10b981, stop:1 #34d399);'
+    ' background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 @success:pressed, stop:0.5 @success, stop:1 @success:hover);'
     ' border-radius: 10px;'
     ' margin: 2px;'
     '}',
@@ -40,7 +40,7 @@ PROGRESS_BAR_CHUNK_GREEN_STYLESHEET = themed_qss(
 
 PROGRESS_BAR_CHUNK_ORANGE_STYLESHEET = themed_qss(
     _PROGRESS_BAR_BASE + 'QProgressBar::chunk {'
-    ' background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #d97706, stop:0.5 #f59e0b, stop:1 #fbbf24);'
+    ' background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 @warning:pressed, stop:0.5 @warning, stop:1 @warning:hover);'
     ' border-radius: 10px;'
     ' margin: 2px;'
     '}',
@@ -48,7 +48,7 @@ PROGRESS_BAR_CHUNK_ORANGE_STYLESHEET = themed_qss(
 
 PROGRESS_BAR_CHUNK_RED_STYLESHEET = themed_qss(
     _PROGRESS_BAR_BASE + 'QProgressBar::chunk {'
-    ' background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #b91c1c, stop:0.5 #ef4444, stop:1 #f87171);'
+    ' background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 @danger:pressed, stop:0.5 @danger, stop:1 @danger:hover);'
     ' border-radius: 10px;'
     ' margin: 2px;'
     '}',
@@ -59,12 +59,12 @@ PROGRESS_BAR_CHUNK_RED_STYLESHEET = themed_qss(
 # PLAYER INFO DIALOG STYLES
 # =============================================================================
 
-PLAYER_INFO_FORM_LABEL_STYLESHEET = themed_qss('color: #cbd5e0; font-weight: 600; background: transparent;')
+PLAYER_INFO_FORM_LABEL_STYLESHEET = themed_qss('color: @text; font-weight: 600; background: transparent;')
 
-PLAYER_INFO_VALUE_LABEL_STYLESHEET = themed_qss('color: #ffffff; font-weight: bold; padding: 3px 6px; border-radius: 3px; background: rgba(255, 255, 255, 12);')
+PLAYER_INFO_VALUE_LABEL_STYLESHEET = themed_qss('color: @text_strong; font-weight: bold; padding: 3px 6px; border-radius: 3px; background: @input;')
 
 DETECTION_WARN_LABEL_STYLESHEET = themed_qss(
-    'color: #f6e05e; font-weight: bold; padding: 4px 8px;background: rgba(214, 158, 46, 20); border: 1px solid rgba(214, 158, 46, 80);border-radius: 4px;',
+    'color: @warning; font-weight: bold; padding: 4px 8px; background: @surface~warning/18; border: 1px solid @warning/55; border-radius: 4px;',
 )
 
 
@@ -76,7 +76,7 @@ def player_info_group_stylesheet(accent: str) -> str:
         ' border-radius: 6px;'
         ' margin-top: 14px;'
         ' padding-top: 10px;'
-        ' background: rgba(255, 255, 255, 8);'
+        ' background: @surface;'
         ' font-weight: bold;'
         '}'
         'QGroupBox::title {'
@@ -84,7 +84,7 @@ def player_info_group_stylesheet(accent: str) -> str:
         ' subcontrol-position: top left;'
         ' left: 10px; padding: 2px 8px;'
         f' background: {accent};'
-        ' color: #ffffff;'
+        ' color: @text_strong;'
         ' border-radius: 4px;'
         '}',
     )
@@ -94,6 +94,6 @@ def player_info_header_stylesheet(grad_stop0: str, grad_stop1: str) -> str:
     """Return the QSS for a player info dialog header label with the given gradient stops."""
     return themed_qss(
         'font-size: 14pt; font-weight: bold; padding: 8px 6px;'
-        'color: #ffffff; background: qlineargradient(x1:0, y1:0, x2:1, y2:0,'
+        'color: @text_strong; background: qlineargradient(x1:0, y1:0, x2:1, y2:0,'
         f' stop:0 {grad_stop0}, stop:1 {grad_stop1}); border-radius: 6px;',
     )

@@ -89,12 +89,12 @@ _LOOKY_FOREGROUND_BRUSH = QBrush()
 
 def _refresh_userip_theme_brushes() -> None:
     """Update cached UserIP manager `QBrush` colors in place for the active theme."""
-    dup_color = themed_qcolor('#ffa500')
+    dup_color = themed_qcolor('@warning')
     dup_color.setAlpha(60)
     DUPLICATE_HIGHLIGHT_BRUSH.setColor(dup_color)
-    _GROUP_BG_BRUSH_EVEN.setColor(themed_qcolor('#1e1e1e'))
-    _GROUP_BG_BRUSH_ODD.setColor(themed_qcolor('#252526'))
-    _LOOKY_FOREGROUND_BRUSH.setColor(themed_text_qcolor('#a855f7', '#1e1e1e'))
+    _GROUP_BG_BRUSH_EVEN.setColor(themed_qcolor('@table'))
+    _GROUP_BG_BRUSH_ODD.setColor(themed_qcolor('@table_alt'))
+    _LOOKY_FOREGROUND_BRUSH.setColor(themed_text_qcolor('@secondary', '@table'))
 
 
 _refresh_userip_theme_brushes()

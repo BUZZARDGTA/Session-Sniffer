@@ -28,29 +28,27 @@ SVG_ICON_CONTEXT_MENU_STYLESHEET = themed_qss(
         """
 QMenu {
     padding: 4px;
-    background-color: #2b2b2b;
-    border: 1px solid #3a3a3a;
+    background-color: @popup;
+    color: @text;
+    border: 1px solid @border;
 }
 
 QMenu::item {
     /* left padding reserves the fixed slot for the icon/indicator */
     padding: 6px 24px 6px 16px;
     background-color: transparent;
+    color: @text;
     /* no border here — hover must not change the box geometry */
 }
 
 QMenu::item:selected {
     /* ONLY the background changes on hover, so nothing shifts */
-    background-color: #3a3a3a;
+    background-color: @selection;
+    color: @text_strong;
 }
 
-QMenu::item:disabled {
-    color: #666666;
-    background-color: transparent;
-}
-
-QMenu::item:disabled:selected {
-    color: #666666;
+QMenu::item:disabled, QMenu::item:disabled:selected {
+    color: @text_muted:disabled;
     background-color: transparent;
 }
 
@@ -75,7 +73,7 @@ QMenu::indicator:checked {
 
 QMenu::separator {
     height: 1px;
-    background-color: #3a3a3a;
+    background-color: @border;
     margin: 4px 8px;
 }
 """
@@ -94,26 +92,24 @@ CATEGORY_SUBMENU_CHECKBOX_STYLESHEET = themed_qss(
         """
 QMenu {
     padding: 4px;
-    background-color: #2b2b2b;
-    border: 1px solid #3a3a3a;
+    background-color: @popup;
+    color: @text;
+    border: 1px solid @border;
 }
 
 QMenu::item {
     padding: 6px 24px 6px 4px;
     background-color: transparent;
+    color: @text;
 }
 
 QMenu::item:selected {
-    background-color: #3a3a3a;
+    background-color: @selection;
+    color: @text_strong;
 }
 
-QMenu::item:disabled {
-    color: #666666;
-    background-color: transparent;
-}
-
-QMenu::item:disabled:selected {
-    color: #666666;
+QMenu::item:disabled, QMenu::item:disabled:selected {
+    color: @text_muted:disabled;
     background-color: transparent;
 }
 
@@ -134,7 +130,7 @@ QMenu::indicator:checked {
 
 QMenu::separator {
     height: 1px;
-    background-color: #3a3a3a;
+    background-color: @border;
     margin: 4px 8px;
 }
 """
@@ -155,8 +151,8 @@ QMenu::separator {
 STATUS_BAR_LABEL_STYLESHEET = themed_qss(
     """
 QLabel {
-    background: transparent;
-    color: #d8dee9;
+    background-color: @statusbar;
+    color: @text;
     border: none;
     padding: 4px 8px;
 }
@@ -167,8 +163,8 @@ QLabel {
 STATUS_BAR_PERFORMANCE_LABEL_STYLESHEET = themed_qss(
     """
 QLabel {
-    background: transparent;
-    color: #d8dee9;
+    background-color: @statusbar;
+    color: @text;
     border: none;
     padding: 4px 8px 4px 4px;
 }

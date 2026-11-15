@@ -59,7 +59,7 @@ def _refresh_session_table_theme_colors() -> None:
     _RATE_GRADIENT_COLORS[:] = (
         list(_DARK_BG_RATE_GRADIENT_COLORS)
         if get_active_theme().colors == DARK_THEME_COLORS
-        else [themed_text_qcolor(color, '#121212') for color in _DARK_BG_RATE_GRADIENT_COLORS]
+        else [themed_text_qcolor(color, '@table') for color in _DARK_BG_RATE_GRADIENT_COLORS]
     )
 
 

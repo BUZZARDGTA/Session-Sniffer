@@ -21,20 +21,29 @@ type ThemeName = Annotated[str, StringConstraints(strip_whitespace=True, min_len
 
 @dataclass(frozen=True, slots=True)
 class ThemeColors:
-    """The editable color tokens that fully describe a theme.
+    """The 21 semantic color tokens that fully describe a theme (all lowercase `#rrggbb` strings)."""
 
-    The application UI is designed against the built-in *Dark* theme. Every design color used by the
-    GUI is mapped from that canonical palette onto the active theme's tokens by `ThemeTransform`, so
-    a theme only needs to define these anchor colors (all as lowercase `#rrggbb` strings).
-    """
-
+    # Surfaces & Bars
     background: str
     surface: str
+    menubar: str
+    statusbar: str
+    popup: str
+    # Controls & Inputs
     control: str
+    input: str
+    scrollbar: str
     border: str
+    # Tables & Lists
+    table: str
+    table_alt: str
+    table_header: str
+    selection: str
+    # Typography
     text: str
     text_muted: str
     text_strong: str
+    # Accents & Status
     accent: str
     secondary: str
     success: str
@@ -52,22 +61,45 @@ class ThemeColorToken:
 
     name: str
     label: str
+    category: str
     description: str
 
 
+THEME_TOKEN_CATEGORIES: Final[tuple[str, ...]] = (
+    'Surfaces & Bars',
+    'Controls & Inputs',
+    'Tables & Lists',
+    'Typography',
+    'Accents & Status',
+)
+
 THEME_COLOR_TOKENS: Final[tuple[ThemeColorToken, ...]] = (
-    ThemeColorToken('background', 'Background', 'Main window and dialog background.'),
-    ThemeColorToken('surface', 'Surface', 'Input fields, tables, panels, menus, and tooltips.'),
-    ThemeColorToken('control', 'Control', 'Buttons, table headers, and other raised controls.'),
-    ThemeColorToken('border', 'Border', 'Borders, separators, and grid lines.'),
-    ThemeColorToken('text', 'Text', 'Default text color.'),
-    ThemeColorToken('text_muted', 'Muted Text', 'Secondary, hint, and placeholder text.'),
-    ThemeColorToken('text_strong', 'Strong Text', 'Headings, button labels, and emphasized text.'),
-    ThemeColorToken('accent', 'Accent', 'Primary accent: selections, focus, links, and highlighted controls.'),
-    ThemeColorToken('secondary', 'Secondary Accent', 'Secondary accent (purple family, e.g. Looky System elements).'),
-    ThemeColorToken('success', 'Success', 'Positive states (connected, enabled, healthy).'),
-    ThemeColorToken('warning', 'Warning', 'Warning states and cautionary highlights.'),
-    ThemeColorToken('danger', 'Danger', 'Errors, destructive actions, and disconnected states.'),
+    # Surfaces & Bars
+    ThemeColorToken('background', 'Window Background', 'Surfaces & Bars', 'Main window, dialog, and tab page background canvas.'),
+    ThemeColorToken('surface', 'Cards & Panels', 'Surfaces & Bars', 'Group boxes, cards, panels, stat boxes, and framed containers.'),
+    ThemeColorToken('menubar', 'Menu & Toolbars', 'Surfaces & Bars', 'Top menu bar, toolbars, and navigation header strips.'),
+    ThemeColorToken('statusbar', 'Status Bar', 'Surfaces & Bars', 'Bottom window status bar background.'),
+    ThemeColorToken('popup', 'Menus & Tooltips', 'Surfaces & Bars', 'Context menus, dropdown popups, tooltips, and busy overlays.'),
+    # Controls & Inputs
+    ThemeColorToken('control', 'Buttons & Controls', 'Controls & Inputs', 'Standard, compact, and dialog action buttons and inactive tabs.'),
+    ThemeColorToken('input', 'Input Fields', 'Controls & Inputs', 'Text boxes, search bars, spin boxes, combo boxes, and progress tracks.'),
+    ThemeColorToken('scrollbar', 'Scrollbars & Splitters', 'Controls & Inputs', 'Scrollbar thumbs, slider handles, and pane splitter bars.'),
+    ThemeColorToken('border', 'Borders & Separators', 'Controls & Inputs', 'Control, card, and table borders, grid lines, and dividers.'),
+    # Tables & Lists
+    ThemeColorToken('table', 'Table & List Background', 'Tables & Lists', 'Primary row and viewport background for player tables, trees, and lists.'),
+    ThemeColorToken('table_alt', 'Alternating Row', 'Tables & Lists', 'Alternating zebra row background in tables and tree views.'),
+    ThemeColorToken('table_header', 'Table & Section Header', 'Tables & Lists', 'Table column headers, group title badges, and collapsible section bars.'),
+    ThemeColorToken('selection', 'Selection Highlight', 'Tables & Lists', 'Selected rows, cells, list or menu items, and text selection.'),
+    # Typography
+    ThemeColorToken('text', 'Primary Text', 'Typography', 'Default body, label, input, and table cell text.'),
+    ThemeColorToken('text_muted', 'Muted Text', 'Typography', 'Secondary labels, subtitles, hints, and placeholder text.'),
+    ThemeColorToken('text_strong', 'Strong Text', 'Typography', 'Headings, titles, active tabs, and button labels.'),
+    # Accents & Status
+    ThemeColorToken('accent', 'Primary Accent', 'Accents & Status', 'Primary buttons, focus rings, checked controls, active tab bars, and links.'),
+    ThemeColorToken('secondary', 'Secondary Accent', 'Accents & Status', 'Secondary purple-family accent (e.g. Looky System badges and actions).'),
+    ThemeColorToken('success', 'Success / Connected', 'Accents & Status', 'Connected player headers and rows, active capture states, and healthy metrics.'),
+    ThemeColorToken('warning', 'Warning / Alert', 'Accents & Status', 'Warning banners, cautionary alerts, and high-rate indicators.'),
+    ThemeColorToken('danger', 'Danger / Disconnected', 'Accents & Status', 'Destructive buttons, disconnected player headers, and error states.'),
 )
 
 
@@ -86,8 +118,17 @@ LIGHT_THEME_NAME: Final = 'Light'
 DARK_THEME_COLORS: Final = ThemeColors(
     background='#121212',
     surface='#1e1e1e',
+    menubar='#262628',
+    statusbar='#252526',
+    popup='#232326',
     control='#2d2d30',
+    input='#18181b',
+    scrollbar='#45454a',
     border='#3e3e42',
+    table='#16171a',
+    table_alt='#1d1f24',
+    table_header='#25262b',
+    selection='#1f4260',
     text='#e0e0e0',
     text_muted='#9ca3af',
     text_strong='#ffffff',
@@ -106,8 +147,17 @@ BUILTIN_THEMES: Final[tuple[Theme, ...]] = (
         ThemeColors(
             background='#f3f4f6',
             surface='#ffffff',
+            menubar='#e8eaee',
+            statusbar='#e8eaee',
+            popup='#ffffff',
             control='#e5e7eb',
+            input='#ffffff',
+            scrollbar='#b8bec8',
             border='#c4c9d1',
+            table='#ffffff',
+            table_alt='#f6f8fa',
+            table_header='#eaeef2',
+            selection='#cce4ff',
             text='#1f2328',
             text_muted='#57606a',
             text_strong='#0b0d10',
@@ -124,8 +174,17 @@ BUILTIN_THEMES: Final[tuple[Theme, ...]] = (
         ThemeColors(
             background='#000000',
             surface='#0b0b0e',
-            control='#17171c',
-            border='#2a2a31',
+            menubar='#101015',
+            statusbar='#101015',
+            popup='#121218',
+            control='#181820',
+            input='#07070a',
+            scrollbar='#2e2e38',
+            border='#2a2a33',
+            table='#060609',
+            table_alt='#0d0d12',
+            table_header='#14141c',
+            selection='#17335c',
             text='#d4d4d8',
             text_muted='#8b8b94',
             text_strong='#ffffff',
@@ -142,8 +201,17 @@ BUILTIN_THEMES: Final[tuple[Theme, ...]] = (
         ThemeColors(
             background='#21222c',
             surface='#282a36',
+            menubar='#191a21',
+            statusbar='#191a21',
+            popup='#282a36',
             control='#343746',
+            input='#1e1f29',
+            scrollbar='#4d5066',
             border='#44475a',
+            table='#242631',
+            table_alt='#2b2d3a',
+            table_header='#313442',
+            selection='#44475a',
             text='#f8f8f2',
             text_muted='#9ea8c7',
             text_strong='#ffffff',
@@ -160,8 +228,17 @@ BUILTIN_THEMES: Final[tuple[Theme, ...]] = (
         ThemeColors(
             background='#2e3440',
             surface='#3b4252',
+            menubar='#292e39',
+            statusbar='#292e39',
+            popup='#3b4252',
             control='#434c5e',
+            input='#323846',
+            scrollbar='#566178',
             border='#4c566a',
+            table='#313744',
+            table_alt='#373e4d',
+            table_header='#3f4758',
+            selection='#435a78',
             text='#e5e9f0',
             text_muted='#9aa5b8',
             text_strong='#eceff4',
@@ -178,8 +255,17 @@ BUILTIN_THEMES: Final[tuple[Theme, ...]] = (
         ThemeColors(
             background='#eee8d5',
             surface='#fdf6e3',
+            menubar='#e6dfc8',
+            statusbar='#e6dfc8',
+            popup='#fdf6e3',
             control='#e4ddc8',
+            input='#fdf6e3',
+            scrollbar='#bfb79f',
             border='#c9c1a9',
+            table='#fdf6e3',
+            table_alt='#f4eedb',
+            table_header='#e6dfc8',
+            selection='#cfe2ea',
             text='#073642',
             text_muted='#657b83',
             text_strong='#002b36',
@@ -203,8 +289,17 @@ class ThemeColorsModel(BaseModel):
 
     background: HexColor
     surface: HexColor
+    menubar: HexColor
+    statusbar: HexColor
+    popup: HexColor
     control: HexColor
+    input: HexColor
+    scrollbar: HexColor
     border: HexColor
+    table: HexColor
+    table_alt: HexColor
+    table_header: HexColor
+    selection: HexColor
     text: HexColor
     text_muted: HexColor
     text_strong: HexColor

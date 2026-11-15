@@ -6,12 +6,12 @@ from session_sniffer.guis.theming import themed_qss
 # INTERFACE SELECTION DIALOG STYLES
 # =============================================================================
 
-INTERFACE_TABLE_CONTAINER_STYLESHEET = themed_qss('QFrame#tableContainer { border: 1px solid #3a6aaa; border-radius: 6px;}')
+INTERFACE_TABLE_CONTAINER_STYLESHEET = themed_qss('QFrame#tableContainer { border: 1px solid @border; border-radius: 6px; }')
 
 INTERFACE_BOTTOM_CONTAINER_STYLESHEET = themed_qss(
     'QFrame#bottomContainer {'
-    ' background-color: #1a2535;'
-    ' border: 1px solid #3a6aaa;'
+    ' background-color: @surface;'
+    ' border: 1px solid @border;'
     ' border-radius: 6px;'
     '}'
     'QFrame#bottomContainer QCheckBox {'
@@ -22,7 +22,7 @@ INTERFACE_BOTTOM_CONTAINER_STYLESHEET = themed_qss(
     '}',
 )
 
-INTERFACE_BOTTOM_SEPARATOR_STYLESHEET = themed_qss('QFrame#bottomSeparator { background-color: #2f4356; max-height: 1px; border: none;}')
+INTERFACE_BOTTOM_SEPARATOR_STYLESHEET = themed_qss('QFrame#bottomSeparator { background-color: @border; max-height: 1px; border: none; }')
 
 
 def _scale(value: int, ui_scale: float) -> int:
@@ -33,42 +33,42 @@ def interface_table_stylesheet(ui_scale: float) -> str:
     """Return the QSS for the interface selection table widget at the given UI `scale`."""
     return themed_qss(
         'QTableWidget {'
-        ' background-color: #131e2c;'
-        ' alternate-background-color: #182536;'
+        ' background-color: @table;'
+        ' alternate-background-color: @table_alt;'
         ' border: none;'
         ' outline: none;'
         '}'
         'QTableWidget::item {'
         f' font-size: {_scale(9, ui_scale)}pt;'
-        ' color: #c8ddf0;'
+        ' color: @text;'
         f' padding: 0px {_scale(8, ui_scale)}px;'
-        ' border-bottom: 1px solid #1e3048;'
-        ' border-right: 1px solid #1e3048;'
+        ' border-bottom: 1px solid @border;'
+        ' border-right: 1px solid @border;'
         '}'
         'QTableWidget::item:selected {'
-        ' background-color: #1a4a8a;'
-        ' color: #ffffff;'
+        ' background-color: @selection;'
+        ' color: @text_strong;'
         f' padding: 0px {_scale(8, ui_scale)}px;'
-        ' border-bottom: 1px solid #1e3048;'
-        ' border-right: 1px solid #1e3048;'
+        ' border-bottom: 1px solid @border;'
+        ' border-right: 1px solid @border;'
         '}'
         'QTableWidget::item:hover:!selected {'
-        ' background-color: #1c3050;'
-        ' border-bottom: 1px solid #1e3048;'
-        ' border-right: 1px solid #1e3048;'
+        ' background-color: @selection/40;'
+        ' border-bottom: 1px solid @border;'
+        ' border-right: 1px solid @border;'
         '}'
         'QHeaderView {'
-        ' background-color: #0e1824;'
+        ' background-color: @table_header;'
         ' border: none;'
-        ' border-bottom: 2px solid #2a5080;'
+        ' border-bottom: 2px solid @accent;'
         '}'
         'QHeaderView::section {'
-        ' background-color: #0e1824;'
-        ' color: #7bafd4;'
+        ' background-color: @table_header;'
+        ' color: @accent;'
         f' min-height: {_scale(36, ui_scale)}px;'
         f' padding: 0px {_scale(8, ui_scale)}px;'
-        ' border-bottom: 2px solid #2a5080;'
-        ' border-right: 1px solid #1e3048;'
+        ' border-bottom: 2px solid @accent;'
+        ' border-right: 1px solid @border;'
         ' border-top: none;'
         ' border-left: none;'
         '}',
@@ -94,53 +94,58 @@ def interface_instruction_label_stylesheet(scale: float) -> str:
 
 
 def interface_select_button_disabled_style(scale: float) -> str:
-    """Return the QSS for the interface selection dialog Select button in its disabled/greyed state at the given UI `scale`."""
-    return themed_qss(f'QPushButton {{ font-size: {_scale(20, scale)}pt; background-color: #555555; color: #aaaaaa; border: 2px solid #3a3a3a; border-radius: 10px;}}')
+    """Return the QSS for the interface selection dialog Select button in its disabled state at *scale*."""
+    return themed_qss(
+        f'QPushButton {{ font-size: {_scale(20, scale)}pt; background-color: @control:disabled;'
+        ' color: @text_muted:disabled; border: 2px solid @border:disabled; border-radius: 10px; }',
+    )
 
 
 def interface_select_button_enabled_style(scale: float) -> str:
-    """Return the QSS for the interface selection dialog Select button in its enabled state at the given UI `scale`."""
+    """Return the QSS for the interface selection dialog Select button in its enabled state at *scale*."""
     return themed_qss(
         'QPushButton {'
         f' font-size: {_scale(22, scale)}pt;'
-        ' background-color: #175bb0;'
-        ' color: #ffffff;'
-        ' border: 2px solid #2a6aaa;'
+        ' background-color: @accent;'
+        ' color: @text_strong;'
+        ' border: 2px solid @accent;'
         ' border-radius: 10px;'
         '}'
         'QPushButton:hover {'
-        ' background-color: #1e6ec7;'
-        ' border: 2px solid #4a8fd4;'
+        ' background-color: @accent:hover;'
+        ' border: 2px solid @accent:hover;'
+        ' color: @text_strong;'
         '}',
     )
 
 
 def interface_secondary_button_enabled_style(scale: float) -> str:
-    """Return the QSS for a secondary action button in the interface selection dialog in its enabled state at the given UI `scale`."""
+    """Return the QSS for an enabled secondary action button in the interface selection dialog at *scale*."""
     return themed_qss(
         'QPushButton {'
         f' font-size: {_scale(14, scale)}pt;'
-        ' background-color: #21334c;'
-        ' color: #e8f0f8;'
-        ' border: 2px solid #1e3f60;'
+        ' background-color: @control;'
+        ' color: @text_strong;'
+        ' border: 2px solid @border;'
         ' border-radius: 8px;'
         f' padding: {_scale(4, scale)}px {_scale(10, scale)}px;'
         '}'
         'QPushButton:hover {'
-        ' background-color: #2c4463;'
-        ' border: 2px solid #2a5888;'
+        ' background-color: @control:hover;'
+        ' border: 2px solid @accent;'
+        ' color: @text_strong;'
         '}',
     )
 
 
 def interface_secondary_button_disabled_style(scale: float) -> str:
-    """Return the QSS for a secondary action button in the interface selection dialog in its disabled (greyed-out) state at the given UI `scale`."""
+    """Return the QSS for a disabled secondary action button in the interface selection dialog at *scale*."""
     return themed_qss(
         'QPushButton {'
         f' font-size: {_scale(14, scale)}pt;'
-        ' background-color: #555555;'
-        ' color: #aaaaaa;'
-        ' border: 2px solid #3a3a3a;'
+        ' background-color: @control:disabled;'
+        ' color: @text_muted:disabled;'
+        ' border: 2px solid @border:disabled;'
         ' border-radius: 8px;'
         f' padding: {_scale(4, scale)}px {_scale(10, scale)}px;'
         '}',
@@ -148,40 +153,36 @@ def interface_secondary_button_disabled_style(scale: float) -> str:
 
 
 def format_interface_refresh_arp_progress_style(ui_scale: float, fraction: float, *, dimmed: bool = False) -> str:
-    """Build a QSS that renders a horizontal gradient progress fill inside the Refresh ARP button.
-
-    Designed to match the dialog's deep-blue palette (Start button `#175bb0`,
-    button base `#21334c`). The fill animates a bright accent gradient over a
-    darker track to read clearly against the dialog's bottom container.
-    When `dimmed` is True, grey colors are used to signal the button will be disabled on completion.
-    """
+    """Build a QSS that renders a horizontal gradient progress fill inside the Refresh ARP button."""
     if dimmed:
-        _fill_left = '#4a4a4a'
-        _fill_mid = '#666666'
-        _fill_right = '#7a7a7a'
-        _track_dark = '#1e1e1e'
-        _track_light = '#2e2e2e'
+        fill_left = '@control:disabled'
+        fill_mid = '@control'
+        fill_right = '@control:hover'
+        track_dark = '@input:disabled'
+        track_light = '@input'
+        border_color = '@border'
     else:
-        _fill_left = '#1e5a9c'
-        _fill_mid = '#3d7fc4'
-        _fill_right = '#5599dd'
-        _track_dark = '#0f1a28'
-        _track_light = '#1a2738'
+        fill_left = '@accent:pressed'
+        fill_mid = '@accent'
+        fill_right = '@accent:hover'
+        track_dark = '@input'
+        track_light = '@control'
+        border_color = '@accent'
     clamped = max(0.0, min(1.0, fraction))
     next_stop = min(1.0, clamped + 0.0001)
     return themed_qss(
         'QPushButton {'
         f' font-size: {_scale(12, ui_scale)}pt;'
         ' background: qlineargradient(x1:0, y1:0, x2:1, y2:0,'
-        f' stop:0 {_fill_left},'
-        f' stop:{clamped * 0.5:.4f} {_fill_mid},'
-        f' stop:{clamped:.4f} {_fill_right},'
-        f' stop:{next_stop:.4f} {_track_dark},'
-        f' stop:1 {_track_light});'
-        ' color: #ffffff;'
+        f' stop:0 {fill_left},'
+        f' stop:{clamped * 0.5:.4f} {fill_mid},'
+        f' stop:{clamped:.4f} {fill_right},'
+        f' stop:{next_stop:.4f} {track_dark},'
+        f' stop:1 {track_light});'
+        ' color: @text_strong;'
         ' font-weight: 700;'
         ' letter-spacing: 1px;'
-        ' border: 2px solid #2a5888;'
+        f' border: 2px solid {border_color};'
         ' border-radius: 8px;'
         f' padding: {_scale(4, ui_scale)}px {_scale(10, ui_scale)}px;'
         ' }',
@@ -191,7 +192,8 @@ def format_interface_refresh_arp_progress_style(ui_scale: float, fraction: float
 def interface_tab_container_stylesheet(ui_scale: float) -> str:
     """Return the QSS for the segmented navigation tab bar container at the given UI `scale`."""
     return themed_qss(
-        f'QFrame#interfaceTabContainer {{ background-color: #0b1420; border: 1px solid #1a2c42; border-radius: {_scale(8, ui_scale)}px; padding: {_scale(4, ui_scale)}px;}}',
+        f'QFrame#interfaceTabContainer {{ background-color: @menubar; border: 1px solid @border;'
+        f' border-radius: {_scale(8, ui_scale)}px; padding: {_scale(4, ui_scale)}px; }}',
     )
 
 
@@ -201,7 +203,7 @@ def interface_tab_button_stylesheet(ui_scale: float) -> str:
         'QPushButton#tabInterfacesButton, QPushButton#tabHotspotButton {'
         f' font-size: {_scale(10, ui_scale)}pt;'
         ' font-weight: 600;'
-        ' color: #7e95ab;'
+        ' color: @text_muted;'
         ' background-color: transparent;'
         ' border: 1px solid transparent;'
         f' border-radius: {_scale(6, ui_scale)}px;'
@@ -210,18 +212,18 @@ def interface_tab_button_stylesheet(ui_scale: float) -> str:
         ' text-align: center;'
         '}'
         'QPushButton#tabInterfacesButton:hover:!checked, QPushButton#tabHotspotButton:hover:!checked {'
-        ' background-color: rgba(255, 255, 255, 0.04);'
-        ' color: #cbe0f5;'
+        ' background-color: @control/45;'
+        ' color: @text_strong;'
         '}'
         'QPushButton#tabInterfacesButton:checked, QPushButton#tabHotspotButton:checked {'
-        ' background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 rgba(0, 180, 216, 0.22), stop:1 rgba(0, 180, 216, 0.06));'
-        ' border: 1px solid #00b4d8;'
-        ' color: #ffffff;'
+        ' background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 @menubar~accent/26, stop:1 @menubar~accent/10);'
+        ' border: 1px solid @accent;'
+        ' color: @text_strong;'
         ' font-weight: 700;'
         '}'
         'QPushButton#tabInterfacesButton:checked:hover, QPushButton#tabHotspotButton:checked:hover {'
-        ' background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 rgba(56, 189, 248, 0.28), stop:1 rgba(56, 189, 248, 0.10));'
-        ' border: 1px solid #38bdf8;'
-        ' color: #ffffff;'
+        ' background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 @menubar~accent/34, stop:1 @menubar~accent/16);'
+        ' border: 1px solid @accent:hover;'
+        ' color: @text_strong;'
         '}',
     )

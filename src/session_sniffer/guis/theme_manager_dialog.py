@@ -5,17 +5,15 @@ from pathlib import Path
 from typing import TYPE_CHECKING, override
 
 from pydantic import ValidationError
-from PySide6.QtCore import QItemSelectionModel, QPoint, QRegularExpression, QSignalBlocker, Qt, Signal
-from PySide6.QtGui import QColor, QIcon, QKeySequence, QRegularExpressionValidator, QShortcut
+from PySide6.QtCore import QItemSelectionModel, QPoint, QSignalBlocker, Qt, Signal
+from PySide6.QtGui import QColor, QIcon, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
     QColorDialog,
     QDialog,
     QFileDialog,
-    QFormLayout,
     QFrame,
-    QGridLayout,
     QGroupBox,
     QHBoxLayout,
     QLabel,
@@ -31,6 +29,11 @@ from PySide6.QtWidgets import (
 
 from session_sniffer.constants.local import THEMES_PATH
 from session_sniffer.constants.standalone import TITLE
+from session_sniffer.guis._theme_palette_grid import (
+    PaletteEditorCallbacks,
+    build_palette_group,
+    show_full_palette_preset_menu,
+)
 from session_sniffer.guis._theme_preview_card import (
     PREVIEW_BASE_QSS,
     build_theme_preview_group,
@@ -38,6 +41,7 @@ from session_sniffer.guis._theme_preview_card import (
     token_swatch_stylesheet,
 )
 from session_sniffer.guis.delegates import ElidedTextTooltipDelegate
+from session_sniffer.guis.live_language import register_language_refresh, set_i18n_colon_label
 from session_sniffer.guis.live_theme import apply_runtime_theme
 from session_sniffer.guis.loading_overlay import loading_overlay_scope
 from session_sniffer.guis.stylesheets import (
@@ -66,8 +70,8 @@ from session_sniffer.guis.theming import (
 )
 from session_sniffer.guis.theming._engine import ThemeTransform
 from session_sniffer.guis.utils import resize_window_for_screen, scale_by_ui, set_dialog_window_flags
+from session_sniffer.i18n import tr, tr_plural
 from session_sniffer.settings.settings import Settings
-from session_sniffer.text_utils import pluralize
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
@@ -77,12 +81,12 @@ if TYPE_CHECKING:
 _HEX_COLOR_RE = re.compile(r'^#?[0-9a-fA-F]{6}$')
 _MAX_DELETE_LISTED_NAMES = 10
 
-_STATUS_LABEL_STYLESHEET = themed_qss('color: #9ca3af; font-size: 8.5pt; background: transparent;')
+_STATUS_LABEL_STYLESHEET = themed_qss('color: @text_muted; font-size: 8.5pt; background: transparent;')
 
 
 def _make_unique_theme_name(desired_base: str, existing_casefold: set[str]) -> str:
     """Return a non-colliding custom theme name within `THEME_NAME_MAX_LENGTH`."""
-    cleaned_base = desired_base.strip() or 'Custom Theme'
+    cleaned_base = desired_base.strip() or tr('Custom Theme')
     trimmed_base = cleaned_base[:THEME_NAME_MAX_LENGTH].rstrip()
     if trimmed_base and trimmed_base.casefold() not in existing_casefold and trimmed_base.casefold() not in BUILTIN_THEME_NAMES:
         return trimmed_base
@@ -135,33 +139,45 @@ class ThemeManagerDialog(QDialog):
         self._populating_editor = False
         self._committing_rename = False
 
-        self.setWindowTitle(f'Theme Manager - {TITLE}')
+        self.setWindowTitle(f"{tr('Theme Manager')} - {TITLE}")
         self.setWindowIcon(QIcon(str(ICONS_DIR_PATH / 'palette.svg')))
         set_dialog_window_flags(self)
         self.setWindowModality(Qt.WindowModality.WindowModal)
-        self.setMinimumSize(scale_by_ui(920), scale_by_ui(640))
+        self.setMinimumSize(scale_by_ui(980), scale_by_ui(660))
         resize_window_for_screen(self)
 
         self._swatch_buttons: dict[str, QPushButton] = {}
         self._hex_edits: dict[str, QLineEdit] = {}
-        self._follow_system_checkbox = QCheckBox('Follow System Theme')
+        self._follow_system_checkbox = QCheckBox(tr('Follow System Theme'))
         self._follow_system_checkbox.setChecked(Settings.gui_theme_follow_system if follow_system is None else follow_system)
         self._theme_list = QListWidget()
-        self._new_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'plus.svg')), ' New')
-        self._duplicate_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'copy.svg')), ' Duplicate')
-        self._import_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'import.svg')), ' Import…')
-        self._export_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'upload.svg')), ' Export…')
-        self._delete_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'trash.svg')), ' Delete Custom Theme')
+        self._new_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'plus.svg')), f" {tr('New')}")
+        self._duplicate_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'copy.svg')), f" {tr('Duplicate')}")
+        self._import_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'import.svg')), f" {tr('Import…')}")
+        self._export_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'upload.svg')), f" {tr('Export…')}")
+        self._delete_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'trash.svg')), f" {tr('Delete Custom Theme')}")
         self._name_edit = QLineEdit()
+        self._reset_palette_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'rotate-ccw.svg')), f" {tr('Copy Preset…')}")
         self._mode_status_label = QLabel()
         self._preview_root = QFrame()
 
         self._build_ui()
         effective_initial = detect_system_theme_name() if self._follow_system_checkbox.isChecked() else initial_theme_name
         self._rebuild_theme_list(select_names=[effective_initial])
+        register_language_refresh(self, self._on_language_refreshed)
 
         if load_error is not None:
-            QMessageBox.warning(self, TITLE, f'{load_error}\n\nDefault built-in themes have been loaded.')
+            QMessageBox.warning(self, TITLE, tr('{error}\n\nDefault built-in themes have been loaded.', error=load_error))
+
+    def _on_language_refreshed(self) -> None:
+        """Refresh dynamic titles, theme badges, and selection status after a live language change."""
+        self.setWindowTitle(f"{tr('Theme Manager')} - {TITLE}")
+        for row in range(self._theme_list.count()):
+            item = self._theme_list.item(row)
+            raw_name = item.data(Qt.ItemDataRole.UserRole)
+            if isinstance(raw_name, str) and (found := self._themes_file.find_theme(raw_name)) is not None:
+                item.setText(tr('{name} (Built-in)', name=found.name) if found.builtin else found.name)
+        self._sync_selection_state()
 
     @property
     def selected_theme_name(self) -> str:
@@ -188,13 +204,13 @@ class ThemeManagerDialog(QDialog):
         root_layout.addLayout(panes_layout, 1)
 
         footer_layout = QHBoxLayout()
-        footer_note = QLabel('Custom theme changes are saved automatically.')
+        footer_note = QLabel(tr('Custom theme changes are saved automatically. Right-click any token to reset it from a built-in preset.'))
         footer_note.setStyleSheet(_STATUS_LABEL_STYLESHEET)
         footer_layout.addWidget(footer_note)
         footer_layout.addStretch()
 
         close_button = _configure_action_button(
-            QPushButton(QIcon(str(ICONS_DIR_PATH / 'x.svg')), ' Close'),
+            QPushButton(QIcon(str(ICONS_DIR_PATH / 'x.svg')), f" {tr('Close')}"),
             DIALOG_BUTTON_STYLESHEET,
             self._on_close_clicked,
         )
@@ -202,21 +218,21 @@ class ThemeManagerDialog(QDialog):
         root_layout.addLayout(footer_layout)
 
     def _build_left_pane(self) -> QGroupBox:
-        group = QGroupBox('Themes')
-        group.setFixedWidth(scale_by_ui(315))
+        group = QGroupBox(tr('Themes'))
+        group.setFixedWidth(scale_by_ui(300))
         layout = QVBoxLayout(group)
         layout.setSpacing(8)
 
         self._follow_system_checkbox.setCursor(Qt.CursorShape.PointingHandCursor)
         self._follow_system_checkbox.setToolTip(
-            'Automatically apply the built-in Dark or Light theme to match your operating system color scheme.',
+            tr('Automatically apply the built-in Dark or Light theme to match your operating system color scheme.'),
         )
         self._follow_system_checkbox.toggled.connect(self._on_follow_system_toggled)
         layout.addWidget(self._follow_system_checkbox)
 
         self._theme_list.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         self._theme_list.setItemDelegate(ElidedTextTooltipDelegate(self._theme_list))
-        self._theme_list.setToolTip('Hold Ctrl or Shift while clicking (or press Ctrl+A / Shift+Arrows) to select multiple themes.')
+        self._theme_list.setToolTip(tr('Hold Ctrl or Shift while clicking (or press Ctrl+A / Shift+Arrows) to select multiple themes.'))
         self._theme_list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self._theme_list.customContextMenuRequested.connect(self._show_theme_list_context_menu)
         self._theme_list.itemSelectionChanged.connect(self._on_theme_selection_changed)
@@ -229,107 +245,98 @@ class ThemeManagerDialog(QDialog):
 
         top_buttons = QHBoxLayout()
         top_buttons.setSpacing(6)
-        top_buttons.addWidget(_configure_action_button(
-            self._new_button, COMPACT_BUTTON_STYLESHEET, self._create_new_theme,
-            'Create a new custom theme initialized from the selected theme',
-        ))
-        top_buttons.addWidget(_configure_action_button(
-            self._duplicate_button, COMPACT_BUTTON_STYLESHEET, self._duplicate_selected_themes,
-            'Duplicate the selected theme as a new editable custom theme',
-        ))
+        top_buttons.addWidget(
+            _configure_action_button(
+                self._new_button,
+                COMPACT_BUTTON_STYLESHEET,
+                self._create_new_theme,
+                tr('Create a new custom theme initialized from the selected theme'),
+            ),
+        )
+        top_buttons.addWidget(
+            _configure_action_button(
+                self._duplicate_button,
+                COMPACT_BUTTON_STYLESHEET,
+                self._duplicate_selected_themes,
+                tr('Duplicate the selected theme as a new editable custom theme'),
+            ),
+        )
         layout.addLayout(top_buttons)
 
         bottom_buttons = QHBoxLayout()
         bottom_buttons.setSpacing(6)
-        bottom_buttons.addWidget(_configure_action_button(
-            self._import_button, COMPACT_BUTTON_STYLESHEET, self._import_themes,
-            'Import custom themes from a JSON file',
-        ))
+        bottom_buttons.addWidget(
+            _configure_action_button(
+                self._import_button,
+                COMPACT_BUTTON_STYLESHEET,
+                self._import_themes,
+                tr('Import custom themes from a JSON file'),
+            ),
+        )
         bottom_buttons.addWidget(_configure_action_button(self._export_button, COMPACT_BUTTON_STYLESHEET, self._export_themes))
         layout.addLayout(bottom_buttons)
 
-        layout.addWidget(_configure_action_button(
-            self._delete_button, COMPACT_DANGER_BUTTON_STYLESHEET, self._delete_selected_themes,
-            'Delete the selected custom theme',
-        ))
+        layout.addWidget(
+            _configure_action_button(
+                self._delete_button,
+                COMPACT_DANGER_BUTTON_STYLESHEET,
+                self._delete_selected_themes,
+                tr('Delete the selected custom theme'),
+            ),
+        )
         return group
 
     def _build_right_pane(self) -> QWidget:
         pane = QWidget()
         layout = QVBoxLayout(pane)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(10)
+        layout.setSpacing(8)
 
-        details_group = QGroupBox('Theme Details')
+        details_group = QGroupBox(tr('Theme Details'))
         details_layout = QVBoxLayout(details_group)
-        details_layout.setSpacing(6)
+        details_layout.setSpacing(5)
 
-        name_form = QFormLayout()
-        name_form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
-        name_form.setLabelAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        name_row = QHBoxLayout()
+        name_row.setSpacing(8)
+        name_label = QLabel()
+        set_i18n_colon_label(name_label, 'Name')
+        name_row.addWidget(name_label, 0)
 
         self._name_edit.setMaxLength(THEME_NAME_MAX_LENGTH)
-        self._name_edit.setPlaceholderText('Enter custom theme name…')
+        self._name_edit.setPlaceholderText(tr('Enter custom theme name…'))
         self._name_edit.returnPressed.connect(self._on_name_return_pressed)
         self._name_edit.editingFinished.connect(self._commit_pending_rename)
-        name_form.addRow(QLabel('Name:'), self._name_edit)
-        details_layout.addLayout(name_form)
+        name_row.addWidget(self._name_edit, 1)
+
+        name_row.addWidget(
+            _configure_action_button(
+                self._reset_palette_button,
+                COMPACT_BUTTON_STYLESHEET,
+                self._open_reset_palette_menu,
+                tr('Copy all 21 color tokens from any built-in preset (or right-click an individual token below)'),
+            ),
+            0,
+        )
+        details_layout.addLayout(name_row)
 
         self._mode_status_label.setStyleSheet(_STATUS_LABEL_STYLESHEET)
         details_layout.addWidget(self._mode_status_label)
-        layout.addWidget(details_group)
+        layout.addWidget(details_group, 0)
 
-        palette_group = QGroupBox('Color Palette')
-        palette_grid = QGridLayout(palette_group)
-        palette_grid.setHorizontalSpacing(14)
-        palette_grid.setVerticalSpacing(8)
-        palette_grid.setColumnStretch(1, 1)
-        palette_grid.setColumnStretch(4, 1)
-        palette_grid.setColumnMinimumWidth(2, scale_by_ui(12))
-
-        hex_validator = QRegularExpressionValidator(QRegularExpression(r'#?[0-9A-Fa-f]{0,6}'), self)
-
-        for i, token in enumerate(THEME_COLOR_TOKENS):
-            row, col_group = divmod(i, 2)
-            base_col = col_group * 3
-
-            label = QLabel(f'{token.label}:')
-            label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-            label.setToolTip(token.description)
-
-            field_container = QWidget()
-            field_row = QHBoxLayout(field_container)
-            field_row.setContentsMargins(0, 0, 0, 0)
-            field_row.setSpacing(6)
-
-            swatch_button = QPushButton()
-            swatch_button.setFixedSize(scale_by_ui(34), scale_by_ui(24))
-            swatch_button.setCursor(Qt.CursorShape.PointingHandCursor)
-            swatch_button.setAutoDefault(False)
-            swatch_button.setToolTip(f'{token.description}\nClick to pick a color.')
-            swatch_button.clicked.connect(lambda _checked=False, token_name=token.name, token_label=token.label: self._pick_token_color(token_name, token_label))
-
-            hex_edit = QLineEdit()
-            hex_edit.setMaxLength(7)
-            hex_edit.setValidator(hex_validator)
-            hex_edit.setFixedWidth(scale_by_ui(90))
-            hex_edit.setPlaceholderText('#rrggbb')
-            hex_edit.setToolTip(token.description)
-            hex_edit.returnPressed.connect(lambda edit=hex_edit, token_name=token.name: self._on_hex_return_pressed(token_name, edit))
-            hex_edit.editingFinished.connect(lambda token_name=token.name: self._commit_token_hex_edit(token_name))
-
-            field_row.addWidget(swatch_button)
-            field_row.addWidget(hex_edit)
-            field_row.addStretch()
-
-            palette_grid.addWidget(label, row, base_col)
-            palette_grid.addWidget(field_container, row, base_col + 1)
-
-            self._swatch_buttons[token.name] = swatch_button
-            self._hex_edits[token.name] = hex_edit
-
-        layout.addWidget(palette_group)
-        layout.addWidget(build_theme_preview_group(self._preview_root), 1)
+        palette_controls = build_palette_group(
+            self,
+            PaletteEditorCallbacks(
+                pick_token_color=self._pick_token_color,
+                on_hex_return_pressed=self._on_hex_return_pressed,
+                commit_token_hex_edit=self._commit_token_hex_edit,
+                apply_token_color=self._apply_token_color,
+                is_editable=lambda: self._edited_custom_model() is not None,
+            ),
+        )
+        self._swatch_buttons = palette_controls.swatch_buttons
+        self._hex_edits = palette_controls.hex_edits
+        layout.addWidget(palette_controls.group_box, 3)
+        layout.addWidget(build_theme_preview_group(self._preview_root), 2)
         return pane
 
     def _on_follow_system_toggled(self) -> None:
@@ -340,7 +347,7 @@ class ThemeManagerDialog(QDialog):
         target_theme = self._themes_file.find_theme(target_name) or Theme(DEFAULT_THEME_NAME, DARK_THEME_COLORS, builtin=True)
         if target_theme != get_active_theme():
             if self.isVisible():
-                with loading_overlay_scope(self, 'Applying Theme\u2026', f'Switching to "{target_theme.name}"\u2026'):
+                with loading_overlay_scope(self, tr('Applying Theme…'), tr('Switching to "{name}"…', name=target_theme.name)):
                     apply_runtime_theme(target_theme)
             else:
                 apply_runtime_theme(target_theme)
@@ -355,7 +362,7 @@ class ThemeManagerDialog(QDialog):
         try:
             save_themes_file(self._themes_file, self._themes_path)
         except OSError as e:
-            QMessageBox.critical(self, TITLE, f'Failed to save custom themes:\n\n{e}')
+            QMessageBox.critical(self, TITLE, tr('Failed to save custom themes:\n\n{error}', error=e))
             return False
         return True
 
@@ -394,7 +401,7 @@ class ThemeManagerDialog(QDialog):
         with QSignalBlocker(self._theme_list):
             self._theme_list.clear()
             for i, theme in enumerate(all_themes):
-                display_text = f'{theme.name} (Built-in)' if theme.builtin else theme.name
+                display_text = tr('{name} (Built-in)', name=theme.name) if theme.builtin else theme.name
                 item = QListWidgetItem(create_theme_list_icon(theme.colors), display_text)
                 item.setData(Qt.ItemDataRole.UserRole, theme.name)
                 self._theme_list.addItem(item)
@@ -451,30 +458,30 @@ class ThemeManagerDialog(QDialog):
         custom_count = len(selected_custom)
 
         self._duplicate_button.setEnabled(total_selected > 0)
-        self._duplicate_button.setText(f' Duplicate ({total_selected})' if total_selected > 1 else ' Duplicate')
+        self._duplicate_button.setText(f" {tr('Duplicate ({count})', count=total_selected)}" if total_selected > 1 else f" {tr('Duplicate')}")
         self._duplicate_button.setToolTip(
-            f'Duplicate the {total_selected} selected themes as new editable custom themes'
+            tr('Duplicate the {count} selected themes as new editable custom themes', count=total_selected)
             if total_selected > 1
-            else 'Duplicate the selected theme as a new editable custom theme',
+            else tr('Duplicate the selected theme as a new editable custom theme'),
         )
 
         self._delete_button.setEnabled(custom_count > 0)
-        self._delete_button.setText(f' Delete Custom Themes ({custom_count})' if custom_count > 1 else ' Delete Custom Theme')
+        self._delete_button.setText(f" {tr('Delete Custom Themes ({count})', count=custom_count)}" if custom_count > 1 else f" {tr('Delete Custom Theme')}")
         if custom_count > 1:
-            self._delete_button.setToolTip(f'Delete the {custom_count} selected custom themes (Del)')
+            self._delete_button.setToolTip(tr('Delete the {count} selected custom themes (Del)', count=custom_count))
         elif custom_count == 1:
-            self._delete_button.setToolTip('Delete the selected custom theme (Del)')
+            self._delete_button.setToolTip(tr('Delete the selected custom theme (Del)'))
         else:
-            self._delete_button.setToolTip('Select one or more custom themes to delete (Ctrl+Click or Shift+Click to multi-select)')
+            self._delete_button.setToolTip(tr('Select one or more custom themes to delete (Ctrl+Click or Shift+Click to multi-select)'))
 
         has_custom_themes = bool(self._themes_file.custom_themes)
         self._export_button.setEnabled(has_custom_themes)
         if not has_custom_themes:
-            self._export_button.setToolTip('Create or duplicate a custom theme first to export it')
+            self._export_button.setToolTip(tr('Create or duplicate a custom theme first to export it'))
         elif custom_count > 1:
-            self._export_button.setToolTip(f'Export the {custom_count} selected custom themes or all custom themes to JSON')
+            self._export_button.setToolTip(tr('Export the {count} selected custom themes or all custom themes to JSON', count=custom_count))
         else:
-            self._export_button.setToolTip('Export custom themes to a JSON file')
+            self._export_button.setToolTip(tr('Export custom themes to a JSON file'))
 
         if total_selected == 1:
             single = selected_themes[0]
@@ -492,27 +499,34 @@ class ThemeManagerDialog(QDialog):
         self._populating_editor = True
         try:
             is_editable = multi_count == 1 and not theme.builtin
+            self._reset_palette_button.setEnabled(is_editable)
             with QSignalBlocker(self._name_edit):
                 if multi_count == 1:
-                    self._name_edit.setPlaceholderText('Enter custom theme name…')
+                    self._name_edit.setPlaceholderText(tr('Enter custom theme name…'))
                     self._name_edit.setText(theme.name)
                 else:
                     self._name_edit.setText('')
-                    self._name_edit.setPlaceholderText(f'{multi_count} themes selected' if multi_count > 1 else 'No theme selected')
+                    self._name_edit.setPlaceholderText(
+                        tr('{count} themes selected', count=multi_count) if multi_count > 1 else tr('No theme selected'),
+                    )
                 self._name_edit.setEnabled(is_editable)
 
             if not multi_count:
-                status_text = 'No theme selected — click a theme in the list to view or edit it.'
+                status_text = tr('No theme selected — click a theme in the list to view or edit it.')
             elif multi_count > 1:
                 status_text = (
-                    f'{multi_count} themes selected ({custom_selected_count} custom) — select a single custom theme to edit its name or colors.'
+                    tr(
+                        '{total} themes selected ({custom} custom) — select a single custom theme to edit its name or colors.',
+                        total=multi_count,
+                        custom=custom_selected_count,
+                    )
                     if custom_selected_count > 0
-                    else f'{multi_count} built-in presets selected — click Duplicate ({multi_count}) to create editable copies.'
+                    else tr('{count} built-in presets selected — click Duplicate ({count}) to create editable copies.', count=multi_count)
                 )
             elif theme.builtin:
-                status_text = 'Built-in preset (read-only) — click Duplicate to create an editable copy.'
+                status_text = tr('Built-in preset (read-only) — click Duplicate to create an editable copy.')
             else:
-                status_text = 'Custom theme — color and name changes are saved automatically.'
+                status_text = tr('Custom theme — color and name changes are saved automatically.')
             self._mode_status_label.setText(status_text)
 
             for token_name, hex_value in theme.colors.as_dict().items():
@@ -538,7 +552,7 @@ class ThemeManagerDialog(QDialog):
             raw_name = item.data(Qt.ItemDataRole.UserRole)
             if isinstance(raw_name, str) and raw_name.casefold() == target_cf:
                 item.setData(Qt.ItemDataRole.UserRole, theme.name)
-                item.setText(f'{theme.name} (Built-in)' if theme.builtin else theme.name)
+                item.setText(tr('{name} (Built-in)', name=theme.name) if theme.builtin else theme.name)
                 item.setIcon(create_theme_list_icon(theme.colors))
                 return
 
@@ -559,19 +573,29 @@ class ThemeManagerDialog(QDialog):
 
         menu = QMenu(self)
         menu.setStyleSheet(SVG_ICON_CONTEXT_MENU_STYLESHEET)
-        new_action = menu.addAction(QIcon(str(ICONS_DIR_PATH / 'plus.svg')), 'New Custom Theme')
+        new_action = menu.addAction(QIcon(str(ICONS_DIR_PATH / 'plus.svg')), tr('New Custom Theme'))
         duplicate_action = (
-            menu.addAction(QIcon(str(ICONS_DIR_PATH / 'copy.svg')), f'Duplicate ({total_selected})' if total_selected > 1 else 'Duplicate')
+            menu.addAction(
+                QIcon(str(ICONS_DIR_PATH / 'copy.svg')),
+                tr('Duplicate ({count})', count=total_selected) if total_selected > 1 else tr('Duplicate'),
+            )
             if total_selected > 0
             else None
         )
         export_selected_action = None
         delete_action = None
         if custom_count > 0:
-            export_label = f'Export Selected Custom Themes ({custom_count})…' if custom_count > 1 else f'Export "{selected_custom[0].name}"…'
+            export_label = (
+                tr('Export Selected Custom Themes ({count})…', count=custom_count)
+                if custom_count > 1
+                else tr('Export "{name}"…', name=selected_custom[0].name)
+            )
             export_selected_action = menu.addAction(QIcon(str(ICONS_DIR_PATH / 'upload.svg')), export_label)
             menu.addSeparator()
-            delete_action = menu.addAction(QIcon(str(ICONS_DIR_PATH / 'trash.svg')), f'Delete Custom Themes ({custom_count})' if custom_count > 1 else 'Delete Custom Theme')
+            delete_action = menu.addAction(
+                QIcon(str(ICONS_DIR_PATH / 'trash.svg')),
+                tr('Delete Custom Themes ({count})', count=custom_count) if custom_count > 1 else tr('Delete Custom Theme'),
+            )
 
         chosen = menu.exec(self._theme_list.viewport().mapToGlobal(pos))
         if chosen == new_action:
@@ -586,7 +610,7 @@ class ThemeManagerDialog(QDialog):
     def _create_new_theme(self) -> None:
         self._commit_all_pending_edits()
         base_colors = self._current_theme().colors
-        new_name = _make_unique_theme_name('Custom Theme', self._existing_custom_names_casefold())
+        new_name = _make_unique_theme_name(tr('Custom Theme'), self._existing_custom_names_casefold())
         self._themes_file.custom_themes.append(CustomThemeModel(name=new_name, colors=ThemeColorsModel.from_theme_colors(base_colors)))
         if not self._persist_themes():
             self._themes_file.custom_themes.pop()
@@ -606,7 +630,7 @@ class ThemeManagerDialog(QDialog):
         existing_names = self._existing_custom_names_casefold()
         created_names: list[str] = []
         for source in sources:
-            new_name = _make_unique_theme_name(f'{source.name} Copy', existing_names)
+            new_name = _make_unique_theme_name(tr('{name} Copy', name=source.name), existing_names)
             existing_names.add(new_name.casefold())
             self._themes_file.custom_themes.append(CustomThemeModel(name=new_name, colors=ThemeColorsModel.from_theme_colors(source.colors)))
             created_names.append(new_name)
@@ -636,10 +660,10 @@ class ThemeManagerDialog(QDialog):
 
     def _validate_proposed_custom_name(self, proposed_name: str, old_name: str) -> bool:
         if proposed_name.casefold() in BUILTIN_THEME_NAMES:
-            QMessageBox.warning(self, TITLE, f'"{proposed_name}" is reserved by a built-in theme. Choose a different name.')
+            QMessageBox.warning(self, TITLE, tr('"{name}" is reserved by a built-in theme. Choose a different name.', name=proposed_name))
             return False
         if proposed_name.casefold() in self._existing_custom_names_casefold(exclude=old_name):
-            QMessageBox.warning(self, TITLE, f'A custom theme named "{proposed_name}" already exists.')
+            QMessageBox.warning(self, TITLE, tr('A custom theme named "{name}" already exists.', name=proposed_name))
             return False
         return True
 
@@ -683,6 +707,42 @@ class ThemeManagerDialog(QDialog):
         finally:
             self._committing_rename = False
 
+    def _notify_edited_theme_updated(self, updated_theme: Theme) -> None:
+        self._update_list_item_visuals(updated_theme.name, updated_theme)
+        self._refresh_live_preview(updated_theme.colors)
+        if updated_theme.name.casefold() == get_active_theme().name.casefold():
+            if self.isVisible():
+                with loading_overlay_scope(self, tr('Updating Theme…'), tr('Applying changes to "{name}"…', name=updated_theme.name)):
+                    apply_runtime_theme(updated_theme)
+            else:
+                apply_runtime_theme(updated_theme)
+        self.themes_changed.emit()
+
+    def _open_reset_palette_menu(self) -> None:
+        self._commit_all_pending_edits()
+        if self._edited_custom_model() is None:
+            return
+        show_full_palette_preset_menu(self, self._reset_palette_button, self._apply_full_palette)
+
+    def _apply_full_palette(self, preset_colors: ThemeColors) -> None:
+        if (custom_model := self._edited_custom_model()) is None:
+            return
+        previous_colors = custom_model.colors
+        new_colors_model = ThemeColorsModel.from_theme_colors(preset_colors)
+        if new_colors_model == previous_colors:
+            return
+        custom_model.colors = new_colors_model
+        if not self._persist_themes():
+            custom_model.colors = previous_colors
+            return
+
+        for token_name, hex_value in preset_colors.as_dict().items():
+            self._swatch_buttons[token_name].setStyleSheet(token_swatch_stylesheet(hex_value))
+            with QSignalBlocker(self._hex_edits[token_name]):
+                self._hex_edits[token_name].setText(hex_value)
+
+        self._notify_edited_theme_updated(custom_model.to_theme())
+
     def _apply_token_color(self, token_name: str, normalized_hex: str) -> None:
         if (custom_model := self._edited_custom_model()) is None:
             return
@@ -704,22 +764,19 @@ class ThemeManagerDialog(QDialog):
         with QSignalBlocker(self._hex_edits[token_name]):
             self._hex_edits[token_name].setText(normalized_hex)
 
-        updated_theme = custom_model.to_theme()
-        self._update_list_item_visuals(updated_theme.name, updated_theme)
-        self._refresh_live_preview(updated_theme.colors)
-        if updated_theme.name.casefold() == get_active_theme().name.casefold():
-            if self.isVisible():
-                with loading_overlay_scope(self, 'Updating Theme\u2026', f'Applying changes to "{updated_theme.name}"\u2026'):
-                    apply_runtime_theme(updated_theme)
-            else:
-                apply_runtime_theme(updated_theme)
-        self.themes_changed.emit()
+        self._notify_edited_theme_updated(custom_model.to_theme())
 
     def _pick_token_color(self, token_name: str, token_label: str) -> None:
         if (custom_model := self._edited_custom_model()) is None:
             return
         current_hex = str(getattr(custom_model.colors, token_name))
-        chosen = QColorDialog.getColor(QColor(current_hex), self, f'Select {token_label} Color', QColorDialog.ColorDialogOption.DontUseNativeDialog)
+        canonical_label = next((token.label for token in THEME_COLOR_TOKENS if token.name == token_name), token_label)
+        chosen = QColorDialog.getColor(
+            QColor(current_hex),
+            self,
+            tr('Select {token} Color', token=tr(canonical_label)),
+            QColorDialog.ColorDialogOption.DontUseNativeDialog,
+        )
         if chosen.isValid():
             self._apply_token_color(token_name, chosen.name(QColor.NameFormat.HexRgb).lower())
 
@@ -737,12 +794,12 @@ class ThemeManagerDialog(QDialog):
     @staticmethod
     def _format_delete_confirmation(targets: Sequence[CustomThemeModel]) -> str:
         if len(targets) == 1:
-            return f'Delete custom theme "{targets[0].name}"?\n\nThis action cannot be undone.'
+            return tr('Delete custom theme "{name}"?\n\nThis action cannot be undone.', name=targets[0].name)
         listed_lines = [f'• {model.name}' for model in targets[:_MAX_DELETE_LISTED_NAMES]]
         if len(targets) > _MAX_DELETE_LISTED_NAMES:
-            listed_lines.append(f'…and {len(targets) - _MAX_DELETE_LISTED_NAMES} more')
+            listed_lines.append(tr('…and {count} more', count=len(targets) - _MAX_DELETE_LISTED_NAMES))
         names_block = '\n'.join(listed_lines)
-        return f'Delete {len(targets)} custom themes?\n\n{names_block}\n\nThis action cannot be undone.'
+        return tr('Delete {count} custom themes?\n\n{names}\n\nThis action cannot be undone.', count=len(targets), names=names_block)
 
     def _first_deleted_row(self, deleted_cf: set[str]) -> int:
         for row in range(self._theme_list.count()):
@@ -786,7 +843,7 @@ class ThemeManagerDialog(QDialog):
         if get_active_theme().name.casefold() in deleted_cf:
             default_theme = Theme(DEFAULT_THEME_NAME, DARK_THEME_COLORS, builtin=True)
             if self.isVisible():
-                with loading_overlay_scope(self, 'Restoring Default Theme\u2026', f'Reverting to "{DEFAULT_THEME_NAME}"\u2026'):
+                with loading_overlay_scope(self, tr('Restoring Default Theme…'), tr('Reverting to "{name}"…', name=DEFAULT_THEME_NAME)):
                     apply_runtime_theme(default_theme)
             else:
                 apply_runtime_theme(default_theme)
@@ -795,17 +852,17 @@ class ThemeManagerDialog(QDialog):
 
     def _import_themes(self) -> None:
         self._commit_all_pending_edits()
-        file_path, _ = QFileDialog.getOpenFileName(self, 'Import Custom Themes', '', 'JSON Files (*.json);;All Files (*.*)')
+        file_path, _ = QFileDialog.getOpenFileName(self, tr('Import Custom Themes'), '', tr('JSON Files (*.json);;All Files (*.*)'))
         if not file_path:
             return
         try:
             imported_file = ThemesFile.model_validate_json(Path(file_path).read_text(encoding='utf-8'))
         except (OSError, UnicodeDecodeError, ValidationError) as e:
-            QMessageBox.critical(self, TITLE, f'Failed to import themes:\n\n{e}')
+            QMessageBox.critical(self, TITLE, tr('Failed to import themes:\n\n{error}', error=e))
             return
 
         if not imported_file.custom_themes:
-            QMessageBox.information(self, TITLE, 'The selected file does not contain any custom themes.')
+            QMessageBox.information(self, TITLE, tr('The selected file does not contain any custom themes.'))
             return
 
         previous_themes = list(self._themes_file.custom_themes)
@@ -824,7 +881,11 @@ class ThemeManagerDialog(QDialog):
         self._rebuild_theme_list(select_names=imported_names)
         self.themes_changed.emit()
         count = len(imported_names)
-        QMessageBox.information(self, TITLE, f'Imported {count} custom theme{pluralize(count)} successfully.')
+        QMessageBox.information(
+            self,
+            TITLE,
+            tr_plural('Imported {count} custom theme successfully.', 'Imported {count} custom themes successfully.', count),
+        )
 
     def _export_custom_models_selection(self, models: list[CustomThemeModel]) -> None:
         if not models:
@@ -847,12 +908,15 @@ class ThemeManagerDialog(QDialog):
             menu = QMenu(self)
             menu.setStyleSheet(SVG_ICON_CONTEXT_MENU_STYLESHEET)
             selected_label = (
-                f'Export Selected Custom Themes ({custom_count})…'
+                tr('Export Selected Custom Themes ({count})…', count=custom_count)
                 if custom_count > 1
-                else f'Export "{selected_custom[0].name}"…'
+                else tr('Export "{name}"…', name=selected_custom[0].name)
             )
             export_selected_action = menu.addAction(QIcon(str(ICONS_DIR_PATH / 'upload.svg')), selected_label)
-            export_all_action = menu.addAction(QIcon(str(ICONS_DIR_PATH / 'upload.svg')), f'Export All Custom Themes ({total_custom})…')
+            export_all_action = menu.addAction(
+                QIcon(str(ICONS_DIR_PATH / 'upload.svg')),
+                tr('Export All Custom Themes ({count})…', count=total_custom),
+            )
             chosen_action = menu.exec(self._export_button.mapToGlobal(self._export_button.rect().bottomLeft()))
             if chosen_action == export_selected_action:
                 self._export_custom_models_selection(selected_custom)
@@ -867,17 +931,21 @@ class ThemeManagerDialog(QDialog):
         self._write_exported_themes(self._themes_file.custom_themes, 'themes.json')
 
     def _write_exported_themes(self, themes_to_export: list[CustomThemeModel], suggested_filename: str) -> None:
-        file_path, _ = QFileDialog.getSaveFileName(self, 'Export Custom Themes', suggested_filename, 'JSON Files (*.json);;All Files (*.*)')
+        file_path, _ = QFileDialog.getSaveFileName(self, tr('Export Custom Themes'), suggested_filename, tr('JSON Files (*.json);;All Files (*.*)'))
         if not file_path:
             return
         export_payload = ThemesFile(custom_themes=themes_to_export)
         try:
             save_themes_file(export_payload, Path(file_path))
         except OSError as e:
-            QMessageBox.critical(self, TITLE, f'Failed to export themes:\n\n{e}')
+            QMessageBox.critical(self, TITLE, tr('Failed to export themes:\n\n{error}', error=e))
             return
         count = len(themes_to_export)
-        QMessageBox.information(self, TITLE, f'Exported {count} custom theme{pluralize(count)} successfully.')
+        QMessageBox.information(
+            self,
+            TITLE,
+            tr_plural('Exported {count} custom theme successfully.', 'Exported {count} custom themes successfully.', count),
+        )
 
     # ------------------------------------------------------------------
     # Key & close handling

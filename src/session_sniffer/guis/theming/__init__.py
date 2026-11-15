@@ -36,6 +36,7 @@ from session_sniffer.models.themes import (
     LIGHT_THEME_NAME,
     THEME_COLOR_TOKENS,
     THEME_NAME_MAX_LENGTH,
+    THEME_TOKEN_CATEGORIES,
     CustomThemeModel,
     Theme,
     ThemeColors,
@@ -245,16 +246,21 @@ def themed_color(color: str) -> str:
 
 
 def themed_qcolor(color: str | QColor | Qt.GlobalColor) -> QColor:
-    """Return a design color mapped onto the active theme as a `QColor` (alpha preserved)."""
-    return _STATE.transform.map_qcolor(QColor(color))
+    """Return a design color or `@token` expression mapped onto the active theme as a `QColor` (alpha preserved)."""
+    resolved = _STATE.transform.resolve_target(color)
+    return resolved if resolved is not None else QColor()
+
+
+def _spec_origin_key(value: str | QColor | Qt.GlobalColor) -> str:
+    if isinstance(value, str) and value.lstrip().startswith('@'):
+        return value.strip()
+    return QColor(value).name(QColor.NameFormat.HexArgb)
 
 
 def themed_text_qcolor(foreground: str | QColor | Qt.GlobalColor, background: str | QColor | Qt.GlobalColor) -> QColor:
     """Return the design text color *foreground* mapped onto the active theme, kept readable on the mapped *background*."""
-    fg_qcolor = QColor(foreground)
-    bg_qcolor = QColor(background)
-    result = _STATE.transform.text_on(fg_qcolor, bg_qcolor)
-    origin = (fg_qcolor.name(QColor.NameFormat.HexArgb), bg_qcolor.name(QColor.NameFormat.HexArgb))
+    result = _STATE.transform.text_on(foreground, background)
+    origin = (_spec_origin_key(foreground), _spec_origin_key(background))
     _TEXT_CONTRAST_ORIGINS[result.name(QColor.NameFormat.HexArgb).lower()] = origin
     _TEXT_CONTRAST_ORIGINS[result.name(QColor.NameFormat.HexRgb).lower()] = origin
     return result
@@ -262,10 +268,12 @@ def themed_text_qcolor(foreground: str | QColor | Qt.GlobalColor, background: st
 
 def resolve_canonical_tint_pair(tint_color: str) -> tuple[str, str]:
     """Resolve *tint_color* back to its canonical `(foreground, background)` design color pair."""
+    if tint_color.lstrip().startswith('@'):
+        return tint_color.strip(), '@surface'
     origin = _TEXT_CONTRAST_ORIGINS.get(tint_color.lower())
     if origin is not None:
         return origin
-    return _COLOR_ORIGINS.get(tint_color.lower(), tint_color), '#1e1e1e'
+    return _COLOR_ORIGINS.get(tint_color.lower(), tint_color), '@surface'
 
 
 def themed_svg(svg: str) -> str:
@@ -284,6 +292,7 @@ __all__ = [
     'THEME_COLOR_TOKENS',
     'THEME_NAME_MAX_LENGTH',
     'THEME_STARTUP_WARNINGS',
+    'THEME_TOKEN_CATEGORIES',
     'CustomThemeModel',
     'Theme',
     'ThemeColorToken',

@@ -49,21 +49,21 @@ if TYPE_CHECKING:
 _STANDARD_ICON_SIZE = 16
 _DISCONNECTED_TEXT_COLOR = QColor(TableColors.DISCONNECTED_TEXT)
 
-_COLOR_WHITE = themed_text_qcolor('#ffffff', '#1e3246')
-_COLOR_CONNECTED_SEL_TOP = themed_qcolor(QColor(42, 110, 85, 160))
-_COLOR_CONNECTED_SEL_BOTTOM = themed_qcolor(QColor(28, 75, 58, 160))
-_COLOR_CONNECTED_UNSEL_TOP = themed_qcolor(QColor(42, 110, 85, 100))
-_COLOR_CONNECTED_UNSEL_BOTTOM = themed_qcolor(QColor(28, 75, 58, 100))
-_COLOR_DISCONNECTED_SEL_TOP = themed_qcolor(QColor(130, 45, 45, 160))
-_COLOR_DISCONNECTED_SEL_BOTTOM = themed_qcolor(QColor(85, 28, 28, 160))
-_COLOR_DISCONNECTED_UNSEL_TOP = themed_qcolor(QColor(130, 45, 45, 100))
-_COLOR_DISCONNECTED_UNSEL_BOTTOM = themed_qcolor(QColor(85, 28, 28, 100))
-_COLOR_DEFAULT_SEL = themed_qcolor('#2f4f64')
-_COLOR_DEFAULT_UNSEL = themed_qcolor('#2d2d30')
+_COLOR_WHITE = themed_text_qcolor('@text_strong', '@selection')
+_COLOR_CONNECTED_SEL_TOP = themed_qcolor('@selection~success/45/63')
+_COLOR_CONNECTED_SEL_BOTTOM = themed_qcolor('@selection~success/45:pressed/63')
+_COLOR_CONNECTED_UNSEL_TOP = themed_qcolor('@control~success/38/40')
+_COLOR_CONNECTED_UNSEL_BOTTOM = themed_qcolor('@control~success/38:pressed/40')
+_COLOR_DISCONNECTED_SEL_TOP = themed_qcolor('@selection~danger/45/63')
+_COLOR_DISCONNECTED_SEL_BOTTOM = themed_qcolor('@selection~danger/45:pressed/63')
+_COLOR_DISCONNECTED_UNSEL_TOP = themed_qcolor('@control~danger/38/40')
+_COLOR_DISCONNECTED_UNSEL_BOTTOM = themed_qcolor('@control~danger/38:pressed/40')
+_COLOR_DEFAULT_SEL = themed_qcolor('@selection')
+_COLOR_DEFAULT_UNSEL = themed_qcolor('@control')
 _LOOKY_TEXT_COLOR = QColor(TableColors.LOOKY_TEXT)
 _DISCONNECTED_LOOKY_TEXT_COLOR = QColor(TableColors.DISCONNECTED_LOOKY_TEXT)
-_SEARCH_HIGHLIGHT_BG_COLOR = themed_qcolor('#e3b341')
-_SEARCH_HIGHLIGHT_FG_COLOR = themed_text_qcolor('#000000', '#e3b341')
+_SEARCH_HIGHLIGHT_BG_COLOR = themed_qcolor('@warning')
+_SEARCH_HIGHLIGHT_FG_COLOR = themed_text_qcolor('#000000', '@warning')
 _OPAQUE_ALPHA = 255
 
 
@@ -71,21 +71,21 @@ def _refresh_delegate_theme_colors() -> None:
     """Update cached delegate `QColor` instances in place for the active theme."""
     for target, updated in (
         (_DISCONNECTED_TEXT_COLOR, QColor(TableColors.DISCONNECTED_TEXT)),
-        (_COLOR_WHITE, themed_text_qcolor('#ffffff', '#1e3246')),
-        (_COLOR_CONNECTED_SEL_TOP, themed_qcolor(QColor(42, 110, 85, 160))),
-        (_COLOR_CONNECTED_SEL_BOTTOM, themed_qcolor(QColor(28, 75, 58, 160))),
-        (_COLOR_CONNECTED_UNSEL_TOP, themed_qcolor(QColor(42, 110, 85, 100))),
-        (_COLOR_CONNECTED_UNSEL_BOTTOM, themed_qcolor(QColor(28, 75, 58, 100))),
-        (_COLOR_DISCONNECTED_SEL_TOP, themed_qcolor(QColor(130, 45, 45, 160))),
-        (_COLOR_DISCONNECTED_SEL_BOTTOM, themed_qcolor(QColor(85, 28, 28, 160))),
-        (_COLOR_DISCONNECTED_UNSEL_TOP, themed_qcolor(QColor(130, 45, 45, 100))),
-        (_COLOR_DISCONNECTED_UNSEL_BOTTOM, themed_qcolor(QColor(85, 28, 28, 100))),
-        (_COLOR_DEFAULT_SEL, themed_qcolor('#2f4f64')),
-        (_COLOR_DEFAULT_UNSEL, themed_qcolor('#2d2d30')),
+        (_COLOR_WHITE, themed_text_qcolor('@text_strong', '@selection')),
+        (_COLOR_CONNECTED_SEL_TOP, themed_qcolor('@selection~success/45/63')),
+        (_COLOR_CONNECTED_SEL_BOTTOM, themed_qcolor('@selection~success/45:pressed/63')),
+        (_COLOR_CONNECTED_UNSEL_TOP, themed_qcolor('@control~success/38/40')),
+        (_COLOR_CONNECTED_UNSEL_BOTTOM, themed_qcolor('@control~success/38:pressed/40')),
+        (_COLOR_DISCONNECTED_SEL_TOP, themed_qcolor('@selection~danger/45/63')),
+        (_COLOR_DISCONNECTED_SEL_BOTTOM, themed_qcolor('@selection~danger/45:pressed/63')),
+        (_COLOR_DISCONNECTED_UNSEL_TOP, themed_qcolor('@control~danger/38/40')),
+        (_COLOR_DISCONNECTED_UNSEL_BOTTOM, themed_qcolor('@control~danger/38:pressed/40')),
+        (_COLOR_DEFAULT_SEL, themed_qcolor('@selection')),
+        (_COLOR_DEFAULT_UNSEL, themed_qcolor('@control')),
         (_LOOKY_TEXT_COLOR, QColor(TableColors.LOOKY_TEXT)),
         (_DISCONNECTED_LOOKY_TEXT_COLOR, QColor(TableColors.DISCONNECTED_LOOKY_TEXT)),
-        (_SEARCH_HIGHLIGHT_BG_COLOR, themed_qcolor('#e3b341')),
-        (_SEARCH_HIGHLIGHT_FG_COLOR, themed_text_qcolor('#000000', '#e3b341')),
+        (_SEARCH_HIGHLIGHT_BG_COLOR, themed_qcolor('@warning')),
+        (_SEARCH_HIGHLIGHT_FG_COLOR, themed_text_qcolor('#000000', '@warning')),
     ):
         target.setRgba(updated.rgba())
 

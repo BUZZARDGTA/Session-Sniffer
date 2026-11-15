@@ -1,29 +1,19 @@
-"""Theme engine that maps the GUI's canonical (Dark theme) design colors onto any theme.
+"""Theme engine that resolves semantic `@token` bindings and maps canonical Dark design colors onto any theme.
 
-Every color hard-coded in the GUI is authored against the canonical Dark palette (`DARK_THEME_COLORS`).
-`ThemeTransform` maps such a design color onto a target theme in the perceptual OKLab color space:
+Stylesheets and painting helpers can bind directly to any of the 21 `ThemeColors` tokens via `@<token>`
+expressions (with optional `~<tint>/<mix_pct>` color mixing, `:hover` / `:pressed` / `:disabled` state steps,
+and `/<alpha_pct>` opacity), guaranteeing strict single-token isolation with zero cross-bleeding.
 
-* Lightness and neutral tint follow a piecewise-linear curve through the neutral tokens
-  (background, surface, control, border, muted text, text, strong text), so e.g. the canonical
-  background maps exactly to the theme background and in-between greys land in-between.
-* The chromatic part of a color is rotated and scaled by hue, interpolated between the chromatic
-  tokens (danger, warning, success, accent, secondary), so the canonical accent maps exactly to the
-  theme accent and e.g. a cyan lands between the theme's success and accent hues.
-* Colors close to a chromatic token in lightness are additionally pulled towards that token's
-  lightness, so solid accent fills keep their role (and their contrast with label text).
-
-For QSS/HTML text, `ThemeTransform.qss` also keeps every declaration block's text color readable
-against its background, preserving the contrast level the canonical design intended.
-
-Transformed colors are emitted as Qt `#AARRGGBB` hex strings. The GUI never authors 8-digit hex
-colors, so such values are recognized as already themed and left untouched, which makes the
-transform idempotent for hex colors.
+Un-tokenized literal colors authored against `DARK_THEME_COLORS` are mapped onto the active theme in perceptual
+OKLab space along a neutral lightness ramp (`background`, `surface`, `text_muted`, `text`, `text_strong`) and
+five chromatic hue anchors (`danger`, `warning`, `success`, `accent`, `secondary`).
 """
 
 import functools
 import itertools
 import math
 import re
+from dataclasses import fields
 from typing import TYPE_CHECKING, Final
 
 from PySide6.QtGui import QColor
@@ -34,16 +24,28 @@ from session_sniffer.models.themes import DARK_THEME_COLORS, ThemeColors
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
 
-_NEUTRAL_TOKENS: Final = ('background', 'surface', 'control', 'border', 'text_muted', 'text', 'text_strong')
-_CHROMATIC_TOKENS: Final = ('danger', 'warning', 'success', 'accent', 'secondary')
+    from PySide6.QtCore import Qt
 
-_DEEPEST_EXTRAPOLATION_FACTOR: Final = 2.5
+_NEUTRAL_TOKENS: Final = ('background', 'surface', 'text_muted', 'text', 'text_strong')
+_CHROMATIC_TOKENS: Final = ('danger', 'warning', 'success', 'accent', 'secondary')
+_TOKEN_NAMES: Final[frozenset[str]] = frozenset(field.name for field in fields(ThemeColors))
+
+_DARK_DEEPEST_FACTOR: Final = 0.55
+_MAX_NEUTRAL_CHROMA: Final = 0.035
 _CHROMA_RATIO_RANGE: Final = (0.25, 2.5)
 _ANCHOR_LIGHTNESS_SIGMA: Final = 0.12
 _ANCHOR_FULL_CHROMA: Final = 0.06
 _MIN_HUE_CHROMA: Final = 1e-5
 _FULL_CIRCLE: Final = 360.0
 _HALF_CIRCLE: Final = 180.0
+
+_HOVER_LIGHT_THRESHOLD: Final = 0.80
+_PRESSED_DARK_THRESHOLD: Final = 0.16
+_HOVER_STEP: Final = 0.065
+_PRESSED_DARK_STEP: Final = 0.04
+_PRESSED_MID_STEP: Final = -0.055
+_PRESSED_LIGHT_STEP: Final = -0.115
+_DISABLED_BG_MIX: Final = 0.58
 
 _TARGET_TEXT_CONTRAST: Final = 4.5
 _MIN_BACKGROUND_ALPHA: Final = 0.5
@@ -53,11 +55,19 @@ _RGBA_COMPONENT_COUNT: Final = 4
 
 _NAMED_COLORS: Final = '|'.join(sorted((name for name in QColor.colorNames() if name != 'transparent'), key=len, reverse=True))
 
-_COLOR_PATTERN: Final = (
-    r'#(?:[0-9a-fA-F]{8}|[0-9a-fA-F]{6}|[0-9a-fA-F]{3})(?![0-9a-zA-Z_-])'
-    r'|\brgba?\(\s*[0-9.%\s,]+\)'
-    rf'|(?<![\w#-])(?:{_NAMED_COLORS})(?![\w-])'
+_AT_EXPR_PATTERN: Final = (
+    r'(?<![\w#-])@(?P<t_base>[a-z_]+)'
+    r'(?:~(?P<t_tint>[a-z_]+)/(?P<t_mix>\d{1,3}))?'
+    r'(?::(?P<t_state>hover|pressed|disabled))?'
+    r'(?:/(?P<t_alpha>\d{1,3}))?(?![\w-])'
 )
+_COLOR_PATTERN: Final = (
+    _AT_EXPR_PATTERN
+    + r'|#(?:[0-9a-fA-F]{8}|[0-9a-fA-F]{6}|[0-9a-fA-F]{3})(?![0-9a-zA-Z_-])'
+    + r'|\brgba?\(\s*[0-9.%\s,]+\)'
+    + rf'|(?<![\w#-])(?:{_NAMED_COLORS})(?![\w-])'
+)
+_AT_EXPR_FULL_RE: Final = re.compile(rf'^{_AT_EXPR_PATTERN}$')
 _COLOR_RE: Final = re.compile(_COLOR_PATTERN, re.IGNORECASE)
 _QSS_BLOCK_RE: Final = re.compile(r'\{([^{}]*)\}')
 _STYLE_ATTRIBUTE_RE: Final = re.compile(r"""(\bstyle\s*=\s*)(["'])(.*?)\2""", re.IGNORECASE | re.DOTALL)
@@ -75,6 +85,18 @@ def _lerp(start: float, end: float, fraction: float) -> float:
     return start + (end - start) * fraction
 
 
+def _mix_rgb(first: Rgb, second: Rgb, fraction: float) -> Rgb:
+    return (_lerp(first[0], second[0], fraction), _lerp(first[1], second[1], fraction), _lerp(first[2], second[2], fraction))
+
+
+def _clamp_neutral_chroma(lab: Lab) -> Lab:
+    chroma = math.hypot(lab[1], lab[2])
+    if chroma <= _MAX_NEUTRAL_CHROMA or chroma <= 0.0:
+        return lab
+    scale = _MAX_NEUTRAL_CHROMA / chroma
+    return lab[0], lab[1] * scale, lab[2] * scale
+
+
 def _signed_hue_delta(from_hue: float, to_hue: float) -> float:
     """Return the shortest signed rotation (degrees) from *from_hue* to *to_hue*."""
     return (to_hue - from_hue + _HALF_CIRCLE) % _FULL_CIRCLE - _HALF_CIRCLE
@@ -84,34 +106,76 @@ def _lch(lab: Lab) -> tuple[float, float, float]:
     return lab[0], math.hypot(lab[1], lab[2]), math.degrees(math.atan2(lab[2], lab[1])) % _FULL_CIRCLE
 
 
-def parse_color(value: str) -> QColor | None:
-    """Parse a CSS/QSS color token (hex, `rgb()`, `rgba()` or a named color) into a `QColor`.
+_CANONICAL_PALETTE: Final[dict[str, Rgb]] = {name: _to_rgb(QColor(value)) for name, value in DARK_THEME_COLORS.as_dict().items()}
 
-    `rgba()` alpha values follow CSS semantics (`0`..`1` floats, or percentages); integer values above
-    `1` are interpreted on Qt's `0`..`255` scale. Returns `None` when *value* is not a valid color.
-    """
+
+def _apply_token_state(rgb: Rgb, state: str, background_rgb: Rgb) -> Rgb:
+    if state == 'disabled':
+        return _mix_rgb(rgb, background_rgb, _DISABLED_BG_MIX)
+    lab_l, lab_a, lab_b = rgb_to_oklab(rgb)
+    if state == 'hover':
+        delta = _HOVER_STEP if lab_l <= _HOVER_LIGHT_THRESHOLD else -_HOVER_STEP
+    elif lab_l <= _PRESSED_DARK_THRESHOLD:
+        delta = _PRESSED_DARK_STEP
+    elif lab_l <= _HOVER_LIGHT_THRESHOLD:
+        delta = _PRESSED_MID_STEP
+    else:
+        delta = _PRESSED_LIGHT_STEP
+    return oklab_to_rgb((min(1.0, max(0.0, lab_l + delta)), lab_a, lab_b))
+
+
+def _resolve_token_color(spec: str, palette: dict[str, Rgb]) -> QColor | None:
+    """Resolve a `@token` expression against *palette*, or return `None` when *spec* is not a valid token."""
+    match = _AT_EXPR_FULL_RE.match(spec.strip())
+    if match is None:
+        return None
+    base = match.group('t_base')
+    tint = match.group('t_tint')
+    if base not in _TOKEN_NAMES or (tint is not None and tint not in _TOKEN_NAMES):
+        return None
+
+    rgb = palette[base]
+    if tint is not None:
+        mix_fraction = min(100, max(0, int(match.group('t_mix')))) / 100.0
+        rgb = _mix_rgb(rgb, palette[tint], mix_fraction)
+    if (state := match.group('t_state')) is not None:
+        rgb = _apply_token_state(rgb, state, palette['background'])
+
+    color = QColor.fromRgbF(rgb[0], rgb[1], rgb[2])
+    if (alpha_text := match.group('t_alpha')) is not None:
+        color.setAlphaF(min(100, max(0, int(alpha_text))) / 100.0)
+    return color
+
+
+def _parse_rgb_function(stripped: str) -> QColor | None:
+    components = [component.strip() for component in stripped[stripped.index('(') + 1:-1].split(',')]
+    if len(components) not in (_RGB_COMPONENT_COUNT, _RGBA_COMPONENT_COUNT):
+        return None
+    try:
+        channels = [round(float(component[:-1]) * 2.55) if component.endswith('%') else round(float(component)) for component in components[:3]]
+        alpha = 1.0
+        if len(components) == _RGBA_COMPONENT_COUNT:
+            alpha_text = components[3]
+            if alpha_text.endswith('%'):
+                alpha = float(alpha_text[:-1]) / 100
+            else:
+                alpha = float(alpha_text)
+                if alpha > 1:
+                    alpha /= 255
+    except ValueError:
+        return None
+    color = QColor(*(min(255, max(0, channel)) for channel in channels))
+    color.setAlphaF(min(1.0, max(0.0, alpha)))
+    return color
+
+
+def parse_color(value: str) -> QColor | None:
+    """Parse a CSS/QSS color token (`@token`, hex, `rgb()`, `rgba()`, or named color) into a canonical `QColor`."""
     stripped = value.strip()
-    lowered = stripped.lower()
-    if lowered.startswith(('rgb(', 'rgba(')):
-        components = [component.strip() for component in stripped[stripped.index('(') + 1:-1].split(',')]
-        if len(components) not in (_RGB_COMPONENT_COUNT, _RGBA_COMPONENT_COUNT):
-            return None
-        try:
-            channels = [round(float(component[:-1]) * 2.55) if component.endswith('%') else round(float(component)) for component in components[:3]]
-            alpha = 1.0
-            if len(components) == _RGBA_COMPONENT_COUNT:
-                alpha_text = components[3]
-                if alpha_text.endswith('%'):
-                    alpha = float(alpha_text[:-1]) / 100
-                else:
-                    alpha = float(alpha_text)
-                    if alpha > 1:
-                        alpha /= 255
-        except ValueError:
-            return None
-        color = QColor(*(min(255, max(0, channel)) for channel in channels))
-        color.setAlphaF(min(1.0, max(0.0, alpha)))
-        return color
+    if stripped.startswith('@'):
+        return _resolve_token_color(stripped, _CANONICAL_PALETTE)
+    if stripped.lower().startswith(('rgb(', 'rgba(')):
+        return _parse_rgb_function(stripped)
     color = QColor(stripped)
     return color if color.isValid() else None
 
@@ -121,34 +185,36 @@ def _is_themed_marker(value: str) -> bool:
 
 
 class ThemeTransform:
-    """Map canonical Dark-theme design colors onto a target `ThemeColors` palette."""
+    """Resolve `@token` expressions and map canonical Dark-theme colors onto a target `ThemeColors` palette."""
 
     def __init__(self, colors: ThemeColors) -> None:
-        """Precompute the neutral lightness curve and chromatic hue anchors for *colors*."""
+        """Precompute the target token palette, neutral lightness ramp, and chromatic hue anchors for *colors*."""
         self.colors = colors
         self.is_identity = colors == DARK_THEME_COLORS
+        self._target_palette: dict[str, Rgb] = {name: _to_rgb(QColor(value)) for name, value in colors.as_dict().items()}
 
-        canonical = {name: rgb_to_oklab(_to_rgb(QColor(value))) for name, value in DARK_THEME_COLORS.as_dict().items()}
-        target = {name: rgb_to_oklab(_to_rgb(QColor(value))) for name, value in colors.as_dict().items()}
+        canonical = {name: rgb_to_oklab(rgb) for name, rgb in _CANONICAL_PALETTE.items()}
+        target = {name: rgb_to_oklab(rgb) for name, rgb in self._target_palette.items()}
 
-        # Neutral curve: (canonical lab, target lab) pairs sorted by canonical lightness, prefixed by
-        # a "deepest" anchor (pure black canonically) extrapolated beyond the background.
-        target_background, target_surface = target['background'], target['surface']
-        deepest_lightness = min(1.0, max(0.0, target_background[0] + (target_background[0] - target_surface[0]) * _DEEPEST_EXTRAPOLATION_FACTOR))
-        neutral_pairs: list[tuple[Lab, Lab]] = [((0.0, 0.0, 0.0), (deepest_lightness, target_background[1], target_background[2]))]
-        neutral_pairs.extend((canonical[name], target[name]) for name in _NEUTRAL_TOKENS)
+        target_bg = target['background']
+        target_surface = target['surface']
+        is_dark_theme = target['text'][0] >= target_bg[0]
+        deepest_l = target_bg[0] * _DARK_DEEPEST_FACTOR if is_dark_theme else min(1.0, max(target_bg[0], target_surface[0]))
+        deepest_neutral = _clamp_neutral_chroma((deepest_l, target_bg[1], target_bg[2]))
+
+        neutral_pairs: list[tuple[Lab, Lab]] = [((0.0, 0.0, 0.0), deepest_neutral)]
+        for name in _NEUTRAL_TOKENS:
+            target_point = target[name] if name in ('background', 'surface') else _clamp_neutral_chroma(target[name])
+            neutral_pairs.append((canonical[name], target_point))
         neutral_pairs.sort(key=lambda pair: pair[0][0])
         self._neutral_pairs: Sequence[tuple[Lab, Lab]] = tuple(neutral_pairs)
 
-        # Chromatic anchors: (canonical hue, hue offset, chroma ratio, canonical L, target L correction).
-        # Hue and chroma are measured relative to the neutral axis at the anchor's canonical lightness,
-        # which is exactly what `map_lab` rotates and scales, so each token maps onto its target exactly.
         anchors: list[tuple[float, float, float, float, float]] = []
         for name in _CHROMATIC_TOKENS:
             canonical_lab, target_lab = canonical[name], target[name]
-            canonical_neutral, target_neutral = self._neutral_interpolation(canonical_lab[0])
-            _, canonical_c, canonical_h = _lch((canonical_lab[0], canonical_lab[1] - canonical_neutral[1], canonical_lab[2] - canonical_neutral[2]))
-            _, target_c, target_h = _lch((target_lab[0], target_lab[1] - target_neutral[1], target_lab[2] - target_neutral[2]))
+            _, target_neutral = self._neutral_interpolation(canonical_lab[0])
+            _, canonical_c, canonical_h = _lch(canonical_lab)
+            _, target_c, target_h = _lch(target_lab)
             hue_offset = _signed_hue_delta(canonical_h, target_h) if target_c > _MIN_HUE_CHROMA else 0.0
             chroma_ratio = min(_CHROMA_RATIO_RANGE[1], max(_CHROMA_RATIO_RANGE[0], target_c / canonical_c))
             lightness_correction = target_lab[0] - target_neutral[0]
@@ -165,7 +231,7 @@ class ThemeTransform:
     # ------------------------------------------------------------------
 
     def _neutral_interpolation(self, lightness: float) -> tuple[Lab, Lab]:
-        """Return the (canonical, target) neutral-axis colors interpolated at canonical *lightness*."""
+        """Return the `(canonical, target)` neutral-axis colors interpolated at canonical *lightness*."""
         pairs = self._neutral_pairs
         if lightness <= pairs[0][0][0]:
             return pairs[0]
@@ -201,15 +267,20 @@ class ThemeTransform:
         mapped_lightness = target_neutral[0]
         mapped_a, mapped_b = target_neutral[1], target_neutral[2]
         if chroma > _MIN_HUE_CHROMA:
+            # Clamp high-chroma background bleed when mapping chromatic foregrounds/accents.
+            neutral_a, neutral_b = _clamp_neutral_chroma(target_neutral)[1:]
+            chroma_blend = min(1.0, chroma / _ANCHOR_FULL_CHROMA)
+            mapped_a = _lerp(mapped_a, neutral_a, chroma_blend)
+            mapped_b = _lerp(mapped_b, neutral_b, chroma_blend)
+
             hue = math.degrees(math.atan2(deviation_b, deviation_a)) % _FULL_CIRCLE
             first, second, fraction = self._hue_weights(hue)
             first_anchor, second_anchor = self._chromatic_anchors[first], self._chromatic_anchors[second]
             hue_offset = _lerp(first_anchor[1], second_anchor[1], fraction)
             chroma_ratio = _lerp(first_anchor[2], second_anchor[2], fraction)
-            chroma_weight = min(1.0, chroma / _ANCHOR_FULL_CHROMA)
             for anchor, weight in ((first_anchor, 1 - fraction), (second_anchor, fraction)):
                 proximity = math.exp(-(((lightness - anchor[3]) / _ANCHOR_LIGHTNESS_SIGMA) ** 2))
-                mapped_lightness += weight * proximity * chroma_weight * anchor[4]
+                mapped_lightness += weight * proximity * chroma_blend * anchor[4]
             mapped_hue = math.radians(hue + hue_offset)
             mapped_chroma = chroma * chroma_ratio
             mapped_a += mapped_chroma * math.cos(mapped_hue)
@@ -227,26 +298,55 @@ class ThemeTransform:
         mapped.setAlpha(color.alpha())
         return mapped
 
-    def color(self, value: str) -> str:
-        """Map a single color token, returning a Qt `#AARRGGBB` string (or *value* unchanged for the identity theme)."""
-        if self.is_identity or _is_themed_marker(value.strip()):
-            return value
-        parsed = parse_color(value)
-        if parsed is None:
-            return value
-        return self.map_qcolor(parsed).name(QColor.NameFormat.HexArgb)
+    def resolve_canonical(self, value: str | QColor | Qt.GlobalColor) -> QColor | None:
+        """Resolve *value* (`@token` expression, CSS color string, or `QColor`) in the canonical Dark palette."""
+        if isinstance(value, str):
+            return parse_color(value)
+        qcolor = QColor(value)
+        return qcolor if qcolor.isValid() else None
 
-    def text_on(self, foreground: QColor, background: QColor) -> QColor:
-        """Map a canonical foreground/background pair and keep the foreground readable on the mapped background."""
-        mapped_foreground = self.map_qcolor(foreground)
-        if self.is_identity:
-            return mapped_foreground
-        mapped_background = self.map_qcolor(background)
-        target_ratio = min(_TARGET_TEXT_CONTRAST, contrast_ratio(_to_rgb(foreground), _to_rgb(background)))
-        red, green, blue = ensure_contrast(_to_rgb(mapped_foreground), _to_rgb(mapped_background), target_ratio)
+    def resolve_target(self, value: str | QColor | Qt.GlobalColor) -> QColor | None:
+        """Resolve *value* (`@token` expression, CSS color string, or `QColor`) in the target theme palette."""
+        if isinstance(value, str):
+            stripped = value.strip()
+            if stripped.startswith('@'):
+                return _resolve_token_color(stripped, self._target_palette)
+            parsed = parse_color(stripped)
+            if parsed is None or _is_themed_marker(stripped):
+                return parsed
+            return self.map_qcolor(parsed)
+        qcolor = QColor(value)
+        return self.map_qcolor(qcolor) if qcolor.isValid() else None
+
+    def color(self, value: str) -> str:
+        """Map a single color or `@token` string, returning a Qt `#AARRGGBB` string."""
+        stripped = value.strip()
+        if stripped.startswith('@'):
+            resolved = _resolve_token_color(stripped, self._target_palette)
+            return value if resolved is None else resolved.name(QColor.NameFormat.HexArgb)
+        if self.is_identity or _is_themed_marker(stripped):
+            return value
+        parsed = parse_color(stripped)
+        return value if parsed is None else self.map_qcolor(parsed).name(QColor.NameFormat.HexArgb)
+
+    def _contrast_pair(self, canon_fg: QColor, canon_bg: QColor, target_fg: QColor, target_bg: QColor) -> QColor:
+        target_ratio = min(_TARGET_TEXT_CONTRAST, contrast_ratio(_to_rgb(canon_fg), _to_rgb(canon_bg)))
+        red, green, blue = ensure_contrast(_to_rgb(target_fg), _to_rgb(target_bg), target_ratio)
         adjusted = QColor.fromRgbF(red, green, blue)
-        adjusted.setAlpha(mapped_foreground.alpha())
+        adjusted.setAlpha(target_fg.alpha())
         return adjusted
+
+    def text_on(self, foreground: str | QColor | Qt.GlobalColor, background: str | QColor | Qt.GlobalColor) -> QColor:
+        """Map a foreground/background pair (`@token` or `QColor`) and keep foreground readable on the target background."""
+        target_fg = self.resolve_target(foreground)
+        if target_fg is None or self.is_identity:
+            return target_fg if target_fg is not None else QColor()
+        canon_fg = self.resolve_canonical(foreground)
+        canon_bg = self.resolve_canonical(background)
+        target_bg = self.resolve_target(background)
+        if canon_fg is None or canon_bg is None or target_bg is None:
+            return target_fg
+        return self._contrast_pair(canon_fg, canon_bg, target_fg, target_bg)
 
     # ------------------------------------------------------------------
     # Text (QSS / HTML / SVG) mapping
@@ -258,39 +358,57 @@ class ThemeTransform:
     def _map_colors_in(self, text: str) -> str:
         return _sub_outside_urls(_COLOR_RE, self._map_color_match, text)
 
+    def _resolve_declaration_fg_hex(
+        self,
+        fg_spec: str | None,
+        bg_pair: tuple[QColor, QColor] | None,
+    ) -> str | None:
+        if fg_spec is None:
+            return None
+        if bg_pair is None:
+            if fg_spec.startswith('@'):
+                return self.color(fg_spec)
+            bg_pair = (QColor(DARK_THEME_COLORS.background), QColor(self.colors.background))
+        canon_fg = self.resolve_canonical(fg_spec)
+        target_fg = self.resolve_target(fg_spec)
+        if canon_fg is None or target_fg is None:
+            return None
+        return self._contrast_pair(canon_fg, bg_pair[0], target_fg, bg_pair[1]).name(QColor.NameFormat.HexArgb)
+
     def _map_declarations(self, body: str) -> str:
-        """Map colors in a declaration list and keep its `color` readable against its background."""
-        if any(_is_themed_marker(match.group(0)) for match in _COLOR_RE.finditer(body)):
-            # Already (partially) themed content has no canonical colors left to compare contrast with.
+        """Map colors in a declaration list and keep its `color` readable against its explicit background."""
+        if self.is_identity or any(_is_themed_marker(match.group(0)) for match in _COLOR_RE.finditer(body)):
             return self._map_colors_in(body)
-        canonical_background: QColor | None = None
-        canonical_foreground: QColor | None = None
-        canonical_selection_background: QColor | None = None
-        canonical_selection_foreground: QColor | None = None
+
+        bg_pair: tuple[QColor, QColor] | None = None
+        sel_bg_pair: tuple[QColor, QColor] | None = None
+        fg_spec: str | None = None
+        sel_fg_spec: str | None = None
+
         for declaration in _DECLARATION_RE.finditer(body):
-            property_name = declaration.group(1).lower()
-            colors = [parsed for match in _COLOR_RE.finditer(_URL_RE.sub('', declaration.group(3))) if (parsed := parse_color(match.group(0))) is not None]
-            opaque = [color for color in colors if color.alphaF() >= _MIN_BACKGROUND_ALPHA]
-            if property_name in ('background', 'background-color') and opaque:
-                canonical_background = _average_color(opaque)
-            elif property_name == 'color' and colors:
-                canonical_foreground = colors[0]
-            elif property_name == 'selection-background-color' and opaque:
-                canonical_selection_background = _average_color(opaque)
-            elif property_name == 'selection-color' and colors:
-                canonical_selection_foreground = colors[0]
+            prop = declaration.group(1).lower()
+            specs = [m.group(0) for m in _COLOR_RE.finditer(_URL_RE.sub('', declaration.group(3)))]
+            opaque_pairs = [
+                (canon, targ)
+                for spec in specs
+                if (canon := self.resolve_canonical(spec)) is not None
+                and canon.alphaF() >= _MIN_BACKGROUND_ALPHA
+                and (targ := self.resolve_target(spec)) is not None
+            ]
+            if prop in ('background', 'background-color') and opaque_pairs:
+                bg_pair = (_average_color([p[0] for p in opaque_pairs]), _average_color([p[1] for p in opaque_pairs]))
+            elif prop == 'color' and specs:
+                fg_spec = specs[0]
+            elif prop == 'selection-background-color' and opaque_pairs:
+                sel_bg_pair = (_average_color([p[0] for p in opaque_pairs]), _average_color([p[1] for p in opaque_pairs]))
+            elif prop == 'selection-color' and specs:
+                sel_fg_spec = specs[0]
 
-        if canonical_foreground is None and canonical_selection_foreground is None:
+        if fg_spec is None and sel_fg_spec is None:
             return self._map_colors_in(body)
 
-        background = canonical_background if canonical_background is not None else QColor(DARK_THEME_COLORS.background)
-        foreground_hex = self.text_on(canonical_foreground, background).name(QColor.NameFormat.HexArgb) if canonical_foreground is not None else None
-        selection_background = canonical_selection_background if canonical_selection_background is not None else background
-        selection_foreground_hex = (
-            self.text_on(canonical_selection_foreground, selection_background).name(QColor.NameFormat.HexArgb)
-            if canonical_selection_foreground is not None
-            else None
-        )
+        foreground_hex = self._resolve_declaration_fg_hex(fg_spec, bg_pair)
+        selection_foreground_hex = self._resolve_declaration_fg_hex(sel_fg_spec, sel_bg_pair or bg_pair)
 
         def _replace(declaration: re.Match[str]) -> str:
             property_name = declaration.group(1).lower()
@@ -306,13 +424,13 @@ class ThemeTransform:
         return _DECLARATION_RE.sub(_replace, body)
 
     def qss(self, text: str) -> str:
-        """Map every design color in a QSS stylesheet, inline CSS declaration list, or Qt rich-text HTML string."""
-        if self.is_identity or text in self._qss_outputs:
+        """Map every `@token` and design color in a QSS stylesheet, inline CSS list, or rich-text HTML string."""
+        if text in self._qss_outputs or (self.is_identity and '@' not in text):
             return text
         if (cached := self._qss_cache.get(text)) is not None:
             return cached
 
-        if '{' in text or 'style' in text.lower() or '=' in text:
+        if '{' in text or _STYLE_ATTRIBUTE_RE.search(text) is not None or _COLOR_ATTRIBUTE_RE.search(text) is not None:
             mapped = _QSS_BLOCK_RE.sub(lambda match: '{' + self._map_declarations(match.group(1)) + '}', text)
             mapped = _STYLE_ATTRIBUTE_RE.sub(lambda match: match.group(1) + match.group(2) + self._map_declarations(match.group(3)) + match.group(2), mapped)
             mapped = _COLOR_ATTRIBUTE_RE.sub(lambda match: match.group(1) + match.group(2) + self._map_colors_in(match.group(3)) + match.group(2), mapped)
@@ -328,14 +446,12 @@ class ThemeTransform:
 
     def svg(self, text: str) -> str:
         """Map every color in an SVG document (attributes and inline styles), emitting `#rrggbb` colors."""
-        if self.is_identity:
+        if self.is_identity and '@' not in text:
             return text
 
         def _map_svg_color(match: re.Match[str]) -> str:
-            parsed = parse_color(match.group(0))
-            if parsed is None:
-                return match.group(0)
-            return self.map_qcolor(parsed).name(QColor.NameFormat.HexRgb)
+            resolved = self.resolve_target(match.group(0))
+            return match.group(0) if resolved is None else resolved.name(QColor.NameFormat.HexRgb)
 
         def _map_value(value: str) -> str:
             return _sub_outside_urls(_COLOR_RE, _map_svg_color, value)
