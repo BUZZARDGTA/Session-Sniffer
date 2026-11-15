@@ -277,28 +277,28 @@ BUILTIN_THEME_NAMES: Final[frozenset[str]] = frozenset(theme.name.casefold() for
 class ThemeColorsModel(BaseModel):
     """Validated `ThemeColors` tokens as stored in `themes.json`."""
 
-    model_config = ConfigDict(extra='forbid')
+    model_config = ConfigDict(extra='ignore')
 
-    background: HexColor
-    surface: HexColor
-    menubar: HexColor
-    statusbar: HexColor
-    popup: HexColor
-    control: HexColor
-    input: HexColor
-    scrollbar: HexColor
-    border: HexColor
-    table: HexColor
-    table_alt: HexColor
-    table_header: HexColor
-    selection: HexColor
-    text: HexColor
-    text_muted: HexColor
-    text_strong: HexColor
-    accent: HexColor
-    success: HexColor
-    warning: HexColor
-    danger: HexColor
+    background: HexColor = DARK_THEME_COLORS.background
+    surface: HexColor = DARK_THEME_COLORS.surface
+    menubar: HexColor = DARK_THEME_COLORS.menubar
+    statusbar: HexColor = DARK_THEME_COLORS.statusbar
+    popup: HexColor = DARK_THEME_COLORS.popup
+    control: HexColor = DARK_THEME_COLORS.control
+    input: HexColor = DARK_THEME_COLORS.input
+    scrollbar: HexColor = DARK_THEME_COLORS.scrollbar
+    border: HexColor = DARK_THEME_COLORS.border
+    table: HexColor = DARK_THEME_COLORS.table
+    table_alt: HexColor = DARK_THEME_COLORS.table_alt
+    table_header: HexColor = DARK_THEME_COLORS.table_header
+    selection: HexColor = DARK_THEME_COLORS.selection
+    text: HexColor = DARK_THEME_COLORS.text
+    text_muted: HexColor = DARK_THEME_COLORS.text_muted
+    text_strong: HexColor = DARK_THEME_COLORS.text_strong
+    accent: HexColor = DARK_THEME_COLORS.accent
+    success: HexColor = DARK_THEME_COLORS.success
+    warning: HexColor = DARK_THEME_COLORS.warning
+    danger: HexColor = DARK_THEME_COLORS.danger
 
     def to_theme_colors(self) -> ThemeColors:
         """Return the tokens as an immutable `ThemeColors`."""
@@ -359,8 +359,12 @@ class ThemesFile(BaseModel):
         return next((theme for theme in self.all_themes() if theme.name.casefold() == key), None)
 
 
+def _serialize_themes_file(themes_file: ThemesFile) -> str:
+    return themes_file.model_dump_json(indent=4) + '\n'
+
+
 def load_themes_file(themes_path: Path = THEMES_PATH) -> tuple[ThemesFile, str | None]:
-    """Load *themes_path*, returning the parsed file and an error description when it could not be loaded.
+    """Load *themes_path*, rewriting stale or non-canonical entries, and return `(themes_file, error_or_none)`.
 
     A missing file yields the empty defaults without an error. An unreadable or invalid file also yields
     the empty defaults (the file on disk is left untouched until the next save) together with the error text.
@@ -368,14 +372,22 @@ def load_themes_file(themes_path: Path = THEMES_PATH) -> tuple[ThemesFile, str |
     if not themes_path.is_file():
         return ThemesFile(), None
     try:
-        return ThemesFile.model_validate_json(themes_path.read_text(encoding='utf-8')), None
-    except (OSError, ValidationError) as e:
+        raw_text = themes_path.read_text(encoding='utf-8')
+        themes_file = ThemesFile.model_validate_json(raw_text)
+    except (OSError, UnicodeDecodeError, ValidationError) as e:
         return ThemesFile(), f'Failed to load themes from {themes_path}: {e}'
+    canonical_text = _serialize_themes_file(themes_file)
+    if raw_text != canonical_text:
+        try:
+            atomic_write_text(themes_path, canonical_text)
+        except OSError as e:
+            return themes_file, f'Failed to rewrite themes file {themes_path}: {e}'
+    return themes_file, None
 
 
 def save_themes_file(themes_file: ThemesFile, themes_path: Path = THEMES_PATH) -> None:
     """Atomically write *themes_file* to *themes_path*."""
-    atomic_write_text(themes_path, themes_file.model_dump_json(indent=4) + '\n')
+    atomic_write_text(themes_path, _serialize_themes_file(themes_file))
 
 
 def peek_theme_config(settings_path: Path = SETTINGS_PATH) -> tuple[str, bool, str | None]:
