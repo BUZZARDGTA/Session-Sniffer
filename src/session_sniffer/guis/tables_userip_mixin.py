@@ -7,8 +7,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QInputDialog, QLineEdit, QMessageBox, QWidget
 
 from session_sniffer.constants.standalone import TITLE
-from session_sniffer.guis.select_usernames_dialog import SelectUsernamesDialog, UsernameSelectionConfig, prompt_username_input, prompt_usernames_and_notes_input
-from session_sniffer.guis.tables_player_actions.looky_system._looky_helpers import sync_player_looky_usernames_and_userip
+from session_sniffer.guis.select_usernames_dialog import SelectUsernamesDialog, prompt_username_input, prompt_usernames_and_notes_input
 from session_sniffer.guis.userip_manager_helpers import (
     IPRangeBuilderDialog,
     format_userip_db_display_name,
@@ -19,6 +18,7 @@ from session_sniffer.guis.userip_manager_helpers import (
     rewrite_db_rename_entries,
     save_userip_database_model,
 )
+from session_sniffer.i18n import tr, tr_plural
 from session_sniffer.models.userip_settings_model import UserIPDatabaseFile, UserIPEntryModel
 from session_sniffer.networking.ip_range import entry_ip_covers_ip
 from session_sniffer.player.registry import PlayersRegistry, SessionTracker
@@ -26,23 +26,16 @@ from session_sniffer.player.userip import UserIPDatabases
 from session_sniffer.player.userip_groups import (
     MIN_GROUP_USERNAMES,
     are_usernames_unlinked,
-    exclude_looky_usernames,
-    get_excluded_looky_usernames,
-    get_excluded_looky_usernames_cf,
     group_usernames,
-    restore_looky_usernames,
-    ungroup_usernames,
 )
 from session_sniffer.player.userip_loader import (
     append_userip_entries,
-    collect_userip_account_groups,
     get_account_group_clusters_map,
     move_userip_entries_to_database,
     userip_databases_lock,
 )
 from session_sniffer.rendering_core.types import CaptureState, SessionFilterState
 from session_sniffer.settings import Settings
-from session_sniffer.text_utils import pluralize
 from session_sniffer.utils import dedup_preserve_order
 
 if TYPE_CHECKING:
@@ -175,13 +168,23 @@ def _prompt_usernames_to_add(
     if prompt_message is None:
 
         def _default_prompt(count: int) -> str:
-            return f'Please enter the username{pluralize(count)} to associate with the selected IP{pluralize(len(selected_ips))}:'
+            if len(selected_ips) == 1:
+                return tr_plural(
+                    'Please enter the username to associate with the selected IP:',
+                    'Please enter the usernames to associate with the selected IP:',
+                    count,
+                )
+            return tr_plural(
+                'Please enter the username to associate with the selected IPs:',
+                'Please enter the usernames to associate with the selected IPs:',
+                count,
+            )
 
         prompt_message = _default_prompt
 
     entered_usernames, entered_notes, success = prompt_usernames_and_notes_input(
         parent,
-        'Input Username(s)',
+        tr('Input Username(s)'),
         prompt_message,
         initial_usernames,
         initial_notes,
@@ -191,7 +194,7 @@ def _prompt_usernames_to_add(
         return None
 
     if not entered_usernames:
-        QMessageBox.warning(parent, TITLE, 'ERROR:\nNo username was provided.')
+        QMessageBox.warning(parent, TITLE, tr('ERROR:\nNo username was provided.'))
         return None
 
     return entered_usernames, entered_notes
@@ -233,12 +236,26 @@ def userip_add(
 
     db_display = format_userip_db_display_name(selected_database)
     usernames_display = ', '.join(f'"{name}"' for name in chosen_usernames)
-    has_or_have = pluralize(len(selected_ips), singular='s', plural='ve')
-    _show_modal_info_on_top(
-        parent, TITLE,
-        f'Selected IP{pluralize(len(selected_ips))} {", ".join(selected_ips)} ha{has_or_have} been added with '
-        f'username{pluralize(len(chosen_usernames))} {usernames_display} to UserIP database "{db_display}".',
-    )
+    ips_display = ', '.join(selected_ips)
+    if len(selected_ips) == 1:
+        added_text = tr_plural(
+            'Selected IP {ips} has been added with username {usernames} to UserIP database "{database}".',
+            'Selected IP {ips} has been added with usernames {usernames} to UserIP database "{database}".',
+            len(chosen_usernames),
+            ips=ips_display,
+            usernames=usernames_display,
+            database=db_display,
+        )
+    else:
+        added_text = tr_plural(
+            'Selected IPs {ips} have been added with username {usernames} to UserIP database "{database}".',
+            'Selected IPs {ips} have been added with usernames {usernames} to UserIP database "{database}".',
+            len(chosen_usernames),
+            ips=ips_display,
+            usernames=usernames_display,
+            database=db_display,
+        )
+    _show_modal_info_on_top(parent, TITLE, added_text)
     UserIPDatabases.renotify_if_conflicting(selected_ips)
 
 
@@ -254,8 +271,16 @@ def userip_add_as_range(parent: QWidget, ip_address: str, selected_database: Pat
 
     candidates = list(usernames) if usernames is not None else None
     prompt_result = _prompt_usernames_to_add(
-        parent, [ip_address], selected_database, candidate_usernames=candidates,
-        prompt_message=lambda count: f'Enter the username{pluralize(count)} to associate with range "{range_input}":',
+        parent,
+        [ip_address],
+        selected_database,
+        candidate_usernames=candidates,
+        prompt_message=lambda count: tr_plural(
+            'Enter the username to associate with range "{range}":',
+            'Enter the usernames to associate with range "{range}":',
+            count,
+            range=range_input,
+        ),
     )
     if prompt_result is None:
         return
@@ -273,7 +298,14 @@ def userip_add_as_range(parent: QWidget, ip_address: str, selected_database: Pat
     _show_modal_info_on_top(
         parent,
         TITLE,
-        f'Range "{range_input}" has been added with username{pluralize(len(chosen_usernames))} {usernames_display} to UserIP database "{db_display}".',
+        tr_plural(
+            'Range "{range}" has been added with username {usernames} to UserIP database "{database}".',
+            'Range "{range}" has been added with usernames {usernames} to UserIP database "{database}".',
+            len(chosen_usernames),
+            range=range_input,
+            usernames=usernames_display,
+            database=db_display,
+        ),
     )
     UserIPDatabases.renotify_if_conflicting([range_input])
 
@@ -301,15 +333,21 @@ def userip_convert_to_range(parent: QWidget, ip_address: str, player: Player) ->
 
     converted_count = rewrite_db_edit_entry_ip(db_path, ip_address, range_input)
     if not converted_count:
-        QMessageBox.information(parent, TITLE, f'No single-IP entries found for IP {ip_address} in the database.')
+        QMessageBox.information(parent, TITLE, tr('No single-IP entries found for IP {ip} in the database.', ip=ip_address))
         return
 
     refresh_userip_and_wake_renderer()
-    entry_word = pluralize(converted_count, 'entry', 'entries')
     _show_modal_info_on_top(
         parent,
         TITLE,
-        f'Converted {converted_count} {entry_word} for IP {ip_address} to range "{range_input}" in UserIP database "{db_display}".',
+        tr_plural(
+            'Converted {count} entry for IP {ip} to range "{range}" in UserIP database "{database}".',
+            'Converted {count} entries for IP {ip} to range "{range}" in UserIP database "{database}".',
+            converted_count,
+            ip=ip_address,
+            range=range_input,
+            database=db_display,
+        ),
     )
     UserIPDatabases.renotify_if_conflicting([range_input])
 
@@ -320,19 +358,19 @@ def _select_covering_range_in_db(
     ip_address: str,
     *,
     dialog_title: str,
-    prompt_action: str,
+    prompt_text: str,
 ) -> str | None:
     """Return the single range covering `ip_address` in `db_path`, or prompt the user when multiple ranges match."""
     matching_ranges = _collect_matching_entries_in_db(db_path, ip_address, ranges_only=True)
     if not matching_ranges:
-        QMessageBox.information(parent, TITLE, f'No range entries found covering IP {ip_address} in the database.')
+        QMessageBox.information(parent, TITLE, tr('No range entries found covering IP {ip} in the database.', ip=ip_address))
         return None
     if len(matching_ranges) == 1:
         return matching_ranges[0]
     chosen, success = QInputDialog.getItem(
         parent,
         dialog_title,
-        f'Multiple ranges cover IP {ip_address}.\nSelect the range to {prompt_action}:',
+        prompt_text,
         matching_ranges,
         editable=False,
     )
@@ -353,23 +391,29 @@ def userip_convert_to_ip(parent: QWidget, ip_address: str, player: Player) -> No
         parent,
         db_path,
         ip_address,
-        dialog_title='Convert to IP',
-        prompt_action=f'convert to single IP {ip_address}',
+        dialog_title=tr('Convert to IP'),
+        prompt_text=tr('Multiple ranges cover IP {ip}.\nSelect the range to convert to single IP {ip}:', ip=ip_address),
     )
     if old_range is None:
         return
 
     converted_count = rewrite_db_edit_entry_ip(db_path, old_range, ip_address)
     if not converted_count:
-        QMessageBox.information(parent, TITLE, f'No entries found for range "{old_range}" in the database.')
+        QMessageBox.information(parent, TITLE, tr('No entries found for range "{range}" in the database.', range=old_range))
         return
 
     refresh_userip_and_wake_renderer()
-    entry_word = pluralize(converted_count, 'entry', 'entries')
     _show_modal_info_on_top(
         parent,
         TITLE,
-        f'Converted {converted_count} {entry_word} from range "{old_range}" to single IP {ip_address} in UserIP database "{db_display}".',
+        tr_plural(
+            'Converted {count} entry from range "{range}" to single IP {ip} in UserIP database "{database}".',
+            'Converted {count} entries from range "{range}" to single IP {ip} in UserIP database "{database}".',
+            converted_count,
+            range=old_range,
+            ip=ip_address,
+            database=db_display,
+        ),
     )
     UserIPDatabases.renotify_if_conflicting([ip_address])
 
@@ -391,8 +435,8 @@ def userip_edit_range(parent: QWidget, ip_address: str, player: Player) -> None:
         parent,
         db_path,
         ip_address,
-        dialog_title='Edit Range',
-        prompt_action='edit',
+        dialog_title=tr('Edit Range'),
+        prompt_text=tr('Multiple ranges cover IP {ip}.\nSelect the range to edit:', ip=ip_address),
     )
     if old_range is None:
         return
@@ -408,15 +452,21 @@ def userip_edit_range(parent: QWidget, ip_address: str, player: Player) -> None:
 
     edited_count = rewrite_db_edit_entry_ip(db_path, old_range, new_range)
     if not edited_count:
-        QMessageBox.information(parent, TITLE, f'No entries found for range "{old_range}" in the database.')
+        QMessageBox.information(parent, TITLE, tr('No entries found for range "{range}" in the database.', range=old_range))
         return
 
     refresh_userip_and_wake_renderer()
-    entry_word = pluralize(edited_count, 'entry', 'entries')
     _show_modal_info_on_top(
         parent,
         TITLE,
-        f'Updated {edited_count} {entry_word} from range "{old_range}" to "{new_range}" in UserIP database "{db_display}".',
+        tr_plural(
+            'Updated {count} entry from range "{old_range}" to "{new_range}" in UserIP database "{database}".',
+            'Updated {count} entries from range "{old_range}" to "{new_range}" in UserIP database "{database}".',
+            edited_count,
+            old_range=old_range,
+            new_range=new_range,
+            database=db_display,
+        ),
     )
     UserIPDatabases.renotify_if_conflicting([new_range])
 
@@ -430,11 +480,11 @@ def userip_edit_note(parent: QWidget, ip_address: str, player: Player) -> None:
     db_display = format_userip_db_display_name(db_path)
     current_note = ', '.join(player.userip.notes) if player.userip.notes else ''
 
-    dialog_title = 'Edit Note' if current_note else 'Add Note'
+    dialog_title = tr('Edit Note') if current_note else tr('Add Note')
     new_note, success = QInputDialog.getText(
         parent,
         dialog_title,
-        f'Note for IP {ip_address}.\nDatabase: {db_display}\n\nEnter the note (leave empty to clear):',
+        tr('Note for IP {ip}.\nDatabase: {database}\n\nEnter the note (leave empty to clear):', ip=ip_address, database=db_display),
         QLineEdit.EchoMode.Normal,
         current_note,
     )
@@ -447,14 +497,14 @@ def userip_edit_note(parent: QWidget, ip_address: str, player: Player) -> None:
 
     matched_count = rewrite_db_edit_ip_notes(db_path, ip_address, new_note)
     if not matched_count:
-        QMessageBox.information(parent, TITLE, f'No entries found covering IP {ip_address} in the database.')
+        QMessageBox.information(parent, TITLE, tr('No entries found covering IP {ip} in the database.', ip=ip_address))
         return
 
     refresh_userip_and_wake_renderer()
     if new_note:
-        QMessageBox.information(parent, TITLE, f'Updated note for IP {ip_address} in UserIP database "{db_display}".')
+        QMessageBox.information(parent, TITLE, tr('Updated note for IP {ip} in UserIP database "{database}".', ip=ip_address, database=db_display))
     else:
-        QMessageBox.information(parent, TITLE, f'Cleared note for IP {ip_address} in UserIP database "{db_display}".')
+        QMessageBox.information(parent, TITLE, tr('Cleared note for IP {ip} in UserIP database "{database}".', ip=ip_address, database=db_display))
 
 
 def userip_add_username(parent: QWidget, ip_address: str, player: Player) -> None:
@@ -465,14 +515,30 @@ def userip_add_username(parent: QWidget, ip_address: str, player: Player) -> Non
     db_path = player.userip.db_path
     db_display = format_userip_db_display_name(db_path)
     existing_count = len(player.userip.usernames)
-    existing = ', '.join(player.userip.usernames) if player.userip.usernames else 'None'
+    existing = ', '.join(player.userip.usernames) if player.userip.usernames else tr('None')
     candidates = [name for name in resolve_usernames_for_player(player) if name not in player.userip.usernames]
+
+    def _add_username_prompt(count: int) -> str:
+        header_line = tr_plural(
+            'Current username for {ip}: {existing}',
+            'Current usernames for {ip}: {existing}',
+            max(existing_count, 1),
+            ip=ip_address,
+            existing=existing,
+        )
+        ask_line = tr_plural(
+            'Enter the new username to add:',
+            'Enter the new usernames to add:',
+            count,
+        )
+        return f'{header_line}\n\n{ask_line}'
+
     prompt_result = _prompt_usernames_to_add(
         parent,
         [ip_address],
         db_path,
         candidate_usernames=candidates,
-        prompt_message=lambda count: f'Current username{pluralize(existing_count)} for {ip_address}: {existing}\n\nEnter the new username{pluralize(count)} to add:',
+        prompt_message=_add_username_prompt,
     )
 
     if prompt_result is None:
@@ -489,8 +555,8 @@ def userip_add_username(parent: QWidget, ip_address: str, player: Player) -> Non
     else:
         chosen_target, selection_success = QInputDialog.getItem(
             parent,
-            'Select Target Entry',
-            f'Multiple UserIP entries match {ip_address}.\nSelect which entry to add the username to:',
+            tr('Select Target Entry'),
+            tr('Multiple UserIP entries match {ip}.\nSelect which entry to add the username to:', ip=ip_address),
             target_options,
             editable=False,
         )
@@ -512,13 +578,25 @@ def userip_add_username(parent: QWidget, ip_address: str, player: Player) -> Non
 
     usernames_display = ', '.join(f'"{username}"' for username in entered_usernames)
     count = len(entered_usernames)
-    has_or_have = pluralize(count, 'has', 'have')
-    entry_label = f'IP {target_entry}' if target_entry == ip_address else f'range {target_entry}'
-    _show_modal_info_on_top(
-        parent,
-        TITLE,
-        f'Username{pluralize(count)} {usernames_display} {has_or_have} been added for {entry_label} in UserIP database "{db_display}".',
-    )
+    if target_entry == ip_address:
+        added_info_text = tr_plural(
+            'Username {usernames} has been added for IP {target} in UserIP database "{database}".',
+            'Usernames {usernames} have been added for IP {target} in UserIP database "{database}".',
+            count,
+            usernames=usernames_display,
+            target=target_entry,
+            database=db_display,
+        )
+    else:
+        added_info_text = tr_plural(
+            'Username {usernames} has been added for range {target} in UserIP database "{database}".',
+            'Usernames {usernames} have been added for range {target} in UserIP database "{database}".',
+            count,
+            usernames=usernames_display,
+            target=target_entry,
+            database=db_display,
+        )
+    _show_modal_info_on_top(parent, TITLE, added_info_text)
     UserIPDatabases.renotify_if_conflicting([target_entry])
 
 
@@ -544,14 +622,19 @@ def userip_rename_multi(parent: QWidget, players: list[Player]) -> None:
 
     new_username, success = prompt_username_input(
         parent,
-        'Rename Selected',
-        f'Enter a new username for {len(eligible)} selected IP{pluralize(len(eligible))}:\n{ips_display}',
+        tr('Rename Selected'),
+        tr_plural(
+            'Enter a new username for {count} selected IP:\n{ips}',
+            'Enter a new username for {count} selected IPs:\n{ips}',
+            len(eligible),
+            ips=ips_display,
+        ),
         shared_username,
     )
     new_username = new_username.strip() if success else ''
     if not new_username:
         if success:
-            QMessageBox.warning(parent, TITLE, 'No username was provided.')
+            QMessageBox.warning(parent, TITLE, tr('No username was provided.'))
         return
 
     # Build mapping: db_path → list of (old_username, ip) pairs to rename
@@ -570,11 +653,27 @@ def userip_rename_multi(parent: QWidget, players: list[Player]) -> None:
             refresh_userip_and_wake_renderer()
 
     if not total_renamed:
-        QMessageBox.information(parent, TITLE, f'No entries were found for the selected IP{pluralize(len(eligible))}.')
+        QMessageBox.information(
+            parent,
+            TITLE,
+            tr_plural(
+                'No entries were found for the selected IP.',
+                'No entries were found for the selected IPs.',
+                len(eligible),
+            ),
+        )
         return
 
-    entry_word = pluralize(total_renamed, 'entry', 'entries')
-    QMessageBox.information(parent, TITLE, f'Renamed {total_renamed} {entry_word} to "{new_username}".')
+    QMessageBox.information(
+        parent,
+        TITLE,
+        tr_plural(
+            'Renamed {count} entry to "{username}".',
+            'Renamed {count} entries to "{username}".',
+            total_renamed,
+            username=new_username,
+        ),
+    )
 
 
 def userip_rename(parent: QWidget, ip_address: str, player: Player) -> None:
@@ -586,7 +685,7 @@ def userip_rename(parent: QWidget, ip_address: str, player: Player) -> None:
     db_display = format_userip_db_display_name(db_path)
     ip_usernames = collect_persisted_usernames_for_ip(db_path, ip_address)
     if not ip_usernames:
-        QMessageBox.information(parent, TITLE, f'No entries found for IP {ip_address} in the database.')
+        QMessageBox.information(parent, TITLE, tr('No entries found for IP {ip} in the database.', ip=ip_address))
         return
 
     # Step 1: Determine which username to rename
@@ -609,27 +708,38 @@ def userip_rename(parent: QWidget, ip_address: str, player: Player) -> None:
     # Step 2: Prompt for the new username
     new_username, success = prompt_username_input(
         parent,
-        'Rename Username',
-        f'Renaming "{old_username}" for IP {ip_address}.\nDatabase: {db_display}\n\nEnter the new username:',
+        tr('Rename Username'),
+        tr(
+            'Renaming "{username}" for IP {ip}.\nDatabase: {database}\n\nEnter the new username:',
+            username=old_username,
+            ip=ip_address,
+            database=db_display,
+        ),
         old_username,
     )
     new_username = new_username.strip() if success else ''
     if not new_username:
         if success:
-            QMessageBox.warning(parent, TITLE, 'No username was provided.')
+            QMessageBox.warning(parent, TITLE, tr('No username was provided.'))
         return
 
     renamed_count = rewrite_db_rename_entries(db_path, [(old_username, ip_address)], new_username, match_ip_ranges=True)
     if not renamed_count:
-        QMessageBox.information(parent, TITLE, f'No entries found for IP {ip_address} in the database.')
+        QMessageBox.information(parent, TITLE, tr('No entries found for IP {ip} in the database.', ip=ip_address))
         return
 
     refresh_userip_and_wake_renderer()
-    entry_word = pluralize(renamed_count, 'entry', 'entries')
     QMessageBox.information(
         parent,
         TITLE,
-        f'Renamed {renamed_count} {entry_word} for IP {ip_address} to "{new_username}" in UserIP database "{db_display}".',
+        tr_plural(
+            'Renamed {count} entry for IP {ip} to "{username}" in UserIP database "{database}".',
+            'Renamed {count} entries for IP {ip} to "{username}" in UserIP database "{database}".',
+            renamed_count,
+            ip=ip_address,
+            username=new_username,
+            database=db_display,
+        ),
     )
 
 
@@ -659,11 +769,38 @@ def userip_move(parent: QWidget, selected_ips: list[str], selected_database: Pat
             db_path: [f'{html.escape(entry.username)}={html.escape(entry.ip)}' for entry in entries]
             for db_path, entries in result.moved_by_db.items()
         }
-        target_db_display = html.escape(format_userip_db_display_name(selected_database))
+        target_db_display = format_userip_db_display_name(selected_database)
         n_moved = result.total_moved
-        moved_subject = f'Account group ({n_moved} {pluralize(n_moved, "entry", "entries")})' if group_keys is not None else f'Selected IP{pluralize(len(selected_ips))}'
-        db_word = f'UserIP database{pluralize(len(deleted_entries_by_database))}'
-        header = f'<b>{moved_subject} moved from the following {db_word} to UserIP database "{target_db_display}":</b><br><br><br>'
+        if group_keys is not None:
+            if len(deleted_entries_by_database) == 1:
+                header_text = tr_plural(
+                    'Account group ({count} entry) moved from the following UserIP database to UserIP database "{database}":',
+                    'Account group ({count} entries) moved from the following UserIP database to UserIP database "{database}":',
+                    n_moved,
+                    database=target_db_display,
+                )
+            else:
+                header_text = tr_plural(
+                    'Account group ({count} entry) moved from the following UserIP databases to UserIP database "{database}":',
+                    'Account group ({count} entries) moved from the following UserIP databases to UserIP database "{database}":',
+                    n_moved,
+                    database=target_db_display,
+                )
+        elif len(deleted_entries_by_database) == 1:
+            header_text = tr_plural(
+                'Selected IP moved from the following UserIP database to UserIP database "{database}":',
+                'Selected IPs moved from the following UserIP database to UserIP database "{database}":',
+                len(selected_ips),
+                database=target_db_display,
+            )
+        else:
+            header_text = tr_plural(
+                'Selected IP moved from the following UserIP databases to UserIP database "{database}":',
+                'Selected IPs moved from the following UserIP databases to UserIP database "{database}":',
+                len(selected_ips),
+                database=target_db_display,
+            )
+        header = f'<b>{html.escape(header_text)}</b><br><br><br>'
         _show_modal_info_on_top(parent, TITLE, header + _format_database_entries_html_list(deleted_entries_by_database))
 
 
@@ -697,7 +834,19 @@ def userip_delete(parent: QWidget, selected_ips: list[str]) -> None:
             refresh_userip_and_wake_renderer()
 
     if deleted_entries_by_database:
-        header = f'<b>Selected IP{pluralize(len(selected_ips))} removed from the following UserIP database{pluralize(len(deleted_entries_by_database))}:</b><br><br><br>'
+        if len(deleted_entries_by_database) == 1:
+            header_text = tr_plural(
+                'Selected IP removed from the following UserIP database:',
+                'Selected IPs removed from the following UserIP database:',
+                len(selected_ips),
+            )
+        else:
+            header_text = tr_plural(
+                'Selected IP removed from the following UserIP databases:',
+                'Selected IPs removed from the following UserIP databases:',
+                len(selected_ips),
+            )
+        header = f'<b>{html.escape(header_text)}</b><br><br><br>'
         QMessageBox.information(parent, TITLE, header + _format_database_entries_html_list(deleted_entries_by_database))
 
 
@@ -727,8 +876,11 @@ def userip_remove_username(parent: QWidget, ip_address: str, player: Player) -> 
     # If all usernames are selected, confirm and delegate to full IP deletion
     if dialog.is_all_selected():
         confirm = QMessageBox.question(
-            parent, TITLE, f'You selected all usernames for IP {ip_address}.\n\nThis will remove the IP entirely from the database. Continue?',
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No,
+            parent,
+            TITLE,
+            tr('You selected all usernames for IP {ip}.\n\nThis will remove the IP entirely from the database. Continue?', ip=ip_address),
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
         )
         if confirm == QMessageBox.StandardButton.Yes:
             userip_delete(parent, [ip_address])
@@ -758,230 +910,20 @@ def _rewrite_database_removing_usernames(parent: QWidget, db_path: Path, ip_addr
             refresh_userip_and_wake_renderer()
 
     if not removed_count:
-        QMessageBox.information(parent, TITLE, f'No matching entries found for IP {ip_address} in the database.')
+        QMessageBox.information(parent, TITLE, tr('No matching entries found for IP {ip} in the database.', ip=ip_address))
         return
 
     db_display = format_userip_db_display_name(db_path)
-    entry_word = pluralize(removed_count, 'entry', 'entries')
     removed_names = ', '.join(f'"{name}"' for name in selected)
-    QMessageBox.information(parent, TITLE, f'Removed {removed_count} {entry_word} ({removed_names}) for IP {ip_address} from UserIP database "{db_display}".')
-
-
-_MAX_GROUP_PROMPT_NAMES = 3
-
-
-def _format_group_source_display(names: Sequence[str]) -> str:
-    """Format up to `_MAX_GROUP_PROMPT_NAMES` usernames for the Group With dialog prompt."""
-    preview = ', '.join(names[:_MAX_GROUP_PROMPT_NAMES])
-    extra = len(names) - _MAX_GROUP_PROMPT_NAMES
-    return f'{preview} (+{extra} more)' if extra > 0 else preview
-
-
-def _update_detached_usernames_for_player(player: Player, cfs: set[str], *, detach: bool) -> None:
-    """Add or remove casefolded usernames in `cfs` from `detached_userip_usernames_cf` on `player` and its registry/snapshot counterparts."""
-    if not cfs:
-        return
-    live_player = PlayersRegistry.get_player_by_ip(player.ip)
-    targets = [
-        player,
-        *([live_player] if live_player is not None and live_player is not player else []),
-        *(s for s in SessionTracker.get_all_snapshot_players() if s is not player and s.ip == player.ip),
-    ]
-    for target in targets:
-        if detach:
-            target.detached_userip_usernames_cf.update(cfs)
-        else:
-            target.detached_userip_usernames_cf.difference_update(cfs)
-
-
-def get_player_userip_group_seeds(player: Player, *, persisted_usernames: Sequence[str] | None = None, exact_ip_first: bool = False) -> tuple[list[str], frozenset[str]]:
-    """Return `(seed_usernames, excluded_cfs)` for resolving *player*'s UserIP account group(s)."""
-    filtered = UserIPDatabases.filter_userip_for_player(player, player.userip) or UserIPDatabases.resolve_userip_for_player(player)
-    if filtered is None:
-        seeds = [u for u in resolve_usernames_for_player(player) if u.strip() and u.strip().casefold() not in player.detached_userip_usernames_cf]
-        return dedup_preserve_order(seeds), frozenset(player.detached_userip_usernames_cf)
-
-    filtered_cfs = {u.strip().casefold() for u in filtered.usernames if u.strip()}
-    raw_persisted = list(persisted_usernames) if persisted_usernames is not None else collect_persisted_usernames_for_ip(filtered.db_path, player.ip)
-    if exact_ip_first and filtered.db_path.is_file() and (
-        exact_names := [
-            e.username.strip() for e in load_userip_database_model(filtered.db_path).entries
-            if e.username.strip() and e.ip.strip() == player.ip and (not filtered_cfs or e.username.strip().casefold() in filtered_cfs)
-        ]
-    ):
-        raw_persisted = dedup_preserve_order(exact_names)
-
-    base_candidates = raw_persisted if (exact_ip_first and raw_persisted) else list(filtered.usernames)
-    non_detached = [u for u in base_candidates if u.strip() and u.strip().casefold() not in player.detached_userip_usernames_cf]
-    anchors = non_detached or [u for u in base_candidates if u.strip()]
-    extra_persisted = [
-        u for u in raw_persisted
-        if u.strip() and u.strip().casefold() not in player.detached_userip_usernames_cf and not any(are_usernames_unlinked(u, a) for a in anchors)
-    ]
-    return dedup_preserve_order(anchors, extra_persisted), frozenset(player.detached_userip_usernames_cf) if non_detached else frozenset()
-
-
-def collect_grouped_usernames_for_player(player: Player, *, persisted_usernames: Sequence[str] | None = None) -> list[str]:
-    """Return all usernames currently grouped with *player* across UserIP databases and persisted links."""
-    seeds, excluded_cfs = get_player_userip_group_seeds(player, persisted_usernames=persisted_usernames)
-    if not seeds:
-        return []
-    seed_cfs = {u.casefold() for u in seeds}
-    groups = collect_userip_account_groups(include_disabled=False, excluded_cfs=excluded_cfs, extra_seed_usernames=seeds)
-    matched_names = [u for group in groups if group.usernames_cf & seed_cfs for u in group.usernames]
-    candidates = [u for u in dedup_preserve_order(seeds, matched_names) if u.casefold() not in excluded_cfs]
-    if len(candidates) <= 1:
-        return candidates
-    return [u for u in candidates if any(u.casefold() != v.casefold() and not are_usernames_unlinked(u, v) for v in candidates)]
-
-
-def prompt_and_group_with(parent: QWidget, source_usernames: Sequence[str]) -> tuple[str, str] | None:
-    """Prompt the user for a username to group with `source_usernames`, persist the group, and refresh UserIP."""
-    if not source_usernames:
-        return None
-    source_display = _format_group_source_display(source_usernames)
-    target_username, ok = prompt_username_input(parent, f'Group With - {TITLE}', f'Enter the username to group with "{source_display}":')
-    if not ok or not target_username.strip():
-        return None
-    target_clean = target_username.strip()
-    combined = dedup_preserve_order(source_usernames, [target_clean])
-    if len(combined) < MIN_GROUP_USERNAMES:
-        QMessageBox.information(parent, TITLE, 'Please enter a different username to group with.')
-        return None
-    if group_usernames(combined, get_account_group_clusters_map(include_disabled=True)):
-        refresh_userip_and_wake_renderer()
-        return target_clean, source_display
-    return None
-
-
-def prompt_and_ungroup(parent: QWidget, group_members: list[str], *, selected_ips: list[str] | None = None) -> list[str]:
-    """Open the Ungroup Usernames dialog for `group_members`, persist the ungrouping, and refresh UserIP."""
-    if len(group_members) < MIN_GROUP_USERNAMES:
-        return []
-    dlg = SelectUsernamesDialog(
-        parent, group_members,
-        UsernameSelectionConfig(
-            title='Ungroup Usernames', instructions='Select username(s) to unlink from this account group (prevents false-positive grouping):',
-            action_button_text='Ungroup', multiple=True, default_checked=False, selected_ips=selected_ips,
+    QMessageBox.information(
+        parent,
+        TITLE,
+        tr_plural(
+            'Removed {count} entry ({usernames}) for IP {ip} from UserIP database "{database}".',
+            'Removed {count} entries ({usernames}) for IP {ip} from UserIP database "{database}".',
+            removed_count,
+            usernames=removed_names,
+            ip=ip_address,
+            database=db_display,
         ),
     )
-    if dlg.exec() != SelectUsernamesDialog.DialogCode.Accepted:
-        return []
-    chosen = dlg.selected_usernames()
-    if chosen:
-        ungroup_usernames(chosen, group_members)
-        refresh_userip_and_wake_renderer()
-        return chosen
-    return []
-
-
-def userip_group_with(parent: QWidget, players: Sequence[Player]) -> None:
-    """Prompt the user to type/select a username and group it with the selected player(s)' usernames."""
-    source_usernames = dedup_preserve_order(
-        *((player.userip.usernames if player.userip is not None and player.userip.usernames else resolve_usernames_for_player(player)) for player in players),
-    )
-    if not source_usernames:
-        typed_source, ok_source = prompt_username_input(parent, f'Group With - {TITLE}', 'Enter the username for the selected player:')
-        if not ok_source or not typed_source.strip():
-            return
-        source_usernames = [typed_source.strip()]
-
-    if result := prompt_and_group_with(parent, source_usernames):
-        target_clean, source_display = result
-        grouped_cfs = {u.casefold() for u in (*source_usernames, target_clean)}
-        for player in players:
-            _update_detached_usernames_for_player(player, grouped_cfs, detach=False)
-        refresh_userip_and_wake_renderer()
-        QMessageBox.information(parent, TITLE, f'Grouped username "{target_clean}" with {source_display}.')
-
-
-def userip_group_selected(parent: QWidget, players: Sequence[Player]) -> None:
-    """Group all usernames across the selected players together."""
-    usernames = dedup_preserve_order(
-        *((player.userip.usernames if player.userip is not None and player.userip.usernames else resolve_usernames_for_player(player)) for player in players),
-    )
-    if len(usernames) < MIN_GROUP_USERNAMES:
-        QMessageBox.information(parent, TITLE, 'Select at least two players with distinct usernames to group them together.')
-        return
-
-    grouped_cfs = {u.casefold() for u in usernames}
-    for player in players:
-        _update_detached_usernames_for_player(player, grouped_cfs, detach=False)
-    if group_usernames(usernames, get_account_group_clusters_map(include_disabled=True)):
-        refresh_userip_and_wake_renderer()
-        names_display = ', '.join(f'"{name}"' for name in usernames)
-        QMessageBox.information(parent, TITLE, f'Grouped {len(usernames)} usernames together: {names_display}.')
-
-
-def userip_ungroup(parent: QWidget, player: Player) -> None:
-    """Open a selection dialog to ungroup false-positive or unlinked usernames from *player*'s account group."""
-    group_members = collect_grouped_usernames_for_player(player)
-    if chosen := prompt_and_ungroup(parent, group_members, selected_ips=[player.ip]):
-        if len(chosen) < len(group_members):
-            detached_cf = {u.casefold() for u in chosen}
-        else:
-            include_looky = Settings.looky_enabled and Settings.is_gta5_feature_set() and CaptureState.is_local_capture()
-            live_cfs = {u.casefold() for u in player.get_live_non_userip_usernames(include_looky=include_looky)}
-            matching_live_cfs = {u.casefold() for u in group_members if u.casefold() in live_cfs}
-            detached_cf = {u.casefold() for u in group_members if u.casefold() not in matching_live_cfs} if matching_live_cfs else {u.casefold() for u in group_members[1:]}
-        _update_detached_usernames_for_player(player, detached_cf, detach=True)
-        refresh_userip_and_wake_renderer()
-        removed_display = ', '.join(f'"{name}"' for name in chosen)
-        QMessageBox.information(parent, TITLE, f'Ungrouped {removed_display} from the account group.')
-
-
-def get_player_looky_username_lists(player: Player) -> tuple[list[str], list[str]]:
-    """Return `(active_looky_usernames, removed_looky_usernames)` for *player*."""
-    with player.looky_system.lock:
-        active_names = list(player.looky_system.usernames)
-        cached_removed = list(player.looky_system.removed_usernames)
-    removed_names = dedup_preserve_order(cached_removed, get_excluded_looky_usernames(player.ip))
-    return active_names, removed_names
-
-
-def _refresh_player_looky_exclusions(player: Player, *, reset_userip_checked: bool = False) -> None:
-    """Re-apply per-IP Looky username exclusions to *player* (and its live/snapshot counterparts) and wake the renderer."""
-    excluded_cfs = get_excluded_looky_usernames_cf(player.ip)
-    updated_names = player.looky_system.refresh_filtered_usernames(excluded_cfs)
-    live_player = PlayersRegistry.get_player_by_ip(player.ip)
-    live_update = (live_player, live_player.looky_system.refresh_filtered_usernames(excluded_cfs)) if live_player is not None and live_player is not player else None
-    if reset_userip_checked:
-        for target_p in (player, live_player):
-            if target_p is not None:
-                with target_p.looky_system.lock:
-                    target_p.looky_system.as_userip_checked = False
-    snap_updates = [
-        (s, s.looky_system.refresh_filtered_usernames(excluded_cfs)) for s in SessionTracker.get_all_snapshot_players() if s is not player and s.ip == player.ip
-    ]
-    sync_player_looky_usernames_and_userip(player, updated_names, live_update, snap_updates)
-
-
-def looky_remove_usernames_for_player(parent: QWidget, player: Player, active_looky_names: list[str]) -> None:
-    """Open a dialog to exclude/hide selected Looky System usernames on *player*'s IP."""
-    dlg = SelectUsernamesDialog(
-        parent, active_looky_names,
-        UsernameSelectionConfig(
-            title='Remove Looky Usernames', instructions=f'Select Looky username{pluralize(len(active_looky_names))} to hide on this IP:',
-            action_button_text='Remove', multiple=True, default_checked=False, selected_ips=[player.ip],
-        ),
-    )
-    if dlg.exec() == SelectUsernamesDialog.DialogCode.Accepted:
-        chosen = dlg.selected_usernames()
-        peer_names = dedup_preserve_order(active_looky_names, player.userip.usernames if player.userip is not None else (), player.usernames)
-        if chosen and exclude_looky_usernames(player.ip, chosen, peer_usernames=peer_names):
-            _refresh_player_looky_exclusions(player)
-
-
-def looky_restore_usernames_for_player(parent: QWidget, player: Player, removed_looky_names: list[str]) -> None:
-    """Open a dialog to restore previously excluded Looky System usernames on *player*'s IP."""
-    dlg = SelectUsernamesDialog(
-        parent, removed_looky_names,
-        UsernameSelectionConfig(
-            title='Restore Removed Looky Usernames', instructions=f'Select removed Looky username{pluralize(len(removed_looky_names))} to re-add on this IP:',
-            action_button_text='Restore', multiple=True, default_checked=True, selected_ips=[player.ip],
-        ),
-    )
-    if dlg.exec() == SelectUsernamesDialog.DialogCode.Accepted:
-        chosen = dlg.selected_usernames()
-        if chosen and restore_looky_usernames(player.ip, chosen):
-            _refresh_player_looky_exclusions(player, reset_userip_checked=True)

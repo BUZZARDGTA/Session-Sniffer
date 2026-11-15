@@ -34,11 +34,13 @@ from session_sniffer.constants.tables import (
 from session_sniffer.error_messages import ensure_instance, format_type_error
 from session_sniffer.guis.delegates import ElidedTextTooltipDelegate
 from session_sniffer.guis.fonts import get_ui_font
+from session_sniffer.guis.live_language import CANONICAL_HEADER_ROLE, register_language_refresh
 from session_sniffer.guis.table_model import SessionTableModel
 from session_sniffer.guis.tables_context_menu_mixin import TableContextMenuMixin
 from session_sniffer.guis.tables_header_menu_mixin import TableHeaderMenuMixin
 from session_sniffer.guis.theming import ICONS_DIR_PATH, themed_text_qcolor
 from session_sniffer.guis.utils import scale_by_ui, set_clipboard_text
+from session_sniffer.i18n import tr, tr_plural
 from session_sniffer.player.registry import PlayersRegistry, SessionTracker
 from session_sniffer.rendering_core.types import PaginationState, SearchState, SessionFilterState, SortState, TableMergeState
 
@@ -131,6 +133,12 @@ class SessionTableView(TableHeaderMenuMixin, TableContextMenuMixin, QTableView):
 
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.customContextMenuRequested.connect(self.show_context_menu)
+        register_language_refresh(self, self._on_language_refreshed)
+
+    def _on_language_refreshed(self) -> None:
+        """Re-apply column sizing and repaint empty-state text after a language change."""
+        self.setup_static_column_resizing()
+        self.viewport().update()
 
     @override
     def setModel(self, model: QAbstractItemModel | None) -> None:
@@ -216,10 +224,17 @@ class SessionTableView(TableHeaderMenuMixin, TableContextMenuMixin, QTableView):
         if not ips:
             return
         if len(ips) == 1:
-            target = f'"{first_user}" ({ips[0]})' if first_user else ips[0]
-            prompt = f'Remove {target} from Disconnected?'
+            prompt = (
+                tr('Remove "{user}" ({ip}) from Disconnected?', user=first_user, ip=ips[0])
+                if first_user
+                else tr('Remove {ip} from Disconnected?', ip=ips[0])
+            )
         else:
-            prompt = f'Remove {len(ips)} selected players from Disconnected?'
+            prompt = tr_plural(
+                'Remove {count} selected player from Disconnected?',
+                'Remove {count} selected players from Disconnected?',
+                len(ips),
+            )
         reply = QMessageBox.question(
             self.window(),
             TITLE,
@@ -377,14 +392,18 @@ class SessionTableView(TableHeaderMenuMixin, TableContextMenuMixin, QTableView):
                     ),
                 ) or (not self.is_connected_table and bool(SessionTracker.get_all_snapshot_players()))
             if search_text and has_registry_players:
-                title = ('No matching players' if is_merged else 'No matching connected players') if self.is_connected_table else 'No matching disconnected players'
-                subtitle = 'No players match the current search filter.'
+                title = (
+                    (tr('No matching players') if is_merged else tr('No matching connected players'))
+                    if self.is_connected_table
+                    else tr('No matching disconnected players')
+                )
+                subtitle = tr('No players match the current search filter.')
             elif self.is_connected_table:
-                title = 'No players' if is_merged else 'No connected players'
-                subtitle = 'Players will appear here.' if is_merged else 'Connected players will appear here.'
+                title = tr('No players') if is_merged else tr('No connected players')
+                subtitle = tr('Players will appear here.') if is_merged else tr('Connected players will appear here.')
             else:
-                title = 'No disconnected players'
-                subtitle = 'Disconnected players will appear here.'
+                title = tr('No disconnected players')
+                subtitle = tr('Disconnected players will appear here.')
 
             curr_y = start_y + icon_size + icon_spacing
             title_rect = QRect(0, curr_y, viewport_rect.width(), title_fm.height())
@@ -446,8 +465,8 @@ class SessionTableView(TableHeaderMenuMixin, TableContextMenuMixin, QTableView):
         # Get the sort order (ascending or descending)
         sort_order = horizontal_header.sortIndicatorOrder()
 
-        # Get the name of the sorted column from the model
-        sorted_column_name = model.headerData(sorted_column_index, Qt.Orientation.Horizontal)
+        # Get the canonical name of the sorted column from the model
+        sorted_column_name = model.headerData(sorted_column_index, Qt.Orientation.Horizontal, CANONICAL_HEADER_ROLE)
         if sorted_column_name is None:
             raise TypeError(format_type_error(sorted_column_name, str))
 

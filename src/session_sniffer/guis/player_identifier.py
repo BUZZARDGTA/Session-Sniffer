@@ -2,16 +2,14 @@
 
 import html
 from math import sqrt
-from typing import TYPE_CHECKING, ClassVar, override
+from typing import TYPE_CHECKING
 
-from PySide6.QtCore import QRectF, Qt, QTimer
-from PySide6.QtGui import QColor, QLinearGradient, QPainter, QPainterPath, QPaintEvent, QPen
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (
     QCheckBox,
     QHBoxLayout,
     QLabel,
     QMessageBox,
-    QProgressBar,
     QPushButton,
     QVBoxLayout,
     QWidget,
@@ -27,8 +25,11 @@ from session_sniffer.guis._player_identifier_core import (
     UPDATE_INTERVAL_MS,
     IPBaseline,
     Phase,
+    PlayerIdentifierProgressBar,
+    PlayerIdentifierTracker,
     compute_aggregate_zscore,
 )
+from session_sniffer.guis.live_language import register_language_refresh
 from session_sniffer.guis.stylesheets import (
     PROGRESS_BAR_CHUNK_BLUE_STYLESHEET,
     PROGRESS_BAR_CHUNK_GREEN_STYLESHEET,
@@ -36,129 +37,16 @@ from session_sniffer.guis.stylesheets import (
     PROGRESS_BAR_CHUNK_RED_STYLESHEET,
     PROGRESS_BAR_IDLE_STYLESHEET,
 )
-from session_sniffer.guis.theming import register_theme_change_callback, themed_color, themed_qcolor, themed_qss, themed_text_qcolor
+from session_sniffer.guis.theming import themed_qss
+from session_sniffer.i18n import tr, tr_plural
 from session_sniffer.models.player_traffic import PlayerBandwidth
 from session_sniffer.player.registry import PlayersRegistry
 from session_sniffer.settings import Settings
-from session_sniffer.text_utils import pluralize
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
     from session_sniffer.models.player import Player
-
-
-_PROGRESS_BAR_BLUE_GRADIENT: list[tuple[float, QColor]] = []
-_PROGRESS_BAR_GREEN_GRADIENT: list[tuple[float, QColor]] = []
-_PROGRESS_BAR_ORANGE_GRADIENT: list[tuple[float, QColor]] = []
-_PROGRESS_BAR_RED_GRADIENT: list[tuple[float, QColor]] = []
-_CHUNK_TEXT_MIDPOINT = 50
-
-
-def _refresh_progress_bar_gradients() -> None:
-    """Recompute capsule progress bar gradient stops for the active theme."""
-    _PROGRESS_BAR_BLUE_GRADIENT[:] = [(0.0, themed_qcolor('#1d4ed8')), (0.5, themed_qcolor('#3b82f6')), (1.0, themed_qcolor('#60a5fa'))]
-    _PROGRESS_BAR_GREEN_GRADIENT[:] = [(0.0, themed_qcolor('#059669')), (0.5, themed_qcolor('#10b981')), (1.0, themed_qcolor('#34d399'))]
-    _PROGRESS_BAR_ORANGE_GRADIENT[:] = [(0.0, themed_qcolor('#d97706')), (0.5, themed_qcolor('#f59e0b')), (1.0, themed_qcolor('#fbbf24'))]
-    _PROGRESS_BAR_RED_GRADIENT[:] = [(0.0, themed_qcolor('#b91c1c')), (0.5, themed_qcolor('#ef4444')), (1.0, themed_qcolor('#f87171'))]
-
-
-_refresh_progress_bar_gradients()
-register_theme_change_callback(_refresh_progress_bar_gradients)
-
-
-class PlayerIdentifierProgressBar(QProgressBar):
-    """Capsule progress bar with anti-aliased clipping to prevent chunk overflow."""
-
-    def __init__(self, parent: QWidget | None = None) -> None:
-        """Initialize the custom capsule progress bar."""
-        super().__init__(parent)
-        self.setRange(0, 100)
-        self.setFixedHeight(24)
-        self.setFixedWidth(PROGRESS_BAR_WIDTH)
-        self.setTextVisible(True)
-        self.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._chunk_gradient: list[tuple[float, QColor]] | None = None
-
-    @override
-    def setStyleSheet(self, styleSheet: str) -> None:
-        super().setStyleSheet(styleSheet)
-        if styleSheet == PROGRESS_BAR_CHUNK_BLUE_STYLESHEET or themed_color('#1d4ed8') in styleSheet:
-            self._chunk_gradient = _PROGRESS_BAR_BLUE_GRADIENT
-        elif styleSheet == PROGRESS_BAR_CHUNK_GREEN_STYLESHEET or themed_color('#059669') in styleSheet:
-            self._chunk_gradient = _PROGRESS_BAR_GREEN_GRADIENT
-        elif styleSheet == PROGRESS_BAR_CHUNK_ORANGE_STYLESHEET or themed_color('#d97706') in styleSheet:
-            self._chunk_gradient = _PROGRESS_BAR_ORANGE_GRADIENT
-        elif styleSheet == PROGRESS_BAR_CHUNK_RED_STYLESHEET or themed_color('#b91c1c') in styleSheet:
-            self._chunk_gradient = _PROGRESS_BAR_RED_GRADIENT
-        else:
-            self._chunk_gradient = None
-        self.update()
-
-    @override
-    def paintEvent(self, a0: QPaintEvent | None) -> None:
-        if a0 is None:
-            return
-        painter = QPainter(self)
-        try:
-            painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-
-            bounding_rect = QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5)
-            capsule_radius = bounding_rect.height() / 2.0
-
-            outer_path = QPainterPath()
-            outer_path.addRoundedRect(bounding_rect, capsule_radius, capsule_radius)
-            painter.fillPath(outer_path, themed_qcolor('#0d131a'))
-            painter.setPen(QPen(themed_qcolor('#253040'), 1.0))
-            painter.drawPath(outer_path)
-
-            current_value = self.value()
-            if current_value > 0 and self._chunk_gradient is not None:
-                inner_rect = bounding_rect.adjusted(2.0, 2.0, -2.0, -2.0)
-                inner_radius = max(0.0, inner_rect.height() / 2.0)
-                clip_path = QPainterPath()
-                clip_path.addRoundedRect(inner_rect, inner_radius, inner_radius)
-
-                value_range = self.maximum() - self.minimum()
-                progress_ratio = (current_value - self.minimum()) / value_range if value_range > 0 else 0.0
-                chunk_width = inner_rect.width() * progress_ratio
-                chunk_rect = QRectF(inner_rect.x(), inner_rect.y(), chunk_width, inner_rect.height())
-
-                painter.save()
-                painter.setClipPath(clip_path)
-                linear_gradient = QLinearGradient(inner_rect.left(), 0.0, inner_rect.right(), 0.0)
-                for stop_point, stop_color in self._chunk_gradient:
-                    linear_gradient.setColorAt(stop_point, stop_color)
-                painter.fillRect(chunk_rect, linear_gradient)
-                painter.restore()
-
-            displayed_text = self.text()
-            if displayed_text and self.isTextVisible():
-                on_chunk = current_value >= _CHUNK_TEXT_MIDPOINT and self._chunk_gradient is not None
-                painter.setPen(themed_text_qcolor('#ffffff', '#10b981') if on_chunk else themed_text_qcolor('#ffffff', '#0d131a'))
-                text_font = self.font()
-                text_font.setPointSize(9)
-                text_font.setBold(True)
-                painter.setFont(text_font)
-                painter.drawText(bounding_rect, Qt.AlignmentFlag.AlignCenter, displayed_text)
-        finally:
-            painter.end()
-
-
-class PlayerIdentifierTracker:
-    """Global tracker for IPs currently identified by the Player Identifier tool."""
-
-    identified_ips: ClassVar[set[str]] = set()
-
-    @classmethod
-    def is_identified(cls, ip: str) -> bool:
-        """Return whether the given IP is currently identified."""
-        return ip in cls.identified_ips
-
-    @classmethod
-    def set_identified_ips(cls, ips: set[str]) -> None:
-        """Update the set of identified IPs."""
-        cls.identified_ips = ips
 
 
 class PlayerIdentifierWidget(QWidget):
@@ -195,25 +83,22 @@ class PlayerIdentifierWidget(QWidget):
         self._prev_sample_text: str | None = None
         self._prev_result_text: str | None = None
 
+        self._ready_reason_kind: tuple[str, int] | None = None
+        self._abort_state: tuple[str, tuple[str, float] | None] | None = None
+        self._baseline_stability_snapshot: tuple[int, str, str, tuple[str, str, int | None]] | None = None
+        self._last_max_streak: int = 0
+
         layout = QVBoxLayout(self)
 
         # Instructions
         self._instructions = QLabel()
         self._instructions.setWordWrap(True)
         self._instructions.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._set_idle_instructions()
         layout.addWidget(self._instructions)
 
         # Stability indicator
-        self._stability_label = QLabel('Stability: —')
+        self._stability_label = QLabel()
         self._stability_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._stability_label.setToolTip(
-            'Shows whether the traffic measurements have settled down.\n\n'
-            'GREEN = Traffic is steady. You can stop the baseline.\n'
-            'YELLOW = Traffic is still changing. Keep waiting.\n'
-            'ORANGE = Collecting initial data. Not enough samples yet.\n'
-            'RED = Traffic is very erratic. Stay still and wait.',
-        )
         self._stability_label.setVisible(False)
         layout.addWidget(self._stability_label)
 
@@ -222,25 +107,14 @@ class PlayerIdentifierWidget(QWidget):
         self._stability_bar.setValue(0)
         self._stability_bar.setTextVisible(True)
         self._stability_bar.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._stability_bar.setFormat('Waiting...')
         self._stability_bar.setFixedWidth(PROGRESS_BAR_WIDTH)
         self._stability_bar.setStyleSheet(PROGRESS_BAR_IDLE_STYLESHEET)
-        self._stability_bar.setToolTip(
-            'Progress toward a stable baseline.\n\n'
-            'During baseline: fills up as traffic patterns stabilize. '
-            'When it reaches 100% and turns green, the data is reliable.\n\n'
-            'During resolve: fills up as a candidate IP sustains a traffic spike. '
-            'Reaches 100% when a match is confirmed.',
-        )
         self._stability_bar.setVisible(False)
         layout.addWidget(self._stability_bar, alignment=Qt.AlignmentFlag.AlignHCenter)
 
         # Sample count label
         self._sample_label = QLabel('')
         self._sample_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._sample_label.setToolTip(
-            'Number of IPs being tracked and how many 1-second snapshots have been recorded.\nMore samples = more accurate baseline.',
-        )
         self._sample_label.setVisible(False)
         layout.addWidget(self._sample_label)
 
@@ -254,40 +128,25 @@ class PlayerIdentifierWidget(QWidget):
         button_layout = QHBoxLayout()
         button_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        self._baseline_button = QPushButton('Start Baseline')
+        self._baseline_button = QPushButton()
         self._baseline_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self._baseline_button.setFixedWidth(BUTTON_WIDTH)
         self._baseline_button.clicked.connect(self._on_baseline_button_clicked)
         button_layout.addWidget(self._baseline_button)
 
-        self._resolve_button = QPushButton('Resolve')
-        self._resolve_button.setToolTip(
-            'Step 2: Starts watching for traffic spikes.\n\n'
-            'After clicking this, spectate the player you want to identify using '
-            'the Orbital Cannon, a CCTV camera, or by physically approaching them.\n'
-            'When your game loads that player, it sends more data to/from their IP, '
-            'causing a spike compared to the baseline.\n\n'
-            f'An IP must spike for {self._spike_sustained_seconds} consecutive seconds to be confirmed.\n\n'
-            'Tip: Detection works best when the target player is moving — '
-            'a moving player generates significantly more traffic than a stationary one.',
-        )
+        self._resolve_button = QPushButton()
         self._resolve_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self._resolve_button.setFixedWidth(BUTTON_WIDTH)
         self._resolve_button.clicked.connect(self._on_resolve)
         self._resolve_button.setEnabled(False)
         button_layout.addWidget(self._resolve_button)
 
-        self._reset_button = QPushButton('Reset Scan')
-        self._reset_button.setToolTip(
-            'Clears all candidate streaks and identified players from the current scan, preserving the baseline so you can immediately resolve another player.',
-        )
+        self._reset_button = QPushButton()
         self._reset_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self._reset_button.setFixedWidth(BUTTON_WIDTH)
         self._reset_button.clicked.connect(self._on_reset_scan)
         self._reset_button.setEnabled(False)
         button_layout.addWidget(self._reset_button)
-
-        self._update_baseline_button_state()
 
         layout.addLayout(button_layout)
 
@@ -295,56 +154,161 @@ class PlayerIdentifierWidget(QWidget):
         table_selection_layout = QHBoxLayout()
         table_selection_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        self._select_button = QPushButton('Select in Table')
-        self._select_button.setToolTip('Select and scroll to all identified players in the connected players table.')
+        self._select_button = QPushButton()
         self._select_button.setFixedWidth(BUTTON_WIDTH)
         self._select_button.setEnabled(False)
         self._select_button.clicked.connect(self._select_resolved)
         table_selection_layout.addWidget(self._select_button)
 
-        self._deselect_button = QPushButton('Deselect in Table')
-        self._deselect_button.setToolTip('Deselect all identified players in the connected players table.')
+        self._deselect_button = QPushButton()
         self._deselect_button.setFixedWidth(BUTTON_WIDTH)
         self._deselect_button.setEnabled(False)
         self._deselect_button.clicked.connect(self._deselect_resolved)
         table_selection_layout.addWidget(self._deselect_button)
 
-        self._auto_select_checkbox = QCheckBox('Auto-select in Table')
+        self._auto_select_checkbox = QCheckBox()
         self._auto_select_checkbox.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self._auto_select_checkbox.toggled.connect(self._on_auto_select_toggled)
-        self._auto_select_checkbox.setToolTip(
-            'Keep identified players selected in the connected players table automatically.\n\nLive updates occur with every scan. Turn off for manual selection control.',
-        )
         self._auto_select_checkbox.setChecked(True)
         table_selection_layout.addWidget(self._auto_select_checkbox)
 
         layout.addLayout(table_selection_layout)
         layout.addStretch()
 
+        self._apply_translations()
+        register_language_refresh(self, self._apply_translations)
+
         # Timer
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._tick)
+
+    # -- Localization ---------------------------------------------------------
+
+    def _clear_render_caches(self) -> None:
+        self._prev_stability_pct = None
+        self._prev_stability_format = None
+        self._prev_stability_style = None
+        self._prev_stability_text = None
+        self._prev_sample_text = None
+        self._prev_result_text = None
+
+    @staticmethod
+    def _format_stability_html(color: str, status_text: str) -> str:
+        return tr('Stability: {status}', status=f'<span style="color:{color};">{status_text}</span>')
+
+    def _format_sample_text(self, num_ips: int, sample_count: int) -> str:
+        ips_part = tr_plural('{count} IP', '{count} IPs', num_ips)
+        samples_part = tr_plural('{count} sample', '{count} samples', sample_count)
+        return tr('{ips_part} · {samples_part}', ips_part=ips_part, samples_part=samples_part)
+
+    def _update_resolve_button_translations(self) -> None:
+        self._resolve_button.setText(tr('Resolve'))
+        self._resolve_button.setToolTip(
+            tr(
+                'Step 2: Starts watching for traffic spikes.\n\n'
+                'After clicking this, spectate the player you want to identify using '
+                'the Orbital Cannon, a CCTV camera, or by physically approaching them.\n'
+                'When your game loads that player, it sends more data to/from their IP, '
+                'causing a spike compared to the baseline.\n\n'
+                'An IP must spike for {seconds} consecutive seconds to be confirmed.\n\n'
+                'Tip: Detection works best when the target player is moving — '
+                'a moving player generates significantly more traffic than a stationary one.',
+                seconds=self._spike_sustained_seconds,
+            ),
+        )
+
+    def _apply_translations(self) -> None:
+        """Apply translated text to controls, tooltips, and the active phase view."""
+        self._clear_render_caches()
+
+        self._stability_label.setToolTip(
+            tr(
+                'Shows whether the traffic measurements have settled down.\n\n'
+                'GREEN = Traffic is steady. You can stop the baseline.\n'
+                'YELLOW = Traffic is still changing. Keep waiting.\n'
+                'ORANGE = Collecting initial data. Not enough samples yet.\n'
+                'RED = Traffic is very erratic. Stay still and wait.',
+            ),
+        )
+        self._stability_bar.setToolTip(
+            tr(
+                'Progress toward a stable baseline.\n\n'
+                'During baseline: fills up as traffic patterns stabilize. '
+                'When it reaches 100% and turns green, the data is reliable.\n\n'
+                'During resolve: fills up as a candidate IP sustains a traffic spike. '
+                'Reaches 100% when a match is confirmed.',
+            ),
+        )
+        self._sample_label.setToolTip(
+            tr(
+                'Number of IPs being tracked and how many 1-second snapshots have been recorded.\nMore samples = more accurate baseline.',
+            ),
+        )
+        self._update_baseline_button_state()
+        self._update_resolve_button_translations()
+        self._reset_button.setText(tr('Reset Scan'))
+        self._reset_button.setToolTip(
+            tr('Clears all candidate streaks and identified players from the current scan, preserving the baseline so you can immediately resolve another player.'),
+        )
+        self._select_button.setText(tr('Select in Table'))
+        self._select_button.setToolTip(tr('Select and scroll to all identified players in the connected players table.'))
+        self._deselect_button.setText(tr('Deselect in Table'))
+        self._deselect_button.setToolTip(tr('Deselect all identified players in the connected players table.'))
+        self._auto_select_checkbox.setText(tr('Auto-select in Table'))
+        self._auto_select_checkbox.setToolTip(
+            tr('Keep identified players selected in the connected players table automatically.\n\nLive updates occur with every scan. Turn off for manual selection control.'),
+        )
+
+        if self._phase == Phase.IDLE:
+            if self._abort_state is not None:
+                self._render_abort_state()
+                if self._sample_count > 0:
+                    self._update_sample_label(self._format_sample_text(len(self._baselines), self._sample_count))
+            else:
+                self._set_idle_instructions()
+                self._stability_label.setText(tr('Stability: —'))
+                self._stability_bar.setFormat(tr('Waiting...'))
+        elif self._phase == Phase.BASELINE:
+            self._set_baseline_instructions()
+            if self._baseline_stability_snapshot is not None:
+                self._render_baseline_stability()
+                self._update_sample_label(self._format_sample_text(len(self._baselines), self._sample_count))
+            else:
+                self._stability_bar.setFormat(tr('Collecting…'))
+                self._stability_label.setText(tr('Stability: —'))
+        elif self._phase == Phase.READY:
+            self._set_ready_instructions()
+            self._update_stability(100, PROGRESS_BAR_CHUNK_GREEN_STYLESHEET, self._format_stability_html('green', tr('Locked')), bar_format=tr('Locked'))
+            self._update_sample_label(self._format_sample_text(len(self._baselines), self._sample_count))
+        else:
+            self._set_resolving_instructions()
+            self._update_sample_label(self._format_sample_text(len(self._baselines), self._sample_count))
+            players = [player for player in PlayersRegistry.get_connected_players() if not player.is_third_party_server]
+            self._update_resolving_display(players, self._last_max_streak)
 
     # -- Phase transitions ----------------------------------------------------
 
     def _update_baseline_button_state(self) -> None:
         if self._phase == Phase.IDLE:
-            self._baseline_button.setText('Start Baseline')
+            self._baseline_button.setText(tr('Start Baseline'))
             self._baseline_button.setToolTip(
-                'Step 1: Records the normal traffic (PPS/BPS) for every IP currently in the session.\n\n'
-                'IMPORTANT: Make sure you are ALONE and standing still (e.g. inside a bunker, '
-                'facility, or away from all other players) before clicking this.\n\n'
-                'Only IPs connected RIGHT NOW will be tracked. Anyone who joins later is ignored.\n\n'
-                f'The baseline runs until traffic is stable or {self._baseline_max_seconds}s have elapsed, then automatically locks in.',
+                tr(
+                    'Step 1: Records the normal traffic (PPS/BPS) for every IP currently in the session.\n\n'
+                    'IMPORTANT: Make sure you are ALONE and standing still (e.g. inside a bunker, '
+                    'facility, or away from all other players) before clicking this.\n\n'
+                    'Only IPs connected RIGHT NOW will be tracked. Anyone who joins later is ignored.\n\n'
+                    'The baseline runs until traffic is stable or {seconds}s have elapsed, then automatically locks in.',
+                    seconds=self._baseline_max_seconds,
+                ),
             )
             self._baseline_button.setEnabled(True)
         elif self._phase == Phase.BASELINE:
-            self._baseline_button.setText('Cancel Baseline')
-            self._baseline_button.setToolTip('Cancel recording the baseline and return to the idle state.')
+            self._baseline_button.setText(tr('Cancel Baseline'))
+            self._baseline_button.setToolTip(tr('Cancel recording the baseline and return to the idle state.'))
             self._baseline_button.setEnabled(True)
         else:
-            self._baseline_button.setText('Reset Baseline')
-            self._baseline_button.setToolTip('Discard the recorded baseline data and start over from scratch.')
+            self._baseline_button.setText(tr('Reset Baseline'))
+            self._baseline_button.setToolTip(tr('Discard the recorded baseline data and start over from scratch.'))
             self._baseline_button.setEnabled(True)
 
     def _on_baseline_button_clicked(self) -> None:
@@ -355,20 +319,52 @@ class PlayerIdentifierWidget(QWidget):
 
     def _set_idle_instructions(self) -> None:
         self._instructions.setText(
-            '<b>How to use the Player Identifier:</b><br><br>'
-            '<b>1.</b> Go somewhere alone in-game where no other player is near you '
-            '(e.g. a bunker, facility, or empty area).<br>'
-            '<b>2.</b> Click <b>Start Baseline</b> to record the normal traffic for every IP in the session. '
-            "Stand still and don't interact with anyone.<br>"
-            '<b>3.</b> The baseline auto-locks once traffic is stable '
-            f'(or after {self._baseline_max_seconds}s).<br>'
-            '<b>4.</b> Click <b>Resolve</b>, then spectate the player you want to identify '
-            '(e.g. Orbital Cannon, CCTV camera, or physically approaching them).<br>'
-            "The tool detects which IP's traffic increases when your game loads that player.<br><br>"
-            '<small>Only IPs present when you start the baseline are tracked. '
-            'Anyone who joins later is completely ignored.<br>'
-            'Tip: Detection works best when the target player is <b>moving</b> — '
-            'a moving player generates significantly more traffic than a stationary one.</small>',
+            tr(
+                '<b>How to use the Player Identifier:</b><br><br>'
+                '<b>1.</b> Go somewhere alone in-game where no other player is near you '
+                '(e.g. a bunker, facility, or empty area).<br>'
+                '<b>2.</b> Click <b>Start Baseline</b> to record the normal traffic for every IP in the session. '
+                "Stand still and don't interact with anyone.<br>"
+                '<b>3.</b> The baseline auto-locks once traffic is stable '
+                '(or after {seconds}s).<br>'
+                '<b>4.</b> Click <b>Resolve</b>, then spectate the player you want to identify '
+                '(e.g. Orbital Cannon, CCTV camera, or physically approaching them).<br>'
+                "The tool detects which IP's traffic increases when your game loads that player.<br><br>"
+                '<small>Only IPs present when you start the baseline are tracked. '
+                'Anyone who joins later is completely ignored.<br>'
+                'Tip: Detection works best when the target player is <b>moving</b> — '
+                'a moving player generates significantly more traffic than a stationary one.</small>',
+                seconds=self._baseline_max_seconds,
+            ),
+        )
+
+    def _set_baseline_instructions(self) -> None:
+        num_ips = len(self._baseline_ips)
+        self._instructions.setText(
+            tr_plural(
+                'Recording baseline for <b>{count}</b> IP…<br><br>'
+                'Stay still while the baseline records. It will auto-lock once traffic is stable '
+                '(or after {seconds}s).<br>'
+                'Do <b>NOT</b> move or interact with anyone while recording.',
+                'Recording baseline for <b>{count}</b> IPs…<br><br>'
+                'Stay still while the baseline records. It will auto-lock once traffic is stable '
+                '(or after {seconds}s).<br>'
+                'Do <b>NOT</b> move or interact with anyone while recording.',
+                num_ips,
+                seconds=self._baseline_max_seconds,
+            ),
+        )
+
+    def _set_resolving_instructions(self) -> None:
+        self._instructions.setText(
+            tr(
+                'Spectate the player you want to identify (Orbital Cannon, CCTV, or walk up to them).<br><br>'
+                'The tool is comparing live traffic against the baseline.<br>'
+                "If any IP's traffic spikes for <b>{seconds}</b> consecutive seconds, "
+                'it will be flagged as a match.<br>'
+                '<small>Tip: Detection works best when the target player is <b>moving</b>.</small>',
+                seconds=self._spike_sustained_seconds,
+            ),
         )
 
     def _on_start_baseline(self) -> None:
@@ -376,12 +372,19 @@ class PlayerIdentifierWidget(QWidget):
         if len(players) < MIN_CONNECTED_PLAYERS:
             QMessageBox.warning(
                 self,
-                'Not Enough Players',
-                f'There must be at least {MIN_CONNECTED_PLAYERS} connected players to use the Player Identifier.\n\nWith only 0 or 1 players, there is nothing to resolve.',
+                tr('Not Enough Players'),
+                tr(
+                    'There must be at least {min_players} connected players to use the Player Identifier.\n\nWith only 0 or 1 players, there is nothing to resolve.',
+                    min_players=MIN_CONNECTED_PLAYERS,
+                ),
             )
             return
 
         self._phase = Phase.BASELINE
+        self._abort_state = None
+        self._ready_reason_kind = None
+        self._baseline_stability_snapshot = None
+        self._last_max_streak = 0
         self._baselines.clear()
         self._sample_count = 0
         self._spike_streak.clear()
@@ -389,12 +392,7 @@ class PlayerIdentifierWidget(QWidget):
         self._contamination_streak.clear()
         self._identified_ips.clear()
         PlayerIdentifierTracker.set_identified_ips(set())
-        self._prev_stability_pct = None
-        self._prev_stability_format = None
-        self._prev_stability_style = None
-        self._prev_stability_text = None
-        self._prev_sample_text = None
-        self._prev_result_text = None
+        self._clear_render_caches()
         self._result_label.setText('')
         self._update_baseline_button_state()
         self._resolve_button.setEnabled(False)
@@ -404,55 +402,66 @@ class PlayerIdentifierWidget(QWidget):
         for ip in self._baseline_ips:
             self._baselines[ip] = IPBaseline()
 
-        num_ips = len(self._baseline_ips)
-        self._instructions.setText(
-            f'Recording baseline for <b>{num_ips}</b> IP{pluralize(num_ips)}…<br><br>'
-            'Stay still while the baseline records. It will auto-lock once traffic is stable '
-            f'(or after {self._baseline_max_seconds}s).<br>'
-            'Do <b>NOT</b> move or interact with anyone while recording.',
-        )
-        self._stability_bar.setFormat('Collecting…')
+        self._set_baseline_instructions()
+        collecting_text = tr('Collecting…')
+        self._stability_bar.setFormat(collecting_text)
         self._stability_bar.setValue(0)
         self._stability_bar.setStyleSheet(PROGRESS_BAR_IDLE_STYLESHEET)
         self._prev_stability_pct = 0
-        self._prev_stability_format = 'Collecting…'
+        self._prev_stability_format = collecting_text
         self._prev_stability_style = PROGRESS_BAR_IDLE_STYLESHEET
         self._prev_stability_text = None
+        self._stability_label.setText(tr('Stability: —'))
         self._stability_label.setVisible(True)
         self._stability_bar.setVisible(True)
         self._sample_label.setVisible(True)
         self._sample_label.setText('')
         self._timer.start(UPDATE_INTERVAL_MS)
 
-    def _set_ready_instructions(self, *, reason: str | None = None) -> None:
+    def _set_ready_instructions(self) -> None:
         """Update the instructions panel for the locked-baseline READY phase."""
+        reason_text: str | None = None
+        if self._ready_reason_kind is not None:
+            reason_type, timeout_seconds = self._ready_reason_kind
+            reason_text = tr('converged') if reason_type == 'converged' else tr('{seconds}s timeout', seconds=timeout_seconds)
         num_ips = len(self._baselines)
-        reason_suffix = f' ({reason})' if reason is not None else ''
-        self._instructions.setText(
-            f'Baseline locked{reason_suffix} with <b>{num_ips}</b> IP{pluralize(num_ips)} '
-            f'over <b>{self._sample_count}</b> sample{pluralize(self._sample_count)}.<br><br>'
+        reason_suffix = f' ({reason_text})' if reason_text is not None else ''
+        ips_part = tr_plural('<b>{count}</b> IP', '<b>{count}</b> IPs', num_ips)
+        samples_part = tr_plural('<b>{count}</b> sample', '<b>{count}</b> samples', self._sample_count)
+        header = tr(
+            'Baseline locked{reason_suffix} with {ips_part} over {samples_part}.',
+            reason_suffix=reason_suffix,
+            ips_part=ips_part,
+            samples_part=samples_part,
+        )
+        body = tr(
             'Click <b>Resolve</b>, then spectate the target player (Orbital Cannon, CCTV, or walk up to them).<br>'
             "The tool will detect which IP's traffic spikes when your game loads that player.<br>"
             '<small>Tip: Detection works best when the target player is <b>moving</b>.</small>',
         )
+        self._instructions.setText(f'{header}<br><br>{body}')
 
-    def _auto_stop_baseline(self, reason: str) -> None:
+    def _auto_stop_baseline(self, reason_type: str, timeout_seconds: int = 0) -> None:
         """Finalize baselines and transition to READY (timer keeps running for contamination monitoring)."""
         for bl in self._baselines.values():
             bl.finalize()
         self._phase = Phase.READY
+        self._ready_reason_kind = (reason_type, timeout_seconds)
         self._update_baseline_button_state()
         self._resolve_button.setEnabled(True)
         self._reset_button.setEnabled(False)
-        self._set_ready_instructions(reason=reason)
-        self._stability_bar.setFormat('Locked')
+        self._set_ready_instructions()
+        locked_text = tr('Locked')
+        self._stability_bar.setFormat(locked_text)
         self._stability_bar.setValue(100)
         self._stability_bar.setStyleSheet(PROGRESS_BAR_CHUNK_GREEN_STYLESHEET)
-        self._stability_label.setText(themed_qss('Stability: <span style="color:green;">Locked</span>'))
+        self._stability_label.setText(themed_qss(self._format_stability_html('green', locked_text)))
         self._contamination_streak.clear()
 
     def _on_resolve(self) -> None:
         self._phase = Phase.RESOLVING
+        self._abort_state = None
+        self._last_max_streak = 0
         self._spike_streak.clear()
         self._total_spike_duration.clear()
         self._identified_ips.clear()
@@ -461,15 +470,9 @@ class PlayerIdentifierWidget(QWidget):
         self._reset_button.setEnabled(True)
         self._select_button.setEnabled(not self._auto_select)
         self._deselect_button.setEnabled(not self._auto_select)
-        self._instructions.setText(
-            'Spectate the player you want to identify (Orbital Cannon, CCTV, or walk up to them).<br><br>'
-            'The tool is comparing live traffic against the baseline.<br>'
-            f"If any IP's traffic spikes for <b>{self._spike_sustained_seconds}</b> consecutive seconds, "
-            'it will be flagged as a match.<br>'
-            '<small>Tip: Detection works best when the target player is <b>moving</b>.</small>',
-        )
+        self._set_resolving_instructions()
         self._result_label.setText('')
-        self._stability_bar.setFormat('Resolving…')
+        self._stability_bar.setFormat(tr('Resolving…'))
         self._stability_bar.setValue(0)
         self._stability_bar.setStyleSheet(PROGRESS_BAR_CHUNK_BLUE_STYLESHEET)
 
@@ -481,6 +484,8 @@ class PlayerIdentifierWidget(QWidget):
         self._spike_streak.clear()
         self._total_spike_duration.clear()
         self._identified_ips.clear()
+        self._last_max_streak = 0
+        self._ready_reason_kind = None
         PlayerIdentifierTracker.set_identified_ips(set())
 
         self._phase = Phase.READY
@@ -492,8 +497,9 @@ class PlayerIdentifierWidget(QWidget):
 
         num_ips = len(self._baselines)
         self._set_ready_instructions()
-        self._update_stability(100, PROGRESS_BAR_CHUNK_GREEN_STYLESHEET, 'Stability: <span style="color:green;">Locked</span>', bar_format='Locked')
-        self._update_sample_label(f'{num_ips} IP{pluralize(num_ips)} · {self._sample_count} sample{pluralize(self._sample_count)}')
+        locked_text = tr('Locked')
+        self._update_stability(100, PROGRESS_BAR_CHUNK_GREEN_STYLESHEET, self._format_stability_html('green', locked_text), bar_format=locked_text)
+        self._update_sample_label(self._format_sample_text(num_ips, self._sample_count))
         self._update_result_label('')
         self._contamination_streak.clear()
 
@@ -529,6 +535,10 @@ class PlayerIdentifierWidget(QWidget):
         """Discard all data and return the widget to its initial idle state."""
         self._timer.stop()
         self._phase = Phase.IDLE
+        self._abort_state = None
+        self._ready_reason_kind = None
+        self._baseline_stability_snapshot = None
+        self._last_max_streak = 0
         if self._currently_selected_ips and self._deselect_ips is not None:
             self._deselect_ips(list(self._currently_selected_ips))
         self._currently_selected_ips.clear()
@@ -540,22 +550,17 @@ class PlayerIdentifierWidget(QWidget):
         self._contamination_streak.clear()
         self._identified_ips.clear()
         PlayerIdentifierTracker.set_identified_ips(set())
-        self._prev_stability_pct = None
-        self._prev_stability_format = None
-        self._prev_stability_style = None
-        self._prev_stability_text = None
-        self._prev_sample_text = None
-        self._prev_result_text = None
+        self._clear_render_caches()
         self._update_baseline_button_state()
         self._resolve_button.setEnabled(False)
         self._reset_button.setEnabled(False)
         self._select_button.setEnabled(False)
         self._deselect_button.setEnabled(False)
         self._set_idle_instructions()
-        self._stability_label.setText('Stability: —')
+        self._stability_label.setText(tr('Stability: —'))
         self._stability_label.setVisible(False)
         self._stability_bar.setValue(0)
-        self._stability_bar.setFormat('Waiting...')
+        self._stability_bar.setFormat(tr('Waiting...'))
         self._stability_bar.setStyleSheet(PROGRESS_BAR_IDLE_STYLESHEET)
         self._stability_bar.setVisible(False)
         self._sample_label.setText('')
@@ -576,50 +581,83 @@ class PlayerIdentifierWidget(QWidget):
         self._reset_button.setEnabled(True)
         self._select_button.setEnabled(False)
         self._deselect_button.setEnabled(False)
+        self._apply_abort_widgets(bar_format=bar_format, stability_reason=stability_reason, instructions_html=instructions_html)
+
+    def _apply_abort_widgets(self, *, bar_format: str, stability_reason: str, instructions_html: str) -> None:
         self._stability_bar.setValue(0)
         self._stability_bar.setFormat(bar_format)
         self._stability_bar.setStyleSheet(PROGRESS_BAR_CHUNK_RED_STYLESHEET)
-        self._stability_label.setText(themed_qss(f'Stability: <span style="color:red;">{stability_reason}</span>'))
+        self._stability_label.setText(themed_qss(self._format_stability_html('red', stability_reason)))
         self._instructions.setText(themed_qss(instructions_html))
 
     def _abort_insufficient_players(self) -> None:
         """Stop the current phase because too many players disconnected."""
-        self._abort_with_message(
-            bar_format='Aborted',
-            stability_reason='Aborted — not enough players remaining',
-            instructions_html=(
-                f'<b style="color:#e74c3c;">Aborted:</b> fewer than {MIN_CONNECTED_PLAYERS} tracked players remain in the session.<br><br>'
-                'Players disconnected while the scan was running. Click <b>Start Baseline</b> to try again…'
-            ),
-        )
+        self._abort_state = ('insufficient', None)
+        self._abort_with_message(**self._build_abort_insufficient_payload())
 
     def _abort_contaminated(self, ip: str, zscore: float) -> None:
         """Stop the baseline because a dramatic traffic spike was detected (contamination)."""
-        self._abort_with_message(
-            bar_format='Contaminated',
-            stability_reason='Aborted — baseline contaminated',
-            instructions_html=(
-                f'<b style="color:#e74c3c;">Baseline contaminated!</b> IP <b>{ip}</b> showed a dramatic traffic spike '
-                f'(z-score: {zscore:.1f}) while recording.<br><br>'
-                'This usually means you moved, spectated someone, or a player approached you. '
-                'The baseline data is no longer reliable.<br><br>'
-                'Click <b>Start Baseline</b> to start over. Make sure you stay completely still and isolated.'
-            ),
-        )
+        self._abort_state = ('contaminated', (ip, zscore))
+        self._abort_with_message(**self._build_abort_contaminated_payload(ip, zscore))
 
     def _abort_session_changed(self) -> None:
         """Stop the current phase because overall session traffic drifted too far from the baseline."""
-        self._abort_with_message(
-            bar_format='Aborted',
-            stability_reason='Aborted — session conditions changed',
-            instructions_html=(
+        self._abort_state = ('session_changed', None)
+        self._abort_with_message(**self._build_abort_session_changed_payload())
+
+    @staticmethod
+    def _build_abort_insufficient_payload() -> dict[str, str]:
+        return {
+            'bar_format': tr('Aborted'),
+            'stability_reason': tr('Aborted — not enough players remaining'),
+            'instructions_html': tr(
+                '<b style="color:#e74c3c;">Aborted:</b> fewer than {min_players} tracked players remain in the session.<br><br>'
+                'Players disconnected while the scan was running. Click <b>Start Baseline</b> to try again…',
+                min_players=MIN_CONNECTED_PLAYERS,
+            ),
+        }
+
+    @staticmethod
+    def _build_abort_contaminated_payload(ip: str, zscore: float) -> dict[str, str]:
+        return {
+            'bar_format': tr('Contaminated'),
+            'stability_reason': tr('Aborted — baseline contaminated'),
+            'instructions_html': tr(
+                '<b style="color:#e74c3c;">Baseline contaminated!</b> IP <b>{ip}</b> showed a dramatic traffic spike '
+                '(z-score: {zscore:.1f}) while recording.<br><br>'
+                'This usually means you moved, spectated someone, or a player approached you. '
+                'The baseline data is no longer reliable.<br><br>'
+                'Click <b>Start Baseline</b> to start over. Make sure you stay completely still and isolated.',
+                ip=ip,
+                zscore=zscore,
+            ),
+        }
+
+    @staticmethod
+    def _build_abort_session_changed_payload() -> dict[str, str]:
+        return {
+            'bar_format': tr('Aborted'),
+            'stability_reason': tr('Aborted — session conditions changed'),
+            'instructions_html': tr(
                 '<b style="color:#e74c3c;">Baseline invalidated:</b> overall session traffic shifted too dramatically '
                 'from the recorded baseline.<br><br>'
                 'The session may have ended, or a mass game event caused all traffic to spike or drop simultaneously. '
                 'The baseline data is no longer reliable.<br><br>'
-                'Click <b>Start Baseline</b> to start over.'
+                'Click <b>Start Baseline</b> to start over.',
             ),
-        )
+        }
+
+    def _render_abort_state(self) -> None:
+        if self._abort_state is None:
+            return
+        abort_kind, context = self._abort_state
+        if abort_kind == 'insufficient':
+            self._apply_abort_widgets(**self._build_abort_insufficient_payload())
+        elif abort_kind == 'contaminated' and context is not None:
+            ip, zscore = context
+            self._apply_abort_widgets(**self._build_abort_contaminated_payload(ip, zscore))
+        else:
+            self._apply_abort_widgets(**self._build_abort_session_changed_payload())
 
     # -- Periodic tick --------------------------------------------------------
 
@@ -681,43 +719,61 @@ class PlayerIdentifierWidget(QWidget):
             effective_yellow = CONVERGENCE_YELLOW
             converged = False
 
+        status_spec: tuple[str, str, int | None]
         if avg_shift is None:
             remaining = CONVERGENCE_RECENT_WINDOW - self._sample_count
             pct = int(self._sample_count / CONVERGENCE_RECENT_WINDOW * 50)
             style = PROGRESS_BAR_CHUNK_ORANGE_STYLESHEET
-            label = f'Stability: <span style="color:orange;">Collecting data ({remaining}s left)</span>'
+            status_spec = ('orange', 'collecting', remaining)
         elif self._sample_count < self._baseline_min_samples:
             remaining = self._baseline_min_samples - self._sample_count
             shift_ok = avg_shift <= effective_green
             pct = int(self._sample_count / self._baseline_min_samples * 60)
             if shift_ok:
                 style = PROGRESS_BAR_CHUNK_ORANGE_STYLESHEET
-                label = f'Stability: <span style="color:orange;">Looks stable, need {remaining}s more data</span>'
+                status_spec = ('orange', 'looks_stable', remaining)
             else:
                 style = PROGRESS_BAR_CHUNK_RED_STYLESHEET
-                label = 'Stability: <span style="color:red;">Unstable — stay still</span>'
+                status_spec = ('red', 'unstable', None)
         elif converged:
             pct = 100
             style = PROGRESS_BAR_CHUNK_GREEN_STYLESHEET
-            label = 'Stability: <span style="color:green;">Stable — Ready to stop</span>'
+            status_spec = ('green', 'stable', None)
         elif avg_shift <= effective_yellow:
             ratio = (effective_yellow - avg_shift) / (effective_yellow - effective_green)
             pct = int(60 + ratio * 39)
             style = PROGRESS_BAR_CHUNK_ORANGE_STYLESHEET
-            label = 'Stability: <span style="color:yellow;">Almost stable… keep waiting</span>'
+            status_spec = ('yellow', 'almost_stable', None)
         else:
             pct = max(int((1.0 - min(avg_shift, 1.0)) * 60), 5)
             style = PROGRESS_BAR_CHUNK_RED_STYLESHEET
-            label = 'Stability: <span style="color:red;">Unstable — stay still</span>'
+            status_spec = ('red', 'unstable', None)
 
-        self._update_stability(pct, style, label)
+        self._baseline_stability_snapshot = (pct, style, f'{pct}%', status_spec)
+        self._render_baseline_stability()
         num_ips = len(self._baselines)
-        self._update_sample_label(f'{num_ips} IP{pluralize(num_ips)} · {self._sample_count} sample{pluralize(self._sample_count)}')
+        self._update_sample_label(self._format_sample_text(num_ips, self._sample_count))
 
         if converged:
             self._auto_stop_baseline('converged')
         elif self._sample_count >= self._baseline_max_seconds:
-            self._auto_stop_baseline(f'{self._baseline_max_seconds}s timeout')
+            self._auto_stop_baseline('timeout', self._baseline_max_seconds)
+
+    def _render_baseline_stability(self) -> None:
+        if self._baseline_stability_snapshot is None:
+            return
+        pct, style, _bar_fmt, (color, status_key, remaining) = self._baseline_stability_snapshot
+        if status_key == 'collecting':
+            status_text = tr('Collecting data ({seconds}s left)', seconds=remaining or 0)
+        elif status_key == 'looks_stable':
+            status_text = tr('Looks stable, need {seconds}s more data', seconds=remaining or 0)
+        elif status_key == 'stable':
+            status_text = tr('Stable — Ready to stop')
+        elif status_key == 'almost_stable':
+            status_text = tr('Almost stable… keep waiting')
+        else:
+            status_text = tr('Unstable — stay still')
+        self._update_stability(pct, style, self._format_stability_html(color, status_text))
 
     def _tick_ready(self, players: list[Player]) -> None:
         """Monitor while the baseline is locked and the user hasn't clicked Resolve yet."""
@@ -771,6 +827,7 @@ class PlayerIdentifierWidget(QWidget):
                 self._deselect_ips(list(self._currently_selected_ips))
             self._currently_selected_ips = set(self._identified_ips)
 
+        self._last_max_streak = max_streak
         self._update_resolving_display(players, max_streak)
 
     def _format_spiking_player_bullet(self, player: Player, *, confirmed: bool) -> str:
@@ -780,9 +837,14 @@ class PlayerIdentifierWidget(QWidget):
         streak = self._spike_streak.get(player.ip, 0)
         total_duration = self._total_spike_duration.get(player.ip, 0)
         if confirmed:
-            streak_text = f'streak: {streak}s (total: {total_duration}s)' if streak > 0 else f'total spike: {total_duration}s'
+            streak_text = tr('streak: {streak}s (total: {total}s)', streak=streak, total=total_duration) if streak > 0 else tr('total spike: {total}s', total=total_duration)
         else:
-            streak_text = f'streak: {streak}/{self._spike_sustained_seconds}s (total: {total_duration}s)'
+            streak_text = tr(
+                'streak: {streak}/{required}s (total: {total}s)',
+                streak=streak,
+                required=self._spike_sustained_seconds,
+                total=total_duration,
+            )
         return f'• <b>{player.ip}</b>{name_part} — {player.packets.pps.calculated_rate} PPS · {formatted_bps} · {streak_text}'
 
     def _update_resolving_display(self, players: list[Player], max_streak: int) -> None:
@@ -792,38 +854,61 @@ class PlayerIdentifierWidget(QWidget):
 
         if not identified_players and not candidate_players:
             num_ips = len(self._baselines)
-            self._update_result_label(
-                f'<b>No spiking players detected.</b><br><small>Watching {num_ips} baselined IP{pluralize(num_ips)} for traffic spikes.</small>',
+            watching_text = tr_plural(
+                'Watching {count} baselined IP for traffic spikes.',
+                'Watching {count} baselined IPs for traffic spikes.',
+                num_ips,
             )
-            self._update_stability(0, PROGRESS_BAR_IDLE_STYLESHEET, 'Stability: <span style="color:green;">Locked</span>', bar_format='Resolving…')
+            self._update_result_label(
+                f"<b>{tr('No spiking players detected.')}</b><br><small>{watching_text}</small>",
+            )
+            self._update_stability(
+                0,
+                PROGRESS_BAR_IDLE_STYLESHEET,
+                self._format_stability_html('green', tr('Locked')),
+                bar_format=tr('Resolving…'),
+            )
             return
 
         lines: list[str] = []
         if identified_players:
             num_identified = len(identified_players)
-            lines.append(f'<b style="color:#27ae60;">{num_identified} player{pluralize(num_identified)} identified:</b>')
+            identified_header = tr_plural('{count} player identified:', '{count} players identified:', num_identified)
+            lines.append(f'<b style="color:#27ae60;">{identified_header}</b>')
             lines.extend(self._format_spiking_player_bullet(player, confirmed=True) for player in identified_players)
 
         if candidate_players:
             num_candidates = len(candidate_players)
-            lines.append(f'<b style="color:#f39c12;">{num_candidates} candidate{pluralize(num_candidates)} spiking:</b>')
+            candidates_header = tr_plural('{count} candidate spiking:', '{count} candidates spiking:', num_candidates)
+            lines.append(f'<b style="color:#f39c12;">{candidates_header}</b>')
             lines.extend(self._format_spiking_player_bullet(player, confirmed=False) for player in candidate_players)
 
         if identified_players:
-            lines.append('<small>Identified players are marked with a target icon in the connected players table.</small>')
+            lines.append(f"<small>{tr('Identified players are marked with a target icon in the connected players table.')}</small>")
         else:
-            lines.append(f'<small>Needs {self._spike_sustained_seconds} consecutive seconds of elevated traffic to confirm.</small>')
+            needs_text = tr_plural(
+                'Needs {count} consecutive second of elevated traffic to confirm.',
+                'Needs {count} consecutive seconds of elevated traffic to confirm.',
+                self._spike_sustained_seconds,
+            )
+            lines.append(f'<small>{needs_text}</small>')
 
         self._update_result_label('<br>'.join(lines))
 
         if identified_players:
-            self._update_stability(100, PROGRESS_BAR_CHUNK_GREEN_STYLESHEET, 'Stability: <span style="color:green;">Resolved</span>', bar_format='Resolved')
+            resolved_text = tr('Resolved')
+            self._update_stability(
+                100,
+                PROGRESS_BAR_CHUNK_GREEN_STYLESHEET,
+                self._format_stability_html('green', resolved_text),
+                bar_format=resolved_text,
+            )
         elif candidate_players:
             pct = min(int(max_streak / self._spike_sustained_seconds * 100), 99)
             self._update_stability(
                 pct,
                 PROGRESS_BAR_CHUNK_ORANGE_STYLESHEET,
-                'Stability: <span style="color:orange;">Spike detected</span>',
+                self._format_stability_html('orange', tr('Spike detected')),
                 bar_format=f'{pct}%',
             )
 
@@ -891,13 +976,4 @@ class PlayerIdentifierWidget(QWidget):
     def apply_settings(self) -> None:
         """Apply updated detection parameters from `Settings`."""
         self._update_baseline_button_state()
-        self._resolve_button.setToolTip(
-            'Step 2: Starts watching for traffic spikes.\n\n'
-            'After clicking this, spectate the player you want to identify using '
-            'the Orbital Cannon, a CCTV camera, or by physically approaching them.\n'
-            'When your game loads that player, it sends more data to/from their IP, '
-            'causing a spike compared to the baseline.\n\n'
-            f'An IP must spike for {self._spike_sustained_seconds} consecutive seconds to be confirmed.\n\n'
-            'Tip: Detection works best when the target player is moving — '
-            'a moving player generates significantly more traffic than a stationary one.',
-        )
+        self._update_resolve_button_translations()

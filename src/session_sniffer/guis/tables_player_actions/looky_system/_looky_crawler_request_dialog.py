@@ -26,10 +26,11 @@ from PySide6.QtWidgets import (
 from session_sniffer.background.cores import trigger_looky_rescan_all_players
 from session_sniffer.guis._crashing_qthread import CrashingQThread
 from session_sniffer.guis.delegates import ElidedTextTooltipDelegate
+from session_sniffer.guis.live_language import register_language_refresh
 from session_sniffer.guis.looky_text import (
     LOOKY_MENU_TOOLTIP_GTA5_NOT_RUNNING,
-    LOOKY_TITLE,
     get_looky_restriction,
+    get_looky_title,
 )
 from session_sniffer.guis.stylesheets import (
     LOOKY_ACTION_BUTTON_STYLESHEET,
@@ -45,6 +46,7 @@ from session_sniffer.guis.tables_player_actions.looky_system._looky_helpers impo
 )
 from session_sniffer.guis.theming import themed_qss
 from session_sniffer.guis.utils import scale_by_ui, set_dialog_window_flags
+from session_sniffer.i18n import tr, tr_plural
 from session_sniffer.networking.looky_system import (
     LookyInstructionContext,
     LookyState,
@@ -59,7 +61,6 @@ from session_sniffer.networking.looky_system import (
 )
 from session_sniffer.rendering_core.types import CaptureState
 from session_sniffer.settings.settings import Settings
-from session_sniffer.text_utils import pluralize
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -95,19 +96,19 @@ class _CrawlerSendWorker(CrashingQThread):
                 else:
                     status_code = e.response.status_code if e.response is not None else '?'
                     api_message = extract_api_error_message(e)
-                    self.send_failed.emit(api_message or f'API error: HTTP {status_code}')
+                    self.send_failed.emit(api_message or tr('API error: HTTP {status_code}', status_code=status_code))
                     if e.response is not None:
                         logger.debug('HTTP %s Response: %s', status_code, e.response.text)
                         logger.debug('Response Headers: %s', dict(e.response.headers))
                         logger.debug('Request Headers: %s', dict(e.request.headers))
         except requests.RequestException as e:
             if not self.isInterruptionRequested():
-                self.send_failed.emit(f'Connection error: {e}')
+                self.send_failed.emit(tr('Connection error: {error}', error=e))
                 if e.request is not None:
                     logger.debug('Request Headers: %s', dict(e.request.headers))
         except KeyError:
             if not self.isInterruptionRequested():
-                self.send_failed.emit('Unexpected API response: missing trackingId.')
+                self.send_failed.emit(tr('Unexpected API response: missing trackingId.'))
         else:
             if not self.isInterruptionRequested():
                 self.send_succeeded.emit(tracking_id)
@@ -176,22 +177,27 @@ class _CrawlerWatchWorker(CrashingQThread):
                 self.status_updated.emit(status, result)
         except requests.HTTPError as e:
             if e.response is not None and e.response.status_code == HTTPStatus.TOO_MANY_REQUESTS:
-                message = extract_rate_limit_message(e)
+                rate_message = extract_rate_limit_message(e)
                 wait_seconds = extract_rate_limit_wait_seconds(e)
                 if wait_seconds is not None:
-                    failure_message = f'Rate limited during status stream: {message}. Try again in {wait_seconds} second{pluralize(wait_seconds)}.'
+                    failure_message = tr_plural(
+                        'Rate limited during status stream: {message}. Try again in {count} second.',
+                        'Rate limited during status stream: {message}. Try again in {count} seconds.',
+                        wait_seconds,
+                        message=rate_message,
+                    )
                 else:
-                    failure_message = f'Rate limited during status stream: {message}.'
+                    failure_message = tr('Rate limited during status stream: {message}.', message=rate_message)
             else:
                 status_code = e.response.status_code if e.response is not None else '?'
                 api_message = extract_api_error_message(e)
-                failure_message = f'API error while watching status: {api_message or f"HTTP {status_code}"}'
+                failure_message = tr('API error while watching status: {detail}', detail=api_message or f'HTTP {status_code}')
                 if e.response is not None:
                     logger.debug('HTTP %s Response: %s', status_code, e.response.text)
                     logger.debug('Response Headers: %s', dict(e.response.headers))
                     logger.debug('Request Headers: %s', dict(e.request.headers))
         except requests.RequestException as e:
-            failure_message = f'Connection error while watching status: {e}'
+            failure_message = tr('Connection error while watching status: {error}', error=e)
             if e.request is not None:
                 logger.debug('Request Headers: %s', dict(e.request.headers))
         except AttributeError:
@@ -211,16 +217,19 @@ class _CrawlerWatchWorker(CrashingQThread):
         if is_terminal_failure_instruction_status(last_status):
             logger.debug('Looky instruction %s ended with failure status=%r result=%r', self._tracking_id, last_status, last_result)
             error_message = (
-                f'Instruction ended: {html.escape(last_result)}'
+                tr('Instruction ended: {result}', result=html.escape(last_result))
                 if last_result is not None and last_result
-                else f'Instruction ended with status: {html.escape(last_status)}'
+                else tr('Instruction ended with status: {status}', status=html.escape(last_status))
             )
             if self._rid is None and last_result == 'Unable to join target':
-                error_message += (
-                    '<br><br><b>Tip:</b> Since you used "Crawl Current Session", ensure you are actively '
-                    'playing on the exact Rockstar account that is linked to your Looky account, and '
-                    'that your session is joinable.'
+                tip_heading = html.escape(tr('Tip:'))
+                tip_body = html.escape(
+                    tr(
+                        'Since you used "Crawl Current Session", ensure you are actively playing on the exact Rockstar account '
+                        'that is linked to your Looky account, and that your session is joinable.',
+                    ),
                 )
+                error_message += f'<br><br><b>{tip_heading}</b> {tip_body}'
             self.instruction_failed.emit(error_message)
             return
         self.request_completed.emit()
@@ -243,11 +252,13 @@ class _CrawlerRequestDialog(QDialog):
         self._retry_remaining = 0
         self._rate_limit_message = ''
         self._cancel_button: QPushButton | None = None
+        self._minimize_button: QPushButton | None = None
         self._is_completed = False
+        self._is_retryable_stopped = False
         _CrawlerRequestDialog._open_dialogs[request.registry_key] = self
 
         set_dialog_window_flags(self)
-        self.setWindowTitle(LOOKY_TITLE)
+        self.setWindowTitle(get_looky_title())
         self.setMinimumSize(scale_by_ui(500), scale_by_ui(360))
         self.resize(scale_by_ui(640), scale_by_ui(400))
 
@@ -255,10 +266,10 @@ class _CrawlerRequestDialog(QDialog):
         layout.setContentsMargins(12, 12, 12, 12)
         layout.setSpacing(8)
 
-        header = QLabel(f'{request.title_prefix} — {request.display_name}')
-        header.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        header.setStyleSheet(LOOKY_CRAWLER_HEADER_STYLESHEET)
-        layout.addWidget(header)
+        self._header = QLabel(self._format_header_text())
+        self._header.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._header.setStyleSheet(LOOKY_CRAWLER_HEADER_STYLESHEET)
+        layout.addWidget(self._header)
 
         self._log = QPlainTextEdit()
         self._log.setReadOnly(True)
@@ -272,14 +283,15 @@ class _CrawlerRequestDialog(QDialog):
         self._widgets.button_box.rejected.disconnect(self.reject)
         minimize_button = self._widgets.button_box.button(QDialogButtonBox.StandardButton.Close)
         if minimize_button:
-            minimize_button.setText('Minimize')
-            minimize_button.setToolTip('Hide this window; the operation keeps running in the background.')
+            minimize_button.setText(tr('Minimize'))
+            minimize_button.setToolTip(tr('Hide this window; the operation keeps running in the background.'))
             minimize_button.clicked.connect(self.showMinimized)
-        cancel_button = self._widgets.button_box.addButton('Cancel', QDialogButtonBox.ButtonRole.RejectRole)
+            self._minimize_button = minimize_button
+        cancel_button = self._widgets.button_box.addButton(tr('Cancel'), QDialogButtonBox.ButtonRole.RejectRole)
         if cancel_button:
             cancel_button.setCursor(Qt.CursorShape.PointingHandCursor)
             cancel_button.setStyleSheet(LOOKY_ACTION_BUTTON_STYLESHEET)
-            cancel_button.setToolTip('Close this window.\nNote: if a bot was already sent, it may still join your session.')
+            cancel_button.setToolTip(tr('Close this window.\nNote: if a bot was already sent, it may still join your session.'))
             cancel_button.clicked.connect(self.close)
             self._cancel_button = cancel_button
 
@@ -294,7 +306,33 @@ class _CrawlerRequestDialog(QDialog):
         self._auto_close_timer.timeout.connect(self._tick_auto_close_countdown)
         self._auto_close_remaining = 0
 
+        register_language_refresh(self, self._refresh_language_texts)
         self._maybe_send()
+
+    def _format_header_text(self) -> str:
+        """Build the localized dialog header banner text."""
+        display = tr('Current Session') if self._request.translate_display_name else self._request.display_name
+        return f'{tr(self._request.title_prefix)} \u2014 {display}'
+
+    def _refresh_language_texts(self) -> None:
+        """Refresh dialog chrome when the runtime language changes."""
+        self.setWindowTitle(get_looky_title())
+        self._header.setText(self._format_header_text())
+        if self._minimize_button is not None:
+            self._minimize_button.setText(tr('Minimize'))
+            self._minimize_button.setToolTip(tr('Hide this window; the operation keeps running in the background.'))
+        self._widgets.try_again_button.setText(tr('Try Again'))
+        if self._is_completed:
+            self._widgets.status_label.setText(themed_qss(f'<span style="color: #4ade80; font-weight: 600;">{html.escape(tr("Completed"))}</span>'))
+            self._update_close_button_countdown()
+        elif self._is_retryable_stopped and self._cancel_button is not None:
+            self._cancel_button.setText(tr('Close'))
+            self._cancel_button.setToolTip(tr('Close this window.'))
+        elif self._cancel_button is not None:
+            self._cancel_button.setText(tr('Cancel'))
+            self._cancel_button.setToolTip(tr('Close this window.\nNote: if a bot was already sent, it may still join your session.'))
+        if self._retry_timer.isActive():
+            self._update_retry_label()
 
     @property
     def is_completed(self) -> bool:
@@ -329,7 +367,7 @@ class _CrawlerRequestDialog(QDialog):
         """Send immediately, unless a local rate-limit cooldown is still active — then show its countdown."""
         remaining = LookyState.crawler_cooldown_remaining()
         if remaining > 0:
-            self._start_retry_countdown(remaining, 'Rate limit cooldown active')
+            self._start_retry_countdown(remaining, tr('Rate limit cooldown active'))
         else:
             self._send_now()
 
@@ -339,16 +377,17 @@ class _CrawlerRequestDialog(QDialog):
         Used for the initial send, the auto-retry when the countdown elapses, and the manual "Retry now"
         button — which lets the user force a request through even while the local cooldown is active.
         """
+        self._is_retryable_stopped = False
         self._retry_timer.stop()
         self._auto_close_timer.stop()
-        self._append_log_line('Sending request...')
+        self._append_log_line(tr('Sending request...'))
         self._widgets.progress_bar.show()
         self._widgets.status_label.hide()
         self._widgets.try_again_button.hide()
-        self._widgets.try_again_button.setText('Try Again')
+        self._widgets.try_again_button.setText(tr('Try Again'))
         if self._cancel_button is not None:
-            self._cancel_button.setText('Cancel')
-            self._cancel_button.setToolTip('Close this window.\nNote: if a bot was already sent, it may still join your session.')
+            self._cancel_button.setText(tr('Cancel'))
+            self._cancel_button.setToolTip(tr('Close this window.\nNote: if a bot was already sent, it may still join your session.'))
         worker = _CrawlerSendWorker(self._request.send_fn)
         worker.send_succeeded.connect(self._on_send_succeeded)
         worker.send_rate_limited.connect(self._on_send_rate_limited)
@@ -359,8 +398,8 @@ class _CrawlerRequestDialog(QDialog):
     def _on_send_succeeded(self, tracking_id: str) -> None:
         """Send accepted — clear any cooldown and begin streaming SSE status for the returned tracking ID."""
         LookyState.clear_crawler_cooldown()
-        self._append_log_line(f'Request accepted — tracking ID: {tracking_id}')
-        self._append_log_line('Connecting to status stream…')
+        self._append_log_line(tr('Request accepted — tracking ID: {tracking_id}', tracking_id=tracking_id))
+        self._append_log_line(tr('Connecting to status stream…'))
         worker = _CrawlerWatchWorker(tracking_id, self._request.api_key, self._request.version, self._request.rid)
         worker.status_updated.connect(self._on_status_updated)
         worker.reconnect_triggered.connect(self._on_reconnect_triggered)
@@ -376,11 +415,18 @@ class _CrawlerRequestDialog(QDialog):
         If no wait time was provided by the server, fall back to a manual-retry error state.
         """
         if wait_seconds is None:
-            self._show_failed(f'Rate limited: {message}')
+            self._show_failed(tr('Rate limited: {message}', message=message))
             return
-        self._append_log_line(f'Rate limited: {message} (retrying in {wait_seconds} second{pluralize(wait_seconds)})')
+        self._append_log_line(
+            tr_plural(
+                'Rate limited: {message} (retrying in {count} second)',
+                'Rate limited: {message} (retrying in {count} seconds)',
+                wait_seconds,
+                message=message,
+            ),
+        )
         LookyState.record_crawler_cooldown(wait_seconds)
-        self._start_retry_countdown(wait_seconds, f'Rate limited: {message}')
+        self._start_retry_countdown(wait_seconds, tr('Rate limited: {message}', message=message))
 
     def _start_retry_countdown(self, wait_seconds: int, message: str) -> None:
         """Show the amber countdown UI and start the 1-second auto-retry timer."""
@@ -402,11 +448,18 @@ class _CrawlerRequestDialog(QDialog):
 
     def _update_retry_label(self) -> None:
         """Refresh the amber rate-limit countdown text."""
-        header_text = html.escape(self._rate_limit_message or 'Server rate limit active')
+        header_text = html.escape(self._rate_limit_message or tr('Server rate limit active'))
+        retry_line = html.escape(
+            tr_plural(
+                'Automatically retrying in {count} second…',
+                'Automatically retrying in {count} seconds…',
+                self._retry_remaining,
+            ),
+        )
         self._widgets.status_label.setText(
             themed_qss(
                 f'<span style="color: #fbbf24; font-weight: 600;">{header_text}<br>'
-                f'Automatically retrying in {self._retry_remaining} second{pluralize(self._retry_remaining)}…</span>',
+                f'{retry_line}</span>',
             ),
         )
 
@@ -423,11 +476,11 @@ class _CrawlerRequestDialog(QDialog):
         """Append a friendly timestamped SSE status line to the log and update the live status label."""
         status_lower = status.lower()
         status_labels = {
-            'queued': 'Queued — waiting for a bot to pick up the request',
-            'running': 'Running — bot is actively working',
-            'completed': 'Completed — instruction finished successfully',
-            'failed': 'Failed — the bot encountered an error',
-            'canceled': 'Canceled — the request was canceled',
+            'queued': tr('Queued — waiting for a bot to pick up the request'),
+            'running': tr('Running — bot is actively working'),
+            'completed': tr('Completed — instruction finished successfully'),
+            'failed': tr('Failed — the bot encountered an error'),
+            'canceled': tr('Canceled — the request was canceled'),
         }
         label = status_labels.get(status_lower, status)
         text = label if result is None else f'{label} — {result}'
@@ -439,14 +492,14 @@ class _CrawlerRequestDialog(QDialog):
 
     def _on_reconnect_triggered(self, attempt: int) -> None:
         """Show an amber log line indicating that the stream dropped and we are waiting to reconnect."""
-        self._append_log_line(f'Stream dropped — reconnecting (attempt {attempt})…')
+        self._append_log_line(tr('Stream dropped — reconnecting (attempt {attempt})…', attempt=attempt))
 
     def _on_completed(self) -> None:
         """The crawler instruction completed successfully."""
         self._is_completed = True
         self._retry_timer.stop()
         self._widgets.progress_bar.hide()
-        self._widgets.status_label.setText(themed_qss('<span style="color: #4ade80; font-weight: 600;">Completed</span>'))
+        self._widgets.status_label.setText(themed_qss(f'<span style="color: #4ade80; font-weight: 600;">{html.escape(tr("Completed"))}</span>'))
         self._widgets.status_label.show()
         self._log.setPlaceholderText('')
         if self._request.on_completed is not None:
@@ -468,27 +521,29 @@ class _CrawlerRequestDialog(QDialog):
     def _update_close_button_countdown(self) -> None:
         """Refresh the Close button text with the remaining countdown seconds."""
         if self._cancel_button is not None:
-            self._cancel_button.setText(f'Close ({self._auto_close_remaining}s)')
-            self._cancel_button.setToolTip(f'Close this window (auto-closing in {self._auto_close_remaining}s).')
+            self._cancel_button.setText(tr('Close ({seconds}s)', seconds=self._auto_close_remaining))
+            self._cancel_button.setToolTip(tr('Close this window (auto-closing in {seconds}s).', seconds=self._auto_close_remaining))
 
     def _enter_retryable_stop_state(self, status_html: str) -> None:
         """Stop timers, hide progress bar, display *status_html*, and show the Try Again / Close controls."""
+        self._is_retryable_stopped = True
         self._retry_timer.stop()
         self._auto_close_timer.stop()
         self._widgets.progress_bar.hide()
         self._widgets.status_label.setText(themed_qss(status_html))
         self._widgets.status_label.show()
-        self._widgets.try_again_button.setText('Try Again')
+        self._widgets.try_again_button.setText(tr('Try Again'))
         self._widgets.try_again_button.show()
         if self._cancel_button is not None:
-            self._cancel_button.setText('Close')
-            self._cancel_button.setToolTip('Close this window.')
+            self._cancel_button.setText(tr('Close'))
+            self._cancel_button.setToolTip(tr('Close this window.'))
         self._log.setPlaceholderText('')
 
     def _show_failed(self, message: str, *, is_html: bool = False) -> None:
         """Show a failure with a manual Try Again button (used for both send and instruction failures)."""
         formatted_message = message if is_html else html.escape(message)
-        self._enter_retryable_stop_state(f'<span style="color: #f87171; font-weight: 600;">Failed: {formatted_message}</span>')
+        failed_text = tr('Failed: {message}', message=formatted_message)
+        self._enter_retryable_stop_state(f'<span style="color: #f87171; font-weight: 600;">{failed_text}</span>')
 
     def _show_instruction_failed(self, message: str) -> None:
         """Show an HTML-formatted instruction failure message."""
@@ -496,8 +551,9 @@ class _CrawlerRequestDialog(QDialog):
 
     def _show_watch_stream_lost(self, message: str) -> None:
         """Show a connection loss error with a Try Again button."""
-        self._append_log_line(f'Status stream lost: {message}')
-        self._enter_retryable_stop_state('<span style="color: #fbbf24; font-weight: 600;">Status stream lost</span>')
+        self._append_log_line(tr('Status stream lost: {message}', message=message))
+        stream_lost_text = html.escape(tr('Status stream lost'))
+        self._enter_retryable_stop_state(f'<span style="color: #fbbf24; font-weight: 600;">{stream_lost_text}</span>')
 
     # ------------------------------------------------------------------
     # Lifetime / cleanup
@@ -560,10 +616,10 @@ class _RIDPickerDialog(QDialog):
         entries: list[tuple[str, int]],
         *,
         title_prefix: str = 'Crawler Request',
-        action_verb: str = 'request the crawler',
+        select_prompt: str = 'Multiple RIDs found for this player.\n\nSelect one to request the crawler:',
     ) -> None:
         super().__init__(parent)
-        self.setWindowTitle(LOOKY_TITLE)
+        self.setWindowTitle(get_looky_title())
         self.setWindowModality(Qt.WindowModality.WindowModal)
         self.setWindowFlag(Qt.WindowType.WindowContextHelpButtonHint, on=False)
         self.setMinimumWidth(scale_by_ui(420))
@@ -573,12 +629,12 @@ class _RIDPickerDialog(QDialog):
         layout.setContentsMargins(12, 12, 12, 12)
         layout.setSpacing(10)
 
-        header = QLabel(f'{title_prefix} — Select Rockstar ID')
+        header = QLabel(tr('{prefix} — Select Rockstar ID', prefix=tr(title_prefix)))
         header.setAlignment(Qt.AlignmentFlag.AlignCenter)
         header.setStyleSheet(LOOKY_CRAWLER_HEADER_STYLESHEET)
         layout.addWidget(header)
 
-        label = QLabel(f'Multiple RIDs found for this player.\n\nSelect one to {action_verb}:')
+        label = QLabel(tr(select_prompt))
         label.setWordWrap(True)
         label.setStyleSheet(LOOKY_BODY_LABEL_STYLESHEET)
         layout.addWidget(label)
@@ -588,7 +644,8 @@ class _RIDPickerDialog(QDialog):
         self._list.setItemDelegate(ElidedTextTooltipDelegate(self._list))
         self._list.setWordWrap(False)
         for name, rid in entries:
-            item = QListWidgetItem(f'{name} (RID: {rid})' if name else f'RID: {rid}')
+            item_label = tr('{name} (RID: {rid})', name=name, rid=rid) if name else tr('RID: {rid}', rid=rid)
+            item = QListWidgetItem(item_label)
             item.setData(Qt.ItemDataRole.UserRole, rid)
             self._list.addItem(item)
         self._list.setCurrentRow(0)
@@ -630,10 +687,10 @@ class _RIDPickerDialog(QDialog):
         entries: list[tuple[str, int]],
         *,
         title_prefix: str = 'Crawler Request',
-        action_verb: str = 'request the crawler',
+        select_prompt: str = 'Multiple RIDs found for this player.\n\nSelect one to request the crawler:',
     ) -> int | None:
         """Show the picker dialog and return the chosen RID, or `None` if canceled."""
-        dialog = _RIDPickerDialog(parent, entries, title_prefix=title_prefix, action_verb=action_verb)
+        dialog = _RIDPickerDialog(parent, entries, title_prefix=title_prefix, select_prompt=select_prompt)
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return None
         return dialog.selected_rid()
@@ -650,6 +707,7 @@ class _CrawlerRequest:
     rid: int | None
     send_fn: Callable[[], str]
     title_prefix: str = 'Crawler Request'
+    translate_display_name: bool = False
     on_completed: Callable[[], object] | None = None
 
 
@@ -683,21 +741,21 @@ class _InstructionSpec:
     registry_prefix: str
     instruction_fn: Callable[[int, str, str], str]
     title_prefix: str
-    action_verb: str
+    select_prompt: str
 
 
 _CRAWLER_SPEC = _InstructionSpec(
     registry_prefix='crawler',
     instruction_fn=send_crawler_instruction,
     title_prefix='Crawler Request',
-    action_verb='request the crawler',
+    select_prompt='Multiple RIDs found for this player.\n\nSelect one to request the crawler:',
 )
 
 _PROXY_JOIN_SPEC = _InstructionSpec(
     registry_prefix='proxy_join',
     instruction_fn=send_proxy_join_instruction,
     title_prefix='Proxy Join',
-    action_verb='proxy join',
+    select_prompt='Multiple RIDs found for this player.\n\nSelect one to proxy join:',
 )
 
 
@@ -746,8 +804,8 @@ def _show_player_instruction_request(
     if not rockstarids:
         QMessageBox.warning(
             parent,
-            LOOKY_TITLE,
-            'No Rockstar ID found for this IP address.\nThe Looky System has not resolved any players for this IP yet.',
+            get_looky_title(),
+            tr('No Rockstar ID found for this IP address.\nThe Looky System has not resolved any players for this IP yet.'),
         )
         return
 
@@ -755,7 +813,7 @@ def _show_player_instruction_request(
     rid = (
         rockstarids[0]
         if len(rockstarids) == 1
-        else _RIDPickerDialog.pick_rid(parent, entries, title_prefix=spec.title_prefix, action_verb=spec.action_verb)
+        else _RIDPickerDialog.pick_rid(parent, entries, title_prefix=spec.title_prefix, select_prompt=spec.select_prompt)
     )
     if rid is None:
         return
@@ -821,7 +879,7 @@ def show_crawlme_request(parent: QWidget) -> None:
         return
 
     if not CaptureState.gta5_is_running:
-        QMessageBox.warning(parent, LOOKY_TITLE, LOOKY_MENU_TOOLTIP_GTA5_NOT_RUNNING)
+        QMessageBox.warning(parent, get_looky_title(), tr(LOOKY_MENU_TOOLTIP_GTA5_NOT_RUNNING))
         return
 
     version = get_crawler_game_version()
@@ -833,6 +891,7 @@ def show_crawlme_request(parent: QWidget) -> None:
             version=version,
             rid=None,
             send_fn=lambda: send_crawlme_instruction(api_key, version),
+            translate_display_name=True,
             on_completed=trigger_looky_rescan_all_players,
         ),
     )

@@ -7,12 +7,14 @@ from typing import TYPE_CHECKING
 from session_sniffer.background import clear_voice_notification_queue, ensure_looky_core_running, retrigger_detections_scan, wake_looky_core
 from session_sniffer.capture.filters import build_capture_filters
 from session_sniffer.capture.process_monitor import ensure_process_monitor_running
+from session_sniffer.guis.live_language import apply_runtime_language
 from session_sniffer.guis.live_theme import apply_runtime_theme, resolve_effective_theme
 from session_sniffer.guis.loading_overlay import loading_overlay_scope, run_with_active_loading
 from session_sniffer.guis.relay_conflict import prompt_to_disable_gta5_relay_if_filtered
 from session_sniffer.guis.tables_player_actions._detection_dialogs import close_all_detection_notification_dialogs
 from session_sniffer.guis.tables_player_actions._userip_dialog import close_all_userip_detected_dialogs
 from session_sniffer.guis.theming import get_active_theme
+from session_sniffer.i18n import get_active_language, resolve_effective_language, tr
 from session_sniffer.notifications_state import notifications_state
 from session_sniffer.player import prune_old_backups, run_userip_backup_async
 from session_sniffer.player.registry import PlayersRegistry
@@ -39,6 +41,11 @@ def apply_runtime_settings_changes(
     """Apply runtime side effects after `Settings` attributes have been updated from `old_values` to `new_values`."""
     selected_theme = resolve_effective_theme()
     theme_needs_apply = selected_theme != get_active_theme()
+    selected_language = resolve_effective_language(
+        language=Settings.gui_language,
+        follow_system=Settings.gui_language_follow_system,
+    )
+    language_needs_apply = selected_language != get_active_language()
 
     capture_settings_changed = any(
         value != old_values.get(key) for key, value in new_values.items() if key in SETTING_METADATA and SETTING_METADATA[key].requires_capture_restart
@@ -54,13 +61,15 @@ def apply_runtime_settings_changes(
     webserver_will_rebind = webserver_enabled_changed or (Settings.webserver_enabled and (webserver_host_changed or webserver_port_changed))
 
     busy_ctx = (
-        loading_overlay_scope(dialog_parent, 'Applying Settings\u2026', 'Updating runtime services and capture configuration\u2026')
-        if dialog_parent is not None and dialog_parent.isVisible() and (theme_needs_apply or capture_will_restart or webserver_will_rebind)
+        loading_overlay_scope(dialog_parent, tr('Applying Settings\u2026'), tr('Updating runtime services and capture configuration\u2026'))
+        if dialog_parent is not None and dialog_parent.isVisible() and (theme_needs_apply or language_needs_apply or capture_will_restart or webserver_will_rebind)
         else nullcontext()
     )
     with busy_ctx:
         if theme_needs_apply:
             apply_runtime_theme(selected_theme)
+        if language_needs_apply:
+            apply_runtime_language(wake_renderer=True)
 
         run_with_active_loading(Settings.rebuild_blocked_ip_ranges)
         ensure_process_monitor_running()

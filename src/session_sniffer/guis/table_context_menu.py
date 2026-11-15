@@ -7,6 +7,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QKeySequence, QResizeEvent, QShortcut, QShowEvent
 
 from session_sniffer.constants.tables import DEFAULT_MIN_COLUMN_WIDTH
+from session_sniffer.guis.live_language import CANONICAL_HEADER_ROLE
 from session_sniffer.guis.table_column_resizing import TableColumnResizeController, setup_table_header_context_menu
 from session_sniffer.guis.tables_player_actions._actions import (
     create_ping_menu,
@@ -24,7 +25,7 @@ from session_sniffer.guis.utils import (
     scale_by_ui,
     set_clipboard_text,
 )
-from session_sniffer.text_utils import pluralize
+from session_sniffer.i18n import tr, tr_plural
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -44,17 +45,17 @@ def add_copy_usernames_and_ips_actions(
         add_icon_menu_action(
             menu,
             'copy.svg',
-            f'Copy Usernames ({len(usernames)})',
+            tr('Copy Usernames ({count})', count=len(usernames)),
             lambda: set_clipboard_text('\n'.join(usernames)),
-            tooltip='Copy all selected usernames.',
+            tooltip=tr('Copy all selected usernames.'),
         )
     if ip_addresses:
         add_icon_menu_action(
             menu,
             'copy.svg',
-            f'Copy IPs ({len(ip_addresses)})',
+            tr('Copy IPs ({count})', count=len(ip_addresses)),
             lambda: set_clipboard_text('\n'.join(ip_addresses)),
-            tooltip='Copy all selected IP addresses.',
+            tooltip=tr('Copy all selected IP addresses.'),
         )
 
 
@@ -64,7 +65,11 @@ def extract_ip_addresses_from_table_selection(table: QTableWidget) -> list[str]:
     ip_addresses: list[str] = []
     for item in selected_items:
         header_item = table.horizontalHeaderItem(item.column())
-        if header_item is None or header_item.text() not in ('IP Address', 'IP', 'Gateway IP'):
+        if header_item is None:
+            continue
+        canonical_header = header_item.data(CANONICAL_HEADER_ROLE)
+        header_name = canonical_header if isinstance(canonical_header, str) and canonical_header else header_item.text()
+        if header_name not in ('IP Address', 'IP', 'Gateway IP'):
             continue
         ip_address = item.text().strip()
         if ip_address and ip_address not in ip_addresses:
@@ -124,13 +129,17 @@ class TableContextMenuManager:
 
         menu = create_styled_context_menu(self._parent)
 
-        copy_label = f'Copy Rows ({selected_row_count})' if selected_row_count > 1 else 'Copy Row'
+        copy_label = tr_plural('Copy Row', 'Copy Rows ({count})', max(selected_row_count, 1))
         copy_row_action = add_icon_menu_action(
             menu,
             'copy.svg',
             copy_label,
             lambda: copy_table_selection(self._table),
-            tooltip=f'Copy the selected row{pluralize(selected_row_count)} to the clipboard as tab-separated text.',
+            tooltip=tr_plural(
+                'Copy the selected row to the clipboard as tab-separated text.',
+                'Copy the selected rows to the clipboard as tab-separated text.',
+                max(selected_row_count, 1),
+            ),
         )
         copy_row_action.setShortcut('Ctrl+C')
         copy_row_action.setEnabled(selected_row_count > 0)
@@ -139,16 +148,34 @@ class TableContextMenuManager:
             self._table.selectAll()
             copy_table_selection(self._table)
 
-        copy_all_action = add_icon_menu_action(menu, 'copy.svg', 'Copy All', _copy_all, tooltip='Select all rows, then copy them to the clipboard.')
+        copy_all_action = add_icon_menu_action(
+            menu,
+            'copy.svg',
+            tr('Copy All'),
+            _copy_all,
+            tooltip=tr('Select all rows, then copy them to the clipboard.'),
+        )
         copy_all_action.setEnabled(self._table.rowCount() > 0)
 
         menu.addSeparator()
 
-        select_all_action = add_icon_menu_action(menu, 'square-check.svg', 'Select All', self._table.selectAll, tooltip='Select all rows in the table.')
+        select_all_action = add_icon_menu_action(
+            menu,
+            'square-check.svg',
+            tr('Select All'),
+            self._table.selectAll,
+            tooltip=tr('Select all rows in the table.'),
+        )
         select_all_action.setShortcut('Ctrl+A')
         select_all_action.setEnabled(self._table.rowCount() > 0)
 
-        add_icon_menu_action(menu, 'square.svg', 'Clear Selection', self._table.clearSelection, tooltip='Deselect all currently selected rows.')
+        add_icon_menu_action(
+            menu,
+            'square.svg',
+            tr('Clear Selection'),
+            self._table.clearSelection,
+            tooltip=tr('Deselect all currently selected rows.'),
+        )
 
         selected_ip_addresses = extract_ip_addresses_from_table_selection(self._table)
         if selected_ip_addresses:
@@ -159,9 +186,9 @@ class TableContextMenuManager:
                 add_icon_menu_action(
                     menu,
                     'search.svg',
-                    'IP Lookup Details…',
+                    tr('IP Lookup Details…'),
                     lambda: show_detailed_ip_lookup(target_ip),
-                    tooltip='Show detailed IP lookup information for this IP address.',
+                    tooltip=tr('Show detailed IP lookup information for this IP address.'),
                 )
 
             create_ping_menu(self._parent, menu, selected_ip_addresses)
@@ -169,9 +196,13 @@ class TableContextMenuManager:
             add_icon_menu_action(
                 menu,
                 'radar.svg',
-                'Scan Ports…',
+                tr('Scan Ports…'),
                 lambda: scan_ports_ip(selected_ip_addresses),
-                tooltip=f'Scan TCP and UDP ports on the selected host{pluralize(len(selected_ip_addresses))}.',
+                tooltip=tr_plural(
+                    'Scan TCP and UDP ports on the selected host.',
+                    'Scan TCP and UDP ports on the selected hosts.',
+                    len(selected_ip_addresses),
+                ),
             )
 
         popup_menu_at_table(menu, self._table, pos)

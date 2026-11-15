@@ -14,10 +14,11 @@ from PySide6.QtCore import (
 )
 
 from session_sniffer.constants.standard import LOCAL_TZ
+from session_sniffer.guis.live_language import CANONICAL_HEADER_ROLE, CANONICAL_HEADER_TOOLTIP_ROLE
 from session_sniffer.guis.tables_player_actions._format import format_bool
 from session_sniffer.guis.theming import themed_text_qcolor
 from session_sniffer.guis.utils import load_country_flag_icon
-from session_sniffer.text_utils import pluralize
+from session_sniffer.i18n import tr, tr_plural
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -121,13 +122,13 @@ _SECONDS_PER_MINUTE: int = 60
 _SECONDS_PER_DAY: int = 86400
 _SECONDS_PER_TWO_DAYS: int = 172800
 
-_TIME_UNITS: tuple[tuple[int, str, int], ...] = (
-    (31536000, 'year', 31536000),
-    (2592000, 'month', 2592000),
-    (604800, 'week', 604800),
-    (_SECONDS_PER_DAY, 'day', _SECONDS_PER_DAY),
-    (3600, 'hour', 3600),
-    (_SECONDS_PER_MINUTE, 'min', _SECONDS_PER_MINUTE),
+_TIME_UNITS: tuple[tuple[int, str, str, int], ...] = (
+    (31536000, '{count} year ago', '{count} years ago', 31536000),
+    (2592000, '{count} month ago', '{count} months ago', 2592000),
+    (604800, '{count} week ago', '{count} weeks ago', 604800),
+    (_SECONDS_PER_DAY, '{count} day ago', '{count} days ago', _SECONDS_PER_DAY),
+    (3600, '{count} hour ago', '{count} hours ago', 3600),
+    (_SECONDS_PER_MINUTE, '{count} min ago', '{count} mins ago', _SECONDS_PER_MINUTE),
 )
 
 
@@ -140,14 +141,14 @@ def format_relative_datetime(dt: datetime | None) -> str:
         now = now.replace(tzinfo=None)
     seconds = int((now - dt).total_seconds())
     if seconds < _SECONDS_PER_MINUTE:
-        return 'Just now'
+        return tr('Just now')
     if _SECONDS_PER_DAY <= seconds < _SECONDS_PER_TWO_DAYS:
-        return 'Yesterday'
-    for threshold, unit, unit_seconds in _TIME_UNITS:
+        return tr('Yesterday')
+    for threshold, singular, plural, unit_seconds in _TIME_UNITS:
         if seconds >= threshold:
             unit_count = seconds // unit_seconds
-            return f'{unit_count} {unit}{pluralize(unit_count)} ago'
-    return 'Just now'
+            return tr_plural(singular, plural, unit_count)
+    return tr('Just now')
 
 
 class LeaderboardTableModel(QAbstractTableModel):
@@ -260,33 +261,44 @@ class LeaderboardTableModel(QAbstractTableModel):
             dt_val = entry.first_seen if column == COLUMN_FIRST_SEEN else entry.last_seen
             if dt_val is None:
                 return None
-            return f'Exact time: {format_datetime(dt_val)}' if self._relative_dates else format_relative_datetime(dt_val)
+            return tr('Exact time: {time}', time=format_datetime(dt_val)) if self._relative_dates else format_relative_datetime(dt_val)
         if column == COLUMN_SESSIONS:
             count = self.get_session_count(entry)
-            return (
-                f'{count} unique calendar day{pluralize(count)} this player was seen within the selected time period'
-                if self._mode == MODE_DAYS
-                else f'{count} sniffer session{pluralize(count)} in which this player was seen within the selected time period'
+            if self._mode == MODE_DAYS:
+                return tr_plural(
+                    '{count} unique calendar day this player was seen within the selected time period',
+                    '{count} unique calendar days this player was seen within the selected time period',
+                    count,
+                )
+            return tr_plural(
+                '{count} sniffer session in which this player was seen within the selected time period',
+                '{count} sniffer sessions in which this player was seen within the selected time period',
+                count,
             )
         return None
+
+    def _canonical_header_text(self, section: int, *, tooltip: bool = False) -> str:
+        if section == COLUMN_SESSIONS:
+            if tooltip:
+                return (
+                    'Number of unique calendar days this player was seen within the selected time period.'
+                    if self._mode == MODE_DAYS
+                    else 'Number of sniffer sessions in which this player was seen within the selected time period.'
+                )
+            return 'Days' if self._mode == MODE_DAYS else 'Sessions'
+        return HEADER_TOOLTIPS[section] if tooltip else HEADERS[section]
 
     @override
     def headerData(self, section: int, orientation: Qt.Orientation, role: int = Qt.ItemDataRole.DisplayRole) -> object:
         """Return column header labels and tooltips."""
         if orientation != Qt.Orientation.Horizontal:
             return None
-        if role == Qt.ItemDataRole.DisplayRole:
-            if section == COLUMN_SESSIONS:
-                return 'Days' if self._mode == MODE_DAYS else 'Sessions'
-            return HEADERS[section]
-        if role == Qt.ItemDataRole.ToolTipRole:
-            if section == COLUMN_SESSIONS:
-                return (
-                    'Number of unique calendar days this player was seen within the selected time period.'
-                    if self._mode == MODE_DAYS
-                    else 'Number of sniffer sessions in which this player was seen within the selected time period.'
-                )
-            return HEADER_TOOLTIPS[section]
+        if role in (CANONICAL_HEADER_ROLE, Qt.ItemDataRole.DisplayRole):
+            text = self._canonical_header_text(section, tooltip=False)
+            return text if role == CANONICAL_HEADER_ROLE else tr(text)
+        if role in (CANONICAL_HEADER_TOOLTIP_ROLE, Qt.ItemDataRole.ToolTipRole):
+            text = self._canonical_header_text(section, tooltip=True)
+            return text if role == CANONICAL_HEADER_TOOLTIP_ROLE else tr(text)
         return None
 
     # Display helpers --------------------------------------------------------
@@ -297,9 +309,9 @@ class LeaderboardTableModel(QAbstractTableModel):
 
     def _display_status(self, _row: int, entry: LeaderboardEntry) -> str:
         if entry.ip in self._connected_ips:
-            return 'Connected'
+            return tr('Connected')
         if entry.ip in self._disconnected_ips:
-            return 'Disconnected'
+            return tr('Disconnected')
         return '—'
 
     @staticmethod
@@ -321,23 +333,23 @@ class LeaderboardTableModel(QAbstractTableModel):
 
     @staticmethod
     def _display_country(_row: int, entry: LeaderboardEntry) -> str:
-        return entry.country or 'N/A'
+        return entry.country or tr('N/A')
 
     @staticmethod
     def _display_isp(_row: int, entry: LeaderboardEntry) -> str:
-        return entry.isp or 'N/A'
+        return entry.isp or tr('N/A')
 
     @staticmethod
     def _display_mobile(_row: int, entry: LeaderboardEntry) -> str:
-        return format_bool(entry.mobile)
+        return tr(format_bool(entry.mobile))
 
     @staticmethod
     def _display_vpn(_row: int, entry: LeaderboardEntry) -> str:
-        return format_bool(entry.vpn)
+        return tr(format_bool(entry.vpn))
 
     @staticmethod
     def _display_hosting(_row: int, entry: LeaderboardEntry) -> str:
-        return format_bool(entry.hosting)
+        return tr(format_bool(entry.hosting))
 
     def get_session_count(self, entry: LeaderboardEntry) -> int:
         """Return the days or session count for the current mode and time scope."""

@@ -8,9 +8,9 @@ from session_sniffer.background import retrigger_detections_scan
 from session_sniffer.guis.country_data import matches_country, normalize_country_name
 from session_sniffer.guis.detections_manager import DetectionsManagerDialog, open_combo_rule_editor, open_combo_rule_editor_for_player
 from session_sniffer.guis.theming import ICONS_DIR_PATH
+from session_sniffer.i18n import tr, tr_plural
 from session_sniffer.player.combo_rules import matches_asn_entry
 from session_sniffer.player.detections import GUIDetectionSettings
-from session_sniffer.text_utils import pluralize
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -116,16 +116,16 @@ def build_detections_menu(
         if country_in_list:
             add_action(
                 menu,
-                f'Remove Country ({country_name})',
-                tooltip=f'Remove {country_name} from the country detection list.',
+                tr('Remove Country ({country})', country=country_name),
+                tooltip=tr('Remove {country} from the country detection list.', country=country_name),
                 handler=lambda: _toggle_country_detection(country_name, add=False),
                 icon=QIcon(str(ICONS_DIR_PATH / 'remove.svg')),
             )
         else:
             add_action(
                 menu,
-                f'Add Country ({country_name})',
-                tooltip=f'Add {country_name} to the country detection list.',
+                tr('Add Country ({country})', country=country_name),
+                tooltip=tr('Add {country} to the country detection list.', country=country_name),
                 handler=lambda: _toggle_country_detection(country_name, add=True),
                 icon=QIcon(str(ICONS_DIR_PATH / 'plus.svg')),
             )
@@ -136,16 +136,16 @@ def build_detections_menu(
         if isp_in_list:
             add_action(
                 menu,
-                f'Remove ISP ({isp})',
-                tooltip=f'Remove ISP "{isp}" from the ISP detection list.',
+                tr('Remove ISP ({isp})', isp=isp),
+                tooltip=tr('Remove ISP "{isp}" from the ISP detection list.', isp=isp),
                 handler=lambda _isp=isp: _toggle_isp_detection(_isp, add=False),
                 icon=QIcon(str(ICONS_DIR_PATH / 'remove.svg')),
             )
         else:
             add_action(
                 menu,
-                f'Add ISP ({isp})',
-                tooltip=f'Add ISP "{isp}" to the ISP detection list.',
+                tr('Add ISP ({isp})', isp=isp),
+                tooltip=tr('Add ISP "{isp}" to the ISP detection list.', isp=isp),
                 handler=lambda _isp=isp: _toggle_isp_detection(_isp, add=True),
                 icon=QIcon(str(ICONS_DIR_PATH / 'plus.svg')),
             )
@@ -157,16 +157,16 @@ def build_detections_menu(
         if asn_in_list:
             add_action(
                 menu,
-                f'Remove ASN ({asn_value})',
-                tooltip=f'Remove ASN "{asn_value}" from the ASN detection list.',
+                tr('Remove ASN ({asn})', asn=asn_value),
+                tooltip=tr('Remove ASN "{asn}" from the ASN detection list.', asn=asn_value),
                 handler=lambda: _toggle_asn_detection(asn_value, add=False),
                 icon=QIcon(str(ICONS_DIR_PATH / 'remove.svg')),
             )
         else:
             add_action(
                 menu,
-                f'Add ASN ({asn_value})',
-                tooltip=f'Add ASN "{asn_value}" to the ASN detection list.',
+                tr('Add ASN ({asn})', asn=asn_value),
+                tooltip=tr('Add ASN "{asn}" to the ASN detection list.', asn=asn_value),
                 handler=lambda: _toggle_asn_detection(asn_value, add=True),
                 icon=QIcon(str(ICONS_DIR_PATH / 'plus.svg')),
             )
@@ -174,8 +174,8 @@ def build_detections_menu(
     menu.addSeparator()
     add_action(
         menu,
-        'Create Combo Rule...',
-        tooltip="Open the combo rule editor pre-filled with this player's Country, ISP and ASN.",
+        tr('Create Combo Rule...'),
+        tooltip=tr("Open the combo rule editor pre-filled with this player's Country, ISP and ASN."),
         handler=lambda: open_combo_rule_editor_for_player(parent, player),
         icon=QIcon(str(ICONS_DIR_PATH / 'link.svg')),
     )
@@ -216,8 +216,8 @@ def build_detections_menu_multi(
 
         add_action(
             menu,
-            f'Add {len(new_countries)} Countr{pluralize(len(new_countries), "y", "ies")} to Detection List',
-            tooltip=f'Add {", ".join(new_countries)} to the country detection list.',
+            tr_plural('Add {count} Country to Detection List', 'Add {count} Countries to Detection List', len(new_countries)),
+            tooltip=tr('Add {items} to the country detection list.', items=', '.join(new_countries)),
             handler=_add_countries,
             icon=QIcon(str(ICONS_DIR_PATH / 'plus.svg')),
         )
@@ -231,8 +231,8 @@ def build_detections_menu_multi(
 
         add_action(
             menu,
-            f'Remove {len(existing_countries)} Countr{pluralize(len(existing_countries), "y", "ies")} from Detection List',
-            tooltip=f'Remove {", ".join(existing_countries)} from the country detection list.',
+            tr_plural('Remove {count} Country from Detection List', 'Remove {count} Countries from Detection List', len(existing_countries)),
+            tooltip=tr('Remove {items} from the country detection list.', items=', '.join(existing_countries)),
             handler=_remove_countries,
             icon=QIcon(str(ICONS_DIR_PATH / 'remove.svg')),
         )
@@ -254,8 +254,8 @@ def build_detections_menu_multi(
 
         add_action(
             menu,
-            f'Add {len(new_isps)} ISP{pluralize(len(new_isps))} to Detection List',
-            tooltip=f'Add {", ".join(new_isps)} to the ISP detection list.',
+            tr_plural('Add {count} ISP to Detection List', 'Add {count} ISPs to Detection List', len(new_isps)),
+            tooltip=tr('Add {items} to the ISP detection list.', items=', '.join(new_isps)),
             handler=_add_isps,
             icon=QIcon(str(ICONS_DIR_PATH / 'plus.svg')),
         )
@@ -270,8 +270,8 @@ def build_detections_menu_multi(
 
         add_action(
             menu,
-            f'Remove {len(existing_isps)} ISP{pluralize(len(existing_isps))} from Detection List',
-            tooltip=f'Remove {", ".join(existing_isps)} from the ISP detection list.',
+            tr_plural('Remove {count} ISP from Detection List', 'Remove {count} ISPs from Detection List', len(existing_isps)),
+            tooltip=tr('Remove {items} from the ISP detection list.', items=', '.join(existing_isps)),
             handler=_remove_isps,
             icon=QIcon(str(ICONS_DIR_PATH / 'remove.svg')),
         )
@@ -291,8 +291,8 @@ def build_detections_menu_multi(
 
         add_action(
             menu,
-            f'Add {len(new_asns)} ASN{pluralize(len(new_asns))} to Detection List',
-            tooltip=f'Add {", ".join(new_asns)} to the ASN detection list.',
+            tr_plural('Add {count} ASN to Detection List', 'Add {count} ASNs to Detection List', len(new_asns)),
+            tooltip=tr('Add {items} to the ASN detection list.', items=', '.join(new_asns)),
             handler=_add_asns,
             icon=QIcon(str(ICONS_DIR_PATH / 'plus.svg')),
         )
@@ -308,8 +308,8 @@ def build_detections_menu_multi(
 
         add_action(
             menu,
-            f'Remove {len(existing_asns)} ASN{pluralize(len(existing_asns))} from Detection List',
-            tooltip=f'Remove {", ".join(existing_asns)} from the ASN detection list.',
+            tr_plural('Remove {count} ASN from Detection List', 'Remove {count} ASNs from Detection List', len(existing_asns)),
+            tooltip=tr('Remove {items} from the ASN detection list.', items=', '.join(existing_asns)),
             handler=_remove_asns,
             icon=QIcon(str(ICONS_DIR_PATH / 'remove.svg')),
         )
@@ -317,8 +317,8 @@ def build_detections_menu_multi(
     menu.addSeparator()
     add_action(
         menu,
-        'Create Combo Rule...',
-        tooltip='Open the combo rule editor to create a new combo rule.',
+        tr('Create Combo Rule...'),
+        tooltip=tr('Open the combo rule editor to create a new combo rule.'),
         handler=lambda: open_combo_rule_editor(parent),
         icon=QIcon(str(ICONS_DIR_PATH / 'link.svg')),
     )

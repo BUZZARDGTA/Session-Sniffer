@@ -32,13 +32,13 @@ from session_sniffer.guis.stylesheets import (
 )
 from session_sniffer.guis.theming import ICONS_DIR_PATH
 from session_sniffer.guis.utils import apply_search_icon, scale_by_ui
+from session_sniffer.i18n import tr, tr_plural
 from session_sniffer.networking.looky_system import get_cached_looky_usernames
 from session_sniffer.player.registry import PlayersRegistry, SessionTracker
 from session_sniffer.player.userip_loader import get_cached_userip_usernames
 from session_sniffer.rendering_core.modmenu_logs_parser import ModMenuLogsParser
 from session_sniffer.rendering_core.types import CaptureState
 from session_sniffer.settings import Settings
-from session_sniffer.text_utils import pluralize
 from session_sniffer.utils import dedup_preserve_order
 
 if TYPE_CHECKING:
@@ -243,11 +243,11 @@ def _run_username_input_dialog(
 
     add_row_button: QPushButton | None = None
     if allow_multiple:
-        add_row_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'plus.svg')), ' Add another username', dialog)
+        add_row_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'plus.svg')), f' {tr("Add another username")}', dialog)
         add_row_button.setAutoDefault(False)
         add_row_button.setCursor(Qt.CursorShape.PointingHandCursor)
         add_row_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
-        add_row_button.setToolTip('Add another username field.')
+        add_row_button.setToolTip(tr('Add another username field.'))
         layout.addWidget(add_row_button)
 
     layout.addWidget(suggestions_list)
@@ -279,9 +279,9 @@ def _run_username_input_dialog(
             prompt_label.setText(label(total))
 
         for idx, (_, edit, _, remove_btn) in enumerate(row_entries, start=1):
-            edit.setPlaceholderText(f'Username {idx}…' if allow_multiple and total > 1 else 'Enter username…')
+            edit.setPlaceholderText(tr('Username {index}…', index=idx) if allow_multiple and total > 1 else tr('Enter username…'))
             if remove_btn is not None:
-                remove_btn.setToolTip('Remove this username field' if total > 1 else 'Clear username')
+                remove_btn.setToolTip(tr('Remove this username field') if total > 1 else tr('Clear username'))
                 remove_btn.setEnabled(total > 1 or bool(edit.text()))
 
         if add_row_button is not None:
@@ -369,8 +369,8 @@ def _run_username_input_dialog(
         note_edit: QLineEdit | None = None
         if initial_notes is not None:
             note_edit = QLineEdit(initial_note, row_widget)
-            note_edit.setPlaceholderText('Note (optional)…')
-            note_edit.setToolTip('Optional note saved with this username.')
+            note_edit.setPlaceholderText(tr('Note (optional)…'))
+            note_edit.setToolTip(tr('Optional note saved with this username.'))
             row_hbox.addWidget(note_edit, stretch=1)
 
         remove_btn: QPushButton | None = None
@@ -510,6 +510,18 @@ class UsernameSelectionConfig:
     current_username: str | None = None
     show_notes: bool = False
 
+    @classmethod
+    def for_ungroup(cls, *, selected_ips: list[str] | None = None) -> UsernameSelectionConfig:
+        """Return standard configuration for ungrouping usernames from an account group."""
+        return cls(
+            title='Ungroup Usernames',
+            instructions='Select username(s) to unlink from this account group (prevents false-positive grouping):',
+            action_button_text='Ungroup',
+            multiple=True,
+            default_checked=False,
+            selected_ips=selected_ips,
+        )
+
 
 class SelectUsernamesDialog(QDialog):
     """Dialog for selecting username(s) for adding, renaming, or removing UserIP entries."""
@@ -524,14 +536,14 @@ class SelectUsernamesDialog(QDialog):
         super().__init__(parent)
         dialog_config = config or UsernameSelectionConfig()
         self.setWindowModality(Qt.WindowModality.WindowModal)
-        self.setWindowTitle(f'{dialog_config.title} - {TITLE}')
+        self.setWindowTitle(f'{tr(dialog_config.title)} - {TITLE}')
         self.setWindowFlag(Qt.WindowType.WindowContextHelpButtonHint, on=False)
         self.setMinimumSize(scale_by_ui(340), scale_by_ui(420))
         self.resize(scale_by_ui(560 if dialog_config.show_notes else 380), scale_by_ui(480))
 
         self._multiple: bool = dialog_config.multiple
         self._show_notes: bool = dialog_config.show_notes
-        self._action_button_text: str = dialog_config.action_button_text
+        self._action_button_text: str = tr(dialog_config.action_button_text)
         self._total_count: int = len(usernames)
         self._custom_requested: bool = False
         self._double_clicked_username: str | None = None
@@ -539,33 +551,42 @@ class SelectUsernamesDialog(QDialog):
         layout = QVBoxLayout(self)
 
         if dialog_config.database is not None:
-            layout.addWidget(QLabel(f'Database:  <b>{html.escape(dialog_config.database)}</b>'))
+            layout.addWidget(QLabel(f'{html.escape(tr("Database"))}:  <b>{html.escape(dialog_config.database)}</b>'))
 
         if dialog_config.selected_ips is not None and dialog_config.selected_ips:
             ip_addresses = dialog_config.selected_ips
-            ips_text = ', '.join(ip_addresses) if len(ip_addresses) <= _MAX_DISPLAY_SELECTED_IPS else f'{len(ip_addresses)} selected IPs'
-            layout.addWidget(QLabel(f'IP address{pluralize(len(ip_addresses), plural="es")}:  <b>{html.escape(ips_text)}</b>'))
+            ips_text = (
+                ', '.join(ip_addresses)
+                if len(ip_addresses) <= _MAX_DISPLAY_SELECTED_IPS
+                else tr('{count} selected IPs', count=len(ip_addresses))
+            )
+            ip_label_prefix = tr_plural('IP address', 'IP addresses', len(ip_addresses))
+            layout.addWidget(QLabel(f'{html.escape(ip_label_prefix)}:  <b>{html.escape(ips_text)}</b>'))
 
         if dialog_config.current_username is not None:
-            layout.addWidget(QLabel(f'Current:  <b>{html.escape(dialog_config.current_username)}</b>'))
+            layout.addWidget(QLabel(f'{html.escape(tr("Current"))}:  <b>{html.escape(dialog_config.current_username)}</b>'))
 
-        instructions = dialog_config.instructions if dialog_config.instructions is not None else f'Select username{pluralize(len(usernames))}:'
+        instructions = (
+            tr(dialog_config.instructions)
+            if dialog_config.instructions is not None
+            else tr_plural('Select username:', 'Select usernames:', len(usernames))
+        )
         layout.addWidget(QLabel(instructions))
 
         self._search = QLineEdit()
-        self._search.setPlaceholderText('Filter usernames…')
+        self._search.setPlaceholderText(tr('Filter usernames…'))
         apply_search_icon(self._search)
         layout.addWidget(self._search)
 
         if self._multiple:
             quick_select_row = QHBoxLayout()
-            select_all_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'square-check.svg')), ' Select All')
+            select_all_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'square-check.svg')), f' {tr("Select All")}')
             select_all_button.setStyleSheet(COMPACT_BUTTON_STYLESHEET)
             select_all_button.setCursor(Qt.CursorShape.PointingHandCursor)
             select_all_button.clicked.connect(self._select_all)
             quick_select_row.addWidget(select_all_button)
 
-            deselect_all_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'square.svg')), ' Deselect All')
+            deselect_all_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'square.svg')), f' {tr("Deselect All")}')
             deselect_all_button.setStyleSheet(COMPACT_BUTTON_STYLESHEET)
             deselect_all_button.setCursor(Qt.CursorShape.PointingHandCursor)
             deselect_all_button.clicked.connect(self._deselect_all)
@@ -583,12 +604,12 @@ class SelectUsernamesDialog(QDialog):
             if self._show_notes:
                 item.setEditable(False)
                 note_item = QStandardItem('')
-                note_item.setToolTip('Click to type an optional note for this username.')
+                note_item.setToolTip(tr('Click to type an optional note for this username.'))
                 self._list_model.appendRow([item, note_item])
             else:
                 self._list_model.appendRow(item)
         if self._show_notes:
-            self._list_model.setHorizontalHeaderLabels(['Username', 'Note (optional)'])
+            self._list_model.setHorizontalHeaderLabels([tr('Username'), tr('Note (optional)')])
 
         proxy_model = _UsernameSuggestionProxyModel(self, accept_empty=True)
         proxy_model.setSourceModel(self._list_model)
@@ -637,10 +658,10 @@ class SelectUsernamesDialog(QDialog):
         button_row = QHBoxLayout()
 
         if dialog_config.allow_custom:
-            custom_button = QPushButton('Custom…')
+            custom_button = QPushButton(tr('Custom…'))
             custom_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
             custom_button.setCursor(Qt.CursorShape.PointingHandCursor)
-            custom_button.setToolTip('Enter a custom username manually instead.')
+            custom_button.setToolTip(tr('Enter a custom username manually instead.'))
             custom_button.clicked.connect(self._on_custom_clicked)
             button_row.addWidget(custom_button)
 
@@ -653,7 +674,7 @@ class SelectUsernamesDialog(QDialog):
         self._action_button.clicked.connect(self.accept)
         button_row.addWidget(self._action_button)
 
-        dismiss_button = QPushButton('Cancel')
+        dismiss_button = QPushButton(tr('Cancel'))
         dismiss_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
         dismiss_button.setCursor(Qt.CursorShape.PointingHandCursor)
         dismiss_button.clicked.connect(self.reject)
@@ -679,9 +700,13 @@ class SelectUsernamesDialog(QDialog):
     ) -> Self:
         """Create a dialog configured for picking username(s) to add to UserIP."""
         config = UsernameSelectionConfig(
-            title='Select Usernames',
-            instructions=f'Multiple usernames found. Select the username{pluralize(len(usernames))} to add:',
-            action_button_text='Add',
+            title=tr('Select Usernames'),
+            instructions=tr_plural(
+                'Multiple usernames found. Select the username to add:',
+                'Multiple usernames found. Select the usernames to add:',
+                len(usernames),
+            ),
+            action_button_text=tr('Add'),
             multiple=True,
             default_checked=True,
             allow_custom=True,
@@ -702,9 +727,9 @@ class SelectUsernamesDialog(QDialog):
     ) -> Self:
         """Create a dialog configured for picking which username to rename."""
         config = UsernameSelectionConfig(
-            title='Rename Username',
-            instructions='Select the username to rename:',
-            action_button_text='Rename',
+            title=tr('Rename Username'),
+            instructions=tr('Select the username to rename:'),
+            action_button_text=tr('Rename'),
             multiple=False,
             allow_custom=False,
             database=database,
@@ -723,9 +748,9 @@ class SelectUsernamesDialog(QDialog):
     ) -> Self:
         """Create a dialog configured for picking which username(s) to remove."""
         config = UsernameSelectionConfig(
-            title='Remove Username',
-            instructions=f'Select username{pluralize(len(usernames))} to remove:',
-            action_button_text='Remove',
+            title=tr('Remove Username'),
+            instructions=tr_plural('Select username to remove:', 'Select usernames to remove:', len(usernames)),
+            action_button_text=tr('Remove'),
             multiple=True,
             allow_custom=False,
             database=database,
@@ -761,13 +786,21 @@ class SelectUsernamesDialog(QDialog):
             checked_count = len(self._get_checked_usernames())
             if checked_count > 0:
                 self._action_button.setEnabled(True)
-                self._action_button.setText(f'{self._action_button_text} ({checked_count})' if checked_count > 1 else self._action_button_text)
+                self._action_button.setText(
+                    tr('{action} ({count})', action=self._action_button_text, count=checked_count)
+                    if checked_count > 1
+                    else self._action_button_text,
+                )
                 return
 
             selected_count = len(self._get_selected_row_usernames())
             if selected_count > 0:
                 self._action_button.setEnabled(True)
-                self._action_button.setText(f'{self._action_button_text} ({selected_count})' if selected_count > 1 else self._action_button_text)
+                self._action_button.setText(
+                    tr('{action} ({count})', action=self._action_button_text, count=selected_count)
+                    if selected_count > 1
+                    else self._action_button_text,
+                )
                 return
 
             self._action_button.setEnabled(False)

@@ -2,7 +2,7 @@
 
 from typing import TYPE_CHECKING
 
-from PySide6.QtCore import QPoint, QSize, Qt
+from PySide6.QtCore import QAbstractItemModel, QPoint, QSize, Qt
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QHeaderView, QMenu, QTableView, QTableWidget, QTreeView
 
@@ -11,13 +11,24 @@ from session_sniffer.constants.tables import (
     FLEXIBLE_COLUMN_WEIGHTS,
     FLEXIBLE_STRETCH_COLUMNS,
 )
+from session_sniffer.guis.live_language import CANONICAL_HEADER_ROLE
 from session_sniffer.guis.utils import add_icon_menu_action, create_styled_context_menu, scale_by_ui
+from session_sniffer.i18n import tr
 
 _MINIMUM_VIEWPORT_WIDTH_THRESHOLD = 100
 _STANDARD_ICON_SIZE = 16
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+
+
+def _get_canonical_header_label(model: QAbstractItemModel, column: int) -> str:
+    """Return the canonical English header name for *column*, falling back to DisplayRole."""
+    canonical = model.headerData(column, Qt.Orientation.Horizontal, CANONICAL_HEADER_ROLE)
+    if isinstance(canonical, str) and canonical:
+        return canonical
+    display = model.headerData(column, Qt.Orientation.Horizontal, Qt.ItemDataRole.DisplayRole)
+    return str(display) if display is not None else ''
 
 
 def _get_horizontal_header(table: QTableView | QTreeView | QTableWidget) -> QHeaderView | None:
@@ -138,12 +149,12 @@ def adjust_last_visible_column_to_viewport(
         return
 
     last_column = visible_logical_columns[-1]
-    last_label = str(table_model.headerData(last_column, Qt.Orientation.Horizontal) or '')
+    last_label = _get_canonical_header_label(table_model, last_column)
     widths_map = min_column_widths or {}
     last_min_width = get_column_min_width(horizontal_header, last_column, last_label, widths_map)
 
     preceding_columns = [
-        (column, str(table_model.headerData(column, Qt.Orientation.Horizontal) or ''))
+        (column, _get_canonical_header_label(table_model, column))
         for column in visible_logical_columns[:-1]
     ]
     other_widths = sum(horizontal_header.sectionSize(column) for column, _ in preceding_columns)
@@ -232,14 +243,17 @@ def add_column_sizing_actions(
 
     if clicked_column is not None and table_model and 0 <= clicked_column < table_model.columnCount():
         is_valid_clicked_column = True
-        header_value = table_model.headerData(clicked_column, Qt.Orientation.Horizontal)
+        header_value = table_model.headerData(clicked_column, Qt.Orientation.Horizontal, Qt.ItemDataRole.DisplayRole)
         if isinstance(header_value, str) and header_value:
             clicked_column_name = header_value
 
     size_column_tooltip = (
-        f"Resize the '{clicked_column_name}' column so all text is fully visible without truncation or ellipses."
+        tr(
+            "Resize the '{column}' column so all text is fully visible without truncation or ellipses.",
+            column=clicked_column_name,
+        )
         if bool(clicked_column_name)
-        else 'Resize the selected column so all text is fully visible without truncation or ellipses.'
+        else tr('Resize the selected column so all text is fully visible without truncation or ellipses.')
     )
     size_column_cb: Callable[[], None] | None = None
     if is_valid_clicked_column and clicked_column is not None:
@@ -249,24 +263,24 @@ def add_column_sizing_actions(
             size_column_to_fit(table, target_column)
 
         size_column_cb = _size_clicked
-    size_column_action = add_icon_menu_action(menu, 'move-horizontal.svg', 'Size Column to Fit', size_column_cb, tooltip=size_column_tooltip)
+    size_column_action = add_icon_menu_action(menu, 'move-horizontal.svg', tr('Size Column to Fit'), size_column_cb, tooltip=size_column_tooltip)
     size_column_action.setEnabled(is_valid_clicked_column)
 
     add_icon_menu_action(
         menu,
         'move-vertical.svg',
-        'Size All Columns to Fit',
+        tr('Size All Columns to Fit'),
         lambda: size_all_columns_to_fit(table),
-        tooltip='Resize all visible columns so that any truncated text across the entire table is fully visible without ellipses.',
+        tooltip=tr('Resize all visible columns so that any truncated text across the entire table is fully visible without ellipses.'),
     )
 
     if on_reset is not None:
         add_icon_menu_action(
             menu,
             'refresh-cw.svg',
-            'Reset Column Sizes',
+            tr('Reset Column Sizes'),
             on_reset,
-            tooltip='Reset all column widths back to their initial default layout.',
+            tooltip=tr('Reset all column widths back to their initial default layout.'),
         )
 
 
@@ -325,17 +339,20 @@ def setup_static_table_column_resizing(
     sorted_column_index = horizontal_header.sortIndicatorSection() if is_sort_active else -1
 
     visible_columns: list[tuple[int, str, int, int]] = []
+    min_bounds: dict[int, int] = {}
     for column in range(table_model.columnCount()):
         if horizontal_header.isSectionHidden(column):
             continue
-        header_label = str(table_model.headerData(column, Qt.Orientation.Horizontal) or '')
+        header_key = _get_canonical_header_label(table_model, column)
+        display_label = str(table_model.headerData(column, Qt.Orientation.Horizontal, Qt.ItemDataRole.DisplayRole) or '')
         sort_padding = header_sort_padding if column == sorted_column_index else 0
         header_needed = max(
-            header_font_metrics.horizontalAdvance(header_label) + sort_padding,
+            header_font_metrics.horizontalAdvance(display_label) + sort_padding,
             horizontal_header.sectionSizeFromContents(column).width(),
         )
-        min_width = max(scale_by_ui(widths_map.get(header_label, DEFAULT_MIN_COLUMN_WIDTH)), header_needed)
-        custom_width = custom_widths.get(header_label) if custom_widths is not None else None
+        min_width = max(scale_by_ui(widths_map.get(header_key, DEFAULT_MIN_COLUMN_WIDTH)), header_needed)
+        min_bounds[column] = min_width
+        custom_width = custom_widths.get(header_key) if custom_widths is not None else None
         floor_width = max(min_width, custom_width) if custom_width is not None else min_width
 
         needed_width = min_width
@@ -356,11 +373,11 @@ def setup_static_table_column_resizing(
             cell_needed = text_width + icon_offset + cell_padding
             needed_width = max(needed_width, cell_needed)
 
-        max_bound = scale_by_ui(max_bounds_map[header_label]) if header_label in max_bounds_map else None
+        max_bound = scale_by_ui(max_bounds_map[header_key]) if header_key in max_bounds_map else None
         if max_bound is not None:
             needed_width = min(needed_width, max(floor_width, max_bound))
 
-        visible_columns.append((column, header_label, floor_width, needed_width))
+        visible_columns.append((column, header_key, floor_width, needed_width))
 
     if not visible_columns:
         return
@@ -380,18 +397,12 @@ def setup_static_table_column_resizing(
     # If there is a deficit and surplus is insufficient, reclaim excess width from columns sitting above their needed width
     if total_deficit > 0 and surplus < total_deficit:
         deficit_to_cover = total_deficit - max(0, surplus)
-        for column_index, header_label, _, needed_width in visible_columns:
-            if custom_widths is not None and header_label in custom_widths:
+        for column_index, header_key, _, needed_width in visible_columns:
+            if custom_widths is not None and header_key in custom_widths:
                 continue
             if deficit_to_cover <= 0:
                 break
-            sort_padding = header_sort_padding if column_index == sorted_column_index else 0
-            header_needed = max(
-                header_font_metrics.horizontalAdvance(header_label) + sort_padding,
-                horizontal_header.sectionSizeFromContents(column_index).width(),
-            )
-            min_bound = max(scale_by_ui(widths_map.get(header_label, DEFAULT_MIN_COLUMN_WIDTH)), header_needed)
-            reclaim_limit = max(min_bound, needed_width)
+            reclaim_limit = max(min_bounds[column_index], needed_width)
             if final_widths[column_index] > reclaim_limit:
                 available_to_reclaim = final_widths[column_index] - reclaim_limit
                 reclaimed_amount = min(available_to_reclaim, deficit_to_cover)
@@ -477,7 +488,7 @@ class TableColumnResizeController:
             return
 
         header_model = header.model()
-        column_name = str(header_model.headerData(logical_index, Qt.Orientation.Horizontal, Qt.ItemDataRole.DisplayRole)) if header_model else ''
+        column_name = _get_canonical_header_label(header_model, logical_index) if header_model else ''
         if not column_name:
             return
 
@@ -511,7 +522,7 @@ class TableColumnResizeController:
             return {}
         widths: dict[str, int] = {}
         for column in range(model.columnCount()):
-            label = str(model.headerData(column, Qt.Orientation.Horizontal) or '')
+            label = _get_canonical_header_label(model, column)
             if label:
                 widths[label] = header.sectionSize(column)
         return widths

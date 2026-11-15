@@ -36,12 +36,13 @@ from PySide6.QtWidgets import (
 from shiboken6 import isValid
 
 from session_sniffer.guis.delegates import ElidedTextTooltipDelegate
+from session_sniffer.guis.live_language import register_language_refresh, set_i18n_colon_label
 from session_sniffer.guis.stylesheets import SVG_ICON_CONTEXT_MENU_STYLESHEET
 from session_sniffer.guis.theming import ICONS_DIR_PATH, resolve_canonical_tint_pair, themed_qss, themed_svg, themed_text_qcolor
 from session_sniffer.guis.theming._icons import RenderedSvgSpec, lookup_rendered_svg_spec, record_rendered_svg_spec
+from session_sniffer.i18n import tr, tr_plural
 from session_sniffer.rendering_core.country_flags import get_country_flag
 from session_sniffer.settings.settings import Settings
-from session_sniffer.text_utils import pluralize
 
 from .app import app
 from .exceptions import PrimaryScreenNotFoundError, UnsupportedScreenResolutionError
@@ -162,14 +163,15 @@ def format_menu_usernames(usernames: Sequence[str] | None, *, placeholder: str =
     if len(usernames) <= max_display:
         return ', '.join(usernames)
     remaining_count = len(usernames) - max_display
-    return f'{", ".join(usernames[:max_display])} (+{remaining_count} other{pluralize(remaining_count)})'
+    return tr_plural('{usernames} (+{count} other)', '{usernames} (+{count} others)', remaining_count, usernames=', '.join(usernames[:max_display]))
 
 
 def format_player_action_tooltip(base_tooltip: str, usernames: Sequence[str] | None) -> str:
     """Return *base_tooltip* augmented with the full list of usernames if present."""
     if usernames is None or not usernames:
         return base_tooltip
-    return f'{base_tooltip}\n\nUsername{pluralize(len(usernames))}: {", ".join(usernames)}'
+    header_and_names = tr_plural('Username: {usernames}', 'Usernames: {usernames}', len(usernames), usernames=', '.join(usernames))
+    return f'{base_tooltip}\n\n{header_and_names}'
 
 
 def create_section_separator(title: str) -> QWidget:
@@ -375,11 +377,18 @@ class ToggleAlwaysOnTopMixin(QWidget):
         alignment: Qt.AlignmentFlag | None = None,
     ) -> None:
         """Create and add the standard 'Always on Top' checkbox to *layout*."""
-        checkbox = QCheckBox('Always on Top')
-        checkbox.setToolTip('Keep this window visible on top of all other applications and games.')
+        checkbox = QCheckBox()
         checkbox.setChecked(always_on_top)
         checkbox.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         checkbox.toggled.connect(self.toggle_always_on_top)
+
+        def _apply_translations() -> None:
+            checkbox.setText(tr('Always on Top'))
+            checkbox.setToolTip(tr('Keep this window visible on top of all other applications and games.'))
+
+        _apply_translations()
+        register_language_refresh(checkbox, _apply_translations)
+
         if alignment is not None:
             layout.addWidget(checkbox, alignment=alignment)
         else:
@@ -396,7 +405,7 @@ class ToggleAlwaysOnTopMixin(QWidget):
 class RateGraphWindowMixin(ToggleAlwaysOnTopMixin):
     """Mixin for graph windows providing a unified bottom control bar."""
 
-    def add_rate_graph_controls(self, layout: QBoxLayout, history_options: dict[str, int]) -> None:
+    def add_rate_graph_controls(self, layout: QBoxLayout, history_options: dict[str, int], *, default_history: int = 3600) -> None:
         """Add the bottom controls bar (Always on Top, Max History)."""
         controls_layout = QHBoxLayout()
         controls_layout.setContentsMargins(8, 6, 8, 8)
@@ -404,18 +413,28 @@ class RateGraphWindowMixin(ToggleAlwaysOnTopMixin):
 
         controls_layout.addStretch()
 
-        controls_layout.addWidget(QLabel('Max History:'))
+        max_history_label = QLabel()
+        set_i18n_colon_label(max_history_label, 'Max History')
+        controls_layout.addWidget(max_history_label)
         history_combo = QComboBox()
         history_combo.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         for text, seconds in history_options.items():
-            history_combo.addItem(text, seconds)
-        history_combo.setCurrentText('1 Hour')
+            history_combo.addItem(tr(text), seconds)
+        if (default_index := history_combo.findData(default_history)) >= 0:
+            history_combo.setCurrentIndex(default_index)
 
         def on_history_changed(index: int) -> None:
             self._on_max_history_changed(int(history_combo.itemData(index)))
 
         history_combo.currentIndexChanged.connect(on_history_changed)
         controls_layout.addWidget(history_combo)
+
+        def _refresh_history_combo() -> None:
+            for i, canonical_text in enumerate(history_options):
+                if i < history_combo.count():
+                    history_combo.setItemText(i, tr(canonical_text))
+
+        register_language_refresh(history_combo, _refresh_history_combo)
 
         layout.addLayout(controls_layout)
 
@@ -747,8 +766,8 @@ def set_clipboard_text(text: str) -> None:
 def animate_button_feedback(
     button: QPushButton,
     *,
-    feedback_text: str = ' Copied!',
-    feedback_tooltip: str = 'Copied to clipboard!',
+    feedback_text: str | None = None,
+    feedback_tooltip: str | None = None,
 ) -> None:
     """Temporarily update a button's icon, text, and tooltip to show confirmation feedback."""
     raw_timer = button.property('_feedback_timer')
@@ -762,14 +781,16 @@ def animate_button_feedback(
         button.setProperty('_feedback_orig_tooltip', button.toolTip())
         button.setProperty('_feedback_orig_min_width', button.minimumWidth())
 
+    resolved_feedback_text = tr('Copied!') if feedback_text is None else feedback_text
+    resolved_feedback_tooltip = tr('Copied to clipboard!') if feedback_tooltip is None else feedback_tooltip
     orig_text = str(button.property('_feedback_orig_text') or '')
     prefix = ' ' if orig_text.startswith(' ') else ''
-    display_text = f'{prefix}{feedback_text.lstrip()}'
+    display_text = f'{prefix}{resolved_feedback_text.lstrip()}'
 
     button.setMinimumWidth(max(button.minimumWidth(), button.width()))
     button.setText(display_text)
     button.setIcon(QIcon(str(ICONS_DIR_PATH / 'check.svg')))
-    button.setToolTip(feedback_tooltip)
+    button.setToolTip(resolved_feedback_tooltip)
 
     def _reset() -> None:
         try:
@@ -908,10 +929,10 @@ def format_duration(total_seconds: float) -> str:
     hours, remaining_seconds = divmod(duration_seconds, 3600)
     minutes, seconds = divmod(remaining_seconds, 60)
     if hours:
-        return f'{hours}h {minutes}m {seconds}s'
+        return tr('{hours}h {minutes}m {seconds}s', hours=hours, minutes=minutes, seconds=seconds)
     if minutes:
-        return f'{minutes}m {seconds}s'
-    return f'{seconds}s'
+        return tr('{minutes}m {seconds}s', minutes=minutes, seconds=seconds)
+    return tr('{seconds}s', seconds=seconds)
 
 
 def load_country_flag_icon(country_code: str) -> QIcon | None:

@@ -14,8 +14,10 @@ from PySide6.QtWidgets import (
 )
 
 from session_sniffer.guis.fonts import get_monospace_font
+from session_sniffer.guis.live_language import register_language_refresh
 from session_sniffer.guis.theming import ICONS_DIR_PATH, themed_qss
 from session_sniffer.guis.utils import set_clipboard_text
+from session_sniffer.i18n import tr
 
 _SENSITIVE_BLUR_RADIUS: Final[float] = 10.0
 _SENSITIVE_CONTAINER_WIDTH: Final[int] = 240
@@ -92,7 +94,7 @@ class SensitiveValueWidget(QWidget):
         self._copy_button.setIconSize(QSize(16, 16))
         self._copy_button.setFixedSize(26, 26)
         self._copy_button.setStyleSheet(_SENSITIVE_ACTION_BUTTON_STYLESHEET)
-        self._copy_button.setToolTip('Copy to clipboard')
+        self._copy_button.setToolTip(tr('Copy to clipboard'))
         self._copy_button.clicked.connect(self._copy_to_clipboard)
 
         container_layout.addWidget(self._label)
@@ -106,6 +108,7 @@ class SensitiveValueWidget(QWidget):
         self._label.installEventFilter(self)
 
         self._apply_state()
+        register_language_refresh(self, self._on_language_refreshed)
 
     @override
     def eventFilter(self, watched: QObject, event: QEvent) -> bool:
@@ -130,13 +133,17 @@ class SensitiveValueWidget(QWidget):
         """Copy the underlying text to clipboard and briefly acknowledge."""
         set_clipboard_text(self._text)
         self._copy_button.setIcon(QIcon(str(ICONS_DIR_PATH / 'check.svg')))
-        self._copy_button.setToolTip('Copied!')
+        self._copy_button.setToolTip(tr('Copied!'))
         QTimer.singleShot(1200, self, self._reset_copy_button)
 
     def _reset_copy_button(self) -> None:
         """Reset copy button icon and tooltip after acknowledgment timeout."""
         self._copy_button.setIcon(QIcon(str(ICONS_DIR_PATH / 'copy.svg')))
-        self._copy_button.setToolTip('Copy to clipboard')
+        self._copy_button.setToolTip(tr('Copy to clipboard'))
+
+    def _on_language_refreshed(self) -> None:
+        self._copy_button.setToolTip(tr('Copy to clipboard'))
+        self._apply_state()
 
     def set_revealed(self, *, revealed: bool) -> None:
         """Set revealed state explicitly."""
@@ -167,12 +174,12 @@ class SensitiveValueWidget(QWidget):
             self._label.setText(self._text)
             self._label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse | Qt.TextInteractionFlag.TextSelectableByKeyboard)
             self._label.setCursor(Qt.CursorShape.IBeamCursor)
-            self._label.setToolTip('Select text to copy, or click Copy')
+            self._label.setToolTip(tr('Select text to copy, or click Copy'))
         else:
             self._container.setStyleSheet(_REDACTED_PILL_STYLESHEET_BLURRED)
             self._container.setCursor(Qt.CursorShape.PointingHandCursor)
-            self._container.setToolTip('Click to reveal')
+            self._container.setToolTip(tr('Click to reveal'))
             self._label.setText(self._get_blurred_mask() if self._text else '')
             self._label.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
             self._label.setCursor(Qt.CursorShape.PointingHandCursor)
-            self._label.setToolTip('Click to reveal')
+            self._label.setToolTip(tr('Click to reveal'))

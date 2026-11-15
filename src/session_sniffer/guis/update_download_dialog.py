@@ -56,6 +56,7 @@ from session_sniffer.guis.stylesheets import (
 )
 from session_sniffer.guis.theming import themed_qss
 from session_sniffer.guis.utils import center_window_on_screen, render_svg_pixmap_from_resource
+from session_sniffer.i18n import tr
 from session_sniffer.networking.http_session import session
 from session_sniffer.utils import format_project_version, is_pyinstaller_compiled
 
@@ -175,13 +176,13 @@ class UpdateDownloadDialog(DraggableDialogMixin, QDialog):
         self._cancel_button: QPushButton | None = None
         self._worker: _DownloadWorker | None = None
         self._progress_bar = QProgressBar()
-        self._status_label = QLabel('A new version of Session Sniffer is available. Would you like to update now?')
-        initial_total_size = self._format_size_mb(candidate.size_bytes) if candidate.size_bytes is not None else 'xx.x MB'
+        self._status_label = QLabel(tr('A new version of Session Sniffer is available. Would you like to update now?'))
+        initial_total_size = self._format_size_mb(candidate.size_bytes) if candidate.size_bytes is not None else tr('xx.x MB')
         self._size_label = QLabel(
-            f'Download size:&nbsp;&nbsp;<b>{initial_total_size}</b>',
+            f"{tr('Download size:')}&nbsp;&nbsp;<b>{initial_total_size}</b>",
         )
 
-        self.setWindowTitle('Update Available')
+        self.setWindowTitle(tr('Update Available'))
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Dialog)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, on=True)
         self.setFixedSize(640, 500)
@@ -227,7 +228,7 @@ class UpdateDownloadDialog(DraggableDialogMixin, QDialog):
 
         header.addWidget(self._svg_label('update_download_badge.svg', 64, 64), 0, Qt.AlignmentFlag.AlignVCenter)
 
-        self._title_label = QLabel('Update Available')
+        self._title_label = QLabel(tr('Update Available'))
         self._title_label.setFont(get_ui_font(17, QFont.Weight.Bold))
         self._title_label.setStyleSheet(UPDATE_DOWNLOAD_TITLE_LABEL_STYLESHEET)
         header.addWidget(self._title_label, 0, Qt.AlignmentFlag.AlignVCenter)
@@ -243,7 +244,7 @@ class UpdateDownloadDialog(DraggableDialogMixin, QDialog):
 
         row.addWidget(
             self._create_version_card(
-                'CURRENT',
+                tr('CURRENT'),
                 self._current_version_label,
                 self._current_size_text,
                 self._current_sha256_hash,
@@ -262,7 +263,7 @@ class UpdateDownloadDialog(DraggableDialogMixin, QDialog):
         new_size_text = self._format_size_mb(self._candidate.size_bytes) if self._candidate.size_bytes is not None else ''
         row.addWidget(
             self._create_version_card(
-                'NEW VERSION',
+                tr('NEW VERSION'),
                 self._candidate.version_label,
                 new_size_text,
                 self._candidate.sha256_hash,
@@ -323,7 +324,7 @@ class UpdateDownloadDialog(DraggableDialogMixin, QDialog):
         label_row.addWidget(label_widget, 0, Qt.AlignmentFlag.AlignVCenter)
         label_row.addStretch(1)
 
-        badge_text = 'PRE-RELEASE' if is_prerelease else 'STABLE'
+        badge_text = tr('PRE-RELEASE') if is_prerelease else tr('STABLE')
         badge_stylesheet = UPDATE_DOWNLOAD_VERSION_CARD_BADGE_PRERELEASE_STYLESHEET if is_prerelease else UPDATE_DOWNLOAD_VERSION_CARD_BADGE_STABLE_STYLESHEET
         badge_widget = QLabel(badge_text)
         badge_widget.setFont(get_ui_font(7, QFont.Weight.Bold))
@@ -360,7 +361,7 @@ class UpdateDownloadDialog(DraggableDialogMixin, QDialog):
 
         size_row.addWidget(self._svg_label('hard-drive.svg', 16, 16), 0, Qt.AlignmentFlag.AlignVCenter)
 
-        size_widget = QLabel(size_text or 'xx.x MB')
+        size_widget = QLabel(size_text or tr('xx.x MB'))
         size_widget.setFont(get_monospace_font(9))
         size_widget.setStyleSheet(UPDATE_DOWNLOAD_VERSION_CARD_DATE_STYLESHEET)
         size_row.addWidget(size_widget, 0, Qt.AlignmentFlag.AlignVCenter)
@@ -394,7 +395,7 @@ class UpdateDownloadDialog(DraggableDialogMixin, QDialog):
     def _format_sha_display(sha_hash: str | None) -> str:
         """Format a SHA hash split onto multiple lines if long, or return fallback."""
         if sha_hash is None or not sha_hash:
-            return 'Dev Build'
+            return tr('Dev Build')
         if len(sha_hash) > _SHA_SPLIT_THRESHOLD:
             mid = len(sha_hash) // 2
             return f'{sha_hash[:mid]}\n{sha_hash[mid:]}'
@@ -477,7 +478,7 @@ class UpdateDownloadDialog(DraggableDialogMixin, QDialog):
         self._progress_bar.setRange(0, 100)
         self._progress_bar.setValue(0)
         self._progress_bar.setTextVisible(True)
-        self._progress_bar.setFormat('Ready to update')
+        self._progress_bar.setFormat(tr('Ready to update'))
         self._progress_bar.setFixedHeight(30)
         self._progress_bar.setStyleSheet(UPDATE_DOWNLOAD_PROGRESS_BAR_STYLESHEET)
         section.addWidget(self._progress_bar)
@@ -519,30 +520,30 @@ class UpdateDownloadDialog(DraggableDialogMixin, QDialog):
         footer = QHBoxLayout()
         footer.setContentsMargins(0, 0, 0, 0)
         footer.setSpacing(10)
-        self._skip_button = QPushButton('Skip This Version')
+        self._skip_button = QPushButton(tr('Skip This Version'))
         self._skip_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self._skip_button.setStyleSheet(UPDATE_DOWNLOAD_SKIP_BUTTON_STYLESHEET)
-        self._skip_button.setToolTip('Skip this update version and do not prompt again until a newer version is released')
+        self._skip_button.setToolTip(tr('Skip this update version and do not prompt again until a newer version is released'))
         self._skip_button.clicked.connect(self._on_skip)
         footer.addWidget(self._skip_button)
 
         footer.addStretch(1)
 
-        self._later_button = QPushButton('Remind Me Later')
+        self._later_button = QPushButton(tr('Remind Me Later'))
         self._later_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self._later_button.setStyleSheet(UPDATE_DOWNLOAD_SKIP_BUTTON_STYLESHEET)
-        self._later_button.setToolTip('Dismiss this prompt for now and remind me on next startup')
+        self._later_button.setToolTip(tr('Dismiss this prompt for now and remind me on next startup'))
         self._later_button.clicked.connect(self._on_remind_later)
         footer.addWidget(self._later_button)
 
-        update_button_text = 'Update Now' if is_pyinstaller_compiled() else 'View Release'
+        update_button_text = tr('Update Now') if is_pyinstaller_compiled() else tr('View Release')
         self._update_button = QPushButton(update_button_text)
         self._update_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self._update_button.setStyleSheet(UPDATE_DOWNLOAD_UPDATE_BUTTON_STYLESHEET)
         self._update_button.clicked.connect(self._on_start_update)
         footer.addWidget(self._update_button)
 
-        self._cancel_button = QPushButton('Cancel')
+        self._cancel_button = QPushButton(tr('Cancel'))
         self._cancel_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self._cancel_button.setStyleSheet(UPDATE_DOWNLOAD_CANCEL_BUTTON_STYLESHEET)
         self._cancel_button.clicked.connect(self._on_cancel)
@@ -587,11 +588,11 @@ class UpdateDownloadDialog(DraggableDialogMixin, QDialog):
             return
 
         if self._title_label is not None:
-            self._title_label.setText('Downloading Update')
-        self.setWindowTitle('Downloading Update')
+            self._title_label.setText(tr('Downloading Update'))
+        self.setWindowTitle(tr('Downloading Update'))
 
         if self._new_version_card_label is not None:
-            self._new_version_card_label.setText('DOWNLOADING')
+            self._new_version_card_label.setText(tr('DOWNLOADING'))
 
         if self._skip_button is not None:
             self._skip_button.hide()
@@ -602,12 +603,12 @@ class UpdateDownloadDialog(DraggableDialogMixin, QDialog):
         if self._cancel_button is not None:
             self._cancel_button.show()
 
-        self._status_label.setText('Preparing download…')
+        self._status_label.setText(tr('Preparing download…'))
         self._progress_bar.setFormat('%p%')
 
-        initial_total_size = self._format_size_mb(self._candidate.size_bytes) if self._candidate.size_bytes is not None else 'xx.x MB'
+        initial_total_size = self._format_size_mb(self._candidate.size_bytes) if self._candidate.size_bytes is not None else tr('xx.x MB')
         self._size_label.setText(
-            themed_qss(f'0.0 MB<span style="color: #5a6878;">&nbsp;&nbsp;/&nbsp;&nbsp;</span>{initial_total_size}'),
+            themed_qss(f'{self._format_size_mb(0)}<span style="color: #5a6878;">&nbsp;&nbsp;/&nbsp;&nbsp;</span>{initial_total_size}'),
         )
 
         self._worker = _DownloadWorker(self._candidate.download_url, self._dest_path)
@@ -637,8 +638,8 @@ class UpdateDownloadDialog(DraggableDialogMixin, QDialog):
             if self._new_size_label is not None:
                 self._new_size_label.setText(self._format_size_mb(total))
         else:
-            self._size_label.setText(f'{self._format_size_mb(done)} downloaded')
-        self._status_label.setText('Streaming update from GitHub…')
+            self._size_label.setText(tr('{size} downloaded', size=self._format_size_mb(done)))
+        self._status_label.setText(tr('Streaming update from GitHub…'))
 
     def _on_finished(self, result: _DownloadResult) -> None:
         """Handle download completion or failure."""
@@ -648,7 +649,7 @@ class UpdateDownloadDialog(DraggableDialogMixin, QDialog):
         else:
             if result.message and result.message != 'Cancelled':
                 self._error_message = result.message
-                self._status_label.setText(f'Download failed: {result.message}')
+                self._status_label.setText(tr('Download failed: {error}', error=result.message))
             self.reject()
 
     def _cleanup_download(self) -> None:

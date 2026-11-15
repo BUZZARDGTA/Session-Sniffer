@@ -5,9 +5,11 @@ from typing import TYPE_CHECKING, override
 
 from PySide6.QtGui import QColor
 
+from session_sniffer.guis.live_language import register_language_refresh
 from session_sniffer.guis.rate_graph_widget import RateGraphTheme, RateGraphWidget
 from session_sniffer.guis.theming import themed_text_qcolor
 from session_sniffer.guis.utils import RateGraphWindowMixin, format_player_display, scale_by_ui
+from session_sniffer.i18n import tr
 
 if TYPE_CHECKING:
     from PySide6.QtWidgets import QVBoxLayout
@@ -43,7 +45,8 @@ class SingleRateGraphBase(RateGraphWindowMixin):
         self._max_history = DEFAULT_MAX_HISTORY
         self._buffer_running_sum = 0.0
 
-        self.setWindowTitle(self.WINDOW_TITLE)
+        self._apply_translations()
+        register_language_refresh(self, self._apply_translations)
         self.resize(scale_by_ui(700), scale_by_ui(350))
         layout = self.setup_window_layout(always_on_top=True, margins=(0, 0, 0, 0), spacing=0)
 
@@ -59,8 +62,12 @@ class SingleRateGraphBase(RateGraphWindowMixin):
         self._widget.set_y_range(0, self.Y_FLOOR)
         layout.addWidget(self._widget)
 
-        self.add_rate_graph_controls(layout, HISTORY_OPTIONS)
+        self.add_rate_graph_controls(layout, HISTORY_OPTIONS, default_history=DEFAULT_MAX_HISTORY)
         self._setup_single_history_buffers()
+
+    def _apply_translations(self) -> None:
+        """Apply translated text to the window title."""
+        self.setWindowTitle(tr(self.WINDOW_TITLE))
 
     @override
     def _on_max_history_changed(self, new_max_history: int) -> None:
@@ -155,7 +162,7 @@ class DualRateGraphBase(RateGraphWindowMixin):
         self.resize(scale_by_ui(700), scale_by_ui(500))
         layout = self.setup_window_layout(always_on_top=True, margins=(0, 0, 0, 0), spacing=0)
         self._setup_dual_graph_widgets(layout)
-        self.add_rate_graph_controls(layout, HISTORY_OPTIONS)
+        self.add_rate_graph_controls(layout, HISTORY_OPTIONS, default_history=DEFAULT_MAX_HISTORY)
         self._setup_history_buffers()
 
     @override
@@ -240,11 +247,18 @@ class PlayerRateGraphWindow(DualRateGraphBase):
         super().__init__()
 
         self.ip = ip
+        self._usernames: list[str] = []
         self._initial_pps_threshold = initial_pps_threshold
         self._initial_bps_threshold = initial_bps_threshold
 
-        self.setWindowTitle(f'Rate Graph — {ip}')
+        self._update_window_title()
+        register_language_refresh(self, self._update_window_title)
         self._finish_graph_init()
+
+    def _update_window_title(self) -> None:
+        """Update the window title to reflect the current player identity and language."""
+        player_display = format_player_display(self.ip, self._usernames) if self._usernames else self.ip
+        self.setWindowTitle(tr('Rate Graph — {player}', player=player_display))
 
     @override
     def _configure_pps_widget(self) -> None:
@@ -258,7 +272,8 @@ class PlayerRateGraphWindow(DualRateGraphBase):
 
     def update_usernames(self, usernames: list[str]) -> None:
         """Update the window title to reflect current usernames."""
-        self.setWindowTitle(f'Rate Graph — {format_player_display(self.ip, usernames)}')
+        self._usernames = list(usernames)
+        self._update_window_title()
 
     def set_pps_threshold(self, threshold: int) -> None:
         """Update the PPS threshold marker line."""

@@ -1,19 +1,23 @@
 """Themes tab, preview gallery cards, and Theme Manager integration mixin for `SettingsDialog`."""
 
+from pathlib import Path
 from typing import TYPE_CHECKING, Final, cast, override
 
 from PySide6.QtCore import QSignalBlocker, Qt, QTimer, Signal
-from PySide6.QtGui import QCloseEvent, QIcon
+from PySide6.QtGui import QAction, QCloseEvent, QColor, QIcon
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QDialog,
+    QFileDialog,
     QFormLayout,
     QFrame,
     QGridLayout,
     QGroupBox,
     QHBoxLayout,
     QLabel,
+    QLineEdit,
+    QMessageBox,
     QPushButton,
     QSizePolicy,
     QVBoxLayout,
@@ -22,10 +26,18 @@ from PySide6.QtWidgets import (
 from shiboken6 import isValid
 
 from session_sniffer.background.events import gui_closed__event
+from session_sniffer.capture.arp_spoofing import ArpSpoofingController
+from session_sniffer.constants.standalone import TITLE
+from session_sniffer.error_messages import format_invalid_datetime_columns_settings_message
 from session_sniffer.guis._crashing_qthread import CrashingQThread
 from session_sniffer.guis._dialog_mixins import UnsavedChangesMixin
-from session_sniffer.guis._settings_widget_builders import format_setting_tooltip
+from session_sniffer.guis._settings_widget_builders import (
+    combo_canonical_value,
+    format_setting_tooltip,
+    set_combo_by_canonical,
+)
 from session_sniffer.guis._theme_preview_card import ThemePreviewCard
+from session_sniffer.guis.live_language import apply_runtime_language, set_i18n_colon_label
 from session_sniffer.guis.live_theme import (
     PreparedTheme,
     apply_prepared_runtime_theme,
@@ -38,7 +50,13 @@ from session_sniffer.guis.live_theme import (
     set_live_follow_system_checkbox,
 )
 from session_sniffer.guis.loading_overlay import LoadingOverlay, loading_overlay_scope, pump_active_loading_overlays
-from session_sniffer.guis.stylesheets import COMPACT_BUTTON_STYLESHEET
+from session_sniffer.guis.secret_line_edit import SecretLineEdit
+from session_sniffer.guis.stylesheets import (
+    COMPACT_BUTTON_STYLESHEET,
+    DIALOG_PRIMARY_BUTTON_STYLESHEET,
+    INTERFACE_INFO_CARD_STYLESHEET,
+    INTERFACE_INFO_VALUE_LABEL_STYLESHEET,
+)
 from session_sniffer.guis.theme_manager_dialog import ThemeManagerDialog
 from session_sniffer.guis.theming import (
     BUILTIN_THEMES,
@@ -49,13 +67,23 @@ from session_sniffer.guis.theming import (
     get_active_theme,
     load_themes_file,
     themed_qss,
+    themed_text_qcolor,
 )
-from session_sniffer.guis.utils import get_ui_scale
+from session_sniffer.guis.utils import get_ui_scale, render_svg_icon_from_resource, scale_by_ui
+from session_sniffer.i18n import (
+    SUPPORTED_LANGUAGES,
+    detect_system_language,
+    get_active_language,
+    normalize_language_code,
+    resolve_effective_language,
+    tr,
+)
 from session_sniffer.settings import SETTING_METADATA
 from session_sniffer.settings.settings import Settings
+from session_sniffer.text_utils import format_triple_quoted_text
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Callable, Sequence
 
     from session_sniffer.guis._settings_runtime import SettingValue
     from session_sniffer.models.themes import ThemesFile
@@ -89,7 +117,14 @@ class _ThemePrepWorker(CrashingQThread):
 
 
 class SettingsDialogThemeMixin(UnsavedChangesMixin, QDialog):
-    """Themes tab preview gallery and `ThemeManagerDialog` synchronization helpers."""
+    """Themes tab, interface card, language toggle, and import/export helpers for `SettingsDialog`.
+
+    Expects these attributes on the concrete class (set in `__init__`):
+        `_widgets`, `_labels`, `_old_values`, `_initial_values`, `_loading_settings`, `_saved`,
+        `_restart_notice_banner`, `_restart_notice_label`, `_interface_name_label`,
+        `_arp_spoofing_label`, `_ip_address_label`, `_mac_address_label`,
+        `_manual_gui_language`, `_on_change_interface`
+    """
 
     _widgets: dict[str, QWidget]
     _labels: dict[str, QLabel]
@@ -99,6 +134,12 @@ class SettingsDialogThemeMixin(UnsavedChangesMixin, QDialog):
     _saved: bool
     _restart_notice_banner: QFrame
     _restart_notice_label: QLabel
+    _interface_name_label: QLabel | None
+    _arp_spoofing_label: QLabel | None
+    _ip_address_label: QLabel | None
+    _mac_address_label: QLabel | None
+    _manual_gui_language: str
+    _on_change_interface: Callable[[], None]
 
     def __init__(self, parent: QWidget | None = None) -> None:
         """Initialize theme state, async switch state, and preview gallery containers."""
@@ -106,7 +147,7 @@ class SettingsDialogThemeMixin(UnsavedChangesMixin, QDialog):
         self._cached_themes_file: ThemesFile = load_themes_file()[0]
         self._theme_preview_cards: list[ThemePreviewCard] = []
         self._builtin_preview_grid = QGridLayout()
-        self._custom_themes_group = QGroupBox('Custom Themes')
+        self._custom_themes_group = QGroupBox(tr('Custom Themes'))
         self._custom_preview_grid = QGridLayout(self._custom_themes_group)
         self._theme_prep_worker: _ThemePrepWorker | None = None
         self._theme_loading_overlay: LoadingOverlay | None = None
@@ -116,6 +157,9 @@ class SettingsDialogThemeMixin(UnsavedChangesMixin, QDialog):
         raise NotImplementedError
 
     def _has_unsaved_restart_changes(self) -> bool:
+        raise NotImplementedError
+
+    def _populate_widgets(self, getter: Callable[[str], SettingValue]) -> None:
         raise NotImplementedError
 
     def cancel_pending_live_theme_switch(self) -> None:
@@ -128,6 +172,15 @@ class SettingsDialogThemeMixin(UnsavedChangesMixin, QDialog):
             self._theme_loading_overlay.close_overlay()
             self._theme_loading_overlay = None
 
+    def _revert_live_language_to_persisted(self) -> None:
+        """Restore the active runtime language to the persisted effective language when changes are discarded."""
+        persisted_language = resolve_effective_language(
+            language=Settings.gui_language,
+            follow_system=Settings.gui_language_follow_system,
+        )
+        if persisted_language != get_active_language():
+            apply_runtime_language(persisted_language, wake_renderer=True)
+
     def _revert_live_theme_to_persisted(self) -> None:
         """Restore the active runtime theme to the persisted effective theme when changes are discarded."""
         self.cancel_pending_live_theme_switch()
@@ -135,15 +188,16 @@ class SettingsDialogThemeMixin(UnsavedChangesMixin, QDialog):
         if persisted_theme == get_active_theme():
             return
         if self.isVisible():
-            with loading_overlay_scope(self, 'Restoring Theme\u2026', f'Reverting to "{persisted_theme.name}"\u2026'):
+            with loading_overlay_scope(self, tr('Restoring Theme…'), tr('Reverting to "{name}"…', name=persisted_theme.name)):
                 apply_runtime_theme(persisted_theme)
         else:
             apply_runtime_theme(persisted_theme)
 
     @override
     def done(self, result: int) -> None:
-        """Revert any unsaved live-previewed theme when the dialog is rejected."""
+        """Revert any unsaved live-previewed language and theme when the dialog is rejected."""
         if result == QDialog.DialogCode.Rejected and not gui_closed__event.is_set():
+            self._revert_live_language_to_persisted()
             self._revert_live_theme_to_persisted()
         else:
             self.cancel_pending_live_theme_switch()
@@ -151,9 +205,10 @@ class SettingsDialogThemeMixin(UnsavedChangesMixin, QDialog):
 
     @override
     def closeEvent(self, event: QCloseEvent) -> None:
-        """Revert any unsaved live-previewed theme if the user discards changes on close."""
+        """Revert any unsaved live-previewed language and theme if the user discards changes on close."""
         super().closeEvent(event)
         if event.isAccepted() and not self._saved and not gui_closed__event.is_set():
+            self._revert_live_language_to_persisted()
             self._revert_live_theme_to_persisted()
 
     def _update_restart_notice(self, *_args: object) -> None:
@@ -162,8 +217,8 @@ class SettingsDialogThemeMixin(UnsavedChangesMixin, QDialog):
             return
         needs_capture_restart = self._has_unsaved_restart_changes()
         if needs_capture_restart:
-            self._restart_notice_label.setText('Saving changes will restart packet capture.')
-            self._restart_notice_banner.setToolTip('One or more modified settings require a capture restart upon saving.')
+            self._restart_notice_label.setText(tr('Saving changes will restart packet capture.'))
+            self._restart_notice_banner.setToolTip(tr('One or more modified settings require a capture restart upon saving.'))
         self._restart_notice_banner.setVisible(needs_capture_restart)
 
     def _is_follow_system_checked(self) -> bool:
@@ -174,7 +229,11 @@ class SettingsDialogThemeMixin(UnsavedChangesMixin, QDialog):
         if self._is_follow_system_checked():
             return detect_system_theme_name()
         combo = self._widgets.get('gui_theme')
-        return combo.currentText() if isinstance(combo, QComboBox) and combo.currentText() else Settings.gui_theme
+        if isinstance(combo, QComboBox):
+            canonical = combo_canonical_value(combo)
+            if canonical:
+                return canonical
+        return Settings.gui_theme
 
     def _sync_follow_system_ui_state(self) -> None:
         follow_system = self._is_follow_system_checked()
@@ -183,7 +242,10 @@ class SettingsDialogThemeMixin(UnsavedChangesMixin, QDialog):
         base_tooltip = format_setting_tooltip(SETTING_METADATA['gui_theme']) or ''
         if follow_system:
             system_name = detect_system_theme_name()
-            note = f'Disabled while Follow System Theme is enabled (currently following system {system_name} theme).'
+            note = tr(
+                'Disabled while Follow System Theme is enabled (currently following system {theme} theme).',
+                theme=system_name,
+            )
             tooltip = f'{base_tooltip}\n\n{note}' if base_tooltip else note
         else:
             tooltip = base_tooltip
@@ -210,8 +272,8 @@ class SettingsDialogThemeMixin(UnsavedChangesMixin, QDialog):
         theme_row_layout.setSpacing(6)
         theme_row_layout.addWidget(widget, 1)
 
-        manager_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'palette.svg')), ' Theme Manager\u2026')
-        manager_button.setToolTip('Create, edit, duplicate, import, or export custom color themes')
+        manager_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'palette.svg')), f" {tr('Theme Manager…')}")
+        manager_button.setToolTip(tr('Create, edit, duplicate, import, or export custom color themes'))
         manager_button.setStyleSheet(COMPACT_BUTTON_STYLESHEET)
         manager_button.setCursor(Qt.CursorShape.PointingHandCursor)
         manager_button.setAutoDefault(False)
@@ -223,13 +285,15 @@ class SettingsDialogThemeMixin(UnsavedChangesMixin, QDialog):
 
     def _populate_themes_tab(self, outer_layout: QVBoxLayout) -> None:
         """Append built-in and custom theme preview galleries to the `Themes` settings tab."""
-        builtin_group = QGroupBox('Built-in Themes')
+        builtin_group = QGroupBox(tr('Built-in Themes'))
         builtin_vbox = QVBoxLayout(builtin_group)
         builtin_vbox.setSpacing(8)
 
         hint_label = QLabel(
-            'Click any preview card below to apply a theme live (click Save to keep it, or Cancel to revert). '
-            'Use Theme Manager\u2026 above to create or customize your own themes.',
+            tr(
+                'Click any preview card below to apply a theme live (click Save to keep it, or Cancel to revert). '
+                'Use Theme Manager… above to create or customize your own themes.',
+            ),
         )
         hint_label.setStyleSheet(themed_qss('color: #9ca3af; font-size: 8.5pt; background: transparent;'))
         hint_label.setWordWrap(True)
@@ -299,7 +363,7 @@ class SettingsDialogThemeMixin(UnsavedChangesMixin, QDialog):
         self._pending_live_theme = None
         try:
             if self._theme_loading_overlay is not None:
-                self._theme_loading_overlay.set_status(f'Updating interface for "{prepared.theme.name}"\u2026')
+                self._theme_loading_overlay.set_status(tr('Updating interface for "{name}"…', name=prepared.theme.name))
                 pump_active_loading_overlays(force=True)
             apply_prepared_runtime_theme(prepared)
         finally:
@@ -319,9 +383,9 @@ class SettingsDialogThemeMixin(UnsavedChangesMixin, QDialog):
             return
 
         self._pending_live_theme = target_theme
-        status_text = f'Switching to "{target_theme.name}"\u2026'
+        status_text = tr('Switching to "{name}"…', name=target_theme.name)
         if self._theme_loading_overlay is None:
-            self._theme_loading_overlay = LoadingOverlay(self, 'Applying Theme\u2026', status_text)
+            self._theme_loading_overlay = LoadingOverlay(self, tr('Applying Theme…'), status_text)
             self._theme_loading_overlay.present_immediately()
         else:
             self._theme_loading_overlay.set_status(status_text)
@@ -345,7 +409,7 @@ class SettingsDialogThemeMixin(UnsavedChangesMixin, QDialog):
             with QSignalBlocker(follow_cb):
                 follow_cb.setChecked(False)
         combo = self._widgets.get('gui_theme')
-        if isinstance(combo, QComboBox) and combo.currentText() != theme_name:
+        if isinstance(combo, QComboBox) and combo_canonical_value(combo) != theme_name:
             self._set_enum(combo, theme_name)
         else:
             self._apply_selected_theme_live()
@@ -358,10 +422,11 @@ class SettingsDialogThemeMixin(UnsavedChangesMixin, QDialog):
         combo = self._widgets.get('gui_theme')
         if not isinstance(combo, QComboBox):
             return
-        target_name = selected_name if selected_name is not None else combo.currentText()
+        target_name = selected_name if selected_name is not None else combo_canonical_value(combo)
         with QSignalBlocker(combo):
             combo.clear()
-            combo.addItems([theme.name for theme in self._cached_themes_file.all_themes()])
+            for theme in self._cached_themes_file.all_themes():
+                combo.addItem(theme.name, theme.name)
             self._set_enum(combo, target_name)
         self._rebuild_theme_preview_cards()
 
@@ -369,7 +434,11 @@ class SettingsDialogThemeMixin(UnsavedChangesMixin, QDialog):
         """Open the modal Theme Manager dialog and synchronize custom theme and system-theme updates."""
         self.cancel_pending_live_theme_switch()
         combo = self._widgets.get('gui_theme')
-        manual_name = combo.currentText() if isinstance(combo, QComboBox) and combo.currentText() else Settings.gui_theme
+        manual_name = Settings.gui_theme
+        if isinstance(combo, QComboBox):
+            canonical_name = combo_canonical_value(combo)
+            if canonical_name:
+                manual_name = canonical_name
         follow_checked = self._is_follow_system_checked()
         initial_selection = detect_system_theme_name() if follow_checked else manual_name
         dialog = ThemeManagerDialog(
@@ -407,7 +476,7 @@ class SettingsDialogThemeMixin(UnsavedChangesMixin, QDialog):
                 mapping['gui_theme'] = new_name
 
         combo = self._widgets.get('gui_theme')
-        target = new_name if isinstance(combo, QComboBox) and combo.currentText().casefold() == old_name.casefold() else None
+        target = new_name if isinstance(combo, QComboBox) and combo_canonical_value(combo).casefold() == old_name.casefold() else None
         self._refresh_theme_combo_options(selected_name=target)
 
     def _on_custom_themes_deleted(self, raw_deleted_names: object) -> None:
@@ -429,9 +498,195 @@ class SettingsDialogThemeMixin(UnsavedChangesMixin, QDialog):
                 mapping['gui_theme'] = DEFAULT_THEME_NAME
 
         combo = self._widgets.get('gui_theme')
-        target = DEFAULT_THEME_NAME if isinstance(combo, QComboBox) and combo.currentText().casefold() in deleted_cf else None
+        target = DEFAULT_THEME_NAME if isinstance(combo, QComboBox) and combo_canonical_value(combo).casefold() in deleted_cf else None
         self._refresh_theme_combo_options(selected_name=target)
 
     def _on_themes_changed(self) -> None:
         """Refresh the theme dropdown and preview cards after custom theme changes."""
         self._refresh_theme_combo_options()
+
+    def _build_interface_info_group(self) -> QGroupBox:
+        """Build a styled read-only interface summary panel with a primary action button."""
+        group_box = QGroupBox(tr('Interface'))
+        group_box.setStyleSheet(INTERFACE_INFO_CARD_STYLESHEET)
+        layout = QVBoxLayout(group_box)
+        layout.setSpacing(8)
+        layout.setContentsMargins(10, 6, 10, 10)
+
+        def _make_label(text: str) -> QLabel:
+            label = QLabel()
+            set_i18n_colon_label(label, text)
+            label.setStyleSheet(themed_qss('color: #a5b4c4; font-weight: 600; background: transparent;'))
+            label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            return label
+
+        def _make_value(value: str | None) -> QLabel:
+            label = QLabel(value if value is not None else '\u2014')
+            label.setStyleSheet(INTERFACE_INFO_VALUE_LABEL_STYLESHEET)
+            label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+            return label
+
+        arp_state = (tr('Running') if ArpSpoofingController.is_running() else tr('Stopped')) if Settings.capture_arp_spoofing else tr('Disabled')
+
+        self._interface_name_label = _make_value(Settings.capture_interface_name)
+        self._arp_spoofing_label = _make_value(arp_state)
+        self._ip_address_label = _make_value(Settings.capture_ip_address)
+        self._mac_address_label = _make_value(Settings.capture_mac_address)
+
+        grid = QGridLayout()
+        grid.setHorizontalSpacing(12)
+        grid.setVerticalSpacing(6)
+        grid.setColumnStretch(1, 1)
+        grid.setColumnStretch(3, 1)
+        grid.setColumnMinimumWidth(2, 20)  # Gap between the two pairs.
+        grid.addWidget(_make_label('Interface Name'), 0, 0)
+        grid.addWidget(self._interface_name_label, 0, 1)
+        grid.addWidget(_make_label('ARP Spoofing'), 0, 2)
+        grid.addWidget(self._arp_spoofing_label, 0, 3)
+        grid.addWidget(_make_label('IP Address'), 1, 0)
+        grid.addWidget(self._ip_address_label, 1, 1)
+        grid.addWidget(_make_label('MAC Address'), 1, 2)
+        grid.addWidget(self._mac_address_label, 1, 3)
+        layout.addLayout(grid)
+
+        separator = QFrame()
+        separator.setFrameShape(QFrame.Shape.HLine)
+        separator.setFrameShadow(QFrame.Shadow.Sunken)
+        separator.setStyleSheet(themed_qss('background: rgba(61, 142, 201, 0.25); border: none; max-height: 1px;'))
+        layout.addWidget(separator)
+
+        change_fg = themed_text_qcolor('#ffffff', '#3d8ec9').name(QColor.NameFormat.HexArgb)
+        change_icon = render_svg_icon_from_resource('refresh-cw.svg', scale_by_ui(16), scale_by_ui(16), change_fg)
+        change_button = QPushButton(change_icon, f" {tr('Change Interface…')}")
+        change_button.setToolTip(tr('Close settings and open the network interface selection screen'))
+        change_button.setStyleSheet(DIALOG_PRIMARY_BUTTON_STYLESHEET)
+        change_button.clicked.connect(self._open_interface_selection)
+        layout.addWidget(change_button)
+
+        return group_box
+
+    def _open_interface_selection(self) -> None:
+        """Discard any unsaved settings changes, close this dialog, and trigger interface selection."""
+        self._saved = True  # Suppress the unsaved-changes prompt on close.
+        self.reject()
+        self._on_change_interface()
+
+    def _refresh_interface_info_labels(self) -> None:
+        """Update the read-only Interface summary card labels with the latest capture state."""
+        arp_state = (tr('Running') if ArpSpoofingController.is_running() else tr('Stopped')) if Settings.capture_arp_spoofing else tr('Disabled')
+        for label, val in (
+            (self._interface_name_label, Settings.capture_interface_name),
+            (self._arp_spoofing_label, arp_state),
+            (self._ip_address_label, Settings.capture_ip_address),
+            (self._mac_address_label, Settings.capture_mac_address),
+        ):
+            if label is not None:
+                label.setText(val if val is not None else '\u2014')
+
+    def _effective_dialog_language(self) -> str:
+        """Return the active language code implied by the current dialog widget state."""
+        follow_cb = self._widgets.get('gui_language_follow_system')
+        if isinstance(follow_cb, QCheckBox) and follow_cb.isChecked():
+            return detect_system_language()
+        lang_combo = self._widgets.get('gui_language')
+        if isinstance(lang_combo, QComboBox):
+            canonical = combo_canonical_value(lang_combo)
+            if canonical:
+                return normalize_language_code(canonical) or 'en'
+        return normalize_language_code(self._manual_gui_language) or 'en'
+
+    def _sync_follow_system_language_ui_state(self) -> None:
+        """Update `gui_language` enabled state, active display, and tooltip based on Follow System Language."""
+        follow_cb = self._widgets.get('gui_language_follow_system')
+        checked = isinstance(follow_cb, QCheckBox) and follow_cb.isChecked()
+        lang_combo = self._widgets.get('gui_language')
+        lang_label = self._labels.get('gui_language')
+        base_tooltip = format_setting_tooltip(SETTING_METADATA['gui_language']) or ''
+
+        if checked:
+            system_lang = detect_system_language()
+            lang_name = SUPPORTED_LANGUAGES.get(system_lang, system_lang)
+            note = tr(
+                'Following system language ({language}). Uncheck "Follow System Language" to choose manually.',
+                language=lang_name,
+            )
+            tooltip = f'{base_tooltip}\n\n{note}' if base_tooltip else note
+            if lang_label is not None:
+                lang_label.setEnabled(False)
+                lang_label.setToolTip(tooltip)
+            if isinstance(lang_combo, QComboBox):
+                lang_combo.setEnabled(False)
+                with QSignalBlocker(lang_combo):
+                    set_combo_by_canonical(lang_combo, system_lang)
+                lang_combo.setToolTip(tooltip)
+            return
+
+        if lang_label is not None:
+            lang_label.setEnabled(True)
+            lang_label.setToolTip(base_tooltip)
+        if isinstance(lang_combo, QComboBox):
+            lang_combo.setEnabled(True)
+            with QSignalBlocker(lang_combo):
+                set_combo_by_canonical(lang_combo, self._manual_gui_language)
+            lang_combo.setToolTip(base_tooltip)
+
+    def _apply_selected_language_live(self, *_args: object) -> None:
+        """Apply the effective dialog language live across the application and update language control states."""
+        self._sync_follow_system_language_ui_state()
+        if self._loading_settings:
+            return
+        apply_runtime_language(self._effective_dialog_language(), wake_renderer=True)
+
+    def _on_gui_language_changed(self) -> None:
+        """Record the manually selected language and apply it live when Follow System Language is disabled."""
+        follow_cb = self._widgets.get('gui_language_follow_system')
+        lang_combo = self._widgets.get('gui_language')
+        if self._loading_settings or not isinstance(lang_combo, QComboBox):
+            return
+        if not isinstance(follow_cb, QCheckBox) or not follow_cb.isChecked():
+            self._manual_gui_language = combo_canonical_value(lang_combo) or 'en'
+            self._apply_selected_language_live()
+
+    def _on_follow_system_language_toggled(self) -> None:
+        """Synchronize language controls and preview the effective language live when toggled."""
+        self._apply_selected_language_live()
+
+    def _export_settings(self) -> None:
+        """Export current in-memory settings to a user-chosen settings.json file."""
+        file_path, _ = QFileDialog.getSaveFileName(self, tr('Export Settings'), 'settings.json', tr('JSON Files (*.json);;All Files (*.*)'))
+        if not file_path:
+            return
+        try:
+            Path(file_path).write_text(Settings.serialize_to_json(), encoding='utf-8')
+        except OSError as e:
+            QMessageBox.critical(self, TITLE, tr('Failed to export settings:\n\n{error}', error=e))
+            return
+        QMessageBox.information(self, TITLE, tr('Settings exported successfully.'))
+
+    def _import_settings(self) -> None:
+        """Import settings from a user-chosen settings.json file and populate widgets without saving."""
+        file_path, _ = QFileDialog.getOpenFileName(self, tr('Import Settings'), '', tr('JSON Files (*.json);;All Files (*.*)'))
+        if not file_path:
+            return
+        try:
+            validated, flags = Settings.validate_settings_file(Path(file_path))
+        except (OSError, UnicodeDecodeError, ValueError, TypeError) as e:
+            QMessageBox.critical(self, TITLE, tr('Failed to import settings:\n\n{error}', error=e))
+            return
+        self._populate_widgets(lambda key: cast('SettingValue', getattr(validated, key.upper())))
+        self._apply_selected_theme_live()
+        self._apply_selected_language_live()
+        if 'invalid_datetime_columns_corrected' in flags:
+            QMessageBox.warning(self, TITLE, format_triple_quoted_text(format_invalid_datetime_columns_settings_message()))
+        self._update_restart_notice()
+        QMessageBox.information(self, TITLE, tr('Settings imported successfully.'))
+
+    def _hide_secret_fields(self) -> None:
+        """Reset any revealed password / secret QLineEdits back to hidden."""
+        for widget in self._widgets.values():
+            if isinstance(widget, QLineEdit):
+                act = widget.property('secret_action')
+                if isinstance(act, QAction) and act.isChecked():
+                    act.setChecked(False)
+                elif isinstance(widget, SecretLineEdit) and widget.is_revealed:
+                    widget.set_revealed(revealed=False)

@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, cast
 import aiohttp.web
 
 from session_sniffer.core import terminate_on_uncaught_exception
+from session_sniffer.i18n import get_active_language, get_web_panel_i18n, is_rtl_language, tr
 from session_sniffer.rendering_core.types import GUIRenderingSnapshot, GUIRenderingState
 
 if TYPE_CHECKING:
@@ -145,8 +146,14 @@ class WebServer:
 
     @staticmethod
     def _build_snapshot_payload(snapshot: GUIRenderingSnapshot, version: int, *, message_type: str | None = None) -> dict[str, object]:
+        connected_columns = snapshot.column_config.connected_column_names
+        disconnected_columns = snapshot.column_config.disconnected_column_names
+        active_lang = get_active_language()
         payload: dict[str, object] = {
             'version': version,
+            'lang': active_lang,
+            'dir': 'rtl' if is_rtl_language(active_lang) else 'ltr',
+            'i18n': get_web_panel_i18n(),
             'header': snapshot.status.header_text,
             'status': {
                 'capture': snapshot.status.status_capture_text,
@@ -156,12 +163,14 @@ class WebServer:
             },
             'connected': {
                 'count': snapshot.connected.row_count,
-                'columns': snapshot.column_config.connected_column_names,
+                'column_keys': list(connected_columns),
+                'columns': [tr(col) for col in connected_columns],
                 'rows': [list(row) for row, _ in snapshot.connected.rows_with_colors],
             },
             'disconnected': {
                 'count': snapshot.disconnected.row_count,
-                'columns': snapshot.column_config.disconnected_column_names,
+                'column_keys': list(disconnected_columns),
+                'columns': [tr(col) for col in disconnected_columns],
                 'rows': [list(row) for row, _ in snapshot.disconnected.rows_with_colors],
             },
         }

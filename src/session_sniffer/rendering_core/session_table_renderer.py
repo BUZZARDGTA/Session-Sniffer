@@ -12,6 +12,7 @@ from session_sniffer.constants.standard import LOCAL_TZ
 from session_sniffer.guis.colors import TableColors
 from session_sniffer.guis.exceptions import InvalidDateColumnConfigurationError
 from session_sniffer.guis.theming import DARK_THEME_COLORS, get_active_theme, register_theme_change_callback, themed_text_qcolor
+from session_sniffer.i18n import tr
 from session_sniffer.models.player_traffic import PlayerBandwidth
 from session_sniffer.networking.isp_filter import is_player_isp_filtered
 from session_sniffer.player.registry import SessionTracker
@@ -207,10 +208,12 @@ def format_player_time_zone(time_zone_value: object, offset_value: object = None
     return f'{tz_text} · {local_time}'
 
 
-def format_player_boolean(value: object, *, is_initialized: bool) -> str:
+def format_player_boolean(value: object, *, is_initialized: bool, localize: bool = False) -> str:
     """Format an initialized boolean lookup field as 'Yes', 'No', or '...'."""
     if not is_initialized:
         return '...'
+    if localize:
+        return tr('Yes') if value else tr('No')
     return 'Yes' if value else 'No'
 
 
@@ -402,13 +405,13 @@ def build_disconnected_player_row(
     if 'ASN' in context.disconnected_shown_columns:
         disconnected_row_texts.append(f'{player.iplookup.ipapi.as_name}')
     if 'Mobile' in context.disconnected_shown_columns:
-        disconnected_row_texts.append(format_player_boolean(player.iplookup.ipapi.mobile, is_initialized=player.iplookup.ipapi.is_initialized))
+        disconnected_row_texts.append(format_player_boolean(player.iplookup.ipapi.mobile, is_initialized=player.iplookup.ipapi.is_initialized, localize=True))
     if 'VPN' in context.disconnected_shown_columns:
-        disconnected_row_texts.append(format_player_boolean(player.iplookup.ipapi.proxy, is_initialized=player.iplookup.ipapi.is_initialized))
+        disconnected_row_texts.append(format_player_boolean(player.iplookup.ipapi.proxy, is_initialized=player.iplookup.ipapi.is_initialized, localize=True))
     if 'Hosting' in context.disconnected_shown_columns:
-        disconnected_row_texts.append(format_player_boolean(player.iplookup.ipapi.hosting, is_initialized=player.iplookup.ipapi.is_initialized))
+        disconnected_row_texts.append(format_player_boolean(player.iplookup.ipapi.hosting, is_initialized=player.iplookup.ipapi.is_initialized, localize=True))
     if 'Pinging' in context.disconnected_shown_columns:
-        disconnected_row_texts.append(format_player_boolean(player.ping.is_pinging, is_initialized=player.ping.is_initialized))
+        disconnected_row_texts.append(format_player_boolean(player.ping.is_pinging, is_initialized=player.ping.is_initialized, localize=True))
 
     return (tuple(disconnected_row_texts), disconnected_row_colors)
 
@@ -622,13 +625,13 @@ def build_session_table_snapshot(
         if 'ASN' in context.connected_shown_columns:
             connected_row_texts.append(f'{player.iplookup.ipapi.as_name}')
         if 'Mobile' in context.connected_shown_columns:
-            connected_row_texts.append(format_player_boolean(player.iplookup.ipapi.mobile, is_initialized=player.iplookup.ipapi.is_initialized))
+            connected_row_texts.append(format_player_boolean(player.iplookup.ipapi.mobile, is_initialized=player.iplookup.ipapi.is_initialized, localize=True))
         if 'VPN' in context.connected_shown_columns:
-            connected_row_texts.append(format_player_boolean(player.iplookup.ipapi.proxy, is_initialized=player.iplookup.ipapi.is_initialized))
+            connected_row_texts.append(format_player_boolean(player.iplookup.ipapi.proxy, is_initialized=player.iplookup.ipapi.is_initialized, localize=True))
         if 'Hosting' in context.connected_shown_columns:
-            connected_row_texts.append(format_player_boolean(player.iplookup.ipapi.hosting, is_initialized=player.iplookup.ipapi.is_initialized))
+            connected_row_texts.append(format_player_boolean(player.iplookup.ipapi.hosting, is_initialized=player.iplookup.ipapi.is_initialized, localize=True))
         if 'Pinging' in context.connected_shown_columns:
-            connected_row_texts.append(format_player_boolean(player.ping.is_pinging, is_initialized=player.ping.is_initialized))
+            connected_row_texts.append(format_player_boolean(player.ping.is_pinging, is_initialized=player.ping.is_initialized, localize=True))
 
         session_connected_rows_with_colors.append((tuple(connected_row_texts), tuple(row_colors)))
 

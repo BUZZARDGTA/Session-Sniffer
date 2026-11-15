@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
 )
 
 from session_sniffer.constants.standalone import TITLE
+from session_sniffer.guis.live_language import register_language_refresh
 from session_sniffer.guis.stylesheets import (
     COMPACT_BUTTON_STYLESHEET,
     DIALOG_BUTTON_STYLESHEET,
@@ -46,7 +47,8 @@ from session_sniffer.guis.utils import (
     set_clipboard_text,
     set_dialog_window_flags,
 )
-from session_sniffer.text_utils import format_elapsed_time, pluralize
+from session_sniffer.i18n import tr, tr_plural
+from session_sniffer.text_utils import format_elapsed_time
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -116,13 +118,21 @@ class SessionHostDiagnosticsDialog(QDialog):
         root_layout.addWidget(footer_widget)
 
         self._rebuild_content()
+        register_language_refresh(self, self._on_language_changed)
 
     def _update_window_title(self) -> None:
+        title_prefix = tr('Session Host Diagnostics')
         if self._snapshot.detected_host_ip is not None:
             time_string = self._snapshot.timestamp.strftime('%H:%M:%S')
-            self.setWindowTitle(f'{TITLE} - Session Host Diagnostics - {self._snapshot.detected_host_ip} ({time_string})')
+            self.setWindowTitle(f'{TITLE} - {title_prefix} - {self._snapshot.detected_host_ip} ({time_string})')
         else:
-            self.setWindowTitle(f'{TITLE} - Session Host Diagnostics')
+            self.setWindowTitle(f'{TITLE} - {title_prefix}')
+
+    def _on_language_changed(self) -> None:
+        """Re-translate the dialog title, footer buttons, and dynamic diagnostic cards."""
+        self._update_window_title()
+        self._retranslate_footer()
+        self._rebuild_content()
 
     def update_snapshot(self, snapshot: HostDiagnosticsSnapshot) -> None:
         """Update the displayed snapshot and refresh the dialog contents."""
@@ -191,7 +201,7 @@ class SessionHostDiagnosticsDialog(QDialog):
         info_layout = QVBoxLayout()
         info_layout.setSpacing(4)
 
-        title_label = QLabel('Session Host Detected' if is_success else 'Host Not Detected')
+        title_label = QLabel(tr('Session Host Detected') if is_success else tr('Host Not Detected'))
         title_font = QFont()
         title_font.setPointSize(11)
         title_font.setBold(True)
@@ -236,7 +246,7 @@ class SessionHostDiagnosticsDialog(QDialog):
             info_layout.addWidget(reason_label)
 
         time_str = self._snapshot.timestamp.strftime('%H:%M:%S')
-        timestamp_label = QLabel(f'Evaluation performed at {time_str}')
+        timestamp_label = QLabel(tr('Evaluation performed at {time}', time=time_str))
         timestamp_label.setStyleSheet(themed_qss('color: #64748b; font-size: 8pt;'))
         info_layout.addWidget(timestamp_label)
 
@@ -247,7 +257,7 @@ class SessionHostDiagnosticsDialog(QDialog):
             actions_layout.setContentsMargins(0, 0, 0, 0)
             actions_layout.setSpacing(6)
 
-            copy_host_ip_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'copy.svg')), ' Copy Host IP')
+            copy_host_ip_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'copy.svg')), f" {tr('Copy Host IP')}")
             copy_host_ip_button.setStyleSheet(COMPACT_BUTTON_STYLESHEET)
             detected_ip = self._snapshot.detected_host_ip
             copy_host_ip_button.clicked.connect(lambda: self._copy_text(copy_host_ip_button, detected_ip))
@@ -257,7 +267,7 @@ class SessionHostDiagnosticsDialog(QDialog):
                 usernames_count = len(self._snapshot.detected_host_usernames)
                 copy_host_usernames_button = QPushButton(
                     QIcon(str(ICONS_DIR_PATH / 'copy.svg')),
-                    f' Copy Host Username{pluralize(usernames_count)}',
+                    f" {tr_plural('Copy Host Username', 'Copy Host Usernames', usernames_count)}",
                 )
                 copy_host_usernames_button.setStyleSheet(COMPACT_BUTTON_STYLESHEET)
                 detected_usernames = ', '.join(self._snapshot.detected_host_usernames)
@@ -277,9 +287,9 @@ class SessionHostDiagnosticsDialog(QDialog):
         layout.setSpacing(10)
 
         stats = [
-            ('Total Evaluated', str(self._snapshot.total_evaluated_players), '#38bdf8'),
-            ('Direct P2P Players', str(self._snapshot.direct_p2p_players), '#34d399'),
-            ('Filtered Server IPs', str(self._snapshot.filtered_server_ips), '#94a3b8'),
+            (tr('Total Evaluated'), str(self._snapshot.total_evaluated_players), '#38bdf8'),
+            (tr('Direct P2P Players'), str(self._snapshot.direct_p2p_players), '#34d399'),
+            (tr('Filtered Server IPs'), str(self._snapshot.filtered_server_ips), '#94a3b8'),
         ]
 
         for label_text, value_text, accent_color in stats:
@@ -325,7 +335,7 @@ class SessionHostDiagnosticsDialog(QDialog):
             icon_label.setPixmap(QIcon(str(icon_path)).pixmap(scale_by_ui(16), scale_by_ui(16)))
         header_layout.addWidget(icon_label)
 
-        title = QLabel('Detection Criteria Checklist')
+        title = QLabel(tr('Detection Criteria Checklist'))
         title.setStyleSheet(themed_qss('color: #f1f5f9; font-weight: bold; font-size: 9.5pt;'))
         header_layout.addWidget(title)
 
@@ -335,7 +345,7 @@ class SessionHostDiagnosticsDialog(QDialog):
         passed_count = sum(1 for item in items if item.passed)
         total_count = len(items)
 
-        summary_badge = QLabel(f'{passed_count}/{total_count} Passed')
+        summary_badge = QLabel(tr('{passed}/{total} Passed', passed=passed_count, total=total_count))
         if passed_count == total_count:
             summary_badge.setStyleSheet(HOST_BADGE_SUCCESS_STYLESHEET)
         elif passed_count > 0:
@@ -356,7 +366,7 @@ class SessionHostDiagnosticsDialog(QDialog):
             row_layout.setContentsMargins(8, 6, 8, 6)
             row_layout.setSpacing(10)
 
-            status_badge = QLabel('PASS' if item.passed else 'FAIL')
+            status_badge = QLabel(tr('PASS') if item.passed else tr('FAIL'))
             status_badge.setStyleSheet(HOST_BADGE_SUCCESS_STYLESHEET if item.passed else HOST_BADGE_DANGER_STYLESHEET)
             status_badge.setFixedWidth(scale_by_ui(44))
             status_badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -404,21 +414,39 @@ class SessionHostDiagnosticsDialog(QDialog):
         filtered_count = self._snapshot.filtered_server_ips
 
         if not evaluated_count:
-            candidates_detail = 'No players found in session'
+            candidates_detail = tr('No players found in session')
         elif not p2p_count:
-            candidates_detail = f'All {evaluated_count} connected endpoint{pluralize(evaluated_count)} are game or relay servers'
+            candidates_detail = tr_plural(
+                'All {count} connected endpoint is a game or relay server',
+                'All {count} connected endpoints are game or relay servers',
+                evaluated_count,
+            )
         elif filtered_count > 0:
-            candidates_detail = f'{p2p_count} direct P2P candidate{pluralize(p2p_count)} identified ({filtered_count} server{pluralize(filtered_count)} filtered)'
+            candidates_phrase = tr_plural(
+                '{count} direct P2P candidate identified',
+                '{count} direct P2P candidates identified',
+                p2p_count,
+            )
+            filtered_phrase = tr_plural(
+                '{count} server filtered',
+                '{count} servers filtered',
+                filtered_count,
+            )
+            candidates_detail = tr('{candidates} ({filtered})', candidates=candidates_phrase, filtered=filtered_phrase)
         else:
-            candidates_detail = f'{p2p_count} direct P2P candidate{pluralize(p2p_count)} identified in session'
+            candidates_detail = tr_plural(
+                '{count} direct P2P candidate identified in session',
+                '{count} direct P2P candidates identified in session',
+                p2p_count,
+            )
 
         p2p_passed = p2p_count > 0
-        p2p_badge = f'{p2p_count} Direct P2P' if p2p_passed else '0 Direct P2P'
+        p2p_badge = tr('{count} Direct P2P', count=p2p_count) if p2p_passed else tr('0 Direct P2P')
         p2p_badge_style = HOST_BADGE_SUCCESS_STYLESHEET if p2p_passed else HOST_BADGE_DANGER_STYLESHEET
 
         items.append(
             _DetectionChecklistItem(
-                title='Direct P2P Candidates',
+                title=tr('Direct P2P Candidates'),
                 passed=p2p_passed,
                 detail=candidates_detail,
                 badge_text=p2p_badge,
@@ -429,30 +457,34 @@ class SessionHostDiagnosticsDialog(QDialog):
         # 2. Candidate Activity
         if self._snapshot.success:
             activity_passed = True
-            activity_detail = 'Candidate is active and connected'
-            activity_badge = 'Active & Connected'
+            activity_detail = tr('Candidate is active and connected')
+            activity_badge = tr('Active & Connected')
             activity_badge_style = HOST_BADGE_SUCCESS_STYLESHEET
         elif self._snapshot.candidates:
             active_candidates = [candidate for candidate in self._snapshot.candidates if not candidate.is_pending_disconnection and not candidate.is_disconnected]
             activity_passed = bool(active_candidates)
             active_count = len(active_candidates)
             if activity_passed:
-                activity_detail = f'{active_count} candidate{pluralize(active_count)} active and connected'
-                activity_badge = f'{active_count} Active'
+                activity_detail = tr_plural(
+                    '{count} candidate active and connected',
+                    '{count} candidates active and connected',
+                    active_count,
+                )
+                activity_badge = tr('{count} Active', count=active_count)
                 activity_badge_style = HOST_BADGE_SUCCESS_STYLESHEET
             else:
-                activity_detail = 'All candidates are disconnected or pending disconnection'
-                activity_badge = 'Disconnected'
+                activity_detail = tr('All candidates are disconnected or pending disconnection')
+                activity_badge = tr('Disconnected')
                 activity_badge_style = HOST_BADGE_DANGER_STYLESHEET
         else:
             activity_passed = False
-            activity_detail = 'No candidates available to evaluate activity'
-            activity_badge = 'No Candidates'
+            activity_detail = tr('No candidates available to evaluate activity')
+            activity_badge = tr('No Candidates')
             activity_badge_style = HOST_BADGE_MUTED_STYLESHEET
 
         items.append(
             _DetectionChecklistItem(
-                title='Candidate Activity',
+                title=tr('Candidate Activity'),
                 passed=activity_passed,
                 detail=activity_detail,
                 badge_text=activity_badge,
@@ -467,45 +499,59 @@ class SessionHostDiagnosticsDialog(QDialog):
             timing_passed = True
             if self._snapshot.timing_gap_seconds is not None:
                 gap_ms = self._snapshot.timing_gap_seconds * 1000
-                timing_badge = f'✓ Within Window ({gap_ms:.1f}ms)'
+                gap_ms_str = f'{gap_ms:.1f}'
+                timing_badge = tr('✓ Within Window ({gap_ms}ms)', gap_ms=gap_ms_str)
                 timing_badge_style = HOST_BADGE_SUCCESS_STYLESHEET
-                timing_detail = self._snapshot.timing_resolution or f'Join separation ({gap_ms:.1f}ms) within valid window (50ms - 1,600ms)'
+                timing_detail = self._snapshot.timing_resolution or tr(
+                    'Join separation ({gap_ms}ms) within valid window (50ms - 1,600ms)',
+                    gap_ms=gap_ms_str,
+                )
             else:
-                timing_badge = 'Single Candidate'
+                timing_badge = tr('Single Candidate')
                 timing_badge_style = HOST_BADGE_INFO_STYLESHEET
-                timing_detail = self._snapshot.timing_resolution or 'Single candidate in session (timing comparison not required)'
+                timing_detail = self._snapshot.timing_resolution or tr('Single candidate in session (timing comparison not required)')
         elif self._snapshot.timing_gap_seconds is not None:
             gap_ms = self._snapshot.timing_gap_seconds * 1000
+            gap_ms_str = f'{gap_ms:.1f}'
             gap_text = f'{self._snapshot.timing_gap_seconds:.3f}s' if self._snapshot.timing_gap_seconds >= 1.0 else f'{gap_ms:.1f}ms'
             if _SESSION_HOST_AMBIGUITY_MIN_THRESHOLD_MS <= gap_ms <= _SESSION_HOST_AMBIGUITY_MAX_THRESHOLD_MS:
                 timing_passed = True
-                timing_badge = f'✓ Within Window ({gap_ms:.1f}ms)'
+                timing_badge = tr('✓ Within Window ({gap_ms}ms)', gap_ms=gap_ms_str)
                 timing_badge_style = HOST_BADGE_SUCCESS_STYLESHEET
-                timing_detail = self._snapshot.timing_resolution or f'Join separation ({gap_ms:.1f}ms) within valid window (50ms - 1,600ms)'
+                timing_detail = self._snapshot.timing_resolution or tr(
+                    'Join separation ({gap_ms}ms) within valid window (50ms - 1,600ms)',
+                    gap_ms=gap_ms_str,
+                )
             elif gap_ms < _SESSION_HOST_AMBIGUITY_MIN_THRESHOLD_MS:
                 timing_passed = False
-                timing_badge = f'✕ Too Close ({gap_ms:.1f}ms < 50ms)'
+                timing_badge = tr('✕ Too Close ({gap_ms}ms < 50ms)', gap_ms=gap_ms_str)
                 timing_badge_style = HOST_BADGE_WARNING_STYLESHEET
-                timing_detail = self._snapshot.timing_resolution or f'Ambiguous ({gap_ms:.1f}ms < 50ms): players connected simultaneously'
+                timing_detail = self._snapshot.timing_resolution or tr(
+                    'Ambiguous ({gap_ms}ms < 50ms): players connected simultaneously',
+                    gap_ms=gap_ms_str,
+                )
             else:
                 timing_passed = False
-                timing_badge = f'✕ Exceeds Window ({gap_text} > 1600ms)'
+                timing_badge = tr('✕ Exceeds Window ({gap_text} > 1600ms)', gap_text=gap_text)
                 timing_badge_style = HOST_BADGE_DANGER_STYLESHEET
-                timing_detail = self._snapshot.timing_resolution or f'Gap too large ({gap_text} > 1,600ms): candidates did not join together'
+                timing_detail = self._snapshot.timing_resolution or tr(
+                    'Gap too large ({gap_text} > 1,600ms): candidates did not join together',
+                    gap_text=gap_text,
+                )
         elif len(self._snapshot.candidates) == 1:
             timing_passed = True
-            timing_badge = 'Single Candidate'
+            timing_badge = tr('Single Candidate')
             timing_badge_style = HOST_BADGE_INFO_STYLESHEET
-            timing_detail = self._snapshot.timing_resolution or 'Single candidate in session (timing comparison not required)'
+            timing_detail = self._snapshot.timing_resolution or tr('Single candidate in session (timing comparison not required)')
         else:
             timing_passed = False
-            timing_badge = 'N/A'
+            timing_badge = tr('N/A')
             timing_badge_style = HOST_BADGE_MUTED_STYLESHEET
-            timing_detail = self._snapshot.timing_resolution or 'No candidates available for timing comparison'
+            timing_detail = self._snapshot.timing_resolution or tr('No candidates available for timing comparison')
 
         items.append(
             _DetectionChecklistItem(
-                title='Connection Timing Window',
+                title=tr('Connection Timing Window'),
                 passed=timing_passed,
                 detail=timing_detail,
                 badge_text=timing_badge,
@@ -521,10 +567,14 @@ class SessionHostDiagnosticsDialog(QDialog):
                 self._snapshot.candidates[0] if self._snapshot.candidates else None,
             )
             if host_candidate is not None:
-                packet_detail = f'Candidate sent >= 9 packets ({host_candidate.packets_sent}) and exchanged <= 1,000 ({host_candidate.packets_exchanged})'
+                packet_detail = tr(
+                    'Candidate sent >= 9 packets ({sent}) and exchanged <= 1,000 ({exchanged})',
+                    sent=host_candidate.packets_sent,
+                    exchanged=host_candidate.packets_exchanged,
+                )
             else:
-                packet_detail = 'Candidate packet counts within valid bounds (>= 9 sent, <= 1,000 exchanged)'
-            packet_badge = 'Eligible Packets'
+                packet_detail = tr('Candidate packet counts within valid bounds (>= 9 sent, <= 1,000 exchanged)')
+            packet_badge = tr('Eligible Packets')
             packet_badge_style = HOST_BADGE_SUCCESS_STYLESHEET
         elif self._snapshot.candidates:
             has_under_sent = any(
@@ -536,30 +586,39 @@ class SessionHostDiagnosticsDialog(QDialog):
             )
             if has_under_sent:
                 packet_passed = False
-                packet_detail = f'Candidate has not sent enough packets (>= {_MINIMUM_PACKETS_FOR_RELAY_SESSION_HOST} required to rule out transient probes)'
-                packet_badge = f'✕ < {_MINIMUM_PACKETS_FOR_RELAY_SESSION_HOST} Sent'
+                packet_detail = tr(
+                    'Candidate has not sent enough packets (>= {min_packets} required to rule out transient probes)',
+                    min_packets=_MINIMUM_PACKETS_FOR_RELAY_SESSION_HOST,
+                )
+                packet_badge = tr('✕ < {min_packets} Sent', min_packets=_MINIMUM_PACKETS_FOR_RELAY_SESSION_HOST)
                 packet_badge_style = HOST_BADGE_WARNING_STYLESHEET
             elif has_over_exchanged:
                 packet_passed = False
-                packet_detail = f'Candidate exchanged > {_SESSION_HOST_MAX_PACKETS_FOR_DETECTION:,} packets (session already in progress)'
-                packet_badge = f'✕ > {_SESSION_HOST_MAX_PACKETS_FOR_DETECTION:,} Exchanged'
+                max_packets_str = f'{_SESSION_HOST_MAX_PACKETS_FOR_DETECTION:,}'
+                packet_detail = tr(
+                    'Candidate exchanged > {max_packets} packets (session already in progress)',
+                    max_packets=max_packets_str,
+                )
+                packet_badge = tr('✕ > {max_packets} Exchanged', max_packets=max_packets_str)
                 packet_badge_style = HOST_BADGE_DANGER_STYLESHEET
             else:
                 packet_passed = True
-                packet_detail = (
-                    f'Candidate packet counts within valid bounds (>= {_MINIMUM_PACKETS_FOR_RELAY_SESSION_HOST} sent, <= {_SESSION_HOST_MAX_PACKETS_FOR_DETECTION:,} exchanged)'
+                packet_detail = tr(
+                    'Candidate packet counts within valid bounds (>= {min_packets} sent, <= {max_packets} exchanged)',
+                    min_packets=_MINIMUM_PACKETS_FOR_RELAY_SESSION_HOST,
+                    max_packets=f'{_SESSION_HOST_MAX_PACKETS_FOR_DETECTION:,}',
                 )
-                packet_badge = 'Eligible Packets'
+                packet_badge = tr('Eligible Packets')
                 packet_badge_style = HOST_BADGE_SUCCESS_STYLESHEET
         else:
             packet_passed = False
-            packet_detail = 'No candidates to evaluate packet thresholds'
-            packet_badge = 'No Candidates'
+            packet_detail = tr('No candidates to evaluate packet thresholds')
+            packet_badge = tr('No Candidates')
             packet_badge_style = HOST_BADGE_MUTED_STYLESHEET
 
         items.append(
             _DetectionChecklistItem(
-                title='Packet Threshold Criteria',
+                title=tr('Packet Threshold Criteria'),
                 passed=packet_passed,
                 detail=packet_detail,
                 badge_text=packet_badge,
@@ -571,49 +630,64 @@ class SessionHostDiagnosticsDialog(QDialog):
 
     def _compute_modmenu_checklist_items(self) -> list[_DetectionChecklistItem]:
         """Compute checklist items when session host resolution is governed by a mod menu Lua plugin."""
-        source_name = self._snapshot.modmenu_source or 'Mod Menu'
+        source_name = self._snapshot.modmenu_source or tr('Mod Menu')
         host_ip = self._snapshot.modmenu_host_ip
         host_username = self._snapshot.modmenu_host_username
 
         if host_ip is not None:
             lua_passed = True
             username_suffix = f' (@{host_username})' if bool(host_username) else ''
-            lua_detail = f'{source_name} Lua plugin reported session host {host_ip}{username_suffix}'
-            lua_badge = f'✓ {source_name} Lua'
+            lua_detail = tr(
+                '{source} Lua plugin reported session host {host_ip}{username_suffix}',
+                source=source_name,
+                host_ip=host_ip,
+                username_suffix=username_suffix,
+            )
+            lua_badge = tr('✓ {source} Lua', source=source_name)
             lua_badge_style = HOST_BADGE_SUCCESS_STYLESHEET
         else:
             lua_passed = False
             lua_detail = self._snapshot.rejection_reason or self._snapshot.outcome
-            lua_badge = 'No Remote Host'
+            lua_badge = tr('No Remote Host')
             lua_badge_style = HOST_BADGE_WARNING_STYLESHEET
 
         if self._snapshot.success and self._snapshot.detected_host_ip is not None:
             match_passed = True
-            match_detail = f'Reported host {self._snapshot.detected_host_ip} matched an active GTA V UDP-confirmed P2P player in your session'
-            match_badge = '✓ Matched in Session'
+            match_detail = tr(
+                'Reported host {host_ip} matched an active GTA V UDP-confirmed P2P player in your session',
+                host_ip=self._snapshot.detected_host_ip,
+            )
+            match_badge = tr('✓ Matched in Session')
             match_badge_style = HOST_BADGE_SUCCESS_STYLESHEET
         elif host_ip is not None:
             match_passed = False
-            match_detail = f'Reported host {host_ip} is not currently connected in confirmed GTA V P2P session traffic'
-            match_badge = '✕ Not Connected'
+            match_detail = tr(
+                'Reported host {host_ip} is not currently connected in confirmed GTA V P2P session traffic',
+                host_ip=host_ip,
+            )
+            match_badge = tr('✕ Not Connected')
             match_badge_style = HOST_BADGE_WARNING_STYLESHEET
         else:
             p2p_count = self._snapshot.direct_p2p_players
             match_passed = False
-            match_detail = f'{p2p_count} direct P2P player{pluralize(p2p_count)} currently connected in session'
-            match_badge = f'{p2p_count} Direct P2P'
+            match_detail = tr_plural(
+                '{count} direct P2P player currently connected in session',
+                '{count} direct P2P players currently connected in session',
+                p2p_count,
+            )
+            match_badge = tr('{count} Direct P2P', count=p2p_count)
             match_badge_style = HOST_BADGE_INFO_STYLESHEET if p2p_count > 0 else HOST_BADGE_MUTED_STYLESHEET
 
         return [
             _DetectionChecklistItem(
-                title=f'{source_name} Lua Plugin (Source of Truth)',
+                title=tr('{source} Lua Plugin (Source of Truth)', source=source_name),
                 passed=lua_passed,
                 detail=lua_detail,
                 badge_text=lua_badge,
                 badge_stylesheet=lua_badge_style,
             ),
             _DetectionChecklistItem(
-                title='Direct P2P Session Match',
+                title=tr('Direct P2P Session Match'),
                 passed=match_passed,
                 detail=match_detail,
                 badge_text=match_badge,
@@ -628,7 +702,7 @@ class SessionHostDiagnosticsDialog(QDialog):
         layout.setSpacing(8)
 
         count = len(self._snapshot.candidates)
-        section_title = QLabel(f'Evaluated Candidates ({count})')
+        section_title = QLabel(tr('Evaluated Candidates ({count})', count=count))
         section_title.setStyleSheet(themed_qss('color: #e2e8f0; font-weight: bold; font-size: 10pt;'))
         layout.addWidget(section_title)
 
@@ -637,7 +711,7 @@ class SessionHostDiagnosticsDialog(QDialog):
             empty_card.setObjectName('hostSectionCard')
             empty_card.setStyleSheet(HOST_DIAGNOSTICS_SECTION_CARD_STYLESHEET)
             empty_layout = QVBoxLayout(empty_card)
-            empty_lbl = QLabel('No direct peer-to-peer player candidates were evaluated in this session.')
+            empty_lbl = QLabel(tr('No direct peer-to-peer player candidates were evaluated in this session.'))
             empty_lbl.setStyleSheet(themed_qss('color: #64748b; font-style: italic; font-size: 9pt;'))
             empty_layout.addWidget(empty_lbl)
             layout.addWidget(empty_card)
@@ -685,25 +759,25 @@ class SessionHostDiagnosticsDialog(QDialog):
 
         # Status pills
         if candidate.is_host:
-            host_pill = QLabel('✓ SESSION HOST')
+            host_pill = QLabel(tr('✓ SESSION HOST'))
             host_pill.setStyleSheet(HOST_BADGE_SUCCESS_STYLESHEET)
             header.addWidget(host_pill)
         if candidate.is_pending_disconnection:
-            pending_pill = QLabel('Pending Disconnect')
+            pending_pill = QLabel(tr('Pending Disconnect'))
             pending_pill.setStyleSheet(HOST_BADGE_WARNING_STYLESHEET)
             header.addWidget(pending_pill)
         if candidate.is_relayed:
-            relay_pill = QLabel('Relayed')
+            relay_pill = QLabel(tr('Relayed'))
             relay_pill.setStyleSheet(HOST_BADGE_INFO_STYLESHEET)
             header.addWidget(relay_pill)
         if candidate.is_disconnected:
-            dc_pill = QLabel('Disconnected')
+            dc_pill = QLabel(tr('Disconnected'))
             dc_pill.setStyleSheet(HOST_BADGE_MUTED_STYLESHEET)
             header.addWidget(dc_pill)
 
         header.addStretch(1)
 
-        copy_btn = QPushButton(QIcon(str(ICONS_DIR_PATH / 'copy.svg')), ' Copy')
+        copy_btn = QPushButton(QIcon(str(ICONS_DIR_PATH / 'copy.svg')), f" {tr('Copy')}")
         copy_btn.setStyleSheet(COMPACT_BUTTON_STYLESHEET)
         cand_ip = candidate.ip
         copy_btn.clicked.connect(lambda: self._copy_text(copy_btn, cand_ip))
@@ -721,15 +795,15 @@ class SessionHostDiagnosticsDialog(QDialog):
         elapsed_str = format_elapsed_time(now - candidate.last_rejoin)
 
         # Row 0: Connection time
-        rejoin_title = QLabel('Last Rejoin:')
+        rejoin_title = QLabel(tr('Last Rejoin:'))
         rejoin_title.setStyleSheet(themed_qss('color: #64748b; font-size: 8.5pt;'))
-        rejoin_val = QLabel(f'{rejoin_str} ({elapsed_str} ago)')
+        rejoin_val = QLabel(tr('{rejoin_str} ({elapsed_str} ago)', rejoin_str=rejoin_str, elapsed_str=elapsed_str))
         rejoin_val.setStyleSheet(themed_qss('color: #cbd5e1; font-size: 8.5pt;'))
         grid.addWidget(rejoin_title, 0, 0)
         grid.addWidget(rejoin_val, 0, 1)
 
         # Row 1: Sent packets & eligibility
-        sent_title = QLabel('Packets Sent:')
+        sent_title = QLabel(tr('Packets Sent:'))
         sent_title.setStyleSheet(themed_qss('color: #64748b; font-size: 8.5pt;'))
 
         sent_val_box = QHBoxLayout()
@@ -740,19 +814,19 @@ class SessionHostDiagnosticsDialog(QDialog):
 
         packet_pill = QLabel()
         if candidate.packet_status == 'Authoritative (Mod Menu Lua)':
-            packet_pill.setText('✓ Mod Menu Lua')
+            packet_pill.setText(tr('✓ Mod Menu Lua'))
             packet_pill.setStyleSheet(HOST_BADGE_SUCCESS_STYLESHEET)
         elif candidate.packet_status == 'Connected P2P':
-            packet_pill.setText('Connected P2P')
+            packet_pill.setText(tr('Connected P2P'))
             packet_pill.setStyleSheet(HOST_BADGE_INFO_STYLESHEET)
         elif candidate.packet_status == 'Eligible':
-            packet_pill.setText('✓ Eligible')
+            packet_pill.setText(tr('✓ Eligible'))
             packet_pill.setStyleSheet(HOST_BADGE_SUCCESS_STYLESHEET)
         elif candidate.packet_status == 'Not enough sent':
-            packet_pill.setText('✕ < 9 Sent')
+            packet_pill.setText(tr('✕ < 9 Sent'))
             packet_pill.setStyleSheet(HOST_BADGE_WARNING_STYLESHEET)
         else:
-            packet_pill.setText('✕ > 1000 Exchanged')
+            packet_pill.setText(tr('✕ > 1000 Exchanged'))
             packet_pill.setStyleSheet(HOST_BADGE_DANGER_STYLESHEET)
         sent_val_box.addWidget(packet_pill)
         sent_val_box.addStretch(1)
@@ -761,9 +835,15 @@ class SessionHostDiagnosticsDialog(QDialog):
         grid.addLayout(sent_val_box, 1, 1)
 
         # Row 2: Received & Exchanged
-        recv_title = QLabel('Packets Received / Exchanged:')
+        recv_title = QLabel(tr('Packets Received / Exchanged:'))
         recv_title.setStyleSheet(themed_qss('color: #64748b; font-size: 8.5pt;'))
-        recv_val = QLabel(f'{candidate.packets_received} recv / {candidate.packets_exchanged} total')
+        recv_val = QLabel(
+            tr(
+                '{recv} recv / {total} total',
+                recv=candidate.packets_received,
+                total=candidate.packets_exchanged,
+            ),
+        )
         recv_val.setStyleSheet(themed_qss('color: #94a3b8; font-size: 8.5pt;'))
         grid.addWidget(recv_title, 2, 0)
         grid.addWidget(recv_val, 2, 1)
@@ -782,11 +862,20 @@ class SessionHostDiagnosticsDialog(QDialog):
         layout.setSpacing(6)
 
         count = len(self._snapshot.filtered_servers)
-        title = QLabel(f'Filtered Game & Relay Server(s) ({count})')
+        title = QLabel(
+            tr_plural(
+                'Filtered Game & Relay Server ({count})',
+                'Filtered Game & Relay Servers ({count})',
+                count,
+            ),
+        )
         title.setStyleSheet(themed_qss('color: #8b9bb4; font-weight: bold; font-size: 9pt;'))
         layout.addWidget(title)
 
-        servers_text = ', '.join(f'{server_ip} ({exchanged} pkts)' for server_ip, exchanged in self._snapshot.filtered_servers)
+        servers_text = ', '.join(
+            tr('{server_ip} ({exchanged} pkts)', server_ip=server_ip, exchanged=exchanged)
+            for server_ip, exchanged in self._snapshot.filtered_servers
+        )
         desc = QLabel(servers_text)
         desc.setWordWrap(True)
         desc.setStyleSheet(themed_qss('color: #64748b; font-size: 8pt;'))
@@ -802,34 +891,49 @@ class SessionHostDiagnosticsDialog(QDialog):
         layout.setSpacing(10)
 
         # Copy full host details button
-        copy_details_btn = QPushButton(QIcon(str(ICONS_DIR_PATH / 'copy.svg')), ' Copy Host Details')
+        copy_details_btn = QPushButton(QIcon(str(ICONS_DIR_PATH / 'copy.svg')), '')
         copy_details_btn.setStyleSheet(COMPACT_BUTTON_STYLESHEET)
         copy_details_btn.clicked.connect(lambda: self._copy_details(copy_details_btn))
         layout.addWidget(copy_details_btn)
+        self._copy_details_button = copy_details_btn
 
         # In-place re-detect host button
+        self._redetect_button: QPushButton | None = None
         if self._redetect_callback is not None:
-            redetect_btn = QPushButton(QIcon(str(ICONS_DIR_PATH / 'refresh-cw.svg')), ' Re-detect Host')
+            redetect_btn = QPushButton(QIcon(str(ICONS_DIR_PATH / 'refresh-cw.svg')), '')
             redetect_btn.setStyleSheet(COMPACT_BUTTON_STYLESHEET)
             redetect_btn.clicked.connect(self._on_redetect_clicked)
             layout.addWidget(redetect_btn)
+            self._redetect_button = redetect_btn
 
         layout.addStretch(1)
 
-        close_btn = QPushButton('Close')
+        close_btn = QPushButton()
         close_btn.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
         close_btn.setDefault(True)
         close_btn.clicked.connect(self.accept)
         layout.addWidget(close_btn)
+        self._close_button = close_btn
 
+        self._retranslate_footer()
         return footer
 
-    def _copy_text(self, button: QPushButton, text: str, *, feedback_text: str = ' Copied!') -> None:
+    def _retranslate_footer(self) -> None:
+        """Apply current translations to footer action buttons."""
+        self._copy_details_button.setText(f" {tr('Copy Host Details')}")
+        if self._redetect_button is not None:
+            self._redetect_button.setText(f" {tr('Re-detect Host')}")
+        self._close_button.setText(tr('Close'))
+
+    def _copy_text(self, button: QPushButton, text: str, *, feedback_text: str | None = None) -> None:
         set_clipboard_text(text)
-        animate_button_feedback(button, feedback_text=feedback_text)
+        animate_button_feedback(
+            button,
+            feedback_text=feedback_text if feedback_text is not None else f" {tr('Copied!')}",
+        )
 
     def _copy_details(self, button: QPushButton) -> None:
-        self._copy_text(button, self._snapshot.raw_details, feedback_text=' Copied Host Details!')
+        self._copy_text(button, self._snapshot.raw_details, feedback_text=f" {tr('Copied Host Details!')}")
 
     def _on_redetect_clicked(self) -> None:
         if self._redetect_callback is not None:

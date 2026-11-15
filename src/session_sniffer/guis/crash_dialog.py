@@ -57,6 +57,7 @@ from session_sniffer.guis.utils import (
     scale_by_ui,
     set_clipboard_text,
 )
+from session_sniffer.i18n import tr
 from session_sniffer.logging_setup import redact_text
 
 if TYPE_CHECKING:
@@ -86,8 +87,8 @@ def _format_exception_details(
             redact_text(raw_traceback),
         )
 
-    summary = 'Unhandled application crash'
-    return 'Crash', summary, summary
+    summary = tr('Unhandled application crash')
+    return tr('Crash'), summary, summary
 
 
 def _read_debug_log_tail() -> str:
@@ -165,19 +166,30 @@ def _format_fallback_msgbox_text(
     formatted_traceback: str,
 ) -> str:
     """Format the plain-text crash message used when falling back to a native OS message box."""
-    return (
+    return tr(
         'An unexpected (uncaught) error occurred.\n\n'
-        f'Timestamp: {timestamp}\n'
-        f'Version: {VERSION} ({OS_INFO})\n'
-        f'Thread: {thread_name} ({terminate_method})\n'
-        f'Error: {exc_summary}\n\n'
-        f'{formatted_traceback}\n\n'
+        'Timestamp: {timestamp}\n'
+        'Version: {version} ({os_info})\n'
+        'Thread: {thread_name} ({terminate_method})\n'
+        'Error: {exc_summary}\n\n'
+        '{formatted_traceback}\n\n'
         'Please kindly report it on GitHub Issues or our Discord server:\n'
-        f'• GitHub Issues:\n  {GITHUB_ISSUES_URL}\n'
-        f'• Discord Server:\n  {DISCORD_INVITE_URL}\n\n'
+        '• GitHub Issues:\n  {github_issues_url}\n'
+        '• Discord Server:\n  {discord_invite_url}\n\n'
         'IMPORTANT: Please attach the following log files with your report so the issue can be diagnosed and fixed:\n'
-        f'• {CRASH_LOG_PATH}\n'
-        f'• {DEBUG_LOG_PATH}'
+        '• {crash_log_path}\n'
+        '• {debug_log_path}',
+        timestamp=timestamp,
+        version=VERSION,
+        os_info=OS_INFO,
+        thread_name=thread_name,
+        terminate_method=terminate_method,
+        exc_summary=exc_summary,
+        formatted_traceback=formatted_traceback,
+        github_issues_url=GITHUB_ISSUES_URL,
+        discord_invite_url=DISCORD_INVITE_URL,
+        crash_log_path=CRASH_LOG_PATH,
+        debug_log_path=DEBUG_LOG_PATH,
     )
 
 
@@ -204,7 +216,7 @@ class CrashDialog(DraggableDialogMixin, QDialog):
         super().__init__(None)
         self._request = request
 
-        self.setWindowTitle(f'{TITLE} — Unhandled Exception')
+        self.setWindowTitle(f"{TITLE} \u2014 {tr('Unhandled Exception')}")
         self.setWindowFlags(
             Qt.WindowType.FramelessWindowHint | Qt.WindowType.Dialog | Qt.WindowType.WindowStaysOnTopHint,
         )
@@ -275,15 +287,23 @@ class CrashDialog(DraggableDialogMixin, QDialog):
         badge_layout.setContentsMargins(0, 0, 0, 0)
         badge_layout.addWidget(bug_label, 0, Qt.AlignmentFlag.AlignCenter)
 
-        kicker_label = QLabel('UNHANDLED EXCEPTION')
+        kicker_label = QLabel(tr('UNHANDLED EXCEPTION'))
         kicker_label.setFont(get_ui_font(scale_by_ui(8), QFont.Weight.Bold))
         kicker_label.setStyleSheet(CRASH_DIALOG_KICKER_LABEL_STYLESHEET)
 
-        heading_label = QLabel('An Unexpected Error Occurred')
+        heading_label = QLabel(tr('An Unexpected Error Occurred'))
         heading_label.setFont(get_ui_font(scale_by_ui(13), QFont.Weight.Bold))
         heading_label.setStyleSheet(DEPENDENCY_PROMPT_TITLE_LABEL_STYLESHEET)
 
-        meta_label = QLabel(f'{self._request.timestamp}  •  {VERSION}  •  {OS_INFO}  •  Thread: {self._request.thread_name}')
+        meta_label = QLabel(
+            tr(
+                '{timestamp}  •  {version}  •  {os_info}  •  Thread: {thread_name}',
+                timestamp=self._request.timestamp,
+                version=VERSION,
+                os_info=OS_INFO,
+                thread_name=self._request.thread_name,
+            ),
+        )
         meta_label.setFont(get_ui_font(scale_by_ui(8)))
         meta_label.setStyleSheet(CRASH_DIALOG_SUBTITLE_LABEL_STYLESHEET)
 
@@ -298,7 +318,7 @@ class CrashDialog(DraggableDialogMixin, QDialog):
         dismiss_btn.setObjectName('dependencyPromptCloseButton')
         dismiss_btn.setStyleSheet(DEPENDENCY_PROMPT_CLOSE_BUTTON_STYLESHEET)
         dismiss_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        dismiss_btn.setToolTip('Close and exit')
+        dismiss_btn.setToolTip(tr('Close and exit'))
         dismiss_btn.clicked.connect(self.reject)
 
         row = QHBoxLayout()
@@ -321,14 +341,26 @@ class CrashDialog(DraggableDialogMixin, QDialog):
         escaped_crash_log = html.escape(str(CRASH_LOG_PATH))
         escaped_debug_log = html.escape(str(DEBUG_LOG_PATH))
 
+        report_intro = html.escape(
+            tr('Please kindly report this error on {github_issues} or our {discord_server}:', github_issues='{gh}', discord_server='{dc}'),
+        ).format(
+            gh=f"<b>{html.escape(tr('GitHub Issues'))}</b>",
+            dc=f"<b>{html.escape(tr('Discord server'))}</b>",
+        )
+        github_heading = html.escape(tr('GitHub Issues:'))
+        discord_heading = html.escape(tr('Discord Server:'))
+        important_heading = html.escape(tr('IMPORTANT:'))
+        attach_prompt = html.escape(
+            tr('Click {copy_button} below to include the full traceback in your report, or attach these log files:', copy_button='{btn}'),
+        ).format(btn=f"<b>{html.escape(tr('Copy Crash Report'))}</b>")
+
         info_html = themed_qss(
             '<div style="line-height: 1.45;">'
-            'Please kindly report this error on <b>GitHub Issues</b> or our <b>Discord server</b>:<br>'
-            f'&bull; <b>GitHub Issues:</b><br>&nbsp;&nbsp;&nbsp;<a href="{escaped_github}" style="color: #5fb4f5; text-decoration: none;">{escaped_github}</a><br>'
-            f'&bull; <b>Discord Server:</b><br>&nbsp;&nbsp;&nbsp;<a href="{escaped_discord}" style="color: #5fb4f5; text-decoration: none;">{escaped_discord}</a>'
+            f'{report_intro}<br>'
+            f'&bull; <b>{github_heading}</b><br>&nbsp;&nbsp;&nbsp;<a href="{escaped_github}" style="color: #5fb4f5; text-decoration: none;">{escaped_github}</a><br>'
+            f'&bull; <b>{discord_heading}</b><br>&nbsp;&nbsp;&nbsp;<a href="{escaped_discord}" style="color: #5fb4f5; text-decoration: none;">{escaped_discord}</a>'
             '<br><br>'
-            '<b>IMPORTANT:</b> Click <b>Copy Crash Report</b> below to include the full traceback in your report, '
-            'or attach these log files:<br>'
+            f'<b>{important_heading}</b> {attach_prompt}<br>'
             f'&bull; <span style="color: #93c5fd; font-family: Consolas, Menlo, monospace;">{escaped_crash_log}</span><br>'
             f'&bull; <span style="color: #93c5fd; font-family: Consolas, Menlo, monospace;">{escaped_debug_log}</span>'
             '</div>',
@@ -350,7 +382,7 @@ class CrashDialog(DraggableDialogMixin, QDialog):
 
     def _create_traceback_panel(self) -> QVBoxLayout:
         """Build the embedded exception traceback viewer section."""
-        section_label = QLabel('EXCEPTION TRACEBACK & DIAGNOSTICS')
+        section_label = QLabel(tr('EXCEPTION TRACEBACK & DIAGNOSTICS'))
         section_label.setFont(get_ui_font(scale_by_ui(8), QFont.Weight.Bold))
         section_label.setStyleSheet(CRASH_DIALOG_SECTION_LABEL_STYLESHEET)
 
@@ -358,9 +390,10 @@ class CrashDialog(DraggableDialogMixin, QDialog):
         if len(badge_text) > _MAX_BADGE_TEXT_LEN:
             badge_text = f'{badge_text[: _MAX_BADGE_TEXT_LEN - 1]}…'
         escaped_badge = html.escape(badge_text)
+        type_label = html.escape(tr('TYPE:'))
         badge_label = QLabel(
             themed_qss(
-                f'<span style="color: #ef4444;">●</span>&nbsp;<span style="color: #94a3b8; font-weight: 600;">TYPE:</span>&nbsp;{escaped_badge}',
+                f'<span style="color: #ef4444;">●</span>&nbsp;<span style="color: #94a3b8; font-weight: 600;">{type_label}</span>&nbsp;{escaped_badge}',
             ),
         )
         badge_label.setTextFormat(Qt.TextFormat.RichText)
@@ -416,37 +449,37 @@ class CrashDialog(DraggableDialogMixin, QDialog):
     def _create_action_bar(self) -> QHBoxLayout:
         """Build the footer action bar with Copy Report, Open Debug Folder, GitHub, Discord, and Exit buttons."""
         self._copy_button = self._make_action_button(
-            '  Copy Crash Report',
+            f"  {tr('Copy Crash Report')}",
             CRASH_DIALOG_PRIMARY_BUTTON_STYLESHEET,
-            'Copy version info, exception traceback, and recent debug log lines to the clipboard',
+            tr('Copy version info, exception traceback, and recent debug log lines to the clipboard'),
             self._on_copy_crash_report,
             icon_file='copy.svg',
         )
         open_folder_btn = self._make_action_button(
-            '  Open Debug Folder',
+            f"  {tr('Open Debug Folder')}",
             CRASH_DIALOG_SECONDARY_BUTTON_STYLESHEET,
-            f'Open {DEBUG_DIR_PATH} in your file manager to attach crash.log and debug.log',
+            tr('Open {path} in your file manager to attach crash.log and debug.log', path=DEBUG_DIR_PATH),
             self._on_open_debug_folder,
             icon_file='folder.svg',
         )
         github_btn = self._make_action_button(
-            '  GitHub Issues',
+            f"  {tr('GitHub Issues')}",
             CRASH_DIALOG_SECONDARY_BUTTON_STYLESHEET,
-            'Open GitHub Issues in your default browser',
+            tr('Open GitHub Issues in your default browser'),
             self._on_open_github,
             icon_file='github.svg',
         )
         discord_btn = self._make_action_button(
-            '  Discord',
+            f"  {tr('Discord')}",
             CRASH_DIALOG_SECONDARY_BUTTON_STYLESHEET,
-            'Open the Session Sniffer Discord server in your default browser',
+            tr('Open the Session Sniffer Discord server in your default browser'),
             self._on_open_discord,
             icon_file='discord.svg',
         )
         exit_btn = self._make_action_button(
-            'Exit',
+            tr('Exit'),
             CRASH_DIALOG_EXIT_BUTTON_STYLESHEET,
-            'Close this dialog and terminate the application',
+            tr('Close this dialog and terminate the application'),
             self.reject,
         )
 
@@ -466,8 +499,8 @@ class CrashDialog(DraggableDialogMixin, QDialog):
         set_clipboard_text(self._request.clipboard_report)
         animate_button_feedback(
             self._copy_button,
-            feedback_text='  Copied!',
-            feedback_tooltip='Crash report copied to clipboard!',
+            feedback_text=f"  {tr('Copied!')}",
+            feedback_tooltip=tr('Crash report copied to clipboard!'),
         )
 
     @staticmethod

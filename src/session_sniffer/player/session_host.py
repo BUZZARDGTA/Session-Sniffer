@@ -8,11 +8,12 @@ from typing import TYPE_CHECKING, ClassVar
 
 from session_sniffer.constants.standard import LOCAL_TZ
 from session_sniffer.exceptions import UnexpectedPlayerCountError
+from session_sniffer.i18n import tr, tr_plural
 from session_sniffer.player.registry import PlayersRegistry, SessionTracker
 from session_sniffer.rendering_core.modmenu_logs_parser import ModMenuLogsParser
 from session_sniffer.rendering_core.types import CaptureState
 from session_sniffer.settings import Settings
-from session_sniffer.text_utils import format_elapsed_time, pluralize
+from session_sniffer.text_utils import format_elapsed_time
 from session_sniffer.utils import dedup_preserve_order
 
 if TYPE_CHECKING:
@@ -157,33 +158,39 @@ def _build_host_diagnostics_snapshot(
             gap_milliseconds = result.timing_gap * 1000
             time_difference_text = f'{result.timing_gap:.3f}s ({gap_milliseconds:.1f}ms)' if result.timing_gap >= 1.0 else f'{gap_milliseconds:.1f}ms'
             if SESSION_HOST_AMBIGUITY_MIN_THRESHOLD_MS <= gap_milliseconds <= SESSION_HOST_AMBIGUITY_MAX_THRESHOLD_MS:
-                timing_resolution = (
+                timing_resolution = tr(
                     '2 candidates were evaluated, and candidate #1 joined earlier\n'
-                    f'within the valid timing window ({SESSION_HOST_AMBIGUITY_MIN_THRESHOLD_MS}ms - {SESSION_HOST_AMBIGUITY_MAX_THRESHOLD_MS}ms).'
+                    'within the valid timing window ({min_ms}ms - {max_ms}ms).',
+                    min_ms=SESSION_HOST_AMBIGUITY_MIN_THRESHOLD_MS,
+                    max_ms=SESSION_HOST_AMBIGUITY_MAX_THRESHOLD_MS,
                 )
             elif gap_milliseconds < SESSION_HOST_AMBIGUITY_MIN_THRESHOLD_MS:
-                timing_resolution = (
-                    f'Rejected — {gap_milliseconds:.1f}ms gap is below the {SESSION_HOST_AMBIGUITY_MIN_THRESHOLD_MS}ms minimum threshold\n'
-                    '(players connected almost simultaneously, timing is ambiguous).'
+                timing_resolution = tr(
+                    'Rejected — {gap_ms:.1f}ms gap is below the {min_ms}ms minimum threshold\n'
+                    '(players connected almost simultaneously, timing is ambiguous).',
+                    gap_ms=gap_milliseconds,
+                    min_ms=SESSION_HOST_AMBIGUITY_MIN_THRESHOLD_MS,
                 )
             else:
-                timing_resolution = (
-                    f'Rejected — {time_difference_text} gap exceeds the {SESSION_HOST_AMBIGUITY_MAX_THRESHOLD_MS}ms maximum threshold\n'
-                    '(candidate #1 joined too far ahead of candidate #2).'
+                timing_resolution = tr(
+                    'Rejected — {time_diff} gap exceeds the {max_ms}ms maximum threshold\n'
+                    '(candidate #1 joined too far ahead of candidate #2).',
+                    time_diff=time_difference_text,
+                    max_ms=SESSION_HOST_AMBIGUITY_MAX_THRESHOLD_MS,
                 )
         elif len(candidates) == 1:
-            timing_resolution = 'Only 1 non-server player was present, so timing comparison was skipped.'
+            timing_resolution = tr('Only 1 non-server player was present, so timing comparison was skipped.')
 
     timing_resolution_summary = timing_resolution.replace('\n', ' ') if timing_resolution is not None else ''
 
     lines: list[str] = [
-        '=== Session Host Detection Diagnostics ===',
-        f'Outcome: {result.outcome}',
+        tr('=== Session Host Detection Diagnostics ==='),
+        tr('Outcome: {outcome}', outcome=result.outcome),
         '',
-        '--- Session Overview ---',
-        f'- Total Evaluated Players: {len(session_players)}',
-        f'- Direct P2P Players: {len(p2p_players)}',
-        f'- Filtered Server IPs: {len(session_players) - len(p2p_players)}',
+        tr('--- Session Overview ---'),
+        '- ' + tr('Total Evaluated Players: {count}', count=len(session_players)),
+        '- ' + tr('Direct P2P Players: {count}', count=len(p2p_players)),
+        '- ' + tr('Filtered Server IPs: {count}', count=len(session_players) - len(p2p_players)),
         '',
     ]
 
@@ -191,75 +198,82 @@ def _build_host_diagnostics_snapshot(
         reported_host_text = (
             f'{result.modmenu_host_ip} ({result.modmenu_host_username})'
             if result.modmenu_host_ip is not None and bool(result.modmenu_host_username)
-            else (result.modmenu_host_ip or 'None')
+            else (result.modmenu_host_ip or tr('None'))
         )
         lines.extend([
-            '--- Detection Source ---',
-            f'- Source of Truth: {result.modmenu_source} Lua Plugin (session_host.txt)',
-            f'- Reported Host: {reported_host_text}',
+            tr('--- Detection Source ---'),
+            '- ' + tr('Source of Truth: {source} Lua Plugin (session_host.txt)', source=result.modmenu_source),
+            '- ' + tr('Reported Host: {host}', host=reported_host_text),
         ])
     else:
         lines.extend([
-            '--- Detection Criteria ---',
-            f'- Candidate Timing Gap Window: {SESSION_HOST_AMBIGUITY_MIN_THRESHOLD_MS}ms - {SESSION_HOST_AMBIGUITY_MAX_THRESHOLD_MS}ms',
-            f'- Minimum Sent Packets Required: {MINIMUM_PACKETS_FOR_RELAY_SESSION_HOST}',
-            f'- Maximum Exchanged Packets Limit: {SESSION_HOST_MAX_PACKETS_FOR_DETECTION}',
+            tr('--- Detection Criteria ---'),
+            '- ' + tr(
+                'Candidate Timing Gap Window: {min_ms}ms - {max_ms}ms',
+                min_ms=SESSION_HOST_AMBIGUITY_MIN_THRESHOLD_MS,
+                max_ms=SESSION_HOST_AMBIGUITY_MAX_THRESHOLD_MS,
+            ),
+            '- ' + tr('Minimum Sent Packets Required: {count}', count=MINIMUM_PACKETS_FOR_RELAY_SESSION_HOST),
+            '- ' + tr('Maximum Exchanged Packets Limit: {count}', count=SESSION_HOST_MAX_PACKETS_FOR_DETECTION),
         ])
         if result.timing_gap is not None:
             gap_milliseconds = result.timing_gap * 1000
             time_difference_text = f'{result.timing_gap:.3f}s ({gap_milliseconds:.1f}ms)' if result.timing_gap >= 1.0 else f'{gap_milliseconds:.1f}ms'
             lines.extend([
                 '',
-                '--- Timing Analysis ---',
-                f'- Time Difference: {time_difference_text}',
-                f'- Timing Gap Resolution: {timing_resolution_summary}',
+                tr('--- Timing Analysis ---'),
+                '- ' + tr('Time Difference: {diff}', diff=time_difference_text),
+                '- ' + tr('Timing Gap Resolution: {resolution}', resolution=timing_resolution_summary),
             ])
         elif len(candidates) == 1:
             lines.extend([
                 '',
-                '--- Timing Analysis ---',
-                f'- Sole P2P Player: {timing_resolution_summary}',
+                tr('--- Timing Analysis ---'),
+                '- ' + tr('Sole P2P Player: {resolution}', resolution=timing_resolution_summary),
             ])
 
     if candidates:
         lines.extend([
             '',
-            '--- Evaluated Candidates ---',
+            tr('--- Evaluated Candidates ---'),
         ])
         for index, player in enumerate(candidates, start=1):
             rejoin_time = player.datetime.last_rejoin.strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
             rejoin_ago = format_elapsed_time(now - player.datetime.last_rejoin)
             if result.modmenu_source is not None:
-                packets_status_text = 'Mod Menu Lua Host' if result.detected_host is not None and player.ip == result.detected_host.ip else 'Connected P2P'
+                packets_status_text = tr('Mod Menu Lua Host') if result.detected_host is not None and player.ip == result.detected_host.ip else tr('Connected P2P')
             elif player.packets.sent < MINIMUM_PACKETS_FOR_RELAY_SESSION_HOST:
-                packets_status_text = 'Not enough sent'
+                packets_status_text = tr('Not enough sent')
             elif player.packets.exchanged > SESSION_HOST_MAX_PACKETS_FOR_DETECTION:
-                packets_status_text = 'Exceeds maximum exchanged'
+                packets_status_text = tr('Exceeds maximum exchanged')
             else:
-                packets_status_text = 'Enough'
+                packets_status_text = tr('Enough')
             candidate_usernames = candidate_diagnostics[index - 1].usernames
             username_suffix = f' ({", ".join(candidate_usernames)})' if candidate_usernames else ''
             candidate_lines = [
-                f'Candidate #{index}:',
-                f'  IP Address: {player.ip}{username_suffix}',
-                f'  Last Rejoin: {rejoin_time} ({rejoin_ago} ago)',
-                f'  Packets Sent: {player.packets.sent} ({packets_status_text})',
-                f'  Packets Received: {player.packets.received}',
-                f'  Packets Exchanged: {player.packets.exchanged}',
+                tr('Candidate #{index}:', index=index),
+                '  ' + tr('IP Address: {ip}{username_suffix}', ip=player.ip, username_suffix=username_suffix),
+                '  ' + tr('Last Rejoin: {time} ({ago} ago)', time=rejoin_time, ago=rejoin_ago),
+                '  ' + tr('Packets Sent: {count} ({status})', count=player.packets.sent, status=packets_status_text),
+                '  ' + tr('Packets Received: {count}', count=player.packets.received),
+                '  ' + tr('Packets Exchanged: {count}', count=player.packets.exchanged),
             ]
             if player in SessionHost.players_pending_for_disconnection:
-                candidate_lines.append('  Note: Pending Disconnection')
+                candidate_lines.append('  ' + tr('Note: Pending Disconnection'))
             if not player.packets.received:
-                candidate_lines.append('  Note: Relayed (0 received packets)')
+                candidate_lines.append('  ' + tr('Note: Relayed (0 received packets)'))
             if player.left_event.is_set():
-                candidate_lines.append('  Note: Disconnected')
+                candidate_lines.append('  ' + tr('Note: Disconnected'))
             lines.extend(candidate_lines)
 
     if filtered_servers:
         lines.extend([
             '',
-            '--- Filtered Server List ---',
-            *(f'  - {server_ip} ({exchanged} packets)' for server_ip, exchanged in filtered_servers),
+            tr('--- Filtered Server List ---'),
+            *(
+                '  - ' + tr_plural('{ip} ({count} packet)', '{ip} ({count} packets)', exchanged, ip=server_ip)
+                for server_ip, exchanged in filtered_servers
+            ),
         ])
 
     detected_host = result.detected_host
@@ -500,12 +514,13 @@ class SessionHost:
         if host_entry is None:
             cls.set_player(None)
             if active_menu_name is None:
-                outcome = 'No Mod Menu Lua session_host.txt file found.'
-                rejection_reason = 'No Mod Menu Lua session_host.txt file was found.\n\nLoad the Session Sniffer Lua plugin in your mod menu to resolve the session host.'
+                outcome = tr('No Mod Menu Lua session_host.txt file found.')
+                rejection_reason = tr('No Mod Menu Lua session_host.txt file was found.\n\nLoad the Session Sniffer Lua plugin in your mod menu to resolve the session host.')
             else:
-                outcome = f'No remote session host reported by {active_menu_name} Lua plugin.'
-                rejection_reason = (
-                    f'The {active_menu_name} Lua plugin did not report a remote session host (you may be the session host, not in a session, or the host IP is hidden/relayed).'
+                outcome = tr('No remote session host reported by {menu} Lua plugin.', menu=active_menu_name)
+                rejection_reason = tr(
+                    'The {menu} Lua plugin did not report a remote session host (you may be the session host, not in a session, or the host IP is hidden/relayed).',
+                    menu=active_menu_name,
                 )
             cls.last_diagnostics = _build_host_diagnostics_snapshot(
                 session_players=confirmed_session_players,
@@ -528,10 +543,18 @@ class SessionHost:
                 session_players=confirmed_session_players,
                 candidates=active_p2p_players,
                 result=_DetectionEvaluationResult(
-                    outcome=(f'{host_entry.menu_name} Lua host {host_entry.ip} ({host_entry.username}) is not currently connected in captured P2P traffic.'),
-                    rejection_reason=(
-                        f'The {host_entry.menu_name} Lua plugin reported {host_entry.username} ({host_entry.ip}) '
-                        'as the session host, but no active GTA V P2P traffic from that IP is currently connected.'
+                    outcome=tr(
+                        '{menu} Lua host {ip} ({username}) is not currently connected in captured P2P traffic.',
+                        menu=host_entry.menu_name,
+                        ip=host_entry.ip,
+                        username=host_entry.username,
+                    ),
+                    rejection_reason=tr(
+                        'The {menu} Lua plugin reported {username} ({ip}) '
+                        'as the session host, but no active GTA V P2P traffic from that IP is currently connected.',
+                        menu=host_entry.menu_name,
+                        username=host_entry.username,
+                        ip=host_entry.ip,
                     ),
                     modmenu_source=host_entry.menu_name,
                     modmenu_host_ip=host_entry.ip,
@@ -545,7 +568,12 @@ class SessionHost:
             session_players=confirmed_session_players,
             candidates=[matched_player],
             result=_DetectionEvaluationResult(
-                outcome=f'Session host resolved via {host_entry.menu_name} Lua plugin: {matched_player.ip} ({host_entry.username})',
+                outcome=tr(
+                    'Session host resolved via {menu} Lua plugin: {ip} ({username})',
+                    menu=host_entry.menu_name,
+                    ip=matched_player.ip,
+                    username=host_entry.username,
+                ),
                 rejection_reason=None,
                 detected_host=matched_player,
                 modmenu_source=host_entry.menu_name,
@@ -578,11 +606,11 @@ class SessionHost:
         if not current_session_connected or not confirmed_session_players:
             if current_session_connected:
                 game_name = 'GTA V' if Settings.is_gta5_feature_set() else 'RDR2'
-                rejection_reason = f'No connected players have been confirmed by packets on a {game_name} UDP port.'
-                outcome = f'No {game_name} UDP-port-confirmed players found in current session.'
+                rejection_reason = tr('No connected players have been confirmed by packets on a {game} UDP port.', game=game_name)
+                outcome = tr('No {game} UDP-port-confirmed players found in current session.', game=game_name)
             else:
-                rejection_reason = 'No other players are currently connected in your session.'
-                outcome = 'No connected players found in current session.'
+                rejection_reason = tr('No other players are currently connected in your session.')
+                outcome = tr('No connected players found in current session.')
             cls.last_diagnostics = _build_host_diagnostics_snapshot(
                 session_players=confirmed_session_players,
                 candidates=[],
@@ -615,8 +643,12 @@ class SessionHost:
                 session_players=candidates,
                 candidates=[],
                 result=_DetectionEvaluationResult(
-                    outcome='All connected IPs matched known server ranges.',
-                    rejection_reason=f'All {len(candidates)} connected IP{pluralize(len(candidates))} are game or relay servers, not direct peer-to-peer players.',
+                    outcome=tr('All connected IPs matched known server ranges.'),
+                    rejection_reason=tr_plural(
+                        'All {count} connected IP is a game or relay server, not a direct peer-to-peer player.',
+                        'All {count} connected IPs are game or relay servers, not direct peer-to-peer players.',
+                        len(candidates),
+                    ),
                 ),
             )
             return
@@ -631,8 +663,16 @@ class SessionHost:
                 session_players=candidates,
                 candidates=[],
                 result=_DetectionEvaluationResult(
-                    outcome=f'All connected P2P player{pluralize(len(p2p_players))} are pending disconnection.',
-                    rejection_reason=f'All connected peer-to-peer player{pluralize(len(p2p_players))} are disconnecting, so the session host cannot be determined.',
+                    outcome=tr_plural(
+                        'All connected P2P player is pending disconnection.',
+                        'All connected P2P players are pending disconnection.',
+                        len(p2p_players),
+                    ),
+                    rejection_reason=tr_plural(
+                        'All connected peer-to-peer player is disconnecting, so the session host cannot be determined.',
+                        'All connected peer-to-peer players are disconnecting, so the session host cannot be determined.',
+                        len(p2p_players),
+                    ),
                 ),
             )
             cls.search_player = False
@@ -652,23 +692,29 @@ class SessionHost:
                 cls.search_player = False
                 cls.search_start_time = None
                 if time_difference > _SESSION_HOST_AMBIGUITY_MAX_TD:
-                    rejection_reason = (
-                        f'The connection time gap between the first two players is too large ({gap_seconds:.1f}s gap).\n\n'
-                        'Host detection requires players to connect together during session creation.'
+                    rejection_reason = tr(
+                        'The connection time gap between the first two players is too large ({gap_s:.1f}s gap).\n\n'
+                        'Host detection requires players to connect together during session creation.',
+                        gap_s=gap_seconds,
                     )
-                    outcome = (
-                        f'Connection time gap is too large: {gap_seconds:.1f}s gap exceeds maximum threshold '
-                        f'({SESSION_HOST_AMBIGUITY_MAX_THRESHOLD_MS}ms); players did not connect together.'
+                    outcome = tr(
+                        'Connection time gap is too large: {gap_s:.1f}s gap exceeds maximum threshold '
+                        '({max_ms}ms); players did not connect together.',
+                        gap_s=gap_seconds,
+                        max_ms=SESSION_HOST_AMBIGUITY_MAX_THRESHOLD_MS,
                     )
                 else:
                     gap_milliseconds = gap_seconds * 1000
-                    rejection_reason = (
-                        f'The first two players connected almost at the exact same moment ({gap_milliseconds:.1f}ms apart).\n\n'
-                        'Their connection times are too close to determine who hosted the session.'
+                    rejection_reason = tr(
+                        'The first two players connected almost at the exact same moment ({gap_ms:.1f}ms apart).\n\n'
+                        'Their connection times are too close to determine who hosted the session.',
+                        gap_ms=gap_milliseconds,
                     )
-                    outcome = (
-                        f'Connection times are too close to determine host: first two players connected almost simultaneously '
-                        f'({gap_milliseconds:.1f}ms apart; minimum separation is {SESSION_HOST_AMBIGUITY_MIN_THRESHOLD_MS}ms).'
+                    outcome = tr(
+                        'Connection times are too close to determine host: first two players connected almost simultaneously '
+                        '({gap_ms:.1f}ms apart; minimum separation is {min_ms}ms).',
+                        gap_ms=gap_milliseconds,
+                        min_ms=SESSION_HOST_AMBIGUITY_MIN_THRESHOLD_MS,
                     )
                 cls.last_diagnostics = _build_host_diagnostics_snapshot(
                     session_players=candidates,
@@ -709,12 +755,15 @@ class SessionHost:
                     session_players=candidates,
                     candidates=connected_players,
                     result=_DetectionEvaluationResult(
-                        outcome=(
-                            f'Candidate {potential_session_host_player.ip} packet count ({potential_session_host_player.packets.exchanged}) '
-                            f'exceeds maximum allowed threshold ({SESSION_HOST_MAX_PACKETS_FOR_DETECTION}).'
+                        outcome=tr(
+                            'Candidate {ip} packet count ({exchanged}) exceeds maximum allowed threshold ({limit}).',
+                            ip=potential_session_host_player.ip,
+                            exchanged=potential_session_host_player.packets.exchanged,
+                            limit=SESSION_HOST_MAX_PACKETS_FOR_DETECTION,
                         ),
-                        rejection_reason=(
-                            f'Candidate player {potential_session_host_player.ip} has already exchanged too many packets to determine if they originally hosted the session.'
+                        rejection_reason=tr(
+                            'Candidate player {ip} has already exchanged too many packets to determine if they originally hosted the session.',
+                            ip=potential_session_host_player.ip,
                         ),
                         timing_gap=gap_seconds,
                     ),
@@ -728,14 +777,19 @@ class SessionHost:
                     session_players=candidates,
                     candidates=connected_players,
                     result=_DetectionEvaluationResult(
-                        outcome=(
-                            f'Candidate {potential_session_host_player.ip} has only sent {potential_session_host_player.packets.sent} '
-                            f'packets (minimum sent required: {MINIMUM_PACKETS_FOR_RELAY_SESSION_HOST}).'
+                        outcome=tr(
+                            'Candidate {ip} has only sent {sent} packets (minimum sent required: {minimum}).',
+                            ip=potential_session_host_player.ip,
+                            sent=potential_session_host_player.packets.sent,
+                            minimum=MINIMUM_PACKETS_FOR_RELAY_SESSION_HOST,
                         ),
-                        rejection_reason=(
-                            f'Not enough network packets sent yet to candidate {potential_session_host_player.ip} '
-                            f'({potential_session_host_player.packets.sent} / {MINIMUM_PACKETS_FOR_RELAY_SESSION_HOST} sent packets).\n\n'
-                            'Please wait a few moments for packets to be sent and try again.'
+                        rejection_reason=tr(
+                            'Not enough network packets sent yet to candidate {ip} '
+                            '({sent} / {minimum} sent packets).\n\n'
+                            'Please wait a few moments for packets to be sent and try again.',
+                            ip=potential_session_host_player.ip,
+                            sent=potential_session_host_player.packets.sent,
+                            minimum=MINIMUM_PACKETS_FOR_RELAY_SESSION_HOST,
                         ),
                         timing_gap=gap_seconds,
                     ),
@@ -750,7 +804,7 @@ class SessionHost:
             session_players=candidates,
             candidates=connected_players,
             result=_DetectionEvaluationResult(
-                outcome=f'Session host detected: {potential_session_host_player.ip}',
+                outcome=tr('Session host detected: {ip}', ip=potential_session_host_player.ip),
                 rejection_reason=None,
                 detected_host=potential_session_host_player,
                 timing_gap=gap_seconds,

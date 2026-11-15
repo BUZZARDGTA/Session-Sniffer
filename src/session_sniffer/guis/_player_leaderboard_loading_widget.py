@@ -14,9 +14,11 @@ from PySide6.QtWidgets import (
 )
 
 from session_sniffer.guis.fonts import get_ui_font
+from session_sniffer.guis.live_language import register_language_refresh
 from session_sniffer.guis.stylesheets import DIALOG_BUTTON_STYLESHEET
 from session_sniffer.guis.theming import themed_qss
 from session_sniffer.guis.utils import scale_by_ui
+from session_sniffer.i18n import tr
 
 
 class LeaderboardLoadingWidget(QWidget):
@@ -27,6 +29,7 @@ class LeaderboardLoadingWidget(QWidget):
     def __init__(self, parent: QWidget | None = None) -> None:
         """Initialize the leaderboard loading widget."""
         super().__init__(parent)
+        self._last_progress: tuple[int, int] | None = None
 
         outer_layout = QVBoxLayout(self)
         outer_layout.setContentsMargins(0, 0, 0, 0)
@@ -56,7 +59,7 @@ class LeaderboardLoadingWidget(QWidget):
         frame_layout.setContentsMargins(24, 20, 24, 20)
         frame_layout.setSpacing(10)
 
-        self._header_label = QLabel('Building Leaderboard')
+        self._header_label = QLabel()
         self._header_label.setFont(get_ui_font(15, QFont.Weight.Bold))
         self._header_label.setStyleSheet(themed_qss('color: #88c0d0;'))
         self._header_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -64,7 +67,7 @@ class LeaderboardLoadingWidget(QWidget):
 
         frame_layout.addStretch()
 
-        self._status_label = QLabel('Scanning session logs...\nPlease wait...')
+        self._status_label = QLabel()
         self._status_label.setFont(get_ui_font(10))
         self._status_label.setStyleSheet(themed_qss('color: #a0a0a0;'))
         self._status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -93,8 +96,7 @@ class LeaderboardLoadingWidget(QWidget):
         button_layout = QHBoxLayout()
         button_layout.addStretch()
 
-        self._cancel_button = QPushButton('Cancel')
-        self._cancel_button.setToolTip('Cancel loading and close the leaderboard window')
+        self._cancel_button = QPushButton()
         self._cancel_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
         self._cancel_button.setFixedWidth(scale_by_ui(90))
         self._cancel_button.clicked.connect(self.cancelled.emit)
@@ -109,17 +111,46 @@ class LeaderboardLoadingWidget(QWidget):
         outer_layout.addLayout(center_row)
         outer_layout.addStretch()
 
+        self._apply_translations()
+        register_language_refresh(self, self._apply_translations)
+
+    def _apply_translations(self) -> None:
+        """Apply translated text to loading widget labels and controls."""
+        self._header_label.setText(tr('Building Leaderboard'))
+        self._cancel_button.setText(tr('Cancel'))
+        self._cancel_button.setToolTip(tr('Cancel loading and close the leaderboard window'))
+        self._refresh_status_text()
+
+    def _refresh_status_text(self) -> None:
+        """Render the status label for the current progress state in the active language."""
+        if self._last_progress is None:
+            self._status_label.setText(tr('Scanning session logs...\nPlease wait...'))
+            return
+        current, total = self._last_progress
+        if total > 0:
+            percentage = int((current / total) * 100)
+            self._status_label.setText(
+                tr(
+                    'Scanning session logs...\n{percentage}% ({current} / {total})',
+                    percentage=percentage,
+                    current=f'{current:,}',
+                    total=f'{total:,}',
+                ),
+            )
+        else:
+            self._status_label.setText(
+                tr('Scanning session logs...\n({current} found)', current=f'{current:,}'),
+            )
+
     def reset_progress(self) -> None:
         """Reset the progress bar to indeterminate and revert the status text to initial prompt."""
+        self._last_progress = None
         self._progress_bar.setRange(0, 0)
-        self._status_label.setText('Scanning session logs...\nPlease wait...')
+        self._refresh_status_text()
 
     def update_progress(self, current: int, total: int) -> None:
         """Update the progress bar and status text."""
+        self._last_progress = (current, total)
         self._progress_bar.setRange(0, total)
         self._progress_bar.setValue(current)
-        if total > 0:
-            percentage = int((current / total) * 100)
-            self._status_label.setText(f'Scanning session logs...\n{percentage}% ({current:,} / {total:,})')
-        else:
-            self._status_label.setText(f'Scanning session logs...\n({current:,} found)')
+        self._refresh_status_text()

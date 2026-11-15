@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Final, cast
 
 from session_sniffer.ctypes_windows import is_admin
+from session_sniffer.i18n import tr
 from session_sniffer.networking.bridge_ics import get_adapter_classification
 from session_sniffer.networking.ctypes_adapters_info import has_wlan_interfaces
 from session_sniffer.networking.interface import AllInterfaces
@@ -257,7 +258,7 @@ class HotspotInfo:
             case 'FiveGigahertz':
                 return '5 GHz'
             case 'Auto':
-                return 'Auto'
+                return tr('Auto')
             case _:
                 return self.band
 
@@ -302,16 +303,16 @@ def _run_elevated_powershell_script(script_text: str) -> tuple[str, str]:
         escaped_output = str(output_path).replace("'", "''")
         ps_command = f"& '{escaped_script}' | Out-File -FilePath '{escaped_output}' -Encoding utf8"
         if not run_elevated_powershell_command(ps_command, timeout_ms=int(_SUBPROCESS_TIMEOUT_SECONDS * 1000)):
-            return '', 'Administrator elevation was declined or failed.'
+            return '', tr('Administrator elevation was declined or failed.')
         if not output_path.is_file():
-            return '', 'Elevated PowerShell command produced no output.'
+            return '', tr('Elevated PowerShell command produced no output.')
         return output_path.read_text(encoding='utf-8-sig').strip(), ''
 
 
 def _run_powershell_script(script_text: str, *, elevate: bool = False) -> dict[str, object]:
     """Execute a PowerShell command string safely and return decoded JSON output."""
     if sys.platform != 'win32':
-        return {'Success': False, 'Error': 'Hotspot and ICS management is only supported on Windows.'}
+        return {'Success': False, 'Error': tr('Hotspot and ICS management is only supported on Windows.')}
 
     if elevate and not is_admin():
         stdout_text, stderr_text = _run_elevated_powershell_script(script_text)
@@ -342,7 +343,7 @@ def _run_powershell_script(script_text: str, *, elevate: bool = False) -> dict[s
 
     if not stdout_text:
         logger.warning('PowerShell returned empty stdout. Stderr: %s', stderr_text)
-        return {'Success': False, 'Error': stderr_text or 'Empty output from PowerShell'}
+        return {'Success': False, 'Error': stderr_text or tr('Empty output from PowerShell')}
 
     try:
         raw_decoded = cast('object', json.loads(stdout_text))
@@ -366,13 +367,14 @@ def get_hotspot_info() -> HotspotInfo:
             client_count=0,
             max_clients=0,
             is_available=False,
-            unavailable_reason='No Wi-Fi adapter detected on this PC.',
+            unavailable_reason=tr('No Wi-Fi adapter detected on this PC.'),
         )
 
     response = _run_powershell_script(_WINRT_HOTSPOT_INFO_SCRIPT)
     if not response.get('Success', False):
-        error_message = str(response.get('Error', 'Failed to query hotspot state'))
-        logger.debug('Hotspot info query returned error: %s', error_message)
+        raw_error = response.get('Error')
+        logger.debug('Hotspot info query returned error: %s', raw_error or 'Failed to query hotspot state')
+        error_message = str(raw_error) if raw_error is not None else tr('Failed to query hotspot state')
         return HotspotInfo(
             operational_state='Unavailable',
             ssid='',
@@ -415,11 +417,11 @@ def configure_hotspot(ssid: str, passphrase: str) -> tuple[bool, str | None]:
         Tuple of (success_boolean, optional_error_message).
     """
     if not has_wifi_adapter():
-        return False, 'No Wi-Fi adapter detected on this PC.'
+        return False, tr('No Wi-Fi adapter detected on this PC.')
     if len(ssid) < MIN_SSID_LENGTH or len(ssid) > MAX_SSID_LENGTH:
-        return False, f'SSID must be between {MIN_SSID_LENGTH} and {MAX_SSID_LENGTH} characters.'
+        return False, tr('SSID must be between {min_len} and {max_len} characters.', min_len=MIN_SSID_LENGTH, max_len=MAX_SSID_LENGTH)
     if len(passphrase) < MIN_PASSPHRASE_LENGTH or len(passphrase) > MAX_PASSPHRASE_LENGTH:
-        return False, f'Password must be between {MIN_PASSPHRASE_LENGTH} and {MAX_PASSPHRASE_LENGTH} characters.'
+        return False, tr('Password must be between {min_len} and {max_len} characters.', min_len=MIN_PASSPHRASE_LENGTH, max_len=MAX_PASSPHRASE_LENGTH)
 
     # Escape parameters for PowerShell script call
     escaped_ssid = ssid.replace("'", "''")
@@ -430,7 +432,7 @@ def configure_hotspot(ssid: str, passphrase: str) -> tuple[bool, str | None]:
     if response.get('Success', False):
         return True, None
 
-    error_message = str(response.get('Error', 'Failed to configure hotspot credentials'))
+    error_message = str(response.get('Error', tr('Failed to configure hotspot credentials')))
     return False, error_message
 
 
@@ -441,12 +443,12 @@ def start_hotspot() -> tuple[bool, str | None]:
         Tuple of (success_boolean, optional_error_message).
     """
     if not has_wifi_adapter():
-        return False, 'No Wi-Fi adapter detected on this PC.'
+        return False, tr('No Wi-Fi adapter detected on this PC.')
     response = _run_powershell_script(_WINRT_START_HOTSPOT_SCRIPT)
     if response.get('Success', False):
         return True, None
 
-    error_message = str(response.get('Error', response.get('Status', 'Failed to start mobile hotspot')))
+    error_message = str(response.get('Error', response.get('Status', tr('Failed to start mobile hotspot'))))
     return False, error_message
 
 
@@ -457,12 +459,12 @@ def stop_hotspot() -> tuple[bool, str | None]:
         Tuple of (success_boolean, optional_error_message).
     """
     if not has_wifi_adapter():
-        return False, 'No Wi-Fi adapter detected on this PC.'
+        return False, tr('No Wi-Fi adapter detected on this PC.')
     response = _run_powershell_script(_WINRT_STOP_HOTSPOT_SCRIPT)
     if response.get('Success', False):
         return True, None
 
-    error_message = str(response.get('Error', 'Failed to stop mobile hotspot'))
+    error_message = str(response.get('Error', tr('Failed to stop mobile hotspot')))
     return False, error_message
 
 
@@ -491,7 +493,7 @@ def get_connected_devices() -> list[ConnectedDevice]:
             entry_dict = cast('dict[str, object]', raw_entry)
             mac_raw = str(entry_dict.get('Mac', ''))
             hostnames_raw = entry_dict.get('Hostnames')
-            hostname = 'Unknown Device'
+            hostname = tr('Unknown Device')
             if isinstance(hostnames_raw, list):
                 raw_list = cast('list[object]', hostnames_raw)
                 if raw_list and isinstance(raw_list[0], str):
@@ -506,7 +508,7 @@ def get_connected_devices() -> list[ConnectedDevice]:
                     ip_address=resolved_ip or 'Assigned via DHCP',
                     mac_address=mac_raw,
                     vendor_name=vendor_name,
-                    connection_type='Wi-Fi Hotspot',
+                    connection_type=tr('Wi-Fi Hotspot'),
                 ),
             )
 
@@ -555,7 +557,7 @@ def enable_ics(public_adapter_name: str, private_adapter_name: str) -> tuple[boo
     if response.get('Success', False):
         return True, None
 
-    error_message = str(response.get('Error', 'Failed to configure Internet Connection Sharing'))
+    error_message = str(response.get('Error', tr('Failed to configure Internet Connection Sharing')))
     return False, error_message
 
 
@@ -569,5 +571,5 @@ def disable_ics() -> tuple[bool, str | None]:
     if response.get('Success', False):
         return True, None
 
-    error_message = str(response.get('Error', 'Failed to disable Internet Connection Sharing'))
+    error_message = str(response.get('Error', tr('Failed to disable Internet Connection Sharing')))
     return False, error_message

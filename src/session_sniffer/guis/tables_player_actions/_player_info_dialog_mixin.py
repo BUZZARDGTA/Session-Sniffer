@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
 )
 
 from session_sniffer.guis.fonts import get_monospace_font
+from session_sniffer.guis.live_language import set_i18n_colon_label
 from session_sniffer.guis.stylesheets import (
     PLAYER_INFO_FORM_LABEL_STYLESHEET,
     PLAYER_INFO_VALUE_LABEL_STYLESHEET,
@@ -22,6 +23,7 @@ from session_sniffer.guis.stylesheets import (
     player_info_header_stylesheet,
 )
 from session_sniffer.guis.utils import apply_adaptive_window_size
+from session_sniffer.i18n import tr
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -58,11 +60,14 @@ class PlayerInfoDialogMixin(QDialog):
         return group, form
 
     @staticmethod
-    def _add_row(form: QFormLayout, label_text: str, value: str) -> None:
-        """Append a copyable label/value row to *form*."""
-        label_widget = QLabel(f'{label_text}:')
+    def _add_row(form: QFormLayout, label_text: str, value: str) -> QLabel:
+        """Append a copyable label/value row to *form* and return its value label."""
+        label_widget = QLabel()
+        set_i18n_colon_label(label_widget, label_text)
         label_widget.setStyleSheet(PLAYER_INFO_FORM_LABEL_STYLESHEET)
-        form.addRow(label_widget, PlayerInfoDialogMixin._make_value_label(value))
+        value_widget = PlayerInfoDialogMixin._make_value_label(value)
+        form.addRow(label_widget, value_widget)
+        return value_widget
 
     def _add_live_row(
         self,
@@ -71,13 +76,13 @@ class PlayerInfoDialogMixin(QDialog):
         provider: Callable[[], str],
     ) -> None:
         """Append a label / copyable-value row to *form* and register it for periodic refresh."""
+        label_widget = QLabel()
         if isinstance(label, str):
-            initial_label = label
+            set_i18n_colon_label(label_widget, label)
             label_provider = None
         else:
-            initial_label = label()
+            label_widget.setText(f'{label()}:')
             label_provider = label
-        label_widget = QLabel(f'{initial_label}:')
         label_widget.setStyleSheet(PLAYER_INFO_FORM_LABEL_STYLESHEET)
         value_widget = self._make_value_label(provider())
         form.addRow(label_widget, value_widget)
@@ -103,7 +108,7 @@ class PlayerInfoDialogMixin(QDialog):
         value_widget.setWordWrap(True)
         value_widget.setFont(get_monospace_font())
         value_widget.setStyleSheet(PLAYER_INFO_VALUE_LABEL_STYLESHEET)
-        value_widget.setToolTip('Click and drag to select; Ctrl+C to copy.')
+        value_widget.setToolTip(tr('Click and drag to select; Ctrl+C to copy.'))
         return value_widget
 
     def _init_scroll_area(self, outer_layout: QVBoxLayout) -> QVBoxLayout:

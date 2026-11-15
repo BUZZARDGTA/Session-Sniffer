@@ -12,6 +12,7 @@ from contextlib import suppress
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Final, Self, cast
 
+from session_sniffer.i18n import tr, tr_plural
 from session_sniffer.networking.ctypes_adapters_info import (
     close_icmp_handle,
     create_icmp_handle,
@@ -237,7 +238,7 @@ class IcmpEchoEngine:
                 is_successful=False,
                 round_trip_time_ms=None,
                 time_to_live=None,
-                status_message='ICMP socket unavailable',
+                status_message=tr('ICMP socket unavailable'),
                 payload_bytes=payload_bytes,
             )
 
@@ -252,7 +253,7 @@ class IcmpEchoEngine:
                 is_successful=False,
                 round_trip_time_ms=None,
                 time_to_live=None,
-                status_message=f'Invalid host or IP address: {e}',
+                status_message=tr('Invalid host or IP address: {error}', error=e),
                 payload_bytes=payload_bytes,
             )
 
@@ -299,7 +300,7 @@ class IcmpEchoEngine:
                     is_successful=False,
                     round_trip_time_ms=None,
                     time_to_live=None,
-                    status_message='Unexpected ICMP response',
+                    status_message=tr('Unexpected ICMP response'),
                     payload_bytes=payload_bytes,
                 )
 
@@ -311,7 +312,7 @@ class IcmpEchoEngine:
                 is_successful=True,
                 round_trip_time_ms=round_trip_time_ms,
                 time_to_live=time_to_live,
-                status_message='Success',
+                status_message=tr('Success'),
                 payload_bytes=payload_bytes,
             )
         except TimeoutError:
@@ -323,7 +324,7 @@ class IcmpEchoEngine:
                 is_successful=False,
                 round_trip_time_ms=None,
                 time_to_live=None,
-                status_message='Request timed out',
+                status_message=tr('Request timed out'),
                 payload_bytes=payload_bytes,
             )
         except OSError as e:
@@ -368,7 +369,7 @@ class IcmpEchoEngine:
                 is_successful=False,
                 round_trip_time_ms=None,
                 time_to_live=None,
-                status_message='Win32 ICMP handle unavailable',
+                status_message=tr('Win32 ICMP handle unavailable'),
                 payload_bytes=payload_bytes,
             )
 
@@ -388,7 +389,7 @@ class IcmpEchoEngine:
                     is_successful=False,
                     round_trip_time_ms=None,
                     time_to_live=None,
-                    status_message=f'Invalid host or IP address: {e}',
+                    status_message=tr('Invalid host or IP address: {error}', error=e),
                     payload_bytes=payload_bytes,
                 )
 
@@ -410,11 +411,12 @@ class IcmpEchoEngine:
                 is_successful=False,
                 round_trip_time_ms=None,
                 time_to_live=None,
-                status_message=f'ICMP send failed: {e}',
+                status_message=tr('ICMP send failed: {error}', error=e),
                 payload_bytes=payload_bytes,
             )
 
-        status_description = _IP_STATUS_DESCRIPTIONS.get(status_code, f'Error {status_code}')
+        raw_status_description = _IP_STATUS_DESCRIPTIONS.get(status_code)
+        status_description = tr(raw_status_description) if raw_status_description is not None else tr('Error {code}', code=status_code)
 
         if return_value > 0 and not status_code:
             return PingProbeResult(
@@ -465,7 +467,7 @@ def probe_tcp_port(
             is_successful=True,
             round_trip_time_ms=round_trip_time_ms,
             time_to_live=None,
-            status_message='Connected',
+            status_message=tr('Connected'),
         )
     except TimeoutError:
         return PingProbeResult(
@@ -476,7 +478,7 @@ def probe_tcp_port(
             is_successful=False,
             round_trip_time_ms=None,
             time_to_live=None,
-            status_message='Connection timed out',
+            status_message=tr('Connection timed out'),
         )
     except ConnectionRefusedError:
         return PingProbeResult(
@@ -487,7 +489,7 @@ def probe_tcp_port(
             is_successful=False,
             round_trip_time_ms=None,
             time_to_live=None,
-            status_message='Connection refused (Port closed)',
+            status_message=tr('Connection refused (Port closed)'),
         )
     except OSError as e:
         return PingProbeResult(
@@ -532,7 +534,7 @@ def probe_udp_port(
             is_successful=True,
             round_trip_time_ms=round_trip_time_ms,
             time_to_live=None,
-            status_message=f'Reply received ({len(data)} bytes)',
+            status_message=tr_plural('Reply received ({count} byte)', 'Reply received ({count} bytes)', len(data)),
             payload_bytes=payload_bytes,
         )
     except (ConnectionResetError, ConnectionRefusedError):
@@ -545,7 +547,7 @@ def probe_udp_port(
             is_successful=True,
             round_trip_time_ms=round_trip_time_ms,
             time_to_live=None,
-            status_message='Port closed (Host reached)',
+            status_message=tr('Port closed (Host reached)'),
             payload_bytes=payload_bytes,
         )
     except TimeoutError:
@@ -557,7 +559,7 @@ def probe_udp_port(
             is_successful=False,
             round_trip_time_ms=None,
             time_to_live=None,
-            status_message='Request timed out (Open/filtered)',
+            status_message=tr('Request timed out (Open/filtered)'),
             payload_bytes=payload_bytes,
         )
     except OSError as e:
@@ -606,7 +608,7 @@ def probe_check_host(target_ip: str, *, sequence: int = 1) -> list[PingProbeResu
                     is_successful=False,
                     round_trip_time_ms=None,
                     time_to_live=None,
-                    status_message='Failed to initiate check-ping request',
+                    status_message=tr('Failed to initiate check-ping request'),
                 ),
             )
             return results
@@ -623,7 +625,7 @@ def probe_check_host(target_ip: str, *, sequence: int = 1) -> list[PingProbeResu
         result_data = cast('dict[str, object]', result_response.json())
 
         for node_name, node_info in nodes.items():
-            country = node_info[1] if len(node_info) > 1 else 'Unknown'
+            country = node_info[1] if len(node_info) > 1 else tr('Unknown')
             city = node_info[2] if len(node_info) > _CHECK_HOST_MIN_NODE_INFO_LENGTH_FOR_CITY else ''
             node_label = f'{country} ({city})' if city else country
 
@@ -647,7 +649,7 @@ def probe_check_host(target_ip: str, *, sequence: int = 1) -> list[PingProbeResu
                             is_successful=True,
                             round_trip_time_ms=average_rtt,
                             time_to_live=None,
-                            status_message=f'{len(successful_rtts)}/4 packets received',
+                            status_message=tr('{received}/4 packets received', received=len(successful_rtts)),
                         ),
                     )
                 else:
@@ -660,7 +662,7 @@ def probe_check_host(target_ip: str, *, sequence: int = 1) -> list[PingProbeResu
                             is_successful=False,
                             round_trip_time_ms=None,
                             time_to_live=None,
-                            status_message='Packet timeout',
+                            status_message=tr('Packet timeout'),
                         ),
                     )
             else:
@@ -673,7 +675,7 @@ def probe_check_host(target_ip: str, *, sequence: int = 1) -> list[PingProbeResu
                         is_successful=False,
                         round_trip_time_ms=None,
                         time_to_live=None,
-                        status_message='No response from node',
+                        status_message=tr('No response from node'),
                     ),
                 )
 
@@ -687,7 +689,7 @@ def probe_check_host(target_ip: str, *, sequence: int = 1) -> list[PingProbeResu
                 is_successful=False,
                 round_trip_time_ms=None,
                 time_to_live=None,
-                status_message=f'Web ping error: {e}',
+                status_message=tr('Web ping error: {error}', error=e),
             ),
         )
 

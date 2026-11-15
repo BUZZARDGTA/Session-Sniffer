@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
 from session_sniffer.constants.local import VERSION
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.constants.tables import SEARCHABLE_COLUMN_EXCLUSIONS
+from session_sniffer.guis.live_language import register_language_refresh
 from session_sniffer.guis.stylesheets import (
     HEADER_NOTIFICATION_BUTTON_ENABLED_STYLESHEET,
     HEADER_NOTIFICATION_BUTTON_MUTED_STYLESHEET,
@@ -37,6 +38,7 @@ from session_sniffer.guis.stylesheets import (
 )
 from session_sniffer.guis.theming import themed_qss
 from session_sniffer.guis.utils import render_svg_icon_from_resource, render_svg_pixmap_from_resource, scale_by_ui
+from session_sniffer.i18n import tr
 from session_sniffer.notifications_state import notifications_state
 from session_sniffer.rendering_core.types import TableMergeState
 from session_sniffer.settings import Settings
@@ -131,7 +133,7 @@ class SessionHeader(QFrame):
         version_badge.setStyleSheet(HEADER_VERSION_BADGE_STYLESHEET)
         title_row.addWidget(version_badge)
 
-        self._stopped_badge = QLabel('CAPTURE STOPPED')
+        self._stopped_badge = QLabel(tr('CAPTURE STOPPED'))
         self._stopped_badge.setObjectName('headerStoppedBadge')
         self._stopped_badge.setStyleSheet(HEADER_STOPPED_BADGE_STYLESHEET)
         self._stopped_badge.setVisible(False)
@@ -140,14 +142,11 @@ class SessionHeader(QFrame):
 
         brand_layout.addLayout(title_row)
 
-        subtitle_label = QLabel(
-            themed_qss(
-                'The best <span style="color: #22c55e; font-weight: 600;">FREE</span> and <span style="color: #22c55e; font-weight: 600;">Open-Source</span> packet sniffer',
-            ),
-        )
-        subtitle_label.setObjectName('headerSubtitle')
-        subtitle_label.setStyleSheet(HEADER_SUBTITLE_STYLESHEET)
-        brand_layout.addWidget(subtitle_label)
+        self._subtitle_label = QLabel()
+        self._subtitle_label.setObjectName('headerSubtitle')
+        self._subtitle_label.setStyleSheet(HEADER_SUBTITLE_STYLESHEET)
+        self._refresh_subtitle_text()
+        brand_layout.addWidget(self._subtitle_label)
 
         main_layout.addWidget(brand_container, 0, 0, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
 
@@ -240,9 +239,9 @@ class SessionHeader(QFrame):
         uptime_layout.setSpacing(0)
         uptime_layout.setContentsMargins(0, 0, 0, 0)
 
-        uptime_title = QLabel('Uptime')
-        uptime_title.setStyleSheet(STAT_CARD_TITLE_STYLESHEET)
-        uptime_layout.addWidget(uptime_title)
+        self._uptime_title = QLabel(tr('Uptime'))
+        self._uptime_title.setStyleSheet(STAT_CARD_TITLE_STYLESHEET)
+        uptime_layout.addWidget(self._uptime_title)
 
         self._uptime_value = QLabel('00:00:00')
         self._uptime_value.setStyleSheet(STAT_CARD_VALUE_STYLESHEET)
@@ -258,9 +257,9 @@ class SessionHeader(QFrame):
         packets_layout.setSpacing(0)
         packets_layout.setContentsMargins(0, 0, 0, 0)
 
-        packets_title = QLabel('Captured Packets')
-        packets_title.setStyleSheet(STAT_CARD_TITLE_STYLESHEET)
-        packets_layout.addWidget(packets_title)
+        self._packets_title = QLabel(tr('Captured Packets'))
+        self._packets_title.setStyleSheet(STAT_CARD_TITLE_STYLESHEET)
+        packets_layout.addWidget(self._packets_title)
 
         self._packets_value = QLabel('0')
         self._packets_value.setStyleSheet(STAT_CARD_VALUE_STYLESHEET)
@@ -274,43 +273,79 @@ class SessionHeader(QFrame):
         main_layout.setColumnStretch(1, 0)
         main_layout.setColumnStretch(2, 1)
 
+        self._is_merged = TableMergeState.is_merged()
+        self._visual_enabled = notifications_state.visual_enabled
+        self._voice_enabled = notifications_state.voice_enabled
+
         self.sync_notification_buttons(
             visual_enabled=notifications_state.visual_enabled,
             voice_enabled=notifications_state.voice_enabled,
         )
+        register_language_refresh(self, self._refresh_language)
+
+    def _refresh_subtitle_text(self) -> None:
+        self._subtitle_label.setText(
+            themed_qss(
+                tr(
+                    'The best <span style="color: #22c55e; font-weight: 600;">FREE</span> and '
+                    '<span style="color: #22c55e; font-weight: 600;">Open-Source</span> packet sniffer',
+                ),
+            ),
+        )
+
+    def _refresh_language(self) -> None:
+        """Re-translate header labels, search controls, and notification tooltips on language change."""
+        self._stopped_badge.setText(tr('CAPTURE STOPPED'))
+        self._refresh_subtitle_text()
+        self._uptime_title.setText(tr('Uptime'))
+        self._packets_title.setText(tr('Captured Packets'))
+        for i in range(self.search_combo.count()):
+            canonical_column = self.search_combo.itemData(i, Qt.ItemDataRole.UserRole)
+            if isinstance(canonical_column, str) and canonical_column:
+                self.search_combo.setItemText(i, tr(canonical_column))
+        self.set_search_placeholder_merged(is_merged=self._is_merged)
+        self.sync_notification_buttons(visual_enabled=self._visual_enabled, voice_enabled=self._voice_enabled)
 
     def sync_notification_buttons(self, *, visual_enabled: bool, voice_enabled: bool) -> None:
         """Update visual and voice quick-toggle button icons, styles, and tooltips."""
+        self._visual_enabled = visual_enabled
+        self._voice_enabled = voice_enabled
         icon_px = scale_by_ui(16)
-        all_hint = 'Mute all notifications' if (visual_enabled or voice_enabled) else 'Enable all notifications'
+        all_hint = tr('Right-click: Mute all notifications') if (visual_enabled or voice_enabled) else tr('Right-click: Enable all notifications')
 
         self._visual_btn.setIcon(
             render_svg_icon_from_resource('bell.svg' if visual_enabled else 'bell-off.svg', icon_px, icon_px, '#22c55e' if visual_enabled else '#f87171'),
         )
         self._visual_btn.setStyleSheet(HEADER_NOTIFICATION_BUTTON_ENABLED_STYLESHEET if visual_enabled else HEADER_NOTIFICATION_BUTTON_MUTED_STYLESHEET)
-        visual_status = 'Enabled' if visual_enabled else 'Muted'
-        visual_action = 'Mute visual popup notifications' if visual_enabled else 'Enable visual popup notifications'
-        self._visual_btn.setToolTip(f'Visual Notifications: {visual_status} (this session only)\nLeft-click: {visual_action}\nRight-click: {all_hint}')
+        visual_header = tr('Visual Notifications: Enabled (this session only)') if visual_enabled else tr('Visual Notifications: Muted (this session only)')
+        visual_left = tr('Left-click: Mute visual popup notifications') if visual_enabled else tr('Left-click: Enable visual popup notifications')
+        self._visual_btn.setToolTip(f'{visual_header}\n{visual_left}\n{all_hint}')
 
         self._voice_btn.setIcon(
             render_svg_icon_from_resource('volume-2.svg' if voice_enabled else 'volume-x.svg', icon_px, icon_px, '#22c55e' if voice_enabled else '#f87171'),
         )
         self._voice_btn.setStyleSheet(HEADER_NOTIFICATION_BUTTON_ENABLED_STYLESHEET if voice_enabled else HEADER_NOTIFICATION_BUTTON_MUTED_STYLESHEET)
-        voice_status = 'Enabled' if voice_enabled else 'Muted'
-        voice_action = 'Mute voice notifications' if voice_enabled else 'Enable voice notifications'
-        self._voice_btn.setToolTip(f'Voice Notifications: {voice_status} (this session only)\nLeft-click: {voice_action}\nRight-click: {all_hint}')
+        voice_header = tr('Voice Notifications: Enabled (this session only)') if voice_enabled else tr('Voice Notifications: Muted (this session only)')
+        voice_left = tr('Left-click: Mute voice notifications') if voice_enabled else tr('Left-click: Enable voice notifications')
+        self._voice_btn.setToolTip(f'{voice_header}\n{voice_left}\n{all_hint}')
 
     def _populate_searchable_columns(self) -> None:
         """Populate the column chooser with All Columns and common searchable columns."""
         self.search_combo.clear()
-        self.search_combo.addItem('All Columns')
+        self.search_combo.addItem(tr('All Columns'), 'All Columns')
 
         seen_columns: set[str] = set()
         candidate_columns: Sequence[str] = (*Settings.GUI_ALL_CONNECTED_COLUMNS, *Settings.GUI_ALL_DISCONNECTED_COLUMNS)
         for column_name in candidate_columns:
             if column_name not in SEARCHABLE_COLUMN_EXCLUSIONS and column_name not in seen_columns:
                 seen_columns.add(column_name)
-                self.search_combo.addItem(column_name)
+                self.search_combo.addItem(tr(column_name), column_name)
+
+    def _selected_search_column(self) -> str:
+        canonical = self.search_combo.currentData(Qt.ItemDataRole.UserRole)
+        if isinstance(canonical, str) and canonical:
+            return canonical
+        return 'All Columns'
 
     def focus_search(self) -> None:
         """Focus the global search input and select all current query text."""
@@ -319,12 +354,13 @@ class SessionHeader(QFrame):
 
     def set_search_placeholder_merged(self, *, is_merged: bool) -> None:
         """Update search placeholder and tooltip based on whether tables are merged."""
+        self._is_merged = is_merged
         if is_merged:
-            self.search_bar.setPlaceholderText('Search players...')
-            self.search_combo.setToolTip('Filter search to a specific column')
+            self.search_bar.setPlaceholderText(tr('Search players...'))
+            self.search_combo.setToolTip(tr('Filter search to a specific column'))
         else:
-            self.search_bar.setPlaceholderText('Search connected + disconnected players...')
-            self.search_combo.setToolTip('Filter search to a specific column across both tables')
+            self.search_bar.setPlaceholderText(tr('Search connected + disconnected players...'))
+            self.search_combo.setToolTip(tr('Filter search to a specific column across both tables'))
 
     def set_capture_running(self, *, is_running: bool) -> None:
         """Toggle the visibility of the capture stopped badge."""
@@ -339,10 +375,10 @@ class SessionHeader(QFrame):
         self._packets_value.setText(f'{total_packets:,}')
 
     def _on_search_query_changed(self, text: str) -> None:
-        selected_column = self.search_combo.currentText()
+        selected_column = self._selected_search_column()
         self.search_changed.emit(text.strip(), selected_column)
 
     def _on_search_column_changed(self, _index: int) -> None:
         text = self.search_bar.text().strip()
-        selected_column = self.search_combo.currentText()
+        selected_column = self._selected_search_column()
         self.search_changed.emit(text, selected_column)

@@ -1,11 +1,9 @@
 """UserIP Databases Manager dialog for browsing, editing, and managing UserIP database files and entries."""
 
-import html
-from datetime import UTC, datetime
 from typing import TYPE_CHECKING, ClassVar, override
 
 from PySide6.QtCore import QByteArray, QModelIndex, QSignalBlocker, QSize, Qt, QUrl
-from PySide6.QtGui import QCloseEvent, QColor, QDesktopServices, QIcon, QKeySequence, QResizeEvent, QShortcut, QShowEvent, QStandardItemModel
+from PySide6.QtGui import QAction, QCloseEvent, QColor, QDesktopServices, QIcon, QKeySequence, QResizeEvent, QShortcut, QShowEvent, QStandardItemModel
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
@@ -14,7 +12,6 @@ from PySide6.QtWidgets import (
     QFileSystemModel,
     QFrame,
     QHBoxLayout,
-    QHeaderView,
     QLabel,
     QLineEdit,
     QMenu,
@@ -28,15 +25,16 @@ from PySide6.QtWidgets import (
 from session_sniffer.constants.local import GUI_STATE_PATH, USERIP_DATABASES_DIR_PATH
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.guis._dialog_mixins import prompt_unsaved_changes_close
+from session_sniffer.guis._userip_tree_batch_ops import format_multi_tree_selection_info, is_default_userip_db
 from session_sniffer.guis.delegates import SearchHighlightDelegate
 from session_sniffer.guis.file_watch import DebouncedFileWatcher
+from session_sniffer.guis.live_language import CANONICAL_HEADER_ROLE, register_language_refresh, set_i18n_colon_label
 from session_sniffer.guis.loading_overlay import loading_overlay_scope
-from session_sniffer.guis.logs_manager._helpers import human_readable_timestamp
 from session_sniffer.guis.select_usernames_dialog import configure_username_cell_editor
 from session_sniffer.guis.stylesheets import USERIP_METADATA_CONTAINER_STYLESHEET, userip_dialog_button_stylesheet, userip_dialog_danger_button_stylesheet
-from session_sniffer.guis.table_column_resizing import adjust_last_visible_column_to_viewport, setup_table_header_context_menu
-from session_sniffer.guis.theming import ICONS_DIR_PATH, themed_qss
-from session_sniffer.guis.userip_conflict_resolver import open_userip_conflict_resolver, update_resolve_conflicts_button
+from session_sniffer.guis.table_column_resizing import setup_table_header_context_menu
+from session_sniffer.guis.theming import ICONS_DIR_PATH
+from session_sniffer.guis.userip_conflict_resolver import open_userip_conflict_resolver
 from session_sniffer.guis.userip_manager_context_menu_mixin import EntriesContextMenuMixin
 from session_sniffer.guis.userip_manager_entries_ops_mixin import UserIPEntriesOperationsMixin
 from session_sniffer.guis.userip_manager_helpers import (
@@ -46,16 +44,15 @@ from session_sniffer.guis.userip_manager_helpers import (
     INDEX_COLUMN,
     NEW_DATABASE_SETTINGS,
     RANGE_COLUMN,
-    USERIP_METADATA_HEADER_TOOLTIPS,
     USERNAME_COLUMN,
     EntriesSortProxy,
     append_entry_rows,
     build_entry_row_items,
     clear_row_looky_badge,
-    human_readable_size,
+    get_userip_metadata_header_tooltips,
     is_row_persisted,
-    iter_userip_databases,
     load_userip_database_model,
+    retranslate_entry_rows,
     set_row_updated_at,
 )
 from session_sniffer.guis.userip_manager_import_export_mixin import UserIPImportExportMixin
@@ -70,10 +67,10 @@ from session_sniffer.guis.utils import (
     set_dialog_window_flags,
     set_maximize_on_show,
 )
+from session_sniffer.i18n import tr, tr_plural
 from session_sniffer.models import GUIState
 from session_sniffer.player.userip import UserIPDatabases
 from session_sniffer.settings.settings import Settings
-from session_sniffer.text_utils import pluralize
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -83,30 +80,26 @@ if TYPE_CHECKING:
 
     from session_sniffer.models.userip_settings_model import UserIPEntryModel, UserIPSettingsModel
 
-_ENTRY_TABLE_HEADER_TOOLTIPS: dict[str, str] = {
-    '#': 'The sequential row number of the entry in the database.',
-    'Username': 'The username associated with this entry.\nPurple entries with a Looky icon were automatically added or confirmed via Looky System.',
-    'IP': 'The single IPv4 address matched by this entry.',
-    'Range': 'The IPv4 address range or CIDR subnet matched by this entry.',
-    'Database': 'The UserIP database file that contains this entry (shown when searching across all databases).',
-    'Notes': 'Optional user notes or comments attached to this entry.',
-    **USERIP_METADATA_HEADER_TOOLTIPS,
-}
+_SORT_MODES: tuple[str, ...] = ('Groups', 'Date Added', 'Entry Order (#)')
+_SORT_MODE_TOOLTIP = (
+    'Choose how database entries are ordered:\n'
+    '\u2022 Groups: Keep linked accounts together in consecutive blocks separated by alternating background shades.\n'
+    '\u2022 Date Added: Sort entries by when they were added to the database, with alternating row shades.\n'
+    '\u2022 Entry Order (#): Sort entries by their sequential row number in the file, with alternating row shades.'
+)
 
-_DEFAULT_ENTRY_COLUMN_WIDTHS: dict[str, int] = {
-    '#': 50,
-    'Username': 180,
-    'IP': 120,
-    'Range': 180,
-    'Database': 160,
-    'Notes': 180,
-    'Source': 85,
-    'Detections': 85,
-    'Added': 145,
-    'Updated': 145,
-    'First Seen': 145,
-    'Last Seen': 145,
-}
+
+def _get_entry_table_header_tooltips() -> dict[str, str]:
+    """Return localized header tooltips keyed by canonical entry table column name."""
+    return {
+        '#': tr('The sequential row number of the entry in the database.'),
+        'Username': tr('The username associated with this entry.\nPurple entries with a Looky icon were automatically added or confirmed via Looky System.'),
+        'IP': tr('The single IPv4 address matched by this entry.'),
+        'Range': tr('The IPv4 address range or CIDR subnet matched by this entry.'),
+        'Database': tr('The UserIP database file that contains this entry (shown when searching across all databases).'),
+        'Notes': tr('Optional user notes or comments attached to this entry.'),
+        **get_userip_metadata_header_tooltips(),
+    }
 
 
 def _load_userip_manager_state() -> tuple[QByteArray | None, bool, QByteArray | None, dict[str, int] | None, str, int, Qt.SortOrder]:
@@ -153,12 +146,13 @@ class UserIPDatabasesManager(
     def __init__(self, parent: QWidget | None = None) -> None:
         """Build the UserIP Databases Manager dialog."""
         super().__init__(parent)
-        self.setWindowTitle(f'UserIP Databases Manager - {TITLE}')
+        self.setWindowTitle(tr('UserIP Databases Manager - {title}', title=TITLE))
         set_dialog_window_flags(self)
         self.setMinimumSize(scale_by_ui(1000), scale_by_ui(600))
         self._custom_column_widths: dict[str, int] | None = None
         self._is_programmatic_resizing: bool = False
         self._syncing_sort_mode: bool = False
+        self._static_menu_actions: list[tuple[QAction, str]] = []
 
         if Settings.gui_remember_window_layout and UserIPDatabasesManager._cached_geometry is None and GUI_STATE_PATH.is_file():
             (
@@ -227,15 +221,23 @@ class UserIPDatabasesManager(
         # Tree toolbar buttons
         tree_buttons = QHBoxLayout()
         tree_buttons.setSpacing(btn_row_spacing)
-        tree_buttons.addWidget(make_button('file-plus.svg', ' New DB', 'Create a new UserIP database file', self._new_database))
-        tree_buttons.addWidget(make_button('folder.svg', ' New Folder', 'Create a new folder to organize databases', self._new_folder))
+        self._new_db_button = make_button('file-plus.svg', f" {tr('New DB')}", tr('Create a new UserIP database file'), self._new_database)
+        tree_buttons.addWidget(self._new_db_button)
+        self._new_folder_button = make_button('folder.svg', f" {tr('New Folder')}", tr('Create a new folder to organize databases'), self._new_folder)
+        tree_buttons.addWidget(self._new_folder_button)
         # Delete slot is reconnected dynamically in _on_tree_selection_changed
-        self._delete_tree_button = make_button('remove.svg', ' Delete', 'Delete the selected database or folder', self._delete_tree_item, danger=True)
+        self._delete_tree_button = make_button('remove.svg', f" {tr('Delete')}", tr('Delete the selected database or folder'), self._delete_tree_item, danger=True)
         self._delete_tree_button.setMinimumWidth(self._delete_tree_button.sizeHint().width())
         self._delete_tree_button.setEnabled(False)
         tree_buttons.addWidget(self._delete_tree_button)
-        reset_tooltip = 'Permanently delete all user databases and restore defaults'
-        tree_buttons.addWidget(make_button('rotate-ccw.svg', ' Reset all…', reset_tooltip, self._reset_all_databases, danger=True))
+        self._reset_all_button = make_button(
+            'rotate-ccw.svg',
+            f" {tr('Reset all\u2026')}",
+            tr('Permanently delete all user databases and restore defaults'),
+            self._reset_all_databases,
+            danger=True,
+        )
+        tree_buttons.addWidget(self._reset_all_button)
         left_layout.addLayout(tree_buttons)
 
         # Filesystem-backed tree view
@@ -284,33 +286,42 @@ class UserIPDatabasesManager(
         transfer_buttons.setSpacing(btn_row_spacing)
 
         import_menu = QMenu(self)
-        for icon_name, label, slot in (('folder.svg', 'Import .json file(s)…', self._import_database_files), ('import.svg', 'Import from ZIP…', self._import_from_zip)):
-            if act := import_menu.addAction(QIcon(str(ICONS_DIR_PATH / icon_name)), label):
+        for icon_name, canonical_label, slot in (
+            ('folder.svg', 'Import .json file(s)\u2026', self._import_database_files),
+            ('import.svg', 'Import from ZIP\u2026', self._import_from_zip),
+        ):
+            if act := import_menu.addAction(QIcon(str(ICONS_DIR_PATH / icon_name)), tr(canonical_label)):
                 act.triggered.connect(slot)
+                self._static_menu_actions.append((act, canonical_label))
 
-        import_button = make_button('import.svg', ' Import…', 'Import database files into the databases directory')
-        import_button.setMaximumWidth(scale_by_ui(130))
-        import_button.setMenu(import_menu)
-        transfer_buttons.addWidget(import_button)
+        self._import_button = make_button('import.svg', f" {tr('Import\u2026')}", tr('Import database files into the databases directory'))
+        self._import_button.setMaximumWidth(scale_by_ui(130))
+        self._import_button.setMenu(import_menu)
+        transfer_buttons.addWidget(self._import_button)
 
         export_menu = QMenu(self)
-        self._export_selected_action = export_menu.addAction(QIcon(str(ICONS_DIR_PATH / 'upload.svg')), 'Export selected database…')
+        self._export_selected_action = export_menu.addAction(QIcon(str(ICONS_DIR_PATH / 'upload.svg')), tr('Export selected database\u2026'))
         if self._export_selected_action:
             self._export_selected_action.triggered.connect(self._export_selected_database)
             self._export_selected_action.setEnabled(False)
-        if export_zip_action := export_menu.addAction(QIcon(str(ICONS_DIR_PATH / 'upload.svg')), 'Export all as ZIP…'):
+        if export_zip_action := export_menu.addAction(QIcon(str(ICONS_DIR_PATH / 'upload.svg')), tr('Export all as ZIP\u2026')):
             export_zip_action.triggered.connect(self._export_all_as_zip)
+            self._static_menu_actions.append((export_zip_action, 'Export all as ZIP\u2026'))
         export_menu.addSeparator()
-        for icon_name, label, slot in (('upload.svg', 'Backup databases now', self._backup_databases_now), ('folder.svg', 'Open backups folder', self._open_backups_folder)):
-            if act := export_menu.addAction(QIcon(str(ICONS_DIR_PATH / icon_name)), label):
+        for icon_name, canonical_label, slot in (
+            ('upload.svg', 'Backup databases now', self._backup_databases_now),
+            ('folder.svg', 'Open backups folder', self._open_backups_folder),
+        ):
+            if act := export_menu.addAction(QIcon(str(ICONS_DIR_PATH / icon_name)), tr(canonical_label)):
                 act.triggered.connect(slot)
+                self._static_menu_actions.append((act, canonical_label))
 
-        export_button = make_button('upload.svg', ' Export…', 'Export databases to an external location')
-        export_button.setMaximumWidth(scale_by_ui(130))
-        export_button.setMenu(export_menu)
-        transfer_buttons.addWidget(export_button)
+        self._export_button = make_button('upload.svg', f" {tr('Export\u2026')}", tr('Export databases to an external location'))
+        self._export_button.setMaximumWidth(scale_by_ui(130))
+        self._export_button.setMenu(export_menu)
+        transfer_buttons.addWidget(self._export_button)
 
-        self._resolve_conflicts_button = make_button('scale.svg', ' Resolve Conflicts…', '', lambda: open_userip_conflict_resolver(None))
+        self._resolve_conflicts_button = make_button('scale.svg', f" {tr('Resolve Conflicts\u2026')}", '', lambda: open_userip_conflict_resolver(None))
         transfer_buttons.addWidget(self._resolve_conflicts_button)
 
         left_layout.addLayout(transfer_buttons)
@@ -346,35 +357,34 @@ class UserIPDatabasesManager(
         # Search / filter bar
         search_bar = QHBoxLayout()
         search_bar.setSpacing(scale_by_ui(6))
-        search_bar.addWidget(QLabel('Search:'))
+        search_label = QLabel()
+        set_i18n_colon_label(search_label, 'Search')
+        search_bar.addWidget(search_label)
 
         self._search_input = QLineEdit()
-        self._search_input.setPlaceholderText('Filter entries by username, IP, or notes…')
+        self._search_input.setPlaceholderText(tr('Filter entries by username, IP, or notes\u2026'))
         self._search_input.textChanged.connect(self._on_search_changed)
         self._search_input.returnPressed.connect(self._on_search_return_pressed)
         apply_search_icon(self._search_input)
         search_bar.addWidget(self._search_input)
 
-        self._global_search_checkbox = QCheckBox('Search All Databases')
-        self._global_search_checkbox.setToolTip('Search across all UserIP database files (read-only)')
+        self._global_search_checkbox = QCheckBox(tr('Search All Databases'))
+        self._global_search_checkbox.setToolTip(tr('Search across all UserIP database files (read-only)'))
         self._global_search_checkbox.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self._global_search_checkbox.toggled.connect(self._on_global_search_toggled)
         search_bar.addWidget(self._global_search_checkbox)
 
-        search_bar.addWidget(QLabel('Sort by:'))
+        sort_label = QLabel()
+        set_i18n_colon_label(sort_label, 'Sort by')
+        search_bar.addWidget(sort_label)
         self._sort_mode_combo = QComboBox()
-        self._sort_mode_combo.addItems(['Groups', 'Date Added', 'Entry Order (#)'])
-        self._sort_mode_combo.setToolTip(
-            'Choose how database entries are ordered:\n'
-            '• Groups: Keep linked accounts together in consecutive blocks separated by alternating background shades.\n'
-            '• Date Added: Sort entries by when they were added to the database, with alternating row shades.\n'
-            '• Entry Order (#): Sort entries by their sequential row number in the file, with alternating row shades.',
-        )
+        for mode in _SORT_MODES:
+            self._sort_mode_combo.addItem(tr(mode), mode)
+        self._sort_mode_combo.setToolTip(tr(_SORT_MODE_TOOLTIP))
         self._sort_mode_combo.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-        initial_sort_mode = UserIPDatabasesManager._cached_sort_mode
-        if initial_sort_mode in ('Groups', 'Date Added', 'Entry Order (#)'):
-            self._sort_mode_combo.setCurrentText(initial_sort_mode)
-        self._sort_mode_combo.textActivated.connect(self._on_sort_mode_changed)
+        if (initial_sort_idx := self._sort_mode_combo.findData(UserIPDatabasesManager._cached_sort_mode)) >= 0:
+            self._sort_mode_combo.setCurrentIndex(initial_sort_idx)
+        self._sort_mode_combo.activated.connect(self._on_sort_mode_activated)
         search_bar.addWidget(self._sort_mode_combo)
 
         right_layout.addLayout(search_bar)
@@ -384,10 +394,7 @@ class UserIPDatabasesManager(
 
         # Entries table
         self._model = QStandardItemModel(0, len(ENTRY_TABLE_HEADERS))
-        self._model.setHorizontalHeaderLabels(ENTRY_TABLE_HEADERS)
-        for column, header_label in enumerate(ENTRY_TABLE_HEADERS):
-            if (tooltip := _ENTRY_TABLE_HEADER_TOOLTIPS.get(header_label)) is not None:
-                self._model.setHeaderData(column, Qt.Orientation.Horizontal, tooltip, Qt.ItemDataRole.ToolTipRole)
+        self._apply_entry_table_headers()
         self._model.dataChanged.connect(self._on_data_changed)
 
         self._proxy = EntriesSortProxy()
@@ -410,7 +417,7 @@ class UserIPDatabasesManager(
             SearchHighlightDelegate(self._entries_table, self._search_input.text, configure_editor=configure_username_cell_editor),
         )
         self._entries_table.setWordWrap(False)
-        self._apply_sort_mode(self._sort_mode_combo.currentText(), restore_saved_column=True)
+        self._apply_sort_mode(self._current_sort_mode(), restore_saved_column=True)
         self._entries_table.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         self._entries_table.setEditTriggers(
             QAbstractItemView.EditTrigger.DoubleClicked | QAbstractItemView.EditTrigger.EditKeyPressed,
@@ -447,18 +454,24 @@ class UserIPDatabasesManager(
         # Entry action buttons
         entry_buttons = QHBoxLayout()
         entry_buttons.setSpacing(btn_row_spacing)
-        self._add_button = make_button('plus.svg', ' Add Entry', 'Add a new entry (single IP, IP range, or subnet) to the current database', self._add_entry)
-        self._edit_ip_button = make_button('square-pen.svg', ' Edit IP/Range…', 'Edit the IP or range of the selected entry using the builder', self._edit_selected_entry_ip)
-        self._rename_button = make_button('square-pen.svg', ' Rename', 'Rename the username of the selected entry or entries', self._rename_selected)
-        self._open_db_button = make_button('file-text.svg', ' Open DB', 'Open the current database file in the default text editor', self._open_db_in_editor)
-        self._delete_button = make_button('remove.svg', ' Delete Selected', 'Delete the selected entries (with confirmation)', self._delete_selected, danger=True)
+        self._add_button = make_button('plus.svg', f" {tr('Add Entry')}", tr('Add a new entry (single IP, IP range, or subnet) to the current database'), self._add_entry)
+        self._edit_ip_button = make_button(
+            'square-pen.svg',
+            f" {tr('Edit IP/Range\u2026')}",
+            tr('Edit the IP or range of the selected entry using the builder'),
+            self._edit_selected_entry_ip,
+        )
+        self._rename_button = make_button('square-pen.svg', f" {tr('Rename')}", tr('Rename the username of the selected entry or entries'), self._rename_selected)
+        self._open_db_button = make_button('file-text.svg', f" {tr('Open DB')}", tr('Open the current database file in the default text editor'), self._open_db_in_editor)
+        self._delete_button = make_button('remove.svg', f" {tr('Delete Selected')}", tr('Delete the selected entries (with confirmation)'), self._delete_selected, danger=True)
         for entry_button in (self._add_button, self._edit_ip_button, self._rename_button, self._open_db_button):
             entry_button.setEnabled(False)
             entry_buttons.addWidget(entry_button)
         entry_buttons.addStretch()
         self._delete_button.setEnabled(False)
         entry_buttons.addWidget(self._delete_button)
-        entry_buttons.addWidget(make_button('x.svg', ' Close', 'Close the UserIP Databases Manager', self.close))
+        self._close_button = make_button('x.svg', f" {tr('Close')}", tr('Close the UserIP Databases Manager'), self.close)
+        entry_buttons.addWidget(self._close_button)
         right_layout.addLayout(entry_buttons)
 
         self._splitter.addWidget(right_panel)
@@ -483,6 +496,107 @@ class UserIPDatabasesManager(
         self._rebuild_fs_watch()
 
         self._refresh_stats()
+        register_language_refresh(self, self._retranslate)
+
+    def _apply_entry_table_headers(self) -> None:
+        """Apply localized column titles, canonical keys, and tooltips on the entry table model."""
+        tooltips = _get_entry_table_header_tooltips()
+        with QSignalBlocker(self._model):
+            self._model.setHorizontalHeaderLabels([tr(header) for header in ENTRY_TABLE_HEADERS])
+            for column, canonical_label in enumerate(ENTRY_TABLE_HEADERS):
+                self._model.setHeaderData(column, Qt.Orientation.Horizontal, canonical_label, CANONICAL_HEADER_ROLE)
+                if (tooltip := tooltips.get(canonical_label)) is not None:
+                    self._model.setHeaderData(column, Qt.Orientation.Horizontal, tooltip, Qt.ItemDataRole.ToolTipRole)
+
+    @override
+    def _canonical_entry_header(self, column: int) -> str:
+        """Return the canonical English header name for entry table *column*."""
+        raw = self._model.headerData(column, Qt.Orientation.Horizontal, CANONICAL_HEADER_ROLE)
+        if isinstance(raw, str) and raw:
+            return raw
+        return str(self._model.headerData(column, Qt.Orientation.Horizontal) or '')
+
+    def _current_sort_mode(self) -> str:
+        """Return the canonical sort mode stored on the Sort by combo box."""
+        mode = self._sort_mode_combo.currentData()
+        return mode if isinstance(mode, str) and mode in _SORT_MODES else 'Groups'
+
+    def _set_sort_mode_combo(self, canonical_mode: str) -> None:
+        """Select *canonical_mode* in the Sort by combo box by user data."""
+        if (idx := self._sort_mode_combo.findData(canonical_mode)) >= 0:
+            self._sort_mode_combo.setCurrentIndex(idx)
+
+    def _refresh_tree_selection_labels(self) -> None:
+        """Refresh tree toolbar buttons, export action text, and multi-selection summary after a language change."""
+        selected_paths = self._selected_tree_paths()
+        if not selected_paths:
+            self._configure_delete_tree_button(enabled=False)
+            self._delete_tree_button.setMinimumWidth(self._delete_tree_button.sizeHint().width())
+            return
+
+        if len(selected_paths) > 1:
+            self._apply_multi_selection_tree_controls(selected_paths)
+        else:
+            if self._export_selected_action is not None:
+                self._export_selected_action.setText(tr('Export selected database\u2026'))
+            self._configure_delete_tree_button(enabled=True, is_reset=is_default_userip_db(selected_paths[0]))
+        self._delete_tree_button.setMinimumWidth(self._delete_tree_button.sizeHint().width())
+
+    def _retranslate(self) -> None:
+        """Refresh dialog title, controls, headers, rows, settings panel, and metadata on live language change."""
+        self.setWindowTitle(tr('UserIP Databases Manager - {title}', title=TITLE))
+        self._new_db_button.setText(f" {tr('New DB')}")
+        self._new_db_button.setToolTip(tr('Create a new UserIP database file'))
+        self._new_folder_button.setText(f" {tr('New Folder')}")
+        self._new_folder_button.setToolTip(tr('Create a new folder to organize databases'))
+        self._reset_all_button.setText(f" {tr('Reset all\u2026')}")
+        self._reset_all_button.setToolTip(tr('Permanently delete all user databases and restore defaults'))
+        self._import_button.setText(f" {tr('Import\u2026')}")
+        self._import_button.setToolTip(tr('Import database files into the databases directory'))
+        self._export_button.setText(f" {tr('Export\u2026')}")
+        self._export_button.setToolTip(tr('Export databases to an external location'))
+        for action, canonical_label in self._static_menu_actions:
+            action.setText(tr(canonical_label))
+
+        self._search_input.setPlaceholderText(tr('Filter entries by username, IP, or notes\u2026'))
+        self._global_search_checkbox.setText(tr('Search All Databases'))
+        self._global_search_checkbox.setToolTip(tr('Search across all UserIP database files (read-only)'))
+        self._sort_mode_combo.setToolTip(tr(_SORT_MODE_TOOLTIP))
+        with QSignalBlocker(self._sort_mode_combo):
+            for i in range(self._sort_mode_combo.count()):
+                if isinstance(mode := self._sort_mode_combo.itemData(i), str):
+                    self._sort_mode_combo.setItemText(i, tr(mode))
+
+        self._add_button.setText(f" {tr('Add Entry')}")
+        self._add_button.setToolTip(tr('Add a new entry (single IP, IP range, or subnet) to the current database'))
+        self._edit_ip_button.setToolTip(tr('Edit the IP or range of the selected entry using the builder'))
+        self._rename_button.setText(f" {tr('Rename')}")
+        self._rename_button.setToolTip(tr('Rename the username of the selected entry or entries'))
+        self._open_db_button.setText(f" {tr('Open DB')}")
+        self._open_db_button.setToolTip(tr('Open the current database file in the default text editor'))
+        self._delete_button.setText(f" {tr('Delete Selected')}")
+        self._delete_button.setToolTip(tr('Delete the selected entries (with confirmation)'))
+        self._close_button.setText(f" {tr('Close')}")
+        self._close_button.setToolTip(tr('Close the UserIP Databases Manager'))
+
+        self.retranslate_settings_panel()
+        self._apply_entry_table_headers()
+        retranslate_entry_rows(self._model)
+        self._on_entries_selection_changed()
+        self._refresh_tree_selection_labels()
+        self._refresh_stats()
+
+        selected_paths = self._selected_tree_paths()
+        if len(selected_paths) > 1 and not self._global_search_active:
+            info_html, status_html = format_multi_tree_selection_info(selected_paths)
+            self._file_info_label.setText(info_html)
+            self._status_label.setText(status_html)
+        else:
+            self._update_file_info(None if self._global_search_active else self._current_path)
+            if self._global_search_active or self._current_path is not None:
+                self._update_entry_counts()
+        if viewport := self._tree.viewport():
+            viewport.update()
 
     @override
     def _clear_dirty_state(self) -> None:
@@ -550,7 +664,7 @@ class UserIPDatabasesManager(
         self._search_input.clear()
 
         if not path.is_file():
-            self._set_status(f'File not found: {path.name}')
+            self._set_status(tr('File not found: {name}', name=path.name))
             self._settings_container.setVisible(False)
             self._disk_snapshot = ''
             self._rebuild_fs_watch()
@@ -581,9 +695,12 @@ class UserIPDatabasesManager(
         self._next_index = entry_count + 1
         self._update_file_info(path)
         duplicate_count = self._highlight_duplicates()
-        status = f'Loaded {entry_count} entries from {path.name}'
+        loaded_text = tr_plural('Loaded {count} entry from {name}', 'Loaded {count} entries from {name}', entry_count, name=path.name)
         if duplicate_count > 0:
-            status += f' ({duplicate_count} duplicate{pluralize(duplicate_count)} found)'
+            dup_text = tr_plural('{count} duplicate found', '{count} duplicates found', duplicate_count)
+            status = tr('{loaded} ({duplicates})', loaded=loaded_text, duplicates=dup_text)
+        else:
+            status = loaded_text
         self._set_status(status)
         self._rebuild_fs_watch()
         self._restore_entries_scroll(path)
@@ -623,10 +740,10 @@ class UserIPDatabasesManager(
             source_row = self._proxy.mapToSource(selected_rows[0]).row()
             range_item = self._model.item(source_row, RANGE_COLUMN)
             is_range = bool(range_item and range_item.text().strip())
-            self._edit_ip_button.setText(' Edit Range…' if is_range else ' Edit IP…')
+            self._edit_ip_button.setText(f" {tr('Edit Range\u2026')}" if is_range else f" {tr('Edit IP\u2026')}")
             self._edit_ip_button.setEnabled(True)
         else:
-            self._edit_ip_button.setText(' Edit IP/Range…')
+            self._edit_ip_button.setText(f" {tr('Edit IP/Range\u2026')}")
             self._edit_ip_button.setEnabled(False)
 
         if self._global_search_active:
@@ -676,10 +793,12 @@ class UserIPDatabasesManager(
         finally:
             self._syncing_sort_mode = False
 
-    def _on_sort_mode_changed(self, mode: str) -> None:
+    def _on_sort_mode_activated(self, index: int) -> None:
         """Handle user changes to the Sort by combo box."""
         if self._syncing_sort_mode:
             return
+        raw_mode = self._sort_mode_combo.itemData(index)
+        mode = raw_mode if isinstance(raw_mode, str) and raw_mode in _SORT_MODES else 'Groups'
         UserIPDatabasesManager._cached_sort_mode = mode
         self._apply_sort_mode(mode)
         _save_userip_manager_sort_state(mode, UserIPDatabasesManager._cached_sort_column, UserIPDatabasesManager._cached_sort_order)
@@ -692,13 +811,14 @@ class UserIPDatabasesManager(
         try:
             UserIPDatabasesManager._cached_sort_column = logical_index
             UserIPDatabasesManager._cached_sort_order = order
+            current_mode = self._current_sort_mode()
             if logical_index == ADDED_AT_COLUMN:
                 self._proxy.set_group_sort_enabled(enabled=False, invalidate=False)
-                self._sort_mode_combo.setCurrentText('Date Added')
+                self._set_sort_mode_combo('Date Added')
                 UserIPDatabasesManager._cached_sort_mode = 'Date Added'
-            elif self._sort_mode_combo.currentText() == 'Date Added' or (self._sort_mode_combo.currentText() == 'Entry Order (#)' and logical_index != INDEX_COLUMN):
+            elif current_mode == 'Date Added' or (current_mode == 'Entry Order (#)' and logical_index != INDEX_COLUMN):
                 self._proxy.set_group_sort_enabled(enabled=True, invalidate=False)
-                self._sort_mode_combo.setCurrentText('Groups')
+                self._set_sort_mode_combo('Groups')
                 UserIPDatabasesManager._cached_sort_mode = 'Groups'
             _save_userip_manager_sort_state(UserIPDatabasesManager._cached_sort_mode, logical_index, order)
             if viewport := self._entries_table.viewport():
@@ -728,7 +848,7 @@ class UserIPDatabasesManager(
             self._export_selected_action.setEnabled(db_available)
         self._entries_table.setColumnHidden(DATABASE_COLUMN, not checked)
         if not checked and UserIPDatabasesManager._cached_sort_column == DATABASE_COLUMN:
-            self._apply_sort_mode(self._sort_mode_combo.currentText())
+            self._apply_sort_mode(self._current_sort_mode())
         self._reset_column_sizes()
         self._settings_container.setVisible(db_available)
 
@@ -740,7 +860,7 @@ class UserIPDatabasesManager(
             self._remember_entries_scroll()
             self._update_file_info(None)
             if self.isVisible():
-                with loading_overlay_scope(self, 'Loading Databases\u2026', 'Scanning all UserIP databases\u2026'):
+                with loading_overlay_scope(self, tr('Loading Databases\u2026'), tr('Scanning all UserIP databases\u2026')):
                     self._load_all_databases()
             else:
                 self._load_all_databases()
@@ -790,68 +910,6 @@ class UserIPDatabasesManager(
     # Helpers
     # ------------------------------------------------------------------
 
-    @override
-    def _set_status(self, text: str) -> None:
-        """Update the status label at the bottom of the right panel."""
-        self._status_label.setText(themed_qss(f'<i style="color:#50c878;">{html.escape(text)}</i>'))
-
-    @override
-    def _update_entry_counts(self) -> None:
-        """Update the status label with visible/total entry counts."""
-        total = self._model.rowCount()
-        visible = self._proxy.rowCount()
-
-        # In global search without filters, the total table rows match the global stats block exactly
-        if self._global_search_active and visible == total:
-            self._status_label.setText(themed_qss('<span style="color:#a0b0c0;"><i>Showing all databases</i></span>'))
-            return
-
-        text = f'<span style="color:#8a9bad;">Table Entries:</span> <b style="color:#e0e0e0;">{total}</b>'
-        if visible != total:
-            text += f'<br><span style="color:#8a9bad;">Visible (Filtered):</span> <b style="color:#6db3f2;">{visible}</b>'
-
-        self._status_label.setText(themed_qss(text))
-
-    @override
-    def _update_file_info(self, path: Path | None) -> None:
-        """Update the file metadata label for the given database file."""
-        if path is None or not path.is_file():
-            self._file_info_label.setText(themed_qss('<span style="color:#607080;"><i>No database selected</i></span>'))
-            return
-        stat = path.stat()
-        size = human_readable_size(stat.st_size)
-        modified = datetime.fromtimestamp(stat.st_mtime, tz=UTC).astimezone()
-
-        self._file_info_label.setText(
-            themed_qss(
-                f'<span style="color:#8a9bad;">File:</span> <b style="color:#6db3f2;">{html.escape(path.name)}</b><br>'
-                f'<span style="color:#8a9bad;">Size:</span> <b style="color:#e0e0e0;">{size}</b><br>'
-                f'<span style="color:#8a9bad;">Modified:</span> <span style="color:#a0b0c0;">{human_readable_timestamp(modified)}</span>',
-            ),
-        )
-
-    @override
-    def _refresh_stats(self) -> None:
-        """Scan all UserIP databases and update the stats summary label."""
-        total_files, total_entries = 0, 0
-        unique_ips, unique_usernames = set[str](), set[str]()
-
-        for _json_path, entries in iter_userip_databases():
-            total_files += 1
-            for entry in entries:
-                total_entries += 1
-                unique_ips.add(entry.ip)
-                unique_usernames.add(entry.username.casefold())
-
-        parts = (
-            f'<span style="color:#8a9bad;">Databases:</span> <b style="color:#e0e0e0;">{total_files}</b>',
-            f'<span style="color:#8a9bad;">Entries:</span> <b style="color:#e0e0e0;">{total_entries}</b>',
-            f'<span style="color:#8a9bad;">Unique Users:</span> <b style="color:#e0e0e0;">{len(unique_usernames)}</b>',
-            f'<span style="color:#8a9bad;">Unique IPs:</span> <b style="color:#e0e0e0;">{len(unique_ips)}</b>',
-        )
-        self._stats_label.setText(themed_qss('<br>'.join(parts)))
-        update_resolve_conflicts_button(self._resolve_conflicts_button)
-
     def _has_unsaved_changes_for_close(self) -> bool:
         """Return `True` if there are dirty (unsaved) changes."""
         return self._dirty and self._current_path is not None and not self._global_search_active
@@ -876,7 +934,7 @@ class UserIPDatabasesManager(
             geometry, maximized, splitter_state = self.saveGeometry(), self.isMaximized(), self._splitter.saveState()
             UserIPDatabasesManager._cached_geometry, UserIPDatabasesManager._cached_maximized = geometry, maximized
             UserIPDatabasesManager._cached_splitter, UserIPDatabasesManager._cached_column_widths = splitter_state, self._custom_column_widths
-            UserIPDatabasesManager._cached_sort_mode = self._sort_mode_combo.currentText()
+            UserIPDatabasesManager._cached_sort_mode = self._current_sort_mode()
             gui_state = GUIState.load()
             gui_state.userip_manager_geometry, gui_state.userip_manager_maximized = geometry.toHex().toStdString(), maximized
             gui_state.userip_manager_splitter, gui_state.userip_manager_table_column_widths = splitter_state.toHex().toStdString(), self._custom_column_widths
@@ -898,72 +956,3 @@ class UserIPDatabasesManager(
         """Adjust column widths when the dialog is resized."""
         super().resizeEvent(a0)
         self._adjust_username_column_width()
-
-    def _on_section_resized(self, logical_index: int, _old_size: int, new_size: int) -> None:
-        """Track user-driven column resizing in the entries table."""
-        if self._is_programmatic_resizing:
-            return
-        if header_label := str(self._model.headerData(logical_index, Qt.Orientation.Horizontal) or ''):
-            if self._custom_column_widths is None:
-                self._custom_column_widths = self._get_column_widths()
-            self._custom_column_widths[header_label] = new_size
-            self._is_programmatic_resizing = True
-            try:
-                adjust_last_visible_column_to_viewport(
-                    self._entries_table, resized_column=logical_index, min_column_widths=_DEFAULT_ENTRY_COLUMN_WIDTHS, custom_widths=self._custom_column_widths,
-                )
-            finally:
-                self._is_programmatic_resizing = False
-
-    def _get_column_widths(self) -> dict[str, int]:
-        """Return a mapping of column header names to their current section widths."""
-        return {
-            header_label: self._entries_table.columnWidth(column)
-            for column in range(self._model.columnCount())
-            if (header_label := str(self._model.headerData(column, Qt.Orientation.Horizontal) or ''))
-        }
-
-    def _apply_column_widths(self, widths: dict[str, int]) -> None:
-        """Apply saved column widths to matching entries table header sections."""
-        if not (header := self._entries_table.header()):
-            return
-        self._is_programmatic_resizing = True
-        try:
-            for column in range(self._model.columnCount()):
-                header_label = str(self._model.headerData(column, Qt.Orientation.Horizontal) or '')
-                if header_label in widths and widths[header_label] > 0:
-                    header.setSectionResizeMode(column, QHeaderView.ResizeMode.Interactive)
-                    self._entries_table.setColumnWidth(column, widths[header_label])
-            self._custom_column_widths = dict(widths)
-        finally:
-            self._is_programmatic_resizing = False
-
-    def _adjust_username_column_width(self) -> None:
-        """Adjust the last visible column width so the entries table fits the viewport without trailing blank space."""
-        self._is_programmatic_resizing = True
-        try:
-            adjust_last_visible_column_to_viewport(self._entries_table, min_column_widths=_DEFAULT_ENTRY_COLUMN_WIDTHS, custom_widths=self._custom_column_widths)
-        finally:
-            self._is_programmatic_resizing = False
-
-    def _reset_column_sizes(self) -> None:
-        """Reset column widths back to their initial default layout."""
-        self._custom_column_widths = None
-        UserIPDatabasesManager._cached_column_widths = None
-        self._is_programmatic_resizing = True
-        try:
-            header = self._entries_table.header()
-            if not header:
-                return
-            header.setStretchLastSection(False)
-            for column, header_label in enumerate(ENTRY_TABLE_HEADERS):
-                header.setSectionResizeMode(column, QHeaderView.ResizeMode.Interactive)
-                self._entries_table.setColumnWidth(column, scale_by_ui(_DEFAULT_ENTRY_COLUMN_WIDTHS[header_label]))
-            self._adjust_username_column_width()
-        finally:
-            self._is_programmatic_resizing = False
-
-        if Settings.gui_remember_window_layout:
-            gui_state = GUIState.load()
-            gui_state.userip_manager_table_column_widths = None
-            gui_state.save()

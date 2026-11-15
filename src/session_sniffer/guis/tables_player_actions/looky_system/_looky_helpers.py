@@ -18,13 +18,14 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from session_sniffer.guis.live_language import register_language_refresh
 from session_sniffer.guis.looky_text import (
-    LOOKY_TITLE,
     LOOKY_WARNING_API_ACCESS_MISSING,
     LOOKY_WARNING_API_KEY_MISSING,
     LOOKY_WARNING_DISABLED,
     LOOKY_WARNING_RESTRICTED_GTA5_NOT_RUNNING,
     LOOKY_WARNING_RESTRICTED_NOT_LOCAL,
+    get_looky_title,
 )
 from session_sniffer.guis.stylesheets import (
     LOOKY_ACTION_BUTTON_STYLESHEET,
@@ -35,6 +36,7 @@ from session_sniffer.guis.stylesheets import (
 )
 from session_sniffer.guis.theming import themed_qss
 from session_sniffer.guis.utils import scale_by_ui
+from session_sniffer.i18n import tr, tr_plural
 from session_sniffer.models.player import Player
 from session_sniffer.networking.looky_system import (
     LOOKY_PHASE_IP_BATCHES,
@@ -51,7 +53,6 @@ from session_sniffer.player.userip_loader import update_userip_databases
 from session_sniffer.rendering_core.events import wake_rendering_core
 from session_sniffer.rendering_core.types import CaptureState
 from session_sniffer.settings.settings import Settings
-from session_sniffer.text_utils import pluralize
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -98,7 +99,7 @@ def build_looky_progress_widgets(layout: QVBoxLayout, dialog: QDialog) -> LookyP
     status_label.hide()
     layout.addWidget(status_label)
 
-    try_again_button = QPushButton('Try Again')
+    try_again_button = QPushButton(tr('Try Again'))
     try_again_button.setStyleSheet(LOOKY_PRIMARY_ACTION_BUTTON_STYLESHEET)
     try_again_button.setCursor(Qt.CursorShape.PointingHandCursor)
     try_again_button.hide()
@@ -120,42 +121,72 @@ class LookyRefreshLoadingDialog(QDialog):
 
     def __init__(self, parent: QWidget) -> None:
         super().__init__(parent)
-        self.setWindowTitle(LOOKY_TITLE)
+        self.setWindowTitle(get_looky_title())
         self.setWindowModality(Qt.WindowModality.WindowModal)
         self.setWindowFlag(Qt.WindowType.WindowContextHelpButtonHint, on=False)
         self.setMinimumSize(scale_by_ui(420), scale_by_ui(175))
         layout = QVBoxLayout(self)
         layout.setContentsMargins(12, 12, 12, 12)
         layout.setSpacing(8)
-        header = QLabel('\U0001f441  Looky \u2014 Fetching...')
-        header.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        header.setStyleSheet(LOOKY_CRAWLER_HEADER_STYLESHEET)
-        layout.addWidget(header)
+        self._header = QLabel()
+        self._header.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._header.setStyleSheet(LOOKY_CRAWLER_HEADER_STYLESHEET)
+        layout.addWidget(self._header)
         self._widgets = build_looky_progress_widgets(layout, self)
-        self._widgets.status_label.setText(
-            themed_qss(
-                '<span style="color: #d8b4fe; font-weight: 600;">Preparing Looky System lookup...</span>'
-                '<br><span style="color: #9ca3af; font-size: 8.5pt;">Collecting database IP addresses and usernames to query.</span>',
-            ),
-        )
+        self._last_progress: tuple[str, int, int] | None = None
+        self._last_error: str | None = None
+        self._refresh_language_texts()
         self._widgets.status_label.show()
+        register_language_refresh(self, self._refresh_language_texts)
+
+    def _refresh_language_texts(self) -> None:
+        self.setWindowTitle(get_looky_title())
+        self._header.setText(f'\U0001f441  {tr("Looky — Fetching...")}')
+        if self._last_error is not None:
+            self.show_error(self._last_error)
+        elif self._last_progress is not None:
+            self.update_progress(*self._last_progress)
+        else:
+            preparing = html.escape(tr('Preparing Looky System lookup...'))
+            collecting = html.escape(tr('Collecting database IP addresses and usernames to query.'))
+            self._widgets.status_label.setText(
+                themed_qss(
+                    f'<span style="color: #d8b4fe; font-weight: 600;">{preparing}</span>'
+                    f'<br><span style="color: #9ca3af; font-size: 8.5pt;">{collecting}</span>',
+                ),
+            )
 
     def update_progress(self, status_text: str, current: int, total: int) -> None:
         """Update the progress bar and status label with the active lookup phase and completion count."""
+        self._last_progress = (status_text, current, total)
         self._widgets.progress_bar.setRange(0, max(1, total))
         self._widgets.progress_bar.setValue(current)
         pct = round(current * 100 / total) if total > 0 else 0
-        detail_text = next((detail for phase_label, detail in _PHASE_DETAILS.items() if status_text.startswith(phase_label)), '')
+        translated_status = status_text
+        detail_text = ''
+        for phase_label, phase_detail in _PHASE_DETAILS.items():
+            if status_text == phase_label:
+                translated_status = tr(phase_label)
+                detail_text = tr(phase_detail)
+                break
+            cooldown_prefix = f'{phase_label} (rate limited \u2014 resuming in '
+            if status_text.startswith(cooldown_prefix) and status_text.endswith('s)'):
+                seconds_part = status_text[len(cooldown_prefix):-2]
+                translated_status = tr('{phase} (rate limited — resuming in {seconds}s)', phase=tr(phase_label), seconds=seconds_part)
+                detail_text = tr(phase_detail)
+                break
         detail_html = f'<br><span style="color: #9ca3af; font-size: 8.5pt;">{html.escape(detail_text)}</span>' if detail_text else ''
         self._widgets.status_label.setText(
-            themed_qss(f'<span style="color: #d8b4fe; font-weight: 600;">{html.escape(status_text)}: <b>{current} / {total}</b> ({pct}%)</span>{detail_html}'),
+            themed_qss(f'<span style="color: #d8b4fe; font-weight: 600;">{html.escape(translated_status)}: <b>{current} / {total}</b> ({pct}%)</span>{detail_html}'),
         )
         self._widgets.status_label.show()
 
     def show_error(self, message: str) -> None:
         """Hide the progress bar and show the error message."""
+        self._last_error = message
         self._widgets.progress_bar.hide()
-        self._widgets.status_label.setText(themed_qss(f'<span style="color: #f87171; font-weight: 600;">\u2717 Failed: {html.escape(message)}</span>'))
+        failed_text = html.escape(tr('Failed: {message}', message=message))
+        self._widgets.status_label.setText(themed_qss(f'<span style="color: #f87171; font-weight: 600;">\u2717 {failed_text}</span>'))
         self._widgets.status_label.show()
 
 
@@ -175,20 +206,20 @@ def check_looky_prerequisites(parent: QWidget, *, restriction: str | None = None
     """
     warning_message: str | None = None
     if not Settings.is_gta5_feature_set():
-        warning_message = LOOKY_WARNING_RESTRICTED_GTA5_NOT_RUNNING
+        warning_message = tr(LOOKY_WARNING_RESTRICTED_GTA5_NOT_RUNNING)
     elif not bool(Settings.looky_api_key):
-        warning_message = LOOKY_WARNING_API_KEY_MISSING
+        warning_message = tr(LOOKY_WARNING_API_KEY_MISSING)
     elif not Settings.looky_enabled:
-        warning_message = LOOKY_WARNING_DISABLED
+        warning_message = tr(LOOKY_WARNING_DISABLED)
     elif not LookyState.api_access:
-        warning_message = LOOKY_WARNING_API_ACCESS_MISSING
+        warning_message = tr(LOOKY_WARNING_API_ACCESS_MISSING)
     elif not CaptureState.is_local_capture():
-        warning_message = LOOKY_WARNING_RESTRICTED_NOT_LOCAL
+        warning_message = tr(LOOKY_WARNING_RESTRICTED_NOT_LOCAL)
     elif restriction is not None:
         warning_message = restriction
 
     if warning_message is not None:
-        QMessageBox.warning(parent, LOOKY_TITLE, warning_message)
+        QMessageBox.warning(parent, get_looky_title(), warning_message)
         return None
 
     return Settings.looky_api_key
@@ -198,13 +229,21 @@ def format_looky_request_error(exc: Exception) -> str:
     """Format a user-facing error message for a Looky System HTTP, network, or validation failure."""
     if isinstance(exc, requests.HTTPError):
         if exc.response is not None and exc.response.status_code == HTTPStatus.TOO_MANY_REQUESTS:
+            rate_message = extract_rate_limit_message(exc)
             wait_seconds = extract_rate_limit_wait_seconds(exc)
-            return f'Rate limited: {extract_rate_limit_message(exc)}. Try again in {wait_seconds} second{pluralize(wait_seconds or 0)}.'
+            if wait_seconds is None:
+                return tr('Rate limited: {message}.', message=rate_message)
+            return tr_plural(
+                'Rate limited: {message}. Try again in {count} second.',
+                'Rate limited: {message}. Try again in {count} seconds.',
+                wait_seconds,
+                message=rate_message,
+            )
         status_code = exc.response.status_code if exc.response is not None else '?'
-        return f'Looky System API error: HTTP {status_code}'
+        return tr('Looky System API error: HTTP {status_code}', status_code=status_code)
     if isinstance(exc, requests.RequestException):
-        return f'Looky System request failed: {exc}'
-    return f'Looky System response format unexpected: {exc}'
+        return tr('Looky System request failed: {error}', error=exc)
+    return tr('Looky System response format unexpected: {error}', error=exc)
 
 
 def sync_player_looky_usernames_and_userip(

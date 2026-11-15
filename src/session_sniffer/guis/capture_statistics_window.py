@@ -11,6 +11,7 @@ from PySide6.QtWidgets import QCheckBox, QFormLayout, QGroupBox, QHBoxLayout, QL
 
 from session_sniffer.capture.arp_spoofing import ArpSpoofingController
 from session_sniffer.capture.process import get_process_creation_time
+from session_sniffer.guis.live_language import register_language_refresh, set_i18n_colon_label
 from session_sniffer.guis.player_rate_graph import DEFAULT_MAX_HISTORY, HISTORY_OPTIONS, VISIBLE_WINDOW
 from session_sniffer.guis.rate_graph_widget import RateGraphWidget
 from session_sniffer.guis.stylesheets import (
@@ -20,6 +21,7 @@ from session_sniffer.guis.stylesheets import (
 )
 from session_sniffer.guis.theming import ICONS_DIR_PATH
 from session_sniffer.guis.utils import RateGraphWindowMixin, format_duration, scale_by_ui
+from session_sniffer.i18n import tr
 from session_sniffer.models.player_traffic import PlayerBandwidth
 from session_sniffer.player.registry import PlayersRegistry
 from session_sniffer.rendering_core.types import CaptureState, CaptureStats
@@ -49,8 +51,10 @@ class CaptureStatisticsWindow(RateGraphWindowMixin):
         super().__init__()
 
         self._max_history = DEFAULT_MAX_HISTORY
+        self._has_refreshed = False
+        self._group_titles: list[tuple[QGroupBox, str]] = []
+        self._popout_buttons: list[tuple[QPushButton, str]] = []
 
-        self.setWindowTitle(self.WINDOW_TITLE)
         self.resize(scale_by_ui(1200), scale_by_ui(620))
         layout = self.setup_window_layout(always_on_top=True, spacing=6)
 
@@ -64,7 +68,13 @@ class CaptureStatisticsWindow(RateGraphWindowMixin):
         left_column_b = QVBoxLayout()
         left_column_b.setSpacing(6)
 
-        capture_config_group = QGroupBox('Capture Config')
+        def add_form_row(form: QFormLayout, canonical_label: str, field: QLabel) -> None:
+            row_label = QLabel()
+            set_i18n_colon_label(row_label, canonical_label)
+            form.addRow(row_label, field)
+
+        capture_config_group = QGroupBox()
+        self._group_titles.append((capture_config_group, 'Capture Config'))
         capture_config_form = QFormLayout(capture_config_group)
         self._label_interface = QLabel('—')
         self._label_ip = QLabel('—')
@@ -72,115 +82,120 @@ class CaptureStatisticsWindow(RateGraphWindowMixin):
         self._label_arp = QLabel('—')
         self._label_feature_set = QLabel('—')
         self._label_discord = QLabel('—')
-        capture_config_form.addRow('Interface:', self._label_interface)
-        capture_config_form.addRow('IP:', self._label_ip)
-        capture_config_form.addRow('Type:', self._label_interface_type)
-        capture_config_form.addRow('ARP Spoofing:', self._label_arp)
-        capture_config_form.addRow('Feature Set:', self._label_feature_set)
-        capture_config_form.addRow('Discord RPC:', self._label_discord)
+        add_form_row(capture_config_form, 'Interface', self._label_interface)
+        add_form_row(capture_config_form, 'IP', self._label_ip)
+        add_form_row(capture_config_form, 'Type', self._label_interface_type)
+        add_form_row(capture_config_form, 'ARP Spoofing', self._label_arp)
+        add_form_row(capture_config_form, 'Feature Set', self._label_feature_set)
+        add_form_row(capture_config_form, 'Discord RPC', self._label_discord)
         left_column_a.addWidget(capture_config_group)
 
-        players_group = QGroupBox('Players')
+        players_group = QGroupBox()
+        self._group_titles.append((players_group, 'Players'))
         players_form = QFormLayout(players_group)
         self._label_connected = QLabel('0')
         self._label_disconnected = QLabel('0')
         self._label_total = QLabel('0')
-        players_form.addRow('Total:', self._label_total)
-        players_form.addRow('Connected:', self._label_connected)
-        players_form.addRow('Disconnected:', self._label_disconnected)
+        add_form_row(players_form, 'Total', self._label_total)
+        add_form_row(players_form, 'Connected', self._label_connected)
+        add_form_row(players_form, 'Disconnected', self._label_disconnected)
         left_column_a.addWidget(players_group)
 
-        stability_group = QGroupBox('Stability')
+        stability_group = QGroupBox()
+        self._group_titles.append((stability_group, 'Stability'))
         stability_form = QFormLayout(stability_group)
         self._label_restarts = QLabel('0')
-        self._label_uptime = QLabel('0s')
-        self._label_total_uptime = QLabel('0s')
+        self._label_uptime = QLabel(format_duration(0))
+        self._label_total_uptime = QLabel(format_duration(0))
         self._label_packets_dropped = QLabel('0')
         self._label_overflow_dropped = QLabel('0')
-        stability_form.addRow('Total App Uptime:', self._label_total_uptime)
-        stability_form.addRow('Capture Uptime:', self._label_uptime)
-        stability_form.addRow('Capture Restarts:', self._label_restarts)
-        stability_form.addRow('Packets Dropped:', self._label_packets_dropped)
-        stability_form.addRow('Overflow Dropped:', self._label_overflow_dropped)
+        add_form_row(stability_form, 'Total App Uptime', self._label_total_uptime)
+        add_form_row(stability_form, 'Capture Uptime', self._label_uptime)
+        add_form_row(stability_form, 'Capture Restarts', self._label_restarts)
+        add_form_row(stability_form, 'Packets Dropped', self._label_packets_dropped)
+        add_form_row(stability_form, 'Overflow Dropped', self._label_overflow_dropped)
         left_column_a.addWidget(stability_group)
 
         self._process_started_at: float = get_process_creation_time(os.getpid()) or time.time()
 
-        performance_group = QGroupBox('Performance')
+        performance_group = QGroupBox()
+        self._group_titles.append((performance_group, 'Performance'))
         performance_form = QFormLayout(performance_group)
         self._label_cpu = QLabel('0%')
         self._label_peak_cpu = QLabel('0%')
-        self._label_ram = QLabel('0 MB')
-        self._label_peak_ram = QLabel('0 MB')
+        self._label_ram = QLabel()
+        self._label_peak_ram = QLabel()
         self._label_threads = QLabel('0')
         self._label_peak_threads = QLabel('0')
-        self._label_disk_read_rate = QLabel('0.00 MB/s')
-        self._label_disk_write_rate = QLabel('0.00 MB/s')
-        self._label_disk_read_total = QLabel('0 MB')
-        self._label_disk_write_total = QLabel('0 MB')
-        performance_form.addRow('Peak CPU:', self._label_peak_cpu)
-        performance_form.addRow('CPU:', self._label_cpu)
-        performance_form.addRow('Peak RAM:', self._label_peak_ram)
-        performance_form.addRow('RAM:', self._label_ram)
-        performance_form.addRow('Peak Threads:', self._label_peak_threads)
-        performance_form.addRow('Threads:', self._label_threads)
-        performance_form.addRow('Disk Read Total:', self._label_disk_read_total)
-        performance_form.addRow('Disk Read Rate:', self._label_disk_read_rate)
-        performance_form.addRow('Disk Write Total:', self._label_disk_write_total)
-        performance_form.addRow('Disk Write Rate:', self._label_disk_write_rate)
+        self._label_disk_read_rate = QLabel()
+        self._label_disk_write_rate = QLabel()
+        self._label_disk_read_total = QLabel()
+        self._label_disk_write_total = QLabel()
+        add_form_row(performance_form, 'Peak CPU', self._label_peak_cpu)
+        add_form_row(performance_form, 'CPU', self._label_cpu)
+        add_form_row(performance_form, 'Peak RAM', self._label_peak_ram)
+        add_form_row(performance_form, 'RAM', self._label_ram)
+        add_form_row(performance_form, 'Peak Threads', self._label_peak_threads)
+        add_form_row(performance_form, 'Threads', self._label_threads)
+        add_form_row(performance_form, 'Disk Read Total', self._label_disk_read_total)
+        add_form_row(performance_form, 'Disk Read Rate', self._label_disk_read_rate)
+        add_form_row(performance_form, 'Disk Write Total', self._label_disk_write_total)
+        add_form_row(performance_form, 'Disk Write Rate', self._label_disk_write_rate)
         left_column_a.addWidget(performance_group)
         left_column_a.addStretch()
 
-        traffic_group = QGroupBox('Traffic')
+        traffic_group = QGroupBox()
+        self._group_titles.append((traffic_group, 'Traffic'))
         traffic_form = QFormLayout(traffic_group)
-        self._label_bandwidth = QLabel('0 B')
-        self._label_download = QLabel('0 B')
-        self._label_upload = QLabel('0 B')
-        self._label_total_bandwidth = QLabel('0 B')
-        self._label_total_download = QLabel('0 B')
-        self._label_total_upload = QLabel('0 B')
-        self._label_bps = QLabel('0 B')
-        self._label_bpm = QLabel('0 B')
-        self._label_peak_bps = QLabel('0 B')
-        self._label_peak_bpm = QLabel('0 B')
+        self._label_bandwidth = QLabel(PlayerBandwidth.format_bytes(0))
+        self._label_download = QLabel(PlayerBandwidth.format_bytes(0))
+        self._label_upload = QLabel(PlayerBandwidth.format_bytes(0))
+        self._label_total_bandwidth = QLabel(PlayerBandwidth.format_bytes(0))
+        self._label_total_download = QLabel(PlayerBandwidth.format_bytes(0))
+        self._label_total_upload = QLabel(PlayerBandwidth.format_bytes(0))
+        self._label_bps = QLabel(PlayerBandwidth.format_bytes(0))
+        self._label_bpm = QLabel(PlayerBandwidth.format_bytes(0))
+        self._label_peak_bps = QLabel(PlayerBandwidth.format_bytes(0))
+        self._label_peak_bpm = QLabel(PlayerBandwidth.format_bytes(0))
         self._label_pps = QLabel('0')
-        traffic_form.addRow('T. Bandwidth (↓↑):', self._label_total_bandwidth)
-        traffic_form.addRow('Bandwidth (↓↑):', self._label_bandwidth)
-        traffic_form.addRow('T. Download (↓):', self._label_total_download)
-        traffic_form.addRow('Download (↓):', self._label_download)
-        traffic_form.addRow('T. Upload (↑):', self._label_total_upload)
-        traffic_form.addRow('Upload (↑):', self._label_upload)
-        traffic_form.addRow('Peak BPS:', self._label_peak_bps)
-        traffic_form.addRow('BPS:', self._label_bps)
-        traffic_form.addRow('Peak BPM:', self._label_peak_bpm)
-        traffic_form.addRow('BPM:', self._label_bpm)
+        add_form_row(traffic_form, 'T. Bandwidth (↓↑)', self._label_total_bandwidth)
+        add_form_row(traffic_form, 'Bandwidth (↓↑)', self._label_bandwidth)
+        add_form_row(traffic_form, 'T. Download (↓)', self._label_total_download)
+        add_form_row(traffic_form, 'Download (↓)', self._label_download)
+        add_form_row(traffic_form, 'T. Upload (↑)', self._label_total_upload)
+        add_form_row(traffic_form, 'Upload (↑)', self._label_upload)
+        add_form_row(traffic_form, 'Peak BPS', self._label_peak_bps)
+        add_form_row(traffic_form, 'BPS', self._label_bps)
+        add_form_row(traffic_form, 'Peak BPM', self._label_peak_bpm)
+        add_form_row(traffic_form, 'BPM', self._label_bpm)
         left_column_b.addWidget(traffic_group)
 
-        packets_group = QGroupBox('Packets')
+        packets_group = QGroupBox()
+        self._group_titles.append((packets_group, 'Packets'))
         packets_form = QFormLayout(packets_group)
         self._label_ppm = QLabel('0')
         self._label_peak_ppm = QLabel('0')
         self._label_total_packets = QLabel('0')
         self._label_peak_pps = QLabel('0')
-        packets_form.addRow('Total:', self._label_total_packets)
-        packets_form.addRow('Peak PPM:', self._label_peak_ppm)
-        packets_form.addRow('PPM:', self._label_ppm)
-        packets_form.addRow('Peak PPS:', self._label_peak_pps)
-        packets_form.addRow('PPS:', self._label_pps)
+        add_form_row(packets_form, 'Total', self._label_total_packets)
+        add_form_row(packets_form, 'Peak PPM', self._label_peak_ppm)
+        add_form_row(packets_form, 'PPM', self._label_ppm)
+        add_form_row(packets_form, 'Peak PPS', self._label_peak_pps)
+        add_form_row(packets_form, 'PPS', self._label_pps)
         left_column_b.addWidget(packets_group)
 
-        self._latency_group = QGroupBox('Latency (60s)')
+        self._latency_group = QGroupBox()
         self._latency_group.setMinimumWidth(scale_by_ui(150))
         latency_form = QFormLayout(self._latency_group)
-        self._label_latest = QLabel('— ms')
-        self._label_avg = QLabel('— ms')
-        self._label_min = QLabel('— ms')
-        self._label_max = QLabel('— ms')
-        latency_form.addRow('Latest:', self._label_latest)
-        latency_form.addRow('Average:', self._label_avg)
-        latency_form.addRow('Min:', self._label_min)
-        latency_form.addRow('Max:', self._label_max)
-        self._checkbox_all_time = QCheckBox('All time')
+        self._label_latest = QLabel()
+        self._label_avg = QLabel()
+        self._label_min = QLabel()
+        self._label_max = QLabel()
+        add_form_row(latency_form, 'Latest', self._label_latest)
+        add_form_row(latency_form, 'Average', self._label_avg)
+        add_form_row(latency_form, 'Min', self._label_min)
+        add_form_row(latency_form, 'Max', self._label_max)
+        self._checkbox_all_time = QCheckBox()
         self._checkbox_all_time.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self._checkbox_all_time.toggled.connect(self._on_all_time_toggled)
         latency_form.addRow(self._checkbox_all_time)
@@ -247,7 +262,7 @@ class CaptureStatisticsWindow(RateGraphWindowMixin):
         body_layout.addLayout(left_column)
         body_layout.addLayout(right_column, 1)
         layout.addLayout(body_layout)
-        self.add_rate_graph_controls(layout, HISTORY_OPTIONS)
+        self.add_rate_graph_controls(layout, HISTORY_OPTIONS, default_history=DEFAULT_MAX_HISTORY)
 
         self._latency_buffer: deque[float] = deque(maxlen=self._max_history)
         self._pps_buffer: deque[float] = deque(maxlen=self._max_history)
@@ -263,15 +278,20 @@ class CaptureStatisticsWindow(RateGraphWindowMixin):
 
         self._last_latency_ms: float = 0.0
         self._last_latency_ts: float = 0.0
+        self._last_avg_ms: float | None = None
+        self._last_min_ms: float | None = None
+        self._last_max_ms: float | None = None
 
         self._ppm_sample_buffer: deque[int] = deque(maxlen=61)
         self._peak_ppm: int = 0
         self._graphs_all_zero: bool = False
 
         self._load_history()
+        self._apply_translations()
+        register_language_refresh(self, self._apply_translations)
 
-    @staticmethod
     def _create_graph_group(
+        self,
         *,
         title: str,
         widget: RateGraphWidget,
@@ -280,13 +300,14 @@ class CaptureStatisticsWindow(RateGraphWindowMixin):
         popout_signal: SignalInstance,
     ) -> QGroupBox:
         """Create a graph group box with a top-right Pop Out button and configured rate graph widget."""
-        group = QGroupBox(title)
+        group = QGroupBox()
+        self._group_titles.append((group, title))
         layout = QVBoxLayout(group)
         popout_row = QHBoxLayout()
         popout_row.setContentsMargins(0, 0, 0, 0)
         popout_row.addStretch()
-        popout_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'external-link.svg')), ' Pop Out')
-        popout_button.setToolTip(popout_tooltip)
+        popout_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'external-link.svg')), '')
+        self._popout_buttons.append((popout_button, popout_tooltip))
         popout_button.setCursor(Qt.CursorShape.PointingHandCursor)
         popout_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         popout_button.setIconSize(QSize(13, 13))
@@ -312,42 +333,21 @@ class CaptureStatisticsWindow(RateGraphWindowMixin):
 
     def refresh(self) -> None:
         """Refresh stats labels and advance all three live graphs by one sample."""
+        self._has_refreshed = True
         self._label_restarts.setText(str(CaptureStats.restarted_times))
         self._label_packets_dropped.setText(str(CaptureStats.packets_dropped))
         self._label_overflow_dropped.setText(str(CaptureStats.packets_overflow_dropped))
 
-        self._label_disk_read_rate.setText(f'{CaptureStats.app_disk_read_rate_mb:.2f} MB/s')
-        self._label_disk_write_rate.setText(f'{CaptureStats.app_disk_write_rate_mb:.2f} MB/s')
-        self._label_disk_read_total.setText(f'{CaptureStats.app_disk_read_total_mb:.1f} MB')
-        self._label_disk_write_total.setText(f'{CaptureStats.app_disk_write_total_mb:.1f} MB')
         self._label_peak_cpu.setText(f'{CaptureStats.app_peak_cpu_percent:.1f}%')
         self._label_cpu.setText(f'{CaptureStats.app_cpu_percent:.1f}%')
-        self._label_peak_ram.setText(f'{int(CaptureStats.app_peak_memory_mb)} MB')
-        self._label_ram.setText(f'{int(CaptureStats.app_memory_mb)} MB')
         self._label_peak_threads.setText(str(CaptureStats.app_peak_threads))
         self._label_threads.setText(str(CaptureStats.app_active_threads))
 
-        if Settings.capture_arp_spoofing:
-            arp_label = 'Running' if ArpSpoofingController.is_running() else 'Stopped'
-        elif CaptureState.is_neighbour_interface:
-            arp_label = 'Enabled'
-        else:
-            arp_label = 'Disabled'
         self._label_interface.setText(CaptureState.interface_name or '—')
         self._label_ip.setText(CaptureState.interface_ip or '—')
         self._label_interface_type.setText(CaptureState.interface_type or '—')
-        self._label_arp.setText(arp_label)
         self._label_feature_set.setText(Settings.capture_feature_set or '—')
-        if Settings.discord_presence:
-            self._label_discord.setText('Connected' if CaptureState.discord_rpc_connected else 'Waiting')
-        else:
-            self._label_discord.setText('Disabled')
-
-        elapsed_seconds = int(time.monotonic() - CaptureStats.capture_started_at)
-        self._label_uptime.setText(format_duration(elapsed_seconds))
-
-        total_elapsed = int(time.time() - self._process_started_at)
-        self._label_total_uptime.setText(format_duration(total_elapsed))
+        self._refresh_translatable_metrics()
 
         connected_count = PlayersRegistry.get_connected_count()
         disconnected_count = PlayersRegistry.get_disconnected_count()
@@ -417,18 +417,15 @@ class CaptureStatisticsWindow(RateGraphWindowMixin):
         if CaptureStats.global_avg_latency_ms > 0:
             self._last_latency_ms = CaptureStats.global_avg_latency_ms
             self._last_latency_ts = time.monotonic()
-        if self._last_latency_ts > 0 and time.monotonic() - self._last_latency_ts < VISIBLE_WINDOW:
-            self._label_latest.setText(f'{self._last_latency_ms:.2f} ms')
-        else:
-            self._label_latest.setText('— ms')
         if nonzero_latencies:
-            self._label_avg.setText(f'{sum(nonzero_latencies) / len(nonzero_latencies):.2f} ms')
-            self._label_min.setText(f'{min(nonzero_latencies):.2f} ms')
-            self._label_max.setText(f'{max(nonzero_latencies):.2f} ms')
+            self._last_avg_ms = sum(nonzero_latencies) / len(nonzero_latencies)
+            self._last_min_ms = min(nonzero_latencies)
+            self._last_max_ms = max(nonzero_latencies)
         else:
-            self._label_avg.setText('— ms')
-            self._label_min.setText('— ms')
-            self._label_max.setText('— ms')
+            self._last_avg_ms = None
+            self._last_min_ms = None
+            self._last_max_ms = None
+        self._refresh_latency_labels()
 
         _latency_visible_max = max(latency_data[-VISIBLE_WINDOW:]) if latency_data else 0.0
         _pps_visible_max = max(pps_data[-VISIBLE_WINDOW:]) if pps_data else 0.0
@@ -471,6 +468,9 @@ class CaptureStatisticsWindow(RateGraphWindowMixin):
         self._peak_ppm = 0
         self._last_latency_ms = 0.0
         self._last_latency_ts = 0.0
+        self._last_avg_ms = None
+        self._last_min_ms = None
+        self._last_max_ms = None
 
         self._latency_widget.set_data(zeros)
         self._latency_widget.set_y_range(0, _FLOOR_MS)
@@ -504,10 +504,7 @@ class CaptureStatisticsWindow(RateGraphWindowMixin):
         self._label_bpm.setText(PlayerBandwidth.format_bytes(0))
         self._label_peak_bps.setText(PlayerBandwidth.format_bytes(0))
         self._label_peak_bpm.setText(PlayerBandwidth.format_bytes(0))
-        self._label_latest.setText('— ms')
-        self._label_avg.setText('— ms')
-        self._label_min.setText('— ms')
-        self._label_max.setText('— ms')
+        self._refresh_latency_labels()
 
     def _load_history(self) -> None:
         """Backfill graphs with recorded samples from `CaptureStats.capture_health_samples`."""
@@ -538,5 +535,73 @@ class CaptureStatisticsWindow(RateGraphWindowMixin):
 
     # Internal ————————————————————————————————————————————————————————————————
 
+    def _apply_translations(self) -> None:
+        """Apply translated text to window chrome, static controls, and formatted labels."""
+        self.setWindowTitle(tr(self.WINDOW_TITLE))
+        for group, canonical_title in self._group_titles:
+            group.setTitle(tr(canonical_title))
+        for button, canonical_tooltip in self._popout_buttons:
+            button.setText(f" {tr('Pop Out')}")
+            button.setToolTip(tr(canonical_tooltip))
+        self._checkbox_all_time.setText(tr('All time'))
+        self._on_all_time_toggled()
+        self._refresh_translatable_metrics()
+        self._refresh_latency_labels()
+
+    def _refresh_translatable_metrics(self) -> None:
+        """Render unit-formatted metrics, uptime, and status strings in the active language."""
+        if not self._has_refreshed:
+            self._label_uptime.setText(format_duration(0))
+            self._label_total_uptime.setText(format_duration(0))
+            self._label_disk_read_rate.setText(tr('{value:.2f} MB/s', value=0.0))
+            self._label_disk_write_rate.setText(tr('{value:.2f} MB/s', value=0.0))
+            self._label_disk_read_total.setText(tr('{value} MB', value=0))
+            self._label_disk_write_total.setText(tr('{value} MB', value=0))
+            self._label_peak_ram.setText(tr('{value} MB', value=0))
+            self._label_ram.setText(tr('{value} MB', value=0))
+            return
+
+        self._label_disk_read_rate.setText(tr('{value:.2f} MB/s', value=CaptureStats.app_disk_read_rate_mb))
+        self._label_disk_write_rate.setText(tr('{value:.2f} MB/s', value=CaptureStats.app_disk_write_rate_mb))
+        self._label_disk_read_total.setText(tr('{value:.1f} MB', value=CaptureStats.app_disk_read_total_mb))
+        self._label_disk_write_total.setText(tr('{value:.1f} MB', value=CaptureStats.app_disk_write_total_mb))
+        self._label_peak_ram.setText(tr('{value} MB', value=int(CaptureStats.app_peak_memory_mb)))
+        self._label_ram.setText(tr('{value} MB', value=int(CaptureStats.app_memory_mb)))
+
+        if Settings.capture_arp_spoofing:
+            arp_label = tr('Running') if ArpSpoofingController.is_running() else tr('Stopped')
+        elif CaptureState.is_neighbour_interface:
+            arp_label = tr('Enabled')
+        else:
+            arp_label = tr('Disabled')
+        self._label_arp.setText(arp_label)
+
+        if Settings.discord_presence:
+            self._label_discord.setText(tr('Connected') if CaptureState.discord_rpc_connected else tr('Waiting'))
+        else:
+            self._label_discord.setText(tr('Disabled'))
+
+        elapsed_seconds = int(time.monotonic() - CaptureStats.capture_started_at)
+        self._label_uptime.setText(format_duration(elapsed_seconds))
+        total_elapsed = int(time.time() - self._process_started_at)
+        self._label_total_uptime.setText(format_duration(total_elapsed))
+
+    def _refresh_latency_labels(self) -> None:
+        """Render the four latency summary labels in the active language."""
+        placeholder = tr('— ms')
+        if self._last_latency_ts > 0 and time.monotonic() - self._last_latency_ts < VISIBLE_WINDOW:
+            self._label_latest.setText(tr('{value:.2f} ms', value=self._last_latency_ms))
+        else:
+            self._label_latest.setText(placeholder)
+
+        if self._last_avg_ms is not None and self._last_min_ms is not None and self._last_max_ms is not None:
+            self._label_avg.setText(tr('{value:.2f} ms', value=self._last_avg_ms))
+            self._label_min.setText(tr('{value:.2f} ms', value=self._last_min_ms))
+            self._label_max.setText(tr('{value:.2f} ms', value=self._last_max_ms))
+        else:
+            self._label_avg.setText(placeholder)
+            self._label_min.setText(placeholder)
+            self._label_max.setText(placeholder)
+
     def _on_all_time_toggled(self) -> None:
-        self._latency_group.setTitle('Latency (all time)' if self._checkbox_all_time.isChecked() else 'Latency (60s)')
+        self._latency_group.setTitle(tr('Latency (all time)') if self._checkbox_all_time.isChecked() else tr('Latency (60s)'))

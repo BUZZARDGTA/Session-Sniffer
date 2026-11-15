@@ -11,12 +11,13 @@ from PySide6.QtWidgets import (
 )
 
 from session_sniffer.constants.standalone import TITLE
+from session_sniffer.guis.live_language import register_language_refresh
 from session_sniffer.guis.stylesheets import DETECTION_WARN_LABEL_STYLESHEET
 from session_sniffer.guis.tables_player_actions._format import format_bool, format_text, format_with_code
 from session_sniffer.guis.tables_player_actions._player_info_dialog_mixin import PlayerInfoDialogMixin
 from session_sniffer.guis.utils import ActiveDialogRegistry, format_player_display, set_dialog_window_flags
+from session_sniffer.i18n import tr
 from session_sniffer.notifications_state import notifications_state
-from session_sniffer.text_utils import pluralize
 
 if TYPE_CHECKING:
     from session_sniffer.models.player import Player
@@ -42,7 +43,7 @@ class _BaseDetectionDialog(PlayerInfoDialogMixin):
 
     def _build_network_group(self, parent_layout: QVBoxLayout, player: Player) -> None:
         """Add the 'Network Details' section."""
-        group, form = self._make_group('Network Details', accent='#d69e2e')
+        group, form = self._make_group(tr('Network Details'), accent='#d69e2e')
         self._add_row(form, 'ISP', format_text(player.iplookup.ipapi.isp))
         self._add_row(form, 'Organization', format_text(player.iplookup.ipapi.org))
         self._add_row(form, 'ASN', format_with_code(player.iplookup.ipapi.asn, player.iplookup.ipapi.as_name))
@@ -50,7 +51,7 @@ class _BaseDetectionDialog(PlayerInfoDialogMixin):
 
     def _build_flags_group(self, parent_layout: QVBoxLayout, player: Player) -> None:
         """Add the 'Detection Flags' section."""
-        group, form = self._make_group('Detection Flags', accent='#805ad5')
+        group, form = self._make_group(tr('Detection Flags'), accent='#805ad5')
         self._add_row(form, 'Mobile (cellular)', format_bool(player.iplookup.ipapi.mobile))
         self._add_row(form, 'Proxy / VPN / Tor', format_bool(player.iplookup.ipapi.proxy))
         self._add_row(form, 'Hosting / Datacenter', format_bool(player.iplookup.ipapi.hosting))
@@ -69,15 +70,19 @@ class DetectionNotificationDialog(_BaseDetectionDialog):
         """Snapshot player data at detection time and build the dialog UI."""
         super().__init__(parent)
         set_dialog_window_flags(self, keep_on_top=True)
+        self._player = player
+        self._info = info
 
-        self.setWindowTitle(f'{TITLE} - {info.display_title} ({format_player_display(player.ip, player.usernames)})')
+        display = format_player_display(player.ip, player.usernames)
+        display_title = tr(info.display_title)
+        self.setWindowTitle(f'{TITLE} - {display_title} ({display})')
         self._apply_standard_dialog_size()
 
         outer_layout = QVBoxLayout(self)
         outer_layout.setContentsMargins(10, 10, 10, 10)
         outer_layout.setSpacing(8)
 
-        self._add_header_label(outer_layout, f'{info.display_title} — {format_player_display(player.ip, player.usernames)}', '#744210', '#975a16')
+        self._header_label = self._add_header_label(outer_layout, f'{display_title} — {display}', '#744210', '#975a16')
 
         scroll_layout = self._init_scroll_area(outer_layout)
 
@@ -89,26 +94,33 @@ class DetectionNotificationDialog(_BaseDetectionDialog):
         scroll_layout.addStretch(1)
 
         self._add_close_button_box(outer_layout)
+        register_language_refresh(self, self._refresh_language_texts)
+
+    def _refresh_language_texts(self) -> None:
+        display = format_player_display(self._player.ip, self._player.usernames)
+        display_title = tr(self._info.display_title)
+        self.setWindowTitle(f'{TITLE} - {display_title} ({display})')
+        self._header_label.setText(f'{display_title} — {display}')
 
     def _build_detection_group(self, parent_layout: QVBoxLayout, player: Player, extra_detection_fields: list[tuple[str, str]], event_time: str) -> None:
         """Add the 'Detection Details' section."""
-        group, form = self._make_group('Detection Details', accent='#c53030')
+        group, form = self._make_group(tr('Detection Details'), accent='#c53030')
         self._add_row(form, 'Time', event_time)
         for label, value in extra_detection_fields:
             self._add_row(form, label, value)
-        self._add_row(form, f'Username{pluralize(len(player.usernames))}', ', '.join(player.usernames) or 'N/A')
+        self._add_row(form, 'Username' if len(player.usernames) == 1 else 'Usernames', ', '.join(player.usernames) or tr('N/A'))
         parent_layout.addWidget(group)
 
     def _build_connection_group(self, parent_layout: QVBoxLayout, player: Player) -> None:
         """Add the 'Connection Details' section."""
-        group, form = self._make_group('Connection Details', accent='#2b6cb0')
+        group, form = self._make_group(tr('Connection Details'), accent='#2b6cb0')
         self._add_row(form, 'IP Address', player.ip)
         self._add_row(form, 'Hostname', format_text(player.reverse_dns.hostname))
         parent_layout.addWidget(group)
 
     def _build_location_group(self, parent_layout: QVBoxLayout, player: Player) -> None:
         """Add the 'Location Details' section."""
-        group, form = self._make_group('Location Details', accent='#38a169')
+        group, form = self._make_group(tr('Location Details'), accent='#38a169')
         self._add_row(form, 'Continent', format_text(player.iplookup.resolve_continent()[0]))
         self._add_row(form, 'Country', format_text(player.iplookup.resolve_country()[0]))
         self._add_row(form, 'City', format_text(player.iplookup.resolve_city()))
@@ -160,8 +172,12 @@ class PlayerDetectionDialog(_BaseDetectionDialog):
         """Snapshot player data at event time and build the dialog UI."""
         super().__init__(parent)
         set_dialog_window_flags(self, keep_on_top=True)
+        self._player = player
+        self._info = info
 
-        self.setWindowTitle(f'{TITLE} - {info.title} ({format_player_display(player.ip, player.usernames)})')
+        display = format_player_display(player.ip, player.usernames)
+        dialog_title = tr(info.title)
+        self.setWindowTitle(f'{TITLE} - {dialog_title} ({display})')
         self._apply_standard_dialog_size()
 
         color_start, color_stop = _DETECTION_TYPE_HEADER_COLORS.get(info.event_type, _DETECTION_DEFAULT_HEADER_COLORS)
@@ -170,10 +186,10 @@ class PlayerDetectionDialog(_BaseDetectionDialog):
         outer_layout.setContentsMargins(10, 10, 10, 10)
         outer_layout.setSpacing(8)
 
-        self._add_header_label(outer_layout, f'{info.title} — {format_player_display(player.ip, player.usernames)}', color_start, color_stop)
+        self._header_label = self._add_header_label(outer_layout, f'{dialog_title} — {display}', color_start, color_stop)
 
         if not info.data_ready:
-            warn_label = QLabel('Some data may still be loading and missing from this notification')
+            warn_label = QLabel(tr('Some data may still be loading and missing from this notification'))
             warn_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
             warn_label.setWordWrap(True)
             warn_label.setStyleSheet(DETECTION_WARN_LABEL_STYLESHEET)
@@ -189,22 +205,29 @@ class PlayerDetectionDialog(_BaseDetectionDialog):
         scroll_layout.addStretch(1)
 
         self._add_close_button_box(outer_layout)
+        register_language_refresh(self, self._refresh_language_texts)
+
+    def _refresh_language_texts(self) -> None:
+        display = format_player_display(self._player.ip, self._player.usernames)
+        dialog_title = tr(self._info.title)
+        self.setWindowTitle(f'{TITLE} - {dialog_title} ({display})')
+        self._header_label.setText(f'{dialog_title} — {display}')
 
     def _build_player_group(self, parent_layout: QVBoxLayout, player: Player, info: PlayerDetectionInfo, accent: str) -> None:
         """Add the 'Player Details' section."""
-        group, form = self._make_group('Player Details', accent=accent)
-        self._add_row(form, 'Event', info.description)
+        group, form = self._make_group(tr('Player Details'), accent=accent)
+        self._add_row(form, 'Event', tr(info.description))
         self._add_row(form, 'Event Time', info.event_time)
-        self._add_row(form, f'Username{pluralize(len(player.usernames))}', ', '.join(player.usernames) or 'N/A')
+        self._add_row(form, 'Username' if len(player.usernames) == 1 else 'Usernames', ', '.join(player.usernames) or tr('N/A'))
         parent_layout.addWidget(group)
 
     def _build_connection_group(self, parent_layout: QVBoxLayout, player: Player) -> None:
         """Add the 'Connection Details' section."""
-        group, form = self._make_group('Connection Details', accent='#2b6cb0')
+        group, form = self._make_group(tr('Connection Details'), accent='#2b6cb0')
         self._add_row(form, 'IP Address', player.ip)
         self._add_row(form, 'Hostname', format_text(player.reverse_dns.hostname))
         self._add_row(form, 'First Port', str(player.ports.first))
-        self._add_row(form, f'Middle Port{pluralize(len(player.ports.middle))}', ', '.join(map(str, reversed(player.ports.middle))) or '')
+        self._add_row(form, 'Middle Port' if len(player.ports.middle) == 1 else 'Middle Ports', ', '.join(map(str, reversed(player.ports.middle))) or '')
         self._add_row(form, 'Last Port', str(player.ports.last))
         self._add_row(form, 'Total Packets Exchanged', str(player.packets.total_exchanged))
         self._add_row(form, 'Session Packets', str(player.packets.exchanged))
@@ -213,7 +236,7 @@ class PlayerDetectionDialog(_BaseDetectionDialog):
 
     def _build_location_group(self, parent_layout: QVBoxLayout, player: Player) -> None:
         """Add the 'Location Details' section."""
-        group, form = self._make_group('Location Details', accent='#38a169')
+        group, form = self._make_group(tr('Location Details'), accent='#38a169')
         self._add_row(form, 'Continent', format_with_code(*player.iplookup.resolve_continent()))
         self._add_row(form, 'Country', format_with_code(*player.iplookup.resolve_country()))
         self._add_row(form, 'Region', format_with_code(player.iplookup.ipapi.region, player.iplookup.ipapi.region_code))

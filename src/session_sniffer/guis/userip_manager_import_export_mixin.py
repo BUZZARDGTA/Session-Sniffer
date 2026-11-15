@@ -33,6 +33,7 @@ from session_sniffer.guis.userip_manager_helpers import (
     save_userip_database_model,
 )
 from session_sniffer.guis.utils import scale_by_ui
+from session_sniffer.i18n import tr, tr_plural
 from session_sniffer.models.userip_settings_model import (
     DEFAULT_USERIP_FILES_SETTINGS,
     UserIPDatabaseFile,
@@ -41,7 +42,6 @@ from session_sniffer.models.userip_settings_model import (
 )
 from session_sniffer.player import backup_userip_databases
 from session_sniffer.player.userip_loader import find_userip_insert_index, userip_database_write, userip_databases_lock
-from session_sniffer.text_utils import pluralize
 
 logger = logging.getLogger(__name__)
 
@@ -116,15 +116,15 @@ class UserIPImportExportMixin(QDialog):
         """Copy a specific database file to a user-chosen destination."""
         dest_path, _ = QFileDialog.getSaveFileName(
             self,
-            'Export Database',
+            tr('Export Database'),
             path.name,
-            'JSON files (*.json);;All Files (*)',
+            tr('JSON files (*.json);;All Files (*)'),
         )
         if not dest_path:
             return
 
         shutil.copy2(str(path), dest_path)
-        self._set_status(f'Exported "{path.name}" to {dest_path}')
+        self._set_status(tr('Exported "{name}" to {dest}', name=path.name, dest=dest_path))
 
     def _export_selected_database(self) -> None:
         """Copy the open database file, or export multi-selected tree items as a ZIP archive."""
@@ -133,7 +133,7 @@ class UserIPImportExportMixin(QDialog):
             export_selected_tree_paths_as_zip(self, selected_paths, self._set_status)
             return
         if self._current_path is None or not self._current_path.is_file():
-            QMessageBox.information(self, TITLE, 'No database is currently open. Select a database first.')
+            QMessageBox.information(self, TITLE, tr('No database is currently open. Select a database first.'))
             return
 
         self._export_database_file(self._current_path)
@@ -142,7 +142,7 @@ class UserIPImportExportMixin(QDialog):
         """Export all UserIP databases as a ZIP archive to a user-chosen destination."""
         json_files = sorted(USERIP_DATABASES_DIR_PATH.rglob('*.json'))
         if not json_files:
-            QMessageBox.information(self, TITLE, 'No database files found to export.')
+            QMessageBox.information(self, TITLE, tr('No database files found to export.'))
             return
 
         export_json_databases_to_zip(self, json_files, self._set_status)
@@ -152,16 +152,16 @@ class UserIPImportExportMixin(QDialog):
 
         def _on_backup_done(backup_path: Path | None) -> None:
             if backup_path is not None:
-                self._set_status(f'Backup created: {backup_path.name}')
-                QMessageBox.information(self, TITLE, f'UserIP databases backup successfully created at:\n{backup_path}')
+                self._set_status(tr('Backup created: {name}', name=backup_path.name))
+                QMessageBox.information(self, TITLE, tr('UserIP databases backup successfully created at:\n{path}', path=backup_path))
             else:
-                self._set_status('Backup failed or no databases found.')
-                QMessageBox.warning(self, TITLE, 'Could not create UserIP databases backup (no database files found).')
+                self._set_status(tr('Backup failed or no databases found.'))
+                QMessageBox.warning(self, TITLE, tr('Could not create UserIP databases backup (no database files found).'))
 
         run_async_with_loading(
             self,
-            'Creating Backup\u2026',
-            'Backing up UserIP databases\u2026',
+            tr('Creating Backup\u2026'),
+            tr('Backing up UserIP databases\u2026'),
             lambda: backup_userip_databases(force=True),
             _on_backup_done,
         )
@@ -175,15 +175,24 @@ class UserIPImportExportMixin(QDialog):
     # Import
     # ------------------------------------------------------------------
 
-    def _prompt_settings_conflict(self, src_name: str, target_description: str) -> Literal['keep', 'use'] | None:
+    def _prompt_settings_conflict(self, src_name: str, *, target_db_name: str | None = None) -> Literal['keep', 'use'] | None:
         """Prompt whether to keep existing settings or use imported settings when merging."""
         message_box = QMessageBox(self)
         message_box.setWindowTitle(TITLE)
         message_box.setText(
-            f'The settings in "{src_name}" differ from {target_description}.\n\nWhich settings would you like to keep?',
+            tr(
+                'The settings in "{src}" differ from "{target}".\n\nWhich settings would you like to keep?',
+                src=src_name,
+                target=target_db_name,
+            )
+            if target_db_name is not None
+            else tr(
+                'The settings in "{src}" differ from the current database\'s settings.\n\nWhich settings would you like to keep?',
+                src=src_name,
+            ),
         )
-        message_box.addButton('Keep existing settings', QMessageBox.ButtonRole.AcceptRole)
-        use_button = message_box.addButton('Use imported settings', QMessageBox.ButtonRole.AcceptRole)
+        message_box.addButton(tr('Keep existing settings'), QMessageBox.ButtonRole.AcceptRole)
+        use_button = message_box.addButton(tr('Use imported settings'), QMessageBox.ButtonRole.AcceptRole)
         message_box.addButton(QMessageBox.StandardButton.Cancel)
         for button in message_box.buttons():
             button.setMinimumWidth(scale_by_ui(160))
@@ -216,9 +225,9 @@ class UserIPImportExportMixin(QDialog):
         if src_db.settings != dest_db.settings:
             if overlay is not None:
                 with overlay.suspended():
-                    choice = self._prompt_settings_conflict(src_name, f'"{dest_path.name}"')
+                    choice = self._prompt_settings_conflict(src_name, target_db_name=dest_path.name)
             else:
-                choice = self._prompt_settings_conflict(src_name, f'"{dest_path.name}"')
+                choice = self._prompt_settings_conflict(src_name, target_db_name=dest_path.name)
             if choice is None:
                 return None
             use_imported_settings = choice == 'use'
@@ -253,9 +262,9 @@ class UserIPImportExportMixin(QDialog):
         if self._current_path is not None:
             msg_box = QMessageBox(self)
             msg_box.setWindowTitle(TITLE)
-            msg_box.setText('How would you like to import the file(s)?')
-            msg_box.addButton('Import as new database(s)', QMessageBox.ButtonRole.AcceptRole)
-            merge_button = msg_box.addButton(f'Merge into "{self._current_path.stem}"', QMessageBox.ButtonRole.AcceptRole)
+            msg_box.setText(tr('How would you like to import the file(s)?'))
+            msg_box.addButton(tr('Import as new database(s)'), QMessageBox.ButtonRole.AcceptRole)
+            merge_button = msg_box.addButton(tr('Merge into "{name}"', name=self._current_path.stem), QMessageBox.ButtonRole.AcceptRole)
             msg_box.addButton(QMessageBox.StandardButton.Cancel)
             for _button in msg_box.buttons():
                 _button.setMinimumWidth(scale_by_ui(200))
@@ -269,9 +278,9 @@ class UserIPImportExportMixin(QDialog):
         if merge_mode:
             src_path_str, _ = QFileDialog.getOpenFileName(
                 self,
-                'Choose a database file to merge from',
+                tr('Choose a database file to merge from'),
                 '',
-                'JSON files (*.json);;All Files (*)',
+                tr('JSON files (*.json);;All Files (*)'),
             )
             if not src_path_str:
                 return
@@ -282,9 +291,9 @@ class UserIPImportExportMixin(QDialog):
 
         file_paths, _ = QFileDialog.getOpenFileNames(
             self,
-            'Import Database Files',
+            tr('Import Database Files'),
             '',
-            'JSON files (*.json);;All Files (*)',
+            tr('JSON files (*.json);;All Files (*)'),
         )
         if not file_paths:
             return
@@ -296,23 +305,23 @@ class UserIPImportExportMixin(QDialog):
         modified_on_disk = False
         reload_current_view = False
 
-        with loading_overlay_scope(self, 'Importing Databases\u2026', 'Importing UserIP database files\u2026') as overlay:
+        with loading_overlay_scope(self, tr('Importing Databases\u2026'), tr('Importing UserIP database files\u2026')) as overlay:
             for file_path_str in file_paths:
                 src = Path(file_path_str)
                 if not src.is_file():
                     continue
 
-                overlay.set_status(f'Processing "{src.name}"\u2026')
+                overlay.set_status(tr('Processing "{name}"\u2026', name=src.name))
                 dest = target_dir / src.name
 
                 if dest.exists():
                     with overlay.suspended():
                         msg_box = QMessageBox(self)
                         msg_box.setWindowTitle(TITLE)
-                        msg_box.setText(f'"{src.name}" already exists in the destination folder.\n\nWhat would you like to do?')
-                        overwrite_button = msg_box.addButton('Overwrite', QMessageBox.ButtonRole.YesRole)
-                        merge_button = msg_box.addButton('Merge', QMessageBox.ButtonRole.AcceptRole)
-                        skip_button = msg_box.addButton('Skip', QMessageBox.ButtonRole.NoRole)
+                        msg_box.setText(tr('"{name}" already exists in the destination folder.\n\nWhat would you like to do?', name=src.name))
+                        overwrite_button = msg_box.addButton(tr('Overwrite'), QMessageBox.ButtonRole.YesRole)
+                        merge_button = msg_box.addButton(tr('Merge'), QMessageBox.ButtonRole.AcceptRole)
+                        skip_button = msg_box.addButton(tr('Skip'), QMessageBox.ButtonRole.NoRole)
                         for _button in msg_box.buttons():
                             _button.setMinimumWidth(scale_by_ui(100))
                             _button.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -350,7 +359,7 @@ class UserIPImportExportMixin(QDialog):
                 imported += 1
 
             if modified_on_disk:
-                overlay.set_status('Refreshing UserIP databases\u2026')
+                overlay.set_status(tr('Refreshing UserIP databases\u2026'))
                 self._refresh_after_tree_mutation()
                 if self._global_search_active:
                     self._load_all_databases()
@@ -359,11 +368,11 @@ class UserIPImportExportMixin(QDialog):
 
             parts: list[str] = []
             if imported:
-                parts.append(f'Imported {imported} file{pluralize(imported)}')
+                parts.append(tr_plural('Imported {count} file', 'Imported {count} files', imported))
             if merged:
-                parts.append(f'Merged {merged} entr{pluralize(merged, "y", "ies")}')
+                parts.append(tr_plural('Merged {count} entry', 'Merged {count} entries', merged))
             if skipped:
-                parts.append(f'{skipped} skipped')
+                parts.append(tr('{count} skipped', count=skipped))
             if parts:
                 self._set_status('  |  '.join(parts))
                 self._refresh_stats()
@@ -373,7 +382,7 @@ class UserIPImportExportMixin(QDialog):
         if self._current_path is None:
             return
 
-        with loading_overlay_scope(self, 'Merging Database\u2026', f'Reading "{src_path.name}"\u2026') as overlay:
+        with loading_overlay_scope(self, tr('Merging Database\u2026'), tr('Reading "{name}"\u2026', name=src_path.name)) as overlay:
             imported_db = run_with_active_loading(load_userip_database_model, src_path)
             imported_settings = imported_db.settings
             current_settings = self.read_settings_from_widgets()
@@ -381,7 +390,7 @@ class UserIPImportExportMixin(QDialog):
             settings_changed = False
             if imported_settings != current_settings:
                 with overlay.suspended():
-                    choice = self._prompt_settings_conflict(src_path.name, "the current database's settings")
+                    choice = self._prompt_settings_conflict(src_path.name)
                 if choice is None:
                     return
                 if choice == 'use':
@@ -389,7 +398,7 @@ class UserIPImportExportMixin(QDialog):
                     self._mark_settings_dirty()
                     settings_changed = True
 
-            overlay.set_status(f'Merging entries from "{src_path.name}"\u2026')
+            overlay.set_status(tr('Merging entries from "{name}"\u2026', name=src_path.name))
             existing_set: set[tuple[str, str]] = set()
             for row in range(self._model.rowCount()):
                 username, ip, _notes, _entry_model = extract_entry_model_from_row(self._model, row)
@@ -412,22 +421,28 @@ class UserIPImportExportMixin(QDialog):
                     pump_active_loading_overlays()
 
             if added or settings_changed:
-                overlay.set_status(f'Saving "{self._current_path.name}"\u2026')
+                overlay.set_status(tr('Saving "{name}"\u2026', name=self._current_path.name))
                 self._mark_entries_dirty()
                 self._highlight_duplicates()
                 self._save_database()
 
             self._set_status(
-                f'Merged {added} entr{pluralize(added, "y", "ies")} from "{src_path.name}" into "{self._current_path.name}".',
+                tr_plural(
+                    'Merged {count} entry from "{src}" into "{dest}".',
+                    'Merged {count} entries from "{src}" into "{dest}".',
+                    added,
+                    src=src_path.name,
+                    dest=self._current_path.name,
+                ),
             )
 
     def _import_from_zip(self) -> None:
         """Extract .json database files from a ZIP archive into the databases directory."""
         zip_path_str, _ = QFileDialog.getOpenFileName(
             self,
-            'Import Databases from ZIP',
+            tr('Import Databases from ZIP'),
             '',
-            'ZIP archives (*.zip);;All Files (*)',
+            tr('ZIP archives (*.zip);;All Files (*)'),
         )
         if not zip_path_str:
             return
@@ -438,14 +453,14 @@ class UserIPImportExportMixin(QDialog):
 
         databases_root = USERIP_DATABASES_DIR_PATH.resolve()
 
-        with loading_overlay_scope(self, 'Importing from ZIP\u2026', f'Reading "{zip_path.name}"\u2026') as overlay:
+        with loading_overlay_scope(self, tr('Importing from ZIP\u2026'), tr('Reading "{name}"\u2026', name=zip_path.name)) as overlay:
             try:
                 with zipfile.ZipFile(zip_path, 'r') as zf:
                     json_members = [member for member in zf.infolist() if not member.is_dir() and member.filename.lower().endswith('.json')]
 
                     if not json_members:
                         with overlay.suspended():
-                            QMessageBox.information(self, TITLE, 'No .json database files found in the selected ZIP archive.')
+                            QMessageBox.information(self, TITLE, tr('No .json database files found in the selected ZIP archive.'))
                         return
 
                     imported = 0
@@ -462,7 +477,7 @@ class UserIPImportExportMixin(QDialog):
                             skipped += 1
                             continue
                         dest = USERIP_DATABASES_DIR_PATH / resolved_dest.relative_to(databases_root)
-                        overlay.set_status(f'Extracting "{member.filename}"\u2026')
+                        overlay.set_status(tr('Extracting "{name}"\u2026', name=member.filename))
                         member_bytes = run_with_active_loading(zf.read, member.filename)
                         src_content = member_bytes.decode('utf-8', errors='replace')
 
@@ -481,13 +496,13 @@ class UserIPImportExportMixin(QDialog):
                             with overlay.suspended():
                                 msg_box = QMessageBox(self)
                                 msg_box.setWindowTitle(TITLE)
-                                msg_box.setText(f'"{member.filename}" already exists.\n\nWhat would you like to do?')
-                                overwrite_button = msg_box.addButton('Overwrite', QMessageBox.ButtonRole.YesRole)
-                                overwrite_all_button = msg_box.addButton('Overwrite All', QMessageBox.ButtonRole.YesRole)
-                                merge_button = msg_box.addButton('Merge', QMessageBox.ButtonRole.AcceptRole)
-                                merge_all_button = msg_box.addButton('Merge All', QMessageBox.ButtonRole.AcceptRole)
-                                skip_button = msg_box.addButton('Skip', QMessageBox.ButtonRole.NoRole)
-                                cancel_button = msg_box.addButton('Cancel', QMessageBox.ButtonRole.RejectRole)
+                                msg_box.setText(tr('"{name}" already exists.\n\nWhat would you like to do?', name=member.filename))
+                                overwrite_button = msg_box.addButton(tr('Overwrite'), QMessageBox.ButtonRole.YesRole)
+                                overwrite_all_button = msg_box.addButton(tr('Overwrite All'), QMessageBox.ButtonRole.YesRole)
+                                merge_button = msg_box.addButton(tr('Merge'), QMessageBox.ButtonRole.AcceptRole)
+                                merge_all_button = msg_box.addButton(tr('Merge All'), QMessageBox.ButtonRole.AcceptRole)
+                                skip_button = msg_box.addButton(tr('Skip'), QMessageBox.ButtonRole.NoRole)
+                                cancel_button = msg_box.addButton(tr('Cancel'), QMessageBox.ButtonRole.RejectRole)
                                 for _button in msg_box.buttons():
                                     _button.setMinimumWidth(scale_by_ui(120))
                                     _button.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -531,11 +546,11 @@ class UserIPImportExportMixin(QDialog):
 
             except zipfile.BadZipFile:
                 with overlay.suspended():
-                    QMessageBox.critical(self, TITLE, f'"{zip_path.name}" is not a valid ZIP archive.')
+                    QMessageBox.critical(self, TITLE, tr('"{name}" is not a valid ZIP archive.', name=zip_path.name))
                 return
 
             if modified_on_disk:
-                overlay.set_status('Refreshing UserIP databases\u2026')
+                overlay.set_status(tr('Refreshing UserIP databases\u2026'))
                 self._refresh_after_tree_mutation()
                 if self._global_search_active:
                     self._load_all_databases()
@@ -544,11 +559,11 @@ class UserIPImportExportMixin(QDialog):
 
             parts: list[str] = []
             if imported:
-                parts.append(f'Imported {imported} database{pluralize(imported)} from ZIP')
+                parts.append(tr_plural('Imported {count} database from ZIP', 'Imported {count} databases from ZIP', imported))
             if merged:
-                parts.append(f'Merged {merged} entr{pluralize(merged, "y", "ies")} from ZIP')
+                parts.append(tr_plural('Merged {count} entry from ZIP', 'Merged {count} entries from ZIP', merged))
             if skipped:
-                parts.append(f'{skipped} skipped')
+                parts.append(tr('{count} skipped', count=skipped))
             if parts:
                 self._set_status('  |  '.join(parts))
                 self._refresh_stats()
@@ -562,13 +577,16 @@ class UserIPImportExportMixin(QDialog):
         USERIP_DATABASES_DIR_PATH.mkdir(parents=True, exist_ok=True)
         json_files = sorted(USERIP_DATABASES_DIR_PATH.rglob('*.json'))
         if not json_files:
-            QMessageBox.information(self, TITLE, 'There are no database files to reset.')
+            QMessageBox.information(self, TITLE, tr('There are no database files to reset.'))
             return
 
         count = len(json_files)
-        prompt = (
-            f'This will permanently reset all {count} database file{pluralize(count)}.\n\n'
-            'Default databases will be restored to factory content.\nUser-created databases will be deleted.\n\nThis cannot be undone. Are you sure?'
+        prompt = tr_plural(
+            'This will permanently reset all {count} database file.\n\n'
+            'Default databases will be restored to factory content.\nUser-created databases will be deleted.\n\nThis cannot be undone. Are you sure?',
+            'This will permanently reset all {count} database files.\n\n'
+            'Default databases will be restored to factory content.\nUser-created databases will be deleted.\n\nThis cannot be undone. Are you sure?',
+            count,
         )
         result = QMessageBox.warning(self, TITLE, prompt, QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No)
         if result != QMessageBox.StandardButton.Yes:
@@ -604,7 +622,7 @@ class UserIPImportExportMixin(QDialog):
                 refresh_userip_and_wake_renderer()
             return restored_count, deleted_count
 
-        with loading_overlay_scope(self, 'Resetting Databases\u2026', 'Restoring factory UserIP databases\u2026'):
+        with loading_overlay_scope(self, tr('Resetting Databases\u2026'), tr('Restoring factory UserIP databases\u2026')):
             restored, deleted = run_with_active_loading(_perform_reset)
             self._refresh_tree_item_visual(resort=True)
             self._refresh_stats()
@@ -621,6 +639,9 @@ class UserIPImportExportMixin(QDialog):
             else:
                 self._rebuild_fs_watch()
 
-        restored_part = f'  |  Restored {restored} default file{pluralize(restored)}' if restored else ''
-        deleted_part = f'  |  Deleted {deleted} user file{pluralize(deleted)}' if deleted else ''
-        self._set_status(f'Reset complete{restored_part}{deleted_part}')
+        status_parts = [tr('Reset complete')]
+        if restored:
+            status_parts.append(tr_plural('Restored {count} default file', 'Restored {count} default files', restored))
+        if deleted:
+            status_parts.append(tr_plural('Deleted {count} user file', 'Deleted {count} user files', deleted))
+        self._set_status('  |  '.join(status_parts))

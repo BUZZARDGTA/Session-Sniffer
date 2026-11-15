@@ -1,5 +1,6 @@
 """Looky System UI mixin and verify worker for `SettingsDialog`."""
 
+import html as html_lib
 from typing import TYPE_CHECKING, cast, override
 
 import pydantic
@@ -22,11 +23,13 @@ from PySide6.QtWidgets import (
 from session_sniffer.constants.standalone import LOOKY_BASE_HOST
 from session_sniffer.guis._crashing_qthread import CrashingQThread
 from session_sniffer.guis._settings_widget_builders import (
+    combo_canonical_value,
     create_setting_label,
     create_standard_form_layout,
     create_standard_vbox_layout,
     create_text_widget,
 )
+from session_sniffer.guis.live_language import set_i18n_colon_label
 from session_sniffer.guis.sensitive_value_widget import SensitiveValueWidget
 from session_sniffer.guis.stylesheets import (
     LOOKY_ACCOUNT_CARD_STYLESHEET,
@@ -35,6 +38,7 @@ from session_sniffer.guis.stylesheets import (
     LOOKY_INFO_LABEL_STYLESHEET,
 )
 from session_sniffer.guis.theming import themed_qss
+from session_sniffer.i18n import tr
 from session_sniffer.networking.looky_system import LookyState, verify_token
 
 if TYPE_CHECKING:
@@ -73,12 +77,12 @@ class _LookyVerifyWorker(CrashingQThread):
                 return
             self.verified.emit(result)
         except requests.HTTPError as e:
-            status = e.response.status_code if e.response is not None else 'unknown'
-            self.failed.emit(f'Invalid API key (HTTP {status}).')
+            status = e.response.status_code if e.response is not None else tr('unknown')
+            self.failed.emit(tr('Invalid API key (HTTP {status}).', status=status))
         except requests.RequestException as e:
-            self.failed.emit(f'Connection error: {e}')
+            self.failed.emit(tr('Connection error: {error}', error=e))
         except pydantic.ValidationError as e:
-            self.failed.emit(f'Unexpected response format: {e}')
+            self.failed.emit(tr('Unexpected response format: {error}', error=e))
 
 
 class SettingsDialogLookyMixin(QDialog):
@@ -90,12 +94,65 @@ class SettingsDialogLookyMixin(QDialog):
 
     # -- Attribute stubs (Looky System widgets, set during _build_tab) --
     _looky_group_box: QGroupBox
+    _looky_info_label: QLabel
     _looky_account_card: QFrame
     _looky_account_info_group: QGroupBox
     _looky_card_grid: QGridLayout
     _looky_verify_status_label: QLabel
     _looky_card_forms_container: QWidget
     _looky_account_sensitive_widgets: list[SensitiveValueWidget]
+    _looky_verified_data: LookyWhoAmI | None = None
+    _looky_verifying: bool = False
+
+    def _apply_looky_info_text(self) -> None:
+        """Apply localized RichText content to the Looky System info banner."""
+        discord_link = (
+            '<a href="https://discord.gg/umZ4yXRVfE" '
+            'title="https://discord.gg/umZ4yXRVfE" '
+            'style="color: #a78bfa; text-decoration: underline;">'
+            f"{html_lib.escape(tr('Discord server'))}</a>"
+        )
+        site_link = (
+            f'<a href="{LOOKY_BASE_HOST}" title="{LOOKY_BASE_HOST}" '
+            f'style="color: #a78bfa; text-decoration: underline;">{LOOKY_BASE_HOST}</a>'
+        )
+        field_html = f"<b>{html_lib.escape(tr('API Key'))}</b>"
+        column_html = f"<b>{html_lib.escape(tr('Usernames'))}</b>"
+        setting_html = f"<b>{html_lib.escape(tr('Feature Set'))}</b>"
+        section_html = f"<b>{html_lib.escape(tr('Capture'))} → {html_lib.escape(tr('General'))}</b>"
+        preset_html = f"<b>{html_lib.escape(tr('GTA V'))}</b>"
+        self._looky_info_label.setText(
+            themed_qss(
+                f"<b>{html_lib.escape(tr('Looky System is a paid API for GTA Online PC username resolution.'))}</b><br><br>"
+                + tr(
+                    'To obtain an API key, purchase access through their official {discord_link} or visit {site_link}.',
+                    discord_link=discord_link,
+                    site_link=site_link,
+                )
+                + '<br><br>'
+                + tr('Once you have your key, paste it in the {field} field below.', field=field_html)
+                + '<br><br>'
+                + tr('Player names will be resolved automatically in the background and shown in the {column} column.', column=column_html)
+                + '<br><br>'
+                + '<i>'
+                + tr(
+                    'Note: Looky System features are only active when the {setting} under {section} is set to {preset}.',
+                    setting=setting_html,
+                    section=section_html,
+                    preset=preset_html,
+                )
+                + '</i>',
+            ),
+        )
+
+    def _refresh_looky_language(self) -> None:
+        """Refresh RichText banner and account card texts after a live language change."""
+        if hasattr(self, '_looky_info_label'):
+            self._apply_looky_info_text()
+        if self._looky_verifying and hasattr(self, '_looky_verify_status_label'):
+            self._looky_verify_status_label.setText(tr('⟳ Verifying...'))
+        if self._looky_verified_data is not None and self._looky_card_forms_container.isVisible():
+            self._populate_looky_account_card(self._looky_verified_data)
 
     # -- Attribute stubs (set in SettingsDialog.__init__) --
     _widgets: dict[str, QWidget]
@@ -110,21 +167,13 @@ class SettingsDialogLookyMixin(QDialog):
         add_setting_row: Callable[[QFormLayout, str, SettingMeta], None],
     ) -> QGroupBox:
         """Build the custom Looky System group with info banner, settings, API key, and account info card."""
-        group_box = QGroupBox('Looky System')
+        group_box = QGroupBox(tr('Looky System'))
         self._looky_group_box = group_box
         outer = create_standard_vbox_layout(group_box)
 
-        info_label = QLabel(
-            themed_qss(
-                '<b>Looky System is a paid API for GTA Online PC username resolution.</b><br><br>'
-                'To obtain an API key, purchase access through their official '
-                '<a href="https://discord.gg/umZ4yXRVfE" title="https://discord.gg/umZ4yXRVfE" style="color: #a78bfa; text-decoration: underline;">Discord server</a> or visit '
-                f'<a href="{LOOKY_BASE_HOST}" title="{LOOKY_BASE_HOST}" style="color: #a78bfa; text-decoration: underline;">{LOOKY_BASE_HOST}</a>.<br><br>'
-                'Once you have your key, paste it in the <b>API Key</b> field below.<br><br>'
-                'Player names will be resolved automatically in the background and shown in the <b>Usernames</b> column.<br><br>'
-                '<i>Note: Looky System features are only active when the <b>Feature Set</b> under <b>Capture → General</b> is set to <b>GTA V</b>.</i>',
-            ),
-        )
+        info_label = QLabel()
+        self._looky_info_label = info_label
+        self._apply_looky_info_text()
         info_label.setWordWrap(True)
         info_label.setTextFormat(Qt.TextFormat.RichText)
         info_label.setOpenExternalLinks(True)
@@ -166,7 +215,7 @@ class SettingsDialogLookyMixin(QDialog):
     def _build_looky_account_info_group(self) -> QGroupBox:
         """Build the Account Information panel for the Looky System tab."""
         self._looky_account_sensitive_widgets = []
-        group_box = QGroupBox('Account Information')
+        group_box = QGroupBox(tr('Account Information'))
         outer = QVBoxLayout(group_box)
         outer.setSpacing(8)
 
@@ -202,7 +251,8 @@ class SettingsDialogLookyMixin(QDialog):
 
     def _make_card_label(self, text: str) -> QLabel:
         """Return a right-aligned label styled for the account card."""
-        lbl = QLabel(text + ':')
+        lbl = QLabel()
+        set_i18n_colon_label(lbl, text)
         lbl.setStyleSheet(LOOKY_CARD_LABEL_STYLESHEET)
         return lbl
 
@@ -216,6 +266,7 @@ class SettingsDialogLookyMixin(QDialog):
 
     def _populate_looky_account_card(self, data: LookyWhoAmI) -> None:
         """Fill the account info card with `data` and make it visible."""
+        self._looky_verified_data = data
         # Clear previous items from grid
         while self._looky_card_grid.count() > 0:
             item = self._looky_card_grid.takeAt(0)
@@ -234,7 +285,7 @@ class SettingsDialogLookyMixin(QDialog):
         self._looky_card_grid.addWidget(username_widget, 0, 1, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         self._looky_card_grid.addWidget(self._make_card_label('API Access'), 0, 3, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self._looky_card_grid.addWidget(
-            self._make_card_value(_bool_badge(value=data.api_access, true_text='Enabled', false_text='Disabled')),
+            self._make_card_value(_bool_badge(value=data.api_access, true_text=tr('Enabled'), false_text=tr('Disabled'))),
             0,
             4,
             Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
@@ -245,7 +296,7 @@ class SettingsDialogLookyMixin(QDialog):
         self._looky_card_grid.addWidget(rid_widget, 1, 1, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         self._looky_card_grid.addWidget(self._make_card_label('Status'), 1, 3, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self._looky_card_grid.addWidget(
-            self._make_card_value(_bool_badge(value=data.status, true_text='Active', false_text='Inactive')),
+            self._make_card_value(_bool_badge(value=data.status, true_text=tr('Active'), false_text=tr('Inactive'))),
             1,
             4,
             Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
@@ -261,13 +312,16 @@ class SettingsDialogLookyMixin(QDialog):
     def _on_looky_api_key_changed(self, text: str) -> None:
         """Show/hide Account Information and schedule a debounced verify when the key changes."""
         preset_widget = self._widgets.get('capture_feature_set')
-        is_gta5 = not isinstance(preset_widget, QComboBox) or preset_widget.currentText() == 'GTA V'
+        is_gta5 = not isinstance(preset_widget, QComboBox) or combo_canonical_value(preset_widget) == 'GTA V'
         stripped = text.strip()
         self._looky_account_info_group.setVisible(bool(stripped) and is_gta5)
         if not is_gta5 or not stripped or stripped == self._last_verified_key:
+            self._looky_verifying = False
             self._verify_debounce.stop()
             return
-        self._looky_verify_status_label.setText('⟳ Verifying...')
+        self._looky_verified_data = None
+        self._looky_verifying = True
+        self._looky_verify_status_label.setText(tr('⟳ Verifying...'))
         self._looky_verify_status_label.setVisible(True)
         self._looky_card_forms_container.setVisible(False)
         self._verify_debounce.start(1500)
@@ -275,7 +329,7 @@ class SettingsDialogLookyMixin(QDialog):
     def _trigger_looky_verify(self) -> None:
         """Start a background `/api/whoami` verify for the current API key value."""
         preset_widget = self._widgets.get('capture_feature_set')
-        if isinstance(preset_widget, QComboBox) and preset_widget.currentText() != 'GTA V':
+        if isinstance(preset_widget, QComboBox) and combo_canonical_value(preset_widget) != 'GTA V':
             return
         api_key_widget = self._widgets.get('looky_api_key')
         if not isinstance(api_key_widget, QLineEdit):
@@ -292,6 +346,7 @@ class SettingsDialogLookyMixin(QDialog):
 
     def _on_verify_success(self, data: LookyWhoAmI) -> None:
         """Handle a successful whoami response — populate the account card."""
+        self._looky_verifying = False
         api_key_widget = self._widgets.get('looky_api_key')
         if isinstance(api_key_widget, QLineEdit):
             self._last_verified_key = api_key_widget.text().strip()
@@ -300,6 +355,8 @@ class SettingsDialogLookyMixin(QDialog):
 
     def _on_verify_failed(self, error: str) -> None:
         """Handle a failed whoami response — show the error in the status label."""
+        self._looky_verifying = False
+        self._looky_verified_data = None
         self._last_verified_key = ''
         self._looky_verify_status_label.setText(error)
         self._looky_verify_status_label.setVisible(True)

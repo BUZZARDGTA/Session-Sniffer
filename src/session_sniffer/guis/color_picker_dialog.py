@@ -22,6 +22,7 @@ from session_sniffer.guis.stylesheets import (
     color_swatch_button_stylesheet,
 )
 from session_sniffer.guis.utils import scale_by_ui
+from session_sniffer.i18n import tr
 
 _SVG_COLOR_GROUPS: dict[str, list[str]] = {
     'Reds': [
@@ -208,7 +209,7 @@ class SVGColorPickerDialog(QDialog):
         """Initialize the SVG color picker dialog."""
         super().__init__(parent)
         self.setWindowModality(Qt.WindowModality.WindowModal)
-        self.setWindowTitle('Choose Color')
+        self.setWindowTitle(tr('Choose Color'))
         self.setWindowFlag(Qt.WindowType.WindowContextHelpButtonHint, on=False)
         self.resize(scale_by_ui(960), scale_by_ui(580))
 
@@ -227,7 +228,7 @@ class SVGColorPickerDialog(QDialog):
         initial_hex = initial_color.name().lower() if initial_color.isValid() else ''
 
         for group_name, color_names in _SVG_COLOR_GROUPS.items():
-            header = QLabel(group_name)
+            header = QLabel(tr(group_name))
             header.setStyleSheet(COLOR_SWATCH_GROUP_HEADER_STYLESHEET)
             content_layout.addWidget(header)
 
@@ -280,7 +281,7 @@ class SVGColorPickerDialog(QDialog):
 
         bottom = QHBoxLayout()
         bottom.addStretch()
-        cancel_button = QPushButton('Cancel')
+        cancel_button = QPushButton(tr('Cancel'))
         cancel_button.setAutoDefault(False)
         cancel_button.setCursor(Qt.CursorShape.PointingHandCursor)
         cancel_button.clicked.connect(self.reject)

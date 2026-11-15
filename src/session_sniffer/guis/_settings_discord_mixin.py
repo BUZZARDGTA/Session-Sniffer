@@ -18,7 +18,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from session_sniffer.constants.standalone import TITLE
+from session_sniffer.constants.standalone import DISCORD_INVITE_URL, TITLE
 from session_sniffer.discord.webhook import send_test_message
 from session_sniffer.guis._settings_widget_builders import (
     create_boolean_widget,
@@ -26,12 +26,15 @@ from session_sniffer.guis._settings_widget_builders import (
     create_standard_form_layout,
     create_text_widget,
 )
+from session_sniffer.guis.live_language import register_language_refresh
 from session_sniffer.guis.loading_overlay import run_async_with_loading
 from session_sniffer.guis.stylesheets import (
     DIALOG_DANGER_BUTTON_STYLESHEET,
+    DISCORD_INFO_LABEL_STYLESHEET,
     WEBHOOK_NOTE_LABEL_STYLESHEET,
 )
-from session_sniffer.guis.theming import ICONS_DIR_PATH
+from session_sniffer.guis.theming import ICONS_DIR_PATH, themed_qss
+from session_sniffer.i18n import tr
 from session_sniffer.settings.settings import Settings
 
 if TYPE_CHECKING:
@@ -42,14 +45,44 @@ if TYPE_CHECKING:
     from session_sniffer.settings import SettingMeta
 
 
+def build_discord_info_group() -> QGroupBox:
+    """Build a Discord server invite header for the Discord settings tab."""
+    group_box = QGroupBox()
+    layout = QVBoxLayout(group_box)
+
+    info_label = QLabel()
+    info_label.setWordWrap(True)
+    info_label.setTextFormat(Qt.TextFormat.RichText)
+    info_label.setOpenExternalLinks(True)
+    info_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
+    info_label.setStyleSheet(DISCORD_INFO_LABEL_STYLESHEET)
+    info_label.linkHovered.connect(info_label.setToolTip)
+    layout.addWidget(info_label)
+
+    def _apply_texts() -> None:
+        group_box.setTitle(tr('Session Sniffer Community').replace('&', '&&'))
+        intro_text = tr('Join the Session Sniffer Discord server for support, announcements, and community discussion.')
+        info_label.setText(
+            themed_qss(
+                f'{intro_text}<br><br>'
+                f'<a href="{DISCORD_INVITE_URL}" title="{DISCORD_INVITE_URL}" style="color: #61afef; text-decoration: underline;">{DISCORD_INVITE_URL}</a>',
+            ),
+        )
+
+    _apply_texts()
+    register_language_refresh(group_box, _apply_texts)
+    return group_box
+
+
 class SettingsDialogDiscordMixin(QDialog):
     """Discord tab helpers — server webhook group and related actions.
 
     Expects these attributes on the concrete class:
-        `_widgets`
+        `_widgets`, `_labels`, `_old_values`, `_pending_webhook_message_ids_reset`
     """
 
     _widgets: dict[str, QWidget]
+    _labels: dict[str, QLabel]
     _old_values: dict[str, bool | str | int | float | tuple[str, ...] | None]
     _pending_webhook_message_ids_reset: bool
 
@@ -59,7 +92,7 @@ class SettingsDialogDiscordMixin(QDialog):
         add_setting_row: Callable[[QFormLayout, str, SettingMeta], None],
     ) -> QGroupBox:
         """Build the custom Discord Webhook group with masked URL and enable cascade."""
-        group_box = QGroupBox('Webhook')
+        group_box = QGroupBox(tr('Webhook'))
         outer = QVBoxLayout(group_box)
         outer.setSpacing(8)
 
@@ -73,7 +106,9 @@ class SettingsDialogDiscordMixin(QDialog):
         if enabled_meta is not None:
             enabled_widget = create_boolean_widget(enabled_meta)
             self._widgets['discord_webhook_enabled'] = enabled_widget
-            top_form.addRow(create_setting_label(enabled_meta), enabled_widget)
+            enabled_label = create_setting_label(enabled_meta)
+            self._labels['discord_webhook_enabled'] = enabled_label
+            top_form.addRow(enabled_label, enabled_widget)
 
         # Use the standard text-field widget directly in the form row so its label
         # aligns the same way as other settings, such as Presence Title.
@@ -91,13 +126,15 @@ class SettingsDialogDiscordMixin(QDialog):
             url_row_layout.setSpacing(6)
             url_row_layout.addWidget(url_line, 1)
 
-            test_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'settings.svg')), ' Test')
+            test_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'settings.svg')), f" {tr('Test')}")
             test_button.setFixedHeight(url_line.sizeHint().height())
-            test_button.setToolTip('Send a one-time test message to this webhook URL')
+            test_button.setToolTip(tr('Send a one-time test message to this webhook URL'))
             test_button.clicked.connect(partial(self._test_webhook, url_line))
             url_row_layout.addWidget(test_button)
 
-            top_form.addRow(create_setting_label(url_meta), url_row)
+            url_label = create_setting_label(url_meta)
+            self._labels['discord_webhook_url'] = url_label
+            top_form.addRow(url_label, url_row)
 
         outer.addLayout(top_form)
 
@@ -120,20 +157,29 @@ class SettingsDialogDiscordMixin(QDialog):
                 if isinstance(label, QLabel):
                     form_labels.append(label)
         if form_labels:
-            label_width = max(label.sizeHint().width() for label in form_labels)
-            for label in form_labels:
-                label.setMinimumWidth(label_width)
-                label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+
+            def _sync_form_label_widths() -> None:
+                for label in form_labels:
+                    label.setMinimumWidth(0)
+                label_width = max(label.sizeHint().width() for label in form_labels)
+                for label in form_labels:
+                    label.setMinimumWidth(label_width)
+                    label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+
+            _sync_form_label_widths()
+            register_language_refresh(group_box, _sync_form_label_widths)
 
         outer.addWidget(details_widget)
 
         # Reset Stored Messages button (separate row, also gated on enabled).
         reset_messages_row = QHBoxLayout()
         reset_messages_row.addStretch()
-        reset_messages_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'refresh-cw.svg')), ' Reset Stored Messages')
+        reset_messages_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'refresh-cw.svg')), f" {tr('Reset Stored Messages')}")
         reset_messages_button.setToolTip(
-            'Forget the IDs of the two posted messages so the next refresh creates fresh ones.\n'
-            'Use this after changing channels or after Wick/automod deletes the old messages.',
+            tr(
+                'Forget the IDs of the two posted messages so the next refresh creates fresh ones.\n'
+                'Use this after changing channels or after Wick/automod deletes the old messages.',
+            ),
         )
         reset_messages_button.setStyleSheet(DIALOG_DANGER_BUTTON_STYLESHEET)
         reset_messages_button.clicked.connect(self._reset_stored_messages)
@@ -142,8 +188,10 @@ class SettingsDialogDiscordMixin(QDialog):
 
         # Footer note about automod / Wick.
         note = QLabel(
-            'If your server runs Wick or another automod with a "wall of text" filter, '
-            'whitelist this webhook (or its channel) to prevent the messages — and the webhook itself — from being deleted.',
+            tr(
+                'If your server runs Wick or another automod with a "wall of text" filter, '
+                'whitelist this webhook (or its channel) to prevent the messages — and the webhook itself — from being deleted.',
+            ),
         )
         note.setWordWrap(True)
         note.setStyleSheet(WEBHOOK_NOTE_LABEL_STYLESHEET)
@@ -186,25 +234,28 @@ class SettingsDialogDiscordMixin(QDialog):
     def _reset_stored_messages(self) -> None:
         """Stage clearing persisted Discord webhook message IDs when Settings are saved."""
         if Settings.discord_webhook_message_ids in (None, '') or self._pending_webhook_message_ids_reset:
-            QMessageBox.information(self, TITLE, 'No stored Discord messages to reset.')
+            QMessageBox.information(self, TITLE, tr('No stored Discord messages to reset.'))
             return
         confirm = QMessageBox.question(
             self,
             TITLE,
-            'Forget the IDs of the two posted Discord messages?\n\nThe next refresh after saving Settings will create two fresh messages instead of editing the old ones.',
+            tr(
+                'Forget the IDs of the two posted Discord messages?\n\n'
+                'The next refresh after saving Settings will create two fresh messages instead of editing the old ones.',
+            ),
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No,
         )
         if confirm != QMessageBox.StandardButton.Yes:
             return
         self._pending_webhook_message_ids_reset = True
-        QMessageBox.information(self, TITLE, 'Stored Discord message IDs will be cleared when you click Save.')
+        QMessageBox.information(self, TITLE, tr('Stored Discord message IDs will be cleared when you click Save.'))
 
     def _test_webhook(self, url_widget: QLineEdit) -> None:
         """Send a test message asynchronously to the URL currently in the URL widget."""
         url = url_widget.text().strip()
         if not url:
-            QMessageBox.warning(self, TITLE, 'Please enter a Discord webhook URL first.')
+            QMessageBox.warning(self, TITLE, tr('Please enter a Discord webhook URL first.'))
             return
 
         def _on_done(result: tuple[bool, str]) -> None:
@@ -216,8 +267,8 @@ class SettingsDialogDiscordMixin(QDialog):
 
         run_async_with_loading(
             self,
-            'Testing Discord Webhook\u2026',
-            'Sending test message to Discord\u2026',
+            tr('Testing Discord Webhook…'),
+            tr('Sending test message to Discord…'),
             lambda: send_test_message(url),
             _on_done,
         )

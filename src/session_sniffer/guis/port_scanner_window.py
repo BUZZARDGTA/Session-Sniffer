@@ -40,6 +40,7 @@ from session_sniffer.constants.tables import (
 from session_sniffer.error_messages import ensure_instance
 from session_sniffer.guis._crashing_qthread import CrashingQThread
 from session_sniffer.guis.fonts import get_monospace_font
+from session_sniffer.guis.live_language import register_language_refresh, set_i18n_colon_label, set_table_headers
 from session_sniffer.guis.ping_window import PingWindow
 from session_sniffer.guis.stylesheets import (
     DIALOG_BUTTON_STYLESHEET,
@@ -56,6 +57,7 @@ from session_sniffer.guis.utils import (
     scale_by_ui,
     set_clipboard_text,
 )
+from session_sniffer.i18n import tr, tr_plural
 from session_sniffer.networking.ping import PingMode
 from session_sniffer.networking.port_scanner import (
     DEFAULT_SCAN_THREADS,
@@ -71,7 +73,6 @@ from session_sniffer.networking.port_scanner import (
     port_scan_execution,
     probe_single_target,
 )
-from session_sniffer.text_utils import pluralize
 
 _DEFAULT_TARGET: Final[str] = '127.0.0.1'
 _COLUMN_PORT: Final[int] = 0
@@ -124,13 +125,8 @@ class PortScannerWorkerThread(CrashingQThread):
             if self._abort_signal.is_set() or self.isInterruptionRequested():
                 return
             config = PortScanConfiguration(
-                target_host=config.target_host,
-                target_ip=resolved_ip,
-                ports=config.ports,
-                protocol=config.protocol,
-                timeout_seconds=config.timeout_seconds,
-                threads=config.threads,
-                grab_banner=config.grab_banner,
+                target_host=config.target_host, target_ip=resolved_ip, ports=config.ports, protocol=config.protocol,
+                timeout_seconds=config.timeout_seconds, threads=config.threads, grab_banner=config.grab_banner,
             )
             self.target_resolved.emit(resolved_ip)
 
@@ -156,12 +152,7 @@ class PortScannerWorkerThread(CrashingQThread):
             for port, protocol in probe_tasks:
                 if self._abort_signal.is_set() or self.isInterruptionRequested():
                     break
-                future = executor.submit(
-                    probe_single_target,
-                    config,
-                    port,
-                    protocol,
-                )
+                future = executor.submit(probe_single_target, config, port, protocol)
                 future_to_task[future] = (port, protocol)
 
             for future in as_completed(future_to_task):
@@ -176,13 +167,7 @@ class PortScannerWorkerThread(CrashingQThread):
                     stats.open_count += 1
 
                 self.result_found.emit(probe_result)
-                self.scan_progress.emit(
-                    stats.completed_probes,
-                    stats.total_probes,
-                    stats.open_count,
-                    stats.elapsed_seconds,
-                    stats.scan_speed_ports_per_second,
-                )
+                self.scan_progress.emit(stats.completed_probes, stats.total_probes, stats.open_count, stats.elapsed_seconds, stats.scan_speed_ports_per_second)
 
         self.scan_complete.emit()
 
@@ -190,13 +175,7 @@ class PortScannerWorkerThread(CrashingQThread):
 class PortScannerTabWidget(QWidget):
     """Tab page managing port scanning against a specific host or IP address."""
 
-    def __init__(
-        self,
-        target: str | None = None,
-        *,
-        tab_widget: QTabWidget | None = None,
-        parent: QWidget | None = None,
-    ) -> None:
+    def __init__(self, target: str | None = None, *, tab_widget: QTabWidget | None = None, parent: QWidget | None = None) -> None:
         """Initialize the port scanner tab widget."""
         super().__init__(parent)
         self._tab_widget = tab_widget
@@ -204,14 +183,19 @@ class PortScannerTabWidget(QWidget):
         self._retiring_workers: set[PortScannerWorkerThread] = set()
         self._results: list[PortScanResult] = []
         self._scanned_target: str = ''
+        self._metrics_state: str = 'ready'
+        self._metrics_target_host: str = ''
+        self._metrics_port_count: int = 0
+        self._metrics_resolved_ip: str = ''
+        self._metrics_progress: tuple[int, int, int, float, float] = (0, 0, 0, 0.0, 0.0)
 
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(8, 8, 8, 8)
         main_layout.setSpacing(6)
 
         target_text = '' if target is None or target.strip() == _DEFAULT_TARGET else target.strip()
-        controls_box = self._create_controls_box(target_text)
-        main_layout.addWidget(controls_box)
+        self._controls_box = self._create_controls_box(target_text)
+        main_layout.addWidget(self._controls_box)
 
         # --- Progress Bar & Real-time Metrics ---
         progress_layout = QHBoxLayout()
@@ -223,7 +207,7 @@ class PortScannerTabWidget(QWidget):
         self._progress_bar.setTextVisible(True)
         self._progress_bar.setFixedHeight(scale_by_ui(18))
 
-        self._metrics_label = QLabel('Ready. Press Start Scan to begin.')
+        self._metrics_label = QLabel()
         self._metrics_label.setStyleSheet(themed_qss('color: #a5b4c4; font-size: 8.5pt;'))
 
         progress_layout.addWidget(self._progress_bar, stretch=1)
@@ -232,16 +216,7 @@ class PortScannerTabWidget(QWidget):
 
         # --- Results Table ---
         self._results_table = QTableWidget(0, _TOTAL_COLUMNS)
-        self._results_table.setHorizontalHeaderLabels(
-            [
-                'Port',
-                'Protocol',
-                'State',
-                'Service',
-                'Latency (ms)',
-                'Banner / Details',
-            ],
-        )
+        set_table_headers(self._results_table, ['Port', 'Protocol', 'State', 'Service', 'Latency (ms)', 'Banner / Details'])
         self._results_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self._results_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self._results_table.setAlternatingRowColors(True)
@@ -249,10 +224,7 @@ class PortScannerTabWidget(QWidget):
         self._results_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self._results_table.customContextMenuRequested.connect(self._show_table_context_menu)
 
-        self._column_resizer: TableColumnResizeController = TableColumnResizeController(
-            self._results_table,
-            min_column_widths=PORT_SCANNER_TABLE_MIN_COLUMN_WIDTHS,
-        )
+        self._column_resizer: TableColumnResizeController = TableColumnResizeController(self._results_table, min_column_widths=PORT_SCANNER_TABLE_MIN_COLUMN_WIDTHS)
         header = self._results_table.horizontalHeader()
         header.setStretchLastSection(False)
         header.setMinimumSectionSize(scale_by_ui(DEFAULT_MIN_COLUMN_WIDTH))
@@ -275,33 +247,31 @@ class PortScannerTabWidget(QWidget):
         toolbar_layout = QHBoxLayout()
         toolbar_layout.setSpacing(8)
 
-        self._show_open_only_checkbox = QCheckBox('Show Open Ports Only')
+        self._show_open_only_checkbox = QCheckBox()
         self._show_open_only_checkbox.setChecked(True)
         self._show_open_only_checkbox.toggled.connect(self._apply_table_filter)
 
         primary_tint = themed_text_qcolor('#ffffff', '#007acc').name(QColor.NameFormat.HexArgb)
-        self._start_stop_button = QPushButton(
-            render_svg_icon_from_resource('circle-play.svg', scale_by_ui(16), scale_by_ui(16), primary_tint),
-            ' Start Scan',
-        )
+        self._start_stop_button = QPushButton(render_svg_icon_from_resource('circle-play.svg', scale_by_ui(16), scale_by_ui(16), primary_tint), '')
         self._start_stop_button.setStyleSheet(DIALOG_PRIMARY_BUTTON_STYLESHEET)
         self._start_stop_button.clicked.connect(self._toggle_start_stop)
 
-        copy_selected_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'copy.svg')), ' Copy Selected')
+        copy_selected_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'copy.svg')), '')
         copy_selected_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
         copy_selected_button.clicked.connect(self._copy_selected_rows)
         self._copy_selected_button = copy_selected_button
 
-        copy_all_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'copy.svg')), ' Copy All Open')
+        copy_all_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'copy.svg')), '')
         copy_all_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
         copy_all_button.clicked.connect(self._copy_all_open)
         self._copy_all_button = copy_all_button
 
-        export_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'save.svg')), ' Export…')
+        export_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'save.svg')), '')
         export_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
         export_button.clicked.connect(self._export_results)
+        self._export_button = export_button
 
-        clear_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'trash.svg')), ' Clear')
+        clear_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'trash.svg')), '')
         clear_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
         clear_button.setEnabled(False)
         clear_button.clicked.connect(self._clear_results)
@@ -317,6 +287,9 @@ class PortScannerTabWidget(QWidget):
 
         main_layout.addLayout(toolbar_layout)
 
+        self._apply_translations()
+        register_language_refresh(self, self._apply_translations)
+
     @property
     def target(self) -> str:
         """Return the target configured for this tab."""
@@ -327,20 +300,105 @@ class PortScannerTabWidget(QWidget):
         """Return True if a port scan worker thread is active."""
         return self._worker_thread is not None and self._worker_thread.isRunning()
 
-    def _on_preset_changed(self, preset_name: str) -> None:
+    def _apply_translations(self) -> None:
+        """Apply current translations to controls, headers, table rows, and metrics."""
+        self._controls_box.setTitle(tr('Scan Configuration'))
+        self._ports_input.setPlaceholderText(tr('e.g. 80, 443, 1-1024'))
+
+        for i in range(self._preset_combo.count()):
+            preset_key = self._preset_combo.itemData(i)
+            if isinstance(preset_key, str):
+                self._preset_combo.setItemText(i, tr(preset_key))
+
+        protocol_labels = {PortScanProtocol.TCP: 'TCP', PortScanProtocol.UDP: 'UDP', PortScanProtocol.BOTH: 'TCP + UDP'}
+        for i in range(self._protocol_combo.count()):
+            proto_data = self._protocol_combo.itemData(i)
+            if isinstance(proto_data, PortScanProtocol) and proto_data in protocol_labels:
+                self._protocol_combo.setItemText(i, tr(protocol_labels[proto_data]))
+
+        self._threads_spinbox.setSuffix(f" {tr('threads')}")
+        self._timeout_spinbox.setSuffix(f" {tr('ms')}")
+        self._banner_checkbox.setText(tr('Grab Service Banners'))
+        self._show_open_only_checkbox.setText(tr('Show Open Ports Only'))
+
+        self._start_stop_button.setText(f" {tr('Stop Scan')}" if self.is_running else f" {tr('Start Scan')}")
+        self._copy_selected_button.setText(f" {tr('Copy Selected')}")
+        self._copy_all_button.setText(f" {tr('Copy All Open')}")
+        self._export_button.setText(f" {tr('Export…')}")
+        self._clear_results_button.setText(f" {tr('Clear')}")
+
+        set_table_headers(self._results_table, ['Port', 'Protocol', 'State', 'Service', 'Latency (ms)', 'Banner / Details'])
+        for row in range(self._results_table.rowCount()):
+            protocol_item = self._results_table.item(row, _COLUMN_PROTOCOL)
+            if protocol_item is not None:
+                proto_key = protocol_item.data(Qt.ItemDataRole.UserRole)
+                if isinstance(proto_key, str):
+                    protocol_item.setText(tr(proto_key))
+            state_item = self._results_table.item(row, _COLUMN_STATE)
+            if state_item is not None:
+                state_value = state_item.data(Qt.ItemDataRole.UserRole)
+                if isinstance(state_value, PortScanState):
+                    state_item.setText(tr(state_value.value))
+
+        self._update_metrics_label()
+
+    def _update_metrics_label(self) -> None:
+        """Render the current status or live progress text in the active language."""
+        if self._metrics_state == 'ready':
+            self._metrics_label.setText(tr('Ready. Press Start Scan to begin.'))
+            return
+        if self._metrics_state == 'resolving':
+            self._metrics_label.setText(tr('Resolving {target_host}…', target_host=self._metrics_target_host))
+            return
+        if self._metrics_state == 'resolved':
+            self._metrics_label.setText(
+                tr_plural(
+                    'Starting scan of {count} port on {target_host} ({resolved_ip})…',
+                    'Starting scan of {count} ports on {target_host} ({resolved_ip})…',
+                    self._metrics_port_count, target_host=self._metrics_target_host, resolved_ip=self._metrics_resolved_ip,
+                ),
+            )
+            return
+        if self._metrics_state == 'dns_failed':
+            self._metrics_label.setText(tr('DNS resolution failed.'))
+            return
+        if self._metrics_state == 'cleared':
+            self._metrics_label.setText(tr('Results cleared.'))
+            return
+
+        completed_probes, total_probes, open_count, elapsed_seconds, speed_ports_per_sec = self._metrics_progress
+        percentage = int((completed_probes / total_probes) * 100) if total_probes > 0 else 0
+        duration_minutes = int(elapsed_seconds) // 60
+        duration_remainder_seconds = int(elapsed_seconds) % 60
+        duration_string = f'{duration_minutes:02d}:{duration_remainder_seconds:02d}'
+        self._metrics_label.setText(
+            themed_qss(
+                tr(
+                    'Scanned: {completed_probes} / {total_probes} ({percentage}%) | '
+                    'Open: <b style="color: #2ecc71;">{open_count}</b> | '
+                    'Speed: {speed} ports/s | '
+                    'Elapsed: {duration_string}',
+                    completed_probes=completed_probes, total_probes=total_probes, percentage=percentage,
+                    open_count=open_count, speed=f'{speed_ports_per_sec:.0f}', duration_string=duration_string,
+                ),
+            ),
+        )
+
+    def _on_preset_changed(self, _index: int) -> None:
         """Update ports input when preset selection changes."""
-        if preset_name in PORT_PRESETS:
+        preset_name = self._preset_combo.currentData()
+        if isinstance(preset_name, str) and preset_name in PORT_PRESETS:
             self._ports_input.setText(PORT_PRESETS[preset_name])
 
     def _on_ports_text_edited(self) -> None:
         """Switch preset dropdown to Custom when user edits ports field directly."""
-        custom_index = self._preset_combo.findText('Custom')
+        custom_index = self._preset_combo.findData('Custom')
         if custom_index >= 0 and self._preset_combo.currentIndex() != custom_index:
             self._preset_combo.setCurrentIndex(custom_index)
 
     def _create_controls_box(self, initial_target: str) -> QGroupBox:
         """Construct the configuration controls panel for the tab."""
-        box = QGroupBox('Scan Configuration')
+        box = QGroupBox()
         box_layout = QVBoxLayout(box)
         box_layout.setContentsMargins(8, 8, 8, 8)
         box_layout.setSpacing(6)
@@ -348,27 +406,29 @@ class PortScannerTabWidget(QWidget):
         target_row = QHBoxLayout()
         target_row.setSpacing(8)
 
-        target_label = QLabel('Target:')
+        target_label = QLabel()
+        set_i18n_colon_label(target_label, 'Target')
         self._target_input = QLineEdit(initial_target)
         self._target_input.setPlaceholderText(_DEFAULT_TARGET)
         self._target_input.setMinimumWidth(scale_by_ui(160))
         self._target_input.textChanged.connect(self._on_target_text_changed)
 
-        preset_label = QLabel('Preset:')
+        preset_label = QLabel()
+        set_i18n_colon_label(preset_label, 'Preset')
         self._preset_combo = QComboBox()
         self._preset_combo.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         for preset_name in PORT_PRESETS:
-            self._preset_combo.addItem(preset_name)
-        self._preset_combo.addItem('Custom')
-        preset_index = self._preset_combo.findText('Top 100 Common')
+            self._preset_combo.addItem(tr(preset_name), preset_name)
+        self._preset_combo.addItem(tr('Custom'), 'Custom')
+        preset_index = self._preset_combo.findData('Top 100 Common')
         if preset_index >= 0:
             self._preset_combo.setCurrentIndex(preset_index)
-        self._preset_combo.currentTextChanged.connect(self._on_preset_changed)
+        self._preset_combo.currentIndexChanged.connect(self._on_preset_changed)
 
-        ports_label = QLabel('Ports:')
+        ports_label = QLabel()
+        set_i18n_colon_label(ports_label, 'Ports')
         initial_ports = PORT_PRESETS.get('Top 100 Common', '1-1024')
         self._ports_input = QLineEdit(initial_ports)
-        self._ports_input.setPlaceholderText('e.g. 80, 443, 1-1024')
         self._ports_input.textEdited.connect(self._on_ports_text_edited)
 
         target_row.addWidget(target_label)
@@ -381,30 +441,31 @@ class PortScannerTabWidget(QWidget):
         options_row = QHBoxLayout()
         options_row.setSpacing(8)
 
-        proto_label = QLabel('Protocol:')
+        proto_label = QLabel()
+        set_i18n_colon_label(proto_label, 'Protocol')
         self._protocol_combo = QComboBox()
         self._protocol_combo.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
-        self._protocol_combo.addItem('TCP', PortScanProtocol.TCP)
-        self._protocol_combo.addItem('UDP', PortScanProtocol.UDP)
-        self._protocol_combo.addItem('TCP + UDP', PortScanProtocol.BOTH)
+        self._protocol_combo.addItem(tr('TCP'), PortScanProtocol.TCP)
+        self._protocol_combo.addItem(tr('UDP'), PortScanProtocol.UDP)
+        self._protocol_combo.addItem(tr('TCP + UDP'), PortScanProtocol.BOTH)
 
-        threads_label = QLabel('Threads:')
+        threads_label = QLabel()
+        set_i18n_colon_label(threads_label, 'Threads')
         self._threads_spinbox = QSpinBox()
         self._threads_spinbox.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self._threads_spinbox.setRange(1, MAX_SCAN_THREADS)
         self._threads_spinbox.setSingleStep(32)
         self._threads_spinbox.setValue(DEFAULT_SCAN_THREADS)
-        self._threads_spinbox.setSuffix(' threads')
 
-        timeout_label = QLabel('Timeout:')
+        timeout_label = QLabel()
+        set_i18n_colon_label(timeout_label, 'Timeout')
         self._timeout_spinbox = QSpinBox()
         self._timeout_spinbox.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self._timeout_spinbox.setRange(100, 10000)
         self._timeout_spinbox.setSingleStep(100)
         self._timeout_spinbox.setValue(int(DEFAULT_SCAN_TIMEOUT_SECONDS * 1000))
-        self._timeout_spinbox.setSuffix(' ms')
 
-        self._banner_checkbox = QCheckBox('Grab Service Banners')
+        self._banner_checkbox = QCheckBox()
         self._banner_checkbox.setChecked(True)
 
         options_row.addWidget(proto_label)
@@ -434,13 +495,13 @@ class PortScannerTabWidget(QWidget):
 
         target_host = self.target
         if not target_host:
-            QMessageBox.warning(self, 'Input Error', 'Please specify a target IP address or hostname.')
+            QMessageBox.warning(self, tr('Input Error'), tr('Please specify a target IP address or hostname.'))
             return
 
         try:
             parsed_ports = parse_port_specification(self._ports_input.text())
         except ValueError as error:
-            QMessageBox.warning(self, 'Port Format Error', str(error))
+            QMessageBox.warning(self, tr('Port Format Error'), str(error))
             return
 
         proto_data = self._protocol_combo.currentData()
@@ -450,36 +511,26 @@ class PortScannerTabWidget(QWidget):
         grab_banners = self._banner_checkbox.isChecked()
 
         configuration = PortScanConfiguration(
-            target_host=target_host,
-            target_ip='',
-            ports=parsed_ports,
-            protocol=protocol,
-            timeout_seconds=timeout_seconds,
-            threads=threads_count,
-            grab_banner=grab_banners,
+            target_host=target_host, target_ip='', ports=parsed_ports, protocol=protocol,
+            timeout_seconds=timeout_seconds, threads=threads_count, grab_banner=grab_banners,
         )
 
         self._clear_results()
         self._scanned_target = target_host
         self._progress_bar.setValue(0)
-        self._metrics_label.setText(f'Resolving {target_host}…')
-
-        danger_tint = themed_text_qcolor('#ffffff', '#b91c1c').name(QColor.NameFormat.HexArgb)
-        self._start_stop_button.setText(' Stop Scan')
-        self._start_stop_button.setIcon(render_svg_icon_from_resource('circle-stop.svg', scale_by_ui(16), scale_by_ui(16), danger_tint))
-        self._start_stop_button.setStyleSheet(DIALOG_DANGER_BUTTON_STYLESHEET)
-        self._target_input.setEnabled(False)
-        self._preset_combo.setEnabled(False)
-        self._ports_input.setEnabled(False)
-        self._protocol_combo.setEnabled(False)
-        self._threads_spinbox.setEnabled(False)
-        self._timeout_spinbox.setEnabled(False)
-        self._banner_checkbox.setEnabled(False)
+        self._metrics_state = 'resolving'
+        self._metrics_target_host = target_host
+        self._update_metrics_label()
+        self._set_scanning_ui(scanning=True)
 
         port_count = len(parsed_ports)
 
         def _on_target_resolved(resolved_ip: str) -> None:
-            self._metrics_label.setText(f'Starting scan of {port_count} port{pluralize(port_count)} on {target_host} ({resolved_ip})…')
+            self._metrics_state = 'resolved'
+            self._metrics_target_host = target_host
+            self._metrics_port_count = port_count
+            self._metrics_resolved_ip = resolved_ip
+            self._update_metrics_label()
 
         self._worker_thread = PortScannerWorkerThread(configuration)
         self._worker_thread.target_resolved.connect(_on_target_resolved)
@@ -492,8 +543,9 @@ class PortScannerTabWidget(QWidget):
     def _on_scan_failed(self, error_message: str) -> None:
         """Restore controls and report a DNS resolution failure on the GUI thread."""
         self._on_worker_finished()
-        self._metrics_label.setText('DNS resolution failed.')
-        QMessageBox.warning(self, 'DNS Resolution Error', f'Failed to resolve target host:\n{error_message}')
+        self._metrics_state = 'dns_failed'
+        self._update_metrics_label()
+        QMessageBox.warning(self, tr('DNS Resolution Error'), tr('Failed to resolve target host:\n{error_message}', error_message=error_message))
 
     def stop_scan(self) -> None:
         """Abort the active port scan."""
@@ -518,46 +570,30 @@ class PortScannerTabWidget(QWidget):
             return
         self.stop_scan()
 
+    def _set_scanning_ui(self, *, scanning: bool) -> None:
+        """Toggle scan button appearance and configuration input enabled state."""
+        tint = themed_text_qcolor('#ffffff', '#b91c1c' if scanning else '#007acc').name(QColor.NameFormat.HexArgb)
+        self._start_stop_button.setText(f" {tr('Stop Scan')}" if scanning else f" {tr('Start Scan')}")
+        icon_name = 'circle-stop.svg' if scanning else 'circle-play.svg'
+        self._start_stop_button.setIcon(render_svg_icon_from_resource(icon_name, scale_by_ui(16), scale_by_ui(16), tint))
+        self._start_stop_button.setStyleSheet(DIALOG_DANGER_BUTTON_STYLESHEET if scanning else DIALOG_PRIMARY_BUTTON_STYLESHEET)
+        for widget in (self._target_input, self._preset_combo, self._ports_input, self._protocol_combo, self._threads_spinbox, self._timeout_spinbox, self._banner_checkbox):
+            widget.setEnabled(not scanning)
+
     def _on_worker_finished(self) -> None:
         """Restore control states upon worker thread completion."""
         self._worker_thread = None
-        primary_tint = themed_text_qcolor('#ffffff', '#007acc').name(QColor.NameFormat.HexArgb)
-        self._start_stop_button.setText(' Start Scan')
-        self._start_stop_button.setIcon(render_svg_icon_from_resource('circle-play.svg', scale_by_ui(16), scale_by_ui(16), primary_tint))
-        self._start_stop_button.setStyleSheet(DIALOG_PRIMARY_BUTTON_STYLESHEET)
-        self._target_input.setEnabled(True)
-        self._preset_combo.setEnabled(True)
-        self._ports_input.setEnabled(True)
-        self._protocol_combo.setEnabled(True)
-        self._threads_spinbox.setEnabled(True)
-        self._timeout_spinbox.setEnabled(True)
-        self._banner_checkbox.setEnabled(True)
+        self._set_scanning_ui(scanning=False)
         if self._column_resizer.custom_widths is None:
             self._setup_column_resizing()
 
-    def _on_progress_updated(
-        self,
-        completed_probes: int,
-        total_probes: int,
-        open_count: int,
-        elapsed_seconds: float,
-        speed_ports_per_sec: float,
-    ) -> None:
+    def _on_progress_updated(self, completed_probes: int, total_probes: int, open_count: int, elapsed_seconds: float, speed_ports_per_sec: float) -> None:
         """Update live progress bar and scan rate metrics."""
         percentage = int((completed_probes / total_probes) * 100) if total_probes > 0 else 0
         self._progress_bar.setValue(percentage)
-        duration_minutes = int(elapsed_seconds) // 60
-        duration_remainder_seconds = int(elapsed_seconds) % 60
-        duration_string = f'{duration_minutes:02d}:{duration_remainder_seconds:02d}'
-
-        self._metrics_label.setText(
-            themed_qss(
-                f'Scanned: {completed_probes} / {total_probes} ({percentage}%) | '
-                f'Open: <b style="color: #2ecc71;">{open_count}</b> | '
-                f'Speed: {speed_ports_per_sec:.0f} ports/s | '
-                f'Elapsed: {duration_string}',
-            ),
-        )
+        self._metrics_state = 'progress'
+        self._metrics_progress = (completed_probes, total_probes, open_count, elapsed_seconds, speed_ports_per_sec)
+        self._update_metrics_label()
 
     def _on_result_received(self, result_object: object) -> None:
         """Append a newly discovered port probe result to the table."""
@@ -578,10 +614,12 @@ class PortScannerTabWidget(QWidget):
         port_item = QTableWidgetItem(str(result.port))
         port_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
 
-        protocol_item = QTableWidgetItem(result.protocol)
+        protocol_item = QTableWidgetItem(tr(result.protocol))
+        protocol_item.setData(Qt.ItemDataRole.UserRole, result.protocol)
         protocol_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        state_item = QTableWidgetItem(result.state.value)
+        state_item = QTableWidgetItem(tr(result.state.value))
+        state_item.setData(Qt.ItemDataRole.UserRole, result.state)
         state_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
         if result.state == PortScanState.OPEN:
             state_item.setForeground(themed_text_qcolor('#2ecc71', '#141414'))
@@ -645,12 +683,12 @@ class PortScannerTabWidget(QWidget):
     def _export_results(self) -> None:
         """Export current scan results to a CSV or text file."""
         if not self._results:
-            QMessageBox.information(self, 'No Results', 'There are no scan results to export.')
+            QMessageBox.information(self, tr('No Results'), tr('There are no scan results to export.'))
             return
 
         target_host = self._scanned_target or self.target
-        export_filter = 'CSV Files (*.csv);;Text Files (*.txt)'
-        file_path, _ = QFileDialog.getSaveFileName(self, 'Export Scan Results', f'port_scan_{target_host}.csv', export_filter)
+        export_filter = tr('CSV Files (*.csv);;Text Files (*.txt)')
+        file_path, _ = QFileDialog.getSaveFileName(self, tr('Export Scan Results'), f'port_scan_{target_host}.csv', export_filter)
         if not file_path:
             return
 
@@ -659,35 +697,31 @@ class PortScannerTabWidget(QWidget):
             with Path(file_path).open('w', newline='', encoding='utf-8') as file:
                 if is_csv:
                     writer = csv.writer(file)
-                    writer.writerow(['Port', 'Protocol', 'State', 'Service', 'Latency (ms)', 'Banner'])
+                    writer.writerow([tr('Port'), tr('Protocol'), tr('State'), tr('Service'), tr('Latency (ms)'), tr('Banner')])
                     for result in self._results:
-                        writer.writerow(
-                            [
-                                result.port,
-                                result.protocol,
-                                result.state.value,
-                                result.service_name,
-                                f'{result.latency_ms:.1f}' if result.latency_ms is not None else '',
-                                result.banner or '',
-                            ],
-                        )
+                        latency = f'{result.latency_ms:.1f}' if result.latency_ms is not None else ''
+                        writer.writerow([result.port, result.protocol, result.state.value, result.service_name, latency, result.banner or ''])
                 else:
-                    file.write(f'Port Scan Results for {target_host}\n')
+                    file.write(f"{tr('Port Scan Results for {target_host}', target_host=target_host)}\n")
                     file.write('=' * 60 + '\n')
                     for result in self._results:
                         latency_str = f' ({result.latency_ms:.1f}ms)' if result.latency_ms is not None else ''
                         banner_str = f' - {result.banner}' if bool(result.banner) else ''
                         file.write(f'{result.port}/{result.protocol}: {result.state.value} [{result.service_name}]{latency_str}{banner_str}\n')
-            QMessageBox.information(self, 'Export Complete', f'Saved {len(self._results)} port scan records to:\n{file_path}')
+            QMessageBox.information(
+                self, tr('Export Complete'),
+                tr_plural('Saved {count} port scan record to:\n{file_path}', 'Saved {count} port scan records to:\n{file_path}', len(self._results), file_path=file_path),
+            )
         except OSError as error:
-            QMessageBox.warning(self, 'Export Failed', f'Failed to write scan results file:\n{error}')
+            QMessageBox.warning(self, tr('Export Failed'), tr('Failed to write scan results file:\n{error}', error=error))
 
     def _clear_results(self) -> None:
         """Clear all stored scan results and empty the table."""
         self._results.clear()
         self._results_table.setRowCount(0)
         self._progress_bar.setValue(0)
-        self._metrics_label.setText('Results cleared.')
+        self._metrics_state = 'cleared'
+        self._update_metrics_label()
         self._clear_results_button.setEnabled(False)
 
     @override
@@ -726,31 +760,31 @@ class PortScannerTabWidget(QWidget):
             return
 
         port_str = port_item.text()
-        proto_str = proto_item.text() if proto_item else 'TCP'
+        canonical_proto = proto_item.data(Qt.ItemDataRole.UserRole) if proto_item else 'TCP'
+        if not isinstance(canonical_proto, str):
+            canonical_proto = 'TCP'
+        proto_display = proto_item.text() if proto_item else tr('TCP')
         port_num = int(port_str) if port_str.isdigit() else 0
 
         menu = QMenu(self)
         menu.setStyleSheet(SVG_ICON_CONTEXT_MENU_STYLESHEET)
 
-        copy_port_action = menu.addAction(QIcon(str(ICONS_DIR_PATH / 'copy.svg')), f'Copy Port ({port_str})')
+        copy_port_action = menu.addAction(QIcon(str(ICONS_DIR_PATH / 'copy.svg')), tr('Copy Port ({port})', port=port_str))
         copy_port_action.triggered.connect(lambda: set_clipboard_text(port_str))
 
         target_host = self._scanned_target or self.target
-        copy_target_port_action = menu.addAction(
-            QIcon(str(ICONS_DIR_PATH / 'copy.svg')),
-            f'Copy {target_host}:{port_str}',
-        )
+        copy_target_port_action = menu.addAction(QIcon(str(ICONS_DIR_PATH / 'copy.svg')), tr('Copy {target}:{port}', target=target_host, port=port_str))
         copy_target_port_action.triggered.connect(lambda: set_clipboard_text(f'{target_host}:{port_str}'))
 
         menu.addSeparator()
 
         ping_action = menu.addAction(
             QIcon(str(ICONS_DIR_PATH / 'circle-play.svg')),
-            f'Ping {target_host}:{port_str} ({proto_str})',
+            tr('Ping {target}:{port} ({protocol})', target=target_host, port=port_str, protocol=proto_display),
         )
 
         def _do_ping_port() -> None:
-            mode = PingMode.UDP if proto_str == 'UDP' else PingMode.TCP
+            mode = PingMode.UDP if canonical_proto == 'UDP' else PingMode.TCP
             PingWindow.open_window(target_host, mode=mode, port=int(port_str))
 
         ping_action.triggered.connect(_do_ping_port)
@@ -758,10 +792,7 @@ class PortScannerTabWidget(QWidget):
         if port_num in (80, 443, 8000, 8080, 8443, 8888, 3000, 5000, 9090):
             url_scheme = 'https' if port_num in (443, 8443) else 'http'
             browser_url = f'{url_scheme}://{target_host}:{port_num}'
-            open_browser_action = menu.addAction(
-                QIcon(str(ICONS_DIR_PATH / 'globe.svg')),
-                f'Open in Browser ({browser_url})',
-            )
+            open_browser_action = menu.addAction(QIcon(str(ICONS_DIR_PATH / 'globe.svg')), tr('Open in Browser ({url})', url=browser_url))
             open_browser_action.triggered.connect(lambda: webbrowser.open(browser_url))
 
         global_position = self._results_table.viewport().mapToGlobal(position)
@@ -778,7 +809,6 @@ class PortScannerWindow(QWidget):
         super().__init__(None, Qt.WindowType.Window)
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
         self.destroyed.connect(lambda: setattr(PortScannerWindow, '_instance', None) if PortScannerWindow._instance is self else None)
-        self.setWindowTitle(f'{TITLE} - Port Scanner')
         self.setWindowIcon(QIcon(str(ICONS_DIR_PATH / 'radar.svg')))
         self.resize(scale_by_ui(920), scale_by_ui(640))
 
@@ -792,6 +822,8 @@ class PortScannerWindow(QWidget):
         window_layout.addWidget(self._tab_widget, stretch=1)
 
         window_layout.addLayout(self._build_footer_action_bar())
+        self._apply_translations()
+        register_language_refresh(self, self._apply_translations)
 
         if targets is None:
             target_items: list[str | None] = [None]
@@ -803,26 +835,39 @@ class PortScannerWindow(QWidget):
         for target_name in target_items:
             self.add_target_tab(target_name)
 
+    def _apply_translations(self) -> None:
+        """Apply current translations to the window title and footer buttons."""
+        scanner_title = tr('Port Scanner')
+        self.setWindowTitle(f'{TITLE} - {scanner_title}')
+        self._scan_all_button.setText(f" {tr('Scan All')}")
+        self._stop_all_button.setText(f" {tr('Stop All')}")
+        self._add_target_button.setText(f" {tr('Add Target…')}")
+        self._close_button.setText(f" {tr('Close')}")
+
     def _build_footer_action_bar(self) -> QHBoxLayout:
         bar_layout = QHBoxLayout()
         bar_layout.setContentsMargins(4, 4, 4, 4)
         bar_layout.setSpacing(8)
 
-        scan_all_btn = QPushButton(QIcon(str(ICONS_DIR_PATH / 'circle-play.svg')), ' Scan All')
+        scan_all_btn = QPushButton(QIcon(str(ICONS_DIR_PATH / 'circle-play.svg')), '')
         scan_all_btn.setStyleSheet(DIALOG_PRIMARY_BUTTON_STYLESHEET)
         scan_all_btn.clicked.connect(self.start_all_tabs)
+        self._scan_all_button = scan_all_btn
 
-        stop_all_btn = QPushButton(QIcon(str(ICONS_DIR_PATH / 'circle-stop.svg')), ' Stop All')
+        stop_all_btn = QPushButton(QIcon(str(ICONS_DIR_PATH / 'circle-stop.svg')), '')
         stop_all_btn.setStyleSheet(DIALOG_DANGER_BUTTON_STYLESHEET)
         stop_all_btn.clicked.connect(self.stop_all_tabs)
+        self._stop_all_button = stop_all_btn
 
-        add_target_btn = QPushButton(QIcon(str(ICONS_DIR_PATH / 'plus.svg')), ' Add Target…')
+        add_target_btn = QPushButton(QIcon(str(ICONS_DIR_PATH / 'plus.svg')), '')
         add_target_btn.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
         add_target_btn.clicked.connect(self._prompt_add_target)
+        self._add_target_button = add_target_btn
 
-        close_btn = QPushButton(QIcon(str(ICONS_DIR_PATH / 'x.svg')), ' Close')
+        close_btn = QPushButton(QIcon(str(ICONS_DIR_PATH / 'x.svg')), '')
         close_btn.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
         close_btn.clicked.connect(self.close)
+        self._close_button = close_btn
 
         bar_layout.addWidget(scan_all_btn)
         bar_layout.addWidget(stop_all_btn)
@@ -832,10 +877,7 @@ class PortScannerWindow(QWidget):
         return bar_layout
 
     @classmethod
-    def open_window(
-        cls,
-        targets: str | list[str] | None = None,
-    ) -> None:
+    def open_window(cls, targets: str | list[str] | None = None) -> None:
         """Open or reuse the active PortScannerWindow and bring it to foreground."""
         active_window = cls._instance
         if active_window is None:
@@ -855,10 +897,7 @@ class PortScannerWindow(QWidget):
         if active_window is not None:
             active_window.close()
 
-    def add_target_tab(
-        self,
-        target: str | None = None,
-    ) -> None:
+    def add_target_tab(self, target: str | None = None) -> None:
         """Add a new target scanning tab or focus existing tab for this target."""
         normalized_target = target.strip() if target is not None else ''
         effective_target = normalized_target if normalized_target and normalized_target != _DEFAULT_TARGET else _DEFAULT_TARGET
@@ -898,8 +937,8 @@ class PortScannerWindow(QWidget):
 
     def _prompt_add_target(self) -> None:
         """Prompt user for a new IP address or hostname to scan."""
-        dialog_title = 'Add Port Scan Target'
-        dialog_prompt = 'Enter target IPv4 address or hostname to scan:'
+        dialog_title = tr('Add Port Scan Target')
+        dialog_prompt = tr('Enter target IPv4 address or hostname to scan:')
         new_target, success = QInputDialog.getText(self, dialog_title, dialog_prompt)
         if success and new_target.strip():
             self.add_target_tab(new_target.strip())

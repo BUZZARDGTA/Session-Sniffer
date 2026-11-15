@@ -4,8 +4,10 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QTableWidget
 
 from session_sniffer.constants.tables import PORT_HEATMAP_TABLE_MIN_COLUMN_WIDTHS
+from session_sniffer.guis.live_language import register_language_refresh, set_table_headers
 from session_sniffer.guis.table_context_menu import StatTableWindowMixin, skip_if_menu_open
 from session_sniffer.guis.utils import NumericTableWidgetItem, scale_by_ui, setup_stat_table
+from session_sniffer.i18n import tr
 from session_sniffer.player.registry import PlayersRegistry
 
 
@@ -16,16 +18,21 @@ class PortHeatmapWindow(StatTableWindowMixin):
         """Initialize the port heatmap window."""
         super().__init__()
 
-        self.setWindowTitle('Port Heatmap')
+        self._apply_translations()
+        register_language_refresh(self, self._apply_translations)
         self.resize(scale_by_ui(400), scale_by_ui(420))
         layout = self.setup_window_layout(always_on_top=always_on_top)
 
         self._table = QTableWidget(0, 3)
-        self._table.setHorizontalHeaderLabels(['Port', 'Count', '% of Total'])
+        set_table_headers(self._table, ['Port', 'Count', '% of Total'])
         setup_stat_table(self._table, layout)
         self.setup_stat_table_controls(layout, always_on_top=always_on_top, min_column_widths=PORT_HEATMAP_TABLE_MIN_COLUMN_WIDTHS)
         self._reset_column_sizes()
         self._table.sortByColumn(1, Qt.SortOrder.DescendingOrder)
+
+    def _apply_translations(self) -> None:
+        """Apply translated text to the window title."""
+        self.setWindowTitle(tr('Port Heatmap'))
 
     @skip_if_menu_open
     def refresh(self) -> None:

@@ -158,16 +158,16 @@
         }
 
         .player-card.connected {
-            border-left: 4px solid #a3be8c;
+            border-inline-start: 4px solid #a3be8c;
         }
 
         .player-card.disconnected {
-            border-left: 4px solid #bf616a;
+            border-inline-start: 4px solid #bf616a;
         }
 
         .player-summary {
             width: 100%;
-            text-align: left;
+            text-align: start;
             border: none;
             background: transparent;
             color: inherit;
@@ -238,7 +238,7 @@
             color: #eceff4;
             font-weight: 700;
             font-size: 13px;
-            text-align: right;
+            text-align: end;
             word-break: break-word;
         }
 
@@ -361,19 +361,19 @@
             <h1 id="title">Session Sniffer</h1>
             <div class="status-bar">
                 <div class="status-item">
-                    <label>Capture Status</label>
+                    <label id="labelCaptureStatus">Capture Status</label>
                     <div class="value" id="statusCapture">Initializing...</div>
                 </div>
                 <div class="status-item">
-                    <label>Config</label>
+                    <label id="labelConfig">Config</label>
                     <div class="value" id="statusConfig">Initializing...</div>
                 </div>
                 <div class="status-item">
-                    <label>Issues</label>
+                    <label id="labelIssues">Issues</label>
                     <div class="value" id="statusIssues">Initializing...</div>
                 </div>
                 <div class="status-item">
-                    <label>Performance</label>
+                    <label id="labelPerformance">Performance</label>
                     <div class="value" id="statusPerformance">Initializing...</div>
                 </div>
             </div>
@@ -383,10 +383,10 @@
 
         <div class="tabs">
             <button class="tab-button active" onclick="switchTab(event, 'connected')">
-                Connected <span id="connectedCount">0</span>
+                <span id="tabConnectedLabel">Connected</span> <span id="connectedCount">0</span>
             </button>
             <button class="tab-button" onclick="switchTab(event, 'disconnected')">
-                Disconnected <span id="disconnectedCount">0</span>
+                <span id="tabDisconnectedLabel">Disconnected</span> <span id="disconnectedCount">0</span>
             </button>
         </div>
 
@@ -394,7 +394,7 @@
         <div id="connected" class="tab-content active">
             <div class="table-wrapper">
                 <div class="table-header">
-                    <span>Connected Players</span>
+                    <span id="headerConnectedPlayers">Connected Players</span>
                     <span class="table-count" id="connectedBadge">0</span>
                 </div>
                 <div class="table-body scrollbar-thin" id="connectedTable">
@@ -407,7 +407,7 @@
         <div id="disconnected" class="tab-content">
             <div class="table-wrapper">
                 <div class="table-header">
-                    <span>Disconnected Players</span>
+                    <span id="headerDisconnectedPlayers">Disconnected Players</span>
                     <span class="table-count" id="disconnectedBadge">0</span>
                 </div>
                 <div class="table-body scrollbar-thin" id="disconnectedTable">
@@ -418,19 +418,19 @@
 
         <div class="footer">
             <div class="footer-item">
-                <label>Connected</label>
+                <label id="labelFooterConnected">Connected</label>
                 <div class="value" id="footerConnected">0</div>
             </div>
             <div class="footer-item">
-                <label>Disconnected</label>
+                <label id="labelFooterDisconnected">Disconnected</label>
                 <div class="value" id="footerDisconnected">0</div>
             </div>
             <div class="footer-item">
-                <label>Capture</label>
+                <label id="labelFooterCapture">Capture</label>
                 <div class="value" id="footerCapture">Initializing...</div>
             </div>
             <div class="footer-item">
-                <label>Performance</label>
+                <label id="labelFooterPerformance">Performance</label>
                 <div class="value" id="footerPerformance">Initializing...</div>
             </div>
         </div>
@@ -438,6 +438,55 @@
 
     <script>
         let isConnected = false;
+        let currentI18n = {
+            page_title: 'Session Sniffer Web Panel',
+            capture_status: 'Capture Status',
+            config: 'Config',
+            issues: 'Issues',
+            performance: 'Performance',
+            initializing: 'Initializing...',
+            connected: 'Connected',
+            disconnected: 'Disconnected',
+            connected_players: 'Connected Players',
+            disconnected_players: 'Disconnected Players',
+            waiting_for_data: 'Waiting for data...',
+            capture: 'Capture',
+            no_players: 'No players',
+            player: 'Player',
+            na: 'N/A',
+            connection_error: 'Connection error - retrying...',
+        };
+
+        function applyI18n(i18n, lang, dir) {
+            if (lang) {
+                document.documentElement.lang = lang;
+            }
+            if (dir) {
+                document.documentElement.dir = dir === 'rtl' ? 'rtl' : 'ltr';
+            }
+            if (!i18n || typeof i18n !== 'object') {
+                return;
+            }
+            currentI18n = { ...currentI18n, ...i18n };
+
+            document.title = currentI18n.page_title;
+            document.getElementById('labelCaptureStatus').textContent = currentI18n.capture_status;
+            document.getElementById('labelConfig').textContent = currentI18n.config;
+            document.getElementById('labelIssues').textContent = currentI18n.issues;
+            document.getElementById('labelPerformance').textContent = currentI18n.performance;
+            document.getElementById('tabConnectedLabel').textContent = currentI18n.connected;
+            document.getElementById('tabDisconnectedLabel').textContent = currentI18n.disconnected;
+            document.getElementById('headerConnectedPlayers').textContent = currentI18n.connected_players;
+            document.getElementById('headerDisconnectedPlayers').textContent = currentI18n.disconnected_players;
+            document.getElementById('labelFooterConnected').textContent = currentI18n.connected;
+            document.getElementById('labelFooterDisconnected').textContent = currentI18n.disconnected;
+            document.getElementById('labelFooterCapture').textContent = currentI18n.capture;
+            document.getElementById('labelFooterPerformance').textContent = currentI18n.performance;
+
+            document.querySelectorAll('.loading').forEach(el => {
+                el.textContent = currentI18n.waiting_for_data;
+            });
+        }
 
         function switchTab(event, tabId) {
             document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
@@ -457,11 +506,14 @@
         }
 
         function updateStatus(data) {
+            applyI18n(data.i18n, data.lang, data.dir);
+            const naLabel = currentI18n.na || 'N/A';
+
             document.getElementById('title').innerHTML = data.header || 'Session Sniffer';
-            document.getElementById('statusCapture').innerHTML = data.status.capture || 'N/A';
-            document.getElementById('statusConfig').innerHTML = data.status.config || 'N/A';
-            document.getElementById('statusIssues').innerHTML = data.status.issues || 'N/A';
-            document.getElementById('statusPerformance').innerHTML = data.status.performance || 'N/A';
+            document.getElementById('statusCapture').innerHTML = data.status.capture || naLabel;
+            document.getElementById('statusConfig').innerHTML = data.status.config || naLabel;
+            document.getElementById('statusIssues').innerHTML = data.status.issues || naLabel;
+            document.getElementById('statusPerformance').innerHTML = data.status.performance || naLabel;
 
             const connectedCount = data.connected.count;
             const disconnectedCount = data.disconnected.count;
@@ -471,8 +523,8 @@
             document.getElementById('disconnectedBadge').textContent = disconnectedCount;
             document.getElementById('footerConnected').textContent = connectedCount;
             document.getElementById('footerDisconnected').textContent = disconnectedCount;
-            document.getElementById('footerCapture').innerHTML = data.status.capture || 'N/A';
-            document.getElementById('footerPerformance').innerHTML = data.status.performance || 'N/A';
+            document.getElementById('footerCapture').innerHTML = data.status.capture || naLabel;
+            document.getElementById('footerPerformance').innerHTML = data.status.performance || naLabel;
 
             renderTable(data.connected, 'connectedTable');
             renderTable(data.disconnected, 'disconnectedTable');
@@ -482,20 +534,22 @@
             const container = document.getElementById(elementId);
 
             if (!tableData.rows || tableData.rows.length === 0) {
-                container.innerHTML = '<div class="empty-state">No players</div>';
+                container.innerHTML = `<div class="empty-state">${escapeHtml(currentI18n.no_players || 'No players')}</div>`;
                 return;
             }
 
             const openKeys = new Set(Array.from(container.querySelectorAll('.player-card.open')).map(card => card.dataset.playerKey));
             const columns = tableData.columns || [];
+            const columnKeys = tableData.column_keys || columns;
+            const naLabel = currentI18n.na || 'N/A';
             const rowClass = elementId === 'connectedTable' ? 'connected' : 'disconnected';
             let html = '';
 
             tableData.rows.forEach((row) => {
-                const summary = buildPlayerSummary(columns, row);
-                const playerKey = buildPlayerKey(columns, row);
+                const summary = buildPlayerSummary(columnKeys, row);
+                const playerKey = buildPlayerKey(columnKeys, row);
                 const isOpen = openKeys.has(playerKey) ? ' open' : '';
-                const summaryText = summary.ip && summary.ip !== 'N/A' ? `${summary.title} (${summary.ip})` : summary.title;
+                const summaryText = summary.ip ? `${summary.title} (${summary.ip})` : summary.title;
 
                 html += `<div class="player-card ${rowClass}${isOpen}" data-player-key="${escapeHtml(playerKey)}">`;
                 html += `
@@ -507,7 +561,7 @@
                 html += '<div class="player-details">';
 
                 columns.forEach((column, index) => {
-                    const value = row[index] ?? 'N/A';
+                    const value = row[index] ?? naLabel;
                     html += `
                         <div class="player-detail-row">
                             <span class="detail-label">${escapeHtml(column)}</span>
@@ -523,38 +577,38 @@
             container.innerHTML = html;
         }
 
-        function buildPlayerKey(columns, row) {
-            const summary = buildPlayerSummary(columns, row);
+        function buildPlayerKey(columnKeys, row) {
+            const summary = buildPlayerSummary(columnKeys, row);
             return `${summary.ip || 'unknown'}|${summary.title}`;
         }
 
-        function buildPlayerSummary(columns, row) {
+        function buildPlayerSummary(columnKeys, row) {
             let title = '';
-            let ip = 'N/A';
+            let ip = '';
             const usernameKeys = ['Usernames', 'Username', 'Name'];
             const ipKeys = ['IP Address', 'IP'];
 
             for (const key of usernameKeys) {
-                const index = columns.indexOf(key);
+                const index = columnKeys.indexOf(key);
                 if (index !== -1 && row[index]) {
                     title = row[index];
                     break;
                 }
             }
 
-            if (!title && columns.length > 0) {
-                title = row[0] || 'Player';
+            if (!title && columnKeys.length > 0) {
+                title = row[0] || '';
             }
 
             for (const key of ipKeys) {
-                const index = columns.indexOf(key);
+                const index = columnKeys.indexOf(key);
                 if (index !== -1 && row[index]) {
                     ip = row[index];
                     break;
                 }
             }
 
-            if (ip === 'N/A') {
+            if (!ip) {
                 const ipCandidate = row.find(value => typeof value === 'string' && /^\d+\.\d+\.\d+\.\d+$/.test(value));
                 if (ipCandidate) {
                     ip = ipCandidate;
@@ -562,7 +616,7 @@
             }
 
             return {
-                title: title || 'Player',
+                title: title || (currentI18n.player || 'Player'),
                 ip,
             };
         }
@@ -613,7 +667,7 @@
 
             ws.onerror = (error) => {
                 console.error('WebSocket error:', error);
-                showError('Connection error - retrying...');
+                showError(currentI18n.connection_error || 'Connection error - retrying...');
             };
 
             ws.onclose = () => {

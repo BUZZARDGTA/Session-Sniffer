@@ -23,6 +23,7 @@ from session_sniffer.guis.utils import (
     set_clipboard_text,
     set_dialog_window_flags,
 )
+from session_sniffer.i18n import tr
 
 
 def create_nonmodal_warning(parent: QWidget | None, text: str) -> QMessageBox:
@@ -35,7 +36,7 @@ def create_nonmodal_warning(parent: QWidget | None, text: str) -> QMessageBox:
     dlg.setIcon(QMessageBox.Icon.Warning)
     dlg.setStandardButtons(QMessageBox.StandardButton.Ok)
 
-    copy_button = dlg.addButton('Copy', QMessageBox.ButtonRole.ActionRole)
+    copy_button = dlg.addButton(tr('Copy'), QMessageBox.ButtonRole.ActionRole)
     copy_button.setCursor(Qt.CursorShape.PointingHandCursor)
     copy_button.clicked.disconnect()
 
@@ -43,7 +44,11 @@ def create_nonmodal_warning(parent: QWidget | None, text: str) -> QMessageBox:
         copy_text = (dlg.detailedText() or dlg.text()).strip()
         if copy_text:
             set_clipboard_text(copy_text)
-            animate_button_feedback(copy_button)
+            animate_button_feedback(
+                copy_button,
+                feedback_text=f" {tr('Copied!')}",
+                feedback_tooltip=tr('Copied to clipboard!'),
+            )
 
     copy_button.clicked.connect(_on_copy)
 
@@ -92,7 +97,7 @@ class DetailedMessageDialog(QDialog):
         button_layout = QHBoxLayout()
         button_layout.addStretch(1)
 
-        ok_button = QPushButton('OK')
+        ok_button = QPushButton(tr('OK'))
         ok_button.setDefault(True)
         ok_button.clicked.connect(self.accept)
         button_layout.addWidget(ok_button)
@@ -127,12 +132,13 @@ _active_ipapi_dialogs: ActiveDialogRegistry[str, DetailedMessageDialog] = Active
 
 def show_ipapi_unavailable_dialog(reason: str) -> None:
     """Show or focus the singleton warning dialog indicating ip-api.com geolocation is unavailable."""
-    text = (
+    text = tr(
         'IP geolocation via ip-api.com is currently unavailable.\n\n'
-        f'{reason}\n\n'
+        '{reason}\n\n'
         'Country, City, ISP, ASN and related ip-api.com fields will not be populated until the network connection '
         'to ip-api.com is restored (e.g. disconnecting a VPN or switching to an unblocked interface). Lookups will '
-        'automatically resume once the connection is restored.'
+        'automatically resume once the connection is restored.',
+        reason=reason,
     )
     existing = _active_ipapi_dialogs.get('ipapi_unavailable')
     if existing is not None:

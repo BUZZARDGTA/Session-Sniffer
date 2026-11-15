@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
 
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.guis.file_watch import DebouncedFileWatcher
+from session_sniffer.guis.live_language import register_language_refresh, set_i18n_colon_label
 from session_sniffer.guis.logs_manager._helpers import (
     LARGE_TEXT_FILE_LIMIT,
     LogLevelHighlighter,
@@ -36,7 +37,7 @@ from session_sniffer.guis.logs_manager._helpers import (
 )
 from session_sniffer.guis.theming import ICONS_DIR_PATH
 from session_sniffer.guis.userip_manager_helpers import human_readable_size
-from session_sniffer.text_utils import pluralize
+from session_sniffer.i18n import tr, tr_plural
 
 if TYPE_CHECKING:
     from PySide6.QtGui import QTextCursor
@@ -85,6 +86,9 @@ class TextLogTab(QWidget):
         self._entries: list[_LogEntry] = []
         self._total_line_count = 0
         self._truncated = False
+        self._truncated_file_size: int | None = None
+        self._file_missing = False
+        self._file_locked = False
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(6, 6, 6, 6)
@@ -92,31 +96,34 @@ class TextLogTab(QWidget):
         # --- Top bar ---
         top_bar = QHBoxLayout()
 
-        self._search_input = create_search_input(top_bar, 'Search in log…', self._on_search_changed, debounce_ms=100)
+        self._search_input = create_search_input(top_bar, tr('Search in log\u2026'), self._on_search_changed, debounce_ms=100)
         self._search_input.returnPressed.connect(self._find_next)
 
-        prev_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'arrow-left.svg')), '')
-        prev_button.setToolTip('Previous match')
-        prev_button.setFixedWidth(30)
-        prev_button.clicked.connect(self._find_prev)
-        top_bar.addWidget(prev_button)
+        self._prev_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'arrow-left.svg')), '')
+        self._prev_button.setToolTip(tr('Previous match'))
+        self._prev_button.setFixedWidth(30)
+        self._prev_button.clicked.connect(self._find_prev)
+        top_bar.addWidget(self._prev_button)
 
-        next_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'arrow-right.svg')), '')
-        next_button.setToolTip('Next match')
-        next_button.setFixedWidth(30)
-        next_button.clicked.connect(self._find_next)
-        top_bar.addWidget(next_button)
+        self._next_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'arrow-right.svg')), '')
+        self._next_button.setToolTip(tr('Next match'))
+        self._next_button.setFixedWidth(30)
+        self._next_button.clicked.connect(self._find_next)
+        top_bar.addWidget(self._next_button)
 
         self._match_label = QLabel('')
         top_bar.addWidget(self._match_label)
 
         if self._enable_severity_filter:
-            top_bar.addWidget(QLabel('Severity:'))
+            severity_label = QLabel()
+            set_i18n_colon_label(severity_label, 'Severity')
+            top_bar.addWidget(severity_label)
             self._severity_combo: QComboBox | None = QComboBox()
             self._severity_combo.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
-            self._severity_combo.setToolTip('Filter log entries by severity level')
+            self._severity_combo.setToolTip(tr('Filter log entries by severity level'))
             for label, data in SEVERITY_FILTER_CHOICES:
-                self._severity_combo.addItem(label, data)
+                display_label = tr('All Severities') if data is None else label
+                self._severity_combo.addItem(display_label, data)
             self._severity_combo.currentIndexChanged.connect(self._on_severity_changed)
             top_bar.addWidget(self._severity_combo)
         else:
@@ -143,8 +150,8 @@ class TextLogTab(QWidget):
             layout,
             self._copy_all,
             self._save_as,
-            copy_tooltip='Copy all log text to clipboard',
-            save_tooltip='Save the log to a new file',
+            copy_tooltip=tr('Copy all log text to clipboard'),
+            save_tooltip=tr('Save the log to a new file'),
         )
 
         self._purge_button, self._open_file_button = add_purge_and_location_buttons(button_row, self._purge_file, self._file_path)
@@ -155,6 +162,36 @@ class TextLogTab(QWidget):
 
         # Initial load
         self.load_data()
+        register_language_refresh(self, self._retranslate)
+
+    def _build_truncated_prefix(self, file_size: int) -> str:
+        """Build the localized truncation notice shown above truncated log contents."""
+        limit_str = human_readable_size(LARGE_TEXT_FILE_LIMIT)
+        size_str = human_readable_size(file_size)
+        return tr('[\u2026truncated \u2014 showing last {limit} of {size}\u2026]', limit=limit_str, size=size_str) + '\n\n'
+
+    def _retranslate(self) -> None:
+        """Refresh all UI strings after a live language change."""
+        self._search_input.setPlaceholderText(tr('Search in log\u2026'))
+        self._prev_button.setToolTip(tr('Previous match'))
+        self._next_button.setToolTip(tr('Next match'))
+        if self._severity_combo is not None:
+            self._severity_combo.setItemText(0, tr('All Severities'))
+            self._severity_combo.setToolTip(tr('Filter log entries by severity level'))
+        self._copy_button.setText(f" {tr('Copy All')}")
+        self._copy_button.setToolTip(tr('Copy all log text to clipboard'))
+        self._save_button.setText(f" {tr('Save As...')}")
+        self._save_button.setToolTip(tr('Save the log to a new file'))
+        self._metadata_label.setText(file_metadata_text(self._file_path))
+        if self._file_missing:
+            self._viewer.setPlaceholderText(tr('[{filename} not found]', filename=self._file_path.name))
+            self._line_count_label.setText(tr_plural('{count:,} line', '{count:,} lines', 0))
+            return
+        if self._file_locked:
+            self._viewer.setPlaceholderText(tr('[Cannot read {filename}: file is locked]', filename=self._file_path.name))
+            return
+        self._prefix = self._build_truncated_prefix(self._truncated_file_size) if self._truncated and self._truncated_file_size is not None else ''
+        self._apply_filter(preserve_scroll=True)
 
     def _on_severity_changed(self) -> None:
         """Handle severity filter selection change by applying the filter and scrolling to the bottom."""
@@ -259,14 +296,20 @@ class TextLogTab(QWidget):
         self._purge_button.setEnabled(file_exists and self._file_path.stat().st_size > 0)
         self.purge_state_changed.emit()
         if not self._file_path.exists():
-            self._clear_viewer_state(f'[{self._file_path.name} not found]')
-            self._line_count_label.setText('0 lines')
+            self._file_missing = True
+            self._file_locked = False
+            self._truncated_file_size = None
+            self._clear_viewer_state(tr('[{filename} not found]', filename=self._file_path.name))
+            self._line_count_label.setText(tr_plural('{count:,} line', '{count:,} lines', 0))
             self._metadata_label.setText(file_metadata_text(self._file_path))
             return
 
         try:
             file_size = self._file_path.stat().st_size
+            self._file_missing = False
+            self._file_locked = False
             self._truncated = file_size > LARGE_TEXT_FILE_LIMIT
+            self._truncated_file_size = file_size if self._truncated else None
 
             with self._file_path.open(encoding='utf-8', errors='replace') as file:
                 if self._truncated:
@@ -275,7 +318,7 @@ class TextLogTab(QWidget):
                 text = file.read()
 
             self._raw_text = text
-            self._prefix = f'[…truncated — showing last {human_readable_size(LARGE_TEXT_FILE_LIMIT)} of {human_readable_size(file_size)}…]\n\n' if self._truncated else ''
+            self._prefix = self._build_truncated_prefix(file_size) if self._truncated else ''
             self._total_line_count = text.count('\n') + (1 if text and not text.endswith('\n') else 0)
 
             if self._enable_severity_filter:
@@ -287,7 +330,10 @@ class TextLogTab(QWidget):
             self._apply_filter(preserve_scroll=True)
 
         except PermissionError:
-            self._clear_viewer_state(f'[Cannot read {self._file_path.name}: file is locked]')
+            self._file_missing = False
+            self._file_locked = True
+            self._truncated_file_size = None
+            self._clear_viewer_state(tr('[Cannot read {filename}: file is locked]', filename=self._file_path.name))
             self._line_count_label.setText('')
 
         self._metadata_label.setText(file_metadata_text(self._file_path))
@@ -322,11 +368,19 @@ class TextLogTab(QWidget):
             else:
                 scrollbar.setValue(min(old_scroll, scrollbar.maximum()))
 
-        suffix = ' (truncated)' if self._truncated else ''
         if not self._enable_severity_filter or allowed_levels is None or filtered_lines == self._total_line_count:
-            self._line_count_label.setText(f'{self._total_line_count:,} line{pluralize(self._total_line_count)}{suffix}')
+            line_text = (
+                tr_plural('{count:,} line (truncated)', '{count:,} lines (truncated)', self._total_line_count)
+                if self._truncated
+                else tr_plural('{count:,} line', '{count:,} lines', self._total_line_count)
+            )
         else:
-            self._line_count_label.setText(f'{filtered_lines:,} of {self._total_line_count:,} line{pluralize(self._total_line_count)}{suffix}')
+            line_text = (
+                tr_plural('{filtered:,} of {count:,} line (truncated)', '{filtered:,} of {count:,} lines (truncated)', self._total_line_count, filtered=filtered_lines)
+                if self._truncated
+                else tr_plural('{filtered:,} of {count:,} line', '{filtered:,} of {count:,} lines', self._total_line_count, filtered=filtered_lines)
+            )
+        self._line_count_label.setText(line_text)
 
         if self._search_input.text():
             self._on_search_changed(self._search_input.text())
@@ -372,7 +426,7 @@ class TextLogTab(QWidget):
     def _update_match_label(self) -> None:
         count = len(self._search_matches)
         if not count:
-            self._match_label.setText('No matches')
+            self._match_label.setText(tr('No matches'))
         else:
             self._match_label.setText(f'{self._current_match_index + 1} / {count}')
 
@@ -389,14 +443,14 @@ class TextLogTab(QWidget):
             return
         path, _ = QFileDialog.getSaveFileName(
             self,
-            'Save Log As',
+            tr('Save Log As'),
             str(self._file_path.with_suffix('.export.log')),
-            'Log Files (*.log);;Text Files (*.txt);;All Files (*)',
+            f"{tr('Log Files')} (*.log);;{tr('Text Files')} (*.txt);;{tr('All Files')} (*)",
         )
         if not path:
             return
         Path(path).write_text(text, encoding='utf-8')
-        QMessageBox.information(self, TITLE, f'Saved to {path}')
+        QMessageBox.information(self, TITLE, tr('Saved to {path}', path=path))
 
     def _purge_file(self) -> None:
         message = purge_log_file(self, self._file_path, item_label='contents')

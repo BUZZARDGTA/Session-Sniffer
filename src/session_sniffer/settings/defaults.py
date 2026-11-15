@@ -7,6 +7,7 @@ from session_sniffer.constants.standalone import (
     WEBSERVER_DEFAULT_HOST,
     WEBSERVER_DEFAULT_PORT,
 )
+from session_sniffer.i18n import DEFAULT_LANGUAGE
 from session_sniffer.models.themes import DEFAULT_THEME_NAME
 from session_sniffer.networking.third_party_servers import ALL_THIRD_PARTY_SERVER_NAMES
 
@@ -35,6 +36,8 @@ class SettingDefaults(TypedDict):
     capture_filter_block_uaudp: bool
     capture_filter_block_classicstun: bool
     capture_filter_block_llmnr: bool
+    gui_language_follow_system: bool
+    gui_language: str
     gui_theme_follow_system: bool
     gui_theme: str
     gui_always_on_top: bool
@@ -150,6 +153,8 @@ SETTING_DEFAULTS: SettingDefaults = {
     'capture_filter_block_uaudp': True,
     'capture_filter_block_classicstun': True,
     'capture_filter_block_llmnr': True,
+    'gui_language_follow_system': True,
+    'gui_language': DEFAULT_LANGUAGE,
     'gui_theme_follow_system': True,
     'gui_theme': DEFAULT_THEME_NAME,
     'gui_always_on_top': False,

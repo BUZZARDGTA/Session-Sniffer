@@ -17,6 +17,7 @@ from session_sniffer.background.events import gui_closed__event
 from session_sniffer.core import ScriptControl
 from session_sniffer.guis.dialogs import show_ipapi_unavailable_dialog
 from session_sniffer.guis.looky_text import LOOKY_LOG_API_KEY_INVALID, LOOKY_LOG_VERIFICATION_HTTP_FAILED_TEMPLATE, get_looky_restriction
+from session_sniffer.i18n import tr
 from session_sniffer.models import IPAPI_FIELDS, IpApiResponse
 from session_sniffer.networking.exceptions import AllEndpointsExhaustedError
 from session_sniffer.networking.http_session import session
@@ -125,14 +126,14 @@ def _is_http_server_error(status_code: int) -> bool:
     return HTTPStatus.INTERNAL_SERVER_ERROR <= status_code <= _HTTP_SERVER_ERROR_MAX_STATUS
 
 
-def _notify_ipapi_unavailable(reason: str) -> None:
+def _notify_ipapi_unavailable(log_reason: str, display_reason: str) -> None:
     """Log and show a one-time user-facing warning that ip-api.com geolocation is unavailable.
 
-    `reason` is a single sentence explaining why ip-api.com cannot be used (e.g. an HTTPS redirect or a
-    blocked connection); it is embedded into both the log line and the user-facing dialog.
+    `log_reason` is a canonical English sentence for the log line, and `display_reason` is its
+    localized equivalent for the user-facing dialog.
     """
-    logger.warning('[ip-api.com] %s IP geolocation via ip-api.com will be unavailable until connection is restored.', reason)
-    gui_dispatcher.invoke(lambda: show_ipapi_unavailable_dialog(reason))
+    logger.warning('[ip-api.com] %s IP geolocation via ip-api.com will be unavailable until connection is restored.', log_reason)
+    gui_dispatcher.invoke(lambda: show_ipapi_unavailable_dialog(display_reason))
 
 
 _iplookup_wakeup_event = Event()
@@ -361,6 +362,10 @@ def iplookup_core() -> None:
                 unavailability_warning_shown = True
                 _notify_ipapi_unavailable(
                     f'Could not reach ip-api.com after {consecutive_failures} consecutive attempts (a VPN, proxy, or firewall may be blocking the connection).',
+                    tr(
+                        'Could not reach ip-api.com after {count} consecutive attempts (a VPN, proxy, or firewall may be blocking the connection).',
+                        count=consecutive_failures,
+                    ),
                 )
                 _wait_iplookup_event(60, ignore_wake=True)
             else:
@@ -381,6 +386,9 @@ def iplookup_core() -> None:
                         unavailability_warning_shown = True
                         _notify_ipapi_unavailable(
                             'Requests to ip-api.com are being redirected to HTTPS (commonly caused by a VPN or proxy), which the free ip-api.com service does not support.',
+                            tr(
+                                'Requests to ip-api.com are being redirected to HTTPS (commonly caused by a VPN or proxy), which the free ip-api.com service does not support.',
+                            ),
                         )
                     _wait_iplookup_event(60, ignore_wake=True)
                     continue

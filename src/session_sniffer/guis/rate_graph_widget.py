@@ -7,8 +7,10 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QBrush, QColor, QPainter, QPainterPath, QPaintEvent, QPen
 from PySide6.QtWidgets import QWidget
 
+from session_sniffer.guis.live_language import register_language_refresh
 from session_sniffer.guis.theming import themed_qcolor, themed_text_qcolor
 from session_sniffer.guis.utils import scale_by_ui
+from session_sniffer.i18n import tr
 
 INTEGER_FORMAT_THRESHOLD = 10
 
@@ -52,6 +54,7 @@ class RateGraphWidget(QWidget):
 
         self.setMinimumSize(scale_by_ui(200), scale_by_ui(100))
         self.setAttribute(Qt.WidgetAttribute.WA_OpaquePaintEvent, on=True)
+        register_language_refresh(self, self.update)
 
     def refresh_theme_colors(self) -> None:
         """Recompute graph line, fill, average, and threshold colors for the active theme."""
@@ -181,11 +184,11 @@ class RateGraphWidget(QWidget):
             painter.setPen(QPen(self.line_color, 1))
             painter.translate(15, margin_top + graph_height / 2)
             painter.rotate(-90)
-            painter.drawText(-100, -10, 200, 20, Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop, self.left_label)
+            painter.drawText(-100, -10, 200, 20, Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop, tr(self.left_label))
             painter.restore()
 
             painter.setPen(QPen(axis_label_color, 1))
-            painter.drawText(margin_left, margin_top + graph_height + 20, graph_width, 20, Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop, 'Time (seconds ago)')
+            painter.drawText(margin_left, margin_top + graph_height + 20, graph_width, 20, Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop, tr('Time (seconds ago)'))
 
             # Draw data
             if not self._data:

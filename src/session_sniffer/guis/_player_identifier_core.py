@@ -4,7 +4,19 @@ from collections import deque
 from enum import Enum, auto
 from itertools import islice
 from math import sqrt
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar, override
+
+from PySide6.QtCore import QRectF, Qt
+from PySide6.QtGui import QColor, QLinearGradient, QPainter, QPainterPath, QPaintEvent, QPen
+from PySide6.QtWidgets import QProgressBar, QWidget
+
+from session_sniffer.guis.stylesheets import (
+    PROGRESS_BAR_CHUNK_BLUE_STYLESHEET,
+    PROGRESS_BAR_CHUNK_GREEN_STYLESHEET,
+    PROGRESS_BAR_CHUNK_ORANGE_STYLESHEET,
+    PROGRESS_BAR_CHUNK_RED_STYLESHEET,
+)
+from session_sniffer.guis.theming import register_theme_change_callback, themed_color, themed_qcolor, themed_text_qcolor
 
 if TYPE_CHECKING:
     from session_sniffer.models.player import Player
@@ -18,6 +30,117 @@ PROGRESS_BAR_WIDTH = 280
 MIN_CONNECTED_PLAYERS = 2
 
 _MIN_VARIANCE_SAMPLES = 2
+_CHUNK_TEXT_MIDPOINT = 50
+_PROGRESS_BAR_BLUE_GRADIENT: list[tuple[float, QColor]] = []
+_PROGRESS_BAR_GREEN_GRADIENT: list[tuple[float, QColor]] = []
+_PROGRESS_BAR_ORANGE_GRADIENT: list[tuple[float, QColor]] = []
+_PROGRESS_BAR_RED_GRADIENT: list[tuple[float, QColor]] = []
+
+
+def _refresh_progress_bar_gradients() -> None:
+    """Recompute capsule progress bar gradient stops for the active theme."""
+    _PROGRESS_BAR_BLUE_GRADIENT[:] = [(0.0, themed_qcolor('#1d4ed8')), (0.5, themed_qcolor('#3b82f6')), (1.0, themed_qcolor('#60a5fa'))]
+    _PROGRESS_BAR_GREEN_GRADIENT[:] = [(0.0, themed_qcolor('#059669')), (0.5, themed_qcolor('#10b981')), (1.0, themed_qcolor('#34d399'))]
+    _PROGRESS_BAR_ORANGE_GRADIENT[:] = [(0.0, themed_qcolor('#d97706')), (0.5, themed_qcolor('#f59e0b')), (1.0, themed_qcolor('#fbbf24'))]
+    _PROGRESS_BAR_RED_GRADIENT[:] = [(0.0, themed_qcolor('#b91c1c')), (0.5, themed_qcolor('#ef4444')), (1.0, themed_qcolor('#f87171'))]
+
+
+_refresh_progress_bar_gradients()
+register_theme_change_callback(_refresh_progress_bar_gradients)
+
+
+class PlayerIdentifierProgressBar(QProgressBar):
+    """Capsule progress bar with anti-aliased clipping to prevent chunk overflow."""
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        """Initialize the custom capsule progress bar."""
+        super().__init__(parent)
+        self.setRange(0, 100)
+        self.setFixedHeight(24)
+        self.setFixedWidth(PROGRESS_BAR_WIDTH)
+        self.setTextVisible(True)
+        self.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._chunk_gradient: list[tuple[float, QColor]] | None = None
+
+    @override
+    def setStyleSheet(self, styleSheet: str) -> None:
+        super().setStyleSheet(styleSheet)
+        if styleSheet == PROGRESS_BAR_CHUNK_BLUE_STYLESHEET or themed_color('#1d4ed8') in styleSheet:
+            self._chunk_gradient = _PROGRESS_BAR_BLUE_GRADIENT
+        elif styleSheet == PROGRESS_BAR_CHUNK_GREEN_STYLESHEET or themed_color('#059669') in styleSheet:
+            self._chunk_gradient = _PROGRESS_BAR_GREEN_GRADIENT
+        elif styleSheet == PROGRESS_BAR_CHUNK_ORANGE_STYLESHEET or themed_color('#d97706') in styleSheet:
+            self._chunk_gradient = _PROGRESS_BAR_ORANGE_GRADIENT
+        elif styleSheet == PROGRESS_BAR_CHUNK_RED_STYLESHEET or themed_color('#b91c1c') in styleSheet:
+            self._chunk_gradient = _PROGRESS_BAR_RED_GRADIENT
+        else:
+            self._chunk_gradient = None
+        self.update()
+
+    @override
+    def paintEvent(self, a0: QPaintEvent | None) -> None:
+        if a0 is None:
+            return
+        painter = QPainter(self)
+        try:
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+            bounding_rect = QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5)
+            capsule_radius = bounding_rect.height() / 2.0
+
+            outer_path = QPainterPath()
+            outer_path.addRoundedRect(bounding_rect, capsule_radius, capsule_radius)
+            painter.fillPath(outer_path, themed_qcolor('#0d131a'))
+            painter.setPen(QPen(themed_qcolor('#253040'), 1.0))
+            painter.drawPath(outer_path)
+
+            current_value = self.value()
+            if current_value > 0 and self._chunk_gradient is not None:
+                inner_rect = bounding_rect.adjusted(2.0, 2.0, -2.0, -2.0)
+                inner_radius = max(0.0, inner_rect.height() / 2.0)
+                clip_path = QPainterPath()
+                clip_path.addRoundedRect(inner_rect, inner_radius, inner_radius)
+
+                value_range = self.maximum() - self.minimum()
+                progress_ratio = (current_value - self.minimum()) / value_range if value_range > 0 else 0.0
+                chunk_width = inner_rect.width() * progress_ratio
+                chunk_rect = QRectF(inner_rect.x(), inner_rect.y(), chunk_width, inner_rect.height())
+
+                painter.save()
+                painter.setClipPath(clip_path)
+                linear_gradient = QLinearGradient(inner_rect.left(), 0.0, inner_rect.right(), 0.0)
+                for stop_point, stop_color in self._chunk_gradient:
+                    linear_gradient.setColorAt(stop_point, stop_color)
+                painter.fillRect(chunk_rect, linear_gradient)
+                painter.restore()
+
+            displayed_text = self.text()
+            if displayed_text and self.isTextVisible():
+                on_chunk = current_value >= _CHUNK_TEXT_MIDPOINT and self._chunk_gradient is not None
+                painter.setPen(themed_text_qcolor('#ffffff', '#10b981') if on_chunk else themed_text_qcolor('#ffffff', '#0d131a'))
+                text_font = self.font()
+                text_font.setPointSize(9)
+                text_font.setBold(True)
+                painter.setFont(text_font)
+                painter.drawText(bounding_rect, Qt.AlignmentFlag.AlignCenter, displayed_text)
+        finally:
+            painter.end()
+
+
+class PlayerIdentifierTracker:
+    """Global tracker for IPs currently identified by the Player Identifier tool."""
+
+    identified_ips: ClassVar[set[str]] = set()
+
+    @classmethod
+    def is_identified(cls, ip: str) -> bool:
+        """Return whether the given IP is currently identified."""
+        return ip in cls.identified_ips
+
+    @classmethod
+    def set_identified_ips(cls, ips: set[str]) -> None:
+        """Update the set of identified IPs."""
+        cls.identified_ips = ips
 
 
 class Phase(Enum):

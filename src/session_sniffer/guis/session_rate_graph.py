@@ -1,6 +1,8 @@
 """Live PPS + BPS split graph window for the entire session."""
 
+from session_sniffer.guis.live_language import register_language_refresh
 from session_sniffer.guis.player_rate_graph import VISIBLE_WINDOW, DualRateGraphBase
+from session_sniffer.i18n import tr
 
 
 class SessionRateGraphWindow(DualRateGraphBase):
@@ -10,8 +12,13 @@ class SessionRateGraphWindow(DualRateGraphBase):
         """Initialize the session-wide split rate graph window."""
         super().__init__()
 
-        self.setWindowTitle('Session Rate Graph')
+        self._apply_translations()
+        register_language_refresh(self, self._apply_translations)
         self._finish_graph_init()
+
+    def _apply_translations(self) -> None:
+        """Apply translated text to the window title."""
+        self.setWindowTitle(tr('Session Rate Graph'))
 
     # Public API —————————————————————————————————————————————————————————————
 

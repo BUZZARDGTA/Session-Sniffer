@@ -10,6 +10,7 @@ from threading import Lock
 from typing import TYPE_CHECKING, ClassVar, Final
 
 from session_sniffer.constants.standalone import MAX_PORT, MIN_PORT
+from session_sniffer.i18n import tr, tr_plural
 
 if TYPE_CHECKING:
     from collections.abc import Generator
@@ -228,7 +229,7 @@ def get_service_name(port: int) -> str:
     try:
         return socket.getservbyport(port)
     except OSError:
-        return 'Unknown'
+        return tr('Unknown')
 
 
 def parse_port_specification(port_string: str) -> list[int]:
@@ -239,7 +240,7 @@ def parse_port_specification(port_string: str) -> list[int]:
     """
     clean_string = port_string.strip()
     if not clean_string:
-        error_message = 'Port specification cannot be empty.'
+        error_message = tr('Port specification cannot be empty.')
         raise ValueError(error_message)
 
     ports: set[int] = set()
@@ -251,28 +252,38 @@ def parse_port_specification(port_string: str) -> list[int]:
         if '-' in token:
             parts = token.split('-', 1)
             if not parts[0].isdigit() or not parts[1].isdigit():
-                error_message = f"Invalid port range format: '{token}'"
+                error_message = tr("Invalid port range format: '{token}'", token=token)
                 raise ValueError(error_message)
             start_port = int(parts[0])
             end_port = int(parts[1])
             if start_port > end_port:
                 start_port, end_port = end_port, start_port
             if start_port < MIN_PORT or end_port > MAX_PORT:
-                error_message = f'Port numbers must be between {MIN_PORT} and {MAX_PORT} (got {token})'
+                error_message = tr(
+                    'Port numbers must be between {min_port} and {max_port} (got {token})',
+                    min_port=MIN_PORT,
+                    max_port=MAX_PORT,
+                    token=token,
+                )
                 raise ValueError(error_message)
             ports.update(range(start_port, end_port + 1))
         else:
             if not token.isdigit():
-                error_message = f"Invalid port number: '{token}'"
+                error_message = tr("Invalid port number: '{token}'", token=token)
                 raise ValueError(error_message)
             port = int(token)
             if not MIN_PORT <= port <= MAX_PORT:
-                error_message = f'Port number must be between {MIN_PORT} and {MAX_PORT} (got {port})'
+                error_message = tr(
+                    'Port number must be between {min_port} and {max_port} (got {port})',
+                    min_port=MIN_PORT,
+                    max_port=MAX_PORT,
+                    port=port,
+                )
                 raise ValueError(error_message)
             ports.add(port)
 
     if not ports:
-        error_message = 'No valid ports found in input.'
+        error_message = tr('No valid ports found in input.')
         raise ValueError(error_message)
 
     return sorted(ports)
@@ -367,7 +378,7 @@ def probe_udp_port(
         probe_socket.send(b'\x00' * 16)
         raw_data, _ = probe_socket.recvfrom(512)
         latency_ms = (time.perf_counter() - start_time) * 1000.0
-        banner = f'Received {len(raw_data)} bytes'
+        banner = tr_plural('Received {count} byte', 'Received {count} bytes', len(raw_data))
         return PortScanResult(
             port=port,
             protocol='UDP',

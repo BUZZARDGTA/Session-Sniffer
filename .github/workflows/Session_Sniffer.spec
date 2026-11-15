@@ -157,6 +157,43 @@ _EXCLUDED_QT_BINARY_NAMES = {
     'libqminimal.dylib',
 }
 
+_RETAINED_QT_TRANSLATION_FILES = frozenset(
+    {
+        'qtbase_ar.qm',
+        'qtbase_bg.qm',
+        'qtbase_ca.qm',
+        'qtbase_cs.qm',
+        'qtbase_da.qm',
+        'qtbase_de.qm',
+        'qtbase_es.qm',
+        'qtbase_fa.qm',
+        'qtbase_fi.qm',
+        'qtbase_fr.qm',
+        'qtbase_gd.qm',
+        'qtbase_he.qm',
+        'qtbase_hr.qm',
+        'qtbase_hu.qm',
+        'qtbase_it.qm',
+        'qtbase_ja.qm',
+        'qtbase_ka.qm',
+        'qtbase_kk.qm',
+        'qtbase_ko.qm',
+        'qtbase_lg.qm',
+        'qtbase_lv.qm',
+        'qtbase_nl.qm',
+        'qtbase_nn.qm',
+        'qtbase_pl.qm',
+        'qtbase_pt_br.qm',
+        'qtbase_ru.qm',
+        'qtbase_sk.qm',
+        'qtbase_sv.qm',
+        'qtbase_tr.qm',
+        'qtbase_uk.qm',
+        'qtbase_zh_cn.qm',
+        'qtbase_zh_tw.qm',
+    },
+)
+
 a.binaries = [
     binary
     for binary in a.binaries
@@ -166,7 +203,8 @@ a.binaries = [
 a.datas = [
     data
     for data in a.datas
-    if not data[0].replace('\\', '/').lower().startswith(('pyside6/translations/', 'pyside6/qt/translations/'))
+    if not (normalized_dest := data[0].replace('\\', '/').lower()).startswith(('pyside6/translations/', 'pyside6/qt/translations/'))
+    or normalized_dest.rsplit('/', 1)[-1] in _RETAINED_QT_TRANSLATION_FILES
 ]
 
 pyz = PYZ(a.pure)

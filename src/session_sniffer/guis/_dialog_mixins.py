@@ -10,6 +10,7 @@ from session_sniffer.constants.standalone import TITLE
 from session_sniffer.guis.stylesheets import DIALOG_DANGER_BUTTON_STYLESHEET, DIALOG_PRIMARY_BUTTON_STYLESHEET
 from session_sniffer.guis.theming import themed_text_qcolor
 from session_sniffer.guis.utils import render_svg_icon_from_resource, scale_by_ui
+from session_sniffer.i18n import tr
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -66,7 +67,7 @@ def prompt_unsaved_changes_close(
     result = QMessageBox.warning(
         dialog,
         TITLE,
-        'You have unsaved changes. Save before closing?',
+        tr('You have unsaved changes. Save before closing?'),
         QMessageBox.StandardButton.Save | QMessageBox.StandardButton.Discard | QMessageBox.StandardButton.Cancel,
         QMessageBox.StandardButton.Save,
     )
@@ -120,7 +121,7 @@ def setup_tab_reset_buttons(
     reset_to_defaults: Callable[[], None],
     reset_current_tab: Callable[[], None],
     *,
-    reset_tab_tooltip: str = 'Reset current tab settings to their default values',
+    reset_tab_tooltip: str | None = None,
 ) -> None:
     """Finalize *reset_button*, add a stretch, and add the per-tab reset button to *button_row*."""
     button_row.addStretch()
@@ -132,8 +133,8 @@ def setup_tab_reset_buttons(
     button_row.addWidget(reset_button)
 
     reset_tab_icon = render_svg_icon_from_resource('refresh-cw.svg', scale_by_ui(16), scale_by_ui(16), danger_icon_color)
-    reset_tab_button = QPushButton(reset_tab_icon, ' Reset')
-    reset_tab_button.setToolTip(reset_tab_tooltip)
+    reset_tab_button = QPushButton(reset_tab_icon, f" {tr('Reset')}")
+    reset_tab_button.setToolTip(reset_tab_tooltip if reset_tab_tooltip is not None else tr('Reset current tab settings to their default values'))
     reset_tab_button.setStyleSheet(DIALOG_DANGER_BUTTON_STYLESHEET)
     reset_tab_button.clicked.connect(reset_current_tab)
     button_row.addWidget(reset_tab_button)
@@ -155,12 +156,12 @@ def setup_tab_dialog_buttons(
         reset_button,
         reset_to_defaults,
         reset_current_tab,
-        reset_tab_tooltip='Reset current tab settings to their default values (review before saving)',
+        reset_tab_tooltip=tr('Reset current tab settings to their default values (review before saving)'),
     )
 
     primary_icon_color = themed_text_qcolor('#ffffff', '#3d8ec9').name(QColor.NameFormat.HexArgb)
     save_icon = render_svg_icon_from_resource('save.svg', scale_by_ui(16), scale_by_ui(16), primary_icon_color)
-    save_button = QPushButton(save_icon, ' Save')
+    save_button = QPushButton(save_icon, f" {tr('Save')}")
     save_button.setStyleSheet(DIALOG_PRIMARY_BUTTON_STYLESHEET)
     save_button.setDefault(True)
     return save_button
@@ -176,6 +177,9 @@ def equalize_button_sizes(button_row: QHBoxLayout) -> None:
             buttons.append(widget)
     if not buttons:
         return
+    for button in buttons:
+        button.setMinimumWidth(0)
+        button.setMinimumHeight(0)
     max_width = max(button.sizeHint().width() for button in buttons)
     max_height = max(button.sizeHint().height() for button in buttons)
     for button in buttons:

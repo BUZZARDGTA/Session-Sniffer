@@ -43,6 +43,7 @@ from session_sniffer.guis.utils import (
     render_svg_pixmap_from_resource,
     scale_by_ui,
 )
+from session_sniffer.i18n import tr
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -151,7 +152,7 @@ class DependencyPromptDialog(DraggableDialogMixin, QDialog):
         title_column.setSpacing(scale_by_ui(1))
         title_column.setContentsMargins(0, 0, 0, 0)
 
-        kicker_label = QLabel('NETWORK DRIVER')
+        kicker_label = QLabel(tr('NETWORK DRIVER'))
         kicker_label.setFont(get_ui_font(scale_by_ui(8), QFont.Weight.Bold))
         kicker_label.setStyleSheet(DEPENDENCY_PROMPT_KICKER_LABEL_STYLESHEET)
         title_column.addWidget(kicker_label)
@@ -231,8 +232,8 @@ class DependencyPromptDialog(DraggableDialogMixin, QDialog):
         text_column.setSpacing(scale_by_ui(1))
         text_column.setContentsMargins(0, 0, 0, 0)
 
-        initial_title = 'Listening for installation…'
-        initial_subtitle = 'The application will resume automatically once detected.'
+        initial_title = tr('Listening for installation…')
+        initial_subtitle = tr('The application will resume automatically once detected.')
         if self._status_callback:
             initial_title, initial_subtitle = self._status_callback()
 
@@ -248,7 +249,7 @@ class DependencyPromptDialog(DraggableDialogMixin, QDialog):
 
         layout.addLayout(text_column, 1)
 
-        badge_label = QLabel('AUTO-DETECT')
+        badge_label = QLabel(tr('AUTO-DETECT'))
         badge_label.setFont(get_ui_font(scale_by_ui(7), QFont.Weight.Bold))
         badge_label.setStyleSheet(DEPENDENCY_PROMPT_STATUS_BADGE_STYLESHEET)
         badge_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -272,7 +273,7 @@ class DependencyPromptDialog(DraggableDialogMixin, QDialog):
         info_label.setStyleSheet('background: transparent;')
         hint_layout.addWidget(info_label, 0, Qt.AlignmentFlag.AlignVCenter)
 
-        hint_label = QLabel('Administrator permissions may be requested during setup')
+        hint_label = QLabel(tr('Administrator permissions may be requested during setup'))
         hint_label.setFont(get_ui_font(scale_by_ui(8)))
         hint_label.setStyleSheet(DEPENDENCY_PROMPT_FOOTER_HINT_STYLESHEET)
         hint_layout.addWidget(hint_label, 0, Qt.AlignmentFlag.AlignVCenter)
@@ -280,7 +281,7 @@ class DependencyPromptDialog(DraggableDialogMixin, QDialog):
         footer_layout.addLayout(hint_layout)
         footer_layout.addStretch(1)
 
-        exit_button = QPushButton('Exit Application')
+        exit_button = QPushButton(tr('Exit Application'))
         exit_button.setStyleSheet(DEPENDENCY_PROMPT_EXIT_BUTTON_STYLESHEET)
         exit_button.setFont(get_ui_font(scale_by_ui(8), QFont.Weight.Bold))
         exit_button.setCursor(Qt.CursorShape.PointingHandCursor)

@@ -1,5 +1,6 @@
 """Discord intro popup dialog and clickable label widgets."""
 
+import html
 import sys
 import webbrowser
 from typing import TYPE_CHECKING, override
@@ -10,6 +11,7 @@ from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QSizePolicy, QSp
 
 from session_sniffer.constants.standalone import DISCORD_INVITE_URL, TITLE
 from session_sniffer.guis._dialog_mixins import DraggableDialogMixin
+from session_sniffer.guis.live_language import register_language_refresh
 from session_sniffer.guis.stylesheets import (
     DISCORD_POPUP_EXIT_BUTTON_STYLESHEET,
     DISCORD_POPUP_JOIN_BUTTON_STYLESHEET,
@@ -17,6 +19,7 @@ from session_sniffer.guis.stylesheets import (
 )
 from session_sniffer.guis.theming import ICONS_DIR_PATH, themed_qss
 from session_sniffer.guis.utils import center_window_on_screen
+from session_sniffer.i18n import tr
 from session_sniffer.settings import Settings
 
 if TYPE_CHECKING:
@@ -45,14 +48,11 @@ class DiscordIntro(DraggableDialogMixin):
         """Initialize the Discord community intro dialog."""
         super().__init__(parent)
 
-        window_title = 'Join our Discord Community!'
-
         # Modeless: must not block the main window, otherwise Windows greys out
         # the main window's native close (X) button while this dialog is open.
         self.setWindowModality(Qt.WindowModality.NonModal)
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
 
-        self.setWindowTitle(window_title)
         self.setMinimumSize(460, 160)
         # NOTE: Qt.Tool is deliberately omitted. On Windows a Qt.Tool window is created as a
         # WS_EX_TOOLWINDOW owned by the active top-level window (the main window) even when it
@@ -70,7 +70,6 @@ class DiscordIntro(DraggableDialogMixin):
 
         self.exit_button = QPushButton('x', self)
         self.exit_button.setFixedSize(16, 16)
-        self.exit_button.setToolTip('Close this popup')
         self.exit_button.setStyleSheet(DISCORD_POPUP_EXIT_BUTTON_STYLESHEET)
         self.exit_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.exit_button.clicked.connect(self.close_popup)
@@ -81,14 +80,13 @@ class DiscordIntro(DraggableDialogMixin):
         exit_layout.addWidget(self.exit_button)
         layout.addLayout(exit_layout)
 
-        self.title_label = QLabel(themed_qss(f"<font size='6' color='#5865f2'><b>{window_title}</b></font>"), self)
+        self.title_label = QLabel(self)
         self.title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.title_label)
         layout.addItem(QSpacerItem(0, 4, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding))
 
-        self.join_button = QPushButton(f'Join Now - {TITLE} Discord!', self)
+        self.join_button = QPushButton(self)
         self.join_button.setIcon(QIcon(str(ICONS_DIR_PATH / 'discord.svg')))
-        self.join_button.setToolTip('Open Discord and join the Session Sniffer community server')
         self.join_button.setStyleSheet(DISCORD_POPUP_JOIN_BUTTON_STYLESHEET)
         self.join_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.join_button.clicked.connect(self.open_discord)
@@ -101,9 +99,8 @@ class DiscordIntro(DraggableDialogMixin):
         button_layout.addStretch(1)
         layout.addLayout(button_layout)
 
-        self.dont_remind_me_label = ClickableLabel(themed_qss("<font size='3' color='#b0b0b0'><u>Don't remind me again</u></font>"), self)
+        self.dont_remind_me_label = ClickableLabel(self)
         self.dont_remind_me_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.dont_remind_me_label.setToolTip('Disable Discord popup notifications permanently')
         self.dont_remind_me_label.setCursor(Qt.CursorShape.PointingHandCursor)
         self.dont_remind_me_label.clicked.connect(self.dont_remind_me)
 
@@ -111,6 +108,9 @@ class DiscordIntro(DraggableDialogMixin):
         layout.addWidget(self.dont_remind_me_label)
 
         layout.setContentsMargins(10, 10, 10, 10)
+
+        self._apply_texts()
+        register_language_refresh(self, self._apply_texts)
 
         self.setLayout(layout)
         self.show()
@@ -126,6 +126,17 @@ class DiscordIntro(DraggableDialogMixin):
 
         self.raise_()
         self.activateWindow()
+
+    def _apply_texts(self) -> None:
+        window_title = tr('Join our Discord Community!')
+        self.setWindowTitle(window_title)
+        self.exit_button.setToolTip(tr('Close this popup'))
+        self.title_label.setText(themed_qss(f"<font size='6' color='#5865f2'><b>{html.escape(window_title)}</b></font>"))
+        self.join_button.setText(tr('Join Now - {title} Discord!', title=TITLE))
+        self.join_button.setToolTip(tr('Open Discord and join the Session Sniffer community server'))
+        remind_text = html.escape(tr("Don't remind me again"))
+        self.dont_remind_me_label.setText(themed_qss(f"<font size='3' color='#b0b0b0'><u>{remind_text}</u></font>"))
+        self.dont_remind_me_label.setToolTip(tr('Disable Discord popup notifications permanently'))
 
     def open_discord(self) -> None:
         """Open the Discord invite URL and disable future popup reminders."""

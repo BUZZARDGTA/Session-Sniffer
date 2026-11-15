@@ -16,6 +16,7 @@ from session_sniffer.error_messages import format_userip_ip_conflict_message
 from session_sniffer.gta5.suspend_manager import GTASuspendManager
 from session_sniffer.guis.dialogs import create_nonmodal_warning
 from session_sniffer.guis.utils import find_main_window
+from session_sniffer.i18n import tr
 from session_sniffer.models.userip_settings_model import EntrySource, UserIPEntryModel, pick_earliest_iso, pick_latest_iso
 from session_sniffer.networking.ip_range import IPRange, ipv4_to_int, parse_ip_range
 from session_sniffer.player.registry import PlayersRegistry, SessionTracker
@@ -227,7 +228,7 @@ class UserIPDatabases:
             dlg = create_nonmodal_warning(parent, text)
             if detailed_text is not None:
                 dlg.setDetailedText(detailed_text)
-            resolve_button = dlg.addButton('Resolve Conflicts…', QMessageBox.ButtonRole.ActionRole)
+            resolve_button = dlg.addButton(tr('Resolve Conflicts…'), QMessageBox.ButtonRole.ActionRole)
             resolve_button.clicked.connect(gui_dispatcher.conflict_resolver_requested)
             dlg.setDefaultButton(resolve_button)
 

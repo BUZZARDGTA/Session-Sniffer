@@ -17,13 +17,14 @@ from PySide6.QtWidgets import (
 )
 
 from session_sniffer.constants.standard import LOCAL_TZ
+from session_sniffer.guis.live_language import register_language_refresh
 from session_sniffer.guis.player_rate_graph import DEFAULT_MAX_HISTORY, PlayerRateGraphWindow
 from session_sniffer.guis.theming import themed_qss
 from session_sniffer.guis.utils import activate_window, scale_by_ui
+from session_sniffer.i18n import tr, tr_plural
 from session_sniffer.models.player_traffic import PlayerBandwidth
 from session_sniffer.player.registry import PlayersRegistry
 from session_sniffer.settings import Settings
-from session_sniffer.text_utils import pluralize
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -148,9 +149,10 @@ class HighRateMonitorWidget(QWidget):
         self.required_duration = Settings.high_rate_monitor_duration_threshold
 
         layout = QVBoxLayout(self)
+        self._status_mode = 'init'
 
         # Status summary label
-        self._status_label = QLabel('<b>Status:</b> Initializing scan…')
+        self._status_label = QLabel()
         self._status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._status_label.setWordWrap(True)
         layout.addWidget(self._status_label)
@@ -159,25 +161,19 @@ class HighRateMonitorWidget(QWidget):
         selection_layout = QHBoxLayout()
         selection_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        self._select_button = QPushButton('Select in Table')
-        self._select_button.setToolTip('Select and scroll to all currently flagged high-rate players in the connected players table.')
+        self._select_button = QPushButton()
         self._select_button.setMinimumWidth(scale_by_ui(140))
         self._select_button.clicked.connect(self._select_flagged)
         self._select_button.setEnabled(not self._auto_select)
         selection_layout.addWidget(self._select_button)
 
-        self._deselect_button = QPushButton('Deselect in Table')
-        self._deselect_button.setToolTip('Deselect all currently flagged high-rate players in the connected players table.')
+        self._deselect_button = QPushButton()
         self._deselect_button.setMinimumWidth(scale_by_ui(140))
         self._deselect_button.clicked.connect(self._deselect_flagged)
         self._deselect_button.setEnabled(not self._auto_select)
         selection_layout.addWidget(self._deselect_button)
 
-        self._auto_select_checkbox = QCheckBox('Auto-select in Table')
-        self._auto_select_checkbox.setToolTip(
-            'Keep high-rate players selected in the connected players table automatically.\n\n'
-            'Live updates occur with every scan. Turn off for manual selection control.',
-        )
+        self._auto_select_checkbox = QCheckBox()
         self._auto_select_checkbox.setChecked(self._auto_select)
         self._auto_select_checkbox.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self._auto_select_checkbox.toggled.connect(self._on_auto_select_toggled)
@@ -189,29 +185,18 @@ class HighRateMonitorWidget(QWidget):
         actions_layout = QHBoxLayout()
         actions_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        open_all_graphs = QPushButton('Open Graphs for Flagged Players')
-        open_all_graphs.setToolTip(
-            'Opens a live PPS/BPS rate graph window for every player currently flagged as high-rate traffic.\n\n'
-            'Each graph updates in real time so you can visually compare traffic patterns.',
-        )
-        open_all_graphs.setMinimumWidth(scale_by_ui(240))
-        open_all_graphs.clicked.connect(self._open_all_graphs)
-        actions_layout.addWidget(open_all_graphs)
+        self._open_all_graphs_button = QPushButton()
+        self._open_all_graphs_button.setMinimumWidth(scale_by_ui(240))
+        self._open_all_graphs_button.clicked.connect(self._open_all_graphs)
+        actions_layout.addWidget(self._open_all_graphs_button)
 
-        reset_button = QPushButton('Reset Scan')
-        reset_button.setToolTip(
-            'Clears all tracked data, rate history, and flagged players.\nThe scan restarts from scratch immediately.',
-        )
-        reset_button.setMinimumWidth(scale_by_ui(130))
-        reset_button.clicked.connect(self.reset_all)
-        actions_layout.addWidget(reset_button)
+        self._reset_button = QPushButton()
+        self._reset_button.setMinimumWidth(scale_by_ui(130))
+        self._reset_button.clicked.connect(self.reset_all)
+        actions_layout.addWidget(self._reset_button)
 
-        clear_bl_button = QPushButton('Clear Blacklist')
+        clear_bl_button = QPushButton()
         clear_bl_button.setEnabled(False)
-        clear_bl_button.setToolTip(
-            'Removes all IPs from the blacklist so they can be tracked again.\n\n'
-            'Blacklisted IPs are excluded from high-rate detection.',
-        )
         clear_bl_button.setMinimumWidth(scale_by_ui(130))
         clear_bl_button.clicked.connect(self._clear_blacklist)
         actions_layout.addWidget(clear_bl_button)
@@ -219,12 +204,57 @@ class HighRateMonitorWidget(QWidget):
 
         layout.addLayout(actions_layout)
 
+        self._apply_translations()
+        register_language_refresh(self, self._apply_translations)
+
         # Periodic scan timer
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._scan_players)
         if Settings.high_rate_monitor_run_in_background:
             self._timer.start(_UPDATE_INTERVAL_MS)
             self._scan_players()
+
+    def _apply_translations(self) -> None:
+        """Apply translated text to controls, tooltips, and status summary."""
+        self._select_button.setText(tr('Select in Table'))
+        self._select_button.setToolTip(tr('Select and scroll to all currently flagged high-rate players in the connected players table.'))
+        self._deselect_button.setText(tr('Deselect in Table'))
+        self._deselect_button.setToolTip(tr('Deselect all currently flagged high-rate players in the connected players table.'))
+        self._auto_select_checkbox.setText(tr('Auto-select in Table'))
+        self._auto_select_checkbox.setToolTip(
+            tr(
+                'Keep high-rate players selected in the connected players table automatically.\n\n'
+                'Live updates occur with every scan. Turn off for manual selection control.',
+            ),
+        )
+        self._open_all_graphs_button.setText(tr('Open Graphs for Flagged Players'))
+        self._open_all_graphs_button.setToolTip(
+            tr(
+                'Opens a live PPS/BPS rate graph window for every player currently flagged as high-rate traffic.\n\n'
+                'Each graph updates in real time so you can visually compare traffic patterns.',
+            ),
+        )
+        self._reset_button.setText(tr('Reset Scan'))
+        self._reset_button.setToolTip(
+            tr('Clears all tracked data, rate history, and flagged players.\nThe scan restarts from scratch immediately.'),
+        )
+        self._clear_blacklist_button.setText(tr('Clear Blacklist'))
+        self._clear_blacklist_button.setToolTip(
+            tr(
+                'Removes all IPs from the blacklist so they can be tracked again.\n\n'
+                'Blacklisted IPs are excluded from high-rate detection.',
+            ),
+        )
+        self._refresh_status_label()
+
+    def _refresh_status_label(self) -> None:
+        """Render the status summary label according to the current monitor state."""
+        if self._status_mode == 'init':
+            self._status_label.setText(tr('<b>Status:</b> Initializing scan…'))
+        elif self._status_mode == 'reset':
+            self._status_label.setText(tr('<b>Status:</b> Scan reset. Collecting data…'))
+        else:
+            self._update_status_display(self._get_flagged_players())
 
     # Scanning ---------------------------------------------------------------
 
@@ -308,34 +338,64 @@ class HighRateMonitorWidget(QWidget):
         self._update_status_display(flagged_players)
 
     def _update_status_display(self, flagged_players: list[_PlayerRateData]) -> None:
+        self._status_mode = 'scanned'
         num_flagged = len(flagged_players)
         num_connected = len(self._tracked)
         if self.mode == 'Smart':
-            mode_info = f'Smart mode (avg: {self._current_avg_pps:.1f} PPS · threshold: {self._current_smart_threshold} PPS)'
+            mode_info = tr(
+                'Smart mode (avg: {avg:.1f} PPS · threshold: {threshold} PPS)',
+                avg=self._current_avg_pps,
+                threshold=self._current_smart_threshold,
+            )
         else:
             formatted_bps_thresh = PlayerBandwidth.format_bytes(self.bps_threshold)
-            mode_info = f'Manual mode (thresholds: {self.pps_threshold} PPS · {formatted_bps_thresh})'
+            mode_info = tr(
+                'Manual mode (thresholds: {pps} PPS · {bps})',
+                pps=self.pps_threshold,
+                bps=formatted_bps_thresh,
+            )
 
         if not num_flagged:
+            monitoring_text = tr_plural(
+                'Monitoring {count} connected IP · {mode_info}.',
+                'Monitoring {count} connected IPs · {mode_info}.',
+                num_connected,
+                mode_info=mode_info,
+            )
             self._status_label.setText(
-                f'<b>No high-rate players detected.</b><br>'
-                f'<small>Monitoring {num_connected} connected IP{pluralize(num_connected)} · {mode_info}.</small>',
+                f"<b>{tr('No high-rate players detected.')}</b><br><small>{monitoring_text}</small>",
             )
             return
 
-        threshold_text = f'threshold{pluralize(2)}' if self.mode == 'Manual' else 'threshold'
+        if self.mode == 'Manual':
+            summary_text = tr_plural(
+                '{count} player currently exceeding thresholds:',
+                '{count} players currently exceeding thresholds:',
+                num_flagged,
+            )
+        else:
+            summary_text = tr_plural(
+                '{count} player currently exceeding threshold:',
+                '{count} players currently exceeding threshold:',
+                num_flagged,
+            )
         lines: list[str] = [
             themed_qss(
-                f'<b style="color:#e74c3c;">{num_flagged} player{pluralize(num_flagged)} currently exceeding {threshold_text}:</b> <small>({mode_info})</small>',
+                f'<b style="color:#e74c3c;">{summary_text}</b> <small>({mode_info})</small>',
             ),
         ]
         for player in flagged_players:
             name_part = f' ({html.escape(", ".join(player.usernames))})' if player.usernames else ''
             formatted_bps = PlayerBandwidth.format_bytes(player.bps)
-            lines.append(
-                f'• <b>{player.ip}</b>{name_part} — {player.pps} PPS · {formatted_bps} · streak: {player.current_pps_duration}s (total: {player.total_pps_duration}s)',
+            stats_text = tr(
+                '{pps} PPS · {bps} · streak: {streak}s (total: {total}s)',
+                pps=player.pps,
+                bps=formatted_bps,
+                streak=player.current_pps_duration,
+                total=player.total_pps_duration,
             )
-        lines.append('<small>Flagged players are marked with a speedometer icon in the connected players table.</small>')
+            lines.append(f'• <b>{player.ip}</b>{name_part} — {stats_text}')
+        lines.append(f"<small>{tr('Flagged players are marked with a speedometer icon in the connected players table.')}</small>")
         self._status_label.setText('<br>'.join(lines))
 
     def apply_settings(self) -> None:
@@ -423,7 +483,8 @@ class HighRateMonitorWidget(QWidget):
         self._current_avg_pps = 0.0
         self._current_smart_threshold = _SMART_MIN_PPS_FLOOR
         HighRateTracker.set_flagged_ips(set())
-        self._status_label.setText('<b>Status:</b> Scan reset. Collecting data…')
+        self._status_mode = 'reset'
+        self._refresh_status_label()
 
     def _clear_blacklist(self) -> None:
         if not self._blacklisted_ips:

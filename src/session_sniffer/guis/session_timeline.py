@@ -8,6 +8,7 @@ from PySide6.QtWidgets import QTableWidget, QTableWidgetItem
 
 from session_sniffer.constants.tables import SESSION_TIMELINE_TABLE_MIN_COLUMN_WIDTHS
 from session_sniffer.exceptions import PlayerDateTimeCorruptionError
+from session_sniffer.guis.live_language import register_language_refresh, set_table_headers
 from session_sniffer.guis.table_context_menu import StatTableWindowMixin, skip_if_menu_open
 from session_sniffer.guis.theming import register_theme_change_callback, themed_text_qcolor
 from session_sniffer.guis.utils import (
@@ -17,6 +18,7 @@ from session_sniffer.guis.utils import (
     scale_by_ui,
     setup_stat_table,
 )
+from session_sniffer.i18n import tr
 from session_sniffer.player.registry import PlayersRegistry
 
 if TYPE_CHECKING:
@@ -66,17 +68,34 @@ class SessionTimelineWindow(StatTableWindowMixin):
         """Initialize the session timeline window."""
         super().__init__()
 
-        self.setWindowTitle('Session Timeline')
         self.resize(scale_by_ui(1000), scale_by_ui(500))
         layout = self.setup_window_layout(always_on_top=always_on_top, spacing=4)
 
         self._table = QTableWidget(0, len(_HEADERS))
-        self._table.setHorizontalHeaderLabels(_HEADERS)
+        set_table_headers(self._table, _HEADERS)
         setup_stat_table(self._table, layout, sorting=True)
 
         self.setup_stat_table_controls(layout, always_on_top=always_on_top, min_column_widths=SESSION_TIMELINE_TABLE_MIN_COLUMN_WIDTHS)
         self._reset_column_sizes()
         self._table.sortByColumn(_COLUMN_FIRST_SEEN, Qt.SortOrder.AscendingOrder)
+
+        self._apply_translations()
+        register_language_refresh(self, self._apply_translations)
+
+    def _apply_translations(self) -> None:
+        """Apply translated text to the window title and existing table cells."""
+        self.setWindowTitle(tr('Session Timeline'))
+        for row in range(self._table.rowCount()):
+            status_cell = self._table.item(row, _COLUMN_STATUS)
+            if status_cell is not None:
+                is_connected = bool(status_cell.data(Qt.ItemDataRole.UserRole))
+                status_cell.setText(tr('Connected') if is_connected else tr('Disconnected'))
+            for column in (_COLUMN_SESSION_TIME, _COLUMN_TOTAL_TIME):
+                time_cell = self._table.item(row, column)
+                if time_cell is not None:
+                    seconds = time_cell.data(Qt.ItemDataRole.UserRole)
+                    if isinstance(seconds, int | float):
+                        time_cell.setText(format_duration(seconds))
 
     @skip_if_menu_open
     def refresh(self) -> None:
@@ -115,7 +134,8 @@ class SessionTimelineWindow(StatTableWindowMixin):
 
                 player_item = QTableWidgetItem(format_player_display(player.ip, player.usernames))
                 player_item.setData(Qt.ItemDataRole.UserRole, player.ip)
-                status_item = QTableWidgetItem('Connected' if is_connected else 'Disconnected')
+                status_item = QTableWidgetItem(tr('Connected') if is_connected else tr('Disconnected'))
+                status_item.setData(Qt.ItemDataRole.UserRole, is_connected)
 
                 first_item = NumericTableWidgetItem(player.datetime.first_seen.strftime('%H:%M:%S'), sort_value=player.datetime.first_seen.timestamp())
                 rejoin_item = NumericTableWidgetItem(player.datetime.last_rejoin.strftime('%H:%M:%S'), sort_value=player.datetime.last_rejoin.timestamp())
@@ -147,8 +167,9 @@ class SessionTimelineWindow(StatTableWindowMixin):
                 session_seconds, total_seconds = _calculate_player_session_times(player, now)
 
                 status_cell = self._table.item(target_row, _COLUMN_STATUS)
-                status_text = 'Connected' if is_connected else 'Disconnected'
-                if status_cell is not None and status_cell.text() != status_text:
+                status_text = tr('Connected') if is_connected else tr('Disconnected')
+                if status_cell is not None and (status_cell.data(Qt.ItemDataRole.UserRole) != is_connected or status_cell.text() != status_text):
+                    status_cell.setData(Qt.ItemDataRole.UserRole, is_connected)
                     status_cell.setText(status_text)
                     for column in range(len(_HEADERS)):
                         cell = self._table.item(target_row, column)

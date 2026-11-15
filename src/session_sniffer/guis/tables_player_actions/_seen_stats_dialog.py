@@ -9,6 +9,7 @@ from PySide6.QtWidgets import (
 
 from session_sniffer.constants.local import SESSIONS_LOGGING_DIR_PATH
 from session_sniffer.constants.standalone import TITLE
+from session_sniffer.guis.live_language import register_language_refresh
 from session_sniffer.guis.tables_player_actions._player_info_dialog_mixin import PlayerInfoDialogMixin
 from session_sniffer.guis.utils import (
     ActiveDialogRegistry,
@@ -16,6 +17,7 @@ from session_sniffer.guis.utils import (
     format_player_display,
     set_dialog_window_flags,
 )
+from session_sniffer.i18n import tr
 from session_sniffer.player.seen_stats import SEEN_STATS_LABELS, SeenStats, analyze_sessions_logging
 
 if TYPE_CHECKING:
@@ -29,16 +31,18 @@ class SeenStatsDialog(PlayerInfoDialogMixin):
         """Compute seen stats and build the dialog UI."""
         super().__init__(parent)
         set_dialog_window_flags(self)
+        self._player = player
         stats = analyze_sessions_logging(SESSIONS_LOGGING_DIR_PATH, player.ip)
 
-        self.setWindowTitle(f'{TITLE} - Seen Stats ({format_player_display(player.ip, player.usernames)})')
+        display = format_player_display(player.ip, player.usernames)
+        self.setWindowTitle(f'{TITLE} - {tr("Seen Stats")} ({display})')
         apply_adaptive_window_size(self, min_size=(380, 280), size_1080p=(500, 340), size_720p=(460, 320))
 
         outer_layout = QVBoxLayout(self)
         outer_layout.setContentsMargins(10, 10, 10, 10)
         outer_layout.setSpacing(8)
 
-        self._add_header_label(outer_layout, f'Seen Stats — {format_player_display(player.ip, player.usernames)}', '#6b46c1', '#9f7aea')
+        self._header_label = self._add_header_label(outer_layout, f'{tr("Seen Stats")} — {display}', '#6b46c1', '#9f7aea')
 
         scroll_layout = self._init_scroll_area(outer_layout)
 
@@ -46,10 +50,17 @@ class SeenStatsDialog(PlayerInfoDialogMixin):
         scroll_layout.addStretch(1)
 
         self._add_close_button_box(outer_layout)
+        register_language_refresh(self, self._refresh_language_texts)
+
+    def _refresh_language_texts(self) -> None:
+        """Refresh dynamic title and header when runtime language changes."""
+        display = format_player_display(self._player.ip, self._player.usernames)
+        self.setWindowTitle(f'{TITLE} - {tr("Seen Stats")} ({display})')
+        self._header_label.setText(f'{tr("Seen Stats")} — {display}')
 
     def _build_encounter_group(self, parent_layout: QVBoxLayout, stats: SeenStats) -> None:
         """Add the 'Session Encounters' section to the scroll layout."""
-        group, form = self._make_group('Session Encounters', accent='#6b46c1')
+        group, form = self._make_group(tr('Session Encounters'), accent='#6b46c1')
         for key, label in SEEN_STATS_LABELS.items():
             self._add_row(form, label, str(getattr(stats, key)))
         parent_layout.addWidget(group)

@@ -73,6 +73,7 @@ from session_sniffer.guis._player_leaderboard_workers import (
 )
 from session_sniffer.guis.delegates import ElidedTextTooltipDelegate, SearchHighlightDelegate
 from session_sniffer.guis.file_watch import DebouncedFileWatcher
+from session_sniffer.guis.live_language import register_language_refresh, set_i18n_colon_label, set_table_headers
 from session_sniffer.guis.stylesheets import SVG_ICON_CONTEXT_MENU_STYLESHEET
 from session_sniffer.guis.table_column_resizing import setup_static_table_column_resizing, setup_table_header_context_menu
 from session_sniffer.guis.table_context_menu import add_copy_usernames_and_ips_actions
@@ -96,10 +97,10 @@ from session_sniffer.guis.utils import (
     set_clipboard_text,
     setup_table_view_headers,
 )
+from session_sniffer.i18n import tr, tr_plural
 from session_sniffer.player.registry import PlayersRegistry
 from session_sniffer.player.seen_stats import LeaderboardBaseline, LeaderboardEntry, overlay_live_session
 from session_sniffer.rendering_core.renderer import SESSIONS_LOGGING_PATH
-from session_sniffer.text_utils import pluralize
 
 # How often the displayed leaderboard is re-derived from the live session snapshot while visible.
 _LIVE_REFRESH_INTERVAL_MS = 1000
@@ -123,12 +124,12 @@ class _SeenStatsDialog(QDialog):
 
     def __init__(self, entry: LeaderboardEntry, parent: QWidget | None = None) -> None:
         super().__init__(parent)
+        self._entry = entry
         self.setWindowModality(Qt.WindowModality.WindowModal)
-        self.setWindowTitle(f'Seen Stats — {format_player_display(entry.ip, entry.usernames)}')
         self.setWindowFlag(Qt.WindowType.WindowContextHelpButtonHint, on=False)
 
         self._table = QTableWidget(len(_STATS_PERIODS), 3, self)
-        self._table.setHorizontalHeaderLabels(['Period', 'Unique Days', 'Sessions'])
+        set_table_headers(self._table, ['Period', 'Unique Days', 'Sessions'])
         v_header = self._table.verticalHeader()
         if v_header:
             v_header.setVisible(False)
@@ -141,7 +142,8 @@ class _SeenStatsDialog(QDialog):
         self._table.setFocusPolicy(Qt.FocusPolicy.NoFocus)
 
         for row, (period, sessions_attr, days_attr) in enumerate(_STATS_PERIODS):
-            period_item = QTableWidgetItem(period)
+            period_item = QTableWidgetItem(tr(period))
+            period_item.setData(Qt.ItemDataRole.UserRole, period)
             days_item = QTableWidgetItem(str(getattr(entry, days_attr)))
             sessions_item = QTableWidgetItem(str(getattr(entry, sessions_attr)))
             days_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -159,6 +161,18 @@ class _SeenStatsDialog(QDialog):
         layout = QVBoxLayout(self)
         layout.addWidget(self._table)
         self._reset_column_sizes()
+
+        self._apply_translations()
+        register_language_refresh(self, self._apply_translations)
+
+    def _apply_translations(self) -> None:
+        self.setWindowTitle(tr('Seen Stats — {player}', player=format_player_display(self._entry.ip, self._entry.usernames)))
+        for row in range(self._table.rowCount()):
+            period_item = self._table.item(row, 0)
+            if period_item is not None:
+                canonical_period = period_item.data(Qt.ItemDataRole.UserRole)
+                if isinstance(canonical_period, str):
+                    period_item.setText(tr(canonical_period))
 
     def _reset_column_sizes(self) -> None:
         """Reset column widths back to their initial default layout, stretching Period."""
@@ -237,7 +251,7 @@ class PlayerLeaderboardWindow(ToggleAlwaysOnTopMixin):
         """Initialize the leaderboard window and load session data."""
         super().__init__(parent)
 
-        self.setWindowTitle('Most Seen Players')
+        self._is_loading = False
         flags = Qt.WindowType.Window | Qt.WindowType.WindowCloseButtonHint | Qt.WindowType.WindowMinimizeButtonHint | Qt.WindowType.WindowMaximizeButtonHint
         if always_on_top:
             flags |= Qt.WindowType.WindowStaysOnTopHint
@@ -252,48 +266,43 @@ class PlayerLeaderboardWindow(ToggleAlwaysOnTopMixin):
         # Controls bar
         controls_layout = QHBoxLayout()
 
-        scope_label = QLabel('Time Period:')
+        scope_label = QLabel()
+        set_i18n_colon_label(scope_label, 'Time Period')
         controls_layout.addWidget(scope_label)
 
         self._scope_combo = QComboBox()
         self._scope_combo.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
-        self._scope_combo.addItems(SCOPES)
-        self._scope_combo.setCurrentText(SCOPE_ALL_TIME)
-        self._scope_combo.setToolTip('Restrict the count to encounters within the selected time window')
-        self._scope_combo.currentTextChanged.connect(self._on_scope_changed)
+        for scope in SCOPES:
+            self._scope_combo.addItem(tr(scope), scope)
+        default_scope_index = self._scope_combo.findData(SCOPE_ALL_TIME)
+        if default_scope_index >= 0:
+            self._scope_combo.setCurrentIndex(default_scope_index)
+        self._scope_combo.currentIndexChanged.connect(self._on_scope_changed)
         controls_layout.addWidget(self._scope_combo)
 
         controls_layout.addSpacing(12)
 
-        mode_label = QLabel('Count by:')
+        mode_label = QLabel()
+        set_i18n_colon_label(mode_label, 'Count by')
         controls_layout.addWidget(mode_label)
 
         self._mode_combo = QComboBox()
         self._mode_combo.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
-        self._mode_combo.addItems(MODES)
-        self._mode_combo.setCurrentText(MODE_DAYS)
-        self._mode_combo.setToolTip('Choose how encounters are counted — by unique calendar days or by individual sniffer sessions')
-        self._mode_combo.setItemData(
-            MODES.index(MODE_DAYS),
-            'Count each calendar day at most once — seeing a player 5 times in one day still counts as 1',
-            Qt.ItemDataRole.ToolTipRole,
-        )
-        self._mode_combo.setItemData(
-            MODES.index(MODE_SESSIONS),
-            'Count every individual sniffer session — seeing a player in 5 sessions counts as 5',
-            Qt.ItemDataRole.ToolTipRole,
-        )
-        self._mode_combo.currentTextChanged.connect(self._on_mode_changed)
+        for mode in MODES:
+            self._mode_combo.addItem(tr(mode), mode)
+        default_mode_index = self._mode_combo.findData(MODE_DAYS)
+        if default_mode_index >= 0:
+            self._mode_combo.setCurrentIndex(default_mode_index)
+        self._mode_combo.currentIndexChanged.connect(self._on_mode_changed)
         controls_layout.addWidget(self._mode_combo)
 
         controls_layout.addSpacing(12)
 
-        search_label = QLabel('Search:')
+        search_label = QLabel()
+        set_i18n_colon_label(search_label, 'Search')
         controls_layout.addWidget(search_label)
 
         self._search_box = QLineEdit()
-        self._search_box.setPlaceholderText('Search...')
-        self._search_box.setToolTip('Type to filter visible rows')
         self._search_box.setMaximumWidth(280)
         self._search_box.textChanged.connect(self._on_search_changed)
         apply_search_icon(self._search_box)
@@ -301,10 +310,12 @@ class PlayerLeaderboardWindow(ToggleAlwaysOnTopMixin):
 
         self._search_column_combo = QComboBox()
         self._search_column_combo.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
-        self._search_column_combo.addItems(SEARCH_COLUMNS)
-        self._search_column_combo.setCurrentText(SEARCH_COLUMN_ALL)
-        self._search_column_combo.setToolTip('Restrict the search to a specific column')
-        self._search_column_combo.currentTextChanged.connect(self._on_search_column_changed)
+        for search_col in SEARCH_COLUMNS:
+            self._search_column_combo.addItem(tr(search_col), search_col)
+        default_search_index = self._search_column_combo.findData(SEARCH_COLUMN_ALL)
+        if default_search_index >= 0:
+            self._search_column_combo.setCurrentIndex(default_search_index)
+        self._search_column_combo.currentIndexChanged.connect(self._on_search_column_changed)
         controls_layout.addWidget(self._search_column_combo)
 
         controls_layout.addStretch()
@@ -320,34 +331,28 @@ class PlayerLeaderboardWindow(ToggleAlwaysOnTopMixin):
         # Second controls row: filters and actions
         filters_layout = QHBoxLayout()
 
-        self._hide_servers_checkbox = QCheckBox('Hide game servers')
-        self._hide_servers_checkbox.setToolTip('Exclude known third-party game/relay server IPs from the leaderboard')
+        self._hide_servers_checkbox = QCheckBox()
         self._hide_servers_checkbox.toggled.connect(self._on_hide_servers_toggled)
         filters_layout.addWidget(self._hide_servers_checkbox)
 
-        self._hide_vpns_checkbox = QCheckBox('Hide VPNs')
-        self._hide_vpns_checkbox.setToolTip('Exclude IPs flagged as VPNs or proxies from the leaderboard')
+        self._hide_vpns_checkbox = QCheckBox()
         self._hide_vpns_checkbox.toggled.connect(self._on_hide_vpns_toggled)
         filters_layout.addWidget(self._hide_vpns_checkbox)
 
-        self._hide_hosting_checkbox = QCheckBox('Hide hosting')
-        self._hide_hosting_checkbox.setToolTip('Exclude IPs flagged as hosting/datacenter providers from the leaderboard')
+        self._hide_hosting_checkbox = QCheckBox()
         self._hide_hosting_checkbox.toggled.connect(self._on_hide_hosting_toggled)
         filters_layout.addWidget(self._hide_hosting_checkbox)
 
-        self._current_session_checkbox = QCheckBox('Current session only')
-        self._current_session_checkbox.setToolTip('Show only players present in your active session (connected or disconnected)')
+        self._current_session_checkbox = QCheckBox()
         self._current_session_checkbox.toggled.connect(self._on_current_session_toggled)
         filters_layout.addWidget(self._current_session_checkbox)
 
-        self._relative_dates_checkbox = QCheckBox('Relative dates')
+        self._relative_dates_checkbox = QCheckBox()
         self._relative_dates_checkbox.setChecked(True)
-        self._relative_dates_checkbox.setToolTip('Display First Seen and Last Seen as natural relative times (e.g., 2 days ago)')
         self._relative_dates_checkbox.toggled.connect(self._on_relative_dates_toggled)
         filters_layout.addWidget(self._relative_dates_checkbox)
 
-        self._always_on_top_checkbox = QCheckBox('Always on Top')
-        self._always_on_top_checkbox.setToolTip('Keep this window visible on top of all other applications and games.')
+        self._always_on_top_checkbox = QCheckBox()
         self._always_on_top_checkbox.setChecked(always_on_top)
         self._always_on_top_checkbox.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self._always_on_top_checkbox.toggled.connect(self.toggle_always_on_top)
@@ -355,7 +360,8 @@ class PlayerLeaderboardWindow(ToggleAlwaysOnTopMixin):
 
         filters_layout.addSpacing(12)
 
-        cap_label = QLabel('Show top:')
+        cap_label = QLabel()
+        set_i18n_colon_label(cap_label, 'Show top')
         filters_layout.addWidget(cap_label)
 
         self._cap_spinbox = QSpinBox()
@@ -363,8 +369,6 @@ class PlayerLeaderboardWindow(ToggleAlwaysOnTopMixin):
         self._cap_spinbox.setRange(50, 10000)
         self._cap_spinbox.setSingleStep(50)
         self._cap_spinbox.setValue(1000)
-        self._cap_spinbox.setSuffix(' players')
-        self._cap_spinbox.setToolTip('Maximum number of players to display in the leaderboard')
         self._cap_spinbox.valueChanged.connect(self._on_cap_changed)
         filters_layout.addWidget(self._cap_spinbox)
 
@@ -447,6 +451,71 @@ class PlayerLeaderboardWindow(ToggleAlwaysOnTopMixin):
         self._scan_cooldown.setSingleShot(True)
         self._scan_cooldown.setInterval(_SESSIONS_SCAN_COOLDOWN_MS)
         self._scan_cooldown.timeout.connect(self._on_scan_cooldown_elapsed)
+
+        self._apply_translations()
+        register_language_refresh(self, self._apply_translations)
+
+    def _apply_translations(self) -> None:
+        """Apply translated text to controls, tooltips, headers, and summary labels."""
+        self.setWindowTitle(tr('Most Seen Players'))
+
+        self._scope_combo.setToolTip(tr('Restrict the count to encounters within the selected time window'))
+        for i in range(self._scope_combo.count()):
+            scope_key = self._scope_combo.itemData(i)
+            if isinstance(scope_key, str):
+                self._scope_combo.setItemText(i, tr(scope_key))
+
+        self._mode_combo.setToolTip(tr('Choose how encounters are counted — by unique calendar days or by individual sniffer sessions'))
+        for i in range(self._mode_combo.count()):
+            mode_key = self._mode_combo.itemData(i)
+            if isinstance(mode_key, str):
+                self._mode_combo.setItemText(i, tr(mode_key))
+        self._mode_combo.setItemData(
+            MODES.index(MODE_DAYS),
+            tr('Count each calendar day at most once — seeing a player 5 times in one day still counts as 1'),
+            Qt.ItemDataRole.ToolTipRole,
+        )
+        self._mode_combo.setItemData(
+            MODES.index(MODE_SESSIONS),
+            tr('Count every individual sniffer session — seeing a player in 5 sessions counts as 5'),
+            Qt.ItemDataRole.ToolTipRole,
+        )
+
+        self._search_box.setPlaceholderText(tr('Search...'))
+        self._search_box.setToolTip(tr('Type to filter visible rows'))
+
+        self._search_column_combo.setToolTip(tr('Restrict the search to a specific column'))
+        for i in range(self._search_column_combo.count()):
+            search_key = self._search_column_combo.itemData(i)
+            if isinstance(search_key, str):
+                self._search_column_combo.setItemText(i, tr(search_key))
+
+        self._hide_servers_checkbox.setText(tr('Hide game servers'))
+        self._hide_servers_checkbox.setToolTip(tr('Exclude known third-party game/relay server IPs from the leaderboard'))
+        self._hide_vpns_checkbox.setText(tr('Hide VPNs'))
+        self._hide_vpns_checkbox.setToolTip(tr('Exclude IPs flagged as VPNs or proxies from the leaderboard'))
+        self._hide_hosting_checkbox.setText(tr('Hide hosting'))
+        self._hide_hosting_checkbox.setToolTip(tr('Exclude IPs flagged as hosting/datacenter providers from the leaderboard'))
+        self._current_session_checkbox.setText(tr('Current session only'))
+        self._current_session_checkbox.setToolTip(tr('Show only players present in your active session (connected or disconnected)'))
+        self._relative_dates_checkbox.setText(tr('Relative dates'))
+        self._relative_dates_checkbox.setToolTip(tr('Display First Seen and Last Seen as natural relative times (e.g., 2 days ago)'))
+        self._always_on_top_checkbox.setText(tr('Always on Top'))
+        self._always_on_top_checkbox.setToolTip(tr('Keep this window visible on top of all other applications and games.'))
+
+        self._cap_spinbox.setSuffix(f" {tr('players')}")
+        self._cap_spinbox.setToolTip(tr('Maximum number of players to display in the leaderboard'))
+
+        self._model.headerDataChanged.emit(Qt.Orientation.Horizontal, 0, len(HEADERS) - 1)
+        row_count = self._model.rowCount()
+        if row_count > 0:
+            self._model.dataChanged.emit(
+                self._model.index(0, 0),
+                self._model.index(row_count - 1, self._model.columnCount() - 1),
+                [Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.ToolTipRole],
+            )
+        if self._baseline is not None or self._is_loading:
+            self._update_count_label()
 
     def load_and_show(self) -> None:
         """Reveal the window immediately and load baseline data in the background."""
@@ -531,10 +600,11 @@ class PlayerLeaderboardWindow(ToggleAlwaysOnTopMixin):
         if self._baseline_worker is not None and self._baseline_worker.isRunning():
             return
 
+        self._is_loading = True
         self._set_controls_enabled(enabled=False)
         self._stacked_widget.setCurrentWidget(self._loading_widget)
         self._loading_widget.reset_progress()
-        self._count_label.setText('Loading...')
+        self._count_label.setText(tr('Loading...'))
 
         worker = LeaderboardBaselineWorker(SESSIONS_LOGGING_DIR_PATH, self._live_session_file)
         worker.finished.connect(self._clear_baseline_worker)
@@ -559,6 +629,7 @@ class PlayerLeaderboardWindow(ToggleAlwaysOnTopMixin):
 
     def _apply_baseline(self, baseline: LeaderboardBaseline) -> None:
         """Store a freshly-scanned baseline, render the initial overlaid leaderboard, and begin live refresh."""
+        self._is_loading = False
         self._baseline = baseline
         connected_players, disconnected_players = PlayersRegistry.get_default_sorted_connected_and_disconnected_players()
         connected_ips = frozenset(player.ip for player in connected_players)
@@ -636,20 +707,29 @@ class PlayerLeaderboardWindow(ToggleAlwaysOnTopMixin):
         self._proxy.set_limit(self._cap_spinbox.value())
         self._update_count_label()
 
-    def _on_mode_changed(self, mode: str) -> None:
+    def _on_mode_changed(self, index: int) -> None:
+        mode = self._mode_combo.itemData(index)
+        if not isinstance(mode, str):
+            return
         self._model.set_mode(mode)
         self._proxy.refresh_accepted_ips(force_invalidate=True)
         self._proxy.sort(self._proxy.sortColumn(), self._proxy.sortOrder())
         self._update_count_label()
 
-    def _on_scope_changed(self, scope: str) -> None:
+    def _on_scope_changed(self, index: int) -> None:
+        scope = self._scope_combo.itemData(index)
+        if not isinstance(scope, str):
+            return
         self._model.set_scope(scope)
         self._proxy.refresh_accepted_ips(force_invalidate=True)
         self._proxy.sort(self._proxy.sortColumn(), self._proxy.sortOrder())
         self._update_count_label()
 
     def _get_active_search_column(self) -> int:
-        return SEARCH_COLUMN_TO_INDEX.get(self._search_column_combo.currentText(), -1)
+        col_key = self._search_column_combo.currentData()
+        if isinstance(col_key, str):
+            return SEARCH_COLUMN_TO_INDEX.get(col_key, -1)
+        return -1
 
     def _on_search_changed(self, text: str) -> None:
         self._proxy.set_search_text(text)
@@ -658,7 +738,10 @@ class PlayerLeaderboardWindow(ToggleAlwaysOnTopMixin):
         if viewport:
             viewport.update()
 
-    def _on_search_column_changed(self, column: str) -> None:
+    def _on_search_column_changed(self, index: int) -> None:
+        column = self._search_column_combo.itemData(index)
+        if not isinstance(column, str):
+            return
         self._proxy.set_search_column(column)
         self._update_count_label()
         viewport = self._table.viewport()
@@ -733,14 +816,14 @@ class PlayerLeaderboardWindow(ToggleAlwaysOnTopMixin):
 
         if len(selected_entries) == 1:
             entry = selected_entries[0]
-            copy_row_action = QAction(QIcon(str(ICONS_DIR_PATH / 'copy.svg')), 'Copy Row', self)
+            copy_row_action = QAction(QIcon(str(ICONS_DIR_PATH / 'copy.svg')), tr('Copy Row'), self)
             copy_row_action.setShortcut('Ctrl+C')
-            copy_row_action.setToolTip('Copy the selected player row to the clipboard as tab-separated text.')
+            copy_row_action.setToolTip(tr('Copy the selected player row to the clipboard as tab-separated text.'))
             copy_row_action.triggered.connect(self._table.copy_selection)
             menu.addAction(copy_row_action)
 
-            copy_all_action = QAction(QIcon(str(ICONS_DIR_PATH / 'copy.svg')), 'Copy All', self)
-            copy_all_action.setToolTip('Copy all visible leaderboard rows to the clipboard as tab-separated text.')
+            copy_all_action = QAction(QIcon(str(ICONS_DIR_PATH / 'copy.svg')), tr('Copy All'), self)
+            copy_all_action.setToolTip(tr('Copy all visible leaderboard rows to the clipboard as tab-separated text.'))
             copy_all_action.setEnabled(self._proxy.rowCount() > 0)
             copy_all_action.triggered.connect(self._copy_all_rows)
             menu.addAction(copy_all_action)
@@ -748,28 +831,42 @@ class PlayerLeaderboardWindow(ToggleAlwaysOnTopMixin):
             menu.addSeparator()
 
             usernames_text = ', '.join(entry.usernames)
-            copy_usernames_action = QAction(QIcon(str(ICONS_DIR_PATH / 'copy.svg')), f'Copy Username{pluralize(len(entry.usernames))}', self)
-            copy_usernames_action.setToolTip(f'Copy the username{pluralize(len(entry.usernames))} for this player to the clipboard.')
+            copy_usernames_action = QAction(
+                QIcon(str(ICONS_DIR_PATH / 'copy.svg')),
+                tr_plural('Copy Username', 'Copy Usernames', len(entry.usernames)),
+                self,
+            )
+            copy_usernames_action.setToolTip(
+                tr_plural(
+                    'Copy the username for this player to the clipboard.',
+                    'Copy the usernames for this player to the clipboard.',
+                    len(entry.usernames),
+                ),
+            )
             copy_usernames_action.setEnabled(bool(entry.usernames))
             copy_usernames_action.triggered.connect(lambda: set_clipboard_text(usernames_text))
             menu.addAction(copy_usernames_action)
 
-            copy_ip_action = QAction(QIcon(str(ICONS_DIR_PATH / 'copy.svg')), 'Copy IP', self)
-            copy_ip_action.setToolTip("Copy this player's IP address to the clipboard.")
+            copy_ip_action = QAction(QIcon(str(ICONS_DIR_PATH / 'copy.svg')), tr('Copy IP'), self)
+            copy_ip_action.setToolTip(tr("Copy this player's IP address to the clipboard."))
             copy_ip_action.triggered.connect(lambda: set_clipboard_text(entry.ip))
             menu.addAction(copy_ip_action)
         else:
             all_usernames = [username for entry in selected_entries for username in entry.usernames]
             all_ips = [entry.ip for entry in selected_entries]
 
-            copy_rows_action = QAction(QIcon(str(ICONS_DIR_PATH / 'copy.svg')), f'Copy Rows ({len(selected_entries)})', self)
+            copy_rows_action = QAction(
+                QIcon(str(ICONS_DIR_PATH / 'copy.svg')),
+                tr_plural('Copy Row ({count})', 'Copy Rows ({count})', len(selected_entries)),
+                self,
+            )
             copy_rows_action.setShortcut('Ctrl+C')
-            copy_rows_action.setToolTip('Copy the selected player rows to the clipboard as tab-separated text.')
+            copy_rows_action.setToolTip(tr('Copy the selected player rows to the clipboard as tab-separated text.'))
             copy_rows_action.triggered.connect(self._table.copy_selection)
             menu.addAction(copy_rows_action)
 
-            copy_all_action = QAction(QIcon(str(ICONS_DIR_PATH / 'copy.svg')), 'Copy All', self)
-            copy_all_action.setToolTip('Copy all visible leaderboard rows to the clipboard as tab-separated text.')
+            copy_all_action = QAction(QIcon(str(ICONS_DIR_PATH / 'copy.svg')), tr('Copy All'), self)
+            copy_all_action.setToolTip(tr('Copy all visible leaderboard rows to the clipboard as tab-separated text.'))
             copy_all_action.setEnabled(self._proxy.rowCount() > 0)
             copy_all_action.triggered.connect(self._copy_all_rows)
             menu.addAction(copy_all_action)
@@ -778,15 +875,15 @@ class PlayerLeaderboardWindow(ToggleAlwaysOnTopMixin):
 
         menu.addSeparator()
 
-        select_all_action = QAction(QIcon(str(ICONS_DIR_PATH / 'square-check.svg')), 'Select All', self)
+        select_all_action = QAction(QIcon(str(ICONS_DIR_PATH / 'square-check.svg')), tr('Select All'), self)
         select_all_action.setShortcut('Ctrl+A')
-        select_all_action.setToolTip('Select all rows in the leaderboard.')
+        select_all_action.setToolTip(tr('Select all rows in the leaderboard.'))
         select_all_action.setEnabled(self._proxy.rowCount() > 0)
         select_all_action.triggered.connect(self._table.selectAll)
         menu.addAction(select_all_action)
 
-        clear_selection_action = QAction(QIcon(str(ICONS_DIR_PATH / 'square.svg')), 'Clear Selection', self)
-        clear_selection_action.setToolTip('Deselect all currently selected rows.')
+        clear_selection_action = QAction(QIcon(str(ICONS_DIR_PATH / 'square.svg')), tr('Clear Selection'), self)
+        clear_selection_action.setToolTip(tr('Deselect all currently selected rows.'))
         clear_selection_action.triggered.connect(self._table.clearSelection)
         menu.addAction(clear_selection_action)
 
@@ -795,30 +892,30 @@ class PlayerLeaderboardWindow(ToggleAlwaysOnTopMixin):
         if len(selected_entries) == 1:
             entry = selected_entries[0]
 
-            lookup_action = QAction(QIcon(str(ICONS_DIR_PATH / 'info.svg')), 'IP Lookup Details…', self)
-            lookup_action.setToolTip('Show detailed IP lookup information for this player.')
+            lookup_action = QAction(QIcon(str(ICONS_DIR_PATH / 'info.svg')), tr('IP Lookup Details…'), self)
+            lookup_action.setToolTip(tr('Show detailed IP lookup information for this player.'))
             lookup_action.triggered.connect(lambda _checked=False, ip_address=entry.ip: show_detailed_ip_lookup(ip_address))
             menu.addAction(lookup_action)
 
             create_ping_menu(self, menu, [entry.ip])
 
-            scan_ports_action = QAction(QIcon(str(ICONS_DIR_PATH / 'radar.svg')), 'Scan Ports…', self)
-            scan_ports_action.setToolTip('Scan TCP and UDP ports on this host.')
+            scan_ports_action = QAction(QIcon(str(ICONS_DIR_PATH / 'radar.svg')), tr('Scan Ports…'), self)
+            scan_ports_action.setToolTip(tr('Scan TCP and UDP ports on this host.'))
             scan_ports_action.triggered.connect(lambda _checked=False, ip_address=entry.ip: scan_ports_ip(ip_address))
             menu.addAction(scan_ports_action)
 
             menu.addSeparator()
 
-            seen_stats_action = QAction(QIcon(str(ICONS_DIR_PATH / 'info.svg')), 'View Seen Stats', self)
-            seen_stats_action.setToolTip('Show a breakdown of how many days and sessions this player has appeared in.')
+            seen_stats_action = QAction(QIcon(str(ICONS_DIR_PATH / 'info.svg')), tr('View Seen Stats'), self)
+            seen_stats_action.setToolTip(tr('Show a breakdown of how many days and sessions this player has appeared in.'))
             seen_stats_action.triggered.connect(lambda: self._show_seen_stats_for_entry(entry))
             menu.addAction(seen_stats_action)
         else:
             all_ips = [entry.ip for entry in selected_entries]
             create_ping_menu(self, menu, all_ips)
 
-            scan_ports_action = QAction(QIcon(str(ICONS_DIR_PATH / 'radar.svg')), 'Scan Ports…', self)
-            scan_ports_action.setToolTip('Scan TCP and UDP ports on the selected hosts.')
+            scan_ports_action = QAction(QIcon(str(ICONS_DIR_PATH / 'radar.svg')), tr('Scan Ports…'), self)
+            scan_ports_action.setToolTip(tr('Scan TCP and UDP ports on the selected hosts.'))
 
             def _scan_all_leaderboard() -> None:
                 scan_ports_ip(all_ips)
@@ -836,13 +933,23 @@ class PlayerLeaderboardWindow(ToggleAlwaysOnTopMixin):
         _SeenStatsDialog(entry, self).exec()
 
     def _update_count_label(self) -> None:
+        if self._is_loading:
+            self._count_label.setText(tr('Loading...'))
+            return
         visible = self._proxy.rowCount()
         total = self._total_players
         if self._current_session_checkbox.isChecked():
             session_total = len(self._proxy.current_session_ips)
-            self._count_label.setText(f'{visible} of {session_total} session players ({total} total)')
+            self._count_label.setText(
+                tr(
+                    '{visible} of {session_total} session players ({total} total)',
+                    visible=visible,
+                    session_total=session_total,
+                    total=total,
+                ),
+            )
         else:
-            self._count_label.setText(f'{visible} of {total} players')
+            self._count_label.setText(tr('{visible} of {total} players', visible=visible, total=total))
 
     @override
     def showEvent(self, a0: QShowEvent) -> None:

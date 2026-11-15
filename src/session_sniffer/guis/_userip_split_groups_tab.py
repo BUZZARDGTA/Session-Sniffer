@@ -1,13 +1,12 @@
 """Split Account Groups tab and shared tree helpers for the UserIP Conflict Resolver."""
 
 import html
-from dataclasses import dataclass, field
-from ipaddress import IPv4Address
+from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, NamedTuple, cast, override
+from typing import TYPE_CHECKING, NamedTuple, override
 
-from PySide6.QtCore import QModelIndex, QPersistentModelIndex, QPoint, QSignalBlocker, Qt, QTimer, QUrl
-from PySide6.QtGui import QDesktopServices, QIcon, QKeySequence, QShortcut
+from PySide6.QtCore import QModelIndex, QPersistentModelIndex, QPoint, QSignalBlocker, Qt, QTimer
+from PySide6.QtGui import QIcon, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
@@ -28,23 +27,34 @@ from PySide6.QtWidgets import (
 
 from session_sniffer.constants.local import USERIP_DATABASES_DIR_PATH
 from session_sniffer.constants.standalone import TITLE
+from session_sniffer.guis._userip_tree_batch_ops import (
+    SIDE_ROLE,
+    SideDetails,
+    copy_resolver_selected_row,
+    create_resolver_tail_buttons,
+    is_single_ipv4,
+    populate_resolver_common_menu_prefix,
+    populate_resolver_ip_tools_menu,
+    populate_userip_databases_menu,
+    retranslate_resolver_tail_buttons,
+)
 from session_sniffer.guis.delegates import SearchHighlightDelegate
+from session_sniffer.guis.live_language import set_tree_headers
 from session_sniffer.guis.select_usernames_dialog import SelectUsernamesDialog, UsernameSelectionConfig, configure_username_cell_editor
-from session_sniffer.guis.stylesheets import DIALOG_BUTTON_STYLESHEET, DIALOG_DANGER_BUTTON_STYLESHEET
+from session_sniffer.guis.stylesheets import DIALOG_BUTTON_STYLESHEET
 from session_sniffer.guis.table_column_resizing import setup_table_header_context_menu
-from session_sniffer.guis.tables_player_actions import create_ping_menu, scan_ports_ip, show_detailed_ip_lookup
 from session_sniffer.guis.theming import ICONS_DIR_PATH
 from session_sniffer.guis.userip_manager_helpers import (
-    USERIP_METADATA_HEADER_TOOLTIPS,
     IPRangeBuilderDialog,
     dedup_userip_entries,
     format_userip_db_display_name,
+    get_userip_metadata_header_tooltips,
     load_userip_database_model,
-    populate_userip_databases_menu,
     refresh_userip_and_wake_renderer,
     save_userip_database_model,
 )
-from session_sniffer.guis.utils import add_icon_menu_action, create_styled_context_menu, find_main_window, open_file_location, scale_by_ui, set_clipboard_text
+from session_sniffer.guis.utils import add_icon_menu_action, create_styled_context_menu, scale_by_ui
+from session_sniffer.i18n import tr, tr_plural
 from session_sniffer.models.userip_settings_model import (
     USERIP_SOURCE_TOOLTIPS,
     EntrySource,
@@ -59,15 +69,13 @@ from session_sniffer.player.userip import UserIPDatabases
 from session_sniffer.player.userip_groups import MIN_GROUP_USERNAMES, UserIPAccountGroup, ungroup_usernames
 from session_sniffer.player.userip_loader import collect_split_account_groups, move_userip_entries_to_database, userip_databases_lock
 from session_sniffer.player.userip_log_history import enrich_userip_entry_from_logs
-from session_sniffer.text_utils import pluralize, split_usernames
+from session_sniffer.text_utils import split_usernames
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping, Sequence
     from collections.abc import Set as AbstractSet
 
-    from session_sniffer.guis._main_window_files_mixin import FilesMixin
-
-SIDE_ROLE = Qt.ItemDataRole.UserRole
+NO_USERNAME_ROLE = Qt.ItemDataRole.UserRole + 1
 DATABASE_COLUMN, IP_RANGE_COLUMN, USERNAMES_COLUMN, NOTES_COLUMN, SOURCE_COLUMN = 0, 1, 2, 3, 4
 DETECTIONS_COLUMN, ADDED_COLUMN, UPDATED_COLUMN, FIRST_SEEN_COLUMN, LAST_SEEN_COLUMN = 5, 6, 7, 8, 9
 NO_USERNAME_TEXT = '(no username)'
@@ -76,36 +84,36 @@ RESOLVER_TABLE_HEADERS: list[str] = [
     'Database', 'IP / Range', 'Usernames', 'Notes', 'Source', 'Detections', 'Added', 'Updated', 'First Seen', 'Last Seen',
 ]
 
-RESOLVER_HEADER_TOOLTIPS: dict[str, str] = {
-    'Database': 'The UserIP database file that contains this entry.',
-    'IP / Range': 'The IPv4 address, range, or CIDR subnet claimed by this entry (double-click to edit).',
-    'Usernames': (
-        'The username(s) associated with this entry (double-click to edit).\n'
-        'Purple entries with a Looky icon were automatically added or confirmed via Looky System.'
-    ),
-    'Notes': 'Optional user notes or comments attached to this entry (double-click to edit).',
-    **USERIP_METADATA_HEADER_TOOLTIPS,
-}
+
+def _get_resolver_header_tooltips() -> dict[str, str]:
+    """Return localized tooltips keyed by canonical column name for resolver trees."""
+    return {
+        'Database': tr('The UserIP database file that contains this entry.'),
+        'IP / Range': tr('The IPv4 address, range, or CIDR subnet claimed by this entry (double-click to edit).'),
+        'Usernames': tr(
+            'The username(s) associated with this entry (double-click to edit).\n'
+            'Purple entries with a Looky icon were automatically added or confirmed via Looky System.',
+        ),
+        'Notes': tr('Optional user notes or comments attached to this entry (double-click to edit).'),
+        **get_userip_metadata_header_tooltips(),
+    }
+
+
+def apply_resolver_tree_headers(tree: QTreeWidget) -> None:
+    """Apply localized headers, tooltips, and canonical roles to a resolver `QTreeWidget`."""
+    tree.setColumnCount(len(RESOLVER_TABLE_HEADERS))
+    set_tree_headers(tree, RESOLVER_TABLE_HEADERS)
+    tooltips = _get_resolver_header_tooltips()
+    if header_item := tree.headerItem():
+        for col, label in enumerate(RESOLVER_TABLE_HEADERS):
+            if (tooltip := tooltips.get(label)) is not None:
+                header_item.setToolTip(col, tooltip)
+
 
 DEFAULT_RESOLVER_COLUMN_WIDTHS: dict[int, int] = {
     DATABASE_COLUMN: 170, IP_RANGE_COLUMN: 155, USERNAMES_COLUMN: 200, NOTES_COLUMN: 160, SOURCE_COLUMN: 85,
     DETECTIONS_COLUMN: 85, ADDED_COLUMN: 145, UPDATED_COLUMN: 145, FIRST_SEEN_COLUMN: 145, LAST_SEEN_COLUMN: 145,
 }
-
-
-@dataclass(slots=True)
-class SideDetails:
-    """Aggregated usernames, notes, Looky state, and timestamps for a resolver tree row."""
-
-    usernames: list[str] = field(default_factory=list[str])
-    looky_usernames: set[str] = field(default_factory=set[str])
-    notes: list[str] = field(default_factory=list[str])
-    sources: list[EntrySource] = field(default_factory=list[EntrySource])
-    detections_count: int = 0
-    added_at: str | None = None
-    updated_at: str | None = None
-    first_seen_at: str | None = None
-    last_seen_at: str | None = None
 
 
 class ResolverTreeDelegate(SearchHighlightDelegate):
@@ -122,28 +130,11 @@ class ResolverTreeDelegate(SearchHighlightDelegate):
 
     @override
     def setEditorData(self, editor: QWidget, index: QModelIndex | QPersistentModelIndex) -> None:
-        if index.column() == USERNAMES_COLUMN and isinstance(editor, QLineEdit) and index.data(Qt.ItemDataRole.DisplayRole) == NO_USERNAME_TEXT:
+        is_placeholder = bool(index.data(NO_USERNAME_ROLE)) or index.data(Qt.ItemDataRole.DisplayRole) == tr(NO_USERNAME_TEXT)
+        if index.column() == USERNAMES_COLUMN and isinstance(editor, QLineEdit) and is_placeholder:
             editor.setText('')
             return
         super().setEditorData(editor, index)
-
-
-def is_single_ipv4(entry_text: str) -> bool:
-    """Return `True` if `entry_text` is a single IPv4 address rather than a range or CIDR subnet."""
-    if not entry_text or '/' in entry_text or '-' in entry_text or '*' in entry_text:
-        return False
-    try:
-        IPv4Address(entry_text)
-    except ValueError:
-        return False
-    return True
-
-
-def navigate_to_database_in_manager(db_path: Path, *, username: str = '', ip_or_range: str = '') -> None:
-    """Open or focus the UserIP Databases Manager on `db_path` and select the matching entry."""
-    main_window = cast('FilesMixin | None', find_main_window())
-    if main_window is not None:
-        main_window.open_userip_manager_and_navigate(db_path, username=username, ip_or_range=ip_or_range)
 
 
 def reset_resolver_column_sizes(tree: QTreeWidget) -> None:
@@ -159,12 +150,7 @@ def reset_resolver_column_sizes(tree: QTreeWidget) -> None:
 
 def _configure_resolver_tree(tree: QTreeWidget) -> None:
     """Apply common headers, tooltips, delegate, and scroll settings to a resolver `QTreeWidget`."""
-    tree.setColumnCount(len(RESOLVER_TABLE_HEADERS))
-    tree.setHeaderLabels(RESOLVER_TABLE_HEADERS)
-    if header_item := tree.headerItem():
-        for col, label in enumerate(RESOLVER_TABLE_HEADERS):
-            if (tooltip := RESOLVER_HEADER_TOOLTIPS.get(label)) is not None:
-                header_item.setToolTip(col, tooltip)
+    apply_resolver_tree_headers(tree)
     tree.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
     tree.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
     tree.setItemDelegate(ResolverTreeDelegate(tree))
@@ -184,9 +170,11 @@ def _configure_resolver_tree(tree: QTreeWidget) -> None:
 
 def populate_resolver_side_item(item: QTreeWidgetItem, db_label: str, entry_ip: str, details: SideDetails, looky_icon: QIcon) -> None:
     """Populate all display, icon, and tooltip columns on a child `QTreeWidgetItem`."""
+    has_usernames = bool(details.usernames)
     item.setText(DATABASE_COLUMN, db_label)
     item.setText(IP_RANGE_COLUMN, entry_ip)
-    item.setText(USERNAMES_COLUMN, ', '.join(details.usernames) or NO_USERNAME_TEXT)
+    item.setText(USERNAMES_COLUMN, ', '.join(details.usernames) if has_usernames else tr(NO_USERNAME_TEXT))
+    item.setData(USERNAMES_COLUMN, NO_USERNAME_ROLE, not has_usernames)
     if details.looky_usernames:
         item.setIcon(USERNAMES_COLUMN, looky_icon)
         item.setData(USERNAMES_COLUMN, Qt.ItemDataRole.UserRole, set(details.looky_usernames))
@@ -194,10 +182,14 @@ def populate_resolver_side_item(item: QTreeWidgetItem, db_label: str, entry_ip: 
         item.setIcon(USERNAMES_COLUMN, QIcon())
         item.setData(USERNAMES_COLUMN, Qt.ItemDataRole.UserRole, None)
     item.setText(NOTES_COLUMN, ', '.join(details.notes))
-    item.setText(SOURCE_COLUMN, ', '.join(details.sources))
+    item.setText(SOURCE_COLUMN, ', '.join(tr(src) for src in details.sources))
     item.setToolTip(
         SOURCE_COLUMN,
-        '\n'.join(f'{src}: {desc}' if len(details.sources) > 1 else desc for src in details.sources if (desc := USERIP_SOURCE_TOOLTIPS.get(src)) is not None),
+        '\n'.join(
+            tr('{source}: {description}', source=tr(src), description=tr(desc)) if len(details.sources) > 1 else tr(desc)
+            for src in details.sources
+            if (desc := USERIP_SOURCE_TOOLTIPS.get(src)) is not None
+        ),
     )
     item.setText(DETECTIONS_COLUMN, str(details.detections_count))
     for col, raw_iso in (
@@ -208,19 +200,6 @@ def populate_resolver_side_item(item: QTreeWidgetItem, db_label: str, entry_ip: 
     ):
         item.setText(col, format_iso_timestamp_display(raw_iso))
         item.setToolTip(col, raw_iso or '')
-
-
-def copy_resolver_selected_row(tree: QTreeWidget) -> None:
-    """Copy visible cell values of selected child row(s) in *tree* as tab-separated lines."""
-    child_items = sorted(
-        (item for item in tree.selectedItems() if isinstance(item.data(0, SIDE_ROLE), int)),
-        key=lambda item: int(item.data(0, SIDE_ROLE)),
-    )
-    if not child_items:
-        return
-    header = tree.header()
-    visible_cols = [col for col in range(tree.columnCount()) if not header.isSectionHidden(col)]
-    set_clipboard_text('\n'.join('\t'.join(item.text(col) for col in visible_cols) for item in child_items))
 
 
 def resolver_side_row_for_item[T](item: QTreeWidgetItem, side_rows: Sequence[T]) -> T | None:
@@ -432,71 +411,6 @@ def create_configured_resolver_tree(
     return tree, _edit_usernames, _edit_note
 
 
-def create_resolver_tail_buttons(
-    buttons_layout: QHBoxLayout, *, on_edit: Callable[[], object], on_delete: Callable[[], object], on_close: Callable[[], object],
-) -> tuple[QPushButton, QPushButton]:
-    """Append `Edit Entry…`, `Delete This Entry…`, stretch, and `Close` buttons; return `(edit_btn, delete_btn)`."""
-    edit_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'square-pen.svg')), ' Edit Entry…')
-    edit_button.setAutoDefault(False)
-    edit_button.setToolTip('Change the IP or range of the selected entry using the builder')
-    edit_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
-    edit_button.clicked.connect(on_edit)
-    buttons_layout.addWidget(edit_button)
-
-    delete_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'remove.svg')), ' Delete This Entry…')
-    delete_button.setAutoDefault(False)
-    delete_button.setToolTip('Delete only the selected entry from its database (you will be asked to confirm)')
-    delete_button.setStyleSheet(DIALOG_DANGER_BUTTON_STYLESHEET)
-    delete_button.clicked.connect(on_delete)
-    buttons_layout.addWidget(delete_button)
-
-    buttons_layout.addStretch()
-
-    close_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'x.svg')), ' Close')
-    close_button.setAutoDefault(False)
-    close_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
-    close_button.clicked.connect(on_close)
-    buttons_layout.addWidget(close_button)
-    return edit_button, delete_button
-
-
-def populate_resolver_common_menu_prefix(
-    menu: QMenu, tree: QTreeWidget, *, db_path: Path, entry_ip: str, details: SideDetails,
-) -> bool:
-    """Append standard Copy and Database navigation actions to *menu* and return `is_single_ipv4(entry_ip)`."""
-    single_ip = is_single_ipv4(entry_ip)
-    copy_row = add_icon_menu_action(menu, 'copy.svg', 'Copy Row', lambda: copy_resolver_selected_row(tree))
-    copy_row.setShortcut('Ctrl+C')
-    if details.usernames:
-        names_txt = ', '.join(details.usernames)
-        add_icon_menu_action(menu, 'copy.svg', f'Copy Username{pluralize(len(details.usernames))}', lambda: set_clipboard_text(names_txt))
-    add_icon_menu_action(menu, 'copy.svg', 'Copy IP' if single_ip else 'Copy Range', lambda: set_clipboard_text(entry_ip))
-    if details.notes:
-        notes_txt = ', '.join(details.notes)
-        add_icon_menu_action(menu, 'copy.svg', 'Copy Note', lambda: set_clipboard_text(notes_txt))
-
-    menu.addSeparator()
-    first_user = details.usernames[0] if details.usernames else ''
-    add_icon_menu_action(
-        menu, 'arrow-right.svg', 'Go to Database',
-        lambda: navigate_to_database_in_manager(db_path, username=first_user, ip_or_range=entry_ip),
-        tooltip='Open this database in the UserIP Databases Manager and navigate to this entry.',
-    )
-    add_icon_menu_action(menu, 'file-text.svg', 'Open in Text Editor', lambda: QDesktopServices.openUrl(QUrl.fromLocalFile(str(db_path))))
-    add_icon_menu_action(menu, 'folder.svg', 'Open in File Manager', lambda: open_file_location(db_path))
-    menu.addSeparator()
-    return single_ip
-
-
-def populate_resolver_ip_tools_menu(parent: QWidget, menu: QMenu, entry_ip: str, *, single_ip: bool) -> None:
-    """Append IP Lookup, Ping, and Scan Ports actions when *single_ip* is `True`."""
-    if single_ip:
-        menu.addSeparator()
-        add_icon_menu_action(menu, 'info.svg', 'IP Lookup Details…', lambda: show_detailed_ip_lookup(entry_ip))
-        create_ping_menu(parent, menu, [entry_ip])
-        add_icon_menu_action(menu, 'radar.svg', 'Scan Ports…', lambda: scan_ports_ip(entry_ip))
-
-
 class _SplitSide(NamedTuple):
     """One `(db_path, ip_or_range)` slice belonging to a specific `UserIPAccountGroup`."""
 
@@ -629,8 +543,8 @@ class SplitGroupsResolverTab(QWidget):
         self._summary_label.setWordWrap(True)
         top_bar.addWidget(self._summary_label, stretch=1)
 
-        self._include_disabled_checkbox = QCheckBox('Include disabled databases')
-        self._include_disabled_checkbox.setToolTip('Also scan disabled UserIP databases for account groups split across multiple files')
+        self._include_disabled_checkbox = QCheckBox(tr('Include disabled databases'))
+        self._include_disabled_checkbox.setToolTip(tr('Also scan disabled UserIP databases for account groups split across multiple files'))
         self._include_disabled_checkbox.toggled.connect(self.refresh)
         top_bar.addWidget(self._include_disabled_checkbox, alignment=Qt.AlignmentFlag.AlignTop)
         layout.addLayout(top_bar)
@@ -642,20 +556,20 @@ class SplitGroupsResolverTab(QWidget):
 
         buttons_layout = QHBoxLayout()
 
-        self._consolidate_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'check.svg')), ' Move Group Here…')
+        self._consolidate_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'check.svg')), f" {tr('Move Group Here\u2026')}")
         self._consolidate_button.setAutoDefault(False)
-        self._consolidate_button.setToolTip("Move all entries of this account group from other databases into the selected entry's database")
+        self._consolidate_button.setToolTip(tr("Move all entries of this account group from other databases into the selected entry's database"))
         self._consolidate_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
         self._consolidate_button.clicked.connect(self._consolidate_into_selected)
         buttons_layout.addWidget(self._consolidate_button)
 
-        self._ungroup_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'user-round-x.svg')), ' Ungroup…')
+        self._ungroup_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'user-round-x.svg')), f" {tr('Ungroup\u2026')}")
         self._ungroup_button.setAutoDefault(False)
         self._ungroup_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
         self._ungroup_button.clicked.connect(self._ungroup_selected)
         buttons_layout.addWidget(self._ungroup_button)
 
-        self._edit_button, self._delete_button = create_resolver_tail_buttons(
+        self._edit_button, self._delete_button, self._close_button = create_resolver_tail_buttons(
             buttons_layout,
             on_edit=self._edit_selected,
             on_delete=self._delete_selected,
@@ -663,6 +577,18 @@ class SplitGroupsResolverTab(QWidget):
         )
 
         layout.addLayout(buttons_layout)
+
+    def retranslate(self, *, refresh_tree: bool = True) -> None:
+        """Refresh static labels, headers, and dynamic tree text after a live language change."""
+        apply_resolver_tree_headers(self._tree)
+        self._include_disabled_checkbox.setText(tr('Include disabled databases'))
+        self._include_disabled_checkbox.setToolTip(tr('Also scan disabled UserIP databases for account groups split across multiple files'))
+        self._ungroup_button.setText(f" {tr('Ungroup\u2026')}")
+        retranslate_resolver_tail_buttons(self._edit_button, self._delete_button, self._close_button)
+        if refresh_tree and not self.is_editing:
+            self.refresh()
+        else:
+            self._update_buttons()
 
     @property
     def group_count(self) -> int:
@@ -681,7 +607,7 @@ class SplitGroupsResolverTab(QWidget):
 
     def _format_db_label(self, db_path: Path) -> str:
         name = format_userip_db_display_name(db_path)
-        return f'{name} (disabled)' if db_path in self._disabled_dbs else name
+        return tr('{name} (disabled)', name=name) if db_path in self._disabled_dbs else name
 
     def _selected_side(self) -> tuple[UserIPAccountGroup, _SplitSide] | None:
         return selected_resolver_side_row(self._tree, self._side_rows)
@@ -717,11 +643,18 @@ class SplitGroupsResolverTab(QWidget):
         with QSignalBlocker(self._tree):
             self._tree.clear()
             for idx, (group, group_sides) in enumerate(zip(self._groups, sides_per_group, strict=True), start=1):
-                db_names = ' vs '.join(self._format_db_label(p) for p in group.databases)
+                db_names = f" {tr('vs')} ".join(self._format_db_label(p) for p in group.databases)
                 n_entries = len(group.entry_keys)
+                entries_part = tr_plural('{count} entry', '{count} entries', n_entries)
                 group_item = add_resolver_group_header(
                     self._tree,
-                    f'Group {idx}: {", ".join(group.usernames)}  —  {db_names} ({n_entries} {pluralize(n_entries, "entry", "entries")})',
+                    tr(
+                        'Group {index}: {usernames}  \u2014  {databases} ({entries})',
+                        index=idx,
+                        usernames=', '.join(group.usernames),
+                        databases=db_names,
+                        entries=entries_part,
+                    ),
                 )
 
                 for side in group_sides:
@@ -743,13 +676,19 @@ class SplitGroupsResolverTab(QWidget):
         count = len(self._groups)
         if count:
             total_entries = sum(len(g.entry_keys) for g in self._groups)
+            groups_part = tr_plural('{count} split account group', '{count} split account groups', count)
+            entries_part = tr_plural('{count} entry', '{count} entries', total_entries)
             self._summary_label.setText(
-                f'{count} split account group{pluralize(count)} ({total_entries} {pluralize(total_entries, "entry", "entries")}) found. '
-                'An account group spread across multiple databases suppresses username matching and cross-database alt syncing.\n'
-                'Select an entry to consolidate the whole group into its database, or ungroup unrelated accounts.',
+                tr(
+                    '{groups} ({entries}) found. '
+                    'An account group spread across multiple databases suppresses username matching and cross-database alt syncing.\n'
+                    'Select an entry to consolidate the whole group into its database, or ungroup unrelated accounts.',
+                    groups=groups_part,
+                    entries=entries_part,
+                ),
             )
         else:
-            self._summary_label.setText('No split account groups. Every account group belongs to a single database.')
+            self._summary_label.setText(tr('No split account groups. Every account group belongs to a single database.'))
 
         self._update_buttons()
         self._on_count_changed(count)
@@ -772,21 +711,27 @@ class SplitGroupsResolverTab(QWidget):
         can_consolidate = len(target_dbs) == 1
         can_ungroup = single is not None and len(single[0].usernames) >= MIN_GROUP_USERNAMES
         self._consolidate_button.setEnabled(can_consolidate)
-        self._consolidate_button.setText(f' Move Groups Here ({len(unique_groups)})…' if can_consolidate and len(unique_groups) > 1 else ' Move Group Here…')
+        self._consolidate_button.setText(
+            f" {tr('Move Groups Here ({count})\u2026', count=len(unique_groups))}"
+            if can_consolidate and len(unique_groups) > 1
+            else f" {tr('Move Group Here\u2026')}",
+        )
         self._consolidate_button.setToolTip(
-            "Move all entries of the selected account group(s) from other databases into the selected entry's database"
+            tr("Move all entries of the selected account group(s) from other databases into the selected entry's database")
             if can_consolidate or not selections
-            else 'Select entries from a single target database (or right-click to choose a target database)',
+            else tr('Select entries from a single target database (or right-click to choose a target database)'),
         )
         self._ungroup_button.setEnabled(can_ungroup)
         self._ungroup_button.setToolTip(
-            'Unlink false-positive or separate accounts from this group so they can remain in different databases'
+            tr('Unlink false-positive or separate accounts from this group so they can remain in different databases')
             if can_ungroup
-            else 'Select a single entry in a group with at least 2 distinct usernames to ungroup',
+            else tr('Select a single entry in a group with at least 2 distinct usernames to ungroup'),
         )
         self._edit_button.setEnabled(single is not None)
         self._delete_button.setEnabled(bool(selections))
-        self._delete_button.setText(f' Delete Selected ({len(selections)})…' if len(selections) > 1 else ' Delete This Entry…')
+        self._delete_button.setText(
+            f" {tr('Delete Selected ({count})\u2026', count=len(selections))}" if len(selections) > 1 else f" {tr('Delete This Entry\u2026')}",
+        )
 
     def _on_item_changed(self, item: QTreeWidgetItem, column: int) -> None:
         edited = resolver_edited_side_details(item, column, self._side_rows, self._details_by_side)
@@ -806,7 +751,7 @@ class SplitGroupsResolverTab(QWidget):
                 populate_resolver_side_item(item, db_label, side.entry, details, self._looky_icon)
             return
         if _rewrite_split_side_usernames(side, new_usernames) is None:
-            QMessageBox.warning(self, TITLE, 'The selected entry no longer exists in its database, nothing was changed.')
+            QMessageBox.warning(self, TITLE, tr('The selected entry no longer exists in its database, nothing was changed.'))
             QTimer.singleShot(0, self.refresh)
             return
         refresh_userip_and_wake_renderer()
@@ -820,7 +765,7 @@ class SplitGroupsResolverTab(QWidget):
             return
         updated_details = _rewrite_split_side_notes(side, new_note)
         if updated_details is None:
-            QMessageBox.warning(self, TITLE, 'The selected entry no longer exists in its database, nothing was changed.')
+            QMessageBox.warning(self, TITLE, tr('The selected entry no longer exists in its database, nothing was changed.'))
             QTimer.singleShot(0, self.refresh)
             return
         self._details_by_side[side] = updated_details
@@ -830,7 +775,7 @@ class SplitGroupsResolverTab(QWidget):
 
     def _format_side_html(self, side: _SplitSide) -> str:
         details = self._details_by_side.get(side)
-        usernames_text = ', '.join(details.usernames) if details and details.usernames else NO_USERNAME_TEXT
+        usernames_text = ', '.join(details.usernames) if details and details.usernames else tr(NO_USERNAME_TEXT)
         return f'<li>"{html.escape(self._format_db_label(side.db_path))}": {html.escape(usernames_text)} = {html.escape(side.entry)}</li>'
 
     def _consolidate_groups_into(self, groups: Sequence[UserIPAccountGroup], target_db_path: Path) -> None:
@@ -842,9 +787,23 @@ class SplitGroupsResolverTab(QWidget):
         items_html = ''.join(self._format_side_html(s) for s in moving_sides)
         combined_keys = frozenset(key for g in groups for key in g.entry_keys)
         entry_count = sum(1 for db_path, _, _ in combined_keys if db_path != target_db_path)
-        entry_word = pluralize(entry_count, 'entry', 'entries')
-        group_phrase = 'this account group resides' if len(groups) == 1 else f'these {len(groups)} account groups reside'
-        prompt = f'Move the following {entry_count} {entry_word} into <b>"{target_label}"</b> so {group_phrase} in a single database?<ul>{items_html}</ul>Continue?'
+        if len(groups) == 1:
+            prompt = tr_plural(
+                'Move the following {count} entry into <b>"{target}"</b> so this account group resides in a single database?<ul>{items}</ul>Continue?',
+                'Move the following {count} entries into <b>"{target}"</b> so this account group resides in a single database?<ul>{items}</ul>Continue?',
+                entry_count,
+                target=target_label,
+                items=items_html,
+            )
+        else:
+            prompt = tr_plural(
+                'Move the following {count} entry into <b>"{target}"</b> so these {group_count} account groups reside in a single database?<ul>{items}</ul>Continue?',
+                'Move the following {count} entries into <b>"{target}"</b> so these {group_count} account groups reside in a single database?<ul>{items}</ul>Continue?',
+                entry_count,
+                target=target_label,
+                group_count=len(groups),
+                items=items_html,
+            )
         box = QMessageBox(QMessageBox.Icon.Question, TITLE, prompt, parent=self)
         box.setTextFormat(Qt.TextFormat.RichText)
         box.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
@@ -874,18 +833,7 @@ class SplitGroupsResolverTab(QWidget):
         if len(members) < MIN_GROUP_USERNAMES:
             return
         selected_ips = [side.entry] if is_single_ipv4(side.entry) else None
-        dlg = SelectUsernamesDialog(
-            self,
-            members,
-            UsernameSelectionConfig(
-                title='Ungroup Usernames',
-                instructions='Select username(s) to unlink from this account group (prevents false-positive grouping):',
-                action_button_text='Ungroup',
-                multiple=True,
-                default_checked=False,
-                selected_ips=selected_ips,
-            ),
-        )
+        dlg = SelectUsernamesDialog(self, members, UsernameSelectionConfig.for_ungroup(selected_ips=selected_ips))
         if dlg.exec() != SelectUsernamesDialog.DialogCode.Accepted:
             return
         chosen = dlg.selected_usernames()
@@ -900,7 +848,7 @@ class SplitGroupsResolverTab(QWidget):
             return
         side, new_entry = prompted
         if not _rewrite_split_side_ip(side, new_entry):
-            QMessageBox.warning(self, TITLE, 'The selected entry no longer exists in its database, nothing was changed.')
+            QMessageBox.warning(self, TITLE, tr('The selected entry no longer exists in its database, nothing was changed.'))
             self.refresh()
             return
         refresh_userip_and_wake_renderer()
@@ -912,8 +860,13 @@ class SplitGroupsResolverTab(QWidget):
             return
         sides = [side for _, side in selections]
         items_html = ''.join(self._format_side_html(side) for side in sides)
-        header = 'Delete the following entry?' if len(sides) == 1 else f'Delete the following {len(sides)} entries?'
-        box = QMessageBox(QMessageBox.Icon.Warning, TITLE, f'{header}<ul>{items_html}</ul>Continue?', parent=self)
+        prompt = tr_plural(
+            'Delete the following entry?<ul>{items}</ul>Continue?',
+            'Delete the following {count} entries?<ul>{items}</ul>Continue?',
+            len(sides),
+            items=items_html,
+        )
+        box = QMessageBox(QMessageBox.Icon.Warning, TITLE, prompt, parent=self)
         box.setTextFormat(Qt.TextFormat.RichText)
         box.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
         box.setDefaultButton(QMessageBox.StandardButton.No)
@@ -936,61 +889,67 @@ class SplitGroupsResolverTab(QWidget):
         sides = [side for _, side in selections]
         groups = self._unique_groups(selections)
         all_db_paths = [json_path for json_path in USERIP_DATABASES_DIR_PATH.rglob('*.json') if json_path.is_file()]
-        copy_act = add_icon_menu_action(menu, 'copy.svg', f'Copy Rows ({len(sides)})', lambda: copy_resolver_selected_row(self._tree))
+        copy_act = add_icon_menu_action(menu, 'copy.svg', tr('Copy Rows ({count})', count=len(sides)), lambda: copy_resolver_selected_row(self._tree))
         copy_act.setShortcut('Ctrl+C')
         menu.addSeparator()
         if len({s.db_path for s in sides}) == 1:
-            add_icon_menu_action(menu, 'check.svg', f'Move Groups Here ({len(groups)})…' if len(groups) > 1 else 'Move Group Here…', self._consolidate_into_selected)
-        move_groups_menu = create_styled_context_menu(menu, title=f'Move Selected Groups ({len(groups)}) to Database', icon_name='box.svg')
+            move_here_label = tr('Move Groups Here ({count})\u2026', count=len(groups)) if len(groups) > 1 else tr('Move Group Here\u2026')
+            add_icon_menu_action(menu, 'check.svg', move_here_label, self._consolidate_into_selected)
+        move_groups_menu = create_styled_context_menu(menu, title=tr('Move Selected Groups ({count}) to Database', count=len(groups)), icon_name='box.svg')
         if not populate_userip_databases_menu(
-            move_groups_menu, all_db_paths, tooltip='Consolidate the selected account group(s) into this database.',
+            move_groups_menu, all_db_paths, tooltip=tr('Consolidate the selected account group(s) into this database.'),
             handler_factory=lambda target_path: lambda: self._consolidate_groups_into(groups, target_path), disabled_path=None,
         ):
             move_groups_menu.setEnabled(False)
         menu.addMenu(move_groups_menu)
-        move_entries_menu = create_styled_context_menu(menu, title=f'Move Selected Entries ({len(sides)}) to Database', icon_name='box.svg')
+        move_entries_menu = create_styled_context_menu(menu, title=tr('Move Selected Entries ({count}) to Database', count=len(sides)), icon_name='box.svg')
         only_db = sides[0].db_path if len({s.db_path for s in sides}) == 1 else None
         if not populate_userip_databases_menu(
-            move_entries_menu, all_db_paths, tooltip='Move the selected entries to this database.',
+            move_entries_menu, all_db_paths, tooltip=tr('Move the selected entries to this database.'),
             handler_factory=lambda target_path: lambda: self._move_sides_to_db(sides, target_path), disabled_path=only_db,
         ):
             move_entries_menu.setEnabled(False)
         menu.addMenu(move_entries_menu)
         menu.addSeparator()
-        del_act = add_icon_menu_action(menu, 'remove.svg', f'Delete Selected ({len(sides)})…', self._delete_selected)
+        del_act = add_icon_menu_action(menu, 'remove.svg', tr('Delete Selected ({count})\u2026', count=len(sides)), self._delete_selected)
         del_act.setShortcut('Delete')
 
     def _populate_resolution_menu(self, menu: QMenu, group: UserIPAccountGroup, side: _SplitSide, details: SideDetails, *, single_ip: bool) -> None:
         all_db_paths = [json_path for json_path in USERIP_DATABASES_DIR_PATH.rglob('*.json') if json_path.is_file()]
-        add_icon_menu_action(menu, 'check.svg', 'Move Group Here…', self._consolidate_into_selected)
+        add_icon_menu_action(menu, 'check.svg', tr('Move Group Here\u2026'), self._consolidate_into_selected)
 
-        move_group_menu = create_styled_context_menu(menu, title=f'Move Group to Database ({len(group.entry_keys)})', icon_name='box.svg')
+        move_group_menu = create_styled_context_menu(menu, title=tr('Move Group to Database ({count})', count=len(group.entry_keys)), icon_name='box.svg')
+        move_group_tip = tr_plural(
+            'Move the {count} entry in this account group to this database.',
+            'Move all {count} entries in this account group to this database.',
+            len(group.entry_keys),
+        )
         if not populate_userip_databases_menu(
-            move_group_menu, all_db_paths, tooltip=f'Move all {len(group.entry_keys)} entries in this account group to this database.',
+            move_group_menu, all_db_paths, tooltip=move_group_tip,
             handler_factory=lambda target_path: lambda: self._consolidate_groups_into([group], target_path), disabled_path=None,
         ):
             move_group_menu.setEnabled(False)
         menu.addMenu(move_group_menu)
 
-        move_entry_menu = create_styled_context_menu(menu, title='Move This Entry to Database', icon_name='box.svg')
+        move_entry_menu = create_styled_context_menu(menu, title=tr('Move This Entry to Database'), icon_name='box.svg')
         if not populate_userip_databases_menu(
-            move_entry_menu, all_db_paths, tooltip='Move only this entry to this database.',
+            move_entry_menu, all_db_paths, tooltip=tr('Move only this entry to this database.'),
             handler_factory=lambda target_path: lambda: self._move_sides_to_db([side], target_path), disabled_path=side.db_path,
         ):
             move_entry_menu.setEnabled(False)
         menu.addMenu(move_entry_menu)
 
         if len(group.usernames) >= MIN_GROUP_USERNAMES:
-            add_icon_menu_action(menu, 'user-round-x.svg', 'Ungroup…', self._ungroup_selected)
+            add_icon_menu_action(menu, 'user-round-x.svg', tr('Ungroup\u2026'), self._ungroup_selected)
 
         menu.addSeparator()
-        rename_action = add_icon_menu_action(menu, 'square-pen.svg', 'Rename', self._edit_selected_usernames)
+        rename_action = add_icon_menu_action(menu, 'square-pen.svg', tr('Rename'), self._edit_selected_usernames)
         rename_action.setShortcut('F2')
-        add_icon_menu_action(menu, 'square-pen.svg', 'Edit IP…' if single_ip else 'Edit Range…', self._edit_selected)
-        add_icon_menu_action(menu, 'notepad-text.svg', 'Edit Note…' if details.notes else 'Add Note…', self._edit_selected_note)
+        add_icon_menu_action(menu, 'square-pen.svg', tr('Edit IP\u2026') if single_ip else tr('Edit Range\u2026'), self._edit_selected)
+        add_icon_menu_action(menu, 'notepad-text.svg', tr('Edit Note\u2026') if details.notes else tr('Add Note\u2026'), self._edit_selected_note)
 
         populate_resolver_ip_tools_menu(self, menu, side.entry, single_ip=single_ip)
 
         menu.addSeparator()
-        del_action = add_icon_menu_action(menu, 'remove.svg', 'Delete This Entry…', self._delete_selected)
+        del_action = add_icon_menu_action(menu, 'remove.svg', tr('Delete This Entry\u2026'), self._delete_selected)
         del_action.setShortcut('Delete')

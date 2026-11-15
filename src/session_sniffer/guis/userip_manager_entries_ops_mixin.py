@@ -10,7 +10,7 @@ from PySide6.QtWidgets import QAbstractItemView, QDialog, QFrame, QInputDialog, 
 
 from session_sniffer.constants.local import APP_DIR_ROAMING, USERIP_DATABASES_DIR_PATH
 from session_sniffer.constants.standalone import TITLE
-from session_sniffer.guis.select_usernames_dialog import SelectUsernamesDialog, UsernameSelectionConfig, prompt_username_input, prompt_usernames_and_notes_input
+from session_sniffer.guis.select_usernames_dialog import prompt_username_input, prompt_usernames_and_notes_input
 from session_sniffer.guis.userip_manager_helpers import (
     DATABASE_COLUMN,
     DUPLICATE_HIGHLIGHT_BRUSH,
@@ -26,7 +26,6 @@ from session_sniffer.guis.userip_manager_helpers import (
     clear_row_looky_badge,
     dedup_userip_entries,
     extract_entry_model_from_row,
-    format_userip_db_display_name,
     is_row_persisted,
     iter_userip_databases,
     mark_row_persisted,
@@ -38,22 +37,19 @@ from session_sniffer.guis.userip_manager_helpers import (
     save_userip_database_model,
     set_row_updated_at,
 )
+from session_sniffer.i18n import tr, tr_plural
 from session_sniffer.models.userip_settings_model import UserIPDatabaseFile, UserIPEntryModel, UserIPSettingsModel
 from session_sniffer.networking.ip_range import is_valid_ip_range_entry
 from session_sniffer.player.userip import UserIPDatabases
-from session_sniffer.player.userip_groups import MIN_GROUP_USERNAMES, USERIP_GROUPS_PATH, are_usernames_unlinked, group_usernames, ungroup_usernames
+from session_sniffer.player.userip_groups import MIN_GROUP_USERNAMES, USERIP_GROUPS_PATH, are_usernames_unlinked, group_usernames
 from session_sniffer.player.userip_loader import (
     append_userip_entries,
-    collect_userip_account_groups,
-    get_account_group_clusters_map,
     is_in_app_userip_db_content,
-    move_userip_entries_to_database,
     update_userip_databases,
     userip_databases_lock,
 )
 from session_sniffer.player.userip_log_history import enrich_userip_entry_from_logs
 from session_sniffer.rendering_core.events import wake_rendering_core
-from session_sniffer.text_utils import pluralize
 from session_sniffer.utils import dedup_preserve_order
 
 if TYPE_CHECKING:
@@ -62,7 +58,6 @@ if TYPE_CHECKING:
     from PySide6.QtGui import QIcon, QStandardItem, QStandardItemModel
 
     from session_sniffer.guis.file_watch import DebouncedFileWatcher
-    from session_sniffer.player.userip_groups import UserIPAccountGroup
 
 
 class UserIPEntriesOperationsMixin(QDialog):
@@ -87,12 +82,18 @@ class UserIPEntriesOperationsMixin(QDialog):
 
     if TYPE_CHECKING:
         read_settings_from_widgets: Callable[[], UserIPSettingsModel]
+        _account_group_clusters_map: Callable[[], dict[str, list[str]]]
+        _get_selected_source_rows: Callable[..., list[int]]
+        _get_row_database_path: Callable[[int], Path | None]
+        _get_row_username: Callable[[int], str]
+        _get_row_entry_value: Callable[[int], str]
 
         def _mark_entries_dirty(self) -> None: ...
         def _update_entry_counts(self) -> None: ...
         def _refresh_stats(self) -> None: ...
         def _clear_dirty_state(self) -> None: ...
         def _refresh_tree_visuals(self) -> None: ...
+        def _refresh_table_after_grouping(self) -> None: ...
 
         def _set_status(self, text: str) -> None:
             del text
@@ -133,7 +134,7 @@ class UserIPEntriesOperationsMixin(QDialog):
             self._model.removeRows(0, self._model.rowCount())
             self._settings_container.setVisible(False)
             self._clear_dirty_state()
-            self._set_status(f'"{self._current_path.name}" was removed on disk.')
+            self._set_status(tr('"{name}" was removed on disk.', name=self._current_path.name))
             self._current_path = None
             self._update_file_info(None)
             return
@@ -149,14 +150,19 @@ class UserIPEntriesOperationsMixin(QDialog):
             return
         if self._dirty or self._entries_table.state() == QAbstractItemView.State.EditingState:
             self._update_file_info(self._current_path)
-            self._set_status(f'"{self._current_path.name}" changed on disk. Save to overwrite, or reselect it to discard your edits and reload.')
+            self._set_status(
+                tr('"{name}" changed on disk. Save to overwrite, or reselect it to discard your edits and reload.', name=self._current_path.name),
+            )
             return
 
         active_search = self._search_input.text()
         self._load_database(self._current_path)
         if active_search:
             self._search_input.setText(active_search)
-        self._set_status(f'Reloaded "{self._current_path.name}"{"" if is_in_app_userip_db_content(self._current_path, current_text) else " after an external change"}.')
+        if is_in_app_userip_db_content(self._current_path, current_text):
+            self._set_status(tr('Reloaded "{name}".', name=self._current_path.name))
+        else:
+            self._set_status(tr('Reloaded "{name}" after an external change.', name=self._current_path.name))
 
     def _load_all_databases(self) -> None:
         """Populate the table with all cached UserIP database entries."""
@@ -180,7 +186,13 @@ class UserIPEntriesOperationsMixin(QDialog):
             self._proxy.setDynamicSortFilter(dynamic_sort_filter)
         self._last_seen_build_version = UserIPDatabases.build_version
 
-        self._set_status(f'Global search: {total_entries} entries across {total_files} databases')
+        self._set_status(
+            tr(
+                'Global search: {entries_part} across {files_part}',
+                entries_part=tr_plural('{count} entry', '{count} entries', total_entries),
+                files_part=tr_plural('{count} database', '{count} databases', total_files),
+            ),
+        )
         self._update_entry_counts()
 
     # ------------------------------------------------------------------
@@ -248,7 +260,7 @@ class UserIPEntriesOperationsMixin(QDialog):
             self._highlight_duplicates()
             self._refresh_stats()
             self._update_entry_counts()
-            self._set_status(f'Updated entry to "{new_ip_text}" in {database_path.name}.')
+            self._set_status(tr('Updated entry to "{value}" in {db}.', value=new_ip_text, db=database_path.name))
         else:
             with QSignalBlocker(self._model):
                 self._set_row_ip_or_range(source_row, new_ip_text, is_single=is_single)
@@ -260,7 +272,7 @@ class UserIPEntriesOperationsMixin(QDialog):
             self._update_entry_counts()
             self._save_database()
             if not self._dirty:
-                self._set_status(f'Updated entry to "{new_ip_text}".')
+                self._set_status(tr('Updated entry to "{value}".', value=new_ip_text))
         UserIPDatabases.renotify_if_conflicting([new_ip_text])
 
     def _edit_entry_note(self, source_row: int) -> None:
@@ -269,9 +281,13 @@ class UserIPEntriesOperationsMixin(QDialog):
             return
         notes_item = self._model.item(source_row, NOTES_COLUMN)
         current_note = notes_item.text().strip() if notes_item else ''
-        dialog_title = 'Edit Note' if current_note else 'Add Note'
-        note_prompt = 'Enter the note' if current_note else 'Enter a note'
-        new_note, accepted = QInputDialog.getText(self, dialog_title, f'{note_prompt} for this entry (leave empty to clear):', QLineEdit.EchoMode.Normal, current_note)
+        dialog_title = tr('Edit Note') if current_note else tr('Add Note')
+        note_prompt = (
+            tr('Enter the note for this entry (leave empty to clear):')
+            if current_note
+            else tr('Enter a note for this entry (leave empty to clear):')
+        )
+        new_note, accepted = QInputDialog.getText(self, dialog_title, note_prompt, QLineEdit.EchoMode.Normal, current_note)
         if not accepted or (new_note := new_note.strip()) == current_note:
             return
 
@@ -294,7 +310,7 @@ class UserIPEntriesOperationsMixin(QDialog):
                     notes_item.setText(new_note)
                 set_row_updated_at(self._model, source_row)
             self._proxy.refresh_rows((source_row,))
-            self._set_status(f'Updated note for "{username}" in {database_path.name}.')
+            self._set_status(tr('Updated note for "{username}" in {db}.', username=username, db=database_path.name))
         else:
             with QSignalBlocker(self._model):
                 if notes_item:
@@ -305,7 +321,7 @@ class UserIPEntriesOperationsMixin(QDialog):
             self._mark_entries_dirty()
             self._save_database()
             if not self._dirty:
-                self._set_status('Updated note.')
+                self._set_status(tr('Updated note.'))
 
     def _insert_entry_at(self, source_row: int) -> None:
         """Prompt for an IP/range and username(s) and insert the resulting rows at *source_row*."""
@@ -319,7 +335,7 @@ class UserIPEntriesOperationsMixin(QDialog):
 
     def _prompt_new_usernames(self, prompt: str | Callable[[int], str]) -> tuple[list[str], dict[str, str]]:
         """Prompt the user for one or more usernames and their optional notes."""
-        entered_usernames, entered_notes, accepted = prompt_usernames_and_notes_input(self, 'Input Username(s)', prompt)
+        entered_usernames, entered_notes, accepted = prompt_usernames_and_notes_input(self, tr('Input Username(s)'), prompt)
         return (entered_usernames, entered_notes) if accepted else ([], {})
 
     def _collect_existing_usernames_for_entry(self, entry_value: str, *, database_path: Path | None = None) -> list[str]:
@@ -344,17 +360,44 @@ class UserIPEntriesOperationsMixin(QDialog):
         insert_before = QPersistentModelIndex(self._model.index(source_row + 1, 0))
 
         existing_names = self._collect_existing_usernames_for_entry(entry_value, database_path=database_path)
-        header = f'Current username{pluralize(len(existing_names))} for {entry_value}: {", ".join(existing_names)}\n\n' if existing_names else ''
-        new_usernames, entered_notes = self._prompt_new_usernames(
-            lambda count: f'{header}Enter the new username{pluralize(count)} to add for {entry_value} in "{database_path.stem}":',
-        )
+
+        def _prompt_text(count: int) -> str:
+            body = tr_plural(
+                'Enter the new username to add for {value} in "{db}":',
+                'Enter the new usernames to add for {value} in "{db}":',
+                count,
+                value=entry_value,
+                db=database_path.stem,
+            )
+            if not existing_names:
+                return body
+            current_header = tr_plural(
+                'Current username for {value}: {names}',
+                'Current usernames for {value}: {names}',
+                len(existing_names),
+                value=entry_value,
+                names=', '.join(existing_names),
+            )
+            return f'{current_header}\n\n{body}'
+
+        new_usernames, entered_notes = self._prompt_new_usernames(_prompt_text)
         if not new_usernames:
             return
 
         existing_cf = {name.casefold() for name in existing_names}
         added_usernames = [name for name in new_usernames if name.casefold() not in existing_cf]
         if not added_usernames:
-            QMessageBox.information(self, TITLE, f'All specified username{pluralize(len(new_usernames))} already exist for {entry_value} in "{database_path.stem}".')
+            QMessageBox.information(
+                self,
+                TITLE,
+                tr_plural(
+                    'The specified username already exists for {value} in "{db}".',
+                    'All specified usernames already exist for {value} in "{db}".',
+                    len(new_usernames),
+                    value=entry_value,
+                    db=database_path.stem,
+                ),
+            )
             return
 
         new_entry_models = [enrich_userip_entry_from_logs(UserIPEntryModel(username=name, ip=entry_value, notes=entered_notes.get(name, '')))[0] for name in added_usernames]
@@ -369,7 +412,14 @@ class UserIPEntriesOperationsMixin(QDialog):
         self._rebuild_fs_watch()
 
         if not added_pairs:
-            QMessageBox.information(self, TITLE, f'All specified username{pluralize(len(new_usernames))} already exist for {entry_value} in "{database_path.stem}".')
+            already_exists_text = tr_plural(
+                'The specified username already exists for {value} in "{db}".',
+                'All specified usernames already exist for {value} in "{db}".',
+                len(new_usernames),
+                value=entry_value,
+                db=database_path.stem,
+            )
+            QMessageBox.information(self, TITLE, already_exists_text)
             return
 
         insert_at = insert_before.row() if insert_before.isValid() else self._model.rowCount()
@@ -381,16 +431,40 @@ class UserIPEntriesOperationsMixin(QDialog):
         self._refresh_stats()
         self._update_entry_counts()
         added_count = len(added_pairs)
-        self._set_status(f'Added {added_count} username{pluralize(added_count)} for {entry_value} in {database_path.name}.')
+        self._set_status(
+            tr_plural(
+                'Added {count} username for {value} in {db}.',
+                'Added {count} usernames for {value} in {db}.',
+                added_count,
+                value=entry_value,
+                db=database_path.name,
+            ),
+        )
         UserIPDatabases.renotify_if_conflicting([entry_value])
 
     def _insert_usernames_single_db(self, entry_value: str, *, insert_before: QPersistentModelIndex, anchor_username: str = '') -> None:
         """Prompt for usernames + notes and insert enriched rows before *insert_before* (appended if invalidated by a disk reload)."""
         database_path, existing_names = self._current_path, self._collect_existing_usernames_for_entry(entry_value)
-        header = f'Current username{pluralize(len(existing_names))} for {entry_value}: {", ".join(existing_names)}\n\n' if existing_names else ''
-        new_usernames, entered_notes = self._prompt_new_usernames(
-            lambda count: f'{header}Enter the new username{pluralize(count)} to add for {entry_value}:',
-        )
+
+        def _prompt_text(count: int) -> str:
+            body = tr_plural(
+                'Enter the new username to add for {value}:',
+                'Enter the new usernames to add for {value}:',
+                count,
+                value=entry_value,
+            )
+            if not existing_names:
+                return body
+            current_header = tr_plural(
+                'Current username for {value}: {names}',
+                'Current usernames for {value}: {names}',
+                len(existing_names),
+                value=entry_value,
+                names=', '.join(existing_names),
+            )
+            return f'{current_header}\n\n{body}'
+
+        new_usernames, entered_notes = self._prompt_new_usernames(_prompt_text)
         if not new_usernames or self._current_path != database_path:
             return
 
@@ -398,7 +472,16 @@ class UserIPEntriesOperationsMixin(QDialog):
         existing_cf = {name.casefold() for name in existing_names}
         added_usernames = [name for name in new_usernames if name.casefold() not in existing_cf]
         if not added_usernames:
-            QMessageBox.information(self, TITLE, f'All specified username{pluralize(len(new_usernames))} already exist for {entry_value}.')
+            QMessageBox.information(
+                self,
+                TITLE,
+                tr_plural(
+                    'The specified username already exists for {value}.',
+                    'All specified usernames already exist for {value}.',
+                    len(new_usernames),
+                    value=entry_value,
+                ),
+            )
             return
 
         insert_at, before_count = (insert_before.row() if insert_before.isValid() else self._model.rowCount()), self._model.rowCount()
@@ -421,7 +504,9 @@ class UserIPEntriesOperationsMixin(QDialog):
                         self._refresh_table_after_grouping()
             added_count = max(0, self._model.rowCount() - before_count)
             if added_count > 0:
-                self._set_status(f'Added {added_count} username{pluralize(added_count)} for {entry_value}.')
+                self._set_status(
+                    tr_plural('Added {count} username for {value}.', 'Added {count} usernames for {value}.', added_count, value=entry_value),
+                )
                 UserIPDatabases.renotify_if_conflicting([entry_value])
                 target_row = min(insert_at, self._model.rowCount() - 1)
                 proxy_index = self._proxy.mapFromSource(self._model.index(target_row, USERNAME_COLUMN))
@@ -502,17 +587,18 @@ class UserIPEntriesOperationsMixin(QDialog):
         count = len(source_rows)
 
         if count == 1:
-            initial_name, title, prompt = self._get_row_username(source_rows[0]), 'Rename Username', 'Enter the new username:'
+            initial_name, title, prompt = self._get_row_username(source_rows[0]), tr('Rename Username'), tr('Enter the new username:')
         else:
             usernames = {username for row in source_rows if (username := self._get_row_username(row))}
             initial_name = next(iter(usernames)) if len(usernames) == 1 else ''
-            title, prompt = f'Rename Selected ({count})', f'Enter the new username for {count} selected {pluralize(count, "entry", "entries")}:'
+            title = tr('Rename Selected ({count})', count=count)
+            prompt = tr_plural('Enter the new username for {count} selected entry:', 'Enter the new username for {count} selected entries:', count)
 
         new_username, success = prompt_username_input(self, title, prompt, initial_name)
         if not success:
             return
         if not (new_username := new_username.strip()):
-            QMessageBox.warning(self, TITLE, 'No username was provided.')
+            QMessageBox.warning(self, TITLE, tr('No username was provided.'))
             return
         if count == 1 and new_username == initial_name:
             return
@@ -552,7 +638,14 @@ class UserIPEntriesOperationsMixin(QDialog):
             self._highlight_duplicates()
             self._refresh_stats()
             self._update_entry_counts()
-            self._set_status(f'Renamed {renamed_count} {pluralize(renamed_count, "entry", "entries")} to "{new_username}" in database files.')
+            self._set_status(
+                tr_plural(
+                    'Renamed {count} entry to "{username}" in database files.',
+                    'Renamed {count} entries to "{username}" in database files.',
+                    renamed_count,
+                    username=new_username,
+                ),
+            )
         else:
             with QSignalBlocker(self._model):
                 for row in source_rows:
@@ -567,7 +660,14 @@ class UserIPEntriesOperationsMixin(QDialog):
             self._update_entry_counts()
             self._save_database()
             if not self._dirty:
-                self._set_status(f'Renamed {count} {pluralize(count, "entry", "entries")} to "{new_username}".')
+                self._set_status(
+                    tr_plural(
+                        'Renamed {count} entry to "{username}".',
+                        'Renamed {count} entries to "{username}".',
+                        count,
+                        username=new_username,
+                    ),
+                )
         UserIPDatabases.renotify_if_conflicting(renamed_entries)
 
     def _delete_selected(self) -> None:
@@ -580,7 +680,11 @@ class UserIPEntriesOperationsMixin(QDialog):
         result = QMessageBox.warning(
             self,
             TITLE,
-            f'Are you sure you want to delete {count} selected {pluralize(count, "entry", "entries")}?\n\nThis will immediately write the changes to the database files.',
+            tr_plural(
+                'Are you sure you want to delete {count} selected entry?\n\nThis will immediately write the changes to the database files.',
+                'Are you sure you want to delete {count} selected entries?\n\nThis will immediately write the changes to the database files.',
+                count,
+            ),
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No,
         )
@@ -598,7 +702,7 @@ class UserIPEntriesOperationsMixin(QDialog):
             self._mark_entries_dirty()
             self._save_database()
             if not self._dirty:
-                self._set_status(f'Deleted {count} {pluralize(count, "entry", "entries")}.')
+                self._set_status(tr_plural('Deleted {count} entry.', 'Deleted {count} entries.', count))
 
     def _delete_global_search_rows(self, count: int, source_rows: list[int]) -> None:
         """Write deletions directly to database files and remove rows from the global search model."""
@@ -623,123 +727,7 @@ class UserIPEntriesOperationsMixin(QDialog):
         self._highlight_duplicates()
         self._refresh_stats()
         self._update_entry_counts()
-        self._set_status(f'Deleted {count} {pluralize(count, "entry", "entries")} from database files.')
-
-    def _current_model_override_entries(self) -> dict[Path, list[tuple[str, str]]] | None:
-        """Return live `(username, ip)` pairs from `self._model` when editing a single database."""
-        if self._global_search_active or self._current_path is None:
-            return None
-        pairs = [(u, ip) for r in range(self._model.rowCount()) if (u := self._get_row_username(r)) and (ip := self._get_row_entry_value(r))]
-        return {self._current_path: pairs}
-
-    def _account_group_clusters_map(self) -> dict[str, list[str]]:
-        """Return `{username_cf: [canonical_member, ...]}` across all databases plus live model overrides."""
-        return get_account_group_clusters_map(include_disabled=True, override_entries_by_db=self._current_model_override_entries())
-
-    def _matching_groups_for_seeds(self, seeds: list[str]) -> list[UserIPAccountGroup]:
-        """Return `UserIPAccountGroup`s overlapping *seeds* across active databases (plus live model overrides)."""
-        if not seeds:
-            return []
-        seed_cfs = {u.casefold() for u in seeds}
-        groups = collect_userip_account_groups(
-            include_disabled=self._global_search_active, extra_seed_usernames=seeds, override_entries_by_db=self._current_model_override_entries(),
-        )
-        return [g for g in groups if g.usernames_cf & seed_cfs]
-
-    def _collect_row_seed_usernames(self, source_rows: list[int]) -> list[str]:
-        """Return deduplicated seed usernames from *source_rows* and their co-hosted/grouped table peers."""
-        row_gids = self._proxy.get_source_row_group_ids()
-        target_gids = {row_gids[r] for r in source_rows if 0 <= r < len(row_gids)}
-        seed_rows = [r for r in range(self._model.rowCount()) if r in source_rows or (r < len(row_gids) and row_gids[r] in target_gids)]
-        return dedup_preserve_order(self._get_row_username(r) for r in seed_rows if self._get_row_username(r))
-
-    def _collect_row_entry_keys(self, source_rows: list[int]) -> frozenset[tuple[Path, str, str]]:
-        """Return `(db_path, username_cf, ip)` entry keys for *source_rows*."""
-        return frozenset(
-            (db_path, u.casefold(), ip)
-            for r in source_rows
-            if (db_path := self._get_row_database_path(r) if self._global_search_active else self._current_path) is not None
-            and (u := self._get_row_username(r))
-            and (ip := self._get_row_entry_value(r))
-        )
-
-    def _collect_group_entry_keys_for_rows(self, source_rows: list[int]) -> tuple[frozenset[tuple[Path, str, str]], frozenset[tuple[Path, str, str]]]:
-        """Return `(group_entry_keys, selected_entry_keys)` for the account group(s) of *source_rows*."""
-        selected_keys = self._collect_row_entry_keys(source_rows)
-        group_keys = frozenset(key for g in self._matching_groups_for_seeds(self._collect_row_seed_usernames(source_rows)) for key in g.entry_keys)
-        return group_keys or selected_keys, selected_keys
-
-    def _move_selected_to_database(self, target_db_path: Path) -> None:
-        """Move the selected entries to a different UserIP database."""
-        if not (source_rows := self._get_selected_source_rows(warn_if_empty=True)):
-            return
-        if not (entry_keys := self._collect_row_entry_keys(source_rows)):
-            QMessageBox.information(self, TITLE, 'No valid entries to move.')
-            return
-        if self._global_search_active or not self._dirty or self._save_on_close():
-            self._execute_entry_keys_move(entry_keys, target_db_path)
-
-    def _move_group_to_database(self, seed_rows: list[int], target_db_path: Path) -> None:
-        """Move all entries in the account group(s) of *seed_rows* to *target_db_path*."""
-        seeds = self._collect_row_seed_usernames(seed_rows)
-        if not seeds or (not self._global_search_active and self._dirty and not self._save_on_close()):
-            return
-        if entry_keys := frozenset(key for g in self._matching_groups_for_seeds(seeds) for key in g.entry_keys):
-            self._execute_entry_keys_move(entry_keys, target_db_path)
-
-    def _execute_entry_keys_move(self, entry_keys: frozenset[tuple[Path, str, str]], target_db_path: Path) -> None:
-        """Move *entry_keys* into *target_db_path* via the shared backend and synchronize the table UI."""
-        target_display_name = format_userip_db_display_name(target_db_path)
-        moving_keys = frozenset(key for key in entry_keys if key[0] != target_db_path)
-        if not moving_keys:
-            QMessageBox.information(self, TITLE, f'Selected {pluralize(len(entry_keys), "entry", "entries")} already belong to "{target_display_name}".')
-            return
-
-        with QSignalBlocker(self._fs_watcher):
-            result = move_userip_entries_to_database(target_db_path, entry_keys=moving_keys)
-        self._last_seen_build_version = UserIPDatabases.build_version
-        self._rebuild_fs_watch()
-        if not result.moved_by_db:
-            return
-
-        if self._global_search_active:
-            added_pairs_cf = {(u.casefold(), ip) for u, ip in result.added_pairs}
-            rows_to_remove: list[int] = []
-            updated_rows: list[int] = []
-            with QSignalBlocker(self._model):
-                for row in range(self._model.rowCount()):
-                    row_db = self._get_row_database_path(row)
-                    u_cf, ip_val = self._get_row_username(row).casefold(), self._get_row_entry_value(row)
-                    if row_db is None or (row_db, u_cf, ip_val) not in moving_keys:
-                        continue
-                    pair = (u_cf, ip_val)
-                    if pair in added_pairs_cf:
-                        added_pairs_cf.discard(pair)
-                        if db_item := self._model.item(row, DATABASE_COLUMN):
-                            db_item.setText(target_db_path.stem)
-                            db_item.setData(str(target_db_path), Qt.ItemDataRole.UserRole)
-                        set_row_updated_at(self._model, row, result.updated_at)
-                        updated_rows.append(row)
-                    else:
-                        rows_to_remove.append(row)
-
-            for row in sorted(rows_to_remove, reverse=True):
-                self._model.removeRow(row)
-            if updated_rows:
-                self._proxy.refresh_rows([r - sum(1 for rem in rows_to_remove if rem < r) for r in updated_rows])
-            self._dedup_global_search_rows()
-            self._renumber_indexes()
-            self._update_entry_counts()
-            self._highlight_duplicates()
-            self._proxy.refresh_groups()
-        elif self._current_path is not None and (self._current_path in result.moved_by_db or self._current_path == target_db_path):
-            active_search = self._search_input.text()
-            self._load_database(self._current_path)
-            if active_search:
-                self._search_input.setText(active_search)
-
-        self._refresh_stats()
-        self._set_status(f'Moved {result.total_moved} {pluralize(result.total_moved, "entry", "entries")} to "{target_display_name}".')
+        self._set_status(tr_plural('Deleted {count} entry from database files.', 'Deleted {count} entries from database files.', count))
 
     # ------------------------------------------------------------------
     # Save
@@ -770,12 +758,12 @@ class UserIPEntriesOperationsMixin(QDialog):
                         continue  # skip completely empty rows
 
                     if not username:
-                        errors.append(f'Row {row + 1}: Username is empty.')
+                        errors.append(tr('Row {row}: Username is empty.', row=row + 1))
                     valid_ip = bool(ip) and is_valid_ip_range_entry(ip)
                     if not ip:
-                        errors.append(f'Row {row + 1}: IP or Range is empty.')
+                        errors.append(tr('Row {row}: IP or Range is empty.', row=row + 1))
                     elif not valid_ip:
-                        errors.append(f'Row {row + 1}: "{ip}" is not a valid IP address or range.')
+                        errors.append(tr('Row {row}: "{ip}" is not a valid IP address or range.', row=row + 1, ip=ip))
 
                     if entry_model is not None and valid_ip:
                         entries.append(entry_model)
@@ -791,7 +779,15 @@ class UserIPEntriesOperationsMixin(QDialog):
                 entries = dedup_userip_entries(entries)
                 duplicate_count = total_before_dedup - len(entries)
                 if duplicate_count > 0 and show_errors:
-                    QMessageBox.information(self, TITLE, f'{duplicate_count} exact duplicate entr{pluralize(duplicate_count, "y was", "ies were")} removed before saving.')
+                    QMessageBox.information(
+                        self,
+                        TITLE,
+                        tr_plural(
+                            '{count} exact duplicate entry was removed before saving.',
+                            '{count} exact duplicate entries were removed before saving.',
+                            duplicate_count,
+                        ),
+                    )
 
                 with QSignalBlocker(self._model):
                     for row in persisted_rows:
@@ -809,7 +805,9 @@ class UserIPEntriesOperationsMixin(QDialog):
                 self._settings_snapshot = settings_model.model_copy()
                 self._clear_dirty_state()
                 self._update_file_info(self._current_path)
-                self._set_status(f'Saved {len(entries)} entries to {self._current_path.name}')
+                self._set_status(
+                    tr_plural('Saved {count} entry to {db}', 'Saved {count} entries to {db}', len(entries), db=self._current_path.name),
+                )
                 self._refresh_stats()
                 self._rebuild_fs_watch()
                 if duplicate_count > 0:
@@ -898,102 +896,3 @@ class UserIPEntriesOperationsMixin(QDialog):
                         item.setData(None, Qt.ItemDataRole.BackgroundRole)
 
         return len(duplicate_rows)
-
-    # ------------------------------------------------------------------
-    # Helpers
-    # ------------------------------------------------------------------
-
-    def _get_selected_source_rows(self, *, warn_if_empty: bool = False) -> list[int]:
-        """Return sorted source-model row indices for the current selection."""
-        selection = self._entries_table.selectionModel()
-        selected_indexes = selection.selectedRows() if selection else []
-        if not selected_indexes:
-            if warn_if_empty:
-                QMessageBox.information(self, TITLE, 'No entries selected.')
-            return []
-        return sorted({self._proxy.mapToSource(index).row() for index in selected_indexes})
-
-    def _get_row_database_path(self, row: int) -> Path | None:
-        """Return the database file path stored on `row` in global search mode, if any."""
-        db_item = self._model.item(row, DATABASE_COLUMN)
-        db_path_str = db_item.data(Qt.ItemDataRole.UserRole) if db_item else None
-        return Path(str(db_path_str)) if db_path_str else None
-
-    def _get_row_username(self, row: int) -> str:
-        """Return the stripped username text from `row`."""
-        username_item = self._model.item(row, USERNAME_COLUMN)
-        return username_item.text().strip() if username_item else ''
-
-    def _get_row_entry_value(self, row: int) -> str:
-        """Return the effective IP or Range value from a row (whichever is non-empty)."""
-        ip_item, range_item = self._model.item(row, IP_COLUMN), self._model.item(row, RANGE_COLUMN)
-        return (ip_item.text().strip() if ip_item else '') or (range_item.text().strip() if range_item else '')
-
-    def _collect_group_members_for_rows(self, source_rows: list[int]) -> list[str]:
-        """Return all usernames currently grouped with the usernames on *source_rows*."""
-        return dedup_preserve_order(*(g.usernames for g in self._matching_groups_for_seeds(self._collect_row_seed_usernames(source_rows))))
-
-    def _refresh_table_after_grouping(self) -> None:
-        """Rebuild UserIP databases and refresh the proxy's group sorting and alternating background shading."""
-        refresh_userip_and_wake_renderer()
-        self._last_seen_build_version = UserIPDatabases.build_version
-        self._rebuild_fs_watch()
-        self._refresh_stats()
-        self._proxy.refresh_groups()
-        if viewport := self._entries_table.viewport():
-            viewport.update()
-
-    def _group_selected_rows(self) -> None:
-        """Group all distinct usernames across the currently selected rows together."""
-        if not (source_rows := self._get_selected_source_rows(warn_if_empty=True)):
-            return
-        usernames = dedup_preserve_order(self._get_row_username(r) for r in source_rows if self._get_row_username(r))
-        if len(usernames) < MIN_GROUP_USERNAMES:
-            QMessageBox.information(self, TITLE, 'Select at least two rows with distinct usernames to group them together.')
-            return
-        with QSignalBlocker(self._fs_watcher):
-            if not group_usernames(usernames, self._account_group_clusters_map()):
-                return
-            self._refresh_table_after_grouping()
-        self._set_status(f'Grouped {len(usernames)} usernames together')
-
-    def _group_rows_with(self) -> None:
-        """Prompt for a username and group it with the selected row(s)' usernames."""
-        source_rows = self._get_selected_source_rows(warn_if_empty=True)
-        if not source_rows or not (usernames := dedup_preserve_order(self._get_row_username(r) for r in source_rows if self._get_row_username(r))):
-            return
-        max_preview = 3
-        source_display = ', '.join(usernames[:max_preview]) + (f' (+{len(usernames) - max_preview} more)' if len(usernames) > max_preview else '')
-        target_username, ok = prompt_username_input(self, f'Group With - {TITLE}', f'Enter the username to group with "{source_display}":')
-        if not ok or not (target_clean := target_username.strip()):
-            return
-        combined = dedup_preserve_order(usernames, [target_clean])
-        if len(combined) < MIN_GROUP_USERNAMES:
-            QMessageBox.information(self, TITLE, 'Please enter a different username to group with.')
-            return
-        with QSignalBlocker(self._fs_watcher):
-            if not group_usernames(combined, self._account_group_clusters_map()):
-                return
-            self._refresh_table_after_grouping()
-        self._set_status(f'Grouped "{target_clean}" with {source_display}')
-
-    def _ungroup_rows(self) -> None:
-        """Open a selection dialog to ungroup false-positive or unlinked usernames from the selected row(s)' group."""
-        source_rows = self._get_selected_source_rows(warn_if_empty=True)
-        if not source_rows or len(group_members := self._collect_group_members_for_rows(source_rows)) < MIN_GROUP_USERNAMES:
-            return
-        dlg = SelectUsernamesDialog(
-            self, group_members,
-            UsernameSelectionConfig(
-                title='Ungroup Usernames',
-                instructions='Select username(s) to unlink from this account group (prevents false-positive grouping):',
-                action_button_text='Ungroup', multiple=True, default_checked=False,
-            ),
-        )
-        if dlg.exec() != SelectUsernamesDialog.DialogCode.Accepted or not (chosen := dlg.selected_usernames()):
-            return
-        with QSignalBlocker(self._fs_watcher):
-            if not ungroup_usernames(chosen, group_members):
-                return
-            self._refresh_table_after_grouping()
-        self._set_status(f'Ungrouped {", ".join(f"{name!r}" for name in chosen)}')

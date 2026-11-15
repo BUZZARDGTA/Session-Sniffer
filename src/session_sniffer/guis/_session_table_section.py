@@ -20,6 +20,7 @@ from shiboken6 import isValid
 
 from session_sniffer.constants.tables import COLUMN_FORMAT_SETTING_TO_COLUMNS
 from session_sniffer.guis.delegates import SearchHighlightDelegate
+from session_sniffer.guis.live_language import register_language_refresh
 from session_sniffer.guis.stylesheets import (
     CONNECTED_EXPAND_BUTTON_STYLESHEET,
     DISCONNECTED_EXPAND_BUTTON_STYLESHEET,
@@ -32,10 +33,10 @@ from session_sniffer.guis.table_model import SessionTableModel
 from session_sniffer.guis.tables import SessionTableView
 from session_sniffer.guis.theming import ICONS_DIR_PATH, themed_qss
 from session_sniffer.guis.utils import make_padded_icon, render_svg_icon_from_resource, render_svg_pixmap_from_resource, scale_by_ui
+from session_sniffer.i18n import tr, tr_plural
 from session_sniffer.player.registry import SessionTracker
 from session_sniffer.rendering_core.types import PaginationState, SearchState, SessionFilterState, TableMergeState
 from session_sniffer.settings import Settings
-from session_sniffer.text_utils import pluralize
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
@@ -65,17 +66,23 @@ class SessionStatusBar(QStatusBar):
         self._performance_label.setTextFormat(Qt.TextFormat.RichText)
         self._performance_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self._performance_label.setStyleSheet(STATUS_BAR_PERFORMANCE_LABEL_STYLESHEET)
-        self._performance_label.setToolTip(
-            'Packet capture performance metrics:\n\n'
-            '• Latency: Processing delay between packet arrival at the network driver and capture analysis (not network ping).\n'
-            '  If this value steadily increments, the capture engine is falling behind real-time traffic (see Capture Overflow Timer setting).\n\n'
-            '• Restarts: Number of times packet capture was automatically restarted.',
-        )
+        self._refresh_language_texts()
 
         self.addWidget(self._capture_label)
         self.addWidget(self._config_label)
         self.addWidget(self._issues_label)
         self.addPermanentWidget(self._performance_label)
+        register_language_refresh(self, self._refresh_language_texts)
+
+    def _refresh_language_texts(self) -> None:
+        self._performance_label.setToolTip(
+            tr(
+                'Packet capture performance metrics:\n\n'
+                '• Latency: Processing delay between packet arrival at the network driver and capture analysis (not network ping).\n'
+                '  If this value steadily increments, the capture engine is falling behind real-time traffic (see Capture Overflow Timer setting).\n\n'
+                '• Restarts: Number of times packet capture was automatically restarted.',
+            ),
+        )
 
     def set_texts(self, *, capture: str, config: str, issues: str, performance: str) -> None:
         """Update all four status label texts at once."""
@@ -117,6 +124,8 @@ class SessionTableSection(QWidget):
         self._is_expanded = True
         self._is_connected = is_connected
         self._rows_keyboard_editing = False
+        self._has_synced_paging = False
+        self._last_total_count = 0
         self._spinbox_guards: list[QObject] = []
 
         if is_connected:
@@ -129,9 +138,9 @@ class SessionTableSection(QWidget):
             header_bg = '#141d17'
             header_text = '#94a3b8'
             expand_button_stylesheet = CONNECTED_EXPAND_BUTTON_STYLESHEET
-            collapse_tooltip = 'Hide the connected players table'
-            clear_tooltip = 'Clear all players' if TableMergeState.is_merged() else 'Clear all connected players'
-            expand_tooltip = 'Show the connected players table'
+            collapse_tooltip = tr('Hide the connected players table')
+            clear_tooltip = tr('Clear all players') if TableMergeState.is_merged() else tr('Clear all connected players')
+            expand_tooltip = tr('Show the connected players table')
         else:
             accent = '#ef4444'
             border_color = '#59282a'
@@ -142,9 +151,9 @@ class SessionTableSection(QWidget):
             header_bg = '#1d1315'
             header_text = '#94a3b8'
             expand_button_stylesheet = DISCONNECTED_EXPAND_BUTTON_STYLESHEET
-            collapse_tooltip = 'Hide the disconnected players table'
-            clear_tooltip = 'Clear all disconnected players'
-            expand_tooltip = 'Show the disconnected players table'
+            collapse_tooltip = tr('Hide the disconnected players table')
+            clear_tooltip = tr('Clear all disconnected players')
+            expand_tooltip = tr('Show the disconnected players table')
 
         sort_column_name, sort_order = self._resolve_sort_from_settings(column_names)
 
@@ -167,7 +176,7 @@ class SessionTableSection(QWidget):
         self._header_label.setObjectName('sectionTitle')
         self._header_label.setAutoFillBackground(False)
 
-        self._clear_button = QPushButton('CLEAR')
+        self._clear_button = QPushButton(tr('CLEAR'))
         self._clear_button.setObjectName('sectionClearButton')
         self._clear_button.setEnabled(False)
         self._clear_button.setToolTip(clear_tooltip)
@@ -190,9 +199,9 @@ class SessionTableSection(QWidget):
         header_layout.addStretch(1)
 
         # Pagination controls — rows per page
-        rows_label = QLabel('Rows:')
-        rows_label.setAlignment(Qt.AlignmentFlag.AlignVCenter)
-        rows_label.setToolTip('Rows per page (0 = show all)')
+        self._rows_label = QLabel(tr('Rows:'))
+        self._rows_label.setAlignment(Qt.AlignmentFlag.AlignVCenter)
+        self._rows_label.setToolTip(tr('Rows per page (0 = show all)'))
 
         initial_rpp = Settings.gui_connected_table_rows_per_page if is_connected else Settings.gui_disconnected_table_rows_per_page
 
@@ -200,9 +209,9 @@ class SessionTableSection(QWidget):
         self._rows_per_page_spinbox.setObjectName('sectionRowsSpinBox')
         self._rows_per_page_spinbox.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self._rows_per_page_spinbox.setRange(0, 5000)
-        self._rows_per_page_spinbox.setSpecialValueText('All')
+        self._rows_per_page_spinbox.setSpecialValueText(tr('All'))
         self._rows_per_page_spinbox.setValue(initial_rpp)
-        self._rows_per_page_spinbox.setToolTip(f'Limit how many {self._rows_per_page_tooltip_noun()} are shown per page. Set 0 to show all.')
+        self._rows_per_page_spinbox.setToolTip(self._rows_per_page_tooltip())
         self._rows_per_page_spinbox.setKeyboardTracking(False)
         self._rows_per_page_spinbox.valueChanged.connect(self._handle_rows_per_page_changed)
         self._rows_per_page_spinbox.editingFinished.connect(self._finalize_rows_edit)
@@ -212,20 +221,20 @@ class SessionTableSection(QWidget):
         rows_pair.setSpacing(scale_by_ui(4))
         rows_pair.setContentsMargins(0, 0, 0, 0)
         rows_pair.setAlignment(Qt.AlignmentFlag.AlignVCenter)
-        rows_pair.addWidget(rows_label)
+        rows_pair.addWidget(self._rows_label)
         rows_pair.addWidget(self._rows_per_page_spinbox)
         header_layout.addLayout(rows_pair)
 
         # Pagination controls — page number
-        page_label = QLabel('Page:')
-        page_label.setAlignment(Qt.AlignmentFlag.AlignVCenter)
-        page_label.setToolTip('Current page when rows are limited.')
+        self._page_label = QLabel(tr('Page:'))
+        self._page_label.setAlignment(Qt.AlignmentFlag.AlignVCenter)
+        self._page_label.setToolTip(tr('Current page when rows are limited.'))
 
         self._page_spinbox = QSpinBox()
         self._page_spinbox.setObjectName('sectionPageSpinBox')
         self._page_spinbox.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self._page_spinbox.setRange(1, 1)
-        self._page_spinbox.setToolTip('Jump between pages when a row limit is set.')
+        self._page_spinbox.setToolTip(tr('Jump between pages when a row limit is set.'))
         self._page_spinbox.setSuffix(' / 1')
         self._page_spinbox.valueChanged.connect(self._handle_page_changed)
         self._install_spinbox_input_filter(self._page_spinbox)
@@ -234,7 +243,7 @@ class SessionTableSection(QWidget):
         page_pair.setSpacing(scale_by_ui(4))
         page_pair.setContentsMargins(0, 0, 0, 0)
         page_pair.setAlignment(Qt.AlignmentFlag.AlignVCenter)
-        page_pair.addWidget(page_label)
+        page_pair.addWidget(self._page_label)
         page_pair.addWidget(self._page_spinbox)
         header_layout.addLayout(page_pair)
 
@@ -477,7 +486,7 @@ class SessionTableSection(QWidget):
         self.table_model.view = self.table_view
 
         # Expand button (shown when section is collapsed; laid out by MainWindow, not this section)
-        self.expand_button = QPushButton(f'Show {self._expand_button_noun()} (0)')
+        self.expand_button = QPushButton(self._expand_button_text(0))
         _expand_icon = render_svg_icon_from_resource('arrow-up-from-line.svg', 16, 16)
         self.expand_button.setIcon(make_padded_icon(_expand_icon, (16, 16), 8))
         self.expand_button.setIconSize(QSize(16 + 8, 16))
@@ -496,6 +505,27 @@ class SessionTableSection(QWidget):
         self.setMinimumHeight(scale_by_ui(110))
 
         self.table_view.selectionModel().selectionChanged.connect(self._on_selection_changed)
+        register_language_refresh(self, self._refresh_language_texts)
+
+    def _refresh_language_texts(self) -> None:
+        """Re-translate section labels, buttons, spinboxes, and tooltips on language change."""
+        self._clear_button.setText(tr('CLEAR'))
+        self.collapse_button.setToolTip(tr('Hide the connected players table') if self._is_connected else tr('Hide the disconnected players table'))
+        self.expand_button.setToolTip(tr('Show the connected players table') if self._is_connected else tr('Show the disconnected players table'))
+        self._rows_label.setText(tr('Rows:'))
+        self._rows_label.setToolTip(tr('Rows per page (0 = show all)'))
+        self._rows_per_page_spinbox.setToolTip(self._rows_per_page_tooltip())
+        if self._rows_per_page <= 0:
+            self._rows_per_page_spinbox.setSpecialValueText(
+                tr('All ({count})', count=self._last_total_count) if self._has_synced_paging else tr('All'),
+            )
+        self._page_label.setText(tr('Page:'))
+        self._page_label.setToolTip(tr('Current page when rows are limited.'))
+        self._page_spinbox.setToolTip(tr('Jump between pages when a row limit is set.'))
+        self._update_header_label()
+        self.update_merge_button_state()
+        if not self.is_expanded:
+            self.expand_button.setText(self._expand_button_text(max(self.last_count, 0)))
 
     @property
     def _header_widget(self) -> QWidget:
@@ -520,9 +550,7 @@ class SessionTableSection(QWidget):
         """Collapse section to just an expand button."""
         self._is_expanded = False
         self.setVisible(False)
-        self.expand_button.setText(
-            f'Show {self._expand_button_noun()} ({max(self.last_count, 0)})',
-        )
+        self.expand_button.setText(self._expand_button_text(max(self.last_count, 0)))
         self.expand_button.setVisible(True)
         self.section_toggled.emit()
 
@@ -532,9 +560,7 @@ class SessionTableSection(QWidget):
         self._clear_button.setEnabled(count > 0)
         self._update_header_label()
         if not self.is_expanded:
-            self.expand_button.setText(
-                f'Show {self._expand_button_noun()} ({count})',
-            )
+            self.expand_button.setText(self._expand_button_text(count))
 
     def clear_table(self) -> None:
         """Clear all table data and reset selection count."""
@@ -597,63 +623,69 @@ class SessionTableSection(QWidget):
         is_past_session = 0 < selected_session < SessionTracker.get_current_session_id()
         self._merge_button.setVisible(not is_past_session)
         is_merged = TableMergeState.is_merged()
-        self._merge_button.setText('SPLIT' if is_merged else 'MERGE')
+        self._merge_button.setText(tr('SPLIT') if is_merged else tr('MERGE'))
         self._merge_button.setToolTip(
-            'Split into connected and disconnected tables (Ctrl+M)' if is_merged else 'Merge connected and disconnected tables into one (Ctrl+M)',
+            tr('Split into connected and disconnected tables (Ctrl+M)') if is_merged else tr('Merge connected and disconnected tables into one (Ctrl+M)'),
         )
 
     def update_disconnected_players_state(self) -> None:
         """Update header label and tooltips when the disconnected players setting changes."""
         self._update_header_label()
         if not self.is_expanded:
-            self.expand_button.setText(
-                f'Show {self._expand_button_noun()} ({max(self.last_count, 0)})',
-            )
+            self.expand_button.setText(self._expand_button_text(max(self.last_count, 0)))
         self.update_merge_button_state()
         if self._is_connected:
-            self._rows_per_page_spinbox.setToolTip(f'Limit how many {self._rows_per_page_tooltip_noun()} are shown per page. Set 0 to show all.')
+            self._rows_per_page_spinbox.setToolTip(self._rows_per_page_tooltip())
             self.table_view.viewport().update()
 
-    def _expand_button_noun(self) -> str:
-        """Return the player label for the expand button, respecting the table merge state."""
+    def _expand_button_text(self, count: int) -> str:
+        """Return localized text for the collapsed expand button."""
         if self._is_connected:
-            return 'Players' if TableMergeState.is_merged() else 'Connected Players'
-        return 'Disconnected Players'
+            return tr('Show Players ({count})', count=count) if TableMergeState.is_merged() else tr('Show Connected Players ({count})', count=count)
+        return tr('Show Disconnected Players ({count})', count=count)
 
-    def _rows_per_page_tooltip_noun(self) -> str:
-        """Return the player noun used in the rows-per-page tooltip, respecting the table merge state."""
+    def _rows_per_page_tooltip(self) -> str:
+        """Return the localized tooltip for the rows-per-page spinbox."""
         if self._is_connected:
-            return 'players' if TableMergeState.is_merged() else 'connected players'
-        return 'disconnected players'
+            return (
+                tr('Limit how many players are shown per page. Set 0 to show all.')
+                if TableMergeState.is_merged()
+                else tr('Limit how many connected players are shown per page. Set 0 to show all.')
+            )
+        return tr('Limit how many disconnected players are shown per page. Set 0 to show all.')
 
     def _header_label_text(self) -> str:
         selected_session = SessionFilterState.get_selected_session()
+        count = max(0, self.last_count)
         if not self._is_connected and 0 < selected_session < SessionTracker.get_current_session_id():
             display_name = SessionTracker.get_session_display_name(selected_session)
-            intro = f"Session '{display_name}' Players"
+            base = tr("Session '{name}' Players ({count})", name=display_name, count=count)
         elif self._is_connected:
-            intro = 'Players' if TableMergeState.is_merged() else 'Connected Players'
+            base = tr('Players ({count})', count=count) if TableMergeState.is_merged() else tr('Connected Players ({count})', count=count)
         else:
-            intro = 'Disconnected Players'
+            base = tr('Disconnected Players ({count})', count=count)
 
-        base = f'{intro} ({max(0, self.last_count)})'
         if self._selected_count > 0:
-            noun = f'player{pluralize(self._selected_count)}'
-            return f'{base} ({self._selected_count} {noun} selected)'
+            return tr_plural(
+                '{base} ({count} player selected)',
+                '{base} ({count} players selected)',
+                self._selected_count,
+                base=base,
+            )
         return base
 
     def _update_clear_button_tooltip(self) -> None:
         if self._is_connected:
             is_merged = TableMergeState.is_merged()
-            self._clear_button.setToolTip('Clear all players' if is_merged else 'Clear all connected players')
+            self._clear_button.setToolTip(tr('Clear all players') if is_merged else tr('Clear all connected players'))
         else:
             selected_session = SessionFilterState.get_selected_session()
             current_session_id = SessionTracker.get_current_session_id()
             if 0 < selected_session < current_session_id:
                 display_name = SessionTracker.get_session_display_name(selected_session)
-                self._clear_button.setToolTip(f"Clear all players from session '{display_name}'")
+                self._clear_button.setToolTip(tr("Clear all players from session '{name}'", name=display_name))
             else:
-                self._clear_button.setToolTip('Clear all disconnected players')
+                self._clear_button.setToolTip(tr('Clear all disconnected players'))
 
     def _update_header_label(self) -> None:
         if not isValid(self._header_label):
@@ -773,6 +805,8 @@ class SessionTableSection(QWidget):
     ) -> None:
         """Called from _update_gui to keep spinbox decorations in sync."""
         self._rows_per_page = rows_per_page
+        self._has_synced_paging = True
+        self._last_total_count = total_count
 
         if not self._rows_keyboard_editing:
             self._rows_per_page_spinbox.setRange(0, 5000)
@@ -786,7 +820,7 @@ class SessionTableSection(QWidget):
             else:
                 self._rows_per_page_spinbox.setPrefix('')
                 self._rows_per_page_spinbox.setSuffix('')
-                self._rows_per_page_spinbox.setSpecialValueText(f'All ({total_count})')
+                self._rows_per_page_spinbox.setSpecialValueText(tr('All ({count})', count=total_count))
 
         self._current_page, self._total_pages = self._sync_paging_controls(
             total_rows=max(self.last_count, 0),

@@ -35,9 +35,10 @@ from PySide6.QtWidgets import (
 from session_sniffer.constants.local import USERIP_DATABASES_DIR_PATH
 from session_sniffer.guis.colors import TableColors
 from session_sniffer.guis.theming import register_theme_change_callback, themed_color, themed_qcolor, themed_text_qcolor
+from session_sniffer.i18n import tr, tr_plural
 from session_sniffer.models.combo_rules import ComboRule, split_condition_key
 from session_sniffer.models.userip_settings_model import format_iso_timestamp_display
-from session_sniffer.text_utils import pluralize, split_usernames
+from session_sniffer.text_utils import split_usernames
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
@@ -148,7 +149,7 @@ def _format_username_source_lines(
     lines: list[str] = []
     seen_casefolded: set[str] = set()
 
-    def _append_source_line(label_prefix: str, raw_names: Sequence[str]) -> None:
+    def _append_source_line(singular_label: str, plural_label: str, raw_names: Sequence[str]) -> None:
         unique_names: list[str] = []
         for raw_name in raw_names:
             cleaned = raw_name.strip()
@@ -160,29 +161,31 @@ def _format_username_source_lines(
                 unique_names.append(cleaned)
         if not unique_names:
             return
-        label = f'{label_prefix}{pluralize(len(unique_names))}'
+        label = tr_plural(singular_label, plural_label, len(unique_names))
         joined_text = ', '.join(unique_names)
         value_html = _format_looky_tooltip_html(joined_text, looky_names, is_disconnected=is_disconnected) if looky_names is not None else html.escape(joined_text)
-        lines.append(f'<span style="color: {themed_color("#9ca3af")};">{label}:</span> {value_html}')
+        lines.append(f'<span style="color: {themed_color("#9ca3af")};">{html.escape(label)}:</span> {value_html}')
 
     if player.mod_menus is not None and player.mod_menus.usernames:
-        modmenu_label = 'Relay Username' if player.mod_menus.is_relay else 'Mod Menu Username'
-        _append_source_line(modmenu_label, player.mod_menus.usernames)
+        if player.mod_menus.is_relay:
+            _append_source_line('Relay Username', 'Relay Usernames', player.mod_menus.usernames)
+        else:
+            _append_source_line('Mod Menu Username', 'Mod Menu Usernames', player.mod_menus.usernames)
     if player.userip is not None and player.userip.usernames:
         if player.userip.known_alts:
             known_alts_cf = {alt.casefold() for alt in player.userip.known_alts}
             direct_db_usernames = [name for name in player.userip.usernames if name.casefold() not in known_alts_cf]
-            _append_source_line('DB Username', direct_db_usernames)
-            _append_source_line('DB Known Alt', player.userip.known_alts)
+            _append_source_line('DB Username', 'DB Usernames', direct_db_usernames)
+            _append_source_line('DB Known Alt', 'DB Known Alts', player.userip.known_alts)
         else:
-            _append_source_line('DB Username', player.userip.usernames)
+            _append_source_line('DB Username', 'DB Usernames', player.userip.usernames)
     if player.ps3_username is not None and player.ps3_username:
-        _append_source_line('PS3 Username', (player.ps3_username,))
+        _append_source_line('PS3 Username', 'PS3 Usernames', (player.ps3_username,))
     if looky_names is not None:
         with player.looky_system.lock:
             looky_list = list(player.looky_system.usernames) if player.looky_system.is_initialized else []
         if looky_list:
-            _append_source_line('Looky Username', looky_list)
+            _append_source_line('Looky Username', 'Looky Usernames', looky_list)
 
     return lines
 
@@ -201,7 +204,7 @@ def _format_userip_tooltip_lines(
         db_display = str(userip.db_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix(''))
     except ValueError:
         db_display = str(userip.db_path)
-    lines.append(f'<span style="color: {label_color};">Database:</span> {html.escape(db_display)}')
+    lines.append(f'<span style="color: {label_color};">{html.escape(tr("Database"))}:</span> {html.escape(db_display)}')
     lines.extend(
         _format_username_source_lines(
             player,
@@ -210,12 +213,12 @@ def _format_userip_tooltip_lines(
         ),
     )
     if userip.notes:
-        notes_label = f'Note{pluralize(len(userip.notes))}'
-        lines.append(f'<span style="color: {label_color};">{notes_label}:</span> {html.escape(", ".join(userip.notes))}')
+        notes_label = tr_plural('Note', 'Notes', len(userip.notes))
+        lines.append(f'<span style="color: {label_color};">{html.escape(notes_label)}:</span> {html.escape(", ".join(userip.notes))}')
     if userip.sources:
-        sources_label = f'Source{pluralize(len(userip.sources))}'
-        lines.append(f'<span style="color: {label_color};">{sources_label}:</span> {html.escape(", ".join(userip.sources))}')
-    lines.append(f'<span style="color: {label_color};">Detections:</span> {userip.detections_count}')
+        sources_label = tr_plural('Source', 'Sources', len(userip.sources))
+        lines.append(f'<span style="color: {label_color};">{html.escape(sources_label)}:</span> {html.escape(", ".join(userip.sources))}')
+    lines.append(f'<span style="color: {label_color};">{html.escape(tr("Detections"))}:</span> {userip.detections_count}')
     for label_text, raw_timestamp in (
         ('Added', userip.added_at),
         ('Updated', userip.updated_at),
@@ -224,7 +227,7 @@ def _format_userip_tooltip_lines(
     ):
         formatted_display = format_iso_timestamp_display(raw_timestamp)
         if formatted_display:
-            lines.append(f'<span style="color: {label_color};">{label_text}:</span> {html.escape(formatted_display)}')
+            lines.append(f'<span style="color: {label_color};">{html.escape(tr(label_text))}:</span> {html.escape(formatted_display)}')
     return lines
 
 
@@ -633,13 +636,17 @@ class ComboRuleCardDelegate(QStyledItemDelegate):
         chips: list[tuple[str, str, bool]] = []
         for key, value in rule.conditions.items():
             base_key, is_negated = split_condition_key(key)
-            label = _COMBO_CONDITION_LABELS.get(base_key, base_key)
+            raw_label = _COMBO_CONDITION_LABELS.get(base_key)
+            label = tr(raw_label) if raw_label is not None else base_key
             operator = ' ≠ ' if is_negated else ': '
             prefix_text = f'{label}{operator}'
             if base_key == 'event' and isinstance(value, list):
-                value_text = ' | '.join(_COMBO_EVENT_NAMES.get(item, item) for item in value)
+                value_text = ' | '.join(
+                    tr(event_name) if (event_name := _COMBO_EVENT_NAMES.get(item)) is not None else item
+                    for item in value
+                )
             elif isinstance(value, bool):
-                value_text = 'Yes' if value else 'No'
+                value_text = tr('Yes') if value else tr('No')
             elif isinstance(value, list):
                 value_text = ' | '.join(value)
             else:
@@ -651,37 +658,38 @@ class ComboRuleCardDelegate(QStyledItemDelegate):
         """Return `(text, bg_color, border_color, text_color)` badges for the rule's configured actions."""
         badges: list[tuple[str, QColor, QColor, QColor]] = []
         if self._is_suspend_supported() and rule.protection_enabled:
-            dur_str = 'Auto' if rule.duration == 'Auto' else f'{rule.duration}s'
+            dur_str = tr('Auto') if rule.duration == 'Auto' else tr('{seconds}s', seconds=rule.duration)
             badges.append((
-                f'Suspend: {dur_str}',
+                tr('Suspend: {duration}', duration=dur_str),
                 themed_qcolor(QColor(245, 158, 11, 38)),
                 themed_qcolor(QColor(245, 158, 11, 115)),
                 themed_text_qcolor('#fbbf24', '#17212c'),
             ))
         if rule.voice_notifications:
+            voice_label = tr(rule.voice_notifications) if isinstance(rule.voice_notifications, str) else tr('Enabled')
             badges.append((
-                f'Voice: {rule.voice_notifications}',
+                tr('Voice: {voice}', voice=voice_label),
                 themed_qcolor(QColor(56, 189, 248, 38)),
                 themed_qcolor(QColor(56, 189, 248, 115)),
                 themed_text_qcolor('#38bdf8', '#17212c'),
             ))
         if rule.message_box:
             badges.append((
-                'Message Box',
+                tr('Message Box'),
                 themed_qcolor(QColor(168, 85, 247, 38)),
                 themed_qcolor(QColor(168, 85, 247, 115)),
                 themed_text_qcolor('#c084fc', '#17212c'),
             ))
         if rule.logging:
             badges.append((
-                'Logging',
+                tr('Logging'),
                 themed_qcolor(QColor(45, 212, 191, 34)),
                 themed_qcolor(QColor(45, 212, 191, 105)),
                 themed_text_qcolor('#2dd4bf', '#17212c'),
             ))
         if not badges:
             badges.append((
-                'No Actions',
+                tr('No Actions'),
                 themed_qcolor(QColor(148, 163, 184, 24)),
                 themed_qcolor(QColor(148, 163, 184, 65)),
                 themed_text_qcolor('#64748b', '#17212c'),
@@ -862,7 +870,7 @@ class ComboRuleCardDelegate(QStyledItemDelegate):
             badges_right_x = b_rect.left() - badge_gap
 
         # --- Left-aligned Status Pill + Rule Name + Condition Count ---
-        status_text = '✓ ENABLED' if is_enabled else '✕ DISABLED'
+        status_text = tr('✓ ENABLED') if is_enabled else tr('✕ DISABLED')
         status_bg = themed_qcolor(QColor(16, 185, 129, 42)) if is_enabled else themed_qcolor(QColor(239, 68, 68, 34))
         status_border = themed_qcolor(QColor(16, 185, 129, 120)) if is_enabled else themed_qcolor(QColor(239, 68, 68, 95))
         status_fg = themed_text_qcolor('#34d399', '#17212c') if is_enabled else themed_text_qcolor('#f87171', '#131820')
@@ -898,7 +906,7 @@ class ComboRuleCardDelegate(QStyledItemDelegate):
         name_drawn_w = name_fm.horizontalAdvance(elided_name)
         count_left = title_left + name_drawn_w + scale(8)
         cond_count = len(rule.conditions)
-        count_text = f'({cond_count} condition{pluralize(cond_count)})'
+        count_text = tr_plural('({count} condition)', '({count} conditions)', cond_count)
         bold_chip_font, reg_chip_font = self._chip_fonts(base_font)
         reg_chip_fm = QFontMetrics(reg_chip_font)
         if count_left + reg_chip_fm.horizontalAdvance(count_text) <= title_max_right:

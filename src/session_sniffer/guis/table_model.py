@@ -25,11 +25,13 @@ from session_sniffer.constants.tables import (
     STATUS_COLUMNS,
 )
 from session_sniffer.error_messages import format_type_error
+from session_sniffer.guis._player_identifier_core import PlayerIdentifierTracker
 from session_sniffer.guis.exceptions import TableDataConsistencyError, UnsupportedSortColumnError
 from session_sniffer.guis.high_rate_monitor import HighRateTracker
-from session_sniffer.guis.player_identifier import PlayerIdentifierTracker
+from session_sniffer.guis.live_language import CANONICAL_HEADER_ROLE, CANONICAL_HEADER_TOOLTIP_ROLE
 from session_sniffer.guis.table_icons import get_ip_column_composite_icon
 from session_sniffer.guis.theming import ICONS_DIR_PATH
+from session_sniffer.i18n import tr
 from session_sniffer.player.registry import PlayersRegistry, SessionTracker
 from session_sniffer.player.session_host import SessionHost
 from session_sniffer.rendering_core.types import SessionFilterState, TableMergeState
@@ -534,22 +536,22 @@ class SessionTableModel(QAbstractTableModel):
             if (not self.view.is_connected_table or TableMergeState.is_merged()) and matched_player is not None:
                 session_name = SessionTracker.get_session_name(matched_player.session_id)
                 session_label = (
-                    f'Session #{matched_player.session_id} ({session_name})'
+                    tr('Session #{id} ({name})', id=matched_player.session_id, name=session_name)
                     if session_name is not None
-                    else f'Session #{matched_player.session_id}'
+                    else tr('Session #{id}', id=matched_player.session_id)
                 )
                 if matched_player.session_id == SessionTracker.get_current_session_id():
-                    tooltips.append(f'Current Session ({session_label})')
+                    tooltips.append(tr('Current Session ({label})', label=session_label))
                 else:
-                    tooltips.append(f'Past Session ({session_label})')
+                    tooltips.append(tr('Past Session ({label})', label=session_label))
             if Settings.gui_session_host_icon and Settings.is_session_host_feature_set() and self._is_row_session_host(ip):
-                tooltips.append('Session Host')
+                tooltips.append(tr('Session Host'))
             if Settings.gta5_relay_icon and Settings.is_gta5_feature_set() and matched_player is not None and matched_player.is_gta5_relay:
-                tooltips.append('GTA5 Relay')
+                tooltips.append(tr('GTA5 Relay'))
             if Settings.high_rate_monitor_icon and HighRateTracker.is_high_rate(ip):
-                tooltips.append('High-Rate traffic detected (exceeds PPS/BPS thresholds)')
+                tooltips.append(tr('High-Rate traffic detected (exceeds PPS/BPS thresholds)'))
             if Settings.player_identifier_icon and PlayerIdentifierTracker.is_identified(ip):
-                tooltips.append('Identified player (Player Identifier)')
+                tooltips.append(tr('Identified player (Player Identifier)'))
             if tooltips:
                 output = '\n'.join(tooltips)
 
@@ -559,11 +561,15 @@ class SessionTableModel(QAbstractTableModel):
     def headerData(self, section: int, orientation: Qt.Orientation, role: int = Qt.ItemDataRole.DisplayRole) -> str | None:
         """Return header display text and tooltips for the table model."""
         if orientation == Qt.Orientation.Horizontal and 0 <= section < len(self._headers):
+            header_name = self._headers[section]
             if role == Qt.ItemDataRole.DisplayRole:
-                return self._headers[section]  # Display the header name
+                return tr(header_name)
             if role == Qt.ItemDataRole.ToolTipRole:
-                # Fetch the header name and return the corresponding tooltip
-                header_name = self._headers[section]
+                tooltip = GUI_COLUMN_HEADERS_TOOLTIPS.get(header_name)
+                return tr(tooltip) if tooltip is not None else None
+            if role == CANONICAL_HEADER_ROLE:
+                return header_name
+            if role == CANONICAL_HEADER_TOOLTIP_ROLE:
                 return GUI_COLUMN_HEADERS_TOOLTIPS.get(header_name)
 
         return None

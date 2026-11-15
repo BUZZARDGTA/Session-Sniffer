@@ -20,18 +20,19 @@ from session_sniffer.guis.tables_player_actions._format import (
     format_ms,
     format_text,
     format_with_code,
+    has_lookup_value,
     userip_database_text,
 )
 from session_sniffer.guis.userip_manager_helpers import IPRangeBuilderDialog
 from session_sniffer.guis.utils import add_icon_menu_action, create_styled_context_menu, set_clipboard_text
+from session_sniffer.i18n import tr, tr_plural
 from session_sniffer.networking.ping import PingMode
 from session_sniffer.player.registry import SessionTracker
 from session_sniffer.rendering_core.types import SessionFilterState
 from session_sniffer.settings.settings import Settings
-from session_sniffer.text_utils import pluralize
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Sequence
+    from collections.abc import Sequence
 
     from session_sniffer.models.player import Player
 
@@ -39,68 +40,71 @@ if TYPE_CHECKING:
 def build_discord_player_report(player: Player) -> str:
     """Build a Discord-formatted player info report string."""
     lines: list[str] = []
-    lines.append(f'## Player Report — `{player.ip}`')
+    lines.append(f'## {tr("Player Report")} \u2014 `{player.ip}`')
     lines.append('')
 
     # Player Info
-    lines.append('**Player Info**')
-    lines.append(f'> **IP Address:** `{player.ip}`')
+    lines.append(f'**{tr("Player Info")}**')
+    lines.append(f'> **{tr("IP Address")}:** `{player.ip}`')
     hostname = format_text(player.reverse_dns.hostname)
-    lines.append(f'> **Hostname:** `{hostname}`')
-    usernames = ', '.join(player.usernames) if player.usernames else 'N/A'
-    lines.append(f'> **Username{pluralize(len(player.usernames))}:** {usernames}')
-    lines.append(f'> **First Port:** {player.ports.first}  |  **Last Port:** {player.ports.last}')
+    lines.append(f'> **{tr("Hostname")}:** `{hostname}`')
+    usernames = ', '.join(player.usernames) if player.usernames else tr('N/A')
+    username_label = tr_plural('Username', 'Usernames', len(player.usernames))
+    lines.append(f'> **{username_label}:** {usernames}')
+    lines.append(f'> **{tr("First Port")}:** {player.ports.first}  |  **{tr("Last Port")}:** {player.ports.last}')
     middle_ports = ', '.join(map(str, reversed(player.ports.middle)))
     if middle_ports:
-        lines.append(f'> **Middle Port{pluralize(len(player.ports.middle))}:** {middle_ports}')
-    db_text = userip_database_text(player)
-    if db_text != 'No':
-        lines.append(f'> **UserIP Database:** {db_text}')
+        middle_label = tr_plural('Middle Port', 'Middle Ports', len(player.ports.middle))
+        lines.append(f'> **{middle_label}:** {middle_ports}')
+    if player.userip_detection is not None and player.userip is not None:
+        lines.append(f'> **{tr("UserIP Database")}:** {userip_database_text(player)}')
     first_seen = player.datetime.first_seen.strftime('%Y-%m-%d %H:%M:%S')
     last_seen = player.datetime.last_seen.strftime('%Y-%m-%d %H:%M:%S')
-    lines.append(f'> **First Seen:** {first_seen}  |  **Last Seen:** {last_seen}')
+    lines.append(f'> **{tr("First Seen")}:** {first_seen}  |  **{tr("Last Seen")}:** {last_seen}')
     lines.append('')
 
     # Location
-    continent = format_text(player.iplookup.resolve_continent()[0])
-    region = format_text(player.iplookup.ipapi.region)
-    city = format_text(player.iplookup.resolve_city())
-    timezone = format_text(player.iplookup.ipapi.time_zone)
-    lines.append('**Location**')
+    raw_continent = player.iplookup.resolve_continent()[0]
+    raw_region = player.iplookup.ipapi.region
+    raw_city = player.iplookup.resolve_city()
+    raw_timezone = player.iplookup.ipapi.time_zone
+    lines.append(f'**{tr("Location")}**')
     country_display = format_with_code(*player.iplookup.resolve_country())
-    lines.append(f'> **Country:** {country_display}')
-    if continent != 'N/A':
-        lines.append(f'> **Continent:** {continent}')
-    if region != 'N/A':
-        lines.append(f'> **Region:** {region}')
-    if city != 'N/A':
-        lines.append(f'> **City:** {city}')
-    if timezone != 'N/A':
-        lines.append(f'> **Timezone:** {timezone}')
+    lines.append(f'> **{tr("Country")}:** {country_display}')
+    if has_lookup_value(raw_continent):
+        lines.append(f'> **{tr("Continent")}:** {format_text(raw_continent)}')
+    if has_lookup_value(raw_region):
+        lines.append(f'> **{tr("Region")}:** {format_text(raw_region)}')
+    if has_lookup_value(raw_city):
+        lines.append(f'> **{tr("City")}:** {format_text(raw_city)}')
+    if has_lookup_value(raw_timezone):
+        lines.append(f'> **{tr("Timezone")}:** {format_text(raw_timezone)}')
     lines.append('')
 
     # Network
-    isp = format_text(player.iplookup.ipapi.isp)
-    org = format_text(player.iplookup.ipapi.org)
-    asn = format_text(player.iplookup.ipapi.asn)
+    raw_isp = player.iplookup.ipapi.isp
+    raw_org = player.iplookup.ipapi.org
+    raw_asn = player.iplookup.ipapi.asn
+    isp_text = format_text(raw_isp)
+    org_text = format_text(raw_org)
     mobile = format_bool(player.iplookup.ipapi.mobile)
     proxy = format_bool(player.iplookup.ipapi.proxy)
     hosting = format_bool(player.iplookup.ipapi.hosting)
-    lines.append('**Network**')
-    if isp != 'N/A':
-        lines.append(f'> **ISP:** {isp}')
-    if org not in {'N/A', isp}:
-        lines.append(f'> **Organization:** {org}')
-    if asn != 'N/A':
-        lines.append(f'> **AS:** {format_with_code(asn, player.iplookup.ipapi.as_name)}')
-    lines.append(f'> **Mobile:** {mobile}  |  **Proxy/VPN/Tor:** {proxy}  |  **Hosting:** {hosting}')
+    lines.append(f'**{tr("Network")}**')
+    if has_lookup_value(raw_isp):
+        lines.append(f'> **{tr("ISP")}:** {isp_text}')
+    if has_lookup_value(raw_org) and org_text != isp_text:
+        lines.append(f'> **{tr("Organization")}:** {org_text}')
+    if has_lookup_value(raw_asn):
+        lines.append(f'> **{tr("AS")}:** {format_with_code(raw_asn, player.iplookup.ipapi.as_name)}')
+    lines.append(f'> **{tr("Mobile")}:** {mobile}  |  **{tr("Proxy/VPN/Tor")}:** {proxy}  |  **{tr("Hosting")}:** {hosting}')
     lines.append('')
 
     # Ping
     avg_rtt = format_ms(player.ping.rtt_avg)
     packet_loss = format_loss_pct(player.ping.packet_loss)
-    lines.append('**Ping**')
-    lines.append(f'> **Avg RTT:** {avg_rtt}  |  **Packet Loss:** {packet_loss}')
+    lines.append(f'**{tr("Ping")}**')
+    lines.append(f'> **{tr("Avg RTT")}:** {avg_rtt}  |  **{tr("Packet Loss")}:** {packet_loss}')
 
     return '\n'.join(lines)
 
@@ -133,7 +137,7 @@ def scan_ports_ip(target: str | list[str]) -> None:
 
 def _prompt_port_ping(parent: QWidget, target: str | list[str], *, mode: PingMode, prompt_label: str) -> None:
     """Prompt the user for a port number and open the Ping Diagnostics window for *target*."""
-    port_string, success = QInputDialog.getText(parent, 'Input Port', prompt_label)
+    port_string, success = QInputDialog.getText(parent, tr('Input Port'), prompt_label)
 
     if not success:
         return
@@ -141,13 +145,13 @@ def _prompt_port_ping(parent: QWidget, target: str | list[str], *, mode: PingMod
     port_string = port_string.strip()
 
     if not port_string.isdigit():
-        QMessageBox.warning(parent, 'Error', 'No valid port number provided.')
+        QMessageBox.warning(parent, tr('Error'), tr('No valid port number provided.'))
         return
 
     port = int(port_string)
 
     if not MIN_PORT <= port <= MAX_PORT:
-        QMessageBox.warning(parent, 'Error', 'Please enter a valid port number between 1 and 65535.')
+        QMessageBox.warning(parent, tr('Error'), tr('Please enter a valid port number between 1 and 65535.'))
         return
 
     PingWindow.open_window(target, mode=mode, port=port)
@@ -155,25 +159,32 @@ def _prompt_port_ping(parent: QWidget, target: str | list[str], *, mode: PingMod
 
 def tcp_port_ping(parent: QWidget, target: str | list[str]) -> None:
     """Run a TCP port connectivity check to the specified target host(s) on a user-specified port."""
-    _prompt_port_ping(parent, target, mode=PingMode.TCP, prompt_label='Enter the port number to check TCP connectivity:')
+    _prompt_port_ping(parent, target, mode=PingMode.TCP, prompt_label=tr('Enter the port number to check TCP connectivity:'))
 
 
 def _create_multi_port_ping_menu(
     parent: QWidget,
     ip_addresses: list[str],
     ping_menu: QMenu,
-    *,
-    protocol_label: str,
-    ping_fn: Callable[[QWidget, str | list[str]], None],
+    mode: PingMode,
 ) -> None:
     """Create and attach a protocol port ping submenu for multiple IP addresses to `ping_menu`."""
-    submenu = create_styled_context_menu(ping_menu, title=f'{protocol_label} Port Ping', icon_name='radio-tower.svg')
+    if mode is PingMode.TCP:
+        submenu_title = tr('TCP Port Ping')
+        one_port_tooltip = tr('Ask for a port once, then TCP ping all selected IPs on that port.')
+        ping_fn = tcp_port_ping
+    else:
+        submenu_title = tr('UDP Port Ping')
+        one_port_tooltip = tr('Ask for a port once, then UDP ping all selected IPs on that port.')
+        ping_fn = udp_port_ping
+
+    submenu = create_styled_context_menu(ping_menu, title=submenu_title, icon_name='radio-tower.svg')
     add_icon_menu_action(
         submenu,
         'radio-tower.svg',
-        'One Port for All',
+        tr('One Port for All'),
         lambda: ping_fn(parent, ip_addresses),
-        tooltip=f'Ask for a port once, then {protocol_label} ping all selected IPs on that port.',
+        tooltip=one_port_tooltip,
     )
 
     def _do_ping_individual() -> None:
@@ -183,9 +194,9 @@ def _create_multi_port_ping_menu(
     add_icon_menu_action(
         submenu,
         'radio-tower.svg',
-        'Individual Port per IP',
+        tr('Individual Port per IP'),
         _do_ping_individual,
-        tooltip='Ask for a separate port for each selected IP.',
+        tooltip=tr('Ask for a separate port for each selected IP.'),
     )
     ping_menu.addMenu(submenu)
 
@@ -196,18 +207,12 @@ def create_multi_tcp_ping_menu(
     ping_menu: QMenu,
 ) -> None:
     """Create and attach a 'TCP Port Ping' submenu for multiple IP addresses to *ping_menu*."""
-    _create_multi_port_ping_menu(
-        parent,
-        ip_addresses,
-        ping_menu,
-        protocol_label='TCP',
-        ping_fn=tcp_port_ping,
-    )
+    _create_multi_port_ping_menu(parent, ip_addresses, ping_menu, PingMode.TCP)
 
 
 def udp_port_ping(parent: QWidget, target: str | list[str]) -> None:
     """Run a UDP port reachability check to the specified target host(s) on a user-specified port."""
-    _prompt_port_ping(parent, target, mode=PingMode.UDP, prompt_label='Enter the port number to check UDP reachability:')
+    _prompt_port_ping(parent, target, mode=PingMode.UDP, prompt_label=tr('Enter the port number to check UDP reachability:'))
 
 
 def create_multi_udp_ping_menu(
@@ -216,13 +221,7 @@ def create_multi_udp_ping_menu(
     ping_menu: QMenu,
 ) -> None:
     """Create and attach a 'UDP Port Ping' submenu for multiple IP addresses to *ping_menu*."""
-    _create_multi_port_ping_menu(
-        parent,
-        ip_addresses,
-        ping_menu,
-        protocol_label='UDP',
-        ping_fn=udp_port_ping,
-    )
+    _create_multi_port_ping_menu(parent, ip_addresses, ping_menu, PingMode.UDP)
 
 
 def create_ping_menu(
@@ -231,55 +230,55 @@ def create_ping_menu(
     ip_addresses: Sequence[str],
 ) -> None:
     """Create and attach a standardized 'Ping' submenu for one or more IP addresses to *menu*."""
-    ping_menu = create_styled_context_menu(menu, title='Ping', icon_name='radio-tower.svg')
+    ping_menu = create_styled_context_menu(menu, title=tr('Ping'), icon_name='radio-tower.svg')
 
     if len(ip_addresses) == 1:
         target_ip_address = ip_addresses[0]
         add_icon_menu_action(
             ping_menu,
             'radio-tower.svg',
-            'Normal (ICMP)',
+            tr('Normal (ICMP)'),
             lambda: ping_ip(target_ip_address),
-            tooltip='Checks if selected IP address responds to pings.',
+            tooltip=tr('Checks if selected IP address responds to pings.'),
         )
         add_icon_menu_action(
             ping_menu,
             'radio-tower.svg',
-            'TCP Port Ping',
+            tr('TCP Port Ping'),
             lambda: tcp_port_ping(parent, target_ip_address),
-            tooltip='Checks if selected IP address responds to TCP pings on a given port.',
+            tooltip=tr('Checks if selected IP address responds to TCP pings on a given port.'),
         )
         add_icon_menu_action(
             ping_menu,
             'radio-tower.svg',
-            'UDP Port Ping',
+            tr('UDP Port Ping'),
             lambda: udp_port_ping(parent, target_ip_address),
-            tooltip='Checks if selected IP address responds to UDP pings on a given port.',
+            tooltip=tr('Checks if selected IP address responds to UDP pings on a given port.'),
         )
         add_icon_menu_action(
             ping_menu,
             'radio-tower.svg',
-            'Web (Check-Host)',
+            tr('Web (Check-Host)'),
             lambda: web_ping(target_ip_address),
-            tooltip='Checks if selected IP address responds via Check-Host.net distributed nodes.',
+            tooltip=tr('Checks if selected IP address responds via Check-Host.net distributed nodes.'),
         )
     elif len(ip_addresses) > 1:
         ip_addresses_list = list(ip_addresses)
         add_icon_menu_action(
             ping_menu,
             'radio-tower.svg',
-            'Normal (ICMP)',
+            tr('Normal (ICMP)'),
             lambda: ping_ip(ip_addresses_list),
-            tooltip='Checks if selected IP addresses respond to pings.',
+            tooltip=tr('Checks if selected IP addresses respond to pings.'),
         )
         create_multi_tcp_ping_menu(parent, ip_addresses_list, ping_menu)
         create_multi_udp_ping_menu(parent, ip_addresses_list, ping_menu)
         add_icon_menu_action(
             ping_menu,
             'radio-tower.svg',
-            'Web (Check-Host)',
+            tr('Web (Check-Host)'),
             lambda: web_ping(ip_addresses_list),
-            tooltip='Checks if selected IP addresses respond via Check-Host.net distributed nodes.',
+            tooltip=tr('Checks if selected IP addresses respond via Check-Host.net distributed nodes.'),
         )
 
     menu.addMenu(ping_menu)
@@ -313,8 +312,8 @@ def filter_player_isp(parent: QWidget, isp_name: str) -> str | None:
     """
     cleaned_name, success = QInputDialog.getText(
         parent,
-        'Filter ISP / ASN',
-        'Exclude players whose ISP or ASN matches this name from the session:\n(Case-insensitive substring match)',
+        tr('Filter ISP / ASN'),
+        tr('Exclude players whose ISP or ASN matches this name from the session:\n(Case-insensitive substring match)'),
         text=isp_name,
     )
     if not success:
@@ -336,8 +335,8 @@ def prompt_rename_session(parent: QWidget, session_id: int) -> bool:
     current_name = SessionTracker.get_session_name(session_id)
     new_name, success = QInputDialog.getText(
         parent,
-        'Rename Session',
-        f'Enter a custom name for Session #{session_id} (leave empty to reset):',
+        tr('Rename Session'),
+        tr('Enter a custom name for Session #{session_id} (leave empty to reset):', session_id=session_id),
         QLineEdit.EchoMode.Normal,
         current_name if current_name is not None else '',
     )

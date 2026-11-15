@@ -1,5 +1,7 @@
-"""Database settings panel mixin for the UserIP Databases Manager dialog."""
+"""Database settings panel, stats, and column-sizing mixin for the UserIP Databases Manager dialog."""
 
+import html
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 from PySide6.QtCore import Qt
@@ -10,6 +12,7 @@ from PySide6.QtWidgets import (
     QDialog,
     QFrame,
     QHBoxLayout,
+    QHeaderView,
     QLabel,
     QPushButton,
     QSpinBox,
@@ -19,37 +22,67 @@ from PySide6.QtWidgets import (
 
 from session_sniffer.constants.standalone import MAX_SUSPEND_DURATION_SECONDS
 from session_sniffer.guis._combo_rule_editor import (
+    populate_suspend_mode_combo,
+    populate_voice_combo,
     read_duration_widgets_helper,
     read_voice_combo_helper,
+    retranslate_suspend_mode_combo,
+    retranslate_voice_combo,
     set_duration_widgets_helper,
     set_voice_combo_helper,
 )
 from session_sniffer.guis.color_picker_dialog import ColorPickerButton
+from session_sniffer.guis.live_language import set_i18n_colon_label
+from session_sniffer.guis.logs_manager._helpers import human_readable_timestamp
 from session_sniffer.guis.stylesheets import (
     SETTINGS_SEPARATOR_STYLESHEET,
     USERIP_SETTINGS_CONTAINER_STYLESHEET,
     userip_settings_body_stylesheet,
     userip_settings_toggle_stylesheet,
 )
-from session_sniffer.guis.theming import ICONS_DIR_PATH
-from session_sniffer.guis.utils import (
-    SUSPEND_TOOLTIP_AUTO,
-    SUSPEND_TOOLTIP_DISABLED,
-    SUSPEND_TOOLTIP_MANUAL,
-    scale_by_ui,
+from session_sniffer.guis.table_column_resizing import adjust_last_visible_column_to_viewport
+from session_sniffer.guis.theming import ICONS_DIR_PATH, themed_qss
+from session_sniffer.guis.userip_conflict_resolver import update_resolve_conflicts_button
+from session_sniffer.guis.userip_manager_helpers import (
+    ENTRY_TABLE_HEADERS,
+    human_readable_size,
+    iter_userip_databases,
 )
+from session_sniffer.guis.utils import scale_by_ui
+from session_sniffer.i18n import tr
+from session_sniffer.models import GUIState
 from session_sniffer.models.userip_settings_model import UserIPSettingsModel
 from session_sniffer.rendering_core.types import CaptureState
 from session_sniffer.settings import Settings
 from session_sniffer.text_utils import DEFAULT_MANUAL_SUSPEND_DURATION_SECONDS
 
+if TYPE_CHECKING:
+    from pathlib import Path
+    from typing import ClassVar
+
+    from PySide6.QtGui import QStandardItemModel
+    from PySide6.QtWidgets import QTreeView
+
+    from session_sniffer.guis.userip_manager_helpers import EntriesSortProxy
+
+_DEFAULT_ENTRY_COLUMN_WIDTHS: dict[str, int] = {
+    '#': 50,
+    'Username': 180,
+    'IP': 120,
+    'Range': 180,
+    'Database': 160,
+    'Notes': 180,
+    'Source': 85,
+    'Detections': 85,
+    'Added': 145,
+    'Updated': 145,
+    'First Seen': 145,
+    'Last Seen': 145,
+}
+
 
 class SettingsPanelMixin(QDialog):
-    """Mixin that builds and manages the database settings panel.
-
-    Expects these attributes on the concrete class:
-        _settings_loading
-    """
+    """Mixin that builds and manages the database settings panel, status/stats labels, and table column widths."""
 
     # -- Attribute stubs for type checkers --
     _settings_loading: bool
@@ -64,10 +97,25 @@ class SettingsPanelMixin(QDialog):
     _setting_voice: QComboBox
     _setting_suspend_mode: QComboBox
     _setting_suspend_custom: QSpinBox
+    _status_label: QLabel
+    _file_info_label: QLabel
+    _stats_label: QLabel
+    _resolve_conflicts_button: QPushButton
+    _model: QStandardItemModel
+    _proxy: EntriesSortProxy
+    _entries_table: QTreeView
+    _global_search_active: bool
+    _custom_column_widths: dict[str, int] | None
+    _is_programmatic_resizing: bool
 
     if TYPE_CHECKING:
+        _cached_column_widths: ClassVar[dict[str, int] | None]
 
         def _mark_settings_dirty(self) -> None: ...
+
+        def _canonical_entry_header(self, column: int) -> str:
+            del column
+            raise NotImplementedError
 
     @staticmethod
     def _is_protection_supported() -> bool:
@@ -91,7 +139,7 @@ class SettingsPanelMixin(QDialog):
 
         self._icon_arrow_right = QIcon(str(ICONS_DIR_PATH / 'chevron-right.svg'))
         self._icon_arrow_down = QIcon(str(ICONS_DIR_PATH / 'chevron-down.svg'))
-        self._settings_toggle = QPushButton(self._icon_arrow_right, ' Database Settings')
+        self._settings_toggle = QPushButton(self._icon_arrow_right, f" {tr('Database Settings')}")
         self._settings_toggle.setAutoDefault(False)
         self._settings_toggle.setCursor(Qt.CursorShape.PointingHandCursor)
         self._settings_toggle.setStyleSheet(userip_settings_toggle_stylesheet(scale_by_ui))
@@ -110,8 +158,8 @@ class SettingsPanelMixin(QDialog):
         row1.setSpacing(scale_by_ui(14))
         row1.setAlignment(Qt.AlignmentFlag.AlignVCenter)
 
-        self._setting_enabled = QCheckBox('Enabled')
-        self._setting_enabled.setToolTip('Whether this database is active for detection')
+        self._setting_enabled = QCheckBox(tr('Enabled'))
+        self._setting_enabled.setToolTip(tr('Whether this database is active for detection'))
         self._setting_enabled.toggled.connect(self._on_enabled_changed)
         row1.addWidget(self._setting_enabled)
 
@@ -129,32 +177,34 @@ class SettingsPanelMixin(QDialog):
         row_cln.setSpacing(scale_by_ui(12))
         row_cln.setAlignment(Qt.AlignmentFlag.AlignVCenter)
 
-        color_lbl = QLabel('Color:')
+        color_lbl = QLabel()
+        set_i18n_colon_label(color_lbl, 'Color')
         row_cln.addWidget(color_lbl)
 
         self._setting_color = ColorPickerButton(self)
         self._setting_color.setObjectName('DatabaseColorButton')
-        self._setting_color.setToolTip('Click to choose a display color for entries from this database')
+        self._setting_color.setToolTip(tr('Click to choose a display color for entries from this database'))
         self._setting_color.color_changed.connect(self._on_setting_changed)
         row_cln.addWidget(self._setting_color)
 
-        self._setting_log = QCheckBox('Log')
-        self._setting_log.setToolTip('Log connections from IPs in this database')
+        self._setting_log = QCheckBox(tr('Log'))
+        self._setting_log.setToolTip(tr('Log connections from IPs in this database'))
         self._setting_log.toggled.connect(self._on_setting_changed)
         row_cln.addWidget(self._setting_log)
 
-        self._setting_notifications = QCheckBox('Notifications')
-        self._setting_notifications.setToolTip('Show popup notifications when IPs from this database connect')
+        self._setting_notifications = QCheckBox(tr('Notifications'))
+        self._setting_notifications.setToolTip(tr('Show popup notifications when IPs from this database connect'))
         self._setting_notifications.toggled.connect(self._on_setting_changed)
         row_cln.addWidget(self._setting_notifications)
 
-        voice_lbl = QLabel('Voice:')
+        voice_lbl = QLabel()
+        set_i18n_colon_label(voice_lbl, 'Voice')
         row_cln.addWidget(voice_lbl)
 
         self._setting_voice = QComboBox()
         self._setting_voice.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
-        self._setting_voice.addItems(['Disabled', 'Male', 'Female'])
-        self._setting_voice.setToolTip('Text-to-speech voice for notifications')
+        populate_voice_combo(self._setting_voice)
+        self._setting_voice.setToolTip(tr('Text-to-speech voice for notifications'))
         self._setting_voice.setMinimumWidth(scale_by_ui(110))
         self._setting_voice.currentIndexChanged.connect(self._on_setting_changed)
         row_cln.addWidget(self._setting_voice)
@@ -178,21 +228,20 @@ class SettingsPanelMixin(QDialog):
         suspend_row = QHBoxLayout()
         suspend_row.setSpacing(scale_by_ui(8))
         suspend_row.setAlignment(Qt.AlignmentFlag.AlignVCenter)
-        suspend_row.addWidget(QLabel('Suspend Mode:'))
+        suspend_lbl = QLabel()
+        set_i18n_colon_label(suspend_lbl, 'Suspend Mode')
+        suspend_row.addWidget(suspend_lbl)
         self._setting_suspend_mode = QComboBox()
         self._setting_suspend_mode.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
-        self._setting_suspend_mode.addItems(['Disabled', 'Auto', 'Manual'])
-        self._setting_suspend_mode.setItemData(0, SUSPEND_TOOLTIP_DISABLED, Qt.ItemDataRole.ToolTipRole)
-        self._setting_suspend_mode.setItemData(1, SUSPEND_TOOLTIP_AUTO, Qt.ItemDataRole.ToolTipRole)
-        self._setting_suspend_mode.setItemData(2, SUSPEND_TOOLTIP_MANUAL, Qt.ItemDataRole.ToolTipRole)
-        self._setting_suspend_mode.currentTextChanged.connect(self._on_suspend_mode_changed)
+        populate_suspend_mode_combo(self._setting_suspend_mode)
+        self._setting_suspend_mode.currentIndexChanged.connect(self._on_suspend_mode_changed)
         suspend_row.addWidget(self._setting_suspend_mode)
         self._setting_suspend_custom = QSpinBox()
         self._setting_suspend_custom.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self._setting_suspend_custom.setRange(1, MAX_SUSPEND_DURATION_SECONDS)
         self._setting_suspend_custom.setValue(DEFAULT_MANUAL_SUSPEND_DURATION_SECONDS)
-        self._setting_suspend_custom.setSuffix(' seconds')
-        self._setting_suspend_custom.setToolTip('Fixed suspend duration in seconds')
+        self._setting_suspend_custom.setSuffix(f" {tr('seconds')}")
+        self._setting_suspend_custom.setToolTip(tr('Fixed suspend duration in seconds'))
         self._setting_suspend_custom.setVisible(False)
         self._setting_suspend_custom.valueChanged.connect(self._on_setting_changed)
         suspend_row.addWidget(self._setting_suspend_custom)
@@ -206,6 +255,22 @@ class SettingsPanelMixin(QDialog):
         parent_layout.addWidget(self._settings_container)
 
         self._settings_loading = False
+
+    def retranslate_settings_panel(self) -> None:
+        """Update all localized strings in the database settings panel."""
+        self._settings_toggle.setText(f" {tr('Database Settings')}")
+        self._setting_enabled.setText(tr('Enabled'))
+        self._setting_enabled.setToolTip(tr('Whether this database is active for detection'))
+        self._setting_color.setToolTip(tr('Click to choose a display color for entries from this database'))
+        self._setting_log.setText(tr('Log'))
+        self._setting_log.setToolTip(tr('Log connections from IPs in this database'))
+        self._setting_notifications.setText(tr('Notifications'))
+        self._setting_notifications.setToolTip(tr('Show popup notifications when IPs from this database connect'))
+        retranslate_voice_combo(self._setting_voice)
+        self._setting_voice.setToolTip(tr('Text-to-speech voice for notifications'))
+        retranslate_suspend_mode_combo(self._setting_suspend_mode)
+        self._setting_suspend_custom.setSuffix(f" {tr('seconds')}")
+        self._setting_suspend_custom.setToolTip(tr('Fixed suspend duration in seconds'))
 
     # ------------------------------------------------------------------
     # Populate / read
@@ -236,7 +301,7 @@ class SettingsPanelMixin(QDialog):
     def read_settings_from_widgets(self) -> UserIPSettingsModel:
         """Read current widget values and return a `UserIPSettingsModel` for serialization."""
         voice_notifications = read_voice_combo_helper(self._setting_voice)
-        protection_enabled = self._setting_suspend_mode.currentText() != 'Disabled'
+        protection_enabled = self._setting_suspend_mode.currentData() not in ('Disabled', None)
         suspend_mode = read_duration_widgets_helper(self._setting_suspend_mode, self._setting_suspend_custom) if protection_enabled else 'Auto'
 
         return UserIPSettingsModel(
@@ -263,9 +328,9 @@ class SettingsPanelMixin(QDialog):
         self._update_enabled_body_visible()
         self._on_setting_changed()
 
-    def _on_suspend_mode_changed(self, text: str) -> None:
+    def _on_suspend_mode_changed(self, _index: int | None = None) -> None:
         """Show/hide the custom duration spin box based on suspend mode selection."""
-        is_manual = text == 'Manual'
+        is_manual = self._setting_suspend_mode.currentData() == 'Manual'
         if is_manual and self._setting_suspend_custom.value() <= 0:
             self._setting_suspend_custom.setValue(DEFAULT_MANUAL_SUSPEND_DURATION_SECONDS)
         self._setting_suspend_custom.setVisible(is_manual)
@@ -280,3 +345,139 @@ class SettingsPanelMixin(QDialog):
         visible = not self._settings_content.isVisible()
         self._settings_content.setVisible(visible)
         self._settings_toggle.setIcon(self._icon_arrow_down if visible else self._icon_arrow_right)
+
+    # ------------------------------------------------------------------
+    # Status, file info, stats & column sizing
+    # ------------------------------------------------------------------
+
+    def _set_status(self, text: str) -> None:
+        """Update the status label at the bottom of the right panel."""
+        self._status_label.setText(themed_qss(f'<i style="color:#50c878;">{html.escape(text)}</i>'))
+
+    def _update_entry_counts(self) -> None:
+        """Update the status label with visible/total entry counts."""
+        total = self._model.rowCount()
+        visible = self._proxy.rowCount()
+
+        # In global search without filters, the total table rows match the global stats block exactly
+        if self._global_search_active and visible == total:
+            self._status_label.setText(themed_qss(f'<span style="color:#a0b0c0;"><i>{html.escape(tr("Showing all databases"))}</i></span>'))
+            return
+
+        text = f'<span style="color:#8a9bad;">{html.escape(tr("Table Entries:"))}</span> <b style="color:#e0e0e0;">{total}</b>'
+        if visible != total:
+            text += f'<br><span style="color:#8a9bad;">{html.escape(tr("Visible (Filtered):"))}</span> <b style="color:#6db3f2;">{visible}</b>'
+
+        self._status_label.setText(themed_qss(text))
+
+    def _update_file_info(self, path: Path | None) -> None:
+        """Update the file metadata label for the given database file."""
+        if path is None or not path.is_file():
+            self._file_info_label.setText(themed_qss(f'<span style="color:#607080;"><i>{html.escape(tr("No database selected"))}</i></span>'))
+            return
+        stat = path.stat()
+        size = human_readable_size(stat.st_size)
+        modified = datetime.fromtimestamp(stat.st_mtime, tz=UTC).astimezone()
+
+        self._file_info_label.setText(
+            themed_qss(
+                f'<span style="color:#8a9bad;">{html.escape(tr("File:"))}</span> <b style="color:#6db3f2;">{html.escape(path.name)}</b><br>'
+                f'<span style="color:#8a9bad;">{html.escape(tr("Size:"))}</span> <b style="color:#e0e0e0;">{html.escape(size)}</b><br>'
+                f'<span style="color:#8a9bad;">{html.escape(tr("Modified:"))}</span> <span style="color:#a0b0c0;">{html.escape(human_readable_timestamp(modified))}</span>',
+            ),
+        )
+
+    def _refresh_stats(self) -> None:
+        """Scan all UserIP databases and update the stats summary label."""
+        total_files, total_entries = 0, 0
+        unique_ips, unique_usernames = set[str](), set[str]()
+
+        for _json_path, entries in iter_userip_databases():
+            total_files += 1
+            for entry in entries:
+                total_entries += 1
+                unique_ips.add(entry.ip)
+                unique_usernames.add(entry.username.casefold())
+
+        parts = (
+            f'<span style="color:#8a9bad;">{html.escape(tr("Databases:"))}</span> <b style="color:#e0e0e0;">{total_files}</b>',
+            f'<span style="color:#8a9bad;">{html.escape(tr("Entries:"))}</span> <b style="color:#e0e0e0;">{total_entries}</b>',
+            f'<span style="color:#8a9bad;">{html.escape(tr("Unique Users:"))}</span> <b style="color:#e0e0e0;">{len(unique_usernames)}</b>',
+            f'<span style="color:#8a9bad;">{html.escape(tr("Unique IPs:"))}</span> <b style="color:#e0e0e0;">{len(unique_ips)}</b>',
+        )
+        self._stats_label.setText(themed_qss('<br>'.join(parts)))
+        update_resolve_conflicts_button(self._resolve_conflicts_button)
+
+    def _on_section_resized(self, logical_index: int, _old_size: int, new_size: int) -> None:
+        """Track user-driven column resizing in the entries table."""
+        if self._is_programmatic_resizing:
+            return
+        if header_label := self._canonical_entry_header(logical_index):
+            if self._custom_column_widths is None:
+                self._custom_column_widths = self._get_column_widths()
+            self._custom_column_widths[header_label] = new_size
+            self._is_programmatic_resizing = True
+            try:
+                adjust_last_visible_column_to_viewport(
+                    self._entries_table, resized_column=logical_index, min_column_widths=_DEFAULT_ENTRY_COLUMN_WIDTHS, custom_widths=self._custom_column_widths,
+                )
+            finally:
+                self._is_programmatic_resizing = False
+
+    def _get_column_widths(self) -> dict[str, int]:
+        """Return a mapping of column header names to their current section widths."""
+        return {
+            header_label: self._entries_table.columnWidth(column)
+            for column in range(self._model.columnCount())
+            if (header_label := self._canonical_entry_header(column))
+        }
+
+    def _apply_column_widths(self, widths: dict[str, int]) -> None:
+        """Apply saved column widths to matching entries table header sections."""
+        if not (header := self._entries_table.header()):
+            return
+        self._is_programmatic_resizing = True
+        try:
+            for column in range(self._model.columnCount()):
+                header_label = self._canonical_entry_header(column)
+                if header_label in widths and widths[header_label] > 0:
+                    header.setSectionResizeMode(column, QHeaderView.ResizeMode.Interactive)
+                    self._entries_table.setColumnWidth(column, widths[header_label])
+            self._custom_column_widths = dict(widths)
+        finally:
+            self._is_programmatic_resizing = False
+
+    def _adjust_username_column_width(self) -> None:
+        """Adjust the last visible column width so the entries table fits the viewport without trailing blank space."""
+        self._is_programmatic_resizing = True
+        try:
+            adjust_last_visible_column_to_viewport(self._entries_table, min_column_widths=_DEFAULT_ENTRY_COLUMN_WIDTHS, custom_widths=self._custom_column_widths)
+        finally:
+            self._is_programmatic_resizing = False
+
+    @classmethod
+    def _clear_cached_column_widths(cls) -> None:
+        """Clear the session-cached column widths on the concrete manager class."""
+        cls._cached_column_widths = None
+
+    def _reset_column_sizes(self) -> None:
+        """Reset column widths back to their initial default layout."""
+        self._custom_column_widths = None
+        self._clear_cached_column_widths()
+        self._is_programmatic_resizing = True
+        try:
+            header = self._entries_table.header()
+            if not header:
+                return
+            header.setStretchLastSection(False)
+            for column, header_label in enumerate(ENTRY_TABLE_HEADERS):
+                header.setSectionResizeMode(column, QHeaderView.ResizeMode.Interactive)
+                self._entries_table.setColumnWidth(column, scale_by_ui(_DEFAULT_ENTRY_COLUMN_WIDTHS[header_label]))
+            self._adjust_username_column_width()
+        finally:
+            self._is_programmatic_resizing = False
+
+        if Settings.gui_remember_window_layout:
+            gui_state = GUIState.load()
+            gui_state.userip_manager_table_column_widths = None
+            gui_state.save()

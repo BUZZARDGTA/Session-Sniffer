@@ -1,7 +1,5 @@
 """Hotspot and connection sharing management dialog."""
 
-import logging
-from dataclasses import dataclass
 from typing import Final, cast, override
 
 from PySide6.QtCore import QPoint, Qt, QTimer, Signal
@@ -24,8 +22,8 @@ from PySide6.QtWidgets import (
 )
 
 from session_sniffer.ctypes_windows import is_admin
-from session_sniffer.guis._crashing_qthread import CrashingQThread
-from session_sniffer.guis.hotspot_setup_guide import HotspotSetupGuideDialog
+from session_sniffer.guis.hotspot_setup_guide import HotspotActionResult, HotspotActionWorker, HotspotSetupGuideDialog
+from session_sniffer.guis.live_language import register_language_refresh, set_table_headers
 from session_sniffer.guis.loading_overlay import LoadingOverlay
 from session_sniffer.guis.ping_window import PingWindow
 from session_sniffer.guis.port_scanner_window import PortScannerWindow
@@ -52,6 +50,7 @@ from session_sniffer.guis.utils import (
     scale_by_ui,
     set_clipboard_text,
 )
+from session_sniffer.i18n import tr, tr_plural
 from session_sniffer.networking.hotspot import (
     MAX_PASSPHRASE_LENGTH,
     MAX_SSID_LENGTH,
@@ -59,89 +58,11 @@ from session_sniffer.networking.hotspot import (
     MIN_SSID_LENGTH,
     ConnectedDevice,
     HotspotInfo,
-    configure_hotspot,
-    disable_ics,
-    enable_ics,
-    get_connected_devices,
-    get_hotspot_info,
-    get_ics_status,
     has_wifi_adapter,
-    start_hotspot,
-    stop_hotspot,
 )
 from session_sniffer.networking.interface import AllInterfaces
-from session_sniffer.text_utils import pluralize
-
-logger = logging.getLogger(__name__)
 
 _EXPECTED_ICS_STATUS_TUPLE_LENGTH: Final[int] = 3
-
-
-@dataclass(frozen=True, slots=True)
-class HotspotActionResult:
-    """Result of an asynchronous hotspot or connection sharing action."""
-
-    success: bool
-    message: str
-
-
-class HotspotActionWorker(CrashingQThread):
-    """Background worker for asynchronous hotspot and connection sharing tasks."""
-
-    info_ready = Signal(object)
-    devices_ready = Signal(object)
-    ics_status_ready = Signal(object)
-    action_completed = Signal(HotspotActionResult)
-
-    def __init__(self, task_name: str, **kwargs: object) -> None:
-        """Initialize the HotspotActionWorker."""
-        super().__init__(name=f'HotspotWorker-{task_name}')
-        self._task_name = task_name
-        self._kwargs = kwargs
-
-    @override
-    def _run(self) -> None:
-        try:
-            if self._task_name == 'refresh_all':
-                info = get_hotspot_info()
-                self.info_ready.emit(info)
-                devices = get_connected_devices() if info.is_available else []
-                self.devices_ready.emit(devices)
-                ics_status = get_ics_status()
-                self.ics_status_ready.emit(ics_status)
-
-            elif self._task_name == 'configure_credentials':
-                ssid = str(self._kwargs.get('ssid', ''))
-                passphrase = str(self._kwargs.get('passphrase', ''))
-                success, error_message = configure_hotspot(ssid, passphrase)
-                self.action_completed.emit(HotspotActionResult(success=success, message=error_message or 'Hotspot network name and password updated successfully.'))
-
-            elif self._task_name == 'start_hotspot':
-                success, error_message = start_hotspot()
-                self.action_completed.emit(HotspotActionResult(success=success, message=error_message or 'Mobile Hotspot started.'))
-
-            elif self._task_name == 'stop_hotspot':
-                success, error_message = stop_hotspot()
-                self.action_completed.emit(HotspotActionResult(success=success, message=error_message or 'Mobile Hotspot stopped.'))
-
-            elif self._task_name == 'enable_ics':
-                public_adapter = str(self._kwargs.get('public_adapter', ''))
-                private_adapter = str(self._kwargs.get('private_adapter', ''))
-                success, error_message = enable_ics(public_adapter, private_adapter)
-                self.action_completed.emit(
-                    HotspotActionResult(
-                        success=success,
-                        message=error_message or f'Internet Connection Sharing enabled between {public_adapter} and {private_adapter}.',
-                    ),
-                )
-
-            elif self._task_name == 'disable_ics':
-                success, error_message = disable_ics()
-                self.action_completed.emit(HotspotActionResult(success=success, message=error_message or 'Internet Connection Sharing disabled.'))
-
-        except (OSError, RuntimeError) as e:
-            logger.exception('Hotspot action worker failed on task %s', self._task_name)
-            self.action_completed.emit(HotspotActionResult(success=False, message=str(e)))
 
 
 class HotspotManagerWidget(QWidget):
@@ -156,11 +77,18 @@ class HotspotManagerWidget(QWidget):
         self.setStyleSheet('QWidget#HotspotManagerWidget { background: transparent; background-color: transparent; }')
 
         self._current_hotspot_info: HotspotInfo | None = None
+        self._hotspot_is_available: bool = False
+        self._hotspot_unavailable_reason: str | None = None
+        self._ics_active: bool = False
         self._current_devices: list[ConnectedDevice] = []
+        self._status_bar_state: str = 'ready'
+        self._status_bar_ics_adapters: tuple[str, str] = ('', '')
+        self._last_action_result: HotspotActionResult | None = None
         self._is_password_revealed: bool = False
         self._active_worker: HotspotActionWorker | None = None
         self._action_worker: HotspotActionWorker | None = None
         self._action_overlay: LoadingOverlay | None = None
+        self._admin_badge: QLabel | None = None
 
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(0, 0, 0, 0)
@@ -180,16 +108,102 @@ class HotspotManagerWidget(QWidget):
         main_layout.addWidget(self._build_devices_card(), 1)
 
         # 4. Status Bar
-        self._status_bar_label = QLabel('Ready')
+        self._status_bar_label = QLabel()
         self._status_bar_label.setStyleSheet(
             themed_qss('color: #9cb0c6; font-size: 8.5pt; padding-left: 6px; padding-bottom: 2px; background: transparent;'),
         )
         main_layout.addWidget(self._status_bar_label)
 
+        self._apply_translations()
+        register_language_refresh(self, self._apply_translations)
+
         # Auto-refresh timer (polls every 5 seconds while visible)
         self._refresh_timer = QTimer(self)
         self._refresh_timer.setInterval(5000)
         self._refresh_timer.timeout.connect(self._start_refresh_task)
+
+    def _apply_translations(self) -> None:
+        """Apply current translations to all hotspot controls, status badges, table headers, and data."""
+        self._title_label.setText(tr('Hotspot & Connection Sharing'))
+        self._subtitle_label.setText(tr('Share internet to consoles (PlayStation, Xbox, Switch) to sniff P2P network sessions.'))
+        if self._admin_badge is not None:
+            self._admin_badge.setText(tr('UAC PROMPT FOR ICS'))
+            self._admin_badge.setToolTip(
+                tr(
+                    'Session Sniffer is running without administrator rights. '
+                    'Enabling or resetting Windows ICS sharing will prompt for administrator permission (UAC).',
+                ),
+            )
+        self._guide_button.setText(f" {tr('Setup Guide')}")
+        self._guide_button.setToolTip(tr('Open step-by-step setup instructions for Wi-Fi Hotspot and Ethernet Bridge'))
+        self._refresh_button.setText(f" {tr('Refresh')}")
+        self._refresh_button.setToolTip(tr('Refresh hotspot status, connection sharing, and connected clients'))
+
+        self._hotspot_title_label.setText(tr('Wi-Fi Hotspot'))
+        self._ssid_label.setText(tr('Hotspot name (SSID)'))
+        self._password_label.setText(tr('Password (WPA2)'))
+        self._toggle_password_button.setToolTip(tr('Reveal / Hide password'))
+        self._save_hotspot_button.setText(f" {tr('Save')}")
+        self._save_hotspot_button.setToolTip(tr('Save updated SSID and password to Windows Mobile Hotspot'))
+
+        if self._current_hotspot_info is not None:
+            self._render_hotspot_info(self._current_hotspot_info, update_inputs=False)
+        else:
+            self._apply_hotspot_availability(
+                is_available=self._hotspot_is_available,
+                unavailable_reason=self._hotspot_unavailable_reason,
+            )
+
+        self._bridge_title_label.setText(tr('Sharing / Bridge'))
+        self._bridge_status_badge.setText(tr('ACTIVE') if self._ics_active else tr('OFF'))
+        self._public_label.setText(tr('Public adapter (internet source)'))
+        self._private_label.setText(tr('Private adapter (to console/device)'))
+        self._show_all_adapters_checkbox.setText(tr('Show all adapters'))
+        self._enable_sharing_button.setText(f" {tr('Enable Sharing')}")
+        self._reset_sharing_button.setText(f" {tr('Reset')}")
+        self._reset_sharing_button.setToolTip(tr('Disable connection sharing on all adapters'))
+
+        self._devices_title_label.setText(tr('Connected devices'))
+        set_table_headers(
+            self._table,
+            ('Device / Hostname', 'IPv4 Address', 'MAC Address', 'Manufacturer / Vendor', 'Connection'),
+        )
+        self._empty_text_label.setText(tr('No connected devices detected yet.'))
+        self._empty_subtext_label.setText(tr('Connect your console or device to the Wi-Fi hotspot or Ethernet bridge.'))
+        self._render_devices(self._current_devices)
+
+        self._update_status_bar_label()
+
+    def _update_status_bar_label(self) -> None:
+        """Render the status bar label text in the active language."""
+        if self._status_bar_state == 'ready':
+            self._status_bar_label.setText(tr('Ready'))
+            return
+        if self._status_bar_state == 'saving_credentials':
+            self._status_bar_label.setText(tr('Saving hotspot credentials...'))
+            return
+        if self._status_bar_state == 'stopping_hotspot':
+            self._status_bar_label.setText(tr('Stopping hotspot...'))
+            return
+        if self._status_bar_state == 'starting_hotspot':
+            self._status_bar_label.setText(tr('Starting hotspot...'))
+            return
+        if self._status_bar_state == 'enabling_ics':
+            public_name, private_name = self._status_bar_ics_adapters
+            self._status_bar_label.setText(
+                tr('Enabling sharing from {public_name} to {private_name}...', public_name=public_name, private_name=private_name),
+            )
+            return
+        if self._status_bar_state == 'disabling_ics':
+            self._status_bar_label.setText(tr('Disabling sharing...'))
+            return
+        if self._status_bar_state == 'action_result' and self._last_action_result is not None:
+            if self._last_action_result.message_key:
+                self._status_bar_label.setText(
+                    tr(self._last_action_result.message_key, **dict(self._last_action_result.message_params)),
+                )
+            else:
+                self._status_bar_label.setText(self._last_action_result.message)
 
     def start_refresh(self) -> None:
         """Trigger an immediate status update and ensure the refresh timer is running."""
@@ -244,40 +258,39 @@ class HotspotManagerWidget(QWidget):
 
         title_layout = QVBoxLayout()
         title_layout.setSpacing(scale_by_ui(2))
-        title_label = QLabel('Hotspot & Connection Sharing')
+        title_label = QLabel()
         title_label.setStyleSheet(themed_qss('color: #f0f4fa; font-size: 13pt; font-weight: 700; background: transparent;'))
+        self._title_label = title_label
         title_layout.addWidget(title_label)
-        subtitle_label = QLabel('Share internet to consoles (PlayStation, Xbox, Switch) to sniff P2P network sessions.')
+        subtitle_label = QLabel()
         subtitle_label.setStyleSheet(themed_qss('color: #c8ddf0; font-size: 8.5pt; background: transparent;'))
+        self._subtitle_label = subtitle_label
         title_layout.addWidget(subtitle_label)
         layout.addLayout(title_layout)
 
         layout.addStretch()
 
         if not is_admin():
-            admin_badge = QLabel('UAC PROMPT FOR ICS')
-            admin_badge.setToolTip(
-                'Session Sniffer is running without administrator rights. '
-                'Enabling or resetting Windows ICS sharing will prompt for administrator permission (UAC).',
-            )
+            admin_badge = QLabel()
             admin_badge.setStyleSheet(
                 themed_qss(
                     'color: #f59e0b; background: rgba(245, 158, 11, 0.12); border: 1px solid rgba(245, 158, 11, 0.35); '
                     'border-radius: 4px; padding: 3px 8px; font-size: 7.5pt; font-weight: 800;',
                 ),
             )
+            self._admin_badge = admin_badge
             layout.addWidget(admin_badge)
 
-        guide_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'book-text.svg')), ' Setup Guide')
+        guide_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'book-text.svg')), '')
         guide_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
-        guide_button.setToolTip('Open step-by-step setup instructions for Wi-Fi Hotspot and Ethernet Bridge')
         guide_button.clicked.connect(self._open_setup_guide)
+        self._guide_button = guide_button
         layout.addWidget(guide_button)
 
-        refresh_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'refresh-cw.svg')), ' Refresh')
+        refresh_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'refresh-cw.svg')), '')
         refresh_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
-        refresh_button.setToolTip('Refresh hotspot status, connection sharing, and connected clients')
         refresh_button.clicked.connect(self._start_refresh_task)
+        self._refresh_button = refresh_button
         layout.addWidget(refresh_button)
 
         return layout
@@ -300,12 +313,12 @@ class HotspotManagerWidget(QWidget):
         self._hotspot_icon_label = hotspot_icon
         header_layout.addWidget(hotspot_icon)
 
-        header_title = QLabel('Wi-Fi Hotspot')
+        header_title = QLabel()
         header_title.setStyleSheet(HOTSPOT_CARD_HEADER_STYLESHEET)
         self._hotspot_title_label = header_title
         header_layout.addWidget(header_title)
 
-        self._hotspot_status_badge = QLabel('OFF')
+        self._hotspot_status_badge = QLabel()
         self._hotspot_status_badge.setStyleSheet(HOTSPOT_BADGE_INACTIVE_STYLESHEET)
         header_layout.addWidget(self._hotspot_status_badge)
 
@@ -318,7 +331,7 @@ class HotspotManagerWidget(QWidget):
         self._hotspot_band_pill.setVisible(False)
         header_layout.addWidget(self._hotspot_band_pill)
 
-        self._hotspot_clients_pill = QLabel('0/8 clients')
+        self._hotspot_clients_pill = QLabel()
         self._hotspot_clients_pill.setStyleSheet(HOTSPOT_PILL_INFO_STYLESHEET)
         header_layout.addWidget(self._hotspot_clients_pill)
 
@@ -326,18 +339,17 @@ class HotspotManagerWidget(QWidget):
         layout.addLayout(header_layout)
 
         # SSID input
-        ssid_label = QLabel('Hotspot name (SSID)')
+        ssid_label = QLabel()
         ssid_label.setStyleSheet(HOTSPOT_FIELD_LABEL_STYLESHEET)
         self._ssid_label = ssid_label
         layout.addWidget(ssid_label)
 
         self._ssid_input = QLineEdit()
-        self._ssid_input.setPlaceholderText('Enter Wi-Fi network name...')
         self._ssid_input.setStyleSheet(HOTSPOT_INPUT_STYLESHEET)
         layout.addWidget(self._ssid_input)
 
         # Password input with reveal toggle
-        password_label = QLabel('Password (WPA2)')
+        password_label = QLabel()
         password_label.setStyleSheet(HOTSPOT_FIELD_LABEL_STYLESHEET)
         self._password_label = password_label
         layout.addWidget(password_label)
@@ -345,19 +357,17 @@ class HotspotManagerWidget(QWidget):
         password_layout = QHBoxLayout()
         self._password_input = QLineEdit()
         self._password_input.setEchoMode(QLineEdit.EchoMode.Password)
-        self._password_input.setPlaceholderText('Minimum 8 characters...')
         self._password_input.setStyleSheet(HOTSPOT_INPUT_STYLESHEET)
         password_layout.addWidget(self._password_input)
 
         self._toggle_password_button = QPushButton()
         self._toggle_password_button.setIcon(QIcon(str(ICONS_DIR_PATH / 'eye.svg')))
-        self._toggle_password_button.setToolTip('Reveal / Hide password')
         self._toggle_password_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
         self._toggle_password_button.clicked.connect(self._toggle_password_visibility)
         password_layout.addWidget(self._toggle_password_button)
         layout.addLayout(password_layout)
 
-        password_hint = QLabel('Password can be revealed locally.')
+        password_hint = QLabel()
         password_hint.setStyleSheet(themed_qss('color: #8fa2b8; font-size: 8pt;'))
         self._password_hint_label = password_hint
         layout.addWidget(password_hint)
@@ -366,16 +376,15 @@ class HotspotManagerWidget(QWidget):
 
         # Action buttons
         buttons_layout = QHBoxLayout()
-        self._save_hotspot_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'save.svg')), ' Save')
+        self._save_hotspot_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'save.svg')), '')
         self._save_hotspot_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
-        self._save_hotspot_button.setToolTip('Save updated SSID and password to Windows Mobile Hotspot')
         self._save_hotspot_button.clicked.connect(self._save_hotspot_credentials)
         buttons_layout.addWidget(self._save_hotspot_button)
 
         primary_tint = themed_text_qcolor('#ffffff', '#007acc').name(QColor.NameFormat.HexArgb)
         self._toggle_hotspot_button = QPushButton(
             render_svg_icon_from_resource('circle-play.svg', scale_by_ui(16), scale_by_ui(16), primary_tint),
-            ' Start Hotspot',
+            '',
         )
         self._toggle_hotspot_button.setStyleSheet(DIALOG_PRIMARY_BUTTON_STYLESHEET)
         self._toggle_hotspot_button.clicked.connect(self._toggle_hotspot_state)
@@ -401,11 +410,12 @@ class HotspotManagerWidget(QWidget):
         bridge_icon.setPixmap(QIcon(str(ICONS_DIR_PATH / 'ethernet-port.svg')).pixmap(scale_by_ui(16), scale_by_ui(16)))
         header_layout.addWidget(bridge_icon)
 
-        header_title = QLabel('Sharing / Bridge')
+        header_title = QLabel()
         header_title.setStyleSheet(HOTSPOT_CARD_HEADER_STYLESHEET)
+        self._bridge_title_label = header_title
         header_layout.addWidget(header_title)
 
-        self._bridge_status_badge = QLabel('OFF')
+        self._bridge_status_badge = QLabel()
         self._bridge_status_badge.setStyleSheet(HOTSPOT_BADGE_INACTIVE_STYLESHEET)
         header_layout.addWidget(self._bridge_status_badge)
 
@@ -413,8 +423,9 @@ class HotspotManagerWidget(QWidget):
         layout.addLayout(header_layout)
 
         # Public adapter dropdown
-        public_label = QLabel('Public adapter (internet source)')
+        public_label = QLabel()
         public_label.setStyleSheet(HOTSPOT_FIELD_LABEL_STYLESHEET)
+        self._public_label = public_label
         layout.addWidget(public_label)
 
         self._public_combo = QComboBox()
@@ -423,8 +434,9 @@ class HotspotManagerWidget(QWidget):
         layout.addWidget(self._public_combo)
 
         # Private adapter dropdown
-        private_label = QLabel('Private adapter (to console/device)')
+        private_label = QLabel()
         private_label.setStyleSheet(HOTSPOT_FIELD_LABEL_STYLESHEET)
+        self._private_label = private_label
         layout.addWidget(private_label)
 
         self._private_combo = QComboBox()
@@ -433,7 +445,7 @@ class HotspotManagerWidget(QWidget):
         layout.addWidget(self._private_combo)
 
         # Show all adapters checkbox
-        self._show_all_adapters_checkbox = QCheckBox('Show all adapters')
+        self._show_all_adapters_checkbox = QCheckBox()
         self._show_all_adapters_checkbox.setStyleSheet(HOTSPOT_CHECKBOX_STYLESHEET)
         self._show_all_adapters_checkbox.setCursor(Qt.CursorShape.PointingHandCursor)
         self._show_all_adapters_checkbox.toggled.connect(self._populate_adapters)
@@ -447,7 +459,7 @@ class HotspotManagerWidget(QWidget):
         danger_tint = themed_text_qcolor('#ffffff', '#b91c1c').name(QColor.NameFormat.HexArgb)
         self._enable_sharing_button = QPushButton(
             render_svg_icon_from_resource('toggle-right.svg', scale_by_ui(16), scale_by_ui(16), primary_tint),
-            ' Enable Sharing',
+            '',
         )
         self._enable_sharing_button.setStyleSheet(DIALOG_PRIMARY_BUTTON_STYLESHEET)
         self._enable_sharing_button.clicked.connect(self._enable_sharing_action)
@@ -455,10 +467,9 @@ class HotspotManagerWidget(QWidget):
 
         self._reset_sharing_button = QPushButton(
             render_svg_icon_from_resource('rotate-ccw.svg', scale_by_ui(16), scale_by_ui(16), danger_tint),
-            ' Reset',
+            '',
         )
         self._reset_sharing_button.setStyleSheet(DIALOG_DANGER_BUTTON_STYLESHEET)
-        self._reset_sharing_button.setToolTip('Disable connection sharing on all adapters')
         self._reset_sharing_button.clicked.connect(self._disable_sharing_action)
         buttons_layout.addWidget(self._reset_sharing_button)
 
@@ -481,11 +492,12 @@ class HotspotManagerWidget(QWidget):
         devices_icon.setPixmap(QIcon(str(ICONS_DIR_PATH / 'monitor-smartphone.svg')).pixmap(scale_by_ui(16), scale_by_ui(16)))
         header_layout.addWidget(devices_icon)
 
-        title = QLabel('Connected devices')
+        title = QLabel()
         title.setStyleSheet(HOTSPOT_CARD_HEADER_STYLESHEET)
+        self._devices_title_label = title
         header_layout.addWidget(title)
 
-        self._device_count_badge = QLabel('0 devices')
+        self._device_count_badge = QLabel()
         self._device_count_badge.setStyleSheet(HOTSPOT_PILL_INFO_STYLESHEET)
         header_layout.addWidget(self._device_count_badge)
 
@@ -498,7 +510,10 @@ class HotspotManagerWidget(QWidget):
         # Table widget
         self._table = QTableWidget()
         self._table.setColumnCount(5)
-        self._table.setHorizontalHeaderLabels(('Device / Hostname', 'IPv4 Address', 'MAC Address', 'Manufacturer / Vendor', 'Connection'))
+        set_table_headers(
+            self._table,
+            ('Device / Hostname', 'IPv4 Address', 'MAC Address', 'Manufacturer / Vendor', 'Connection'),
+        )
         self._table.verticalHeader().setVisible(False)
         self._table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self._table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
@@ -543,14 +558,16 @@ class HotspotManagerWidget(QWidget):
         empty_icon.setStyleSheet('background: transparent; background-color: transparent;')
         empty_layout.addWidget(empty_icon)
 
-        empty_text = QLabel('No connected devices detected yet.')
+        empty_text = QLabel()
         empty_text.setAlignment(Qt.AlignmentFlag.AlignCenter)
         empty_text.setStyleSheet(HOTSPOT_EMPTY_STATE_STYLESHEET)
+        self._empty_text_label = empty_text
         empty_layout.addWidget(empty_text)
 
-        empty_subtext = QLabel('Connect your console or device to the Wi-Fi hotspot or Ethernet bridge.')
+        empty_subtext = QLabel()
         empty_subtext.setAlignment(Qt.AlignmentFlag.AlignCenter)
         empty_subtext.setStyleSheet(themed_qss('color: #4a596d; font-size: 8pt; background: transparent; background-color: transparent;'))
+        self._empty_subtext_label = empty_subtext
         empty_layout.addWidget(empty_subtext)
 
         self._devices_stacked.addWidget(empty_widget)
@@ -599,6 +616,8 @@ class HotspotManagerWidget(QWidget):
 
     def _apply_hotspot_availability(self, *, is_available: bool, unavailable_reason: str | None = None) -> None:
         """Enable or grey out the Wi-Fi Hotspot card controls based on adapter availability."""
+        self._hotspot_is_available = is_available
+        self._hotspot_unavailable_reason = unavailable_reason
         unavailable_flag = 'false' if is_available else 'true'
         if self._hotspot_card.property('unavailable') != unavailable_flag:
             self._hotspot_card.setProperty('unavailable', unavailable_flag)
@@ -619,26 +638,33 @@ class HotspotManagerWidget(QWidget):
         self._hotspot_clients_pill.setVisible(is_available)
 
         if not is_available:
-            reason = unavailable_reason or 'No Wi-Fi adapter detected on this PC.'
+            reason = unavailable_reason or tr('No Wi-Fi adapter detected on this PC.')
             primary_tint = themed_text_qcolor('#ffffff', '#007acc').name(QColor.NameFormat.HexArgb)
             self._hotspot_band_pill.setVisible(False)
-            self._hotspot_status_badge.setText('UNAVAILABLE')
+            self._hotspot_status_badge.setText(tr('UNAVAILABLE'))
             self._hotspot_status_badge.setStyleSheet(HOTSPOT_BADGE_INACTIVE_STYLESHEET)
             self._hotspot_status_badge.setToolTip(reason)
-            self._toggle_hotspot_button.setText(' Start Hotspot')
+            self._toggle_hotspot_button.setText(f" {tr('Start Hotspot')}")
             self._toggle_hotspot_button.setIcon(render_svg_icon_from_resource('circle-play.svg', scale_by_ui(16), scale_by_ui(16), primary_tint))
             self._toggle_hotspot_button.setStyleSheet(DIALOG_PRIMARY_BUTTON_STYLESHEET)
             self._ssid_input.clear()
-            self._ssid_input.setPlaceholderText('Wi-Fi adapter not available')
+            unavailable_placeholder = tr('Wi-Fi adapter not available')
+            self._ssid_input.setPlaceholderText(unavailable_placeholder)
             self._password_input.clear()
-            self._password_input.setPlaceholderText('Wi-Fi adapter not available')
+            self._password_input.setPlaceholderText(unavailable_placeholder)
             self._password_hint_label.setText(reason)
             self._password_hint_label.setStyleSheet(themed_qss('color: #5c6d80; font-size: 8pt;'))
         else:
+            if self._current_hotspot_info is None:
+                self._hotspot_status_badge.setText(tr('OFF'))
+                self._toggle_hotspot_button.setText(f" {tr('Start Hotspot')}")
+                self._hotspot_clients_pill.setText(
+                    tr_plural('{count}/{max_clients} client', '{count}/{max_clients} clients', 0, max_clients=8),
+                )
             self._hotspot_status_badge.setToolTip('')
-            self._ssid_input.setPlaceholderText('Enter Wi-Fi network name...')
-            self._password_input.setPlaceholderText('Minimum 8 characters...')
-            self._password_hint_label.setText('Password can be revealed locally.')
+            self._ssid_input.setPlaceholderText(tr('Enter Wi-Fi network name...'))
+            self._password_input.setPlaceholderText(tr('Minimum 8 characters...'))
+            self._password_hint_label.setText(tr('Password can be revealed locally.'))
             self._password_hint_label.setStyleSheet(themed_qss('color: #8fa2b8; font-size: 8pt;'))
 
     def _on_hotspot_info_ready(self, info_object: object) -> None:
@@ -648,6 +674,10 @@ class HotspotManagerWidget(QWidget):
         if self._action_worker is not None and self._action_worker.isRunning():
             return
         self._current_hotspot_info = info_object
+        self._render_hotspot_info(info_object, update_inputs=True)
+
+    def _render_hotspot_info(self, info_object: HotspotInfo, *, update_inputs: bool = True) -> None:
+        """Render the cached HotspotInfo state onto card controls."""
         self._apply_hotspot_availability(
             is_available=info_object.is_available,
             unavailable_reason=info_object.unavailable_reason,
@@ -660,43 +690,52 @@ class HotspotManagerWidget(QWidget):
 
         if is_active:
             danger_tint = themed_text_qcolor('#ffffff', '#b91c1c').name(QColor.NameFormat.HexArgb)
-            self._hotspot_status_badge.setText('ON')
+            self._hotspot_status_badge.setText(tr('ON'))
             self._hotspot_status_badge.setStyleSheet(HOTSPOT_BADGE_ACTIVE_STYLESHEET)
-            self._toggle_hotspot_button.setText(' Stop Hotspot')
+            self._toggle_hotspot_button.setText(f" {tr('Stop Hotspot')}")
             self._toggle_hotspot_button.setIcon(render_svg_icon_from_resource('circle-stop.svg', scale_by_ui(16), scale_by_ui(16), danger_tint))
             self._toggle_hotspot_button.setStyleSheet(DIALOG_DANGER_BUTTON_STYLESHEET)
         elif in_transition:
-            self._hotspot_status_badge.setText('TRANSITION')
+            self._hotspot_status_badge.setText(tr('TRANSITION'))
             self._hotspot_status_badge.setStyleSheet(HOTSPOT_BADGE_TRANSITION_STYLESHEET)
         else:
             primary_tint = themed_text_qcolor('#ffffff', '#007acc').name(QColor.NameFormat.HexArgb)
-            self._hotspot_status_badge.setText('OFF')
+            self._hotspot_status_badge.setText(tr('OFF'))
             self._hotspot_status_badge.setStyleSheet(HOTSPOT_BADGE_INACTIVE_STYLESHEET)
-            self._toggle_hotspot_button.setText(' Start Hotspot')
+            self._toggle_hotspot_button.setText(f" {tr('Start Hotspot')}")
             self._toggle_hotspot_button.setIcon(render_svg_icon_from_resource('circle-play.svg', scale_by_ui(16), scale_by_ui(16), primary_tint))
             self._toggle_hotspot_button.setStyleSheet(DIALOG_PRIMARY_BUTTON_STYLESHEET)
 
-        self._hotspot_ssid_pill.setText(info_object.ssid or 'No SSID')
-        self._hotspot_ssid_pill.setToolTip(f'Network SSID: {info_object.ssid or "None"}')
+        self._hotspot_ssid_pill.setText(info_object.ssid or tr('No SSID'))
+        self._hotspot_ssid_pill.setToolTip(tr('Network SSID: {ssid}', ssid=info_object.ssid or tr('None')))
 
         band_display = info_object.formatted_band
         if band_display:
             self._hotspot_band_pill.setText(band_display)
-            self._hotspot_band_pill.setToolTip(f'Wi-Fi Band: {band_display}')
+            self._hotspot_band_pill.setToolTip(tr('Wi-Fi Band: {band}', band=band_display))
             self._hotspot_band_pill.setVisible(True)
         else:
             self._hotspot_band_pill.setVisible(False)
 
         client_count = info_object.client_count
         max_clients = info_object.max_clients
-        self._hotspot_clients_pill.setText(f'{client_count}/{max_clients} client{pluralize(client_count)}')
-        self._hotspot_clients_pill.setToolTip(f'Connected Clients: {client_count} of {max_clients} maximum allowed')
+        self._hotspot_clients_pill.setText(
+            tr_plural('{count}/{max_clients} client', '{count}/{max_clients} clients', client_count, max_clients=max_clients),
+        )
+        self._hotspot_clients_pill.setToolTip(
+            tr(
+                'Connected Clients: {client_count} of {max_clients} maximum allowed',
+                client_count=client_count,
+                max_clients=max_clients,
+            ),
+        )
 
         # Only update inputs if user is not actively editing them
-        if not self._ssid_input.hasFocus():
-            self._ssid_input.setText(info_object.ssid)
-        if not self._password_input.hasFocus():
-            self._password_input.setText(info_object.passphrase)
+        if update_inputs:
+            if not self._ssid_input.hasFocus():
+                self._ssid_input.setText(info_object.ssid)
+            if not self._password_input.hasFocus():
+                self._password_input.setText(info_object.passphrase)
 
     def _on_devices_ready(self, devices_object: object) -> None:
         """Handle updated devices list received from worker thread."""
@@ -705,8 +744,11 @@ class HotspotManagerWidget(QWidget):
         raw_list = cast('list[object]', devices_object)
         devices: list[ConnectedDevice] = [device for device in raw_list if isinstance(device, ConnectedDevice)]
         self._current_devices = devices
+        self._render_devices(devices)
 
-        self._device_count_badge.setText(f'{len(devices)} device{pluralize(len(devices))}')
+    def _render_devices(self, devices: list[ConnectedDevice]) -> None:
+        """Render the cached connected devices list onto the badge and table."""
+        self._device_count_badge.setText(tr_plural('{count} device', '{count} devices', len(devices)))
 
         if not devices:
             self._devices_stacked.setCurrentIndex(1)
@@ -720,7 +762,7 @@ class HotspotManagerWidget(QWidget):
             self._table.setItem(row, 0, QTableWidgetItem(device.hostname))
             self._table.setItem(row, 1, QTableWidgetItem(device.ip_address))
             self._table.setItem(row, 2, QTableWidgetItem(device.mac_address))
-            self._table.setItem(row, 3, QTableWidgetItem(device.vendor_name or 'Unknown'))
+            self._table.setItem(row, 3, QTableWidgetItem(device.vendor_name or tr('Unknown')))
             self._table.setItem(row, 4, QTableWidgetItem(device.connection_type))
 
     def _on_ics_status_ready(self, status_object: object) -> None:
@@ -734,14 +776,15 @@ class HotspotManagerWidget(QWidget):
             return
         is_active = bool(status_tuple[0])
         public_adapter = str(status_tuple[1]) if status_tuple[1] is not None else None
+        self._ics_active = is_active
 
         if is_active:
-            self._bridge_status_badge.setText('ACTIVE')
+            self._bridge_status_badge.setText(tr('ACTIVE'))
             self._bridge_status_badge.setStyleSheet(HOTSPOT_BADGE_ACTIVE_STYLESHEET)
             self._enable_sharing_button.setEnabled(False)
             self._reset_sharing_button.setEnabled(True)
         else:
-            self._bridge_status_badge.setText('OFF')
+            self._bridge_status_badge.setText(tr('OFF'))
             self._bridge_status_badge.setStyleSheet(HOTSPOT_BADGE_INACTIVE_STYLESHEET)
             self._enable_sharing_button.setEnabled(True)
             self._reset_sharing_button.setEnabled(False)
@@ -769,15 +812,29 @@ class HotspotManagerWidget(QWidget):
         passphrase = self._password_input.text().strip()
 
         if len(ssid) < MIN_SSID_LENGTH or len(ssid) > MAX_SSID_LENGTH:
-            QMessageBox.warning(self, 'Invalid SSID', f'Hotspot SSID must be between {MIN_SSID_LENGTH} and {MAX_SSID_LENGTH} characters long.')
+            QMessageBox.warning(
+                self,
+                tr('Invalid SSID'),
+                tr(
+                    'Hotspot SSID must be between {min_len} and {max_len} characters long.',
+                    min_len=MIN_SSID_LENGTH,
+                    max_len=MAX_SSID_LENGTH,
+                ),
+            )
             return
         if len(passphrase) < MIN_PASSPHRASE_LENGTH or len(passphrase) > MAX_PASSPHRASE_LENGTH:
-            QMessageBox.warning(self, 'Invalid Password', f'Hotspot password must be at least {MIN_PASSPHRASE_LENGTH} characters long.')
+            QMessageBox.warning(
+                self,
+                tr('Invalid Password'),
+                tr('Hotspot password must be at least {min_len} characters long.', min_len=MIN_PASSPHRASE_LENGTH),
+            )
             return
 
         self._save_hotspot_button.setEnabled(False)
+        self._status_bar_state = 'saving_credentials'
+        self._update_status_bar_label()
         worker = HotspotActionWorker('configure_credentials', ssid=ssid, passphrase=passphrase)
-        self._launch_action_worker(worker, overlay_title='Updating Hotspot\u2026', status_message='Saving hotspot credentials...')
+        self._launch_action_worker(worker, overlay_title=tr('Updating Hotspot\u2026'), status_message=tr('Saving hotspot credentials...'))
 
     def _toggle_hotspot_state(self) -> None:
         """Start or stop the mobile hotspot."""
@@ -785,8 +842,10 @@ class HotspotManagerWidget(QWidget):
             return
         is_active = self._current_hotspot_info is not None and self._current_hotspot_info.operational_state == 'On'
         task = 'stop_hotspot' if is_active else 'start_hotspot'
-        overlay_title = 'Stopping Hotspot\u2026' if is_active else 'Starting Hotspot\u2026'
-        status_message = 'Stopping hotspot...' if is_active else 'Starting hotspot...'
+        self._status_bar_state = 'stopping_hotspot' if is_active else 'starting_hotspot'
+        self._update_status_bar_label()
+        overlay_title = tr('Stopping Hotspot\u2026') if is_active else tr('Starting Hotspot\u2026')
+        status_message = tr('Stopping hotspot...') if is_active else tr('Starting hotspot...')
         self._toggle_hotspot_button.setEnabled(False)
         self._launch_action_worker(HotspotActionWorker(task), overlay_title=overlay_title, status_message=status_message)
 
@@ -798,19 +857,34 @@ class HotspotManagerWidget(QWidget):
         private_name = self._private_combo.currentData()
 
         if not public_name or not private_name:
-            QMessageBox.warning(self, 'Selection Required', 'Please select both a Public adapter (internet source) and a Private adapter.')
+            QMessageBox.warning(
+                self,
+                tr('Selection Required'),
+                tr('Please select both a Public adapter (internet source) and a Private adapter.'),
+            )
             return
 
         if public_name == private_name:
-            QMessageBox.warning(self, 'Invalid Selection', 'Public and Private adapters cannot be the same interface.')
+            QMessageBox.warning(
+                self,
+                tr('Invalid Selection'),
+                tr('Public and Private adapters cannot be the same interface.'),
+            )
             return
 
         self._enable_sharing_button.setEnabled(False)
+        self._status_bar_state = 'enabling_ics'
+        self._status_bar_ics_adapters = (str(public_name), str(private_name))
+        self._update_status_bar_label()
         worker = HotspotActionWorker('enable_ics', public_adapter=public_name, private_adapter=private_name)
         self._launch_action_worker(
             worker,
-            overlay_title='Enabling Connection Sharing\u2026',
-            status_message=f'Enabling sharing from {public_name} to {private_name}...',
+            overlay_title=tr('Enabling Connection Sharing\u2026'),
+            status_message=tr(
+                'Enabling sharing from {public_name} to {private_name}...',
+                public_name=public_name,
+                private_name=private_name,
+            ),
         )
 
     def _disable_sharing_action(self) -> None:
@@ -819,10 +893,12 @@ class HotspotManagerWidget(QWidget):
             return
 
         self._reset_sharing_button.setEnabled(False)
+        self._status_bar_state = 'disabling_ics'
+        self._update_status_bar_label()
         self._launch_action_worker(
             HotspotActionWorker('disable_ics'),
-            overlay_title='Disabling Connection Sharing\u2026',
-            status_message='Disabling sharing...',
+            overlay_title=tr('Disabling Connection Sharing\u2026'),
+            status_message=tr('Disabling sharing...'),
         )
 
     def _on_action_finished(self, result: HotspotActionResult) -> None:
@@ -834,12 +910,14 @@ class HotspotManagerWidget(QWidget):
         self._toggle_hotspot_button.setEnabled(hotspot_available)
         self._enable_sharing_button.setEnabled(True)
         self._reset_sharing_button.setEnabled(True)
-        self._status_bar_label.setText(result.message)
+        self._status_bar_state = 'action_result'
+        self._last_action_result = result
+        self._update_status_bar_label()
 
         if result.success:
             self.status_changed.emit()
         else:
-            QMessageBox.warning(self, 'Hotspot Operation Error', result.message)
+            QMessageBox.warning(self, tr('Hotspot Operation Error'), result.message)
 
         self._start_refresh_task()
 
@@ -860,13 +938,13 @@ class HotspotManagerWidget(QWidget):
 
         device = self._current_devices[selected_row]
         menu = create_styled_context_menu(self)
-        add_icon_menu_action(menu, 'copy.svg', f'Copy IP: {device.ip_address}', lambda: set_clipboard_text(device.ip_address))
-        add_icon_menu_action(menu, 'copy.svg', f'Copy MAC: {device.mac_address}', lambda: set_clipboard_text(device.mac_address))
+        add_icon_menu_action(menu, 'copy.svg', tr('Copy IP: {ip}', ip=device.ip_address), lambda: set_clipboard_text(device.ip_address))
+        add_icon_menu_action(menu, 'copy.svg', tr('Copy MAC: {mac}', mac=device.mac_address), lambda: set_clipboard_text(device.mac_address))
         menu.addSeparator()
 
         if device.ip_address and device.ip_address != 'Assigned via DHCP':
-            add_icon_menu_action(menu, 'radio-tower.svg', f'Ping {device.ip_address}...', lambda: self._open_ping_dialog(device.ip_address))
-            add_icon_menu_action(menu, 'radar.svg', f'Scan Ports: {device.ip_address}...', lambda: self._open_port_scanner_dialog(device.ip_address))
+            add_icon_menu_action(menu, 'radio-tower.svg', tr('Ping {ip}...', ip=device.ip_address), lambda: self._open_ping_dialog(device.ip_address))
+            add_icon_menu_action(menu, 'radar.svg', tr('Scan Ports: {ip}...', ip=device.ip_address), lambda: self._open_port_scanner_dialog(device.ip_address))
 
         menu.exec(self._table.viewport().mapToGlobal(position))
 

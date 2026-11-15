@@ -21,6 +21,7 @@ from session_sniffer.capture.arp import (
 from session_sniffer.capture.exceptions import ArpResolutionError, PcapFilterError, PcapOpenError, PcapReadError, PcapSendError
 from session_sniffer.capture.pcap import PcapHandle
 from session_sniffer.error_messages import format_arp_spoofing_failed_message
+from session_sniffer.i18n import tr
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -141,7 +142,7 @@ def arp_spoofing_task(
 
         def show_msgbox() -> None:
             msgbox.show(
-                title='ARP Spoofing Failed',
+                title=tr('ARP Spoofing Failed'),
                 text=message,
                 style=msgbox_style,
             )

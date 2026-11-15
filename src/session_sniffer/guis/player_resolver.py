@@ -10,9 +10,11 @@ from PySide6.QtWidgets import (
 )
 
 from session_sniffer.guis.high_rate_monitor import HighRateMonitorWidget
+from session_sniffer.guis.live_language import register_language_refresh
 from session_sniffer.guis.player_identifier import PlayerIdentifierWidget
 from session_sniffer.guis.theming import ICONS_DIR_PATH
 from session_sniffer.guis.utils import ToggleAlwaysOnTopMixin, activate_window, scale_by_ui
+from session_sniffer.i18n import tr
 from session_sniffer.settings import Settings
 
 if TYPE_CHECKING:
@@ -33,7 +35,6 @@ class PlayerResolverWindow(ToggleAlwaysOnTopMixin):
         """Initialize the Player Resolver window."""
         super().__init__(parent)
 
-        self.setWindowTitle('Player Resolver')
         self.setMinimumSize(scale_by_ui(540), scale_by_ui(360))
         flags = (
             Qt.WindowType.Window
@@ -51,14 +52,23 @@ class PlayerResolverWindow(ToggleAlwaysOnTopMixin):
 
         # Tab 1: Player High Rate Monitor
         self.high_rate_monitor = HighRateMonitorWidget(select_ips_callback, deselect_ips_callback, self)
-        self._tabs.addTab(self.high_rate_monitor, QIcon(str(ICONS_DIR_PATH / 'gauge.svg')), 'Player High Rate Monitor')
+        self._tabs.addTab(self.high_rate_monitor, QIcon(str(ICONS_DIR_PATH / 'gauge.svg')), '')
 
         # Tab 2: Player Identifier
         self.player_identifier = PlayerIdentifierWidget(select_ips_callback, deselect_ips_callback, self)
-        self._tabs.addTab(self.player_identifier, QIcon(str(ICONS_DIR_PATH / 'user-round-search.svg')), 'Player Identifier')
+        self._tabs.addTab(self.player_identifier, QIcon(str(ICONS_DIR_PATH / 'user-round-search.svg')), '')
+
+        self._apply_translations()
+        register_language_refresh(self, self._apply_translations)
 
         # Always on top checkbox (shared across tabs)
         self.add_always_on_top_checkbox(layout, always_on_top=False, alignment=Qt.AlignmentFlag.AlignHCenter)
+
+    def _apply_translations(self) -> None:
+        """Apply translated text to the window title and tab labels."""
+        self.setWindowTitle(tr('Player Resolver'))
+        self._tabs.setTabText(0, tr('Player High Rate Monitor'))
+        self._tabs.setTabText(1, tr('Player Identifier'))
 
     def show_and_focus(self) -> None:
         """Show the window, bring it to the front, and activate it."""

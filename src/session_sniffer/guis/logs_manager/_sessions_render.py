@@ -12,6 +12,7 @@ from pydantic import ValidationError
 
 from session_sniffer.constants.standard import LOCAL_TZ
 from session_sniffer.constants.tables import DATETIME_TRACKING_COLUMNS, SEARCHABLE_COLUMN_EXCLUSIONS
+from session_sniffer.i18n import tr
 from session_sniffer.models import SessionLogFile
 from session_sniffer.settings import Settings
 from session_sniffer.text_utils import format_single_border_table
@@ -275,7 +276,9 @@ def collect_structured_matches_from_cached(cached: CachedSessionFile, search_low
         else:
             matched_columns = [selected_column] if search_lower in entry.fields_lower.get(selected_column, '') else []
         if matched_columns:
-            matches.append(f'  [{entry.section_name}] {entry.ip}  |  {", ".join(f"{column}: {entry.fields[column]}" for column in matched_columns)}')
+            section_label = tr('connected') if entry.section_name == 'connected' else tr('disconnected')
+            fields_summary = ', '.join(f'{tr(column)}: {entry.fields[column]}' for column in matched_columns)
+            matches.append(f'  [{section_label}] {entry.ip}  |  {fields_summary}')
     return matches
 
 
@@ -319,9 +322,9 @@ def _column_headers_for_row_length(row_length: int) -> list[str] | None:
 
 def _schema_label_for_row_length(row_length: int) -> str | None:
     if row_length == len(Settings.GUI_ALL_CONNECTED_COLUMNS):
-        return 'Connected Columns'
+        return tr('Connected Columns')
     if row_length == len(Settings.GUI_ALL_DISCONNECTED_COLUMNS):
-        return 'Disconnected Columns'
+        return tr('Disconnected Columns')
     return None
 
 
@@ -347,11 +350,12 @@ def render_aligned_line_matches(
                 active_row_length = row_length
                 active_column_widths = list(column_widths_by_length.get(row_length, []))
                 if (header_cells := _column_headers_for_row_length(row_length)) is not None:
+                    display_headers = [tr(h) for h in header_cells]
                     if (schema_label := _schema_label_for_row_length(row_length)) is not None:
                         rendered_lines.append(f'  {" " * line_number_width}  ── {schema_label} ──')
-                    active_column_widths = _build_effective_column_widths(active_column_widths, header_cells)
-                    rendered_lines.append(f'  {" " * line_number_width}  {_format_table_row(header_cells, active_column_widths)}')
-                    rendered_lines.append(f'  {" " * line_number_width}  {_format_table_separator(active_column_widths, len(header_cells))}')
+                    active_column_widths = _build_effective_column_widths(active_column_widths, display_headers)
+                    rendered_lines.append(f'  {" " * line_number_width}  {_format_table_row(display_headers, active_column_widths)}')
+                    rendered_lines.append(f'  {" " * line_number_width}  {_format_table_separator(active_column_widths, len(display_headers))}')
                     has_rendered_schema_header = True
             rendered_line = _format_table_row(parsed_cells, active_column_widths)
         rendered_lines.append(f'  {line_num:>{line_number_width}}: {rendered_line}')
@@ -359,8 +363,8 @@ def render_aligned_line_matches(
 
 
 def _format_session_datetime(value: object) -> str:
-    if not isinstance(value, str) or not value:
-        return 'N/A'
+    if not isinstance(value, str) or not value or value == 'N/A':
+        return tr('N/A')
     try:
         return datetime.fromisoformat(value).strftime('%H:%M:%S.%f')[:-3]
     except ValueError:
@@ -368,10 +372,10 @@ def _format_session_datetime(value: object) -> str:
 
 
 def _format_table_value(value: object) -> str:
-    if value is None:
-        return 'N/A'
+    if value is None or value == 'N/A':
+        return tr('N/A')
     if isinstance(value, bool):
-        return 'Yes' if value else 'No'
+        return tr('Yes') if value else tr('No')
     return ', '.join(str(item) for item in cast('list[object]', value)) if isinstance(value, list) else str(value)
 
 
@@ -392,7 +396,7 @@ def _player_datetime_sort_key(player_info: dict[str, Any], sort_column: str) -> 
 
 def _build_session_table(*, players: dict[str, dict[str, Any]], column_names: tuple[str, ...], config: SessionTableRenderConfig) -> str:
     headers = [
-        f'{col} ↓' if col == config.sort_column and config.descending else f'{col} ↑' if col == config.sort_column else col
+        f'{tr(col)} ↓' if col == config.sort_column and config.descending else f'{tr(col)} ↑' if col == config.sort_column else tr(col)
         for col in column_names
     ]
     sorted_players = sorted(players.items(), key=lambda item: _player_datetime_sort_key(item[1], config.sort_column), reverse=not config.descending)
@@ -410,12 +414,12 @@ def _build_session_table(*, players: dict[str, dict[str, Any]], column_names: tu
 
 
 def _build_connected_table(players: dict[str, dict[str, Any]]) -> str:
-    config = SessionTableRenderConfig(f'Players connected in your session ({len(players)}):', 'Last Rejoin', descending=True)
+    config = SessionTableRenderConfig(tr('Players connected in your session ({count}):', count=len(players)), 'Last Rejoin', descending=True)
     return _build_session_table(players=players, column_names=Settings.GUI_ALL_CONNECTED_COLUMNS, config=config)
 
 
 def _build_disconnected_table(players: dict[str, dict[str, Any]]) -> str:
-    config = SessionTableRenderConfig(f"Players who've left your session ({len(players)}):", 'Last Seen', descending=False)
+    config = SessionTableRenderConfig(tr("Players who've left your session ({count}):", count=len(players)), 'Last Seen', descending=False)
     return _build_session_table(players=players, column_names=Settings.GUI_ALL_DISCONNECTED_COLUMNS, config=config)
 
 
@@ -426,12 +430,15 @@ def ensure_cached_session_rendered(cached: CachedSessionFile, cache_lock: thread
     rendered = f'{_build_connected_table(cached.session_log.connected)}\n{_build_disconnected_table(cached.session_log.disconnected)}'
     lines = rendered.splitlines()
     line_number_width = max(len(str(len(lines))), 1)
+    na_display = tr('N/A')
     table_rows: list[CachedTableRow] = []
     for line_num, line in enumerate(lines, start=1):
         if (parsed_cells := _try_parse_table_row(line)) is None:
             continue
         header_cells = _column_headers_for_row_length(len(parsed_cells))
-        if header_cells is not None and parsed_cells[0] == header_cells[0]:
+        if header_cells is not None and all(
+            cell in (tr(h), f'{tr(h)} ↓', f'{tr(h)} ↑') for cell, h in zip(parsed_cells, header_cells, strict=True)
+        ):
             continue
         if header_cells is None:
             cells_by_col_lower, all_cells_lower, has_headers = {}, line.lower(), False
@@ -439,7 +446,7 @@ def ensure_cached_session_rendered(cached: CachedSessionFile, cache_lock: thread
             cells_by_col_lower = {
                 col: cell.lower()
                 for col, cell in zip(header_cells, parsed_cells, strict=False)
-                if col not in SEARCHABLE_COLUMN_EXCLUSIONS and cell not in {'N/A', '...'}
+                if col not in SEARCHABLE_COLUMN_EXCLUSIONS and cell not in {'N/A', '...', na_display}
             }
             all_cells_lower, has_headers = '\x00'.join(cells_by_col_lower.values()), True
         table_rows.append(CachedTableRow(line_num, line, parsed_cells, cells_by_col_lower, all_cells_lower, has_headers))

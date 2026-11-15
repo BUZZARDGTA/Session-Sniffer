@@ -14,6 +14,7 @@ from session_sniffer.capture.process import (
     get_current_process_memory_mb,
 )
 from session_sniffer.guis.colors import StatusBarColors, ThresholdColors
+from session_sniffer.i18n import tr
 from session_sniffer.player.userip import UserIPDatabases
 from session_sniffer.rendering_core.types import CaptureState, CaptureStats
 from session_sniffer.settings import Settings
@@ -198,12 +199,12 @@ def _build_capture_section(snapshot: StatusBarSnapshot) -> str:
     escaped_ip_address = html.escape(snapshot.capture.ip_address)
     return (
         f'<span style="font-size: 9pt;">'
-        f'<span style="color: {StatusBarColors.TITLE_ACCENT}; font-weight: bold;">Capture:</span> '
+        f'<span style="color: {StatusBarColors.TITLE_ACCENT}; font-weight: bold;">{html.escape(tr("Capture:"))}</span> '
         f'<span style="color: {StatusBarColors.DIVIDER};"> • </span>'
-        f'<span style="color: {StatusBarColors.LABEL_ACCENT};">Interface:</span> '
+        f'<span style="color: {StatusBarColors.LABEL_ACCENT};">{html.escape(tr("Interface:"))}</span> '
         f'<span style="color: {StatusBarColors.ENABLED};">{escaped_interface_name}</span> '
         f'<span style="color: {StatusBarColors.DIVIDER};"> • </span>'
-        f'<span style="color: {StatusBarColors.LABEL_ACCENT};">IP:</span> '
+        f'<span style="color: {StatusBarColors.LABEL_ACCENT};">{html.escape(tr("IP:"))}</span> '
         f'<span style="color: {StatusBarColors.ENABLED};">{escaped_ip_address}</span>'
         f'</span>'
     )
@@ -213,27 +214,28 @@ def _build_config_section(snapshot: StatusBarSnapshot) -> str:
     parts: list[str] = []
 
     if snapshot.interface.arp_spoofing:
-        spoofing_status = 'Running' if snapshot.interface.arp_spoofing_running else 'Stopped'
+        spoofing_status = html.escape(tr('Running') if snapshot.interface.arp_spoofing_running else tr('Stopped'))
         spoofing_color = StatusBarColors.ENABLED if snapshot.interface.arp_spoofing_running else StatusBarColors.DISABLED
         parts.append(
-            f'<span style="color: {StatusBarColors.LABEL_ACCENT};">ARP Spoofing:</span> <span style="color: {spoofing_color};">{spoofing_status}</span>',
+            f'<span style="color: {StatusBarColors.LABEL_ACCENT};">{html.escape(tr("ARP Spoofing:"))}</span> <span style="color: {spoofing_color};">{spoofing_status}</span>',
         )
     elif snapshot.interface.is_neighbour_interface:
         parts.append(
-            f'<span style="color: {StatusBarColors.LABEL_ACCENT};">ARP:</span> <span style="color: {StatusBarColors.ENABLED};">Enabled</span>',
+            f'<span style="color: {StatusBarColors.LABEL_ACCENT};">{html.escape(tr("ARP:"))}</span> '
+            f'<span style="color: {StatusBarColors.ENABLED};">{html.escape(tr("Enabled"))}</span>',
         )
 
     if snapshot.system.discord_presence_enabled:
         rpc_color = StatusBarColors.ENABLED if snapshot.system.discord_rpc_connected else StatusBarColors.DISABLED
-        rpc_status = 'Connected' if snapshot.system.discord_rpc_connected else 'Waiting'
+        rpc_status = html.escape(tr('Connected') if snapshot.system.discord_rpc_connected else tr('Waiting'))
         parts.append(
-            f'<span style="color: {StatusBarColors.LABEL_ACCENT};">Discord:</span> <span style="color: {rpc_color};">{rpc_status}</span>',
+            f'<span style="color: {StatusBarColors.LABEL_ACCENT};">{html.escape(tr("Discord:"))}</span> <span style="color: {rpc_color};">{rpc_status}</span>',
         )
 
     if snapshot.capture.feature_set is not None:
         escaped_feature_set = html.escape(snapshot.capture.feature_set)
         parts.append(
-            f'<span style="color: {StatusBarColors.LABEL_ACCENT};">Feature Set:</span> '
+            f'<span style="color: {StatusBarColors.LABEL_ACCENT};">{html.escape(tr("Feature Set:"))}</span> '
             f'<span style="color: {StatusBarColors.ENABLED};">{escaped_feature_set}</span>',
         )
 
@@ -241,17 +243,17 @@ def _build_config_section(snapshot: StatusBarSnapshot) -> str:
         target_name = (
             CaptureState.target_process_name
             or (Settings.capture_filter_process_name if Settings.capture_filter_process_track_by_name else None)
-            or (f'PID {Settings.capture_filter_process_pid}' if Settings.capture_filter_process_pid > 0 else 'Target Process')
+            or (tr('PID {pid}', pid=Settings.capture_filter_process_pid) if Settings.capture_filter_process_pid > 0 else tr('Target Process'))
         )
         escaped_target_name = html.escape(target_name)
         target_color = StatusBarColors.ENABLED if CaptureState.target_process_running else StatusBarColors.DISABLED
         parts.append(
-            f'<span style="color: {StatusBarColors.LABEL_ACCENT};">Target:</span> <span style="color: {target_color};">{escaped_target_name}</span>',
+            f'<span style="color: {StatusBarColors.LABEL_ACCENT};">{html.escape(tr("Target:"))}</span> <span style="color: {target_color};">{escaped_target_name}</span>',
         )
 
     divider = f'<span style="color: {StatusBarColors.DIVIDER};"> • </span>'
-    body = divider.join(parts) if parts else f'<span style="color: {StatusBarColors.DISABLED};">Default</span>'
-    return f'<span style="font-size: 9pt;"><span style="color: {StatusBarColors.TITLE_ACCENT}; font-weight: bold;">Config:</span> {body}</span>'
+    body = divider.join(parts) if parts else f'<span style="color: {StatusBarColors.DISABLED};">{html.escape(tr("Default"))}</span>'
+    return f'<span style="font-size: 9pt;"><span style="color: {StatusBarColors.TITLE_ACCENT}; font-weight: bold;">{html.escape(tr("Config:"))}</span> {body}</span>'
 
 
 def _build_userip_issues_section(snapshot: StatusBarSnapshot) -> str:
@@ -259,8 +261,8 @@ def _build_userip_issues_section(snapshot: StatusBarSnapshot) -> str:
         return ''
 
     return (
-        f'<span style="color: {StatusBarColors.DISABLED}; font-weight: bold;">UserIP Issues:</span> '
-        f'<span style="color: {StatusBarColors.DISABLED};">Conflicts: {snapshot.userip.conflict_ip_count}</span>'
+        f'<span style="color: {StatusBarColors.DISABLED}; font-weight: bold;">{html.escape(tr("UserIP Issues:"))}</span> '
+        f'<span style="color: {StatusBarColors.DISABLED};">{html.escape(tr("Conflicts: {count}", count=snapshot.userip.conflict_ip_count))}</span>'
     )
 
 
@@ -280,11 +282,11 @@ def _build_performance_section(snapshot: StatusBarSnapshot) -> str:
         else:
             latency_color = ThresholdColors.HEALTHY
     restart_color: str = ThresholdColors.HEALTHY if not snapshot.capture_stats.restarted_times else ThresholdColors.CRITICAL
-    latency_text = f'{round(display_latency_ms, 1)}ms' if has_latency else '— ms'
+    latency_text = html.escape(tr('{latency}ms', latency=round(display_latency_ms, 1))) if has_latency else html.escape(tr('— ms'))
 
     restarts_display = (
         f'<span style="color: {StatusBarColors.DIVIDER};"> • </span>'
-        f'<span style="color: {StatusBarColors.LABEL_ACCENT};">Restarts:</span> '
+        f'<span style="color: {StatusBarColors.LABEL_ACCENT};">{html.escape(tr("Restarts:"))}</span> '
         f'<span style="color: {restart_color};">{snapshot.capture_stats.restarted_times}</span>'
         if snapshot.capture_stats.restarted_times
         else ''
@@ -292,8 +294,8 @@ def _build_performance_section(snapshot: StatusBarSnapshot) -> str:
 
     return (
         f'<span style="font-size: 9pt;">'
-        f'<span style="color: {StatusBarColors.TITLE_ACCENT}; font-weight: bold;">Performance:</span> '
-        f'<span style="color: {StatusBarColors.LABEL_ACCENT};">Latency:</span> '
+        f'<span style="color: {StatusBarColors.TITLE_ACCENT}; font-weight: bold;">{html.escape(tr("Performance:"))}</span> '
+        f'<span style="color: {StatusBarColors.LABEL_ACCENT};">{html.escape(tr("Latency:"))}</span> '
         f'<span style="color: {latency_color};">{latency_text}</span>'
         f'{restarts_display}'
         f'</span>'

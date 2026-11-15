@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
 
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.constants.tables import PLAYER_JOINS_TABLE_MIN_COLUMN_WIDTHS
+from session_sniffer.guis.live_language import register_language_refresh, set_table_headers
 from session_sniffer.guis.stylesheets import player_info_header_stylesheet
 from session_sniffer.guis.table_context_menu import StatTableWindowMixin, skip_if_menu_open
 from session_sniffer.guis.theming import ICONS_DIR_PATH, register_theme_change_callback, themed_qss, themed_text_qcolor
@@ -26,9 +27,9 @@ from session_sniffer.guis.utils import (
     format_player_display,
     setup_stat_table,
 )
+from session_sniffer.i18n import tr, tr_plural
 from session_sniffer.models.player_traffic import PlayerBandwidth
 from session_sniffer.player.registry import PlayersRegistry
-from session_sniffer.text_utils import pluralize
 
 if TYPE_CHECKING:
     from session_sniffer.models.player import Player
@@ -113,12 +114,13 @@ class PlayerJoinsWindow(StatTableWindowMixin):
         super().__init__(parent.window() if parent is not None else None)
         self._player: Player = player
 
-        self.setWindowTitle(f'{TITLE} - Player Joins ({format_player_display(self._player.ip, self._player.usernames)})')
+        display = format_player_display(self._player.ip, self._player.usernames)
+        self.setWindowTitle(f'{TITLE} - {tr("Player Joins")} ({display})')
         self.setWindowIcon(QIcon(str(ICONS_DIR_PATH / 'rotate-ccw-clock.svg')))
 
         layout = self.setup_window_layout(always_on_top=True, spacing=6)
 
-        self._header_label = QLabel(f'Player Joins — {format_player_display(self._player.ip, self._player.usernames)}')
+        self._header_label = QLabel(f'{tr("Player Joins")} — {display}')
         self._header_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._header_label.setStyleSheet(player_info_header_stylesheet('#1e3a8a', '#3b82f6'))
         self._header_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse | Qt.TextInteractionFlag.TextSelectableByKeyboard)
@@ -131,11 +133,7 @@ class PlayerJoinsWindow(StatTableWindowMixin):
         layout.addWidget(self._info_label)
 
         self._table = QTableWidget(0, len(_HEADERS))
-        self._table.setHorizontalHeaderLabels(list(_HEADERS))
-        for column_index, header_text in enumerate(_HEADERS):
-            header_item = self._table.horizontalHeaderItem(column_index)
-            if header_item is not None and header_text in _HEADER_TOOLTIPS:
-                header_item.setToolTip(_HEADER_TOOLTIPS[header_text])
+        set_table_headers(self._table, _HEADERS, _HEADER_TOOLTIPS)
 
         setup_stat_table(self._table, layout, sorting=True)
 
@@ -148,8 +146,8 @@ class PlayerJoinsWindow(StatTableWindowMixin):
         bottom_layout.addWidget(self._count_label)
         bottom_layout.addSpacing(12)
 
-        close_button = QPushButton('Close')
-        close_button.setToolTip('Close this window.')
+        close_button = QPushButton(tr('Close'))
+        close_button.setToolTip(tr('Close this window.'))
         close_button.clicked.connect(self.close)
         bottom_layout.addWidget(close_button)
         layout.addLayout(bottom_layout)
@@ -163,34 +161,36 @@ class PlayerJoinsWindow(StatTableWindowMixin):
         self._timer.timeout.connect(self.refresh)
         self._timer.start()
 
+        register_language_refresh(self, self.refresh)
         self.refresh()
 
     @skip_if_menu_open
     def refresh(self) -> None:
         """Update the player joins table with current session data."""
         display = format_player_display(self._player.ip, self._player.usernames)
-        new_title = f'{TITLE} - Player Joins ({display})'
+        new_title = f'{TITLE} - {tr("Player Joins")} ({display})'
         if self.windowTitle() != new_title:
             self.setWindowTitle(new_title)
-        self._header_label.setText(f'Player Joins — {display}')
+        self._header_label.setText(f'{tr("Player Joins")} — {display}')
 
         is_connected = PlayersRegistry.is_player_connected(self._player)
-        status_text = 'Connected' if is_connected else 'Disconnected'
+        status_text = tr('Connected') if is_connected else tr('Disconnected')
         total_time_str = format_duration(self._player.datetime.get_total_session_time().total_seconds())
-        country = self._player.iplookup.resolve_country()[0] or 'N/A'
-        isp = self._player.iplookup.ipapi.isp or 'N/A'
+        country = self._player.iplookup.resolve_country()[0]
+        isp = self._player.iplookup.ipapi.isp
 
+        join_count = len(self._player.joins)
         info_parts = [
-            f'Status: {status_text}',
-            f'Total Join{pluralize(len(self._player.joins))}: {len(self._player.joins)}',
-            f'Total Session Time: {total_time_str}',
+            tr('Status: {status}', status=status_text),
+            tr_plural('Total Join: {count}', 'Total Joins: {count}', join_count),
+            tr('Total Session Time: {duration}', duration=total_time_str),
         ]
-        if country != 'N/A':
-            info_parts.append(f'Country: {country}')
-        if isp != 'N/A':
-            info_parts.append(f'ISP: {isp}')
+        if country:
+            info_parts.append(tr('Country: {country}', country=country))
+        if isp:
+            info_parts.append(tr('ISP: {isp}', isp=isp))
         self._info_label.setText('   |   '.join(info_parts))
-        self._count_label.setText(f'Showing {len(self._player.joins)} join{pluralize(len(self._player.joins))}')
+        self._count_label.setText(tr_plural('Showing {count} join', 'Showing {count} joins', join_count))
 
         joins = self._player.joins
         num_joins = len(joins)
@@ -221,7 +221,7 @@ class PlayerJoinsWindow(StatTableWindowMixin):
         """Create and place all table widget items for a single join session row."""
         is_player_connected = PlayersRegistry.is_player_connected(self._player)
         is_join_connected = join.is_active and is_player_connected
-        status_str = 'Connected' if is_join_connected else 'Disconnected'
+        status_str = tr('Connected') if is_join_connected else tr('Disconnected')
         status_color = _COLOR_CONNECTED if is_join_connected else _COLOR_DISCONNECTED
 
         center = Qt.AlignmentFlag.AlignCenter
@@ -284,7 +284,7 @@ class PlayerJoinsWindow(StatTableWindowMixin):
         """Update live cell values in an existing row."""
         is_player_connected = PlayersRegistry.is_player_connected(self._player)
         is_join_connected = join.is_active and is_player_connected
-        status_str = 'Connected' if is_join_connected else 'Disconnected'
+        status_str = tr('Connected') if is_join_connected else tr('Disconnected')
         status_color = _COLOR_CONNECTED if is_join_connected else _COLOR_DISCONNECTED
 
         status_item = self._table.item(row, _COLUMN_STATUS)

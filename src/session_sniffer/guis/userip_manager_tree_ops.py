@@ -62,12 +62,12 @@ from session_sniffer.guis.tables_player_actions.looky_system._looky_refresh_user
 from session_sniffer.guis.theming import ICONS_DIR_PATH, themed_qcolor, themed_text_qcolor
 from session_sniffer.guis.userip_manager_helpers import NEW_DATABASE_SETTINGS, load_userip_database_model, refresh_userip_and_wake_renderer, save_userip_database_model
 from session_sniffer.guis.utils import open_file_location, scale_by_ui
+from session_sniffer.i18n import tr, tr_plural
 from session_sniffer.models.userip_settings_model import UserIPDatabaseFile
 from session_sniffer.player.userip import UserIPDatabases
 from session_sniffer.player.userip_loader import rebind_in_app_userip_db_path, userip_databases_lock
 from session_sniffer.rendering_core.types import CaptureState
 from session_sniffer.settings.settings import Settings
-from session_sniffer.text_utils import pluralize
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -129,9 +129,19 @@ class UserIPDatabaseTreeDelegate(ElidedTextTooltipDelegate):
         viewport.installEventFilter(self)
 
     @staticmethod
-    def _pill_rect(row_rect: QRect) -> QRect:
+    def _pill_font(base_font: QFont) -> QFont:
+        """Return the compact bold font used inside the ON/OFF toggle pill."""
+        pill_font = QFont(base_font)
+        pill_font.setPointSizeF(7.5)
+        pill_font.setBold(True)
+        return pill_font
+
+    def _pill_rect(self, row_rect: QRect, base_font: QFont | None = None) -> QRect:
         """Return the rectangle for the right-aligned ON/OFF toggle pill within *row_rect*."""
-        pill_w = scale_by_ui(44)
+        fm = QFontMetrics(self._pill_font(base_font or self._view.font()))
+        label_w = max(fm.horizontalAdvance(tr('ON')), fm.horizontalAdvance(tr('OFF')))
+        min_needed = scale_by_ui(5) + scale_by_ui(11) + scale_by_ui(3) + label_w + scale_by_ui(6)
+        pill_w = max(scale_by_ui(44), min_needed)
         pill_h = min(scale_by_ui(18), max(scale_by_ui(14), row_rect.height() - scale_by_ui(4)))
         pill_x = row_rect.left() + row_rect.width() - pill_w - scale_by_ui(6)
         pill_y = row_rect.top() + (row_rect.height() - pill_h) // 2
@@ -195,7 +205,8 @@ class UserIPDatabaseTreeDelegate(ElidedTextTooltipDelegate):
         rect = cast('QRect', object.__getattribute__(option, 'rect'))
         if not rect.isValid():
             rect = view.visualRect(index)
-        pill_rect = self._pill_rect(rect)
+        base_font = cast('QFont', object.__getattribute__(option, 'font'))
+        pill_rect = self._pill_rect(rect, base_font)
         if pill_rect.contains(event.pos()):
             QToolTip.hideText()
             return True
@@ -207,7 +218,6 @@ class UserIPDatabaseTreeDelegate(ElidedTextTooltipDelegate):
 
         text_left = rect.left() + scale_by_ui(6) + scale_by_ui(9) + scale_by_ui(7)
         text_w = max(0, pill_rect.left() - scale_by_ui(6) - text_left)
-        base_font = cast('QFont', object.__getattribute__(option, 'font'))
         if QFontMetrics(base_font).horizontalAdvance(text) > text_w:
             QToolTip.showText(event.globalPos(), text, view)
             return True
@@ -247,7 +257,7 @@ class UserIPDatabaseTreeDelegate(ElidedTextTooltipDelegate):
         painter.drawEllipse(dot_rect)
 
         # 2. Right-aligned ON / OFF Toggle Pill
-        pill_rect = self._pill_rect(rect)
+        pill_rect = self._pill_rect(rect, base_font)
         pill_radius = float(scale_by_ui(4))
         pill_path = QPainterPath()
         pill_path.addRoundedRect(QRectF(pill_rect), pill_radius, pill_radius)
@@ -257,7 +267,7 @@ class UserIPDatabaseTreeDelegate(ElidedTextTooltipDelegate):
         pill_bg = QColor(pill_tint.red(), pill_tint.green(), pill_tint.blue(), 45 if is_enabled else 32)
         pill_border = QColor(pill_tint.red(), pill_tint.green(), pill_tint.blue(), 130 if is_enabled else 95)
         pill_fg = themed_text_qcolor('#34d399' if is_enabled else '#94a3b8', row_bg_hex)
-        pill_text = 'ON' if is_enabled else 'OFF'
+        pill_text = tr('ON') if is_enabled else tr('OFF')
 
         painter.fillPath(pill_path, pill_bg)
         painter.setPen(QPen(pill_border, 1.0))
@@ -277,10 +287,7 @@ class UserIPDatabaseTreeDelegate(ElidedTextTooltipDelegate):
         painter.setPen(Qt.PenStyle.NoPen)
         painter.drawEllipse(QRectF(knob_x, knob_y, knob_d, knob_d))
 
-        pill_font = QFont(base_font)
-        pill_font.setPointSizeF(7.5)
-        pill_font.setBold(True)
-        painter.setFont(pill_font)
+        painter.setFont(self._pill_font(base_font))
         painter.setPen(pill_fg)
         pill_text_left = int(sw_x + sw_w) + scale_by_ui(3)
         pill_text_rect = QRect(pill_text_left, pill_rect.top(), max(0, pill_rect.left() + pill_rect.width() - pill_text_left - scale_by_ui(3)), pill_rect.height())
@@ -483,20 +490,43 @@ class TreeOperationsMixin(QDialog):
     def _configure_delete_tree_button(self, *, enabled: bool, is_reset: bool = False, count: int = 1, tooltip: str | None = None) -> None:
         """Configure the tree toolbar Delete/Reset button state, icon, text, tooltip, and click handler."""
         self._delete_tree_button.setEnabled(enabled)
-        suffix = f' ({count})' if count > 1 else ''
         if is_reset:
-            default_tip = 'Reset selected default databases to factory content' if count > 1 else 'Reset this default database to factory content'
+            default_tip = (
+                tr('Reset selected default databases to factory content')
+                if count > 1
+                else tr('Reset this default database to factory content')
+            )
+            button_text = f" {tr('Reset ({count})', count=count)}" if count > 1 else f" {tr('Reset')}"
             self._delete_tree_button.setIcon(QIcon(str(ICONS_DIR_PATH / 'refresh-cw.svg')))
-            self._delete_tree_button.setText(f' Reset{suffix}')
+            self._delete_tree_button.setText(button_text)
             self._delete_tree_button.setToolTip(tooltip or default_tip)
             self._delete_tree_button.clicked.disconnect()
             self._delete_tree_button.clicked.connect(self._reset_tree_item)
         else:
+            default_tip = (
+                tr('Delete the selected databases or folders')
+                if count > 1
+                else tr('Delete the selected database or folder')
+            )
+            button_text = f" {tr('Delete ({count})', count=count)}" if count > 1 else f" {tr('Delete')}"
             self._delete_tree_button.setIcon(QIcon(str(ICONS_DIR_PATH / 'remove.svg')))
-            self._delete_tree_button.setText(f' Delete{suffix}')
-            self._delete_tree_button.setToolTip(tooltip or ('Delete the selected databases or folders' if count > 1 else 'Delete the selected database or folder'))
+            self._delete_tree_button.setText(button_text)
+            self._delete_tree_button.setToolTip(tooltip or default_tip)
             self._delete_tree_button.clicked.disconnect()
             self._delete_tree_button.clicked.connect(self._delete_tree_item)
+
+    def _apply_multi_selection_tree_controls(self, selected_paths: list[Path]) -> None:
+        """Update tree delete/reset button and export action text for a multi-path tree selection."""
+        deletable, default_dbs = partition_selected_tree_paths(selected_paths)
+        if deletable:
+            tip = tr('Delete selected custom items (factory-default databases in selection will be kept)') if default_dbs else None
+            self._configure_delete_tree_button(enabled=True, is_reset=False, count=len(deletable), tooltip=tip)
+        elif default_dbs:
+            self._configure_delete_tree_button(enabled=True, is_reset=True, count=len(default_dbs))
+        else:
+            self._configure_delete_tree_button(enabled=False)
+        if self._export_selected_action is not None:
+            self._export_selected_action.setText(tr('Export selected as ZIP\u2026'))
 
     def _on_tree_selection_changed(self) -> None:
         """Load the selected database when a single `.json` file is clicked, or summarize multi-selection."""
@@ -517,21 +547,13 @@ class TreeOperationsMixin(QDialog):
                 self._status_label.setText(status_html)
             else:
                 self._current_path = None
-            deletable, default_dbs = partition_selected_tree_paths(selected_paths)
-            if deletable:
-                tip = 'Delete selected custom items (factory-default databases in selection will be kept)' if default_dbs else None
-                self._configure_delete_tree_button(enabled=True, is_reset=False, count=len(deletable), tooltip=tip)
-            elif default_dbs:
-                self._configure_delete_tree_button(enabled=True, is_reset=True, count=len(default_dbs))
-            else:
-                self._configure_delete_tree_button(enabled=False)
+            self._apply_multi_selection_tree_controls(selected_paths)
             if self._export_selected_action is not None:
-                self._export_selected_action.setText('Export selected as ZIP…')
                 self._export_selected_action.setEnabled(bool(collect_json_databases_from_paths(selected_paths)))
             return
 
         if self._export_selected_action is not None:
-            self._export_selected_action.setText('Export selected database…')
+            self._export_selected_action.setText(tr('Export selected database\u2026'))
         path = selected_paths[0]
         self._configure_delete_tree_button(enabled=True, is_reset=is_default_userip_db(path))
 
@@ -580,7 +602,7 @@ class TreeOperationsMixin(QDialog):
         result = QMessageBox.warning(
             self,
             TITLE,
-            'You have unsaved changes. Save before switching?',
+            tr('You have unsaved changes. Save before switching?'),
             QMessageBox.StandardButton.Save | QMessageBox.StandardButton.Discard | QMessageBox.StandardButton.Cancel,
             QMessageBox.StandardButton.Save,
         )
@@ -603,7 +625,15 @@ class TreeOperationsMixin(QDialog):
                 entries.append((db_path, [entry.ip for entry in db_model.entries]))
 
         if not entries:
-            QMessageBox.information(self, TITLE, f'No entries found in the selected database{pluralize(len(db_paths))}.')
+            QMessageBox.information(
+                self,
+                TITLE,
+                tr_plural(
+                    'No entries found in the selected database.',
+                    'No entries found in the selected databases.',
+                    len(db_paths),
+                ),
+            )
             return
 
         looky_refresh_userip_entries(self, entries)
@@ -668,7 +698,7 @@ class TreeOperationsMixin(QDialog):
                 self._capture_settings_snapshot()
             self._rebuild_fs_watch()
         self._refresh_tree_item_visual(path, resort=not is_current)
-        self._set_status(f'{"Enabled" if enabled else "Disabled"} database: {path.name}')
+        self._set_status(tr('Enabled database: {name}', name=path.name) if enabled else tr('Disabled database: {name}', name=path.name))
 
     def _show_tree_context_menu(self, position: QPoint) -> None:
         """Show a right-click context menu for the file tree."""
@@ -689,44 +719,44 @@ class TreeOperationsMixin(QDialog):
         if file_path is not None:
 
             if file_path.is_dir():
-                new_db_action = QAction(QIcon(str(ICONS_DIR_PATH / 'file-plus.svg')), 'New Database Here', self)
+                new_db_action = QAction(QIcon(str(ICONS_DIR_PATH / 'file-plus.svg')), tr('New Database Here'), self)
                 new_db_action.triggered.connect(lambda: self._new_database(parent_dir=file_path))
                 menu.addAction(new_db_action)
 
-                new_folder_action = QAction(QIcon(str(ICONS_DIR_PATH / 'folder.svg')), 'New Folder Here', self)
+                new_folder_action = QAction(QIcon(str(ICONS_DIR_PATH / 'folder.svg')), tr('New Folder Here'), self)
                 new_folder_action.triggered.connect(lambda: self._new_folder(parent_dir=file_path))
                 menu.addAction(new_folder_action)
 
                 if Settings.is_gta5_feature_set() and CaptureState.is_local_capture():
                     menu.addSeparator()
                     _dir_path = file_path
-                    refresh_dir_action = QAction(QIcon(str(ICONS_DIR_PATH / 'eye.svg')), 'Refresh Folder (Looky System)', self)
+                    refresh_dir_action = QAction(QIcon(str(ICONS_DIR_PATH / 'eye.svg')), tr('Refresh Folder (Looky System)'), self)
                     refresh_dir_action.triggered.connect(lambda: self._refresh_databases_looky(list(_dir_path.rglob('*.json'))))
                     configure_looky_action(
                         refresh_dir_action,
-                        'Scan all IPs and usernames in this folder via Looky System to confirm existing entries and discover new IPs or usernames.',
+                        tr('Scan all IPs and usernames in this folder via Looky System to confirm existing entries and discover new IPs or usernames.'),
                     )
                     menu.addAction(refresh_dir_action)
 
                 menu.addSeparator()
 
-            move_action = QAction(QIcon(str(ICONS_DIR_PATH / 'box.svg')), 'Move to...', self)
+            move_action = QAction(QIcon(str(ICONS_DIR_PATH / 'box.svg')), tr('Move to...'), self)
             move_action.triggered.connect(lambda: self._move_tree_item(file_path))
             menu.addAction(move_action)
 
-            rename_action = QAction(QIcon(str(ICONS_DIR_PATH / 'square-pen.svg')), 'Rename', self)
+            rename_action = QAction(QIcon(str(ICONS_DIR_PATH / 'square-pen.svg')), tr('Rename'), self)
             rename_action.triggered.connect(lambda: self._rename_tree_item(file_path))
             menu.addAction(rename_action)
 
             menu.addSeparator()
 
             explorer_target = file_path
-            open_explorer_action = QAction(QIcon(str(ICONS_DIR_PATH / 'folder.svg')), 'Open in File Manager', self)
+            open_explorer_action = QAction(QIcon(str(ICONS_DIR_PATH / 'folder.svg')), tr('Open in File Manager'), self)
             open_explorer_action.triggered.connect(lambda: open_file_location(explorer_target))
             menu.addAction(open_explorer_action)
 
             if file_path.is_file():
-                open_editor_action = QAction(QIcon(str(ICONS_DIR_PATH / 'file-text.svg')), 'Open in Text Editor', self)
+                open_editor_action = QAction(QIcon(str(ICONS_DIR_PATH / 'file-text.svg')), tr('Open in Text Editor'), self)
                 open_editor_action.triggered.connect(lambda: QDesktopServices.openUrl(QUrl.fromLocalFile(str(file_path))))
                 menu.addAction(open_editor_action)
 
@@ -735,11 +765,11 @@ class TreeOperationsMixin(QDialog):
                 if file_path.suffix.lower() == '.json' and Settings.is_gta5_feature_set() and CaptureState.is_local_capture():
                     _file_path = file_path
                     is_searchlist = file_path.stem.casefold() == 'searchlist'
-                    refresh_label = 'Verify && Clean Searchlist (Looky)' if is_searchlist else 'Refresh Database (Looky System)'
+                    refresh_label = tr('Verify && Clean Searchlist (Looky)') if is_searchlist else tr('Refresh Database (Looky System)')
                     refresh_tooltip = (
-                        'Verify candidate IPs and usernames in Searchlist via Looky System, find real IPs, and remove wrong candidate IPs.'
+                        tr('Verify candidate IPs and usernames in Searchlist via Looky System, find real IPs, and remove wrong candidate IPs.')
                         if is_searchlist
-                        else 'Scan all IPs and usernames in this database via Looky System to confirm existing entries and discover new IPs or usernames.'
+                        else tr('Scan all IPs and usernames in this database via Looky System to confirm existing entries and discover new IPs or usernames.')
                     )
                     refresh_action = QAction(QIcon(str(ICONS_DIR_PATH / 'eye.svg')), refresh_label, self)
                     refresh_action.triggered.connect(lambda: self._refresh_databases_looky([_file_path]))
@@ -747,52 +777,52 @@ class TreeOperationsMixin(QDialog):
                     menu.addAction(refresh_action)
                     menu.addSeparator()
 
-                export_action = QAction(QIcon(str(ICONS_DIR_PATH / 'upload.svg')), 'Export Database…', self)
+                export_action = QAction(QIcon(str(ICONS_DIR_PATH / 'upload.svg')), tr('Export Database\u2026'), self)
                 export_action.triggered.connect(lambda: self._export_database_file(file_path))
                 menu.addAction(export_action)
 
             menu.addSeparator()
 
             if is_default_userip_db(file_path):
-                reset_default_action = QAction(QIcon(str(ICONS_DIR_PATH / 'refresh-cw.svg')), 'Reset', self)
+                reset_default_action = QAction(QIcon(str(ICONS_DIR_PATH / 'refresh-cw.svg')), tr('Reset'), self)
                 reset_default_action.triggered.connect(lambda: reset_selected_default_databases(self._tree_batch_hooks(), [file_path]))
                 menu.addAction(reset_default_action)
             else:
-                delete_action = QAction(QIcon(str(ICONS_DIR_PATH / 'remove.svg')), 'Delete', self)
+                delete_action = QAction(QIcon(str(ICONS_DIR_PATH / 'remove.svg')), tr('Delete'), self)
                 delete_action.triggered.connect(lambda: delete_single_tree_path(self._tree_batch_hooks(), file_path))
                 menu.addAction(delete_action)
         else:
-            new_db_action = QAction(QIcon(str(ICONS_DIR_PATH / 'file-plus.svg')), 'New Database', self)
+            new_db_action = QAction(QIcon(str(ICONS_DIR_PATH / 'file-plus.svg')), tr('New Database'), self)
             new_db_action.triggered.connect(self._new_database)
             menu.addAction(new_db_action)
 
-            new_folder_action = QAction(QIcon(str(ICONS_DIR_PATH / 'folder.svg')), 'New Folder', self)
+            new_folder_action = QAction(QIcon(str(ICONS_DIR_PATH / 'folder.svg')), tr('New Folder'), self)
             new_folder_action.triggered.connect(self._new_folder)
             menu.addAction(new_folder_action)
 
             if Settings.is_gta5_feature_set() and CaptureState.is_local_capture():
                 menu.addSeparator()
-                refresh_all_action = QAction(QIcon(str(ICONS_DIR_PATH / 'eye.svg')), 'Refresh All Databases (Looky)', self)
+                refresh_all_action = QAction(QIcon(str(ICONS_DIR_PATH / 'eye.svg')), tr('Refresh All Databases (Looky)'), self)
                 refresh_all_action.triggered.connect(lambda: self._refresh_databases_looky(list(USERIP_DATABASES_DIR_PATH.rglob('*.json'))))
                 configure_looky_action(
                     refresh_all_action,
-                    'Scan all IPs and usernames across all UserIP databases via Looky System to confirm existing entries and discover new IPs or usernames.',
+                    tr('Scan all IPs and usernames across all UserIP databases via Looky System to confirm existing entries and discover new IPs or usernames.'),
                 )
                 menu.addAction(refresh_all_action)
 
             menu.addSeparator()
 
-            import_action = QAction(QIcon(str(ICONS_DIR_PATH / 'import.svg')), 'Import Database Files…', self)
+            import_action = QAction(QIcon(str(ICONS_DIR_PATH / 'import.svg')), tr('Import Database Files\u2026'), self)
             import_action.triggered.connect(self._import_database_files)
             menu.addAction(import_action)
 
             menu.addSeparator()
 
-            backup_now_action = QAction(QIcon(str(ICONS_DIR_PATH / 'upload.svg')), 'Backup Databases Now', self)
+            backup_now_action = QAction(QIcon(str(ICONS_DIR_PATH / 'upload.svg')), tr('Backup Databases Now'), self)
             backup_now_action.triggered.connect(self._backup_databases_now)
             menu.addAction(backup_now_action)
 
-            open_backups_action = QAction(QIcon(str(ICONS_DIR_PATH / 'folder.svg')), 'Open Backups Folder', self)
+            open_backups_action = QAction(QIcon(str(ICONS_DIR_PATH / 'folder.svg')), tr('Open Backups Folder'), self)
             open_backups_action.triggered.connect(self._open_backups_folder)
             menu.addAction(open_backups_action)
 
@@ -815,7 +845,7 @@ class TreeOperationsMixin(QDialog):
         """Create a new UserIP database .json file."""
         target_dir = parent_dir or self._get_selected_tree_directory()
 
-        name, success = QInputDialog.getText(self, TITLE, 'New database name:')
+        name, success = QInputDialog.getText(self, TITLE, tr('New database name:'))
         if not success or not name.strip():
             return
 
@@ -828,7 +858,7 @@ class TreeOperationsMixin(QDialog):
 
         new_path = target_dir / name
         if new_path.exists():
-            QMessageBox.warning(self, TITLE, f'"{name}" already exists in that location.')
+            QMessageBox.warning(self, TITLE, tr('"{name}" already exists in that location.', name=name))
             return
 
         with userip_databases_lock():
@@ -836,32 +866,32 @@ class TreeOperationsMixin(QDialog):
             refresh_userip_and_wake_renderer()
         self._rebuild_fs_watch()
 
-        self._set_status(f'Created new database: {name}')
+        self._set_status(tr('Created new database: {name}', name=name))
         self._refresh_stats()
 
     def _new_folder(self, *, parent_dir: Path | None = None) -> None:
         """Create a new folder inside the databases directory."""
         target_dir = parent_dir or self._get_selected_tree_directory()
 
-        name, success = QInputDialog.getText(self, TITLE, 'New folder name:')
+        name, success = QInputDialog.getText(self, TITLE, tr('New folder name:'))
         if not success or not name.strip():
             return
 
         folder_name = name.strip()
         new_path = target_dir / folder_name
         if new_path.exists():
-            QMessageBox.warning(self, TITLE, f'"{folder_name}" already exists in that location.')
+            QMessageBox.warning(self, TITLE, tr('"{name}" already exists in that location.', name=folder_name))
             return
 
         new_path.mkdir(parents=True, exist_ok=True)
 
-        self._set_status(f'Created new folder: {folder_name}')
+        self._set_status(tr('Created new folder: {name}', name=folder_name))
 
     def _delete_tree_item(self) -> None:
         """Delete the currently selected item(s) in the file tree."""
         selected_paths = self._selected_tree_paths()
         if not selected_paths:
-            QMessageBox.information(self, TITLE, 'No item selected in the tree.')
+            QMessageBox.information(self, TITLE, tr('No item selected in the tree.'))
             return
         if len(selected_paths) > 1:
             delete_selected_tree_items(self._tree_batch_hooks(), selected_paths)
@@ -907,7 +937,7 @@ class TreeOperationsMixin(QDialog):
     def _rename_tree_item(self, path: Path) -> None:
         """Rename a file or folder via an input dialog."""
         old_name = path.stem if path.is_file() else path.name
-        label = 'New name:' if path.is_file() else 'New folder name:'
+        label = tr('New name:') if path.is_file() else tr('New folder name:')
 
         new_name, success = QInputDialog.getText(self, TITLE, label, QLineEdit.EchoMode.Normal, old_name)
         if not success or not new_name.strip():
@@ -923,7 +953,7 @@ class TreeOperationsMixin(QDialog):
 
         new_path = path.parent / new_name
         if new_path.exists():
-            QMessageBox.warning(self, TITLE, f'"{new_name}" already exists.')
+            QMessageBox.warning(self, TITLE, tr('"{name}" already exists.', name=new_name))
             return
 
         # Use the model's rename to avoid file-watcher handle conflicts on Windows
@@ -934,9 +964,9 @@ class TreeOperationsMixin(QDialog):
                 rebind_in_app_userip_db_path(path, new_path)
                 self._rebind_current_path_and_refresh(path, new_path)
         if not renamed:
-            QMessageBox.critical(self, TITLE, f'Failed to rename "{path.name}".')
+            QMessageBox.critical(self, TITLE, tr('Failed to rename "{name}".', name=path.name))
             return
-        self._set_status(f'Renamed "{path.name}" → "{new_name}"')
+        self._set_status(tr('Renamed "{old}" \u2192 "{new}"', old=path.name, new=new_name))
 
     def _move_tree_item(self, path: Path) -> None:
         """Move a file or folder to a different directory via a folder picker."""

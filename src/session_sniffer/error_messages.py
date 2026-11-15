@@ -7,6 +7,7 @@ This module contains functions that build user-facing text intended ONLY for GUI
 from typing import TYPE_CHECKING
 
 from session_sniffer.constants.standalone import GITHUB_VERSIONS_URL, TITLE
+from session_sniffer.i18n import tr, tr_plural
 from session_sniffer.text_utils import pluralize
 
 if TYPE_CHECKING:
@@ -62,16 +63,14 @@ def ensure_instance[T](obj: object, expected_types: type[T] | tuple[type[T], ...
 
 def format_invalid_datetime_columns_settings_message() -> str:
     """Format the settings.json error shown when all datetime columns are disabled."""
-    return """
-        ERROR in your custom "settings.json" file:
-
-        At least one of these settings must be set to "true" value:
-        <GUI_COLUMNS_DATETIME_SHOW_DATE>
-        <GUI_COLUMNS_DATETIME_SHOW_TIME>
-        <GUI_COLUMNS_DATETIME_SHOW_ELAPSED_TIME>
-
-        Default values will be applied to fix this issue.
-    """
+    return tr(
+        'ERROR in your custom "settings.json" file:\n\n'
+        'At least one of these settings must be set to "true" value:\n'
+        '<GUI_COLUMNS_DATETIME_SHOW_DATE>\n'
+        '<GUI_COLUMNS_DATETIME_SHOW_TIME>\n'
+        '<GUI_COLUMNS_DATETIME_SHOW_ELAPSED_TIME>\n\n'
+        'Default values will be applied to fix this issue.',
+    )
 
 
 def format_failed_check_for_updates_message(
@@ -80,25 +79,26 @@ def format_failed_check_for_updates_message(
     http_code: str,
 ) -> str:
     """Format the retry/abort message shown when update checks fail."""
-    return f"""
-        ERROR:
-            Failed to check for updates.
-
-            DEBUG:
-                Exception: {exception_name}
-                HTTP Code: {http_code}
-
-        Please check your internet connection and ensure you have access to:
-        {GITHUB_VERSIONS_URL}
-
-        Abort:
-            Exit and open the "{TITLE}" GitHub page to
-            download the latest version.
-        Retry:
-            Try checking for updates again.
-        Ignore:
-            Continue using the current version (not recommended).
-    """
+    return tr(
+        'ERROR:\n'
+        '    Failed to check for updates.\n\n'
+        '    DEBUG:\n'
+        '        Exception: {exception_name}\n'
+        '        HTTP Code: {http_code}\n\n'
+        'Please check your internet connection and ensure you have access to:\n'
+        '{github_versions_url}\n\n'
+        'Abort:\n'
+        '    Exit and open the "{title}" GitHub page to\n'
+        '    download the latest version.\n'
+        'Retry:\n'
+        '    Try checking for updates again.\n'
+        'Ignore:\n'
+        '    Continue using the current version (not recommended).',
+        exception_name=exception_name,
+        http_code=http_code,
+        github_versions_url=GITHUB_VERSIONS_URL,
+        title=TITLE,
+    )
 
 
 def format_geolite2_download_flags_failed_message(
@@ -108,16 +108,25 @@ def format_geolite2_download_flags_failed_message(
 ) -> str:
     """Format the message shown when one or more GeoLite2 assets have no version/download URL."""
     flags_str = "', '".join(failed_flags)
-    return f"""
-        ERROR:
-            Failed fetching MaxMind GeoLite2 "{flags_str}" database{pluralize(len(failed_flags))}.
-
-        DEBUG:
-            GITHUB_RELEASE_API__GEOLITE2__URL={geolite2_release_api_url}
-            failed_fetching_flag_list={failed_flags}
-
-        These MaxMind GeoLite2 database{pluralize(len(failed_flags))} will not be updated.
-    """
+    flag_count = len(failed_flags)
+    header = tr_plural(
+        'ERROR:\n    Failed fetching MaxMind GeoLite2 "{flags_str}" database.',
+        'ERROR:\n    Failed fetching MaxMind GeoLite2 "{flags_str}" databases.',
+        flag_count,
+        flags_str=flags_str,
+    )
+    footer = tr_plural(
+        'This MaxMind GeoLite2 database will not be updated.',
+        'These MaxMind GeoLite2 databases will not be updated.',
+        flag_count,
+    )
+    return (
+        f'{header}\n\n'
+        f'DEBUG:\n'
+        f'    GITHUB_RELEASE_API__GEOLITE2__URL={geolite2_release_api_url}\n'
+        f'    failed_fetching_flag_list={failed_flags}\n\n'
+        f'{footer}'
+    )
 
 
 def format_geolite2_update_initialize_error_message(
@@ -136,20 +145,20 @@ def format_geolite2_update_initialize_error_message(
     msgbox_message = ''
 
     if update_exception is not None:
-        msgbox_message += f'Exception Error: {update_exception}\n\n'
+        msgbox_message += tr('Exception Error: {error}', error=update_exception) + '\n\n'
         show_error = True
 
     if failed_url is not None:
-        msgbox_message += f'Error: Failed fetching url: "{failed_url}".'
+        msgbox_message += tr('Error: Failed fetching url: "{url}".', url=failed_url)
         if http_code is not None:
-            msgbox_message += f' (http_code: {http_code})'
-        msgbox_message += "\nImpossible to keep Maxmind's GeoLite2 IP to Country, City and ASN resolutions feature up-to-date.\n\n"
+            msgbox_message += ' ' + tr('(http_code: {http_code})', http_code=http_code)
+        msgbox_message += '\n' + tr("Impossible to keep Maxmind's GeoLite2 IP to Country, City and ASN resolutions feature up-to-date.") + '\n\n'
         show_error = True
 
     if initialize_exception is not None:
-        msgbox_message += f'Exception Error: {initialize_exception}\n\n'
-        msgbox_message += "Now disabling MaxMind's GeoLite2 IP to Country, City and ASN resolutions feature.\n"
-        msgbox_message += "Country, City, and ASN columns won't show up in the players table."
+        msgbox_message += tr('Exception Error: {error}', error=initialize_exception) + '\n\n'
+        msgbox_message += tr("Now disabling MaxMind's GeoLite2 IP to Country, City and ASN resolutions feature.") + '\n'
+        msgbox_message += tr("Country, City, and ASN columns won't show up in the players table.")
         geoip2_enabled = False
         show_error = True
     else:
@@ -167,13 +176,22 @@ def format_outdated_packages_message(
     outdated_packages: Sequence[tuple[str, object, str]],
 ) -> str:
     """Format the warning shown when project dependency specs and installed packages mismatch."""
-    msgbox_message = 'The following packages have version mismatches:\n\n'
+    msgbox_message = tr('The following packages have version mismatches:') + '\n\n'
 
     for package_name, required_version, installed_version in outdated_packages:
-        msgbox_message += f'{package_name} (required {required_version}, installed {installed_version})\n'
+        installed_display = tr('Not Installed') if installed_version == 'Not Installed' else installed_version
+        msgbox_message += (
+            tr(
+                '{package_name} (required {required_version}, installed {installed_version})',
+                package_name=package_name,
+                required_version=required_version,
+                installed_version=installed_display,
+            )
+            + '\n'
+        )
 
-    msgbox_message += f'\nKeeping your packages synced with "{app_title}" ensures smooth script execution and prevents compatibility issues.'
-    msgbox_message += '\n\nDo you want to ignore this warning and continue with script execution?'
+    msgbox_message += '\n' + tr('Keeping your packages synced with "{app_title}" ensures smooth script execution and prevents compatibility issues.', app_title=app_title)
+    msgbox_message += '\n\n' + tr('Do you want to ignore this warning and continue with script execution?')
     return msgbox_message
 
 
@@ -193,23 +211,26 @@ def format_userip_ip_conflict_message(
         db1_name = conflict.existing_userip.db_path.relative_to(userip_databases_dir).with_suffix('')
         db2_name = conflict.conflicting_database_path.relative_to(userip_databases_dir).with_suffix('')
         usernames1 = ', '.join(conflict.existing_userip.usernames)
-        conflict_message = f"""
-            ERROR:
-                UserIP databases IP conflict
-
-            INFOS:
-                The same IP cannot be assigned to multiple
-                databases.
-                Users assigned to this IP will be ignored until
-                the conflict is resolved.
-
-            DEBUG:
-                "{db1_name}":
-                {usernames1}={conflict.existing_userip.ip}
-
-                "{db2_name}":
-                {conflict.conflicting_username}={conflict.conflicting_ip}
-        """
+        conflict_message = tr(
+            'ERROR:\n'
+            '    UserIP databases IP conflict\n\n'
+            'INFOS:\n'
+            '    The same IP cannot be assigned to multiple\n'
+            '    databases.\n'
+            '    Users assigned to this IP will be ignored until\n'
+            '    the conflict is resolved.\n\n'
+            'DEBUG:\n'
+            '    "{db1_name}":\n'
+            '    {usernames1}={ip1}\n\n'
+            '    "{db2_name}":\n'
+            '    {username2}={ip2}',
+            db1_name=db1_name,
+            usernames1=usernames1,
+            ip1=conflict.existing_userip.ip,
+            db2_name=db2_name,
+            username2=conflict.conflicting_username,
+            ip2=conflict.conflicting_ip,
+        )
         return conflict_message, None
 
     preview_lines: list[str] = []
@@ -219,27 +240,37 @@ def format_userip_ip_conflict_message(
         db2_name = conflict.conflicting_database_path.relative_to(userip_databases_dir).with_suffix('')
         usernames1 = ', '.join(conflict.existing_userip.usernames)
         preview_lines.append(
-            f'            "{db1_name}" ({usernames1}={conflict.existing_userip.ip})\n'
-            f'            "{db2_name}" ({conflict.conflicting_username}={conflict.conflicting_ip})',
+            f'    "{db1_name}" ({usernames1}={conflict.existing_userip.ip})\n'
+            f'    "{db2_name}" ({conflict.conflicting_username}={conflict.conflicting_ip})',
         )
 
     preview_block = '\n\n'.join(preview_lines)
     remaining_count = count - preview_count
-    remaining_suffix = f'\n\n            ... and {remaining_count} more conflict{pluralize(remaining_count)} (see "Show Details...").' if remaining_count > 0 else ''
+    remaining_suffix = (
+        '\n\n    '
+        + tr_plural(
+            '... and {count} more conflict (see "Show Details...").',
+            '... and {count} more conflicts (see "Show Details...").',
+            remaining_count,
+        )
+        if remaining_count > 0
+        else ''
+    )
 
-    summary = f"""
-        ERROR:
-            UserIP databases IP conflicts ({count} conflicts detected)
-
-        INFOS:
-            The same IP cannot be assigned to multiple
-            databases.
-            Users assigned to conflicting IPs will be ignored until
-            conflicts are resolved.
-
-        DEBUG:
-{preview_block}{remaining_suffix}
-    """
+    summary = tr(
+        'ERROR:\n'
+        '    UserIP databases IP conflicts ({count} conflicts detected)\n\n'
+        'INFOS:\n'
+        '    The same IP cannot be assigned to multiple\n'
+        '    databases.\n'
+        '    Users assigned to conflicting IPs will be ignored until\n'
+        '    conflicts are resolved.\n\n'
+        'DEBUG:\n'
+        '{preview_block}{remaining_suffix}',
+        count=count,
+        preview_block=preview_block,
+        remaining_suffix=remaining_suffix,
+    )
 
     detailed_lines: list[str] = []
     max_detailed = min(count, 1000)
@@ -259,7 +290,14 @@ def format_userip_ip_conflict_message(
         )
     if count > max_detailed:
         remaining_detailed_count = count - max_detailed
-        detailed_lines.append(f'... and {remaining_detailed_count} more conflict{pluralize(remaining_detailed_count)} (see application logs).\n')
+        detailed_lines.append(
+            tr_plural(
+                '... and {count} more conflict (see application logs).',
+                '... and {count} more conflicts (see application logs).',
+                remaining_detailed_count,
+            )
+            + '\n',
+        )
 
     detailed_text = '\n'.join(detailed_lines)
     return summary, detailed_text
@@ -274,66 +312,76 @@ def format_arp_spoofing_failed_message(
     Returns:
         A formatted error message string ready for display.
     """
-    interface_vendor_name = 'N/A' if selected_interface.vendor_name is None else selected_interface.vendor_name
+    na_text = tr('N/A')
+    interface_vendor_name = na_text if selected_interface.vendor_name is None else selected_interface.vendor_name
+    gateway_ip = selected_interface.gateway_ip or na_text
     error_details_output = f'\n{error_details}' if bool(error_details) else ''
 
-    return (
-        f'ARP Spoofing failed to start.\n\n'
-        f'━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n'
-        f'INTERFACE DETAILS:\n'
-        f'━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n'
-        f'Name: {selected_interface.name}\n'
-        f'Description: {selected_interface.description}\n'
-        f'Gateway IP: {selected_interface.gateway_ip or "N/A"}\n'
-        f'IP Address: {selected_interface.ip_address}\n'
-        f'MAC Address: {selected_interface.mac_address}\n'
-        f'Vendor Name: {interface_vendor_name}\n\n'
-        f'━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n'
-        f'DIAGNOSTICS:\n'
-        f'━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n'
-        f'Error: {error_details_output}\n\n'
-        f'━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n'
-        f'COMMON CAUSES:\n'
-        f'━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n'
-        f'• Shared/bridged network adapter (most common)\n'
-        f'• Stale ARP table entry (target device at {selected_interface.ip_address} changed IP address)\n\n'
-        f'━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n'
-        f'RECOMMENDATIONS:\n'
-        f'━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n'
-        f'• If adapter "{selected_interface.name}" is shared/bridged, disable ARP Spoofing in the Network Interface Selection screen and try again\n'
-        f'• If available, try sniffing target device {selected_interface.ip_address} on a different network adapter (e.g., Wi-Fi instead of Ethernet)'
+    return tr(
+        'ARP Spoofing failed to start.\n\n'
+        '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n'
+        'INTERFACE DETAILS:\n'
+        '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n'
+        'Name: {name}\n'
+        'Description: {description}\n'
+        'Gateway IP: {gateway_ip}\n'
+        'IP Address: {ip_address}\n'
+        'MAC Address: {mac_address}\n'
+        'Vendor Name: {vendor_name}\n\n'
+        '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n'
+        'DIAGNOSTICS:\n'
+        '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n'
+        'Error: {error_details}\n\n'
+        '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n'
+        'COMMON CAUSES:\n'
+        '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n'
+        '• Shared/bridged network adapter (most common)\n'
+        '• Stale ARP table entry (target device at {ip_address} changed IP address)\n\n'
+        '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n'
+        'RECOMMENDATIONS:\n'
+        '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n'
+        '• If adapter "{name}" is shared/bridged, disable ARP Spoofing in the Network Interface Selection screen and try again\n'
+        '• If available, try sniffing target device {ip_address} on a different network adapter (e.g., Wi-Fi instead of Ethernet)',
+        name=selected_interface.name,
+        description=selected_interface.description,
+        gateway_ip=gateway_ip,
+        ip_address=selected_interface.ip_address,
+        mac_address=selected_interface.mac_address,
+        vendor_name=interface_vendor_name,
+        error_details=error_details_output,
     )
 
 
 def format_capture_interrupted_message() -> str:
     """Format the warning shown when packet capture exits unexpectedly."""
-    return (
+    return tr(
         'Packet capture has stopped unexpectedly.\n\n'
         'This is likely caused by your network adapter being removed or disabled.\n\n'
-        'Please select a network interface to resume capture.'
+        'Please select a network interface to resume capture.',
     )
 
 
 def format_npcap_adapter_binding_disabled_message(interface_name: str) -> str:
     """Format the warning shown when the Npcap driver binding is disabled on the selected adapter."""
-    return (
-        f'Packet capture could not open network adapter "{interface_name}".\n\n'
+    return tr(
+        'Packet capture could not open network adapter "{interface_name}".\n\n'
         'The "Npcap Packet Driver (NPCAP)" binding is currently disabled on this network adapter in Windows.\n\n'
-        f'Enable "Npcap Packet Driver (NPCAP)" in the adapter properties for "{interface_name}" '
-        '(or accept the administrator prompt when selecting the interface), or choose another network interface.'
+        'Enable "Npcap Packet Driver (NPCAP)" in the adapter properties for "{interface_name}" '
+        '(or accept the administrator prompt when selecting the interface), or choose another network interface.',
+        interface_name=interface_name,
     )
 
 
 def format_npcap_required_message() -> str:
     """Format the initial NPCAP-required notification shown when Npcap is missing."""
-    return 'Session Sniffer requires the Npcap packet capture driver to monitor and analyze network traffic on Windows.'
+    return tr('Session Sniffer requires the Npcap packet capture driver to monitor and analyze network traffic on Windows.')
 
 
 def format_game_solo_session_process_not_running_message(game_name: str) -> str:
     """Format the warning shown when Solo Public Session is triggered but the game process is not running."""
-    return f'{game_name} is not currently running.\n\nPlease launch {game_name} before using this feature.'
+    return tr('{game_name} is not currently running.\n\nPlease launch {game_name} before using this feature.', game_name=game_name)
 
 
 def format_game_solo_session_suspend_failed_message(game_name: str) -> str:
     """Format the error shown when the game process suspend attempt fails."""
-    return f'Failed to suspend the {game_name} process.\n\nTry running Session Sniffer as administrator.'
+    return tr('Failed to suspend the {game_name} process.\n\nTry running Session Sniffer as administrator.', game_name=game_name)

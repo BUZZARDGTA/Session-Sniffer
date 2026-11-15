@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
 from shiboken6 import isValid
 
 from session_sniffer.constants.standalone import LOOKY_BASE_HOST, TITLE
+from session_sniffer.guis.live_language import register_language_refresh
 from session_sniffer.guis.looky_text import configure_looky_action, get_looky_restriction
 from session_sniffer.guis.tables_player_actions._actions import ping_ip, tcp_port_ping, web_ping
 from session_sniffer.guis.tables_player_actions._format import (
@@ -43,6 +44,7 @@ from session_sniffer.guis.utils import (
     format_player_display,
     set_dialog_window_flags,
 )
+from session_sniffer.i18n import tr, tr_plural
 from session_sniffer.models import IPAPI_FIELDS, IpApiResponse
 from session_sniffer.models.player_lookup import (
     PlayerIPLookup,
@@ -66,7 +68,6 @@ from session_sniffer.player.userip import UserIP, UserIPDatabases
 from session_sniffer.player.userip_groups import get_excluded_looky_usernames_cf, record_looky_db_correlation
 from session_sniffer.rendering_core.types import CaptureState
 from session_sniffer.settings.settings import Settings
-from session_sniffer.text_utils import pluralize
 from session_sniffer.utils import dedup_preserve_order
 
 if TYPE_CHECKING:
@@ -226,8 +227,10 @@ class IPLookupDetailsDialog(PlayerInfoDialogMixin):
         self._target: IPLookupTarget = target
         self._closed_event = Event()
         self._looky_lookup_button: QPushButton | None = None
+        self._website_button: QPushButton | None = None
 
-        self.setWindowTitle(f'{TITLE} - IP Lookup Details ({format_player_display(self._target.ip, self._target.usernames)})')
+        display = format_player_display(self._target.ip, self._target.usernames)
+        self.setWindowTitle(f'{TITLE} - {tr("IP Lookup Details")} ({display})')
         apply_adaptive_window_size(self, min_size=(560, 420), size_1080p=(820, 680), size_720p=(720, 600))
 
         outer_layout = QVBoxLayout(self)
@@ -236,7 +239,7 @@ class IPLookupDetailsDialog(PlayerInfoDialogMixin):
 
         self._header_label = self._add_header_label(
             outer_layout,
-            f'IP Lookup Details — {format_player_display(self._target.ip, self._target.usernames)}',
+            f'{tr("IP Lookup Details")} — {display}',
             '#2b6cb0',
             '#4c51bf',
         )
@@ -257,6 +260,7 @@ class IPLookupDetailsDialog(PlayerInfoDialogMixin):
         self._ping_thread = Thread(target=self._live_ping_loop, daemon=True)
         self._ping_thread.start()
 
+        register_language_refresh(self, self._refresh)
         self._refresh()
 
     def _live_ping_loop(self) -> None:
@@ -278,32 +282,40 @@ class IPLookupDetailsDialog(PlayerInfoDialogMixin):
     def _build_player_info_group(self, parent_layout: QVBoxLayout) -> None:
         """Add the 'Player Info' section to the scroll layout."""
         target = self._target
-        group, form = self._make_group('Player Info', accent='#2b6cb0')
+        group, form = self._make_group(tr('Player Info'), accent='#2b6cb0')
         self._add_live_row(form, 'IP Address', lambda: target.ip)
-        self._add_live_row(form, 'Hostname', lambda: format_text(target.reverse_dns.hostname))
-        self._add_live_row(form, lambda: f'Username{pluralize(len(target.usernames))}', lambda: ', '.join(target.usernames) or 'N/A')
-        self._add_live_row(form, 'In UserIP database', lambda: format_userip_database(target.userip))
-        self._add_live_row(form, 'First Port', lambda: str(target.ports.first))
         self._add_live_row(
             form,
-            lambda: f'Middle Port{pluralize(len(target.ports.middle))}',
+            'Hostname',
+            lambda: tr('N/A') if target.reverse_dns.hostname == 'N/A' else format_text(target.reverse_dns.hostname),
+        )
+        self._add_live_row(
+            form,
+            lambda: tr_plural('Username', 'Usernames', len(target.usernames)),
+            lambda: ', '.join(target.usernames) or tr('N/A'),
+        )
+        self._add_live_row(form, 'In UserIP database', lambda: format_userip_database(target.userip))
+        self._add_live_row(form, 'First Port', lambda: tr('N/A') if target.ports.first == 'N/A' else str(target.ports.first))
+        self._add_live_row(
+            form,
+            lambda: tr_plural('Middle Port', 'Middle Ports', len(target.ports.middle)),
             lambda: ', '.join(map(str, reversed(target.ports.middle))) or '',
         )
-        self._add_live_row(form, 'Last Port', lambda: str(target.ports.last))
+        self._add_live_row(form, 'Last Port', lambda: tr('N/A') if target.ports.last == 'N/A' else str(target.ports.last))
         parent_layout.addWidget(group)
 
     def _build_looky_group(self, parent_layout: QVBoxLayout) -> None:
         """Add the 'Looky System' section to the scroll layout."""
         target = self._target
-        group, form = self._make_group('Looky System', accent='#4c1d95')
+        group, form = self._make_group(tr('Looky System'), accent='#4c1d95')
 
         def _looky_usernames_label() -> str:
             with target.looky_system.lock:
-                return f'Username{pluralize(len(target.looky_system.usernames))}'
+                return tr_plural('Username', 'Usernames', len(target.looky_system.usernames))
 
         def _looky_rockstarids_label() -> str:
             with target.looky_system.lock:
-                return f'Rockstar ID{pluralize(len(target.looky_system.rockstarids))}'
+                return tr_plural('Rockstar ID', 'Rockstar IDs', len(target.looky_system.rockstarids))
 
         self._add_live_row(
             form,
@@ -325,18 +337,19 @@ class IPLookupDetailsDialog(PlayerInfoDialogMixin):
         buttons_layout.setContentsMargins(0, 6, 0, 0)
         buttons_layout.setSpacing(10)
 
-        lookup_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'user.svg')), ' Looky Lookup…')
+        lookup_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'user.svg')), f' {tr("Looky Lookup…")}')
         lookup_button.clicked.connect(lambda: show_looky_lookup(self, self._target))
         self._looky_lookup_button = lookup_button
         configure_looky_action(
             lookup_button,
-            default_tooltip='Query the Looky System API to view full player details for this IP.',
+            default_tooltip=tr('Query the Looky System API to view full player details for this IP.'),
             restriction=get_looky_restriction([self._target]),
         )
         buttons_layout.addWidget(lookup_button)
 
-        website_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'globe.svg')), ' Looky Website')
-        website_button.setToolTip('Open the Looky System website in your default browser.')
+        website_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'globe.svg')), f' {tr("Looky Website")}')
+        website_button.setToolTip(tr('Open the Looky System website in your default browser.'))
+        self._website_button = website_button
 
         def _on_website_clicked() -> None:
             with self._target.looky_system.lock:
@@ -355,7 +368,7 @@ class IPLookupDetailsDialog(PlayerInfoDialogMixin):
     def _build_iplookup_group(self, parent_layout: QVBoxLayout) -> None:
         """Add the 'IP Lookup Details' section to the scroll layout."""
         target = self._target
-        group, form = self._make_group('IP Lookup Details', accent='#38a169')
+        group, form = self._make_group(tr('IP Lookup Details'), accent='#38a169')
         self._add_live_row(form, 'Continent', lambda: format_text(target.iplookup.resolve_continent()[0]))
         self._add_live_row(form, 'Continent Code', lambda: format_text(target.iplookup.resolve_continent()[1]))
         self._add_live_row(form, 'Country', lambda: format_text(target.iplookup.resolve_country()[0]))
@@ -383,7 +396,7 @@ class IPLookupDetailsDialog(PlayerInfoDialogMixin):
     def _build_ping_group(self, parent_layout: QVBoxLayout) -> None:
         """Add the 'Ping Response' section to the scroll layout, with cleaner formatting."""
         target = self._target
-        group, form = self._make_group('Ping Response', accent='#d69e2e')
+        group, form = self._make_group(tr('Ping Response'), accent='#d69e2e')
         self._add_live_row(form, 'Status', lambda: format_ping_status(target.ping.is_pinging))
         self._add_live_row(
             form,
@@ -403,20 +416,20 @@ class IPLookupDetailsDialog(PlayerInfoDialogMixin):
         buttons_layout.setContentsMargins(0, 6, 0, 0)
         buttons_layout.setSpacing(10)
 
-        icmp_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'radio-tower.svg')), ' ICMP Ping')
-        icmp_button.setToolTip('Launch continuous ICMP ping diagnostics window for this IP.')
-        icmp_button.clicked.connect(lambda: ping_ip(self._target.ip))
-        buttons_layout.addWidget(icmp_button)
+        self._icmp_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'radio-tower.svg')), f' {tr("ICMP Ping")}')
+        self._icmp_button.setToolTip(tr('Launch continuous ICMP ping diagnostics window for this IP.'))
+        self._icmp_button.clicked.connect(lambda: ping_ip(self._target.ip))
+        buttons_layout.addWidget(self._icmp_button)
 
-        tcp_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'radio-tower.svg')), ' TCP Port Ping…')
-        tcp_button.setToolTip('Launch TCP port ping diagnostics window for this IP.')
-        tcp_button.clicked.connect(lambda: tcp_port_ping(self, self._target.ip))
-        buttons_layout.addWidget(tcp_button)
+        self._tcp_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'radio-tower.svg')), f' {tr("TCP Port Ping…")}')
+        self._tcp_button.setToolTip(tr('Launch TCP port ping diagnostics window for this IP.'))
+        self._tcp_button.clicked.connect(lambda: tcp_port_ping(self, self._target.ip))
+        buttons_layout.addWidget(self._tcp_button)
 
-        web_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'radio-tower.svg')), ' Web (Check-Host)…')
-        web_button.setToolTip('Launch multi-vantage Check-Host.net ping diagnostics window for this IP.')
-        web_button.clicked.connect(lambda: web_ping(self._target.ip))
-        buttons_layout.addWidget(web_button)
+        self._web_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'radio-tower.svg')), f' {tr("Web (Check-Host)…")}')
+        self._web_button.setToolTip(tr('Launch multi-vantage Check-Host.net ping diagnostics window for this IP.'))
+        self._web_button.clicked.connect(lambda: web_ping(self._target.ip))
+        buttons_layout.addWidget(self._web_button)
 
         form.addRow('', buttons_layout)
         parent_layout.addWidget(group)
@@ -426,16 +439,30 @@ class IPLookupDetailsDialog(PlayerInfoDialogMixin):
         if not isValid(self):
             return
         display = format_player_display(self._target.ip, self._target.usernames)
-        new_title = f'{TITLE} - IP Lookup Details ({display})'
+        new_title = f'{TITLE} - {tr("IP Lookup Details")} ({display})'
         if self.windowTitle() != new_title:
             self.setWindowTitle(new_title)
-            self._header_label.setText(f'IP Lookup Details — {display}')
+        new_header = f'{tr("IP Lookup Details")} — {display}'
+        if self._header_label.text() != new_header:
+            self._header_label.setText(new_header)
         if self._looky_lookup_button is not None:
+            lookup_label = f' {tr("Looky Lookup…")}'
+            if self._looky_lookup_button.text() != lookup_label:
+                self._looky_lookup_button.setText(lookup_label)
             configure_looky_action(
                 self._looky_lookup_button,
-                default_tooltip='Query the Looky System API to view full player details for this IP.',
+                default_tooltip=tr('Query the Looky System API to view full player details for this IP.'),
                 restriction=get_looky_restriction([self._target]),
             )
+        if self._website_button is not None:
+            self._website_button.setText(f' {tr("Looky Website")}')
+            self._website_button.setToolTip(tr('Open the Looky System website in your default browser.'))
+        self._icmp_button.setText(f' {tr("ICMP Ping")}')
+        self._icmp_button.setToolTip(tr('Launch continuous ICMP ping diagnostics window for this IP.'))
+        self._tcp_button.setText(f' {tr("TCP Port Ping…")}')
+        self._tcp_button.setToolTip(tr('Launch TCP port ping diagnostics window for this IP.'))
+        self._web_button.setText(f' {tr("Web (Check-Host)…")}')
+        self._web_button.setToolTip(tr('Launch multi-vantage Check-Host.net ping diagnostics window for this IP.'))
         self._refresh_live_rows()
 
     @override

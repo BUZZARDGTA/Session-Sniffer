@@ -12,6 +12,7 @@ from PySide6.QtGui import QDesktopServices, QIcon
 from PySide6.QtWidgets import (
     QDialogButtonBox,
     QHBoxLayout,
+    QLabel,
     QMessageBox,
     QPushButton,
     QVBoxLayout,
@@ -20,7 +21,8 @@ from PySide6.QtWidgets import (
 from shiboken6 import isValid
 
 from session_sniffer.guis._crashing_qthread import CrashingQThread
-from session_sniffer.guis.looky_text import LOOKY_TITLE, get_looky_restriction
+from session_sniffer.guis.live_language import register_language_refresh
+from session_sniffer.guis.looky_text import get_looky_restriction, get_looky_title
 from session_sniffer.guis.stylesheets import (
     LOOKY_ACTION_BUTTON_STYLESHEET,
     LOOKY_CRAWLER_HEADER_STYLESHEET,
@@ -37,6 +39,7 @@ from session_sniffer.guis.tables_player_actions.looky_system._looky_helpers impo
 )
 from session_sniffer.guis.theming import ICONS_DIR_PATH
 from session_sniffer.guis.utils import ActiveDialogRegistry, set_dialog_window_flags
+from session_sniffer.i18n import tr
 from session_sniffer.networking.looky_system import (
     get_looky_user_url,
     lookup_ip,
@@ -48,6 +51,8 @@ from session_sniffer.settings.settings import Settings
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+
+    from PySide6.QtWidgets import QGroupBox
 
     from session_sniffer.guis.tables_player_actions._ip_lookup_dialog import StandaloneIPLookup
     from session_sniffer.models.looky_system import LookyPlayer
@@ -103,19 +108,18 @@ class LookyLookupDialog(PlayerInfoDialogMixin):
         super().__init__(None)
         set_dialog_window_flags(self)
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
+        self._player = player
+        self._rid_groups: list[tuple[QGroupBox, int]] = []
+        self._bool_labels: list[tuple[QLabel, bool]] = []
+        self._action_buttons: list[tuple[QPushButton, QPushButton, QPushButton, str, str]] = []
 
-        self.setWindowTitle(LOOKY_TITLE)
+        self.setWindowTitle(get_looky_title())
         self._apply_standard_dialog_size()
 
         outer_layout = QVBoxLayout(self)
         outer_layout.setContentsMargins(10, 10, 10, 10)
         outer_layout.setSpacing(8)
-
-        self._add_header_label(
-            outer_layout,
-            f'Lookup — {player.ip}',
-            stylesheet=LOOKY_CRAWLER_HEADER_STYLESHEET,
-        )
+        self._header_label = self._add_header_label(outer_layout, tr('Lookup — {ip}', ip=player.ip), stylesheet=LOOKY_CRAWLER_HEADER_STYLESHEET)
 
         scroll_layout = self._init_scroll_area(outer_layout)
 
@@ -126,17 +130,23 @@ class LookyLookupDialog(PlayerInfoDialogMixin):
             return _open_profile
 
         for entry in results:
-            title = entry.name or f'Rockstar ID: {entry.rockstarid}'
+            title = entry.name or tr('Rockstar ID: {rid}', rid=entry.rockstarid)
             group, form = self._make_group(title, accent='#4c1d95')
+            if not entry.name:
+                self._rid_groups.append((group, entry.rockstarid))
             self._add_row(form, 'Rockstar ID', str(entry.rockstarid))
             self._add_row(form, 'Username', entry.name)
             last_seen_dt = entry.last_seen if entry.last_seen.tzinfo is None else entry.last_seen.astimezone(UTC)
             self._add_row(form, 'Last Seen', last_seen_dt.strftime('%Y-%m-%d %H:%M:%S UTC'))
             self._add_row(form, 'Last Country', entry.last_country)
-            self._add_row(form, 'Modder', 'Yes' if entry.is_modder else 'No')
-            self._add_row(form, 'Enhanced', 'Yes' if entry.is_enhanced else 'No')
-            self._add_row(form, 'Legacy', 'Yes' if entry.is_legacy else 'No')
-            self._add_row(form, 'VPN', 'Yes' if entry.is_vpn else 'No')
+            for row_label, flag in (
+                ('Modder', entry.is_modder),
+                ('Enhanced', entry.is_enhanced),
+                ('Legacy', entry.is_legacy),
+                ('VPN', entry.is_vpn),
+            ):
+                val_label = self._add_row(form, row_label, tr('Yes') if flag else tr('No'))
+                self._bool_labels.append((val_label, flag))
 
             buttons_layout = QHBoxLayout()
             buttons_layout.setContentsMargins(0, 4, 0, 0)
@@ -144,10 +154,9 @@ class LookyLookupDialog(PlayerInfoDialogMixin):
 
             profile_url = get_looky_user_url(entry.rockstarid)
             target_name = entry.name or str(entry.rockstarid)
-            view_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'globe.svg')), ' View on Website')
+            view_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'globe.svg')), f' {tr("View on Website")}')
             view_button.setCursor(Qt.CursorShape.PointingHandCursor)
             view_button.setStyleSheet(LOOKY_ACTION_BUTTON_STYLESHEET)
-            view_button.setToolTip(f"Open {target_name}'s profile on the Looky System website ({profile_url}).")
             view_button.clicked.connect(_make_open_profile_slot(profile_url))
             buttons_layout.addWidget(view_button)
 
@@ -157,10 +166,9 @@ class LookyLookupDialog(PlayerInfoDialogMixin):
 
                 return _call_crawler
 
-            crawler_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'bot.svg')), ' Call Crawler')
+            crawler_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'bot.svg')), f' {tr("Call Crawler")}')
             crawler_button.setCursor(Qt.CursorShape.PointingHandCursor)
             crawler_button.setStyleSheet(LOOKY_ACTION_BUTTON_STYLESHEET)
-            crawler_button.setToolTip(f"Call the Looky System crawler bot to resolve usernames in {target_name}'s session.")
             crawler_button.clicked.connect(_make_crawler_slot(entry.rockstarid, target_name))
             buttons_layout.addWidget(crawler_button)
 
@@ -170,13 +178,14 @@ class LookyLookupDialog(PlayerInfoDialogMixin):
 
                 return _proxy_join
 
-            proxy_join_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'user-plus.svg')), ' Proxy Join')
+            proxy_join_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'user-plus.svg')), f' {tr("Proxy Join")}')
             proxy_join_button.setCursor(Qt.CursorShape.PointingHandCursor)
             proxy_join_button.setStyleSheet(LOOKY_ACTION_BUTTON_STYLESHEET)
-            proxy_join_button.setToolTip(f"Call the Looky System proxy bot to join {target_name}'s session.")
             proxy_join_button.clicked.connect(_make_proxy_join_slot(entry.rockstarid, target_name))
             buttons_layout.addWidget(proxy_join_button)
             buttons_layout.addStretch()
+
+            self._action_buttons.append((view_button, crawler_button, proxy_join_button, target_name, profile_url))
 
             form.addRow('', buttons_layout)
             scroll_layout.addWidget(group)
@@ -190,6 +199,25 @@ class LookyLookupDialog(PlayerInfoDialogMixin):
             close_button.setCursor(Qt.CursorShape.PointingHandCursor)
             close_button.setStyleSheet(LOOKY_ACTION_BUTTON_STYLESHEET)
         outer_layout.addWidget(button_box)
+
+        self._refresh_language_texts()
+        register_language_refresh(self, self._refresh_language_texts)
+
+    def _refresh_language_texts(self) -> None:
+        """Refresh dialog title, header, dynamic labels, and button text/tooltips on language switch."""
+        self.setWindowTitle(get_looky_title())
+        self._header_label.setText(tr('Lookup — {ip}', ip=self._player.ip))
+        for group, rid in self._rid_groups:
+            group.setTitle(tr('Rockstar ID: {rid}', rid=rid))
+        for val_label, flag in self._bool_labels:
+            val_label.setText(tr('Yes') if flag else tr('No'))
+        for view_btn, crawler_btn, proxy_btn, target_name, profile_url in self._action_buttons:
+            view_btn.setText(f' {tr("View on Website")}')
+            view_btn.setToolTip(tr("Open {target}'s profile on the Looky System website ({url}).", target=target_name, url=profile_url))
+            crawler_btn.setText(f' {tr("Call Crawler")}')
+            crawler_btn.setToolTip(tr("Call the Looky System crawler bot to resolve usernames in {target}'s session.", target=target_name))
+            proxy_btn.setText(f' {tr("Proxy Join")}')
+            proxy_btn.setToolTip(tr("Call the Looky System proxy bot to join {target}'s session.", target=target_name))
 
 
 _active_lookup_workers: set[_LookyFetchWorker] = set()
@@ -241,7 +269,7 @@ def show_looky_lookup(parent: QWidget, player: Player | StandaloneIPLookup) -> N
             return
 
         if not unique_results:
-            QMessageBox.information(parent, LOOKY_TITLE, 'No players found for this IP on Looky System.')
+            QMessageBox.information(parent, get_looky_title(), tr('No players found for this IP on Looky System.'))
             return
 
         _active_dialogs.show_or_focus(player.ip, lambda: LookyLookupDialog(player, unique_results))
@@ -256,11 +284,11 @@ def show_looky_lookup(parent: QWidget, player: Player | StandaloneIPLookup) -> N
                 snapshot_player.looky_system.mark_fetched()
         wake_rendering_core()
         if isValid(parent):
-            QMessageBox.information(parent, LOOKY_TITLE, f'No results found\n\nWe couldn\'t find any players matching "{player.ip}"')
+            QMessageBox.information(parent, get_looky_title(), tr('No results found\n\nWe couldn\'t find any players matching "{ip}"', ip=player.ip))
 
     def _on_fetch_failed(message: str) -> None:
         if isValid(parent):
-            QMessageBox.warning(parent, LOOKY_TITLE, f'Failed: {message}')
+            QMessageBox.warning(parent, get_looky_title(), tr('Failed: {message}', message=message))
 
     worker.fetch_succeeded.connect(_on_fetch_succeeded)
     worker.fetch_not_found.connect(_on_fetch_not_found)

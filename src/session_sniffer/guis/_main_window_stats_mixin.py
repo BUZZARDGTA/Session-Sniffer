@@ -4,12 +4,12 @@ import time
 from typing import TYPE_CHECKING
 
 from PySide6.QtCore import QItemSelection, QItemSelectionModel
-from PySide6.QtGui import QAction, QIcon
 from PySide6.QtWidgets import QMainWindow, QMenuBar
 
 from session_sniffer.gta5.suspend_manager import GTASuspendManager
 from session_sniffer.guis.capture_statistics_window import CaptureStatisticsWindow
 from session_sniffer.guis.country_breakdown import CountryBreakdownWindow
+from session_sniffer.guis.live_language import add_i18n_menu_actions
 from session_sniffer.guis.packets_latency_graph import PacketsLatencyGraphWindow
 from session_sniffer.guis.player_leaderboard import PlayerLeaderboardWindow
 from session_sniffer.guis.port_heatmap import PortHeatmapWindow
@@ -21,6 +21,7 @@ from session_sniffer.guis.session_rate_graph import SessionRateGraphWindow
 from session_sniffer.guis.session_timeline import SessionTimelineWindow
 from session_sniffer.guis.theming import ICONS_DIR_PATH
 from session_sniffer.guis.utils import show_or_focus_window
+from session_sniffer.i18n import tr
 from session_sniffer.player.registry import PlayersRegistry, SessionTracker
 from session_sniffer.player.session_host import SessionHost
 from session_sniffer.rdr2.suspend_manager import RDR2SuspendManager
@@ -29,7 +30,10 @@ from session_sniffer.rendering_core.types import CaptureStats, SessionFilterStat
 from session_sniffer.settings import Settings
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable
+    from collections.abc import Callable, Iterable
+
+    from PySide6.QtGui import QAction
+    from PySide6.QtWidgets import QMenu
 
     from session_sniffer.capture.packet_capture import CaptureHolder
     from session_sniffer.guis._main_header import SessionHeader
@@ -65,6 +69,8 @@ class StatsMixin(QMainWindow):
     _port_heatmap_window: PortHeatmapWindow | None
     _session_duration_window: SessionDurationWindow | None
     _capture_statistics_window: CaptureStatisticsWindow | None
+    _statistics_menu: QMenu
+    _statistics_menu_actions: list[tuple[QAction, str, str]]
 
     if TYPE_CHECKING:
 
@@ -263,50 +269,33 @@ class StatsMixin(QMainWindow):
 
     def _build_statistics_menu(self, menu_bar: QMenuBar) -> None:
         """Build the Statistics menu and attach all graph and breakdown actions."""
-        statistics_menu = menu_bar.addMenu('Statistics')
+        statistics_menu = menu_bar.addMenu(tr('Statistics'))
         if not statistics_menu:
             message = 'Failed to create Statistics menu'
             raise RuntimeError(message)
         statistics_menu.setToolTipsVisible(True)
+        self._statistics_menu = statistics_menu
+        self._statistics_menu_actions = []
 
-        capture_health_action = QAction(QIcon(str(ICONS_DIR_PATH / 'chart-line.svg')), 'Capture Statistics', self)
-        capture_health_action.setToolTip('Capture restart count and packet latency statistics')
-        capture_health_action.triggered.connect(self._open_capture_health)
-        statistics_menu.addAction(capture_health_action)
+        menu_specs: list[tuple[str, str, str, Callable[[], None]] | None] = [
+            ('chart-line.svg', 'Capture Statistics', 'Capture restart count and packet latency statistics', self._open_capture_health),
+            ('gauge.svg', 'Session Rate Graph', 'Live PPS and BPS graphs for the whole session', self._open_session_rate_graph),
+            None,
+            ('calendar-days.svg', 'Session Timeline', 'Gantt chart showing when each player was present', self._open_session_timeline),
+            None,
+            ('globe.svg', 'Country Breakdown', 'Rank players by country of origin', self._open_country_breakdown),
+            ('activity.svg', 'Reconnect Frequency', 'List players sorted by reconnect count', self._open_reconnect_frequency),
+            ('timer.svg', 'Session Duration', 'Disconnected players ranked by their session duration', self._open_session_duration),
+            ('chart-scatter.svg', 'Port Heatmap', 'Rank observed ports by frequency across all players', self._open_port_heatmap),
+        ]
+        add_i18n_menu_actions(self, statistics_menu, ICONS_DIR_PATH, menu_specs, self._statistics_menu_actions)
 
-        session_rate_graph_action = QAction(QIcon(str(ICONS_DIR_PATH / 'gauge.svg')), 'Session Rate Graph', self)
-        session_rate_graph_action.setToolTip('Live PPS and BPS graphs for the whole session')
-        session_rate_graph_action.triggered.connect(self._open_session_rate_graph)
-        statistics_menu.addAction(session_rate_graph_action)
-
-        statistics_menu.addSeparator()
-
-        session_timeline_action = QAction(QIcon(str(ICONS_DIR_PATH / 'calendar-days.svg')), 'Session Timeline', self)
-        session_timeline_action.setToolTip('Gantt chart showing when each player was present')
-        session_timeline_action.triggered.connect(self._open_session_timeline)
-        statistics_menu.addAction(session_timeline_action)
-
-        statistics_menu.addSeparator()
-
-        country_breakdown_action = QAction(QIcon(str(ICONS_DIR_PATH / 'globe.svg')), 'Country Breakdown', self)
-        country_breakdown_action.setToolTip('Rank players by country of origin')
-        country_breakdown_action.triggered.connect(self._open_country_breakdown)
-        statistics_menu.addAction(country_breakdown_action)
-
-        reconnect_frequency_action = QAction(QIcon(str(ICONS_DIR_PATH / 'activity.svg')), 'Reconnect Frequency', self)
-        reconnect_frequency_action.setToolTip('List players sorted by reconnect count')
-        reconnect_frequency_action.triggered.connect(self._open_reconnect_frequency)
-        statistics_menu.addAction(reconnect_frequency_action)
-
-        avg_session_duration_action = QAction(QIcon(str(ICONS_DIR_PATH / 'timer.svg')), 'Session Duration', self)
-        avg_session_duration_action.setToolTip('Disconnected players ranked by their session duration')
-        avg_session_duration_action.triggered.connect(self._open_session_duration)
-        statistics_menu.addAction(avg_session_duration_action)
-
-        port_heatmap_action = QAction(QIcon(str(ICONS_DIR_PATH / 'chart-scatter.svg')), 'Port Heatmap', self)
-        port_heatmap_action.setToolTip('Rank observed ports by frequency across all players')
-        port_heatmap_action.triggered.connect(self._open_port_heatmap)
-        statistics_menu.addAction(port_heatmap_action)
+    def _refresh_statistics_menu_language_texts(self) -> None:
+        """Re-translate the Statistics menu title and actions on language change."""
+        self._statistics_menu.setTitle(tr('Statistics'))
+        for action, text_key, tooltip_key in self._statistics_menu_actions:
+            action.setText(tr(text_key))
+            action.setToolTip(tr(tooltip_key))
 
     def remove_player_from_connected(self, ip: str) -> None:
         """Remove a single player from connected table and registry by IP address."""

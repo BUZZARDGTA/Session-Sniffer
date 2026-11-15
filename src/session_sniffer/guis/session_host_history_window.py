@@ -7,12 +7,14 @@ from typing import TYPE_CHECKING
 from PySide6.QtGui import QAction, QIcon
 
 from session_sniffer.constants.standard import LOCAL_TZ
+from session_sniffer.guis.live_language import register_language_refresh
 from session_sniffer.guis.theming import ICONS_DIR_PATH
 from session_sniffer.guis.utils import (
     format_menu_usernames,
     format_player_action_tooltip,
     load_country_flag_icon,
 )
+from session_sniffer.i18n import tr
 from session_sniffer.player.registry import PlayersRegistry, SessionTracker
 from session_sniffer.player.session_host import HostHistoryEntry, SessionHost
 from session_sniffer.text_utils import format_elapsed_time
@@ -41,7 +43,7 @@ def populate_host_history_submenu(
     menu.clear()
     history = SessionHost.get_history()
     if not history:
-        empty_action = QAction('(no hosts recorded yet)', menu)
+        empty_action = QAction(tr('(no hosts recorded yet)'), menu)
         empty_action.setEnabled(False)
         menu.addAction(empty_action)
         return
@@ -70,10 +72,17 @@ def populate_host_history_submenu(
         session_prefix = ''
         if entry.session_id is not None:
             session_prefix = f'[{SessionTracker.get_session_display_name(entry.session_id)}] '
-        action_label = f'{session_prefix}{entry.ip}  |  {formatted_usernames}  |  {entry.detected_at.strftime("%H:%M:%S")} ({elapsed_time_string} ago)'
+        action_label = tr(
+            '{session_prefix}{ip}  |  {usernames}  |  {time} ({elapsed} ago)',
+            session_prefix=session_prefix,
+            ip=entry.ip,
+            usernames=formatted_usernames,
+            time=entry.detected_at.strftime('%H:%M:%S'),
+            elapsed=elapsed_time_string,
+        )
         action = QAction(action_label, menu)
         action.setToolTip(
-            format_player_action_tooltip('Select this player in the table and open their host detection diagnostics.', usernames),
+            format_player_action_tooltip(tr('Select this player in the table and open their host detection diagnostics.'), usernames),
         )
         action.triggered.connect(_create_entry_triggered_handler(entry))
         flag_icon = load_country_flag_icon(entry.country_code)
@@ -87,17 +96,25 @@ def setup_session_host_actions(
     callbacks: SessionHostActionCallbacks,
 ) -> None:
     """Populate common session host control actions."""
-    redetect_host_action = QAction(QIcon(str(ICONS_DIR_PATH / 'refresh-cw.svg')), 'Re-detect Host', menu)
-    redetect_host_action.setToolTip('Clear the current host and immediately re-trigger host detection')
+    redetect_host_action = QAction(QIcon(str(ICONS_DIR_PATH / 'refresh-cw.svg')), '', menu)
     redetect_host_action.triggered.connect(callbacks.redetect_host)
     menu.addAction(redetect_host_action)
 
-    clear_host_action = QAction(QIcon(str(ICONS_DIR_PATH / 'x.svg')), 'Clear Session Host', menu)
-    clear_host_action.setToolTip('Manually clear the currently detected session host')
+    clear_host_action = QAction(QIcon(str(ICONS_DIR_PATH / 'x.svg')), '', menu)
     clear_host_action.triggered.connect(callbacks.clear_host)
     menu.addAction(clear_host_action)
 
-    diagnostics_action = QAction(QIcon(str(ICONS_DIR_PATH / 'bug.svg')), 'Host Diagnostics…', menu)
-    diagnostics_action.setToolTip('Show detailed diagnostics and debug information from the last session host detection')
+    diagnostics_action = QAction(QIcon(str(ICONS_DIR_PATH / 'bug.svg')), '', menu)
     diagnostics_action.triggered.connect(callbacks.show_diagnostics)
     menu.addAction(diagnostics_action)
+
+    def _apply_translations() -> None:
+        redetect_host_action.setText(tr('Re-detect Host'))
+        redetect_host_action.setToolTip(tr('Clear the current host and immediately re-trigger host detection'))
+        clear_host_action.setText(tr('Clear Session Host'))
+        clear_host_action.setToolTip(tr('Manually clear the currently detected session host'))
+        diagnostics_action.setText(tr('Host Diagnostics…'))
+        diagnostics_action.setToolTip(tr('Show detailed diagnostics and debug information from the last session host detection'))
+
+    _apply_translations()
+    register_language_refresh(menu, _apply_translations)

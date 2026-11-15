@@ -24,6 +24,7 @@ from session_sniffer.guis.tables_player_actions._detection_dialogs import (
 )
 from session_sniffer.guis.tables_player_actions._userip_dialog import show_userip_detected_dialog
 from session_sniffer.guis.utils import find_main_window
+from session_sniffer.i18n import tr
 from session_sniffer.models.combo_rules import format_combo_conditions_summary
 from session_sniffer.models.player_lookup import PlayerUserIPDetection
 from session_sniffer.networking.geolite2 import query_geolite2_asn, query_geolite2_city, query_geolite2_country
@@ -202,6 +203,17 @@ _NOTIFICATION_TO_EVENT: dict[NotificationType, str] = {
 }
 
 
+def _localize_combo_event(combo_event: str) -> str:
+    """Return a localized label for a combo rule trigger event."""
+    if combo_event == 'join':
+        return tr('Join')
+    if combo_event == 'rejoin':
+        return tr('Rejoin')
+    if combo_event == 'leave':
+        return tr('Leave')
+    return combo_event
+
+
 def _resolve_standalone_notification_data(player: Player, *, msgbox_setting: bool, logging_setting: bool) -> bool:
     """Prepare enrichment fields required by enabled standalone event notification outputs."""
     if msgbox_setting:
@@ -302,8 +314,8 @@ def handle_detection_notification(player: Player, notification_type: Notificatio
 
                 if notifications_state.visual_enabled and rule.message_box:
                     conditions_summary = format_combo_conditions_summary(rule.conditions, include_event=False)
-                    _display_title = f'Combo Rule Matched: {rule.name}'
-                    _extra: list[tuple[str, str]] = [('Event', combo_event), ('Conditions', conditions_summary)]
+                    _display_title = tr('Combo Rule Matched: {name}', name=rule.name)
+                    _extra: list[tuple[str, str]] = [('Event', _localize_combo_event(combo_event)), ('Conditions', conditions_summary)]
                     _et = datetime.now(tz=LOCAL_TZ).strftime('%H:%M:%S')
 
                     def _make_event_combo_notif(title: str, extra_fields: list[tuple[str, str]], event_time_str: str) -> None:
@@ -840,7 +852,7 @@ def check_global_detections(player: Player) -> None:
         conditions_summary = format_combo_conditions_summary(rule.conditions, include_event=False)
         handle_detection_notifications(
             detection_title=f'COMBO RULE MATCHED: {rule.name}',
-            display_title=f'Combo Rule Matched: {rule.name}',
+            display_title=tr('Combo Rule Matched: {name}', name=rule.name),
             extra_detection_fields=[('Conditions', conditions_summary)],
             settings=_DetectionSettings(
                 voice=rule.voice_notifications,

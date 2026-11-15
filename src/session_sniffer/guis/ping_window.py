@@ -30,6 +30,7 @@ from session_sniffer.constants.standalone import MAX_PORT, MIN_PORT, TITLE
 from session_sniffer.error_messages import ensure_instance
 from session_sniffer.guis._crashing_qthread import CrashingQThread
 from session_sniffer.guis.fonts import get_monospace_font
+from session_sniffer.guis.live_language import register_language_refresh, set_i18n_colon_label
 from session_sniffer.guis.stylesheets import (
     DIALOG_BUTTON_STYLESHEET,
     DIALOG_DANGER_BUTTON_STYLESHEET,
@@ -37,6 +38,7 @@ from session_sniffer.guis.stylesheets import (
 )
 from session_sniffer.guis.theming import ICONS_DIR_PATH, themed_qss, themed_text_qcolor
 from session_sniffer.guis.utils import activate_window, animate_button_feedback, render_svg_icon_from_resource, scale_by_ui
+from session_sniffer.i18n import tr
 from session_sniffer.networking.ping import (
     IcmpEchoEngine,
     PingMode,
@@ -52,6 +54,12 @@ from session_sniffer.settings import Settings
 _DEFAULT_TARGET: Final[str] = '127.0.0.1'
 _RTT_HIGH_THRESHOLD_MS: Final[float] = 120.0
 _DEFAULT_PORT: Final[int] = 80
+_PING_MODE_ITEMS: Final[tuple[tuple[str, str, PingMode], ...]] = (
+    ('radio-tower.svg', 'ICMP (Standard)', PingMode.ICMP),
+    ('radio-tower.svg', 'TCP Port', PingMode.TCP),
+    ('radio-tower.svg', 'UDP Port', PingMode.UDP),
+    ('globe.svg', 'Web (Check-Host)', PingMode.WEB),
+)
 
 
 class PingWorkerThread(CrashingQThread):
@@ -169,34 +177,35 @@ class PingTabWidget(QWidget):
         self._worker_thread: PingWorkerThread | None = None
         self._retiring_workers: set[PingWorkerThread] = set()
         self._statistics = PingStatistics()
+        self._stats_state = 'ready'
 
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(8, 8, 8, 8)
         main_layout.setSpacing(6)
 
         # --- Controls Bar ---
-        controls_group = QGroupBox('Probe Configuration')
-        controls_layout = QVBoxLayout(controls_group)
+        self._controls_group = QGroupBox()
+        controls_layout = QVBoxLayout(self._controls_group)
         controls_layout.setContentsMargins(8, 8, 8, 8)
         controls_layout.setSpacing(6)
 
         row1_layout = QHBoxLayout()
         row1_layout.setSpacing(8)
 
-        target_label = QLabel('Target:')
+        target_label = QLabel()
+        set_i18n_colon_label(target_label, 'Target')
         target_text = '' if target_ip is None or target_ip.strip() == _DEFAULT_TARGET else target_ip.strip()
         self._target_input = QLineEdit(target_text)
         self._target_input.setPlaceholderText(_DEFAULT_TARGET)
         self._target_input.setMinimumWidth(scale_by_ui(160))
         self._target_input.textChanged.connect(self._on_target_or_port_changed)
 
-        mode_label = QLabel('Protocol:')
+        mode_label = QLabel()
+        set_i18n_colon_label(mode_label, 'Protocol')
         self._mode_combo = QComboBox()
         self._mode_combo.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
-        self._mode_combo.addItem(QIcon(str(ICONS_DIR_PATH / 'radio-tower.svg')), 'ICMP (Standard)', PingMode.ICMP)
-        self._mode_combo.addItem(QIcon(str(ICONS_DIR_PATH / 'radio-tower.svg')), 'TCP Port', PingMode.TCP)
-        self._mode_combo.addItem(QIcon(str(ICONS_DIR_PATH / 'radio-tower.svg')), 'UDP Port', PingMode.UDP)
-        self._mode_combo.addItem(QIcon(str(ICONS_DIR_PATH / 'globe.svg')), 'Web (Check-Host)', PingMode.WEB)
+        for icon_name, label_text, ping_mode in _PING_MODE_ITEMS:
+            self._mode_combo.addItem(QIcon(str(ICONS_DIR_PATH / icon_name)), tr(label_text), ping_mode)
         if mode == PingMode.TCP:
             self._mode_combo.setCurrentIndex(1)
         elif mode == PingMode.UDP:
@@ -204,7 +213,8 @@ class PingTabWidget(QWidget):
         elif mode == PingMode.WEB:
             self._mode_combo.setCurrentIndex(3)
 
-        self._port_label = QLabel('Port:')
+        self._port_label = QLabel()
+        set_i18n_colon_label(self._port_label, 'Port')
         self._port_spinbox = QSpinBox()
         self._port_spinbox.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self._port_spinbox.setRange(MIN_PORT, MAX_PORT)
@@ -221,33 +231,32 @@ class PingTabWidget(QWidget):
         row2_layout = QHBoxLayout()
         row2_layout.setSpacing(8)
 
-        count_label = QLabel('Count:')
+        count_label = QLabel()
+        set_i18n_colon_label(count_label, 'Count')
         self._count_spinbox = QSpinBox()
         self._count_spinbox.setRange(0, 10000)
-        self._count_spinbox.setSpecialValueText('Continuous')
-        self._count_spinbox.setSuffix(' probes')
         self._count_spinbox.setValue(Settings.ping_count)
 
-        interval_label = QLabel('Interval:')
+        interval_label = QLabel()
+        set_i18n_colon_label(interval_label, 'Interval')
         self._interval_spinbox = QSpinBox()
         self._interval_spinbox.setRange(50, 10000)
         self._interval_spinbox.setSingleStep(50)
         self._interval_spinbox.setValue(Settings.ping_interval_ms)
-        self._interval_spinbox.setSuffix(' ms')
 
-        timeout_label = QLabel('Timeout:')
+        timeout_label = QLabel()
+        set_i18n_colon_label(timeout_label, 'Timeout')
         self._timeout_spinbox = QSpinBox()
         self._timeout_spinbox.setRange(100, 10000)
         self._timeout_spinbox.setSingleStep(100)
         self._timeout_spinbox.setValue(Settings.ping_timeout_ms)
-        self._timeout_spinbox.setSuffix(' ms')
 
-        self._payload_label = QLabel('Payload:')
+        self._payload_label = QLabel()
+        set_i18n_colon_label(self._payload_label, 'Payload')
         self._payload_spinbox = QSpinBox()
         self._payload_spinbox.setRange(0, 65500)
         self._payload_spinbox.setSingleStep(32)
         self._payload_spinbox.setValue(Settings.ping_payload_bytes)
-        self._payload_spinbox.setSuffix(' bytes')
 
         for spinbox in (self._count_spinbox, self._interval_spinbox, self._timeout_spinbox, self._payload_spinbox):
             spinbox.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
@@ -270,7 +279,7 @@ class PingTabWidget(QWidget):
         controls_layout.addLayout(row2_layout)
         controls_layout.addWidget(self._hint_label)
 
-        main_layout.addWidget(controls_group)
+        main_layout.addWidget(self._controls_group)
 
         # --- Log Console ---
         self._console_log = QTextEdit()
@@ -283,38 +292,38 @@ class PingTabWidget(QWidget):
         main_layout.addWidget(self._console_log, stretch=1)
 
         # --- Live Statistics ---
-        stats_group = QGroupBox('Live Statistics')
-        stats_layout = QHBoxLayout(stats_group)
+        self._stats_group = QGroupBox()
+        stats_layout = QHBoxLayout(self._stats_group)
         stats_layout.setContentsMargins(8, 8, 8, 8)
         stats_layout.setSpacing(12)
 
-        self._stats_label = QLabel('Ready. Press Start to begin pinging.')
+        self._stats_label = QLabel()
         self._stats_label.setStyleSheet(themed_qss('color: #a5b4c4; font-size: 9pt;'))
         stats_layout.addWidget(self._stats_label, stretch=1)
 
-        main_layout.addWidget(stats_group)
+        main_layout.addWidget(self._stats_group)
 
         # --- Footer Toolbar ---
         toolbar_layout = QHBoxLayout()
         toolbar_layout.setSpacing(8)
 
-        self._autoscroll_checkbox = QCheckBox('Auto-scroll')
+        self._autoscroll_checkbox = QCheckBox()
         self._autoscroll_checkbox.setChecked(True)
 
         primary_tint = themed_text_qcolor('#ffffff', '#007acc').name(QColor.NameFormat.HexArgb)
         self._start_stop_button = QPushButton(
             render_svg_icon_from_resource('circle-play.svg', scale_by_ui(16), scale_by_ui(16), primary_tint),
-            ' Start',
+            '',
         )
         self._start_stop_button.setStyleSheet(DIALOG_PRIMARY_BUTTON_STYLESHEET)
         self._start_stop_button.clicked.connect(self._toggle_start_stop)
 
-        copy_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'copy.svg')), ' Copy Log')
+        copy_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'copy.svg')), '')
         copy_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
         copy_button.clicked.connect(self._copy_log)
         self._copy_button = copy_button
 
-        clear_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'trash.svg')), ' Clear')
+        clear_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'trash.svg')), '')
         clear_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
         clear_button.setEnabled(False)
         clear_button.clicked.connect(self._clear_log)
@@ -329,7 +338,40 @@ class PingTabWidget(QWidget):
         main_layout.addLayout(toolbar_layout)
 
         self._mode_combo.currentIndexChanged.connect(self._on_mode_changed)
+        self._apply_translations()
+        register_language_refresh(self, self._apply_translations)
+
+    def _apply_translations(self) -> None:
+        """Apply translated text to controls, hints, buttons, and statistics."""
+        self._controls_group.setTitle(tr('Probe Configuration'))
+        self._stats_group.setTitle(tr('Live Statistics'))
+        for i, (_icon_name, label_text, _ping_mode) in enumerate(_PING_MODE_ITEMS):
+            if i < self._mode_combo.count():
+                self._mode_combo.setItemText(i, tr(label_text))
+        self._count_spinbox.setSpecialValueText(tr('Continuous'))
+        self._count_spinbox.setSuffix(f" {tr('probes')}")
+        self._interval_spinbox.setSuffix(f" {tr('ms')}")
+        self._timeout_spinbox.setSuffix(f" {tr('ms')}")
+        self._payload_spinbox.setSuffix(f" {tr('bytes')}")
+        self._autoscroll_checkbox.setText(tr('Auto-scroll'))
+        self._start_stop_button.setText(f" {tr('Stop')}" if self.is_running else f" {tr('Start')}")
+        copy_text = f" {tr('Copy Log')}"
+        if self._copy_button.property('_feedback_orig_text') is not None:
+            self._copy_button.setProperty('_feedback_orig_text', copy_text)
+        else:
+            self._copy_button.setText(copy_text)
+        self._clear_log_button.setText(f" {tr('Clear')}")
         self._on_mode_changed()
+        self._refresh_stats_label()
+
+    def _refresh_stats_label(self) -> None:
+        """Render the statistics summary label in the active language."""
+        if self._stats_state == 'ready':
+            self._stats_label.setText(tr('Ready. Press Start to begin pinging.'))
+        elif self._stats_state == 'cleared':
+            self._stats_label.setText(tr('Log cleared. Statistics reset.'))
+        else:
+            self._update_statistics_display()
 
     @property
     def target_ip(self) -> str:
@@ -373,7 +415,7 @@ class PingTabWidget(QWidget):
 
         target_host = self.target_ip
         if not target_host:
-            QMessageBox.warning(self, 'Input Error', 'Please specify a target IP address or hostname.')
+            QMessageBox.warning(self, tr('Input Error'), tr('Please specify a target IP address or hostname.'))
             return
 
         mode_data = self._mode_combo.currentData()
@@ -386,7 +428,7 @@ class PingTabWidget(QWidget):
         payload_size_value = self._payload_spinbox.value()
 
         danger_tint = themed_text_qcolor('#ffffff', '#b91c1c').name(QColor.NameFormat.HexArgb)
-        self._start_stop_button.setText(' Stop')
+        self._start_stop_button.setText(f" {tr('Stop')}")
         self._start_stop_button.setIcon(render_svg_icon_from_resource('circle-stop.svg', scale_by_ui(16), scale_by_ui(16), danger_tint))
         self._start_stop_button.setStyleSheet(DIALOG_DANGER_BUTTON_STYLESHEET)
         self._target_input.setEnabled(False)
@@ -397,11 +439,20 @@ class PingTabWidget(QWidget):
         self._timeout_spinbox.setEnabled(False)
         self._payload_spinbox.setEnabled(False)
 
-        header_message = f'Starting {current_mode.value} ping to {target_host}'
-        if port_value is not None:
-            header_message += f':{port_value}'
+        target_display = f'{target_host}:{port_value}' if port_value is not None else target_host
         if count_value > 0:
-            header_message += f' (count={count_value})'
+            header_message = tr(
+                'Starting {mode} ping to {target} (count={count})',
+                mode=current_mode.value,
+                target=target_display,
+                count=count_value,
+            )
+        else:
+            header_message = tr(
+                'Starting {mode} ping to {target}',
+                mode=current_mode.value,
+                target=target_display,
+            )
         self._append_log_line(f'<span style="color: #3a96dd; font-weight: bold;">{html.escape(header_message)}…</span>')
 
         configuration = PingProbeConfiguration(
@@ -451,7 +502,7 @@ class PingTabWidget(QWidget):
         """Handle worker thread termination."""
         self._worker_thread = None
         primary_tint = themed_text_qcolor('#ffffff', '#007acc').name(QColor.NameFormat.HexArgb)
-        self._start_stop_button.setText(' Start')
+        self._start_stop_button.setText(f" {tr('Start')}")
         self._start_stop_button.setIcon(render_svg_icon_from_resource('circle-play.svg', scale_by_ui(16), scale_by_ui(16), primary_tint))
         self._start_stop_button.setStyleSheet(DIALOG_PRIMARY_BUTTON_STYLESHEET)
         self._target_input.setEnabled(True)
@@ -477,13 +528,13 @@ class PingTabWidget(QWidget):
         self._payload_spinbox.setEnabled(is_payload_applicable and not is_active)
 
         if current_mode == PingMode.ICMP:
-            self._hint_label.setText('ICMP does not require a port. ICMP may require Administrator privileges on some systems.')
+            self._hint_label.setText(tr('ICMP does not require a port. ICMP may require Administrator privileges on some systems.'))
         elif current_mode == PingMode.TCP:
-            self._hint_label.setText('TCP port connectivity probe (SYN/ACK).')
+            self._hint_label.setText(tr('TCP port connectivity probe (SYN/ACK).'))
         elif current_mode == PingMode.UDP:
-            self._hint_label.setText('UDP reachability & latency probe (Response or ICMP Port Unreachable detection).')
+            self._hint_label.setText(tr('UDP reachability & latency probe (Response or ICMP Port Unreachable detection).'))
         else:  # PingMode.WEB
-            self._hint_label.setText('Multi-vantage distributed HTTP ping via Check-Host.net (does not require a port).')
+            self._hint_label.setText(tr('Multi-vantage distributed HTTP ping via Check-Host.net (does not require a port).'))
 
         self._on_target_or_port_changed()
 
@@ -498,6 +549,7 @@ class PingTabWidget(QWidget):
         """Process and display a received probe result."""
         result = ensure_instance(result_object, PingProbeResult)
         self._statistics.update(result)
+        self._stats_state = 'stats'
         self._update_statistics_display()
 
         timestamp_string = time.strftime('%H:%M:%S', time.localtime(result.timestamp))
@@ -508,18 +560,37 @@ class PingTabWidget(QWidget):
             rtt_color = '#f1c40f' if round_trip_time > _RTT_HIGH_THRESHOLD_MS else '#2ecc71'
 
             if result.port is not None:
-                message = f'Reply from {result.target_ip}:{result.port} ({result.status_message}): time={round_trip_time:.2f}ms'
+                message = tr(
+                    'Reply from {ip}:{port} ({status}): time={rtt:.2f}ms',
+                    ip=result.target_ip,
+                    port=result.port,
+                    status=result.status_message,
+                    rtt=round_trip_time,
+                )
             elif result.time_to_live is not None:
-                message = f'Reply from {result.target_ip}: bytes={result.payload_bytes} time={round_trip_time:.1f}ms TTL={result.time_to_live}'
+                message = tr(
+                    'Reply from {ip}: bytes={payload_bytes} time={rtt:.1f}ms TTL={ttl}',
+                    ip=result.target_ip,
+                    payload_bytes=result.payload_bytes,
+                    rtt=round_trip_time,
+                    ttl=result.time_to_live,
+                )
             else:
-                message = f'Reply from {result.target_host} ({result.target_ip}): time={round_trip_time:.2f}ms'
+                message = tr(
+                    'Reply from {host} ({ip}): time={rtt:.2f}ms',
+                    host=result.target_host,
+                    ip=result.target_ip,
+                    rtt=round_trip_time,
+                )
 
             html_line = f'<span style="color: #7f8c8d;">{sequence_prefix}</span> <span style="color: {rtt_color}; font-weight: 500;">{html.escape(message)}</span>'
         else:
-            failure_message = f'Target {result.target_ip}'
-            if result.port is not None:
-                failure_message += f':{result.port}'
-            failure_message += f': {result.status_message}'
+            target_display = f'{result.target_ip}:{result.port}' if result.port is not None else result.target_ip
+            failure_message = tr(
+                'Target {target}: {status}',
+                target=target_display,
+                status=result.status_message,
+            )
             html_line = f'<span style="color: #7f8c8d;">{sequence_prefix}</span> <span style="color: #e74c3c; font-weight: bold;">{html.escape(failure_message)}</span>'
 
         self._append_log_line(html_line)
@@ -527,18 +598,28 @@ class PingTabWidget(QWidget):
     def _update_statistics_display(self) -> None:
         """Refresh the live statistics card with current values."""
         stats = self._statistics
+        loss_color = '#e74c3c' if stats.packet_loss_percentage > 0 else '#2ecc71'
+        loss_span = f'<span style="color: {loss_color};">{tr("{loss:.1f}% loss", loss=stats.packet_loss_percentage)}</span>'
         summary_parts = [
-            (
-                f'<b>Packets:</b> Sent = {stats.total_sent}, Received = {stats.total_received}, '
-                f'Lost = {stats.total_failed} (<span style="color: {"#e74c3c" if stats.packet_loss_percentage > 0 else "#2ecc71"};">'
-                f'{stats.packet_loss_percentage:.1f}% loss</span>)'
+            tr(
+                '<b>Packets:</b> Sent = {sent}, Received = {received}, Lost = {lost} ({loss_span})',
+                sent=stats.total_sent,
+                received=stats.total_received,
+                lost=stats.total_failed,
+                loss_span=loss_span,
             ),
         ]
 
         if stats.minimum_rtt_ms is not None and stats.average_rtt_ms is not None and stats.maximum_rtt_ms is not None:
-            jitter_string = f', Jitter = {stats.jitter_ms:.2f} ms' if stats.jitter_ms is not None else ''
+            jitter_string = tr(', Jitter = {jitter:.2f} ms', jitter=stats.jitter_ms) if stats.jitter_ms is not None else ''
             summary_parts.append(
-                f'<b>RTT:</b> Min = {stats.minimum_rtt_ms:.2f} ms, Avg = {stats.average_rtt_ms:.2f} ms, Max = {stats.maximum_rtt_ms:.2f} ms{jitter_string}',
+                tr(
+                    '<b>RTT:</b> Min = {min_rtt:.2f} ms, Avg = {avg_rtt:.2f} ms, Max = {max_rtt:.2f} ms{jitter}',
+                    min_rtt=stats.minimum_rtt_ms,
+                    avg_rtt=stats.average_rtt_ms,
+                    max_rtt=stats.maximum_rtt_ms,
+                    jitter=jitter_string,
+                ),
             )
 
         self._stats_label.setText(themed_qss(' | '.join(summary_parts)))
@@ -567,7 +648,8 @@ class PingTabWidget(QWidget):
         self._console_log.clear()
         self._clear_log_button.setEnabled(False)
         self._statistics = PingStatistics()
-        self._stats_label.setText('Log cleared. Statistics reset.')
+        self._stats_state = 'cleared'
+        self._refresh_stats_label()
 
 
 class PingWindow(QWidget):
@@ -586,7 +668,6 @@ class PingWindow(QWidget):
         super().__init__(None, Qt.WindowType.Window)
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
         self.destroyed.connect(lambda: setattr(PingWindow, '_instance', None) if PingWindow._instance is self else None)
-        self.setWindowTitle(f'{TITLE} - Ping Diagnostics')
         self.setWindowIcon(QIcon(str(ICONS_DIR_PATH / 'radio-tower.svg')))
         self.resize(scale_by_ui(860), scale_by_ui(560))
 
@@ -604,29 +685,32 @@ class PingWindow(QWidget):
         footer_layout.setContentsMargins(4, 4, 4, 4)
         footer_layout.setSpacing(8)
 
-        start_all_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'circle-play.svg')), ' Start All')
-        start_all_button.setStyleSheet(DIALOG_PRIMARY_BUTTON_STYLESHEET)
-        start_all_button.clicked.connect(self.start_all_tabs)
+        self._start_all_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'circle-play.svg')), '')
+        self._start_all_button.setStyleSheet(DIALOG_PRIMARY_BUTTON_STYLESHEET)
+        self._start_all_button.clicked.connect(self.start_all_tabs)
 
-        stop_all_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'circle-stop.svg')), ' Stop All')
-        stop_all_button.setStyleSheet(DIALOG_DANGER_BUTTON_STYLESHEET)
-        stop_all_button.clicked.connect(self.stop_all_tabs)
+        self._stop_all_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'circle-stop.svg')), '')
+        self._stop_all_button.setStyleSheet(DIALOG_DANGER_BUTTON_STYLESHEET)
+        self._stop_all_button.clicked.connect(self.stop_all_tabs)
 
-        add_target_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'plus.svg')), ' Add Target…')
-        add_target_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
-        add_target_button.clicked.connect(self._prompt_add_target)
+        self._add_target_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'plus.svg')), '')
+        self._add_target_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
+        self._add_target_button.clicked.connect(self._prompt_add_target)
 
-        close_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'x.svg')), ' Close')
-        close_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
-        close_button.clicked.connect(self.close)
+        self._close_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'x.svg')), '')
+        self._close_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
+        self._close_button.clicked.connect(self.close)
 
-        footer_layout.addWidget(start_all_button)
-        footer_layout.addWidget(stop_all_button)
-        footer_layout.addWidget(add_target_button)
+        footer_layout.addWidget(self._start_all_button)
+        footer_layout.addWidget(self._stop_all_button)
+        footer_layout.addWidget(self._add_target_button)
         footer_layout.addStretch()
-        footer_layout.addWidget(close_button)
+        footer_layout.addWidget(self._close_button)
 
         main_layout.addLayout(footer_layout)
+
+        self._apply_translations()
+        register_language_refresh(self, self._apply_translations)
 
         if targets is None:
             target_list: list[str | None] = [None]
@@ -715,12 +799,20 @@ class PingWindow(QWidget):
         if not self._tab_widget.count():
             self.close()
 
+    def _apply_translations(self) -> None:
+        """Apply translated text to the window title and footer buttons."""
+        self.setWindowTitle(f"{TITLE} - {tr('Ping Diagnostics')}")
+        self._start_all_button.setText(f" {tr('Start All')}")
+        self._stop_all_button.setText(f" {tr('Stop All')}")
+        self._add_target_button.setText(f" {tr('Add Target…')}")
+        self._close_button.setText(f" {tr('Close')}")
+
     def _prompt_add_target(self) -> None:
         """Prompt user for a new IP address or hostname to add."""
         new_target, success = QInputDialog.getText(
             self,
-            'Add Ping Target',
-            'Enter target IPv4 address or hostname to ping:',
+            tr('Add Ping Target'),
+            tr('Enter target IPv4 address or hostname to ping:'),
         )
         if success and new_target.strip():
             target_str = new_target.strip()

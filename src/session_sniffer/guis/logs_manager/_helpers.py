@@ -32,6 +32,7 @@ from session_sniffer.constants.local import CRASH_LOG_PATH, DEBUG_LOG_PATH
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.constants.standard import LOCAL_TZ
 from session_sniffer.guis.fonts import get_monospace_font
+from session_sniffer.guis.live_language import register_language_refresh, set_i18n_colon_label
 from session_sniffer.guis.loading_overlay import run_blocking_with_loading
 from session_sniffer.guis.stylesheets import DIALOG_BUTTON_STYLESHEET, DIALOG_DANGER_BUTTON_STYLESHEET
 from session_sniffer.guis.theming import ICONS_DIR_PATH, themed_qcolor, themed_text_qcolor
@@ -42,6 +43,7 @@ from session_sniffer.guis.utils import (
     open_file_location,
     set_clipboard_text,
 )
+from session_sniffer.i18n import tr
 from session_sniffer.logging_setup import purge_crash_log, purge_debug_log
 
 if TYPE_CHECKING:
@@ -79,22 +81,22 @@ def human_readable_timestamp(dt: datetime) -> str:
 
     delta_days = (today - dt_date).days
     if not delta_days:
-        return f'Today at {time_str}'
+        return tr('Today at {time}', time=time_str)
     if delta_days == 1:
-        return f'Yesterday at {time_str}'
+        return tr('Yesterday at {time}', time=time_str)
     if delta_days < _DAYS_IN_WEEK:
-        return f'{dt.strftime("%A")} at {time_str}'
-    return f'{dt.strftime("%b %d, %Y")} at {time_str}'
+        return tr('{weekday} at {time}', weekday=dt.strftime('%A'), time=time_str)
+    return tr('{date} at {time}', date=dt.strftime('%b %d, %Y'), time=time_str)
 
 
 def file_metadata_text(file_path: Path) -> str:
     """Build a metadata summary string for a file."""
     if not file_path.exists():
-        return f'{file_path.name}  —  File not found'
+        return tr('{filename}  —  File not found', filename=file_path.name)
     stat = file_path.stat()
     size = human_readable_size(stat.st_size)
     modified = datetime.fromtimestamp(stat.st_mtime, tz=UTC).astimezone()
-    return f'{file_path.name}  |  {size}  |  Last modified: {human_readable_timestamp(modified)}'
+    return tr('{filename}  |  {size}  |  Last modified: {timestamp}', filename=file_path.name, size=size, timestamp=human_readable_timestamp(modified))
 
 
 def backup_file(file_path: Path) -> Path | None:
@@ -311,7 +313,9 @@ def create_search_input(
     debounce_ms: int = 0,
 ) -> QLineEdit:
     """Add a labelled search QLineEdit to *top_bar* and return it."""
-    top_bar.addWidget(QLabel('Search:'))
+    search_label = QLabel()
+    set_i18n_colon_label(search_label, 'Search')
+    top_bar.addWidget(search_label)
     search_input = QLineEdit()
     search_input.setPlaceholderText(placeholder)
     if debounce_ms > 0:
@@ -346,26 +350,33 @@ def add_purge_and_location_buttons(
     if add_stretch:
         layout.addStretch()
 
-    purge_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'remove.svg')), ' Purge File')
+    purge_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'remove.svg')), '')
     purge_button.setStyleSheet(DIALOG_DANGER_BUTTON_STYLESHEET)
-    purge_button.setToolTip('Clear all contents from this log file (creates a backup first)')
     purge_button.setEnabled(file_path.is_file() and file_path.stat().st_size > 0)
     purge_button.clicked.connect(purge_fn)
     layout.addWidget(purge_button)
 
-    label = ' Open Folder Location' if file_path.is_dir() else ' Open File Location'
-    open_location_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'folder.svg')), label)
+    open_location_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'folder.svg')), '')
     open_location_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
-    open_location_button.setToolTip('Open the containing folder in your file manager')
     open_location_button.clicked.connect(lambda: open_file_location(file_path))
     layout.addWidget(open_location_button)
 
-    open_file_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'file-text.svg')), ' Open File')
+    open_file_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'file-text.svg')), '')
     open_file_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
-    open_file_button.setToolTip('Open the log file in the default text editor')
     open_file_button.setEnabled(file_path.is_file())
     open_file_button.clicked.connect(lambda: QDesktopServices.openUrl(QUrl.fromLocalFile(str(file_path))))
     layout.addWidget(open_file_button)
+
+    def _apply_button_texts() -> None:
+        purge_button.setText(f" {tr('Purge File')}")
+        purge_button.setToolTip(tr('Clear all contents from this log file (creates a backup first)'))
+        open_location_button.setText(f" {tr('Open Folder Location')}" if file_path.is_dir() else f" {tr('Open File Location')}")
+        open_location_button.setToolTip(tr('Open the containing folder in your file manager'))
+        open_file_button.setText(f" {tr('Open File')}")
+        open_file_button.setToolTip(tr('Open the log file in the default text editor'))
+
+    _apply_button_texts()
+    register_language_refresh(open_location_button, _apply_button_texts)
 
     return purge_button, open_file_button
 
@@ -378,14 +389,19 @@ def purge_log_file(
 ) -> str | None:
     """Confirm and purge *file_path*; return a status message or None if cancelled/missing."""
     if not file_path.exists():
-        QMessageBox.information(parent, TITLE, f'{file_path.name} does not exist.')
+        QMessageBox.information(parent, TITLE, tr('{filename} does not exist.', filename=file_path.name))
         return None
     if file_path.is_file() and not file_path.stat().st_size:
         return None
+    confirm_text = (
+        tr('Purge ALL entries from {filename}?\n\nA backup (.bak) will be created first.\nThis cannot be undone.', filename=file_path.name)
+        if item_label == 'entries'
+        else tr('Purge ALL contents from {filename}?\n\nA backup (.bak) will be created first.\nThis cannot be undone.', filename=file_path.name)
+    )
     reply = QMessageBox.warning(
         parent,
         TITLE,
-        f'Purge ALL {item_label} from {file_path.name}?\n\nA backup (.bak) will be created first.\nThis cannot be undone.',
+        confirm_text,
         QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
     )
     if reply != QMessageBox.StandardButton.Yes:
@@ -394,20 +410,19 @@ def purge_log_file(
         bak = (
             run_blocking_with_loading(
                 parent.window(),
-                'Purging Log\u2026',
-                f'Creating backup and clearing {file_path.name}\u2026',
+                tr('Purging Log\u2026'),
+                tr('Creating backup and clearing {filename}\u2026', filename=file_path.name),
                 lambda: backup_and_truncate_log_file(file_path),
             )
             if parent.isVisible()
             else backup_and_truncate_log_file(file_path)
         )
     except OSError as e:
-        QMessageBox.warning(parent, TITLE, f'Failed to purge {file_path.name}:\n{e}')
+        QMessageBox.warning(parent, TITLE, tr('Failed to purge {filename}:\n{error}', filename=file_path.name, error=e))
         return None
-    message = f'Purged {file_path.name}.'
     if bak:
-        message += f'\nBackup saved to {bak.name}'
-    return message
+        return tr('Purged {filename}.\nBackup saved to {backup}', filename=file_path.name, backup=bak.name)
+    return tr('Purged {filename}.', filename=file_path.name)
 
 
 def copy_viewer_text_to_clipboard(viewer: QPlainTextEdit) -> bool:
@@ -431,27 +446,29 @@ def setup_copy_save_button_row(
     copy_fn: Callable[[], bool],
     save_fn: Callable[[], None],
     *,
-    copy_tooltip: str = 'Copy all displayed text to clipboard',
-    save_tooltip: str = 'Save the displayed content to a new file',
+    copy_tooltip: str | None = None,
+    save_tooltip: str | None = None,
 ) -> tuple[QHBoxLayout, QPushButton, QPushButton]:
     """Create a button row with Copy All and Save As buttons, add it to *layout*, and return it with the buttons."""
     button_row = QHBoxLayout()
+    resolved_copy_tip = tr('Copy all displayed text to clipboard') if copy_tooltip is None else copy_tooltip
+    resolved_save_tip = tr('Save the displayed content to a new file') if save_tooltip is None else save_tooltip
 
-    copy_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'copy.svg')), ' Copy All')
+    copy_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'copy.svg')), f" {tr('Copy All')}")
     copy_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
-    copy_button.setToolTip(copy_tooltip)
+    copy_button.setToolTip(resolved_copy_tip)
     copy_button.setEnabled(False)
 
     def _on_copy_clicked() -> None:
         if copy_fn():
-            animate_button_feedback(copy_button)
+            animate_button_feedback(copy_button, feedback_text=f" {tr('Copied!')}", feedback_tooltip=tr('Copied to clipboard!'))
 
     copy_button.clicked.connect(_on_copy_clicked)
     button_row.addWidget(copy_button)
 
-    save_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'save.svg')), ' Save As...')
+    save_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'save.svg')), f" {tr('Save As...')}")
     save_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
-    save_button.setToolTip(save_tooltip)
+    save_button.setToolTip(resolved_save_tip)
     save_button.setEnabled(False)
     save_button.clicked.connect(save_fn)
     button_row.addWidget(save_button)

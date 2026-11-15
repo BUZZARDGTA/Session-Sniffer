@@ -25,6 +25,7 @@ from session_sniffer.constants.standalone import (
 )
 from session_sniffer.error_messages import format_failed_check_for_updates_message
 from session_sniffer.guis.update_download_dialog import UpdateCandidate, UpdateDownloadDialog
+from session_sniffer.i18n import tr
 from session_sniffer.logging_setup import flush_all_loggers
 from session_sniffer.models import GithubVersionsResponse, VersionInfo
 from session_sniffer.networking.http_session import session
@@ -100,7 +101,7 @@ def _fetch_versions_with_retries() -> tuple[UpdateCheckOutcome, GithubVersionsRe
                 text=format_triple_quoted_text(
                     format_failed_check_for_updates_message(
                         exception_name=type(e).__name__,
-                        http_code=str(http_code) if http_code is not None else 'No response',
+                        http_code=str(http_code) if http_code is not None else tr('No response'),
                     ),
                 ),
                 style=(msgbox.Style.MB_ABORTRETRYIGNORE | msgbox.Style.MB_ICONEXCLAMATION | msgbox.Style.MB_SETFOREGROUND),
@@ -172,7 +173,7 @@ def _apply_update(new_exe: Path) -> None:
         msgbox.show(
             title=TITLE,
             text=format_triple_quoted_text(
-                f'Failed to remove the stale backup executable before updating.\n\n{e}',
+                tr('Failed to remove the stale backup executable before updating.\n\n{error}', error=e),
             ),
             style=msgbox.Style.MB_OK | msgbox.Style.MB_ICONERROR | msgbox.Style.MB_SETFOREGROUND,
         )
@@ -186,7 +187,7 @@ def _apply_update(new_exe: Path) -> None:
         msgbox.show(
             title=TITLE,
             text=format_triple_quoted_text(
-                f'Failed to rename the current executable before updating.\n\n{e}',
+                tr('Failed to rename the current executable before updating.\n\n{error}', error=e),
             ),
             style=msgbox.Style.MB_OK | msgbox.Style.MB_ICONERROR | msgbox.Style.MB_SETFOREGROUND,
         )
@@ -207,7 +208,11 @@ def _apply_update(new_exe: Path) -> None:
             msgbox.show(
                 title=TITLE,
                 text=format_triple_quoted_text(
-                    f'Failed to write the new executable, and failed to restore the previous version.\n\nWrite error: {e}\n\nRestore error: {restore_error}',
+                    tr(
+                        'Failed to write the new executable, and failed to restore the previous version.\n\nWrite error: {write_error}\n\nRestore error: {restore_error}',
+                        write_error=e,
+                        restore_error=restore_error,
+                    ),
                 ),
                 style=msgbox.Style.MB_OK | msgbox.Style.MB_ICONERROR | msgbox.Style.MB_SETFOREGROUND,
             )
@@ -216,7 +221,7 @@ def _apply_update(new_exe: Path) -> None:
         msgbox.show(
             title=TITLE,
             text=format_triple_quoted_text(
-                f'Failed to write the new executable. The previous version has been restored.\n\n{e}',
+                tr('Failed to write the new executable. The previous version has been restored.\n\n{error}', error=e),
             ),
             style=msgbox.Style.MB_OK | msgbox.Style.MB_ICONERROR | msgbox.Style.MB_SETFOREGROUND,
         )
@@ -238,7 +243,7 @@ def _apply_update(new_exe: Path) -> None:
         msgbox.show(
             title=TITLE,
             text=format_triple_quoted_text(
-                f'The application was updated, but failed to automatically restart.\n\nPlease start it manually.\n\nError: {e}',
+                tr('The application was updated, but failed to automatically restart.\n\nPlease start it manually.\n\nError: {error}', error=e),
             ),
             style=msgbox.Style.MB_OK | msgbox.Style.MB_ICONWARNING | msgbox.Style.MB_SETFOREGROUND,
         )
@@ -307,7 +312,7 @@ def _download_and_apply(
             msgbox.show(
                 title=TITLE,
                 text=format_triple_quoted_text(
-                    f'Failed to download the update.\n\n{dialog.error_message}',
+                    tr('Failed to download the update.\n\n{error}', error=dialog.error_message),
                 ),
                 style=msgbox.Style.MB_OK | msgbox.Style.MB_ICONERROR | msgbox.Style.MB_SETFOREGROUND,
             )
@@ -325,7 +330,11 @@ def _download_and_apply(
         msgbox.show(
             title=TITLE,
             text=format_triple_quoted_text(
-                f'Update verification failed: SHA-256 mismatch. The downloaded file has been removed.\n\nExpected: {expected_hash or "<missing>"}\nActual:   {actual_hash}',
+                tr(
+                    'Update verification failed: SHA-256 mismatch. The downloaded file has been removed.\n\nExpected: {expected}\nActual:   {actual}',
+                    expected=expected_hash or tr('<missing>'),
+                    actual=actual_hash,
+                ),
             ),
             style=msgbox.Style.MB_OK | msgbox.Style.MB_ICONERROR | msgbox.Style.MB_SETFOREGROUND,
         )

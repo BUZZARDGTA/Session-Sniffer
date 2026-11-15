@@ -4,6 +4,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QTableWidget, QTableWidgetItem
 
 from session_sniffer.constants.tables import SESSION_DURATION_TABLE_MIN_COLUMN_WIDTHS
+from session_sniffer.guis.live_language import register_language_refresh, set_table_headers
 from session_sniffer.guis.table_context_menu import StatTableWindowMixin, skip_if_menu_open
 from session_sniffer.guis.utils import (
     NumericTableWidgetItem,
@@ -11,6 +12,7 @@ from session_sniffer.guis.utils import (
     scale_by_ui,
     setup_stat_table,
 )
+from session_sniffer.i18n import tr
 from session_sniffer.player.registry import PlayersRegistry
 
 
@@ -21,16 +23,28 @@ class SessionDurationWindow(StatTableWindowMixin):
         """Initialize the session duration window."""
         super().__init__()
 
-        self.setWindowTitle('Session Duration')
         self.resize(scale_by_ui(520), scale_by_ui(420))
         layout = self.setup_window_layout(always_on_top=always_on_top)
 
         self._table = QTableWidget(0, 3)
-        self._table.setHorizontalHeaderLabels(['Duration', 'IP', 'Usernames'])
+        set_table_headers(self._table, ['Duration', 'IP', 'Usernames'])
         setup_stat_table(self._table, layout)
         self.setup_stat_table_controls(layout, always_on_top=always_on_top, min_column_widths=SESSION_DURATION_TABLE_MIN_COLUMN_WIDTHS)
         self._reset_column_sizes()
         self._table.sortByColumn(0, Qt.SortOrder.DescendingOrder)
+
+        self._apply_translations()
+        register_language_refresh(self, self._apply_translations)
+
+    def _apply_translations(self) -> None:
+        """Apply translated text to the window title and formatted durations."""
+        self.setWindowTitle(tr('Session Duration'))
+        for row in range(self._table.rowCount()):
+            duration_item = self._table.item(row, 0)
+            if duration_item is not None:
+                duration_seconds = duration_item.data(Qt.ItemDataRole.UserRole)
+                if isinstance(duration_seconds, int | float):
+                    duration_item.setText(format_duration(duration_seconds))
 
     @skip_if_menu_open
     def refresh(self) -> None:

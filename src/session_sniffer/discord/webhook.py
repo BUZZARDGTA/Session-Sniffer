@@ -25,6 +25,7 @@ from pydantic import BaseModel, ConfigDict, TypeAdapter, ValidationError
 
 from session_sniffer import msgbox
 from session_sniffer.constants.standalone import TITLE
+from session_sniffer.i18n import tr
 from session_sniffer.settings import Settings
 from session_sniffer.text_utils import pluralize
 
@@ -337,7 +338,7 @@ def send_test_message(url: str) -> tuple[bool, str]:
     Used by the Settings dialog "Test Webhook" button.
     """
     if not is_valid_webhook_url(url):
-        return False, 'URL does not look like a Discord webhook URL.'
+        return False, tr('URL does not look like a Discord webhook URL.')
 
     payload = json.dumps(
         {
@@ -348,11 +349,15 @@ def send_test_message(url: str) -> tuple[bool, str]:
         status, _headers, response_body = _http_request(url, method='POST', body=payload)
     except (http.client.HTTPException, OSError) as e:
         logger.warning('Failed to send Discord webhook test message: %s', e)
-        return False, f'Network error: {e}'
+        return False, tr('Network error: {error}', error=e)
 
     if status in (http.HTTPStatus.OK, http.HTTPStatus.NO_CONTENT):
-        return True, 'Test message posted successfully.'
-    return False, f'Discord returned HTTP {status}: {response_body.decode("utf-8", errors="replace")[:300]}'
+        return True, tr('Test message posted successfully.')
+    return False, tr(
+        'Discord returned HTTP {status}: {details}',
+        status=status,
+        details=response_body.decode('utf-8', errors='replace')[:300],
+    )
 
 
 def _load_message_ids() -> dict[str, str]:
@@ -376,12 +381,12 @@ def _save_message_ids(message_ids: dict[str, str]) -> None:
 def _describe_auto_disable_status(status: int) -> str:
     """Return a short human-friendly description of the failure status."""
     if status == http.HTTPStatus.NOT_FOUND:
-        return 'Webhook not found (deleted, or URL is wrong)'
+        return tr('Webhook not found (deleted, or URL is wrong)')
     if status == http.HTTPStatus.UNAUTHORIZED:
-        return 'Unauthorized (invalid webhook token)'
+        return tr('Unauthorized (invalid webhook token)')
     if status == http.HTTPStatus.FORBIDDEN:
-        return 'Forbidden (webhook revoked or lacks permission)'
-    return 'Webhook rejected the request'
+        return tr('Forbidden (webhook revoked or lacks permission)')
+    return tr('Webhook rejected the request')
 
 
 class DiscordWebhookSender:
@@ -673,16 +678,19 @@ class DiscordWebhookSender:
         # Notify the user via a non-blocking popup (msgbox is modal; spawn a
         # daemon thread so the webhook worker keeps draining its queue).
         reason = _describe_auto_disable_status(status)
-        popup_text = (
-            f'The configured Discord webhook URL is no longer valid and has been disabled.\n\n'
-            f'Reason: {reason} (HTTP {status})\n\n'
-            f'URL: {url}\n\n'
-            f'Open Settings -> Preferences -> Discord -> Webhook and paste a new webhook URL to resume posting.'
+        popup_text = tr(
+            'The configured Discord webhook URL is no longer valid and has been disabled.\n\n'
+            'Reason: {reason} (HTTP {status})\n\n'
+            'URL: {url}\n\n'
+            'Open Settings -> Preferences -> Discord -> Webhook and paste a new webhook URL to resume posting.',
+            reason=reason,
+            status=status,
+            url=url,
         )
         Thread(
             target=msgbox.show,
             args=(
-                f'{TITLE} - Discord Webhook Disabled',
+                tr('{title} - Discord Webhook Disabled', title=TITLE),
                 popup_text,
                 msgbox.Style.MB_OK | msgbox.Style.MB_ICONWARNING | msgbox.Style.MB_SETFOREGROUND,
             ),

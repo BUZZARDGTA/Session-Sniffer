@@ -62,6 +62,8 @@ class Settings:
     capture_filter_block_uaudp: bool = SETTING_DEFAULTS['capture_filter_block_uaudp']
     capture_filter_block_classicstun: bool = SETTING_DEFAULTS['capture_filter_block_classicstun']
     capture_filter_block_llmnr: bool = SETTING_DEFAULTS['capture_filter_block_llmnr']
+    gui_language_follow_system: bool = SETTING_DEFAULTS['gui_language_follow_system']
+    gui_language: str = SETTING_DEFAULTS['gui_language']
     gui_theme_follow_system: bool = SETTING_DEFAULTS['gui_theme_follow_system']
     gui_theme: str = SETTING_DEFAULTS['gui_theme']
     gui_always_on_top: bool = SETTING_DEFAULTS['gui_always_on_top']
@@ -172,6 +174,8 @@ class Settings:
         'CAPTURE_PS3_NAME_RESOLVER',
         'CAPTURE_PREPEND_CUSTOM_CAPTURE_FILTER',
         *CAPTURE_FILTER_BLOCK_SETTINGS,
+        'GUI_LANGUAGE_FOLLOW_SYSTEM',
+        'GUI_LANGUAGE',
         'GUI_THEME_FOLLOW_SYSTEM',
         'GUI_THEME',
         'GUI_ALWAYS_ON_TOP',

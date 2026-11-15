@@ -60,6 +60,7 @@ from session_sniffer.guis.app import app
 from session_sniffer.guis.exceptions import UnsupportedScreenResolutionError
 from session_sniffer.guis.interface_selection import select_interface
 from session_sniffer.guis.interface_selection_dialog import InterfaceSelectionDialog
+from session_sniffer.guis.live_language import install_system_language_watcher
 from session_sniffer.guis.live_theme import install_system_theme_watcher
 from session_sniffer.guis.loading_overlay import run_with_active_loading
 from session_sniffer.guis.main_window import MainWindow
@@ -68,6 +69,7 @@ from session_sniffer.guis.splash_screen import SplashScreen
 from session_sniffer.guis.theme import get_stylesheet
 from session_sniffer.guis.theming import log_theme_startup_warnings
 from session_sniffer.guis.utils import compute_ui_scale, get_screen_size, initialize_ui_scale
+from session_sniffer.i18n import tr
 from session_sniffer.launcher.cache_preloader import preload_application_caches, warm_table_gui_assets
 from session_sniffer.launcher.package_checker import check_packages_version, get_dependencies_from_pyproject
 from session_sniffer.logging_setup import register_secret_provider, setup_logging
@@ -136,14 +138,15 @@ def main() -> None:
         raise UnsupportedPlatformError(sys.platform)
 
     Settings.load_from_settings_file(SETTINGS_PATH)
+    install_system_language_watcher()
 
     try:
         screen_size = get_screen_size()
     except UnsupportedScreenResolutionError as e:
         logger.warning('Unsupported screen resolution: %s', e)
-        prompt_text = e.msgbox_text + '\n\nDo you want to ignore this warning and continue anyway?'
+        prompt_text = e.msgbox_text + '\n\n' + tr('Do you want to ignore this warning and continue anyway?')
         response = msgbox.show(
-            title='Unsupported Screen Resolution',
+            title=tr('Unsupported Screen Resolution'),
             text=prompt_text,
             style=msgbox.Style.MB_YESNO | msgbox.Style.MB_ICONWARNING | msgbox.Style.MB_TOPMOST,
         )
@@ -165,7 +168,7 @@ def main() -> None:
     msgbox.set_owner_hwnd(splash.winId())
 
     if not is_pyinstaller_compiled():
-        splash.update_status('Checking Python package versions')
+        splash.update_status(tr('Checking Python package versions'))
         dependencies = get_dependencies_from_pyproject()
         outdated_packages = check_packages_version(dependencies)
         if outdated_packages:
@@ -180,7 +183,7 @@ def main() -> None:
             if errorlevel != msgbox.ReturnValues.IDYES:
                 sys.exit(0)
 
-    splash.update_status('Applying custom settings from settings.json')
+    splash.update_status(tr('Applying custom settings from settings.json'))
     register_secret_provider(lambda: Settings.discord_webhook_url)
     register_secret_provider(lambda: Settings.looky_api_key)
     register_secret_provider(lambda: Settings.webserver_password)
@@ -189,7 +192,7 @@ def main() -> None:
     GUIDetectionSettings.load_from_file_or_defaults(DETECTIONS_JSON_PATH)
     ComboRulesManager.load_from_file(COMBO_RULES_PATH)
 
-    splash.update_status('Checking for updates')
+    splash.update_status(tr('Checking for updates'))
     outcome, pending_download = splash.run_with_spinner(check_for_updates, updater_channel=Settings.updater_channel)
     if outcome is UpdateCheckOutcome.ABORT:
         sys.exit(0)
@@ -197,18 +200,18 @@ def main() -> None:
         splash.lower_to_back()
         pending_download()
 
-    splash.update_status('Verifying capture driver' if sys.platform != 'win32' else 'Verifying Npcap driver')
+    splash.update_status(tr('Verifying capture driver') if sys.platform != 'win32' else tr('Verifying Npcap driver'))
     splash.run_with_spinner(ensure_npcap_installed)
 
     preload_executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix='Preload')
     geolite2_future = preload_executor.submit(
         update_and_initialize_geolite2_readers,
-        progress_callback=functools.partial(splash.update_progress, target_message='Initializing GeoLite2 databases'),
+        progress_callback=functools.partial(splash.update_progress, target_message=tr('Initializing GeoLite2 databases')),
     )
     mac_lookup_future = preload_executor.submit(MacLookup.load)
     caches_future = preload_executor.submit(
         preload_application_caches,
-        progress_callback=functools.partial(splash.update_progress, target_message='Initializing caches'),
+        progress_callback=functools.partial(splash.update_progress, target_message=tr('Initializing caches')),
     )
 
     def _populate_interfaces_after_mac() -> None:
@@ -217,20 +220,20 @@ def main() -> None:
 
     network_interfaces_future = preload_executor.submit(_populate_interfaces_after_mac)
 
-    splash.update_status('Initializing GeoLite2 databases')
+    splash.update_status(tr('Initializing GeoLite2 databases'))
     geoip2_enabled, geolite2_asn_reader, geolite2_city_reader, geolite2_country_reader = splash.run_with_spinner(geolite2_future.result)
 
-    splash.update_status('Initializing MAC lookup')
+    splash.update_status(tr('Initializing MAC lookup'))
     splash.run_with_spinner(mac_lookup_future.result)
 
-    splash.update_status('Initializing caches')
+    splash.update_status(tr('Initializing caches'))
     splash.run_with_spinner(caches_future.result)
     warm_table_gui_assets(
-        progress_callback=functools.partial(splash.update_progress, target_message='Initializing caches'),
+        progress_callback=functools.partial(splash.update_progress, target_message=tr('Initializing caches')),
     )
 
     if Settings.gui_sessions_logging_delete_empty_files or Settings.gui_sessions_logging_delete_empty_folders:
-        splash.update_status('Cleaning session logs')
+        splash.update_status(tr('Cleaning session logs'))
         splash.run_with_spinner(
             cleanup_session_logs,
             sessions_dir=SESSIONS_LOGGING_DIR_PATH,
@@ -240,7 +243,7 @@ def main() -> None:
             active_session_path=SESSIONS_LOGGING_PATH.with_suffix('.json'),
         )
 
-    splash.update_status('Network interface selection')
+    splash.update_status(tr('Network interface selection'))
     splash.run_with_spinner(network_interfaces_future.result)
     preload_executor.shutdown(wait=False)
 
@@ -280,7 +283,7 @@ def main() -> None:
         interface_type=selected_interface.interface.interface_type,
     )
 
-    splash.update_status('Establishing connection')
+    splash.update_status(tr('Establishing connection'))
     need_rewrite_settings = False
 
     if Settings.capture_interface_name is None or selected_interface.name != Settings.capture_interface_name:
@@ -306,7 +309,7 @@ def main() -> None:
         multicast_support=multicast_support,
     )
 
-    splash.update_status('Starting packet capture')
+    splash.update_status(tr('Starting packet capture'))
 
     def packet_callback(packet: Packet) -> None:
         """Callback function to process each captured packet."""
@@ -475,7 +478,7 @@ def main() -> None:
     if Settings.capture_arp_spoofing:
         ArpSpoofingController.start(selected_interface)
 
-    splash.update_status('Preparing GUI')
+    splash.update_status(tr('Preparing GUI'))
 
     # Start rendering_core and player_rates_core now so they run concurrently with
     # MainWindow construction. By the time the window is built the first snapshot
@@ -663,7 +666,7 @@ def main() -> None:
             if InterfaceSelectionDialog.get_active_instance() is not None:
                 return
             if warning_message is not None:
-                QMessageBox.warning(window, 'Capture Interrupted', warning_message)
+                QMessageBox.warning(window, tr('Capture Interrupted'), warning_message)
             _switch_interface()
         finally:
             _is_handling_capture_lost = False

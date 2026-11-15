@@ -20,6 +20,7 @@ from session_sniffer.guis.userip_manager_helpers import (
     refresh_userip_and_wake_renderer,
     save_userip_database_model,
 )
+from session_sniffer.i18n import tr
 from session_sniffer.models.userip_settings_model import UserIPEntryModel
 from session_sniffer.networking.ip_range import entry_ip_covers_ip
 from session_sniffer.networking.looky_system import lookup_ip_batches, lookup_username_ips
@@ -267,7 +268,7 @@ def build_pending_entries_for_database(
                     if cand_ip != ip and cand_ip not in looky_resolved_ips_by_cf.get(name_cf, set()) and (name_cf, cand_ip) not in assigned_removal_pairs:
                         assigned_removal_pairs.add((name_cf, cand_ip))
                         cand_looky = ', '.join(dict.fromkeys(player_item.name for player_item in results.get(cand_ip, [])))
-                        reason = f'Wrong candidate IP for "{display_name}" (Looky found them on {ip})'
+                        reason = tr('Wrong candidate IP for "{username}" (Looky found them on {ip})', username=display_name, ip=ip)
                         removals.append(SuspectRemoval(db_path, name_cf, display_name, cand_ip, cand_looky, cand_notes, reason))
                 assigned_user_cleanup_cf.add(name_cf)
 
@@ -276,7 +277,17 @@ def build_pending_entries_for_database(
                     o_cf = o_name.casefold()
                     if o_cf != name_cf and not o_looky and not o_det and ip not in looky_resolved_ips_by_cf.get(o_cf, set()) and (o_cf, ip) not in assigned_removal_pairs:
                         assigned_removal_pairs.add((o_cf, ip))
-                        removals.append(SuspectRemoval(db_path, o_cf, o_name, ip, display_name, o_notes, f'Belongs to "{display_name}" on Looky, not "{o_name}"'))
+                        removals.append(
+                            SuspectRemoval(
+                                db_path,
+                                o_cf,
+                                o_name,
+                                ip,
+                                display_name,
+                                o_notes,
+                                tr('Belongs to "{looky_username}" on Looky, not "{username}"', looky_username=display_name, username=o_name),
+                            ),
+                        )
 
             target_db = ip_target_db or default_targets[name_cf]
             if existing_is_looky and target_db == db_path and not removals:
@@ -297,7 +308,7 @@ def build_pending_entries_for_database(
                 other_cf = other_name.casefold()
                 if not other_is_looky and not other_det and ip not in looky_resolved_ips_by_cf.get(other_cf, set()) and (other_cf, ip) not in assigned_removal_pairs:
                     assigned_removal_pairs.add((other_cf, ip))
-                    reason = f'Belongs to random "{random_label}" on Looky, not "{other_name}"'
+                    reason = tr('Belongs to random "{looky_username}" on Looky, not "{username}"', looky_username=random_label, username=other_name)
                     standalone_removals.append(SuspectRemoval(db_path, other_cf, other_name, ip, random_label, other_notes, reason))
                     counted_ips_with_results.add(ip)
 

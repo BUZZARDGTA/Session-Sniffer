@@ -4,38 +4,59 @@ import html
 import logging
 import shutil
 import zipfile
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from ipaddress import IPv4Address
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
-from PySide6.QtCore import QModelIndex, QSignalBlocker
-from PySide6.QtGui import QAction, QIcon
-from PySide6.QtWidgets import QDialog, QFileDialog, QMenu, QMessageBox, QTreeView
+from PySide6.QtCore import QModelIndex, QSignalBlocker, Qt, QUrl
+from PySide6.QtGui import QAction, QDesktopServices, QIcon
+from PySide6.QtWidgets import QDialog, QFileDialog, QHBoxLayout, QMenu, QMessageBox, QPushButton, QTreeView, QTreeWidget, QWidget
 
 from session_sniffer.constants.local import USERIP_DATABASES_DIR_PATH
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.guis.loading_overlay import run_async_with_loading, run_blocking_with_loading
 from session_sniffer.guis.looky_text import configure_looky_action
+from session_sniffer.guis.stylesheets import DIALOG_BUTTON_STYLESHEET, DIALOG_DANGER_BUTTON_STYLESHEET
+from session_sniffer.guis.tables_player_actions import create_ping_menu, scan_ports_ip, show_detailed_ip_lookup
 from session_sniffer.guis.theming import ICONS_DIR_PATH, themed_qss
 from session_sniffer.guis.userip_manager_helpers import (
     load_userip_database_model,
     refresh_userip_and_wake_renderer,
     save_userip_database_model,
 )
-from session_sniffer.models.userip_settings_model import DEFAULT_USERIP_FILES_SETTINGS, UserIPDatabaseFile
+from session_sniffer.guis.utils import add_icon_menu_action, find_main_window, open_file_location, set_clipboard_text
+from session_sniffer.i18n import tr, tr_plural
+from session_sniffer.models.userip_settings_model import DEFAULT_USERIP_FILES_SETTINGS, EntrySource, UserIPDatabaseFile
 from session_sniffer.player.userip_loader import rebind_in_app_userip_db_path, userip_databases_lock
 from session_sniffer.rendering_core.types import CaptureState
 from session_sniffer.settings.settings import Settings
-from session_sniffer.text_utils import pluralize
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
 
+    from session_sniffer.guis._main_window_files_mixin import FilesMixin
     from session_sniffer.guis.file_watch import DebouncedFileWatcher
 
 logger = logging.getLogger(__name__)
 
+SIDE_ROLE = Qt.ItemDataRole.UserRole
 _MAX_LISTED_COLLISIONS = 5
+
+
+@dataclass(slots=True)
+class SideDetails:
+    """Aggregated usernames, notes, Looky state, and timestamps for a resolver tree row."""
+
+    usernames: list[str] = field(default_factory=list[str])
+    looky_usernames: set[str] = field(default_factory=set[str])
+    notes: list[str] = field(default_factory=list[str])
+    sources: list[EntrySource] = field(default_factory=list[EntrySource])
+    detections_count: int = 0
+    added_at: str | None = None
+    updated_at: str | None = None
+    first_seen_at: str | None = None
+    last_seen_at: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -120,19 +141,30 @@ def format_multi_tree_selection_info(selected_paths: Sequence[Path]) -> tuple[st
     folders = sum(1 for path in selected_paths if path.is_dir())
     total_dbs = len(collect_json_databases_from_paths(selected_paths))
 
-    parts: list[str] = []
-    if direct_dbs:
-        parts.append(f'{direct_dbs} database{pluralize(direct_dbs)}')
-    if folders:
-        parts.append(f'{folders} folder{pluralize(folders)}')
-    breakdown = ', '.join(parts) if parts else f'{len(selected_paths)} items'
+    if direct_dbs and folders:
+        breakdown = tr(
+            '{databases}, {folders}',
+            databases=tr_plural('{count} database', '{count} databases', direct_dbs),
+            folders=tr_plural('{count} folder', '{count} folders', folders),
+        )
+    elif direct_dbs:
+        breakdown = tr_plural('{count} database', '{count} databases', direct_dbs)
+    elif folders:
+        breakdown = tr_plural('{count} folder', '{count} folders', folders)
+    else:
+        breakdown = tr_plural('{count} item', '{count} items', len(selected_paths))
+
+    selected_label = html.escape(tr('Selected:'))
+    selected_count = html.escape(tr_plural('{count} item', '{count} items', len(selected_paths)))
+    dbs_label = html.escape(tr('Databases in selection:'))
+    status_text = html.escape(tr('Right-click selection for batch actions'))
 
     info_html = themed_qss(
-        f'<span style="color:#8a9bad;">Selected:</span> <b style="color:#6db3f2;">{len(selected_paths)} items</b> '
+        f'<span style="color:#8a9bad;">{selected_label}</span> <b style="color:#6db3f2;">{selected_count}</b> '
         f'<span style="color:#a0b0c0;">({html.escape(breakdown)})</span><br>'
-        f'<span style="color:#8a9bad;">Databases in selection:</span> <b style="color:#e0e0e0;">{total_dbs}</b>',
+        f'<span style="color:#8a9bad;">{dbs_label}</span> <b style="color:#e0e0e0;">{total_dbs}</b>',
     )
-    status_html = themed_qss('<span style="color:#a0b0c0;"><i>Right-click selection for batch actions</i></span>')
+    status_html = themed_qss(f'<span style="color:#a0b0c0;"><i>{status_text}</i></span>')
     return info_html, status_html
 
 
@@ -146,7 +178,7 @@ def set_databases_enabled_batch(hooks: TreeBatchHooks, db_paths: Sequence[Path],
     if not targets:
         return
 
-    action_title = 'Enabling Databases\u2026' if enabled else 'Disabling Databases\u2026'
+    action_title = tr('Enabling Databases\u2026') if enabled else tr('Disabling Databases\u2026')
 
     def _apply() -> None:
         with userip_databases_lock():
@@ -161,14 +193,18 @@ def set_databases_enabled_batch(hooks: TreeBatchHooks, db_paths: Sequence[Path],
             run_blocking_with_loading(
                 hooks.dialog,
                 action_title,
-                f'Updating {len(targets)} database{pluralize(len(targets))}\u2026',
+                tr_plural('Updating {count} database\u2026', 'Updating {count} databases\u2026', len(targets)),
                 _apply,
             )
         else:
             _apply()
 
-    verb = 'Enabled' if enabled else 'Disabled'
-    hooks.on_mutated(f'{verb} {len(targets)} database{pluralize(len(targets))}')
+    status_msg = (
+        tr_plural('Enabled {count} database', 'Enabled {count} databases', len(targets))
+        if enabled
+        else tr_plural('Disabled {count} database', 'Disabled {count} databases', len(targets))
+    )
+    hooks.on_mutated(status_msg)
 
 
 def move_selected_tree_items(hooks: TreeBatchHooks, selected_paths: Sequence[Path]) -> None:
@@ -177,12 +213,12 @@ def move_selected_tree_items(hooks: TreeBatchHooks, selected_paths: Sequence[Pat
     movable = [path for path in pruned if not is_default_userip_db(path)]
     skipped_defaults = len(pruned) - len(movable)
     if not movable:
-        QMessageBox.information(hooks.dialog, TITLE, 'Default factory databases must remain in the root UserIP Databases folder.')
+        QMessageBox.information(hooks.dialog, TITLE, tr('Default factory databases must remain in the root UserIP Databases folder.'))
         return
 
     target_dir = QFileDialog.getExistingDirectory(
         hooks.dialog,
-        f'Move {len(movable)} selected item{pluralize(len(movable))} to...',
+        tr_plural('Move {count} selected item to...', 'Move {count} selected items to...', len(movable)),
         str(USERIP_DATABASES_DIR_PATH),
     )
     if not target_dir:
@@ -192,14 +228,14 @@ def move_selected_tree_items(hooks: TreeBatchHooks, selected_paths: Sequence[Pat
     try:
         rel_dest = dest.relative_to(USERIP_DATABASES_DIR_PATH)
     except ValueError:
-        QMessageBox.warning(hooks.dialog, TITLE, 'Destination must be within the UserIP Databases directory.')
+        QMessageBox.warning(hooks.dialog, TITLE, tr('Destination must be within the UserIP Databases directory.'))
         return
 
     to_move: list[tuple[Path, Path]] = []
     collisions: list[str] = []
     for path in movable:
         if dest == path or path in dest.parents:
-            QMessageBox.warning(hooks.dialog, TITLE, f'Cannot move "{path.name}" into itself.')
+            QMessageBox.warning(hooks.dialog, TITLE, tr('Cannot move "{name}" into itself.', name=path.name))
             return
         if path.parent == dest:
             continue
@@ -211,11 +247,18 @@ def move_selected_tree_items(hooks: TreeBatchHooks, selected_paths: Sequence[Pat
 
     if collisions:
         names = ', '.join(f'"{name}"' for name in collisions[:_MAX_LISTED_COLLISIONS])
-        extra = f' (+{len(collisions) - _MAX_LISTED_COLLISIONS} more)' if len(collisions) > _MAX_LISTED_COLLISIONS else ''
-        QMessageBox.warning(hooks.dialog, TITLE, f'Destination already contains {names}{extra}. Nothing was moved.')
+        if len(collisions) > _MAX_LISTED_COLLISIONS:
+            collision_text = tr(
+                'Destination already contains {names} (+{extra} more). Nothing was moved.',
+                names=names,
+                extra=len(collisions) - _MAX_LISTED_COLLISIONS,
+            )
+        else:
+            collision_text = tr('Destination already contains {names}. Nothing was moved.', names=names)
+        QMessageBox.warning(hooks.dialog, TITLE, collision_text)
         return
     if not to_move:
-        hooks.set_status('Selected items are already in that folder.')
+        hooks.set_status(tr('Selected items are already in that folder.'))
         return
 
     for old_path, _ in to_move:
@@ -231,8 +274,8 @@ def move_selected_tree_items(hooks: TreeBatchHooks, selected_paths: Sequence[Pat
     if hooks.dialog.isVisible():
         run_blocking_with_loading(
             hooks.dialog,
-            'Moving Databases\u2026',
-            f'Moving {len(to_move)} item{pluralize(len(to_move))}\u2026',
+            tr('Moving Databases\u2026'),
+            tr_plural('Moving {count} item\u2026', 'Moving {count} items\u2026', len(to_move)),
             _move_batch,
         )
     else:
@@ -241,28 +284,36 @@ def move_selected_tree_items(hooks: TreeBatchHooks, selected_paths: Sequence[Pat
     for old_path, new_path in to_move:
         hooks.rebind_open_path(old_path, new_path)
 
-    dest_label = 'root' if rel_dest == Path() else str(rel_dest)
-    note = f' ({skipped_defaults} default database{pluralize(skipped_defaults)} kept in root)' if skipped_defaults else ''
-    hooks.on_mutated(f'Moved {len(to_move)} item{pluralize(len(to_move))} \u2192 {dest_label}{note}')
+    dest_label = tr('root') if rel_dest == Path() else str(rel_dest)
+    moved_part = tr_plural('Moved {count} item', 'Moved {count} items', len(to_move))
+    if skipped_defaults:
+        kept_note = tr_plural(
+            '{count} default database kept in root',
+            '{count} default databases kept in root',
+            skipped_defaults,
+        )
+        hooks.on_mutated(tr('{moved} \u2192 {destination} ({note})', moved=moved_part, destination=dest_label, note=kept_note))
+    else:
+        hooks.on_mutated(tr('{moved} \u2192 {destination}', moved=moved_part, destination=dest_label))
 
 
 def move_single_tree_item(hooks: TreeBatchHooks, path: Path) -> None:
     """Move a single file or folder to a user-chosen destination inside the UserIP root."""
-    target_dir = QFileDialog.getExistingDirectory(hooks.dialog, f'Move "{path.name}" to...', str(USERIP_DATABASES_DIR_PATH))
+    target_dir = QFileDialog.getExistingDirectory(hooks.dialog, tr('Move "{name}" to...', name=path.name), str(USERIP_DATABASES_DIR_PATH))
     if not target_dir:
         return
     dest = Path(target_dir)
     try:
         rel_dest = dest.relative_to(USERIP_DATABASES_DIR_PATH)
     except ValueError:
-        QMessageBox.warning(hooks.dialog, TITLE, 'Destination must be within the UserIP Databases directory.')
+        QMessageBox.warning(hooks.dialog, TITLE, tr('Destination must be within the UserIP Databases directory.'))
         return
     if dest == path or path in dest.parents:
-        QMessageBox.warning(hooks.dialog, TITLE, f'Cannot move "{path.name}" into itself.')
+        QMessageBox.warning(hooks.dialog, TITLE, tr('Cannot move "{name}" into itself.', name=path.name))
         return
     new_path = dest / path.name
     if new_path.exists():
-        QMessageBox.warning(hooks.dialog, TITLE, f'"{path.name}" already exists in the destination folder.')
+        QMessageBox.warning(hooks.dialog, TITLE, tr('"{name}" already exists in the destination folder.', name=path.name))
         return
 
     hooks.unwatch_path(path)
@@ -276,16 +327,16 @@ def move_single_tree_item(hooks: TreeBatchHooks, path: Path) -> None:
     if hooks.dialog.isVisible():
         run_blocking_with_loading(
             hooks.dialog,
-            'Moving Database\u2026',
-            f'Moving "{path.name}"\u2026',
+            tr('Moving Database\u2026'),
+            tr('Moving "{name}"\u2026', name=path.name),
             _move_one,
         )
     else:
         _move_one()
     hooks.rebind_open_path(path, new_path)
 
-    dest_label = 'root' if rel_dest == Path() else str(rel_dest)
-    hooks.on_mutated(f'Moved "{path.name}" \u2192 {dest_label}')
+    dest_label = tr('root') if rel_dest == Path() else str(rel_dest)
+    hooks.on_mutated(tr('Moved "{name}" \u2192 {destination}', name=path.name, destination=dest_label))
 
 
 def delete_single_tree_path(hooks: TreeBatchHooks, path: Path) -> None:
@@ -293,12 +344,17 @@ def delete_single_tree_path(hooks: TreeBatchHooks, path: Path) -> None:
     if path.is_dir():
         children = list(path.iterdir())
         message = (
-            f'Folder "{path.name}" is not empty ({len(children)} item{pluralize(len(children))}).\n\nDelete it and all its contents?'
+            tr_plural(
+                'Folder "{name}" is not empty ({count} item).\n\nDelete it and all its contents?',
+                'Folder "{name}" is not empty ({count} items).\n\nDelete it and all its contents?',
+                len(children),
+                name=path.name,
+            )
             if children
-            else f'Delete empty folder "{path.name}"?'
+            else tr('Delete empty folder "{name}"?', name=path.name)
         )
     else:
-        message = f'Delete database "{path.name}"?'
+        message = tr('Delete database "{name}"?', name=path.name)
 
     result = QMessageBox.warning(
         hooks.dialog,
@@ -324,14 +380,14 @@ def delete_single_tree_path(hooks: TreeBatchHooks, path: Path) -> None:
     if hooks.dialog.isVisible():
         run_blocking_with_loading(
             hooks.dialog,
-            'Deleting Database\u2026',
-            f'Removing "{path.name}"\u2026',
+            tr('Deleting Database\u2026'),
+            tr('Removing "{name}"\u2026', name=path.name),
             _delete_one,
         )
     else:
         _delete_one()
 
-    hooks.on_mutated(f'Deleted: {path.name}')
+    hooks.on_mutated(tr('Deleted: {name}', name=path.name))
 
 
 def export_json_databases_to_zip(
@@ -342,19 +398,18 @@ def export_json_databases_to_zip(
     selected_only: bool = False,
 ) -> None:
     """Prompt for a destination ZIP file and asynchronously compress *json_files* into it."""
-    dialog_title = 'Export Selected Databases as ZIP' if selected_only else 'Export All Databases as ZIP'
+    dialog_title = tr('Export Selected Databases as ZIP') if selected_only else tr('Export All Databases as ZIP')
     default_filename = 'UserIP_Selected_Databases.zip' if selected_only else 'UserIP_Databases.zip'
     loading_detail = (
-        'Compressing selected UserIP databases into ZIP archive\u2026'
+        tr('Compressing selected UserIP databases into ZIP archive\u2026')
         if selected_only
-        else 'Compressing UserIP databases into ZIP archive\u2026'
+        else tr('Compressing UserIP databases into ZIP archive\u2026')
     )
-    status_noun = 'selected database' if selected_only else 'database'
     dest_path, _ = QFileDialog.getSaveFileName(
         dialog,
         dialog_title,
         default_filename,
-        'ZIP archives (*.zip);;All Files (*)',
+        tr('ZIP archives (*.zip);;All Files (*)'),
     )
     if not dest_path:
         return
@@ -371,14 +426,29 @@ def export_json_databases_to_zip(
 
     def _on_done(error_msg: str | None) -> None:
         if error_msg is not None:
-            set_status('ZIP export failed.')
-            QMessageBox.critical(dialog, TITLE, f'Failed to export ZIP archive:\n\n{error_msg}')
+            set_status(tr('ZIP export failed.'))
+            QMessageBox.critical(dialog, TITLE, tr('Failed to export ZIP archive:\n\n{error}', error=error_msg))
             return
-        set_status(f'Exported {len(json_files)} {status_noun}{pluralize(len(json_files))} to {dest_path}')
+        status_text = (
+            tr_plural(
+                'Exported {count} selected database to {path}',
+                'Exported {count} selected databases to {path}',
+                len(json_files),
+                path=dest_path,
+            )
+            if selected_only
+            else tr_plural(
+                'Exported {count} database to {path}',
+                'Exported {count} databases to {path}',
+                len(json_files),
+                path=dest_path,
+            )
+        )
+        set_status(status_text)
 
     run_async_with_loading(
         dialog,
-        'Exporting Databases\u2026',
+        tr('Exporting Databases\u2026'),
         loading_detail,
         _write_zip,
         _on_done,
@@ -393,7 +463,7 @@ def export_selected_tree_paths_as_zip(
     """Export all `.json` databases covered by *selected_paths* into a ZIP archive."""
     json_files = collect_json_databases_from_paths(selected_paths)
     if not json_files:
-        QMessageBox.information(dialog, TITLE, 'No database files found in the current selection.')
+        QMessageBox.information(dialog, TITLE, tr('No database files found in the current selection.'))
         return
 
     export_json_databases_to_zip(dialog, json_files, set_status, selected_only=True)
@@ -409,18 +479,27 @@ def delete_selected_tree_items(hooks: TreeBatchHooks, selected_paths: Sequence[P
 
     db_count = sum(1 for path in deletable if path.is_file())
     dir_count = sum(1 for path in deletable if path.is_dir())
-    parts: list[str] = []
-    if db_count:
-        parts.append(f'{db_count} database{pluralize(db_count)}')
-    if dir_count:
-        parts.append(f'{dir_count} folder{pluralize(dir_count)} (and their contents)')
-    summary = ' and '.join(parts)
-    default_note = (
-        f'\n\nNote: {len(default_dbs)} factory-default database{pluralize(len(default_dbs))} in the selection will be kept intact.'
-        if default_dbs
-        else ''
-    )
-    prompt = f'Permanently delete {summary}?{default_note}\n\nThis cannot be undone.'
+    if db_count and dir_count:
+        summary = tr(
+            '{databases} and {folders}',
+            databases=tr_plural('{count} database', '{count} databases', db_count),
+            folders=tr_plural('{count} folder (and its contents)', '{count} folders (and their contents)', dir_count),
+        )
+    elif db_count:
+        summary = tr_plural('{count} database', '{count} databases', db_count)
+    else:
+        summary = tr_plural('{count} folder (and its contents)', '{count} folders (and their contents)', dir_count)
+
+    if default_dbs:
+        prompt = tr_plural(
+            'Permanently delete {summary}?\n\nNote: {count} factory-default database in the selection will be kept intact.\n\nThis cannot be undone.',
+            'Permanently delete {summary}?\n\nNote: {count} factory-default databases in the selection will be kept intact.\n\nThis cannot be undone.',
+            len(default_dbs),
+            summary=summary,
+        )
+    else:
+        prompt = tr('Permanently delete {summary}?\n\nThis cannot be undone.', summary=summary)
+
     result = QMessageBox.warning(
         hooks.dialog,
         TITLE,
@@ -451,13 +530,17 @@ def delete_selected_tree_items(hooks: TreeBatchHooks, selected_paths: Sequence[P
         return removed
 
     removed_count = (
-        run_blocking_with_loading(hooks.dialog, 'Deleting Databases\u2026', 'Removing selected items\u2026', _delete_work)
+        run_blocking_with_loading(hooks.dialog, tr('Deleting Databases\u2026'), tr('Removing selected items\u2026'), _delete_work)
         if hooks.dialog.isVisible()
         else _delete_work()
     )
 
-    kept_suffix = f' ({len(default_dbs)} default kept)' if default_dbs else ''
-    hooks.on_mutated(f'Deleted {removed_count} selected item{pluralize(removed_count)}{kept_suffix}')
+    if default_dbs:
+        deleted_text = tr_plural('Deleted {count} selected item', 'Deleted {count} selected items', removed_count)
+        kept_text = tr_plural('{count} default kept', '{count} defaults kept', len(default_dbs))
+        hooks.on_mutated(tr('{deleted} ({kept})', deleted=deleted_text, kept=kept_text))
+    else:
+        hooks.on_mutated(tr_plural('Deleted {count} selected item', 'Deleted {count} selected items', removed_count))
 
 
 def reset_selected_default_databases(hooks: TreeBatchHooks, default_paths: Sequence[Path]) -> None:
@@ -467,12 +550,14 @@ def reset_selected_default_databases(hooks: TreeBatchHooks, default_paths: Seque
         return
 
     if len(targets) == 1:
-        prompt = f'Reset "{targets[0].name}" to factory content?\n\nAll entries and settings in this file will be lost.'
+        prompt = tr('Reset "{name}" to factory content?\n\nAll entries and settings in this file will be lost.', name=targets[0].name)
     else:
         names = ', '.join(f'"{path.name}"' for path in targets)
-        prompt = (
-            f'Reset {len(targets)} default database{pluralize(len(targets))} ({names}) to factory content?\n\n'
-            'All entries and custom settings in these files will be lost.'
+        prompt = tr_plural(
+            'Reset {count} default database ({names}) to factory content?\n\nAll entries and custom settings in these files will be lost.',
+            'Reset {count} default databases ({names}) to factory content?\n\nAll entries and custom settings in these files will be lost.',
+            len(targets),
+            names=names,
         )
     result = QMessageBox.warning(
         hooks.dialog,
@@ -493,17 +578,17 @@ def reset_selected_default_databases(hooks: TreeBatchHooks, default_paths: Seque
     if hooks.dialog.isVisible():
         run_blocking_with_loading(
             hooks.dialog,
-            'Resetting Databases\u2026',
-            'Restoring factory defaults\u2026',
+            tr('Resetting Databases\u2026'),
+            tr('Restoring factory defaults\u2026'),
             _reset_work,
         )
     else:
         _reset_work()
 
     status = (
-        f'Reset "{targets[0].name}" to factory defaults.'
+        tr('Reset "{name}" to factory defaults.', name=targets[0].name)
         if len(targets) == 1
-        else f'Reset {len(targets)} default database{pluralize(len(targets))} to factory defaults.'
+        else tr_plural('Reset {count} default database to factory defaults.', 'Reset {count} default databases to factory defaults.', len(targets))
     )
     hooks.on_mutated(status)
 
@@ -519,18 +604,18 @@ def populate_multi_tree_context_menu(
     enabled_count = len(all_dbs) - disabled_count
 
     if disabled_count:
-        enable_act = QAction(QIcon(str(ICONS_DIR_PATH / 'check.svg')), f'Enable Databases ({disabled_count})', hooks.dialog)
+        enable_act = QAction(QIcon(str(ICONS_DIR_PATH / 'check.svg')), tr('Enable Databases ({count})', count=disabled_count), hooks.dialog)
         enable_act.triggered.connect(lambda: set_databases_enabled_batch(hooks, all_dbs, enabled=True))
         menu.addAction(enable_act)
     if enabled_count:
-        disable_act = QAction(QIcon(str(ICONS_DIR_PATH / 'x.svg')), f'Disable Databases ({enabled_count})', hooks.dialog)
+        disable_act = QAction(QIcon(str(ICONS_DIR_PATH / 'x.svg')), tr('Disable Databases ({count})', count=enabled_count), hooks.dialog)
         disable_act.triggered.connect(lambda: set_databases_enabled_batch(hooks, all_dbs, enabled=False))
         menu.addAction(disable_act)
     if disabled_count or enabled_count:
         menu.addSeparator()
 
     deletable, default_dbs = partition_selected_tree_paths(selected_paths)
-    move_act = QAction(QIcon(str(ICONS_DIR_PATH / 'box.svg')), f'Move Selected ({len(deletable)}) to...', hooks.dialog)
+    move_act = QAction(QIcon(str(ICONS_DIR_PATH / 'box.svg')), tr('Move Selected ({count}) to...', count=len(deletable)), hooks.dialog)
     move_act.setEnabled(bool(deletable))
     move_act.triggered.connect(lambda: move_selected_tree_items(hooks, selected_paths))
     menu.addAction(move_act)
@@ -539,31 +624,183 @@ def populate_multi_tree_context_menu(
         menu.addSeparator()
         refresh_act = QAction(
             QIcon(str(ICONS_DIR_PATH / 'eye.svg')),
-            f'Refresh Selected ({len(all_dbs)}) (Looky System)',
+            tr('Refresh Selected ({count}) (Looky System)', count=len(all_dbs)),
             hooks.dialog,
         )
         refresh_act.triggered.connect(lambda: hooks.refresh_databases_looky(list(all_dbs)))
         configure_looky_action(
             refresh_act,
-            f'Scan all IPs and usernames across the {len(all_dbs)} selected database{pluralize(len(all_dbs))} via Looky System.',
+            tr_plural(
+                'Scan all IPs and usernames across the {count} selected database via Looky System.',
+                'Scan all IPs and usernames across the {count} selected databases via Looky System.',
+                len(all_dbs),
+            ),
         )
         menu.addAction(refresh_act)
 
     menu.addSeparator()
-    export_act = QAction(QIcon(str(ICONS_DIR_PATH / 'upload.svg')), 'Export Selected as ZIP…', hooks.dialog)
+    export_act = QAction(QIcon(str(ICONS_DIR_PATH / 'upload.svg')), tr('Export Selected as ZIP\u2026'), hooks.dialog)
     export_act.setEnabled(bool(all_dbs))
     export_act.triggered.connect(lambda: export_selected_tree_paths_as_zip(hooks.dialog, selected_paths, hooks.set_status))
     menu.addAction(export_act)
 
     menu.addSeparator()
     if deletable:
-        del_act = QAction(QIcon(str(ICONS_DIR_PATH / 'remove.svg')), f'Delete ({len(deletable)})', hooks.dialog)
+        del_act = QAction(QIcon(str(ICONS_DIR_PATH / 'remove.svg')), tr('Delete ({count})', count=len(deletable)), hooks.dialog)
         del_act.setShortcut('Delete')
         del_act.triggered.connect(lambda: delete_selected_tree_items(hooks, selected_paths))
         menu.addAction(del_act)
     if default_dbs:
-        reset_act = QAction(QIcon(str(ICONS_DIR_PATH / 'refresh-cw.svg')), f'Reset Default ({len(default_dbs)})', hooks.dialog)
+        reset_act = QAction(QIcon(str(ICONS_DIR_PATH / 'refresh-cw.svg')), tr('Reset Default ({count})', count=len(default_dbs)), hooks.dialog)
         if not deletable:
             reset_act.setShortcut('Delete')
         reset_act.triggered.connect(lambda: reset_selected_default_databases(hooks, default_dbs))
         menu.addAction(reset_act)
+
+
+def populate_userip_databases_menu(
+    parent_menu: QMenu,
+    database_paths: list[Path],
+    tooltip: str,
+    handler_factory: Callable[[Path], Callable[[], None]],
+    *,
+    disabled_path: Path | None = None,
+) -> int:
+    """Add database entries to *parent_menu*, nesting subfolders as child menus, and return the enabled action count."""
+    folder_menus: dict[tuple[str, ...], QMenu] = {}
+    menus_with_folders: set[QMenu] = set()
+    enabled_count = 0
+
+    def _sort_key(db_path: Path) -> tuple[tuple[int, str], ...]:
+        rel = db_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix('')
+        return tuple((0, part.casefold()) if i < len(rel.parts) - 1 else (1, part.casefold()) for i, part in enumerate(rel.parts))
+
+    for db_path in sorted(database_paths, key=_sort_key):
+        rel = db_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix('')
+        current_menu = parent_menu
+        for depth in range(len(rel.parts) - 1):
+            folder_key = rel.parts[: depth + 1]
+            if folder_key not in folder_menus:
+                folder_menu = current_menu.addMenu(QIcon(str(ICONS_DIR_PATH / 'folder.svg')), rel.parts[depth])
+                folder_menu.setToolTipsVisible(True)
+                folder_menus[folder_key] = folder_menu
+                menus_with_folders.add(current_menu)
+            current_menu = folder_menus[folder_key]
+
+        if current_menu in menus_with_folders:
+            current_menu.addSeparator()
+            menus_with_folders.remove(current_menu)
+
+        action = current_menu.addAction(QIcon(str(ICONS_DIR_PATH / 'database.svg')), rel.parts[-1])
+        action.setToolTip(tooltip)
+        action.triggered.connect(handler_factory(db_path))
+        if disabled_path is not None and db_path == disabled_path:
+            action.setEnabled(False)
+        else:
+            enabled_count += 1
+
+    return enabled_count
+
+
+def is_single_ipv4(entry_text: str) -> bool:
+    """Return `True` if `entry_text` is a single IPv4 address rather than a range or CIDR subnet."""
+    if not entry_text or '/' in entry_text or '-' in entry_text or '*' in entry_text:
+        return False
+    try:
+        IPv4Address(entry_text)
+    except ValueError:
+        return False
+    return True
+
+
+def navigate_to_database_in_manager(db_path: Path, *, username: str = '', ip_or_range: str = '') -> None:
+    """Open or focus the UserIP Databases Manager on `db_path` and select the matching entry."""
+    main_window = cast('FilesMixin | None', find_main_window())
+    if main_window is not None:
+        main_window.open_userip_manager_and_navigate(db_path, username=username, ip_or_range=ip_or_range)
+
+
+def copy_resolver_selected_row(tree: QTreeWidget) -> None:
+    """Copy visible cell values of selected child row(s) in *tree* as tab-separated lines."""
+    child_items = sorted(
+        (item for item in tree.selectedItems() if isinstance(item.data(0, SIDE_ROLE), int)),
+        key=lambda item: int(item.data(0, SIDE_ROLE)),
+    )
+    if not child_items:
+        return
+    header = tree.header()
+    visible_cols = [col for col in range(tree.columnCount()) if not header.isSectionHidden(col)]
+    set_clipboard_text('\n'.join('\t'.join(item.text(col) for col in visible_cols) for item in child_items))
+
+
+def create_resolver_tail_buttons(
+    buttons_layout: QHBoxLayout, *, on_edit: Callable[[], object], on_delete: Callable[[], object], on_close: Callable[[], object],
+) -> tuple[QPushButton, QPushButton, QPushButton]:
+    """Append `Edit Entry…`, `Delete This Entry…`, stretch, and `Close` buttons; return `(edit_btn, delete_btn, close_btn)`."""
+    edit_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'square-pen.svg')), f" {tr('Edit Entry\u2026')}")
+    edit_button.setAutoDefault(False)
+    edit_button.setToolTip(tr('Change the IP or range of the selected entry using the builder'))
+    edit_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
+    edit_button.clicked.connect(on_edit)
+    buttons_layout.addWidget(edit_button)
+
+    delete_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'remove.svg')), f" {tr('Delete This Entry\u2026')}")
+    delete_button.setAutoDefault(False)
+    delete_button.setToolTip(tr('Delete only the selected entry from its database (you will be asked to confirm)'))
+    delete_button.setStyleSheet(DIALOG_DANGER_BUTTON_STYLESHEET)
+    delete_button.clicked.connect(on_delete)
+    buttons_layout.addWidget(delete_button)
+
+    buttons_layout.addStretch()
+
+    close_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'x.svg')), f" {tr('Close')}")
+    close_button.setAutoDefault(False)
+    close_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
+    close_button.clicked.connect(on_close)
+    buttons_layout.addWidget(close_button)
+    return edit_button, delete_button, close_button
+
+
+def retranslate_resolver_tail_buttons(edit_button: QPushButton, delete_button: QPushButton, close_button: QPushButton) -> None:
+    """Refresh static labels and tooltips on the resolver tail buttons."""
+    edit_button.setText(f" {tr('Edit Entry\u2026')}")
+    edit_button.setToolTip(tr('Change the IP or range of the selected entry using the builder'))
+    delete_button.setToolTip(tr('Delete only the selected entry from its database (you will be asked to confirm)'))
+    close_button.setText(f" {tr('Close')}")
+
+
+def populate_resolver_common_menu_prefix(
+    menu: QMenu, tree: QTreeWidget, *, db_path: Path, entry_ip: str, details: SideDetails,
+) -> bool:
+    """Append standard Copy and Database navigation actions to *menu* and return `is_single_ipv4(entry_ip)`."""
+    single_ip = is_single_ipv4(entry_ip)
+    copy_row = add_icon_menu_action(menu, 'copy.svg', tr('Copy Row'), lambda: copy_resolver_selected_row(tree))
+    copy_row.setShortcut('Ctrl+C')
+    if details.usernames:
+        names_txt = ', '.join(details.usernames)
+        add_icon_menu_action(menu, 'copy.svg', tr_plural('Copy Username', 'Copy Usernames', len(details.usernames)), lambda: set_clipboard_text(names_txt))
+    add_icon_menu_action(menu, 'copy.svg', tr('Copy IP') if single_ip else tr('Copy Range'), lambda: set_clipboard_text(entry_ip))
+    if details.notes:
+        notes_txt = ', '.join(details.notes)
+        add_icon_menu_action(menu, 'copy.svg', tr('Copy Note'), lambda: set_clipboard_text(notes_txt))
+
+    menu.addSeparator()
+    first_user = details.usernames[0] if details.usernames else ''
+    add_icon_menu_action(
+        menu, 'arrow-right.svg', tr('Go to Database'),
+        lambda: navigate_to_database_in_manager(db_path, username=first_user, ip_or_range=entry_ip),
+        tooltip=tr('Open this database in the UserIP Databases Manager and navigate to this entry.'),
+    )
+    add_icon_menu_action(menu, 'file-text.svg', tr('Open in Text Editor'), lambda: QDesktopServices.openUrl(QUrl.fromLocalFile(str(db_path))))
+    add_icon_menu_action(menu, 'folder.svg', tr('Open in File Manager'), lambda: open_file_location(db_path))
+    menu.addSeparator()
+    return single_ip
+
+
+def populate_resolver_ip_tools_menu(parent: QWidget, menu: QMenu, entry_ip: str, *, single_ip: bool) -> None:
+    """Append IP Lookup, Ping, and Scan Ports actions when *single_ip* is `True`."""
+    if single_ip:
+        menu.addSeparator()
+        add_icon_menu_action(menu, 'info.svg', tr('IP Lookup Details\u2026'), lambda: show_detailed_ip_lookup(entry_ip))
+        create_ping_menu(parent, menu, [entry_ip])
+        add_icon_menu_action(menu, 'radar.svg', tr('Scan Ports\u2026'), lambda: scan_ports_ip(entry_ip))

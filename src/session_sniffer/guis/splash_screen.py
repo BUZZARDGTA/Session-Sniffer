@@ -1,5 +1,6 @@
 """Frameless splash screen shown during application startup."""
 
+import html as html_lib
 import time
 from concurrent.futures import ThreadPoolExecutor
 from typing import TYPE_CHECKING, ClassVar, ParamSpec, TypeVar, override
@@ -21,6 +22,7 @@ from session_sniffer.guis.stylesheets import (
 )
 from session_sniffer.guis.theming import themed_qss
 from session_sniffer.guis.utils import SPINNER_FRAMES, center_window_on_screen, scale_by_ui
+from session_sniffer.i18n import tr
 
 _P = ParamSpec('_P')
 _T = TypeVar('_T')
@@ -63,7 +65,7 @@ class SplashScreen(QWidget):
         title_label.setStyleSheet(SPLASH_TITLE_LABEL_STYLESHEET)
         layout.addWidget(title_label)
 
-        self._subtitle = QLabel('Initializing sniffing engine…')
+        self._subtitle = QLabel(tr('Initializing sniffing engine…'))
         self._subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._subtitle.setFont(get_ui_font(scale_by_ui(18)))
         self._subtitle.setStyleSheet(SPLASH_SUBTITLE_LABEL_STYLESHEET)
@@ -181,10 +183,11 @@ class SplashScreen(QWidget):
         """Mark the last step done and show a ready message."""
         self._mark_current_done()
         self._current_message = None
-        self._subtitle.setText('Ready!')
+        self._subtitle.setText(tr('Ready!'))
         self._subtitle.setStyleSheet(SPLASH_SUBTITLE_READY_STYLESHEET)
 
-        ready_html = themed_qss(f'<br><span style="color:{_READY_COLOR}; font-weight:bold;">&#x2714;&nbsp;&nbsp;All systems go &mdash; launching!</span>')
+        ready_text = html_lib.escape(tr('All systems go — launching!'))
+        ready_html = themed_qss(f'<br><span style="color:{_READY_COLOR}; font-weight:bold;">&#x2714;&nbsp;&nbsp;{ready_text}</span>')
         self._log_area.append(ready_html)
 
         scrollbar = self._log_area.verticalScrollBar()

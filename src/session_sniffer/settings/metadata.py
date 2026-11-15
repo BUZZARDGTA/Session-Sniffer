@@ -10,6 +10,7 @@ from session_sniffer.constants.standalone import (
     UAUDP_PORT,
     USERIP_BACKUP_FREQUENCIES,
 )
+from session_sniffer.i18n import SUPPORTED_LANGUAGE_CODES, SUPPORTED_LANGUAGES
 from session_sniffer.models.themes import BUILTIN_THEMES
 from session_sniffer.networking.third_party_servers import ThirdPartyServers
 from session_sniffer.settings.meta import SettingMeta, SettingType
@@ -19,26 +20,32 @@ SETTING_CATEGORIES_ORDER: tuple[str, ...] = ('General', 'Themes', 'Capture', 'Se
 
 SETTING_METADATA: dict[str, SettingMeta] = {
     'gui_theme_follow_system': SettingMeta(
-        category='Themes',
-        group='Active Theme',
-        display_label='Follow System Theme',
-        setting_type=SettingType.BOOLEAN,
+        category='Themes', group='Active Theme', display_label='Follow System Theme', setting_type=SettingType.BOOLEAN,
         tooltip=(
             'Automatically apply the built-in Dark or Light theme to match your operating system color scheme.\n'
             'Uncheck this option (or click any theme preview card below) to select a theme manually.'
         ),
     ),
     'gui_theme': SettingMeta(
-        category='Themes',
-        group='Active Theme',
-        display_label='Theme',
-        setting_type=SettingType.ENUM,
+        category='Themes', group='Active Theme', display_label='Theme', setting_type=SettingType.ENUM,
         allowed_values=tuple(theme.name for theme in BUILTIN_THEMES),
         tooltip=(
             'Color theme for the application interface when Follow System Theme is disabled.\n'
             'Click any preview card below or select from the dropdown to preview the theme live;\n'
             'click Save to persist it, or Cancel to revert to the previous theme.'
         ),
+    ),
+    'gui_language_follow_system': SettingMeta(
+        category='General', group='Language', display_label='Follow System Language', setting_type=SettingType.BOOLEAN,
+        tooltip=(
+            'Automatically match the application language to your operating system display language,\n'
+            'falling back to English if unsupported. Uncheck to choose a language manually.'
+        ),
+    ),
+    'gui_language': SettingMeta(
+        category='General', group='Language', display_label='Language', setting_type=SettingType.ENUM,
+        allowed_values=SUPPORTED_LANGUAGE_CODES, display_labels=SUPPORTED_LANGUAGES,
+        tooltip='Display language for the application interface and embedded web panel when Follow System Language is disabled.',
     ),
     'gui_always_on_top': SettingMeta(
         category='General', group='Application Window', display_label='Always on Top',

@@ -19,6 +19,7 @@ from session_sniffer.constants.standalone import (
     USERIP_BACKUP_FREQUENCIES,
     WEBSERVER_DEFAULT_HOST,
 )
+from session_sniffer.i18n import SUPPORTED_LANGUAGE_CODES
 from session_sniffer.networking.ip_range import parse_ip_range
 from session_sniffer.networking.utils import format_mac_address, is_ipv4_address, is_mac_address
 from session_sniffer.utils import (
@@ -112,6 +113,8 @@ class SettingsModel(BaseModel):
     CAPTURE_FILTER_BLOCK_LLMNR: bool
 
     # GUI settings
+    GUI_LANGUAGE_FOLLOW_SYSTEM: bool
+    GUI_LANGUAGE: str
     GUI_THEME_FOLLOW_SYSTEM: bool
     GUI_THEME: str
     GUI_ALWAYS_ON_TOP: bool
@@ -219,6 +222,7 @@ class SettingsModel(BaseModel):
             'DISCORD_WEBHOOK_INCLUDE_CONNECTED',
             'DISCORD_WEBHOOK_INCLUDE_DISCONNECTED',
             'WEBSERVER_ENABLED',
+            'GUI_LANGUAGE_FOLLOW_SYSTEM',
             'GUI_THEME_FOLLOW_SYSTEM',
             'GUI_ALWAYS_ON_TOP',
             'GUI_REMEMBER_WINDOW_LAYOUT',
@@ -294,6 +298,7 @@ class SettingsModel(BaseModel):
     }
 
     _ENUM_ALLOWED_VALUES: ClassVar[dict[str, tuple[str, ...]]] = {
+        'GUI_LANGUAGE': SUPPORTED_LANGUAGE_CODES,
         'HIGH_RATE_MONITOR_MODE': ('Smart', 'Manual'),
         'DISCORD_WEBHOOK_FORMAT': ('Desktop', 'Mobile'),
         'GUI_COLUMNS_TIMEZONE_DISPLAY': ('Timezone', 'Timezone + Local Time', 'Local Time'),

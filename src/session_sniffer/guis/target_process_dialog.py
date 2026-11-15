@@ -33,6 +33,7 @@ from session_sniffer.constants.tables import (
     TARGET_PROCESS_TABLE_MIN_COLUMN_WIDTHS,
 )
 from session_sniffer.guis.delegates import SearchHighlightDelegate
+from session_sniffer.guis.live_language import set_i18n_colon_label, set_table_headers
 from session_sniffer.guis.loading_overlay import run_async_with_loading
 from session_sniffer.guis.stylesheets import SVG_ICON_CONTEXT_MENU_STYLESHEET
 from session_sniffer.guis.table_column_resizing import TableColumnResizeController, setup_table_header_context_menu
@@ -43,6 +44,7 @@ from session_sniffer.guis.utils import (
     scale_by_ui,
     set_clipboard_text,
 )
+from session_sniffer.i18n import tr
 from session_sniffer.rendering_core.types import CaptureState
 from session_sniffer.settings import Settings
 
@@ -67,7 +69,7 @@ class TargetProcessDialog(QDialog):
         self.selected_track_by_name: bool = (
             Settings.capture_filter_process_track_by_name if initial_track_by_name is None else initial_track_by_name
         )
-        self.setWindowTitle(f'{TITLE} - Select Game or Application to Sniff')
+        self.setWindowTitle(f"{TITLE} - {tr('Select Game or Application to Sniff')}")
         self.setMinimumSize(scale_by_ui(800), scale_by_ui(520))
 
         main_layout = QVBoxLayout(self)
@@ -80,17 +82,18 @@ class TargetProcessDialog(QDialog):
 
         # Search bar and filter controls
         search_layout = QHBoxLayout()
-        search_label = QLabel('Search:')
+        search_label = QLabel()
+        set_i18n_colon_label(search_label, 'Search')
         self._search_input = QLineEdit()
-        self._search_input.setPlaceholderText('Type to filter games or applications (e.g. GTA, Call of Duty, Discord)...')
+        self._search_input.setPlaceholderText(tr('Type to filter games or applications (e.g. GTA, Call of Duty, Discord)...'))
         self._search_input.textChanged.connect(self._filter_process_list)
         apply_search_icon(self._search_input)
         search_layout.addWidget(search_label)
         search_layout.addWidget(self._search_input)
 
         refresh_icon = QIcon(str(ICONS_DIR_PATH / 'refresh-cw.svg'))
-        refresh_button = QPushButton(refresh_icon, ' Refresh')
-        refresh_button.setToolTip('Refresh the list of currently running processes')
+        refresh_button = QPushButton(refresh_icon, f" {tr('Refresh')}")
+        refresh_button.setToolTip(tr('Refresh the list of currently running processes'))
         refresh_button.clicked.connect(self._populate_process_table)
         search_layout.addWidget(refresh_button)
         main_layout.addLayout(search_layout)
@@ -98,15 +101,17 @@ class TargetProcessDialog(QDialog):
         # Options
         options_layout = QVBoxLayout()
         options_layout.setSpacing(scale_by_ui(4))
-        self._user_apps_only_checkbox = QCheckBox('Show user applications and games only (hide background system services)')
+        self._user_apps_only_checkbox = QCheckBox(tr('Show user applications and games only (hide background system services)'))
         self._user_apps_only_checkbox.setChecked(True)
         self._user_apps_only_checkbox.toggled.connect(self._populate_process_table)
         options_layout.addWidget(self._user_apps_only_checkbox)
 
-        self._track_by_name_checkbox = QCheckBox('Track target process by executable name (auto-detect restarts / editions)')
+        self._track_by_name_checkbox = QCheckBox(tr('Track target process by executable name (auto-detect restarts / editions)'))
         self._track_by_name_checkbox.setToolTip(
-            'Keep tracking the selected process name instead of a static PID. '
-            'Automatically re-detects the process when restarted and switches seamlessly between GTA V editions.',
+            tr(
+                'Keep tracking the selected process name instead of a static PID. '
+                'Automatically re-detects the process when restarted and switches seamlessly between GTA V editions.',
+            ),
         )
         self._track_by_name_checkbox.setChecked(self.selected_track_by_name)
         self._track_by_name_checkbox.toggled.connect(self._on_track_by_name_toggled)
@@ -117,7 +122,7 @@ class TargetProcessDialog(QDialog):
         # Main process table
         self._table = QTableWidget()
         self._table.setColumnCount(3)
-        self._table.setHorizontalHeaderLabels(('Application / Process Name', 'PID', 'Executable Path'))
+        set_table_headers(self._table, ('Application / Process Name', 'PID', 'Executable Path'))
         self._table.verticalHeader().setVisible(False)
         self._table.setIconSize(QSize(scale_by_ui(18), scale_by_ui(18)))
         self._table.setWordWrap(False)
@@ -149,11 +154,12 @@ class TargetProcessDialog(QDialog):
         self._manual_container = QWidget()
         manual_layout = QHBoxLayout(self._manual_container)
         manual_layout.setContentsMargins(0, 0, 0, 0)
-        manual_label = QLabel('Manual PID Entry (Advanced):')
+        manual_label = QLabel()
+        set_i18n_colon_label(manual_label, 'Manual PID Entry (Advanced)')
         self._pid_spinbox = QSpinBox()
         self._pid_spinbox.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self._pid_spinbox.setRange(0, 4194304)
-        self._pid_spinbox.setSpecialValueText('Disabled')
+        self._pid_spinbox.setSpecialValueText(tr('Disabled'))
         self._pid_spinbox.setValue(self.selected_pid)
         self._pid_spinbox.valueChanged.connect(self._on_manual_pid_changed)
         manual_layout.addWidget(manual_label)
@@ -161,7 +167,7 @@ class TargetProcessDialog(QDialog):
         manual_layout.addStretch()
         self._manual_container.setVisible(False)
 
-        self._show_manual_checkbox = QCheckBox('Show manual PID entry (advanced)')
+        self._show_manual_checkbox = QCheckBox(tr('Show manual PID entry (advanced)'))
         self._show_manual_checkbox.toggled.connect(self._on_show_manual_toggled)
         main_layout.addWidget(self._show_manual_checkbox)
         main_layout.addWidget(self._manual_container)
@@ -172,13 +178,13 @@ class TargetProcessDialog(QDialog):
         action_layout.addStretch()
 
         target_icon = QIcon(str(ICONS_DIR_PATH / 'target.svg'))
-        self._sniff_selected_button = QPushButton(target_icon, ' Sniff Selected Process')
+        self._sniff_selected_button = QPushButton(target_icon, f" {tr('Sniff Selected Process')}")
         self._sniff_selected_button.setEnabled(False)
         self._sniff_selected_button.setStyleSheet('font-weight: bold; padding: 6px 16px;')
         self._sniff_selected_button.clicked.connect(self._on_sniff_selected_clicked)
         action_layout.addWidget(self._sniff_selected_button)
 
-        cancel_button = QPushButton('Cancel')
+        cancel_button = QPushButton(tr('Cancel'))
         cancel_button.clicked.connect(self.reject)
         action_layout.addWidget(cancel_button)
 
@@ -199,13 +205,13 @@ class TargetProcessDialog(QDialog):
 
     def _update_status_label(self) -> None:
         """Update the status label describing the dialog's target process filter state."""
+        status_prefix = html.escape(tr('Status:'))
         if not CaptureState.is_local_capture():
-            self._status_label.setText(
-                themed_qss(
-                    '<b>Status:</b> Process PID sniffing is <span style="color: #f44336; font-weight: bold;">DISABLED</span> '
-                    'when capturing an external device (ARP spoofing / neighbour capture).',
-                ),
-            )
+            disabled_badge = html.escape(tr('DISABLED'))
+            detail = html.escape(
+                tr('Process PID sniffing is {state} when capturing an external device (ARP spoofing / neighbour capture).', state='{state}'),
+            ).format(state=f'<span style="color: #f44336; font-weight: bold;">{disabled_badge}</span>')
+            self._status_label.setText(themed_qss(f'<b>{status_prefix}</b> {detail}'))
             return
 
         current_pid = self.selected_pid
@@ -214,29 +220,41 @@ class TargetProcessDialog(QDialog):
 
         if current_pid <= 0 and not (track_by_name and tracked_name is not None):
             self._cached_active_target_pid = 0
-            self._status_label.setText('<b>Status:</b> Currently sniffing <b>ALL network traffic</b> (no process filter active).')
+            all_traffic = html.escape(tr('ALL network traffic'))
+            detail = html.escape(
+                tr('Currently sniffing {scope} (no process filter active).', scope='{scope}'),
+            ).format(scope=f'<b>{all_traffic}</b>')
+            self._status_label.setText(f'<b>{status_prefix}</b> {detail}')
             return
 
         matched_pid, matched_name = self._resolve_running_target(current_pid, tracked_name, track_by_name=track_by_name)
         self._cached_active_target_pid = matched_pid
         is_running = matched_pid > 0
         display_pid = matched_pid if is_running else current_pid
-        process_name = html.escape(matched_name or tracked_name or 'Unknown Process')
+        process_name = html.escape(matched_name or tracked_name or tr('Unknown Process'))
+        pid_info = html.escape(f" ({tr('PID: {pid}', pid=display_pid)})") if display_pid > 0 else ''
 
         if is_running:
-            status_badge = themed_qss('<span style="color: #4CAF50; font-weight: bold;">● RUNNING</span>')
-            pid_info = f' (PID: {display_pid})' if display_pid > 0 else ''
-            mode_info = ' [Tracking by Name]' if track_by_name else ''
-            self._status_label.setText(f'<b>Status:</b> Exclusively sniffing <b>{process_name}</b>{pid_info}{mode_info} — {status_badge}')
+            running_text = html.escape(tr('RUNNING'))
+            status_badge = themed_qss(f'<span style="color: #4CAF50; font-weight: bold;">● {running_text}</span>')
+            mode_info = html.escape(f" [{tr('Tracking by Name')}]") if track_by_name else ''
+            detail = html.escape(
+                tr('Exclusively sniffing {target} — {status}', target='{target}', status='{status}'),
+            ).format(target=f'<b>{process_name}</b>{pid_info}{mode_info}', status=status_badge)
+            self._status_label.setText(f'<b>{status_prefix}</b> {detail}')
         else:
-            status_badge = themed_qss('<span style="color: #f44336; font-weight: bold;">● NOT RUNNING</span>')
+            not_running_text = html.escape(tr('NOT RUNNING'))
+            status_badge = themed_qss(f'<span style="color: #f44336; font-weight: bold;">● {not_running_text}</span>')
             if track_by_name and tracked_name is not None:
-                self._status_label.setText(
-                    f'<b>Status:</b> Exclusively tracking <b>{html.escape(tracked_name)}</b> by name — {status_badge} (waiting to launch)',
-                )
+                detail = html.escape(
+                    tr('Exclusively tracking {process} by name — {status} (waiting to launch)', process='{process}', status='{status}'),
+                ).format(process=f'<b>{html.escape(tracked_name)}</b>', status=status_badge)
+                self._status_label.setText(f'<b>{status_prefix}</b> {detail}')
             else:
-                pid_info = f' (PID: {display_pid})' if display_pid > 0 else ''
-                self._status_label.setText(f'<b>Status:</b> Exclusively sniffing <b>{process_name}</b>{pid_info} — {status_badge}')
+                detail = html.escape(
+                    tr('Exclusively sniffing {target} — {status}', target='{target}', status='{status}'),
+                ).format(target=f'<b>{process_name}</b>{pid_info}', status=status_badge)
+                self._status_label.setText(f'<b>{status_prefix}</b> {detail}')
 
     def _resolve_running_target(
         self,
@@ -352,8 +370,8 @@ class TargetProcessDialog(QDialog):
             return
         run_async_with_loading(
             self,
-            'Refreshing Processes\u2026',
-            'Enumerating running applications\u2026',
+            tr('Refreshing Processes…'),
+            tr('Enumerating running applications…'),
             lambda: get_running_applications(user_apps_only=user_apps_only),
             self._apply_loaded_processes,
         )
@@ -388,7 +406,8 @@ class TargetProcessDialog(QDialog):
                 name_item.setIcon(get_process_icon(exe_path))
 
                 pid_item = QTableWidgetItem(str(pid))
-                pid_item.setToolTip(f'{name} (PID: {pid})')
+                pid_tooltip = tr('{name} (PID: {pid})', name=name, pid=pid)
+                pid_item.setToolTip(pid_tooltip)
                 path_item = QTableWidgetItem(exe_path)
                 if exe_path:
                     path_item.setToolTip(exe_path)
@@ -397,14 +416,13 @@ class TargetProcessDialog(QDialog):
 
                 if is_active_target:
                     active_target_row = row_index
-                    name_item.setText(f'{name} (Active Target)')
-                    name_item.setToolTip(
-                        f'{name} (PID: {pid}) - Active Target\n{exe_path}' if exe_path else f'{name} (PID: {pid}) - Active Target',
-                    )
+                    name_item.setText(tr('{name} (Active Target)', name=name))
+                    active_tip = tr('{name} (PID: {pid}) - Active Target', name=name, pid=pid)
+                    name_item.setToolTip(f'{active_tip}\n{exe_path}' if exe_path else active_tip)
                 elif exe_path:
-                    name_item.setToolTip(f'{name} (PID: {pid})\n{exe_path}')
+                    name_item.setToolTip(f'{pid_tooltip}\n{exe_path}')
                 else:
-                    name_item.setToolTip(f'{name} (PID: {pid})')
+                    name_item.setToolTip(pid_tooltip)
 
                 self._table.setItem(row_index, 0, name_item)
                 self._table.setItem(row_index, 1, pid_item)
@@ -649,28 +667,28 @@ class TargetProcessDialog(QDialog):
         menu.setToolTipsVisible(True)
 
         target_icon = QIcon(str(ICONS_DIR_PATH / 'target.svg'))
-        sniff_action = QAction(target_icon, f"Sniff '{process_name}'", menu)
-        sniff_action.setToolTip(f'Select {process_name} (PID: {pid_str}) and filter network capture to it.')
+        sniff_action = QAction(target_icon, tr("Sniff '{process}'", process=process_name), menu)
+        sniff_action.setToolTip(tr('Select {process} (PID: {pid}) and filter network capture to it.', process=process_name, pid=pid_str))
         sniff_action.triggered.connect(self._on_sniff_selected_clicked)
         menu.addAction(sniff_action)
 
         menu.addSeparator()
 
-        copy_row_action = QAction(QIcon(str(ICONS_DIR_PATH / 'copy.svg')), 'Copy Row', menu)
+        copy_row_action = QAction(QIcon(str(ICONS_DIR_PATH / 'copy.svg')), tr('Copy Row'), menu)
         copy_row_action.setShortcut('Ctrl+C')
-        copy_row_action.setToolTip('Copy selected row details to the clipboard.')
+        copy_row_action.setToolTip(tr('Copy selected row details to the clipboard.'))
         copy_row_action.triggered.connect(self._copy_selected_row)
         menu.addAction(copy_row_action)
 
         if exe_path:
-            copy_path_action = QAction(QIcon(str(ICONS_DIR_PATH / 'copy.svg')), 'Copy Executable Path', menu)
-            copy_path_action.setToolTip('Copy the full executable path to the clipboard.')
+            copy_path_action = QAction(QIcon(str(ICONS_DIR_PATH / 'copy.svg')), tr('Copy Executable Path'), menu)
+            copy_path_action.setToolTip(tr('Copy the full executable path to the clipboard.'))
             copy_path_action.triggered.connect(lambda: set_clipboard_text(exe_path))
             menu.addAction(copy_path_action)
 
         if process_name:
-            copy_name_action = QAction(QIcon(str(ICONS_DIR_PATH / 'copy.svg')), 'Copy Process Name', menu)
-            copy_name_action.setToolTip('Copy the process name to the clipboard.')
+            copy_name_action = QAction(QIcon(str(ICONS_DIR_PATH / 'copy.svg')), tr('Copy Process Name'), menu)
+            copy_name_action.setToolTip(tr('Copy the process name to the clipboard.'))
             copy_name_action.triggered.connect(lambda: set_clipboard_text(process_name))
             menu.addAction(copy_name_action)
 

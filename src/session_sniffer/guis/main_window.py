@@ -9,14 +9,7 @@ from typing import TYPE_CHECKING, Literal, override
 
 from PySide6.QtCore import Qt, QTimer, Slot
 from PySide6.QtGui import QAction, QCloseEvent, QIcon, QKeySequence, QShortcut, QShowEvent
-from PySide6.QtWidgets import (
-    QLabel,
-    QMainWindow,
-    QMenuBar,
-    QSplitter,
-    QVBoxLayout,
-    QWidget,
-)
+from PySide6.QtWidgets import QLabel, QMainWindow, QMenuBar, QSplitter, QVBoxLayout, QWidget
 from shiboken6 import isValid
 
 from session_sniffer.background import clear_resolution_queues, retrigger_detections_scan, wake_all_player_cores
@@ -35,6 +28,7 @@ from session_sniffer.guis._session_table_section import SessionStatusBar, Sessio
 from session_sniffer.guis._settings_runtime import SettingValue, apply_notifications_toggle_changes, apply_runtime_settings_changes
 from session_sniffer.guis.discord_intro import DiscordIntro
 from session_sniffer.guis.file_watch import DebouncedFileWatcher
+from session_sniffer.guis.live_language import add_i18n_menu_actions, register_language_refresh
 from session_sniffer.guis.live_theme import register_post_theme_refresh
 from session_sniffer.guis.loading_overlay import LoadingOverlay, run_blocking_with_loading
 from session_sniffer.guis.ping_window import PingWindow
@@ -56,6 +50,7 @@ from session_sniffer.guis.utils import (
     show_or_focus_window,
 )
 from session_sniffer.guis.worker_thread import GUIWorkerThread
+from session_sniffer.i18n import tr
 from session_sniffer.models import GUIState
 from session_sniffer.notifications_state import notifications_state
 from session_sniffer.player.combo_rules import ComboRulesManager
@@ -66,19 +61,13 @@ from session_sniffer.player.userip import UserIPDatabases, gui_dispatcher
 from session_sniffer.rdr2.suspend_manager import RDR2SuspendManager
 from session_sniffer.rendering_core.events import wake_rendering_core
 from session_sniffer.rendering_core.status_bar_renderer import build_gui_status_text, reset_status_bar_latency
-from session_sniffer.rendering_core.types import (
-    CaptureStats,
-    GUIRenderingState,
-    GUIUpdatePayload,
-    PaginationState,
-    SearchState,
-    SessionFilterState,
-    TableMergeState,
-)
+from session_sniffer.rendering_core.types import CaptureStats, GUIRenderingState, GUIUpdatePayload, PaginationState, SearchState, SessionFilterState, TableMergeState
 from session_sniffer.settings import Settings
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+
+    from PySide6.QtWidgets import QMenu
 
     from session_sniffer.capture.packet_capture import CaptureHolder
     from session_sniffer.guis.detections_manager import DetectionsManagerDialog
@@ -120,15 +109,22 @@ class _MinimizedTablesPlaceholder(QWidget):
         icon_label.setPixmap(pixmap)
         layout.addWidget(icon_label)
 
-        title_label = QLabel('All Tables Minimized')
-        title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        title_label.setStyleSheet(themed_qss('color: #94a3b8; font-size: 11pt; font-weight: 600;'))
-        layout.addWidget(title_label)
+        self._title_label = QLabel()
+        self._title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._title_label.setStyleSheet(themed_qss('color: #94a3b8; font-size: 11pt; font-weight: 600;'))
+        layout.addWidget(self._title_label)
 
-        subtitle_label = QLabel('Expand connected or disconnected players below to view session data')
-        subtitle_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        subtitle_label.setStyleSheet(themed_qss('color: #475569; font-size: 9pt;'))
-        layout.addWidget(subtitle_label)
+        self._subtitle_label = QLabel()
+        self._subtitle_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._subtitle_label.setStyleSheet(themed_qss('color: #475569; font-size: 9pt;'))
+        layout.addWidget(self._subtitle_label)
+
+        self._refresh_language_texts()
+        register_language_refresh(self, self._refresh_language_texts)
+
+    def _refresh_language_texts(self) -> None:
+        self._title_label.setText(tr('All Tables Minimized'))
+        self._subtitle_label.setText(tr('Expand connected or disconnected players below to view session data'))
 
 
 class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
@@ -143,6 +139,8 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
     _discord_intro_window: DiscordIntro | None
     _detections_manager_window: DetectionsManagerDialog | None
     _userip_manager_window: UserIPDatabasesManager | None
+    _main_i18n_menus: list[tuple[QMenu, str]]
+    _main_i18n_actions: list[tuple[QAction, str, str]]
 
     def _on_splitter_moved(self, _position: int, _index: int) -> None:
         selected_session = SessionFilterState.get_selected_session()
@@ -282,6 +280,8 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
             message = 'Failed to get menu bar'
             raise RuntimeError(message)
 
+        self._main_i18n_menus = []
+        self._main_i18n_actions = []
         self._actions = self._build_capture_menu(menu_bar)
         self._build_game_menu(menu_bar)
         self._apply_always_on_top()
@@ -384,6 +384,7 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
 
         self._update_splitter_visibility()
         register_post_theme_refresh(self, self._refresh_after_theme_change)
+        register_language_refresh(self, self._refresh_language_texts)
 
         self.raise_()
         self.activateWindow()
@@ -415,86 +416,77 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
 
     def _build_capture_menu(self, menu_bar: QMenuBar) -> _MenuActions:
         """Build the Capture menu and return key action references."""
-        capture_menu = menu_bar.addMenu('Capture')
+        capture_menu = menu_bar.addMenu(tr('Capture'))
         if not capture_menu:
             message = 'Failed to create Capture menu'
             raise RuntimeError(message)
         capture_menu.setToolTipsVisible(True)
+        self._main_i18n_menus.append((capture_menu, 'Capture'))
 
-        toggle_capture_action = QAction(QIcon(str(ICONS_DIR_PATH / 'circle-stop.svg')), 'Stop Capture', self)
-        toggle_capture_action.setToolTip('Stop packet capture')
+        toggle_capture_action = QAction(QIcon(str(ICONS_DIR_PATH / 'circle-stop.svg')), tr('Stop Capture'), self)
+        toggle_capture_action.setToolTip(tr('Stop packet capture'))
         toggle_capture_action.triggered.connect(self._toggle_capture)
         capture_menu.addAction(toggle_capture_action)
 
         capture_menu.addSeparator()
 
-        change_interface_action = QAction(QIcon(str(ICONS_DIR_PATH / 'refresh-cw.svg')), 'Change Interface', self)
-        change_interface_action.setToolTip('Stop capture, select a different network interface, and restart capture')
-        change_interface_action.triggered.connect(self._on_change_interface)
-        capture_menu.addAction(change_interface_action)
-
-        hotspot_action = QAction(QIcon(str(ICONS_DIR_PATH / 'router.svg')), 'Hotspot && Sharing', self)
-        hotspot_action.setToolTip('Create a Wi-Fi hotspot or configure Internet Connection Sharing (ICS) to capture console traffic')
-        hotspot_action.triggered.connect(self._open_hotspot_manager)
-        capture_menu.addAction(hotspot_action)
-
-        return _MenuActions(
-            toggle_capture=toggle_capture_action,
-            change_interface=change_interface_action,
+        actions = add_i18n_menu_actions(
+            self,
+            capture_menu,
+            ICONS_DIR_PATH,
+            [
+                ('refresh-cw.svg', 'Change Interface', 'Stop capture, select a different network interface, and restart capture', self._on_change_interface),
+                (
+                    'router.svg', 'Hotspot && Sharing', 'Create a Wi-Fi hotspot or configure Internet Connection Sharing (ICS) to capture console traffic',
+                    self._open_hotspot_manager,
+                ),
+            ],
+            self._main_i18n_actions,
         )
+
+        return _MenuActions(toggle_capture=toggle_capture_action, change_interface=actions[0])
 
     def _build_tools_menu(self, menu_bar: QMenuBar) -> None:
         """Build the Tools menu and attach tool launcher actions."""
-        tools_menu = menu_bar.addMenu('Tools')
+        tools_menu = menu_bar.addMenu(tr('Tools'))
         if not tools_menu:
             message = 'Failed to create Tools menu'
             raise RuntimeError(message)
         tools_menu.setToolTipsVisible(True)
+        self._main_i18n_menus.append((tools_menu, 'Tools'))
 
-        detections_manager_action = QAction(QIcon(str(ICONS_DIR_PATH / 'shield.svg')), 'Detections Manager', self)
-        detections_manager_action.setToolTip('Configure detection, notifications, and protection rules')
-        detections_manager_action.triggered.connect(self._open_detections_manager)
-        tools_menu.addAction(detections_manager_action)
-
-        userip_manager_action = QAction(QIcon(str(ICONS_DIR_PATH / 'database.svg')), 'UserIP Manager', self)
-        userip_manager_action.setToolTip('Browse, edit, add, and delete entries in UserIP database files')
-        userip_manager_action.triggered.connect(self._open_userip_manager)
-        tools_menu.addAction(userip_manager_action)
-
-        logs_manager_action = QAction(QIcon(str(ICONS_DIR_PATH / 'file-text.svg')), 'Logs Manager', self)
-        logs_manager_action.setToolTip('View, search, filter, and manage application log files')
-        logs_manager_action.triggered.connect(self._open_logs_manager)
-        tools_menu.addAction(logs_manager_action)
-
-        tools_menu.addSeparator()
-
-        leaderboard_action = QAction(QIcon(str(ICONS_DIR_PATH / 'trophy.svg')), 'Most Seen Players', self)
-        leaderboard_action.setToolTip('View a leaderboard of the most frequently seen players across sessions')
-        leaderboard_action.triggered.connect(self._open_player_leaderboard)
-        tools_menu.addAction(leaderboard_action)
-
-        port_scanner_action = QAction(QIcon(str(ICONS_DIR_PATH / 'radar.svg')), 'Port Scanner', self)
-        port_scanner_action.setToolTip('Perform multi-threaded TCP and UDP port scanning with service banner detection')
-        port_scanner_action.triggered.connect(self._open_port_scanner)
-        tools_menu.addAction(port_scanner_action)
-
-        ping_action = QAction(QIcon(str(ICONS_DIR_PATH / 'radio-tower.svg')), 'Ping Diagnostics', self)
-        ping_action.setToolTip('Send ICMP echo, TCP connect, UDP reachability, or Web latency probes')
-        ping_action.triggered.connect(self._open_ping_diagnostics)
-        tools_menu.addAction(ping_action)
+        add_i18n_menu_actions(
+            self,
+            tools_menu,
+            ICONS_DIR_PATH,
+            [
+                ('shield.svg', 'Detections Manager', 'Configure detection, notifications, and protection rules', self._open_detections_manager),
+                ('database.svg', 'UserIP Manager', 'Browse, edit, add, and delete entries in UserIP database files', self._open_userip_manager),
+                ('file-text.svg', 'Logs Manager', 'View, search, filter, and manage application log files', self._open_logs_manager),
+                None,
+                ('trophy.svg', 'Most Seen Players', 'View a leaderboard of the most frequently seen players across sessions', self._open_player_leaderboard),
+                ('radar.svg', 'Port Scanner', 'Perform multi-threaded TCP and UDP port scanning with service banner detection', self._open_port_scanner),
+                ('radio-tower.svg', 'Ping Diagnostics', 'Send ICMP echo, TCP connect, UDP reachability, or Web latency probes', self._open_ping_diagnostics),
+            ],
+            self._main_i18n_actions,
+        )
 
     def _build_settings_menu(self, menu_bar: QMenuBar) -> None:
         """Build the Settings menu."""
-        settings_menu = menu_bar.addMenu('Settings')
+        settings_menu = menu_bar.addMenu(tr('Settings'))
         if not settings_menu:
             message = 'Failed to create Settings menu'
             raise RuntimeError(message)
         settings_menu.setToolTipsVisible(True)
+        self._main_i18n_menus.append((settings_menu, 'Settings'))
 
-        open_settings_action = QAction(QIcon(str(ICONS_DIR_PATH / 'settings.svg')), 'Open Settings', self)
-        open_settings_action.setToolTip('View and edit all application settings')
-        open_settings_action.triggered.connect(self._open_settings_dialog)
-        settings_menu.addAction(open_settings_action)
+        add_i18n_menu_actions(
+            self,
+            settings_menu,
+            ICONS_DIR_PATH,
+            [('settings.svg', 'Open Settings', 'View and edit all application settings', self._open_settings_dialog)],
+            self._main_i18n_actions,
+        )
 
     def _toggle_notifications(self, mode: Literal['visual', 'voice', 'all']) -> None:
         """Toggle visual, voice, or both session-only notification states (never persisted) and apply runtime effects."""
@@ -818,27 +810,41 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
         self._connected.table_view.viewport().update()
         self._disconnected.table_view.viewport().update()
 
+    def _refresh_language_texts(self) -> None:
+        """Re-translate menus, status texts, capture action, and wake background rendering on language switch."""
+        self.setWindowTitle(TITLE)
+        for menu, title_key in self._main_i18n_menus:
+            menu.setTitle(tr(title_key))
+        for action, text_key, tooltip_key in self._main_i18n_actions:
+            action.setText(tr(text_key))
+            action.setToolTip(tr(tooltip_key))
+        self._sync_capture_toggle_action()
+        self._refresh_game_menu_language_texts()
+        self._refresh_statistics_menu_language_texts()
+        self._refresh_files_menu_language_texts()
+        self._update_status_bar()
+        wake_rendering_core()
+
     def _sync_capture_toggle_action(self) -> None:
         """Synchronize the toggle capture action icon, text, and tooltip with the current capture state."""
         is_running = self.capture.is_running()
-        expected_text = 'Stop Capture' if is_running else 'Start Capture'
-        if self._actions.toggle_capture.text() == expected_text:
+        expected_text = tr('Stop Capture') if is_running else tr('Start Capture')
+        expected_tooltip = tr('Stop packet capture') if is_running else tr('Start packet capture')
+        if self._actions.toggle_capture.text() == expected_text and self._actions.toggle_capture.toolTip() == expected_tooltip:
             return
 
+        self._actions.toggle_capture.setText(expected_text)
+        self._actions.toggle_capture.setToolTip(expected_tooltip)
         if is_running:
-            self._actions.toggle_capture.setText('Stop Capture')
             self._actions.toggle_capture.setIcon(QIcon(str(ICONS_DIR_PATH / 'circle-stop.svg')))
-            self._actions.toggle_capture.setToolTip('Stop packet capture')
         else:
-            self._actions.toggle_capture.setText('Start Capture')
             self._actions.toggle_capture.setIcon(QIcon(str(ICONS_DIR_PATH / 'circle-play.svg')))
-            self._actions.toggle_capture.setToolTip('Start packet capture')
 
     def _toggle_capture(self) -> None:
         """Toggle the packet capture on/off."""
         stopping = self.capture.is_running()
-        title = 'Stopping Capture\u2026' if stopping else 'Starting Capture\u2026'
-        run_blocking_with_loading(self, title, 'Updating packet capture engine\u2026', self.capture.stop if stopping else self.capture.start)
+        title = tr('Stopping Capture\u2026') if stopping else tr('Starting Capture\u2026')
+        run_blocking_with_loading(self, title, tr('Updating packet capture engine\u2026'), self.capture.stop if stopping else self.capture.start)
 
         self._sync_capture_toggle_action()
         self._update_header_capture_status()
@@ -850,8 +856,8 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, QMainWindow):
             if self._interface_switching_overlay is None:
                 self._interface_switching_overlay = LoadingOverlay(
                     self,
-                    'Switching Network Interface\u2026',
-                    'Reconfiguring packet capture and filters\u2026',
+                    tr('Switching Network Interface\u2026'),
+                    tr('Reconfiguring packet capture and filters\u2026'),
                 )
             self._interface_switching_overlay.present_immediately()
         elif self._interface_switching_overlay is not None:

@@ -11,10 +11,11 @@ from typing import TYPE_CHECKING, cast, override
 
 from PySide6.QtCore import QAbstractItemModel, QModelIndex, QObject, QPersistentModelIndex, QRegularExpression, QSignalBlocker, QSortFilterProxyModel, Qt
 from PySide6.QtGui import QBrush, QIcon, QRegularExpressionValidator, QStandardItem, QStandardItemModel
-from PySide6.QtWidgets import QButtonGroup, QDialog, QDialogButtonBox, QGridLayout, QGroupBox, QLabel, QLineEdit, QMenu, QRadioButton, QSlider, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QButtonGroup, QDialog, QDialogButtonBox, QGridLayout, QGroupBox, QLabel, QLineEdit, QRadioButton, QSlider, QVBoxLayout, QWidget
 
 from session_sniffer.constants.local import USERIP_DATABASES_DIR_PATH
 from session_sniffer.constants.standalone import TITLE
+from session_sniffer.guis.live_language import set_i18n_colon_label
 from session_sniffer.guis.loading_overlay import pump_active_loading_overlays
 from session_sniffer.guis.stylesheets import (
     IP_RANGE_PREVIEW_EMPTY_STYLESHEET,
@@ -22,8 +23,9 @@ from session_sniffer.guis.stylesheets import (
     IP_RANGE_PREVIEW_VALID_STYLESHEET,
     SUBNET_DESC_LABEL_STYLESHEET,
 )
-from session_sniffer.guis.theming import ICONS_DIR_PATH, register_theme_change_callback, themed_qcolor, themed_text_qcolor
+from session_sniffer.guis.theming import register_theme_change_callback, themed_qcolor, themed_text_qcolor
 from session_sniffer.guis.utils import scale_by_ui
+from session_sniffer.i18n import tr, tr_plural
 from session_sniffer.models.userip_settings_model import (
     DEFAULT_USERIP_FILES_SETTINGS,
     USERIP_SOURCE_TOOLTIPS,
@@ -44,10 +46,9 @@ from session_sniffer.player.userip_loader import (
 )
 from session_sniffer.player.userip_log_history import enrich_userip_entry_from_logs
 from session_sniffer.rendering_core.events import wake_rendering_core
-from session_sniffer.text_utils import pluralize
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Iterable, Iterator
+    from collections.abc import Iterable, Iterator
     from pathlib import Path
     from typing import Any
 
@@ -60,14 +61,23 @@ TIMESTAMP_COLUMNS = (ADDED_AT_COLUMN, UPDATED_AT_COLUMN, FIRST_SEEN_AT_COLUMN, L
 FILTERABLE_COLUMNS = (USERNAME_COLUMN, IP_COLUMN, RANGE_COLUMN, DATABASE_COLUMN, NOTES_COLUMN, SOURCE_COLUMN, *TIMESTAMP_COLUMNS)
 ENTRY_TABLE_HEADERS = ['#', 'Username', 'IP', 'Range', 'Database', 'Notes', 'Source', 'Detections', 'Added', 'Updated', 'First Seen', 'Last Seen']
 
-USERIP_METADATA_HEADER_TOOLTIPS: dict[str, str] = {
-    'Source': 'How this entry was added to the database:\n' + '\n'.join(f'• {src}: {desc}' for src, desc in USERIP_SOURCE_TOOLTIPS.items()),
+_STATIC_METADATA_HEADER_TOOLTIPS: dict[str, str] = {
     'Detections': 'The number of times this entry has been matched across sessions.',
     'Added': 'The date and time when this entry was first added to the database.',
     'Updated': 'The date and time when this entry was last modified.',
     'First Seen': 'The very first time a player matching this entry was observed in a session.',
     'Last Seen': 'The most recent time a player matching this entry was active in a session.',
 }
+
+
+def get_userip_metadata_header_tooltips() -> dict[str, str]:
+    """Return localized header tooltips keyed by canonical UserIP metadata column header name."""
+    source_lines = '\n'.join(f'• {tr(src)}: {tr(desc)}' for src, desc in USERIP_SOURCE_TOOLTIPS.items())
+    tooltips: dict[str, str] = {'Source': f"{tr('How this entry was added to the database:')}\n{source_lines}"}
+    for header_key, tooltip_key in _STATIC_METADATA_HEADER_TOOLTIPS.items():
+        tooltips[header_key] = tr(tooltip_key)
+    return tooltips
+
 
 IS_PERSISTED_ROLE, SEARCH_TEXT_ROLE, SORT_KEY_ROLE = Qt.ItemDataRole.UserRole + 1, Qt.ItemDataRole.UserRole + 2, Qt.ItemDataRole.UserRole + 3
 
@@ -93,13 +103,7 @@ _READONLY_ITEM_FLAGS = Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsEnabled 
 _IPV4_BROADCAST_FREE_PREFIX, _IPV4_VERSION, _EPOCH_SORT_OFFSET_MS = 31, 4, 10_000_000_000_000
 
 NEW_DATABASE_SETTINGS = UserIPSettingsModel(
-    ENABLED=True,
-    COLOR='',
-    LOG=True,
-    NOTIFICATIONS=True,
-    VOICE_NOTIFICATIONS=False,
-    PROTECTION=False,
-    PROTECTION_SUSPEND_PROCESS_MODE='Auto',
+    ENABLED=True, COLOR='', LOG=True, NOTIFICATIONS=True, VOICE_NOTIFICATIONS=False, PROTECTION=False, PROTECTION_SUSPEND_PROCESS_MODE='Auto',
 )
 
 
@@ -414,7 +418,7 @@ def build_entry_row_items(
         if looky_icon is not None:
             username_item.setIcon(looky_icon)
         username_item.setForeground(_LOOKY_FOREGROUND_BRUSH)
-        username_item.setToolTip('Added automatically by Looky System')
+        username_item.setToolTip(tr('Added automatically by Looky System'))
         username_item.setData(entry.is_looky, Qt.ItemDataRole.UserRole)
 
     is_single_ip = bool(entry.ip and '/' not in entry.ip and '-' not in entry.ip)
@@ -428,13 +432,36 @@ def build_entry_row_items(
     db_name = database[0] if database else ''
     db_item = _make_readonly_item(db_name, str(database[1]) if database is not None else None)
     notes_item = QStandardItem(entry.notes)
-    source_item = _make_readonly_item(entry.source, entry.source, tooltip=USERIP_SOURCE_TOOLTIPS.get(entry.source, ''))
+    raw_source_tooltip = USERIP_SOURCE_TOOLTIPS.get(entry.source, '')
+    source_tooltip = tr(raw_source_tooltip) if raw_source_tooltip else ''
+    source_item = _make_readonly_item(tr(entry.source), entry.source, tooltip=source_tooltip)
     detections_item = _make_readonly_item(str(entry.detections_count), entry.detections_count)
     added_item, updated_item = _make_timestamp_item(entry.added_at), _make_timestamp_item(entry.updated_at)
     first_seen_item, last_seen_item = _make_timestamp_item(entry.first_seen_at), _make_timestamp_item(entry.last_seen_at)
-    search_vals = (entry.username, entry.ip, db_name, entry.notes, entry.source, added_item.text(), updated_item.text(), first_seen_item.text(), last_seen_item.text())
+    search_vals = (entry.username, entry.ip, db_name, entry.notes, source_item.text(), added_item.text(), updated_item.text(), first_seen_item.text(), last_seen_item.text())
     index_item.setData('\x1f'.join(val.lower() for val in search_vals if val), SEARCH_TEXT_ROLE)
     return [index_item, username_item, ip_item, range_item, db_item, notes_item, source_item, detections_item, added_item, updated_item, first_seen_item, last_seen_item]
+
+
+def retranslate_entry_rows(model: QStandardItemModel) -> None:
+    """Refresh localized Looky tooltips, `Source` cell texts/tooltips, and search blobs across *model*."""
+    row_count = model.rowCount()
+    if row_count <= 0:
+        return
+    source_tooltips: dict[str, str] = {str(src_key): desc for src_key, desc in USERIP_SOURCE_TOOLTIPS.items()}
+    with QSignalBlocker(model):
+        for row in range(row_count):
+            username_item = model.item(row, USERNAME_COLUMN)
+            if username_item and username_item.data(Qt.ItemDataRole.UserRole):
+                username_item.setToolTip(tr('Added automatically by Looky System'))
+            source_item = model.item(row, SOURCE_COLUMN)
+            if source_item:
+                canonical_src = source_item.data(Qt.ItemDataRole.UserRole)
+                if isinstance(canonical_src, str) and (desc := source_tooltips.get(canonical_src)) is not None and bool(desc):
+                    source_item.setText(tr(canonical_src))
+                    source_item.setToolTip(tr(desc))
+            _compute_row_search_blob(model, row)
+    model.dataChanged.emit(model.index(0, 0), model.index(row_count - 1, max(0, model.columnCount() - 1)), [Qt.ItemDataRole.DisplayRole, SEARCH_TEXT_ROLE])
 
 
 def append_entry_rows(model: QStandardItemModel, rows: list[list[QStandardItem]]) -> None:
@@ -479,9 +506,9 @@ def clear_row_looky_badge(model: QStandardItemModel, row: int) -> None:
         username_item.setToolTip('')
         source_item = model.item(row, SOURCE_COLUMN)
         if source_item.data(Qt.ItemDataRole.UserRole) == 'Looky':
-            source_item.setText('Manual')
+            source_item.setText(tr('Manual'))
             source_item.setData('Manual', Qt.ItemDataRole.UserRole)
-            source_item.setToolTip(USERIP_SOURCE_TOOLTIPS['Manual'])
+            source_item.setToolTip(tr(USERIP_SOURCE_TOOLTIPS['Manual']))
 
 
 def extract_entry_model_from_row(model: QStandardItemModel, row: int) -> tuple[str, str, str, UserIPEntryModel | None]:
@@ -711,58 +738,23 @@ def rewrite_db_edit_ip_notes(db_path: Path, ip_address: str, new_note: str) -> i
     return matched_count
 
 
-def populate_userip_databases_menu(
-    parent_menu: QMenu,
-    database_paths: list[Path],
-    tooltip: str,
-    handler_factory: Callable[[Path], Callable[[], None]],
-    *,
-    disabled_path: Path | None = None,
-) -> int:
-    """Add database entries to *parent_menu*, nesting subfolders as child menus, and return the enabled action count."""
-    folder_menus: dict[tuple[str, ...], QMenu] = {}
-    menus_with_folders: set[QMenu] = set()
-    enabled_count = 0
-
-    def _sort_key(db_path: Path) -> tuple[tuple[int, str], ...]:
-        rel = db_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix('')
-        return tuple((0, part.casefold()) if i < len(rel.parts) - 1 else (1, part.casefold()) for i, part in enumerate(rel.parts))
-
-    for db_path in sorted(database_paths, key=_sort_key):
-        rel = db_path.relative_to(USERIP_DATABASES_DIR_PATH).with_suffix('')
-        current_menu = parent_menu
-        for depth in range(len(rel.parts) - 1):
-            folder_key = rel.parts[: depth + 1]
-            if folder_key not in folder_menus:
-                folder_menu = current_menu.addMenu(QIcon(str(ICONS_DIR_PATH / 'folder.svg')), rel.parts[depth])
-                folder_menu.setToolTipsVisible(True)
-                folder_menus[folder_key] = folder_menu
-                menus_with_folders.add(current_menu)
-            current_menu = folder_menus[folder_key]
-
-        if current_menu in menus_with_folders:
-            current_menu.addSeparator()
-            menus_with_folders.remove(current_menu)
-
-        action = current_menu.addAction(QIcon(str(ICONS_DIR_PATH / 'database.svg')), rel.parts[-1])
-        action.setToolTip(tooltip)
-        action.triggered.connect(handler_factory(db_path))
-        if disabled_path is not None and db_path == disabled_path:
-            action.setEnabled(False)
-        else:
-            enabled_count += 1
-
-    return enabled_count
-
-
 # ---- Common subnet descriptions for the slider ----
-_SUBNET_NOTES: dict[int, str] = {32: '  (single host)', 24: '  (common home network)', 16: '  (large corporate network)'}
-_SUBNET_SLIDER_OPTIONS: list[tuple[int, str]] = [
-    (p, f'/{p}  —  {1 << (32 - p):,} address{pluralize(1 << (32 - p), "", "es")}{_SUBNET_NOTES.get(p, "")}') for p in range(32, 15, -1)
-]
-
-_SUBNET_PREFIX_MIN_INDEX, _SUBNET_PREFIX_MAX_INDEX, _SUBNET_DEFAULT_SLIDER_INDEX = 0, len(_SUBNET_SLIDER_OPTIONS) - 1, 8
+_SUBNET_PREFIXES: tuple[int, ...] = tuple(range(32, 15, -1))
+_SUBNET_PREFIX_MIN_INDEX, _SUBNET_PREFIX_MAX_INDEX, _SUBNET_DEFAULT_SLIDER_INDEX = 0, len(_SUBNET_PREFIXES) - 1, 8
 _MODE_SINGLE, _MODE_RANGE, _MODE_SUBNET = 0, 1, 2
+_SUBNET_HOST_PREFIX, _SUBNET_HOME_PREFIX, _SUBNET_CORP_PREFIX = 32, 24, 16
+
+
+def _format_subnet_option(prefix: int) -> str:
+    """Return the localized subnet slider label for CIDR *prefix*."""
+    address_count = 1 << (32 - prefix)
+    if prefix == _SUBNET_HOST_PREFIX:
+        return tr('/{prefix}  —  1 address  (single host)', prefix=prefix)
+    if prefix == _SUBNET_HOME_PREFIX:
+        return tr('/{prefix}  —  {count:,} addresses  (common home network)', prefix=prefix, count=address_count)
+    if prefix == _SUBNET_CORP_PREFIX:
+        return tr('/{prefix}  —  {count:,} addresses  (large corporate network)', prefix=prefix, count=address_count)
+    return tr_plural('/{prefix}  —  {count:,} address', '/{prefix}  —  {count:,} addresses', address_count, prefix=prefix)
 
 
 class IPRangeBuilderDialog(QDialog):
@@ -772,43 +764,55 @@ class IPRangeBuilderDialog(QDialog):
         """Build the IP Range Builder dialog."""
         super().__init__(parent)
         self.setWindowModality(Qt.WindowModality.WindowModal)
-        self.setWindowTitle(f'IP Range Builder - {TITLE}')
+        self.setWindowTitle(tr('IP Range Builder - {title}', title=TITLE))
         self.setMinimumWidth(scale_by_ui(520))
         self.setWindowFlag(Qt.WindowType.WindowContextHelpButtonHint, on=False)
 
         layout = QVBoxLayout(self)
 
         # --- Mode selection ---
-        mode_group = QGroupBox('Range Type')
+        mode_group = QGroupBox(tr('Range Type').replace('&', '&&'))
         mode_layout = QVBoxLayout(mode_group)
         self._mode_group = QButtonGroup(self)
-        self._radio_single = QRadioButton('Single IP address')
-        self._radio_range = QRadioButton('IP range  (from one address to another)')
-        self._radio_subnet = QRadioButton('Subnet  (block of addresses starting from a base IP)')
+        self._radio_single = QRadioButton(tr('Single IP address'))
+        self._radio_range = QRadioButton(tr('IP range  (from one address to another)'))
+        self._radio_subnet = QRadioButton(tr('Subnet  (block of addresses starting from a base IP)'))
         for btn_id, radio in ((_MODE_SINGLE, self._radio_single), (_MODE_RANGE, self._radio_range), (_MODE_SUBNET, self._radio_subnet)):
             self._mode_group.addButton(radio, btn_id)
             mode_layout.addWidget(radio)
         layout.addWidget(mode_group)
 
         # --- Input fields ---
-        input_group = QGroupBox('Details')
+        input_group = QGroupBox(tr('Details').replace('&', '&&'))
         input_layout = QGridLayout(input_group)
-        self._single_label, self._single_input = QLabel('IP Address:'), self._create_ip_input('e.g. 192.168.1.1')
-        self._range_from_label, self._range_from_input = QLabel('From:'), self._create_ip_input('e.g. 192.168.1.100')
-        self._range_to_label, self._range_to_input = QLabel('To:'), self._create_ip_input('e.g. 192.168.1.200')
-        self._subnet_ip_label, self._subnet_ip_input = QLabel('Base IP:'), self._create_ip_input('e.g. 192.168.1.0')
+        self._single_label = QLabel()
+        set_i18n_colon_label(self._single_label, 'IP Address')
+        self._single_input = self._create_ip_input(tr('e.g. 192.168.1.1'))
+
+        self._range_from_label = QLabel()
+        set_i18n_colon_label(self._range_from_label, 'From')
+        self._range_from_input = self._create_ip_input(tr('e.g. 192.168.1.100'))
+
+        self._range_to_label = QLabel()
+        set_i18n_colon_label(self._range_to_label, 'To')
+        self._range_to_input = self._create_ip_input(tr('e.g. 192.168.1.200'))
+
+        self._subnet_ip_label = QLabel()
+        set_i18n_colon_label(self._subnet_ip_label, 'Base IP')
+        self._subnet_ip_input = self._create_ip_input(tr('e.g. 192.168.1.0'))
+
         input_pairs = (
-            (self._single_label, self._single_input),
-            (self._range_from_label, self._range_from_input),
-            (self._range_to_label, self._range_to_input),
-            (self._subnet_ip_label, self._subnet_ip_input),
+            (self._single_label, self._single_input), (self._range_from_label, self._range_from_input),
+            (self._range_to_label, self._range_to_input), (self._subnet_ip_label, self._subnet_ip_input),
         )
         for row_idx, (lbl, inp) in enumerate(input_pairs):
             input_layout.addWidget(lbl, row_idx, 0)
             input_layout.addWidget(inp, row_idx, 1)
             inp.textChanged.connect(self._update_preview)
 
-        self._subnet_size_label, self._subnet_slider = QLabel('Block size:'), QSlider(Qt.Orientation.Horizontal)
+        self._subnet_size_label = QLabel()
+        set_i18n_colon_label(self._subnet_size_label, 'Block size')
+        self._subnet_slider = QSlider(Qt.Orientation.Horizontal)
         self._subnet_slider.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self._subnet_slider.setRange(_SUBNET_PREFIX_MIN_INDEX, _SUBNET_PREFIX_MAX_INDEX)
         self._subnet_slider.setValue(_SUBNET_DEFAULT_SLIDER_INDEX)
@@ -823,7 +827,7 @@ class IPRangeBuilderDialog(QDialog):
         layout.addWidget(input_group)
 
         # --- Preview ---
-        preview_group = QGroupBox('Preview')
+        preview_group = QGroupBox(tr('Preview').replace('&', '&&'))
         preview_layout = QVBoxLayout(preview_group)
         self._preview = QLabel('', wordWrap=True)
         self._preview.setStyleSheet(IP_RANGE_PREVIEW_EMPTY_STYLESHEET)
@@ -858,7 +862,7 @@ class IPRangeBuilderDialog(QDialog):
                 base_ip, _, prefix_str = initial_entry.partition('/')
                 with contextlib.suppress(ValueError):
                     cidr_prefix = int(prefix_str)
-                    self._subnet_slider.setValue(next((i for i, (p_len, _) in enumerate(_SUBNET_SLIDER_OPTIONS) if p_len == cidr_prefix), _SUBNET_DEFAULT_SLIDER_INDEX))
+                    self._subnet_slider.setValue(next((i for i, p_len in enumerate(_SUBNET_PREFIXES) if p_len == cidr_prefix), _SUBNET_DEFAULT_SLIDER_INDEX))
                 self._subnet_ip_input.setText(base_ip)
                 self._radio_subnet.setChecked(True)
             elif '-' in initial_entry:
@@ -895,7 +899,7 @@ class IPRangeBuilderDialog(QDialog):
         """Update the subnet description label when the slider moves."""
         index = self._subnet_slider.value()
         if _SUBNET_PREFIX_MIN_INDEX <= index <= _SUBNET_PREFIX_MAX_INDEX:
-            self._subnet_desc_label.setText(_SUBNET_SLIDER_OPTIONS[index][1])
+            self._subnet_desc_label.setText(_format_subnet_option(_SUBNET_PREFIXES[index]))
         self._update_preview()
 
     def _update_preview(self, *_args: object) -> None:
@@ -913,9 +917,9 @@ class IPRangeBuilderDialog(QDialog):
             self._set_preview('', valid=None)
             return
         try:
-            self._set_preview(f'Single host: {IPv4Address(text)}', valid=True)
+            self._set_preview(tr('Single host: {ip}', ip=IPv4Address(text)), valid=True)
         except ValueError:
-            self._set_preview('Enter a valid IPv4 address', valid=False)
+            self._set_preview(tr('Enter a valid IPv4 address'), valid=False)
 
     def _update_range_preview(self) -> None:
         from_text, to_text = self._range_from_input.text().strip(), self._range_to_input.text().strip()
@@ -925,29 +929,34 @@ class IPRangeBuilderDialog(QDialog):
         try:
             start, end = IPv4Address(from_text), IPv4Address(to_text)
         except ValueError:
-            self._set_preview('Enter valid IPv4 addresses in both fields', valid=False)
+            self._set_preview(tr('Enter valid IPv4 addresses in both fields'), valid=False)
             return
         if start > end:
-            self._set_preview('"From" address must be less than or equal to "To" address', valid=False)
+            self._set_preview(tr('"From" address must be less than or equal to "To" address'), valid=False)
             return
         count = int(end) - int(start) + 1
-        self._set_preview(f'Range: {start} - {end}\nCovers {count:,} address{pluralize(count, "", "es")}', valid=True)
+        self._set_preview(
+            tr_plural('Range: {start} - {end}\nCovers {count:,} address', 'Range: {start} - {end}\nCovers {count:,} addresses', count, start=start, end=end),
+            valid=True,
+        )
 
     def _update_subnet_preview(self) -> None:
         text, slider_index = self._subnet_ip_input.text().strip(), self._subnet_slider.value()
         if not text or not _SUBNET_PREFIX_MIN_INDEX <= slider_index <= _SUBNET_PREFIX_MAX_INDEX:
             self._set_preview('', valid=None)
             return
-        prefix, _ = _SUBNET_SLIDER_OPTIONS[slider_index]
+        prefix = _SUBNET_PREFIXES[slider_index]
         try:
             network = ipaddress.ip_network(f'{text}/{prefix}', strict=False)
         except ValueError:
-            self._set_preview('Enter a valid base IPv4 address', valid=False)
+            self._set_preview(tr('Enter a valid base IPv4 address'), valid=False)
             return
         usable = max(0, network.num_addresses - 2) if prefix < _IPV4_BROADCAST_FREE_PREFIX and network.version == _IPV4_VERSION else network.num_addresses
         self._set_preview(
-            f'Network: {network.network_address}/{prefix}\nRange: {network.network_address} - {network.broadcast_address}\n'
-            f'Addresses: {network.num_addresses:,} total, {usable:,} usable',
+            tr(
+                'Network: {network}/{prefix}\nRange: {start} - {end}\nAddresses: {total:,} total, {usable:,} usable',
+                network=network.network_address, prefix=prefix, start=network.network_address, end=network.broadcast_address, total=network.num_addresses, usable=usable,
+            ),
             valid=True,
         )
 
@@ -968,7 +977,7 @@ class IPRangeBuilderDialog(QDialog):
             return f'{self._range_from_input.text().strip()}-{self._range_to_input.text().strip()}'
         if mode == _MODE_SUBNET:
             text = self._subnet_ip_input.text().strip()
-            prefix, _ = _SUBNET_SLIDER_OPTIONS[self._subnet_slider.value()]
+            prefix = _SUBNET_PREFIXES[self._subnet_slider.value()]
             with contextlib.suppress(ValueError):
                 return str(ipaddress.ip_network(f'{text}/{prefix}', strict=False))
             return text

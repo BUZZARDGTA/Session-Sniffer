@@ -13,6 +13,7 @@ from session_sniffer.constants.tables import (
     PORT_COLUMNS,
     STATUS_COLUMNS,
 )
+from session_sniffer.guis.live_language import CANONICAL_HEADER_ROLE
 from session_sniffer.guis.stylesheets import CATEGORY_SUBMENU_CHECKBOX_STYLESHEET
 from session_sniffer.guis.table_column_resizing import (
     add_column_sizing_actions,
@@ -22,6 +23,7 @@ from session_sniffer.guis.table_column_resizing import (
 )
 from session_sniffer.guis.table_model import GUI_COLUMN_HEADERS_TOOLTIPS
 from session_sniffer.guis.utils import PersistentMenu, add_icon_menu_action, create_styled_context_menu
+from session_sniffer.i18n import tr
 from session_sniffer.models import GUIState
 from session_sniffer.settings.defaults import SETTING_DEFAULTS
 from session_sniffer.settings.settings import Settings
@@ -87,51 +89,55 @@ class TableHeaderMenuMixin(QTableView):
 
         clicked_column_name: str | None = None
         if clicked_column >= 0:
-            header_label = self.model().headerData(clicked_column, Qt.Orientation.Horizontal)
-            if isinstance(header_label, str):
+            header_label = self.model().headerData(clicked_column, Qt.Orientation.Horizontal, CANONICAL_HEADER_ROLE)
+            if isinstance(header_label, str) and bool(header_label):
                 clicked_column_name = header_label
 
         menu = create_styled_context_menu(self)
         add_column_sizing_actions(menu, self, clicked_column=clicked_column, on_reset=self._reset_column_sizes)
         menu.addSeparator()
 
-        hide_label = f"Hide Column '{clicked_column_name}'" if bool(clicked_column_name) else 'Hide Column'
-        hide_tooltip = f"Hide the '{clicked_column_name}' column from the table." if bool(clicked_column_name) else 'Hide the selected column from the table.'
-        hide_cb: Callable[[], None] | None = None
         if clicked_column_name is not None:
+            translated_clicked_column = tr(clicked_column_name)
+            hide_label = tr("Hide Column '{column}'", column=translated_clicked_column)
+            hide_tooltip = tr("Hide the '{column}' column from the table.", column=translated_clicked_column)
             target_col_name = clicked_column_name
 
             def _hide_clicked() -> None:
                 self._toggle_column_visibility(target_col_name, checked=False)
 
-            hide_cb = _hide_clicked
+            hide_cb: Callable[[], None] | None = _hide_clicked
+        else:
+            hide_label = tr('Hide Column')
+            hide_tooltip = tr('Hide the selected column from the table.')
+            hide_cb = None
         hide_column_action = add_icon_menu_action(menu, 'eye-off.svg', hide_label, hide_cb, tooltip=hide_tooltip)
         hide_column_action.setEnabled(clicked_column_name is not None and clicked_column_name in toggleable_columns)
 
-        choose_columns_menu = create_styled_context_menu(menu, title='Choose Columns', icon_name='settings.svg', persistent=True)
-        choose_columns_menu.setToolTip('Choose which columns to show or hide in this table.')
+        choose_columns_menu = create_styled_context_menu(menu, title=tr('Choose Columns'), icon_name='settings.svg', persistent=True)
+        choose_columns_menu.setToolTip(tr('Choose which columns to show or hide in this table.'))
 
         add_icon_menu_action(
             choose_columns_menu,
             'rotate-ccw.svg',
-            'Reset to Default',
+            tr('Reset to Default'),
             self._reset_to_default_columns,
-            tooltip='Reset column visibility back to default visible columns.',
+            tooltip=tr('Reset column visibility back to default visible columns.'),
         )
         choose_columns_menu.addSeparator()
         add_icon_menu_action(
             choose_columns_menu,
             'square-check.svg',
-            'Select All',
+            tr('Select All'),
             self._select_all_columns,
-            tooltip='Show all available columns in the table.',
+            tooltip=tr('Show all available columns in the table.'),
         )
         add_icon_menu_action(
             choose_columns_menu,
             'square.svg',
-            'Unselect All',
+            tr('Unselect All'),
             self._deselect_all_columns,
-            tooltip='Hide all optional columns from the table.',
+            tooltip=tr('Hide all optional columns from the table.'),
         )
         choose_columns_menu.addSeparator()
 
@@ -155,17 +161,18 @@ class TableHeaderMenuMixin(QTableView):
             columns = bucketed[label]
             if not columns:
                 continue
-            category_menu = PersistentMenu(label, choose_columns_menu)
+            translated_label = tr(label)
+            category_menu = PersistentMenu(translated_label, choose_columns_menu)
             category_menu.setStyleSheet(CATEGORY_SUBMENU_CHECKBOX_STYLESHEET)
             category_menu.setToolTipsVisible(True)
-            category_menu.setToolTip(f'Toggle columns in the {label} category.')
+            category_menu.setToolTip(tr('Toggle columns in the {category} category.', category=translated_label))
 
             column_actions: list[QAction] = []
 
-            select_all_action = QAction('Select All', category_menu)
+            select_all_action = QAction(tr('Select All'), category_menu)
             select_all_action.setCheckable(True)
             select_all_action.setChecked(True)
-            select_all_action.setToolTip(f'Show all columns in the {label} category.')
+            select_all_action.setToolTip(tr('Show all columns in the {category} category.', category=translated_label))
 
             def _make_toggle_all_handler(
                 target_action: QAction,
@@ -197,10 +204,10 @@ class TableHeaderMenuMixin(QTableView):
             )
             category_menu.addAction(select_all_action)
 
-            deselect_all_action = QAction('Unselect All', category_menu)
+            deselect_all_action = QAction(tr('Unselect All'), category_menu)
             deselect_all_action.setCheckable(True)
             deselect_all_action.setChecked(False)
-            deselect_all_action.setToolTip(f'Hide all columns in the {label} category.')
+            deselect_all_action.setToolTip(tr('Hide all columns in the {category} category.', category=translated_label))
 
             deselect_all_action.triggered.connect(
                 _make_toggle_all_handler(deselect_all_action, columns, column_actions, select=False),
@@ -209,12 +216,12 @@ class TableHeaderMenuMixin(QTableView):
             category_menu.addSeparator()
 
             for column_name in columns:
-                column_action = QAction(column_name, category_menu)
+                column_action = QAction(tr(column_name), category_menu)
                 column_action.setCheckable(True)
                 column_action.setChecked(column_name in shown_columns)
                 column_tooltip = GUI_COLUMN_HEADERS_TOOLTIPS.get(column_name)
                 if column_tooltip is not None:
-                    column_action.setToolTip(column_tooltip)
+                    column_action.setToolTip(tr(column_tooltip))
 
                 column_action.toggled.connect(_make_column_toggled_handler(column_action, column_name))
                 category_menu.addAction(column_action)
@@ -288,7 +295,7 @@ class TableHeaderMenuMixin(QTableView):
         if self._is_programmatic_resizing:
             return
         model = self.model()
-        header_text = model.headerData(logical_index, Qt.Orientation.Horizontal)
+        header_text = model.headerData(logical_index, Qt.Orientation.Horizontal, CANONICAL_HEADER_ROLE)
         if header_text is not None and header_text:
             if self._custom_column_widths is None:
                 self._custom_column_widths = self.get_column_widths()
@@ -314,7 +321,7 @@ class TableHeaderMenuMixin(QTableView):
         header = self.horizontalHeader()
         widths: dict[str, int] = {}
         for column in range(model.columnCount()):
-            header_label = model.headerData(column, Qt.Orientation.Horizontal)
+            header_label = model.headerData(column, Qt.Orientation.Horizontal, CANONICAL_HEADER_ROLE)
             if header_label is not None and header_label:
                 widths[header_label] = header.sectionSize(column)
         return widths
@@ -326,7 +333,7 @@ class TableHeaderMenuMixin(QTableView):
             model = self.model()
             header = self.horizontalHeader()
             for column in range(model.columnCount()):
-                header_label = model.headerData(column, Qt.Orientation.Horizontal)
+                header_label = model.headerData(column, Qt.Orientation.Horizontal, CANONICAL_HEADER_ROLE)
                 if isinstance(header_label, str) and header_label in widths and widths[header_label] > 0:
                     min_width = get_column_min_width(header, column, header_label, self.min_column_widths)
                     width = max(min_width, widths[header_label])

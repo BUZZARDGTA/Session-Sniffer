@@ -4,6 +4,7 @@ Keep this module dependency-free and safe to import from anywhere.
 """
 
 import textwrap
+import unicodedata
 from datetime import timedelta
 from typing import TYPE_CHECKING, Literal
 
@@ -93,6 +94,23 @@ def format_suspend_duration_setting(value: int | Literal['Auto']) -> str:
     return value
 
 
+def monospace_display_width(text: str) -> int:
+    """Return the visual terminal column width of *text*, counting wide East Asian characters as 2 columns."""
+    return sum(2 if unicodedata.east_asian_width(char) in ('W', 'F') else 1 for char in text)
+
+
+def _pad_right_display(text: str, width: int) -> str:
+    padding = max(0, width - monospace_display_width(text))
+    return f'{text}{" " * padding}'
+
+
+def _center_display(text: str, width: int) -> str:
+    total_padding = max(0, width - monospace_display_width(text))
+    left_padding = total_padding // 2
+    right_padding = total_padding - left_padding
+    return f'{" " * left_padding}{text}{" " * right_padding}'
+
+
 def format_single_border_table(
     columns: Sequence[str],
     rows: Iterable[Sequence[str]],
@@ -112,17 +130,17 @@ def format_single_border_table(
     if not columns:
         return ''
 
-    column_widths = [len(column) for column in columns]
+    column_widths = [monospace_display_width(column) for column in columns]
     rows_list = [list(row) for row in rows]
     for row in rows_list:
         for i, cell in enumerate(row):
             if i < len(column_widths):
-                column_widths[i] = max(column_widths[i], len(cell))
+                column_widths[i] = max(column_widths[i], monospace_display_width(cell))
 
     total_inner_width = sum(width + 2 for width in column_widths) + (len(column_widths) - 1)
 
     if title is not None and title:
-        min_inner_width = len(title) + 2
+        min_inner_width = monospace_display_width(title) + 2
         if min_inner_width > total_inner_width:
             extra_content_width = min_inner_width - total_inner_width
             current_content_width = sum(column_widths) or 1
@@ -136,16 +154,16 @@ def format_single_border_table(
     lines: list[str] = []
     if title is not None and title:
         lines.append(f'┌{"─" * total_inner_width}┐')
-        lines.append(f'│{title.center(total_inner_width)}│')
+        lines.append(f'│{_center_display(title, total_inner_width)}│')
         lines.append(f'├{"┬".join("─" * (width + 2) for width in column_widths)}┤')
     else:
         lines.append(f'┌{"┬".join("─" * (width + 2) for width in column_widths)}┐')
 
-    lines.append(f'│ {" │ ".join(column.ljust(width) for column, width in zip(columns, column_widths, strict=True))} │')
+    lines.append(f'│ {" │ ".join(_pad_right_display(column, width) for column, width in zip(columns, column_widths, strict=True))} │')
     lines.append(f'├{"┼".join("─" * (width + 2) for width in column_widths)}┤')
 
     for row in rows_list:
-        row_cells = [(row[i] if i < len(row) else '').ljust(width) for i, width in enumerate(column_widths)]
+        row_cells = [_pad_right_display(row[i] if i < len(row) else '', width) for i, width in enumerate(column_widths)]
         lines.append(f'│ {" │ ".join(row_cells)} │')
 
     lines.append(f'└{"┴".join("─" * (width + 2) for width in column_widths)}┘')

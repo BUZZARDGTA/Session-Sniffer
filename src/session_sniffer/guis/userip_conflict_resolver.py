@@ -25,20 +25,15 @@ from session_sniffer.constants.standalone import TITLE
 from session_sniffer.guis._userip_split_groups_tab import (
     NO_USERNAME_TEXT,
     NOTES_COLUMN,
-    SIDE_ROLE,
     USERNAMES_COLUMN,
     ResolverTreeCallbacks,
-    SideDetails,
     SplitGroupsResolverTab,
     add_resolver_group_header,
     aggregate_matching_entries,
-    copy_resolver_selected_row,
+    apply_resolver_tree_headers,
     create_configured_resolver_tree,
-    create_resolver_tail_buttons,
     finish_resolver_tree_refresh,
     parse_deduped_usernames_cell,
-    populate_resolver_common_menu_prefix,
-    populate_resolver_ip_tools_menu,
     populate_resolver_side_item,
     popup_resolver_context_menu,
     prompt_selected_resolver_ip,
@@ -47,6 +42,17 @@ from session_sniffer.guis._userip_split_groups_tab import (
     selected_resolver_side_row,
     selected_resolver_side_rows,
 )
+from session_sniffer.guis._userip_tree_batch_ops import (
+    SIDE_ROLE,
+    SideDetails,
+    copy_resolver_selected_row,
+    create_resolver_tail_buttons,
+    populate_resolver_common_menu_prefix,
+    populate_resolver_ip_tools_menu,
+    populate_userip_databases_menu,
+    retranslate_resolver_tail_buttons,
+)
+from session_sniffer.guis.live_language import register_language_refresh
 from session_sniffer.guis.select_usernames_dialog import prompt_usernames_and_notes_input
 from session_sniffer.guis.stylesheets import DIALOG_BUTTON_STYLESHEET
 from session_sniffer.guis.theming import ICONS_DIR_PATH
@@ -54,7 +60,6 @@ from session_sniffer.guis.userip_manager_helpers import (
     dedup_userip_entries,
     format_userip_db_display_name,
     load_userip_database_model,
-    populate_userip_databases_menu,
     refresh_userip_and_wake_renderer,
     rewrite_db_edit_entry_ip,
     save_userip_database_model,
@@ -67,6 +72,7 @@ from session_sniffer.guis.utils import (
     scale_by_ui,
     set_dialog_window_flags,
 )
+from session_sniffer.i18n import tr, tr_plural
 from session_sniffer.models.userip_settings_model import (
     UserIPEntryModel,
     get_current_iso_timestamp,
@@ -81,7 +87,6 @@ from session_sniffer.player.userip_loader import (
     userip_databases_lock,
 )
 from session_sniffer.player.userip_log_history import enrich_userip_entry_from_logs
-from session_sniffer.text_utils import pluralize
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -316,7 +321,7 @@ def _delete_sides(sides: Sequence[_ConflictSide]) -> None:
 
 def _format_side_html(side: _ConflictSide, usernames: Sequence[str]) -> str:
     """Return an HTML list item describing one conflicting entry."""
-    usernames_text = ', '.join(usernames) if usernames else NO_USERNAME_TEXT
+    usernames_text = ', '.join(usernames) if usernames else tr(NO_USERNAME_TEXT)
     return f'<li>"{html.escape(format_userip_db_display_name(side.db_path))}": {html.escape(usernames_text)} = {html.escape(side.entry)}</li>'
 
 
@@ -326,7 +331,7 @@ class UserIPConflictResolverDialog(QDialog):
     def __init__(self, parent: QWidget | None = None) -> None:
         """Build the UserIP Conflict Resolver dialog."""
         super().__init__(parent)
-        self.setWindowTitle(f'UserIP Conflict Resolver - {TITLE}')
+        self.setWindowTitle(tr('UserIP Conflict Resolver - {title}', title=TITLE))
         set_dialog_window_flags(self)
         self.setMinimumSize(scale_by_ui(780), scale_by_ui(450))
 
@@ -355,24 +360,26 @@ class UserIPConflictResolverDialog(QDialog):
 
         buttons_layout = QHBoxLayout()
 
-        self._keep_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'check.svg')), ' Keep This Entry…')
+        self._keep_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'check.svg')), f" {tr('Keep This Entry\u2026')}")
         self._keep_button.setAutoDefault(False)
-        self._keep_button.setToolTip('Keep the selected entry and delete the entries that conflict with it (you will be asked to confirm)')
+        self._keep_button.setToolTip(tr('Keep the selected entry and delete the entries that conflict with it (you will be asked to confirm)'))
         self._keep_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
         self._keep_button.clicked.connect(self._keep_selected)
         buttons_layout.addWidget(self._keep_button)
 
-        self._keep_merge_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'user-round-check.svg')), ' Keep && Merge…')
+        self._keep_merge_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'user-round-check.svg')), f" {tr('Keep && Merge\u2026')}")
         self._keep_merge_button.setAutoDefault(False)
         self._keep_merge_button.setToolTip(
-            'Keep the selected entry, merge usernames, notes, and metadata from the conflicting entries into it, '
-            'and delete the conflicting entries (you will be asked to confirm)',
+            tr(
+                'Keep the selected entry, merge usernames, notes, and metadata from the conflicting entries into it, '
+                'and delete the conflicting entries (you will be asked to confirm)',
+            ),
         )
         self._keep_merge_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
         self._keep_merge_button.clicked.connect(self._keep_and_merge_selected)
         buttons_layout.addWidget(self._keep_merge_button)
 
-        self._edit_button, self._delete_button = create_resolver_tail_buttons(
+        self._edit_button, self._delete_button, self._close_button = create_resolver_tail_buttons(
             buttons_layout,
             on_edit=self._edit_selected,
             on_delete=self._delete_selected,
@@ -387,8 +394,8 @@ class UserIPConflictResolverDialog(QDialog):
             on_close=self.close,
         )
 
-        self._tabs.addTab(conflicts_tab, QIcon(str(ICONS_DIR_PATH / 'scale.svg')), 'IP Conflicts')
-        self._tabs.addTab(self._split_groups_tab, QIcon(str(ICONS_DIR_PATH / 'link.svg')), 'Split Groups')
+        self._tabs.addTab(conflicts_tab, QIcon(str(ICONS_DIR_PATH / 'scale.svg')), tr('IP Conflicts'))
+        self._tabs.addTab(self._split_groups_tab, QIcon(str(ICONS_DIR_PATH / 'link.svg')), tr('Split Groups'))
 
         # Follow rebuilds triggered elsewhere (UserIP Manager edits, external file changes, ...)
         self._refresh_timer = QTimer(self)
@@ -399,9 +406,22 @@ class UserIPConflictResolverDialog(QDialog):
         self.resize(scale_by_ui(1120), scale_by_ui(540))
         self._refresh()
         self.select_most_relevant_tab()
+        register_language_refresh(self, self._retranslate)
+
+    def _retranslate(self) -> None:
+        """Refresh dialog title, tab titles, tree headers, buttons, and dynamic summaries on language change."""
+        self.setWindowTitle(tr('UserIP Conflict Resolver - {title}', title=TITLE))
+        apply_resolver_tree_headers(self._tree)
+        retranslate_resolver_tail_buttons(self._edit_button, self._delete_button, self._close_button)
+        if self._tree.state() != QAbstractItemView.State.EditingState and not self._split_groups_tab.is_editing:
+            self._refresh()
+            self._split_groups_tab.retranslate(refresh_tree=False)
+        else:
+            self._update_buttons()
+            self._split_groups_tab.retranslate(refresh_tree=False)
 
     def _update_split_groups_tab_title(self, count: int) -> None:
-        self._tabs.setTabText(_SPLIT_GROUPS_TAB_INDEX, f'Split Groups ({count})')
+        self._tabs.setTabText(_SPLIT_GROUPS_TAB_INDEX, tr('Split Groups ({count})', count=count))
 
     def _populate_side_item(self, item: QTreeWidgetItem, side: _ConflictSide, details: SideDetails) -> None:
         populate_resolver_side_item(item, format_userip_db_display_name(side.db_path), side.entry, details, self._looky_icon)
@@ -463,7 +483,10 @@ class UserIPConflictResolverDialog(QDialog):
             self._tree.clear()
             for group_index, group in enumerate(self._groups, start=1):
                 group_entries = list(dict.fromkeys(side.entry for side in group.sides))
-                group_item = add_resolver_group_header(self._tree, f'Conflict {group_index}: {" vs ".join(group_entries)}')
+                group_item = add_resolver_group_header(
+                    self._tree,
+                    tr('Conflict {index}: {entries}', index=group_index, entries=f" {tr('vs')} ".join(group_entries)),
+                )
 
                 for side in group.sides:
                     details = self._details_by_side.get(side) or SideDetails()
@@ -480,17 +503,22 @@ class UserIPConflictResolverDialog(QDialog):
         finish_resolver_tree_refresh(self._tree, item_to_select, scroll_value=scroll_value)
 
         conflict_group_count = len(self._groups)
-        self._tabs.setTabText(_CONFLICTS_TAB_INDEX, f'IP Conflicts ({conflict_group_count})')
+        self._tabs.setTabText(_CONFLICTS_TAB_INDEX, tr('IP Conflicts ({count})', count=conflict_group_count))
         if conflict_group_count:
             conflict_pair_count = len(conflicts)
+            groups_part = tr_plural('{count} UserIP conflict group', '{count} UserIP conflict groups', conflict_group_count)
+            pairs_part = tr_plural('{count} conflicting pair', '{count} conflicting pairs', conflict_pair_count)
             self._summary_label.setText(
-                f'{conflict_group_count} UserIP conflict group{pluralize(conflict_group_count)} '
-                f'({conflict_pair_count} conflicting pair{pluralize(conflict_pair_count)}) found. '
-                'An IP or range claimed by several databases is ignored until only one database claims it.\n'
-                'Select an entry, then keep it (or keep & merge), edit its IP or range, or delete it.',
+                tr(
+                    '{groups} ({pairs}) found. '
+                    'An IP or range claimed by several databases is ignored until only one database claims it.\n'
+                    'Select an entry, then keep it (or keep & merge), edit its IP or range, or delete it.',
+                    groups=groups_part,
+                    pairs=pairs_part,
+                ),
             )
         else:
-            self._summary_label.setText('No UserIP conflicts. Every IP and range belongs to a single database.')
+            self._summary_label.setText(tr('No UserIP conflicts. Every IP and range belongs to a single database.'))
         self._update_buttons()
         self._split_groups_tab.refresh()
 
@@ -500,8 +528,14 @@ class UserIPConflictResolverDialog(QDialog):
         db_name = format_userip_db_display_name(side.db_path)
         new_usernames, entered_notes, accepted = prompt_usernames_and_notes_input(
             self,
-            'Add Username(s)',
-            lambda count: f'Enter the username{pluralize(count)} to add for {side.entry} in "{db_name}":',
+            tr('Add Username(s)'),
+            lambda count: tr_plural(
+                'Enter the username to add for {entry} in "{db}":',
+                'Enter the usernames to add for {entry} in "{db}":',
+                count,
+                entry=side.entry,
+                db=db_name,
+            ),
         )
         if not accepted or not new_usernames:
             return
@@ -514,7 +548,13 @@ class UserIPConflictResolverDialog(QDialog):
             QMessageBox.information(
                 self,
                 TITLE,
-                f'All specified username{pluralize(len(new_usernames))} already exist for {side.entry} in "{db_name}".',
+                tr_plural(
+                    'The specified username already exists for {entry} in "{db}".',
+                    'All specified usernames already exist for {entry} in "{db}".',
+                    len(new_usernames),
+                    entry=side.entry,
+                    db=db_name,
+                ),
             )
             return
         refresh_userip_and_wake_renderer()
@@ -549,27 +589,27 @@ class UserIPConflictResolverDialog(QDialog):
         sides = [side for _, side in selections]
         count = len(sides)
         can_keep = self._can_keep_selections(selections)
-        copy_act = add_icon_menu_action(menu, 'copy.svg', f'Copy Rows ({count})', lambda: copy_resolver_selected_row(self._tree))
+        copy_act = add_icon_menu_action(menu, 'copy.svg', tr('Copy Rows ({count})', count=count), lambda: copy_resolver_selected_row(self._tree))
         copy_act.setShortcut('Ctrl+C')
         menu.addSeparator()
 
-        keep_act = add_icon_menu_action(menu, 'check.svg', f'Keep Selected ({count})…', self._keep_selected)
+        keep_act = add_icon_menu_action(menu, 'check.svg', tr('Keep Selected ({count})\u2026', count=count), self._keep_selected)
         keep_act.setEnabled(can_keep)
-        keep_merge_act = add_icon_menu_action(menu, 'user-round-check.svg', f'Keep && Merge ({count})…', self._keep_and_merge_selected)
+        keep_merge_act = add_icon_menu_action(menu, 'user-round-check.svg', tr('Keep && Merge ({count})\u2026', count=count), self._keep_and_merge_selected)
         keep_merge_act.setEnabled(can_keep)
         if not can_keep:
-            conflict_tip = 'Cannot keep multiple entries from the same conflict group — select at most one winner per group.'
+            conflict_tip = tr('Cannot keep multiple entries from the same conflict group \u2014 select at most one winner per group.')
             keep_act.setToolTip(conflict_tip)
             keep_merge_act.setToolTip(conflict_tip)
         menu.addSeparator()
 
-        move_db_menu = create_styled_context_menu(menu, title=f'Move Selected ({count}) to Database', icon_name='box.svg')
+        move_db_menu = create_styled_context_menu(menu, title=tr('Move Selected ({count}) to Database', count=count), icon_name='box.svg')
         all_db_paths = [json_path for json_path in USERIP_DATABASES_DIR_PATH.rglob('*.json') if json_path.is_file()]
         only_db = sides[0].db_path if len({s.db_path for s in sides}) == 1 else None
         if not populate_userip_databases_menu(
             move_db_menu,
             all_db_paths,
-            tooltip='Move the selected entries to this database.',
+            tooltip=tr('Move the selected entries to this database.'),
             handler_factory=lambda target_path: lambda: self._move_sides(sides, target_path),
             disabled_path=only_db,
         ):
@@ -577,25 +617,25 @@ class UserIPConflictResolverDialog(QDialog):
         menu.addMenu(move_db_menu)
 
         menu.addSeparator()
-        del_act = add_icon_menu_action(menu, 'remove.svg', f'Delete Selected ({count})…', self._delete_selected)
+        del_act = add_icon_menu_action(menu, 'remove.svg', tr('Delete Selected ({count})\u2026', count=count), self._delete_selected)
         del_act.setShortcut('Delete')
 
     def _populate_resolution_menu_actions(self, menu: QMenu, side: _ConflictSide, details: SideDetails, *, is_single_ip: bool) -> None:
-        add_icon_menu_action(menu, 'check.svg', 'Keep This Entry…', self._keep_selected)
-        add_icon_menu_action(menu, 'user-round-check.svg', 'Keep && Merge…', self._keep_and_merge_selected)
+        add_icon_menu_action(menu, 'check.svg', tr('Keep This Entry\u2026'), self._keep_selected)
+        add_icon_menu_action(menu, 'user-round-check.svg', tr('Keep && Merge\u2026'), self._keep_and_merge_selected)
         menu.addSeparator()
 
-        rename_action = add_icon_menu_action(menu, 'square-pen.svg', 'Rename', self._edit_selected_usernames)
+        rename_action = add_icon_menu_action(menu, 'square-pen.svg', tr('Rename'), self._edit_selected_usernames)
         rename_action.setShortcut('F2')
-        add_icon_menu_action(menu, 'square-pen.svg', 'Edit IP…' if is_single_ip else 'Edit Range…', self._edit_selected)
-        add_icon_menu_action(menu, 'notepad-text.svg', 'Edit Note…' if details.notes else 'Add Note…', self._edit_selected_note)
+        add_icon_menu_action(menu, 'square-pen.svg', tr('Edit IP\u2026') if is_single_ip else tr('Edit Range\u2026'), self._edit_selected)
+        add_icon_menu_action(menu, 'notepad-text.svg', tr('Edit Note\u2026') if details.notes else tr('Add Note\u2026'), self._edit_selected_note)
 
-        move_db_menu = create_styled_context_menu(menu, title='Move to Database', icon_name='box.svg')
+        move_db_menu = create_styled_context_menu(menu, title=tr('Move to Database'), icon_name='box.svg')
         all_db_paths = [json_path for json_path in USERIP_DATABASES_DIR_PATH.rglob('*.json') if json_path.is_file()]
         enabled_targets = populate_userip_databases_menu(
             move_db_menu,
             all_db_paths,
-            tooltip='Move this entry to this database.',
+            tooltip=tr('Move this entry to this database.'),
             handler_factory=lambda target_path: lambda: self._move_sides([side], target_path),
             disabled_path=side.db_path,
         )
@@ -606,10 +646,10 @@ class UserIPConflictResolverDialog(QDialog):
         populate_resolver_ip_tools_menu(self, menu, side.entry, single_ip=is_single_ip)
 
         menu.addSeparator()
-        add_icon_menu_action(menu, 'plus.svg', 'Add Username…', lambda: self._add_username_to_side(side))
+        add_icon_menu_action(menu, 'plus.svg', tr('Add Username\u2026'), lambda: self._add_username_to_side(side))
 
         menu.addSeparator()
-        delete_action = add_icon_menu_action(menu, 'remove.svg', 'Delete This Entry…', self._delete_selected)
+        delete_action = add_icon_menu_action(menu, 'remove.svg', tr('Delete This Entry\u2026'), self._delete_selected)
         delete_action.setShortcut('Delete')
 
     def _on_item_changed(self, item: QTreeWidgetItem, column: int) -> None:
@@ -634,7 +674,7 @@ class UserIPConflictResolverDialog(QDialog):
             updated_details = _rewrite_side_notes(side, new_note)
 
         if updated_details is None:
-            QMessageBox.warning(self, TITLE, 'The selected entry no longer exists in its database, nothing was changed.')
+            QMessageBox.warning(self, TITLE, tr('The selected entry no longer exists in its database, nothing was changed.'))
             QTimer.singleShot(0, self._refresh)
             return
 
@@ -650,29 +690,29 @@ class UserIPConflictResolverDialog(QDialog):
         count = len(selections)
         can_keep = self._can_keep_selections(selections)
         self._keep_button.setEnabled(can_keep)
-        self._keep_button.setText(f' Keep Selected ({count})…' if can_keep and count > 1 else ' Keep This Entry…')
+        self._keep_button.setText(f" {tr('Keep Selected ({count})\u2026', count=count)}" if can_keep and count > 1 else f" {tr('Keep This Entry\u2026')}")
         self._keep_button.setToolTip(
-            'Keep the selected entry(ies) and delete conflicting entries (you will be asked to confirm)'
+            tr('Keep the selected entry(ies) and delete conflicting entries (you will be asked to confirm)')
             if can_keep or not selections
-            else 'Cannot keep multiple entries from the same conflict group — select at most one winner per group',
+            else tr('Cannot keep multiple entries from the same conflict group \u2014 select at most one winner per group'),
         )
         self._keep_merge_button.setEnabled(can_keep)
-        self._keep_merge_button.setText(f' Keep && Merge ({count})…' if can_keep and count > 1 else ' Keep && Merge…')
+        self._keep_merge_button.setText(f" {tr('Keep && Merge ({count})\u2026', count=count)}" if can_keep and count > 1 else f" {tr('Keep && Merge\u2026')}")
         self._keep_merge_button.setToolTip(
-            'Keep the selected entry(ies), merge usernames, notes, and metadata from conflicting entries, and delete conflicting entries'
+            tr('Keep the selected entry(ies), merge usernames, notes, and metadata from conflicting entries, and delete conflicting entries')
             if can_keep or not selections
-            else 'Cannot keep & merge multiple entries from the same conflict group — select at most one winner per group',
+            else tr('Cannot keep & merge multiple entries from the same conflict group \u2014 select at most one winner per group'),
         )
         self._edit_button.setEnabled(count == 1)
         self._delete_button.setEnabled(count >= 1)
-        self._delete_button.setText(f' Delete Selected ({count})…' if count > 1 else ' Delete This Entry…')
+        self._delete_button.setText(f" {tr('Delete Selected ({count})\u2026', count=count)}" if count > 1 else f" {tr('Delete This Entry\u2026')}")
 
     def _confirm_deletion(self, header: str, sides: Sequence[_ConflictSide]) -> bool:
         items_html = ''.join(
             _format_side_html(side, self._details_by_side[side].usernames if side in self._details_by_side else [])
             for side in sides
         )
-        message_box = QMessageBox(QMessageBox.Icon.Warning, TITLE, f'{header}<ul>{items_html}</ul>Continue?', parent=self)
+        message_box = QMessageBox(QMessageBox.Icon.Warning, TITLE, tr('{header}<ul>{items}</ul>Continue?', header=header, items=items_html), parent=self)
         message_box.setTextFormat(Qt.TextFormat.RichText)
         message_box.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
         message_box.setDefaultButton(QMessageBox.StandardButton.No)
@@ -685,13 +725,22 @@ class UserIPConflictResolverDialog(QDialog):
         sides_to_delete = [s for group, kept_side in selections for s in _find_sides_conflicting_with(group, kept_side)]
         if not sides_to_delete:
             return
-        entry_word = pluralize(len(sides_to_delete), 'entry', 'entries')
         if len(selections) == 1:
             kept_side = selections[0][1]
             kept_html = html.escape(f'{kept_side.entry} in "{format_userip_db_display_name(kept_side.db_path)}"')
-            prompt = f'Keep <b>{kept_html}</b> and delete the following conflicting {entry_word}?'
+            prompt = tr_plural(
+                'Keep <b>{kept}</b> and delete the following conflicting entry?',
+                'Keep <b>{kept}</b> and delete the following {count} conflicting entries?',
+                len(sides_to_delete),
+                kept=kept_html,
+            )
         else:
-            prompt = f'Keep the <b>{len(selections)} selected entries</b> and delete the following {len(sides_to_delete)} conflicting {entry_word}?'
+            prompt = tr_plural(
+                'Keep the <b>{selected_count} selected entries</b> and delete the following {count} conflicting entry?',
+                'Keep the <b>{selected_count} selected entries</b> and delete the following {count} conflicting entries?',
+                len(sides_to_delete),
+                selected_count=len(selections),
+            )
         if not self._confirm_deletion(prompt, sides_to_delete):
             return
         _delete_sides(sides_to_delete)
@@ -705,15 +754,23 @@ class UserIPConflictResolverDialog(QDialog):
         sides_to_delete = [s for _, group_losers in pairs for s in group_losers]
         if not sides_to_delete:
             return
-        entry_word = pluralize(len(sides_to_delete), 'entry', 'entries')
         if len(selections) == 1:
             kept_side = selections[0][1]
             kept_html = html.escape(f'{kept_side.entry} in "{format_userip_db_display_name(kept_side.db_path)}"')
-            prompt = f'Keep <b>{kept_html}</b>, merge usernames and metadata from the following conflicting {entry_word} into it, and delete the conflicting {entry_word}?'
+            prompt = tr_plural(
+                'Keep <b>{kept}</b>, merge usernames and metadata from the following conflicting entry into it, and delete the conflicting entry?',
+                'Keep <b>{kept}</b>, merge usernames and metadata from the following {count} conflicting entries into it, and delete the conflicting entries?',
+                len(sides_to_delete),
+                kept=kept_html,
+            )
         else:
-            prompt = (
-                f'Keep the <b>{len(selections)} selected entries</b>, merge usernames and metadata from their conflicting entries, '
-                f'and delete the following {len(sides_to_delete)} conflicting {entry_word}?'
+            prompt = tr_plural(
+                'Keep the <b>{selected_count} selected entries</b>, merge usernames and metadata from their conflicting entries, '
+                'and delete the following {count} conflicting entry?',
+                'Keep the <b>{selected_count} selected entries</b>, merge usernames and metadata from their conflicting entries, '
+                'and delete the following {count} conflicting entries?',
+                len(sides_to_delete),
+                selected_count=len(selections),
             )
         if not self._confirm_deletion(prompt, sides_to_delete):
             return
@@ -728,7 +785,7 @@ class UserIPConflictResolverDialog(QDialog):
             return
         side, new_entry = prompted
         if not rewrite_db_edit_entry_ip(side.db_path, side.entry, new_entry):
-            QMessageBox.warning(self, TITLE, 'The selected entry no longer exists in its database, nothing was changed.')
+            QMessageBox.warning(self, TITLE, tr('The selected entry no longer exists in its database, nothing was changed.'))
             self._refresh()
             return
         refresh_userip_and_wake_renderer()
@@ -739,7 +796,7 @@ class UserIPConflictResolverDialog(QDialog):
         if not selections:
             return
         sides = [side for _, side in selections]
-        header = 'Delete the following entry?' if len(sides) == 1 else f'Delete the following {len(sides)} entries?'
+        header = tr_plural('Delete the following entry?', 'Delete the following {count} entries?', len(sides))
         if not self._confirm_deletion(header, sides):
             return
         _delete_sides(sides)
@@ -760,14 +817,15 @@ def update_resolve_conflicts_button(button: QPushButton) -> None:
     """Refresh the label and tooltip of a 'Resolve Conflicts…' button with active conflict and split-group counts."""
     conflicts_n, split_n = count_userip_resolver_issues()
     total = conflicts_n + split_n
-    button.setText(f' Resolve Conflicts ({total})…' if total else ' Resolve Conflicts…')
+    button.setText(f" {tr('Resolve Conflicts ({count})\u2026', count=total)}" if total else f" {tr('Resolve Conflicts\u2026')}")
     if total:
+        conflicts_part = tr_plural('{count} IP conflict group', '{count} IP conflict groups', conflicts_n)
+        split_part = tr_plural('{count} split account group', '{count} split account groups', split_n)
         button.setToolTip(
-            f'{conflicts_n} IP conflict group{pluralize(conflicts_n)}, '
-            f'{split_n} split account group{pluralize(split_n)} — click to review and resolve',
+            tr('{conflicts}, {splits} \u2014 click to review and resolve', conflicts=conflicts_part, splits=split_part),
         )
     else:
-        button.setToolTip('Open the UserIP Conflict Resolver to review IP/range conflicts or account groups split across databases')
+        button.setToolTip(tr('Open the UserIP Conflict Resolver to review IP/range conflicts or account groups split across databases'))
 
 
 def open_userip_conflict_resolver(focus_entry: str | None = None, *, focus_split_username: str | None = None) -> None:

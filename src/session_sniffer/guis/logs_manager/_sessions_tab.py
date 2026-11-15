@@ -30,6 +30,7 @@ from PySide6.QtWidgets import (
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.guis.delegates import ElidedTextTooltipDelegate
 from session_sniffer.guis.file_watch import DebouncedFileWatcher
+from session_sniffer.guis.live_language import register_language_refresh, set_i18n_colon_label
 from session_sniffer.guis.loading_overlay import run_blocking_with_loading
 from session_sniffer.guis.logs_manager._helpers import (
     copy_viewer_text_to_clipboard,
@@ -58,9 +59,9 @@ from session_sniffer.guis.stylesheets import DIALOG_BUTTON_STYLESHEET, DIALOG_DA
 from session_sniffer.guis.theming import ICONS_DIR_PATH
 from session_sniffer.guis.userip_manager_helpers import human_readable_size
 from session_sniffer.guis.utils import SPINNER_FRAMES, open_file_location
+from session_sniffer.i18n import tr, tr_plural
 from session_sniffer.rendering_core.renderer import SESSIONS_LOGGING_PATH
 from session_sniffer.settings import Settings
-from session_sniffer.text_utils import pluralize
 
 logger = logging.getLogger(__name__)
 
@@ -93,18 +94,21 @@ class SessionsLogTab(QWidget):
         layout.setContentsMargins(6, 6, 6, 6)
 
         top_bar = QHBoxLayout()
-        self._search_input = create_search_input(top_bar, 'Search in displayed file…', self._on_search_changed, debounce_ms=60)
+        self._search_input = create_search_input(top_bar, tr('Search in displayed file\u2026'), self._on_search_changed, debounce_ms=60)
         self._search_input.returnPressed.connect(self._on_search_return_pressed)
 
         self._search_column_combo = QComboBox()
-        self._search_column_combo.addItems(SEARCHABLE_COLUMNS)
-        self._search_column_combo.setToolTip('Select which session fields to search')
-        self._search_column_combo.currentTextChanged.connect(self._on_search_column_changed)
-        top_bar.addWidget(QLabel('Column:'))
+        for column_name in SEARCHABLE_COLUMNS:
+            self._search_column_combo.addItem(tr(column_name), column_name)
+        self._search_column_combo.setToolTip(tr('Select which session fields to search'))
+        self._search_column_combo.currentIndexChanged.connect(self._on_search_column_changed)
+        column_label = QLabel()
+        set_i18n_colon_label(column_label, 'Column')
+        top_bar.addWidget(column_label)
         top_bar.addWidget(self._search_column_combo)
 
-        self._global_search_checkbox = QCheckBox('Search All Files')
-        self._global_search_checkbox.setToolTip('Search across all session JSON files (read-only)')
+        self._global_search_checkbox = QCheckBox(tr('Search All Files'))
+        self._global_search_checkbox.setToolTip(tr('Search across all session JSON files (read-only)'))
         self._global_search_checkbox.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self._global_search_checkbox.toggled.connect(self._on_global_search_toggled)
         top_bar.addWidget(self._global_search_checkbox)
@@ -156,7 +160,7 @@ class SessionsLogTab(QWidget):
         splitter.addWidget(self._tree_container)
 
         self._viewer = create_log_viewer()
-        self._viewer.setPlaceholderText(_SINGLE_FILE_VIEWER_PLACEHOLDER)
+        self._viewer.setPlaceholderText(tr(_SINGLE_FILE_VIEWER_PLACEHOLDER))
         splitter.addWidget(self._viewer)
         splitter.setStretchFactor(0, 1)
         splitter.setStretchFactor(1, 3)
@@ -172,26 +176,26 @@ class SessionsLogTab(QWidget):
 
         self._metadata_label = setup_metadata_label(layout)
         button_row, self._copy_button, self._save_button = setup_copy_save_button_row(
-            layout, self._copy_all, self._save_as, save_tooltip='Save the displayed file to a new location',
+            layout, self._copy_all, self._save_as, save_tooltip=tr('Save the displayed file to a new location'),
         )
         button_row.addStretch()
 
-        self._delete_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'remove.svg')), ' Delete')
+        self._delete_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'remove.svg')), f" {tr('Delete')}")
         self._delete_button.setStyleSheet(DIALOG_DANGER_BUTTON_STYLESHEET)
-        self._delete_button.setToolTip('Delete the currently selected file or folder')
+        self._delete_button.setToolTip(tr('Delete the currently selected file or folder'))
         self._delete_button.setEnabled(False)
         self._delete_button.clicked.connect(self._delete_selected)
         button_row.addWidget(self._delete_button)
 
-        self._open_location_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'folder.svg')), ' Open Folder Location')
+        self._open_location_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'folder.svg')), f" {tr('Open Folder Location')}")
         self._open_location_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
-        self._open_location_button.setToolTip('Open the containing folder in your file manager')
+        self._open_location_button.setToolTip(tr('Open the containing folder in your file manager'))
         self._open_location_button.clicked.connect(self._open_location)
         button_row.addWidget(self._open_location_button)
 
-        self._open_file_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'file-text.svg')), ' Open File')
+        self._open_file_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'file-text.svg')), f" {tr('Open File')}")
         self._open_file_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
-        self._open_file_button.setToolTip('Open the selected log file in the default text editor')
+        self._open_file_button.setToolTip(tr('Open the selected log file in the default text editor'))
         self._open_file_button.clicked.connect(self._open_file)
         self._open_file_button.setEnabled(False)
         button_row.addWidget(self._open_file_button)
@@ -199,6 +203,61 @@ class SessionsLogTab(QWidget):
         self._watching_stopped: bool = False
         self._file_watcher = DebouncedFileWatcher(self, self._on_current_file_changed)
         self.update_dir_metadata()
+        register_language_refresh(self, self._retranslate)
+
+    def _invalidate_rendered_cache(self) -> None:
+        """Clear cached rendered text and parsed rows so previews re-render in the active language."""
+        with self._cache_lock:
+            for cached in self._session_file_cache.values():
+                cached.rendered_text = None
+                cached.table_rows = None
+
+    def _retranslate(self) -> None:
+        """Refresh UI strings and cached session previews after a live language change."""
+        self._invalidate_rendered_cache()
+        self._search_input.setPlaceholderText(
+            tr('Search across all session JSON files (press Enter)\u2026')
+            if self._global_search_active
+            else tr('Search in displayed file\u2026'),
+        )
+        with QSignalBlocker(self._search_column_combo):
+            for idx in range(self._search_column_combo.count()):
+                column_name = str(self._search_column_combo.itemData(idx) or '')
+                if column_name:
+                    self._search_column_combo.setItemText(idx, tr(column_name))
+        self._search_column_combo.setToolTip(tr('Select which session fields to search'))
+        self._global_search_checkbox.setText(tr('Search All Files'))
+        self._global_search_checkbox.setToolTip(tr('Search across all session JSON files (read-only)'))
+        self._copy_button.setText(f" {tr('Copy All')}")
+        self._save_button.setText(f" {tr('Save As...')}")
+        self._save_button.setToolTip(tr('Save the displayed file to a new location'))
+        self._open_location_button.setToolTip(tr('Open the containing folder in your file manager'))
+        self._open_file_button.setText(f" {tr('Open File')}")
+        self._open_file_button.setToolTip(tr('Open the selected log file in the default text editor'))
+
+        self.update_dir_metadata()
+        if self._global_search_active:
+            if self._loading_label.isVisible():
+                self._loading_label.setText(self._build_loading_text())
+            elif search_text := self._search_input.text():
+                self._start_global_search(search_text)
+            else:
+                self._reset_selection_display()
+            return
+
+        if self._multi_selected:
+            selected_paths = self._get_selected_tree_paths()
+            if len(selected_paths) > 1:
+                self._apply_multi_selection_ui(selected_paths)
+            else:
+                self._reset_selection_display()
+        elif self._selected_path is not None and self._selected_path.exists():
+            if self._selected_path.is_file():
+                self._apply_file_selection(self._selected_path)
+            elif self._selected_path.is_dir():
+                self._apply_folder_selection(self._selected_path)
+        else:
+            self._reset_selection_display()
 
     def start_watching(self) -> None:
         """Resume watching the currently selected session file."""
@@ -249,12 +308,28 @@ class SessionsLogTab(QWidget):
             elif self._selected_path.is_dir() and not self._global_search_active:
                 folder_size, folder_count = count_json_files_and_size(self._selected_path)
                 size_str = human_readable_size(folder_size)
-                self._file_info_label.setText(f'{self._selected_path.name}  (folder)  |  {size_str}  |  {folder_count} json file{pluralize(folder_count)}')
+                self._file_info_label.setText(
+                    tr_plural(
+                        '{name}  (folder)  |  {size}  |  {count} json file',
+                        '{name}  (folder)  |  {size}  |  {count} json files',
+                        folder_count,
+                        name=self._selected_path.name,
+                        size=size_str,
+                    ),
+                )
         if not self._sessions_dir.exists():
-            self._metadata_label.setText(f'{self._sessions_dir.name}  —  Directory not found')
+            self._metadata_label.setText(tr('{name}  \u2014  Directory not found', name=self._sessions_dir.name))
             return
         total_size, file_count = count_json_files_and_size(self._sessions_dir)
-        self._metadata_label.setText(f'{self._sessions_dir.name}  |  {human_readable_size(total_size)}  |  {file_count} json file{pluralize(file_count)}')
+        self._metadata_label.setText(
+            tr_plural(
+                '{name}  |  {size}  |  {count} json file',
+                '{name}  |  {size}  |  {count} json files',
+                file_count,
+                name=self._sessions_dir.name,
+                size=human_readable_size(total_size),
+            ),
+        )
 
     def _on_tree_clicked(self, _index: QModelIndex) -> None:
         self._sync_tree_selection()
@@ -290,6 +365,10 @@ class SessionsLogTab(QWidget):
                 self._apply_folder_selection(only)
             return
 
+        self._apply_multi_selection_ui(selected_paths)
+
+    def _apply_multi_selection_ui(self, selected_paths: list[Path]) -> None:
+        """Update the viewer placeholder, summary label, and buttons for multi-item selection."""
         self._multi_selected = True
         self._selected_path = selected_paths[0]
         self._file_watcher.stop()
@@ -299,16 +378,17 @@ class SessionsLogTab(QWidget):
         dir_sel = sel_count - file_sel
         parts: list[str] = []
         if file_sel:
-            parts.append(f'{file_sel} file{pluralize(file_sel)}')
+            parts.append(tr_plural('{count} file', '{count} files', file_sel))
         if dir_sel:
-            parts.append(f'{dir_sel} folder{pluralize(dir_sel)}')
-        self._set_viewer_content('', f'{sel_count} items selected ({", ".join(parts)}).')
-        self._file_info_label.setText(f'{sel_count} items selected  ({", ".join(parts)})')
+            parts.append(tr_plural('{count} folder', '{count} folders', dir_sel))
+        breakdown = ', '.join(parts)
+        self._set_viewer_content('', tr('{count} items selected ({breakdown}).', count=sel_count, breakdown=breakdown))
+        self._file_info_label.setText(tr('{count} items selected  ({breakdown})', count=sel_count, breakdown=breakdown))
         self._match_label.setText('')
-        self._delete_button.setText(f' Delete ({sel_count})')
-        self._delete_button.setToolTip('Delete all selected files and folders')
+        self._delete_button.setText(f" {tr('Delete ({count})', count=sel_count)}")
+        self._delete_button.setToolTip(tr('Delete all selected files and folders'))
         self._delete_button.setEnabled(True)
-        self._open_location_button.setText(' Open Folder Location')
+        self._open_location_button.setText(f" {tr('Open Folder Location')}")
         self._open_file_button.setEnabled(False)
 
     def _on_tree_context_menu(self, pos: QPoint) -> None:
@@ -328,18 +408,19 @@ class SessionsLogTab(QWidget):
 
         if sel_count == 1:
             is_dir = selected_paths[0].is_dir()
-            if not is_dir and (open_action := menu.addAction(QIcon(str(ICONS_DIR_PATH / 'file-text.svg')), 'Open File')):
+            if not is_dir and (open_action := menu.addAction(QIcon(str(ICONS_DIR_PATH / 'file-text.svg')), tr('Open File'))):
                 open_action.triggered.connect(self._open_file)
-            if location_action := menu.addAction(QIcon(str(ICONS_DIR_PATH / 'folder.svg')), 'Open Folder Location' if is_dir else 'Open File Location'):
+            loc_label = tr('Open Folder Location') if is_dir else tr('Open File Location')
+            if location_action := menu.addAction(QIcon(str(ICONS_DIR_PATH / 'folder.svg')), loc_label):
                 location_action.triggered.connect(self._open_location)
             menu.addSeparator()
 
-        if select_all_action := menu.addAction(QIcon(str(ICONS_DIR_PATH / 'square-check.svg')), 'Select All'):
+        if select_all_action := menu.addAction(QIcon(str(ICONS_DIR_PATH / 'square-check.svg')), tr('Select All')):
             select_all_action.setShortcut('Ctrl+A')
             select_all_action.triggered.connect(self._tree.selectAll)
 
         menu.addSeparator()
-        delete_label = f'Delete ({sel_count})' if sel_count > 1 else 'Delete'
+        delete_label = tr('Delete ({count})', count=sel_count) if sel_count > 1 else tr('Delete')
         if delete_action := menu.addAction(QIcon(str(ICONS_DIR_PATH / 'remove.svg')), delete_label):
             delete_action.setShortcut('Delete')
             delete_action.triggered.connect(self._delete_selected)
@@ -365,21 +446,22 @@ class SessionsLogTab(QWidget):
         self._current_file = None
         self._file_info_label.setText('')
         self._match_label.setText('')
-        self._set_viewer_content('', _GLOBAL_SEARCH_VIEWER_PLACEHOLDER if self._global_search_active else _SINGLE_FILE_VIEWER_PLACEHOLDER)
-        self._delete_button.setText(' Delete')
-        self._delete_button.setToolTip('Delete the currently selected file or folder')
+        placeholder = tr(_GLOBAL_SEARCH_VIEWER_PLACEHOLDER if self._global_search_active else _SINGLE_FILE_VIEWER_PLACEHOLDER)
+        self._set_viewer_content('', placeholder)
+        self._delete_button.setText(f" {tr('Delete')}")
+        self._delete_button.setToolTip(tr('Delete the currently selected file or folder'))
         self._delete_button.setEnabled(False)
-        self._open_location_button.setText(' Open Folder Location')
+        self._open_location_button.setText(f" {tr('Open Folder Location')}")
         self._open_file_button.setEnabled(False)
 
     def _apply_file_selection(self, file_path: Path) -> None:
         """Select *file_path*, render its contents, and enable file action buttons."""
         self._selected_path = file_path
         self._load_file(file_path)
-        self._delete_button.setText(' Delete File')
-        self._delete_button.setToolTip('Delete the currently selected session JSON file')
+        self._delete_button.setText(f" {tr('Delete File')}")
+        self._delete_button.setToolTip(tr('Delete the currently selected session JSON file'))
         self._delete_button.setEnabled(True)
-        self._open_location_button.setText(' Open File Location')
+        self._open_location_button.setText(f" {tr('Open File Location')}")
         self._open_file_button.setEnabled(file_path.is_file())
 
     def _apply_folder_selection(self, folder_path: Path) -> None:
@@ -387,14 +469,22 @@ class SessionsLogTab(QWidget):
         self._selected_path = folder_path
         self._file_watcher.stop()
         self._current_file = None
-        self._set_viewer_content('', _SINGLE_FILE_VIEWER_PLACEHOLDER)
+        self._set_viewer_content('', tr(_SINGLE_FILE_VIEWER_PLACEHOLDER))
         total_size, file_count = count_json_files_and_size(folder_path)
-        self._file_info_label.setText(f'{folder_path.name}  (folder)  |  {human_readable_size(total_size)}  |  {file_count} json file{pluralize(file_count)}')
+        self._file_info_label.setText(
+            tr_plural(
+                '{name}  (folder)  |  {size}  |  {count} json file',
+                '{name}  (folder)  |  {size}  |  {count} json files',
+                file_count,
+                name=folder_path.name,
+                size=human_readable_size(total_size),
+            ),
+        )
         self._match_label.setText('')
-        self._delete_button.setText(' Delete Folder')
-        self._delete_button.setToolTip('Delete the currently selected folder and all its contents')
+        self._delete_button.setText(f" {tr('Delete Folder')}")
+        self._delete_button.setToolTip(tr('Delete the currently selected folder and all its contents'))
         self._delete_button.setEnabled(True)
-        self._open_location_button.setText(' Open Folder Location')
+        self._open_location_button.setText(f" {tr('Open Folder Location')}")
         self._open_file_button.setEnabled(False)
 
     def _load_file(self, file_path: Path) -> None:
@@ -403,13 +493,21 @@ class SessionsLogTab(QWidget):
         text = self._render_session_file(file_path)
         if text is None:
             self._current_file = None
-            self._set_viewer_content('', f'[Failed to parse JSON session file: {file_path.name}]')
-            self._file_info_label.setText(f'{file_path.name}  |  Failed to parse')
+            self._set_viewer_content('', tr('[Failed to parse JSON session file: {filename}]', filename=file_path.name))
+            self._file_info_label.setText(tr('{filename}  |  Failed to parse', filename=file_path.name))
             self._match_label.setText('')
             return
-        self._set_viewer_content(text, _SINGLE_FILE_VIEWER_PLACEHOLDER)
+        self._set_viewer_content(text, tr(_SINGLE_FILE_VIEWER_PLACEHOLDER))
         line_count = text.count('\n') + (1 if text and not text.endswith('\n') else 0)
-        self._file_info_label.setText(f'{file_path.name}  |  {human_readable_size(file_path.stat().st_size)}  |  {line_count:,} rendered lines')
+        self._file_info_label.setText(
+            tr_plural(
+                '{filename}  |  {size}  |  {count:,} rendered line',
+                '{filename}  |  {size}  |  {count:,} rendered lines',
+                line_count,
+                filename=file_path.name,
+                size=human_readable_size(file_path.stat().st_size),
+            ),
+        )
         if self._search_input.text():
             self._on_search_changed(self._search_input.text())
         else:
@@ -432,7 +530,7 @@ class SessionsLogTab(QWidget):
         if scrollbar:
             scrollbar.setValue(scrollbar.maximum() if at_bottom else min(previous_scroll, scrollbar.maximum()))
 
-    def _on_search_column_changed(self, _value: str) -> None:
+    def _on_search_column_changed(self, _index: int = 0) -> None:
         if self._global_search_active:
             self._start_global_search(self._search_input.text())
             return
@@ -447,10 +545,10 @@ class SessionsLogTab(QWidget):
             self._viewer.setExtraSelections([])
             self._match_label.setText('')
             return
-        selected_column = self._search_column_combo.currentText()
+        selected_column = str(self._search_column_combo.currentData() or SEARCH_ALL)
         if text and not self._file_has_search_match(self._current_file, text, selected_column):
             self._viewer.setExtraSelections([])
-            self._match_label.setText('No matches')
+            self._match_label.setText(tr('No matches'))
             return
         if (document := prepare_search(text, self._match_label, self._viewer)) is None:
             return
@@ -458,7 +556,7 @@ class SessionsLogTab(QWidget):
         if matched_cursors:
             self._viewer.setTextCursor(matched_cursors[0])
             self._viewer.centerCursor()
-        self._match_label.setText(f'{len(matched_cursors)} match{pluralize(len(matched_cursors), "", "es")}' if matched_cursors else 'No matches')
+        self._match_label.setText(tr_plural('{count} match', '{count} matches', len(matched_cursors)) if matched_cursors else tr('No matches'))
 
     def set_search_global(self, text: str) -> None:
         """Programmatically activate global search mode with the given text and start the search."""
@@ -484,8 +582,8 @@ class SessionsLogTab(QWidget):
             self._global_search_active = True
             self._clear_tree_selection()
             self._tree_container.setVisible(False)
-            self._search_input.setPlaceholderText('Search across all session JSON files (press Enter)…')
-            self._viewer.setPlaceholderText(_GLOBAL_SEARCH_VIEWER_PLACEHOLDER)
+            self._search_input.setPlaceholderText(tr('Search across all session JSON files (press Enter)\u2026'))
+            self._viewer.setPlaceholderText(tr(_GLOBAL_SEARCH_VIEWER_PLACEHOLDER))
             self._tree.setEnabled(False)
             self._start_global_search(self._search_input.text())
         else:
@@ -493,8 +591,8 @@ class SessionsLogTab(QWidget):
             self._global_search_generation += 1
             self._stop_loading_animation()
             self._tree_container.setVisible(True)
-            self._search_input.setPlaceholderText('Search in displayed file…')
-            self._viewer.setPlaceholderText(_SINGLE_FILE_VIEWER_PLACEHOLDER)
+            self._search_input.setPlaceholderText(tr('Search in displayed file\u2026'))
+            self._viewer.setPlaceholderText(tr(_SINGLE_FILE_VIEWER_PLACEHOLDER))
             self._tree.setEnabled(True)
             self._viewer.setExtraSelections([])
             restored_path, self._saved_file_before_global_search = self._saved_file_before_global_search, None
@@ -526,7 +624,7 @@ class SessionsLogTab(QWidget):
             return
 
         generation = self._global_search_generation
-        selected_column = self._search_column_combo.currentText()
+        selected_column = str(self._search_column_combo.currentData() or SEARCH_ALL)
         self._loading_spinner_index = 0
         self._loading_label.setText(self._build_loading_text())
         self._loading_label.setVisible(True)
@@ -538,7 +636,7 @@ class SessionsLogTab(QWidget):
                 result_lines, total_matches, files_with_matches = self._build_global_search_result(text, selected_column, generation=generation)
             except (OSError, ValidationError) as e:
                 logger.warning('Global session search failed: %s', e)
-                result_lines, total_matches, files_with_matches = ['Search failed unexpectedly. Please try again.'], 0, 0
+                result_lines, total_matches, files_with_matches = [tr('Search failed unexpectedly. Please try again.')], 0, 0
             self._global_search_results_queue.put((generation, result_lines, total_matches, files_with_matches))
 
         self._global_search_thread = threading.Thread(target=worker, name=f'SessionsGlobalSearch-{generation}', daemon=True)
@@ -547,7 +645,7 @@ class SessionsLogTab(QWidget):
     def _build_global_search_result(self, text: str, selected_column: str, *, generation: int = 0) -> tuple[list[str], int, int]:
         """Build the rendered output for a global JSON session search."""
         if not self._sessions_dir.exists():
-            return ['[Sessions directory not found]'], 0, 0
+            return [tr('[Sessions directory not found]')], 0, 0
 
         search_lower = text.lower()
         result_lines: list[str] = []
@@ -641,7 +739,7 @@ class SessionsLogTab(QWidget):
                 result_lines.extend(structured_matches)
 
         if not result_lines:
-            result_lines = [f'No matches found for "{text}" in any session JSON file.']
+            result_lines = [tr('No matches found for "{query}" in any session JSON file.', query=text)]
         return result_lines, total_matches, files_with_matches
 
     def _poll_global_search_result(self) -> None:
@@ -659,9 +757,9 @@ class SessionsLogTab(QWidget):
                 return
             if self._loading_label.isVisible() and self._global_search_thread is not None:
                 self._stop_loading_animation()
-                self._match_label.setText('Search failed')
+                self._match_label.setText(tr('Search failed'))
                 if not self._viewer.toPlainText():
-                    self._set_viewer_content('', 'Search did not return results. Please try again.')
+                    self._set_viewer_content('', tr('Search did not return results. Please try again.'))
             return
 
         generation, result_lines, total_matches, files_with_matches = latest_result
@@ -670,17 +768,26 @@ class SessionsLogTab(QWidget):
 
         self._stop_loading_animation()
         rendered_text = '\n'.join(result_lines)
+        global_placeholder = tr(_GLOBAL_SEARCH_VIEWER_PLACEHOLDER)
         if total_matches > 0:
-            self._set_viewer_content(rendered_text, _GLOBAL_SEARCH_VIEWER_PLACEHOLDER)
+            self._set_viewer_content(rendered_text, global_placeholder)
             if search_text := self._search_input.text():
                 find_and_highlight_matches(self._viewer.document(), search_text, self._viewer)
         else:
-            self._set_viewer_content('', rendered_text or _GLOBAL_SEARCH_VIEWER_PLACEHOLDER)
-        self._match_label.setText(f'{total_matches} match{pluralize(total_matches, "", "es")}' if total_matches else 'No matches')
-        self._file_info_label.setText(f'Search across all files  |  {files_with_matches} file{pluralize(files_with_matches)} matched' if total_matches else '')
+            self._set_viewer_content('', rendered_text or global_placeholder)
+        self._match_label.setText(tr_plural('{count} match', '{count} matches', total_matches) if total_matches else tr('No matches'))
+        self._file_info_label.setText(
+            tr_plural(
+                'Search across all files  |  {count} file matched',
+                'Search across all files  |  {count} files matched',
+                files_with_matches,
+            )
+            if total_matches
+            else '',
+        )
 
     def _build_loading_text(self) -> str:
-        return f'{SPINNER_FRAMES[self._loading_spinner_index]} Searching...'
+        return tr('{spinner} Searching...', spinner=SPINNER_FRAMES[self._loading_spinner_index])
 
     def _animate_search_spinner(self) -> None:
         if self._loading_label.isVisible():
@@ -721,13 +828,18 @@ class SessionsLogTab(QWidget):
 
     def _save_as(self) -> None:
         if self._current_file is None and not (self._global_search_active and self._current_rendered_text):
-            QMessageBox.information(self, TITLE, 'No file selected.')
+            QMessageBox.information(self, TITLE, tr('No file selected.'))
             return
         default_name = str(self._current_file.with_suffix('.export.log')) if self._current_file is not None else str(self._sessions_dir / 'global_search.export.log')
-        path, _ = QFileDialog.getSaveFileName(self, 'Save Session Log As', default_name, 'Log Files (*.log);;Text Files (*.txt);;All Files (*)')
+        path, _ = QFileDialog.getSaveFileName(
+            self,
+            tr('Save Session Log As'),
+            default_name,
+            f"{tr('Log Files')} (*.log);;{tr('Text Files')} (*.txt);;{tr('All Files')} (*)",
+        )
         if path:
             Path(path).write_text(self._current_rendered_text or self._viewer.toPlainText(), encoding='utf-8')
-            QMessageBox.information(self, TITLE, f'Saved to {path}')
+            QMessageBox.information(self, TITLE, tr('Saved to {path}', path=path))
 
     def _render_session_file(self, file_path: Path) -> str | None:
         cached = self._get_or_load_cached_file(file_path)
@@ -751,27 +863,35 @@ class SessionsLogTab(QWidget):
             QMessageBox.warning(
                 self,
                 TITLE,
-                'Cannot delete the active session log file while GUI session logging is enabled.',
+                tr('Cannot delete the active session log file while GUI session logging is enabled.'),
             )
             return
 
         if len(selected_paths) == 1:
             only = selected_paths[0]
-            is_dir = only.is_dir()
-            kind = 'folder' if is_dir else 'file'
-            extra = '\n\nAll contents within the folder will be removed.' if is_dir else ''
-            msg = f'Delete {kind} "{only.name}"?{extra}\n\nThis cannot be undone.'
+            if only.is_dir():
+                confirm_text = tr('Delete folder "{name}"?\n\nAll contents within the folder will be removed.\n\nThis cannot be undone.', name=only.name)
+            else:
+                confirm_text = tr('Delete file "{name}"?\n\nThis cannot be undone.', name=only.name)
         else:
             file_sel = sum(1 for p in selected_paths if p.is_file())
             dir_sel = len(selected_paths) - file_sel
-            parts: list[str] = []
-            if file_sel:
-                parts.append(f'{file_sel} file{pluralize(file_sel)}')
-            if dir_sel:
-                parts.append(f'{dir_sel} folder{pluralize(dir_sel)} (and all their contents)')
-            msg = f'Delete {", ".join(parts)}?\n\nThis cannot be undone.'
+            if file_sel and dir_sel:
+                confirm_text = tr(
+                    'Delete {files_part}, {folders_part}?\n\nThis cannot be undone.',
+                    files_part=tr_plural('{count} file', '{count} files', file_sel),
+                    folders_part=tr_plural('{count} folder (and all their contents)', '{count} folders (and all their contents)', dir_sel),
+                )
+            elif file_sel:
+                confirm_text = tr_plural('Delete {count} file?\n\nThis cannot be undone.', 'Delete {count} files?\n\nThis cannot be undone.', file_sel)
+            else:
+                confirm_text = tr_plural(
+                    'Delete {count} folder (and all their contents)?\n\nThis cannot be undone.',
+                    'Delete {count} folders (and all their contents)?\n\nThis cannot be undone.',
+                    dir_sel,
+                )
 
-        if QMessageBox.warning(self, TITLE, msg, QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No) != QMessageBox.StandardButton.Yes:
+        if QMessageBox.warning(self, TITLE, confirm_text, QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No) != QMessageBox.StandardButton.Yes:
             return
 
         self._file_watcher.stop()
@@ -782,8 +902,8 @@ class SessionsLogTab(QWidget):
         _, _, skipped_active = (
             run_blocking_with_loading(
                 self.window(),
-                'Deleting Session Logs\u2026',
-                'Removing selected session files and folders\u2026',
+                tr('Deleting Session Logs\u2026'),
+                tr('Removing selected session files and folders\u2026'),
                 _do_delete,
             )
             if self.isVisible()
@@ -801,7 +921,7 @@ class SessionsLogTab(QWidget):
             QMessageBox.information(
                 self,
                 TITLE,
-                'The active session log file was kept because GUI session logging is currently enabled.',
+                tr('The active session log file was kept because GUI session logging is currently enabled.'),
             )
 
     def _open_location(self) -> None:

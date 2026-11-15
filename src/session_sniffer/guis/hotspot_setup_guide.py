@@ -1,8 +1,10 @@
 """Interactive setup guide dialog for Wi-Fi Hotspot and Ethernet Bridge (ICS)."""
 
+import logging
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, override
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor, QIcon, QMouseEvent
 from PySide6.QtWidgets import (
     QDialog,
@@ -17,7 +19,9 @@ from PySide6.QtWidgets import (
 )
 
 from session_sniffer.constants.standalone import TITLE
+from session_sniffer.guis._crashing_qthread import CrashingQThread
 from session_sniffer.guis._dialog_mixins import DraggableDialogMixin
+from session_sniffer.guis.live_language import register_language_refresh
 from session_sniffer.guis.stylesheets import (
     DIALOG_BUTTON_STYLESHEET,
     DIALOG_PRIMARY_BUTTON_STYLESHEET,
@@ -27,10 +31,129 @@ from session_sniffer.guis.stylesheets import (
 )
 from session_sniffer.guis.theming import ICONS_DIR_PATH, themed_qss
 from session_sniffer.guis.utils import scale_by_ui
-from session_sniffer.networking.hotspot import has_wifi_adapter
+from session_sniffer.i18n import tr
+from session_sniffer.networking.hotspot import (
+    configure_hotspot,
+    disable_ics,
+    enable_ics,
+    get_connected_devices,
+    get_hotspot_info,
+    get_ics_status,
+    has_wifi_adapter,
+    start_hotspot,
+    stop_hotspot,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True, slots=True)
+class HotspotActionResult:
+    """Result of an asynchronous hotspot or connection sharing action."""
+
+    success: bool
+    message: str
+    message_key: str = ''
+    message_params: tuple[tuple[str, str], ...] = ()
+
+
+class HotspotActionWorker(CrashingQThread):
+    """Background worker for asynchronous hotspot and connection sharing tasks."""
+
+    info_ready = Signal(object)
+    devices_ready = Signal(object)
+    ics_status_ready = Signal(object)
+    action_completed = Signal(HotspotActionResult)
+
+    def __init__(self, task_name: str, **kwargs: object) -> None:
+        """Initialize the HotspotActionWorker."""
+        super().__init__(name=f'HotspotWorker-{task_name}')
+        self._task_name = task_name
+        self._kwargs = kwargs
+
+    @override
+    def _run(self) -> None:
+        try:
+            if self._task_name == 'refresh_all':
+                info = get_hotspot_info()
+                self.info_ready.emit(info)
+                devices = get_connected_devices() if info.is_available else []
+                self.devices_ready.emit(devices)
+                ics_status = get_ics_status()
+                self.ics_status_ready.emit(ics_status)
+
+            elif self._task_name == 'configure_credentials':
+                ssid = str(self._kwargs.get('ssid', ''))
+                passphrase = str(self._kwargs.get('passphrase', ''))
+                success, error_message = configure_hotspot(ssid, passphrase)
+                has_error = bool(error_message)
+                default_key = 'Hotspot network name and password updated successfully.'
+                self.action_completed.emit(
+                    HotspotActionResult(
+                        success=success,
+                        message=error_message or tr(default_key),
+                        message_key='' if has_error else default_key,
+                    ),
+                )
+
+            elif self._task_name == 'start_hotspot':
+                success, error_message = start_hotspot()
+                has_error = bool(error_message)
+                default_key = 'Mobile Hotspot started.'
+                self.action_completed.emit(
+                    HotspotActionResult(
+                        success=success,
+                        message=error_message or tr(default_key),
+                        message_key='' if has_error else default_key,
+                    ),
+                )
+
+            elif self._task_name == 'stop_hotspot':
+                success, error_message = stop_hotspot()
+                has_error = bool(error_message)
+                default_key = 'Mobile Hotspot stopped.'
+                self.action_completed.emit(
+                    HotspotActionResult(
+                        success=success,
+                        message=error_message or tr(default_key),
+                        message_key='' if has_error else default_key,
+                    ),
+                )
+
+            elif self._task_name == 'enable_ics':
+                public_adapter = str(self._kwargs.get('public_adapter', ''))
+                private_adapter = str(self._kwargs.get('private_adapter', ''))
+                success, error_message = enable_ics(public_adapter, private_adapter)
+                has_error = bool(error_message)
+                default_key = 'Internet Connection Sharing enabled between {public_adapter} and {private_adapter}.'
+                params = (('public_adapter', public_adapter), ('private_adapter', private_adapter))
+                self.action_completed.emit(
+                    HotspotActionResult(
+                        success=success,
+                        message=error_message or tr(default_key, public_adapter=public_adapter, private_adapter=private_adapter),
+                        message_key='' if has_error else default_key,
+                        message_params=() if has_error else params,
+                    ),
+                )
+
+            elif self._task_name == 'disable_ics':
+                success, error_message = disable_ics()
+                has_error = bool(error_message)
+                default_key = 'Internet Connection Sharing disabled.'
+                self.action_completed.emit(
+                    HotspotActionResult(
+                        success=success,
+                        message=error_message or tr(default_key),
+                        message_key='' if has_error else default_key,
+                    ),
+                )
+
+        except (OSError, RuntimeError) as e:
+            logger.exception('Hotspot action worker failed on task %s', self._task_name)
+            self.action_completed.emit(HotspotActionResult(success=False, message=str(e)))
 
 
 class _ClickableOptionCard(QFrame):
@@ -58,7 +181,9 @@ class HotspotSetupGuideDialog(DraggableDialogMixin, QDialog):
     def __init__(self, parent: QWidget | None = None) -> None:
         """Initialize the HotspotSetupGuideDialog."""
         super().__init__(parent)
-        self.setWindowTitle(f'{TITLE} - Internet Sharing Setup')
+        self._text_bindings: list[tuple[QLabel | QPushButton, str]] = []
+        self._apply_translations()
+        register_language_refresh(self, self._apply_translations)
         self.setWindowFlags(Qt.WindowType.Dialog | Qt.WindowType.FramelessWindowHint)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, on=True)
         self.setMinimumSize(scale_by_ui(680), scale_by_ui(500))
@@ -140,12 +265,15 @@ class HotspotSetupGuideDialog(DraggableDialogMixin, QDialog):
         icons_layout.addStretch()
         layout.addLayout(icons_layout)
 
-        title_label = QLabel('Internet Sharing Setup')
+        title_label = QLabel()
+        self._bind_translated_text(title_label, 'Internet Sharing Setup')
         title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         title_label.setStyleSheet(themed_qss('color: #f0f4fa; font-size: 14pt; font-weight: 700;'))
         layout.addWidget(title_label)
 
-        description_label = QLabel(
+        description_label = QLabel()
+        self._bind_translated_text(
+            description_label,
             "Session Sniffer can share your PC's internet connection to a console or device so you can capture its network traffic. "
             'Choose the method that works best for your setup.',
         )
@@ -177,14 +305,16 @@ class HotspotSetupGuideDialog(DraggableDialogMixin, QDialog):
 
         wifi_text_layout = QVBoxLayout()
         wifi_header_layout = QHBoxLayout()
-        wifi_title = QLabel('Wi-Fi Hotspot')
+        wifi_title = QLabel()
+        self._bind_translated_text(wifi_title, 'Wi-Fi Hotspot')
         wifi_title.setStyleSheet(
             themed_qss(
                 'color: #ffffff; font-size: 10.5pt; font-weight: 700;' if wifi_available else 'color: #5c6d80; font-size: 10.5pt; font-weight: 700;',
             ),
         )
         wifi_header_layout.addWidget(wifi_title)
-        wifi_badge = QLabel('RECOMMENDED' if wifi_available else 'UNAVAILABLE')
+        wifi_badge = QLabel()
+        self._bind_translated_text(wifi_badge, 'RECOMMENDED' if wifi_available else 'UNAVAILABLE')
         wifi_badge.setStyleSheet(
             themed_qss(
                 (
@@ -202,7 +332,9 @@ class HotspotSetupGuideDialog(DraggableDialogMixin, QDialog):
         wifi_header_layout.addStretch()
         wifi_text_layout.addLayout(wifi_header_layout)
 
-        wifi_desc = QLabel(
+        wifi_desc = QLabel()
+        self._bind_translated_text(
+            wifi_desc,
             'Create a wireless hotspot from your PC. Your console connects over Wi-Fi.' if wifi_available else 'No Wi-Fi adapter detected on this PC.',
         )
         wifi_desc.setWordWrap(True)
@@ -228,10 +360,12 @@ class HotspotSetupGuideDialog(DraggableDialogMixin, QDialog):
         ethernet_card_layout.addWidget(ethernet_icon_label, 0, Qt.AlignmentFlag.AlignCenter)
 
         ethernet_text_layout = QVBoxLayout()
-        ethernet_title = QLabel('Ethernet Bridge (ICS)')
+        ethernet_title = QLabel()
+        self._bind_translated_text(ethernet_title, 'Ethernet Bridge (ICS)')
         ethernet_title.setStyleSheet(themed_qss('color: #ffffff; font-size: 10.5pt; font-weight: 700;'))
         ethernet_text_layout.addWidget(ethernet_title)
-        ethernet_desc = QLabel('Share your Wi-Fi or VPN connection over an Ethernet cable plugged directly into your console.')
+        ethernet_desc = QLabel()
+        self._bind_translated_text(ethernet_desc, 'Share your Wi-Fi or VPN connection over an Ethernet cable plugged directly into your console.')
         ethernet_desc.setWordWrap(True)
         ethernet_desc.setStyleSheet(themed_qss('color: #c8ddf0; font-size: 8.5pt;'))
         ethernet_text_layout.addWidget(ethernet_desc)
@@ -243,13 +377,26 @@ class HotspotSetupGuideDialog(DraggableDialogMixin, QDialog):
         # Footer button
         footer_layout = QHBoxLayout()
         footer_layout.addStretch()
-        skip_button = QPushButton('Skip for now')
+        skip_button = QPushButton()
+        self._bind_translated_text(skip_button, 'Skip for now')
         skip_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
         skip_button.clicked.connect(self.accept)
         footer_layout.addWidget(skip_button)
         layout.addLayout(footer_layout)
 
         return page
+
+    def _bind_translated_text(self, widget: QLabel | QPushButton, canonical_text: str) -> None:
+        """Bind a label or button to its canonical string for live language refreshes."""
+        widget.setText(tr(canonical_text))
+        self._text_bindings.append((widget, canonical_text))
+
+    def _apply_translations(self) -> None:
+        """Apply current translations to the dialog title and bound text widgets."""
+        setup_title = tr('Internet Sharing Setup')
+        self.setWindowTitle(f'{TITLE} - {setup_title}')
+        for widget, canonical_text in self._text_bindings:
+            widget.setText(tr(canonical_text))
 
     def _build_guide_page(
         self,
@@ -277,7 +424,8 @@ class HotspotSetupGuideDialog(DraggableDialogMixin, QDialog):
         icon_row.addStretch()
         layout.addLayout(icon_row)
 
-        title = QLabel(title_text)
+        title = QLabel()
+        self._bind_translated_text(title, title_text)
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         title.setStyleSheet(themed_qss('color: #f0f4fa; font-size: 13.5pt; font-weight: 700;'))
         layout.addWidget(title)
@@ -290,7 +438,8 @@ class HotspotSetupGuideDialog(DraggableDialogMixin, QDialog):
             step_row.setSpacing(scale_by_ui(12))
             num_label = QLabel(str(index))
             num_label.setStyleSheet(HOTSPOT_STEP_NUMBER_STYLESHEET)
-            text_label = QLabel(step_text)
+            text_label = QLabel()
+            self._bind_translated_text(text_label, step_text)
             text_label.setWordWrap(True)
             text_label.setStyleSheet(themed_qss('color: #d0dbe8; font-size: 9pt; line-height: 1.35;'))
             step_row.addWidget(num_label, 0, Qt.AlignmentFlag.AlignTop)
@@ -301,12 +450,14 @@ class HotspotSetupGuideDialog(DraggableDialogMixin, QDialog):
         layout.addStretch()
 
         footer_layout = QHBoxLayout()
-        back_button = QPushButton('Back')
+        back_button = QPushButton()
+        self._bind_translated_text(back_button, 'Back')
         back_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
         back_button.clicked.connect(lambda: self._stacked_widget.setCurrentIndex(0))
         footer_layout.addWidget(back_button)
         footer_layout.addStretch()
-        got_it_button = QPushButton('Got it')
+        got_it_button = QPushButton()
+        self._bind_translated_text(got_it_button, 'Got it')
         got_it_button.setStyleSheet(DIALOG_PRIMARY_BUTTON_STYLESHEET)
         got_it_button.clicked.connect(self.accept)
         footer_layout.addWidget(got_it_button)

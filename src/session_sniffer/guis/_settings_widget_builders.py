@@ -23,24 +23,25 @@ from PySide6.QtWidgets import (
     QPushButton,
     QSizePolicy,
     QSpinBox,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
 
-from session_sniffer.constants.standalone import DISCORD_INVITE_URL
 from session_sniffer.guis.color_picker_dialog import ColorPickerButton
 from session_sniffer.guis.delegates import ElidedTextTooltipDelegate
+from session_sniffer.guis.live_language import register_language_refresh, set_i18n_colon_label
 from session_sniffer.guis.secret_line_edit import SecretLineEdit
 from session_sniffer.guis.stylesheets import (
     COMPACT_BUTTON_STYLESHEET,
     COMPACT_DANGER_BUTTON_STYLESHEET,
-    DISCORD_INFO_LABEL_STYLESHEET,
     SVG_ICON_CONTEXT_MENU_STYLESHEET,
     WEBSERVER_HELP_LABEL_STYLESHEET,
 )
-from session_sniffer.guis.theming import ICONS_DIR_PATH, themed_qss
+from session_sniffer.guis.theming import ICONS_DIR_PATH
 from session_sniffer.guis.userip_manager_helpers import IPRangeBuilderDialog
 from session_sniffer.guis.utils import scale_by_ui
+from session_sniffer.i18n import tr
 from session_sniffer.settings import SETTING_DEFAULTS, SettingMeta, SettingType
 from session_sniffer.settings.settings import Settings
 
@@ -49,12 +50,13 @@ if TYPE_CHECKING:
 
 
 def format_setting_tooltip(meta: SettingMeta) -> str | None:
-    """Return the tooltip text for *meta*, consistently including the capture restart note if required."""
+    """Return the localized tooltip text for *meta*, consistently including the capture restart note if required."""
     if not meta.tooltip:
-        return 'Requires capture restart' if meta.requires_capture_restart else None
+        return tr('Requires capture restart') if meta.requires_capture_restart else None
+    translated_tooltip = tr(meta.tooltip)
     if meta.requires_capture_restart and '(requires capture restart)' not in meta.tooltip:
-        return f'{meta.tooltip} (requires capture restart)'
-    return meta.tooltip
+        return tr('{tooltip} (requires capture restart)', tooltip=translated_tooltip)
+    return translated_tooltip
 
 
 def create_standard_form_layout(parent: QWidget | None = None) -> QFormLayout:
@@ -74,7 +76,8 @@ def create_standard_vbox_layout(parent: QWidget | None = None) -> QVBoxLayout:
 
 def create_setting_label(meta: SettingMeta) -> QLabel:
     """Create a standard form label for a setting with an optional tooltip."""
-    label = QLabel(f'{meta.display_label}:')
+    label = QLabel()
+    set_i18n_colon_label(label, meta.display_label)
     tooltip = format_setting_tooltip(meta)
     if tooltip is not None and tooltip:
         label.setToolTip(tooltip)
@@ -116,10 +119,16 @@ class HotkeyEditWidget(QWidget):
         self._key_edit.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         inner_line_edit = self._key_edit.findChild(QLineEdit)
         if inner_line_edit is not None:
-            inner_line_edit.setPlaceholderText('None (click and press shortcut...)')
+            shortcut_edit: QLineEdit = inner_line_edit
 
-        self._clear_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'x.svg')), ' Clear')
-        self._clear_button.setToolTip('Clear shortcut (disable hotkey)')
+            def _apply_placeholder() -> None:
+                shortcut_edit.setPlaceholderText(tr('None (click and press shortcut...)'))
+
+            _apply_placeholder()
+            register_language_refresh(self, _apply_placeholder)
+
+        self._clear_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'x.svg')), f" {tr('Clear')}")
+        self._clear_button.setToolTip(tr('Clear shortcut (disable hotkey)'))
         self._clear_button.setStyleSheet(COMPACT_BUTTON_STYLESHEET)
         self._clear_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self._clear_button.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
@@ -175,11 +184,11 @@ def create_text_widget(meta: SettingMeta) -> QLineEdit:
     """
     le = SecretLineEdit() if meta.secret else QLineEdit()
     if meta.setting_type == SettingType.IPV4:
-        le.setPlaceholderText('e.g. 192.168.1.100')
+        le.setPlaceholderText(tr('e.g. 192.168.1.100'))
         le.setMaxLength(15)
         le.setValidator(QRegularExpressionValidator(QRegularExpression(r'[0-9.]{0,15}')))
     elif meta.setting_type == SettingType.MAC_ADDRESS:
-        le.setPlaceholderText('e.g. AA:BB:CC:DD:EE:FF')
+        le.setPlaceholderText(tr('e.g. AA:BB:CC:DD:EE:FF'))
         le.setMaxLength(17)
         le.setValidator(QRegularExpressionValidator(QRegularExpression(r'[0-9A-Fa-f:]{0,17}')))
 
@@ -224,26 +233,58 @@ def create_text_widget(meta: SettingMeta) -> QLineEdit:
     if meta.max_width is not None:
         le.setMaximumWidth(meta.max_width)
     if isinstance(le, SecretLineEdit):
-        _icons_dir = ICONS_DIR_PATH
-        icon_show = QIcon(str(_icons_dir / 'eye.svg'))
-        icon_hide = QIcon(str(_icons_dir / 'eye-off.svg'))
-        reveal_action = le.addAction(icon_hide, QLineEdit.ActionPosition.TrailingPosition)
+        reveal_action = le.addAction(QIcon(str(ICONS_DIR_PATH / 'eye-off.svg')), QLineEdit.ActionPosition.TrailingPosition)
         if not reveal_action:
             message = 'QLineEdit.addAction returned None'
             raise RuntimeError(message)
+        for button in le.findChildren(QToolButton):
+            button.setCursor(Qt.CursorShape.PointingHandCursor)
         _act: QAction = reveal_action
         _act.setCheckable(True)
-        _act.setToolTip('Show')
+        _act.setToolTip(tr('Show'))
 
         def _toggle_echo() -> None:
             checked = _act.isChecked()
             le.set_revealed(revealed=checked)
-            _act.setIcon(icon_show if checked else icon_hide)
-            _act.setToolTip('Hide' if checked else 'Show')
+            _act.setIcon(QIcon(str(ICONS_DIR_PATH / ('eye.svg' if checked else 'eye-off.svg'))))
+            _act.setToolTip(tr('Hide') if checked else tr('Show'))
 
         _act.toggled.connect(_toggle_echo)
         le.setProperty('secret_action', _act)
     return le
+
+
+def _apply_spinbox_suffix(spin: QSpinBox | QDoubleSpinBox, suffix: str) -> None:
+    spin.setSuffix(f' {tr(suffix[1:])}' if suffix.startswith(' ') else tr(suffix))
+
+
+def combo_canonical_value(combo: QComboBox) -> str:
+    """Return the canonical enum key stored in `UserRole` for *combo*'s active item, falling back to its text."""
+    user_data = combo.currentData(Qt.ItemDataRole.UserRole)
+    if isinstance(user_data, str) and user_data:
+        return user_data
+    return combo.currentText()
+
+
+def set_combo_by_canonical(combo: QComboBox, canonical: str, *, fallback: str | None = None) -> bool:
+    """Select the item matching *canonical* in `UserRole` (or text / case-insensitive text / *fallback*)."""
+    index = combo.findData(canonical, Qt.ItemDataRole.UserRole)
+    if index < 0:
+        for i in range(combo.count()):
+            item_data = combo.itemData(i, Qt.ItemDataRole.UserRole)
+            if isinstance(item_data, str) and item_data.casefold() == canonical.casefold():
+                index = i
+                break
+    if index < 0:
+        index = combo.findText(canonical, Qt.MatchFlag.MatchFixedString)
+    if index < 0 and fallback is not None:
+        index = combo.findData(fallback, Qt.ItemDataRole.UserRole)
+        if index < 0:
+            index = combo.findText(fallback, Qt.MatchFlag.MatchFixedString)
+    if index >= 0:
+        combo.setCurrentIndex(index)
+        return True
+    return False
 
 
 def create_float_widget(meta: SettingMeta) -> QDoubleSpinBox:
@@ -255,7 +296,7 @@ def create_float_widget(meta: SettingMeta) -> QDoubleSpinBox:
     spin.setMinimum(meta.min_value if meta.min_value is not None else 0.0)
     spin.setMaximum(meta.max_value if meta.max_value is not None else 99999.0)
     if meta.suffix is not None:
-        spin.setSuffix(meta.suffix)
+        _apply_spinbox_suffix(spin, meta.suffix)
     spin.lineEdit().setTextMargins(scale_by_ui(5), 0, 0, 0)
     tooltip = format_setting_tooltip(meta)
     if tooltip is not None and tooltip:
@@ -271,7 +312,7 @@ def create_integer_widget(meta: SettingMeta) -> QSpinBox:
     spin.setMinimum(int(meta.min_value) if meta.min_value is not None else 0)
     spin.setMaximum(int(meta.max_value) if meta.max_value is not None else 99999)
     if meta.suffix is not None:
-        spin.setSuffix(meta.suffix)
+        _apply_spinbox_suffix(spin, meta.suffix)
     spin.lineEdit().setTextMargins(scale_by_ui(5), 0, 0, 0)
     tooltip = format_setting_tooltip(meta)
     if tooltip is not None and tooltip:
@@ -283,23 +324,28 @@ def create_integer_or_all_widget(meta: SettingMeta) -> QSpinBox:
     """Create a spin-box widget for an integer-or-all setting (0 displays as special text)."""
     spin = create_integer_widget(meta)
     spin.setMinimum(0)
-    spin.setSpecialValueText(meta.special_value_text)
+    spin.setSpecialValueText(tr(meta.special_value_text))
     return spin
 
 
 def create_enum_widget(meta: SettingMeta) -> QComboBox:
-    """Create a combo-box widget for an enum setting."""
+    """Create a combo-box widget for an enum setting storing canonical values in `UserRole`."""
     combo = QComboBox()
     combo.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
     if meta.allowed_values:
-        combo.addItems(meta.allowed_values)
+        for val in meta.allowed_values:
+            # Explicit `display_labels` (e.g. native language names in `SUPPORTED_LANGUAGES`) stay verbatim.
+            display_text = meta.display_labels.get(val, val) if meta.display_labels is not None else tr(val)
+            combo.addItem(display_text, val)
     elif meta.allowed_columns_attr is not None and meta.allowed_columns_attr:
         if meta.allowed_columns_attr == 'GUI_ALL_CONNECTED_COLUMNS':
-            combo.addItems([col for col in Settings.GUI_ALL_CONNECTED_COLUMNS if col in set(Settings.gui_columns_connected_shown) or col in Settings.GUI_FORCED_COLUMNS])
+            columns = [col for col in Settings.GUI_ALL_CONNECTED_COLUMNS if col in set(Settings.gui_columns_connected_shown) or col in Settings.GUI_FORCED_COLUMNS]
         elif meta.allowed_columns_attr == 'GUI_ALL_DISCONNECTED_COLUMNS':
-            combo.addItems([col for col in Settings.GUI_ALL_DISCONNECTED_COLUMNS if col in set(Settings.gui_columns_disconnected_shown) or col in Settings.GUI_FORCED_COLUMNS])
+            columns = [col for col in Settings.GUI_ALL_DISCONNECTED_COLUMNS if col in set(Settings.gui_columns_disconnected_shown) or col in Settings.GUI_FORCED_COLUMNS]
         else:
-            combo.addItems(cast('tuple[str, ...]', getattr(Settings, meta.allowed_columns_attr, ())))
+            columns = list(cast('tuple[str, ...]', getattr(Settings, meta.allowed_columns_attr, ())))
+        for col in columns:
+            combo.addItem(tr(col), col)
     tooltip = format_setting_tooltip(meta)
     if tooltip is not None and tooltip:
         combo.setToolTip(tooltip)
@@ -314,9 +360,9 @@ def _create_checklist_button_row(
     on_reset: Callable[[], None] | None = None,
 ) -> tuple[QHBoxLayout, QPushButton, QPushButton, QPushButton]:
     """Create a compact 'Select All' / 'Unselect All' / 'Reset to Default' button row."""
-    button_select_all = QPushButton(QIcon(str(ICONS_DIR_PATH / 'square-check.svg')), ' Select All')
-    button_deselect_all = QPushButton(QIcon(str(ICONS_DIR_PATH / 'square.svg')), ' Unselect All')
-    button_reset = QPushButton(QIcon(str(ICONS_DIR_PATH / 'undo.svg')), ' Reset to Default')
+    button_select_all = QPushButton(QIcon(str(ICONS_DIR_PATH / 'square-check.svg')), f" {tr('Select All')}")
+    button_deselect_all = QPushButton(QIcon(str(ICONS_DIR_PATH / 'square.svg')), f" {tr('Unselect All')}")
+    button_reset = QPushButton(QIcon(str(ICONS_DIR_PATH / 'undo.svg')), f" {tr('Reset to Default')}")
     button_reset.setToolTip(reset_tooltip)
     for button in (button_select_all, button_deselect_all):
         button.setStyleSheet(COMPACT_BUTTON_STYLESHEET)
@@ -348,7 +394,7 @@ def create_column_tuple_widget(key: str, meta: SettingMeta) -> QGroupBox:
     allowed_columns = cast('tuple[str, ...]', getattr(Settings, allowed_attr, ()))
     default_columns = cast('tuple[str, ...]', SETTING_DEFAULTS.get(key, ()))
 
-    group = QGroupBox(meta.display_label.replace('&', '&&'))
+    group = QGroupBox(tr(meta.display_label).replace('&', '&&'))
     tooltip = format_setting_tooltip(meta)
     if tooltip is not None and tooltip:
         group.setToolTip(tooltip)
@@ -360,14 +406,14 @@ def create_column_tuple_widget(key: str, meta: SettingMeta) -> QGroupBox:
 
     column_count = 3
     for i, column_name in enumerate(allowed_columns):
-        display_text = meta.display_labels.get(column_name, column_name) if meta.display_labels is not None and meta.display_labels else column_name
+        display_text = meta.display_labels.get(column_name, column_name) if meta.display_labels is not None and meta.display_labels else tr(column_name)
         checkbox = QCheckBox(display_text)
         checkbox.setObjectName(column_name)
         grid.addWidget(checkbox, i // column_count, i % column_count)
     grid.setRowStretch(grid.rowCount(), 1)
 
     button_row, _, _, _ = _create_checklist_button_row(
-        reset_tooltip='Reset to default selected columns',
+        reset_tooltip=tr('Reset to default selected columns'),
         on_select_all=lambda: set_all_checkboxes(inner, checked=True),
         on_deselect_all=lambda: set_all_checkboxes(inner, checked=False),
         on_reset=lambda: set_checkboxes_to(inner, default_columns),
@@ -393,8 +439,8 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
     layout.setSpacing(10)
 
     # Presets group box
-    presets_group = QGroupBox('App && Game Presets')
-    presets_group.setToolTip('Select presets to automatically block their required IP ranges. You can check multiple presets.')
+    presets_group = QGroupBox(tr('App & Game Presets').replace('&', '&&'))
+    presets_group.setToolTip(tr('Select presets to automatically block their required IP ranges. You can check multiple presets.'))
     presets_grid_container = QWidget()
     presets_grid = QGridLayout(presets_grid_container)
     presets_grid.setContentsMargins(4, 4, 4, 4)
@@ -460,7 +506,7 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
     presets_grid.setRowStretch(presets_grid.rowCount(), 1)
 
     preset_button_row, preset_button_select_all, preset_button_deselect_all, preset_button_reset = _create_checklist_button_row(
-        reset_tooltip='Reset to default presets',
+        reset_tooltip=tr('Reset to default presets'),
     )
 
     presets_layout = QVBoxLayout(presets_group)
@@ -469,7 +515,7 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
     presets_layout.addWidget(presets_grid_container)
 
     # Checklist container
-    checklist_group = QGroupBox(meta.display_label.replace('&', '&&'))
+    checklist_group = QGroupBox(tr(meta.display_label).replace('&', '&&'))
     tooltip = format_setting_tooltip(meta)
     if tooltip is not None and tooltip:
         checklist_group.setToolTip(tooltip)
@@ -490,7 +536,7 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
     grid.setRowStretch(grid.rowCount(), 1)
 
     button_row, _, _, _ = _create_checklist_button_row(
-        reset_tooltip='Reset to default selected options',
+        reset_tooltip=tr('Reset to default selected options'),
         on_select_all=lambda: set_all_checkboxes(grid_container, checked=True),
         on_deselect_all=lambda: set_all_checkboxes(grid_container, checked=False),
         on_reset=lambda: set_checkboxes_to(grid_container, default_columns),
@@ -506,216 +552,53 @@ def create_third_party_servers_split_widget(key: str, meta: SettingMeta) -> QWid
 
     # Preset mappings
     presets_map: dict[str, set[str]] = {
-        'Azar': {
-            'CLOUDFLARE',
-            'GOOGLE_LLC',
-            'MICROSOFT',
-        },
-        'Borderlands 2': {
-            'AMAZON',
-            'GOOGLE_LLC',
-        },
-        'Borderlands 3': {
-            'MICROSOFT',
-            'UNITY_TECHNOLOGIES_APS',
-        },
-        'Borderlands 4': {
-            'AMAZON',
-            'MICROSOFT',
-            'UNITY_TECHNOLOGIES_APS',
-        },
-        'Borderlands: The Pre-Sequel': {
-            'GOOGLE_LLC',
-        },
-        'Call of Duty®: Advanced Warfare': {
-            'COMVIVE_SERVIDORES',
-            'DEMONWARE',
-            'DIMENSION_DATA',
-            'LATITUDE_SH',
-            'LEVEL_3_PARENT',
-            'THE_CONSTANT_COMPANY',
-        },
-        'Call of Duty®: Black Ops': {
-            'DEMONWARE',
-            'MICROSOFT',
-            'THE_CONSTANT_COMPANY',
-            'UK_MINISTRY_OF_DEFENCE',
-            'US_DEPARTMENT_OF_DEFENSE',
-        },
-        'Call of Duty®: Black Ops Cold War': {
-            'DEMONWARE',
-            'THE_CONSTANT_COMPANY',
-        },
-        'Call of Duty®: Black Ops II': {
-            'DEMONWARE',
-        },
-        'Call of Duty®: Black Ops III': {
-            'DEMONWARE',
-            'DIMENSION_DATA',
-            'LATITUDE_SH',
-            'THE_CONSTANT_COMPANY',
-            'SEFLOW',
-        },
-        'Call of Duty®: Ghosts': {
-            'COMVIVE_SERVIDORES',
-            'DEMONWARE',
-            'DIMENSION_DATA',
-            'LATITUDE_SH',
-            'LEVEL_3_PARENT',
-            'THE_CONSTANT_COMPANY',
-            'SEFLOW',
-        },
-        'Call of Duty®: Infinite Warfare': {
-            'DEMONWARE',
-            'THE_CONSTANT_COMPANY',
-            'SEFLOW',
-        },
-        'Call of Duty®: Modern Warfare® 2 (2009)': {
-            'DEMONWARE',
-        },
-        'Call of Duty®: Modern Warfare® 3 (2011)': {
-            'DEMONWARE',
-        },
-        'Call of Duty®: Vanguard': {
-            'DEMONWARE',
-            'THE_CONSTANT_COMPANY',
-        },
-        'Call of Duty®: WWII': {
-            'DEMONWARE',
-            'FRIEND_IT',
-            'LATITUDE_SH',
-            'MICROSOFT',
-            'TENCENT',
-            'THE_CONSTANT_COMPANY',
-            'SEFLOW',
-            'US_DEPARTMENT_OF_DEFENSE',
-        },
-        'Chatspin': {
-            'GOOGLE_LLC',
-        },
-        'Deep Rock Galactic': {
-            'US_DEPARTMENT_OF_DEFENSE',
-        },
-        'Discord': {
-            'CLOUDFLARE',
-            'DISCORD',
-        },
-        'Dying Light': {
-            'AMAZON',
-            'GOOGLE_LLC',
-            'US_DEPARTMENT_OF_DEFENSE',
-        },
-        'Dying Light 2': {
-            'AMAZON',
-        },
-        'Grand Theft Auto Online': {
-            'BATTLEYE',
-            'MICROSOFT',
-            'TAKETWO_INTERACTIVE',
-            'TELLAS_GREECE',
-            'UK_MINISTRY_OF_DEFENCE',
-            'US_DEPARTMENT_OF_DEFENSE',
-        },
-        "John Carpenter's Toxic Commando": {
-            'COMNET_INTERNATIONAL_BV',
-            'G_CORE_LABS',
-            'GOOGLE_LLC',
-            'MICROSOFT',
-            'SERVERS_COM',
-            'US_DEPARTMENT_OF_DEFENSE',
-            'ZENLAYER',
-        },
-        'Minecraft Bedrock Edition': {
-            'MICROSOFT',
-        },
-        'Monopoly Madness': {
-            'AMAZON',
-        },
-        'Mortal Kombat 11': {
-            'US_DEPARTMENT_OF_DEFENSE',
-        },
-        'Mortal Kombat X': {
-            'MICROSOFT',
-            'US_DEPARTMENT_OF_DEFENSE',
-        },
-        'Need for Speed™ Most Wanted': {
-            'EA',
-            'I3D_NET',
-            'MICROSOFT',
-        },
-        'NEW MONOPOLY®': {
-            'AMAZON',
-        },
-        'OmeTV': {
-            'GOOGLE_LLC',
-            'OVH',
-        },
-        'Payday 2': {
-            'AMAZON',
-            'US_DEPARTMENT_OF_DEFENSE',
-        },
-        'PlayStation Party Chat': {
-            'PLAYSTATION_SONY',
-        },
-        'Ready or Not': {
-            'AMAZON',
-        },
-        'Red Dead Online': {
-            'MICROSOFT',
-            'TAKETWO_INTERACTIVE',
-            'UK_MINISTRY_OF_DEFENCE',
-            'US_DEPARTMENT_OF_DEFENSE',
-        },
-        'Risk of Rain 2': {
-            'AMAZON',
-            'US_DEPARTMENT_OF_DEFENSE',
-        },
-        'RustDesk': {
-            'RUSTDESK',
-        },
-        'Sniper Elite 3': {
-            'LIMESTONE_NETWORKS',
-        },
-        'Steam': {
-            'VALVE',
-        },
-        'The Division 2': {
-            'CLOUDFLARE',
-            'MICROSOFT',
-        },
-        'theHunter Call of the Wild™': {
-            'AMAZON',
-            'MICROSOFT',
-            'US_DEPARTMENT_OF_DEFENSE',
-        },
-        'theHunter Classic': {
-            'AMAZON',
-            'GOOGLE_LLC',
-        },
-        "Tom Clancy's Ghost Recon® Breakpoint": {
-            'AMAZON',
-            'I3D_NET',
-        },
-        'UNO': {
-            'AMAZON',
-            'I3D_NET',
-            'MICROSOFT',
-            'US_DEPARTMENT_OF_DEFENSE',
-        },
-        'Warframe': {
-            'AKAMAI_CONNECTED_CLOUD',
-        },
-        'Watch Dogs® 2': {
-            'I3D_NET',
-            'UK_MINISTRY_OF_DEFENCE',
-            'US_DEPARTMENT_OF_DEFENSE',
-        },
-        'Windows': {
-            'MICROSOFT',
-        },
-        'Xbox': {
-            'MICROSOFT',
-        },
+        'Azar': {'CLOUDFLARE', 'GOOGLE_LLC', 'MICROSOFT'},
+        'Borderlands 2': {'AMAZON', 'GOOGLE_LLC'},
+        'Borderlands 3': {'MICROSOFT', 'UNITY_TECHNOLOGIES_APS'},
+        'Borderlands 4': {'AMAZON', 'MICROSOFT', 'UNITY_TECHNOLOGIES_APS'},
+        'Borderlands: The Pre-Sequel': {'GOOGLE_LLC'},
+        'Call of Duty®: Advanced Warfare': {'COMVIVE_SERVIDORES', 'DEMONWARE', 'DIMENSION_DATA', 'LATITUDE_SH', 'LEVEL_3_PARENT', 'THE_CONSTANT_COMPANY'},
+        'Call of Duty®: Black Ops': {'DEMONWARE', 'MICROSOFT', 'THE_CONSTANT_COMPANY', 'UK_MINISTRY_OF_DEFENCE', 'US_DEPARTMENT_OF_DEFENSE'},
+        'Call of Duty®: Black Ops Cold War': {'DEMONWARE', 'THE_CONSTANT_COMPANY'},
+        'Call of Duty®: Black Ops II': {'DEMONWARE'},
+        'Call of Duty®: Black Ops III': {'DEMONWARE', 'DIMENSION_DATA', 'LATITUDE_SH', 'THE_CONSTANT_COMPANY', 'SEFLOW'},
+        'Call of Duty®: Ghosts': {'COMVIVE_SERVIDORES', 'DEMONWARE', 'DIMENSION_DATA', 'LATITUDE_SH', 'LEVEL_3_PARENT', 'THE_CONSTANT_COMPANY', 'SEFLOW'},
+        'Call of Duty®: Infinite Warfare': {'DEMONWARE', 'THE_CONSTANT_COMPANY', 'SEFLOW'},
+        'Call of Duty®: Modern Warfare® 2 (2009)': {'DEMONWARE'},
+        'Call of Duty®: Modern Warfare® 3 (2011)': {'DEMONWARE'},
+        'Call of Duty®: Vanguard': {'DEMONWARE', 'THE_CONSTANT_COMPANY'},
+        'Call of Duty®: WWII': {'DEMONWARE', 'FRIEND_IT', 'LATITUDE_SH', 'MICROSOFT', 'TENCENT', 'THE_CONSTANT_COMPANY', 'SEFLOW', 'US_DEPARTMENT_OF_DEFENSE'},
+        'Chatspin': {'GOOGLE_LLC'},
+        'Deep Rock Galactic': {'US_DEPARTMENT_OF_DEFENSE'},
+        'Discord': {'CLOUDFLARE', 'DISCORD'},
+        'Dying Light': {'AMAZON', 'GOOGLE_LLC', 'US_DEPARTMENT_OF_DEFENSE'},
+        'Dying Light 2': {'AMAZON'},
+        'Grand Theft Auto Online': {'BATTLEYE', 'MICROSOFT', 'TAKETWO_INTERACTIVE', 'TELLAS_GREECE', 'UK_MINISTRY_OF_DEFENCE', 'US_DEPARTMENT_OF_DEFENSE'},
+        "John Carpenter's Toxic Commando": {'COMNET_INTERNATIONAL_BV', 'G_CORE_LABS', 'GOOGLE_LLC', 'MICROSOFT', 'SERVERS_COM', 'US_DEPARTMENT_OF_DEFENSE', 'ZENLAYER'},
+        'Minecraft Bedrock Edition': {'MICROSOFT'},
+        'Monopoly Madness': {'AMAZON'},
+        'Mortal Kombat 11': {'US_DEPARTMENT_OF_DEFENSE'},
+        'Mortal Kombat X': {'MICROSOFT', 'US_DEPARTMENT_OF_DEFENSE'},
+        'Need for Speed™ Most Wanted': {'EA', 'I3D_NET', 'MICROSOFT'},
+        'NEW MONOPOLY®': {'AMAZON'},
+        'OmeTV': {'GOOGLE_LLC', 'OVH'},
+        'Payday 2': {'AMAZON', 'US_DEPARTMENT_OF_DEFENSE'},
+        'PlayStation Party Chat': {'PLAYSTATION_SONY'},
+        'Ready or Not': {'AMAZON'},
+        'Red Dead Online': {'MICROSOFT', 'TAKETWO_INTERACTIVE', 'UK_MINISTRY_OF_DEFENCE', 'US_DEPARTMENT_OF_DEFENSE'},
+        'Risk of Rain 2': {'AMAZON', 'US_DEPARTMENT_OF_DEFENSE'},
+        'RustDesk': {'RUSTDESK'},
+        'Sniper Elite 3': {'LIMESTONE_NETWORKS'},
+        'Steam': {'VALVE'},
+        'The Division 2': {'CLOUDFLARE', 'MICROSOFT'},
+        'theHunter Call of the Wild™': {'AMAZON', 'MICROSOFT', 'US_DEPARTMENT_OF_DEFENSE'},
+        'theHunter Classic': {'AMAZON', 'GOOGLE_LLC'},
+        "Tom Clancy's Ghost Recon® Breakpoint": {'AMAZON', 'I3D_NET'},
+        'UNO': {'AMAZON', 'I3D_NET', 'MICROSOFT', 'US_DEPARTMENT_OF_DEFENSE'},
+        'Warframe': {'AKAMAI_CONNECTED_CLOUD'},
+        'Watch Dogs® 2': {'I3D_NET', 'UK_MINISTRY_OF_DEFENCE', 'US_DEPARTMENT_OF_DEFENSE'},
+        'Windows': {'MICROSOFT'},
+        'Xbox': {'MICROSOFT'},
     }
 
     is_updating = False
@@ -821,7 +704,7 @@ class _AutoFitListWidget(QListWidget):
 
 def _create_editable_list_group(meta: SettingMeta, *, add_tooltip: str, prompt_entry: Callable[[], str | None]) -> QGroupBox:
     """Create an add/remove `_AutoFitListWidget` group box for a string-tuple setting."""
-    group = QGroupBox(meta.display_label.replace('&', '&&'))
+    group = QGroupBox(tr(meta.display_label).replace('&', '&&'))
     tooltip = format_setting_tooltip(meta)
     if tooltip is not None and tooltip:
         group.setToolTip(tooltip)
@@ -845,14 +728,16 @@ def _create_editable_list_group(meta: SettingMeta, *, add_tooltip: str, prompt_e
         btn.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
         return btn
 
-    add_button = _make_btn('plus.svg', ' Add', add_tooltip, COMPACT_BUTTON_STYLESHEET)
-    remove_button = _make_btn('remove.svg', ' Remove', 'Remove the selected entries (Delete)', COMPACT_DANGER_BUTTON_STYLESHEET)
+    add_button = _make_btn('plus.svg', f" {tr('Add')}", add_tooltip, COMPACT_BUTTON_STYLESHEET)
+    remove_button = _make_btn('remove.svg', f" {tr('Remove')}", tr('Remove the selected entries (Delete)'), COMPACT_DANGER_BUTTON_STYLESHEET)
     remove_button.setEnabled(False)
 
     def _sync_remove_button() -> None:
         sel_count = len(list_widget.selectedItems())
         remove_button.setEnabled(sel_count > 0)
-        remove_button.setText(f' Remove ({sel_count})' if sel_count > 1 else ' Remove')
+        remove_button.setText(f" {tr('Remove ({count})', count=sel_count)}" if sel_count > 1 else f" {tr('Remove')}")
+
+    register_language_refresh(group, _sync_remove_button)
 
     def _add_entry() -> None:
         entry = prompt_entry()
@@ -874,13 +759,16 @@ def _create_editable_list_group(meta: SettingMeta, *, add_tooltip: str, prompt_e
         sel_count = len(list_widget.selectedItems())
         menu = QMenu(group)
         menu.setStyleSheet(SVG_ICON_CONTEXT_MENU_STYLESHEET)
-        menu.addAction(QIcon(str(ICONS_DIR_PATH / 'plus.svg')), 'Add…').triggered.connect(_add_entry)
-        rm_act = menu.addAction(QIcon(str(ICONS_DIR_PATH / 'remove.svg')), f'Remove ({sel_count})' if sel_count > 1 else 'Remove')
+        menu.addAction(QIcon(str(ICONS_DIR_PATH / 'plus.svg')), tr('Add\u2026')).triggered.connect(_add_entry)
+        rm_act = menu.addAction(
+            QIcon(str(ICONS_DIR_PATH / 'remove.svg')),
+            tr('Remove ({count})', count=sel_count) if sel_count > 1 else tr('Remove'),
+        )
         rm_act.setShortcut('Delete')
         rm_act.setEnabled(sel_count > 0)
         rm_act.triggered.connect(_remove_entries)
         menu.addSeparator()
-        sel_all_act = menu.addAction(QIcon(str(ICONS_DIR_PATH / 'square-check.svg')), 'Select All')
+        sel_all_act = menu.addAction(QIcon(str(ICONS_DIR_PATH / 'square-check.svg')), tr('Select All'))
         sel_all_act.setShortcut('Ctrl+A')
         sel_all_act.setEnabled(list_widget.count() > 0)
         sel_all_act.triggered.connect(list_widget.selectAll)
@@ -914,17 +802,17 @@ def create_ip_range_tuple_widget(meta: SettingMeta, parent: QWidget) -> QGroupBo
         dialog = IPRangeBuilderDialog(parent)
         return (dialog.result_entry() or None) if dialog.exec() == QDialog.DialogCode.Accepted else None
 
-    return _create_editable_list_group(meta, add_tooltip='Add a new blocked IP address, range, or subnet', prompt_entry=_prompt_ip_range)
+    return _create_editable_list_group(meta, add_tooltip=tr('Add a new blocked IP address, range, or subnet'), prompt_entry=_prompt_ip_range)
 
 
 def create_string_tuple_widget(meta: SettingMeta, parent: QWidget) -> QGroupBox:
     """Create an add/remove list widget for managing a tuple of strings."""
 
     def _prompt_string() -> str | None:
-        text, success = QInputDialog.getText(parent, 'Add Filtered ISP / ASN', 'Enter ISP or ASN name (e.g. Take-Two, Amazon, Hetzner, AS15169):')
+        text, success = QInputDialog.getText(parent, tr('Add Filtered ISP / ASN'), tr('Enter ISP or ASN name (e.g. Take-Two, Amazon, Hetzner, AS15169):'))
         return entry if success and (entry := text.strip()) else None
 
-    return _create_editable_list_group(meta, add_tooltip='Add a new entry to the list', prompt_entry=_prompt_string)
+    return _create_editable_list_group(meta, add_tooltip=tr('Add a new entry to the list'), prompt_entry=_prompt_string)
 
 
 def set_all_checkboxes(container: QWidget, *, checked: bool) -> None:
@@ -940,48 +828,28 @@ def set_checkboxes_to(container: QWidget, selected: tuple[str, ...]) -> None:
         checkbox.setChecked(checkbox.objectName() in wanted)
 
 
-def build_discord_info_group() -> QGroupBox:
-    """Build a Discord server invite header for the Discord settings tab."""
-    group_box = QGroupBox('Session Sniffer Community')
-    layout = QVBoxLayout(group_box)
-
-    info_label = QLabel(
-        themed_qss(
-            'Join the Session Sniffer Discord server for support, announcements, and community discussion.<br><br>'
-            f'<a href="{DISCORD_INVITE_URL}" title="{DISCORD_INVITE_URL}" style="color: #61afef; text-decoration: underline;">{DISCORD_INVITE_URL}</a>',
-        ),
-    )
-    info_label.setWordWrap(True)
-    info_label.setTextFormat(Qt.TextFormat.RichText)
-    info_label.setOpenExternalLinks(True)
-    info_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
-    info_label.setStyleSheet(DISCORD_INFO_LABEL_STYLESHEET)
-    info_label.linkHovered.connect(info_label.setToolTip)
-    layout.addWidget(info_label)
-
-    return group_box
-
-
 def build_webserver_help_group() -> QGroupBox:
     """Build an explanatory guide for Web Server host/port behavior and common usage patterns."""
-    group_box = QGroupBox('Web Server Usage Guide')
+    group_box = QGroupBox(tr('Web Server Usage Guide'))
     layout = QVBoxLayout(group_box)
 
     help_label = QLabel(
-        '<b>Host binding explained</b><br>'
-        '<b>127.0.0.1</b> (or localhost): only this PC can open the panel.<br>'
-        '<b>0.0.0.0</b>: listens on all interfaces so other devices on your LAN can connect.<br><br>'
-        '<b>Typical setups</b><br>'
-        '- Desktop only: host = 127.0.0.1<br>'
-        '- Phone/tablet on same Wi-Fi: host = 0.0.0.0, then open http://&lt;PC_LAN_IP&gt;:&lt;PORT&gt;/<br><br>'
-        '<b>Troubleshooting tips</b><br>'
-        '- Phone and PC must be on the same local network (avoid guest/isolated Wi-Fi).<br>'
-        '- If remote devices cannot connect, allow inbound TCP on the selected port in Windows Firewall.<br>'
-        '- If port 80 conflicts with another app, switch to a different port (for example 8091).<br>'
-        '- Use http:// (not https://) unless you add your own TLS reverse proxy.<br><br>'
-        '<b>Security note</b><br>'
-        'When using 0.0.0.0, anyone on the same allowed network path can reach the panel.<br>'
-        'Use trusted networks and firewall scope limits.',
+        tr(
+            '<b>Host binding explained</b><br>'
+            '<b>127.0.0.1</b> (or localhost): only this PC can open the panel.<br>'
+            '<b>0.0.0.0</b>: listens on all interfaces so other devices on your LAN can connect.<br><br>'
+            '<b>Typical setups</b><br>'
+            '- Desktop only: host = 127.0.0.1<br>'
+            '- Phone/tablet on same Wi-Fi: host = 0.0.0.0, then open http://&lt;PC_LAN_IP&gt;:&lt;PORT&gt;/<br><br>'
+            '<b>Troubleshooting tips</b><br>'
+            '- Phone and PC must be on the same local network (avoid guest/isolated Wi-Fi).<br>'
+            '- If remote devices cannot connect, allow inbound TCP on the selected port in Windows Firewall.<br>'
+            '- If port 80 conflicts with another app, switch to a different port (for example 8091).<br>'
+            '- Use http:// (not https://) unless you add your own TLS reverse proxy.<br><br>'
+            '<b>Security note</b><br>'
+            'When using 0.0.0.0, anyone on the same allowed network path can reach the panel.<br>'
+            'Use trusted networks and firewall scope limits.',
+        ),
     )
     help_label.setWordWrap(True)
     help_label.setTextFormat(Qt.TextFormat.RichText)

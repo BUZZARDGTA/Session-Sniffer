@@ -32,6 +32,7 @@ from session_sniffer.guis.country_data import (
     normalize_continent_name,
     normalize_country_name,
 )
+from session_sniffer.guis.live_language import set_i18n_colon_label
 from session_sniffer.guis.stylesheets import GROUPBOX_STYLE, HINT_LABEL_STYLESHEET, LIST_WIDGET_STYLE
 from session_sniffer.guis.theming import ICONS_DIR_PATH, themed_qss
 from session_sniffer.guis.userip_manager_helpers import IPRangeBuilderDialog
@@ -43,6 +44,7 @@ from session_sniffer.guis.utils import (
     load_country_flag_icon,
     scale_by_ui,
 )
+from session_sniffer.i18n import tr
 from session_sniffer.models.combo_rules import DUAL_OPERATOR_CONDITIONS, NEGATABLE_CONDITIONS, NEGATED_PREFIX, ComboRule, split_condition_key
 from session_sniffer.networking.ip_range import is_valid_ip_range_entry
 from session_sniffer.rendering_core.types import CaptureState
@@ -53,46 +55,89 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Iterable
 
 
+def populate_voice_combo(combo: QComboBox) -> None:
+    """Populate *combo* with localized voice choices and canonical `userData` keys."""
+    combo.clear()
+    for key in ('Disabled', 'Male', 'Female'):
+        combo.addItem(tr(key), key)
+
+
+def retranslate_voice_combo(combo: QComboBox) -> None:
+    """Refresh localized display labels in *combo* from canonical `userData` keys."""
+    with QSignalBlocker(combo):
+        for i in range(combo.count()):
+            key = str(combo.itemData(i) or '')
+            if key:
+                combo.setItemText(i, tr(key))
+
+
+def populate_suspend_mode_combo(combo: QComboBox) -> None:
+    """Populate *combo* with localized suspend mode items, tooltips, and canonical `userData` keys."""
+    combo.clear()
+    for key, tooltip_key in (
+        ('Disabled', SUSPEND_TOOLTIP_DISABLED),
+        ('Auto', SUSPEND_TOOLTIP_AUTO),
+        ('Manual', SUSPEND_TOOLTIP_MANUAL),
+    ):
+        combo.addItem(tr(key), key)
+        combo.setItemData(combo.count() - 1, tr(tooltip_key), Qt.ItemDataRole.ToolTipRole)
+
+
+def retranslate_suspend_mode_combo(combo: QComboBox) -> None:
+    """Refresh localized display labels and tooltips in *combo* from canonical `userData` keys."""
+    tooltips_by_key = {
+        'Disabled': SUSPEND_TOOLTIP_DISABLED,
+        'Auto': SUSPEND_TOOLTIP_AUTO,
+        'Manual': SUSPEND_TOOLTIP_MANUAL,
+    }
+    with QSignalBlocker(combo):
+        for i in range(combo.count()):
+            key = str(combo.itemData(i) or '')
+            if key:
+                combo.setItemText(i, tr(key))
+                if (tip := tooltips_by_key.get(key)) is not None:
+                    combo.setItemData(i, tr(tip), Qt.ItemDataRole.ToolTipRole)
+
+
 def set_duration_widgets_helper(combo: QComboBox, spin: QSpinBox, duration: int | str) -> None:
     """Set duration combo and spin box from a stored duration value."""
     if isinstance(duration, int):
-        combo.setCurrentText('Manual')
+        idx = combo.findData('Manual')
+        combo.setCurrentIndex(idx if idx >= 0 else 2)
         spin.setValue(max(1, duration))
         spin.setVisible(True)
     elif duration == 'Disabled':
-        combo.setCurrentText('Disabled')
+        idx = combo.findData('Disabled')
+        combo.setCurrentIndex(max(idx, 0))
         spin.setValue(DEFAULT_MANUAL_SUSPEND_DURATION_SECONDS)
         spin.setVisible(False)
     else:
-        combo.setCurrentText('Auto')
+        idx = combo.findData('Auto')
+        combo.setCurrentIndex(idx if idx >= 0 else 1)
         spin.setValue(DEFAULT_MANUAL_SUSPEND_DURATION_SECONDS)
         spin.setVisible(False)
 
 
 def read_duration_widgets_helper(combo: QComboBox, spin: QSpinBox) -> int | Literal['Auto']:
     """Read duration value from combo and spin box widgets."""
-    text = combo.currentText()
-    if text == 'Manual':
+    if combo.currentData() == 'Manual':
         return spin.value()
     return 'Auto'
 
 
 def set_voice_combo_helper(combo: QComboBox, *, value: Literal['Male', 'Female'] | bool) -> None:
     """Set voice combo from a stored voice notification value."""
-    if value == 'Male':
-        combo.setCurrentText('Male')
-    elif value == 'Female':
-        combo.setCurrentText('Female')
-    else:
-        combo.setCurrentText('Disabled')
+    key = value if value in ('Male', 'Female') else 'Disabled'
+    idx = combo.findData(key)
+    combo.setCurrentIndex(max(idx, 0))
 
 
 def read_voice_combo_helper(combo: QComboBox) -> Literal['Male', 'Female', False]:
     """Read voice notification value from a combo widget."""
-    text = combo.currentText()
-    if text == 'Male':
+    data = combo.currentData()
+    if data == 'Male':
         return 'Male'
-    if text == 'Female':
+    if data == 'Female':
         return 'Female'
     return False
 
@@ -175,7 +220,7 @@ class _CheckableSelectionDialog(QDialog):
         select_btn.clicked.connect(lambda: self._set_visible_checked(checked=True))
         actions_row.addWidget(select_btn)
 
-        clear_btn = QPushButton(QIcon(str(ICONS_DIR_PATH / 'square.svg')), ' Clear Selection')
+        clear_btn = QPushButton(QIcon(str(ICONS_DIR_PATH / 'square.svg')), f" {tr('Clear Selection')}")
         clear_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         clear_btn.clicked.connect(self._clear_all_checked)
         actions_row.addWidget(clear_btn)
@@ -218,12 +263,13 @@ class ContinentSelectionDialog(_CheckableSelectionDialog):
         existing_continents: set[str] | None = None,
         *,
         preselected_continents: Iterable[str] = (),
-        title: str = 'Select Continent(s)',
+        title: str | None = None,
     ) -> None:
-        super().__init__(parent, title, (420, 360), 'Select one or more continents:')
+        resolved_title = tr('Select Continent(s)') if title is None else title
+        super().__init__(parent, resolved_title, (420, 360), tr('Select one or more continents:'))
         preselected_normalized = {normalize_continent_name(c) or c for c in preselected_continents if c}
         self._populate_items(CONTINENT_NAMES, existing_continents, preselected_normalized)
-        self._add_footer_controls(' Select All')
+        self._add_footer_controls(f" {tr('Select All')}")
 
     def selected_continents(self) -> list[str]:
         """Return all checked continent names in display order."""
@@ -239,18 +285,19 @@ class CountrySelectionDialog(_CheckableSelectionDialog):
         existing_countries: set[str] | None = None,
         *,
         preselected_countries: Iterable[str] = (),
-        title: str = 'Select Country / Countries',
+        title: str | None = None,
     ) -> None:
-        super().__init__(parent, title, (460, 480), 'Type to filter by country name or code, and check one or more countries:')
+        resolved_title = tr('Select Country / Countries') if title is None else title
+        super().__init__(parent, resolved_title, (460, 480), tr('Type to filter by country name or code, and check one or more countries:'))
         self._search_edit = QLineEdit()
-        self._search_edit.setPlaceholderText('e.g. Switzerland, US, Russia…')
+        self._search_edit.setPlaceholderText(tr('e.g. Switzerland, US, Russia\u2026'))
         self._search_edit.setClearButtonEnabled(True)
         self._search_edit.textChanged.connect(self._filter_items)
         self._layout.addWidget(self._search_edit)
 
         preselected_normalized = {normalize_country_name(c) or c for c in preselected_countries if c}
         self._populate_items(COUNTRY_NAMES, existing_countries, preselected_normalized, icon_loader=load_country_flag_icon)
-        self._add_footer_controls(' Select Visible')
+        self._add_footer_controls(f" {tr('Select Visible')}")
 
     def _filter_items(self, text: str) -> None:
         query = text.strip().casefold()
@@ -266,33 +313,43 @@ class CountrySelectionDialog(_CheckableSelectionDialog):
 class ComboRuleEditorDialog(QDialog):
     """Dialog for creating or editing a single combo rule."""
 
-    # Condition display names → internal keys
-    _CONDITION_LABELS: ClassVar[dict[str, str]] = {
-        'Continent': 'continent',
-        'Country': 'country',
-        'City': 'city',
-        'Region': 'region',
-        'Organization': 'org',
-        'ISP': 'isp',
-        'ASN': 'asn',
-        'AS Name': 'as_name',
-        'IP / Range': 'ip_range',
-        'Mobile Connection': 'mobile',
-        'VPN / Proxy': 'vpn',
-        'Hosting / Datacenter': 'hosting',
-        'Player Event': 'event',
+    # Ordered internal condition keys -> canonical English display labels
+    _CONDITION_SPECS: ClassVar[tuple[tuple[str, str], ...]] = (
+        ('continent', 'Continent'),
+        ('country', 'Country'),
+        ('city', 'City'),
+        ('region', 'Region'),
+        ('org', 'Organization'),
+        ('isp', 'ISP'),
+        ('asn', 'ASN'),
+        ('as_name', 'AS Name'),
+        ('ip_range', 'IP / Range'),
+        ('mobile', 'Mobile Connection'),
+        ('vpn', 'VPN / Proxy'),
+        ('hosting', 'Hosting / Datacenter'),
+        ('event', 'Player Event'),
+    )
+    _CONDITION_LABELS_BY_KEY: ClassVar[dict[str, str]] = dict(_CONDITION_SPECS)
+
+    _TEXT_CONDITION_PLACEHOLDERS: ClassVar[dict[str, str]] = {
+        'city': 'Enter city value...',
+        'region': 'Enter region value...',
+        'org': 'Enter organization value...',
+        'isp': 'Enter ISP value...',
+        'asn': 'Enter ASN value...',
+        'as_name': 'Enter AS name value...',
     }
 
-    _EVENT_LABELS: ClassVar[dict[str, str]] = {
-        'Player Joined': 'join',
-        'Player Rejoined': 'rejoin',
-        'Player Left': 'leave',
-    }
+    _EVENT_SPECS: ClassVar[tuple[tuple[str, str], ...]] = (
+        ('join', 'Player Joined'),
+        ('rejoin', 'Player Rejoined'),
+        ('leave', 'Player Left'),
+    )
 
     def __init__(self, parent: QWidget, rule: ComboRule | None = None) -> None:
         super().__init__(parent)
         self.setWindowModality(Qt.WindowModality.WindowModal)
-        self.setWindowTitle('Edit Combo Rule' if rule else 'New Combo Rule')
+        self.setWindowTitle(tr('Edit Combo Rule') if rule else tr('New Combo Rule'))
         self.setMinimumWidth(scale_by_ui(800))
         self.setMinimumHeight(scale_by_ui(700))
         self.setWindowFlag(Qt.WindowType.WindowContextHelpButtonHint, on=False)
@@ -305,16 +362,18 @@ class ComboRuleEditorDialog(QDialog):
 
         # Rule name
         name_layout = QHBoxLayout()
-        name_layout.addWidget(QLabel('Rule Name:'))
+        name_label = QLabel()
+        set_i18n_colon_label(name_label, 'Rule Name')
+        name_layout.addWidget(name_label)
         self._name_edit = QLineEdit()
-        self._name_edit.setPlaceholderText('e.g., Block VPN from Russia')
+        self._name_edit.setPlaceholderText(tr('e.g., Block VPN from Russia'))
         if rule:
             self._name_edit.setText(rule.name)
         name_layout.addWidget(self._name_edit)
         main_layout.addLayout(name_layout)
 
         # Conditions section
-        conditions_group = QGroupBox('Conditions (ALL must match)')
+        conditions_group = QGroupBox(tr('Conditions (ALL must match)').replace('&', '&&'))
         conditions_group.setStyleSheet(GROUPBOX_STYLE)
         conditions_layout = QVBoxLayout()
 
@@ -322,7 +381,7 @@ class ComboRuleEditorDialog(QDialog):
         self._conditions_container.setSpacing(scale_by_ui(8))
         conditions_layout.addLayout(self._conditions_container)
 
-        self._add_condition_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'plus.svg')), ' Add Condition')
+        self._add_condition_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'plus.svg')), f" {tr('Add Condition')}")
         self._add_condition_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self._add_condition_button.clicked.connect(self._on_add_condition_clicked)
         conditions_layout.addWidget(self._add_condition_button)
@@ -337,33 +396,35 @@ class ComboRuleEditorDialog(QDialog):
         main_layout.addWidget(conditions_scroll, stretch=1)
 
         # Action settings
-        action_group = QGroupBox('Actions')
+        action_group = QGroupBox(tr('Actions').replace('&', '&&'))
         action_group.setStyleSheet(GROUPBOX_STYLE)
         action_layout = QVBoxLayout()
 
         # Notification Settings
-        notification_separator = create_section_separator('Notification Settings')
+        notification_separator = create_section_separator(tr('Notification Settings'))
         action_layout.addWidget(notification_separator)
 
         voice_row = QHBoxLayout()
-        voice_row.addWidget(QLabel('Voice Notifications:'))
+        voice_label = QLabel()
+        set_i18n_colon_label(voice_label, 'Voice Notifications')
+        voice_row.addWidget(voice_label)
         self._voice_combo = QComboBox()
         self._voice_combo.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
-        self._voice_combo.addItems(['Disabled', 'Male', 'Female'])
-        self._voice_combo.setToolTip('Select voice for text-to-speech notifications')
+        populate_voice_combo(self._voice_combo)
+        self._voice_combo.setToolTip(tr('Select voice for text-to-speech notifications'))
         if rule:
             set_voice_combo_helper(self._voice_combo, value=rule.voice_notifications)
         voice_row.addWidget(self._voice_combo)
         voice_row.addStretch()
         action_layout.addLayout(voice_row)
 
-        self._msgbox_checkbox = QCheckBox('Show Message Box')
-        self._msgbox_checkbox.setToolTip('Show a message box popup when this detection triggers')
+        self._msgbox_checkbox = QCheckBox(tr('Show Message Box'))
+        self._msgbox_checkbox.setToolTip(tr('Show a message box popup when this detection triggers'))
         self._msgbox_checkbox.setChecked(rule.message_box if rule else False)
         action_layout.addWidget(self._msgbox_checkbox)
 
-        self._logging_checkbox = QCheckBox('Detection Logging')
-        self._logging_checkbox.setToolTip('Log detection events to the detection logging file')
+        self._logging_checkbox = QCheckBox(tr('Detection Logging'))
+        self._logging_checkbox.setToolTip(tr('Log detection events to the detection logging file'))
         self._logging_checkbox.setChecked(rule.logging if rule else False)
         action_layout.addWidget(self._logging_checkbox)
 
@@ -373,26 +434,25 @@ class ComboRuleEditorDialog(QDialog):
         detection_section_layout = QVBoxLayout(detection_section)
         detection_section_layout.setContentsMargins(0, 0, 0, 0)
 
-        detection_separator = create_section_separator('Detection Settings')
+        detection_separator = create_section_separator(tr('Detection Settings'))
         detection_section_layout.addWidget(detection_separator)
 
         # Duration
         duration_row = QHBoxLayout()
-        duration_row.addWidget(QLabel('Suspend Mode:'))
+        suspend_label = QLabel()
+        set_i18n_colon_label(suspend_label, 'Suspend Mode')
+        duration_row.addWidget(suspend_label)
         self._duration_combo = QComboBox()
         self._duration_combo.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
-        self._duration_combo.addItems(['Disabled', 'Auto', 'Manual'])
-        self._duration_combo.setItemData(0, SUSPEND_TOOLTIP_DISABLED, Qt.ItemDataRole.ToolTipRole)
-        self._duration_combo.setItemData(1, SUSPEND_TOOLTIP_AUTO, Qt.ItemDataRole.ToolTipRole)
-        self._duration_combo.setItemData(2, SUSPEND_TOOLTIP_MANUAL, Qt.ItemDataRole.ToolTipRole)
+        populate_suspend_mode_combo(self._duration_combo)
         duration_row.addWidget(self._duration_combo)
         self._duration_spin = QSpinBox()
         self._duration_spin.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self._duration_spin.setRange(1, MAX_SUSPEND_DURATION_SECONDS)
         self._duration_spin.setValue(DEFAULT_MANUAL_SUSPEND_DURATION_SECONDS)
-        self._duration_spin.setSuffix(' seconds')
+        self._duration_spin.setSuffix(f" {tr('seconds')}")
         self._duration_spin.setVisible(False)
-        self._duration_combo.currentTextChanged.connect(self._on_duration_text_changed)
+        self._duration_combo.currentIndexChanged.connect(self._on_duration_mode_changed)
         duration_row.addWidget(self._duration_spin)
         duration_row.addStretch()
         detection_section_layout.addLayout(duration_row)
@@ -422,8 +482,8 @@ class ComboRuleEditorDialog(QDialog):
             for key, value in rule.conditions.items():
                 self._add_condition_row(preset_key=key, preset_value=value)
 
-    def _on_duration_text_changed(self, text: str) -> None:
-        self._duration_spin.setVisible(text == 'Manual')
+    def _on_duration_mode_changed(self) -> None:
+        self._duration_spin.setVisible(self._duration_combo.currentData() == 'Manual')
 
     def _on_add_condition_clicked(self) -> None:
         self._add_condition_row()
@@ -433,7 +493,7 @@ class ComboRuleEditorDialog(QDialog):
         # Pass 1: Ensure dual-operator conditions ('org', 'isp', 'as_name', 'ip_range') use distinct operators ('Is' vs 'Is Not')
         used_operators_by_key: dict[str, set[bool]] = {}
         for type_combo, operator_combo, _ in self._condition_rows:
-            key = self._CONDITION_LABELS.get(type_combo.currentText(), '')
+            key = str(type_combo.currentData() or '')
             if key not in DUAL_OPERATOR_CONDITIONS:
                 continue
             used_ops = used_operators_by_key.setdefault(key, set())
@@ -445,10 +505,9 @@ class ComboRuleEditorDialog(QDialog):
             used_ops.add(current_is_negated)
 
         # Pass 2: Filter exhausted condition types and lock operators when both slots of a dual-operator condition are active
-        selected_labels_by_row = [type_combo.currentText() for type_combo, _, _ in self._condition_rows]
+        selected_keys_by_row = [str(type_combo.currentData() or '') for type_combo, _, _ in self._condition_rows]
         for row_idx, (type_combo, operator_combo, _) in enumerate(self._condition_rows):
-            current_label = selected_labels_by_row[row_idx]
-            current_key = self._CONDITION_LABELS.get(current_label, '')
+            current_key = selected_keys_by_row[row_idx]
 
             op_model = operator_combo.model()
             if isinstance(op_model, QStandardItemModel):
@@ -463,21 +522,22 @@ class ComboRuleEditorDialog(QDialog):
                     item_is.setEnabled(True)
                     item_is_not.setEnabled(True)
 
-            available_labels: list[str] = []
-            for label, cond_key in self._CONDITION_LABELS.items():
+            available_keys: list[str] = []
+            for cond_key, _display_label in self._CONDITION_SPECS:
                 max_uses = 2 if cond_key in DUAL_OPERATOR_CONDITIONS else 1
-                other_uses = sum(1 for idx, other_label in enumerate(selected_labels_by_row) if idx != row_idx and other_label == label)
+                other_uses = sum(1 for idx, other_key in enumerate(selected_keys_by_row) if idx != row_idx and other_key == cond_key)
                 if other_uses < max_uses:
-                    available_labels.append(label)
+                    available_keys.append(cond_key)
 
-            current_items = [type_combo.itemText(i) for i in range(type_combo.count())]
-            if current_items != available_labels:
+            current_keys = [str(type_combo.itemData(i) or '') for i in range(type_combo.count())]
+            if current_keys != available_keys:
                 with QSignalBlocker(type_combo):
                     type_combo.clear()
-                    type_combo.addItems(available_labels)
-                    type_combo.setCurrentIndex(available_labels.index(current_label) if current_label in available_labels else -1)
+                    for cond_key in available_keys:
+                        type_combo.addItem(tr(self._CONDITION_LABELS_BY_KEY[cond_key]), cond_key)
+                    type_combo.setCurrentIndex(available_keys.index(current_key) if current_key in available_keys else -1)
 
-        max_total_rows = len(self._CONDITION_LABELS) + len(DUAL_OPERATOR_CONDITIONS)
+        max_total_rows = len(self._CONDITION_SPECS) + len(DUAL_OPERATOR_CONDITIONS)
         self._add_condition_button.setEnabled(len(self._condition_rows) < max_total_rows)
 
     def _add_condition_row(
@@ -487,7 +547,7 @@ class ComboRuleEditorDialog(QDialog):
         preset_value: str | bool | list[str] | None = None,
     ) -> None:
         """Add a new condition row with type selector and value widget."""
-        max_total_rows = len(self._CONDITION_LABELS) + len(DUAL_OPERATOR_CONDITIONS)
+        max_total_rows = len(self._CONDITION_SPECS) + len(DUAL_OPERATOR_CONDITIONS)
         if len(self._condition_rows) >= max_total_rows:
             return
         if preset_key is None and self._condition_rows:
@@ -496,8 +556,8 @@ class ComboRuleEditorDialog(QDialog):
             if len(conditions) < len(self._condition_rows):
                 QMessageBox.warning(
                     self,
-                    'Validation Error',
-                    'Please complete all existing conditions before adding a new one.\n\nEnsure every condition has a type selected and a valid value entered.',
+                    tr('Validation Error'),
+                    tr('Please complete all existing conditions before adding a new one.\n\nEnsure every condition has a type selected and a valid value entered.'),
                 )
                 return
 
@@ -506,8 +566,8 @@ class ComboRuleEditorDialog(QDialog):
                 if ip_range_val is not None and (not isinstance(ip_range_val, str) or not is_valid_ip_range_entry(ip_range_val)):
                     QMessageBox.warning(
                         self,
-                        'Validation Error',
-                        'Please enter a valid IP address or range before adding a new condition.',
+                        tr('Validation Error'),
+                        tr('Please enter a valid IP address or range before adding a new condition.'),
                     )
                     return
 
@@ -517,16 +577,17 @@ class ComboRuleEditorDialog(QDialog):
         type_combo = QComboBox()
         type_combo.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         type_combo.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        type_combo.setPlaceholderText('Select condition type...')
-        type_combo.addItems(list(self._CONDITION_LABELS.keys()))
+        type_combo.setPlaceholderText(tr('Select condition type...'))
+        for cond_key, display_label in self._CONDITION_SPECS:
+            type_combo.addItem(tr(display_label), cond_key)
         type_combo.setCurrentIndex(-1)
 
         operator_combo = QComboBox()
         operator_combo.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
-        operator_combo.addItem('Is', userData=False)
-        operator_combo.addItem('Is Not', userData=True)
+        operator_combo.addItem(tr('Is'), userData=False)
+        operator_combo.addItem(tr('Is Not'), userData=True)
         operator_combo.setMinimumWidth(scale_by_ui(85))
-        operator_combo.setToolTip('Choose whether the condition must match (Is) or must not match (Is Not)')
+        operator_combo.setToolTip(tr('Choose whether the condition must match (Is) or must not match (Is Not)'))
         operator_combo.currentIndexChanged.connect(self._sync_available_condition_types)
 
         value_stack = QWidget()
@@ -535,11 +596,11 @@ class ComboRuleEditorDialog(QDialog):
 
         # Default: text input
         text_edit = QLineEdit()
-        text_edit.setPlaceholderText('Enter value...')
+        text_edit.setPlaceholderText(tr('Enter value...'))
         value_layout.addWidget(text_edit)
 
-        def on_type_changed(label: str) -> None:
-            key = self._CONDITION_LABELS.get(label, '')
+        def on_type_changed(_index: int = -1) -> None:
+            key = str(type_combo.currentData() or '')
             is_negatable = key in NEGATABLE_CONDITIONS
             operator_combo.setVisible(is_negatable)
             if not is_negatable:
@@ -549,7 +610,7 @@ class ComboRuleEditorDialog(QDialog):
                 other_ops = {
                     bool(other_op.currentData())
                     for other_type, other_op, _ in self._condition_rows
-                    if other_op is not operator_combo and self._CONDITION_LABELS.get(other_type.currentText(), '') == key
+                    if other_op is not operator_combo and str(other_type.currentData() or '') == key
                 }
                 current_is_negated = bool(operator_combo.currentData())
                 if current_is_negated in other_ops and (not current_is_negated) not in other_ops:
@@ -568,8 +629,8 @@ class ComboRuleEditorDialog(QDialog):
                 bool_combo = QComboBox()
                 bool_combo.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
                 bool_combo.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-                bool_combo.addItem('Yes', userData=True)
-                bool_combo.addItem('No', userData=False)
+                bool_combo.addItem(tr('Yes'), userData=True)
+                bool_combo.addItem(tr('No'), userData=False)
                 value_layout.addWidget(bool_combo)
             elif key == 'event':
                 events_widget = QFrame()
@@ -582,10 +643,11 @@ class ComboRuleEditorDialog(QDialog):
                 events_layout.setContentsMargins(12, 4, 12, 4)
 
                 events_layout.addStretch()
-                for i, display_name in enumerate(self._EVENT_LABELS):
-                    checkbox = QCheckBox(display_name)
+                for i, (event_key, display_name) in enumerate(self._EVENT_SPECS):
+                    checkbox = QCheckBox(tr(display_name))
+                    checkbox.setProperty('event_key', event_key)
                     events_layout.addWidget(checkbox)
-                    if i < len(self._EVENT_LABELS) - 1:
+                    if i < len(self._EVENT_SPECS) - 1:
                         events_layout.addStretch()
                 events_layout.addStretch()
 
@@ -600,11 +662,11 @@ class ComboRuleEditorDialog(QDialog):
                 ip_layout.setSpacing(6)
 
                 ip_edit = QLineEdit()
-                ip_edit.setPlaceholderText('e.g. 1.2.3.4, 192.168.1.0/24, 10.0.0.1-10.0.0.50, or 1.2.3.*')
+                ip_edit.setPlaceholderText(tr('e.g. 1.2.3.4, 192.168.1.0/24, 10.0.0.1-10.0.0.50, or 1.2.3.*'))
                 ip_layout.addWidget(ip_edit, stretch=1)
 
                 builder_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'square-pen.svg')), '')
-                builder_button.setToolTip('Open IP Range Builder')
+                builder_button.setToolTip(tr('Open IP Range Builder'))
                 builder_button.setMaximumWidth(scale_by_ui(40))
                 builder_button.setCursor(Qt.CursorShape.PointingHandCursor)
 
@@ -621,11 +683,12 @@ class ComboRuleEditorDialog(QDialog):
                 value_layout.addWidget(ip_widget)
             else:
                 new_edit = QLineEdit()
-                new_edit.setPlaceholderText(f'Enter {label.lower()} value...')
+                placeholder_key = self._TEXT_CONDITION_PLACEHOLDERS.get(key, 'Enter value...')
+                new_edit.setPlaceholderText(tr(placeholder_key))
                 value_layout.addWidget(new_edit)
             self._sync_available_condition_types()
 
-        type_combo.currentTextChanged.connect(on_type_changed)
+        type_combo.currentIndexChanged.connect(on_type_changed)
 
         remove_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'remove.svg')), '')
         remove_button.setMaximumWidth(scale_by_ui(40))
@@ -655,11 +718,9 @@ class ComboRuleEditorDialog(QDialog):
             if is_negated and base_key in NEGATABLE_CONDITIONS:
                 with QSignalBlocker(operator_combo):
                     operator_combo.setCurrentIndex(1)
-            # Find the display label for the base key
-            for label, condition_key in self._CONDITION_LABELS.items():
-                if condition_key == base_key:
-                    type_combo.setCurrentText(label)
-                    break
+            preset_index = type_combo.findData(base_key)
+            if preset_index >= 0:
+                type_combo.setCurrentIndex(preset_index)
             # Now set the value
             if base_key in ('mobile', 'vpn', 'hosting') and isinstance(preset_value, bool):
                 bool_combo_widget: QComboBox | None = value_stack.findChild(QComboBox)
@@ -671,7 +732,7 @@ class ComboRuleEditorDialog(QDialog):
                 events_widget: QWidget | None = value_stack.findChild(QWidget)
                 if events_widget is not None:
                     for checkbox in events_widget.findChildren(QCheckBox):
-                        event_key = self._EVENT_LABELS.get(checkbox.text(), '')
+                        event_key = str(checkbox.property('event_key') or '')
                         checkbox.setChecked(event_key in preset_value)
             elif base_key in ('continent', 'country') and isinstance(preset_value, (str, list)):
                 raw_items = [preset_value] if isinstance(preset_value, str) else list(preset_value)
@@ -687,18 +748,18 @@ class ComboRuleEditorDialog(QDialog):
         """Validate rule data and accept dialog."""
         name = self._name_edit.text().strip()
         if not name:
-            QMessageBox.warning(self, 'Validation Error', 'Rule name is required.')
+            QMessageBox.warning(self, tr('Validation Error'), tr('Rule name is required.'))
             return
 
         conditions = self._read_conditions()
         if not conditions:
-            QMessageBox.warning(self, 'Validation Error', 'At least one condition is required.')
+            QMessageBox.warning(self, tr('Validation Error'), tr('At least one condition is required.'))
             return
         if len(conditions) < len(self._condition_rows):
             QMessageBox.warning(
                 self,
-                'Validation Error',
-                'All condition rows must have a condition type selected and a valid value entered.',
+                tr('Validation Error'),
+                tr('All condition rows must have a condition type selected and a valid value entered.'),
             )
             return
 
@@ -707,10 +768,13 @@ class ComboRuleEditorDialog(QDialog):
             if ip_range_val is not None and (not isinstance(ip_range_val, str) or not is_valid_ip_range_entry(ip_range_val)):
                 QMessageBox.warning(
                     self,
-                    'Validation Error',
-                    f'Invalid IP / Range: {ip_range_val}\n\n'
-                    'Please enter a valid IP address, CIDR subnet (e.g. 192.168.1.0/24), '
-                    'range (e.g. 192.168.1.1-192.168.1.100), or wildcard (e.g. 192.168.1.*).',
+                    tr('Validation Error'),
+                    tr(
+                        'Invalid IP / Range: {value}\n\n'
+                        'Please enter a valid IP address, CIDR subnet (e.g. 192.168.1.0/24), '
+                        'range (e.g. 192.168.1.1-192.168.1.100), or wildcard (e.g. 192.168.1.*).',
+                        value=ip_range_val,
+                    ),
                 )
                 return
 
@@ -718,7 +782,11 @@ class ComboRuleEditorDialog(QDialog):
         has_event = 'event' in conditions
         has_ip = bool(conditions.keys() - {'event'})
         if has_event and not has_ip:
-            QMessageBox.warning(self, 'Validation Error', 'Rules with an event condition must also have at least one IP-based condition.')
+            QMessageBox.warning(
+                self,
+                tr('Validation Error'),
+                tr('Rules with an event condition must also have at least one IP-based condition.'),
+            )
             return
 
         self.accept()
@@ -729,9 +797,8 @@ class ComboRuleEditorDialog(QDialog):
         seen_effective_keys: set[str] = set()
         seen_single_base_keys: set[str] = set()
         for type_combo, operator_combo, value_stack in self._condition_rows:
-            label = type_combo.currentText()
-            base_key = self._CONDITION_LABELS.get(label)
-            if base_key is None:
+            base_key = type_combo.currentData()
+            if not isinstance(base_key, str) or not base_key:
                 continue
             is_negated = bool(operator_combo.currentData()) and base_key in NEGATABLE_CONDITIONS
             effective_key = f'{NEGATED_PREFIX}{base_key}' if is_negated else base_key
@@ -774,7 +841,7 @@ class ComboRuleEditorDialog(QDialog):
         selected: list[str] = []
         for checkbox in events_widget.findChildren(QCheckBox):
             if checkbox.isChecked():
-                event_key = self._EVENT_LABELS.get(checkbox.text(), '')
+                event_key = str(checkbox.property('event_key') or '')
                 if event_key:
                     selected.append(event_key)
         return selected
@@ -804,11 +871,11 @@ class ComboRuleEditorDialog(QDialog):
 
         display_edit = _ClickablePickerLineEdit(open_picker)
         if key == 'continent':
-            display_edit.setPlaceholderText('Select continent(s)...')
-            button_tooltip = 'Select Continent(s)'
+            display_edit.setPlaceholderText(tr('Select continent(s)...'))
+            button_tooltip = tr('Select Continent(s)')
         else:
-            display_edit.setPlaceholderText('Select country/countries...')
-            button_tooltip = 'Select Country / Countries'
+            display_edit.setPlaceholderText(tr('Select country/countries...'))
+            button_tooltip = tr('Select Country / Countries')
         display_edit.setToolTip(button_tooltip)
         display_edit.setProperty('selected_items', [])
         picker_layout.addWidget(display_edit, stretch=1)
@@ -846,7 +913,7 @@ class ComboRuleEditorDialog(QDialog):
             name=self._name_edit.text().strip(),
             enabled=self._editing_rule.enabled if self._editing_rule else True,
             conditions=self._read_conditions(),
-            protection_enabled=self._duration_combo.currentText() != 'Disabled',
+            protection_enabled=self._duration_combo.currentData() not in ('Disabled', None),
             duration=read_duration_widgets_helper(self._duration_combo, self._duration_spin),
             voice_notifications=read_voice_combo_helper(self._voice_combo),
             logging=self._logging_checkbox.isChecked(),

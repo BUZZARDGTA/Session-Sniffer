@@ -6,6 +6,7 @@ The dialog refreshes automatically so that plugged/unplugged or
 enabled/disabled adapters appear and disappear in real time.
 """
 
+import html
 import logging
 from dataclasses import dataclass, field
 from threading import Thread
@@ -32,10 +33,12 @@ from shiboken6 import isValid
 
 from session_sniffer.capture.interface_setup import refresh_available_interfaces
 from session_sniffer.capture.utils.arp_refresh import refresh_arp_table
+from session_sniffer.constants.standalone import TITLE
 from session_sniffer.constants.tables import DEFAULT_MIN_COLUMN_WIDTH, INTERFACE_SELECTION_TABLE_MIN_COLUMN_WIDTHS
 from session_sniffer.error_messages import ensure_instance
 from session_sniffer.guis.delegates import ElidedTextTooltipDelegate
 from session_sniffer.guis.hotspot_manager import HotspotManagerWidget
+from session_sniffer.guis.live_language import register_language_refresh, set_table_headers
 from session_sniffer.guis.stylesheets import (
     INTERFACE_BOTTOM_CONTAINER_STYLESHEET,
     INTERFACE_BOTTOM_SEPARATOR_STYLESHEET,
@@ -62,6 +65,7 @@ from session_sniffer.guis.utils import (
     resize_window_for_screen,
     scale_by_ui,
 )
+from session_sniffer.i18n import tr
 from session_sniffer.networking.interface import INTERFACE_TYPE_BRIDGED, INTERFACE_TYPE_NEIGHBOUR, INTERFACE_TYPE_SHARED, Interface, SelectedInterfaceRow
 from session_sniffer.settings import Settings
 
@@ -271,7 +275,7 @@ class InterfaceSelectionDialog(QDialog):
 
         # Set up the window
         self.setObjectName('InterfaceSelectionDialog')
-        self.setWindowTitle('Capture Network Interface Selection - Session Sniffer')
+        self.setWindowTitle(f"{tr('Capture Network Interface Selection')} - {TITLE}")
         # Set a minimum size for the window
         self.setMinimumSize(scale(1280), scale(760))
         resize_window_for_screen(self, screen_size)
@@ -299,7 +303,7 @@ class InterfaceSelectionDialog(QDialog):
         self._tab_group = QButtonGroup(self)
         self._tab_group.setExclusive(True)
 
-        self._tab_interfaces_btn = QPushButton('Network Interfaces')
+        self._tab_interfaces_btn = QPushButton(tr('Network Interfaces'))
         self._tab_interfaces_btn.setObjectName('tabInterfacesButton')
         self._tab_interfaces_btn.setStyleSheet(interface_tab_button_stylesheet(ui_scale))
         self._tab_interfaces_btn.setCheckable(True)
@@ -312,7 +316,7 @@ class InterfaceSelectionDialog(QDialog):
         self._tab_group.addButton(self._tab_interfaces_btn, 0)
         tab_layout.addWidget(self._tab_interfaces_btn, 1)
 
-        self._tab_hotspot_btn = QPushButton('Hotspot && Connection Sharing')
+        self._tab_hotspot_btn = QPushButton(tr('Hotspot & Connection Sharing').replace('&', '&&'))
         self._tab_hotspot_btn.setObjectName('tabHotspotButton')
         self._tab_hotspot_btn.setStyleSheet(interface_tab_button_stylesheet(ui_scale))
         self._tab_hotspot_btn.setCheckable(True)
@@ -328,7 +332,7 @@ class InterfaceSelectionDialog(QDialog):
 
         # Table widget for displaying interfaces
         self.table: SafeQTableWidget = SafeQTableWidget(0, 9)
-        self.table.setHorizontalHeaderLabels(['Name', 'Description', 'Type', 'Packets Sent', 'Packets Received', 'Gateway IP', 'IP Address', 'MAC Address', 'Vendor Name'])
+        set_table_headers(self.table, ('Name', 'Description', 'Type', 'Packets Sent', 'Packets Received', 'Gateway IP', 'IP Address', 'MAC Address', 'Vendor Name'))
         self._column_resizer: TableColumnResizeController = TableColumnResizeController(
             self.table,
             min_column_widths=INTERFACE_SELECTION_TABLE_MIN_COLUMN_WIDTHS,
@@ -376,8 +380,8 @@ class InterfaceSelectionDialog(QDialog):
         options_layout.setSpacing(scale(16))
         options_layout.addStretch()
 
-        refresh_arp_button = RefreshARPButton('Refresh ARP Table')
-        refresh_arp_button.setToolTip('Ping local subnet devices via ICMP to repopulate the ARP neighbour cache')
+        refresh_arp_button = RefreshARPButton(tr('Refresh ARP Table'))
+        refresh_arp_button.setToolTip(tr('Ping local subnet devices via ICMP to repopulate the ARP neighbour cache'))
         refresh_arp_button.setStyleSheet(interface_secondary_button_enabled_style(self._ui_scale))
         refresh_arp_button.clicked.connect(self._on_refresh_arp_clicked)
         refresh_arp_button.setMinimumHeight(scale(52))
@@ -398,20 +402,20 @@ class InterfaceSelectionDialog(QDialog):
 
         options_layout.addWidget(refresh_arp_button)
 
-        remember_interface_checkbox = QCheckBox('Remember Interface')
+        remember_interface_checkbox = QCheckBox(tr('Remember Interface'))
         remember_interface_checkbox.setObjectName('remember_interface_checkbox')
         remember_interface_checkbox.setChecked(Settings.gui_interface_selection_auto_connect)
-        remember_interface_checkbox.setToolTip('Automatically reconnect to this interface on the next startup without showing this dialog')
+        remember_interface_checkbox.setToolTip(tr('Automatically reconnect to this interface on the next startup without showing this dialog'))
         remember_interface_checkbox.setStyleSheet(
             interface_checkbox_stylesheet('remember_interface_checkbox', ui_scale),
         )
         remember_interface_checkbox.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         options_layout.addWidget(remember_interface_checkbox)
 
-        hide_inactive_checkbox = QCheckBox('Hide Inactive Interfaces')
+        hide_inactive_checkbox = QCheckBox(tr('Hide Inactive Interfaces'))
         hide_inactive_checkbox.setObjectName('hide_inactive_checkbox')
         hide_inactive_checkbox.setChecked(hide_inactive_default)
-        hide_inactive_checkbox.setToolTip('Hide disabled, disconnected, unconfigured, or interfaces with no traffic')
+        hide_inactive_checkbox.setToolTip(tr('Hide disabled, disconnected, unconfigured, or interfaces with no traffic'))
         hide_inactive_checkbox.setStyleSheet(
             interface_checkbox_stylesheet('hide_inactive_checkbox', ui_scale),
         )
@@ -419,10 +423,10 @@ class InterfaceSelectionDialog(QDialog):
         hide_inactive_checkbox.stateChanged.connect(self.apply_filters)
         options_layout.addWidget(hide_inactive_checkbox)
 
-        hide_neighbours_checkbox = QCheckBox('Hide Neighbours')
+        hide_neighbours_checkbox = QCheckBox(tr('Hide Neighbours'))
         hide_neighbours_checkbox.setObjectName('hide_neighbours_checkbox')
         hide_neighbours_checkbox.setChecked(hide_neighbours_default)
-        hide_neighbours_checkbox.setToolTip('Hide neighbour entries (devices discovered via ARP on the local network)')
+        hide_neighbours_checkbox.setToolTip(tr('Hide neighbour entries (devices discovered via ARP on the local network)'))
         hide_neighbours_checkbox.setStyleSheet(
             interface_checkbox_stylesheet('hide_neighbours_checkbox', ui_scale),
         )
@@ -431,10 +435,10 @@ class InterfaceSelectionDialog(QDialog):
         hide_neighbours_checkbox.stateChanged.connect(self.enforce_spoofing_constraints)
         options_layout.addWidget(hide_neighbours_checkbox)
 
-        arp_spoofing_checkbox = QCheckBox('Enable ARP Spoofing')
+        arp_spoofing_checkbox = QCheckBox(tr('Enable ARP Spoofing'))
         arp_spoofing_checkbox.setObjectName('arp_spoofing_checkbox')
         arp_spoofing_checkbox.setChecked(arp_spoofing_default)
-        arp_spoofing_checkbox.setToolTip('Capture packets from other devices on your local network instead of this computer')
+        arp_spoofing_checkbox.setToolTip(tr('Capture packets from other devices on your local network instead of this computer'))
         arp_spoofing_checkbox.setStyleSheet(
             interface_checkbox_stylesheet('arp_spoofing_checkbox', ui_scale),
         )
@@ -488,14 +492,14 @@ class InterfaceSelectionDialog(QDialog):
         info_icon_label.setPixmap(render_svg_pixmap_from_resource('info.svg', scale(32), scale(32)))
         info_icon_label.setFixedSize(scale(36), scale(36))
         info_icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        instruction_label = QLabel('Select a network interface to start packet capture.')
+        instruction_label = QLabel(tr('Select a network interface to start packet capture.'))
         instruction_label.setStyleSheet(interface_instruction_label_stylesheet(ui_scale))
         action_layout.addWidget(info_icon_label)
         action_layout.addSpacing(scale(8))
         action_layout.addWidget(instruction_label)
         action_layout.addStretch()
 
-        select_button = QPushButton('Start Sniffing')
+        select_button = QPushButton(tr('Start Sniffing'))
         select_button.setStyleSheet(interface_select_button_disabled_style(self._ui_scale))
         select_button.setEnabled(False)  # Initially disabled
         select_button.setMinimumSize(scale(330), scale(56))
@@ -575,8 +579,17 @@ class InterfaceSelectionDialog(QDialog):
         self._arp_refresh_done_signal.connect(self._on_refresh_arp_finished)
 
         self.setLayout(layout)
+        register_language_refresh(self, self._on_language_refreshed)
         if initial_tab == 1:
             self._tab_hotspot_btn.setChecked(True)
+
+    def _on_language_refreshed(self) -> None:
+        self.setWindowTitle(f"{tr('Capture Network Interface Selection')} - {TITLE}")
+        self._tab_hotspot_btn.setText(tr('Hotspot & Connection Sharing').replace('&', '&&'))
+        if not self._arp_refresh_in_progress:
+            self._controls.refresh_arp_button.setText(tr('Refresh ARP Table'))
+            self.enforce_spoofing_constraints()
+        self.populate_table()
 
     @override
     def resizeEvent(self, event: QResizeEvent) -> None:
@@ -604,16 +617,17 @@ class InterfaceSelectionDialog(QDialog):
         font_pt_main = max(1, round(11 * self._ui_scale))
         font_pt_sub = max(1, round(8 * self._ui_scale))
 
+        pinging_word = html.escape(tr('Pinging'))
         if total <= 0:
             # No progress yet: indeterminate ping-pong sweep until first ping completes.
             half = sweep_period // 2
             fraction = self._arp_refresh_sweep_phase / (half - 1) if self._arp_refresh_sweep_phase < half else (sweep_period - 1 - self._arp_refresh_sweep_phase) / (half - 1)
-            main_text = f'Pinging{dots}'
-            sub_text = 'Resolving subnets…'
+            main_text = f'{pinging_word}{dots}'
+            sub_text = html.escape(tr('Resolving subnets…'))
         else:
             fraction = completed / total
             pct = f'{int(fraction * 100):>3}'.replace(' ', '\u00a0')
-            main_text = f'Pinging\u00a0{pct}%\u00a0{dots}'
+            main_text = f'{pinging_word}\u00a0{pct}%\u00a0{dots}'
             # Pad IP to 15 chars (max IPv4 length) and counters to total's width
             # so the centered sub-line never jitters as values change. Spaces
             # are emitted as &nbsp; because Qt rich text collapses runs of
@@ -703,7 +717,7 @@ class InterfaceSelectionDialog(QDialog):
             self._arp_refresh_progress_timer.stop()
         self._refresh_arp_overlay.hide()
         self._refresh_arp_overlay.clear()
-        self._controls.refresh_arp_button.setText(self._arp_refresh_original_text or 'Refresh ARP Table')
+        self._controls.refresh_arp_button.setText(tr('Refresh ARP Table'))
         self._controls.refresh_arp_button.setIcon(self._refresh_arp_icon)
         self.enforce_spoofing_constraints()
         self._live_refresh_interfaces()
@@ -809,68 +823,53 @@ class InterfaceSelectionDialog(QDialog):
         if self.table.rowCount() != target_rows:
             self.table.setRowCount(target_rows)
 
-        def set_or_update_item(row: int, column: int, text: str, alignment: Qt.AlignmentFlag | None = None) -> None:
+        def set_or_update_item(row: int, column: int, text: str, alignment: Qt.AlignmentFlag | None = None, *, user_data: str | None = None) -> None:
             existing = self.table.item(row, column)
             if existing is None:
                 new_item = QTableWidgetItem(text)
                 if alignment is not None:
                     new_item.setTextAlignment(alignment)
+                if user_data is not None:
+                    new_item.setData(Qt.ItemDataRole.UserRole, user_data)
                 self.table.setItem(row, column, new_item)
             else:
                 if existing.text() != text:
                     existing.setText(text)
                 if alignment is not None and existing.textAlignment() != alignment:
                     existing.setTextAlignment(alignment)
+                if user_data is not None and existing.data(Qt.ItemDataRole.UserRole) != user_data:
+                    existing.setData(Qt.ItemDataRole.UserRole, user_data)
+
+        na_text = tr('N/A')
+
+        def set_or_na(row: int, column: int, value: str | None, alignment: Qt.AlignmentFlag | None = None) -> None:
+            set_or_update_item(row, column, value or na_text, alignment, user_data=value or 'N/A')
 
         for i, (interface, ip_address, is_neighbour) in enumerate(self._data.interface_rows):
-            # Get display values
-            mac_address = interface.identity.mac_address or 'N/A'
-            vendor_name = interface.identity.vendor_name or 'N/A'
-
-            # For neighbour entries, get the specific neighbour data
+            mac_value: str | None = interface.identity.mac_address or None
+            vendor_value: str | None = interface.identity.vendor_name or None
             if is_neighbour:
-                neighbour_entry = next((neighbour for neighbour in interface.neighbour_entries if neighbour.ip_address == ip_address), None)
-                if neighbour_entry:
-                    mac_address = neighbour_entry.mac_address
-                    vendor_name = neighbour_entry.vendor_name or 'N/A'
-                packets_sent_str = 'N/A'
-                packets_recv_str = 'N/A'
+                if neighbour_entry := next((neighbour for neighbour in interface.neighbour_entries if neighbour.ip_address == ip_address), None):
+                    mac_value = neighbour_entry.mac_address
+                    vendor_value = neighbour_entry.vendor_name or None
+                packets_sent, packets_recv = None, None
             else:
-                packets_sent_str = f'{interface.traffic.packets_sent:,}'
-                packets_recv_str = f'{interface.traffic.packets_recv:,}'
+                packets_sent = f'{interface.traffic.packets_sent:,}'
+                packets_recv = f'{interface.traffic.packets_recv:,}'
 
-            # Name column
-            set_or_update_item(i, 0, interface.identity.name)
-
-            # Description
+            set_or_update_item(i, 0, interface.identity.name, user_data=interface.identity.name)
             set_or_update_item(i, 1, interface.identity.description, Qt.AlignmentFlag.AlignCenter)
-
-            # Type
-            # Neighbour rows under a Bridged/Shared interface inherit the parent's type because their
-            # traffic flows through this machine; otherwise they are plain neighbors.
-            type_display = (
+            # Neighbour rows under a Bridged/Shared interface inherit the parent's type because their traffic flows through this machine.
+            type_canonical = (
                 interface.interface_type if not is_neighbour or interface.interface_type in (INTERFACE_TYPE_BRIDGED, INTERFACE_TYPE_SHARED) else INTERFACE_TYPE_NEIGHBOUR
             )
-            set_or_update_item(i, 2, type_display, Qt.AlignmentFlag.AlignCenter)
-
-            # Packets Sent
-            set_or_update_item(i, 3, packets_sent_str, Qt.AlignmentFlag.AlignCenter)
-
-            # Packets Received
-            set_or_update_item(i, 4, packets_recv_str, Qt.AlignmentFlag.AlignCenter)
-
-            # Gateway IP
-            gateway_ip = interface.gateway_addresses[0] if interface.gateway_addresses else 'N/A'
-            set_or_update_item(i, 5, gateway_ip)
-
-            # IP Address
+            set_or_update_item(i, 2, tr(type_canonical), Qt.AlignmentFlag.AlignCenter, user_data=type_canonical)
+            set_or_na(i, 3, packets_sent, Qt.AlignmentFlag.AlignCenter)
+            set_or_na(i, 4, packets_recv, Qt.AlignmentFlag.AlignCenter)
+            set_or_na(i, 5, interface.gateway_addresses[0] if interface.gateway_addresses else None)
             set_or_update_item(i, 6, ip_address)
-
-            # MAC Address
-            set_or_update_item(i, 7, mac_address)
-
-            # Vendor Name
-            set_or_update_item(i, 8, vendor_name, Qt.AlignmentFlag.AlignCenter)
+            set_or_na(i, 7, mac_value)
+            set_or_na(i, 8, vendor_value, Qt.AlignmentFlag.AlignCenter)
 
         # Reset selection state
         self.update_select_button_state()
@@ -903,7 +902,7 @@ class InterfaceSelectionDialog(QDialog):
         if not self._arp_refresh_in_progress:
             arp_enabled = not hide_neighbours
             self._controls.refresh_arp_button.setEnabled(arp_enabled)
-            self._controls.refresh_arp_button.setToolTip('Ping local subnet devices via ICMP to repopulate the ARP neighbour cache' if arp_enabled else '')
+            self._controls.refresh_arp_button.setToolTip(tr('Ping local subnet devices via ICMP to repopulate the ARP neighbour cache') if arp_enabled else '')
             self._controls.refresh_arp_button.setStyleSheet(
                 interface_secondary_button_enabled_style(self._ui_scale) if arp_enabled else interface_secondary_button_disabled_style(self._ui_scale),
             )

@@ -1,20 +1,17 @@
 """Settings dialog for viewing, editing, saving, and resetting all application settings."""
 
 from functools import partial
-from pathlib import Path
 from typing import TYPE_CHECKING, cast, override
 
-from PySide6.QtCore import QSignalBlocker, Qt, QTimer
-from PySide6.QtGui import QAction, QColor, QIcon
+from PySide6.QtCore import QSignalBlocker, QTimer
+from PySide6.QtGui import QColor, QIcon
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QDialog,
     QDoubleSpinBox,
-    QFileDialog,
     QFormLayout,
     QFrame,
-    QGridLayout,
     QGroupBox,
     QHBoxLayout,
     QLabel,
@@ -30,20 +27,18 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from session_sniffer.capture.arp_spoofing import ArpSpoofingController
 from session_sniffer.capture.process import matches_process_name
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.discord.webhook import is_valid_webhook_url
-from session_sniffer.error_messages import format_invalid_datetime_columns_settings_message
 from session_sniffer.guis._dialog_mixins import UnsavedChangesMixin, equalize_button_sizes, setup_tab_dialog_buttons
-from session_sniffer.guis._settings_discord_mixin import SettingsDialogDiscordMixin
+from session_sniffer.guis._settings_discord_mixin import SettingsDialogDiscordMixin, build_discord_info_group
 from session_sniffer.guis._settings_looky_mixin import SettingsDialogLookyMixin
 from session_sniffer.guis._settings_runtime import SettingValue, apply_runtime_settings_changes
 from session_sniffer.guis._settings_theme_mixin import SettingsDialogThemeMixin
 from session_sniffer.guis._settings_widget_builders import (
     HotkeyEditWidget,
-    build_discord_info_group,
     build_webserver_help_group,
+    combo_canonical_value,
     create_boolean_widget,
     create_color_widget,
     create_column_tuple_widget,
@@ -60,16 +55,14 @@ from session_sniffer.guis._settings_widget_builders import (
     create_text_widget,
     create_third_party_servers_split_widget,
     format_setting_tooltip,
+    set_combo_by_canonical,
 )
 from session_sniffer.guis.color_picker_dialog import ColorPickerButton
+from session_sniffer.guis.live_language import register_language_refresh, set_i18n_colon_label, set_live_follow_system_language_checkbox
 from session_sniffer.guis.process_selector_widget import ProcessSelectorWidget
-from session_sniffer.guis.secret_line_edit import SecretLineEdit
 from session_sniffer.guis.stylesheets import (
     DIALOG_BUTTON_STYLESHEET,
     DIALOG_DANGER_BUTTON_STYLESHEET,
-    DIALOG_PRIMARY_BUTTON_STYLESHEET,
-    INTERFACE_INFO_CARD_STYLESHEET,
-    INTERFACE_INFO_VALUE_LABEL_STYLESHEET,
     SETTINGS_RESTART_BANNER_STYLESHEET,
 )
 from session_sniffer.guis.theming import DEFAULT_THEME_NAME, ICONS_DIR_PATH, load_themes_file, themed_color, themed_qss, themed_text_qcolor
@@ -80,12 +73,12 @@ from session_sniffer.guis.utils import (
     scale_by_ui,
     set_dialog_window_flags,
 )
+from session_sniffer.i18n import normalize_language_code, tr
 from session_sniffer.networking.looky_system import LookyState
 from session_sniffer.networking.utils import format_mac_address, is_ipv4_address, is_mac_address
 from session_sniffer.rendering_core.types import CaptureState
 from session_sniffer.settings import SETTING_CATEGORIES_ORDER, SETTING_DEFAULTS, SETTING_METADATA, SettingMeta, SettingType
 from session_sniffer.settings.settings import Settings
-from session_sniffer.text_utils import format_triple_quoted_text
 from session_sniffer.utils import validate_and_strip_balanced_outer_parens
 from session_sniffer.utils_exceptions import ParenthesisMismatchError
 
@@ -110,7 +103,7 @@ class SettingsDialog(SettingsDialogThemeMixin, SettingsDialogLookyMixin, Setting
             on_change_interface: Callback invoked to close this dialog and open the interface selection screen.
         """
         super().__init__(parent)
-        self.setWindowTitle(f'Settings - {TITLE}')
+        self.setWindowTitle(f"{tr('Settings')} - {TITLE}")
         set_dialog_window_flags(self)
         self.setMinimumSize(scale_by_ui(950), scale_by_ui(750))
         resize_window_for_screen(self)
@@ -127,6 +120,7 @@ class SettingsDialog(SettingsDialogThemeMixin, SettingsDialogLookyMixin, Setting
         self._initial_values: dict[str, SettingValue] = dict(self._old_values)
         self._changed_settings: set[str] = set()
         self._saved = self._loading_settings = self._pending_webhook_message_ids_reset = False
+        self._manual_gui_language: str = normalize_language_code(Settings.gui_language) or 'en'
         self._last_verified_key: str = Settings.looky_api_key or '' if LookyState.user_data is not None else ''
         self._verify_worker = None
         self._verify_debounce: QTimer = QTimer(self)
@@ -141,7 +135,7 @@ class SettingsDialog(SettingsDialogThemeMixin, SettingsDialogLookyMixin, Setting
         for i, category in enumerate(SETTING_CATEGORIES_ORDER):
             tab_widget = self._build_tab(category)
             tab_widget.setProperty('category', category)
-            self._tabs.addTab(tab_widget, category)
+            self._tabs.addTab(tab_widget, tr(category))
             if category == 'GTA V':
                 self._game_tab_index = i
         self._tabs.currentChanged.connect(self._on_tab_changed)
@@ -150,7 +144,7 @@ class SettingsDialog(SettingsDialogThemeMixin, SettingsDialogLookyMixin, Setting
         self._restart_notice_banner = QFrame()
         self._restart_notice_banner.setObjectName('restartNoticeBanner')
         self._restart_notice_banner.setStyleSheet(SETTINGS_RESTART_BANNER_STYLESHEET)
-        self._restart_notice_banner.setToolTip('One or more modified settings require a capture restart upon saving.')
+        self._restart_notice_banner.setToolTip(tr('One or more modified settings require a capture restart upon saving.'))
         banner_layout = QHBoxLayout(self._restart_notice_banner)
         banner_layout.setContentsMargins(10, 6, 10, 6)
         banner_layout.setSpacing(8)
@@ -159,7 +153,7 @@ class SettingsDialog(SettingsDialogThemeMixin, SettingsDialogLookyMixin, Setting
         banner_icon_label.setPixmap(render_svg_pixmap_from_resource('triangle-alert.svg', 16, 16, themed_color('#f59e0b')))
         banner_layout.addWidget(banner_icon_label)
 
-        self._restart_notice_label = QLabel('Saving changes will restart packet capture.')
+        self._restart_notice_label = QLabel(tr('Saving changes will restart packet capture.'))
         self._restart_notice_label.setStyleSheet(themed_qss('color: #f59e0b; font-size: 9pt; font-weight: 600;'))
         banner_layout.addWidget(self._restart_notice_label)
         banner_layout.addStretch()
@@ -168,34 +162,35 @@ class SettingsDialog(SettingsDialogThemeMixin, SettingsDialogLookyMixin, Setting
         root_layout.addWidget(self._restart_notice_banner)
 
         button_row = QHBoxLayout()
-        import_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'import.svg')), ' Import')
-        import_button.setToolTip('Import settings from a settings.json file (review before saving)')
+        import_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'import.svg')), f" {tr('Import')}")
+        import_button.setToolTip(tr('Import settings from a settings.json file (review before saving)'))
         import_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
         import_button.clicked.connect(self._import_settings)
         button_row.addWidget(import_button)
 
-        export_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'upload.svg')), ' Export')
-        export_button.setToolTip('Export current settings to a settings.json file')
+        export_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'upload.svg')), f" {tr('Export')}")
+        export_button.setToolTip(tr('Export current settings to a settings.json file'))
         export_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
         export_button.clicked.connect(self._export_settings)
         button_row.addWidget(export_button)
 
         reset_fg = themed_text_qcolor('#ffffff', '#c0392b').name(QColor.NameFormat.HexArgb)
         reset_icon = render_svg_icon_from_resource('rotate-ccw.svg', scale_by_ui(16), scale_by_ui(16), reset_fg)
-        reset_button = QPushButton(reset_icon, ' Reset all…')
-        reset_button.setToolTip('Reset all settings across all tabs to their default values (review before saving)')
+        reset_button = QPushButton(reset_icon, f" {tr('Reset all…')}")
+        reset_button.setToolTip(tr('Reset all settings across all tabs to their default values (review before saving)'))
         reset_button.setStyleSheet(DIALOG_DANGER_BUTTON_STYLESHEET)
         save_button = setup_tab_dialog_buttons(button_row, reset_button, self._reset_to_defaults, self._reset_current_tab)
-        save_button.setToolTip('Validate and save all settings to settings.json')
+        save_button.setToolTip(tr('Validate and save all settings to settings.json'))
         save_button.clicked.connect(self._save_settings)
         button_row.addWidget(save_button)
 
-        cancel_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'x.svg')), ' Cancel')
-        cancel_button.setToolTip('Discard changes and close')
+        cancel_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'x.svg')), f" {tr('Cancel')}")
+        cancel_button.setToolTip(tr('Discard changes and close'))
         cancel_button.setStyleSheet(DIALOG_BUTTON_STYLESHEET)
         cancel_button.clicked.connect(self.reject)
         button_row.addWidget(cancel_button)
         equalize_button_sizes(button_row)
+        self._button_row = button_row
         root_layout.addLayout(button_row)
 
         self._connect_widget_change_signals()
@@ -212,8 +207,8 @@ class SettingsDialog(SettingsDialogThemeMixin, SettingsDialogLookyMixin, Setting
         # Show/hide Session Host Detection based on Feature Set.
         preset_widget = self._widgets.get('capture_feature_set')
         if isinstance(preset_widget, QComboBox):
-            preset_widget.currentTextChanged.connect(self._on_feature_set_changed)
-            self._on_feature_set_changed(preset_widget.currentText())
+            preset_widget.currentIndexChanged.connect(lambda _index=0, pw=preset_widget: self._on_feature_set_changed(combo_canonical_value(pw)))
+            self._on_feature_set_changed(combo_canonical_value(preset_widget))
 
         # Show/hide Account Information based on API key presence.
         api_key_widget = self._widgets.get('looky_api_key')
@@ -231,8 +226,21 @@ class SettingsDialog(SettingsDialogThemeMixin, SettingsDialogLookyMixin, Setting
         # Enable/disable High Rate Monitor threshold fields based on Smart vs Manual mode.
         hrm_mode_widget = self._widgets.get('high_rate_monitor_mode')
         if isinstance(hrm_mode_widget, QComboBox):
-            hrm_mode_widget.currentTextChanged.connect(self._on_high_rate_monitor_mode_changed)
-            self._on_high_rate_monitor_mode_changed(hrm_mode_widget.currentText())
+            hrm_mode_widget.currentIndexChanged.connect(lambda _index=0, hw=hrm_mode_widget: self._on_high_rate_monitor_mode_changed(combo_canonical_value(hw)))
+            self._on_high_rate_monitor_mode_changed(combo_canonical_value(hrm_mode_widget))
+
+        # Wire live language preview & Follow System Language toggling (never mutates Settings until Save).
+        lang_widget = self._widgets.get('gui_language')
+        if isinstance(lang_widget, QComboBox):
+            lang_widget.currentIndexChanged.connect(self._on_gui_language_changed)
+
+        follow_lang_widget = self._widgets.get('gui_language_follow_system')
+        if isinstance(follow_lang_widget, QCheckBox):
+            follow_lang_widget.toggled.connect(self._on_follow_system_language_toggled)
+            set_live_follow_system_language_checkbox(follow_lang_widget)
+            self._sync_follow_system_language_ui_state()
+
+        register_language_refresh(self, self._on_language_refreshed)
 
     # ------------------------------------------------------------------
     # Tab / widget construction
@@ -288,7 +296,7 @@ class SettingsDialog(SettingsDialogThemeMixin, SettingsDialogLookyMixin, Setting
                 outer_layout.addWidget(self._build_looky_group(items, self._add_setting_row))
                 continue
 
-            group_box = QGroupBox(group_name.replace('&', '&&'))
+            group_box = QGroupBox(tr(group_name).replace('&', '&&'))
             if category == 'GTA V' and group_name == 'Session Relays':
                 self._session_relays_group_box = group_box
             direct_items = [(setting_key, setting_meta) for setting_key, setting_meta in items if setting_meta.subgroup is None or not setting_meta.subgroup]
@@ -305,7 +313,7 @@ class SettingsDialog(SettingsDialogThemeMixin, SettingsDialogLookyMixin, Setting
                         self._add_setting_row(direct_form, key, meta)
                     group_vbox.addLayout(direct_form)
                 for sub_name, sub_items in subgrouped.items():
-                    sub_box = QGroupBox(sub_name.replace('&', '&&'))
+                    sub_box = QGroupBox(tr(sub_name).replace('&', '&&'))
                     sub_form = create_standard_form_layout(sub_box)
                     for key, meta in sub_items:
                         self._add_setting_row(sub_form, key, meta)
@@ -324,71 +332,6 @@ class SettingsDialog(SettingsDialogThemeMixin, SettingsDialogLookyMixin, Setting
         page_layout.addWidget(scroll)
 
         return page
-
-    def _build_interface_info_group(self) -> QGroupBox:
-        """Build a styled read-only interface summary panel with a primary action button."""
-        group_box = QGroupBox('Interface')
-        group_box.setStyleSheet(INTERFACE_INFO_CARD_STYLESHEET)
-        layout = QVBoxLayout(group_box)
-        layout.setSpacing(8)
-        layout.setContentsMargins(10, 6, 10, 10)
-
-        def _make_label(text: str) -> QLabel:
-            label = QLabel(text + ':')
-            label.setStyleSheet(themed_qss('color: #a5b4c4; font-weight: 600; background: transparent;'))
-            label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-            return label
-
-        def _make_value(value: str | None) -> QLabel:
-            label = QLabel(value if value is not None else '\u2014')
-            label.setStyleSheet(INTERFACE_INFO_VALUE_LABEL_STYLESHEET)
-            label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-            return label
-
-        arp_state = ('Running' if ArpSpoofingController.is_running() else 'Stopped') if Settings.capture_arp_spoofing else 'Disabled'
-
-        self._interface_name_label = _make_value(Settings.capture_interface_name)
-        self._arp_spoofing_label = _make_value(arp_state)
-        self._ip_address_label = _make_value(Settings.capture_ip_address)
-        self._mac_address_label = _make_value(Settings.capture_mac_address)
-
-        grid = QGridLayout()
-        grid.setHorizontalSpacing(12)
-        grid.setVerticalSpacing(6)
-        grid.setColumnStretch(1, 1)
-        grid.setColumnStretch(3, 1)
-        grid.setColumnMinimumWidth(2, 20)  # Gap between the two pairs.
-        grid.addWidget(_make_label('Interface Name'), 0, 0)
-        grid.addWidget(self._interface_name_label, 0, 1)
-        grid.addWidget(_make_label('ARP Spoofing'), 0, 2)
-        grid.addWidget(self._arp_spoofing_label, 0, 3)
-        grid.addWidget(_make_label('IP Address'), 1, 0)
-        grid.addWidget(self._ip_address_label, 1, 1)
-        grid.addWidget(_make_label('MAC Address'), 1, 2)
-        grid.addWidget(self._mac_address_label, 1, 3)
-        layout.addLayout(grid)
-
-        separator = QFrame()
-        separator.setFrameShape(QFrame.Shape.HLine)
-        separator.setFrameShadow(QFrame.Shadow.Sunken)
-        separator.setStyleSheet(themed_qss('background: rgba(61, 142, 201, 0.25); border: none; max-height: 1px;'))
-        layout.addWidget(separator)
-
-        change_fg = themed_text_qcolor('#ffffff', '#3d8ec9').name(QColor.NameFormat.HexArgb)
-        change_icon = render_svg_icon_from_resource('refresh-cw.svg', scale_by_ui(16), scale_by_ui(16), change_fg)
-        change_button = QPushButton(change_icon, ' Change Interface\u2026')
-        change_button.setToolTip('Close settings and open the network interface selection screen')
-        change_button.setStyleSheet(DIALOG_PRIMARY_BUTTON_STYLESHEET)
-        change_button.clicked.connect(self._open_interface_selection)
-        layout.addWidget(change_button)
-
-        return group_box
-
-    def _open_interface_selection(self) -> None:
-        """Discard any unsaved settings changes, close this dialog, and trigger interface selection."""
-        self._saved = True  # Suppress the unsaved-changes prompt on close.
-        self.reject()
-        self._on_change_interface()
 
     def _add_setting_row(self, form: QFormLayout, key: str, meta: SettingMeta) -> None:
         """Create a widget for *key* and append a labeled row to *form*."""
@@ -417,7 +360,7 @@ class SettingsDialog(SettingsDialogThemeMixin, SettingsDialogLookyMixin, Setting
         if key == 'capture_filter_process_pid' and not CaptureState.is_local_capture():
             label.setEnabled(False)
             widget.setEnabled(False)
-            disabled_tooltip = 'Process PID filtering is disabled when capturing traffic from an external device.'
+            disabled_tooltip = tr('Process PID filtering is disabled when capturing traffic from an external device.')
             label.setToolTip(disabled_tooltip)
             widget.setToolTip(disabled_tooltip)
 
@@ -432,7 +375,7 @@ class SettingsDialog(SettingsDialogThemeMixin, SettingsDialogLookyMixin, Setting
         if self._game_tab_index != -1:
             self._tabs.setTabVisible(self._game_tab_index, is_supported_game)
             if is_supported_game:
-                self._tabs.setTabText(self._game_tab_index, feature_set)
+                self._tabs.setTabText(self._game_tab_index, tr(feature_set))
 
         self._looky_group_box.setVisible(is_gta5)
         if self._session_relays_group_box is not None:
@@ -453,18 +396,22 @@ class SettingsDialog(SettingsDialogThemeMixin, SettingsDialogLookyMixin, Setting
         connected_rpp_label = self._labels.get('gui_connected_table_rows_per_page')
         connected_rpp_widget = self._widgets.get('gui_connected_table_rows_per_page')
         if connected_rpp_label is not None:
-            connected_rpp_label.setText('Connected Rows Per Page:' if checked else 'Rows Per Page:')
-            rpp_tooltip = 'Maximum rows per page in the connected-players table. 0 = show all.' if checked else 'Maximum rows per page in the players table. 0 = show all.'
+            set_i18n_colon_label(connected_rpp_label, 'Connected Rows Per Page' if checked else 'Rows Per Page')
+            rpp_tooltip = (
+                tr('Maximum rows per page in the connected-players table. 0 = show all.')
+                if checked
+                else tr('Maximum rows per page in the players table. 0 = show all.')
+            )
             connected_rpp_label.setToolTip(rpp_tooltip)
             if connected_rpp_widget is not None:
                 connected_rpp_widget.setToolTip(rpp_tooltip)
 
         connected_sort_col_label = self._labels.get('gui_connected_table_sort_column')
         if connected_sort_col_label is not None:
-            connected_sort_col_label.setText('Connected Sort Column:' if checked else 'Sort Column:')
+            set_i18n_colon_label(connected_sort_col_label, 'Connected Sort Column' if checked else 'Sort Column')
         connected_sort_order_label = self._labels.get('gui_connected_table_sort_order')
         if connected_sort_order_label is not None:
-            connected_sort_order_label.setText('Connected Sort Order:' if checked else 'Sort Order:')
+            set_i18n_colon_label(connected_sort_order_label, 'Connected Sort Order' if checked else 'Sort Order')
         for dep_key in (
             'gui_disconnected_table_rows_per_page',
             'gui_disconnected_players_timer',
@@ -491,7 +438,7 @@ class SettingsDialog(SettingsDialogThemeMixin, SettingsDialogLookyMixin, Setting
             if meta is not None:
                 tooltip = format_setting_tooltip(meta) or ''
                 if not is_manual:
-                    disabled_note = 'Disabled in Smart mode (packet rate thresholds are calculated dynamically from the session average).'
+                    disabled_note = tr('Disabled in Smart mode (packet rate thresholds are calculated dynamically from the session average).')
                     tooltip = f'{tooltip}\n\n{disabled_note}' if tooltip else disabled_note
                 if label is not None:
                     label.setToolTip(tooltip)
@@ -502,7 +449,51 @@ class SettingsDialog(SettingsDialogThemeMixin, SettingsDialogLookyMixin, Setting
         """Update enabled state of High Rate Monitor threshold fields based on current combo selection."""
         hrm_mode_widget = self._widgets.get('high_rate_monitor_mode')
         if isinstance(hrm_mode_widget, QComboBox):
-            self._on_high_rate_monitor_mode_changed(hrm_mode_widget.currentText())
+            self._on_high_rate_monitor_mode_changed(combo_canonical_value(hrm_mode_widget))
+
+    def _on_language_refreshed(self) -> None:
+        """Refresh window title, dynamic tabs, compound tooltips, and dependent UI states after a language switch."""
+        self.setWindowTitle(f"{tr('Settings')} - {TITLE}")
+        for i in range(self._tabs.count()):
+            page = self._tabs.widget(i)
+            if page is None:
+                continue
+            category = page.property('category')
+            if isinstance(category, str) and category:
+                self._tabs.setTabText(i, tr(category))
+
+        preset_widget = self._widgets.get('capture_feature_set')
+        if isinstance(preset_widget, QComboBox) and self._game_tab_index != -1 and self._tabs.isTabVisible(self._game_tab_index):
+            self._tabs.setTabText(self._game_tab_index, tr(combo_canonical_value(preset_widget)))
+
+        for key, meta in SETTING_METADATA.items():
+            tooltip = format_setting_tooltip(meta) or ''
+            if (label := self._labels.get(key)) is not None:
+                label.setToolTip(tooltip)
+            if (widget := self._widgets.get(key)) is not None and meta.setting_type not in (
+                SettingType.COLUMN_TUPLE,
+                SettingType.IP_RANGE_TUPLE,
+                SettingType.STRING_TUPLE,
+                SettingType.THIRD_PARTY_SERVERS_TUPLE,
+            ):
+                widget.setToolTip(tooltip)
+
+        if not CaptureState.is_local_capture():
+            disabled_tooltip = tr('Process PID filtering is disabled when capturing traffic from an external device.')
+            if (pid_label := self._labels.get('capture_filter_process_pid')) is not None:
+                pid_label.setToolTip(disabled_tooltip)
+            if (pid_widget := self._widgets.get('capture_filter_process_pid')) is not None:
+                pid_widget.setToolTip(disabled_tooltip)
+
+        self._on_disconnected_players_enabled_toggled()
+        self._update_high_rate_monitor_mode_state()
+        self._sync_follow_system_language_ui_state()
+        self._sync_follow_system_ui_state()
+        self._update_restart_notice()
+        self._refresh_interface_info_labels()
+        self._update_sort_column_options()
+        self._refresh_looky_language()
+        equalize_button_sizes(self._button_row)
 
     def _create_widget(self, key: str, meta: SettingMeta) -> QWidget:
         """Return the appropriate input widget for a single setting."""
@@ -512,7 +503,8 @@ class SettingsDialog(SettingsDialogThemeMixin, SettingsDialogLookyMixin, Setting
             combo = create_enum_widget(meta)
             combo.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
             combo.clear()
-            combo.addItems([theme.name for theme in self._cached_themes_file.all_themes()])
+            for theme in self._cached_themes_file.all_themes():
+                combo.addItem(theme.name, theme.name)
             return combo
 
         dispatch: dict[SettingType, Callable[[], QWidget]] = {
@@ -538,6 +530,7 @@ class SettingsDialog(SettingsDialogThemeMixin, SettingsDialogLookyMixin, Setting
     # Load / save / reset
     # ------------------------------------------------------------------
 
+    @override
     def _populate_widgets(self, getter: Callable[[str], SettingValue]) -> None:
         """Populate every widget using values returned by *getter* without triggering intermediate notices."""
         self._loading_settings = True
@@ -545,6 +538,7 @@ class SettingsDialog(SettingsDialogThemeMixin, SettingsDialogLookyMixin, Setting
             self._refresh_theme_combo_options()
             for key, widget in self._widgets.items():
                 self._set_widget_value(key, widget, getter(key), source_getter=getter)
+            self._sync_follow_system_language_ui_state()
             self._update_sort_column_options()
             self._update_high_rate_monitor_mode_state()
             self._sync_selected_theme_card()
@@ -558,6 +552,8 @@ class SettingsDialog(SettingsDialogThemeMixin, SettingsDialogLookyMixin, Setting
     def _set_widget_value(self, key: str, widget: QWidget, value: SettingValue, *, source_getter: Callable[[str], SettingValue] | None = None) -> None:
         """Push *value* into the appropriate *widget*."""
         meta = SETTING_METADATA[key]
+        if key == 'gui_language':
+            self._manual_gui_language = normalize_language_code(value) or 'en'
 
         match meta.setting_type:
             case SettingType.BOOLEAN:
@@ -596,12 +592,7 @@ class SettingsDialog(SettingsDialogThemeMixin, SettingsDialogLookyMixin, Setting
     def _set_enum(self, widget: QWidget, value: SettingValue) -> None:
         """Set value for an enum combo box."""
         combo = cast('QComboBox', widget)
-        text = _NONE_PLACEHOLDER if value is None else str(value)
-        index = combo.findText(text, Qt.MatchFlag.MatchFixedString)
-        if index < 0:
-            index = combo.findText(DEFAULT_THEME_NAME, Qt.MatchFlag.MatchFixedString)
-        if index >= 0:
-            combo.setCurrentIndex(index)
+        set_combo_by_canonical(combo, _NONE_PLACEHOLDER if value is None else str(value), fallback=DEFAULT_THEME_NAME)
 
     def _read_widget_value(self, key: str, widget: QWidget) -> SettingValue:
         """Extract the current value from *widget* for setting *key*."""
@@ -623,8 +614,11 @@ class SettingsDialog(SettingsDialogThemeMixin, SettingsDialogLookyMixin, Setting
             case SettingType.INTEGER | SettingType.INTEGER_OR_ALL:
                 value = cast('ProcessSelectorWidget', widget).value() if key == 'capture_filter_process_pid' else cast('QSpinBox', widget).value()
             case SettingType.ENUM:
-                text = cast('QComboBox', widget).currentText()
-                value = None if text == _NONE_PLACEHOLDER else text
+                if key == 'gui_language' and isinstance(follow_cb := self._widgets.get('gui_language_follow_system'), QCheckBox) and follow_cb.isChecked():
+                    value = self._manual_gui_language
+                else:
+                    text = combo_canonical_value(cast('QComboBox', widget))
+                    value = None if text == _NONE_PLACEHOLDER else text
             case SettingType.COLUMN_TUPLE | SettingType.THIRD_PARTY_SERVERS_TUPLE:
                 value = self._read_column_tuple(meta, widget)
             case SettingType.IP_RANGE_TUPLE | SettingType.STRING_TUPLE:
@@ -651,44 +645,53 @@ class SettingsDialog(SettingsDialogThemeMixin, SettingsDialogLookyMixin, Setting
             values[key] = value
 
             if meta.setting_type == SettingType.IPV4 and isinstance(value, str) and not is_ipv4_address(value):
-                errors.append(f'{meta.display_label}: "{value}" is not a valid IPv4 address.')
+                errors.append(tr('{label}: "{value}" is not a valid IPv4 address.', label=tr(meta.display_label), value=value))
 
             elif meta.setting_type == SettingType.COLOR and (not isinstance(value, str) or not QColor(value).isValid()):
-                errors.append(f'{meta.display_label}: "{value}" is not a valid color.')
+                errors.append(tr('{label}: "{value}" is not a valid color.', label=tr(meta.display_label), value=value))
 
             elif meta.setting_type == SettingType.MAC_ADDRESS and isinstance(value, str):
                 formatted = format_mac_address(value)
                 if not is_mac_address(formatted):
-                    errors.append(f'{meta.display_label}: "{value}" is not a valid MAC address (expected format: AA:BB:CC:DD:EE:FF).')
+                    errors.append(
+                        tr(
+                            '{label}: "{value}" is not a valid MAC address (expected format: AA:BB:CC:DD:EE:FF).',
+                            label=tr(meta.display_label),
+                            value=value,
+                        ),
+                    )
 
             elif meta.setting_type == SettingType.STRING and key == 'capture_prepend_custom_capture_filter' and isinstance(value, str):
                 try:
                     validate_and_strip_balanced_outer_parens(value)
                 except ParenthesisMismatchError:
-                    errors.append(f'{meta.display_label}: filter expression has unbalanced parentheses.')
+                    errors.append(tr('{label}: filter expression has unbalanced parentheses.', label=tr(meta.display_label)))
 
             elif key == 'discord_presence_title' and isinstance(value, str) and 0 < len(value) < _DISCORD_PRESENCE_TITLE_MIN_LEN:
-                errors.append('Presence Title must be either empty (to disable) or at least 2 characters long.')
+                errors.append(tr('Presence Title must be either empty (to disable) or at least 2 characters long.'))
 
         if bool(values.get('discord_webhook_enabled')):
             url_value = values.get('discord_webhook_url')
             if not isinstance(url_value, str) or not is_valid_webhook_url(url_value):
                 errors.append(
-                    'Discord Webhook is enabled but the Webhook URL is missing or invalid. Expected format: https://discord.com/api/webhooks/<id>/<token>',
+                    tr(
+                        'Discord Webhook is enabled but the Webhook URL is missing or invalid. '
+                        'Expected format: https://discord.com/api/webhooks/<id>/<token>',
+                    ),
                 )
 
-        if not any(
-            (
-                values.get('gui_columns_datetime_show_date'),
-                values.get('gui_columns_datetime_show_time'),
-                values.get('gui_columns_datetime_show_elapsed_time'),
-            ),
-        ):
+        datetime_option_keys = (
+            'gui_columns_datetime_show_date',
+            'gui_columns_datetime_show_time',
+            'gui_columns_datetime_show_elapsed_time',
+        )
+        if not any(values.get(opt_key) for opt_key in datetime_option_keys):
+            options_list = '\n'.join(f'  - {tr(SETTING_METADATA[opt_key].display_label)}' for opt_key in datetime_option_keys)
             errors.append(
-                'At least one of the DateTime column display options must be enabled:\n'
-                '  - Show Date in DateTime Columns\n'
-                '  - Show Time in DateTime Columns\n'
-                '  - Show Elapsed Time',
+                tr(
+                    'At least one of the DateTime column display options must be enabled:\n{options}',
+                    options=options_list,
+                ),
             )
 
         return errors, values
@@ -765,18 +768,6 @@ class SettingsDialog(SettingsDialogThemeMixin, SettingsDialogLookyMixin, Setting
             self._initial_values['capture_filter_process_pid'] = resolved_pid
             self._initial_values['capture_filter_process_name'] = resolved_name
 
-    def _refresh_interface_info_labels(self) -> None:
-        """Update the read-only Interface summary card labels with the latest capture state."""
-        arp_state = ('Running' if ArpSpoofingController.is_running() else 'Stopped') if Settings.capture_arp_spoofing else 'Disabled'
-        for label, val in (
-            (self._interface_name_label, Settings.capture_interface_name),
-            (self._arp_spoofing_label, arp_state),
-            (self._ip_address_label, Settings.capture_ip_address),
-            (self._mac_address_label, Settings.capture_mac_address),
-        ):
-            if label is not None:
-                label.setText(val if val is not None else '\u2014')
-
     def update_capture(self, capture: PacketCapture) -> None:
         """Bind a replaced `PacketCapture` instance and refresh the Interface info summary labels."""
         self._capture = capture
@@ -803,12 +794,13 @@ class SettingsDialog(SettingsDialogThemeMixin, SettingsDialogLookyMixin, Setting
         """Populate widgets belonging to *category* with default values without saving."""
         defaults_dict = cast('dict[str, SettingValue]', SETTING_DEFAULTS)
         preset_widget = self._widgets.get('capture_feature_set')
-        is_rdr2 = isinstance(preset_widget, QComboBox) and preset_widget.currentText() == 'RDR2'
+        is_rdr2 = isinstance(preset_widget, QComboBox) and combo_canonical_value(preset_widget) == 'RDR2'
         for key, widget in self._widgets.items():
             if key in defaults_dict and SETTING_METADATA[key].category == category:
                 if is_rdr2 and category == 'GTA V' and SETTING_METADATA[key].group in ('Looky System', 'Session Relays'):
                     continue
                 self._set_widget_value(key, widget, defaults_dict[key])
+        self._apply_selected_language_live()
         self._update_sort_column_options()
         self._update_high_rate_monitor_mode_state()
         self._update_restart_notice()
@@ -824,36 +816,8 @@ class SettingsDialog(SettingsDialogThemeMixin, SettingsDialogLookyMixin, Setting
         defaults_dict = cast('dict[str, SettingValue]', SETTING_DEFAULTS)
         self._populate_widgets(defaults_dict.get)
         self._apply_selected_theme_live()
+        self._apply_selected_language_live()
         self._update_restart_notice()
-
-    def _export_settings(self) -> None:
-        """Export current in-memory settings to a user-chosen settings.json file."""
-        file_path, _ = QFileDialog.getSaveFileName(self, 'Export Settings', 'settings.json', 'JSON Files (*.json);;All Files (*.*)')
-        if not file_path:
-            return
-        try:
-            Path(file_path).write_text(Settings.serialize_to_json(), encoding='utf-8')
-        except OSError as e:
-            QMessageBox.critical(self, TITLE, f'Failed to export settings:\n\n{e}')
-            return
-        QMessageBox.information(self, TITLE, 'Settings exported successfully.')
-
-    def _import_settings(self) -> None:
-        """Import settings from a user-chosen settings.json file and populate widgets without saving."""
-        file_path, _ = QFileDialog.getOpenFileName(self, 'Import Settings', '', 'JSON Files (*.json);;All Files (*.*)')
-        if not file_path:
-            return
-        try:
-            validated, flags = Settings.validate_settings_file(Path(file_path))
-        except (OSError, UnicodeDecodeError, ValueError, TypeError) as e:
-            QMessageBox.critical(self, TITLE, f'Failed to import settings:\n\n{e}')
-            return
-        self._populate_widgets(lambda key: cast('SettingValue', getattr(validated, key.upper())))
-        self._apply_selected_theme_live()
-        if 'invalid_datetime_columns_corrected' in flags:
-            QMessageBox.warning(self, TITLE, format_triple_quoted_text(format_invalid_datetime_columns_settings_message()))
-        self._update_restart_notice()
-        QMessageBox.information(self, TITLE, 'Settings imported successfully.')
 
     def _connect_widget_change_signals(self) -> None:
         """Connect change signals for all setting widgets to dynamically update dialog notices."""
@@ -907,29 +871,24 @@ class SettingsDialog(SettingsDialogThemeMixin, SettingsDialogLookyMixin, Setting
 
     def _update_sort_column_options(self, *_args: object) -> None:
         """Update table sort column combo boxes based on currently enabled columns."""
-        connected_widget = self._widgets.get('gui_columns_connected_shown')
-        connected_sort_widget = self._widgets.get('gui_connected_table_sort_column')
-        if connected_widget is not None and isinstance(connected_sort_widget, QComboBox):
-            checked_connected = {cb.objectName() for cb in connected_widget.findChildren(QCheckBox) if cb.isChecked()}
-            available_connected = [col for col in Settings.GUI_ALL_CONNECTED_COLUMNS if col in checked_connected or col in Settings.GUI_FORCED_COLUMNS]
-            current_selected = connected_sort_widget.currentText()
-            target_selected = current_selected if current_selected in available_connected else 'Last Rejoin'
-            with QSignalBlocker(connected_sort_widget):
-                connected_sort_widget.clear()
-                connected_sort_widget.addItems(available_connected)
-                connected_sort_widget.setCurrentText(target_selected)
-
-        disconnected_widget = self._widgets.get('gui_columns_disconnected_shown')
-        disconnected_sort_widget = self._widgets.get('gui_disconnected_table_sort_column')
-        if disconnected_widget is not None and isinstance(disconnected_sort_widget, QComboBox):
-            checked_disconnected = {cb.objectName() for cb in disconnected_widget.findChildren(QCheckBox) if cb.isChecked()}
-            available_disconnected = [col for col in Settings.GUI_ALL_DISCONNECTED_COLUMNS if col in checked_disconnected or col in Settings.GUI_FORCED_COLUMNS]
-            current_selected = disconnected_sort_widget.currentText()
-            target_selected = current_selected if current_selected in available_disconnected else 'Last Seen'
-            with QSignalBlocker(disconnected_sort_widget):
-                disconnected_sort_widget.clear()
-                disconnected_sort_widget.addItems(available_disconnected)
-                disconnected_sort_widget.setCurrentText(target_selected)
+        specs = (
+            ('gui_columns_connected_shown', 'gui_connected_table_sort_column', Settings.GUI_ALL_CONNECTED_COLUMNS, 'Last Rejoin'),
+            ('gui_columns_disconnected_shown', 'gui_disconnected_table_sort_column', Settings.GUI_ALL_DISCONNECTED_COLUMNS, 'Last Seen'),
+        )
+        for shown_key, sort_key, all_columns, fallback_col in specs:
+            shown_widget = self._widgets.get(shown_key)
+            sort_widget = self._widgets.get(sort_key)
+            if shown_widget is None or not isinstance(sort_widget, QComboBox):
+                continue
+            checked = {cb.objectName() for cb in shown_widget.findChildren(QCheckBox) if cb.isChecked()}
+            available = [col for col in all_columns if col in checked or col in Settings.GUI_FORCED_COLUMNS]
+            current_selected = combo_canonical_value(sort_widget)
+            target_selected = current_selected if current_selected in available else fallback_col
+            with QSignalBlocker(sort_widget):
+                sort_widget.clear()
+                for col in available:
+                    sort_widget.addItem(tr(col), col)
+                set_combo_by_canonical(sort_widget, target_selected, fallback=fallback_col)
 
     def _on_process_selection_applied(self) -> None:
         """Synchronize dialog widgets after TargetProcessDialog updates the process selector."""
@@ -979,16 +938,6 @@ class SettingsDialog(SettingsDialogThemeMixin, SettingsDialogLookyMixin, Setting
         self._saved = False
         self._save_settings()
         return self._saved
-
-    def _hide_secret_fields(self) -> None:
-        """Reset any revealed password / secret QLineEdits back to hidden."""
-        for widget in self._widgets.values():
-            if isinstance(widget, QLineEdit):
-                act = widget.property('secret_action')
-                if isinstance(act, QAction) and act.isChecked():
-                    act.setChecked(False)
-                elif isinstance(widget, SecretLineEdit) and widget.is_revealed:
-                    widget.set_revealed(revealed=False)
 
     def _on_tab_changed(self, _index: int) -> None:
         """Handle tab switching; automatically re-blurs Looky System sensitive fields and masks passwords."""

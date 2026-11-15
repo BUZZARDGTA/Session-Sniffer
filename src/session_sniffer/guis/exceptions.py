@@ -4,6 +4,9 @@ This module contains custom exception classes for GUI operations.
 """
 
 
+from session_sniffer.i18n import tr
+
+
 class PrimaryScreenNotFoundError(Exception):
     """Raised when no primary screen is detected in GUI operations."""
 
@@ -62,9 +65,13 @@ class UnsupportedScreenResolutionError(Exception):
             min_width: Minimum required width in pixels.
             min_height: Minimum required height in pixels.
         """
-        self.msgbox_text = (
-            f'Session Sniffer requires a minimum screen resolution of {min_width}x{min_height} pixels.\n\n'
-            f'Your current screen resolution: {screen_width}x{screen_height}\n\n'
-            'Please increase your screen resolution, lower your Windows display scale settings, or use a larger monitor to run Session Sniffer.'
+        self.msgbox_text = tr(
+            'Session Sniffer requires a minimum screen resolution of {min_width}x{min_height} pixels.\n\n'
+            'Your current screen resolution: {screen_width}x{screen_height}\n\n'
+            'Please increase your screen resolution, lower your Windows display scale settings, or use a larger monitor to run Session Sniffer.',
+            min_width=min_width,
+            min_height=min_height,
+            screen_width=screen_width,
+            screen_height=screen_height,
         )
         super().__init__(self.msgbox_text)

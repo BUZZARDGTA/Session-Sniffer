@@ -1,5 +1,6 @@
 """File, folder, and URL open helpers mixin for `MainWindow`."""
 
+import html
 import webbrowser
 from typing import TYPE_CHECKING
 
@@ -11,6 +12,7 @@ from PySide6.QtWidgets import (
     QFrame,
     QLabel,
     QMainWindow,
+    QMenu,
     QMenuBar,
     QMessageBox,
     QStyle,
@@ -48,11 +50,13 @@ from session_sniffer.constants.standalone import (
 )
 from session_sniffer.guis.detections_manager import DetectionsManagerDialog
 from session_sniffer.guis.interface_selection_dialog import InterfaceSelectionDialog
+from session_sniffer.guis.live_language import add_i18n_menu_actions
 from session_sniffer.guis.loading_overlay import run_async_with_loading
 from session_sniffer.guis.logs_manager import LogsManager
 from session_sniffer.guis.theming import ICONS_DIR_PATH
 from session_sniffer.guis.userip_manager import UserIPDatabasesManager
 from session_sniffer.guis.utils import activate_window, animate_button_feedback, scale_by_ui, set_clipboard_text, show_or_focus_window
+from session_sniffer.i18n import tr
 from session_sniffer.settings import Settings
 from session_sniffer.updater import UpdateCheckOutcome, check_for_updates
 
@@ -69,6 +73,9 @@ class FilesMixin(QMainWindow):
     _userip_manager_window: UserIPDatabasesManager | None
     _on_open_hotspot: Callable[[], None]
     _checking_for_updates: bool = False
+    _files_i18n_actions: list[tuple[QAction, str, str]] | None = None
+    _files_i18n_menus: list[tuple[QMenu, str, str | None]] | None = None
+    _files_about_action: QAction | None = None
 
     def _open_userip_manager(self) -> UserIPDatabasesManager:
         """Open the UserIP Databases Manager window, or focus the existing one."""
@@ -160,13 +167,13 @@ class FilesMixin(QMainWindow):
                 QMessageBox.information(
                     self,
                     TITLE,
-                    'You are running the latest version.',
+                    tr('You are running the latest version.'),
                 )
 
         run_async_with_loading(
             self,
-            'Checking for Updates\u2026',
-            'Contacting GitHub releases\u2026',
+            tr('Checking for Updates\u2026'),
+            tr('Contacting GitHub releases\u2026'),
             _fetch,
             _on_done,
         )
@@ -240,107 +247,99 @@ class FilesMixin(QMainWindow):
         """Open the crash.log file."""
         self.open_file(CRASH_LOG_PATH)
 
+    def _register_i18n_menu(self, menu: QMenu, title_key: str, tooltip_key: str | None = None) -> None:
+        if self._files_i18n_menus is None:
+            self._files_i18n_menus = []
+        self._files_i18n_menus.append((menu, title_key, tooltip_key))
+
+    def _add_i18n_menu_actions(self, menu: QMenu, specs: list[tuple[str, str, str, Callable[[], None]] | None]) -> None:
+        if self._files_i18n_actions is None:
+            self._files_i18n_actions = []
+        add_i18n_menu_actions(self, menu, ICONS_DIR_PATH, specs, self._files_i18n_actions)
+
+    def _refresh_files_menu_language_texts(self) -> None:
+        """Re-translate Data & Files and Help menus, submenus, and actions on language change."""
+        for menu, title_key, tooltip_key in self._files_i18n_menus or ():
+            menu.setTitle(tr(title_key))
+            if tooltip_key is not None:
+                menu.menuAction().setToolTip(tr(tooltip_key))
+        for action, text_key, tooltip_key in self._files_i18n_actions or ():
+            action.setText(tr(text_key))
+            action.setToolTip(tr(tooltip_key))
+        if self._files_about_action is not None:
+            self._files_about_action.setText(tr('About'))
+            self._files_about_action.setToolTip(tr('About {title}', title=TITLE))
+
     def _build_data_menu(self, menu_bar: QMenuBar) -> None:
         """Build the Data & Files menu and attach folder, file, and log navigation actions."""
-        data_menu = menu_bar.addMenu('Data && Files')
+        data_menu = menu_bar.addMenu(tr('Data && Files'))
         if not data_menu:
             message = 'Failed to create Data & Files menu'
             raise RuntimeError(message)
         data_menu.setToolTipsVisible(True)
+        self._register_i18n_menu(data_menu, 'Data && Files')
 
-        open_local_appdata_action = QAction(QIcon(str(ICONS_DIR_PATH / 'folder.svg')), 'Open Local AppData Folder', self)
-        open_local_appdata_action.setToolTip('Open Local AppData\\Session Sniffer in your file manager')
-        open_local_appdata_action.triggered.connect(self._open_local_appdata_folder)
-        data_menu.addAction(open_local_appdata_action)
+        self._add_i18n_menu_actions(
+            data_menu,
+            [
+                ('folder.svg', 'Open Local AppData Folder', 'Open Local AppData\\Session Sniffer in your file manager', self._open_local_appdata_folder),
+                ('folder.svg', 'Open Roaming AppData Folder', 'Open Roaming AppData\\Session Sniffer in your file manager', self._open_roaming_appdata_folder),
+                None,
+                ('folder.svg', 'Open UserIP Databases Folder', 'Open Roaming AppData\\Session Sniffer\\UserIP Databases', self._open_userip_databases_folder),
+                ('folder.svg', 'Open UserIP Backups Folder', 'Open Roaming AppData\\Session Sniffer\\UserIP Databases Backups', self._open_userip_databases_backups_folder),
+                ('folder.svg', 'Open User Scripts Folder', 'Open Roaming AppData\\Session Sniffer\\scripts', self._open_user_scripts_folder),
+                None,
+            ],
+        )
 
-        open_roaming_appdata_action = QAction(QIcon(str(ICONS_DIR_PATH / 'folder.svg')), 'Open Roaming AppData Folder', self)
-        open_roaming_appdata_action.setToolTip('Open Roaming AppData\\Session Sniffer in your file manager')
-        open_roaming_appdata_action.triggered.connect(self._open_roaming_appdata_folder)
-        data_menu.addAction(open_roaming_appdata_action)
-
-        data_menu.addSeparator()
-
-        open_userip_databases_action = QAction(QIcon(str(ICONS_DIR_PATH / 'folder.svg')), 'Open UserIP Databases Folder', self)
-        open_userip_databases_action.setToolTip('Open Roaming AppData\\Session Sniffer\\UserIP Databases')
-        open_userip_databases_action.triggered.connect(self._open_userip_databases_folder)
-        data_menu.addAction(open_userip_databases_action)
-
-        open_userip_databases_backups_action = QAction(QIcon(str(ICONS_DIR_PATH / 'folder.svg')), 'Open UserIP Backups Folder', self)
-        open_userip_databases_backups_action.setToolTip('Open Roaming AppData\\Session Sniffer\\UserIP Databases Backups')
-        open_userip_databases_backups_action.triggered.connect(self._open_userip_databases_backups_folder)
-        data_menu.addAction(open_userip_databases_backups_action)
-
-        open_user_scripts_action = QAction(QIcon(str(ICONS_DIR_PATH / 'folder.svg')), 'Open User Scripts Folder', self)
-        open_user_scripts_action.setToolTip('Open Roaming AppData\\Session Sniffer\\scripts')
-        open_user_scripts_action.triggered.connect(self._open_user_scripts_folder)
-        data_menu.addAction(open_user_scripts_action)
-
-        data_menu.addSeparator()
-
-        app_logs_submenu = data_menu.addMenu(QIcon(str(ICONS_DIR_PATH / 'file-text.svg')), 'Application Logs')
+        app_logs_submenu = data_menu.addMenu(QIcon(str(ICONS_DIR_PATH / 'file-text.svg')), tr('Application Logs'))
         if not app_logs_submenu:
             message = 'Failed to create Application Logs submenu'
             raise RuntimeError(message)
         app_logs_submenu.setToolTipsVisible(True)
-        app_logs_submenu.menuAction().setToolTip('Open or browse CSV application log files (detections, protection, UserIP)')
+        app_logs_tooltip = 'Open or browse CSV application log files (detections, protection, UserIP)'
+        app_logs_submenu.menuAction().setToolTip(tr(app_logs_tooltip))
+        self._register_i18n_menu(app_logs_submenu, 'Application Logs', app_logs_tooltip)
 
-        open_logging_folder_action = QAction(QIcon(str(ICONS_DIR_PATH / 'folder.svg')), 'Open Logging Folder', self)
-        open_logging_folder_action.setToolTip('Open Local AppData\\Session Sniffer\\Logging')
-        open_logging_folder_action.triggered.connect(self._open_logging_folder)
-        app_logs_submenu.addAction(open_logging_folder_action)
+        self._add_i18n_menu_actions(
+            app_logs_submenu,
+            [
+                ('folder.svg', 'Open Logging Folder', 'Open Local AppData\\Session Sniffer\\Logging', self._open_logging_folder),
+                ('folder.svg', 'Open Sessions Folder', 'Open Local AppData\\Session Sniffer\\Logging\\Sessions', self._open_sessions_logging_folder),
+                None,
+                ('file-text.svg', 'Open Detection_Logging.csv', 'Open Local AppData\\Session Sniffer\\Logging\\Detection_Logging.csv', self._open_detection_log_file),
+                ('file-text.svg', 'Open Protection_Logging.csv', 'Open Local AppData\\Session Sniffer\\Logging\\Protection_Logging.csv', self._open_protection_log_file),
+                ('file-text.svg', 'Open UserIP_Logging.csv', 'Open Local AppData\\Session Sniffer\\Logging\\UserIP_Logging.csv', self._open_userip_log_file),
+            ],
+        )
 
-        open_sessions_logs_action = QAction(QIcon(str(ICONS_DIR_PATH / 'folder.svg')), 'Open Sessions Folder', self)
-        open_sessions_logs_action.setToolTip('Open Local AppData\\Session Sniffer\\Logging\\Sessions')
-        open_sessions_logs_action.triggered.connect(self._open_sessions_logging_folder)
-        app_logs_submenu.addAction(open_sessions_logs_action)
-
-        app_logs_submenu.addSeparator()
-
-        open_detection_log_action = QAction(QIcon(str(ICONS_DIR_PATH / 'file-text.svg')), 'Open Detection_Logging.csv', self)
-        open_detection_log_action.setToolTip('Open Local AppData\\Session Sniffer\\Logging\\Detection_Logging.csv')
-        open_detection_log_action.triggered.connect(self._open_detection_log_file)
-        app_logs_submenu.addAction(open_detection_log_action)
-
-        open_protection_log_action = QAction(QIcon(str(ICONS_DIR_PATH / 'file-text.svg')), 'Open Protection_Logging.csv', self)
-        open_protection_log_action.setToolTip('Open Local AppData\\Session Sniffer\\Logging\\Protection_Logging.csv')
-        open_protection_log_action.triggered.connect(self._open_protection_log_file)
-        app_logs_submenu.addAction(open_protection_log_action)
-
-        open_userip_log_action = QAction(QIcon(str(ICONS_DIR_PATH / 'file-text.svg')), 'Open UserIP_Logging.csv', self)
-        open_userip_log_action.setToolTip('Open Local AppData\\Session Sniffer\\Logging\\UserIP_Logging.csv')
-        open_userip_log_action.triggered.connect(self._open_userip_log_file)
-        app_logs_submenu.addAction(open_userip_log_action)
-
-        debug_logs_submenu = data_menu.addMenu(QIcon(str(ICONS_DIR_PATH / 'bug.svg')), 'Debug Logs')
+        debug_logs_submenu = data_menu.addMenu(QIcon(str(ICONS_DIR_PATH / 'bug.svg')), tr('Debug Logs'))
         if not debug_logs_submenu:
             message = 'Failed to create Debug Logs submenu'
             raise RuntimeError(message)
         debug_logs_submenu.setToolTipsVisible(True)
-        debug_logs_submenu.menuAction().setToolTip('Open or browse the application debug log files')
+        debug_logs_tooltip = 'Open or browse the application debug log files'
+        debug_logs_submenu.menuAction().setToolTip(tr(debug_logs_tooltip))
+        self._register_i18n_menu(debug_logs_submenu, 'Debug Logs', debug_logs_tooltip)
 
-        open_debug_logs_folder_action = QAction(QIcon(str(ICONS_DIR_PATH / 'folder.svg')), 'Open Debug Logs Folder', self)
-        open_debug_logs_folder_action.setToolTip('Open Local AppData\\Session Sniffer\\Debug')
-        open_debug_logs_folder_action.triggered.connect(self._open_debug_logs_folder)
-        debug_logs_submenu.addAction(open_debug_logs_folder_action)
-
-        debug_logs_submenu.addSeparator()
-
-        open_debug_log_action = QAction(QIcon(str(ICONS_DIR_PATH / 'file-text.svg')), 'Open debug.log', self)
-        open_debug_log_action.setToolTip('Open Local AppData\\Session Sniffer\\Debug\\debug.log')
-        open_debug_log_action.triggered.connect(self._open_debug_log_file)
-        debug_logs_submenu.addAction(open_debug_log_action)
-
-        open_crash_log_action = QAction(QIcon(str(ICONS_DIR_PATH / 'file-text.svg')), 'Open crash.log', self)
-        open_crash_log_action.setToolTip('Open Local AppData\\Session Sniffer\\Debug\\crash.log')
-        open_crash_log_action.triggered.connect(self._open_crash_log_file)
-        debug_logs_submenu.addAction(open_crash_log_action)
+        self._add_i18n_menu_actions(
+            debug_logs_submenu,
+            [
+                ('folder.svg', 'Open Debug Logs Folder', 'Open Local AppData\\Session Sniffer\\Debug', self._open_debug_logs_folder),
+                None,
+                ('file-text.svg', 'Open debug.log', 'Open Local AppData\\Session Sniffer\\Debug\\debug.log', self._open_debug_log_file),
+                ('file-text.svg', 'Open crash.log', 'Open Local AppData\\Session Sniffer\\Debug\\crash.log', self._open_crash_log_file),
+            ],
+        )
 
         data_menu.addSeparator()
 
-        open_settings_action = QAction(QIcon(str(ICONS_DIR_PATH / 'file-cog.svg')), 'Open settings.json', self)
-        open_settings_action.setToolTip('Open Roaming AppData\\Session Sniffer\\settings.json')
-        open_settings_action.triggered.connect(self._open_settings_file)
-        data_menu.addAction(open_settings_action)
+        self._add_i18n_menu_actions(
+            data_menu,
+            [
+                ('file-cog.svg', 'Open settings.json', 'Open Roaming AppData\\Session Sniffer\\settings.json', self._open_settings_file),
+            ],
+        )
 
     def _show_about_dialog(self) -> None:
         """Show the About dialog with version, build, and system info."""
@@ -359,7 +358,7 @@ class FilesMixin(QMainWindow):
         )
 
         dialog = QDialog(self)
-        dialog.setWindowTitle(f'About {TITLE}')
+        dialog.setWindowTitle(tr('About {title}', title=TITLE))
         dialog.setMinimumWidth(scale_by_ui(440))
 
         layout = QVBoxLayout(dialog)
@@ -372,18 +371,18 @@ class FilesMixin(QMainWindow):
             icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
             layout.addWidget(icon_label)
 
-        title_label = QLabel(f'<b style="font-size:13pt">{TITLE}</b>')
+        title_label = QLabel(f'<b style="font-size:13pt">{html.escape(TITLE)}</b>')
         title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(title_label)
 
-        desc_label = QLabel('A packet sniffer designed for Peer-To-Peer (P2P) video games on PC and consoles.')
+        desc_label = QLabel(tr('A packet sniffer designed for Peer-To-Peer (P2P) video games on PC and consoles.'))
         desc_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         desc_label.setWordWrap(True)
         layout.addWidget(desc_label)
 
         layout.addSpacing(6)
 
-        build_header = QLabel('<b>Build Information</b>')
+        build_header = QLabel(f'<b>{html.escape(tr("Build Information"))}</b>')
         layout.addWidget(build_header)
         build_sep = QFrame()
         build_sep.setFrameShape(QFrame.Shape.HLine)
@@ -391,15 +390,15 @@ class FilesMixin(QMainWindow):
         layout.addWidget(build_sep)
         build_info = QLabel(
             '<table cellspacing="2">'
-            f'<tr><td><b>Version</b></td><td>&nbsp;&nbsp;{VERSION}</td></tr>'
+            f'<tr><td><b>{html.escape(tr("Version"))}</b></td><td>&nbsp;&nbsp;{html.escape(VERSION)}</td></tr>'
             '<tr><td style="padding-top:0px"></td></tr>'
-            f'<tr><td><b>Release Tag</b></td><td>&nbsp;&nbsp;{RELEASE_TAG}</td></tr>'
-            f'<tr><td><b>Release Date</b></td><td>&nbsp;&nbsp;{RELEASE_DATE}</td></tr>'
-            f'<tr><td><b>Commit Sha</b></td><td>&nbsp;&nbsp;{COMMIT_SHA}</td></tr>'
-            f'<tr><td><b>Commit Date</b></td><td>&nbsp;&nbsp;{COMMIT_DATE}</td></tr>'
+            f'<tr><td><b>{html.escape(tr("Release Tag"))}</b></td><td>&nbsp;&nbsp;{html.escape(str(RELEASE_TAG))}</td></tr>'
+            f'<tr><td><b>{html.escape(tr("Release Date"))}</b></td><td>&nbsp;&nbsp;{html.escape(str(RELEASE_DATE))}</td></tr>'
+            f'<tr><td><b>{html.escape(tr("Commit Sha"))}</b></td><td>&nbsp;&nbsp;{html.escape(str(COMMIT_SHA))}</td></tr>'
+            f'<tr><td><b>{html.escape(tr("Commit Date"))}</b></td><td>&nbsp;&nbsp;{html.escape(str(COMMIT_DATE))}</td></tr>'
             '<tr><td style="padding-top:0px"></td></tr>'
-            f'<tr><td><b>PySide6 Version</b></td><td>&nbsp;&nbsp;{PYSIDE6_VERSION}</td></tr>'
-            f'<tr><td><b>OS Info</b></td><td>&nbsp;&nbsp;{OS_INFO}</td></tr>'
+            f'<tr><td><b>{html.escape(tr("PySide6 Version"))}</b></td><td>&nbsp;&nbsp;{html.escape(PYSIDE6_VERSION)}</td></tr>'
+            f'<tr><td><b>{html.escape(tr("OS Info"))}</b></td><td>&nbsp;&nbsp;{html.escape(OS_INFO)}</td></tr>'
             '</table>',
         )
         build_info.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
@@ -408,8 +407,10 @@ class FilesMixin(QMainWindow):
         layout.addSpacing(8)
 
         button_box = QDialogButtonBox()
-        copy_button = button_box.addButton('Copy Details', QDialogButtonBox.ButtonRole.ActionRole)
-        button_box.addButton(QDialogButtonBox.StandardButton.Close)
+        copy_button = button_box.addButton(tr('Copy Details'), QDialogButtonBox.ButtonRole.ActionRole)
+        close_button = button_box.addButton(QDialogButtonBox.StandardButton.Close)
+        if close_button:
+            close_button.setText(tr('Close'))
 
         if copy_button:
             copy_button.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -427,59 +428,32 @@ class FilesMixin(QMainWindow):
 
     def _build_help_menu(self, menu_bar: QMenuBar) -> None:
         """Build the Help menu and attach documentation, community, and about actions."""
-        help_menu = menu_bar.addMenu('Help')
+        help_menu = menu_bar.addMenu(tr('Help'))
         if not help_menu:
             message = 'Failed to create Help menu'
             raise RuntimeError(message)
         help_menu.setToolTipsVisible(True)
+        self._register_i18n_menu(help_menu, 'Help')
 
-        repo_action = QAction(QIcon(str(ICONS_DIR_PATH / 'github.svg')), 'Project Repository', self)
-        repo_action.setToolTip('Open the Session Sniffer GitHub repository in your default web browser')
-        repo_action.triggered.connect(self._open_project_repo)
-        help_menu.addAction(repo_action)
+        self._add_i18n_menu_actions(
+            help_menu,
+            [
+                ('github.svg', 'Project Repository', 'Open the Session Sniffer GitHub repository in your default web browser', self._open_project_repo),
+                ('book-text.svg', 'Documentation', 'View the complete documentation and user guide for Session Sniffer', self._open_documentation),
+                ('lightbulb.svg', 'Tips and Tricks', 'Learn optimization strategies, hidden features, and best practices', self._open_tips_and_tricks),
+                ('rotate-ccw-clock.svg', 'Release Notes', 'View the release history and notes on GitHub', self._open_release_notes),
+                ('scale.svg', 'View License', 'View the GNU General Public License (GPLv3) for Session Sniffer', self._view_license),
+                None,
+                ('bug.svg', 'Report Issue', 'Open a new issue on GitHub to report a bug or request a feature', self._report_issue),
+                ('discord.svg', 'Discord Server', 'Join the official Session Sniffer Discord community for support and updates', self._join_discord),
+                None,
+                ('cloud-download.svg', 'Check for Updates', 'Check GitHub for a newer version of Session Sniffer', self._check_for_updates),
+                None,
+            ],
+        )
 
-        docs_action = QAction(QIcon(str(ICONS_DIR_PATH / 'book-text.svg')), 'Documentation', self)
-        docs_action.setToolTip('View the complete documentation and user guide for Session Sniffer')
-        docs_action.triggered.connect(self._open_documentation)
-        help_menu.addAction(docs_action)
-
-        tips_action = QAction(QIcon(str(ICONS_DIR_PATH / 'lightbulb.svg')), 'Tips and Tricks', self)
-        tips_action.setToolTip('Learn optimization strategies, hidden features, and best practices')
-        tips_action.triggered.connect(self._open_tips_and_tricks)
-        help_menu.addAction(tips_action)
-
-        release_notes_action = QAction(QIcon(str(ICONS_DIR_PATH / 'rotate-ccw-clock.svg')), 'Release Notes', self)
-        release_notes_action.setToolTip('View the release history and notes on GitHub')
-        release_notes_action.triggered.connect(self._open_release_notes)
-        help_menu.addAction(release_notes_action)
-
-        license_action = QAction(QIcon(str(ICONS_DIR_PATH / 'scale.svg')), 'View License', self)
-        license_action.setToolTip('View the GNU General Public License (GPLv3) for Session Sniffer')
-        license_action.triggered.connect(self._view_license)
-        help_menu.addAction(license_action)
-
-        help_menu.addSeparator()
-
-        report_issue_action = QAction(QIcon(str(ICONS_DIR_PATH / 'bug.svg')), 'Report Issue', self)
-        report_issue_action.setToolTip('Open a new issue on GitHub to report a bug or request a feature')
-        report_issue_action.triggered.connect(self._report_issue)
-        help_menu.addAction(report_issue_action)
-
-        discord_action = QAction(QIcon(str(ICONS_DIR_PATH / 'discord.svg')), 'Discord Server', self)
-        discord_action.setToolTip('Join the official Session Sniffer Discord community for support and updates')
-        discord_action.triggered.connect(self._join_discord)
-        help_menu.addAction(discord_action)
-
-        help_menu.addSeparator()
-
-        check_updates_action = QAction(QIcon(str(ICONS_DIR_PATH / 'cloud-download.svg')), 'Check for Updates', self)
-        check_updates_action.setToolTip('Check GitHub for a newer version of Session Sniffer')
-        check_updates_action.triggered.connect(self._check_for_updates)
-        help_menu.addAction(check_updates_action)
-
-        help_menu.addSeparator()
-
-        about_action = QAction(QIcon(str(ICONS_DIR_PATH / 'info.svg')), 'About', self)
-        about_action.setToolTip(f'About {TITLE}')
+        about_action = QAction(QIcon(str(ICONS_DIR_PATH / 'info.svg')), tr('About'), self)
+        about_action.setToolTip(tr('About {title}', title=TITLE))
         about_action.triggered.connect(self._show_about_dialog)
         help_menu.addAction(about_action)
+        self._files_about_action = about_action

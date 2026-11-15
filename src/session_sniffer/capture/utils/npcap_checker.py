@@ -29,6 +29,7 @@ from session_sniffer.capture.process import iter_running_processes
 from session_sniffer.capture.utils.ctypes_win32 import is_service_running, iter_visible_window_titles
 from session_sniffer.error_messages import format_npcap_required_message
 from session_sniffer.guis.dependency_prompt_dialog import show_dependency_prompt
+from session_sniffer.i18n import tr
 from session_sniffer.logging_setup import flush_all_loggers
 from session_sniffer.utils import is_pyinstaller_compiled, run_elevated_powershell_command
 
@@ -123,19 +124,21 @@ def get_linux_permissions_required_message() -> str:
     """Format the message explaining the required packet capture capabilities on Linux."""
     real_executable = shlex.quote(os.path.realpath(sys.executable))
     if is_pyinstaller_compiled():
-        return (
+        return tr(
             'Session Sniffer requires root privileges or packet capture capabilities to capture network traffic on Linux.\n\n'
             'To grant the required capabilities to the executable without running as root, execute:\n'
-            f'  sudo setcap cap_net_raw,cap_net_admin,cap_sys_ptrace=eip {real_executable}\n\n'
+            '  sudo setcap cap_net_raw,cap_net_admin,cap_sys_ptrace=eip {real_executable}\n\n'
             'Alternatively, run Session Sniffer with root privileges:\n'
-            f'  sudo {real_executable}'
+            '  sudo {real_executable}',
+            real_executable=real_executable,
         )
-    return (
+    return tr(
         'Session Sniffer requires root privileges or the CAP_NET_RAW capability to capture network traffic on Linux.\n\n'
         'To grant the required capability to Python without running as root, execute:\n'
-        f'  sudo setcap cap_net_raw,cap_net_admin=eip {real_executable}\n\n'
+        '  sudo setcap cap_net_raw,cap_net_admin=eip {real_executable}\n\n'
         'Alternatively, run Session Sniffer with root privileges:\n'
-        '  sudo -E env PATH=$PATH python3 -m session_sniffer'
+        '  sudo -E env PATH=$PATH python3 -m session_sniffer',
+        real_executable=real_executable,
     )
 
 
@@ -152,26 +155,26 @@ def can_capture_packets_on_darwin() -> bool:
 
 def get_darwin_permissions_required_message() -> str:
     """Format the message explaining the required BPF capture device permissions on macOS."""
-    return (
+    return tr(
         'Session Sniffer requires read and write permissions to BPF packet capture devices (/dev/bpf*) on macOS.\n\n'
         'To grant capture permissions to BPF devices, run the following in Terminal:\n'
         '  sudo chmod 666 /dev/bpf*\n\n'
-        "Alternatively, install Wireshark's 'ChmodBPF' package to retain BPF permissions across reboots."
+        "Alternatively, install Wireshark's 'ChmodBPF' package to retain BPF permissions across reboots.",
     )
 
 
 def ensure_darwin_capture_ready() -> None:
     """Ensure that libpcap is available and BPF capture permissions are granted on macOS."""
     if not is_libpcap_installed() and not show_dependency_prompt(
-        title='libpcap Required',
-        message='Session Sniffer requires libpcap on macOS to capture packets.\n\nPlease verify that libpcap is present in /usr/lib.',
+        title=tr('libpcap Required'),
+        message=tr('Session Sniffer requires libpcap on macOS to capture packets.\n\nPlease verify that libpcap is present in /usr/lib.'),
         condition=is_libpcap_installed,
         status_callback=_get_libpcap_status,
     ):
         sys.exit(1)
 
     if not can_capture_packets_on_darwin() and not show_dependency_prompt(
-        title='Capture Permissions Required',
+        title=tr('Capture Permissions Required'),
         message=get_darwin_permissions_required_message(),
         condition=can_capture_packets_on_darwin,
         status_callback=_get_darwin_permissions_status,
@@ -182,8 +185,8 @@ def ensure_darwin_capture_ready() -> None:
 def ensure_libpcap_installed() -> None:
     """Ensure that libpcap is installed and capture permissions are granted on Linux."""
     if not is_libpcap_installed() and not show_dependency_prompt(
-        title='libpcap Required',
-        message=LIBPCAP_REQUIRED_MESSAGE,
+        title=tr('libpcap Required'),
+        message=tr(LIBPCAP_REQUIRED_MESSAGE),
         condition=is_libpcap_installed,
         status_callback=_get_libpcap_status,
     ):
@@ -199,13 +202,13 @@ def ensure_libpcap_installed() -> None:
 
     def _get_status() -> tuple[str, str]:
         if can_capture_packets_on_linux():
-            return 'Capture permissions verified!', 'Resuming Session Sniffer…'
+            return tr('Capture permissions verified!'), tr('Resuming Session Sniffer…')
         if not had_file_caps_initially and _has_linux_executable_file_capabilities():
-            return 'Capture permissions verified!', 'Restarting Session Sniffer…'
+            return tr('Capture permissions verified!'), tr('Restarting Session Sniffer…')
         return _get_linux_permissions_status()
 
     if not show_dependency_prompt(
-        title='Capture Permissions Required',
+        title=tr('Capture Permissions Required'),
         message=get_linux_permissions_required_message(),
         condition=_is_linux_capture_ready,
         status_callback=_get_status,
@@ -315,22 +318,22 @@ def _is_npcap_service_running() -> bool:
 def _get_libpcap_status() -> tuple[str, str]:
     """Return dynamic status for libpcap installation on Linux."""
     if is_libpcap_installed():
-        return 'libpcap detected!', 'Resuming Session Sniffer…'
-    return 'Listening for installation…', 'Install libpcap via your package manager to continue.'
+        return tr('libpcap detected!'), tr('Resuming Session Sniffer…')
+    return tr('Listening for installation…'), tr('Install libpcap via your package manager to continue.')
 
 
 def _get_linux_permissions_status() -> tuple[str, str]:
     """Return dynamic status for Linux packet capture permissions."""
     if can_capture_packets_on_linux():
-        return 'Capture permissions verified!', 'Resuming Session Sniffer…'
-    return 'Listening for permissions…', 'Grant capture capabilities or run with elevated privileges.'
+        return tr('Capture permissions verified!'), tr('Resuming Session Sniffer…')
+    return tr('Listening for permissions…'), tr('Grant capture capabilities or run with elevated privileges.')
 
 
 def _get_darwin_permissions_status() -> tuple[str, str]:
     """Return dynamic status for macOS packet capture permissions."""
     if can_capture_packets_on_darwin():
-        return ('Capture permissions verified!', 'Resuming Session Sniffer…')
-    return ('Listening for BPF device permissions…', 'Run "sudo chmod 666 /dev/bpf*" in Terminal to grant permissions.')
+        return (tr('Capture permissions verified!'), tr('Resuming Session Sniffer…'))
+    return (tr('Listening for BPF device permissions…'), tr('Run "sudo chmod 666 /dev/bpf*" in Terminal to grant permissions.'))
 
 
 def get_npcap_status() -> tuple[str, str]:
@@ -351,11 +354,11 @@ def get_npcap_status() -> tuple[str, str]:
         if setup_active:
             _tracker.step = _InstallStep.SETUP_IN_PROGRESS
             _tracker.step_start_time = now
-            status = ('Npcap setup in progress…', 'Waiting for installation to proceed in the setup wizard.')
+            status = (tr('Npcap setup in progress…'), tr('Waiting for installation to proceed in the setup wizard.'))
         elif is_npcap_installed():
-            status = ('Npcap driver verified!', 'Resuming Session Sniffer…')
+            status = (tr('Npcap driver verified!'), tr('Resuming Session Sniffer…'))
         else:
-            status = ('Listening for installation…', 'Download and run the Npcap installer from the official website.')
+            status = (tr('Listening for installation…'), tr('Download and run the Npcap installer from the official website.'))
 
     else:
         elapsed = now - _tracker.step_start_time
@@ -363,21 +366,21 @@ def get_npcap_status() -> tuple[str, str]:
         if _tracker.step == _InstallStep.SETUP_IN_PROGRESS:
             if not setup_active and not (files_present or registry_installed):
                 _tracker.reset()
-                status = ('Listening for installation…', 'Download and run the Npcap installer from the official website.')
+                status = (tr('Listening for installation…'), tr('Download and run the Npcap installer from the official website.'))
             elif elapsed >= SETUP_STEP_MIN_DURATION_SECONDS and (files_present or registry_installed):
                 _tracker.step = _InstallStep.TESTING_REGISTRY
                 _tracker.step_start_time = now
-                status = ('Testing registry path…', 'Driver files detected — waiting for registry configuration.')
+                status = (tr('Testing registry path…'), tr('Driver files detected — waiting for registry configuration.'))
             else:
-                status = ('Npcap setup in progress…', 'Waiting for installation to proceed in the setup wizard.')
+                status = (tr('Npcap setup in progress…'), tr('Waiting for installation to proceed in the setup wizard.'))
 
         elif _tracker.step == _InstallStep.TESTING_REGISTRY:
             if elapsed >= SETUP_STEP_MIN_DURATION_SECONDS and registry_installed:
                 _tracker.step = _InstallStep.TESTING_SERVICE
                 _tracker.step_start_time = now
-                status = ('Testing driver service query…', 'Registry verified — waiting for the Npcap driver service to start.')
+                status = (tr('Testing driver service query…'), tr('Registry verified — waiting for the Npcap driver service to start.'))
             else:
-                status = ('Testing registry path…', 'Driver files detected — waiting for registry configuration.')
+                status = (tr('Testing registry path…'), tr('Driver files detected — waiting for registry configuration.'))
 
         elif _tracker.step == _InstallStep.TESTING_SERVICE:
             service_running = _is_npcap_service_running()
@@ -385,22 +388,22 @@ def get_npcap_status() -> tuple[str, str]:
                 if setup_active:
                     _tracker.step = _InstallStep.WAITING_FOR_CLOSE
                     _tracker.step_start_time = now
-                    status = ('Installation detected — waiting for installer to close…', 'Click "Finish" to close the Npcap setup wizard and resume.')
+                    status = (tr('Installation detected — waiting for installer to close…'), tr('Click "Finish" to close the Npcap setup wizard and resume.'))
                 else:
                     _tracker.step = _InstallStep.VERIFIED
-                    status = ('Npcap driver verified!', 'Resuming Session Sniffer…')
+                    status = (tr('Npcap driver verified!'), tr('Resuming Session Sniffer…'))
             else:
-                status = ('Testing driver service query…', 'Registry verified — waiting for the Npcap driver service to start.')
+                status = (tr('Testing driver service query…'), tr('Registry verified — waiting for the Npcap driver service to start.'))
 
         elif _tracker.step == _InstallStep.WAITING_FOR_CLOSE:
             if not setup_active:
                 _tracker.step = _InstallStep.VERIFIED
-                status = ('Npcap driver verified!', 'Resuming Session Sniffer…')
+                status = (tr('Npcap driver verified!'), tr('Resuming Session Sniffer…'))
             else:
-                status = ('Installation detected — waiting for installer to close…', 'Click "Finish" to close the Npcap setup wizard and resume.')
+                status = (tr('Installation detected — waiting for installer to close…'), tr('Click "Finish" to close the Npcap setup wizard and resume.'))
 
         else:
-            status = ('Npcap driver verified!', 'Resuming Session Sniffer…')
+            status = (tr('Npcap driver verified!'), tr('Resuming Session Sniffer…'))
 
     return status
 
@@ -444,11 +447,11 @@ def ensure_npcap_installed() -> None:
     _tracker.reset()
 
     if not show_dependency_prompt(
-        title='Npcap Driver Required',
+        title=tr('Npcap Driver Required'),
         message=format_npcap_required_message(),
         condition=is_npcap_installed,
         status_callback=get_npcap_status,
-        action=('Open Download Page', open_npcap_download_page),
+        action=(tr('Open Download Page'), open_npcap_download_page),
     ):
         sys.exit(1)
 
