@@ -2311,7 +2311,6 @@
     "Sole P2P Player: {resolution}": "ერთადერთი P2P მოთამაშე: {resolution}",
     "Solo Public Session": "სოლო საჯარო სესია",
     "Solo Public Session ({duration}s)": "სოლო საჯარო სესია ({duration}წმ)",
-    "Solo Public Session ({duration}s) [{hotkey}]": "სოლო საჯარო სესია ({duration}წმ) [{hotkey}]",
     "Solo Session Hotkey": "სოლო სესიის ცხელი კლავიში",
     "Solo Session Suspend Duration": "სოლო სესიის შეჩერების ხანგრძლივობა",
     "Some data may still be loading and missing from this notification": "ზოგიერთი მონაცემი შესაძლოა ჯერ კიდევ იტვირთებოდეს და აკლდეს ამ შეტყობინებას",

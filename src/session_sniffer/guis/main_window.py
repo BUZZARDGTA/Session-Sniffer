@@ -23,7 +23,7 @@ from session_sniffer.guis._main_header import SessionHeader
 from session_sniffer.guis._main_window_files_mixin import FilesMixin
 from session_sniffer.guis._main_window_game_mixin import GameMixin
 from session_sniffer.guis._main_window_looky_mixin import LookyMixin
-from session_sniffer.guis._main_window_shortcuts_mixin import ShortcutsMixin, append_shortcut_tooltip, format_action_with_shortcut
+from session_sniffer.guis._main_window_shortcuts_mixin import ShortcutsMixin, append_shortcut_tooltip
 from session_sniffer.guis._main_window_stats_mixin import StatsMixin
 from session_sniffer.guis._session_table_section import SessionStatusBar, SessionTableSection
 from session_sniffer.guis._settings_runtime import SettingValue, apply_notifications_toggle_changes, apply_runtime_settings_changes
@@ -421,7 +421,7 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, ShortcutsMixin, 
         self._main_i18n_menus.append((capture_menu, 'Capture'))
 
         toggle_hotkey = Settings.get_active_shortcut('toggle_capture_hotkey')
-        toggle_capture_action = QAction(QIcon(str(ICONS_DIR_PATH / 'circle-stop.svg')), format_action_with_shortcut(tr('Stop Capture'), toggle_hotkey), self)
+        toggle_capture_action = QAction(QIcon(str(ICONS_DIR_PATH / 'circle-stop.svg')), tr('Stop Capture'), self)
         toggle_capture_action.setToolTip(append_shortcut_tooltip(tr('Stop packet capture'), toggle_hotkey, is_global=True))
         toggle_capture_action.triggered.connect(self._toggle_capture)
         capture_menu.addAction(toggle_capture_action)
@@ -831,10 +831,9 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, ShortcutsMixin, 
     def _sync_capture_toggle_action(self) -> None:
         """Synchronize the toggle capture action icon, text, and tooltip with the current capture state."""
         is_running = self.capture.is_running()
-        base_text = tr('Stop Capture') if is_running else tr('Start Capture')
+        expected_text = tr('Stop Capture') if is_running else tr('Start Capture')
         base_tooltip = tr('Stop packet capture') if is_running else tr('Start packet capture')
         toggle_hotkey = Settings.get_active_shortcut('toggle_capture_hotkey')
-        expected_text = format_action_with_shortcut(base_text, toggle_hotkey)
         expected_tooltip = append_shortcut_tooltip(base_tooltip, toggle_hotkey, is_global=True)
         if self._actions.toggle_capture.text() == expected_text and self._actions.toggle_capture.toolTip() == expected_tooltip:
             return

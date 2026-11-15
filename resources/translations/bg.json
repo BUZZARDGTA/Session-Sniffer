@@ -2311,7 +2311,6 @@
     "Sole P2P Player: {resolution}": "Единствен P2P играч: {resolution}",
     "Solo Public Session": "Соло публична сесия",
     "Solo Public Session ({duration}s)": "Соло публична сесия ({duration}с)",
-    "Solo Public Session ({duration}s) [{hotkey}]": "Соло публична сесия ({duration}с) [{hotkey}]",
     "Solo Session Hotkey": "Клавишна комбинация за соло сесия",
     "Solo Session Suspend Duration": "Продължителност на спирането за соло сесия",
     "Some data may still be loading and missing from this notification": "Част от данните може все още да се зареждат и да липсват в това известие",

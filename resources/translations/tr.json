@@ -2311,7 +2311,6 @@
     "Sole P2P Player: {resolution}": "Tek P2P Oyuncu: {resolution}",
     "Solo Public Session": "Tek Kişilik Genel Oturum",
     "Solo Public Session ({duration}s)": "Tek Kişilik Genel Oturum ({duration}sn)",
-    "Solo Public Session ({duration}s) [{hotkey}]": "Tek Kişilik Genel Oturum ({duration}sn) [{hotkey}]",
     "Solo Session Hotkey": "Tek Kişilik Oturum Kısayolu",
     "Solo Session Suspend Duration": "Tek Kişilik Oturum Askıya Alma Süresi",
     "Some data may still be loading and missing from this notification": "Bazı veriler hâlâ yükleniyor olabilir ve bu bildirimde eksik olabilir",

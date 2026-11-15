@@ -2311,7 +2311,6 @@
     "Sole P2P Player: {resolution}": "Jedyny gracz P2P: {resolution}",
     "Solo Public Session": "Publiczna sesja solo",
     "Solo Public Session ({duration}s)": "Publiczna sesja solo ({duration} s)",
-    "Solo Public Session ({duration}s) [{hotkey}]": "Publiczna sesja solo ({duration} s) [{hotkey}]",
     "Solo Session Hotkey": "Skrót klawiszowy sesji solo",
     "Solo Session Suspend Duration": "Czas wstrzymania dla sesji solo",
     "Some data may still be loading and missing from this notification": "Niektóre dane mogą być nadal ładowane i nieobecne w tym powiadomieniu",

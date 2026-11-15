@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 from PySide6.QtGui import QAction, QIcon
 
 from session_sniffer.constants.standard import LOCAL_TZ
-from session_sniffer.guis._main_window_shortcuts_mixin import append_shortcut_tooltip, format_action_with_shortcut
+from session_sniffer.guis._main_window_shortcuts_mixin import append_shortcut_tooltip
 from session_sniffer.guis.live_language import register_language_refresh
 from session_sniffer.guis.theming import ICONS_DIR_PATH
 from session_sniffer.guis.utils import (
@@ -112,7 +112,7 @@ def setup_session_host_actions(
 
     def _apply_translations() -> None:
         redetect_hotkey = Settings.get_active_shortcut('redetect_host_hotkey')
-        redetect_host_action.setText(format_action_with_shortcut(tr('Re-detect Host'), redetect_hotkey))
+        redetect_host_action.setText(tr('Re-detect Host'))
         redetect_host_action.setToolTip(
             append_shortcut_tooltip(tr('Clear the current host and immediately re-trigger host detection'), redetect_hotkey, is_global=True),
         )

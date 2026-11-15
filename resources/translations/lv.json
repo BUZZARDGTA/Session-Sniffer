@@ -2311,7 +2311,6 @@
     "Sole P2P Player: {resolution}": "Vienīgais P2P spēlētājs: {resolution}",
     "Solo Public Session": "Solo publiskā sesija",
     "Solo Public Session ({duration}s)": "Solo publiskā sesija ({duration}s)",
-    "Solo Public Session ({duration}s) [{hotkey}]": "Solo publiskā sesija ({duration}s) [{hotkey}]",
     "Solo Session Hotkey": "Solo sesijas īsinājumtaustiņš",
     "Solo Session Suspend Duration": "Solo sesijas iesaldēšanas ilgums",
     "Some data may still be loading and missing from this notification": "Daļa datu vēl var tikt ielādēti un trūkt šajā paziņojumā",

@@ -2311,7 +2311,6 @@
     "Sole P2P Player: {resolution}": "Omuzannyi wa P2P Omu Yekka: {resolution}",
     "Solo Public Session": "Olutuula lw'Olukale Omu Yekka",
     "Solo Public Session ({duration}s)": "Olutuula lw'Olukale Omu Yekka ({duration}s)",
-    "Solo Public Session ({duration}s) [{hotkey}]": "Olutuula lw'Olukale Omu Yekka ({duration}s) [{hotkey}]",
     "Solo Session Hotkey": "Eppesa ery'Amangu ery'Olutuula Omu Yekka",
     "Solo Session Suspend Duration": "Obuwanvu bw'Okuyimiriza Olutuula Omu Yekka",
     "Some data may still be loading and missing from this notification": "Data emu eyinza okuba ekyattikibwa n'ebula mu kutegeeza kuno",

@@ -88,11 +88,6 @@ def parse_win32_hotkey_spec(hotkey: str | None) -> tuple[int, tuple[int, ...]] |
     return (mod_flags, primary_vks) if primary_vks is not None else None
 
 
-def format_action_with_shortcut(text: str, shortcut: str | None) -> str:
-    """Return *text* suffixed with `[shortcut]` when *shortcut* is configured."""
-    return f'{text} [{shortcut}]' if bool(shortcut) else text
-
-
 def append_shortcut_tooltip(tooltip: str, shortcut: str | None, *, is_global: bool = False) -> str:
     """Append a localized shortcut or global hotkey hint line to *tooltip* when *shortcut* is configured."""
     if shortcut is None or not shortcut:
@@ -262,12 +257,11 @@ class ShortcutsMixin(QMainWindow):
                 fallback_shortcut.setEnabled(True)
 
     def _sync_shortcut_action_labels(self) -> None:
-        """Refresh menu action texts and widget tooltips that display configured shortcuts."""
+        """Refresh menu action and widget tooltips that display configured shortcuts."""
         if not self._shortcuts_initialized:
             return
         self._sync_capture_toggle_action()
         open_settings_shortcut = Settings.get_active_shortcut('shortcut_open_settings')
-        self._open_settings_action.setText(format_action_with_shortcut(tr('Open Settings'), open_settings_shortcut))
         self._open_settings_action.setToolTip(append_shortcut_tooltip(tr('View and edit all application settings'), open_settings_shortcut))
         self._refresh_player_resolver_action_texts()
         self._refresh_looky_language_texts()

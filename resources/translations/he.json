@@ -2311,7 +2311,6 @@
     "Sole P2P Player: {resolution}": "שחקן P2P יחיד: {resolution}",
     "Solo Public Session": "סשן ציבורי בודד",
     "Solo Public Session ({duration}s)": "סשן ציבורי בודד ({duration} שנ׳)",
-    "Solo Public Session ({duration}s) [{hotkey}]": "סשן ציבורי בודד ({duration} שנ׳) [{hotkey}]",
     "Solo Session Hotkey": "מקש קיצור לסשן בודד",
     "Solo Session Suspend Duration": "משך השהיה לסשן בודד",
     "Some data may still be loading and missing from this notification": "חלק מהנתונים עשויים עדיין להיטען ולהיות חסרים מהתראה זו",

@@ -2311,7 +2311,6 @@
     "Sole P2P Player: {resolution}": "Ainoa P2P-pelaaja: {resolution}",
     "Solo Public Session": "Yksityinen julkinen istunto",
     "Solo Public Session ({duration}s)": "Yksityinen julkinen istunto ({duration} s)",
-    "Solo Public Session ({duration}s) [{hotkey}]": "Yksityinen julkinen istunto ({duration} s) [{hotkey}]",
     "Solo Session Hotkey": "Yksityisen istunnon pikanäppäin",
     "Solo Session Suspend Duration": "Yksityisen istunnon jäädytyksen kesto",
     "Some data may still be loading and missing from this notification": "Osa tiedoista saattaa vielä latautua ja puuttua tästä ilmoituksesta",

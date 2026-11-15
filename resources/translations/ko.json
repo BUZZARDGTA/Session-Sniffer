@@ -2311,7 +2311,6 @@
     "Sole P2P Player: {resolution}": "유일한 P2P 플레이어: {resolution}",
     "Solo Public Session": "단독 공개 세션",
     "Solo Public Session ({duration}s)": "단독 공개 세션 ({duration}초)",
-    "Solo Public Session ({duration}s) [{hotkey}]": "단독 공개 세션 ({duration}초) [{hotkey}]",
     "Solo Session Hotkey": "단독 세션 단축키",
     "Solo Session Suspend Duration": "단독 세션 일시 중단 시간",
     "Some data may still be loading and missing from this notification": "일부 데이터가 아직 로드 중이므로 이 알림에서 누락되었을 수 있습니다",

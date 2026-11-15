@@ -2311,7 +2311,6 @@
     "Sole P2P Player: {resolution}": "Enige P2P-speler: {resolution}",
     "Solo Public Session": "Openbare solosessie",
     "Solo Public Session ({duration}s)": "Openbare solosessie ({duration}s)",
-    "Solo Public Session ({duration}s) [{hotkey}]": "Openbare solosessie ({duration}s) [{hotkey}]",
     "Solo Session Hotkey": "Sneltoets voor solosessie",
     "Solo Session Suspend Duration": "Onderbrekingsduur voor solosessie",
     "Some data may still be loading and missing from this notification": "Sommige gegevens worden mogelijk nog geladen en ontbreken in deze melding",

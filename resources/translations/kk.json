@@ -2311,7 +2311,6 @@
     "Sole P2P Player: {resolution}": "Жалғыз P2P ойыншы: {resolution}",
     "Solo Public Session": "Оңаша ашық сеанс",
     "Solo Public Session ({duration}s)": "Оңаша ашық сеанс ({duration} с)",
-    "Solo Public Session ({duration}s) [{hotkey}]": "Оңаша ашық сеанс ({duration} с) [{hotkey}]",
     "Solo Session Hotkey": "Оңаша сеанс жылдам пернесі",
     "Solo Session Suspend Duration": "Оңаша сеанс үшін кідірту ұзақтығы",
     "Some data may still be loading and missing from this notification": "Кейбір деректер әлі жүктеліп жатқан болуы және осы хабарландыруда болмауы мүмкін",

@@ -2311,7 +2311,6 @@
     "Sole P2P Player: {resolution}": "唯一の P2P プレイヤー: {resolution}",
     "Solo Public Session": "ソロ公開セッション",
     "Solo Public Session ({duration}s)": "ソロ公開セッション ({duration} 秒)",
-    "Solo Public Session ({duration}s) [{hotkey}]": "ソロ公開セッション ({duration} 秒) [{hotkey}]",
     "Solo Session Hotkey": "ソロセッション ホットキー",
     "Solo Session Suspend Duration": "ソロセッション一時停止時間",
     "Some data may still be loading and missing from this notification": "一部のデータはまだ読み込み中のため、この通知には含まれていない場合があります",

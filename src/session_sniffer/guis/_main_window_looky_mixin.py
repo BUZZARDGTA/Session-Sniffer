@@ -6,7 +6,7 @@ from PySide6.QtGui import QAction, QIcon
 from PySide6.QtWidgets import QMainWindow, QMenu, QMessageBox
 
 from session_sniffer.background import trigger_looky_rescan_all_players
-from session_sniffer.guis._main_window_shortcuts_mixin import append_shortcut_tooltip, format_action_with_shortcut
+from session_sniffer.guis._main_window_shortcuts_mixin import append_shortcut_tooltip
 from session_sniffer.guis.looky_text import (
     configure_looky_action,
     get_looky_restriction,
@@ -27,9 +27,6 @@ if TYPE_CHECKING:
 
 def format_game_solo_action_text() -> str:
     """Return the label for the solo public session action."""
-    hotkey = Settings.get_active_shortcut('solo_session_hotkey')
-    if hotkey is not None:
-        return tr('Solo Public Session ({duration}s) [{hotkey}]', duration=Settings.solo_session_duration, hotkey=hotkey)
     return tr('Solo Public Session ({duration}s)', duration=Settings.solo_session_duration)
 
 
@@ -96,7 +93,7 @@ class LookyMixin(QMainWindow):
         crawler_hotkey = Settings.get_active_shortcut('looky_crawler_hotkey')
         looky_crawler_join_own_session_action = QAction(
             QIcon(str(ICONS_DIR_PATH / 'bot.svg')),
-            format_action_with_shortcut(tr('Request Crawler in My Session'), crawler_hotkey),
+            tr('Request Crawler in My Session'),
             self,
         )
         looky_crawler_join_own_session_action.setToolTip(
@@ -113,7 +110,7 @@ class LookyMixin(QMainWindow):
         rescan_hotkey = Settings.get_active_shortcut('looky_rescan_hotkey')
         looky_rescan_all_action = QAction(
             QIcon(str(ICONS_DIR_PATH / 'refresh-cw.svg')),
-            format_action_with_shortcut(tr('Rescan All Players'), rescan_hotkey),
+            tr('Rescan All Players'),
             self,
         )
         looky_rescan_all_action.setToolTip(
@@ -135,10 +132,8 @@ class LookyMixin(QMainWindow):
         self._looky_submenu.menuAction().setToolTip(tr('Looky System tools and shortcuts for GTA5 sessions'))
         self._looky_open_website_action.setText(tr('Open Website'))
         self._looky_open_website_action.setToolTip(tr('Open the Looky System website in your default browser'))
-        self._looky_crawler_join_own_session_action.setText(
-            format_action_with_shortcut(tr('Request Crawler in My Session'), Settings.get_active_shortcut('looky_crawler_hotkey')),
-        )
-        self._looky_rescan_all_action.setText(format_action_with_shortcut(tr('Rescan All Players'), Settings.get_active_shortcut('looky_rescan_hotkey')))
+        self._looky_crawler_join_own_session_action.setText(tr('Request Crawler in My Session'))
+        self._looky_rescan_all_action.setText(tr('Rescan All Players'))
         self._update_looky_actions()
 
     def _update_looky_actions(self) -> None:

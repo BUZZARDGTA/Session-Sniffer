@@ -2311,7 +2311,6 @@
     "Sole P2P Player: {resolution}": "Jediný P2P hráč: {resolution}",
     "Solo Public Session": "Samostatná veřejná relace",
     "Solo Public Session ({duration}s)": "Samostatná veřejná relace ({duration}s)",
-    "Solo Public Session ({duration}s) [{hotkey}]": "Samostatná veřejná relace ({duration}s) [{hotkey}]",
     "Solo Session Hotkey": "Klávesová zkratka samostatné relace",
     "Solo Session Suspend Duration": "Doba pozastavení pro samostatnou relaci",
     "Some data may still be loading and missing from this notification": "Některá data se mohou stále načítat a v tomto oznámení chybět",

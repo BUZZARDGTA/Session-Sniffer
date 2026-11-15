@@ -2311,7 +2311,6 @@
     "Sole P2P Player: {resolution}": "Enda P2P-spelaren: {resolution}",
     "Solo Public Session": "Offentlig solosession",
     "Solo Public Session ({duration}s)": "Offentlig solosession ({duration}s)",
-    "Solo Public Session ({duration}s) [{hotkey}]": "Offentlig solosession ({duration}s) [{hotkey}]",
     "Solo Session Hotkey": "Snabbtangent för solosession",
     "Solo Session Suspend Duration": "Pauslängd för solosession",
     "Some data may still be loading and missing from this notification": "Viss data kan fortfarande laddas och saknas i denna avisering",

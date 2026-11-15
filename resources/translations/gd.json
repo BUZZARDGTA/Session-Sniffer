@@ -2311,7 +2311,6 @@
     "Sole P2P Player: {resolution}": "Aon Chluicheadair P2P: {resolution}",
     "Solo Public Session": "Seisean Poblach Aonair",
     "Solo Public Session ({duration}s)": "Seisean Poblach Aonair ({duration}d)",
-    "Solo Public Session ({duration}s) [{hotkey}]": "Seisean Poblach Aonair ({duration}d) [{hotkey}]",
     "Solo Session Hotkey": "Putan-teth Seisean Aonair",
     "Solo Session Suspend Duration": "Fad Stad Sealach Seisean Aonair",
     "Some data may still be loading and missing from this notification": "Dh'fhaodadh cuid de dhàta a bhith ga luchdadh fhathast agus a dhìth bhon bhrath seo",

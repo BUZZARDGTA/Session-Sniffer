@@ -2311,7 +2311,6 @@
     "Sole P2P Player: {resolution}": "唯一 P2P 玩家：{resolution}",
     "Solo Public Session": "單人公開戰局",
     "Solo Public Session ({duration}s)": "單人公開戰局 ({duration} 秒)",
-    "Solo Public Session ({duration}s) [{hotkey}]": "單人公開戰局 ({duration} 秒) [{hotkey}]",
     "Solo Session Hotkey": "單人戰局快捷鍵",
     "Solo Session Suspend Duration": "單人戰局暫停持續時間",
     "Some data may still be loading and missing from this notification": "部分資料可能仍在載入中，此通知中可能會有所缺漏",

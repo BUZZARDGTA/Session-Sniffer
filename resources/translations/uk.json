@@ -2311,7 +2311,6 @@
     "Sole P2P Player: {resolution}": "Єдиний P2P-гравець: {resolution}",
     "Solo Public Session": "Публічна сесія наодинці",
     "Solo Public Session ({duration}s)": "Публічна сесія наодинці ({duration} с)",
-    "Solo Public Session ({duration}s) [{hotkey}]": "Публічна сесія наодинці ({duration} с) [{hotkey}]",
     "Solo Session Hotkey": "Гаряча клавіша одиночної сесії",
     "Solo Session Suspend Duration": "Тривалість призупинення для одиночної сесії",
     "Some data may still be loading and missing from this notification": "Деякі дані ще можуть завантажуватися й бути відсутніми в цьому сповіщенні",

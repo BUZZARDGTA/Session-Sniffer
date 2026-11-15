@@ -2311,7 +2311,6 @@
     "Sole P2P Player: {resolution}": "Jedini P2P igrač: {resolution}",
     "Solo Public Session": "Samostalna javna sesija",
     "Solo Public Session ({duration}s)": "Samostalna javna sesija ({duration}s)",
-    "Solo Public Session ({duration}s) [{hotkey}]": "Samostalna javna sesija ({duration}s) [{hotkey}]",
     "Solo Session Hotkey": "Tipkovni prečac za samostalnu sesiju",
     "Solo Session Suspend Duration": "Trajanje obustave za samostalnu sesiju",
     "Some data may still be loading and missing from this notification": "Neki se podaci možda još učitavaju i nedostaju u ovoj obavijesti",

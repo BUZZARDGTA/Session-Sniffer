@@ -21,7 +21,7 @@ from session_sniffer.guis._main_window_looky_mixin import (
     format_game_solo_tooltip,
     format_session_time_component,
 )
-from session_sniffer.guis._main_window_shortcuts_mixin import append_shortcut_tooltip, format_action_with_shortcut
+from session_sniffer.guis._main_window_shortcuts_mixin import append_shortcut_tooltip
 from session_sniffer.guis.session_host_diagnostics_dialog import show_session_host_diagnostics_dialog
 from session_sniffer.guis.session_host_history_window import SessionHostActionCallbacks, populate_host_history_submenu, setup_session_host_actions
 from session_sniffer.guis.stylesheets import GTA5_STATUS_LABEL_STYLESHEET
@@ -203,7 +203,7 @@ class GameMixin(QMainWindow):
         game_process_submenu.addSeparator()
 
         initial_suspend_hotkey = Settings.get_active_shortcut('suspend_process_hotkey')
-        game_suspend_resume_action = QAction(self._icon_pause, format_action_with_shortcut(tr('Suspend Process'), initial_suspend_hotkey), self)
+        game_suspend_resume_action = QAction(self._icon_pause, tr('Suspend Process'), self)
         game_suspend_resume_action.setToolTip(
             append_shortcut_tooltip(
                 tr('Manually suspend the game process — stays suspended until you click it again to resume'),
@@ -229,7 +229,7 @@ class GameMixin(QMainWindow):
     def _refresh_player_resolver_action_texts(self) -> None:
         """Refresh the Player Resolver menu action text and tooltip with its configured global hotkey."""
         resolver_hotkey = Settings.get_active_shortcut('player_resolver_hotkey')
-        self._player_resolver_action.setText(format_action_with_shortcut(tr('Player Resolver'), resolver_hotkey))
+        self._player_resolver_action.setText(tr('Player Resolver'))
         base_tooltip = (
             tr('Find the exact IP of a player in your current {game} session.', game=self._active_game_label())
             if Settings.is_rockstar_feature_set()
@@ -334,8 +334,8 @@ class GameMixin(QMainWindow):
         self._last_game_process_button_key = status_key
         self._game_solo_menu_action.setText(format_game_solo_action_text())
         self._game_solo_menu_action.setToolTip(format_game_solo_tooltip(game_label))
-        suspend_text = format_action_with_shortcut(tr('Suspend Process'), suspend_hotkey)
-        resume_text = format_action_with_shortcut(tr('Resume Process'), suspend_hotkey)
+        suspend_text = tr('Suspend Process')
+        resume_text = tr('Resume Process')
 
         self._game_process_submenu.setEnabled(can_act)
         if not can_act:

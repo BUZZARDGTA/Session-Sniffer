@@ -2311,7 +2311,6 @@
     "Sole P2P Player: {resolution}": "لاعب P2P الوحيد: {resolution}",
     "Solo Public Session": "جلسة عامة منفردة",
     "Solo Public Session ({duration}s)": "جلسة عامة منفردة ({duration}s)",
-    "Solo Public Session ({duration}s) [{hotkey}]": "جلسة عامة منفردة ({duration}s) [{hotkey}]",
     "Solo Session Hotkey": "اختصار الجلسة المنفردة",
     "Solo Session Suspend Duration": "مدة تعليق الجلسة المنفردة",
     "Some data may still be loading and missing from this notification": "قد تكون بعض البيانات لا تزال قيد التحميل ومفقودة من هذا الإشعار",

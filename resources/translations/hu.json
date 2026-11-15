@@ -2311,7 +2311,6 @@
     "Sole P2P Player: {resolution}": "Egyedüli P2P-játékos: {resolution}",
     "Solo Public Session": "Solo Public munkamenet",
     "Solo Public Session ({duration}s)": "Solo Public munkamenet ({duration} mp)",
-    "Solo Public Session ({duration}s) [{hotkey}]": "Solo Public munkamenet ({duration} mp) [{hotkey}]",
     "Solo Session Hotkey": "Egyedüli munkamenet gyorsbillentyű",
     "Solo Session Suspend Duration": "Egyedüli munkamenet felfüggesztési időtartama",
     "Some data may still be loading and missing from this notification": "Néhány adat még töltődhet, és hiányozhat ebből az értesítésből",
