@@ -21,6 +21,7 @@ Treat the existing codebase and architecture as intentional. Before making chang
 - Do not add unnecessary dependencies.
 - Do not modify user changes that are unrelated to the task.
 - Whenever a setting is added, removed, renamed, or its default, range, label, group, or behavior changes, update the Wiki `Configuration-Guide.md` in the same task (see "Settings Documentation" in `data-storage.md`).
+- Whenever any user-facing text, UI label/tooltip/dialog/menu, notification, web panel string, theme token label, or `SettingMeta` text is added, modified, renamed, or removed, wrap it with `tr()` / `tr_plural()`, wire live language retranslation where needed, and update **all 32** `resources/translations/*.json` catalogs in the same task (see `i18n.md`).
 
 ## No Backward Compatibility
 
@@ -30,7 +31,7 @@ When replacing, renaming, or removing something:
 - Delete the old implementation outright.
 - Update every call site.
 - Do not add aliases, migration code, compatibility shims, fallback lookups, transitional validators, or dual code paths.
-- Delete unused assets (such as SVG icons, images, or resource files) outright. Never leave orphaned or unreferenced assets in the repository.
+- Delete unused assets (such as SVG icons, images, or resource files) and stale or renamed translation keys across all `resources/translations/*.json` catalogs outright. Never leave orphaned or unreferenced assets or translation entries in the repository.
 
 ## Low-Level vs High-Level Separation
 

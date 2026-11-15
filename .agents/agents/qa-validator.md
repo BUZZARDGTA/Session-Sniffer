@@ -12,6 +12,7 @@ inheritCustomizations: true
 inheritMcp: true
 rules:
   - .agents/rules/core.md
+  - .agents/rules/i18n.md
   - .agents/rules/python.md
   - .agents/rules/testing.md
   - .agents/rules/release.md
@@ -32,7 +33,8 @@ You are the dedicated quality assurance, static analysis, and type-checking spec
    - Session Sniffer does not have an automated test suite (`pytest`). Never invoke `pytest` or search for test suites.
 3. **Preserve Suppression Lists & Intentional Exceptions**:
    - Do not weaken linter configurations, add blanket `# noqa` / `# pylint: disable` comments, or modify intentional project exceptions (such as `WEBSERVER_DEFAULT_HOST` in `src/session_sniffer/constants/standalone.py`).
-4. **Enforce CRLF Line Endings**:
+4. **Enforce CRLF Line Endings & Translation Catalog Parity**:
    - Verify that all modified repository files (including `uv.lock`, `.svg`, `.md`, `.json`, and `.py` files) strictly use CRLF (`\r\n`) line endings.
+   - When user-facing strings (`tr()`, `tr_plural()`, `SettingMeta`, `ThemeColorTokenMeta`) or `resources/translations/*.json` files are modified, verify that all 32 translation catalogs have matching canonical keys, exact `{placeholder}` sets, required CLDR plural categories, and unique `"messages"` values per `.agents/rules/i18n.md`.
 5. **Actionable Reporting**:
    - Report the exact commands executed, exit codes, any diagnostics grouped by root cause, and whether each finding is caused by current working-tree changes or pre-existing state.

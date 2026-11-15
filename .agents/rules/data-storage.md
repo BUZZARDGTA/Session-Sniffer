@@ -38,6 +38,8 @@ Follow existing setting names, structures, defaults, and persistence patterns.
 
 Feature toggles and other persisted settings must continue to use the established persistence flow. Do not rely only on transient in-memory state when the feature is expected to survive application restarts.
 
+User-facing `SettingMeta` fields in `src/session_sniffer/settings/metadata.py` (`category`, `group`, `subgroup`, `display_label`, `tooltip`, `suffix`, `special_value_text`, and `allowed_values` without explicit `display_labels` — or `display_labels` values when provided) are canonical i18n keys rendered via `tr()`. Whenever any of these texts are added, modified, renamed, or removed, update **all 32** `resources/translations/*.json` catalogs in the same task (see `i18n.md`).
+
 ## Dialog Persistence: Auto-Save vs. Explicit Save
 
 Follow the established split between real-time auto-saving tool windows and the main `SettingsDialog`:

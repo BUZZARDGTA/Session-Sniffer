@@ -30,7 +30,7 @@ If the user asks to commit everything, do not automatically create one large com
 2. Group changes into logical, independently meaningful changes.
 3. Separate unrelated features, fixes, refactors, tests, documentation, configuration, and other changes into different commits where practical.
 4. Use file-level and hunk-level staging when necessary.
-5. Do not force a separation when changes are tightly coupled and belong in the same commit.
+5. Do not force a separation when changes are tightly coupled and belong in the same commit (for example, `resources/translations/*.json` catalog updates belong in the same commit as the user-facing code or settings changes they translate).
 6. Propose one commit message for each logical change.
 7. Show the proposed groups, affected files, and commit messages.
 8. Create the proposed commits in logical order.
@@ -66,8 +66,9 @@ Follow the Git and Change Discipline rules in `.agents/rules/core.md`.
 Before committing:
 
 1. Review the staged diff.
-2. Follow the validation workflow in `.agents/rules/testing.md` for the staged changes (running targeted checks, the full quality script when appropriate, or release-specific validation for version-only bumps).
-3. If validation fails, stop before committing and report the failure.
+2. Verify that any commit adding, modifying, renaming, or removing user-facing strings (`tr()`, `tr_plural()`, `SettingMeta`, `ThemeColorTokenMeta`, or `get_web_panel_i18n()`) also includes the corresponding updates across all 32 `resources/translations/*.json` catalogs (see `.agents/rules/i18n.md`). If translations are missing from the working tree, stop and report or complete them before committing.
+3. Follow the validation workflow in `.agents/rules/testing.md` for the staged changes (running targeted checks, the full quality script when appropriate, or release-specific validation for version-only bumps).
+4. If validation fails, stop before committing and report the failure.
 
 For multiple commits, validate each staged change as appropriate before creating its commit.
 

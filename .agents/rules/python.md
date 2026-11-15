@@ -28,11 +28,12 @@ globs: **/*.py
 * Single-letter variables are reserved for `i` and `j` as loop indices, and `e` for exception handling.
 * Access attributes and functions directly; only use local aliases when necessary to preserve a value across changing state.
 
-## Pluralization
+## Pluralization and Localization
 
+* Wrap all user-facing strings in `tr()` or `tr_plural()` from `session_sniffer.i18n` with literal English templates and named `{placeholder}` keyword arguments, and update all 32 `resources/translations/*.json` catalogs in the same task (see `i18n.md`). Do not wrap developer `logger.*` messages or internal keys/identifiers.
 * Never use parenthesized plural patterns such as `username(s)`, `IP(s)`, or `file(s)` in user-facing sentences, messages, dialog body text, or tooltips whenever a count is available or can be determined.
-* Always use `pluralize(count)` from `session_sniffer.text_utils` (e.g. `f'username{pluralize(count)}'`, `f'IP{pluralize(count)}'`) to dynamically format singular and plural forms in that text.
-* Exception — titles must be static: window titles, dialog titles, section/group headings, and menu action labels must never be pluralized dynamically (no `pluralize()`, no `f'{title}s'`, no count-based title switching). Use a fixed parenthesized plural instead (e.g. `'Add Username(s)'`, `'Delete Selected Row(s)'`, `f'Filtered Game & Relay Server(s) ({count})'`).
+* Use `tr_plural(singular, plural, count, ...)` from `session_sniffer.i18n` for localized count-dependent user-facing text (or `pluralize(count)` from `session_sniffer.text_utils` in non-localized English logs/diagnostics).
+* Exception — titles must be static: window titles, dialog titles, section/group headings, and menu action labels must never be pluralized dynamically (no `pluralize()`, no `tr_plural()`, no `f'{title}s'`, no count-based title switching). Use a fixed parenthesized plural instead (e.g. `tr('Add Username(s)')`, `tr('Delete Selected Row(s)')`, `tr('Filtered Game & Relay Server(s) ({count})', count=count)`).
 
 ## Documentation Style
 

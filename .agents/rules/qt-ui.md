@@ -75,6 +75,13 @@ Do not introduce a separate styling system or duplicate existing styles just to 
 * Follow the project's established icon style: Lucide 24x24 viewBox (`viewBox="0 0 24 24"`), stroke `#a5b4c4`, stroke-width `2`, stroke-linecap `round`, stroke-linejoin `round`, and `fill="none"` (except deliberate small accent dots).
 * When introducing, renaming, or removing icons or UI elements, audit `resources/icons/` to ensure every SVG asset is actively used (unused assets are deleted per `core.md`).
 
+## Localization and Live Language Switching
+
+* Wrap all user-facing GUI text (titles, tabs, group boxes, labels, buttons, placeholders, tooltips, menus, dialogs, status messages) in `tr()` or `tr_plural()` from `session_sniffer.i18n` using literal English templates with named `{placeholder}` keyword arguments (see `i18n.md`).
+* Support live runtime language switching (`src/session_sniffer/guis/live_language.py`):
+  * Use `set_i18n_colon_label()`, `set_table_headers()`, `set_tree_headers()`, and `add_i18n_menu_actions()` where applicable, escape literal `&` as `&&` on `QGroupBox` titles (`.replace('&', '&&')`), and register `register_language_refresh(owner, callback)` for any widget with interpolated, compound, or state-dependent text/tooltips.
+* Whenever adding, changing, renaming, or removing user-facing GUI strings, update **all 32** `resources/translations/*.json` catalogs in the same task (`i18n.md`).
+
 ## Errors
 
 For GUI-specific error states, use the project's existing exception and message-box patterns.
