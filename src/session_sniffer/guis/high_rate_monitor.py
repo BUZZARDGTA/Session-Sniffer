@@ -143,6 +143,7 @@ class HighRateMonitorWidget(QWidget):
         self._current_avg_pps: float = 0.0
         self._current_smart_threshold: int = _SMART_MIN_PPS_FLOOR
         self._auto_select: bool = Settings.high_rate_monitor_auto_select
+        self._spike_sound: bool = Settings.high_rate_monitor_spike_sound
 
         self.pps_threshold = Settings.high_rate_monitor_pps_threshold
         self.bps_threshold = Settings.high_rate_monitor_bps_threshold * _KBS_TO_BYTES
@@ -399,15 +400,19 @@ class HighRateMonitorWidget(QWidget):
         self._status_label.setText('<br>'.join(lines))
 
     def apply_settings(self) -> None:
-        """Apply updated threshold and auto-select settings from `Settings`."""
+        """Apply updated threshold, spike-sound, and auto-select settings from `Settings`."""
         self.mode = Settings.high_rate_monitor_mode
         self.pps_threshold = Settings.high_rate_monitor_pps_threshold
         self.bps_threshold = Settings.high_rate_monitor_bps_threshold * _KBS_TO_BYTES
         self.required_duration = Settings.high_rate_monitor_duration_threshold
+        spike_sound_changed = Settings.high_rate_monitor_spike_sound != self._spike_sound
+        self._spike_sound = Settings.high_rate_monitor_spike_sound
         active_pps_threshold = self._current_smart_threshold if self.mode == 'Smart' else self.pps_threshold
         for graph in self._graph_windows.values():
             graph.set_pps_threshold(active_pps_threshold)
             graph.set_bps_threshold(self.bps_threshold)
+            if spike_sound_changed:
+                graph.set_spike_sound_enabled(enabled=self._spike_sound)
         self._auto_select_checkbox.setChecked(Settings.high_rate_monitor_auto_select)
         if self._tracked:
             self._scan_players()
@@ -426,6 +431,8 @@ class HighRateMonitorWidget(QWidget):
             ip=ip,
             initial_pps_threshold=active_pps_threshold,
             initial_bps_threshold=self.bps_threshold,
+            initial_spike_sound=self._spike_sound,
+            on_spike_sound_toggled=lambda checked: self._on_spike_sound_toggled(checked=checked),
         )
         data = self._tracked.get(ip)
         if data is not None:
@@ -440,6 +447,12 @@ class HighRateMonitorWidget(QWidget):
     def _open_all_graphs(self) -> None:
         for player in self._get_flagged_players():
             self.open_graph(player.ip)
+
+    def _on_spike_sound_toggled(self, *, checked: bool) -> None:
+        self._spike_sound = checked
+        if Settings.high_rate_monitor_spike_sound != checked:
+            Settings.high_rate_monitor_spike_sound = checked
+            Settings.rewrite_settings_file()
 
     # Actions ----------------------------------------------------------------
 

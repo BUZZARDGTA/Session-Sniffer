@@ -406,10 +406,13 @@ class RateGraphWindowMixin(ToggleAlwaysOnTopMixin):
     """Mixin for graph windows providing a unified bottom control bar."""
 
     def add_rate_graph_controls(self, layout: QBoxLayout, history_options: dict[str, int], *, default_history: int = 3600) -> None:
-        """Add the bottom controls bar (Always on Top, Max History)."""
+        """Add the bottom controls bar (Always on Top, optional window controls, Max History)."""
         controls_layout = QHBoxLayout()
         controls_layout.setContentsMargins(8, 6, 8, 8)
         self.add_always_on_top_checkbox(controls_layout, always_on_top=True)
+        for extra_widget in self._create_extra_rate_graph_controls():
+            controls_layout.addSpacing(scale_by_ui(12))
+            controls_layout.addWidget(extra_widget)
 
         controls_layout.addStretch()
 
@@ -437,6 +440,10 @@ class RateGraphWindowMixin(ToggleAlwaysOnTopMixin):
         register_language_refresh(history_combo, _refresh_history_combo)
 
         layout.addLayout(controls_layout)
+
+    def _create_extra_rate_graph_controls(self) -> list[QWidget]:
+        """Override to return extra widgets placed after the 'Always on Top' checkbox."""
+        return []
 
     def _on_max_history_changed(self, new_max_history: int) -> None:
         """Handle max history changes. Must be overridden by subclasses if add_rate_graph_controls is used."""

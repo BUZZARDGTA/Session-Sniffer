@@ -136,6 +136,7 @@ class Settings:
     high_rate_monitor_icon: bool = SETTING_DEFAULTS['high_rate_monitor_icon']
     high_rate_monitor_run_in_background: bool = SETTING_DEFAULTS['high_rate_monitor_run_in_background']
     high_rate_monitor_auto_select: bool = SETTING_DEFAULTS['high_rate_monitor_auto_select']
+    high_rate_monitor_spike_sound: bool = SETTING_DEFAULTS['high_rate_monitor_spike_sound']
     solo_session_duration: int = SETTING_DEFAULTS['solo_session_duration']
     solo_session_hotkey: str | None = SETTING_DEFAULTS['solo_session_hotkey']
     high_rate_monitor_pps_threshold: int = SETTING_DEFAULTS['high_rate_monitor_pps_threshold']
@@ -248,6 +249,7 @@ class Settings:
         'HIGH_RATE_MONITOR_ICON',
         'HIGH_RATE_MONITOR_RUN_IN_BACKGROUND',
         'HIGH_RATE_MONITOR_AUTO_SELECT',
+        'HIGH_RATE_MONITOR_SPIKE_SOUND',
         'SOLO_SESSION_DURATION',
         'SOLO_SESSION_HOTKEY',
         'HIGH_RATE_MONITOR_PPS_THRESHOLD',

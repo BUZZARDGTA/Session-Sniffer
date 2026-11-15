@@ -4,16 +4,18 @@ import logging
 import shutil
 import subprocess
 import sys
+import time
 from collections import deque
 from dataclasses import dataclass
 from pathlib import Path
 from threading import Event, Lock, Thread
-from typing import Literal
+from typing import Final, Literal
 
 if sys.platform == 'win32':
     import winsound
 
 from session_sniffer.background.events import gui_closed__event
+from session_sniffer.constants.local import RESOURCES_DIR_PATH
 from session_sniffer.notifications_state import notifications_state
 
 logger = logging.getLogger(__name__)
@@ -22,6 +24,11 @@ _VOICE_QUEUE_MAXSIZE = 10
 _INTER_SOUND_PAUSE_SECONDS = 0.5
 _VOICE_NOTIFICATION_THREAD_NAME = 'VoiceNotificationWorker'
 _voice_notification_lock = Lock()
+
+_SPIKE_DING_WAV_PATH: Final[Path] = RESOURCES_DIR_PATH / 'sounds' / 'spike_ding.wav'
+_SPIKE_DING_COOLDOWN_SECONDS: Final[float] = 1.5
+_SPIKE_DING_THREAD_NAME: Final[str] = 'SpikeDingAudioWorker'
+_spike_ding_lock = Lock()
 
 
 class _DeduplicatedQueue:
@@ -162,3 +169,53 @@ def clear_voice_notification_queue() -> None:
 def tts_voice_name(*, voice_setting: Literal['Male', 'Female'] | bool) -> Literal['Liam', 'Jane']:
     """Map a voice-notification setting to its TTS folder name (`Liam` for Male, `Jane` otherwise)."""
     return 'Liam' if voice_setting == 'Male' else 'Jane'
+
+
+@dataclass(slots=True)
+class _SpikeDingState:
+    last_played_monotonic: float = 0.0
+    posix_playing: bool = False
+
+
+_spike_ding_state = _SpikeDingState()
+
+
+def _play_spike_ding_posix_worker(wav_path: str) -> None:
+    """Play the spike ding WAV file on POSIX systems without blocking the GUI thread."""
+    try:
+        _play_wav_posix(wav_path)
+    finally:
+        with _spike_ding_lock:
+            _spike_ding_state.posix_playing = False
+
+
+def play_spike_ding() -> None:
+    """Play a short ding chime immediately for a Rate Graph traffic spike, rate-limited by a brief cooldown."""
+    if gui_closed__event.is_set():
+        return
+
+    now = time.monotonic()
+    with _spike_ding_lock:
+        if _spike_ding_state.last_played_monotonic and (now - _spike_ding_state.last_played_monotonic) < _SPIKE_DING_COOLDOWN_SECONDS:
+            return
+        if sys.platform != 'win32' and _spike_ding_state.posix_playing:
+            return
+        _spike_ding_state.last_played_monotonic = now
+        if sys.platform != 'win32':
+            _spike_ding_state.posix_playing = True
+
+    if not _SPIKE_DING_WAV_PATH.is_file():
+        if sys.platform != 'win32':
+            with _spike_ding_lock:
+                _spike_ding_state.posix_playing = False
+        logger.warning('Spike ding sound file not found: %s', _SPIKE_DING_WAV_PATH)
+        return
+
+    wav_path = str(_SPIKE_DING_WAV_PATH)
+    if sys.platform == 'win32':
+        try:
+            winsound.PlaySound(wav_path, winsound.SND_FILENAME | winsound.SND_NODEFAULT | winsound.SND_ASYNC)
+        except (RuntimeError, OSError, ValueError) as e:
+            logger.warning('Failed to play spike ding %s: %s', wav_path, e)
+    else:
+        Thread(target=_play_spike_ding_posix_worker, args=(wav_path,), name=_SPIKE_DING_THREAD_NAME, daemon=True).start()

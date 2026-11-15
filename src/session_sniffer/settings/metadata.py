@@ -861,11 +861,12 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         ),
     ),
     'high_rate_monitor_auto_select': SettingMeta(
-        category='GTA V',
-        group='Player High Rate Monitor',
-        display_label='Player High Rate Monitor Auto-Select in Table',
-        setting_type=SettingType.BOOLEAN,
+        category='GTA V', group='Player High Rate Monitor', display_label='Player High Rate Monitor Auto-Select in Table', setting_type=SettingType.BOOLEAN,
         tooltip='Automatically select flagged high-rate players in the connected-players table.',
+    ),
+    'high_rate_monitor_spike_sound': SettingMeta(
+        category='GTA V', group='Player High Rate Monitor', display_label='Player High Rate Monitor Sound on Spike', setting_type=SettingType.BOOLEAN,
+        tooltip='Play a ding sound in open Player Rate Graph windows when packet rate (PPS) or bandwidth (KB/s) crosses its threshold line.',
     ),
     'high_rate_monitor_pps_threshold': SettingMeta(
         category='GTA V',

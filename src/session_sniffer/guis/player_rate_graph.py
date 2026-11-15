@@ -3,8 +3,11 @@
 from collections import deque
 from typing import TYPE_CHECKING, override
 
+from PySide6.QtCore import QSignalBlocker, Qt
 from PySide6.QtGui import QColor
+from PySide6.QtWidgets import QCheckBox
 
+from session_sniffer.background.voice_notifications import play_spike_ding
 from session_sniffer.guis.live_language import register_language_refresh
 from session_sniffer.guis.rate_graph_widget import RateGraphTheme, RateGraphWidget
 from session_sniffer.guis.theming import themed_text_qcolor
@@ -12,7 +15,9 @@ from session_sniffer.guis.utils import RateGraphWindowMixin, format_player_displ
 from session_sniffer.i18n import tr
 
 if TYPE_CHECKING:
-    from PySide6.QtWidgets import QVBoxLayout
+    from collections.abc import Callable
+
+    from PySide6.QtWidgets import QVBoxLayout, QWidget
 
 VISIBLE_WINDOW = 60
 DEFAULT_MAX_HISTORY = 3600
@@ -242,18 +247,56 @@ class PlayerRateGraphWindow(DualRateGraphBase):
         ip: str,
         initial_pps_threshold: int,
         initial_bps_threshold: int,
+        initial_spike_sound: bool = True,
+        on_spike_sound_toggled: Callable[[bool], None] | None = None,
     ) -> None:
         """Initialize the split rate graph window for the given player IP."""
         super().__init__()
 
         self.ip = ip
         self._usernames: list[str] = []
-        self._initial_pps_threshold = initial_pps_threshold
-        self._initial_bps_threshold = initial_bps_threshold
+        self._pps_threshold_value = initial_pps_threshold
+        self._bps_threshold_value = initial_bps_threshold
+        self._pps_spiking = False
+        self._bps_spiking = False
+        self._spike_sound_enabled = initial_spike_sound
+        self._on_spike_sound_toggled = on_spike_sound_toggled
+        self._spike_sound_checkbox: QCheckBox | None = None
 
         self._update_window_title()
         register_language_refresh(self, self._update_window_title)
         self._finish_graph_init()
+
+    @override
+    def _create_extra_rate_graph_controls(self) -> list[QWidget]:
+        checkbox = QCheckBox()
+        checkbox.setChecked(self._spike_sound_enabled)
+        checkbox.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        checkbox.toggled.connect(self._handle_spike_sound_toggled)
+
+        def _apply_checkbox_translations() -> None:
+            checkbox.setText(tr('Sound on Spike'))
+            checkbox.setToolTip(tr('Play a ding sound when PPS or KB/s crosses its threshold line.'))
+
+        _apply_checkbox_translations()
+        register_language_refresh(checkbox, _apply_checkbox_translations)
+        self._spike_sound_checkbox = checkbox
+        return [checkbox]
+
+    def _handle_spike_sound_toggled(self) -> None:
+        if self._spike_sound_checkbox is None:
+            return
+        checked = self._spike_sound_checkbox.isChecked()
+        self._spike_sound_enabled = checked
+        if self._on_spike_sound_toggled is not None:
+            self._on_spike_sound_toggled(checked)
+
+    def set_spike_sound_enabled(self, *, enabled: bool) -> None:
+        """Synchronize the 'Sound on Spike' toggle state without triggering persistence callbacks."""
+        self._spike_sound_enabled = enabled
+        if self._spike_sound_checkbox is not None:
+            with QSignalBlocker(self._spike_sound_checkbox):
+                self._spike_sound_checkbox.setChecked(enabled)
 
     def _update_window_title(self) -> None:
         """Update the window title to reflect the current player identity and language."""
@@ -263,12 +306,12 @@ class PlayerRateGraphWindow(DualRateGraphBase):
     @override
     def _configure_pps_widget(self) -> None:
         self._pps_widget.threshold_color = themed_text_qcolor('#66bb6a', '#000000')
-        self.set_pps_threshold(self._initial_pps_threshold)
+        self.set_pps_threshold(self._pps_threshold_value)
 
     @override
     def _configure_bps_widget(self) -> None:
         self._bps_widget.threshold_color = themed_text_qcolor('#4dd0e1', '#000000')
-        self.set_bps_threshold(self._initial_bps_threshold)
+        self.set_bps_threshold(self._bps_threshold_value)
 
     def update_usernames(self, usernames: list[str]) -> None:
         """Update the window title to reflect current usernames."""
@@ -277,11 +320,27 @@ class PlayerRateGraphWindow(DualRateGraphBase):
 
     def set_pps_threshold(self, threshold: int) -> None:
         """Update the PPS threshold marker line."""
+        self._pps_threshold_value = threshold
         self._pps_widget.set_threshold(float(threshold))
 
     def set_bps_threshold(self, threshold: int) -> None:
         """Update the BPS threshold marker line (accepts bytes/s, converts to KB/s)."""
+        self._bps_threshold_value = threshold
         self._bps_widget.set_threshold(threshold / self._BYTES_TO_KBS)
+
+    @override
+    def update_rates(self, *, pps: int, bps: int) -> None:
+        """Append new PPS and BPS samples, refresh both graphs, and ding on threshold crossing."""
+        super().update_rates(pps=pps, bps=bps)
+
+        is_pps_spiking = 0 < self._pps_threshold_value <= pps
+        is_bps_spiking = 0 < self._bps_threshold_value <= bps
+        crossed_threshold = (is_pps_spiking and not self._pps_spiking) or (is_bps_spiking and not self._bps_spiking)
+        self._pps_spiking = is_pps_spiking
+        self._bps_spiking = is_bps_spiking
+
+        if crossed_threshold and self._spike_sound_enabled:
+            play_spike_ding()
 
     def load_history(self, *, pps_history: list[int], bps_history: list[int]) -> None:
         """Backfill both graphs with previously recorded rate samples."""
@@ -303,5 +362,10 @@ class PlayerRateGraphWindow(DualRateGraphBase):
 
         self._pps_running_sum = int(sum(self._pps_buffer))
         self._bps_running_sum = sum(self._bps_buffer)
+
+        last_pps = pps_trimmed[-1] if pps_trimmed else 0
+        last_bps = bps_trimmed[-1] if bps_trimmed else 0
+        self._pps_spiking = 0 < self._pps_threshold_value <= last_pps
+        self._bps_spiking = 0 < self._bps_threshold_value <= last_bps
 
         self._render_buffers()

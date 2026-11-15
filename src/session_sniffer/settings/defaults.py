@@ -110,6 +110,7 @@ class SettingDefaults(TypedDict):
     high_rate_monitor_icon: bool
     high_rate_monitor_run_in_background: bool
     high_rate_monitor_auto_select: bool
+    high_rate_monitor_spike_sound: bool
     solo_session_duration: int
     solo_session_hotkey: str | None
     high_rate_monitor_pps_threshold: int
@@ -271,6 +272,7 @@ SETTING_DEFAULTS: SettingDefaults = {
     'high_rate_monitor_icon': True,
     'high_rate_monitor_run_in_background': True,
     'high_rate_monitor_auto_select': True,
+    'high_rate_monitor_spike_sound': True,
     'solo_session_duration': 6,
     'solo_session_hotkey': None,
     'high_rate_monitor_pps_threshold': 30,
