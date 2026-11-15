@@ -2,11 +2,13 @@
 
 from typing import Final, override
 
-from PySide6.QtCore import QSignalBlocker, Qt
-from PySide6.QtGui import QGuiApplication, QKeyEvent, QKeySequence, QMouseEvent, QResizeEvent
+from PySide6.QtCore import QEvent, QSignalBlocker, Qt
+from PySide6.QtGui import QGuiApplication, QKeyEvent, QKeySequence, QMouseEvent, QResizeEvent, QShowEvent
 from PySide6.QtWidgets import QLineEdit, QMenu, QStyle, QStyleOptionFrame, QToolButton, QWidget
 
 _MASK_CHARACTER: Final[str] = '•'
+_HORIZONTAL_TEXT_MARGIN: Final[int] = 2
+_MAX_UNICODE_CODE_POINT: Final[int] = 0x10FFFF
 
 
 class SecretLineEdit(QLineEdit):
@@ -80,20 +82,28 @@ class SecretLineEdit(QLineEdit):
             self._update_display()
 
     def _get_mask_text(self) -> str:
-        """Return a mask string dynamically calculated to fill the visible text area."""
-        trailing_buttons = self.findChildren(QToolButton)
-        if trailing_buttons:
-            trailing_button = trailing_buttons[0]
-            available_width = max(trailing_button.geometry().x() - self.contentsMargins().left(), 0)
-        else:
-            style_option = QStyleOptionFrame()
-            style_option.initFrom(self)
-            contents_rect = self.style().subElementRect(QStyle.SubElement.SE_LineEditContents, style_option, self)
-            available_width = max(contents_rect.width(), self.width(), 0)
+        """Return a mask string dynamically calculated to fill the visible text area without clipping."""
+        style_option = QStyleOptionFrame()
+        self.initStyleOption(style_option)
+        style = self.style()
+        contents_rect = style.subElementRect(QStyle.SubElement.SE_LineEditContents, style_option, self)
+        text_margins = self.textMargins()
+        icon_margin = style.pixelMetric(QStyle.PixelMetric.PM_LineEditIconMargin, style_option, self)
+        action_buttons = [button for button in self.findChildren(QToolButton) if button.isVisibleTo(self)]
+        buttons_width = sum(button.width() + icon_margin for button in action_buttons)
+        available_width = max(
+            contents_rect.width() - text_margins.left() - text_margins.right() - buttons_width - _HORIZONTAL_TEXT_MARGIN * 2,
+            0,
+        )
 
-        bullet_width = max(self.fontMetrics().horizontalAdvance(_MASK_CHARACTER), 1)
+        password_char_code = style.styleHint(QStyle.StyleHint.SH_LineEdit_PasswordCharacter, style_option, self)
+        mask_char = chr(password_char_code) if 0 < password_char_code <= _MAX_UNICODE_CODE_POINT else _MASK_CHARACTER
+        font_metrics = self.fontMetrics()
+        bullet_width = max(font_metrics.horizontalAdvance(mask_char), 1)
         count = max(available_width // bullet_width, 1)
-        return _MASK_CHARACTER * count
+        while count > 1 and font_metrics.horizontalAdvance(mask_char * count) > available_width:
+            count -= 1
+        return mask_char * count
 
     def _update_display(self) -> None:
         """Update the displayed characters without re-emitting external textChanged signals."""
@@ -152,6 +162,20 @@ class SecretLineEdit(QLineEdit):
         """Update mask fill length when the widget is resized so it fills the container."""
         super().resizeEvent(event)
         if not self._revealed and self._real_text:
+            self._update_display()
+
+    @override
+    def showEvent(self, event: QShowEvent) -> None:
+        """Refresh the mask once the widget and trailing action buttons are polished and shown."""
+        super().showEvent(event)
+        if not self._revealed and self._real_text:
+            self._update_display()
+
+    @override
+    def changeEvent(self, event: QEvent) -> None:
+        """Refresh the mask when stylesheet or font metrics change."""
+        super().changeEvent(event)
+        if not self._revealed and self._real_text and event.type() in (QEvent.Type.StyleChange, QEvent.Type.FontChange):
             self._update_display()
 
     @override
