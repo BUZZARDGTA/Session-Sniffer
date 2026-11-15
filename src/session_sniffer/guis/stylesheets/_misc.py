@@ -97,7 +97,7 @@ INTERFACE_INFO_CARD_STYLESHEET = themed_qss(
     'subcontrol-origin: margin;'
     'subcontrol-position: top left;'
     'left: 10px; padding: 2px 8px;'
-    'background: @accent[#3d8ec9];'
+    'background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 @accent[#3d8ec9], stop:1 @accent[#2a6fa0]);'
     'color: @text_strong[#ffffff];'
     'border-radius: 4px;'
     'font-weight: bold;'

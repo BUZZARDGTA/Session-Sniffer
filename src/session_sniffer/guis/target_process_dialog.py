@@ -77,7 +77,9 @@ class TargetProcessDialog(QDialog):
         # Status banner
         self._status_label = QLabel()
         self._status_label.setTextFormat(Qt.TextFormat.RichText)
-        self._status_label.setStyleSheet(themed_qss('padding: 8px; background-color: rgba(255, 255, 255, 0.05); border-radius: 4px;'))
+        self._status_label.setStyleSheet(
+            themed_qss('padding: 8px; background-color: @surface[rgba(255, 255, 255, 0.05)]; border: 1px solid @border[rgba(255, 255, 255, 0.12)]; border-radius: 4px;'),
+        )
         main_layout.addWidget(self._status_label)
 
         # Search bar and filter controls

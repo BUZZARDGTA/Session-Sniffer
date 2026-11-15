@@ -31,6 +31,11 @@ if TYPE_CHECKING:
 _NEUTRAL_TOKENS: Final = ('background', 'surface', 'text_muted', 'text', 'text_strong')
 _CHROMATIC_TOKENS: Final = ('danger', 'warning', 'success', 'accent')
 _CHROMATIC_TOKEN_SET: Final[frozenset[str]] = frozenset(_CHROMATIC_TOKENS)
+_TEXT_TOKEN_SET: Final[frozenset[str]] = frozenset(('text', 'text_muted', 'text_strong'))
+_STROKE_TOKEN_SET: Final[frozenset[str]] = frozenset(('border', 'scrollbar'))
+_HEADER_BAR_TOKEN_SET: Final[frozenset[str]] = frozenset(('table_header', 'menubar', 'statusbar'))
+_TABLE_ROW_TOKEN_SET: Final[frozenset[str]] = frozenset(('table', 'table_alt'))
+_CANVAS_TOKEN_SET: Final[frozenset[str]] = frozenset(('input', 'popup', 'background'))
 _TOKEN_NAMES: Final[frozenset[str]] = frozenset(field.name for field in fields(ThemeColors))
 _BRAND_LOCK_DIRECTIVE: Final = 'lock'
 
@@ -42,10 +47,13 @@ _ANCHOR_FULL_CHROMA: Final = 0.06
 _MIN_HUE_CHROMA: Final = 1e-5
 _LIGHT_INVERT_DL_THRESHOLD: Final = 0.14
 _TRANSLUCENT_BOOST_MAX_ALPHA: Final = 0.92
+_OPAQUE_SURFACE_ALPHA: Final = 0.99
+_PLAIN_SURFACE_EPSILON: Final = 0.004
 _SELECTION_CHROMA_THRESHOLD: Final = 0.04
 _LIGHT_SELECTION_MIN_ALPHA: Final = 0.22
 _LIGHT_MID_LIGHTNESS: Final = 0.5
 _LOW_ALPHA_TIER_THRESHOLD: Final = 0.08
+_LOW_ALPHA_WELL_THRESHOLD: Final = 0.18
 _TINTED_NEUTRAL_CHROMA_THRESHOLD: Final = 0.008
 _FULL_CIRCLE: Final = 360.0
 _HALF_CIRCLE: Final = 180.0
@@ -201,9 +209,54 @@ def _map_canonical_low_alpha(base: str, canon_rgb: Rgb, canon_alpha: float, pale
     if is_dark_theme:
         return _mix_rgb(canon_rgb, target_tok_rgb, 0.35), canon_alpha
     ttok_lab = rgb_to_oklab(target_tok_rgb)
-    contrast_pole = oklab_to_rgb((0.20, ttok_lab[1] * 0.5, ttok_lab[2] * 0.5)) if canon_lab[0] > _LIGHT_MID_LIGHTNESS else (1.0, 0.0, 0.0)
-    boosted_alpha = max(canon_alpha, 0.14) if canon_alpha >= _LOW_ALPHA_TIER_THRESHOLD else max(canon_alpha, 0.06)
-    return _mix_rgb(target_tok_rgb, contrast_pole, 0.65), boosted_alpha
+    if canon_lab[0] > _LIGHT_MID_LIGHTNESS:
+        contrast_pole = oklab_to_rgb((0.20, ttok_lab[1] * 0.5, ttok_lab[2] * 0.5))
+        boosted_alpha = max(canon_alpha, 0.14) if canon_alpha >= _LOW_ALPHA_TIER_THRESHOLD else max(canon_alpha, 0.07)
+        return _mix_rgb(target_tok_rgb, contrast_pole, 0.65), boosted_alpha
+    boosted_alpha = min(0.88, canon_alpha + 0.35) if canon_alpha >= _LOW_ALPHA_WELL_THRESHOLD else max(canon_alpha, 0.08)
+    return _mix_rgb(target_tok_rgb, (1.0, 1.0, 1.0), 0.65), boosted_alpha
+
+
+def _map_light_neutral_lightness(
+    base: str,
+    tint: str | None,
+    deltas: tuple[float, float, float],
+    ttok_l: float,
+    palette: dict[str, Rgb],
+) -> float:
+    dl, dev_c, canon_alpha = deltas
+    bg_l = rgb_to_oklab(palette['background'])[0]
+    surf_l = rgb_to_oklab(palette['surface'])[0]
+    min_canvas_l = min(bg_l, surf_l)
+
+    if base in _TEXT_TOKEN_SET:
+        mapped_l = min(1.0, max(0.0, ttok_l - dl * 0.75))
+    elif base in _STROKE_TOKEN_SET:
+        step = -dl * 0.75 if dl >= 0.0 else -dl * 0.40
+        mapped_l = min(min_canvas_l - 0.055, max(0.0, ttok_l + step))
+    elif base == 'surface':
+        if tint is None and abs(dl) < _PLAIN_SURFACE_EPSILON and dev_c < _PLAIN_SURFACE_EPSILON:
+            mapped_l = ttok_l
+        elif canon_alpha < _OPAQUE_SURFACE_ALPHA:
+            mapped_l = min(1.0, max(0.55, max(ttok_l, 0.992) - max(0.0, dl) * 0.55))
+        else:
+            card_ceil = min(ttok_l, bg_l) - 0.022
+            mapped_l = min(card_ceil, max(0.55, card_ceil - dl * 0.60))
+    elif base in _HEADER_BAR_TOKEN_SET:
+        header_ceil = min(ttok_l, min_canvas_l - 0.052)
+        step = -dl * 0.60 if dl >= 0.0 else dl * 0.25
+        mapped_l = min(header_ceil, max(0.45, header_ceil + step))
+    elif base in _TABLE_ROW_TOKEN_SET:
+        if tint is not None:
+            ceil_l = min(ttok_l, 0.984 if base == 'table' else 0.960)
+            mapped_l = min(ceil_l, max(0.50, ceil_l + (dl * 0.22 if dl < 0.0 else -dl * 0.55)))
+        else:
+            mapped_l = min(ttok_l, max(0.50, ttok_l + (dl * 0.15 if dl < 0.0 else -dl * 0.55)))
+    else:
+        step = -dl * 0.65 if dl >= 0.0 else dl * 0.20
+        ceil_l = ttok_l if base in _CANVAS_TOKEN_SET else min(ttok_l, bg_l - 0.022)
+        mapped_l = min(1.0, max(0.35, min(ceil_l, ttok_l + step) if dl < 0.0 else ttok_l + step))
+    return mapped_l
 
 
 def _map_canonical_neutral(
@@ -224,26 +277,35 @@ def _map_canonical_neutral(
     ttok_lab = rgb_to_oklab(palette[base])
 
     dl = canon_lab[0] - ctok_lab[0]
-    mapped_l = min(1.0, max(0.0, ttok_lab[0] + dl * 0.9 if is_dark_theme else ttok_lab[0] - dl * 0.75))
-
     da, db = canon_lab[1] - ctok_lab[1], canon_lab[2] - ctok_lab[2]
     dev_c = math.hypot(da, db)
+    if is_dark_theme:
+        slope = 0.30 if base in _HEADER_BAR_TOKEN_SET and dl < 0.0 else 0.90
+        mapped_l = min(1.0, max(0.0, ttok_lab[0] + dl * slope))
+    else:
+        mapped_l = _map_light_neutral_lightness(base, tint, (dl, dev_c, canon_alpha), ttok_lab[0], palette)
+
     if tint is not None and dev_c > _MIN_HUE_CHROMA:
         _, ctint_c, ctint_h = _lch(rgb_to_oklab(_CANONICAL_PALETTE[tint]))
         _, ttint_c, ttint_h = _lch(rgb_to_oklab(palette[tint]))
         dh = _signed_hue_delta(ctint_h, ttint_h) if ttint_c > _MIN_HUE_CHROMA and ctint_c > _MIN_HUE_CHROMA else 0.0
         c_scale = min(1.8, max(0.4, ttint_c / ctint_c)) if ctint_c > _MIN_HUE_CHROMA else 1.0
         dev_h = math.radians((math.degrees(math.atan2(db, da)) + dh) % _FULL_CIRCLE)
-        scaled_c = dev_c * c_scale * (1.0 if is_dark_theme else 0.75)
+        scaled_c = dev_c * c_scale * (1.0 if is_dark_theme else 0.85)
         mapped_a = ttok_lab[1] + scaled_c * math.cos(dev_h)
         mapped_b = ttok_lab[2] + scaled_c * math.sin(dev_h)
     else:
         ttok_c = math.hypot(ttok_lab[1], ttok_lab[2])
-        keep = (0.35 if ttok_c > _TINTED_NEUTRAL_CHROMA_THRESHOLD else 0.75) * (1.0 if is_dark_theme else 0.6)
+        keep = (0.35 if ttok_c > _TINTED_NEUTRAL_CHROMA_THRESHOLD else 0.75) * (1.0 if is_dark_theme else 0.65)
         mapped_a = ttok_lab[1] + da * keep
         mapped_b = ttok_lab[2] + db * keep
 
-    return oklab_to_rgb((mapped_l, mapped_a, mapped_b)), canon_alpha
+    alpha = (
+        min(0.94, canon_alpha + 0.20)
+        if not is_dark_theme and _MIN_BACKGROUND_ALPHA <= canon_alpha < _TRANSLUCENT_BOOST_MAX_ALPHA
+        else canon_alpha
+    )
+    return oklab_to_rgb((mapped_l, mapped_a, mapped_b)), alpha
 
 
 def _resolve_anchored_rgb_alpha(
