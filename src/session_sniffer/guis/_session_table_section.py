@@ -140,12 +140,12 @@ class SessionTableSection(QWidget):
             expand_tooltip = tr('Show the disconnected players table')
 
         accent = f'@{role_key}'
-        border_color = f'@border~{role_key}/42'
-        table_bg = f'@table~{role_key}/4'
-        alt_bg = f'@table_alt~{role_key}/5'
-        grid_color = f'@border~{role_key}/20'
-        sel_bg = f'@selection~{role_key}/28'
-        header_bg = f'@table_header~{role_key}/8'
+        border_color = f'@border~{role_key}/55/52'
+        table_bg = f'@table~{role_key}/3' if is_connected else f'@table~{role_key}/4'
+        alt_bg = f'@table_alt~{role_key}/4' if is_connected else f'@table_alt~{role_key}/6'
+        grid_color = f'@border~{role_key}/32/28'
+        sel_bg = f'@selection~{role_key}/45/52'
+        header_bg = f'@table_header~{role_key}/5'
         header_text = '@text_muted'
 
         sort_column_name, sort_order = self._resolve_sort_from_settings(column_names)
@@ -316,7 +316,7 @@ class SessionTableSection(QWidget):
                 background-color: {table_bg};
             }}
             QTableView::item {{
-                border-bottom: 1px solid {grid_color};
+                border: none;
                 background-color: transparent;
             }}
             QTableView::item:selected {{

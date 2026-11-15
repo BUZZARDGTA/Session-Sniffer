@@ -9,8 +9,8 @@ HEADER_TITLE_STYLESHEET = themed_qss('font-size: 13pt; font-weight: 700; color: 
 HEADER_VERSION_BADGE_STYLESHEET = themed_qss(
     """
 color: @text_muted;
-background-color: @surface;
-border: 1px solid @border;
+background-color: @surface/65;
+border: 1px solid @border/65;
 border-radius: 4px;
 padding: 1px 6px;
 font-size: 8pt;
@@ -40,19 +40,19 @@ QLineEdit#headerSearchBar {
     max-height: 30px;
     padding: 0 10px 0 8px;
     color: @text;
-    background-color: @input;
-    border: 1px solid @border;
+    background-color: @input/78;
+    border: 1px solid @border/68;
     border-radius: 6px;
     font-size: 9pt;
     selection-background-color: @selection;
     selection-color: @text_strong;
 }
 QLineEdit#headerSearchBar:hover {
-    background-color: @input:hover;
+    background-color: @input:hover/88;
     border: 1px solid @border:hover;
 }
 QLineEdit#headerSearchBar:focus {
-    border: 1px solid @accent;
+    border: 1px solid @success;
     background-color: @input;
 }
 """.strip(),
@@ -65,20 +65,20 @@ QComboBox#headerSearchCombo {
     max-height: 30px;
     padding: 0 24px 0 10px;
     color: @text;
-    background-color: @input;
-    border: 1px solid @border;
+    background-color: @input/78;
+    border: 1px solid @border/68;
     border-radius: 6px;
     font-size: 9pt;
     selection-background-color: @selection;
     selection-color: @text_strong;
 }
 QComboBox#headerSearchCombo:hover {
-    background-color: @input:hover;
+    background-color: @input:hover/88;
     border: 1px solid @border:hover;
 }
 QComboBox#headerSearchCombo:focus,
 QComboBox#headerSearchCombo:on {
-    border: 1px solid @accent;
+    border: 1px solid @success;
 }
 QComboBox#headerSearchCombo::drop-down {
     subcontrol-origin: padding;
@@ -129,8 +129,8 @@ HEADER_STAT_CARD_STYLESHEET = themed_qss(
     """
 QFrame#headerStatsContainer,
 QFrame#headerNotificationsContainer {
-    background-color: @surface;
-    border: 1px solid @border;
+    background-color: @surface/55;
+    border: 1px solid @border/58;
     border-radius: 8px;
 }
 """.strip(),

@@ -13,11 +13,11 @@ def section_bar_qss(role_token: str) -> str:
         f"""
     QFrame#sectionBar {{
         background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                                    stop:0 @table_header~{role_token}/16,
-                                    stop:1 @table_header~{role_token}/8);
-        border: 1px solid @border~{role_token}/40;
+                                    stop:0 @table_header~{role_token}/12,
+                                    stop:1 @table_header~{role_token}/4);
+        border: 1px solid @border~{role_token}/55/52;
         border-top: 2px solid @{role_token};
-        border-bottom: 1px solid @border~{role_token}/40;
+        border-bottom: 1px solid @border~{role_token}/55/52;
         border-top-left-radius: 8px;
         border-top-right-radius: 8px;
     }}
@@ -37,24 +37,24 @@ def section_bar_qss(role_token: str) -> str:
         max-height: 26px;
         padding: 0 12px;
         color: @text_strong;
-        background: @control;
-        border: 1px solid @border;
+        background: @control/42;
+        border: 1px solid @border/58;
         border-radius: 6px;
         font-weight: 700;
         font-size: 8.5pt;
     }}
     QPushButton:hover {{
-        background: @control:hover;
+        background: @control:hover/72;
         border-color: @accent;
         color: @text_strong;
     }}
     QPushButton:disabled {{
-        background: @control:disabled;
-        border-color: @border:disabled;
+        background: @control:disabled/22;
+        border-color: @border:disabled/35;
         color: @text_muted:disabled;
     }}
     QPushButton:pressed {{
-        background: @control:pressed;
+        background: @control:pressed/60;
         color: @text_strong;
     }}
     QPushButton#sectionClearButton:hover {{
@@ -74,17 +74,17 @@ def section_bar_qss(role_token: str) -> str:
         max-height: 26px;
         padding: 0;
         color: @text_strong;
-        background: @control;
-        border: 1px solid @border;
+        background: @control/42;
+        border: 1px solid @border/58;
         border-radius: 6px;
     }}
     QToolButton#sectionCollapseButton:hover {{
-        background: @control:hover;
+        background: @control:hover/72;
         border-color: @accent;
         color: @text_strong;
     }}
     QToolButton#sectionCollapseButton:pressed {{
-        background: @control:pressed;
+        background: @control:pressed/60;
         color: @text_strong;
     }}
     QComboBox {{
@@ -92,14 +92,14 @@ def section_bar_qss(role_token: str) -> str:
         max-height: 26px;
         padding: 0 20px 0 8px;
         color: @text;
-        background: @input;
-        border: 1px solid @border;
+        background: @input/76;
+        border: 1px solid @border/58;
         border-radius: 6px;
         min-width: 55px;
         font-size: 8.5pt;
     }}
     QComboBox:hover {{
-        background: @input:hover;
+        background: @input:hover/88;
         border-color: @border:hover;
     }}
     QComboBox:focus, QComboBox:on {{
@@ -107,23 +107,23 @@ def section_bar_qss(role_token: str) -> str:
     }}
     QComboBox:disabled {{
         color: @text_muted:disabled;
-        background: @input:disabled;
-        border-color: @border:disabled;
+        background: @input:disabled/50;
+        border-color: @border:disabled/35;
     }}
     QComboBox::drop-down {{
         subcontrol-origin: padding;
         subcontrol-position: top right;
         width: 18px;
         border: none;
-        border-left: 1px solid @border;
+        border-left: 1px solid @border/45;
     }}
     QSpinBox {{
         min-height: 26px;
         max-height: 26px;
         padding: 0 18px 0 6px;
         color: @text;
-        background: @input;
-        border: 1px solid @border;
+        background: @input/76;
+        border: 1px solid @border/58;
         border-radius: 6px;
         font-size: 8.5pt;
     }}
@@ -136,7 +136,7 @@ def section_bar_qss(role_token: str) -> str:
         max-width: 52px;
     }}
     QSpinBox:hover {{
-        background: @input:hover;
+        background: @input:hover/88;
         border-color: @border:hover;
     }}
     QSpinBox:focus {{
@@ -147,15 +147,15 @@ def section_bar_qss(role_token: str) -> str:
         subcontrol-position: top right;
         width: 16px;
         border: none;
-        border-left: 1px solid @border;
-        border-bottom: 1px solid @border;
+        border-left: 1px solid @border/45;
+        border-bottom: 1px solid @border/35;
     }}
     QSpinBox::down-button {{
         subcontrol-origin: border;
         subcontrol-position: bottom right;
         width: 16px;
         border: none;
-        border-left: 1px solid @border;
+        border-left: 1px solid @border/45;
     }}
     QSpinBox::up-button:hover, QSpinBox::down-button:hover {{
         background: @control/35;
@@ -173,13 +173,13 @@ def section_bar_qss(role_token: str) -> str:
         max-height: 26px;
         padding: 0 30px 0 8px;
         color: @text;
-        background: @input;
-        border: 1px solid @border;
+        background: @input/76;
+        border: 1px solid @border/58;
         border-radius: 6px;
         font-size: 8.5pt;
     }}
     QLineEdit:hover {{
-        background: @input:hover;
+        background: @input:hover/88;
         border-color: @border:hover;
     }}
     QLineEdit:focus {{
