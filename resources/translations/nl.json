@@ -343,6 +343,7 @@
     "Change Interface…": "Interface wijzigen…",
     "Change the IP or range of the selected entry using the builder": "Wijzig het IP of bereik van de geselecteerde vermelding met de samensteller",
     "Change the Target Database for all currently checked & visible usernames:\n• Auto (Default): Restores each row’s smart default Target Database (matched DB or Randomlist for Searchlist, or source DB).\n• Specific DB: Moves all checked & visible usernames into the chosen database.": "Wijzig de doeldatabase voor alle momenteel aangevinkte & zichtbare gebruikersnamen:\n• Automatisch (standaard): herstelt de slimme standaarddoeldatabase van elke rij (overeenkomende DB of Randomlist voor Searchlist, of bron-DB).\n• Specifieke DB: verplaatst alle aangevinkte & zichtbare gebruikersnamen naar de gekozen database.",
+    "Changes here apply only to this graph window and do not modify global settings.": "Wijzigingen hier gelden alleen voor dit grafiekvenster en wijzigen de algemene instellingen niet.",
     "Check All": "Alles aanvinken",
     "Check GitHub for a newer version of Session Sniffer": "Controleer GitHub op een nieuwere versie van Session Sniffer",
     "Check Selected": "Geselecteerde aanvinken",
@@ -715,7 +716,7 @@
     "Detection Flags": "Detectievlaggen",
     "Detection Logging": "Detectielogboekregistratie",
     "Detection Settings": "Detectie-instellingen",
-    "Detection mode for flagging high packet-rate players.\n\nSmart: Dynamically calculates the average PPS of connected players and flags players exceeding the session average with a margin and minimum floor.\nManual: Flags players exceeding fixed PPS and BPS thresholds.": "Detectiemodus voor het markeren van spelers met een hoge pakketsnelheid.\n\nSlim: berekent dynamisch de gemiddelde PPS van verbonden spelers en markeert spelers die het sessiegemiddelde met een marge en ondergrens overschrijden.\nHandmatig: markeert spelers die vaste PPS- en BPS-drempels overschrijden.",
+    "Detection mode for flagging high packet-rate players.\n\nSmart: Dynamically calculates the average PPS and BPS of connected players and flags players exceeding the session averages with a margin and minimum floor.\nManual: Flags players exceeding fixed PPS and BPS thresholds.": "Detectiemodus voor het markeren van spelers met een hoge pakketsnelheid.\n\nSlim: berekent dynamisch de gemiddelde PPS en BPS van verbonden spelers en markeert spelers die de sessiegemiddelden met een marge en ondergrens overschrijden.\nHandmatig: markeert spelers die vaste PPS- en BPS-drempels overschrijden.",
     "Detection settings exported successfully.": "Detectie-instellingen succesvol geëxporteerd.",
     "Detection settings imported successfully.": "Detectie-instellingen succesvol geïmporteerd.",
     "Detections": "Detecties",
@@ -2397,7 +2398,7 @@
     "Skip this update version and do not prompt again until a newer version is released": "Deze updateversie overslaan en niet opnieuw vragen tot er een nieuwere versie verschijnt",
     "Skipped Version": "Overgeslagen versie",
     "Smart": "Slim",
-    "Smart mode (avg: {avg:.1f} PPS · threshold: {threshold} PPS)": "Slimme modus (gem.: {avg:.1f} PPS · drempel: {threshold} PPS)",
+    "Smart mode (avg: {avg_pps:.1f} PPS · {avg_bps} | thresholds: {pps} PPS · {bps})": "Slimme modus (gem.: {avg_pps:.1f} PPS · {avg_bps} | drempels: {pps} PPS · {bps})",
     "Sniff '{process}'": "'{process}' sniffen",
     "Sniff Selected Process": "Geselecteerd proces sniffen",
     "Solarized Light": "Solarized Light",
@@ -4022,10 +4023,6 @@
     "{count} player": {
       "one": "{count} speler",
       "other": "{count} spelers"
-    },
-    "{count} player currently exceeding threshold:": {
-      "one": "{count} speler overschrijdt momenteel drempel:",
-      "other": "{count} spelers overschrijden momenteel drempel:"
     },
     "{count} player currently exceeding thresholds:": {
       "one": "{count} speler overschrijdt momenteel drempels:",

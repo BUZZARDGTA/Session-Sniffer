@@ -14,6 +14,16 @@ GEIGER_MIN_INTERVAL_SECONDS = 0.095
 GEIGER_OPEN_GRAPH_MIN_PROXIMITY = 0.22
 GEIGER_GLOBAL_APPROACH_PROXIMITY = 0.65
 
+SMART_MIN_PPS_FLOOR = 41
+_SMART_PPS_IQR_MULTIPLIER = 1.25
+_SMART_MIN_PPS_DELTA = 16
+
+SMART_MIN_BPS_KB_FLOOR = 6
+_SMART_BPS_IQR_MULTIPLIER = 1.15
+_SMART_MIN_BPS_KB_DELTA = 3.5
+KBS_TO_BYTES = 1024
+_RATE_SMOOTHING_WINDOW = 3
+
 _MIN_CALM_FLOOR_SAMPLES = 6
 _MIN_VELOCITY_SAMPLES = 4
 _MIN_BOOST_BASE_PROX = 0.12
@@ -80,6 +90,45 @@ def geiger_stage_sound_kind(proximity_score: float) -> str:
     return 'Critical'
 
 
+def _median_and_iqr(values: list[float]) -> tuple[float, float]:
+    """Compute `(median, interquartile_range)` on *values* for outlier-resistant session baselines."""
+    if not values:
+        return 0.0, 0.0
+    ordered = sorted(values)
+    n = len(ordered)
+    mid = n // 2
+    median = ordered[mid] if n % 2 == 1 else (ordered[mid - 1] + ordered[mid]) / 2.0
+    q25 = ordered[n // 4]
+    q75 = ordered[(n * 3) // 4]
+    return median, q75 - q25
+
+
+def _recent_smoothed(history: deque[int]) -> float:
+    tail = list(history)[-_RATE_SMOOTHING_WINDOW:]
+    return sum(tail) / len(tail) if tail else 0.0
+
+
+def compute_smart_thresholds(pps_values: list[int], bps_values: list[int]) -> tuple[float, float, int, int]:
+    """Compute `(avg_pps, avg_bps, smart_pps_threshold, smart_bps_threshold_bytes)` from active (> 0) player rates."""
+    active_pps = [float(val) for val in pps_values if val > 0]
+    active_bps = [float(val) for val in bps_values if val > 0]
+    avg_pps = sum(active_pps) / len(active_pps) if active_pps else 0.0
+    avg_bps = sum(active_bps) / len(active_bps) if active_bps else 0.0
+
+    med_pps, iqr_pps = _median_and_iqr(active_pps)
+    med_kbps, iqr_kbps = _median_and_iqr([val / KBS_TO_BYTES for val in active_bps])
+
+    smart_pps = max(
+        SMART_MIN_PPS_FLOOR,
+        round(med_pps + max(_SMART_PPS_IQR_MULTIPLIER * iqr_pps, _SMART_MIN_PPS_DELTA)),
+    )
+    smart_bps_kb = max(
+        SMART_MIN_BPS_KB_FLOOR,
+        round(med_kbps + max(_SMART_BPS_IQR_MULTIPLIER * iqr_kbps, _SMART_MIN_BPS_KB_DELTA)),
+    )
+    return avg_pps, avg_bps, smart_pps, smart_bps_kb * KBS_TO_BYTES
+
+
 def compute_geiger_interval(*, repeat_interval: int, proximity_score: float) -> float:
     """Compute the target tick interval in seconds for `Adaptive Geiger` mode."""
     scale = repeat_interval / 2.0
@@ -113,10 +162,11 @@ class PlayerRateData:
     current_bps_duration: int = 0
 
     def update_pps_stats(self, *, now: datetime, pps: int, threshold: int, required_duration: int) -> None:
-        """Update high-PPS status for this player."""
+        """Update high-PPS status for this player (using a 3-sample rolling mean to absorb 1s boundary jitter)."""
         self.pps = pps
         self.pps_history.append(pps)
-        if pps < threshold:
+        effective_pps = max(pps, round(_recent_smoothed(self.pps_history)))
+        if effective_pps < threshold:
             self.accumulated_pps_duration += self.current_pps_duration
             self.is_high_pps = False
             self.newer_high_pps_time = None
@@ -134,10 +184,11 @@ class PlayerRateData:
             self.is_high_pps = True
 
     def update_bps_stats(self, *, now: datetime, bps: int, threshold: int, required_duration: int) -> None:
-        """Update high-BPS status for this player."""
+        """Update high-BPS status for this player (using a 3-sample rolling mean to absorb 1s boundary jitter)."""
         self.bps = bps
         self.bps_history.append(bps)
-        if bps < threshold:
+        effective_bps = max(bps, round(_recent_smoothed(self.bps_history)))
+        if effective_bps < threshold:
             self.is_high_bps = False
             self.newer_high_bps_time = None
             self.current_bps_duration = 0

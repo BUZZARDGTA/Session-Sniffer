@@ -343,6 +343,7 @@
     "Change Interface…": "Cambia interfaccia…",
     "Change the IP or range of the selected entry using the builder": "Modifica l'IP o l'intervallo della voce selezionata usando il compositore",
     "Change the Target Database for all currently checked & visible usernames:\n• Auto (Default): Restores each row’s smart default Target Database (matched DB or Randomlist for Searchlist, or source DB).\n• Specific DB: Moves all checked & visible usernames into the chosen database.": "Modifica il database di destinazione per tutti i nomi utente attualmente selezionati e visibili:\n• Automatico (Predefinito): ripristina il database di destinazione predefinito intelligente di ciascuna riga (DB corrispondente o Randomlist per Searchlist, oppure DB di origine).\n• DB specifico: sposta tutti i nomi utente selezionati e visibili nel database scelto.",
+    "Changes here apply only to this graph window and do not modify global settings.": "Le modifiche qui si applicano solo a questa finestra del grafico e non modificano le impostazioni globali.",
     "Check All": "Spunta tutte le caselle",
     "Check GitHub for a newer version of Session Sniffer": "Verifica su GitHub la presenza di una versione più recente di Session Sniffer",
     "Check Selected": "Seleziona evidenziati",
@@ -715,7 +716,7 @@
     "Detection Flags": "Indicatori di rilevamento",
     "Detection Logging": "Registrazione rilevamenti",
     "Detection Settings": "Impostazioni di rilevamento",
-    "Detection mode for flagging high packet-rate players.\n\nSmart: Dynamically calculates the average PPS of connected players and flags players exceeding the session average with a margin and minimum floor.\nManual: Flags players exceeding fixed PPS and BPS thresholds.": "Modalità di rilevamento per segnalare i giocatori con frequenza di pacchetti elevata.\n\nIntelligente: calcola dinamicamente la media PPS dei giocatori connessi e segnala i giocatori che superano la media della sessione con un margine e una soglia minima.\nManuale: segnala i giocatori che superano soglie fisse di PPS e BPS.",
+    "Detection mode for flagging high packet-rate players.\n\nSmart: Dynamically calculates the average PPS and BPS of connected players and flags players exceeding the session averages with a margin and minimum floor.\nManual: Flags players exceeding fixed PPS and BPS thresholds.": "Modalità di rilevamento per segnalare i giocatori con frequenza di pacchetti elevata.\n\nIntelligente: calcola dinamicamente la media di PPS e BPS dei giocatori connessi e segnala i giocatori che superano le medie della sessione con un margine e una soglia minima.\nManuale: segnala i giocatori che superano soglie fisse di PPS e BPS.",
     "Detection settings exported successfully.": "Impostazioni di rilevamento esportate correttamente.",
     "Detection settings imported successfully.": "Impostazioni di rilevamento importate correttamente.",
     "Detections": "Rilevamenti",
@@ -2397,7 +2398,7 @@
     "Skip this update version and do not prompt again until a newer version is released": "Salta questa versione di aggiornamento e non chiedere di nuovo fino al rilascio di una versione più recente",
     "Skipped Version": "Versione saltata",
     "Smart": "Intelligente",
-    "Smart mode (avg: {avg:.1f} PPS · threshold: {threshold} PPS)": "Modalità intelligente (media: {avg:.1f} PPS · soglia: {threshold} PPS)",
+    "Smart mode (avg: {avg_pps:.1f} PPS · {avg_bps} | thresholds: {pps} PPS · {bps})": "Modalità intelligente (media: {avg_pps:.1f} PPS · {avg_bps} | soglie: {pps} PPS · {bps})",
     "Sniff '{process}'": "Monitora '{process}'",
     "Sniff Selected Process": "Monitora processo selezionato",
     "Solarized Light": "Solarized Light",
@@ -4022,10 +4023,6 @@
     "{count} player": {
       "one": "{count} giocatore",
       "other": "{count} giocatori"
-    },
-    "{count} player currently exceeding threshold:": {
-      "one": "{count} giocatore supera attualmente la soglia:",
-      "other": "{count} giocatori superano attualmente la soglia:"
     },
     "{count} player currently exceeding thresholds:": {
       "one": "{count} giocatore supera attualmente le soglie:",

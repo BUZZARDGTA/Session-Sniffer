@@ -343,6 +343,7 @@
     "Change Interface…": "Alterar interface…",
     "Change the IP or range of the selected entry using the builder": "Alterar o IP ou a faixa da entrada selecionada usando o construtor",
     "Change the Target Database for all currently checked & visible usernames:\n• Auto (Default): Restores each row’s smart default Target Database (matched DB or Randomlist for Searchlist, or source DB).\n• Specific DB: Moves all checked & visible usernames into the chosen database.": "Alterar o Banco de dados de destino para todos os nomes de usuário atualmente marcados e visíveis:\n• Automático (padrão): restaura o Banco de dados de destino inteligente padrão de cada linha (BD correspondente ou Randomlist para Searchlist, ou BD de origem).\n• BD específico: move todos os nomes de usuário marcados e visíveis para o banco de dados escolhido.",
+    "Changes here apply only to this graph window and do not modify global settings.": "As alterações aqui aplicam-se apenas a esta janela de gráfico e não modificam as configurações globais.",
     "Check All": "Marcar todos",
     "Check GitHub for a newer version of Session Sniffer": "Verificar no GitHub se há uma versão mais recente do Session Sniffer",
     "Check Selected": "Marcar selecionados",
@@ -715,7 +716,7 @@
     "Detection Flags": "Sinalizadores de detecção",
     "Detection Logging": "Registro de detecções",
     "Detection Settings": "Configurações de detecção",
-    "Detection mode for flagging high packet-rate players.\n\nSmart: Dynamically calculates the average PPS of connected players and flags players exceeding the session average with a margin and minimum floor.\nManual: Flags players exceeding fixed PPS and BPS thresholds.": "Modo de detecção para sinalizar jogadores com alta taxa de pacotes.\n\nInteligente: calcula dinamicamente a média de PPS dos jogadores conectados e sinaliza jogadores que excedem a média da sessão com uma margem e um piso mínimo.\nManual: sinaliza jogadores que excedem limites fixos de PPS e BPS.",
+    "Detection mode for flagging high packet-rate players.\n\nSmart: Dynamically calculates the average PPS and BPS of connected players and flags players exceeding the session averages with a margin and minimum floor.\nManual: Flags players exceeding fixed PPS and BPS thresholds.": "Modo de detecção para sinalizar jogadores com alta taxa de pacotes.\n\nInteligente: calcula dinamicamente a média de PPS e BPS dos jogadores conectados e sinaliza jogadores que excedem as médias da sessão com uma margem e um piso mínimo.\nManual: sinaliza jogadores que excedem limites fixos de PPS e BPS.",
     "Detection settings exported successfully.": "Configurações de detecção exportadas com sucesso.",
     "Detection settings imported successfully.": "Configurações de detecção importadas com sucesso.",
     "Detections": "Detecções",
@@ -2397,7 +2398,7 @@
     "Skip this update version and do not prompt again until a newer version is released": "Pular esta versão de atualização e não perguntar novamente até que uma versão mais recente seja lançada",
     "Skipped Version": "Versão ignorada",
     "Smart": "Inteligente",
-    "Smart mode (avg: {avg:.1f} PPS · threshold: {threshold} PPS)": "Modo inteligente (média: {avg:.1f} PPS · limite: {threshold} PPS)",
+    "Smart mode (avg: {avg_pps:.1f} PPS · {avg_bps} | thresholds: {pps} PPS · {bps})": "Modo inteligente (média: {avg_pps:.1f} PPS · {avg_bps} | limites: {pps} PPS · {bps})",
     "Sniff '{process}'": "Capturar '{process}'",
     "Sniff Selected Process": "Capturar processo selecionado",
     "Solarized Light": "Solarized Light",
@@ -4022,10 +4023,6 @@
     "{count} player": {
       "one": "{count} jogador",
       "other": "{count} jogadores"
-    },
-    "{count} player currently exceeding threshold:": {
-      "one": "{count} jogador excedendo o limite no momento:",
-      "other": "{count} jogadores excedendo o limite no momento:"
     },
     "{count} player currently exceeding thresholds:": {
       "one": "{count} jogador excedendo os limites no momento:",

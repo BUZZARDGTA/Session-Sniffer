@@ -343,6 +343,7 @@
     "Change Interface…": "Zmeniť rozhranie…",
     "Change the IP or range of the selected entry using the builder": "Zmeniť IP alebo rozsah vybraného záznamu pomocou editora",
     "Change the Target Database for all currently checked & visible usernames:\n• Auto (Default): Restores each row’s smart default Target Database (matched DB or Randomlist for Searchlist, or source DB).\n• Specific DB: Moves all checked & visible usernames into the chosen database.": "Zmeniť cieľovú databázu pre všetky aktuálne zaškrtnuté a viditeľné používateľské mená:\n• Automaticky (Predvolené): Obnoví pre každý riadok inteligentnú predvolenú cieľovú databázu (zodpovedajúcu DB alebo Randomlist pre Searchlist, prípadne zdrojovú DB).\n• Konkrétna DB: Presunie všetky zaškrtnuté a viditeľné používateľské mená do zvolenej databázy.",
+    "Changes here apply only to this graph window and do not modify global settings.": "Zmeny vykonané tu platia iba pre toto okno grafu a nemenia globálne nastavenia.",
     "Check All": "Zaškrtnúť všetko",
     "Check GitHub for a newer version of Session Sniffer": "Skontrolovať na GitHube novšiu verziu Session Sniffer",
     "Check Selected": "Zaškrtnúť vybrané",
@@ -715,7 +716,7 @@
     "Detection Flags": "Príznaky detekcie",
     "Detection Logging": "Zaznamenávanie detekcií",
     "Detection Settings": "Nastavenia detekcie",
-    "Detection mode for flagging high packet-rate players.\n\nSmart: Dynamically calculates the average PPS of connected players and flags players exceeding the session average with a margin and minimum floor.\nManual: Flags players exceeding fixed PPS and BPS thresholds.": "Režim detekcie na označovanie hráčov s vysokou frekvenciou paketov.\n\nInteligentný: Dynamicky vypočíta priemerné PPS pripojených hráčov a označí hráčov, ktorí prekročia priemer relácie s rezervou a minimálnym prahom.\nManuálny: Označí hráčov, ktorí prekročia pevné prahy PPS a BPS.",
+    "Detection mode for flagging high packet-rate players.\n\nSmart: Dynamically calculates the average PPS and BPS of connected players and flags players exceeding the session averages with a margin and minimum floor.\nManual: Flags players exceeding fixed PPS and BPS thresholds.": "Režim detekcie na označovanie hráčov s vysokou frekvenciou paketov.\n\nInteligentný: Dynamicky vypočíta priemerné PPS a BPS pripojených hráčov a označí hráčov, ktorí prekročia priemery relácie s rezervou a minimálnym prahom.\nManuálny: Označí hráčov, ktorí prekročia pevné prahy PPS a BPS.",
     "Detection settings exported successfully.": "Nastavenia detekcie boli úspešne exportované.",
     "Detection settings imported successfully.": "Nastavenia detekcie boli úspešne importované.",
     "Detections": "Detekcie",
@@ -2397,7 +2398,7 @@
     "Skip this update version and do not prompt again until a newer version is released": "Preskočiť túto verziu aktualizácie a znova neupozorňovať, kým nevyjde novšia verzia",
     "Skipped Version": "Preskočená verzia",
     "Smart": "Inteligentný",
-    "Smart mode (avg: {avg:.1f} PPS · threshold: {threshold} PPS)": "Inteligentný režim (priemer: {avg:.1f} PPS · prah: {threshold} PPS)",
+    "Smart mode (avg: {avg_pps:.1f} PPS · {avg_bps} | thresholds: {pps} PPS · {bps})": "Inteligentný režim (priemer: {avg_pps:.1f} PPS · {avg_bps} | prahové hodnoty: {pps} PPS · {bps})",
     "Sniff '{process}'": "Sledovať '{process}'",
     "Sniff Selected Process": "Sledovať vybratý proces",
     "Solarized Light": "Solarized Light",
@@ -4264,11 +4265,6 @@
       "one": "{count} hráč",
       "few": "{count} hráči",
       "other": "{count} hráčov"
-    },
-    "{count} player currently exceeding threshold:": {
-      "one": "{count} hráč momentálne prekračuje prah:",
-      "few": "{count} hráči momentálne prekračujú prah:",
-      "other": "{count} hráčov momentálne prekračuje prah:"
     },
     "{count} player currently exceeding thresholds:": {
       "one": "{count} hráč momentálne prekračuje prahy:",

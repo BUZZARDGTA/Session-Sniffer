@@ -343,6 +343,7 @@
     "Change Interface…": "تغيير الواجهة…",
     "Change the IP or range of the selected entry using the builder": "تغيير عنوان IP أو نطاق الإدخال المحدد باستخدام أداة الإنشاء",
     "Change the Target Database for all currently checked & visible usernames:\n• Auto (Default): Restores each row’s smart default Target Database (matched DB or Randomlist for Searchlist, or source DB).\n• Specific DB: Moves all checked & visible usernames into the chosen database.": "تغيير قاعدة البيانات الهدف لجميع أسماء المستخدمين المحددة والظاهرة حالياً:\n• تلقائي (افتراضي): يستعيد قاعدة البيانات الهدف الذكية الافتراضية لكل صف (قاعدة البيانات المطابقة أو Randomlist لـ Searchlist، أو قاعدة البيانات المصدر).\n• قاعدة بيانات محددة: ينقل جميع أسماء المستخدمين المحددة والظاهرة إلى قاعدة البيانات المختارة.",
+    "Changes here apply only to this graph window and do not modify global settings.": "تنطبق التغييرات هنا على نافذة الرسم البياني هذه فقط ولا تعدّل الإعدادات العامة.",
     "Check All": "تأشير الكل",
     "Check GitHub for a newer version of Session Sniffer": "التحقق من GitHub بحثاً عن إصدار أحدث من Session Sniffer",
     "Check Selected": "فحص المحدد",
@@ -715,7 +716,7 @@
     "Detection Flags": "علامات الاكتشاف",
     "Detection Logging": "تسجيل الاكتشافات",
     "Detection Settings": "إعدادات الاكتشاف",
-    "Detection mode for flagging high packet-rate players.\n\nSmart: Dynamically calculates the average PPS of connected players and flags players exceeding the session average with a margin and minimum floor.\nManual: Flags players exceeding fixed PPS and BPS thresholds.": "وضع الاكتشاف لتعليم اللاعبين ذوي معدل الحزم المرتفع.\n\nالذكي (Smart): يحسب ديناميكياً متوسط PPS للاعبين المتصلين ويُعلِّم اللاعبين الذين يتجاوزون متوسط الجلسة بهامش وحدّ أدنى.\nاليدوي (Manual): يُعلِّم اللاعبين الذين يتجاوزون عتبتَي PPS وBPS ثابتتين.",
+    "Detection mode for flagging high packet-rate players.\n\nSmart: Dynamically calculates the average PPS and BPS of connected players and flags players exceeding the session averages with a margin and minimum floor.\nManual: Flags players exceeding fixed PPS and BPS thresholds.": "وضع الاكتشاف لتعليم اللاعبين ذوي معدل الحزم المرتفع.\n\nالذكي (Smart): يحسب ديناميكياً متوسطَي PPS وBPS للاعبين المتصلين ويُعلِّم اللاعبين الذين يتجاوزون متوسطَي الجلسة بهامش وحدّ أدنى.\nاليدوي (Manual): يُعلِّم اللاعبين الذين يتجاوزون عتبتَي PPS وBPS ثابتتين.",
     "Detection settings exported successfully.": "تم تصدير إعدادات الاكتشاف بنجاح.",
     "Detection settings imported successfully.": "تم استيراد إعدادات الاكتشاف بنجاح.",
     "Detections": "الاكتشافات",
@@ -2397,7 +2398,7 @@
     "Skip this update version and do not prompt again until a newer version is released": "تخطي إصدار التحديث هذا وعدم المطالبة مجددًا حتى صدور نسخة أحدث",
     "Skipped Version": "الإصدار المُتخطّى",
     "Smart": "ذكي",
-    "Smart mode (avg: {avg:.1f} PPS · threshold: {threshold} PPS)": "الوضع الذكي (المتوسط: {avg:.1f} PPS · العتبة: {threshold} PPS)",
+    "Smart mode (avg: {avg_pps:.1f} PPS · {avg_bps} | thresholds: {pps} PPS · {bps})": "الوضع الذكي (المتوسط: {avg_pps:.1f} PPS · {avg_bps} | العتبات: {pps} PPS · {bps})",
     "Sniff '{process}'": "مراقبة '{process}'",
     "Sniff Selected Process": "مراقبة العملية المحددة",
     "Solarized Light": "Solarized الفاتح",
@@ -4990,14 +4991,6 @@
       "few": "{count} لاعبين",
       "many": "{count} لاعبًا",
       "other": "{count} لاعب"
-    },
-    "{count} player currently exceeding threshold:": {
-      "zero": "لا يوجد لاعبون يتجاوزون العتبة حاليًا ({count}):",
-      "one": "لاعب واحد يتجاوز العتبة حاليًا ({count}):",
-      "two": "لاعبان يتجاوزان العتبة حاليًا ({count}):",
-      "few": "{count} لاعبين يتجاوزون العتبة حاليًا:",
-      "many": "{count} لاعبًا يتجاوز العتبة حاليًا:",
-      "other": "{count} لاعب يتجاوز العتبة حاليًا:"
     },
     "{count} player currently exceeding thresholds:": {
       "zero": "لا يوجد لاعبون يتجاوزون العتبات حاليًا ({count}):",

@@ -343,6 +343,7 @@
     "Change Interface…": "Cambiar interfaz…",
     "Change the IP or range of the selected entry using the builder": "Cambiar la IP o el rango de la entrada seleccionada usando el constructor",
     "Change the Target Database for all currently checked & visible usernames:\n• Auto (Default): Restores each row’s smart default Target Database (matched DB or Randomlist for Searchlist, or source DB).\n• Specific DB: Moves all checked & visible usernames into the chosen database.": "Cambiar la Base de datos de destino para todos los nombres de usuario marcados y visibles actualmente:\n• Automático (predeterminado): restaura la Base de datos de destino inteligente predeterminada de cada fila (BD coincidente o Randomlist para Searchlist, o BD de origen).\n• BD específica: mueve todos los nombres de usuario marcados y visibles a la base de datos elegida.",
+    "Changes here apply only to this graph window and do not modify global settings.": "Los cambios aquí se aplican solo a esta ventana de gráfico y no modifican la configuración global.",
     "Check All": "Marcar todo",
     "Check GitHub for a newer version of Session Sniffer": "Buscar en GitHub una versión más reciente de Session Sniffer",
     "Check Selected": "Marcar seleccionados",
@@ -715,7 +716,7 @@
     "Detection Flags": "Indicadores de detección",
     "Detection Logging": "Registro de detecciones",
     "Detection Settings": "Configuración de detección",
-    "Detection mode for flagging high packet-rate players.\n\nSmart: Dynamically calculates the average PPS of connected players and flags players exceeding the session average with a margin and minimum floor.\nManual: Flags players exceeding fixed PPS and BPS thresholds.": "Modo de detección para marcar jugadores con alta tasa de paquetes.\n\nInteligente: calcula dinámicamente el promedio de PPS de los jugadores conectados y marca a los jugadores que superan el promedio de la sesión con un margen y un umbral mínimo.\nManual: marca a los jugadores que superan umbrales fijos de PPS y BPS.",
+    "Detection mode for flagging high packet-rate players.\n\nSmart: Dynamically calculates the average PPS and BPS of connected players and flags players exceeding the session averages with a margin and minimum floor.\nManual: Flags players exceeding fixed PPS and BPS thresholds.": "Modo de detección para marcar jugadores con alta tasa de paquetes.\n\nInteligente: calcula dinámicamente el promedio de PPS y BPS de los jugadores conectados y marca a los jugadores que superan los promedios de la sesión con un margen y un umbral mínimo.\nManual: marca a los jugadores que superan umbrales fijos de PPS y BPS.",
     "Detection settings exported successfully.": "Configuración de detección exportada correctamente.",
     "Detection settings imported successfully.": "Configuración de detección importada correctamente.",
     "Detections": "Detecciones",
@@ -2397,7 +2398,7 @@
     "Skip this update version and do not prompt again until a newer version is released": "Omitir esta versión de actualización y no volver a preguntar hasta que se publique una versión más reciente",
     "Skipped Version": "Versión omitida",
     "Smart": "Inteligente",
-    "Smart mode (avg: {avg:.1f} PPS · threshold: {threshold} PPS)": "Modo inteligente (prom.: {avg:.1f} PPS · umbral: {threshold} PPS)",
+    "Smart mode (avg: {avg_pps:.1f} PPS · {avg_bps} | thresholds: {pps} PPS · {bps})": "Modo inteligente (prom.: {avg_pps:.1f} PPS · {avg_bps} | umbrales: {pps} PPS · {bps})",
     "Sniff '{process}'": "Capturar '{process}'",
     "Sniff Selected Process": "Capturar proceso seleccionado",
     "Solarized Light": "Solarized Light",
@@ -4022,10 +4023,6 @@
     "{count} player": {
       "one": "{count} jugador",
       "other": "{count} jugadores"
-    },
-    "{count} player currently exceeding threshold:": {
-      "one": "{count} jugador supera actualmente el umbral:",
-      "other": "{count} jugadores superan actualmente el umbral:"
     },
     "{count} player currently exceeding thresholds:": {
       "one": "{count} jugador supera actualmente los umbrales:",

@@ -343,6 +343,7 @@
     "Change Interface…": "تغییر رابط…",
     "Change the IP or range of the selected entry using the builder": "تغییر IP یا محدودهٔ مدخل انتخاب‌شده با استفاده از سازنده",
     "Change the Target Database for all currently checked & visible usernames:\n• Auto (Default): Restores each row’s smart default Target Database (matched DB or Randomlist for Searchlist, or source DB).\n• Specific DB: Moves all checked & visible usernames into the chosen database.": "تغییر پایگاه دادهٔ مقصد برای همهٔ نام‌های کاربری تیک‌خورده و نمایان:\n• خودکار (پیش‌فرض): پایگاه دادهٔ مقصد هوشمند پیش‌فرض هر ردیف را بازیابی می‌کند (پایگاه دادهٔ منطبق یا Randomlist برای Searchlist، یا پایگاه دادهٔ مبدأ).\n• پایگاه دادهٔ مشخص: همهٔ نام‌های کاربری تیک‌خورده و نمایان را به پایگاه دادهٔ انتخاب‌شده منتقل می‌کند.",
+    "Changes here apply only to this graph window and do not modify global settings.": "تغییرات در اینجا فقط بر همین پنجره نمودار اعمال می‌شوند و تنظیمات سراسری را تغییر نمی‌دهند.",
     "Check All": "تیک زدن همه",
     "Check GitHub for a newer version of Session Sniffer": "بررسی GitHub برای یافتن نسخهٔ جدیدتر Session Sniffer",
     "Check Selected": "تیک زدن موارد انتخاب‌شده",
@@ -715,7 +716,7 @@
     "Detection Flags": "پرچم‌های تشخیص",
     "Detection Logging": "ثبت گزارش تشخیص",
     "Detection Settings": "تنظیمات تشخیص",
-    "Detection mode for flagging high packet-rate players.\n\nSmart: Dynamically calculates the average PPS of connected players and flags players exceeding the session average with a margin and minimum floor.\nManual: Flags players exceeding fixed PPS and BPS thresholds.": "حالت تشخیص برای علامت‌گذاری بازیکنان با نرخ بالای بسته.\n\nهوشمند: میانگین PPS بازیکنان متصل را به‌صورت پویا محاسبه می‌کند و بازیکنانی را که با حاشیه و حداقل کف از میانگین نشست فراتر بروند علامت‌گذاری می‌نماید.\nدستی: بازیکنانی را که از آستانه‌های ثابت PPS و BPS فراتر بروند علامت‌گذاری می‌کند.",
+    "Detection mode for flagging high packet-rate players.\n\nSmart: Dynamically calculates the average PPS and BPS of connected players and flags players exceeding the session averages with a margin and minimum floor.\nManual: Flags players exceeding fixed PPS and BPS thresholds.": "حالت تشخیص برای علامت‌گذاری بازیکنان با نرخ بالای بسته.\n\nهوشمند: میانگین PPS و BPS بازیکنان متصل را به‌صورت پویا محاسبه می‌کند و بازیکنانی را که با حاشیه و حداقل کف از میانگین‌های نشست فراتر بروند علامت‌گذاری می‌نماید.\nدستی: بازیکنانی را که از آستانه‌های ثابت PPS و BPS فراتر بروند علامت‌گذاری می‌کند.",
     "Detection settings exported successfully.": "تنظیمات تشخیص با موفقیت برون‌بری شد.",
     "Detection settings imported successfully.": "تنظیمات تشخیص با موفقیت درون‌ریزی شد.",
     "Detections": "تشخیص‌ها",
@@ -2397,7 +2398,7 @@
     "Skip this update version and do not prompt again until a newer version is released": "این نسخهٔ به‌روزرسانی را نادیده بگیر و تا انتشار نسخهٔ جدیدتر دوباره اعلان نده",
     "Skipped Version": "نسخهٔ نادیده‌گرفته‌شده",
     "Smart": "هوشمند",
-    "Smart mode (avg: {avg:.1f} PPS · threshold: {threshold} PPS)": "حالت هوشمند (میانگین: {avg:.1f} PPS · آستانه: {threshold} PPS)",
+    "Smart mode (avg: {avg_pps:.1f} PPS · {avg_bps} | thresholds: {pps} PPS · {bps})": "حالت هوشمند (میانگین: {avg_pps:.1f} PPS · {avg_bps} | آستانه‌ها: {pps} PPS · {bps})",
     "Sniff '{process}'": "شنود «{process}»",
     "Sniff Selected Process": "شنود پردازش انتخاب‌شده",
     "Solarized Light": "Solarized روشن",
@@ -4022,10 +4023,6 @@
     "{count} player": {
       "one": "{count} بازیکن",
       "other": "{count} بازیکن"
-    },
-    "{count} player currently exceeding threshold:": {
-      "one": "{count} بازیکن هم‌اکنون از آستانه فراتر رفته است:",
-      "other": "{count} بازیکن هم‌اکنون از آستانه فراتر رفته‌اند:"
     },
     "{count} player currently exceeding thresholds:": {
       "one": "{count} بازیکن هم‌اکنون از آستانه‌ها فراتر رفته است:",

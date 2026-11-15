@@ -343,6 +343,7 @@
     "Change Interface…": "變更網路介面…",
     "Change the IP or range of the selected entry using the builder": "使用範圍建立工具變更所選項目的 IP 或範圍",
     "Change the Target Database for all currently checked & visible usernames:\n• Auto (Default): Restores each row’s smart default Target Database (matched DB or Randomlist for Searchlist, or source DB).\n• Specific DB: Moves all checked & visible usernames into the chosen database.": "為所有目前核取且可見的使用者名稱變更目標資料庫：\n• 自動（預設）：還原每列的智慧預設目標資料庫（相符的資料庫；若是 Searchlist 則為 Randomlist；或原始資料庫）。\n• 指定資料庫：將所有核取且可見的使用者名稱移至所選資料庫。",
+    "Changes here apply only to this graph window and do not modify global settings.": "此處的變更僅套用於目前圖表視窗，不會修改全域設定。",
     "Check All": "全部勾選",
     "Check GitHub for a newer version of Session Sniffer": "在 GitHub 上檢查是否有更新版本的 Session Sniffer",
     "Check Selected": "勾選所選項目",
@@ -715,7 +716,7 @@
     "Detection Flags": "偵測旗標",
     "Detection Logging": "偵測日誌",
     "Detection Settings": "偵測設定",
-    "Detection mode for flagging high packet-rate players.\n\nSmart: Dynamically calculates the average PPS of connected players and flags players exceeding the session average with a margin and minimum floor.\nManual: Flags players exceeding fixed PPS and BPS thresholds.": "用於標記高封包速率玩家的偵測模式。\n\n智慧模式：動態計算已連線玩家的平均 PPS，並標記超過工作階段平均值一定幅度且達到最低門檻的玩家。\n手動模式：標記超過固定 PPS 與 BPS 閾值的玩家。",
+    "Detection mode for flagging high packet-rate players.\n\nSmart: Dynamically calculates the average PPS and BPS of connected players and flags players exceeding the session averages with a margin and minimum floor.\nManual: Flags players exceeding fixed PPS and BPS thresholds.": "用於標記高封包速率玩家的偵測模式。\n\n智慧模式：動態計算已連線玩家的平均 PPS 與 BPS，並標記超過工作階段平均值一定幅度且達到最低門檻的玩家。\n手動模式：標記超過固定 PPS 與 BPS 閾值的玩家。",
     "Detection settings exported successfully.": "偵測設定已成功匯出。",
     "Detection settings imported successfully.": "偵測設定已成功匯入。",
     "Detections": "偵測次數",
@@ -2397,7 +2398,7 @@
     "Skip this update version and do not prompt again until a newer version is released": "略過此更新版本，直到發布更新的版本前不再提示",
     "Skipped Version": "已略過的版本",
     "Smart": "智慧模式",
-    "Smart mode (avg: {avg:.1f} PPS · threshold: {threshold} PPS)": "智慧模式（平均：{avg:.1f} PPS · 閾值：{threshold} PPS）",
+    "Smart mode (avg: {avg_pps:.1f} PPS · {avg_bps} | thresholds: {pps} PPS · {bps})": "智慧模式（平均：{avg_pps:.1f} PPS · {avg_bps} | 閾值：{pps} PPS · {bps}）",
     "Sniff '{process}'": "嗅探「{process}」",
     "Sniff Selected Process": "嗅探選取的處理程序",
     "Solarized Light": "Solarized Light",
@@ -3780,9 +3781,6 @@
     },
     "{count} player": {
       "other": "{count} 名玩家"
-    },
-    "{count} player currently exceeding threshold:": {
-      "other": "目前有 {count} 名玩家超出閾值："
     },
     "{count} player currently exceeding thresholds:": {
       "other": "目前有 {count} 名玩家超出閾值："

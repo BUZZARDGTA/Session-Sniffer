@@ -343,6 +343,7 @@
     "Change Interface…": "Changer d'interface…",
     "Change the IP or range of the selected entry using the builder": "Changer l'IP ou la plage de l'entrée sélectionnée à l'aide du générateur",
     "Change the Target Database for all currently checked & visible usernames:\n• Auto (Default): Restores each row’s smart default Target Database (matched DB or Randomlist for Searchlist, or source DB).\n• Specific DB: Moves all checked & visible usernames into the chosen database.": "Modifier la base de données cible pour tous les noms d'utilisateur actuellement cochés et visibles :\n• Auto (par défaut) : restaure la base de données cible intelligente par défaut de chaque ligne (BDD correspondante ou Randomlist pour Searchlist, ou BDD source).\n• BDD spécifique : déplace tous les noms d'utilisateur cochés et visibles vers la base de données choisie.",
+    "Changes here apply only to this graph window and do not modify global settings.": "Les modifications ici ne s’appliquent qu’à cette fenêtre de graphique et ne modifient pas les paramètres globaux.",
     "Check All": "Tout cocher",
     "Check GitHub for a newer version of Session Sniffer": "Vérifier sur GitHub si une nouvelle version de Session Sniffer est disponible",
     "Check Selected": "Cocher la sélection",
@@ -715,7 +716,7 @@
     "Detection Flags": "Indicateurs de détection",
     "Detection Logging": "Journalisation des détections",
     "Detection Settings": "Paramètres de détection",
-    "Detection mode for flagging high packet-rate players.\n\nSmart: Dynamically calculates the average PPS of connected players and flags players exceeding the session average with a margin and minimum floor.\nManual: Flags players exceeding fixed PPS and BPS thresholds.": "Mode de détection pour signaler les joueurs à débit de paquets élevé.\n\nIntelligent : calcule dynamiquement le PPS moyen des joueurs connectés et signale ceux qui dépassent la moyenne de la session avec une marge et un seuil minimal.\nManuel : signale les joueurs dépassant des seuils fixes de PPS et de BPS.",
+    "Detection mode for flagging high packet-rate players.\n\nSmart: Dynamically calculates the average PPS and BPS of connected players and flags players exceeding the session averages with a margin and minimum floor.\nManual: Flags players exceeding fixed PPS and BPS thresholds.": "Mode de détection pour signaler les joueurs à débit de paquets élevé.\n\nIntelligent : calcule dynamiquement les PPS et BPS moyens des joueurs connectés et signale ceux qui dépassent les moyennes de la session avec une marge et un seuil minimal.\nManuel : signale les joueurs dépassant des seuils fixes de PPS et de BPS.",
     "Detection settings exported successfully.": "Paramètres de détection exportés avec succès.",
     "Detection settings imported successfully.": "Paramètres de détection importés avec succès.",
     "Detections": "Détections",
@@ -2397,7 +2398,7 @@
     "Skip this update version and do not prompt again until a newer version is released": "Ignorer cette version de mise à jour et ne plus demander jusqu'à la sortie d'une version plus récente",
     "Skipped Version": "Version ignorée",
     "Smart": "Intelligent",
-    "Smart mode (avg: {avg:.1f} PPS · threshold: {threshold} PPS)": "Mode intelligent (moy. : {avg:.1f} PPS · seuil : {threshold} PPS)",
+    "Smart mode (avg: {avg_pps:.1f} PPS · {avg_bps} | thresholds: {pps} PPS · {bps})": "Mode intelligent (moy. : {avg_pps:.1f} PPS · {avg_bps} | seuils : {pps} PPS · {bps})",
     "Sniff '{process}'": "Capturer « {process} »",
     "Sniff Selected Process": "Capturer le processus sélectionné",
     "Solarized Light": "Solarized Light",
@@ -4022,10 +4023,6 @@
     "{count} player": {
       "one": "{count} joueur",
       "other": "{count} joueurs"
-    },
-    "{count} player currently exceeding threshold:": {
-      "one": "{count} joueur dépassant actuellement le seuil :",
-      "other": "{count} joueurs dépassant actuellement le seuil :"
     },
     "{count} player currently exceeding thresholds:": {
       "one": "{count} joueur dépassant actuellement les seuils :",

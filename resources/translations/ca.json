@@ -343,6 +343,7 @@
     "Change Interface…": "Canvia la interfície…",
     "Change the IP or range of the selected entry using the builder": "Canvia la IP o l'interval de l'entrada seleccionada amb el constructor",
     "Change the Target Database for all currently checked & visible usernames:\n• Auto (Default): Restores each row’s smart default Target Database (matched DB or Randomlist for Searchlist, or source DB).\n• Specific DB: Moves all checked & visible usernames into the chosen database.": "Canvia la base de dades de destinació per a tots els noms d'usuari marcats i visibles actualment:\n• Automàtic (per defecte): restaura la base de dades de destinació intel·ligent per defecte de cada fila (BD coincident o Randomlist per a Searchlist, o BD d'origen).\n• BD específica: mou tots els noms d'usuari marcats i visibles a la base de dades triada.",
+    "Changes here apply only to this graph window and do not modify global settings.": "Els canvis d'aquí s'apliquen només a aquesta finestra de gràfic i no modifiquen la configuració global.",
     "Check All": "Marca-ho tot",
     "Check GitHub for a newer version of Session Sniffer": "Comprova a GitHub si hi ha una versió més nova de Session Sniffer",
     "Check Selected": "Marca els seleccionats",
@@ -715,7 +716,7 @@
     "Detection Flags": "Indicadors de detecció",
     "Detection Logging": "Registre de deteccions",
     "Detection Settings": "Paràmetres de detecció",
-    "Detection mode for flagging high packet-rate players.\n\nSmart: Dynamically calculates the average PPS of connected players and flags players exceeding the session average with a margin and minimum floor.\nManual: Flags players exceeding fixed PPS and BPS thresholds.": "Mode de detecció per marcar jugadors amb una taxa de paquets elevada.\n\nIntel·ligent: calcula dinàmicament la mitjana de PPS dels jugadors connectats i marca els jugadors que superen la mitjana de la sessió amb un marge i un llindar mínim.\nManual: marca els jugadors que superen llindars fixos de PPS i BPS.",
+    "Detection mode for flagging high packet-rate players.\n\nSmart: Dynamically calculates the average PPS and BPS of connected players and flags players exceeding the session averages with a margin and minimum floor.\nManual: Flags players exceeding fixed PPS and BPS thresholds.": "Mode de detecció per marcar jugadors amb una taxa de paquets elevada.\n\nIntel·ligent: calcula dinàmicament la mitjana de PPS i BPS dels jugadors connectats i marca els jugadors que superen les mitjanes de la sessió amb un marge i un llindar mínim.\nManual: marca els jugadors que superen llindars fixos de PPS i BPS.",
     "Detection settings exported successfully.": "Els paràmetres de detecció s'han exportat correctament.",
     "Detection settings imported successfully.": "Els paràmetres de detecció s'han importat correctament.",
     "Detections": "Deteccions",
@@ -2397,7 +2398,7 @@
     "Skip this update version and do not prompt again until a newer version is released": "Omet aquesta versió d'actualització i no tornis a avisar fins que es publiqui una versió més recent",
     "Skipped Version": "Versió omesa",
     "Smart": "Intel·ligent",
-    "Smart mode (avg: {avg:.1f} PPS · threshold: {threshold} PPS)": "Mode intel·ligent (mitjana: {avg:.1f} PPS · llindar: {threshold} PPS)",
+    "Smart mode (avg: {avg_pps:.1f} PPS · {avg_bps} | thresholds: {pps} PPS · {bps})": "Mode intel·ligent (mitjana: {avg_pps:.1f} PPS · {avg_bps} | llindars: {pps} PPS · {bps})",
     "Sniff '{process}'": "Analitza '{process}'",
     "Sniff Selected Process": "Analitza el procés seleccionat",
     "Solarized Light": "Solarized Clar",
@@ -4022,10 +4023,6 @@
     "{count} player": {
       "one": "{count} jugador",
       "other": "{count} jugadors"
-    },
-    "{count} player currently exceeding threshold:": {
-      "one": "{count} jugador supera actualment el llindar:",
-      "other": "{count} jugadors superen actualment el llindar:"
     },
     "{count} player currently exceeding thresholds:": {
       "one": "{count} jugador supera actualment els llindars:",

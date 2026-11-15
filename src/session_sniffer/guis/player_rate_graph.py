@@ -271,7 +271,7 @@ class SpikeAlertGraphState:
 
     monitor_mode: str = 'Smart'
     manual_pps_threshold: int = 30
-    bps_threshold_kb: int = 5
+    manual_bps_threshold_kb: int = 5
     sound_scope: str = 'Open Graphs'
     sound_mode: str = 'Repeating'
     repeat_interval: int = 2
@@ -280,21 +280,11 @@ class SpikeAlertGraphState:
 
 
 @dataclass(frozen=True, slots=True)
-class ThresholdAdjustment:
-    """Live threshold change emitted from `PlayerRateGraphWindow`."""
-
-    value: int
-    persist: bool = True
-
-
-@dataclass(frozen=True, slots=True)
 class SpikeAlertGraphConfig:
-    """Initial Spike Alert settings and live persistence callbacks for `PlayerRateGraphWindow`."""
+    """Initial Spike Alert settings and callbacks for `PlayerRateGraphWindow`."""
 
     state: SpikeAlertGraphState = SpikeAlertGraphState()
-    on_monitor_mode_changed: Callable[[str], None] | None = None
-    on_pps_threshold_changed: Callable[[ThresholdAdjustment], None] | None = None
-    on_bps_threshold_changed: Callable[[ThresholdAdjustment], None] | None = None
+    on_thresholds_changed: Callable[[str], None] | None = None
     on_scope_changed: Callable[[str], None] | None = None
     on_mode_changed: Callable[[str], None] | None = None
     on_repeat_interval_changed: Callable[[int], None] | None = None
@@ -337,9 +327,11 @@ class PlayerRateGraphWindow(DualRateGraphBase):
         self._usernames: list[str] = []
         self._pps_threshold_value = initial_pps_threshold
         self._bps_threshold_value = initial_bps_threshold
+        self._global_monitor_mode = state.monitor_mode
         self._monitor_mode = state.monitor_mode
+        self._has_local_threshold_override = False
         self._manual_pps_threshold = state.manual_pps_threshold
-        self._bps_threshold_kb = state.bps_threshold_kb
+        self._manual_bps_threshold_kb = state.manual_bps_threshold_kb
         self._repeat_interval = state.repeat_interval
         self._pps_spiking = False
         self._bps_spiking = False
@@ -352,9 +344,7 @@ class PlayerRateGraphWindow(DualRateGraphBase):
         self._spike_sound_mode = state.sound_mode
         self._spike_sound_preset = state.sound_preset
         self._visual_alert_enabled = state.visual_alert
-        self._on_monitor_mode_changed = cfg.on_monitor_mode_changed
-        self._on_pps_threshold_changed = cfg.on_pps_threshold_changed
-        self._on_bps_threshold_changed = cfg.on_bps_threshold_changed
+        self._on_thresholds_changed = cfg.on_thresholds_changed
         self._on_spike_sound_scope_changed = cfg.on_scope_changed
         self._on_spike_sound_mode_changed = cfg.on_mode_changed
         self._on_repeat_interval_changed = cfg.on_repeat_interval_changed
@@ -373,6 +363,26 @@ class PlayerRateGraphWindow(DualRateGraphBase):
         register_language_refresh(self, self._update_window_title)
         self._finish_graph_init()
         self.resize(scale_by_ui(780), scale_by_ui(535))
+
+    @property
+    def monitor_mode(self) -> str:
+        """Return the threshold mode (`Smart` or `Manual`) currently active in this graph window."""
+        return self._monitor_mode
+
+    @property
+    def has_local_threshold_override(self) -> bool:
+        """Return whether the user locally customized thresholds in this graph window."""
+        return self._has_local_threshold_override
+
+    @property
+    def pps_threshold(self) -> int:
+        """Return the active PPS threshold for this graph window."""
+        return self._pps_threshold_value
+
+    @property
+    def bps_threshold(self) -> int:
+        """Return the active BPS threshold in bytes/s for this graph window."""
+        return self._bps_threshold_value
 
     @override
     def _pps_y_ceiling(self, visible_max: float) -> float:
@@ -415,11 +425,14 @@ class PlayerRateGraphWindow(DualRateGraphBase):
 
         pps_spin = QSpinBox()
         pps_spin.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
-        pps_spin.setRange(_PPS_THRESHOLD_MIN, _PPS_THRESHOLD_MAX)
+        pps_spin.setRange(
+            _PPS_THRESHOLD_MIN,
+            _PPS_THRESHOLD_MAX if self._monitor_mode == 'Manual' else max(_PPS_THRESHOLD_MAX, self._pps_threshold_value),
+        )
         pps_spin.setValue(
             self._manual_pps_threshold
             if self._monitor_mode == 'Manual'
-            else min(_PPS_THRESHOLD_MAX, max(_PPS_THRESHOLD_MIN, self._pps_threshold_value)),
+            else max(_PPS_THRESHOLD_MIN, self._pps_threshold_value),
         )
         pps_spin.lineEdit().setTextMargins(scale_by_ui(5), 0, 0, 0)
         pps_spin.valueChanged.connect(self._handle_pps_spinbox_changed)
@@ -436,7 +449,11 @@ class PlayerRateGraphWindow(DualRateGraphBase):
         bps_spin = QSpinBox()
         bps_spin.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         bps_spin.setRange(_BPS_THRESHOLD_KB_MIN, _BPS_THRESHOLD_KB_MAX)
-        bps_spin.setValue(min(_BPS_THRESHOLD_KB_MAX, max(_BPS_THRESHOLD_KB_MIN, self._bps_threshold_kb)))
+        bps_spin.setValue(
+            self._manual_bps_threshold_kb
+            if self._monitor_mode == 'Manual'
+            else min(_BPS_THRESHOLD_KB_MAX, max(_BPS_THRESHOLD_KB_MIN, round(self._bps_threshold_value / self._BYTES_TO_KBS))),
+        )
         bps_spin.lineEdit().setTextMargins(scale_by_ui(5), 0, 0, 0)
         bps_spin.valueChanged.connect(self._handle_bps_spinbox_changed)
         row.addWidget(bps_spin)
@@ -467,11 +484,14 @@ class PlayerRateGraphWindow(DualRateGraphBase):
             pps_spin.setSuffix(f" {tr('PPS')}")
             bps_spin.setSuffix(f" {tr('KB/s')}")
             interval_spin.setSuffix(f" {tr('seconds')}")
-            mode_tip = tr(
+            mode_desc = tr(
                 'Detection mode for flagging high packet-rate players.\n\n'
-                'Smart: Dynamically calculates the average PPS of connected players and flags players exceeding the session average with a margin and minimum floor.\n'
+                'Smart: Dynamically calculates the average PPS and BPS of connected players and flags players '
+                'exceeding the session averages with a margin and minimum floor.\n'
                 'Manual: Flags players exceeding fixed PPS and BPS thresholds.',
             )
+            local_note = tr('Changes here apply only to this graph window and do not modify global settings.')
+            mode_tip = f'{mode_desc}\n\n{local_note}'
             thresholds_label.setToolTip(mode_tip)
             monitor_mode_combo.setToolTip(mode_tip)
             self._refresh_dependent_control_states()
@@ -545,17 +565,21 @@ class PlayerRateGraphWindow(DualRateGraphBase):
         repeat_disabled_note = tr('Only applies when Spike Sound Behavior repeats while spiking (Repeating, Repeating + End, or Adaptive Geiger).')
         smart_disabled_note = tr('Disabled in Smart mode (packet rate thresholds are calculated dynamically from the session average).')
         drag_tip = tr('Tip: Drag the dashed threshold line directly on the graph to adjust it on the fly.')
+        local_note = tr('Changes here apply only to this graph window and do not modify global settings.')
 
         if self._pps_label is not None and self._pps_spinbox is not None:
             self._pps_label.setEnabled(is_manual)
             self._pps_spinbox.setEnabled(is_manual)
-            pps_base_tip = f"{tr('Minimum Packets Per Second required to flag a player as high-rate traffic.')}\n\n{drag_tip}"
+            pps_base_tip = f"{tr('Minimum Packets Per Second required to flag a player as high-rate traffic.')}\n\n{drag_tip}\n{local_note}"
             pps_tip = pps_base_tip if is_manual else f'{pps_base_tip}\n\n{smart_disabled_note}'
             self._pps_label.setToolTip(pps_tip)
             self._pps_spinbox.setToolTip(pps_tip)
 
         if self._bps_label is not None and self._bps_spinbox is not None:
-            bps_tip = f"{tr('Minimum bandwidth in kilobytes per second (KB/s) required to flag a player as high-rate traffic.')}\n\n{drag_tip}"
+            self._bps_label.setEnabled(is_manual)
+            self._bps_spinbox.setEnabled(is_manual)
+            bps_base_tip = f"{tr('Minimum bandwidth in kilobytes per second (KB/s) required to flag a player as high-rate traffic.')}\n\n{drag_tip}\n{local_note}"
+            bps_tip = bps_base_tip if is_manual else f'{bps_base_tip}\n\n{smart_disabled_note}'
             self._bps_label.setToolTip(bps_tip)
             self._bps_spinbox.setToolTip(bps_tip)
 
@@ -585,66 +609,94 @@ class PlayerRateGraphWindow(DualRateGraphBase):
             return
         mode = str(self._monitor_mode_combo.itemData(index))
         self._monitor_mode = mode
-        if mode == 'Manual' and self._pps_spinbox is not None:
-            with QSignalBlocker(self._pps_spinbox):
-                self._pps_spinbox.setValue(self._manual_pps_threshold)
+        if mode == 'Manual':
+            self._has_local_threshold_override = True
+            if self._pps_spinbox is not None:
+                with QSignalBlocker(self._pps_spinbox):
+                    self._pps_spinbox.setMaximum(_PPS_THRESHOLD_MAX)
+                    self._pps_spinbox.setValue(self._manual_pps_threshold)
+            if self._bps_spinbox is not None:
+                with QSignalBlocker(self._bps_spinbox):
+                    self._bps_spinbox.setValue(self._manual_bps_threshold_kb)
+            self.set_pps_threshold(self._manual_pps_threshold)
+            self.set_bps_threshold(self._manual_bps_threshold_kb * self._BYTES_TO_KBS)
+        else:
+            self._has_local_threshold_override = self._global_monitor_mode != 'Smart'
         self._refresh_dependent_control_states()
-        if self._on_monitor_mode_changed is not None:
-            self._on_monitor_mode_changed(mode)
+        if self._on_thresholds_changed is not None:
+            self._on_thresholds_changed(self.ip)
 
     def _handle_pps_spinbox_changed(self, value: int) -> None:
+        self._has_local_threshold_override = True
         self._manual_pps_threshold = value
         self.set_pps_threshold(value)
-        if self._on_pps_threshold_changed is not None:
-            self._on_pps_threshold_changed(ThresholdAdjustment(value, persist=True))
+        if self._on_thresholds_changed is not None:
+            self._on_thresholds_changed(self.ip)
 
     def _handle_bps_spinbox_changed(self, value: int) -> None:
-        self._bps_threshold_kb = value
+        self._has_local_threshold_override = True
+        self._manual_bps_threshold_kb = value
         self.set_bps_threshold(value * self._BYTES_TO_KBS)
-        if self._on_bps_threshold_changed is not None:
-            self._on_bps_threshold_changed(ThresholdAdjustment(value, persist=True))
+        if self._on_thresholds_changed is not None:
+            self._on_thresholds_changed(self.ip)
 
     def _handle_interval_spinbox_changed(self, value: int) -> None:
         self._repeat_interval = value
         if self._on_repeat_interval_changed is not None:
             self._on_repeat_interval_changed(value)
 
+    def _switch_to_manual_on_drag(self) -> None:
+        self._has_local_threshold_override = True
+        if self._monitor_mode == 'Manual':
+            return
+        self._manual_pps_threshold = min(_PPS_THRESHOLD_MAX, max(_PPS_THRESHOLD_MIN, self._pps_threshold_value))
+        self._manual_bps_threshold_kb = min(
+            _BPS_THRESHOLD_KB_MAX,
+            max(_BPS_THRESHOLD_KB_MIN, round(self._bps_threshold_value / self._BYTES_TO_KBS)),
+        )
+        self._pps_threshold_value = self._manual_pps_threshold
+        self._bps_threshold_value = self._manual_bps_threshold_kb * self._BYTES_TO_KBS
+        self._monitor_mode = 'Manual'
+        if self._monitor_mode_combo is not None:
+            with QSignalBlocker(self._monitor_mode_combo):
+                if (m_idx := self._monitor_mode_combo.findData('Manual')) >= 0:
+                    self._monitor_mode_combo.setCurrentIndex(m_idx)
+        if self._pps_spinbox is not None:
+            with QSignalBlocker(self._pps_spinbox):
+                self._pps_spinbox.setMaximum(_PPS_THRESHOLD_MAX)
+                self._pps_spinbox.setValue(self._manual_pps_threshold)
+        if self._bps_spinbox is not None:
+            with QSignalBlocker(self._bps_spinbox):
+                self._bps_spinbox.setValue(self._manual_bps_threshold_kb)
+        self._refresh_dependent_control_states()
+
     def _on_pps_drag_preview(self, value: int) -> None:
+        self._switch_to_manual_on_drag()
         self._pps_threshold_value = value
         self._manual_pps_threshold = value
-        if self._monitor_mode != 'Manual':
-            self._monitor_mode = 'Manual'
-            if self._monitor_mode_combo is not None:
-                with QSignalBlocker(self._monitor_mode_combo):
-                    if (m_idx := self._monitor_mode_combo.findData('Manual')) >= 0:
-                        self._monitor_mode_combo.setCurrentIndex(m_idx)
-            self._refresh_dependent_control_states()
         if self._pps_spinbox is not None:
             with QSignalBlocker(self._pps_spinbox):
                 self._pps_spinbox.setValue(value)
-        if self._on_pps_threshold_changed is not None:
-            self._on_pps_threshold_changed(ThresholdAdjustment(value, persist=False))
+        if self._on_thresholds_changed is not None:
+            self._on_thresholds_changed(self.ip)
 
     def _on_pps_drag_commit(self, value: int) -> None:
         self._on_pps_drag_preview(value)
-        if self._on_pps_threshold_changed is not None:
-            self._on_pps_threshold_changed(ThresholdAdjustment(value, persist=True))
         if hasattr(self, '_pps_buffer'):
             self._render_buffers()
 
     def _on_bps_drag_preview(self, value_kb: int) -> None:
-        self._bps_threshold_kb = value_kb
+        self._switch_to_manual_on_drag()
+        self._manual_bps_threshold_kb = value_kb
         self._bps_threshold_value = value_kb * self._BYTES_TO_KBS
         if self._bps_spinbox is not None:
             with QSignalBlocker(self._bps_spinbox):
                 self._bps_spinbox.setValue(value_kb)
-        if self._on_bps_threshold_changed is not None:
-            self._on_bps_threshold_changed(ThresholdAdjustment(value_kb, persist=False))
+        if self._on_thresholds_changed is not None:
+            self._on_thresholds_changed(self.ip)
 
     def _on_bps_drag_commit(self, value_kb: int) -> None:
         self._on_bps_drag_preview(value_kb)
-        if self._on_bps_threshold_changed is not None:
-            self._on_bps_threshold_changed(ThresholdAdjustment(value_kb, persist=True))
         if hasattr(self, '_bps_buffer'):
             self._render_buffers()
 
@@ -667,30 +719,39 @@ class PlayerRateGraphWindow(DualRateGraphBase):
             self._on_spike_sound_mode_changed(mode)
 
     def sync_spike_alert_settings(self, state: SpikeAlertGraphState) -> None:
-        """Synchronize threshold and Spike Alert settings into this graph window without triggering persistence callbacks."""
-        self._monitor_mode = state.monitor_mode
-        self._manual_pps_threshold = state.manual_pps_threshold
-        self._bps_threshold_kb = state.bps_threshold_kb
+        """Synchronize global threshold defaults and Spike Alert settings without overwriting per-graph threshold overrides."""
+        self._global_monitor_mode = state.monitor_mode
+        if not self._has_local_threshold_override:
+            self._monitor_mode = state.monitor_mode
+            self._manual_pps_threshold = state.manual_pps_threshold
+            self._manual_bps_threshold_kb = state.manual_bps_threshold_kb
+            if self._monitor_mode_combo is not None:
+                with QSignalBlocker(self._monitor_mode_combo):
+                    if (m_idx := self._monitor_mode_combo.findData(state.monitor_mode)) >= 0:
+                        self._monitor_mode_combo.setCurrentIndex(m_idx)
+            if self._pps_spinbox is not None and not self._pps_widget.is_dragging_threshold:
+                with QSignalBlocker(self._pps_spinbox):
+                    self._pps_spinbox.setMaximum(
+                        _PPS_THRESHOLD_MAX if state.monitor_mode == 'Manual' else max(_PPS_THRESHOLD_MAX, self._pps_threshold_value),
+                    )
+                    self._pps_spinbox.setValue(
+                        state.manual_pps_threshold
+                        if state.monitor_mode == 'Manual'
+                        else max(_PPS_THRESHOLD_MIN, self._pps_threshold_value),
+                    )
+            if self._bps_spinbox is not None and not self._bps_widget.is_dragging_threshold:
+                with QSignalBlocker(self._bps_spinbox):
+                    self._bps_spinbox.setValue(
+                        state.manual_bps_threshold_kb
+                        if state.monitor_mode == 'Manual'
+                        else min(_BPS_THRESHOLD_KB_MAX, max(_BPS_THRESHOLD_KB_MIN, round(self._bps_threshold_value / self._BYTES_TO_KBS))),
+                    )
         self._repeat_interval = state.repeat_interval
         self._spike_sound_scope = state.sound_scope
         self._spike_sound_mode = state.sound_mode
         self._spike_sound_preset = state.sound_preset
         visual_changed = self._visual_alert_enabled != state.visual_alert
         self._visual_alert_enabled = state.visual_alert
-        if self._monitor_mode_combo is not None:
-            with QSignalBlocker(self._monitor_mode_combo):
-                if (m_idx := self._monitor_mode_combo.findData(state.monitor_mode)) >= 0:
-                    self._monitor_mode_combo.setCurrentIndex(m_idx)
-        if self._pps_spinbox is not None and not self._pps_widget.is_dragging_threshold:
-            with QSignalBlocker(self._pps_spinbox):
-                self._pps_spinbox.setValue(
-                    state.manual_pps_threshold
-                    if state.monitor_mode == 'Manual'
-                    else min(_PPS_THRESHOLD_MAX, max(_PPS_THRESHOLD_MIN, self._pps_threshold_value)),
-                )
-        if self._bps_spinbox is not None and not self._bps_widget.is_dragging_threshold:
-            with QSignalBlocker(self._bps_spinbox):
-                self._bps_spinbox.setValue(min(_BPS_THRESHOLD_KB_MAX, max(_BPS_THRESHOLD_KB_MIN, state.bps_threshold_kb)))
         if self._interval_spinbox is not None:
             with QSignalBlocker(self._interval_spinbox):
                 self._interval_spinbox.setValue(min(_REPEAT_INTERVAL_MAX, max(_REPEAT_INTERVAL_MIN, state.repeat_interval)))
@@ -756,7 +817,8 @@ class PlayerRateGraphWindow(DualRateGraphBase):
         self._pps_widget.set_threshold(float(threshold))
         if self._monitor_mode == 'Smart' and self._pps_spinbox is not None:
             with QSignalBlocker(self._pps_spinbox):
-                self._pps_spinbox.setValue(min(_PPS_THRESHOLD_MAX, max(_PPS_THRESHOLD_MIN, threshold)))
+                self._pps_spinbox.setMaximum(max(_PPS_THRESHOLD_MAX, threshold))
+                self._pps_spinbox.setValue(max(_PPS_THRESHOLD_MIN, threshold))
         if hasattr(self, '_pps_buffer'):
             pps_visible_max = max(list(self._pps_buffer)[-VISIBLE_WINDOW:]) if self._pps_buffer else 0.0
             self._pps_widget.set_y_range(0, self._pps_y_ceiling(pps_visible_max))
@@ -767,6 +829,11 @@ class PlayerRateGraphWindow(DualRateGraphBase):
             return
         self._bps_threshold_value = threshold
         self._bps_widget.set_threshold(threshold / self._BYTES_TO_KBS)
+        if self._monitor_mode == 'Smart' and self._bps_spinbox is not None:
+            with QSignalBlocker(self._bps_spinbox):
+                self._bps_spinbox.setValue(
+                    min(_BPS_THRESHOLD_KB_MAX, max(_BPS_THRESHOLD_KB_MIN, round(threshold / self._BYTES_TO_KBS))),
+                )
         if hasattr(self, '_bps_buffer'):
             bps_visible_max = max(list(self._bps_buffer)[-VISIBLE_WINDOW:]) if self._bps_buffer else 0.0
             self._bps_widget.set_y_range(0, self._bps_y_ceiling(bps_visible_max))

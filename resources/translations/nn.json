@@ -343,6 +343,7 @@
     "Change Interface…": "Byt grensesnitt…",
     "Change the IP or range of the selected entry using the builder": "Endra IP-en eller området til den valde oppføringa ved hjelp av byggjaren",
     "Change the Target Database for all currently checked & visible usernames:\n• Auto (Default): Restores each row’s smart default Target Database (matched DB or Randomlist for Searchlist, or source DB).\n• Specific DB: Moves all checked & visible usernames into the chosen database.": "Endra måldatabasen for alle avkryssa og synlege brukarnamn:\n• Auto (Standard): Tilbakestiller den smarte standardmåldatabasen for kvar rad (treff-DB eller Randomlist for Searchlist, eller kjelde-DB).\n• Spesifikk DB: Flyttar alle avkryssa og synlege brukarnamn til den valde databasen.",
+    "Changes here apply only to this graph window and do not modify global settings.": "Endringar her gjeld berre for dette grafvindauget og endrar ikkje globale innstillingar.",
     "Check All": "Merk alle",
     "Check GitHub for a newer version of Session Sniffer": "Sjekk GitHub for ein nyare versjon av Session Sniffer",
     "Check Selected": "Merk valde",
@@ -715,7 +716,7 @@
     "Detection Flags": "Oppdagingsflagg",
     "Detection Logging": "Oppdagingslogging",
     "Detection Settings": "Oppdagingsinnstillingar",
-    "Detection mode for flagging high packet-rate players.\n\nSmart: Dynamically calculates the average PPS of connected players and flags players exceeding the session average with a margin and minimum floor.\nManual: Flags players exceeding fixed PPS and BPS thresholds.": "Oppdagingsmodus for å flagga spelarar med høg pakkerate.\n\nSmart: Reknar dynamisk ut gjennomsnittleg PPS for tilkopla spelarar og flaggar spelarar som overstig øktsnittet med ein margin og ei nedre minstegrense.\nManuell: Flaggar spelarar som overstig faste PPS- og BPS-tersklar.",
+    "Detection mode for flagging high packet-rate players.\n\nSmart: Dynamically calculates the average PPS and BPS of connected players and flags players exceeding the session averages with a margin and minimum floor.\nManual: Flags players exceeding fixed PPS and BPS thresholds.": "Oppdagingsmodus for å flagga spelarar med høg pakkerate.\n\nSmart: Reknar dynamisk ut gjennomsnittleg PPS og BPS for tilkopla spelarar og flaggar spelarar som overstig øktsnitta med ein margin og ei nedre minstegrense.\nManuell: Flaggar spelarar som overstig faste PPS- og BPS-tersklar.",
     "Detection settings exported successfully.": "Oppdagingsinnstillingar eksporterte utan feil.",
     "Detection settings imported successfully.": "Oppdagingsinnstillingar importerte utan feil.",
     "Detections": "Oppdagingar",
@@ -2397,7 +2398,7 @@
     "Skip this update version and do not prompt again until a newer version is released": "Hopp over denne oppdateringsversjonen og ikkje spør att før ein nyare versjon blir sleppt",
     "Skipped Version": "Hoppa over versjon",
     "Smart": "Smart",
-    "Smart mode (avg: {avg:.1f} PPS · threshold: {threshold} PPS)": "Smartmodus (snitt: {avg:.1f} PPS · terskel: {threshold} PPS)",
+    "Smart mode (avg: {avg_pps:.1f} PPS · {avg_bps} | thresholds: {pps} PPS · {bps})": "Smartmodus (snitt: {avg_pps:.1f} PPS · {avg_bps} | grenser: {pps} PPS · {bps})",
     "Sniff '{process}'": "Sniff '{process}'",
     "Sniff Selected Process": "Sniff vald prosess",
     "Solarized Light": "Solarized Light",
@@ -4022,10 +4023,6 @@
     "{count} player": {
       "one": "{count} spelar",
       "other": "{count} spelarar"
-    },
-    "{count} player currently exceeding threshold:": {
-      "one": "{count} spelar overskrid terskelen no:",
-      "other": "{count} spelarar overskrid terskelen no:"
     },
     "{count} player currently exceeding thresholds:": {
       "one": "{count} spelar overskrid tersklane no:",

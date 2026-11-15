@@ -343,6 +343,7 @@
     "Change Interface…": "インターフェースを変更…",
     "Change the IP or range of the selected entry using the builder": "ビルダーを使用して、選択したエントリの IP または範囲を変更します",
     "Change the Target Database for all currently checked & visible usernames:\n• Auto (Default): Restores each row’s smart default Target Database (matched DB or Randomlist for Searchlist, or source DB).\n• Specific DB: Moves all checked & visible usernames into the chosen database.": "現在チェックされていて表示中のすべてのユーザー名のターゲットデータベースを変更します:\n• 自動（デフォルト）: 各行のスマートデフォルトのターゲットデータベース（一致した DB、Searchlist の場合は Randomlist、または元の DB）に戻します。\n• 特定の DB: チェックされていて表示中のすべてのユーザー名を選択したデータベースに移動します。",
+    "Changes here apply only to this graph window and do not modify global settings.": "ここでの変更はこのグラフウィンドウにのみ適用され、全体の設定は変更されません。",
     "Check All": "すべてチェック",
     "Check GitHub for a newer version of Session Sniffer": "GitHub で Session Sniffer の新しいバージョンを確認します",
     "Check Selected": "選択項目をチェック",
@@ -715,7 +716,7 @@
     "Detection Flags": "検出フラグ",
     "Detection Logging": "検出ログ記録",
     "Detection Settings": "検出設定",
-    "Detection mode for flagging high packet-rate players.\n\nSmart: Dynamically calculates the average PPS of connected players and flags players exceeding the session average with a margin and minimum floor.\nManual: Flags players exceeding fixed PPS and BPS thresholds.": "パケットレートの高いプレイヤーをフラグ付けするための検出モードです。\n\nスマート: 接続中プレイヤーの平均 PPS を動的に算出し、マージンと最小下限値を含めたセッション平均を超えるプレイヤーを検出します。\n手動: 固定の PPS および BPS しきい値を超えるプレイヤーを検出します。",
+    "Detection mode for flagging high packet-rate players.\n\nSmart: Dynamically calculates the average PPS and BPS of connected players and flags players exceeding the session averages with a margin and minimum floor.\nManual: Flags players exceeding fixed PPS and BPS thresholds.": "パケットレートの高いプレイヤーをフラグ付けするための検出モードです。\n\nスマート: 接続中プレイヤーの平均 PPS および BPS を動的に算出し、マージンと最小下限値を含めたセッション平均を超えるプレイヤーを検出します。\n手動: 固定の PPS および BPS しきい値を超えるプレイヤーを検出します。",
     "Detection settings exported successfully.": "検出設定を正常にエクスポートしました。",
     "Detection settings imported successfully.": "検出設定を正常にインポートしました。",
     "Detections": "検出項目",
@@ -2397,7 +2398,7 @@
     "Skip this update version and do not prompt again until a newer version is released": "このアップデートバージョンをスキップし、さらに新しいバージョンがリリースされるまで通知しません",
     "Skipped Version": "スキップしたバージョン",
     "Smart": "スマート",
-    "Smart mode (avg: {avg:.1f} PPS · threshold: {threshold} PPS)": "スマートモード（平均: {avg:.1f} PPS · しきい値: {threshold} PPS）",
+    "Smart mode (avg: {avg_pps:.1f} PPS · {avg_bps} | thresholds: {pps} PPS · {bps})": "スマートモード（平均: {avg_pps:.1f} PPS · {avg_bps} | しきい値: {pps} PPS · {bps}）",
     "Sniff '{process}'": "「{process}」をスニッフィング",
     "Sniff Selected Process": "選択したプロセスをスニッフィング",
     "Solarized Light": "Solarized Light",
@@ -3780,9 +3781,6 @@
     },
     "{count} player": {
       "other": "{count} 人のプレイヤー"
-    },
-    "{count} player currently exceeding threshold:": {
-      "other": "現在しきい値を超えている {count} 人のプレイヤー:"
     },
     "{count} player currently exceeding thresholds:": {
       "other": "現在しきい値を超えている {count} 人のプレイヤー:"

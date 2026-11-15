@@ -343,6 +343,7 @@
     "Change Interface…": "Skift grænseflade…",
     "Change the IP or range of the selected entry using the builder": "Skift IP eller område for den valgte post ved hjælp af værktøjet",
     "Change the Target Database for all currently checked & visible usernames:\n• Auto (Default): Restores each row’s smart default Target Database (matched DB or Randomlist for Searchlist, or source DB).\n• Specific DB: Moves all checked & visible usernames into the chosen database.": "Skift måldatabase for alle aktuelt markerede og synlige brugernavne:\n• Auto (Standard): Gendanner hver rækkes smarte standard-måldatabase (matchet DB eller Randomlist for Searchlist, eller kilde-DB).\n• Specifik DB: Flytter alle markerede og synlige brugernavne til den valgte database.",
+    "Changes here apply only to this graph window and do not modify global settings.": "Ændringer her gælder kun for dette grafvindue og ændrer ikke globale indstillinger.",
     "Check All": "Marker alle",
     "Check GitHub for a newer version of Session Sniffer": "Søg på GitHub efter en nyere version af Session Sniffer",
     "Check Selected": "Marker valgte",
@@ -715,7 +716,7 @@
     "Detection Flags": "Registreringsflag",
     "Detection Logging": "Logning af registreringer",
     "Detection Settings": "Registreringsindstillinger",
-    "Detection mode for flagging high packet-rate players.\n\nSmart: Dynamically calculates the average PPS of connected players and flags players exceeding the session average with a margin and minimum floor.\nManual: Flags players exceeding fixed PPS and BPS thresholds.": "Registreringstilstand til at flagge spillere med høj pakkehastighed.\n\nSmart: Beregner dynamisk den gennemsnitlige PPS for forbundne spillere og flagger spillere, der overstiger sessionsgennemsnittet med en margin og minimumsgrænse.\nManuel: Flagger spillere, der overstiger faste PPS- og BPS-tærskler.",
+    "Detection mode for flagging high packet-rate players.\n\nSmart: Dynamically calculates the average PPS and BPS of connected players and flags players exceeding the session averages with a margin and minimum floor.\nManual: Flags players exceeding fixed PPS and BPS thresholds.": "Registreringstilstand til at flagge spillere med høj pakkehastighed.\n\nSmart: Beregner dynamisk den gennemsnitlige PPS og BPS for forbundne spillere og flagger spillere, der overstiger sessionsgennemsnittene med en margin og minimumsgrænse.\nManuel: Flagger spillere, der overstiger faste PPS- og BPS-tærskler.",
     "Detection settings exported successfully.": "Registreringsindstillinger blev eksporteret.",
     "Detection settings imported successfully.": "Registreringsindstillinger blev importeret.",
     "Detections": "Registreringer",
@@ -2397,7 +2398,7 @@
     "Skip this update version and do not prompt again until a newer version is released": "Spring denne opdateringsversion over, og spørg ikke igen, før en nyere version udgives",
     "Skipped Version": "Sprunget version over",
     "Smart": "Intelligent",
-    "Smart mode (avg: {avg:.1f} PPS · threshold: {threshold} PPS)": "Intelligent tilstand (gns.: {avg:.1f} PPS · tærskel: {threshold} PPS)",
+    "Smart mode (avg: {avg_pps:.1f} PPS · {avg_bps} | thresholds: {pps} PPS · {bps})": "Intelligent tilstand (gns.: {avg_pps:.1f} PPS · {avg_bps} | grænseværdier: {pps} PPS · {bps})",
     "Sniff '{process}'": "Sniff '{process}'",
     "Sniff Selected Process": "Sniff valgt proces",
     "Solarized Light": "Solarized Light",
@@ -4022,10 +4023,6 @@
     "{count} player": {
       "one": "{count} spiller",
       "other": "{count} spillere"
-    },
-    "{count} player currently exceeding threshold:": {
-      "one": "{count} spiller overskrider i øjeblikket tærsklen:",
-      "other": "{count} spillere overskrider i øjeblikket tærsklen:"
     },
     "{count} player currently exceeding thresholds:": {
       "one": "{count} spiller overskrider i øjeblikket tærsklerne:",

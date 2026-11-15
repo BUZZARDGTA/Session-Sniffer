@@ -343,6 +343,7 @@
     "Change Interface…": "שנה ממשק…",
     "Change the IP or range of the selected entry using the builder": "שנה את כתובת ה-IP או הטווח של הרשומה שנבחרה באמצעות האשף",
     "Change the Target Database for all currently checked & visible usernames:\n• Auto (Default): Restores each row’s smart default Target Database (matched DB or Randomlist for Searchlist, or source DB).\n• Specific DB: Moves all checked & visible usernames into the chosen database.": "שנה את מסד נתוני היעד עבור כל שמות המשתמש המסומנים והגלויים כעת:\n• אוטומטי (ברירת מחדל): משחזר את מסד נתוני היעד החכם כברירת מחדל של כל שורה (מסד מותאם או Randomlist עבור Searchlist, או מסד המקור).\n• מסד נתונים ספציפי: מעביר את כל שמות המשתמש המסומנים והגלויים למסד הנתונים שנבחר.",
+    "Changes here apply only to this graph window and do not modify global settings.": "שינויים כאן חלים רק על חלון גרף זה ואינם משנים את ההגדרות הכלליות.",
     "Check All": "סמן הכול",
     "Check GitHub for a newer version of Session Sniffer": "בדוק ב-GitHub אם קיימת גרסה חדשה יותר של Session Sniffer",
     "Check Selected": "סמן נבחרים",
@@ -715,7 +716,7 @@
     "Detection Flags": "דגלי זיהוי",
     "Detection Logging": "תיעוד זיהויים",
     "Detection Settings": "הגדרות זיהוי",
-    "Detection mode for flagging high packet-rate players.\n\nSmart: Dynamically calculates the average PPS of connected players and flags players exceeding the session average with a margin and minimum floor.\nManual: Flags players exceeding fixed PPS and BPS thresholds.": "מצב זיהוי לסימון שחקנים בעלי קצב חבילות גבוה.\n\nחכם: מחשב דינמית את ה-PPS הממוצע של השחקנים המחוברים ומסמן שחקנים החורגים מממוצע הסשן עם שוליים וסף מינימלי.\nידני: מסמן שחקנים החורגים מערכי סף קבועים של PPS ו-BPS.",
+    "Detection mode for flagging high packet-rate players.\n\nSmart: Dynamically calculates the average PPS and BPS of connected players and flags players exceeding the session averages with a margin and minimum floor.\nManual: Flags players exceeding fixed PPS and BPS thresholds.": "מצב זיהוי לסימון שחקנים בעלי קצב חבילות גבוה.\n\nחכם: מחשב דינמית את ה-PPS וה-BPS הממוצעים של השחקנים המחוברים ומסמן שחקנים החורגים מממוצעי הסשן עם שוליים וסף מינימלי.\nידני: מסמן שחקנים החורגים מערכי סף קבועים של PPS ו-BPS.",
     "Detection settings exported successfully.": "הגדרות הזיהוי יוצאו בהצלחה.",
     "Detection settings imported successfully.": "הגדרות הזיהוי יובאו בהצלחה.",
     "Detections": "זיהויים",
@@ -2397,7 +2398,7 @@
     "Skip this update version and do not prompt again until a newer version is released": "דלג על גרסת עדכון זו ואל תציג תזכורת שוב עד שתשוחרר גרסה חדשה יותר",
     "Skipped Version": "גרסה שדולגה",
     "Smart": "חכם",
-    "Smart mode (avg: {avg:.1f} PPS · threshold: {threshold} PPS)": "מצב חכם (ממוצע: {avg:.1f} PPS · סף: {threshold} PPS)",
+    "Smart mode (avg: {avg_pps:.1f} PPS · {avg_bps} | thresholds: {pps} PPS · {bps})": "מצב חכם (ממוצע: {avg_pps:.1f} PPS · {avg_bps} | ערכי סף: {pps} PPS · {bps})",
     "Sniff '{process}'": "נטר את '{process}'",
     "Sniff Selected Process": "נטר תהליך נבחר",
     "Solarized Light": "Solarized בהיר",
@@ -4506,12 +4507,6 @@
       "two": "{count} שחקנים",
       "many": "{count} שחקנים",
       "other": "{count} שחקנים"
-    },
-    "{count} player currently exceeding threshold:": {
-      "one": "שחקן {count} חורג כעת מהסף:",
-      "two": "{count} שחקנים חורגים כעת מהסף:",
-      "many": "{count} שחקנים חורגים כעת מהסף:",
-      "other": "{count} שחקנים חורגים כעת מהסף:"
     },
     "{count} player currently exceeding thresholds:": {
       "one": "שחקן {count} חורג כעת מהספים:",

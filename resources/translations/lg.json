@@ -343,6 +343,7 @@
     "Change Interface…": "Kyusa Ekigatta Omukutu…",
     "Change the IP or range of the selected entry using the builder": "Kyusa IP oba olubu lw'ekiwandiiko ekirondeddwa ng'okozesa ekizimbi",
     "Change the Target Database for all currently checked & visible usernames:\n• Auto (Default): Restores each row’s smart default Target Database (matched DB or Randomlist for Searchlist, or source DB).\n• Specific DB: Moves all checked & visible usernames into the chosen database.": "Kyusa Etterekero Erigendererwa eri amannya g'abakozesa gonna agaliko akabonero n'agalabika kati:\n• Kyokka (Ekya Bulijjo): Kizzaawo Etterekero Erigendererwa ery'obugezi erya buli lunyiriri (DB ekwataganye oba Randomlist eri Searchlist, oba DB ey'ensibuko).\n• DB Ey'enjawulo: Esengula amannya g'abakozesa gonna agaliko akabonero n'agalabika mu tterekero erirondeddwa.",
+    "Changes here apply only to this graph window and do not modify global settings.": "Enkyukakyuka wano zikola ku ddirisa lya gulaafu lino lyokka era tezikosa nteekateeka za lukale.",
     "Check All": "Teeka Akabonero ku Byonna",
     "Check GitHub for a newer version of Session Sniffer": "Kebera ku GitHub oba waliwo omulembe omupya ogwa Session Sniffer",
     "Check Selected": "Teeka Akabonero ku Birondeddwa",
@@ -715,7 +716,7 @@
     "Detection Flags": "Obubonero bw'Okuzuula",
     "Detection Logging": "Okuwandiika Log y'Okuzuula",
     "Detection Settings": "Enteekateeka z'Okuzuula",
-    "Detection mode for flagging high packet-rate players.\n\nSmart: Dynamically calculates the average PPS of connected players and flags players exceeding the session average with a margin and minimum floor.\nManual: Flags players exceeding fixed PPS and BPS thresholds.": "Enkola y'okuzuula ey'okulaga abazannyi abalina omutendera gwa pakiti omungi.\n\nSmart: Ebala kyokka ekigero kya PPS eky'abazannyi abagattiddwa era n'eraga abazannyi abasukka ekigero ky'olutuula n'enkizo n'omusingi omutono.\nManual: Eraga abazannyi abasukka ekkomo lya PPS ne BPS eritereere.",
+    "Detection mode for flagging high packet-rate players.\n\nSmart: Dynamically calculates the average PPS and BPS of connected players and flags players exceeding the session averages with a margin and minimum floor.\nManual: Flags players exceeding fixed PPS and BPS thresholds.": "Enkola y'okuzuula ey'okulaga abazannyi abalina omutendera gwa pakiti omungi.\n\nSmart: Ebala kyokka ebigero bya PPS ne BPS eby'abazannyi abagattiddwa era n'eraga abazannyi abasukka ebigero by'olutuula n'enkizo n'omusingi omutono.\nManual: Eraga abazannyi abasukka ekkomo lya PPS ne BPS eritereere.",
     "Detection settings exported successfully.": "Enteekateeka z'okuzuula zitwaliddwa ebweru bulungi.",
     "Detection settings imported successfully.": "Enteekateeka z'okuzuula ziyingiziddwa bulungi.",
     "Detections": "Ebizuuliddwa",
@@ -2397,7 +2398,7 @@
     "Skip this update version and do not prompt again until a newer version is released": "Buuka enkyusa eno ey'okutereeza era tolembera nate okutuusa enkyusa empya bw'efulumizibwa",
     "Skipped Version": "Enkyusa Ebuukiddwa",
     "Smart": "Eky'amagezi",
-    "Smart mode (avg: {avg:.1f} PPS · threshold: {threshold} PPS)": "Enkola ey'amagezi (ekigero: {avg:.1f} PPS · ekkomo: {threshold} PPS)",
+    "Smart mode (avg: {avg_pps:.1f} PPS · {avg_bps} | thresholds: {pps} PPS · {bps})": "Enkola ey'amagezi (ekigero: {avg_pps:.1f} PPS · {avg_bps} | ekkomo: {pps} PPS · {bps})",
     "Sniff '{process}'": "Ketta '{process}'",
     "Sniff Selected Process": "Ketta Omulimu Ogulondeddwa",
     "Solarized Light": "Solarized Ey'ekitangaala",
@@ -4022,10 +4023,6 @@
     "{count} player": {
       "one": "omuzannyi {count}",
       "other": "abazannyi {count}"
-    },
-    "{count} player currently exceeding threshold:": {
-      "one": "omuzannyi {count} asukka ekkomo kati:",
-      "other": "abazannyi {count} abasukka ekkomo kati:"
     },
     "{count} player currently exceeding thresholds:": {
       "one": "omuzannyi {count} asukka ebikomo kati:",

@@ -343,6 +343,7 @@
     "Change Interface…": "Змінити інтерфейс…",
     "Change the IP or range of the selected entry using the builder": "Змінити IP або діапазон вибраного запису за допомогою конструктора",
     "Change the Target Database for all currently checked & visible usernames:\n• Auto (Default): Restores each row’s smart default Target Database (matched DB or Randomlist for Searchlist, or source DB).\n• Specific DB: Moves all checked & visible usernames into the chosen database.": "Змінити цільову базу даних для всіх наразі позначених і видимих імен користувачів:\n• Авто (за замовчуванням): відновлює розумну типову цільову базу даних для кожного рядка (знайдену БД або Randomlist для Searchlist, або вихідну БД).\n• Конкретна БД: переміщує всі позначені й видимі імена користувачів до вибраної бази даних.",
+    "Changes here apply only to this graph window and do not modify global settings.": "Зміни тут застосовуються лише до цього вікна графіка й не змінюють глобальні налаштування.",
     "Check All": "Позначити все",
     "Check GitHub for a newer version of Session Sniffer": "Перевірити наявність новішої версії Session Sniffer на GitHub",
     "Check Selected": "Позначити вибране",
@@ -715,7 +716,7 @@
     "Detection Flags": "Ознаки виявлення",
     "Detection Logging": "Журналювання виявлень",
     "Detection Settings": "Налаштування виявлення",
-    "Detection mode for flagging high packet-rate players.\n\nSmart: Dynamically calculates the average PPS of connected players and flags players exceeding the session average with a margin and minimum floor.\nManual: Flags players exceeding fixed PPS and BPS thresholds.": "Режим виявлення для позначення гравців із високою частотою пакетів.\n\nРозумний: динамічно обчислює середній PPS підключених гравців і позначає тих, хто перевищує середнє по сесії із запасом та мінімальним порогом.\nРучний: позначає гравців, які перевищують фіксовані пороги PPS і BPS.",
+    "Detection mode for flagging high packet-rate players.\n\nSmart: Dynamically calculates the average PPS and BPS of connected players and flags players exceeding the session averages with a margin and minimum floor.\nManual: Flags players exceeding fixed PPS and BPS thresholds.": "Режим виявлення для позначення гравців із високою частотою пакетів.\n\nРозумний: динамічно обчислює середні PPS і BPS підключених гравців і позначає тих, хто перевищує середні показники по сесії із запасом та мінімальним порогом.\nРучний: позначає гравців, які перевищують фіксовані пороги PPS і BPS.",
     "Detection settings exported successfully.": "Налаштування виявлення успішно експортовано.",
     "Detection settings imported successfully.": "Налаштування виявлення успішно імпортовано.",
     "Detections": "Виявлення",
@@ -2397,7 +2398,7 @@
     "Skip this update version and do not prompt again until a newer version is released": "Пропустити цю версію оновлення та не нагадувати знову, доки не вийде новіша версія",
     "Skipped Version": "Пропущена версія",
     "Smart": "Розумний",
-    "Smart mode (avg: {avg:.1f} PPS · threshold: {threshold} PPS)": "Розумний режим (сер.: {avg:.1f} PPS · поріг: {threshold} PPS)",
+    "Smart mode (avg: {avg_pps:.1f} PPS · {avg_bps} | thresholds: {pps} PPS · {bps})": "Розумний режим (сер.: {avg_pps:.1f} PPS · {avg_bps} | пороги: {pps} PPS · {bps})",
     "Sniff '{process}'": "Перехоплювати '{process}'",
     "Sniff Selected Process": "Перехоплювати вибраний процес",
     "Solarized Light": "Solarized Light",
@@ -4506,12 +4507,6 @@
       "few": "{count} гравці",
       "many": "{count} гравців",
       "other": "{count} гравців"
-    },
-    "{count} player currently exceeding threshold:": {
-      "one": "{count} гравець зараз перевищує поріг:",
-      "few": "{count} гравці зараз перевищують поріг:",
-      "many": "{count} гравців зараз перевищують поріг:",
-      "other": "{count} гравців зараз перевищують поріг:"
     },
     "{count} player currently exceeding thresholds:": {
       "one": "{count} гравець зараз перевищує пороги:",

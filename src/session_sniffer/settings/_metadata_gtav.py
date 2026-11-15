@@ -45,7 +45,8 @@ GTAV_SESSION_SETTING_METADATA: dict[str, SettingMeta] = {
         category='GTA V', group='Player High Rate Monitor', display_label='Player High Rate Monitor Mode', setting_type=SettingType.ENUM,
         tooltip=(
             'Detection mode for flagging high packet-rate players.\n\n'
-            'Smart: Dynamically calculates the average PPS of connected players and flags players exceeding the session average with a margin and minimum floor.\n'
+            'Smart: Dynamically calculates the average PPS and BPS of connected players and flags players '
+            'exceeding the session averages with a margin and minimum floor.\n'
             'Manual: Flags players exceeding fixed PPS and BPS thresholds.'
         ),
         allowed_values=('Smart', 'Manual'),

@@ -343,6 +343,7 @@
     "Change Interface…": "인터페이스 변경…",
     "Change the IP or range of the selected entry using the builder": "빌더를 사용하여 선택한 항목의 IP 또는 범위를 변경합니다",
     "Change the Target Database for all currently checked & visible usernames:\n• Auto (Default): Restores each row’s smart default Target Database (matched DB or Randomlist for Searchlist, or source DB).\n• Specific DB: Moves all checked & visible usernames into the chosen database.": "현재 체크되어 있고 표시된 모든 사용자 이름의 대상 데이터베이스를 변경합니다:\n• 자동 (기본값): 각 행의 스마트 기본 대상 데이터베이스(일치하는 DB, Searchlist의 경우 Randomlist 또는 원본 DB)로 복원합니다.\n• 특정 DB: 체크되어 있고 표시된 모든 사용자 이름을 선택한 데이터베이스로 이동합니다.",
+    "Changes here apply only to this graph window and do not modify global settings.": "여기의 변경 사항은 이 그래프 창에만 적용되며 전역 설정을 변경하지 않습니다.",
     "Check All": "모두 체크",
     "Check GitHub for a newer version of Session Sniffer": "GitHub에서 Session Sniffer의 최신 버전을 확인합니다",
     "Check Selected": "선택 항목 체크",
@@ -715,7 +716,7 @@
     "Detection Flags": "탐지 플래그",
     "Detection Logging": "탐지 로깅",
     "Detection Settings": "탐지 설정",
-    "Detection mode for flagging high packet-rate players.\n\nSmart: Dynamically calculates the average PPS of connected players and flags players exceeding the session average with a margin and minimum floor.\nManual: Flags players exceeding fixed PPS and BPS thresholds.": "고패킷률 플레이어에 플래그를 지정하는 탐지 모드입니다.\n\n스마트: 연결된 플레이어의 평균 PPS를 동적으로 계산하여 여유치와 최소 기준을 포함해 세션 평균을 초과하는 플레이어를 플래그 지정합니다.\n수동: 고정된 PPS 및 BPS 임계값을 초과하는 플레이어를 플래그 지정합니다.",
+    "Detection mode for flagging high packet-rate players.\n\nSmart: Dynamically calculates the average PPS and BPS of connected players and flags players exceeding the session averages with a margin and minimum floor.\nManual: Flags players exceeding fixed PPS and BPS thresholds.": "고패킷률 플레이어에 플래그를 지정하는 탐지 모드입니다.\n\n스마트: 연결된 플레이어의 평균 PPS 및 BPS를 동적으로 계산하여 여유치와 최소 기준을 포함해 세션 평균을 초과하는 플레이어를 플래그 지정합니다.\n수동: 고정된 PPS 및 BPS 임계값을 초과하는 플레이어를 플래그 지정합니다.",
     "Detection settings exported successfully.": "탐지 설정을 내보냈습니다.",
     "Detection settings imported successfully.": "탐지 설정을 가져왔습니다.",
     "Detections": "탐지 목록",
@@ -2397,7 +2398,7 @@
     "Skip this update version and do not prompt again until a newer version is released": "이 업데이트 버전을 건너뛰고 더 새로운 버전이 출시될 때까지 다시 알리지 않습니다",
     "Skipped Version": "건너뛴 버전",
     "Smart": "스마트",
-    "Smart mode (avg: {avg:.1f} PPS · threshold: {threshold} PPS)": "스마트 모드 (평균: {avg:.1f} PPS · 임계값: {threshold} PPS)",
+    "Smart mode (avg: {avg_pps:.1f} PPS · {avg_bps} | thresholds: {pps} PPS · {bps})": "스마트 모드 (평균: {avg_pps:.1f} PPS · {avg_bps} | 임계값: {pps} PPS · {bps})",
     "Sniff '{process}'": "'{process}' 스니핑",
     "Sniff Selected Process": "선택한 프로세스 스니핑",
     "Solarized Light": "Solarized Light",
@@ -3780,9 +3781,6 @@
     },
     "{count} player": {
       "other": "플레이어 {count}명"
-    },
-    "{count} player currently exceeding threshold:": {
-      "other": "현재 임계값을 초과한 플레이어 {count}명:"
     },
     "{count} player currently exceeding thresholds:": {
       "other": "현재 임계값들을 초과한 플레이어 {count}명:"

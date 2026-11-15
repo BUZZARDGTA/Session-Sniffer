@@ -343,6 +343,7 @@
     "Change Interface…": "Промени интерфейса…",
     "Change the IP or range of the selected entry using the builder": "Променя IP адреса или диапазона на избрания запис чрез конструктора",
     "Change the Target Database for all currently checked & visible usernames:\n• Auto (Default): Restores each row’s smart default Target Database (matched DB or Randomlist for Searchlist, or source DB).\n• Specific DB: Moves all checked & visible usernames into the chosen database.": "Променете целевата база данни за всички текущо отметнати и видими потребителски имена:\n• Автоматично (по подразбиране): Възстановява интелигентната целева база данни по подразбиране за всеки ред (съвпадаща БД или Randomlist за Searchlist, или изходната БД).\n• Конкретна БД: Премества всички отметнати и видими потребителски имена в избраната база данни.",
+    "Changes here apply only to this graph window and do not modify global settings.": "Промените тук се прилагат само за този прозорец на графиката и не променят глобалните настройки.",
     "Check All": "Отметни всички",
     "Check GitHub for a newer version of Session Sniffer": "Проверява в GitHub за по-нова версия на Session Sniffer",
     "Check Selected": "Отметни избраните",
@@ -715,7 +716,7 @@
     "Detection Flags": "Флагове за засичане",
     "Detection Logging": "Записване на засичанията",
     "Detection Settings": "Настройки за засичане",
-    "Detection mode for flagging high packet-rate players.\n\nSmart: Dynamically calculates the average PPS of connected players and flags players exceeding the session average with a margin and minimum floor.\nManual: Flags players exceeding fixed PPS and BPS thresholds.": "Режим на засичане за маркиране на играчи с висока честота на пакети.\n\nИнтелигентен: Динамично изчислява средния PPS на свързаните играчи и маркира играчите, надвишаващи средната стойност за сесията с резерв и минимален праг.\nРъчен: Маркира играчи, надвишаващи фиксирани прагове за PPS и BPS.",
+    "Detection mode for flagging high packet-rate players.\n\nSmart: Dynamically calculates the average PPS and BPS of connected players and flags players exceeding the session averages with a margin and minimum floor.\nManual: Flags players exceeding fixed PPS and BPS thresholds.": "Режим на засичане за маркиране на играчи с висока честота на пакети.\n\nИнтелигентен: Динамично изчислява средните PPS и BPS на свързаните играчи и маркира играчите, надвишаващи средните стойности за сесията с резерв и минимален праг.\nРъчен: Маркира играчи, надвишаващи фиксирани прагове за PPS и BPS.",
     "Detection settings exported successfully.": "Настройките за засичане бяха експортирани успешно.",
     "Detection settings imported successfully.": "Настройките за засичане бяха импортирани успешно.",
     "Detections": "Засичания",
@@ -2397,7 +2398,7 @@
     "Skip this update version and do not prompt again until a newer version is released": "Пропусни тази актуализация и не напомняй отново, докато не излезе по-нова версия",
     "Skipped Version": "Пропусната версия",
     "Smart": "Интелигентен",
-    "Smart mode (avg: {avg:.1f} PPS · threshold: {threshold} PPS)": "Интелигентен режим (ср.: {avg:.1f} PPS · праг: {threshold} PPS)",
+    "Smart mode (avg: {avg_pps:.1f} PPS · {avg_bps} | thresholds: {pps} PPS · {bps})": "Интелигентен режим (ср.: {avg_pps:.1f} PPS · {avg_bps} | прагове: {pps} PPS · {bps})",
     "Sniff '{process}'": "Наблюдавай '{process}'",
     "Sniff Selected Process": "Наблюдавай избрания процес",
     "Solarized Light": "Solarized Light",
@@ -4022,10 +4023,6 @@
     "{count} player": {
       "one": "{count} играч",
       "other": "{count} играчи"
-    },
-    "{count} player currently exceeding threshold:": {
-      "one": "{count} играч надвишава прага в момента:",
-      "other": "{count} играчи надвишават прага в момента:"
     },
     "{count} player currently exceeding thresholds:": {
       "one": "{count} играч надвишава праговете в момента:",

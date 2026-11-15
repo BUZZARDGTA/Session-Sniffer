@@ -343,6 +343,7 @@
     "Change Interface…": "Zmień interfejs…",
     "Change the IP or range of the selected entry using the builder": "Zmień adres IP lub zakres wybranego wpisu za pomocą kreatora",
     "Change the Target Database for all currently checked & visible usernames:\n• Auto (Default): Restores each row’s smart default Target Database (matched DB or Randomlist for Searchlist, or source DB).\n• Specific DB: Moves all checked & visible usernames into the chosen database.": "Zmień docelową bazę danych dla wszystkich aktualnie zaznaczonych i widocznych nazw użytkowników:\n• Auto (domyślne): Przywraca inteligentną domyślną docelową bazę danych dla każdego wiersza (dopasowaną bazę lub Randomlist dla Searchlist albo bazę źródłową).\n• Konkretna baza: Przenosi wszystkie zaznaczone i widoczne nazwy użytkowników do wybranej bazy danych.",
+    "Changes here apply only to this graph window and do not modify global settings.": "Zmiany wprowadzone tutaj dotyczą tylko tego okna wykresu i nie modyfikują ustawień globalnych.",
     "Check All": "Zaznacz wszystkie",
     "Check GitHub for a newer version of Session Sniffer": "Sprawdź w serwisie GitHub, czy dostępna jest nowsza wersja Session Sniffer",
     "Check Selected": "Zaznacz wybrane",
@@ -715,7 +716,7 @@
     "Detection Flags": "Flagi wykrywania",
     "Detection Logging": "Rejestrowanie wykryć",
     "Detection Settings": "Ustawienia wykrywania",
-    "Detection mode for flagging high packet-rate players.\n\nSmart: Dynamically calculates the average PPS of connected players and flags players exceeding the session average with a margin and minimum floor.\nManual: Flags players exceeding fixed PPS and BPS thresholds.": "Tryb wykrywania służący do oznaczania graczy o wysokim tempie pakietów.\n\nInteligentny: Dynamicznie oblicza średnie PPS połączonych graczy i oznacza tych, którzy przekraczają średnią sesji z zadanym marginesem oraz progiem minimalnym.\nRęczny: Oznacza graczy przekraczających stałe progi PPS i BPS.",
+    "Detection mode for flagging high packet-rate players.\n\nSmart: Dynamically calculates the average PPS and BPS of connected players and flags players exceeding the session averages with a margin and minimum floor.\nManual: Flags players exceeding fixed PPS and BPS thresholds.": "Tryb wykrywania służący do oznaczania graczy o wysokim tempie pakietów.\n\nInteligentny: Dynamicznie oblicza średnie PPS i BPS połączonych graczy i oznacza tych, którzy przekraczają średnie sesji z zadanym marginesem oraz progiem minimalnym.\nRęczny: Oznacza graczy przekraczających stałe progi PPS i BPS.",
     "Detection settings exported successfully.": "Ustawienia wykrywania zostały pomyślnie wyeksportowane.",
     "Detection settings imported successfully.": "Ustawienia wykrywania zostały pomyślnie zaimportowane.",
     "Detections": "Wykrycia",
@@ -2397,7 +2398,7 @@
     "Skip this update version and do not prompt again until a newer version is released": "Pomiń tę wersję aktualizacji i nie pytaj ponownie, dopóki nie ukaże się nowsza wersja",
     "Skipped Version": "Pominięta wersja",
     "Smart": "Inteligentny",
-    "Smart mode (avg: {avg:.1f} PPS · threshold: {threshold} PPS)": "Tryb inteligentny (śr.: {avg:.1f} PPS · próg: {threshold} PPS)",
+    "Smart mode (avg: {avg_pps:.1f} PPS · {avg_bps} | thresholds: {pps} PPS · {bps})": "Tryb inteligentny (śr.: {avg_pps:.1f} PPS · {avg_bps} | progi: {pps} PPS · {bps})",
     "Sniff '{process}'": "Podsłuchuj '{process}'",
     "Sniff Selected Process": "Podsłuchuj wybrany proces",
     "Solarized Light": "Solarized Light",
@@ -4506,12 +4507,6 @@
       "few": "{count} graczy",
       "many": "{count} graczy",
       "other": "{count} graczy"
-    },
-    "{count} player currently exceeding threshold:": {
-      "one": "{count} gracz przekraczający obecnie próg:",
-      "few": "{count} graczy przekraczających obecnie próg:",
-      "many": "{count} graczy przekraczających obecnie próg:",
-      "other": "{count} graczy przekraczających obecnie próg:"
     },
     "{count} player currently exceeding thresholds:": {
       "one": "{count} gracz przekraczający obecnie progi:",

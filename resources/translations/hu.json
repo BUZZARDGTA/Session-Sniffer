@@ -343,6 +343,7 @@
     "Change Interface…": "Interfész váltása…",
     "Change the IP or range of the selected entry using the builder": "A kijelölt bejegyzés IP-címének vagy tartományának módosítása a szerkesztővel",
     "Change the Target Database for all currently checked & visible usernames:\n• Auto (Default): Restores each row’s smart default Target Database (matched DB or Randomlist for Searchlist, or source DB).\n• Specific DB: Moves all checked & visible usernames into the chosen database.": "Céladatbázis módosítása az összes jelenleg bejelölt és látható felhasználónévhez:\n• Automatikus (Alapértelmezett): Visszaállítja minden sor intelligens alapértelmezett céladatbázisát (egyező adatbázis, Searchlist esetén Randomlist, vagy forrásadatbázis).\n• Konkrét adatbázis: Az összes bejelölt és látható felhasználónevet a kiválasztott adatbázisba helyezi át.",
+    "Changes here apply only to this graph window and do not modify global settings.": "Az itt végzett módosítások csak erre a grafikonablakra vonatkoznak, és nem módosítják a globális beállításokat.",
     "Check All": "Összes bejelölése",
     "Check GitHub for a newer version of Session Sniffer": "Újabb Session Sniffer verzió keresése a GitHubon",
     "Check Selected": "Kijelöltek bejelölése",
@@ -715,7 +716,7 @@
     "Detection Flags": "Észlelési jelzők",
     "Detection Logging": "Észlelési naplózás",
     "Detection Settings": "Észlelési beállítások",
-    "Detection mode for flagging high packet-rate players.\n\nSmart: Dynamically calculates the average PPS of connected players and flags players exceeding the session average with a margin and minimum floor.\nManual: Flags players exceeding fixed PPS and BPS thresholds.": "Észlelési mód a magas csomagsebességű játékosok megjelöléséhez.\n\nIntelligens: Dinamikusan kiszámítja a csatlakozott játékosok átlagos PPS-ét, és megjelöli a munkamenet-átlagot ráhagyással és minimális küszöbbel meghaladó játékosokat.\nKézi: Rögzített PPS és BPS küszöbértékeket meghaladó játékosokat jelöl meg.",
+    "Detection mode for flagging high packet-rate players.\n\nSmart: Dynamically calculates the average PPS and BPS of connected players and flags players exceeding the session averages with a margin and minimum floor.\nManual: Flags players exceeding fixed PPS and BPS thresholds.": "Észlelési mód a magas csomagsebességű játékosok megjelöléséhez.\n\nIntelligens: Dinamikusan kiszámítja a csatlakozott játékosok átlagos PPS-ét és BPS-ét, és megjelöli a munkamenet-átlagokat ráhagyással és minimális küszöbbel meghaladó játékosokat.\nKézi: Rögzített PPS és BPS küszöbértékeket meghaladó játékosokat jelöl meg.",
     "Detection settings exported successfully.": "Az észlelési beállítások sikeresen exportálva.",
     "Detection settings imported successfully.": "Az észlelési beállítások sikeresen importálva.",
     "Detections": "Észlelések",
@@ -2397,7 +2398,7 @@
     "Skip this update version and do not prompt again until a newer version is released": "Ennek a frissítési verziónak a kihagyása; nem kérdez rá újra, amíg újabb verzió nem jelenik meg",
     "Skipped Version": "Kihagyott verzió",
     "Smart": "Intelligens",
-    "Smart mode (avg: {avg:.1f} PPS · threshold: {threshold} PPS)": "Intelligens mód (átlag: {avg:.1f} PPS · küszöb: {threshold} PPS)",
+    "Smart mode (avg: {avg_pps:.1f} PPS · {avg_bps} | thresholds: {pps} PPS · {bps})": "Intelligens mód (átlag: {avg_pps:.1f} PPS · {avg_bps} | küszöbértékek: {pps} PPS · {bps})",
     "Sniff '{process}'": "A(z) '{process}' figyelése",
     "Sniff Selected Process": "Kijelölt folyamat figyelése",
     "Solarized Light": "Solarized Light",
@@ -4022,10 +4023,6 @@
     "{count} player": {
       "one": "{count} játékos",
       "other": "{count} játékos"
-    },
-    "{count} player currently exceeding threshold:": {
-      "one": "{count} játékos lépi túl jelenleg a küszöbértéket:",
-      "other": "{count} játékos lépi túl jelenleg a küszöbértéket:"
     },
     "{count} player currently exceeding thresholds:": {
       "one": "{count} játékos lépi túl jelenleg a küszöbértékeket:",

@@ -343,6 +343,7 @@
     "Change Interface…": "Интерфейсті өзгерту…",
     "Change the IP or range of the selected entry using the builder": "Құрастырушы көмегімен таңдалған жазбаның IP мекенжайын немесе ауқымын өзгерту",
     "Change the Target Database for all currently checked & visible usernames:\n• Auto (Default): Restores each row’s smart default Target Database (matched DB or Randomlist for Searchlist, or source DB).\n• Specific DB: Moves all checked & visible usernames into the chosen database.": "Қазір белгіленген және көрініп тұрған барлық пайдаланушы аттары үшін Мақсатты дерекқорды өзгерту:\n• Авто (Әдепкі): Әр жолдың ақылды әдепкі Мақсатты дерекқорын қалпына келтіреді (сәйкес дерекқор немесе Searchlist үшін Randomlist, не бастапқы дерекқор).\n• Нақты дерекқор: Барлық белгіленген және көрініп тұрған пайдаланушы аттарын таңдалған дерекқорға көшіреді.",
+    "Changes here apply only to this graph window and do not modify global settings.": "Мұндағы өзгерістер тек осы график терезесіне қолданылады және жалпы баптауларды өзгертпейді.",
     "Check All": "Барлығын белгілеу",
     "Check GitHub for a newer version of Session Sniffer": "Session Sniffer жаңа нұсқасы бар-жоғын GitHub арқылы тексеру",
     "Check Selected": "Таңдалғандарды белгілеу",
@@ -715,7 +716,7 @@
     "Detection Flags": "Анықтау жалаушалары",
     "Detection Logging": "Анықтауды журналдау",
     "Detection Settings": "Анықтау баптаулары",
-    "Detection mode for flagging high packet-rate players.\n\nSmart: Dynamically calculates the average PPS of connected players and flags players exceeding the session average with a margin and minimum floor.\nManual: Flags players exceeding fixed PPS and BPS thresholds.": "Жоғары пакет жылдамдығы бар ойыншыларды белгілеуге арналған анықтау режимі.\n\nАқылды (Smart): Қосылған ойыншылардың орташа PPS мәнін динамикалық түрде есептеп, сессиядағы орташа көрсеткіштен белгілі бір қор мен ең төменгі шектен асқан ойыншыларды белгілейді.\nҚолмен (Manual): Тұрақты PPS және BPS шектерінен асқан ойыншыларды белгілейді.",
+    "Detection mode for flagging high packet-rate players.\n\nSmart: Dynamically calculates the average PPS and BPS of connected players and flags players exceeding the session averages with a margin and minimum floor.\nManual: Flags players exceeding fixed PPS and BPS thresholds.": "Жоғары пакет жылдамдығы бар ойыншыларды белгілеуге арналған анықтау режимі.\n\nАқылды (Smart): Қосылған ойыншылардың орташа PPS және BPS мәндерін динамикалық түрде есептеп, сессиядағы орташа көрсеткіштерден белгілі бір қор мен ең төменгі шектен асқан ойыншыларды белгілейді.\nҚолмен (Manual): Тұрақты PPS және BPS шектерінен асқан ойыншыларды белгілейді.",
     "Detection settings exported successfully.": "Анықтау баптаулары сәтті экспортталды.",
     "Detection settings imported successfully.": "Анықтау баптаулары сәтті импортталды.",
     "Detections": "Анықтаулар",
@@ -2397,7 +2398,7 @@
     "Skip this update version and do not prompt again until a newer version is released": "Бұл жаңарту нұсқасын өткізіп жіберу және жаңарақ нұсқа шыққанша қайта сұрамау",
     "Skipped Version": "Өткізіліп жіберілген нұсқа",
     "Smart": "Ақылды",
-    "Smart mode (avg: {avg:.1f} PPS · threshold: {threshold} PPS)": "Ақылды режим (орт.: {avg:.1f} PPS · шек: {threshold} PPS)",
+    "Smart mode (avg: {avg_pps:.1f} PPS · {avg_bps} | thresholds: {pps} PPS · {bps})": "Ақылды режим (орт.: {avg_pps:.1f} PPS · {avg_bps} | шектер: {pps} PPS · {bps})",
     "Sniff '{process}'": "«{process}» трафигін бақылау",
     "Sniff Selected Process": "Таңдалған процестің трафигін бақылау",
     "Solarized Light": "Solarized Light (Ашық)",
@@ -4022,10 +4023,6 @@
     "{count} player": {
       "one": "{count} ойыншы",
       "other": "{count} ойыншы"
-    },
-    "{count} player currently exceeding threshold:": {
-      "one": "Қазір шектен асып тұрған {count} ойыншы:",
-      "other": "Қазір шектен асып тұрған {count} ойыншы:"
     },
     "{count} player currently exceeding thresholds:": {
       "one": "Қазір шектерден асып тұрған {count} ойыншы:",

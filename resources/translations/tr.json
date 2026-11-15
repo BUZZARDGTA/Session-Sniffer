@@ -343,6 +343,7 @@
     "Change Interface…": "Arayüzü Değiştir…",
     "Change the IP or range of the selected entry using the builder": "Oluşturucuyu kullanarak seçili girdinin IP'sini veya aralığını değiştirin",
     "Change the Target Database for all currently checked & visible usernames:\n• Auto (Default): Restores each row’s smart default Target Database (matched DB or Randomlist for Searchlist, or source DB).\n• Specific DB: Moves all checked & visible usernames into the chosen database.": "Şu anda işaretli ve görünür tüm kullanıcı adları için Hedef Veritabanını değiştirin:\n• Otomatik (Varsayılan): Her satırın akıllı varsayılan Hedef Veritabanını geri yükler (Searchlist için eşleşen veritabanı veya Randomlist ya da kaynak veritabanı).\n• Belirli Veritabanı: İşaretli ve görünür tüm kullanıcı adlarını seçilen veritabanına taşır.",
+    "Changes here apply only to this graph window and do not modify global settings.": "Buradaki değişiklikler yalnızca bu grafik penceresi için geçerlidir ve genel ayarları değiştirmez.",
     "Check All": "Tümünü İşaretle",
     "Check GitHub for a newer version of Session Sniffer": "Session Sniffer'ın daha yeni bir sürümü için GitHub'ı denetleyin",
     "Check Selected": "Seçileni İşaretle",
@@ -715,7 +716,7 @@
     "Detection Flags": "Algılama Bayrakları",
     "Detection Logging": "Algılama Günlük Kaydı",
     "Detection Settings": "Algılama Ayarları",
-    "Detection mode for flagging high packet-rate players.\n\nSmart: Dynamically calculates the average PPS of connected players and flags players exceeding the session average with a margin and minimum floor.\nManual: Flags players exceeding fixed PPS and BPS thresholds.": "Yüksek paket hızlı oyuncuları işaretleme algılama modu.\n\nAkıllı: Bağlı oyuncuların ortalama PPS değerini dinamik olarak hesaplar ve bir pay ve minimum alt sınır ile oturum ortalamasını aşan oyuncuları işaretler.\nManuel: Sabit PPS ve BPS eşiklerini aşan oyuncuları işaretler.",
+    "Detection mode for flagging high packet-rate players.\n\nSmart: Dynamically calculates the average PPS and BPS of connected players and flags players exceeding the session averages with a margin and minimum floor.\nManual: Flags players exceeding fixed PPS and BPS thresholds.": "Yüksek paket hızlı oyuncuları işaretleme algılama modu.\n\nAkıllı: Bağlı oyuncuların ortalama PPS ve BPS değerlerini dinamik olarak hesaplar ve bir pay ve minimum alt sınır ile oturum ortalamalarını aşan oyuncuları işaretler.\nManuel: Sabit PPS ve BPS eşiklerini aşan oyuncuları işaretler.",
     "Detection settings exported successfully.": "Algılama ayarları başarıyla dışa aktarıldı.",
     "Detection settings imported successfully.": "Algılama ayarları başarıyla içe aktarıldı.",
     "Detections": "Algılamalar",
@@ -2397,7 +2398,7 @@
     "Skip this update version and do not prompt again until a newer version is released": "Bu güncelleme sürümünü atla ve daha yeni bir sürüm yayınlanana kadar bir daha sorma",
     "Skipped Version": "Atlanan Sürüm",
     "Smart": "Akıllı",
-    "Smart mode (avg: {avg:.1f} PPS · threshold: {threshold} PPS)": "Akıllı mod (ort: {avg:.1f} PPS · eşik: {threshold} PPS)",
+    "Smart mode (avg: {avg_pps:.1f} PPS · {avg_bps} | thresholds: {pps} PPS · {bps})": "Akıllı mod (ort: {avg_pps:.1f} PPS · {avg_bps} | eşikler: {pps} PPS · {bps})",
     "Sniff '{process}'": "'{process}' İşlemini Dinle",
     "Sniff Selected Process": "Seçili İşlemi Dinle",
     "Solarized Light": "Solarized Light",
@@ -4022,10 +4023,6 @@
     "{count} player": {
       "one": "{count} oyuncu",
       "other": "{count} oyuncu"
-    },
-    "{count} player currently exceeding threshold:": {
-      "one": "Şu anda eşiği aşan {count} oyuncu:",
-      "other": "Şu anda eşiği aşan {count} oyuncu:"
     },
     "{count} player currently exceeding thresholds:": {
       "one": "Şu anda eşikleri aşan {count} oyuncu:",

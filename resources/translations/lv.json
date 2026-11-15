@@ -343,6 +343,7 @@
     "Change Interface…": "Mainīt saskarni…",
     "Change the IP or range of the selected entry using the builder": "Mainīt atlasītā ieraksta IP vai diapazonu, izmantojot veidotāju",
     "Change the Target Database for all currently checked & visible usernames:\n• Auto (Default): Restores each row’s smart default Target Database (matched DB or Randomlist for Searchlist, or source DB).\n• Specific DB: Moves all checked & visible usernames into the chosen database.": "Mainīt Mērķa datubāzi visiem pašlaik atzīmētajiem un redzamajiem lietotājvārdiem:\n• Automātiski (noklusējums): atjauno katras rindas viedo noklusējuma Mērķa datubāzi (atbilstošo DB vai Randomlist priekš Searchlist, vai avota DB).\n• Konkrēta DB: pārvieto visus atzīmētos un redzamos lietotājvārdus uz izvēlēto datubāzi.",
+    "Changes here apply only to this graph window and do not modify global settings.": "Šeit veiktās izmaiņas attiecas tikai uz šo grafika logu un nemaina globālos iestatījumus.",
     "Check All": "Atzīmēt visus",
     "Check GitHub for a newer version of Session Sniffer": "Pārbaudīt GitHub, vai nav pieejama jaunāka Session Sniffer versija",
     "Check Selected": "Atzīmēt atlasītos",
@@ -715,7 +716,7 @@
     "Detection Flags": "Noteikšanas karodziņi",
     "Detection Logging": "Noteikšanas žurnalēšana",
     "Detection Settings": "Noteikšanas iestatījumi",
-    "Detection mode for flagging high packet-rate players.\n\nSmart: Dynamically calculates the average PPS of connected players and flags players exceeding the session average with a margin and minimum floor.\nManual: Flags players exceeding fixed PPS and BPS thresholds.": "Noteikšanas režīms spēlētāju ar augstu pakešu intensitāti atzīmēšanai.\n\nViedais: dinamiski aprēķina savienoto spēlētāju vidējo PPS un atzīmē spēlētājus, kuri pārsniedz sesijas vidējo rādītāju ar rezervi un minimālo slieksni.\nManuālais: atzīmē spēlētājus, kuri pārsniedz fiksētus PPS un BPS sliekšņus.",
+    "Detection mode for flagging high packet-rate players.\n\nSmart: Dynamically calculates the average PPS and BPS of connected players and flags players exceeding the session averages with a margin and minimum floor.\nManual: Flags players exceeding fixed PPS and BPS thresholds.": "Noteikšanas režīms spēlētāju ar augstu pakešu intensitāti atzīmēšanai.\n\nViedais: dinamiski aprēķina savienoto spēlētāju vidējo PPS un BPS un atzīmē spēlētājus, kuri pārsniedz sesijas vidējos rādītājus ar rezervi un minimālo slieksni.\nManuālais: atzīmē spēlētājus, kuri pārsniedz fiksētus PPS un BPS sliekšņus.",
     "Detection settings exported successfully.": "Noteikšanas iestatījumi veiksmīgi eksportēti.",
     "Detection settings imported successfully.": "Noteikšanas iestatījumi veiksmīgi importēti.",
     "Detections": "Konstatējumi",
@@ -2397,7 +2398,7 @@
     "Skip this update version and do not prompt again until a newer version is released": "Izlaist šo atjauninājuma versiju un vairs neatgādināt, līdz tiks izlaista jaunāka versija",
     "Skipped Version": "Izlaistā versija",
     "Smart": "Viedais",
-    "Smart mode (avg: {avg:.1f} PPS · threshold: {threshold} PPS)": "Viedais režīms (vid.: {avg:.1f} PPS · slieksnis: {threshold} PPS)",
+    "Smart mode (avg: {avg_pps:.1f} PPS · {avg_bps} | thresholds: {pps} PPS · {bps})": "Viedais režīms (vid.: {avg_pps:.1f} PPS · {avg_bps} | sliekšņi: {pps} PPS · {bps})",
     "Sniff '{process}'": "Pārtvert procesu '{process}'",
     "Sniff Selected Process": "Pārtvert atlasīto procesu",
     "Solarized Light": "Solarized gaišais",
@@ -4264,11 +4265,6 @@
       "zero": "{count} spēlētāju",
       "one": "{count} spēlētājs",
       "other": "{count} spēlētāji"
-    },
-    "{count} player currently exceeding threshold:": {
-      "zero": "{count} spēlētāju pašlaik pārsniedz slieksni:",
-      "one": "{count} spēlētājs pašlaik pārsniedz slieksni:",
-      "other": "{count} spēlētāji pašlaik pārsniedz slieksni:"
     },
     "{count} player currently exceeding thresholds:": {
       "zero": "{count} spēlētāju pašlaik pārsniedz sliekšņus:",

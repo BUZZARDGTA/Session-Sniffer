@@ -343,6 +343,7 @@
     "Change Interface…": "Atharraich an eadar-aghaidh…",
     "Change the IP or range of the selected entry using the builder": "Atharraich IP no raon an innteirt a thagh thu a' cleachdadh an neach-togail",
     "Change the Target Database for all currently checked & visible usernames:\n• Auto (Default): Restores each row’s smart default Target Database (matched DB or Randomlist for Searchlist, or source DB).\n• Specific DB: Moves all checked & visible usernames into the chosen database.": "Atharraich an Stòr-dàta targaid airson gach ainm-cleachdaiche le cromag & ri fhaicinn an-dràsta:\n• Fèin-obrachail (Bun-roghainn): A' toirt air ais bun-roghainn glic Stòr-dàta targaid gach sreath (DB maidsidh no Randomlist airson Searchlist, no stòr-dàta tùsail).\n• DB sònraichte: A' gluasad gach ainm-cleachdaiche le cromag & ri fhaicinn dhan stòr-dàta a thagh thu.",
+    "Changes here apply only to this graph window and do not modify global settings.": "Chan eil atharrachaidhean an-seo a’ buntainn ach ris an uinneag ghrafa seo agus cha atharraich iad roghainnean uile-choitcheann.",
     "Check All": "Cuir cromag ris na h-uile",
     "Check GitHub for a newer version of Session Sniffer": "Thoir sùil air GitHub airson tionndadh nas ùire de Session Sniffer",
     "Check Selected": "Cuir cromag ris na thagh thu",
@@ -715,7 +716,7 @@
     "Detection Flags": "Brataichean lorgaidh",
     "Detection Logging": "Logadh lorgaidh",
     "Detection Settings": "Roghainnean lorgaidh",
-    "Detection mode for flagging high packet-rate players.\n\nSmart: Dynamically calculates the average PPS of connected players and flags players exceeding the session average with a margin and minimum floor.\nManual: Flags players exceeding fixed PPS and BPS thresholds.": "Modh lorgaidh airson brataichean a chur air cluicheadairean le ìre àrd phacaidean.\n\nGlic: Obraichidh e a-mach gu dinamach PPS cuibheasach chluicheadairean ceangailte agus cuiridh e bratach air cluicheadairean a tha nas àirde na cuibheas an t-seisein le iomall agus bonn as ìsle.\nA làimh: Cuiridh e bratach air cluicheadairean a tha nas àirde na tairsgeachan stèidhichte PPS agus BPS.",
+    "Detection mode for flagging high packet-rate players.\n\nSmart: Dynamically calculates the average PPS and BPS of connected players and flags players exceeding the session averages with a margin and minimum floor.\nManual: Flags players exceeding fixed PPS and BPS thresholds.": "Modh lorgaidh airson brataichean a chur air cluicheadairean le ìre àrd phacaidean.\n\nGlic: Obraichidh e a-mach gu dinamach PPS agus BPS cuibheasach chluicheadairean ceangailte agus cuiridh e bratach air cluicheadairean a tha nas àirde na cuibheasan an t-seisein le iomall agus bonn as ìsle.\nA làimh: Cuiridh e bratach air cluicheadairean a tha nas àirde na tairsgeachan stèidhichte PPS agus BPS.",
     "Detection settings exported successfully.": "Chaidh roghainnean lorgaidh às-phortachadh gu soirbheachail.",
     "Detection settings imported successfully.": "Chaidh roghainnean lorgaidh ion-phortachadh gu soirbheachail.",
     "Detections": "Lorgan",
@@ -2397,7 +2398,7 @@
     "Skip this update version and do not prompt again until a newer version is released": "Leum thairis air an tionndadh ùrachaidh seo is na iarr a-rithist gus an tèid tionndadh nas ùire fhoillseachadh",
     "Skipped Version": "Tionndadh air a Leumadh",
     "Smart": "Glic",
-    "Smart mode (avg: {avg:.1f} PPS · threshold: {threshold} PPS)": "Modh glic (cuibh.: {avg:.1f} PPS · stairsneach: {threshold} PPS)",
+    "Smart mode (avg: {avg_pps:.1f} PPS · {avg_bps} | thresholds: {pps} PPS · {bps})": "Modh glic (cuibh.: {avg_pps:.1f} PPS · {avg_bps} | stairsnichean: {pps} PPS · {bps})",
     "Sniff '{process}'": "Snòd '{process}'",
     "Sniff Selected Process": "Snòd am Pròiseas Taghte",
     "Solarized Light": "Solarized Soilleir",
@@ -4506,12 +4507,6 @@
       "two": "{count} chluicheadair",
       "few": "{count} cluicheadairean",
       "other": "{count} cluicheadair"
-    },
-    "{count} player currently exceeding threshold:": {
-      "one": "{count} chluicheadair a' dol thairis air an stairsnich an-dràsta:",
-      "two": "{count} chluicheadair a' dol thairis air an stairsnich an-dràsta:",
-      "few": "{count} cluicheadairean a' dol thairis air an stairsnich an-dràsta:",
-      "other": "{count} cluicheadair a' dol thairis air an stairsnich an-dràsta:"
     },
     "{count} player currently exceeding thresholds:": {
       "one": "{count} chluicheadair a' dol thairis air na stairsnichean an-dràsta:",

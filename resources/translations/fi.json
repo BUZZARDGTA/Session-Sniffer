@@ -343,6 +343,7 @@
     "Change Interface…": "Vaihda verkkoliitäntä…",
     "Change the IP or range of the selected entry using the builder": "Muuta valitun merkinnän IP-osoitetta tai aluetta muodostimen avulla",
     "Change the Target Database for all currently checked & visible usernames:\n• Auto (Default): Restores each row’s smart default Target Database (matched DB or Randomlist for Searchlist, or source DB).\n• Specific DB: Moves all checked & visible usernames into the chosen database.": "Vaihda kohdetietokanta kaikille tällä hetkellä merkityille ja näkyville käyttäjänimille:\n• Automaattinen (oletus): Palauttaa jokaisen rivin älykkään oletuskohdetietokannan (vastaava tietokanta tai Randomlist Searchlistille, tai lähdetietokanta).\n• Tietty tietokanta: Siirtää kaikki merkityt ja näkyvät käyttäjänimet valittuun tietokantaan.",
+    "Changes here apply only to this graph window and do not modify global settings.": "Täällä tehdyt muutokset koskevat vain tätä kuvaajaikkunaa eivätkä muuta yleisiä asetuksia.",
     "Check All": "Merkitse kaikki",
     "Check GitHub for a newer version of Session Sniffer": "Tarkista GitHubista, onko Session Snifferistä uudempaa versiota",
     "Check Selected": "Merkitse valitut",
@@ -715,7 +716,7 @@
     "Detection Flags": "Tunnistusliput",
     "Detection Logging": "Tunnistusten lokitus",
     "Detection Settings": "Tunnistusasetukset",
-    "Detection mode for flagging high packet-rate players.\n\nSmart: Dynamically calculates the average PPS of connected players and flags players exceeding the session average with a margin and minimum floor.\nManual: Flags players exceeding fixed PPS and BPS thresholds.": "Tunnistustila korkean pakettinopeuden pelaajien merkitsemiseen.\n\nÄlykäs: Laskee dynaamisesti yhdistettyjen pelaajien keskimääräisen PPS-arvon ja merkitsee pelaajat, jotka ylittävät istunnon keskiarvon marginaalilla ja vähimmäisrajalla.\nManuaalinen: Merkitsee pelaajat, jotka ylittävät kiinteät PPS- ja BPS-kynnysarvot.",
+    "Detection mode for flagging high packet-rate players.\n\nSmart: Dynamically calculates the average PPS and BPS of connected players and flags players exceeding the session averages with a margin and minimum floor.\nManual: Flags players exceeding fixed PPS and BPS thresholds.": "Tunnistustila korkean pakettinopeuden pelaajien merkitsemiseen.\n\nÄlykäs: Laskee dynaamisesti yhdistettyjen pelaajien keskimääräiset PPS- ja BPS-arvot ja merkitsee pelaajat, jotka ylittävät istunnon keskiarvot marginaalilla ja vähimmäisrajalla.\nManuaalinen: Merkitsee pelaajat, jotka ylittävät kiinteät PPS- ja BPS-kynnysarvot.",
     "Detection settings exported successfully.": "Tunnistusasetukset vietiin onnistuneesti.",
     "Detection settings imported successfully.": "Tunnistusasetukset tuotiin onnistuneesti.",
     "Detections": "Tunnistukset",
@@ -2397,7 +2398,7 @@
     "Skip this update version and do not prompt again until a newer version is released": "Ohita tämä päivitysversio äläkä kysy uudelleen ennen kuin uudempi versio julkaistaan",
     "Skipped Version": "Ohitettu versio",
     "Smart": "Älykäs",
-    "Smart mode (avg: {avg:.1f} PPS · threshold: {threshold} PPS)": "Älykäs tila (ka: {avg:.1f} PPS · kynnys: {threshold} PPS)",
+    "Smart mode (avg: {avg_pps:.1f} PPS · {avg_bps} | thresholds: {pps} PPS · {bps})": "Älykäs tila (ka: {avg_pps:.1f} PPS · {avg_bps} | kynnysarvot: {pps} PPS · {bps})",
     "Sniff '{process}'": "Seuraa prosessia '{process}'",
     "Sniff Selected Process": "Seuraa valittua prosessia",
     "Solarized Light": "Solarized Light",
@@ -4022,10 +4023,6 @@
     "{count} player": {
       "one": "{count} pelaaja",
       "other": "{count} pelaajaa"
-    },
-    "{count} player currently exceeding threshold:": {
-      "one": "{count} pelaaja ylittää parhaillaan kynnysarvon:",
-      "other": "{count} pelaajaa ylittää parhaillaan kynnysarvon:"
     },
     "{count} player currently exceeding thresholds:": {
       "one": "{count} pelaaja ylittää parhaillaan kynnysarvot:",
