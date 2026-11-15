@@ -3,12 +3,9 @@
 import math
 from collections import deque
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, ClassVar
+from typing import ClassVar
 
 from session_sniffer.guis.player_rate_graph import DEFAULT_MAX_HISTORY
-
-if TYPE_CHECKING:
-    from datetime import datetime
 
 GEIGER_MIN_INTERVAL_SECONDS = 0.095
 GEIGER_OPEN_GRAPH_MIN_PROXIMITY = 0.22
@@ -23,6 +20,7 @@ _SMART_BPS_IQR_MULTIPLIER = 1.15
 _SMART_MIN_BPS_KB_DELTA = 3.5
 KBS_TO_BYTES = 1024
 _RATE_SMOOTHING_WINDOW = 3
+RELEASE_HYSTERESIS_RATIO = 0.90
 
 _MIN_CALM_FLOOR_SAMPLES = 6
 _MIN_VELOCITY_SAMPLES = 4
@@ -58,21 +56,22 @@ def compute_series_proximity(
 
     approaching = False
     velocity_boost = 0.0
+    effective_current = max(float(current), _recent_smoothed(history))
     if len(tail) >= _MIN_VELOCITY_SAMPLES:
-        recent = 0.65 * current + 0.35 * tail[-2]
+        recent = 0.65 * effective_current + 0.35 * tail[-2]
         prior_slice = tail[-8:-2]
         prior_avg = sum(prior_slice) / len(prior_slice)
         delta = recent - prior_avg
-        if delta >= min_approach_delta and current > calm_floor:
+        if delta >= min_approach_delta and effective_current > calm_floor:
             approaching = True
             velocity_boost = min(0.55, delta / max(min_approach_delta * 4.0, threshold * 0.50))
 
-    if current <= calm_floor:
+    if effective_current <= calm_floor:
         return 0.0, False
     base_prox = (
-        (current - calm_floor) / max(1.0, threshold - calm_floor)
-        if current < threshold
-        else 1.0 + (current - threshold) / max(8.0, threshold * 0.60)
+        (effective_current - calm_floor) / max(1.0, threshold - calm_floor)
+        if effective_current < threshold
+        else 1.0 + (effective_current - threshold) / max(6.0, threshold * 0.45)
     )
     return base_prox + (velocity_boost if base_prox >= _MIN_BOOST_BASE_PROX else 0.0), approaching
 
@@ -132,7 +131,7 @@ def compute_smart_thresholds(pps_values: list[int], bps_values: list[int]) -> tu
 def compute_geiger_interval(*, repeat_interval: int, proximity_score: float) -> float:
     """Compute the target tick interval in seconds for `Adaptive Geiger` mode."""
     scale = repeat_interval / 2.0
-    raw_interval = (1.65 * scale) / math.pow(0.55 + proximity_score * 1.25, 2.1)
+    raw_interval = (1.45 * scale) / math.pow(0.60 + proximity_score * 1.35, 2.15)
     return max(GEIGER_MIN_INTERVAL_SECONDS, min(repeat_interval * 1.25, raw_interval))
 
 
@@ -150,54 +149,54 @@ class PlayerRateData:
     bps_history: deque[int] = field(default_factory=_make_rate_history)
 
     # PPS tracking
-    newer_high_pps_time: datetime | None = None
     is_high_pps: bool = False
     current_pps_duration: int = 0
     accumulated_pps_duration: int = 0
     total_pps_duration: int = 0
 
     # BPS tracking
-    newer_high_bps_time: datetime | None = None
     is_high_bps: bool = False
     current_bps_duration: int = 0
 
-    def update_pps_stats(self, *, now: datetime, pps: int, threshold: int, required_duration: int) -> None:
-        """Update high-PPS status for this player (using a 3-sample rolling mean to absorb 1s boundary jitter)."""
+    @property
+    def effective_pps(self) -> int:
+        """Return the jitter-smoothed PPS sample (`max(raw, 3s rolling mean)`)."""
+        return max(self.pps, round(_recent_smoothed(self.pps_history)))
+
+    @property
+    def effective_bps(self) -> int:
+        """Return the jitter-smoothed BPS sample (`max(raw, 3s rolling mean)`)."""
+        return max(self.bps, round(_recent_smoothed(self.bps_history)))
+
+    def update_pps_stats(self, *, pps: int, threshold: int, required_duration: int) -> None:
+        """Update 1s high-PPS streak for this player (with 3-sample smoothing and 10% hold hysteresis)."""
         self.pps = pps
         self.pps_history.append(pps)
-        effective_pps = max(pps, round(_recent_smoothed(self.pps_history)))
-        if effective_pps < threshold:
+        active_limit = round(threshold * RELEASE_HYSTERESIS_RATIO) if self.is_high_pps else threshold
+        if self.effective_pps < active_limit:
             self.accumulated_pps_duration += self.current_pps_duration
             self.is_high_pps = False
-            self.newer_high_pps_time = None
             self.current_pps_duration = 0
             self.total_pps_duration = self.accumulated_pps_duration
             return
 
-        if self.newer_high_pps_time is None:
-            self.newer_high_pps_time = now
-
-        self.current_pps_duration = int((now - self.newer_high_pps_time).total_seconds())
+        self.current_pps_duration += 1
         self.total_pps_duration = self.accumulated_pps_duration + self.current_pps_duration
 
         if self.current_pps_duration >= required_duration:
             self.is_high_pps = True
 
-    def update_bps_stats(self, *, now: datetime, bps: int, threshold: int, required_duration: int) -> None:
-        """Update high-BPS status for this player (using a 3-sample rolling mean to absorb 1s boundary jitter)."""
+    def update_bps_stats(self, *, bps: int, threshold: int, required_duration: int) -> None:
+        """Update 1s high-BPS streak for this player (with 3-sample smoothing and 10% hold hysteresis)."""
         self.bps = bps
         self.bps_history.append(bps)
-        effective_bps = max(bps, round(_recent_smoothed(self.bps_history)))
-        if effective_bps < threshold:
+        active_limit = round(threshold * RELEASE_HYSTERESIS_RATIO) if self.is_high_bps else threshold
+        if self.effective_bps < active_limit:
             self.is_high_bps = False
-            self.newer_high_bps_time = None
             self.current_bps_duration = 0
             return
 
-        if self.newer_high_bps_time is None:
-            self.newer_high_bps_time = now
-
-        self.current_bps_duration = int((now - self.newer_high_bps_time).total_seconds())
+        self.current_bps_duration += 1
 
         if self.current_bps_duration >= required_duration:
             self.is_high_bps = True

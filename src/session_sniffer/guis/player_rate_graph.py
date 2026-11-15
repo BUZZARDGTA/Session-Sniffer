@@ -263,6 +263,29 @@ _BPS_THRESHOLD_KB_MIN = 3
 _BPS_THRESHOLD_KB_MAX = 500
 _REPEAT_INTERVAL_MIN = 1
 _REPEAT_INTERVAL_MAX = 30
+_STREAK_SMOOTHING_WINDOW = 3
+_STREAK_HOLD_RATIO = 0.90
+
+
+def _backfill_series_streak(samples: list[int], threshold: int) -> tuple[int, int]:
+    """Compute trailing `(streak_seconds, peak_value)` from *samples* using 3s smoothing + 10% hold hysteresis."""
+    if threshold <= 0 or not samples:
+        return 0, 0
+    release_limit = round(threshold * _STREAK_HOLD_RATIO)
+    streak = 0
+    peak = 0
+    window: deque[int] = deque(maxlen=_STREAK_SMOOTHING_WINDOW)
+    for raw in samples:
+        window.append(raw)
+        effective = max(raw, round(sum(window) / len(window)))
+        limit = release_limit if streak > 0 else threshold
+        if effective >= limit:
+            streak += 1
+            peak = max(peak, raw)
+        else:
+            streak = 0
+            peak = 0
+    return streak, peak
 
 
 @dataclass(frozen=True, slots=True)
@@ -909,5 +932,7 @@ class PlayerRateGraphWindow(DualRateGraphBase):
 
         self._pps_running_sum = int(sum(self._pps_buffer))
         self._bps_running_sum = sum(self._bps_buffer)
+        self._pps_spike_streak, self._pps_spike_peak = _backfill_series_streak(pps_trimmed, self._pps_threshold_value)
+        self._bps_spike_streak, self._bps_spike_peak = _backfill_series_streak(bps_trimmed, self._bps_threshold_value)
 
         self._render_buffers()

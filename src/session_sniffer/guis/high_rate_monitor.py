@@ -2,7 +2,6 @@
 
 import html
 import time
-from datetime import datetime
 from typing import TYPE_CHECKING, override
 
 from PySide6.QtCore import QSignalBlocker, Qt, QTimer
@@ -19,11 +18,11 @@ from PySide6.QtWidgets import (
 
 from session_sniffer.background.voice_notifications import play_spike_sound
 from session_sniffer.constants.standalone import SPIKE_SOUND_MODES, SPIKE_SOUND_SCOPES
-from session_sniffer.constants.standard import LOCAL_TZ
 from session_sniffer.guis._high_rate_monitor_core import (
     GEIGER_GLOBAL_APPROACH_PROXIMITY,
     GEIGER_OPEN_GRAPH_MIN_PROXIMITY,
     KBS_TO_BYTES,
+    RELEASE_HYSTERESIS_RATIO,
     SMART_MIN_BPS_KB_FLOOR,
     SMART_MIN_PPS_FLOOR,
     HighRateTracker,
@@ -319,7 +318,6 @@ class HighRateMonitorWidget(QWidget):
             )
         active_pps_threshold, active_bps_threshold = self._active_thresholds()
 
-        now = datetime.now(tz=LOCAL_TZ)
         connected_ips: set[str] = set()
         for player in players:
             connected_ips.add(player.ip)
@@ -331,13 +329,11 @@ class HighRateMonitorWidget(QWidget):
                 )
             self._tracked[player.ip].usernames = list(player.usernames)
             self._tracked[player.ip].update_pps_stats(
-                now=now,
                 pps=player.packets.pps.calculated_rate,
                 threshold=active_pps_threshold,
                 required_duration=self.required_duration,
             )
             self._tracked[player.ip].update_bps_stats(
-                now=now,
                 bps=player.bandwidth.bps.calculated_rate,
                 threshold=active_bps_threshold,
                 required_duration=self.required_duration,
@@ -449,7 +445,7 @@ class HighRateMonitorWidget(QWidget):
             score = pps_prox
             approaching = pps_approaching
         else:
-            score = max(pps_prox, bps_prox * 0.85)
+            score = max(pps_prox, bps_prox)
             approaching = pps_approaching or bps_approaching
 
         if is_spiking:
@@ -468,18 +464,29 @@ class HighRateMonitorWidget(QWidget):
             return False, False, False, 0.0
 
         active_pps_threshold, active_bps_threshold = self._thresholds_for_ip(ip)
-        pps = data.pps
-        bps = data.bps
-        pps_over = 0 < active_pps_threshold <= pps
-        bps_over = 0 < active_bps_threshold <= bps
-        pps_ratio = (pps / active_pps_threshold) if active_pps_threshold > 0 else 0.0
-        bps_ratio = (bps / active_bps_threshold) if active_bps_threshold > 0 else 0.0
+        graph = self._graph_windows.get(ip)
+        has_override = graph is not None and graph.has_local_threshold_override
+        eff_pps = data.effective_pps
+        eff_bps = data.effective_bps
+        pps_limit = (
+            round(active_pps_threshold * RELEASE_HYSTERESIS_RATIO)
+            if not has_override and data.is_high_pps
+            else active_pps_threshold
+        )
+        bps_limit = (
+            round(active_bps_threshold * RELEASE_HYSTERESIS_RATIO)
+            if not has_override and data.is_high_bps
+            else active_bps_threshold
+        )
+        pps_over = active_pps_threshold > 0 and eff_pps >= pps_limit
+        bps_over = active_bps_threshold > 0 and eff_bps >= bps_limit
+        pps_ratio = (eff_pps / active_pps_threshold) if active_pps_threshold > 0 else 0.0
+        bps_ratio = (eff_bps / active_bps_threshold) if active_bps_threshold > 0 else 0.0
 
         match self._spike_trigger_metric:
             case 'Follow Monitor':
-                graph = self._graph_windows.get(ip)
-                if graph is not None and graph.has_local_threshold_override:
-                    needed = self.required_duration + 1
+                if has_override:
+                    needed = self.required_duration
                     pps_tail = list(data.pps_history)[-needed:]
                     bps_tail = list(data.bps_history)[-needed:]
                     is_spiking = (
@@ -735,14 +742,14 @@ class HighRateMonitorWidget(QWidget):
         data = self._tracked.get(ip)
         if data is not None:
             graph.load_history(pps_history=list(data.pps_history), bps_history=list(data.bps_history))
-            graph.update_spike_visuals(self._build_visual_update(ip, data))
+            graph.update_spike_visuals(self._build_visual_update(ip, data), advance_streak=False)
             if self._spike_sound_scope == 'Open Graphs':
-                if self._spike_sound_mode == 'Adaptive Geiger':
-                    engaged, _ = self._evaluate_geiger_proximity(ip, data)
-                else:
+                if self._spike_sound_mode in ('Once on Spike', 'Start & End'):
                     engaged, _, _, _ = self._evaluate_ip_spike(ip, data)
-                if engaged:
-                    self._spiking_ips.add(ip)
+                    if engaged:
+                        self._spiking_ips.add(ip)
+                else:
+                    self._process_spike_sound_alerts()
         matched_player = PlayersRegistry.get_player_by_ip(ip)
         if matched_player is not None:
             graph.update_usernames(matched_player.usernames)
