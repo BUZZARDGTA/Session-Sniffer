@@ -3,7 +3,7 @@
 import re
 from typing import TYPE_CHECKING, cast, override
 
-from PySide6.QtCore import QPoint, QRegularExpression, QSignalBlocker, QSize, Qt, Signal
+from PySide6.QtCore import QPoint, QRegularExpression, QSignalBlocker, QSize, Qt
 from PySide6.QtGui import QAction, QIcon, QKeySequence, QRegularExpressionValidator, QShortcut
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -15,7 +15,6 @@ from PySide6.QtWidgets import (
     QGroupBox,
     QHBoxLayout,
     QInputDialog,
-    QKeySequenceEdit,
     QLabel,
     QLineEdit,
     QListWidget,
@@ -100,92 +99,6 @@ def create_color_widget(meta: SettingMeta) -> ColorPickerButton:
     if tooltip is not None and tooltip:
         button.setToolTip(tooltip)
     return button
-
-
-class HotkeyEditWidget(QWidget):
-    """Single-chord keyboard shortcut editor with an enable checkbox and a clear button."""
-
-    hotkey_changed = Signal()
-
-    def __init__(self, parent: QWidget | None = None) -> None:
-        """Initialize the shortcut enable checkbox, chord editor, and clear button."""
-        super().__init__(parent)
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(6)
-
-        self.enabled_checkbox = QCheckBox()
-        self.enabled_checkbox.setChecked(True)
-        self.enabled_checkbox.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
-
-        self._key_edit = QKeySequenceEdit()
-        self._key_edit.setMaximumSequenceLength(1)
-        self._key_edit.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        self._clear_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'x.svg')), f" {tr('Clear')}")
-        self._clear_button.setToolTip(tr('Clear shortcut (disable hotkey)'))
-        self._clear_button.setStyleSheet(COMPACT_BUTTON_STYLESHEET)
-        self._clear_button.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._clear_button.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
-        self._clear_button.setEnabled(False)
-
-        inner_line_edit = self._key_edit.findChild(QLineEdit)
-
-        def _apply_language() -> None:
-            if inner_line_edit is not None:
-                inner_line_edit.setPlaceholderText(tr('None (click and press shortcut...)'))
-            self._clear_button.setText(f" {tr('Clear')}")
-            self._clear_button.setToolTip(tr('Clear shortcut (disable hotkey)'))
-
-        _apply_language()
-        register_language_refresh(self, _apply_language)
-
-        self.enabled_checkbox.toggled.connect(self._sync_controls_enabled)
-        self._key_edit.keySequenceChanged.connect(self._on_sequence_changed)
-        self._clear_button.clicked.connect(self._clear_shortcut)
-
-        layout.addWidget(self.enabled_checkbox)
-        layout.addWidget(self._key_edit, 1)
-        layout.addWidget(self._clear_button)
-
-    def _sync_controls_enabled(self) -> None:
-        shortcut_enabled = self.enabled_checkbox.isChecked()
-        self._key_edit.setEnabled(shortcut_enabled)
-        self._clear_button.setEnabled(shortcut_enabled and not self._key_edit.keySequence().isEmpty())
-
-    def _on_sequence_changed(self, sequence: QKeySequence) -> None:
-        portable = sequence.toString(QKeySequence.SequenceFormat.PortableText).strip()
-        if not sequence.isEmpty() and (not portable or portable == 'Esc' or '\ufffd' in portable):
-            with QSignalBlocker(self._key_edit):
-                self._key_edit.clear()
-        self._sync_controls_enabled()
-        self.hotkey_changed.emit()
-
-    def _clear_shortcut(self) -> None:
-        self._key_edit.clear()
-
-    def value(self) -> str | None:
-        """Return the current portable key sequence string, or `None` if empty."""
-        seq = self._key_edit.keySequence()
-        if seq.isEmpty():
-            return None
-        text = seq.toString(QKeySequence.SequenceFormat.PortableText).strip()
-        return text if text and '\ufffd' not in text else None
-
-    def set_value(self, value: str | None) -> None:
-        """Set the current shortcut from a portable string or `None`."""
-        seq = QKeySequence.fromString(value, QKeySequence.SequenceFormat.PortableText) if value is not None and value else QKeySequence()
-        with QSignalBlocker(self._key_edit):
-            self._key_edit.setKeySequence(seq)
-        self._sync_controls_enabled()
-
-
-def create_hotkey_widget(meta: SettingMeta) -> HotkeyEditWidget:
-    """Create a keyboard shortcut editor widget for a hotkey setting."""
-    widget = HotkeyEditWidget()
-    tooltip = format_setting_tooltip(meta)
-    if tooltip is not None and tooltip:
-        widget.setToolTip(tooltip)
-    return widget
 
 
 def create_text_widget(meta: SettingMeta) -> QLineEdit:
@@ -840,12 +753,24 @@ def set_checkboxes_to(container: QWidget, selected: tuple[str, ...]) -> None:
         checkbox.setChecked(checkbox.objectName() in wanted)
 
 
+def _create_help_banner_group() -> tuple[QGroupBox, QLabel]:
+    """Create a titled `QGroupBox` containing a styled selectable rich-text `QLabel`."""
+    group_box = QGroupBox()
+    layout = QVBoxLayout(group_box)
+    help_label = QLabel()
+    help_label.setWordWrap(True)
+    help_label.setTextFormat(Qt.TextFormat.RichText)
+    help_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+    help_label.setStyleSheet(WEBSERVER_HELP_LABEL_STYLESHEET)
+    layout.addWidget(help_label)
+    return group_box, help_label
+
+
 def build_webserver_help_group() -> QGroupBox:
     """Build an explanatory guide for Web Server host/port behavior and common usage patterns."""
-    group_box = QGroupBox(tr('Web Server Usage Guide').replace('&', '&&'))
-    layout = QVBoxLayout(group_box)
-
-    help_label = QLabel(
+    group_box, help_label = _create_help_banner_group()
+    group_box.setTitle(tr('Web Server Usage Guide').replace('&', '&&'))
+    help_label.setText(
         tr(
             '<b>Host binding explained</b><br>'
             '<b>127.0.0.1</b> (or localhost): only this PC can open the panel.<br>'
@@ -863,26 +788,12 @@ def build_webserver_help_group() -> QGroupBox:
             'Use trusted networks and firewall scope limits.',
         ),
     )
-    help_label.setWordWrap(True)
-    help_label.setTextFormat(Qt.TextFormat.RichText)
-    help_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-    help_label.setStyleSheet(WEBSERVER_HELP_LABEL_STYLESHEET)
-    layout.addWidget(help_label)
-
     return group_box
 
 
 def build_shortcuts_help_group() -> QGroupBox:
     """Build an explanatory header for global hotkeys and main window shortcuts."""
-    group_box = QGroupBox()
-    layout = QVBoxLayout(group_box)
-
-    help_label = QLabel()
-    help_label.setWordWrap(True)
-    help_label.setTextFormat(Qt.TextFormat.RichText)
-    help_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-    help_label.setStyleSheet(WEBSERVER_HELP_LABEL_STYLESHEET)
-    layout.addWidget(help_label)
+    group_box, help_label = _create_help_banner_group()
 
     def _refresh_text() -> None:
         group_box.setTitle(tr('Keyboard Shortcuts Guide').replace('&', '&&'))
@@ -891,9 +802,9 @@ def build_shortcuts_help_group() -> QGroupBox:
                 '<b>Global Hotkeys</b> (<i>Capture &amp; Notifications</i>, <i>Game Process &amp; Session</i>, <i>Looky System</i>): '
                 'Registered system-wide so they work at any time, including while playing fullscreen in-game.<br>'
                 '<b>Window Shortcuts</b> (<i>Main Window</i>): Active while the main Session Sniffer window is focused.<br><br>'
-                'Use <b>Enable Shortcuts</b> to mute or enable all shortcuts at once, or toggle the checkbox next to any action to enable or disable it '
-                'while keeping its assigned keybind. Click any shortcut field and press a key combination to assign it, '
-                'or click <b>Clear</b> (or press <b>Esc</b>) to unbind it.',
+                'Use <b>Enable Shortcuts</b> to mute or enable all shortcuts at once, or toggle the switch next to any action to enable or disable it '
+                'while keeping its assigned keybind. Click any shortcut slot and press a key combination to assign it '
+                '(press <b>Esc</b> to cancel), or click <b>\u00d7</b> to unbind it.',
             ),
         )
 

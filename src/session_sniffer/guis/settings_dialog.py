@@ -35,9 +35,14 @@ from session_sniffer.guis._settings_discord_mixin import SettingsDialogDiscordMi
 from session_sniffer.guis._settings_hrm_mixin import SettingsDialogHighRateMonitorMixin
 from session_sniffer.guis._settings_looky_mixin import SettingsDialogLookyMixin
 from session_sniffer.guis._settings_runtime import SettingValue, apply_runtime_settings_changes
+from session_sniffer.guis._settings_shortcuts_widgets import (
+    HotkeyEditWidget,
+    create_hotkey_widget,
+    create_shortcuts_master_toggle,
+    populate_shortcut_group_cards,
+)
 from session_sniffer.guis._settings_theme_mixin import SettingsDialogThemeMixin
 from session_sniffer.guis._settings_widget_builders import (
-    HotkeyEditWidget,
     build_shortcuts_help_group,
     build_webserver_help_group,
     combo_canonical_value,
@@ -46,7 +51,6 @@ from session_sniffer.guis._settings_widget_builders import (
     create_column_tuple_widget,
     create_enum_widget,
     create_float_widget,
-    create_hotkey_widget,
     create_integer_or_all_widget,
     create_integer_widget,
     create_ip_range_tuple_widget,
@@ -327,6 +331,9 @@ class SettingsDialog(
                 self._session_relays_group_box = group_box
             elif category == 'Shortcuts' and group_name != 'General':
                 self._shortcut_group_boxes.append(group_box)
+                populate_shortcut_group_cards(group_box, items, self._widgets, self._labels)
+                outer_layout.addWidget(group_box)
+                continue
             direct_items = [(setting_key, setting_meta) for setting_key, setting_meta in items if setting_meta.subgroup is None or not setting_meta.subgroup]
             subgrouped: dict[str, list[tuple[str, SettingMeta]]] = {}
             for setting_key, setting_meta in items:
@@ -363,17 +370,11 @@ class SettingsDialog(
 
     def _add_setting_row(self, form: QFormLayout, key: str, meta: SettingMeta) -> None:
         """Create a widget for *key* and append a labeled row to *form*."""
-        if key.endswith('_enabled') and SETTING_METADATA.get(key[:-8], meta).setting_type == SettingType.HOTKEY:
-            return
         widget = self._create_widget(key, meta)
         if meta.min_width is not None:
             widget.setMinimumWidth(meta.min_width)
         if meta.max_width is not None:
             widget.setMaximumWidth(meta.max_width)
-        if isinstance(widget, HotkeyEditWidget) and (enabled_meta := SETTING_METADATA.get(f'{key}_enabled')) is not None:
-            self._widgets[f'{key}_enabled'] = widget.enabled_checkbox
-            if (enabled_tooltip := format_setting_tooltip(enabled_meta)) is not None:
-                widget.enabled_checkbox.setToolTip(enabled_tooltip)
         self._widgets[key] = widget
 
         # COLUMN_TUPLE, IP_RANGE_TUPLE, STRING_TUPLE and THIRD_PARTY_SERVERS_TUPLE widgets carry their label as the QGroupBox title — add
@@ -517,6 +518,8 @@ class SettingsDialog(
         """Return the appropriate input widget for a single setting."""
         if key == 'capture_filter_process_pid':
             return ProcessSelectorWidget(self, meta=meta)
+        if key == 'shortcuts_enabled':
+            return create_shortcuts_master_toggle(meta)
         if key == 'gui_theme':
             combo = create_enum_widget(meta)
             combo.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
@@ -536,7 +539,7 @@ class SettingsDialog(
             SettingType.ENUM: partial(create_enum_widget, meta),
             SettingType.COLUMN_TUPLE: partial(create_column_tuple_widget, key, meta),
             SettingType.COLOR: partial(create_color_widget, meta),
-            SettingType.HOTKEY: partial(create_hotkey_widget, meta),
+            SettingType.HOTKEY: partial(create_hotkey_widget, key, meta),
             SettingType.THIRD_PARTY_SERVERS_TUPLE: partial(create_third_party_servers_split_widget, key, meta),
             SettingType.IP_RANGE_TUPLE: partial(create_ip_range_tuple_widget, meta, self),
             SettingType.STRING_TUPLE: partial(create_string_tuple_widget, meta, self),

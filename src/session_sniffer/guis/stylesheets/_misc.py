@@ -117,6 +117,70 @@ SETTINGS_RESTART_BANNER_STYLESHEET = themed_qss(
     '}',
 )
 
+SHORTCUT_ROW_CARD_STYLESHEET = themed_qss(
+    'QFrame#shortcutRowCard {'
+    'background-color: @surface[#181c23];'
+    'border: 1px solid @border[#272e3a];'
+    'border-radius: 6px;'
+    '}'
+    'QFrame#shortcutRowCard:hover {'
+    'background-color: @surface[#1c212a];'
+    'border: 1px solid @border[#374254];'
+    '}'
+    'QFrame#shortcutRowCard:disabled {'
+    'background-color: @surface[#14171d];'
+    'border: 1px solid @border[#1f242e];'
+    '}',
+)
+
+SHORTCUT_TITLE_LABEL_STYLESHEET = themed_qss(
+    'QLabel { background: transparent; color: @text_strong[#e8edf4]; font-weight: 600; }'
+    'QLabel:disabled { color: @text_muted[#646d7a]; }',
+)
+
+SHORTCUT_DESC_LABEL_STYLESHEET = themed_qss(
+    'QLabel { background: transparent; color: @text_muted[#8a94a6]; }'
+    'QLabel:disabled { color: @text_muted[#555d69]; }',
+)
+
+SHORTCUT_GLOBAL_BADGE_STYLESHEET = themed_qss(
+    'QLabel {'
+    'background-color: @accent[rgba(59, 130, 246, 0.14)];'
+    'color: @accent[#79b8ff];'
+    'border: 1px solid @accent[rgba(59, 130, 246, 0.34)];'
+    'border-radius: 4px;'
+    'padding: 1px 6px;'
+    'font-size: 7pt;'
+    'font-weight: bold;'
+    '}'
+    'QLabel:disabled {'
+    'background-color: @control[rgba(80, 88, 100, 0.12)];'
+    'color: @text_muted[#5f6876];'
+    'border: 1px solid @border[rgba(80, 88, 100, 0.25)];'
+    '}',
+)
+
+SHORTCUT_RESET_ICON_BUTTON_STYLESHEET = themed_qss(
+    'QToolButton {'
+    'background-color: @control[#1b2028];'
+    'border: 1px solid @border[#2d3544];'
+    'border-radius: 6px;'
+    'padding: 4px;'
+    '}'
+    'QToolButton:hover {'
+    'background-color: @control[#242b36];'
+    'border: 1px solid @accent[#3d8ec9];'
+    '}'
+    'QToolButton:pressed {'
+    'background-color: @control[#151920];'
+    'border: 1px solid @accent[#2a6fa0];'
+    '}'
+    'QToolButton:disabled {'
+    'background-color: @control[#14171d];'
+    'border: 1px solid @border[#1f242e];'
+    '}',
+)
+
 # =============================================================================
 # SPLASH SCREEN STYLES
 # =============================================================================
