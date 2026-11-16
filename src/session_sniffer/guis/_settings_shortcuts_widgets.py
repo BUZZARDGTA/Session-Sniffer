@@ -323,6 +323,8 @@ class _KeycapRecorderSlot(QFrame):
         self._recording: bool = False
         self._hovered: bool = False
 
+        self.setObjectName('keycapRecorderSlot')
+        self.setStyleSheet('QFrame#keycapRecorderSlot { background: transparent; border: none; }')
         self.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setFixedHeight(scale_by_ui(32))
@@ -692,6 +694,8 @@ class HotkeyEditWidget(QWidget):
         self.enabled_checkbox.setChecked(True)
 
         recorder_container = QWidget(self)
+        recorder_container.setObjectName('shortcutRecorderContainer')
+        recorder_container.setStyleSheet('QWidget#shortcutRecorderContainer { background: transparent; }')
         recorder_container.setFixedSize(scale_by_ui(256), scale_by_ui(32))
         recorder_layout = QHBoxLayout(recorder_container)
         recorder_layout.setContentsMargins(0, 0, 0, 0)
