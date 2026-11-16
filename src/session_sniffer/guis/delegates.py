@@ -71,6 +71,7 @@ _LOOKY_TEXT_COLOR = QColor(TableColors.LOOKY_TEXT)
 _DISCONNECTED_LOOKY_TEXT_COLOR = QColor(TableColors.DISCONNECTED_LOOKY_TEXT)
 _SEARCH_HIGHLIGHT_BG_COLOR = themed_qcolor('@warning[#e3b341]')
 _SEARCH_HIGHLIGHT_FG_COLOR = themed_text_qcolor('#000000', '@warning[#e3b341]')
+_SESSION_ALT_BAND_TINT = _themed_alpha_qcolor('@accent[#88c0d0]', 28)
 _OPAQUE_ALPHA = 255
 
 
@@ -93,6 +94,7 @@ def _refresh_delegate_theme_colors() -> None:
         (_DISCONNECTED_LOOKY_TEXT_COLOR, QColor(TableColors.DISCONNECTED_LOOKY_TEXT)),
         (_SEARCH_HIGHLIGHT_BG_COLOR, themed_qcolor('@warning[#e3b341]')),
         (_SEARCH_HIGHLIGHT_FG_COLOR, themed_text_qcolor('#000000', '@warning[#e3b341]')),
+        (_SESSION_ALT_BAND_TINT, _themed_alpha_qcolor('@accent[#88c0d0]', 28)),
     ):
         target.setRgba(updated.rgba())
 
@@ -346,6 +348,14 @@ class ElidedTextTooltipDelegate(QStyledItemDelegate):
             painter.save()
             painter.fillRect(rect, option.palette.highlight())
             painter.restore()
+        elif not is_selected:
+            session_bands = getattr(index.model(), 'session_bands', None)
+            alt_bands = cast('tuple[bool, ...]', getattr(session_bands, 'alt_bands', ()))
+            row = index.row()
+            if 0 <= row < len(alt_bands) and alt_bands[row]:
+                painter.save()
+                painter.fillRect(rect, _SESSION_ALT_BAND_TINT)
+                painter.restore()
 
         if not is_hovered:
             return

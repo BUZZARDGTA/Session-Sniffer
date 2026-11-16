@@ -151,6 +151,18 @@ class _ColumnIndices:
     country: int | None
 
 
+@dataclass(frozen=True, slots=True)
+class SessionBandState:
+    """Immutable per-row session boundary and alternating tint flags."""
+
+    boundaries: tuple[bool, ...] = ()
+    alt_bands: tuple[bool, ...] = ()
+
+
+_EMPTY_SESSION_BANDS: Final[SessionBandState] = SessionBandState()
+_MIN_ROWS_FOR_SESSION_BANDS: Final[int] = 2
+
+
 def _build_sort_players_map() -> dict[str, Player]:
     """Return the player lookup map for table sorting, overlaying past-session snapshots when active."""
     players_map = PlayersRegistry.get_players_map()
@@ -373,6 +385,7 @@ class SessionTableModel(QAbstractTableModel):
             country=self.get_column_index('Country'),
         )
         self._ip_to_row_index: dict[str, int] = {}  # O(1) row lookup by IP
+        self.session_bands: SessionBandState = _EMPTY_SESSION_BANDS
         self._looky_icon = QIcon(str(ICONS_DIR_PATH / 'eye.svg'))
 
     @staticmethod
@@ -626,9 +639,46 @@ class SessionTableModel(QAbstractTableModel):
     # Custom / internal management methods
     # --------------------------------------------------------------------------
 
+    def _compute_session_bands(self) -> SessionBandState:
+        """Compute per-row session boundary and alternating session band flags when viewing multiple sessions."""
+        if self._view is None or len(self._data) < _MIN_ROWS_FOR_SESSION_BANDS or not Settings.is_session_host_feature_set():
+            return _EMPTY_SESSION_BANDS
+        if (self._view.is_connected_table and not TableMergeState.is_merged()) or SessionFilterState.get_selected_session() != SessionFilterState.FILTER_ALL:
+            return _EMPTY_SESSION_BANDS
+
+        players_map = PlayersRegistry.get_players_map()
+        session_ids = [
+            max(1, matched.session_id) if (matched := players_map.get(self._get_ip_from_data_safely(row))) is not None else 0
+            for row in self._data
+        ]
+        boundaries: list[bool] = [False] * len(session_ids)
+        alt_bands: list[bool] = [False] * len(session_ids)
+        has_boundary = False
+        current_alt = False
+        for i in range(1, len(session_ids)):
+            if session_ids[i] > 0 and session_ids[i - 1] > 0 and session_ids[i] != session_ids[i - 1]:
+                boundaries[i] = True
+                current_alt = not current_alt
+                has_boundary = True
+            alt_bands[i] = current_alt
+        if not has_boundary:
+            return _EMPTY_SESSION_BANDS
+        return SessionBandState(boundaries=tuple(boundaries), alt_bands=tuple(alt_bands))
+
     def _rebuild_ip_index(self) -> None:
-        """Rebuild the IP-to-row-index cache from current data."""
+        """Rebuild the IP-to-row-index cache and per-row session band metadata from current data."""
         self._ip_to_row_index = {self._get_ip_from_data_safely(row): i for i, row in enumerate(self._data)}
+        self.session_bands = self._compute_session_bands()
+
+    def _refresh_session_bands(self) -> bool:
+        """Recompute session boundary and alternating band flags, emitting `dataChanged` if updated."""
+        updated = self._compute_session_bands()
+        if updated == self.session_bands:
+            return False
+        self.session_bands = updated
+        if self._data and self._headers:
+            self.dataChanged.emit(self.index(0, 0), self.index(len(self._data) - 1, len(self._headers) - 1))
+        return True
 
     def get_column_index(self, column_name: str, /) -> int | None:
         """Get the table index of a specified column, or None if not present.
@@ -730,13 +780,14 @@ class SessionTableModel(QAbstractTableModel):
             self._data = []
             self._compiled_colors = []
             self._ip_to_row_index.clear()
+            self.session_bands = _EMPTY_SESSION_BANDS
             self.endResetModel()
             return True
 
         new_data, new_compiled_colors = map(list, zip(*rows_with_colors, strict=True))
 
         if new_data == self._data and new_compiled_colors == self._compiled_colors:
-            return False
+            return self._refresh_session_bands()
 
         if len(new_data) != len(self._data):
             self.beginResetModel()
@@ -794,6 +845,7 @@ class SessionTableModel(QAbstractTableModel):
         self._data = []
         self._compiled_colors = []
         self._ip_to_row_index.clear()
+        self.session_bands = _EMPTY_SESSION_BANDS
         self.endResetModel()
 
     def remove_player_by_ip(self, ip: str) -> None:
@@ -808,5 +860,6 @@ class SessionTableModel(QAbstractTableModel):
 
     def refresh_view(self) -> None:
         """Notifies the view to refresh and reflect all changes made to the model."""
+        self.session_bands = self._compute_session_bands()
         self.layoutAboutToBeChanged.emit()
         self.layoutChanged.emit()

@@ -38,7 +38,7 @@ from session_sniffer.guis.live_language import CANONICAL_HEADER_ROLE, register_l
 from session_sniffer.guis.table_model import SessionTableModel
 from session_sniffer.guis.tables_context_menu_mixin import TableContextMenuMixin
 from session_sniffer.guis.tables_header_menu_mixin import TableHeaderMenuMixin
-from session_sniffer.guis.theming import ICONS_DIR_PATH, get_theme_generation, themed_text_qcolor
+from session_sniffer.guis.theming import ICONS_DIR_PATH, get_theme_generation, themed_qcolor, themed_text_qcolor
 from session_sniffer.guis.utils import scale_by_ui, set_clipboard_text
 from session_sniffer.i18n import tr, tr_plural
 from session_sniffer.player.registry import PlayersRegistry, SessionTracker
@@ -345,11 +345,52 @@ class SessionTableView(TableHeaderMenuMixin, TableContextMenuMixin, QTableView):
 
     @override
     def paintEvent(self, event: QPaintEvent) -> None:
-        """Paint table contents or empty-state placeholder when there are no rows."""
+        """Paint table contents, session separator lines, or empty-state placeholder."""
         super().paintEvent(event)
 
         if not self.model().rowCount():
             self._paint_empty_state()
+        else:
+            self._paint_session_separators()
+
+    def _paint_session_separators(self) -> None:
+        """Render thick horizontal divider lines between adjacent rows belonging to different sessions."""
+        model = self.model()
+        boundaries = model.session_bands.boundaries
+        if not boundaries:
+            return
+        viewport_rect = self.viewport().rect()
+        if viewport_rect.width() <= 0 or viewport_rect.height() <= 0:
+            return
+
+        row_count = model.rowCount()
+        first_row = self.rowAt(0)
+        last_row = self.rowAt(viewport_rect.height() - 1)
+        start_row = max(1, first_row)
+        end_row = min(row_count - 1, (last_row if last_row >= 0 else row_count - 1) + 1)
+        boundary_ys = [
+            self.rowViewportPosition(row)
+            for row in range(start_row, end_row + 1)
+            if row < len(boundaries) and boundaries[row]
+        ]
+        if not boundary_ys:
+            return
+
+        line_color = themed_qcolor('@accent[#88c0d0]')
+        line_color.setAlpha(235)
+        shadow_color = themed_qcolor('@background[#0b0f14]')
+        shadow_color.setAlpha(165)
+        line_height = max(2, scale_by_ui(3))
+        width = viewport_rect.width()
+
+        painter = QPainter(self.viewport())
+        try:
+            for boundary_y in boundary_ys:
+                top_y = boundary_y - line_height // 2
+                painter.fillRect(0, top_y - 1, width, line_height + 2, shadow_color)
+                painter.fillRect(0, top_y, width, line_height, line_color)
+        finally:
+            painter.end()
 
     def _paint_empty_state(self) -> None:
         """Render a centered icon, title, and subtitle when the table has no rows."""
