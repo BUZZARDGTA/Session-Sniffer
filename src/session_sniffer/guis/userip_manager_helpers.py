@@ -48,7 +48,7 @@ from session_sniffer.player.userip_log_history import enrich_userip_entry_from_l
 from session_sniffer.rendering_core.events import wake_rendering_core
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable, Iterator
+    from collections.abc import Iterable, Iterator, Sequence
     from pathlib import Path
     from typing import Any
 
@@ -142,7 +142,13 @@ def _compute_cell_sort_key(model: QStandardItemModel, row: int, col: int, row_ip
         return f'{_ip_sort_str(item.text())}\x00{row_ip_key}'
     if col in TIMESTAMP_COLUMNS:
         return f'{_timestamp_sort_str(item.data(Qt.ItemDataRole.UserRole))}\x00{row_ip_key}'
-    return f'{item.text()}\x00{row_ip_key}'
+    return f'{item.text().casefold()}\x00{row_ip_key}'
+
+
+def _row_ip_sort_key(model: QStandardItemModel, row: int) -> str:
+    """Return the sortable IP/range tiebreaker string for *row* in *model*."""
+    ip_item, range_item = model.item(row, IP_COLUMN), model.item(row, RANGE_COLUMN)
+    return _ip_sort_str((ip_item.text() if ip_item else '') or (range_item.text() if range_item else ''))
 
 
 def _compute_row_search_blob(model: QStandardItemModel, row: int) -> None:
@@ -185,9 +191,7 @@ class EntriesSortProxy(QSortFilterProxyModel):
         if self._group_sort_enabled == enabled:
             return
         self._group_sort_enabled = enabled
-        self._populated_sort_cols.clear()
-        self._row_group_id.clear()
-        self._row_group_sort_prefix.clear()
+        self._on_source_model_reset()
         self._rebuild_proxy_group_shades()
         if invalidate:
             self.prepare_sort_and_invalidate()
@@ -206,9 +210,7 @@ class EntriesSortProxy(QSortFilterProxyModel):
                 old_model.rowsRemoved.disconnect(self._on_source_rows_changed)
                 old_model.modelReset.disconnect(self._on_source_model_reset)
         super().setSourceModel(source_model)
-        self._populated_sort_cols.clear()
-        self._row_group_id.clear()
-        self._row_group_sort_prefix.clear()
+        self._on_source_model_reset()
         self._proxy_row_alt_shade.clear()
         if source_model:
             source_model.dataChanged.connect(self._on_source_data_changed)
@@ -237,8 +239,7 @@ class EntriesSortProxy(QSortFilterProxyModel):
         """Build connected-component group IDs and sort prefixes for every source row in *model*."""
         row_count = model.rowCount()
         if row_count <= 0:
-            self._row_group_id = []
-            self._row_group_sort_prefix = []
+            self._row_group_id, self._row_group_sort_prefix = [], []
             return
         rows: list[tuple[str, str, int, str]] = []
         for row in range(row_count):
@@ -251,10 +252,7 @@ class EntriesSortProxy(QSortFilterProxyModel):
             db_path = db_item.data(Qt.ItemDataRole.UserRole) if db_item else None
             db_key = str(db_path) if db_path is not None else (db_item.text().strip() if db_item else '')
             rows.append((u_text.casefold(), ip_val, row_idx, db_key))
-        self._row_group_id, self._row_group_sort_prefix = compute_row_group_ids_and_prefixes(
-            rows,
-            descending=self._last_group_descending,
-        )
+        self._row_group_id, self._row_group_sort_prefix = compute_row_group_ids_and_prefixes(rows, descending=self._last_group_descending)
 
     def _rebuild_proxy_group_shades(self, *_args: object) -> None:
         """Recompute the alternating background shade boolean for every visible proxy row."""
@@ -290,12 +288,30 @@ class EntriesSortProxy(QSortFilterProxyModel):
             return _GROUP_BG_BRUSH_ODD if 0 <= p_row < len(self._proxy_row_alt_shade) and self._proxy_row_alt_shade[p_row] else _GROUP_BG_BRUSH_EVEN
         return super().data(index, role)
 
-    def _format_cell_sort_key(self, model: QStandardItemModel, row: int, column: int, row_ip_key: str) -> str:
-        base_key = _compute_cell_sort_key(model, row, column, row_ip_key)
-        if self._group_sort_enabled and column in (INDEX_COLUMN, USERNAME_COLUMN) and 0 <= row < len(self._row_group_sort_prefix):
-            prefix = self._row_group_sort_prefix[row] if column == INDEX_COLUMN else self._row_group_id[row]
-            return f'{prefix}\x00{base_key}'
-        return base_key
+    def _populate_column_sort_keys(self, model: QStandardItemModel, column: int, row_ip_keys: Sequence[str], rows: Iterable[int] | None = None) -> None:
+        row_count = len(row_ip_keys)
+        if not self._group_sort_enabled or len(self._row_group_sort_prefix) != row_count:
+            for row in range(row_count) if rows is None else rows:
+                if target_item := model.item(row, column):
+                    target_item.setData(_compute_cell_sort_key(model, row, column, row_ip_keys[row]), SORT_KEY_ROLE)
+            return
+        base_keys = [_compute_cell_sort_key(model, row, column, row_ip_keys[row]) for row in range(row_count)]
+        if column in (INDEX_COLUMN, USERNAME_COLUMN):
+            prefixes = self._row_group_sort_prefix if column == INDEX_COLUMN else self._row_group_id
+            for row, base_key in enumerate(base_keys):
+                if target_item := model.item(row, column):
+                    target_item.setData(f'{prefixes[row]}\x00{base_key}', SORT_KEY_ROLE)
+            return
+        descending = self._last_group_descending
+        group_col_anchor: dict[str, str] = {}
+        for row, base_key in enumerate(base_keys):
+            gid = self._row_group_id[row]
+            prev = group_col_anchor.get(gid)
+            if prev is None or (base_key > prev if descending else base_key < prev):
+                group_col_anchor[gid] = base_key
+        for row, base_key in enumerate(base_keys):
+            if target_item := model.item(row, column):
+                target_item.setData(f'{group_col_anchor[self._row_group_id[row]]}\x00{self._row_group_sort_prefix[row]}\x00{base_key}', SORT_KEY_ROLE)
 
     def _ensure_column_sort_keys(self, column: int) -> None:
         if column < 0 or column in self._populated_sort_cols:
@@ -305,12 +321,9 @@ class EntriesSortProxy(QSortFilterProxyModel):
             return
         if (row_count := model.rowCount()) > 0:
             self.get_source_row_group_ids()
+            row_ip_keys = [_row_ip_sort_key(model, row) for row in range(row_count)]
             with QSignalBlocker(model):
-                for row in range(row_count):
-                    ip_item, range_item = model.item(row, IP_COLUMN), model.item(row, RANGE_COLUMN)
-                    row_ip_key = _ip_sort_str((ip_item.text() if ip_item else '') or (range_item.text() if range_item else ''))
-                    if target_item := model.item(row, column):
-                        target_item.setData(self._format_cell_sort_key(model, row, column, row_ip_key), SORT_KEY_ROLE)
+                self._populate_column_sort_keys(model, column, row_ip_keys)
         self._populated_sort_cols.add(column)
 
     def refresh_rows(self, rows: Iterable[int]) -> None:
@@ -323,28 +336,20 @@ class EntriesSortProxy(QSortFilterProxyModel):
         if (sort_col := self.sortColumn()) >= 0:
             cols_to_update.add(sort_col)
         row_count = model.rowCount()
-        target_rows = range(row_count) if self._group_sort_enabled else row_list
+        row_ip_keys = [_row_ip_sort_key(model, row) for row in range(row_count)]
         with QSignalBlocker(model):
             for row in row_list:
                 _compute_row_search_blob(model, row)
-            for row in target_rows:
-                ip_item, range_item = model.item(row, IP_COLUMN), model.item(row, RANGE_COLUMN)
-                row_ip_key = _ip_sort_str((ip_item.text() if ip_item else '') or (range_item.text() if range_item else ''))
-                for col in cols_to_update:
-                    if target_item := model.item(row, col):
-                        target_item.setData(self._format_cell_sort_key(model, row, col, row_ip_key), SORT_KEY_ROLE)
+            for col in cols_to_update:
+                self._populate_column_sort_keys(model, col, row_ip_keys, row_list)
         self._rebuild_proxy_group_shades()
-        min_r = 0 if self._group_sort_enabled else min(row_list)
-        max_r = max(0, row_count - 1) if self._group_sort_enabled else max(row_list)
+        min_r, max_r = (0, max(0, row_count - 1)) if self._group_sort_enabled else (min(row_list), max(row_list))
         model.dataChanged.emit(model.index(min_r, 0), model.index(max_r, max(0, model.columnCount() - 1)), [SEARCH_TEXT_ROLE, SORT_KEY_ROLE])
 
     def refresh_groups(self) -> None:
         """Force a full recomputation of row groups, sort keys, and alternating group background shades."""
-        self._populated_sort_cols.clear()
-        self._row_group_id.clear()
-        self._row_group_sort_prefix.clear()
+        self._on_source_model_reset()
         self.prepare_sort_and_invalidate()
-        self._rebuild_proxy_group_shades()
 
     def _on_source_data_changed(self, top_left: QModelIndex, bottom_right: QModelIndex, roles: list[int]) -> None:
         if roles and Qt.ItemDataRole.DisplayRole not in roles and Qt.ItemDataRole.EditRole not in roles and Qt.ItemDataRole.UserRole not in roles:
@@ -356,8 +361,7 @@ class EntriesSortProxy(QSortFilterProxyModel):
         super().setFilterFixedString(pattern.lower())
         self._rebuild_proxy_group_shades()
 
-    @override
-    def sort(self, column: int, order: Qt.SortOrder = Qt.SortOrder.AscendingOrder) -> None:
+    def _sync_group_sort_order(self, order: Qt.SortOrder) -> None:
         is_desc = order == Qt.SortOrder.DescendingOrder
         if is_desc != self._last_group_descending:
             self._last_group_descending = is_desc
@@ -365,6 +369,10 @@ class EntriesSortProxy(QSortFilterProxyModel):
             self._row_group_sort_prefix.clear()
             if self._group_sort_enabled:
                 self._populated_sort_cols.clear()
+
+    @override
+    def sort(self, column: int, order: Qt.SortOrder = Qt.SortOrder.AscendingOrder) -> None:
+        self._sync_group_sort_order(order)
         keys_repopulated = column >= 0 and column not in self._populated_sort_cols
         self._ensure_column_sort_keys(column)
         if keys_repopulated and column == self.sortColumn() and order == self.sortOrder():
@@ -375,6 +383,7 @@ class EntriesSortProxy(QSortFilterProxyModel):
 
     def prepare_sort_and_invalidate(self) -> None:
         """Ensure sort keys are populated for the active sort column, then invalidate the proxy."""
+        self._sync_group_sort_order(self.sortOrder())
         self._ensure_column_sort_keys(self.sortColumn())
         self.invalidate()
         self._rebuild_proxy_group_shades()

@@ -110,6 +110,10 @@ def _load_userip_manager_state() -> tuple[QByteArray | None, bool, QByteArray | 
     splitter = QByteArray.fromHex(split_hex.encode('ascii')) if split_hex is not None and split_hex else None
     sort_mode = gui_state.userip_manager_sort_mode if gui_state.userip_manager_sort_mode in ('Groups', 'Date Added', 'Entry Order (#)') else 'Groups'
     sort_col = gui_state.userip_manager_sort_column if 0 <= gui_state.userip_manager_sort_column < len(ENTRY_TABLE_HEADERS) else INDEX_COLUMN
+    if sort_mode == 'Date Added':
+        sort_col = ADDED_AT_COLUMN
+    elif sort_mode == 'Entry Order (#)' or sort_col == ADDED_AT_COLUMN:
+        sort_col = INDEX_COLUMN
     sort_order = Qt.SortOrder.DescendingOrder if gui_state.userip_manager_sort_order == 1 else Qt.SortOrder.AscendingOrder
     return geometry, gui_state.userip_manager_maximized, splitter, gui_state.userip_manager_table_column_widths, sort_mode, sort_col, sort_order
 
