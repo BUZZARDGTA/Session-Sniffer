@@ -110,6 +110,11 @@ GTAV_SESSION_SETTING_METADATA: dict[str, SettingMeta] = {
         tooltip='Built-in audio tone played when a traffic spike is triggered. Click Preview to test the selected tone.',
         allowed_values=SPIKE_SOUND_PRESETS,
     ),
+    'high_rate_monitor_spike_sound_volume': SettingMeta(
+        category='GTA V', group='Player High Rate Monitor', subgroup='Spike Alerts', display_label='Spike Sound Volume', setting_type=SettingType.INTEGER,
+        tooltip='Playback volume percentage for traffic spike alert sounds.',
+        min_value=0, max_value=100, step=1, suffix='%',
+    ),
     'high_rate_monitor_spike_trigger_metric': SettingMeta(
         category='GTA V', group='Player High Rate Monitor', subgroup='Spike Alerts', display_label='Spike Trigger Condition', setting_type=SettingType.ENUM,
         tooltip=(

@@ -6,10 +6,17 @@ from typing import TYPE_CHECKING, override
 
 from PySide6.QtCore import QSignalBlocker, Qt
 from PySide6.QtGui import QColor
-from PySide6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QSpinBox, QToolButton, QWidget
+from PySide6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QSpinBox, QWidget
 
-from session_sniffer.background.voice_notifications import play_spike_sound
-from session_sniffer.constants.standalone import SPIKE_SOUND_MODES, SPIKE_SOUND_SCOPES
+from session_sniffer.guis._spike_sound_controls import (
+    SPIKE_VOLUME_MAX,
+    SPIKE_VOLUME_MIN,
+    SpikeSoundQuickBar,
+    SpikeSoundQuickBarCallbacks,
+    SpikeSoundQuickBarState,
+    SpikeVolumeChangedCallback,
+    SpikeVolumePersistMode,
+)
 from session_sniffer.guis.live_language import register_language_refresh, set_i18n_colon_label
 from session_sniffer.guis.rate_graph_widget import (
     RateGraphTheme,
@@ -17,9 +24,7 @@ from session_sniffer.guis.rate_graph_widget import (
     SpikeOverlayState,
     ThresholdDragConfig,
 )
-from session_sniffer.guis.stylesheets import COMPACT_BUTTON_STYLESHEET
-from session_sniffer.guis.theming import themed_text_qcolor
-from session_sniffer.guis.utils import RateGraphWindowMixin, format_player_display, render_svg_icon_from_resource, scale_by_ui
+from session_sniffer.guis.utils import RateGraphWindowMixin, format_player_display, scale_by_ui
 from session_sniffer.i18n import tr
 from session_sniffer.models.player_traffic import PlayerBandwidth
 
@@ -298,7 +303,7 @@ class SpikeAlertGraphState:
     sound_scope: str = 'Open Graphs'
     sound_mode: str = 'Repeating'
     repeat_interval: int = 2
-    sound_preset: str = 'Ding'
+    sound_volume: int = 100
     visual_alert: bool = True
 
 
@@ -311,6 +316,7 @@ class SpikeAlertGraphConfig:
     on_scope_changed: Callable[[str], None] | None = None
     on_mode_changed: Callable[[str], None] | None = None
     on_repeat_interval_changed: Callable[[int], None] | None = None
+    on_volume_changed: SpikeVolumeChangedCallback | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -365,12 +371,13 @@ class PlayerRateGraphWindow(DualRateGraphBase):
         self._last_visual_update = PlayerSpikeVisualUpdate()
         self._spike_sound_scope = state.sound_scope
         self._spike_sound_mode = state.sound_mode
-        self._spike_sound_preset = state.sound_preset
+        self._spike_sound_volume = min(SPIKE_VOLUME_MAX, max(SPIKE_VOLUME_MIN, state.sound_volume))
         self._visual_alert_enabled = state.visual_alert
         self._on_thresholds_changed = cfg.on_thresholds_changed
         self._on_spike_sound_scope_changed = cfg.on_scope_changed
         self._on_spike_sound_mode_changed = cfg.on_mode_changed
         self._on_repeat_interval_changed = cfg.on_repeat_interval_changed
+        self._on_spike_sound_volume_changed = cfg.on_volume_changed
         self._monitor_mode_combo: QComboBox | None = None
         self._pps_label: QLabel | None = None
         self._pps_spinbox: QSpinBox | None = None
@@ -378,14 +385,12 @@ class PlayerRateGraphWindow(DualRateGraphBase):
         self._bps_spinbox: QSpinBox | None = None
         self._interval_label: QLabel | None = None
         self._interval_spinbox: QSpinBox | None = None
-        self._scope_combo: QComboBox | None = None
-        self._mode_combo: QComboBox | None = None
-        self._preview_button: QToolButton | None = None
+        self._spike_sound_bar: SpikeSoundQuickBar | None = None
 
         self._update_window_title()
         register_language_refresh(self, self._update_window_title)
         self._finish_graph_init()
-        self.resize(scale_by_ui(780), scale_by_ui(535))
+        self.resize(scale_by_ui(860), scale_by_ui(535))
 
     @property
     def monitor_mode(self) -> str:
@@ -525,60 +530,14 @@ class PlayerRateGraphWindow(DualRateGraphBase):
 
     @override
     def _create_extra_rate_graph_controls(self) -> list[QWidget]:
-        container = QWidget()
-        row = QHBoxLayout(container)
-        row.setContentsMargins(0, 0, 0, 0)
-        row.setSpacing(scale_by_ui(6))
-
-        sound_label = QLabel()
-        set_i18n_colon_label(sound_label, 'Spike Sound')
-        row.addWidget(sound_label)
-
-        scope_combo = QComboBox()
-        scope_combo.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-        for scope in SPIKE_SOUND_SCOPES:
-            scope_combo.addItem(tr(scope), scope)
-        if (scope_idx := scope_combo.findData(self._spike_sound_scope)) >= 0:
-            scope_combo.setCurrentIndex(scope_idx)
-        scope_combo.currentIndexChanged.connect(self._handle_scope_combo_changed)
-        row.addWidget(scope_combo)
-        self._scope_combo = scope_combo
-
-        mode_combo = QComboBox()
-        mode_combo.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-        for mode in SPIKE_SOUND_MODES:
-            mode_combo.addItem(tr(mode), mode)
-        if (mode_idx := mode_combo.findData(self._spike_sound_mode)) >= 0:
-            mode_combo.setCurrentIndex(mode_idx)
-        mode_combo.currentIndexChanged.connect(self._handle_mode_combo_changed)
-        row.addWidget(mode_combo)
-        self._mode_combo = mode_combo
-
-        preview_btn = QToolButton()
-        preview_btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-        tint_hex = themed_text_qcolor('@text[#e5e7eb]', '@surface[#1f2937]').name()
-        preview_btn.setIcon(render_svg_icon_from_resource('volume-2.svg', 14, 14, tint_hex))
-        preview_btn.setStyleSheet(COMPACT_BUTTON_STYLESHEET)
-        preview_btn.clicked.connect(
-            lambda: play_spike_sound('Geiger3' if self._spike_sound_mode == 'Adaptive Geiger' else self._spike_sound_preset, bypass_cooldown=True),
+        initial_bar_state = SpikeSoundQuickBarState(self._spike_sound_scope, self._spike_sound_mode, self._spike_sound_volume)
+        bar_callbacks = SpikeSoundQuickBarCallbacks(
+            on_scope_changed=self._handle_scope_changed,
+            on_mode_changed=self._handle_mode_changed,
+            on_volume_changed=self._handle_volume_changed,
         )
-        row.addWidget(preview_btn)
-        self._preview_button = preview_btn
-
-        def _refresh_spike_controls_language() -> None:
-            for i, canonical_scope in enumerate(SPIKE_SOUND_SCOPES):
-                if i < scope_combo.count():
-                    scope_combo.setItemText(i, tr(canonical_scope))
-            for i, canonical_mode in enumerate(SPIKE_SOUND_MODES):
-                if i < mode_combo.count():
-                    mode_combo.setItemText(i, tr(canonical_mode))
-            sound_label.setToolTip(tr('Choose where spike alert sounds are active (Disabled, Open Graphs, or Global).'))
-            scope_combo.setToolTip(tr('Choose where spike alert sounds are active (Disabled, Open Graphs, or Global).'))
-            self._refresh_dependent_control_states()
-
-        _refresh_spike_controls_language()
-        register_language_refresh(container, _refresh_spike_controls_language)
-        return [container]
+        self._spike_sound_bar = SpikeSoundQuickBar(initial_bar_state, bar_callbacks)
+        return [self._spike_sound_bar]
 
     def _refresh_dependent_control_states(self) -> None:
         sound_active = self._spike_sound_scope != 'Disabled'
@@ -617,15 +576,6 @@ class PlayerRateGraphWindow(DualRateGraphBase):
             interval_tip = interval_base_tip if repeats_active else f'{interval_base_tip}\n\n{disabled_reason}'
             self._interval_label.setToolTip(interval_tip)
             self._interval_spinbox.setToolTip(interval_tip)
-
-        if self._mode_combo is not None:
-            self._mode_combo.setEnabled(sound_active)
-            mode_tip = tr('Choose how spike alert sounds behave when traffic crosses above the threshold.')
-            self._mode_combo.setToolTip(mode_tip if sound_active else f'{mode_tip}\n\n{scope_disabled_note}')
-        if self._preview_button is not None:
-            self._preview_button.setEnabled(sound_active)
-            preview_tip = tr('Play a preview of the selected spike sound preset.')
-            self._preview_button.setToolTip(preview_tip if sound_active else f'{preview_tip}\n\n{scope_disabled_note}')
 
     def _handle_monitor_mode_combo_changed(self, index: int) -> None:
         if self._monitor_mode_combo is None:
@@ -723,23 +673,22 @@ class PlayerRateGraphWindow(DualRateGraphBase):
         if hasattr(self, '_bps_buffer'):
             self._render_buffers()
 
-    def _handle_scope_combo_changed(self, index: int) -> None:
-        if self._scope_combo is None:
-            return
-        scope = str(self._scope_combo.itemData(index))
+    def _handle_scope_changed(self, scope: str) -> None:
         self._spike_sound_scope = scope
         self._refresh_dependent_control_states()
         if self._on_spike_sound_scope_changed is not None:
             self._on_spike_sound_scope_changed(scope)
 
-    def _handle_mode_combo_changed(self, index: int) -> None:
-        if self._mode_combo is None:
-            return
-        mode = str(self._mode_combo.itemData(index))
+    def _handle_mode_changed(self, mode: str) -> None:
         self._spike_sound_mode = mode
         self._refresh_dependent_control_states()
         if self._on_spike_sound_mode_changed is not None:
             self._on_spike_sound_mode_changed(mode)
+
+    def _handle_volume_changed(self, volume: int, persist_mode: SpikeVolumePersistMode) -> None:
+        self._spike_sound_volume = volume
+        if self._on_spike_sound_volume_changed is not None:
+            self._on_spike_sound_volume_changed(volume, persist_mode)
 
     def sync_spike_alert_settings(self, state: SpikeAlertGraphState) -> None:
         """Synchronize global threshold defaults and Spike Alert settings without overwriting per-graph threshold overrides."""
@@ -772,20 +721,16 @@ class PlayerRateGraphWindow(DualRateGraphBase):
         self._repeat_interval = state.repeat_interval
         self._spike_sound_scope = state.sound_scope
         self._spike_sound_mode = state.sound_mode
-        self._spike_sound_preset = state.sound_preset
+        self._spike_sound_volume = min(SPIKE_VOLUME_MAX, max(SPIKE_VOLUME_MIN, state.sound_volume))
         visual_changed = self._visual_alert_enabled != state.visual_alert
         self._visual_alert_enabled = state.visual_alert
         if self._interval_spinbox is not None:
             with QSignalBlocker(self._interval_spinbox):
                 self._interval_spinbox.setValue(min(_REPEAT_INTERVAL_MAX, max(_REPEAT_INTERVAL_MIN, state.repeat_interval)))
-        if self._scope_combo is not None:
-            with QSignalBlocker(self._scope_combo):
-                if (scope_idx := self._scope_combo.findData(state.sound_scope)) >= 0:
-                    self._scope_combo.setCurrentIndex(scope_idx)
-        if self._mode_combo is not None:
-            with QSignalBlocker(self._mode_combo):
-                if (mode_idx := self._mode_combo.findData(state.sound_mode)) >= 0:
-                    self._mode_combo.setCurrentIndex(mode_idx)
+        if self._spike_sound_bar is not None:
+            self._spike_sound_bar.sync_state(
+                SpikeSoundQuickBarState(self._spike_sound_scope, self._spike_sound_mode, self._spike_sound_volume),
+            )
         self._refresh_dependent_control_states()
         if visual_changed:
             self._pps_widget.set_heat_gradient(enabled=self._visual_alert_enabled)

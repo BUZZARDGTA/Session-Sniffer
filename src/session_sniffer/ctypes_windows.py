@@ -35,6 +35,9 @@ WIN32_MOD_ALT = 0x0001
 WIN32_MOD_CONTROL = 0x0002
 WIN32_MOD_SHIFT = 0x0004
 WIN32_MOD_WIN = 0x0008
+_SND_ASYNC = 0x0001
+_SND_NODEFAULT = 0x0002
+_SND_MEMORY = 0x0004
 
 
 class WindowsGuid(ctypes.Structure):
@@ -120,6 +123,9 @@ _keyboard_hook_state: dict[str, Any] = {
     'handle': None,
     'c_proc': None,
 }
+_wav_memory_state: dict[str, Any] = {
+    'active_buffer': None,
+}
 
 if sys.platform == 'win32':
     _INVALID_PARAM_HANDLER_TYPE = ctypes.CFUNCTYPE(
@@ -144,6 +150,10 @@ if sys.platform == 'win32':
     _shell32.IsUserAnAdmin.restype = wintypes.BOOL
     _shell32.ShellExecuteExW.argtypes = [ctypes.POINTER(_ShellExecuteInfoW)]
     _shell32.ShellExecuteExW.restype = wintypes.BOOL
+
+    _winmm = ctypes.windll.winmm
+    _winmm.PlaySoundW.argtypes = [ctypes.c_void_p, wintypes.HMODULE, wintypes.DWORD]
+    _winmm.PlaySoundW.restype = wintypes.BOOL
 
     _user32 = ctypes.windll.user32
     _user32.MessageBoxW.argtypes = [wintypes.HWND, wintypes.LPCWSTR, wintypes.LPCWSTR, wintypes.UINT]
@@ -567,3 +577,14 @@ def install_win32_crt_handlers(on_crash: Callable[[str], None]) -> bool:
     except AttributeError, OSError:
         return False
     return True
+
+
+def play_wav_memory_async(wav_bytes: bytes) -> bool:
+    """Play an in-memory WAV image asynchronously via Win32 `PlaySoundW` (`SND_MEMORY | SND_ASYNC | SND_NODEFAULT`)."""
+    if sys.platform != 'win32' or not wav_bytes:
+        return False
+    new_buffer = ctypes.create_string_buffer(wav_bytes, len(wav_bytes))
+    played = bool(_winmm.PlaySoundW(new_buffer, None, _SND_MEMORY | _SND_NODEFAULT | _SND_ASYNC))
+    if played:
+        _wav_memory_state['active_buffer'] = new_buffer
+    return played

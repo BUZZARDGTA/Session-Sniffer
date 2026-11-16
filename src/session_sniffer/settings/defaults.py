@@ -114,6 +114,7 @@ class SettingDefaults(TypedDict):
     high_rate_monitor_spike_sound_mode: str
     high_rate_monitor_spike_repeat_interval: int
     high_rate_monitor_spike_sound_preset: str
+    high_rate_monitor_spike_sound_volume: int
     high_rate_monitor_spike_trigger_metric: str
     high_rate_monitor_spike_visual_alert: bool
     high_rate_monitor_auto_open_graph: bool
@@ -312,6 +313,7 @@ SETTING_DEFAULTS: SettingDefaults = {
     'high_rate_monitor_spike_sound_mode': 'Repeating',
     'high_rate_monitor_spike_repeat_interval': 2,
     'high_rate_monitor_spike_sound_preset': 'Ding',
+    'high_rate_monitor_spike_sound_volume': 100,
     'high_rate_monitor_spike_trigger_metric': 'Either (PPS or BPS)',
     'high_rate_monitor_spike_visual_alert': True,
     'high_rate_monitor_auto_open_graph': False,

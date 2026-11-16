@@ -140,6 +140,7 @@ class Settings:
     high_rate_monitor_spike_sound_mode: str = SETTING_DEFAULTS['high_rate_monitor_spike_sound_mode']
     high_rate_monitor_spike_repeat_interval: int = SETTING_DEFAULTS['high_rate_monitor_spike_repeat_interval']
     high_rate_monitor_spike_sound_preset: str = SETTING_DEFAULTS['high_rate_monitor_spike_sound_preset']
+    high_rate_monitor_spike_sound_volume: int = SETTING_DEFAULTS['high_rate_monitor_spike_sound_volume']
     high_rate_monitor_spike_trigger_metric: str = SETTING_DEFAULTS['high_rate_monitor_spike_trigger_metric']
     high_rate_monitor_spike_visual_alert: bool = SETTING_DEFAULTS['high_rate_monitor_spike_visual_alert']
     high_rate_monitor_auto_open_graph: bool = SETTING_DEFAULTS['high_rate_monitor_auto_open_graph']
@@ -289,6 +290,7 @@ class Settings:
         'HIGH_RATE_MONITOR_SPIKE_SOUND_MODE',
         'HIGH_RATE_MONITOR_SPIKE_REPEAT_INTERVAL',
         'HIGH_RATE_MONITOR_SPIKE_SOUND_PRESET',
+        'HIGH_RATE_MONITOR_SPIKE_SOUND_VOLUME',
         'HIGH_RATE_MONITOR_SPIKE_TRIGGER_METRIC',
         'HIGH_RATE_MONITOR_SPIKE_VISUAL_ALERT',
         'HIGH_RATE_MONITOR_AUTO_OPEN_GRAPH',

@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QScrollArea,
     QSizePolicy,
+    QSlider,
     QSpinBox,
     QTabWidget,
     QVBoxLayout,
@@ -146,6 +147,7 @@ class SettingsDialog(
         self._game_tab_index: int = -1
         self._session_relays_group_box: QGroupBox | None = None
         self._spike_sound_preview_button: QPushButton | None = None
+        self._spike_sound_volume_slider: QSlider | None = None
         self._shortcut_group_boxes: list[QGroupBox] = []
         for i, category in enumerate(SETTING_CATEGORIES_ORDER):
             tab_widget = self._build_tab(category)
@@ -252,6 +254,9 @@ class SettingsDialog(
             spike_combo = self._widgets.get(spike_combo_key)
             if isinstance(spike_combo, QComboBox):
                 spike_combo.currentIndexChanged.connect(lambda _index=0: self._update_spike_alerts_state())
+        spike_volume_widget = self._widgets.get('high_rate_monitor_spike_sound_volume')
+        if isinstance(spike_volume_widget, QSpinBox):
+            spike_volume_widget.valueChanged.connect(lambda _value=0: self._update_spike_alerts_state())
         spike_visual_widget = self._widgets.get('high_rate_monitor_spike_visual_alert')
         if isinstance(spike_visual_widget, QCheckBox):
             spike_visual_widget.toggled.connect(lambda _checked=False: self._update_spike_alerts_state())
@@ -394,6 +399,10 @@ class SettingsDialog(
 
         if key == 'high_rate_monitor_spike_sound_preset':
             form.addRow(label, self._build_spike_sound_preset_row(widget))
+            return
+
+        if key == 'high_rate_monitor_spike_sound_volume':
+            form.addRow(label, self._build_spike_sound_volume_row(widget))
             return
 
         if key == 'capture_filter_process_pid' and not CaptureState.is_local_capture():

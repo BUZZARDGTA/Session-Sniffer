@@ -7,17 +7,14 @@ from typing import TYPE_CHECKING, override
 from PySide6.QtCore import QSignalBlocker, Qt, QTimer
 from PySide6.QtWidgets import (
     QCheckBox,
-    QComboBox,
     QHBoxLayout,
     QLabel,
     QPushButton,
-    QToolButton,
     QVBoxLayout,
     QWidget,
 )
 
 from session_sniffer.background.voice_notifications import play_spike_sound
-from session_sniffer.constants.standalone import SPIKE_SOUND_MODES, SPIKE_SOUND_SCOPES
 from session_sniffer.guis._high_rate_monitor_core import (
     GEIGER_GLOBAL_APPROACH_PROXIMITY,
     GEIGER_OPEN_GRAPH_MIN_PROXIMITY,
@@ -32,16 +29,23 @@ from session_sniffer.guis._high_rate_monitor_core import (
     compute_smart_thresholds,
     geiger_stage_sound_kind,
 )
-from session_sniffer.guis.live_language import register_language_refresh, set_i18n_colon_label
+from session_sniffer.guis._spike_sound_controls import (
+    SPIKE_VOLUME_MAX,
+    SPIKE_VOLUME_MIN,
+    SpikeSoundQuickBar,
+    SpikeSoundQuickBarCallbacks,
+    SpikeSoundQuickBarState,
+    SpikeVolumePersistMode,
+)
+from session_sniffer.guis.live_language import register_language_refresh
 from session_sniffer.guis.player_rate_graph import (
     PlayerRateGraphWindow,
     PlayerSpikeVisualUpdate,
     SpikeAlertGraphConfig,
     SpikeAlertGraphState,
 )
-from session_sniffer.guis.stylesheets import COMPACT_BUTTON_STYLESHEET
-from session_sniffer.guis.theming import themed_qss, themed_text_qcolor
-from session_sniffer.guis.utils import activate_window, render_svg_icon_from_resource, scale_by_ui
+from session_sniffer.guis.theming import themed_qss
+from session_sniffer.guis.utils import activate_window, scale_by_ui
 from session_sniffer.i18n import tr, tr_plural
 from session_sniffer.models.player_traffic import PlayerBandwidth
 from session_sniffer.player.registry import PlayersRegistry
@@ -56,6 +60,7 @@ if TYPE_CHECKING:
 
 _UPDATE_INTERVAL_MS = 1_000
 _PULSE_CHECK_INTERVAL_MS = 40
+_VOLUME_PERSIST_DEBOUNCE_MS = 150
 _MAX_AUTO_OPEN_GRAPHS = 6
 
 
@@ -92,6 +97,7 @@ class HighRateMonitorWidget(QWidget):
         self._spike_sound_mode: str = Settings.high_rate_monitor_spike_sound_mode
         self._spike_repeat_interval: int = Settings.high_rate_monitor_spike_repeat_interval
         self._spike_sound_preset: str = Settings.high_rate_monitor_spike_sound_preset
+        self._spike_sound_volume: int = Settings.high_rate_monitor_spike_sound_volume
         self._spike_trigger_metric: str = Settings.high_rate_monitor_spike_trigger_metric
         self._spike_visual_alert: bool = Settings.high_rate_monitor_spike_visual_alert
         self._auto_open_graph: bool = Settings.high_rate_monitor_auto_open_graph
@@ -138,38 +144,16 @@ class HighRateMonitorWidget(QWidget):
         spike_controls_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
         spike_controls_layout.setSpacing(scale_by_ui(6))
 
-        self._spike_sound_label = QLabel()
-        set_i18n_colon_label(self._spike_sound_label, 'Spike Sound')
-        spike_controls_layout.addWidget(self._spike_sound_label)
-
-        self._spike_scope_combo = QComboBox()
-        self._spike_scope_combo.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-        for scope in SPIKE_SOUND_SCOPES:
-            self._spike_scope_combo.addItem(tr(scope), scope)
-        if (scope_idx := self._spike_scope_combo.findData(self._spike_sound_scope)) >= 0:
-            self._spike_scope_combo.setCurrentIndex(scope_idx)
-        self._spike_scope_combo.currentIndexChanged.connect(self._on_spike_scope_combo_changed)
-        spike_controls_layout.addWidget(self._spike_scope_combo)
-
-        self._spike_mode_combo = QComboBox()
-        self._spike_mode_combo.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-        for mode in SPIKE_SOUND_MODES:
-            self._spike_mode_combo.addItem(tr(mode), mode)
-        if (mode_idx := self._spike_mode_combo.findData(self._spike_sound_mode)) >= 0:
-            self._spike_mode_combo.setCurrentIndex(mode_idx)
-        self._spike_mode_combo.currentIndexChanged.connect(self._on_spike_mode_combo_changed)
-        spike_controls_layout.addWidget(self._spike_mode_combo)
-
-        self._spike_preview_button = QToolButton()
-        self._spike_preview_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-        self._spike_preview_button.setIcon(
-            render_svg_icon_from_resource('volume-2.svg', 14, 14, themed_text_qcolor('@text[#e5e7eb]', '@surface[#1f2937]').name()),
+        self._spike_sound_bar = SpikeSoundQuickBar(
+            SpikeSoundQuickBarState(self._spike_sound_scope, self._spike_sound_mode, self._spike_sound_volume),
+            SpikeSoundQuickBarCallbacks(
+                on_scope_changed=self._set_spike_sound_scope,
+                on_mode_changed=self._set_spike_sound_mode,
+                on_volume_changed=self._set_spike_sound_volume,
+            ),
+            self,
         )
-        self._spike_preview_button.setStyleSheet(COMPACT_BUTTON_STYLESHEET)
-        self._spike_preview_button.clicked.connect(
-            lambda: play_spike_sound('Geiger3' if self._spike_sound_mode == 'Adaptive Geiger' else self._spike_sound_preset, bypass_cooldown=True),
-        )
-        spike_controls_layout.addWidget(self._spike_preview_button)
+        spike_controls_layout.addWidget(self._spike_sound_bar)
 
         spike_controls_layout.addSpacing(scale_by_ui(8))
 
@@ -208,6 +192,11 @@ class HighRateMonitorWidget(QWidget):
         self._pulse_timer = QTimer(self)
         self._pulse_timer.timeout.connect(self._on_pulse_timer_tick)
 
+        self._volume_save_timer = QTimer(self)
+        self._volume_save_timer.setSingleShot(True)
+        self._volume_save_timer.timeout.connect(self._persist_spike_sound_volume)
+        self._volume_persist_dirty: bool = False
+
         self._apply_translations()
         register_language_refresh(self, self._apply_translations)
 
@@ -231,20 +220,10 @@ class HighRateMonitorWidget(QWidget):
                 'Live updates occur with every scan. Turn off for manual selection control.',
             ),
         )
-        for i, canonical_scope in enumerate(SPIKE_SOUND_SCOPES):
-            if i < self._spike_scope_combo.count():
-                self._spike_scope_combo.setItemText(i, tr(canonical_scope))
-        for i, canonical_mode in enumerate(SPIKE_SOUND_MODES):
-            if i < self._spike_mode_combo.count():
-                self._spike_mode_combo.setItemText(i, tr(canonical_mode))
-        scope_tip = tr('Choose where spike alert sounds are active (Disabled, Open Graphs, or Global).')
-        self._spike_sound_label.setToolTip(scope_tip)
-        self._spike_scope_combo.setToolTip(scope_tip)
         self._auto_open_graph_checkbox.setText(tr('Auto-open Graphs'))
         self._auto_open_graph_checkbox.setToolTip(
             tr('Automatically open a live Rate Graph window (without stealing focus) whenever a player is newly flagged.'),
         )
-        self._refresh_spike_controls_state()
         self._open_all_graphs_button.setText(tr('Open Graphs for Flagged Players'))
         self._open_all_graphs_button.setToolTip(
             tr(
@@ -265,15 +244,10 @@ class HighRateMonitorWidget(QWidget):
         )
         self._refresh_status_label()
 
-    def _refresh_spike_controls_state(self) -> None:
-        sound_active = self._spike_sound_scope != 'Disabled'
-        scope_disabled_note = tr('Disabled when Spike Sound Scope is set to Disabled.')
-        self._spike_mode_combo.setEnabled(sound_active)
-        mode_tip = tr('Choose how spike alert sounds behave when traffic crosses above the threshold.')
-        self._spike_mode_combo.setToolTip(mode_tip if sound_active else f'{mode_tip}\n\n{scope_disabled_note}')
-        self._spike_preview_button.setEnabled(sound_active)
-        preview_tip = tr('Play a preview of the selected spike sound preset.')
-        self._spike_preview_button.setToolTip(preview_tip if sound_active else f'{preview_tip}\n\n{scope_disabled_note}')
+    def _sync_spike_sound_bar(self) -> None:
+        self._spike_sound_bar.sync_state(
+            SpikeSoundQuickBarState(self._spike_sound_scope, self._spike_sound_mode, self._spike_sound_volume),
+        )
 
     def _refresh_status_label(self) -> None:
         """Render the status summary label according to the current monitor state."""
@@ -562,7 +536,7 @@ class HighRateMonitorWidget(QWidget):
             self._last_repeat_monotonic = time.monotonic()
             self._emit_active_spike_sound()
         elif genuinely_ended_ips and not current_spiking_ips and self._spike_sound_mode in ('Start & End', 'Repeating + End'):
-            play_spike_sound('End', min_cooldown=0.20)
+            play_spike_sound('End', volume=self._spike_sound_volume, min_cooldown=0.20)
 
         if current_spiking_ips and self._spike_sound_mode in ('Repeating', 'Repeating + End', 'Adaptive Geiger'):
             if not self._pulse_timer.isActive():
@@ -593,9 +567,13 @@ class HighRateMonitorWidget(QWidget):
 
     def _emit_active_spike_sound(self) -> None:
         if self._spike_sound_mode == 'Adaptive Geiger':
-            play_spike_sound(geiger_stage_sound_kind(self._active_max_intensity_ratio), min_cooldown=0.075)
+            play_spike_sound(
+                geiger_stage_sound_kind(self._active_max_intensity_ratio),
+                volume=self._spike_sound_volume,
+                min_cooldown=0.075,
+            )
             return
-        play_spike_sound(self._spike_sound_preset, min_cooldown=0.20)
+        play_spike_sound(self._spike_sound_preset, volume=self._spike_sound_volume, min_cooldown=0.20)
 
     def _update_status_display(self, flagged_players: list[PlayerRateData]) -> None:
         self._status_mode = 'scanned'
@@ -661,7 +639,7 @@ class HighRateMonitorWidget(QWidget):
             sound_scope=self._spike_sound_scope,
             sound_mode=self._spike_sound_mode,
             repeat_interval=self._spike_repeat_interval,
-            sound_preset=self._spike_sound_preset,
+            sound_volume=self._spike_sound_volume,
             visual_alert=self._spike_visual_alert,
         )
 
@@ -692,19 +670,16 @@ class HighRateMonitorWidget(QWidget):
         self._spike_sound_mode = Settings.high_rate_monitor_spike_sound_mode
         self._spike_repeat_interval = Settings.high_rate_monitor_spike_repeat_interval
         self._spike_sound_preset = Settings.high_rate_monitor_spike_sound_preset
+        self._spike_sound_volume = Settings.high_rate_monitor_spike_sound_volume
         self._spike_trigger_metric = Settings.high_rate_monitor_spike_trigger_metric
         self._spike_visual_alert = Settings.high_rate_monitor_spike_visual_alert
         self._auto_open_graph = Settings.high_rate_monitor_auto_open_graph
+        self._volume_save_timer.stop()
+        self._volume_persist_dirty = False
 
-        with QSignalBlocker(self._spike_scope_combo):
-            if (scope_idx := self._spike_scope_combo.findData(self._spike_sound_scope)) >= 0:
-                self._spike_scope_combo.setCurrentIndex(scope_idx)
-        with QSignalBlocker(self._spike_mode_combo):
-            if (mode_idx := self._spike_mode_combo.findData(self._spike_sound_mode)) >= 0:
-                self._spike_mode_combo.setCurrentIndex(mode_idx)
         with QSignalBlocker(self._auto_open_graph_checkbox):
             self._auto_open_graph_checkbox.setChecked(self._auto_open_graph)
-        self._refresh_spike_controls_state()
+        self._sync_spike_sound_bar()
         self._sync_open_graphs_state()
         self._auto_select_checkbox.setChecked(Settings.high_rate_monitor_auto_select)
         if self._tracked or self._graph_windows:
@@ -735,6 +710,7 @@ class HighRateMonitorWidget(QWidget):
                 on_scope_changed=self._set_spike_sound_scope,
                 on_mode_changed=self._set_spike_sound_mode,
                 on_repeat_interval_changed=self._set_spike_repeat_interval,
+                on_volume_changed=self._set_spike_sound_volume,
             ),
         )
         graph.destroyed.connect(lambda: self._on_graph_destroyed(ip))
@@ -805,18 +781,29 @@ class HighRateMonitorWidget(QWidget):
         if self._pulse_timer.isActive():
             self._on_pulse_timer_tick()
 
-    def _on_spike_scope_combo_changed(self, index: int) -> None:
-        self._set_spike_sound_scope(str(self._spike_scope_combo.itemData(index)))
+    def _persist_spike_sound_volume(self) -> None:
+        self._volume_save_timer.stop()
+        if not self._volume_persist_dirty:
+            return
+        self._volume_persist_dirty = False
+        Settings.rewrite_settings_file()
 
-    def _on_spike_mode_combo_changed(self, index: int) -> None:
-        self._set_spike_sound_mode(str(self._spike_mode_combo.itemData(index)))
+    def _set_spike_sound_volume(self, volume: int, persist_mode: SpikeVolumePersistMode) -> None:
+        clamped_volume = min(SPIKE_VOLUME_MAX, max(SPIKE_VOLUME_MIN, volume))
+        self._spike_sound_volume = clamped_volume
+        self._sync_spike_sound_bar()
+        if Settings.high_rate_monitor_spike_sound_volume != clamped_volume:
+            Settings.high_rate_monitor_spike_sound_volume = clamped_volume
+            self._volume_persist_dirty = True
+        self._sync_open_graphs_state()
+        if persist_mode is SpikeVolumePersistMode.IMMEDIATE:
+            self._persist_spike_sound_volume()
+        elif self._volume_persist_dirty:
+            self._volume_save_timer.start(_VOLUME_PERSIST_DEBOUNCE_MS)
 
     def _set_spike_sound_scope(self, scope: str) -> None:
         self._spike_sound_scope = scope
-        with QSignalBlocker(self._spike_scope_combo):
-            if (scope_idx := self._spike_scope_combo.findData(scope)) >= 0:
-                self._spike_scope_combo.setCurrentIndex(scope_idx)
-        self._refresh_spike_controls_state()
+        self._sync_spike_sound_bar()
         if Settings.high_rate_monitor_spike_sound_scope != scope:
             Settings.high_rate_monitor_spike_sound_scope = scope
             Settings.rewrite_settings_file()
@@ -829,9 +816,7 @@ class HighRateMonitorWidget(QWidget):
 
     def _set_spike_sound_mode(self, mode: str) -> None:
         self._spike_sound_mode = mode
-        with QSignalBlocker(self._spike_mode_combo):
-            if (mode_idx := self._spike_mode_combo.findData(mode)) >= 0:
-                self._spike_mode_combo.setCurrentIndex(mode_idx)
+        self._sync_spike_sound_bar()
         if Settings.high_rate_monitor_spike_sound_mode != mode:
             Settings.high_rate_monitor_spike_sound_mode = mode
             Settings.rewrite_settings_file()
@@ -967,6 +952,7 @@ class HighRateMonitorWidget(QWidget):
     def hideEvent(self, event: QHideEvent) -> None:
         """Deselect auto-selected players when the monitor window or tab is hidden."""
         super().hideEvent(event)
+        self._persist_spike_sound_volume()
         if self._auto_select and self._currently_selected_ips and self._deselect_ips is not None:
             self._deselect_ips(list(self._currently_selected_ips))
             self._currently_selected_ips.clear()
