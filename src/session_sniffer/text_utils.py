@@ -6,7 +6,7 @@ Keep this module dependency-free and safe to import from anywhere.
 import textwrap
 import unicodedata
 from datetime import timedelta
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Final, Literal
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
@@ -14,6 +14,42 @@ if TYPE_CHECKING:
 DEFAULT_MANUAL_SUSPEND_DURATION_SECONDS = 8
 _MAX_SUSPEND_DURATION_SECONDS = 3600
 _ONE_MS = timedelta(milliseconds=1)
+_STANDALONE_GLOBAL_HOTKEY_KEYS: Final[frozenset[str]] = frozenset({
+    'pause', 'print', 'scrolllock', 'ins', 'del', 'home', 'end',
+    'pgup', 'pgdown', 'up', 'down', 'left', 'right', 'clear',
+})
+_MAX_FUNCTION_KEY_NUMBER: Final[int] = 24
+
+
+def is_bare_typing_hotkey(chord: str) -> bool:
+    """Return `True` when *chord* is a bare typing key without Ctrl/Alt/Meta (unsuitable as a standalone global hotkey)."""
+    portable = chord.split(', ', 1)[0].strip().lower()
+    if not portable:
+        return False
+
+    has_primary_modifier = False
+    is_numpad = False
+    for _ in range(5):
+        if portable.startswith('num+'):
+            is_numpad = True
+            portable = portable[4:]
+            continue
+        matched_modifier = False
+        for prefix, is_primary in (('ctrl+', True), ('alt+', True), ('meta+', True), ('shift+', False)):
+            if portable.startswith(prefix):
+                if is_primary:
+                    has_primary_modifier = True
+                portable = portable[len(prefix) :]
+                matched_modifier = True
+                break
+        if not matched_modifier:
+            break
+
+    if has_primary_modifier or is_numpad or not portable:
+        return False
+    if portable.startswith('f') and portable[1:].isdigit() and 1 <= int(portable[1:]) <= _MAX_FUNCTION_KEY_NUMBER:
+        return False
+    return portable not in _STANDALONE_GLOBAL_HOTKEY_KEYS
 
 
 def format_elapsed_time(duration: timedelta) -> str:

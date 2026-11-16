@@ -2,16 +2,27 @@
 
 import logging
 import sys
-from typing import TYPE_CHECKING, Literal, override
+import time
+from typing import TYPE_CHECKING, Final, Literal
 
-from PySide6.QtCore import QByteArray, Qt
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QAction, QKeySequence, QShortcut
 from PySide6.QtWidgets import QMainWindow
 from shiboken6 import isValid
 
 from session_sniffer.background import trigger_looky_rescan_all_players
 from session_sniffer.background.events import gui_closed__event
-from session_sniffer.ctypes_windows import parse_win32_hotkey_message, register_win32_hotkey, unregister_win32_hotkey
+from session_sniffer.ctypes_windows import (
+    WIN32_MOD_ALT,
+    WIN32_MOD_CONTROL,
+    WIN32_MOD_SHIFT,
+    WIN32_MOD_WIN,
+    get_win32_active_modifiers,
+    install_win32_keyboard_hook,
+    is_win32_vk_down,
+    uninstall_win32_keyboard_hook,
+    vk_key_scan_win32,
+)
 from session_sniffer.guis.interface_selection_dialog import InterfaceSelectionDialog
 from session_sniffer.i18n import tr
 from session_sniffer.notifications_state import notifications_state
@@ -19,6 +30,7 @@ from session_sniffer.player.registry import SessionTracker
 from session_sniffer.rendering_core.events import wake_rendering_core
 from session_sniffer.rendering_core.types import CaptureState, SessionFilterState, TableMergeState
 from session_sniffer.settings import Settings
+from session_sniffer.text_utils import is_bare_typing_hotkey
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -31,41 +43,93 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-_HOTKEY_BASE_ID = 0x5350
-_MOD_ALT = 0x0001
-_MOD_CONTROL = 0x0002
-_MOD_SHIFT = 0x0004
-_MOD_WIN = 0x0008
-_MAX_F_KEY_NUMBER = 24
+_MAX_F_KEY_NUMBER: Final[int] = 24
+_HELD_REPEAT_STALE_SECONDS: Final[float] = 1.5
 
-_PORTABLE_KEY_TO_WIN32_VKS: dict[str, tuple[int, ...]] = {
-    'backspace': (0x08,), 'tab': (0x09,), 'clear': (0x0C,), 'return': (0x0D,), 'enter': (0x0D,), 'pause': (0x13,), 'capslock': (0x14,),
-    'space': (0x20,), 'pgup': (0x21,), 'pgdown': (0x22,), 'end': (0x23,), 'home': (0x24,), 'left': (0x25,),
-    'up': (0x26,), 'right': (0x27,), 'down': (0x28,), 'print': (0x2C,), 'ins': (0x2D,), 'del': (0x2E,),
-    '!': (0x31,), '@': (0x32,), '#': (0x33,), '$': (0x34,), '%': (0x35,), '^': (0x36,), '&': (0x37,), '(': (0x39,), ')': (0x30,),
-    '-': (0x6D, 0xBD), '_': (0xBD,), '.': (0x6E, 0xBE), '/': (0x6F, 0xBF), '?': (0xBF,),
-    'numlock': (0x90,), 'scrolllock': (0x91,), ';': (0xBA,), ':': (0xBA,), '=': (0xBB,), ',': (0xBC,), '<': (0xBC,), '>': (0xBE,),
-    '`': (0xC0,), '~': (0xC0,), '[': (0xDB,), '{': (0xDB,), '\\': (0xDC,), '|': (0xDC,), ']': (0xDD,), '}': (0xDD,), "'": (0xDE,), '"': (0xDE,),
+_WIN32_MODIFIER_VKS: Final[frozenset[int]] = frozenset({
+    0x10, 0x11, 0x12, 0x5B, 0x5C,
+    0xA0, 0xA1, 0xA2, 0xA3, 0xA4, 0xA5,
+})
+_NAVIGATION_CLUSTER_VKS: Final[dict[str, int]] = {
+    'pgup': 0x21, 'pgdown': 0x22, 'end': 0x23, 'home': 0x24,
+    'left': 0x25, 'up': 0x26, 'right': 0x27, 'down': 0x28,
+    'ins': 0x2D, 'del': 0x2E,
+}
+_NAMED_NON_CHAR_VKS: Final[dict[str, int]] = {
+    'backspace': 0x08, 'tab': 0x09, 'clear': 0x0C, 'capslock': 0x14,
+    'space': 0x20, 'print': 0x2C, 'numlock': 0x90, 'scrolllock': 0x91,
+}
+_NUMPAD_OPERATOR_VKS: Final[dict[str, int]] = {
+    '*': 0x6A, '+': 0x6B, '-': 0x6D, '.': 0x6E, ',': 0x6E, '/': 0x6F,
+}
+_FALLBACK_MAIN_OEM_VKS: Final[dict[str, int]] = {
+    '!': 0x31, '@': 0x32, '#': 0x33, '$': 0x34, '%': 0x35, '^': 0x36, '&': 0x37, '*': 0x38, '(': 0x39, ')': 0x30,
+    ';': 0xBA, ':': 0xBA, '=': 0xBB, '+': 0xBB, ',': 0xBC, '<': 0xBC, '-': 0xBD, '_': 0xBD,
+    '.': 0xBE, '>': 0xBE, '/': 0xBF, '?': 0xBF, '`': 0xC0, '~': 0xC0,
+    '[': 0xDB, '{': 0xDB, '\\': 0xDC, '|': 0xDC, ']': 0xDD, '}': 0xDD, "'": 0xDE, '"': 0xDE,
 }
 
 
-def _resolve_portable_key_vks(portable_key: str, *, mod_flags: int = 0, is_numpad: bool = False) -> tuple[int, ...] | None:
-    """Resolve a lowercase portable key string to one or more Win32 virtual-key codes."""
-    if portable_key == '*':
-        return (0x38, 0x6A) if (mod_flags & _MOD_SHIFT) and not is_numpad else (0x6A,)
-    if portable_key == '+':
-        return (0x6B, 0xBB) if (mod_flags & _MOD_SHIFT) and not is_numpad else (0x6B,)
-    if (mapped := _PORTABLE_KEY_TO_WIN32_VKS.get(portable_key)) is not None:
-        return mapped
-    if len(portable_key) == 1 and ('a' <= portable_key <= 'z' or '0' <= portable_key <= '9'):
-        return (ord(portable_key.upper()),) if 'a' <= portable_key <= 'z' else (ord(portable_key), 0x60 + ord(portable_key) - ord('0'))
-    if portable_key.startswith('f') and portable_key[1:].isdigit() and 1 <= (fn_num := int(portable_key[1:])) <= _MAX_F_KEY_NUMBER:
-        return (0x70 + fn_num - 1,)
+def _resolve_numpad_triggers(portable_key: str, *, mod_flags: int) -> tuple[int, tuple[tuple[int, bool | None], ...]] | None:
+    if len(portable_key) == 1 and '0' <= portable_key <= '9':
+        return mod_flags, ((0x60 + ord(portable_key) - ord('0'), None),)
+    if (op_vk := _NUMPAD_OPERATOR_VKS.get(portable_key)) is not None:
+        return mod_flags, ((op_vk, None),)
+    if portable_key in ('enter', 'return'):
+        return mod_flags, ((0x0D, True),)
+    if portable_key == 'clear':
+        return mod_flags, ((0x0C, False),)
+    if (nav_vk := _NAVIGATION_CLUSTER_VKS.get(portable_key)) is not None:
+        return mod_flags, ((nav_vk, False),)
     return None
 
 
-def parse_win32_hotkey_spec(hotkey: str | None) -> tuple[int, tuple[int, ...]] | None:
-    """Translate a portable `QKeySequence` string into `(win32_modifier_flags, primary_vks)`."""
+def _resolve_single_char_triggers(portable_key: str, *, mod_flags: int) -> tuple[int, tuple[tuple[int, bool | None], ...]] | None:
+    if (scanned := vk_key_scan_win32(portable_key)) is not None:
+        vk_code, shift_state = scanned
+        extra_mods = (
+            (WIN32_MOD_SHIFT if (shift_state & 1) else 0)
+            | (WIN32_MOD_CONTROL if (shift_state & 2) else 0)
+            | (WIN32_MOD_ALT if (shift_state & 4) else 0)
+        )
+        return mod_flags | extra_mods, ((vk_code, None),)
+    if 'a' <= portable_key <= 'z':
+        return mod_flags, ((ord(portable_key.upper()), None),)
+    if '0' <= portable_key <= '9':
+        return mod_flags, ((ord(portable_key), None),)
+    if (oem_vk := _FALLBACK_MAIN_OEM_VKS.get(portable_key)) is not None:
+        return mod_flags, ((oem_vk, None),)
+    return None
+
+
+def _resolve_portable_key_triggers(
+    portable_key: str,
+    *,
+    mod_flags: int = 0,
+    is_numpad: bool = False,
+) -> tuple[int, tuple[tuple[int, bool | None], ...]] | None:
+    """Resolve a lowercase portable key string to `(effective_mod_flags, ((vk_code, extended_req), ...))`."""
+    if is_numpad:
+        return _resolve_numpad_triggers(portable_key, mod_flags=mod_flags)
+    if len(portable_key) == 1:
+        return _resolve_single_char_triggers(portable_key, mod_flags=mod_flags)
+
+    triggers: tuple[tuple[int, bool | None], ...] | None = None
+    if portable_key.startswith('f') and portable_key[1:].isdigit() and 1 <= (fn_num := int(portable_key[1:])) <= _MAX_F_KEY_NUMBER:
+        triggers = ((0x70 + fn_num - 1, None),)
+    elif portable_key == 'pause':
+        triggers = ((0x13, None), (0x03, None)) if (mod_flags & WIN32_MOD_CONTROL) else ((0x13, None),)
+    elif portable_key in ('return', 'enter'):
+        triggers = ((0x0D, False),)
+    elif (nav_vk := _NAVIGATION_CLUSTER_VKS.get(portable_key)) is not None:
+        triggers = ((nav_vk, True),)
+    elif (named_vk := _NAMED_NON_CHAR_VKS.get(portable_key)) is not None:
+        triggers = ((named_vk, None),)
+    return (mod_flags, triggers) if triggers is not None else None
+
+
+def parse_win32_hotkey_spec(hotkey: str | None) -> tuple[int, tuple[tuple[int, bool | None], ...]] | None:
+    """Translate a portable `QKeySequence` string into `(win32_modifier_flags, ((vk_code, extended_req), ...))`."""
     if hotkey is None or not hotkey:
         return None
     seq = QKeySequence.fromString(hotkey, QKeySequence.SequenceFormat.PortableText)
@@ -78,14 +142,17 @@ def parse_win32_hotkey_spec(hotkey: str | None) -> tuple[int, tuple[int, ...]] |
         if portable.startswith('num+'):
             is_numpad, portable = True, portable[4:]
             continue
-        for mod_prefix, flag in (('ctrl+', _MOD_CONTROL), ('shift+', _MOD_SHIFT), ('alt+', _MOD_ALT), ('meta+', _MOD_WIN)):
+        matched_mod = False
+        for mod_prefix, flag in (('ctrl+', WIN32_MOD_CONTROL), ('shift+', WIN32_MOD_SHIFT), ('alt+', WIN32_MOD_ALT), ('meta+', WIN32_MOD_WIN)):
             if portable.startswith(mod_prefix):
                 mod_flags |= flag
                 portable = portable[len(mod_prefix) :]
+                matched_mod = True
                 break
+        if not matched_mod:
+            break
 
-    primary_vks = _resolve_portable_key_vks(portable, mod_flags=mod_flags, is_numpad=is_numpad)
-    return (mod_flags, primary_vks) if primary_vks is not None else None
+    return _resolve_portable_key_triggers(portable, mod_flags=mod_flags, is_numpad=is_numpad)
 
 
 def append_shortcut_tooltip(tooltip: str, shortcut: str | None, *, is_global: bool = False) -> str:
@@ -100,8 +167,8 @@ class ShortcutsMixin(QMainWindow):
     """Manage system-wide global hotkeys and main-window keyboard shortcuts on `MainWindow`."""
 
     _shortcuts_initialized: bool = False
-    _registered_win32_hotkeys: list[tuple[int, int]]
-    _hotkey_id_to_handler: dict[int, Callable[[], None]]
+    _win32_hook_bindings: dict[tuple[int, int], list[tuple[bool | None, Callable[[], None]]]]
+    _pressed_hook_vks: dict[int, float]
     _global_fallback_shortcuts: dict[str, QShortcut]
     _window_shortcuts: dict[str, QShortcut]
 
@@ -172,8 +239,8 @@ class ShortcutsMixin(QMainWindow):
 
     def _init_shortcuts(self) -> None:
         """Create `QShortcut` instances and synchronize initial hotkey registrations."""
-        self._registered_win32_hotkeys = []
-        self._hotkey_id_to_handler = {}
+        self._win32_hook_bindings = {}
+        self._pressed_hook_vks = {}
         self._global_fallback_shortcuts = {}
         self._window_shortcuts = {}
 
@@ -198,11 +265,10 @@ class ShortcutsMixin(QMainWindow):
         """Unregister all active OS-level global hotkeys and disable fallback `QShortcut`s."""
         if not self._shortcuts_initialized:
             return
-        if sys.platform == 'win32' and self._registered_win32_hotkeys:
-            for hwnd, hotkey_id in self._registered_win32_hotkeys:
-                unregister_win32_hotkey(hwnd, hotkey_id)
-            self._registered_win32_hotkeys.clear()
-        self._hotkey_id_to_handler.clear()
+        if sys.platform == 'win32':
+            uninstall_win32_keyboard_hook()
+        self._win32_hook_bindings.clear()
+        self._pressed_hook_vks.clear()
         for shortcut in self._global_fallback_shortcuts.values():
             shortcut.setEnabled(False)
             shortcut.setKey(QKeySequence())
@@ -229,32 +295,56 @@ class ShortcutsMixin(QMainWindow):
         if self._settings_dialog_window is not None and isValid(self._settings_dialog_window) and self._settings_dialog_window.isVisible():
             return
 
-        next_hotkey_id = _HOTKEY_BASE_ID
-        hwnd = self.winId() if sys.platform == 'win32' else 0
+        win32_fallbacks: list[tuple[str, str, QShortcut]] = []
         for setting_key, is_applicable, handler in self._global_hotkey_specs():
             fallback_shortcut = self._global_fallback_shortcuts[setting_key]
             chord = Settings.get_active_shortcut(setting_key) if is_applicable() else None
-            if chord is None:
+            if chord is None or is_bare_typing_hotkey(chord):
                 continue
             if sys.platform == 'win32':
                 spec = parse_win32_hotkey_spec(chord)
-                registered_any = False
-                if spec is not None:
-                    mod_flags, primary_vks = spec
-                    for vk_code in primary_vks:
-                        hotkey_id = next_hotkey_id
-                        next_hotkey_id += 1
-                        if register_win32_hotkey(hwnd, hotkey_id, mod_flags, vk_code):
-                            self._registered_win32_hotkeys.append((hwnd, hotkey_id))
-                            self._hotkey_id_to_handler[hotkey_id] = handler
-                            registered_any = True
-                if not registered_any:
-                    logger.warning('Failed to register global OS hotkey %r for %s; falling back to window shortcut.', chord, setting_key)
+                if spec is None:
+                    logger.warning('Failed to parse global OS hotkey %r for %s; falling back to window shortcut.', chord, setting_key)
                     fallback_shortcut.setKey(QKeySequence.fromString(chord, QKeySequence.SequenceFormat.PortableText))
                     fallback_shortcut.setEnabled(True)
+                else:
+                    mod_flags, triggers = spec
+                    for vk_code, extended_req in triggers:
+                        self._win32_hook_bindings.setdefault((mod_flags, vk_code), []).append((extended_req, handler))
+                    win32_fallbacks.append((setting_key, chord, fallback_shortcut))
             else:
                 fallback_shortcut.setKey(QKeySequence.fromString(chord, QKeySequence.SequenceFormat.PortableText))
                 fallback_shortcut.setEnabled(True)
+
+        if sys.platform == 'win32' and self._win32_hook_bindings and not install_win32_keyboard_hook(self._on_win32_key_event):
+            self._win32_hook_bindings.clear()
+            for setting_key, chord, fallback_shortcut in win32_fallbacks:
+                logger.warning('Failed to install Win32 keyboard hook for %s (%r); falling back to window shortcut.', setting_key, chord)
+                fallback_shortcut.setKey(QKeySequence.fromString(chord, QKeySequence.SequenceFormat.PortableText))
+                fallback_shortcut.setEnabled(True)
+
+    def _on_win32_key_event(self, key_event: tuple[int, bool, bool]) -> None:
+        """Handle non-consuming Win32 `WH_KEYBOARD_LL` events with auto-repeat suppression."""
+        vk_code, is_key_down, is_extended = key_event
+        if vk_code in _WIN32_MODIFIER_VKS:
+            return
+        if not is_key_down:
+            self._pressed_hook_vks.pop(vk_code, None)
+            return
+
+        now = time.monotonic()
+        previous_down = self._pressed_hook_vks.get(vk_code)
+        self._pressed_hook_vks[vk_code] = now
+        if previous_down is not None and (now - previous_down < _HELD_REPEAT_STALE_SECONDS or is_win32_vk_down(vk_code)):
+            return
+
+        candidates = self._win32_hook_bindings.get((get_win32_active_modifiers(), vk_code))
+        if candidates is None:
+            return
+        for extended_req, handler in candidates:
+            if extended_req is None or extended_req == is_extended:
+                QTimer.singleShot(0, handler)
+                break
 
     def _sync_shortcut_action_labels(self) -> None:
         """Refresh menu action and widget tooltips that display configured shortcuts."""
@@ -273,16 +363,6 @@ class ShortcutsMixin(QMainWindow):
         self._header.sync_notification_buttons(visual_enabled=notifications_state.visual_enabled, voice_enabled=notifications_state.voice_enabled)
         self._connected.refresh_shortcut_tooltips()
         self._disconnected.refresh_shortcut_tooltips()
-
-    @override
-    def nativeEvent(self, eventType: QByteArray | bytes | bytearray | memoryview, message: int) -> object:
-        """Handle native OS window messages such as Win32 `WM_HOTKEY` events."""
-        if sys.platform == 'win32' and self._shortcuts_initialized and self._hotkey_id_to_handler:
-            hotkey_id = parse_win32_hotkey_message(message)
-            if hotkey_id is not None and (handler := self._hotkey_id_to_handler.get(hotkey_id)) is not None:
-                handler()
-                return True, 0
-        return super().nativeEvent(eventType, message)
 
     def _can_trigger_shortcut(self) -> bool:
         """Return `True` when the main window is in an interactive state eligible to handle shortcuts."""

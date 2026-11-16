@@ -5,7 +5,7 @@ import ctypes
 import sys
 from ctypes import wintypes
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, SupportsInt
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -18,8 +18,23 @@ _PROCESS_TERMINATE = 0x0001
 _GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT = 0x00000002
 _GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS = 0x00000004
 _SIGABRT = 22
-_WM_HOTKEY = 0x0312
-_MOD_NOREPEAT = 0x4000
+_WH_KEYBOARD_LL = 13
+_WM_KEYDOWN = 0x0100
+_WM_KEYUP = 0x0101
+_WM_SYSKEYDOWN = 0x0104
+_WM_SYSKEYUP = 0x0105
+_LLKHF_EXTENDED = 0x01
+_LLKHF_UP = 0x80
+_VK_SHIFT = 0x10
+_VK_CONTROL = 0x11
+_VK_MENU = 0x12
+_VK_LWIN = 0x5B
+_VK_RWIN = 0x5C
+_ASYNC_KEY_DOWN_MASK = 0x8000
+WIN32_MOD_ALT = 0x0001
+WIN32_MOD_CONTROL = 0x0002
+WIN32_MOD_SHIFT = 0x0004
+WIN32_MOD_WIN = 0x0008
 
 
 class WindowsGuid(ctypes.Structure):
@@ -77,6 +92,18 @@ class _ShellExecuteInfoW(ctypes.Structure):
     ]
 
 
+class _KbdLlHookStruct(ctypes.Structure):
+    """ctypes definition for KBDLLHOOKSTRUCT structure."""
+
+    _fields_ = [
+        ('vkCode', wintypes.DWORD),
+        ('scanCode', wintypes.DWORD),
+        ('flags', wintypes.DWORD),
+        ('time', wintypes.DWORD),
+        ('dwExtraInfo', ctypes.c_size_t),
+    ]
+
+
 _CLSID_SHELL_LINK = WindowsGuid(0x00021401, 0x0000, 0x0000, (ctypes.c_ubyte * 8)(0xC0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x46))
 _IID_ISHELL_LINK_W = WindowsGuid(0x000214F9, 0x0000, 0x0000, (ctypes.c_ubyte * 8)(0xC0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x46))
 _IID_IPERSIST_FILE = WindowsGuid(0x0000010B, 0x0000, 0x0000, (ctypes.c_ubyte * 8)(0xC0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x46))
@@ -88,6 +115,10 @@ _crt_state: dict[str, Any] = {
     'c_purecall_handler': None,
     'c_sigabrt_handler': None,
     'prev_sigabrt_handler': 0,
+}
+_keyboard_hook_state: dict[str, Any] = {
+    'handle': None,
+    'c_proc': None,
 }
 
 if sys.platform == 'win32':
@@ -101,6 +132,12 @@ if sys.platform == 'win32':
     )
     _PURECALL_HANDLER_TYPE = ctypes.CFUNCTYPE(None)
     _SIGNAL_HANDLER_TYPE = ctypes.CFUNCTYPE(None, ctypes.c_int)
+    _LOW_LEVEL_KEYBOARD_PROC_TYPE = ctypes.WINFUNCTYPE(
+        ctypes.c_ssize_t,
+        ctypes.c_int,
+        wintypes.WPARAM,
+        wintypes.LPARAM,
+    )
 
     _shell32 = ctypes.windll.shell32
     _shell32.IsUserAnAdmin.argtypes = []
@@ -111,12 +148,20 @@ if sys.platform == 'win32':
     _user32 = ctypes.windll.user32
     _user32.MessageBoxW.argtypes = [wintypes.HWND, wintypes.LPCWSTR, wintypes.LPCWSTR, wintypes.UINT]
     _user32.MessageBoxW.restype = ctypes.c_int
-    _user32.RegisterHotKey.argtypes = [wintypes.HWND, ctypes.c_int, wintypes.UINT, wintypes.UINT]
-    _user32.RegisterHotKey.restype = wintypes.BOOL
-    _user32.UnregisterHotKey.argtypes = [wintypes.HWND, ctypes.c_int]
-    _user32.UnregisterHotKey.restype = wintypes.BOOL
+    _user32.SetWindowsHookExW.argtypes = [ctypes.c_int, _LOW_LEVEL_KEYBOARD_PROC_TYPE, wintypes.HINSTANCE, wintypes.DWORD]
+    _user32.SetWindowsHookExW.restype = wintypes.HANDLE
+    _user32.UnhookWindowsHookEx.argtypes = [wintypes.HANDLE]
+    _user32.UnhookWindowsHookEx.restype = wintypes.BOOL
+    _user32.CallNextHookEx.argtypes = [wintypes.HANDLE, ctypes.c_int, wintypes.WPARAM, wintypes.LPARAM]
+    _user32.CallNextHookEx.restype = ctypes.c_ssize_t
+    _user32.GetAsyncKeyState.argtypes = [ctypes.c_int]
+    _user32.GetAsyncKeyState.restype = wintypes.SHORT
+    _user32.VkKeyScanW.argtypes = [wintypes.WCHAR]
+    _user32.VkKeyScanW.restype = wintypes.SHORT
 
     _kernel32 = ctypes.windll.kernel32
+    _kernel32.GetModuleHandleW.argtypes = [wintypes.LPCWSTR]
+    _kernel32.GetModuleHandleW.restype = wintypes.HMODULE
     _kernel32.GetSystemDirectoryW.argtypes = [wintypes.LPWSTR, wintypes.UINT]
     _kernel32.GetSystemDirectoryW.restype = wintypes.UINT
     _kernel32.WaitForSingleObject.argtypes = [wintypes.HANDLE, wintypes.DWORD]
@@ -168,6 +213,7 @@ else:
     _INVALID_PARAM_HANDLER_TYPE = None
     _PURECALL_HANDLER_TYPE = None
     _SIGNAL_HANDLER_TYPE = None
+    _LOW_LEVEL_KEYBOARD_PROC_TYPE = None
 
 
 def get_com_vtable_entry(pointer: wintypes.LPVOID, method_index: int) -> int:
@@ -285,31 +331,73 @@ def show_win32_message_box(owner_hwnd: int, text: str, title: str, style: int) -
     return int(_user32.MessageBoxW(owner_hwnd, text, title, style))
 
 
-def register_win32_hotkey(hwnd: SupportsInt, hotkey_id: int, modifiers: int, vk_code: int) -> bool:
-    """Register a system-wide hotkey with Windows user32 RegisterHotKey."""
+def vk_key_scan_win32(character: str) -> tuple[int, int] | None:
+    """Resolve a single character to `(vk_code, shift_state)` on the active Windows keyboard layout."""
+    if sys.platform != 'win32' or len(character) != 1:
+        return None
+    scanned = int(_user32.VkKeyScanW(character))
+    if scanned == -1:
+        return None
+    return scanned & 0xFF, (scanned >> 8) & 0xFF
+
+
+def is_win32_vk_down(vk_code: int) -> bool:
+    """Return whether *vk_code* is currently physically held down according to GetAsyncKeyState."""
     if sys.platform != 'win32':
         return False
-    return bool(_user32.RegisterHotKey(int(hwnd), hotkey_id, modifiers | _MOD_NOREPEAT, vk_code))
+    return bool(_user32.GetAsyncKeyState(vk_code) & _ASYNC_KEY_DOWN_MASK)
 
 
-def unregister_win32_hotkey(hwnd: SupportsInt, hotkey_id: int) -> bool:
-    """Unregister a system-wide hotkey previously registered with RegisterHotKey."""
+def get_win32_active_modifiers() -> int:
+    """Return the active Win32 modifier bitmask (`WIN32_MOD_*`) from GetAsyncKeyState."""
+    if sys.platform != 'win32':
+        return 0
+    modifiers = 0
+    if _user32.GetAsyncKeyState(_VK_CONTROL) & _ASYNC_KEY_DOWN_MASK:
+        modifiers |= WIN32_MOD_CONTROL
+    if _user32.GetAsyncKeyState(_VK_SHIFT) & _ASYNC_KEY_DOWN_MASK:
+        modifiers |= WIN32_MOD_SHIFT
+    if _user32.GetAsyncKeyState(_VK_MENU) & _ASYNC_KEY_DOWN_MASK:
+        modifiers |= WIN32_MOD_ALT
+    if (_user32.GetAsyncKeyState(_VK_LWIN) | _user32.GetAsyncKeyState(_VK_RWIN)) & _ASYNC_KEY_DOWN_MASK:
+        modifiers |= WIN32_MOD_WIN
+    return modifiers
+
+
+def uninstall_win32_keyboard_hook() -> None:
+    """Uninstall the active low-level Win32 keyboard hook (`WH_KEYBOARD_LL`), if installed."""
+    if sys.platform != 'win32':
+        return
+    handle = _keyboard_hook_state['handle']
+    _keyboard_hook_state['handle'] = None
+    _keyboard_hook_state['c_proc'] = None
+    if handle:
+        _user32.UnhookWindowsHookEx(handle)
+
+
+def install_win32_keyboard_hook(on_key_event: Callable[[tuple[int, bool, bool]], None]) -> bool:
+    """Install a non-consuming Win32 `WH_KEYBOARD_LL` hook forwarding `(vk_code, is_key_down, is_extended)`."""
     if sys.platform != 'win32':
         return False
-    return bool(_user32.UnregisterHotKey(int(hwnd), hotkey_id))
+    uninstall_win32_keyboard_hook()
 
+    def _low_level_keyboard_proc(n_code: int, w_param: int, l_param: int) -> int:
+        if n_code >= 0 and l_param:
+            info = _KbdLlHookStruct.from_address(l_param)
+            is_key_up = bool(info.flags & _LLKHF_UP) or w_param in (_WM_KEYUP, _WM_SYSKEYUP)
+            is_key_down = not is_key_up and w_param in (_WM_KEYDOWN, _WM_SYSKEYDOWN)
+            if is_key_down or is_key_up:
+                on_key_event((int(info.vkCode), is_key_down, bool(info.flags & _LLKHF_EXTENDED)))
+        return int(_user32.CallNextHookEx(None, n_code, w_param, l_param))
 
-def parse_win32_hotkey_message(message_ptr: SupportsInt) -> int | None:
-    """Extract the hotkey identifier from a native Win32 MSG pointer if it is a WM_HOTKEY message."""
-    if sys.platform != 'win32':
-        return None
-    addr = int(message_ptr)
-    if not addr:
-        return None
-    msg = wintypes.MSG.from_address(addr)
-    if msg.message == _WM_HOTKEY:
-        return msg.wParam or 0
-    return None
+    c_proc = _LOW_LEVEL_KEYBOARD_PROC_TYPE(_low_level_keyboard_proc)
+    module_handle = _kernel32.GetModuleHandleW(None)
+    hook_handle = _user32.SetWindowsHookExW(_WH_KEYBOARD_LL, c_proc, module_handle, 0)
+    if not hook_handle:
+        return False
+    _keyboard_hook_state['c_proc'] = c_proc
+    _keyboard_hook_state['handle'] = hook_handle
+    return True
 
 
 def iter_win32_toolhelp_processes() -> list[tuple[int, int, str]]:
