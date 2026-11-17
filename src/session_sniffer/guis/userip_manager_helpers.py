@@ -81,10 +81,10 @@ def get_userip_metadata_header_tooltips() -> dict[str, str]:
 
 IS_PERSISTED_ROLE, SEARCH_TEXT_ROLE, SORT_KEY_ROLE = Qt.ItemDataRole.UserRole + 1, Qt.ItemDataRole.UserRole + 2, Qt.ItemDataRole.UserRole + 3
 
-DUPLICATE_HIGHLIGHT_BRUSH = QBrush()
-_GROUP_BG_BRUSH_EVEN = QBrush()
-_GROUP_BG_BRUSH_ODD = QBrush()
-_LOOKY_FOREGROUND_BRUSH = QBrush()
+DUPLICATE_HIGHLIGHT_BRUSH = QBrush(Qt.BrushStyle.SolidPattern)
+_GROUP_BG_BRUSH_EVEN = QBrush(Qt.BrushStyle.SolidPattern)
+_GROUP_BG_BRUSH_ODD = QBrush(Qt.BrushStyle.SolidPattern)
+_LOOKY_FOREGROUND_BRUSH = QBrush(Qt.BrushStyle.SolidPattern)
 
 
 def _refresh_userip_theme_brushes() -> None:
@@ -276,16 +276,18 @@ class EntriesSortProxy(QSortFilterProxyModel):
 
     @override
     def data(self, index: QModelIndex | QPersistentModelIndex, role: int = Qt.ItemDataRole.DisplayRole) -> Any:
-        if role == Qt.ItemDataRole.BackgroundRole and index.isValid():
-            base_bg: object = super().data(index, role)
-            if base_bg is not None:
-                return base_bg
-            if not self._group_sort_enabled:
-                return _GROUP_BG_BRUSH_ODD if index.row() % 2 else _GROUP_BG_BRUSH_EVEN
-            p_row = index.row()
-            if p_row < 0 or p_row >= len(self._proxy_row_alt_shade):
-                self._rebuild_proxy_group_shades()
-            return _GROUP_BG_BRUSH_ODD if 0 <= p_row < len(self._proxy_row_alt_shade) and self._proxy_row_alt_shade[p_row] else _GROUP_BG_BRUSH_EVEN
+        if index.isValid():
+            if role == Qt.ItemDataRole.BackgroundRole:
+                if super().data(index, role) is not None:
+                    return DUPLICATE_HIGHLIGHT_BRUSH
+                if not self._group_sort_enabled:
+                    return _GROUP_BG_BRUSH_ODD if index.row() % 2 else _GROUP_BG_BRUSH_EVEN
+                p_row = index.row()
+                if p_row < 0 or p_row >= len(self._proxy_row_alt_shade):
+                    self._rebuild_proxy_group_shades()
+                return _GROUP_BG_BRUSH_ODD if 0 <= p_row < len(self._proxy_row_alt_shade) and self._proxy_row_alt_shade[p_row] else _GROUP_BG_BRUSH_EVEN
+            if role == Qt.ItemDataRole.ForegroundRole and index.column() == USERNAME_COLUMN and super().data(index, Qt.ItemDataRole.UserRole):
+                return _LOOKY_FOREGROUND_BRUSH
         return super().data(index, role)
 
     def _populate_column_sort_keys(self, model: QStandardItemModel, column: int, row_ip_keys: Sequence[str], rows: Iterable[int] | None = None) -> None:
@@ -342,9 +344,12 @@ class EntriesSortProxy(QSortFilterProxyModel):
                 _compute_row_search_blob(model, row)
             for col in cols_to_update:
                 self._populate_column_sort_keys(model, col, row_ip_keys, row_list)
-        self._rebuild_proxy_group_shades()
         min_r, max_r = (0, max(0, row_count - 1)) if self._group_sort_enabled else (min(row_list), max(row_list))
+        prev_shades = list(self._proxy_row_alt_shade)
         model.dataChanged.emit(model.index(min_r, 0), model.index(max_r, max(0, model.columnCount() - 1)), [SEARCH_TEXT_ROLE, SORT_KEY_ROLE])
+        self._rebuild_proxy_group_shades()
+        if self._proxy_row_alt_shade != prev_shades and (proxy_rows := self.rowCount()) > 0 and (col_count := self.columnCount()) > 0:
+            self.dataChanged.emit(self.index(0, 0), self.index(proxy_rows - 1, col_count - 1), [Qt.ItemDataRole.BackgroundRole])
 
     def refresh_groups(self) -> None:
         """Force a full recomputation of row groups, sort keys, and alternating group background shades."""
@@ -511,7 +516,7 @@ def clear_row_looky_badge(model: QStandardItemModel, row: int) -> None:
     if username_item.data(Qt.ItemDataRole.UserRole):
         username_item.setData(None, Qt.ItemDataRole.UserRole)
         username_item.setIcon(QIcon())
-        username_item.setForeground(QBrush())
+        username_item.setData(None, Qt.ItemDataRole.ForegroundRole)
         username_item.setToolTip('')
         source_item = model.item(row, SOURCE_COLUMN)
         if source_item.data(Qt.ItemDataRole.UserRole) == 'Looky':
