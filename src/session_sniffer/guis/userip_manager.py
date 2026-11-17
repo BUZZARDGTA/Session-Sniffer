@@ -219,15 +219,10 @@ class UserIPDatabasesManager(
         self._delete_tree_button.setMinimumWidth(self._delete_tree_button.sizeHint().width())
         self._delete_tree_button.setEnabled(False)
         tree_buttons.addWidget(self._delete_tree_button)
-        self._reset_all_button = make_button(
-            'rotate-ccw.svg',
-            f" {tr('Reset all\u2026')}",
-            tr('Permanently delete all user databases and restore defaults'),
-            self._reset_all_databases,
-            danger=True,
-        )
-        tree_buttons.addWidget(self._reset_all_button)
         left_layout.addLayout(tree_buttons)
+
+        self._resolve_conflicts_button = make_button('scale.svg', f" {tr('Resolve Conflicts\u2026')}", '', lambda: open_userip_conflict_resolver(None))
+        left_layout.addWidget(self._resolve_conflicts_button)
 
         # Filesystem-backed tree view
         USERIP_DATABASES_DIR_PATH.mkdir(parents=True, exist_ok=True)
@@ -270,7 +265,7 @@ class UserIPDatabasesManager(
 
         left_layout.addWidget(self._tree, stretch=1)
 
-        # Import / Export buttons (below the tree, above stats)
+        # Import / Export / Reset buttons (below the tree, above stats)
         transfer_buttons = QHBoxLayout()
         transfer_buttons.setSpacing(btn_row_spacing)
 
@@ -284,7 +279,6 @@ class UserIPDatabasesManager(
                 self._static_menu_actions.append((act, canonical_label))
 
         self._import_button = make_button('import.svg', f" {tr('Import\u2026')}", tr('Import database files into the databases directory'))
-        self._import_button.setMaximumWidth(scale_by_ui(130))
         self._import_button.setMenu(import_menu)
         transfer_buttons.addWidget(self._import_button)
 
@@ -306,12 +300,17 @@ class UserIPDatabasesManager(
                 self._static_menu_actions.append((act, canonical_label))
 
         self._export_button = make_button('upload.svg', f" {tr('Export\u2026')}", tr('Export databases to an external location'))
-        self._export_button.setMaximumWidth(scale_by_ui(130))
         self._export_button.setMenu(export_menu)
         transfer_buttons.addWidget(self._export_button)
 
-        self._resolve_conflicts_button = make_button('scale.svg', f" {tr('Resolve Conflicts\u2026')}", '', lambda: open_userip_conflict_resolver(None))
-        transfer_buttons.addWidget(self._resolve_conflicts_button)
+        self._reset_all_button = make_button(
+            'rotate-ccw.svg',
+            f" {tr('Reset all\u2026')}",
+            tr('Permanently delete all user databases and restore defaults'),
+            self._reset_all_databases,
+            danger=True,
+        )
+        transfer_buttons.addWidget(self._reset_all_button)
 
         left_layout.addLayout(transfer_buttons)
 
