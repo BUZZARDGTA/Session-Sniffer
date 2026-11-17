@@ -7,7 +7,6 @@ from PySide6.QtGui import QAction, QCloseEvent, QColor, QDesktopServices, QIcon,
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
-    QComboBox,
     QDialog,
     QFileSystemModel,
     QFrame,
@@ -38,7 +37,6 @@ from session_sniffer.guis.userip_conflict_resolver import open_userip_conflict_r
 from session_sniffer.guis.userip_manager_context_menu_mixin import EntriesContextMenuMixin
 from session_sniffer.guis.userip_manager_entries_ops_mixin import UserIPEntriesOperationsMixin
 from session_sniffer.guis.userip_manager_helpers import (
-    ADDED_AT_COLUMN,
     DATABASE_COLUMN,
     ENTRY_TABLE_HEADERS,
     INDEX_COLUMN,
@@ -80,14 +78,6 @@ if TYPE_CHECKING:
 
     from session_sniffer.models.userip_settings_model import UserIPEntryModel, UserIPSettingsModel
 
-_SORT_MODES: tuple[str, ...] = ('Groups', 'Date Added', 'Entry Order (#)')
-_SORT_MODE_TOOLTIP = (
-    'Choose how database entries are ordered:\n'
-    '\u2022 Groups: Keep linked accounts together in consecutive blocks separated by alternating background shades.\n'
-    '\u2022 Date Added: Sort entries by when they were added to the database, with alternating row shades.\n'
-    '\u2022 Entry Order (#): Sort entries by their sequential row number in the file, with alternating row shades.'
-)
-
 
 def _get_entry_table_header_tooltips() -> dict[str, str]:
     """Return localized header tooltips keyed by canonical entry table column name."""
@@ -102,28 +92,23 @@ def _get_entry_table_header_tooltips() -> dict[str, str]:
     }
 
 
-def _load_userip_manager_state() -> tuple[QByteArray | None, bool, QByteArray | None, dict[str, int] | None, str, int, Qt.SortOrder]:
+def _load_userip_manager_state() -> tuple[QByteArray | None, bool, QByteArray | None, dict[str, int] | None, bool, int, Qt.SortOrder]:
     """Load saved window geometry, maximized state, splitter state, table column widths, and sort state from local app data."""
     gui_state = GUIState.load()
     geom_hex, split_hex = gui_state.userip_manager_geometry, gui_state.userip_manager_splitter
     geometry = QByteArray.fromHex(geom_hex.encode('ascii')) if geom_hex is not None and geom_hex else None
     splitter = QByteArray.fromHex(split_hex.encode('ascii')) if split_hex is not None and split_hex else None
-    sort_mode = gui_state.userip_manager_sort_mode if gui_state.userip_manager_sort_mode in ('Groups', 'Date Added', 'Entry Order (#)') else 'Groups'
     sort_col = gui_state.userip_manager_sort_column if 0 <= gui_state.userip_manager_sort_column < len(ENTRY_TABLE_HEADERS) else INDEX_COLUMN
-    if sort_mode == 'Date Added':
-        sort_col = ADDED_AT_COLUMN
-    elif sort_mode == 'Entry Order (#)' or sort_col == ADDED_AT_COLUMN:
-        sort_col = INDEX_COLUMN
     sort_order = Qt.SortOrder.DescendingOrder if gui_state.userip_manager_sort_order == 1 else Qt.SortOrder.AscendingOrder
-    return geometry, gui_state.userip_manager_maximized, splitter, gui_state.userip_manager_table_column_widths, sort_mode, sort_col, sort_order
+    return geometry, gui_state.userip_manager_maximized, splitter, gui_state.userip_manager_table_column_widths, gui_state.userip_manager_group_accounts, sort_col, sort_order
 
 
-def _save_userip_manager_sort_state(sort_mode: str, sort_column: int, sort_order: Qt.SortOrder) -> None:
-    """Persist the active sort mode, sort column, and sort order to local app data."""
+def _save_userip_manager_sort_state(*, group_accounts: bool, sort_column: int, sort_order: Qt.SortOrder) -> None:
+    """Persist the account-grouping toggle, sort column, and sort order to local app data."""
     if not Settings.gui_remember_window_layout:
         return
     gui_state = GUIState.load()
-    gui_state.userip_manager_sort_mode = sort_mode
+    gui_state.userip_manager_group_accounts = group_accounts
     gui_state.userip_manager_sort_column = sort_column
     gui_state.userip_manager_sort_order = 1 if sort_order == Qt.SortOrder.DescendingOrder else 0
     gui_state.save()
@@ -143,7 +128,7 @@ class UserIPDatabasesManager(
     _cached_maximized: ClassVar[bool] = False
     _cached_splitter: ClassVar[QByteArray | None] = None
     _cached_column_widths: ClassVar[dict[str, int] | None] = None
-    _cached_sort_mode: ClassVar[str] = 'Groups'
+    _cached_group_accounts: ClassVar[bool] = True
     _cached_sort_column: ClassVar[int] = INDEX_COLUMN
     _cached_sort_order: ClassVar[Qt.SortOrder] = Qt.SortOrder.AscendingOrder
 
@@ -155,7 +140,7 @@ class UserIPDatabasesManager(
         self.setMinimumSize(scale_by_ui(1000), scale_by_ui(600))
         self._custom_column_widths: dict[str, int] | None = None
         self._is_programmatic_resizing: bool = False
-        self._syncing_sort_mode: bool = False
+        self._syncing_sort_state: bool = False
         self._static_menu_actions: list[tuple[QAction, str]] = []
 
         if Settings.gui_remember_window_layout and UserIPDatabasesManager._cached_geometry is None and GUI_STATE_PATH.is_file():
@@ -164,14 +149,14 @@ class UserIPDatabasesManager(
                 UserIPDatabasesManager._cached_maximized,
                 UserIPDatabasesManager._cached_splitter,
                 UserIPDatabasesManager._cached_column_widths,
-                UserIPDatabasesManager._cached_sort_mode,
+                UserIPDatabasesManager._cached_group_accounts,
                 UserIPDatabasesManager._cached_sort_column,
                 UserIPDatabasesManager._cached_sort_order,
             ) = _load_userip_manager_state()
         elif not Settings.gui_remember_window_layout:
             UserIPDatabasesManager._cached_geometry, UserIPDatabasesManager._cached_maximized = None, False
             UserIPDatabasesManager._cached_splitter, UserIPDatabasesManager._cached_column_widths = None, None
-            UserIPDatabasesManager._cached_sort_mode, UserIPDatabasesManager._cached_sort_column = 'Groups', INDEX_COLUMN
+            UserIPDatabasesManager._cached_group_accounts, UserIPDatabasesManager._cached_sort_column = True, INDEX_COLUMN
             UserIPDatabasesManager._cached_sort_order = Qt.SortOrder.AscendingOrder
 
         if UserIPDatabasesManager._cached_geometry is not None:
@@ -378,18 +363,12 @@ class UserIPDatabasesManager(
         self._global_search_checkbox.toggled.connect(self._on_global_search_toggled)
         search_bar.addWidget(self._global_search_checkbox)
 
-        sort_label = QLabel()
-        set_i18n_colon_label(sort_label, 'Sort by')
-        search_bar.addWidget(sort_label)
-        self._sort_mode_combo = QComboBox()
-        for mode in _SORT_MODES:
-            self._sort_mode_combo.addItem(tr(mode), mode)
-        self._sort_mode_combo.setToolTip(tr(_SORT_MODE_TOOLTIP))
-        self._sort_mode_combo.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-        if (initial_sort_idx := self._sort_mode_combo.findData(UserIPDatabasesManager._cached_sort_mode)) >= 0:
-            self._sort_mode_combo.setCurrentIndex(initial_sort_idx)
-        self._sort_mode_combo.activated.connect(self._on_sort_mode_activated)
-        search_bar.addWidget(self._sort_mode_combo)
+        self._group_accounts_checkbox = QCheckBox(tr('Group Accounts'))
+        self._group_accounts_checkbox.setToolTip(tr('Keep linked accounts together in consecutive blocks separated by alternating background shades'))
+        self._group_accounts_checkbox.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self._group_accounts_checkbox.setChecked(UserIPDatabasesManager._cached_group_accounts)
+        self._group_accounts_checkbox.toggled.connect(self._on_group_accounts_toggled)
+        search_bar.addWidget(self._group_accounts_checkbox)
 
         right_layout.addLayout(search_bar)
 
@@ -421,7 +400,7 @@ class UserIPDatabasesManager(
             SearchHighlightDelegate(self._entries_table, self._search_input.text, configure_editor=configure_username_cell_editor),
         )
         self._entries_table.setWordWrap(False)
-        self._apply_sort_mode(self._current_sort_mode(), restore_saved_column=True)
+        self._apply_sort_state(UserIPDatabasesManager._cached_sort_column, UserIPDatabasesManager._cached_sort_order)
         self._entries_table.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
         self._entries_table.setEditTriggers(
             QAbstractItemView.EditTrigger.DoubleClicked | QAbstractItemView.EditTrigger.EditKeyPressed,
@@ -520,16 +499,6 @@ class UserIPDatabasesManager(
             return raw
         return str(self._model.headerData(column, Qt.Orientation.Horizontal) or '')
 
-    def _current_sort_mode(self) -> str:
-        """Return the canonical sort mode stored on the Sort by combo box."""
-        mode = self._sort_mode_combo.currentData()
-        return mode if isinstance(mode, str) and mode in _SORT_MODES else 'Groups'
-
-    def _set_sort_mode_combo(self, canonical_mode: str) -> None:
-        """Select *canonical_mode* in the Sort by combo box by user data."""
-        if (idx := self._sort_mode_combo.findData(canonical_mode)) >= 0:
-            self._sort_mode_combo.setCurrentIndex(idx)
-
     def _refresh_tree_selection_labels(self) -> None:
         """Refresh tree toolbar buttons, export action text, and multi-selection summary after a language change."""
         selected_paths = self._selected_tree_paths()
@@ -565,11 +534,8 @@ class UserIPDatabasesManager(
         self._search_input.setPlaceholderText(tr('Filter entries by username, IP, or notes\u2026'))
         self._global_search_checkbox.setText(tr('Search All Databases'))
         self._global_search_checkbox.setToolTip(tr('Search across all UserIP database files (read-only)'))
-        self._sort_mode_combo.setToolTip(tr(_SORT_MODE_TOOLTIP))
-        with QSignalBlocker(self._sort_mode_combo):
-            for i in range(self._sort_mode_combo.count()):
-                if isinstance(mode := self._sort_mode_combo.itemData(i), str):
-                    self._sort_mode_combo.setItemText(i, tr(mode))
+        self._group_accounts_checkbox.setText(tr('Group Accounts'))
+        self._group_accounts_checkbox.setToolTip(tr('Keep linked accounts together in consecutive blocks separated by alternating background shades'))
 
         self._add_button.setText(f" {tr('Add Entry')}")
         self._add_button.setToolTip(tr('Add a new entry (single IP, IP range, or subnet) to the current database'))
@@ -773,62 +739,47 @@ class UserIPDatabasesManager(
         if not self._global_search_active:
             self._global_search_checkbox.setChecked(True)
 
-    def _apply_sort_mode(self, mode: str, *, restore_saved_column: bool = False) -> None:
-        """Apply `'Groups'`, `'Date Added'`, or `'Entry Order (#)'` sorting to the entries table."""
-        self._syncing_sort_mode = True
+    def _apply_sort_state(self, column: int, order: Qt.SortOrder) -> None:
+        """Apply *column* and *order* sorting alongside the cached account-grouping state."""
+        self._syncing_sort_state = True
         try:
-            self._proxy.set_group_sort_enabled(enabled=mode == 'Groups', invalidate=False)
-            if restore_saved_column:
-                target_col = UserIPDatabasesManager._cached_sort_column
-                if not self._global_search_active and target_col == DATABASE_COLUMN:
-                    target_col = INDEX_COLUMN
-                target_order = UserIPDatabasesManager._cached_sort_order
-            elif mode == 'Date Added':
-                target_col, target_order = ADDED_AT_COLUMN, Qt.SortOrder.DescendingOrder
-            else:
-                target_col = INDEX_COLUMN
-                target_order = UserIPDatabasesManager._cached_sort_order if UserIPDatabasesManager._cached_sort_column == INDEX_COLUMN else Qt.SortOrder.AscendingOrder
-            UserIPDatabasesManager._cached_sort_column, UserIPDatabasesManager._cached_sort_order = target_col, target_order
+            self._proxy.set_group_sort_enabled(enabled=UserIPDatabasesManager._cached_group_accounts, invalidate=False)
+            target_col = INDEX_COLUMN if not self._global_search_active and column == DATABASE_COLUMN else column
+            UserIPDatabasesManager._cached_sort_column, UserIPDatabasesManager._cached_sort_order = target_col, order
             if not self._entries_table.isSortingEnabled():
                 self._entries_table.setSortingEnabled(True)
-            self._entries_table.sortByColumn(target_col, target_order)
+            self._entries_table.sortByColumn(target_col, order)
             if viewport := self._entries_table.viewport():
                 viewport.update()
         finally:
-            self._syncing_sort_mode = False
+            self._syncing_sort_state = False
 
-    def _on_sort_mode_activated(self, index: int) -> None:
-        """Handle user changes to the Sort by combo box."""
-        if self._syncing_sort_mode:
-            return
-        raw_mode = self._sort_mode_combo.itemData(index)
-        mode = raw_mode if isinstance(raw_mode, str) and raw_mode in _SORT_MODES else 'Groups'
-        UserIPDatabasesManager._cached_sort_mode = mode
-        self._apply_sort_mode(mode)
-        _save_userip_manager_sort_state(mode, UserIPDatabasesManager._cached_sort_column, UserIPDatabasesManager._cached_sort_order)
+    def _on_group_accounts_toggled(self) -> None:
+        """Enable or disable account grouping while preserving the active sort column and order."""
+        checked = self._group_accounts_checkbox.isChecked()
+        UserIPDatabasesManager._cached_group_accounts = checked
+        self._proxy.set_group_sort_enabled(enabled=checked)
+        _save_userip_manager_sort_state(
+            group_accounts=checked,
+            sort_column=UserIPDatabasesManager._cached_sort_column,
+            sort_order=UserIPDatabasesManager._cached_sort_order,
+        )
+        if viewport := self._entries_table.viewport():
+            viewport.update()
 
     def _on_header_sort_indicator_changed(self, logical_index: int, order: Qt.SortOrder) -> None:
-        """Keep the Sort by combo box and group sort mode synchronized when the user clicks a column header."""
-        if self._syncing_sort_mode:
+        """Persist the active sort column and order when the user clicks a column header."""
+        if self._syncing_sort_state:
             return
-        self._syncing_sort_mode = True
-        try:
-            UserIPDatabasesManager._cached_sort_column = logical_index
-            UserIPDatabasesManager._cached_sort_order = order
-            current_mode = self._current_sort_mode()
-            if logical_index == ADDED_AT_COLUMN:
-                self._proxy.set_group_sort_enabled(enabled=False, invalidate=False)
-                self._set_sort_mode_combo('Date Added')
-                UserIPDatabasesManager._cached_sort_mode = 'Date Added'
-            elif current_mode == 'Date Added' or (current_mode == 'Entry Order (#)' and logical_index != INDEX_COLUMN):
-                self._proxy.set_group_sort_enabled(enabled=True, invalidate=False)
-                self._set_sort_mode_combo('Groups')
-                UserIPDatabasesManager._cached_sort_mode = 'Groups'
-            _save_userip_manager_sort_state(UserIPDatabasesManager._cached_sort_mode, logical_index, order)
-            if viewport := self._entries_table.viewport():
-                viewport.update()
-        finally:
-            self._syncing_sort_mode = False
+        UserIPDatabasesManager._cached_sort_column = logical_index
+        UserIPDatabasesManager._cached_sort_order = order
+        _save_userip_manager_sort_state(
+            group_accounts=UserIPDatabasesManager._cached_group_accounts,
+            sort_column=logical_index,
+            sort_order=order,
+        )
+        if viewport := self._entries_table.viewport():
+            viewport.update()
 
     def _on_global_search_toggled(self) -> None:
         """Switch between single-database editing mode and read-only global search mode."""
@@ -852,7 +803,7 @@ class UserIPDatabasesManager(
             self._export_selected_action.setEnabled(db_available)
         self._entries_table.setColumnHidden(DATABASE_COLUMN, not checked)
         if not checked and UserIPDatabasesManager._cached_sort_column == DATABASE_COLUMN:
-            self._apply_sort_mode(self._current_sort_mode())
+            self._apply_sort_state(INDEX_COLUMN, Qt.SortOrder.AscendingOrder)
         self._reset_column_sizes()
         self._settings_container.setVisible(db_available)
 
@@ -938,11 +889,11 @@ class UserIPDatabasesManager(
             geometry, maximized, splitter_state = self.saveGeometry(), self.isMaximized(), self._splitter.saveState()
             UserIPDatabasesManager._cached_geometry, UserIPDatabasesManager._cached_maximized = geometry, maximized
             UserIPDatabasesManager._cached_splitter, UserIPDatabasesManager._cached_column_widths = splitter_state, self._custom_column_widths
-            UserIPDatabasesManager._cached_sort_mode = self._current_sort_mode()
+            UserIPDatabasesManager._cached_group_accounts = self._group_accounts_checkbox.isChecked()
             gui_state = GUIState.load()
             gui_state.userip_manager_geometry, gui_state.userip_manager_maximized = geometry.toHex().toStdString(), maximized
             gui_state.userip_manager_splitter, gui_state.userip_manager_table_column_widths = splitter_state.toHex().toStdString(), self._custom_column_widths
-            gui_state.userip_manager_sort_mode = UserIPDatabasesManager._cached_sort_mode
+            gui_state.userip_manager_group_accounts = UserIPDatabasesManager._cached_group_accounts
             gui_state.userip_manager_sort_column = UserIPDatabasesManager._cached_sort_column
             gui_state.userip_manager_sort_order = 1 if UserIPDatabasesManager._cached_sort_order == Qt.SortOrder.DescendingOrder else 0
             gui_state.save()

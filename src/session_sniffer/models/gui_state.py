@@ -17,7 +17,7 @@ class GUIState(BaseModel):
     userip_manager_maximized: bool = False
     userip_manager_splitter: str | None = None
     userip_manager_table_column_widths: dict[str, int] | None = None
-    userip_manager_sort_mode: str = 'Groups'
+    userip_manager_group_accounts: bool = True
     userip_manager_sort_column: int = 0
     userip_manager_sort_order: int = 0
     main_window_splitter_sizes: list[int] | None = None
