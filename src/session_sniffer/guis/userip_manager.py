@@ -215,7 +215,7 @@ class UserIPDatabasesManager(
         self._new_folder_button = make_button('folder.svg', f" {tr('New Folder')}", tr('Create a new folder to organize databases'), self._new_folder)
         tree_buttons.addWidget(self._new_folder_button)
         # Delete slot is reconnected dynamically in _on_tree_selection_changed
-        self._delete_tree_button = make_button('remove.svg', f" {tr('Delete')}", tr('Delete the selected database or folder'), self._delete_tree_item, danger=True)
+        self._delete_tree_button = make_button('trash.svg', f" {tr('Delete')}", tr('Delete the selected database or folder'), self._delete_tree_item, danger=True)
         self._delete_tree_button.setMinimumWidth(self._delete_tree_button.sizeHint().width())
         self._delete_tree_button.setEnabled(False)
         tree_buttons.addWidget(self._delete_tree_button)
@@ -445,7 +445,7 @@ class UserIPDatabasesManager(
         )
         self._rename_button = make_button('square-pen.svg', f" {tr('Rename')}", tr('Rename the username of the selected entry or entries'), self._rename_selected)
         self._open_db_button = make_button('file-text.svg', f" {tr('Open DB')}", tr('Open the current database file in the default text editor'), self._open_db_in_editor)
-        self._delete_button = make_button('remove.svg', f" {tr('Delete Selected')}", tr('Delete the selected entries (with confirmation)'), self._delete_selected, danger=True)
+        self._delete_button = make_button('trash.svg', f" {tr('Delete Selected')}", tr('Delete the selected entries (with confirmation)'), self._delete_selected, danger=True)
         for entry_button in (self._add_button, self._edit_ip_button, self._rename_button, self._open_db_button):
             entry_button.setEnabled(False)
             entry_buttons.addWidget(entry_button)

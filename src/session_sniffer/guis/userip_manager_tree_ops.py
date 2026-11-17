@@ -509,7 +509,7 @@ class TreeOperationsMixin(QDialog):
                 else tr('Delete the selected database or folder')
             )
             button_text = f" {tr('Delete ({count})', count=count)}" if count > 1 else f" {tr('Delete')}"
-            self._delete_tree_button.setIcon(QIcon(str(ICONS_DIR_PATH / 'remove.svg')))
+            self._delete_tree_button.setIcon(QIcon(str(ICONS_DIR_PATH / 'trash.svg')))
             self._delete_tree_button.setText(button_text)
             self._delete_tree_button.setToolTip(tooltip or default_tip)
             self._delete_tree_button.clicked.disconnect()
