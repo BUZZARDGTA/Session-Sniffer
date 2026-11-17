@@ -280,7 +280,7 @@ def _is_running_executable_identical(candidate_info: VersionInfo) -> bool:
 
 def _download_and_apply(
     candidate_info: VersionInfo,
-    version_str: str,
+    candidate_version: Version,
     *,
     is_prerelease: bool,
 ) -> None:
@@ -291,7 +291,7 @@ def _download_and_apply(
 
     candidate = UpdateCandidate(
         download_url=candidate_info.platform_download_url,
-        version_label=version_str,
+        version=candidate_version,
         sha256_hash=candidate_info.platform_sha256,
         size_bytes=_resolve_candidate_file_size(candidate_info),
         is_prerelease=is_prerelease,
@@ -413,6 +413,5 @@ def _handle_update_decision(
         format_project_version(candidate),
     )
 
-    version_str = format_project_version(candidate)
-    pending = functools.partial(_download_and_apply, candidate_info, version_str, is_prerelease=is_candidate_prerelease)
+    pending = functools.partial(_download_and_apply, candidate_info, candidate, is_prerelease=is_candidate_prerelease)
     return (UpdateCheckOutcome.PROCEED, pending)

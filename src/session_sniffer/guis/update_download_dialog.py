@@ -11,7 +11,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING, ClassVar, override
 
 import requests
-from packaging.version import Version
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor, QFont
 from PySide6.QtWidgets import (
@@ -58,9 +57,10 @@ from session_sniffer.guis.theming import themed_qss
 from session_sniffer.guis.utils import center_window_on_screen, render_svg_pixmap_from_resource
 from session_sniffer.i18n import tr
 from session_sniffer.networking.http_session import session
-from session_sniffer.utils import format_project_version, is_pyinstaller_compiled
+from session_sniffer.utils import format_project_version_date, is_pyinstaller_compiled
 
 if TYPE_CHECKING:
+    from packaging.version import Version
     from PySide6.QtGui import QCloseEvent
 
 logger = logging.getLogger(__name__)
@@ -132,7 +132,7 @@ class UpdateCandidate:
     """Metadata describing a candidate release to be downloaded and verified."""
 
     download_url: str
-    version_label: str
+    version: Version
     sha256_hash: str
     size_bytes: int | None = None
     is_prerelease: bool = False
@@ -163,7 +163,6 @@ class UpdateDownloadDialog(DraggableDialogMixin, QDialog):
         self._success = False
         self._skipped = False
         self._cleaned_up = False
-        self._current_version_label = format_project_version(CURRENT_VERSION)
         self._current_size_text = self._compute_current_build_size_text()
         self._current_sha256_hash = self._compute_current_build_sha256()
         self._error_message = ''
@@ -245,7 +244,7 @@ class UpdateDownloadDialog(DraggableDialogMixin, QDialog):
         row.addWidget(
             self._create_version_card(
                 tr('CURRENT'),
-                self._current_version_label,
+                CURRENT_VERSION,
                 self._current_size_text,
                 self._current_sha256_hash,
                 accent=False,
@@ -264,7 +263,7 @@ class UpdateDownloadDialog(DraggableDialogMixin, QDialog):
         row.addWidget(
             self._create_version_card(
                 tr('NEW VERSION'),
-                self._candidate.version_label,
+                self._candidate.version,
                 new_size_text,
                 self._candidate.sha256_hash,
                 accent=True,
@@ -277,7 +276,7 @@ class UpdateDownloadDialog(DraggableDialogMixin, QDialog):
     def _create_version_card(
         self,
         label: str,
-        version_label: str,
+        version: Version,
         size_text: str,
         sha_hash: str | None,
         *,
@@ -287,8 +286,10 @@ class UpdateDownloadDialog(DraggableDialogMixin, QDialog):
 
         `accent=True` styles the card as the highlighted "downloading" target.
         """
-        version_text, date_text = self._split_version_label(version_label)
-        is_prerelease = (self._candidate.is_prerelease or Version(version_text).is_prerelease) if accent else CURRENT_VERSION.is_prerelease
+        version_text = f'v{version.public}'
+        date_text = format_project_version_date(version, local_time=True)
+        utc_date_text = format_project_version_date(version)
+        is_prerelease = (self._candidate.is_prerelease or version.is_prerelease) if accent else version.is_prerelease
 
         card = QFrame()
         card.setFixedWidth(270)
@@ -341,15 +342,19 @@ class UpdateDownloadDialog(DraggableDialogMixin, QDialog):
         card_layout.addWidget(version_widget)
 
         if date_text:
+            utc_tooltip = f'{utc_date_text} UTC'
             date_row = QHBoxLayout()
             date_row.setSpacing(6)
             date_row.setContentsMargins(0, 0, 0, 0)
 
-            date_row.addWidget(self._svg_label('calendar-days.svg', 16, 16), 0, Qt.AlignmentFlag.AlignVCenter)
+            calendar_icon = self._svg_label('calendar-days.svg', 16, 16)
+            calendar_icon.setToolTip(utc_tooltip)
+            date_row.addWidget(calendar_icon, 0, Qt.AlignmentFlag.AlignVCenter)
 
             date_widget = QLabel(date_text)
             date_widget.setFont(get_monospace_font(9))
             date_widget.setStyleSheet(UPDATE_DOWNLOAD_VERSION_CARD_DATE_STYLESHEET)
+            date_widget.setToolTip(utc_tooltip)
             date_row.addWidget(date_widget, 0, Qt.AlignmentFlag.AlignVCenter)
             date_row.addStretch(1)
 
@@ -400,17 +405,6 @@ class UpdateDownloadDialog(DraggableDialogMixin, QDialog):
             mid = len(sha_hash) // 2
             return f'{sha_hash[:mid]}\n{sha_hash[mid:]}'
         return sha_hash
-
-    @staticmethod
-    def _split_version_label(label: str) -> tuple[str, str]:
-        """Split a `format_project_version` output into (version, date) parts.
-
-        Format is either "vX.Y.Z" or "vX.Y.Z - YYYY/MM/DD (HH:MM)".
-        """
-        if ' - ' in label:
-            version, _, date = label.partition(' - ')
-            return version.strip(), date.strip()
-        return label.strip(), ''
 
     @staticmethod
     def _format_size_mb(num_bytes: int) -> str:

@@ -277,10 +277,21 @@ def get_file_signature(file_path: Path) -> FileSignature | None:
     return stat.st_mtime_ns, stat.st_ctime_ns, stat.st_size, stat.st_ino
 
 
-def format_project_version(version: Version) -> str:
+def format_project_version_date(version: Version, *, local_time: bool = False) -> str:
+    """Format the build timestamp component of a project version, or return an empty string."""
+    if version.local is None:
+        return ''
+    date_part, sep, time_part = version.local.partition('.')
+    normalized_local = f'{date_part}.{time_part.zfill(4)}' if sep else version.local
+    parsed_dt = datetime.strptime(normalized_local, '%Y%m%d.%H%M').replace(tzinfo=UTC)
+    if local_time:
+        parsed_dt = parsed_dt.astimezone()
+    return parsed_dt.strftime('%Y/%m/%d (%H:%M)')
+
+
+def format_project_version(version: Version, *, local_time: bool = False) -> str:
     """Format the project version for display."""
-    if version.local is not None:
-        date_time = datetime.strptime(version.local, '%Y%m%d.%H%M').replace(tzinfo=UTC).strftime('%Y/%m/%d (%H:%M)')
+    if date_time := format_project_version_date(version, local_time=local_time):
         return f'v{version.public} - {date_time}'
 
     return f'v{version.public}'
