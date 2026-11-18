@@ -8,7 +8,7 @@ import logging
 from threading import Thread
 from threading import enumerate as enumerate_threads
 
-from session_sniffer.background import wake_looky_core
+from session_sniffer.background.cores import wake_looky_core
 from session_sniffer.background.events import gui_closed__event
 from session_sniffer.capture.process import (
     ProcessInfo,

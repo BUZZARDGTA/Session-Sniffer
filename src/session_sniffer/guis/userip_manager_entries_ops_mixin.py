@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 from PySide6.QtCore import QItemSelectionModel, QModelIndex, QPersistentModelIndex, QSignalBlocker, Qt
 from PySide6.QtWidgets import QAbstractItemView, QDialog, QFrame, QInputDialog, QLineEdit, QMessageBox, QTreeView
 
-from session_sniffer.constants.local import APP_DIR_ROAMING, USERIP_DATABASES_DIR_PATH
+from session_sniffer.constants.local import APP_DIR_ROAMING, USERIP_DATABASES_DIR_PATH, USERIP_GROUPS_PATH
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.guis.select_usernames_dialog import prompt_username_input, prompt_usernames_and_notes_input
 from session_sniffer.guis.userip_manager_helpers import (
@@ -41,7 +41,7 @@ from session_sniffer.i18n import tr, tr_plural
 from session_sniffer.models.userip_settings_model import UserIPDatabaseFile, UserIPEntryModel, UserIPSettingsModel
 from session_sniffer.networking.ip_range import is_valid_ip_range_entry
 from session_sniffer.player.userip import UserIPDatabases
-from session_sniffer.player.userip_groups import MIN_GROUP_USERNAMES, USERIP_GROUPS_PATH, are_usernames_unlinked, group_usernames
+from session_sniffer.player.userip_groups import MIN_GROUP_USERNAMES, are_usernames_unlinked, group_usernames
 from session_sniffer.player.userip_loader import (
     append_userip_entries,
     is_in_app_userip_db_content,

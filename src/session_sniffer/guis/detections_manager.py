@@ -23,7 +23,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from session_sniffer.background import clear_voice_notification_queue, retrigger_detections_scan
+from session_sniffer.background.tasks import retrigger_detections_scan
+from session_sniffer.background.voice_notifications import clear_voice_notification_queue
 from session_sniffer.constants.local import COMBO_RULES_PATH, DETECTIONS_JSON_PATH
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.guis._combo_rule_editor import (

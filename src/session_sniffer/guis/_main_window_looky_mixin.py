@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 from PySide6.QtGui import QAction, QIcon
 from PySide6.QtWidgets import QMainWindow, QMenu, QMessageBox
 
-from session_sniffer.background import trigger_looky_rescan_all_players
+from session_sniffer.background.cores import trigger_looky_rescan_all_players
 from session_sniffer.guis._main_window_shortcuts_mixin import append_shortcut_tooltip
 from session_sniffer.guis.looky_text import (
     configure_looky_action,

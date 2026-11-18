@@ -4,7 +4,9 @@ from contextlib import nullcontext
 from dataclasses import replace
 from typing import TYPE_CHECKING
 
-from session_sniffer.background import clear_voice_notification_queue, ensure_looky_core_running, retrigger_detections_scan, wake_looky_core
+from session_sniffer.background.cores import ensure_looky_core_running, wake_looky_core
+from session_sniffer.background.tasks import retrigger_detections_scan
+from session_sniffer.background.voice_notifications import clear_voice_notification_queue
 from session_sniffer.capture.filters import build_capture_filters
 from session_sniffer.capture.process_monitor import ensure_process_monitor_running
 from session_sniffer.guis.live_language import apply_runtime_language

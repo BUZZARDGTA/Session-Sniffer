@@ -195,7 +195,3 @@ def install_exception_handlers() -> None:
         signal.signal(signal.SIGTERM, handle_sigterm)
     if hasattr(signal, 'SIGBREAK'):
         signal.signal(signal.SIGBREAK, handle_sigterm)
-
-
-# Install global exception/signal handlers at import time
-install_exception_handlers()

@@ -12,8 +12,9 @@ from PySide6.QtGui import QAction, QCloseEvent, QIcon, QShowEvent
 from PySide6.QtWidgets import QLabel, QMainWindow, QMenuBar, QSplitter, QVBoxLayout, QWidget
 from shiboken6 import isValid
 
-from session_sniffer.background import clear_resolution_queues, retrigger_detections_scan, wake_all_player_cores
+from session_sniffer.background.cores import clear_resolution_queues, wake_all_player_cores
 from session_sniffer.background.events import gui_closed__event
+from session_sniffer.background.tasks import retrigger_detections_scan
 from session_sniffer.constants.local import COMBO_RULES_PATH, DETECTIONS_JSON_PATH, SETTINGS_PATH
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.core import terminate_script

@@ -10,7 +10,7 @@ from PySide6.QtGui import QAction, QKeySequence, QShortcut
 from PySide6.QtWidgets import QMainWindow
 from shiboken6 import isValid
 
-from session_sniffer.background import trigger_looky_rescan_all_players
+from session_sniffer.background.cores import trigger_looky_rescan_all_players
 from session_sniffer.background.events import gui_closed__event
 from session_sniffer.ctypes_windows import (
     WIN32_MOD_ALT,

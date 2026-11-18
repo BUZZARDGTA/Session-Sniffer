@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 
 from PySide6.QtGui import QIcon
 
-from session_sniffer.background import retrigger_detections_scan
+from session_sniffer.background.tasks import retrigger_detections_scan
 from session_sniffer.guis.country_data import matches_country, normalize_country_name
 from session_sniffer.guis.detections_manager import DetectionsManagerDialog, open_combo_rule_editor, open_combo_rule_editor_for_player
 from session_sniffer.guis.theming import ICONS_DIR_PATH
