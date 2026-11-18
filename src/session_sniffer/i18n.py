@@ -542,7 +542,6 @@ def get_web_panel_i18n() -> dict[str, str]:
         'config': tr('Config'),
         'issues': tr('Issues'),
         'performance': tr('Performance'),
-        'initializing': tr('Initializing...'),
         'connected': tr('Connected'),
         'disconnected': tr('Disconnected'),
         'connected_players': tr('Connected Players'),

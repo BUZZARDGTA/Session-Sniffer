@@ -201,11 +201,6 @@ def stage_theme_transform_and_icons(theme: Theme) -> ThemeTransform:
     return transform
 
 
-def set_active_theme(theme: Theme) -> None:
-    """Switch the active theme transform, regenerate active SVG icons in place, and notify listeners."""
-    commit_prepared_theme(theme, stage_theme_transform_and_icons(theme))
-
-
 def try_recover_canonical_qss(text: str) -> str | None:
     """Return the canonical Dark QSS/HTML string if *text* was emitted by `themed_qss`, else `None`."""
     if not text:
@@ -317,7 +312,6 @@ __all__ = [
     'register_theme_change_callback',
     'resolve_canonical_tint_pair',
     'save_themes_file',
-    'set_active_theme',
     'stage_theme_transform_and_icons',
     'themed_color',
     'themed_qcolor',
