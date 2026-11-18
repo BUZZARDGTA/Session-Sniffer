@@ -240,7 +240,7 @@ def main() -> None:
             delete_empty_files=Settings.gui_sessions_logging_delete_empty_files,
             delete_empty_folders=Settings.gui_sessions_logging_delete_empty_folders,
             gui_sessions_logging=Settings.gui_sessions_logging,
-            active_session_path=SESSIONS_LOGGING_PATH.with_suffix('.json'),
+            active_session_path=SESSIONS_LOGGING_PATH,
         )
 
     splash.update_status(tr('Network interface selection'))

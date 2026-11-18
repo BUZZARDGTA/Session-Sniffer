@@ -390,16 +390,15 @@ def rendering_core(
 
         def _write_session_logging_task(model_snapshot: SessionLogFile) -> None:
             nonlocal _last_written_session_json, _session_logging_writing
-            json_path = SESSIONS_LOGGING_PATH.with_suffix('.json')
             try:
                 json_content = model_snapshot.model_dump_json(by_alias=True)
-                file_exists = json_path.is_file()
+                file_exists = SESSIONS_LOGGING_PATH.is_file()
                 if json_content == _last_written_session_json and file_exists:
                     return
-                atomic_write_text(json_path, json_content)
+                atomic_write_text(SESSIONS_LOGGING_PATH, json_content)
                 _last_written_session_json = json_content
             except OSError as e:
-                logger.warning('Failed to write session log to %s: %s', json_path, e)
+                logger.warning('Failed to write session log to %s: %s', SESSIONS_LOGGING_PATH, e)
             finally:
                 with _session_logging_lock:
                     _session_logging_writing = False

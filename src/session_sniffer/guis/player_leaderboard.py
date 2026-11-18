@@ -424,7 +424,7 @@ class PlayerLeaderboardWindow(ToggleAlwaysOnTopMixin):
         self._overlaid_ips: frozenset[str] = frozenset()
         # Number of players in the current baseline + live overlay (excludes stale rows the model keeps).
         self._total_players = 0
-        self._live_session_file: Path = SESSIONS_LOGGING_PATH.with_suffix('.json')
+        self._live_session_file: Path = SESSIONS_LOGGING_PATH
         self._baseline_worker: LeaderboardBaselineWorker | None = None
         self._overlay_worker: LeaderboardOverlayWorker | None = None
 

@@ -853,7 +853,7 @@ class SessionsLogTab(QWidget):
             return
 
         top_paths = prune_nested_paths(selected_paths)
-        protected_active = SESSIONS_LOGGING_PATH.with_suffix('.json') if Settings.gui_sessions_logging else None
+        protected_active = SESSIONS_LOGGING_PATH if Settings.gui_sessions_logging else None
         if (
             len(top_paths) == 1
             and top_paths[0].is_file()

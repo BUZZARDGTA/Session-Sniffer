@@ -208,24 +208,18 @@ def get_app_dir(*, scope: Literal['roaming', 'local']) -> Path:
 
 
 def get_session_log_path(base_dir: Path, tz: tzinfo) -> Path:
-    """Generate a timestamped session log path in a year/month/day folder structure.
+    """Generate a timestamped session JSON log path in a year/month/day folder structure.
 
     Args:
         base_dir: Root directory for session logs.
         tz: Timezone to use for timestamps.
 
     Returns:
-        Full path to the timestamped log file.
+        Full path to the timestamped session `.json` file (without creating directories on disk).
     """
     now = datetime.now(tz=tz)
     date_dir = base_dir / now.strftime('%Y') / now.strftime('%m') / now.strftime('%d')
-    date_dir.mkdir(parents=True, exist_ok=True)
-    current_dir: Path | None = date_dir
-    while current_dir and current_dir != base_dir.parent:
-        if current_dir.exists():
-            _ensure_path_ownership(current_dir)
-        current_dir = current_dir.parent
-    return date_dir / f'{now.strftime("%Y-%m-%d_%H-%M-%S")}.log'
+    return date_dir / f'{now.strftime("%Y-%m-%d_%H-%M-%S")}.json'
 
 
 def validate_file(file_path: Path) -> None:
@@ -251,7 +245,15 @@ _ATOMIC_REPLACE_RETRY_DELAY_SECONDS = 0.02
 
 def atomic_write_text(file_path: Path, content: str) -> None:
     """Write UTF-8 text atomically to *file_path* via a sibling temporary file."""
+    missing_parents: list[Path] = []
+    if sys.platform != 'win32':
+        parent_dir = file_path.parent
+        while parent_dir != parent_dir.parent and not parent_dir.exists():
+            missing_parents.append(parent_dir)
+            parent_dir = parent_dir.parent
     file_path.parent.mkdir(parents=True, exist_ok=True)
+    for created_dir in reversed(missing_parents):
+        _ensure_path_ownership(created_dir)
     tmp_path = file_path.with_name(f'{file_path.name}.tmp')
     tmp_path.write_text(content, encoding='utf-8')
     for attempt in range(1, _ATOMIC_REPLACE_ATTEMPTS + 1):
@@ -262,6 +264,7 @@ def atomic_write_text(file_path: Path, content: str) -> None:
                 raise
             time.sleep(_ATOMIC_REPLACE_RETRY_DELAY_SECONDS)
         else:
+            _ensure_path_ownership(file_path)
             return
 
 

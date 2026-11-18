@@ -172,7 +172,6 @@ class LogsManager(QDialog):
     def clean_empty_sessions(self) -> None:
         """Manually clean up empty session log files and empty directories."""
         gui_sessions_logging = Settings.gui_sessions_logging
-        active_session_path = SESSIONS_LOGGING_PATH.with_suffix('.json')
 
         def _run_cleanup() -> tuple[int, int]:
             return cleanup_session_logs(
@@ -180,7 +179,7 @@ class LogsManager(QDialog):
                 delete_empty_files=True,
                 delete_empty_folders=True,
                 gui_sessions_logging=gui_sessions_logging,
-                active_session_path=active_session_path,
+                active_session_path=SESSIONS_LOGGING_PATH,
             )
 
         def _on_cleanup_done(outcome: tuple[int, int]) -> None:
