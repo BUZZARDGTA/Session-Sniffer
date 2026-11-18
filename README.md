@@ -66,8 +66,14 @@ Grab the latest standalone executable for **Windows**, **Linux**, or **macOS**�
 
 ## 🎮 Officially Tested and Supported P2P Video Games
 
+Confirmed across **Grand Theft Auto Online**, **Red Dead Online**, **Call of Duty**, **ELDEN RING**, **Borderlands**, **Minecraft**, **Payday 2**, **AnyDesk**, **OmeTV**, and many more on PC, PlayStation, Xbox, and mobile:
+
+<details>
+<summary><b>🕹️ View all 56 Officially Tested Video Games</b> <i>(click to expand)</i></summary>
+<br>
+
 | Supported Video Games                             | Tested Platforms                         |  Username Resolving  | Additional Note(s)                                                                                                                                                |
-| :-----------------------------------------------: | :--------------------------------------: | :------------------: | :---------------------------------------------------------------------------------------------------------------------------------------------------------------: |
+| :-----------------------------------------------: | :--------------------------------------: | :------------------: | :---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Borderlands 2                                     | PC                                       |          No          | Only the host is connected through P2P                                                                                                                            |
 | Borderlands 3                                     | PC                                       |          No          | Only the host is connected through P2P                                                                                                                            |
 | Borderlands 4                                     | PC                                       |          No          |                                                                                                                                                                   |
@@ -125,10 +131,14 @@ Grab the latest standalone executable for **Windows**, **Linux**, or **macOS**�
 | Warframe                                          | PC                                       |          No          |                                                                                                                                                                   |
 | Watch Dogs® 2                                     | PC                                       |          No          |                                                                                                                                                                   |
 
----
+</details>
+
+<details>
+<summary><b>💻 View all 12 Officially Tested Applications & Softwares</b> <i>(click to expand)</i></summary>
+<br>
 
 | Supported Softwares      | Tested Platforms                   |  Username Resolving  | Additional Note(s)                                                                                                                                                                                           |
-| :----------------------: | :--------------------------------: | :------------------: | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------: |
+| :----------------------: | :--------------------------------: | :------------------: | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Any torrenting softwares | Any                                |          No          |                                                                                                                                                                                                              |
 | AnyDesk                  | PC                                 |          No          |                                                                                                                                                                                                              |
 | Azar                     | Android, iOS                       |          No          |                                                                                                                                                                                                              |
@@ -141,6 +151,8 @@ Grab the latest standalone executable for **Windows**, **Linux**, or **macOS**�
 | Snapchat                 | Android, iOS                       |          No          | Sometimes the IP does not leak, or ARP spoofing drops packets. Restarting the app or initiating a call with the camera enabled can help. The IP is typically only exposed at the very beginning of the call. |
 | TeamViewer               | PC                                 |          No          |                                                                                                                                                                                                              |
 | WhatsApp                 | PC                                 |          No          | Calls usually route through a server; exact circumstances for P2P connections are unclear.                                                                                                                   |
+
+</details>
 
 > _Note_: Session Sniffer works with **any** Peer-to-Peer (P2P) game or application—the tables above list titles that have been officially tested and confirmed.
 
