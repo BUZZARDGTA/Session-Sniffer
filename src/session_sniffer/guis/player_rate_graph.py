@@ -514,8 +514,8 @@ class PlayerRateGraphWindow(DualRateGraphBase):
             interval_spin.setSuffix(f" {tr('seconds')}")
             mode_desc = tr(
                 'Detection mode for flagging high packet-rate players.\n\n'
-                'Smart: Dynamically calculates the average PPS and BPS of connected players and flags players '
-                'exceeding the session averages with a margin and minimum floor.\n'
+                'Smart: Dynamically calculates thresholds from the session median and interquartile range (IQR) '
+                'of active connected players with a minimum floor.\n'
                 'Manual: Flags players exceeding fixed PPS and BPS thresholds.',
             )
             local_note = tr('Changes here apply only to this graph window and do not modify global settings.')
@@ -545,7 +545,7 @@ class PlayerRateGraphWindow(DualRateGraphBase):
         is_manual = self._monitor_mode == 'Manual'
         scope_disabled_note = tr('Disabled when Spike Sound Scope is set to Disabled.')
         repeat_disabled_note = tr('Only applies when Spike Sound Behavior repeats while spiking (Repeating, Repeating + End, or Adaptive Geiger).')
-        smart_disabled_note = tr('Disabled in Smart mode (packet rate thresholds are calculated dynamically from the session average).')
+        smart_disabled_note = tr('Disabled in Smart mode (packet rate thresholds are calculated dynamically from session traffic).')
         drag_tip = tr('Tip: Drag the dashed threshold line directly on the graph to adjust it on the fly.')
         local_note = tr('Changes here apply only to this graph window and do not modify global settings.')
 

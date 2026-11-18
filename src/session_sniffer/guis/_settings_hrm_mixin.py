@@ -52,7 +52,7 @@ class SettingsDialogHighRateMonitorMixin(QDialog):
             if meta is not None:
                 tooltip = format_setting_tooltip(meta) or ''
                 if not is_manual:
-                    disabled_note = tr('Disabled in Smart mode (packet rate thresholds are calculated dynamically from the session average).')
+                    disabled_note = tr('Disabled in Smart mode (packet rate thresholds are calculated dynamically from session traffic).')
                     tooltip = f'{tooltip}\n\n{disabled_note}' if tooltip else disabled_note
                 if label is not None:
                     label.setToolTip(tooltip)
