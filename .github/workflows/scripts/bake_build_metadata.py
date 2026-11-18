@@ -77,6 +77,10 @@ def compute_os_info() -> str:
 
     machine = platform.machine()
     architecture = 'x64' if machine in ('AMD64', 'x86_64') else machine
+    if sys.platform == 'darwin':
+        macos_version = platform.mac_ver()[0]
+        version_string = macos_version or platform.version()
+        return f'macOS {architecture} {version_string}'
     return f'{platform.system()} {architecture} {platform.version()}'
 
 
@@ -117,15 +121,15 @@ def bake_metadata(repo_root: Path) -> None:
 
     build_info_path = repo_root / 'src' / 'session_sniffer' / 'constants' / '_build_info.py'
     build_info_content = (
-        '"""Build-time metadata frozen by the CI workflow."""\r\n'
-        f'RELEASE_TAG: str = {release_tag!r}\r\n'
-        f'RELEASE_DATE: str = {release_date!r}\r\n'
-        f'COMMIT_SHA: str = {commit_sha!r}\r\n'
-        f'COMMIT_DATE: str = {commit_date!r}\r\n'
-        f'PYSIDE6_VERSION: str = {pyside6_version!r}\r\n'
-        f'OS_INFO: str = {os_info!r}\r\n'
+        '"""Build-time metadata frozen by the CI workflow."""\n'
+        f'RELEASE_TAG: str = {release_tag!r}\n'
+        f'RELEASE_DATE: str = {release_date!r}\n'
+        f'COMMIT_SHA: str = {commit_sha!r}\n'
+        f'COMMIT_DATE: str = {commit_date!r}\n'
+        f'PYSIDE6_VERSION: str = {pyside6_version!r}\n'
+        f'OS_INFO: str = {os_info!r}\n'
     )
-    build_info_path.write_text(build_info_content, encoding='utf-8')
+    build_info_path.write_text(build_info_content, encoding='utf-8', newline='\r\n')
 
     # Verify baked metadata
     for prohibited in PROHIBITED_SUBSTRINGS:
