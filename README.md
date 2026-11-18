@@ -81,11 +81,11 @@ See the [**Supported Games and Softwares**](https://github.com/BUZZARDGTA/Sessio
 
 - **Operating System**:
   - **Windows**: [Windows](https://www.microsoft.com/windows) 10 or 11 (x64)
-  - **Linux**: [Ubuntu](https://ubuntu.com) 22.04+ / Debian-based (x64)
+  - **Linux**: [Ubuntu](https://ubuntu.com) 24.04+ / [Debian](https://www.debian.org) 13+ (x64) *(or Ubuntu 22.04+ / Debian 12+ when [running from source](https://github.com/BUZZARDGTA/Session-Sniffer/wiki/Running-from-Source))*
   - **macOS**: [macOS](https://www.apple.com/macos) 14+ Sonoma or later (Apple Silicon ARM64)
 - **Packet Capture Driver / Library**:
   - **Windows**: [Npcap](https://npcap.com/) *(prompted automatically on first launch if missing)*
-  - **Linux**: `libpcap` (`sudo apt install libpcap-dev`) and capture capabilities granted to the binary (`sudo setcap cap_net_raw,cap_net_admin,cap_sys_ptrace=eip Session_Sniffer`) or Python interpreter
+  - **Linux**: `libpcap` (`sudo apt install libpcap0.8`) and capture capabilities granted to the binary (`sudo setcap cap_net_raw,cap_net_admin,cap_sys_ptrace=eip Session_Sniffer`) or Python interpreter
   - **macOS**: Built-in `libpcap` with capture permissions granted to `/dev/bpf*` (e.g. `sudo chmod 666 /dev/bpf*` or Wireshark's `ChmodBPF` package)
 - **Geolocation Databases**: [MaxMind GeoLite2](https://dev.maxmind.com/geoip/geolite2-free-geolocation-data/) *(downloaded and updated automatically on startup)*
 
