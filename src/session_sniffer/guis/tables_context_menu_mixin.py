@@ -1,5 +1,6 @@
 """Context menu mixin for SessionTableView right-click interactions."""
 
+import sys
 from datetime import datetime
 from typing import TYPE_CHECKING, cast
 
@@ -603,7 +604,12 @@ class TableContextMenuMixin(QTableView):
             )
 
         def get_script_candidates(directory: Path) -> list[Path]:
-            allowed_suffixes = {'.bat', '.cmd', '.exe', '.py', '.lnk'}
+            if sys.platform == 'win32':
+                allowed_suffixes = {'.bat', '.cmd', '.exe', '.py', '.lnk'}
+            elif sys.platform == 'darwin':
+                allowed_suffixes = {'.py', '.sh', '.command'}
+            else:
+                allowed_suffixes = {'.py', '.sh'}
             return [script for script in directory.glob('*') if (script.is_file() and not script.name.startswith(('_', '.')) and script.suffix.casefold() in allowed_suffixes)]
 
         def create_script_handler(script_path: Path, ip_addresses: list[str]) -> Callable[[], None]:

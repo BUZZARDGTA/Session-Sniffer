@@ -508,20 +508,37 @@ def resolve_lnk(shortcut_path: Path) -> Path:
     return resolve_lnk_win32(shortcut_path)
 
 
-def _launch_detached_command(command: list[str]) -> subprocess.Popen[bytes]:
+def _launch_detached_command(command: list[str] | str, *, creationflags: int = 0) -> subprocess.Popen[bytes]:
     """Launch a command asynchronously in a detached child process."""
+    if creationflags:
+        return subprocess.Popen(command, creationflags=creationflags)
     return subprocess.Popen(command)
+
+
+def _resolve_windows_python_executable() -> str:
+    """Return the preferred console Python executable for launching .py scripts on Windows."""
+    if not is_pyinstaller_compiled():
+        executable = Path(sys.executable)
+        if executable.name.casefold() == 'pythonw.exe':
+            console_executable = executable.with_name('python.exe')
+            if console_executable.is_file():
+                return str(console_executable)
+        return str(executable)
+    return shutil.which('py') or shutil.which('python') or shutil.which('python3') or 'py'
 
 
 def run_cmd_script(script: Path, args: list[str] | None = None) -> None:
     """Executes a script with the given arguments in a new terminal window."""
-    if script.suffix.casefold() == '.lnk':
+    if sys.platform == 'win32' and script.suffix.casefold() == '.lnk':
         script = resolve_lnk(script)
 
     if sys.platform != 'win32':
-        if script.suffix.casefold() == '.py':
+        suffix = script.suffix.casefold()
+        if suffix == '.py':
             python_executable = (shutil.which('python3') or shutil.which('python') or 'python3') if is_pyinstaller_compiled() else sys.executable
             command = [python_executable, str(script)]
+        elif suffix in {'.sh', '.command'} and not os.access(script, os.X_OK):
+            command = [shutil.which('sh') or '/bin/sh', str(script)]
         else:
             command = [str(script)]
         if args is not None:
@@ -531,24 +548,33 @@ def run_cmd_script(script: Path, args: list[str] | None = None) -> None:
             applescript = 'on run argv\ntell application "Terminal"\nactivate\ndo script (item 1 of argv)\nend tell\nend run'
             subprocess.run([osascript_executable, '-e', applescript, shlex.join(command)], check=False)
             return
-        terminal_emulator = shutil.which('x-terminal-emulator') or shutil.which('gnome-terminal') or shutil.which('xterm')
-        if terminal_emulator:
-            subprocess.run([terminal_emulator, '-e', *command], check=False)
-        else:
-            _launch_detached_command(command)
+        shell_executable = shutil.which('bash') or shutil.which('sh') or '/bin/sh'
+        shell_command = f'{shlex.join(command)}; exec {shlex.quote(shell_executable)}'
+        terminal_candidates = (
+            ('x-terminal-emulator', '-e'),
+            ('gnome-terminal', '--'),
+            ('konsole', '-e'),
+            ('xfce4-terminal', '-x'),
+            ('xterm', '-e'),
+        )
+        for terminal_name, exec_flag in terminal_candidates:
+            terminal_path = shutil.which(terminal_name)
+            if terminal_path:
+                _launch_detached_command([terminal_path, exec_flag, shell_executable, '-c', shell_command])
+                return
+        _launch_detached_command(command)
         return
 
     cmd_exe = str(get_system32_dir() / 'cmd.exe')
-    full_command = [cmd_exe, '/K']
-
+    script_command: list[str] = []
     if script.suffix.casefold() == '.py':
-        full_command.append('py')
-    full_command.append(str(script))
-
+        script_command.append(_resolve_windows_python_executable())
+    script_command.append(str(script))
     if args is not None:
-        full_command.extend(args)
+        script_command.extend(args)
 
-    subprocess.run([cmd_exe, '/c', 'start', '', *full_command], check=False)
+    inner_command = subprocess.list2cmdline(script_command)
+    _launch_detached_command(f'"{cmd_exe}" /S /K "{inner_command}"', creationflags=subprocess.CREATE_NEW_CONSOLE)
 
 
 def run_elevated_powershell_command(ps_command: str, *, timeout_ms: int = 15_000) -> bool:

@@ -6,17 +6,18 @@ It continuously sends ping requests and displays results using ANSI terminal for
 import argparse
 import enum
 import itertools
+import json
 import re
 import statistics
 import sys
 import time
+import urllib.error
 import urllib.parse
+import urllib.request
 from contextlib import suppress
+from dataclasses import dataclass
 from ipaddress import AddressValueError, IPv4Address
 from typing import TYPE_CHECKING, Literal, NoReturn, TypeGuard, cast
-
-import requests
-from pydantic import BaseModel, ValidationError, field_validator
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -29,26 +30,63 @@ PingError = list[dict[Literal['message'], str] | None]
 PingNodeResult = PingSuccess | PingError | None
 PingCheckResults = dict[str, PingNodeResult]
 
+PING_ERROR_MIN_LENGTH = 2
+PING_HOPS_PER_ATTEMPT = 4
+PING_HOP_MIN_VALUES = 2
+NODE_INFO_MIN_LENGTH = 3
+_HTTP_TIMEOUT_SECONDS = 15
+CHECK_HOST_API = 'https://check-host.net'
 
-class CheckPingResponse(BaseModel):
+
+@dataclass(frozen=True, slots=True)
+class CheckPingResponse:
     """Validated response model for the /check-ping endpoint."""
 
     request_id: str | None = None
     nodes: dict[str, list[str]] | None = None
 
-    @field_validator('nodes')
-    @staticmethod
-    def validate_nodes(nodes: dict[str, list[str]] | None) -> dict[str, list[str]] | None:
-        """Ensure each node contains at least country and city indexes."""
-        if nodes is None:
-            return None
 
-        for node_name, node_data in nodes.items():
-            if len(node_data) < NODE_INFO_MIN_LENGTH:
-                message = f'Node "{node_name}" must include at least 3 values.'
-                raise ValueError(message)
+def validate_check_ping_response(data: object) -> CheckPingResponse:
+    """Validate and return a check-ping response."""
+    if not isinstance(data, dict):
+        message = f'Expected dict, got {type(data).__name__}'
+        raise TypeError(message)
 
-        return nodes
+    data_dict = cast('dict[str, object]', data)
+    raw_request_id = data_dict.get('request_id')
+    if raw_request_id is not None and not isinstance(raw_request_id, str):
+        message = f'Expected "request_id" to be str or None, got {type(raw_request_id).__name__}'
+        raise TypeError(message)
+
+    raw_nodes = data_dict.get('nodes')
+    if raw_nodes is None:
+        return CheckPingResponse(request_id=raw_request_id, nodes=None)
+
+    if not isinstance(raw_nodes, dict):
+        message = f'Expected "nodes" to be dict or None, got {type(raw_nodes).__name__}'
+        raise TypeError(message)
+
+    validated_nodes: dict[str, list[str]] = {}
+    for node_name, node_data in cast('dict[object, object]', raw_nodes).items():
+        if not isinstance(node_name, str):
+            message = f'Expected node name to be str, got {type(node_name).__name__}'
+            raise TypeError(message)
+        if not isinstance(node_data, list):
+            message = f'Expected node data for "{node_name}" to be list, got {type(node_data).__name__}'
+            raise TypeError(message)
+        node_list = cast('list[object]', node_data)
+        if len(node_list) < NODE_INFO_MIN_LENGTH:
+            message = f'Node "{node_name}" must include at least 3 values.'
+            raise ValueError(message)
+        validated_items: list[str] = []
+        for item in node_list:
+            if not isinstance(item, str):
+                message = f'Expected node item for "{node_name}" to be str, got {type(item).__name__}'
+                raise TypeError(message)
+            validated_items.append(item)
+        validated_nodes[node_name] = validated_items
+
+    return CheckPingResponse(request_id=raw_request_id, nodes=validated_nodes)
 
 
 def validate_check_result_response(data: object) -> PingCheckResults:
@@ -68,13 +106,6 @@ def validate_check_result_response(data: object) -> PingCheckResults:
         raise ValueError(message)
 
     return cast('PingCheckResults', data)
-
-
-PING_ERROR_MIN_LENGTH = 2
-PING_HOPS_PER_ATTEMPT = 4
-PING_HOP_MIN_VALUES = 2
-NODE_INFO_MIN_LENGTH = 3
-_HTTP_TIMEOUT_SECONDS = 15
 
 
 _ANSI_ESCAPE_PATTERN = re.compile(r'\033\[[0-9;]*m')
@@ -159,9 +190,6 @@ def is_ping_success(value: object) -> TypeGuard[PingSuccess]:
     return True
 
 
-CHECK_HOST_API = 'https://check-host.net'
-
-
 class Colors(enum.StrEnum):
     """ANSI color codes for terminal formatting."""
 
@@ -240,22 +268,24 @@ def format_ping_table(
     return '\n'.join(lines)
 
 
-def ping_loop(target_ip_list: list[str], session: requests.Session) -> None:
+def _fetch_json(opener: urllib.request.OpenerDirector, endpoint_path: str) -> object:
+    """Fetch and decode a JSON response from a Check-Host API endpoint path."""
+    request = urllib.request.Request(f'https://check-host.net{endpoint_path}', headers={'Accept': 'application/json'})
+    with opener.open(request, timeout=_HTTP_TIMEOUT_SECONDS) as response:
+        raw_payload = cast('bytes', response.read())
+    return json.loads(raw_payload.decode('utf-8'))
+
+
+def ping_loop(target_ip_list: list[str], opener: urllib.request.OpenerDirector) -> None:
     """Continuously ping the target IP addresses until the user closes the script."""
 
     def send_ping_request(ip: str) -> tuple[str | None, dict[str, NodeInfo] | None]:
         """Send a ping request to the Check-Host API."""
-        response = session.get(
-            f'{CHECK_HOST_API}/check-ping',
-            params={'host': ip},
-            headers={'Accept': 'application/json'},
-            timeout=_HTTP_TIMEOUT_SECONDS,
-        )
-        response.raise_for_status()
-
+        query = urllib.parse.urlencode({'host': ip})
         try:
-            payload = CheckPingResponse.model_validate(response.json())
-        except ValidationError as e:
+            raw_data = _fetch_json(opener, f'/check-ping?{query}')
+            payload = validate_check_ping_response(raw_data)
+        except (TypeError, ValueError) as e:
             exit_with_error(f'Invalid response from check-ping endpoint: {e}')
 
         request_id = payload.request_id
@@ -279,15 +309,9 @@ def ping_loop(target_ip_list: list[str], session: requests.Session) -> None:
         print_line(' ' * 50, end='\r')
 
         encoded_request_id = urllib.parse.quote(request_id, safe='')
-        response = session.get(
-            f'{CHECK_HOST_API}/check-result/{encoded_request_id}',
-            headers={'Accept': 'application/json'},
-            timeout=_HTTP_TIMEOUT_SECONDS,
-        )
-        response.raise_for_status()
-
         try:
-            return validate_check_result_response(response.json())
+            raw_data = _fetch_json(opener, f'/check-result/{encoded_request_id}')
+            return validate_check_result_response(raw_data)
         except (TypeError, ValueError) as e:
             exit_with_error(f'Invalid response from check-result endpoint: {e}')
 
@@ -477,15 +501,20 @@ def main() -> None:
             print_line(f"{Colors.RED}Error: '{Colors.RED_LIGHT}{candidate_ip}{Colors.RED}' is not a valid IP address.{Colors.RESET}")
             sys.exit(1)
 
+    opener = urllib.request.build_opener()
+    opener.addheaders = [
+        ('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; rv:155.0) Gecko/20100101 Firefox/155.0'),
+        ('Accept', 'application/json'),
+    ]
+
     try:
-        with requests.Session() as session:
-            session.headers.update(
-                {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; rv:155.0) Gecko/20100101 Firefox/155.0',
-                    'Accept': 'application/json',
-                },
-            )
-            ping_loop(target_ip_list, session)
+        ping_loop(target_ip_list, opener)
+    except urllib.error.HTTPError as e:
+        exit_with_error(f'HTTP error {e.code}: {e.reason}')
+    except urllib.error.URLError as e:
+        exit_with_error(f'Network error: {e.reason}')
+    except TimeoutError:
+        exit_with_error('Request timed out.')
     except KeyboardInterrupt:
         sys.exit(0)
 
