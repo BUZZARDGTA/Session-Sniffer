@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-from session_sniffer.constants.local import APP_DIR_ROAMING
+from session_sniffer.constants.local import USERIP_GROUPS_PATH
 from session_sniffer.utils import FileSignature, atomic_write_text, get_file_signature
 
 if TYPE_CHECKING:
@@ -19,7 +19,6 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-USERIP_GROUPS_PATH: Path = APP_DIR_ROAMING / 'userip_groups.json'
 MIN_GROUP_USERNAMES = 2
 
 
