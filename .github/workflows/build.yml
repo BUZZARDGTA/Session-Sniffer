@@ -72,7 +72,7 @@ jobs:
         working-directory: .github/workflows
         run: |
           ${{ matrix.venv_python }} -m pip install '../..'
-          ${{ matrix.venv_python }} -m pip install pyinstaller
+          ${{ matrix.venv_python }} -m pip install pyinstaller==6.22.3
 
       - name: Bake build metadata
         working-directory: .github/workflows
