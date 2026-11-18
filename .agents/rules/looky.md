@@ -21,7 +21,7 @@ Looky System is a third-party service (`looky-gta.cc`) used to resolve IP addres
 Session Sniffer sends captured IP addresses externally over the internet to the Looky System API.
 
 ### Anti-Leak Security Constraint
-* When `Settings.looky_exclusive_gta5_process` is True (default), a captured player IP may only be sent to Looky System when the player is
+* A captured player IP may only be sent to Looky System when the player is
   **confirmed GTA V traffic** (`player.is_gta5_process == True`).
 * "Sniff All Traffic" captures personal, non-game connections (web browsers, Discord, Spotify, background software). Transmitting those IPs to
   third-party Looky servers is a severe privacy leak. **Never relax the confirmed-GTA V-traffic requirement.**
@@ -35,11 +35,11 @@ Session Sniffer sends captured IP addresses externally over the internet to the 
   Target Process is GTA V or set to sniff all traffic. `gta5_udp_ports` is empty while GTA V is not running, so no separate running check is needed.
 * Tagged players stay usable with Looky System after GTA V exits or crashes (lookups, "Request Crawler", "Proxy Join", "Rescan All Players",
   and automatic lookups and refreshes). "Request Crawler" and "Proxy Join" target the player's Rockstar ID in the cloud, so GTA V does not need to be running.
-* Untagged players (`is_gta5_process == False`) must never be sent to Looky System while the restriction is enabled.
+* Untagged players (`is_gta5_process == False`) must never be sent to Looky System.
 
 ### Standalone IP Lookups (`StandaloneIPLookup`)
 * IP lookups opened outside the session tables (Player Leaderboard, Logs Manager, UserIP Manager, and other tables) have no port tag.
-* While the restriction is enabled, they require capture to be filtering on the GTA V process (`CaptureState.is_scanning_gta5_process()`).
+* They require capture to be filtering on the GTA V process (`CaptureState.is_scanning_gta5_process()`).
 
 ### "Request Crawler in My Session" (`show_crawlme_request`)
 * It sends no captured IP, so it is not subject to the restriction. It only requires the usual prerequisites plus `CaptureState.gta5_is_running`.
@@ -47,7 +47,6 @@ Session Sniffer sends captured IP addresses externally over the internet to the 
 ### Single Source of Truth: `get_looky_restriction`
 All restriction decisions go through `get_looky_restriction(targets)` in `session_sniffer.guis.looky_text`. It returns the reason (a user-facing
 message) or `None` when every target is allowed:
-* restriction disabled → `None`;
 * a `Player` that is not `is_gta5_process` → `LOOKY_MENU_TOOLTIP_RESTRICTED_NOT_GTA5_PLAYER`;
 * a `StandaloneIPLookup` while not scanning the GTA V process → `LOOKY_MENU_TOOLTIP_RESTRICTED_GTA5_NOT_RUNNING`.
 
@@ -100,7 +99,7 @@ Call sites:
 
 Always use centralized helpers and constants from `session_sniffer.guis.looky_text`. Do not duplicate string literals or gating expressions:
 * `get_looky_restriction(targets)`: the single restriction check (see above).
-* `LOOKY_TITLE`
+* `get_looky_title()`
 * `LOOKY_SETTINGS_AUTH_PATH`, `LOOKY_SETTINGS_GENERAL_PATH`
 * `LOOKY_MENU_TOOLTIP_DISABLED`, `LOOKY_MENU_TOOLTIP_API_KEY_MISSING`, `LOOKY_MENU_TOOLTIP_API_KEY_INVALID_OR_NO_ACCESS`
 * `LOOKY_MENU_TOOLTIP_GTA5_NOT_RUNNING`, `LOOKY_MENU_TOOLTIP_RESTRICTED_GTA5_NOT_RUNNING`, `LOOKY_MENU_TOOLTIP_RESTRICTED_NOT_GTA5_PLAYER`, `LOOKY_MENU_TOOLTIP_RESTRICTED_NOT_LOCAL`
