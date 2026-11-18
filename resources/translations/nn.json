@@ -3634,8 +3634,8 @@
       "other": "Mottok {count} byte"
     },
     "Recording baseline for <b>{count}</b> IP…<br><br>Stay still while the baseline records. It will auto-lock once traffic is stable (or after {seconds}s).<br>Do <b>NOT</b> move or interact with anyone while recording.": {
-      "one": "Registrerer grunnlinje for <b>{count}</b> IP…<br><br>Stå stille medan grunnlinja blir registrert. Ho blir låst automatisk når trafikken er stabil (eller etter {seconds}s).<br>Ikkje flytt deg eller samhandle med nokon medan du registrerer.",
-      "other": "Registrerer grunnlinje for <b>{count}</b> IP-ar…<br><br>Stå stille medan grunnlinja blir registrert. Ho blir låst automatisk når trafikken er stabil (eller etter {seconds}s).<br>Ikkje flytt deg eller samhandle med nokon medan du registrerer."
+      "one": "Registrerer grunnlinje for <b>{count}</b> IP…<br><br>Stå stille medan grunnlinja blir registrert. Ho blir låst automatisk når trafikken er stabil (eller etter {seconds}s).<br><b>Ikkje</b> flytt deg eller samhandle med nokon medan du registrerer.",
+      "other": "Registrerer grunnlinje for <b>{count}</b> IP-ar…<br><br>Stå stille medan grunnlinja blir registrert. Ho blir låst automatisk når trafikken er stabil (eller etter {seconds}s).<br><b>Ikkje</b> flytt deg eller samhandle med nokon medan du registrerer."
     },
     "Relay Username": {
       "one": "Relébrukarnamn",
