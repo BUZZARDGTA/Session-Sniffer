@@ -12,17 +12,17 @@ This project **never** maintains backward compatibility. When renaming, removing
 - Never add migration shims, alias wrappers, fallback lookups, or transitional validators.
 - Never add code whose sole purpose is to handle the old form "just in case" users have old data.
 
-If a user's saved data (e.g. `Settings.ini`) contains a stale key, it is treated as unknown and discarded by the existing rewrite logic — that is intentional and acceptable.
+If a user's saved data (e.g. `settings.json`) contains a stale key, it is treated as unknown and discarded by the existing rewrite logic — that is intentional and acceptable.
 
 ## Architecture & Data Flow
 - Packet Capture: `PacketCapture` is constructed from an immutable `CaptureConfig` (see `src/session_sniffer/capture/packet_capture.py`) and invokes `config.callback` (created in `src/session_sniffer/main.py`) for each packet. That callback updates `PlayersRegistry`, detection warnings, and may spawn user IP processing threads.
 - PacketCapture config/state: Read config via `capture.config` (e.g., `capture.config.interface`). Runtime state (threads/events/process handles) lives in an internal `_CaptureState` dataclass.
 - Player State: Connected/disconnected movement handled via registry methods and `Player.left_event`. Rejoins call `mark_as_rejoined`; periodic packets call `mark_as_seen`.
-- Rendering: Background thread `rendering_core` compiles `GUIUpdatePayload` objects using `GUIrenderingData` and emits them via `GUIWorkerThread.update_signal`. Avoid direct GUI mutations from non‑GUI threads.
+- Rendering: Background thread `rendering_core` compiles `GUIRenderingSnapshot` objects published via `GUIRenderingState` and emitted as `GUIUpdatePayload` via `GUIWorkerThread.update_signal`. Avoid direct GUI mutations from non‑GUI threads.
 - GUI: `MainWindow` owns two `SessionTableView` / `SessionTableModel` pairs (connected & disconnected). Heavy operations are skipped when a table is hidden; selection counts update headers. Respect existing optimization checks (`connected_count_changed`, visibility guards).
-- Settings: Loaded frequently from `Settings.ini` via `Settings.load_from_settings_file`; after in‑memory changes call `Settings.reconstruct_settings()`. Feature toggles (detection flags, interface overrides) rely on this persistence.
+- Settings: Loaded from `settings.json` via `Settings.load_from_settings_file`; after in‑memory changes call `Settings.rewrite_settings_file()`. Feature toggles (detection flags, interface overrides) rely on this persistence.
 - Screen Resolution: Always obtain via `get_screen_size()` which raises `UnsupportedScreenResolutionError` if below minimum; catch and display its `msgbox_text`.
-- Concurrency: Threads are created as daemon named logically (e.g., `ProcessUserIPTask-<ip>-connected`). Uncaught exceptions in threads are handled automatically via `threading.excepthook` (installed in `src/session_sniffer/core/control.py`).
+- Concurrency: Threads are created as daemon named logically (e.g., `ProcessUserIPTask-<ip>-connected`). Uncaught exceptions in threads are handled automatically via `threading.excepthook` (defined in `src/session_sniffer/core/control.py` and installed at startup in `src/session_sniffer/main.py`).
 
 ## Key Directories & Responsibilities
 - `src/session_sniffer/capture/`: Interface selection, npcap checks, ARP spoofing, filter helpers.
@@ -36,18 +36,18 @@ If a user's saved data (e.g. `Settings.ini`) contains a stale key, it is treated
 Session Sniffer stores *all* user read/write data under the user's AppData, via constants in `src/session_sniffer/constants/local.py`.
 
 - Local AppData (`scope='local'`) is for machine-specific and/or potentially large data (logs / databases / caches):
-	- `Debug/` — debug log file (`debug.log`)
+	- `Debug/` — debug and crash log files (`debug.log`, `crash.log`)
 	- `Logging/` — application CSV logs (`Detection_Logging.csv`, `Protection_Logging.csv`, `UserIP_Logging.csv`) and `Sessions/` subdirectory
 	- `GeoLite2 Databases/`
 - Roaming AppData (`scope='roaming'`) is for user-owned and potentially syncable data (config / user-managed content):
-	- `Settings.ini`
-	- UserIP databases
-	- User scripts
+	- `settings.json`, `detections.json`, `combo_rules.json`, `themes.json`, `userip_groups.json`
+	- UserIP databases (`UserIP Databases/` and `UserIP Databases Backups/`)
+	- User scripts (`scripts/`)
 
 ## Quality & Tooling Workflow
 Use VS Code tasks instead of ad‑hoc commands:
 - Run app: task `🚀 Launch Session Sniffer` (ensures `.venv` interpreter).
-- Dependency check: `🔄 Check Project Dependencies` powershell script (read-only updates info).
+- Dependency check: `🔄 Check Project Dependencies` (`check_project_dependencies.py`, read-only updates info).
 - Install dependencies: `📦 Install Dependencies` after editing `pyproject.toml`.
 - Unified quality run: `🔎 Run All Quality Checks` or individual tasks (Ruff, MyPy, Pyrefly, Pyright, ty, Flake8, Pylint, Vulture, Pip Audit, Snyk).
 
@@ -67,21 +67,21 @@ Ruff / Pyrefly / Pyright / MyPy / ty operate in strict modes; line length is 176
 - Avoid blocking operations or high‑latency lookups in the packet callback; offload to threads as done for user IP tasks.
 - GUI updates: Generate data structures then call model methods (`refresh_view`, `remove_player_by_ip`, `reset_columns`); do not mutate Qt widgets from background threads.
 - Reinitialize / recalc only when counts change or visibility demands (follow existing `connected_count_changed` / `disconnected_count_changed` logic).
-- Settings mutation: After changing any `Settings.<attribute>` that persists, call `Settings.reconstruct_settings()` once per batch.
+- Settings mutation: After changing any `Settings.<attribute>` that persists, call `Settings.rewrite_settings_file()` once per batch.
 - User-data paths: Do not write into the repo/install directory. Use the path constants from `src/session_sniffer/constants/local.py`.
 - AppData scope selection: Prefer Roaming for config/user-managed data, Local for logs/large databases.
 - Capture filters: Compose lists then join with `and`; preserve conditional ordering (custom prepend filters first). When adding filters ensure symmetry with display filter logic if exclusion is related.
 - Exceptions: Use project‑specific ones from `src/session_sniffer/guis/exceptions.py`. For new GUI error states, subclass similarly.
 - Logging:
 	- Configure once at startup via `session_sniffer.logging_setup.setup_logging(...)` (imported from `src/session_sniffer/logging_setup.py`; already done in `src/session_sniffer/main.py`).
-	- Obtain loggers via `session_sniffer.logging_setup.get_logger(__name__)` (imported from `src/session_sniffer/logging_setup.py`; idempotent and safe anywhere).
-	- Console output is Rich-formatted; file logging is consolidated into `debug.log` under LOCALAPPDATA (the app data directory; not the current working directory).
+	- Obtain loggers via `logging.getLogger(__name__)` using standard library `logging`.
+	- Console output is ANSI-formatted; file logging is consolidated into `debug.log` under Local AppData (the app data directory; not the current working directory).
 	- Prefer `logger.debug/info/warning/error/exception(...)` over `print()` for diagnostics; use terminal output only for intentional console reporting.
 
 ## Safe Extension Examples
 - Adding a new player column: Append to `Settings.GUI_ALL_CONNECTED_COLUMNS`, add to `GUI_TOGGLEABLE_CONNECTED_COLUMNS` and/or `GUI_TOGGLEABLE_DISCONNECTED_COLUMNS`, update rendering_core mapping, and refresh header texts.
 - Adding a resource directory: Place under repo root, then append to `datas` in `Session_Sniffer.spec` with correct relative path mapping.
-- Adding a detection toggle: Create a flag in `GUIDetectionSettings`, add QAction in the Detection menu mirroring existing pattern, and integrate logic where warnings are issued.
+- Adding a detection rule: Add fields to `GUIDetectionSettings` / `detections.json`, expose controls in `DetectionsManagerDialog` (`Tools -> Detections Manager`), and integrate logic in `src/session_sniffer/background/tasks.py`.
 
 ## What to Avoid
 - Direct modification of GUI widgets from non‑GUI threads.
@@ -108,6 +108,5 @@ When adding or expanding features, make clean replacements. Replace older usage 
 ## Documentation
 - **Settings Documentation Sync:** If you edit a default setting, introduce a new setting, or remove an existing setting in the project's configuration (e.g. `src/session_sniffer/settings/defaults.py`), you MUST also verify and reflect those changes in the project's Wiki repository (`../Session-Sniffer.wiki`), particularly updating the default values and setting lists in `Configuration-Guide.md` or other relevant documentation pages.
 
-## AI Agent Instructions Source of Truth
-- This file (`.github/copilot-instructions.md`) is the single source of truth for all AI agent instructions, conventions, and project rules.
-- Other AI configuration files (such as `.agents/AGENTS.md`) must only contain a pointer referencing this file and must never duplicate rules, instructions, or guidelines.
+## AI Agent Instructions & Modular Rules
+- Keep this file (`.github/copilot-instructions.md`) aligned with the modular rule files under `.agents/rules/` (`core.md`, `architecture.md`, `data-storage.md`, `i18n.md`, `looky.md`, `networking.md`, `python.md`, `qt-ui.md`, `release.md`, `security.md`, `testing.md`).

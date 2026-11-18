@@ -38,7 +38,7 @@ Follow existing setting names, structures, defaults, and persistence patterns.
 
 Feature toggles and other persisted settings must continue to use the established persistence flow. Do not rely only on transient in-memory state when the feature is expected to survive application restarts.
 
-User-facing `SettingMeta` fields in `src/session_sniffer/settings/metadata.py` (`category`, `group`, `subgroup`, `display_label`, `tooltip`, `suffix`, `special_value_text`, and `allowed_values` without explicit `display_labels` — or `display_labels` values when provided) are canonical i18n keys rendered via `tr()`. Whenever any of these texts are added, modified, renamed, or removed, update **all 32** `resources/translations/*.json` catalogs in the same task (see `i18n.md`).
+User-facing `SettingMeta` fields in `src/session_sniffer/settings/metadata.py` and `src/session_sniffer/settings/_metadata_gtav.py` (`category`, `group`, `subgroup`, `display_label`, `tooltip`, `suffix`, `special_value_text`, and `allowed_values` without explicit `display_labels` — or `display_labels` values when provided) are canonical i18n keys rendered via `tr()`. Whenever any of these texts are added, modified, renamed, or removed, update **all 32** `resources/translations/*.json` catalogs in the same task (see `i18n.md`).
 
 ## Dialog Persistence: Auto-Save vs. Explicit Save
 
@@ -68,11 +68,11 @@ Follow the No Backward Compatibility rules in `core.md` for settings and stored 
 
 The settings reference lives in the Wiki repository at `../Session-Sniffer.wiki`, in `Configuration-Guide.md`. It is the user-facing source of truth and must always mirror the code exactly.
 
-**Always update `Configuration-Guide.md` in the same task** whenever a change touches any user-visible aspect of a setting in `settings/metadata.py`, `settings/defaults.py`, `models/settings_model.py`, or `settings/settings.py`, including:
+**Always update `Configuration-Guide.md` in the same task** whenever a change touches any user-visible aspect of a setting in `settings/metadata.py`, `settings/_metadata_gtav.py`, `settings/defaults.py`, `models/settings_model.py`, or `settings/settings.py`, including:
 
 * adding, removing, or renaming a setting (JSON key);
 * changing a default value, range (`min_value` / `max_value`), suffix, or allowed values;
-* changing a `display_label`, `category`, or `group` (the documented `*Path: **Settings ➔ Preferences ➔ <category> ➔ <group>***`);
+* changing a `display_label`, `category`, or `group` (the documented `*Path: **Settings ➔ Open Settings ➔ <category> ➔ <group>***`);
 * changing the behavior a setting controls, so its description is no longer accurate.
 
 Wiki entry rules:

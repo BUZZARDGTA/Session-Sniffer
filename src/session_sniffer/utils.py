@@ -178,7 +178,7 @@ def get_app_dir(*, scope: Literal['roaming', 'local']) -> Path:
 
     Use `scope='local'` for machine-specific and/or potentially large, non-syncable data,
     such as:
-    - Logs (e.g., `warnings.log`, `errors.log`, session logs)
+    - Logs (e.g., `debug.log`, `crash.log`, session logs)
     - Large databases/caches (e.g., GeoLite2 databases)
 
     On Windows, this uses `APPDATA` and `LOCALAPPDATA`.
