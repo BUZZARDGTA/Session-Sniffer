@@ -90,6 +90,7 @@ def _show_qt(title: str, text: str, style: Style) -> ReturnValues:
 
     box = QMessageBox()
     box.setWindowTitle(title)
+    box.setTextFormat(Qt.TextFormat.PlainText)
     box.setText(text)
 
     icon_flags = style & 0x000000F0
