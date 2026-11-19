@@ -55,7 +55,7 @@ from session_sniffer.guis.stylesheets import (
 )
 from session_sniffer.guis.theming import themed_qss
 from session_sniffer.guis.utils import center_window_on_screen, render_svg_pixmap_from_resource
-from session_sniffer.i18n import tr
+from session_sniffer.i18n import get_active_language, is_rtl_language, tr
 from session_sniffer.networking.http_session import session
 from session_sniffer.utils import format_project_version_date, is_pyinstaller_compiled
 
@@ -252,7 +252,7 @@ class UpdateDownloadDialog(DraggableDialogMixin, QDialog):
             1,
         )
 
-        arrow_label = QLabel('→')
+        arrow_label = QLabel('←' if is_rtl_language(get_active_language()) else '→')
         arrow_label.setFont(get_ui_font(22, QFont.Weight.Bold))
         arrow_label.setStyleSheet(UPDATE_DOWNLOAD_VERSION_ARROW_STYLESHEET)
         arrow_label.setAlignment(Qt.AlignmentFlag.AlignCenter)

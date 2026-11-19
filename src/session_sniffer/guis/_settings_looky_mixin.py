@@ -38,7 +38,7 @@ from session_sniffer.guis.stylesheets import (
     LOOKY_INFO_LABEL_STYLESHEET,
 )
 from session_sniffer.guis.theming import themed_qss
-from session_sniffer.i18n import tr
+from session_sniffer.i18n import get_active_language, is_rtl_language, tr
 from session_sniffer.networking.looky_system import LookyState, verify_token
 
 if TYPE_CHECKING:
@@ -119,7 +119,8 @@ class SettingsDialogLookyMixin(QDialog):
         field_html = f"<b>{html_lib.escape(tr('API Key'))}</b>"
         column_html = f"<b>{html_lib.escape(tr('Usernames'))}</b>"
         setting_html = f"<b>{html_lib.escape(tr('Feature Set'))}</b>"
-        section_html = f"<b>{html_lib.escape(tr('Capture'))} → {html_lib.escape(tr('General'))}</b>"
+        section_arrow = '←' if is_rtl_language(get_active_language()) else '→'
+        section_html = f"<b>{html_lib.escape(tr('Capture'))} {section_arrow} {html_lib.escape(tr('General'))}</b>"
         preset_html = f"<b>{html_lib.escape(tr('GTA V'))}</b>"
         self._looky_info_label.setText(
             themed_qss(
