@@ -425,7 +425,6 @@ class UpdateDownloadDialog(DraggableDialogMixin, QDialog):
         project_root = Path(__file__).resolve().parents[3]
         included_paths = (
             project_root / 'pyproject.toml',
-            project_root / 'bin',
             project_root / 'resources',
             project_root / 'scripts',
             project_root / 'src' / 'session_sniffer',
