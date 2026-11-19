@@ -2753,7 +2753,6 @@
     "Uncheck all rows in the table.": "テーブル内のすべての行のチェックを解除します。",
     "Unconfirmed candidate rows in Searchlist (0 detections) that will be deleted.": "Searchlist 内で削除対象となる未確認の候補行（検出数 0）です。",
     "Unexpected API response: missing trackingId.": "予期しない API 応答: trackingId が見つかりません。",
-    "Unexpected ICMP response": "予期しない ICMP 応答",
     "Unexpected response format: {error}": "予期しない応答形式: {error}",
     "Ungroup": "グループ解除",
     "Ungroup Usernames": "ユーザー名のグループ解除",

@@ -3,6 +3,7 @@
 import enum
 import logging
 import math
+import os
 import socket
 import struct
 import sys
@@ -169,6 +170,7 @@ class IcmpEchoEngine:
         self._is_windows = sys.platform == 'win32'
         self._handle: int | None = None
         self._unix_socket: socket.socket | None = None
+        self._unix_socket_is_raw = False
 
         if self._is_windows:
             try:
@@ -182,13 +184,18 @@ class IcmpEchoEngine:
                 logger.exception('Failed to create Win32 ICMP handle')
                 self._handle = None
         else:
-            try:
-                self._unix_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_ICMP)
-                if hasattr(socket, 'IP_RECVTTL'):
-                    self._unix_socket.setsockopt(socket.IPPROTO_IP, socket.IP_RECVTTL, 1)
-            except OSError as e:
-                logger.warning('Failed to create unprivileged ICMP socket: %s', e)
-                self._unix_socket = None
+            for socket_type, is_raw in ((socket.SOCK_DGRAM, False), (socket.SOCK_RAW, True)):
+                try:
+                    icmp_socket = socket.socket(socket.AF_INET, socket_type, socket.IPPROTO_ICMP)
+                    if hasattr(socket, 'IP_RECVTTL'):
+                        icmp_socket.setsockopt(socket.IPPROTO_IP, socket.IP_RECVTTL, 1)
+                    self._unix_socket = icmp_socket
+                    self._unix_socket_is_raw = is_raw
+                    break
+                except OSError as e:
+                    if is_raw:
+                        logger.warning('Failed to create ICMP socket: %s', e)
+                        self._unix_socket = None
 
     def __enter__(self) -> Self:
         """Support context manager entry."""
@@ -257,50 +264,63 @@ class IcmpEchoEngine:
                 payload_bytes=payload_bytes,
             )
 
-        identifier = sequence & 0xFFFF
+        identifier = os.getpid() & 0xFFFF
         sequence_field = sequence & 0xFFFF
         unchecksummed = struct.pack('!BBHHH', _ICMP_ECHO_REQUEST_TYPE, 0, 0, identifier, sequence_field) + payload_data
         checksum = _compute_icmp_checksum(unchecksummed)
         packet = struct.pack('!BBHHH', _ICMP_ECHO_REQUEST_TYPE, 0, checksum, identifier, sequence_field) + payload_data
 
-        self._unix_socket.settimeout(timeout_seconds)
+        recv_ttl_types = {socket.IP_TTL}
+        if hasattr(socket, 'IP_RECVTTL'):
+            recv_ttl_types.add(socket.IP_RECVTTL)
+
         start_time = time.perf_counter()
+        deadline = start_time + timeout_seconds
         try:
             self._unix_socket.sendto(packet, (resolved_ip, 0))
-            packet_data, ancillary_data, _message_flags, _peer_address = cast(
-                'tuple[bytes, list[tuple[int, int, bytes]], int, tuple[str, int]]',
-                getattr(self._unix_socket, 'recvmsg', _recvmsg_fallback)(1024, 1024),
-            )
-            round_trip_time_ms = (time.perf_counter() - start_time) * 1000.0
+            while (remaining_timeout := deadline - time.perf_counter()) > 0:
+                self._unix_socket.settimeout(remaining_timeout)
+                packet_data, ancillary_data, _message_flags, peer_address = cast(
+                    'tuple[bytes, list[tuple[int, int, bytes]], int, tuple[str, int]]',
+                    getattr(self._unix_socket, 'recvmsg', _recvmsg_fallback)(1024, 1024),
+                )
+                round_trip_time_ms = (time.perf_counter() - start_time) * 1000.0
+                if peer_address[0] != resolved_ip:
+                    continue
 
-            time_to_live: int | None = None
-            recv_ttl_types = {socket.IP_TTL}
-            if hasattr(socket, 'IP_RECVTTL'):
-                recv_ttl_types.add(socket.IP_RECVTTL)
-            for cmsg_level, cmsg_type, cmsg_data in ancillary_data:
-                if cmsg_level == socket.IPPROTO_IP and cmsg_type in recv_ttl_types:
-                    if len(cmsg_data) >= _CMSG_INT_TTL_BYTES:
-                        time_to_live = int(struct.unpack('i', cmsg_data[:_CMSG_INT_TTL_BYTES])[0])
-                    elif len(cmsg_data) == 1:
-                        time_to_live = cmsg_data[0]
+                time_to_live: int | None = None
+                for cmsg_level, cmsg_type, cmsg_data in ancillary_data:
+                    if cmsg_level == socket.IPPROTO_IP and cmsg_type in recv_ttl_types:
+                        if len(cmsg_data) >= _CMSG_INT_TTL_BYTES:
+                            time_to_live = int(struct.unpack('i', cmsg_data[:_CMSG_INT_TTL_BYTES])[0])
+                        elif len(cmsg_data) == 1:
+                            time_to_live = cmsg_data[0]
 
-            icmp_payload = packet_data
-            if sys.platform == 'darwin' and len(packet_data) >= _IPV4_MIN_HEADER_BYTES and (packet_data[0] >> 4) == _IPV4_VERSION:
-                ip_header_length = (packet_data[0] & 0x0F) * 4
-                if time_to_live is None:
-                    time_to_live = packet_data[8]
-                icmp_payload = packet_data[ip_header_length:]
+                icmp_payload = packet_data
+                if (sys.platform == 'darwin' or self._unix_socket_is_raw) and len(packet_data) >= _IPV4_MIN_HEADER_BYTES and (packet_data[0] >> 4) == _IPV4_VERSION:
+                    ip_header_length = (packet_data[0] & 0x0F) * 4
+                    if time_to_live is None:
+                        time_to_live = packet_data[8]
+                    icmp_payload = packet_data[ip_header_length:]
 
-            if len(icmp_payload) < _ICMP_HEADER_BYTES or icmp_payload[0] != _ICMP_ECHO_REPLY_TYPE:
+                if len(icmp_payload) < _ICMP_HEADER_BYTES or icmp_payload[0] != _ICMP_ECHO_REPLY_TYPE:
+                    continue
+
+                reply_identifier, reply_sequence = struct.unpack_from('!HH', icmp_payload, 4)
+                if reply_sequence != sequence_field:
+                    continue
+                if self._unix_socket_is_raw and reply_identifier != identifier:
+                    continue
+
                 return PingProbeResult(
                     sequence=sequence,
                     target_host=target_ip,
                     target_ip=resolved_ip,
                     port=None,
-                    is_successful=False,
-                    round_trip_time_ms=None,
-                    time_to_live=None,
-                    status_message=tr('Unexpected ICMP response'),
+                    is_successful=True,
+                    round_trip_time_ms=round_trip_time_ms,
+                    time_to_live=time_to_live,
+                    status_message=tr('Success'),
                     payload_bytes=payload_bytes,
                 )
 
@@ -309,10 +329,10 @@ class IcmpEchoEngine:
                 target_host=target_ip,
                 target_ip=resolved_ip,
                 port=None,
-                is_successful=True,
-                round_trip_time_ms=round_trip_time_ms,
-                time_to_live=time_to_live,
-                status_message=tr('Success'),
+                is_successful=False,
+                round_trip_time_ms=None,
+                time_to_live=None,
+                status_message=tr('Request timed out'),
                 payload_bytes=payload_bytes,
             )
         except TimeoutError:

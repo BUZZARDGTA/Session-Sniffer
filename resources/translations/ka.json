@@ -2753,7 +2753,6 @@
     "Uncheck all rows in the table.": "ცხრილის ყველა მწკრივზე თოლიის მოხსნა.",
     "Unconfirmed candidate rows in Searchlist (0 detections) that will be deleted.": "დაუდასტურებელი კანდიდატი მწკრივები Searchlist-ში (0 აღმოჩენა), რომლებიც წაიშლება.",
     "Unexpected API response: missing trackingId.": "API-ს მოულოდნელი პასუხი: აკლია trackingId.",
-    "Unexpected ICMP response": "მოულოდნელი ICMP პასუხი",
     "Unexpected response format: {error}": "პასუხის მოულოდნელი ფორმატი: {error}",
     "Ungroup": "განჯგუფება",
     "Ungroup Usernames": "მომხმარებლის სახელების განჯგუფება",

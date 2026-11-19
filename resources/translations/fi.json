@@ -2753,7 +2753,6 @@
     "Uncheck all rows in the table.": "Poista valintamerkki kaikilta taulukon riveiltä.",
     "Unconfirmed candidate rows in Searchlist (0 detections) that will be deleted.": "Searchlistin vahvistamattomat ehdokasrivit (0 tunnistusta), jotka poistetaan.",
     "Unexpected API response: missing trackingId.": "Odottamaton API-vastaus: trackingId puuttuu.",
-    "Unexpected ICMP response": "Odottamaton ICMP-vastaus",
     "Unexpected response format: {error}": "Odottamaton vastausmuoto: {error}",
     "Ungroup": "Pura ryhmittely",
     "Ungroup Usernames": "Pura käyttäjänimien ryhmittely",

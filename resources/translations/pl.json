@@ -2753,7 +2753,6 @@
     "Uncheck all rows in the table.": "Odznacz pola wszystkich wierszy w tabeli.",
     "Unconfirmed candidate rows in Searchlist (0 detections) that will be deleted.": "Niepotwierdzone wiersze kandydatów w Searchlist (0 wykryć), które zostaną usunięte.",
     "Unexpected API response: missing trackingId.": "Nieoczekiwana odpowiedź API: brak pola trackingId.",
-    "Unexpected ICMP response": "Nieoczekiwana odpowiedź ICMP",
     "Unexpected response format: {error}": "Nieoczekiwany format odpowiedzi: {error}",
     "Ungroup": "Rozgrupuj",
     "Ungroup Usernames": "Rozgrupuj nazwy użytkowników",

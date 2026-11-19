@@ -2753,7 +2753,6 @@
     "Uncheck all rows in the table.": "Noņemt atzīmes visām tabulas rindām.",
     "Unconfirmed candidate rows in Searchlist (0 detections) that will be deleted.": "Neapstiprinātās kandidātu rindas Searchlist datubāzē (0 noteikšanas), kas tiks dzēstas.",
     "Unexpected API response: missing trackingId.": "Negaidīta API atbilde: trūkst trackingId.",
-    "Unexpected ICMP response": "Negaidīta ICMP atbilde",
     "Unexpected response format: {error}": "Negaidīts atbildes formāts: {error}",
     "Ungroup": "Atgrupēt",
     "Ungroup Usernames": "Atgrupēt lietotājvārdus",

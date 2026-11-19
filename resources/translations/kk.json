@@ -2753,7 +2753,6 @@
     "Uncheck all rows in the table.": "Кестедегі барлық жолдардан белгіні алып тастау.",
     "Unconfirmed candidate rows in Searchlist (0 detections) that will be deleted.": "Searchlist ішіндегі жойылатын расталмаған үміткер жолдары (0 анықтау).",
     "Unexpected API response: missing trackingId.": "Күтпеген API жауабы: trackingId табылмады.",
-    "Unexpected ICMP response": "Күтпеген ICMP жауабы",
     "Unexpected response format: {error}": "Күтпеген жауап пішімі: {error}",
     "Ungroup": "Топтан шығару",
     "Ungroup Usernames": "Пайдаланушы аттарын топтан шығару",

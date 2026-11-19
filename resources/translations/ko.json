@@ -2753,7 +2753,6 @@
     "Uncheck all rows in the table.": "테이블의 모든 행 체크를 해제합니다.",
     "Unconfirmed candidate rows in Searchlist (0 detections) that will be deleted.": "삭제될 Searchlist의 미확인 후보 행 (감지 0회)입니다.",
     "Unexpected API response: missing trackingId.": "예기치 않은 API 응답: trackingId가 누락되었습니다.",
-    "Unexpected ICMP response": "예기치 않은 ICMP 응답",
     "Unexpected response format: {error}": "예기치 않은 응답 형식: {error}",
     "Ungroup": "그룹 해제",
     "Ungroup Usernames": "사용자 이름 그룹 해제",

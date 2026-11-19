@@ -2753,7 +2753,6 @@
     "Uncheck all rows in the table.": "برداشتن تیک همهٔ ردیف‌های جدول.",
     "Unconfirmed candidate rows in Searchlist (0 detections) that will be deleted.": "ردیف‌های احتمالی تأییدنشده در Searchlist (با 0 شناسایی) که حذف خواهند شد.",
     "Unexpected API response: missing trackingId.": "پاسخ غیرمنتظرهٔ API: فیلد trackingId وجود ندارد.",
-    "Unexpected ICMP response": "پاسخ غیرمنتظرهٔ ICMP",
     "Unexpected response format: {error}": "قالب پاسخ غیرمنتظره: {error}",
     "Ungroup": "لغو گروه‌بندی",
     "Ungroup Usernames": "لغو گروه‌بندی نام‌های کاربری",

@@ -2753,7 +2753,6 @@
     "Uncheck all rows in the table.": "בטל את סימון כל השורות בטבלה.",
     "Unconfirmed candidate rows in Searchlist (0 detections) that will be deleted.": "שורות מועמדים לא מאומתות ב-Searchlist (0 זיהויים) שיימחקו.",
     "Unexpected API response: missing trackingId.": "תגובת API בלתי צפויה: חסר trackingId.",
-    "Unexpected ICMP response": "תגובת ICMP בלתי צפויה",
     "Unexpected response format: {error}": "פורמט תגובה בלתי צפוי: {error}",
     "Ungroup": "בטל קיבוץ",
     "Ungroup Usernames": "בטל קיבוץ שמות משתמש",

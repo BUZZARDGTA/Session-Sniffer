@@ -2753,7 +2753,6 @@
     "Uncheck all rows in the table.": "Fjern markeringen af alle rækker i tabellen.",
     "Unconfirmed candidate rows in Searchlist (0 detections) that will be deleted.": "Ubekræftede kandidatrækker i Searchlist (0 registreringer), der vil blive slettet.",
     "Unexpected API response: missing trackingId.": "Uventet API-svar: manglende trackingId.",
-    "Unexpected ICMP response": "Uventet ICMP-svar",
     "Unexpected response format: {error}": "Uventet svarformat: {error}",
     "Ungroup": "Ophæv gruppering",
     "Ungroup Usernames": "Ophæv gruppering af brugernavne",

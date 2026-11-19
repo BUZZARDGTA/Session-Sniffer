@@ -2753,7 +2753,6 @@
     "Uncheck all rows in the table.": "Alle rijen in de tabel uitvinken.",
     "Unconfirmed candidate rows in Searchlist (0 detections) that will be deleted.": "Onbevestigde kandidaatrijen in Searchlist (0 detecties) die verwijderd worden.",
     "Unexpected API response: missing trackingId.": "Onverwacht API-antwoord: trackingId ontbreekt.",
-    "Unexpected ICMP response": "Onverwacht ICMP-antwoord",
     "Unexpected response format: {error}": "Onverwacht antwoordformaat: {error}",
     "Ungroup": "Groepering opheffen",
     "Ungroup Usernames": "Groepering van gebruikersnamen opheffen",

@@ -2753,7 +2753,6 @@
     "Uncheck all rows in the table.": "Desmarca totes les files de la taula.",
     "Unconfirmed candidate rows in Searchlist (0 detections) that will be deleted.": "Files candidates sense confirmar a Searchlist (0 deteccions) que se suprimiran.",
     "Unexpected API response: missing trackingId.": "Resposta inesperada de l'API: manca trackingId.",
-    "Unexpected ICMP response": "Resposta ICMP inesperada",
     "Unexpected response format: {error}": "Format de resposta inesperat: {error}",
     "Ungroup": "Desagrupa",
     "Ungroup Usernames": "Desagrupa els noms d'usuari",

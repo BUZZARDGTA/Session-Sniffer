@@ -2753,7 +2753,6 @@
     "Uncheck all rows in the table.": "إلغاء تأشير جميع الصفوف في الجدول.",
     "Unconfirmed candidate rows in Searchlist (0 detections) that will be deleted.": "صفوف المرشحين غير المؤكدة في Searchlist (0 اكتشافات) التي سيتم حذفها.",
     "Unexpected API response: missing trackingId.": "استجابة API غير متوقعة: معرف trackingId مفقود.",
-    "Unexpected ICMP response": "استجابة ICMP غير متوقعة",
     "Unexpected response format: {error}": "تنسيق استجابة غير متوقع: {error}",
     "Ungroup": "فك التجميع",
     "Ungroup Usernames": "فك تجميع أسماء المستخدمين",

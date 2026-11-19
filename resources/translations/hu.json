@@ -2753,7 +2753,6 @@
     "Uncheck all rows in the table.": "Az összes sor jelölésének törlése a táblázatban.",
     "Unconfirmed candidate rows in Searchlist (0 detections) that will be deleted.": "Megerősítetlen jelöltsorok a Searchlist adatbázisban (0 észlelés), amelyek törölve lesznek.",
     "Unexpected API response: missing trackingId.": "Váratlan API-válasz: hiányzó trackingId.",
-    "Unexpected ICMP response": "Váratlan ICMP-válasz",
     "Unexpected response format: {error}": "Váratlan válaszformátum: {error}",
     "Ungroup": "Csoportbontás",
     "Ungroup Usernames": "Felhasználónevek csoportbontása",

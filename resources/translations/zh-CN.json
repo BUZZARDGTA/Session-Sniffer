@@ -2753,7 +2753,6 @@
     "Uncheck all rows in the table.": "取消勾选表格中的所有行。",
     "Unconfirmed candidate rows in Searchlist (0 detections) that will be deleted.": "Searchlist 中将被删除的未确认候选行（0 次检测）。",
     "Unexpected API response: missing trackingId.": "意外的 API 响应：缺少 trackingId。",
-    "Unexpected ICMP response": "意外的 ICMP 响应",
     "Unexpected response format: {error}": "意外的响应格式：{error}",
     "Ungroup": "取消分组",
     "Ungroup Usernames": "取消用户名分组",

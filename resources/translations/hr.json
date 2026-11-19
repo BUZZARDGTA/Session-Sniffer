@@ -2753,7 +2753,6 @@
     "Uncheck all rows in the table.": "Ukloni kvačice sa svih redaka u tablici.",
     "Unconfirmed candidate rows in Searchlist (0 detections) that will be deleted.": "Nepotvrđeni redci kandidata u Searchlistu (0 otkrivanja) koji će biti izbrisani.",
     "Unexpected API response: missing trackingId.": "Neočekivani odgovor API-ja: nedostaje trackingId.",
-    "Unexpected ICMP response": "Neočekivani ICMP odgovor",
     "Unexpected response format: {error}": "Neočekivani oblik odgovora: {error}",
     "Ungroup": "Razgrupiraj",
     "Ungroup Usernames": "Razgrupiraj korisnička imena",

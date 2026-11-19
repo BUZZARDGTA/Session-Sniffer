@@ -2753,7 +2753,6 @@
     "Uncheck all rows in the table.": "Tablodaki tüm satırların işaretini kaldır.",
     "Unconfirmed candidate rows in Searchlist (0 detections) that will be deleted.": "Searchlist içindeki silinecek doğrulanmamış aday satırları (0 algılama).",
     "Unexpected API response: missing trackingId.": "Beklenmeyen API yanıtı: trackingId eksik.",
-    "Unexpected ICMP response": "Beklenmeyen ICMP yanıtı",
     "Unexpected response format: {error}": "Beklenmeyen yanıt biçimi: {error}",
     "Ungroup": "Grubu Ayır",
     "Ungroup Usernames": "Kullanıcı Adlarının Grubunu Ayır",

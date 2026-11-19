@@ -2753,7 +2753,6 @@
     "Uncheck all rows in the table.": "Премахване на отметките от всички редове в таблицата.",
     "Unconfirmed candidate rows in Searchlist (0 detections) that will be deleted.": "Непотвърдени редове с кандидати в Searchlist (0 засичания), които ще бъдат изтрити.",
     "Unexpected API response: missing trackingId.": "Неочакван отговор от API: липсва trackingId.",
-    "Unexpected ICMP response": "Неочакван ICMP отговор",
     "Unexpected response format: {error}": "Неочакван формат на отговора: {error}",
     "Ungroup": "Разгрупирай",
     "Ungroup Usernames": "Разгрупирай потребителски имена",

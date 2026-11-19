@@ -2753,7 +2753,6 @@
     "Uncheck all rows in the table.": "Zrušiť začiarknutie všetkých riadkov v tabuľke.",
     "Unconfirmed candidate rows in Searchlist (0 detections) that will be deleted.": "Nepotvrdené riadky kandidátov v Searchlist (0 detekcií), ktoré budú odstránené.",
     "Unexpected API response: missing trackingId.": "Neočakávaná odpoveď API: chýba trackingId.",
-    "Unexpected ICMP response": "Neočakávaná odpoveď ICMP",
     "Unexpected response format: {error}": "Neočakávaný formát odpovede: {error}",
     "Ungroup": "Zrušiť zoskupenie",
     "Ungroup Usernames": "Zrušiť zoskupenie používateľských mien",

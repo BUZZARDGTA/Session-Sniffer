@@ -2753,7 +2753,6 @@
     "Uncheck all rows in the table.": "Dì-chomharraich gach sreath sa chlàr.",
     "Unconfirmed candidate rows in Searchlist (0 detections) that will be deleted.": "Sreathan tagraiche neo-dhearbhte ann an Searchlist (0 lorg) a thèid a sguabadh às.",
     "Unexpected API response: missing trackingId.": "Freagairt API gun dùil: trackingId a dhìth.",
-    "Unexpected ICMP response": "Freagairt ICMP gun dùil",
     "Unexpected response format: {error}": "Cruth freagairt gun dùil: {error}",
     "Ungroup": "Fuasgail Buidheann",
     "Ungroup Usernames": "Fuasgail Ainmean-cleachdaiche",
