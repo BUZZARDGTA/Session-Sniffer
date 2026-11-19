@@ -393,11 +393,11 @@ def _handle_update_decision(
         except InvalidVersion:
             logger.warning('Invalid version format in updater_skipped_version: %r', Settings.updater_skipped_version)
 
-    if sys.platform.startswith('linux') and not candidate_info.linux_download_url:
+    if sys.platform.startswith('linux') and (candidate_info.linux_download_url is None or not candidate_info.linux_download_url):
         logger.info('Update available (%s) but no Linux binary was published; skipping update.', format_project_version(candidate))
         return (UpdateCheckOutcome.PROCEED, None)
 
-    if sys.platform == 'darwin' and not candidate_info.darwin_download_url:
+    if sys.platform == 'darwin' and (candidate_info.darwin_download_url is None or not candidate_info.darwin_download_url):
         logger.info('Update available (%s) but no macOS binary was published; skipping update.', format_project_version(candidate))
         return (UpdateCheckOutcome.PROCEED, None)
 

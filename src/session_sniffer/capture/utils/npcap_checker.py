@@ -78,7 +78,7 @@ def can_capture_packets_on_linux() -> bool:
 
 def _has_linux_executable_file_capabilities() -> bool:
     """Return whether the executable on disk has the required Linux file capabilities set."""
-    if sys.platform == 'win32':
+    if sys.platform != 'linux':
         return False
     real_executable = os.path.realpath(sys.executable)
     cap_bytes = b''

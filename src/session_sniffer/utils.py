@@ -106,7 +106,7 @@ def _get_target_user_identity() -> tuple[int, int, Path] | None:
     if bool(posix.geteuid()):
         return None
     sudo_user = os.environ.get('SUDO_USER')
-    if not sudo_user:
+    if sudo_user is None or not sudo_user:
         return None
     try:
         pw_record = pwd.getpwnam(sudo_user)
@@ -559,7 +559,7 @@ def run_cmd_script(script: Path, args: list[str] | None = None) -> None:
         )
         for terminal_name, exec_flag in terminal_candidates:
             terminal_path = shutil.which(terminal_name)
-            if terminal_path:
+            if terminal_path is not None and terminal_path:
                 _launch_detached_command([terminal_path, exec_flag, shell_executable, '-c', shell_command])
                 return
         _launch_detached_command(command)

@@ -137,7 +137,7 @@ def _load_pcap_library() -> ctypes.CDLL:
                 continue
         if library is None:
             pcap_path = ctypes.util.find_library('pcap')
-            if pcap_path:
+            if pcap_path is not None and pcap_path:
                 library = ctypes.cdll.LoadLibrary(pcap_path)
             else:
                 error_message = 'libpcap library not found on the system'
