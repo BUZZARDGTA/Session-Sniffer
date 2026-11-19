@@ -98,28 +98,28 @@ class _DownloadWorker(CrashingQThread):
     def _run(self) -> None:
         """Stream download, emitting progress updates until complete or cancelled."""
         try:
-            response = session.get(self._download_url, stream=True, timeout=30)
-            response.raise_for_status()
+            with session.get(self._download_url, stream=True, timeout=30) as response:
+                response.raise_for_status()
 
-            total = int(response.headers.get('Content-Length', 0))
-            if total > 0:
-                self.progress_signal.emit(0, total)
+                total = int(response.headers.get('Content-Length', 0))
+                if total > 0:
+                    self.progress_signal.emit(0, total)
 
-            done = 0
-            chunk_size = 65_536  # 64 KiB
+                done = 0
+                chunk_size = 65_536  # 64 KiB
 
-            self._dest_path.parent.mkdir(parents=True, exist_ok=True)
+                self._dest_path.parent.mkdir(parents=True, exist_ok=True)
 
-            with self._dest_path.open('wb') as file:
-                for chunk in response.iter_content(chunk_size=chunk_size):
-                    if self._cancel_event.is_set() or self.isInterruptionRequested():
-                        self.finished_signal.emit(_DownloadResult(success=False, message='Cancelled'))
-                        return
-                    file.write(chunk)
-                    done += len(chunk)
-                    self.progress_signal.emit(done, total)
+                with self._dest_path.open('wb') as file:
+                    for chunk in response.iter_content(chunk_size=chunk_size):
+                        if self._cancel_event.is_set() or self.isInterruptionRequested():
+                            self.finished_signal.emit(_DownloadResult(success=False, message='Cancelled'))
+                            return
+                        file.write(chunk)
+                        done += len(chunk)
+                        self.progress_signal.emit(done, total)
 
-        except requests.exceptions.RequestException as e:
+        except (requests.exceptions.RequestException, OSError) as e:
             logger.warning('Update download failed: %s', e)
             self.finished_signal.emit(_DownloadResult(success=False, message=str(e)))
             return
