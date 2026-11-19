@@ -16,7 +16,7 @@ from enum import Enum, auto
 from pathlib import Path
 from queue import SimpleQueue
 from threading import Event, Thread
-from typing import BinaryIO, NamedTuple
+from typing import TYPE_CHECKING, NamedTuple
 
 from pydantic import BaseModel, ValidationError
 
@@ -32,6 +32,9 @@ from session_sniffer.models import (
     DiscordHandshakePayload,
     DiscordResponsePayload,
 )
+
+if TYPE_CHECKING:
+    import io
 
 _OPCODE_HANDSHAKE = 0
 _OPCODE_FRAME = 1
@@ -71,7 +74,7 @@ logger = logging.getLogger(__name__)
 class _DiscordIPCConnection:
     """Manages raw communication with the local Discord IPC pipe."""
 
-    def __init__(self, pipe_stream: BinaryIO, unix_socket: socket.socket | None = None) -> None:
+    def __init__(self, pipe_stream: io.RawIOBase, unix_socket: socket.socket | None = None) -> None:
         self._stream = pipe_stream
         self._unix_socket = unix_socket
 
@@ -89,8 +92,12 @@ class _DiscordIPCConnection:
                 candidate_paths: list[Path] = []
                 for environment_variable in ('XDG_RUNTIME_DIR', 'TMPDIR', 'TMP', 'TEMP'):
                     directory_path = os.environ.get(environment_variable)
-                    if directory_path:
-                        candidate_paths.append(Path(directory_path) / f'discord-ipc-{pipe_index}')
+                    if directory_path is not None and directory_path:
+                        base_directory = Path(directory_path)
+                        candidate_paths.append(base_directory / f'discord-ipc-{pipe_index}')
+                        if environment_variable == 'XDG_RUNTIME_DIR':
+                            candidate_paths.append(base_directory / 'app' / 'com.discordapp.Discord' / f'discord-ipc-{pipe_index}')
+                            candidate_paths.append(base_directory / 'snap.discord' / f'discord-ipc-{pipe_index}')
                 candidate_paths.append(Path(tempfile.gettempdir()) / f'discord-ipc-{pipe_index}')
 
                 for socket_path in candidate_paths:
@@ -100,7 +107,7 @@ class _DiscordIPCConnection:
                     unix_socket.settimeout(_UNIX_SOCKET_TIMEOUT_SECONDS)
                     try:
                         unix_socket.connect(str(socket_path))
-                        return cls(pipe_stream=unix_socket.makefile('r+b', buffering=0), unix_socket=unix_socket)
+                        return cls(pipe_stream=unix_socket.makefile('rwb', buffering=0), unix_socket=unix_socket)
                     except OSError:
                         unix_socket.close()
                         continue
@@ -119,7 +126,7 @@ class _DiscordIPCConnection:
         remaining = length
         while remaining > 0:
             chunk = self._stream.read(remaining)
-            if not chunk:
+            if chunk is None or not chunk:
                 return None
             chunks.append(chunk)
             remaining -= len(chunk)
