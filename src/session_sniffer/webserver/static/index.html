@@ -648,14 +648,12 @@
 
             ws.onopen = () => {
                 isConnected = true;
-                console.log('WebSocket connected');
             };
 
             ws.onmessage = (event) => {
                 try {
                     const data = JSON.parse(event.data);
                     if (data.type === 'keep-alive') {
-                        console.log('Keep-alive received');
                         return;
                     }
                     updateStatus(data);
@@ -671,7 +669,6 @@
 
             ws.onclose = () => {
                 isConnected = false;
-                console.log('WebSocket disconnected, reconnecting in 3 seconds...');
                 setTimeout(connectWebSocket, 3000);
             };
         }
