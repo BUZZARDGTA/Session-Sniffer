@@ -473,16 +473,17 @@ def query_linux_ifaddrs() -> dict[str, list[str]]:
 
         ifaddrs_pointer = ctypes.POINTER(_LinuxIfAddrs)()
         if not libc.getifaddrs(ctypes.byref(ifaddrs_pointer)):
-            current_address = ifaddrs_pointer
-            while current_address:
-                address_entry = current_address.contents
-                if address_entry.ifa_name:
-                    interface_name_str = address_entry.ifa_name.decode('utf-8', errors='replace')
-                    if address_entry.ifa_addr and address_entry.ifa_addr.contents.sa_family == socket.AF_INET:
+            try:
+                current_address = ifaddrs_pointer
+                while current_address:
+                    address_entry = current_address.contents
+                    if address_entry.ifa_name and address_entry.ifa_addr and address_entry.ifa_addr.contents.sa_family == socket.AF_INET:
+                        interface_name_str = address_entry.ifa_name.decode('utf-8', errors='replace')
                         sockaddr_in = ctypes.cast(address_entry.ifa_addr, ctypes.POINTER(_LinuxSockaddrIn)).contents
                         ipv4_by_interface_name.setdefault(interface_name_str, []).append(_ipv4_from_uint32_le(sockaddr_in.sin_addr))
-                current_address = address_entry.ifa_next
-            libc.freeifaddrs(ifaddrs_pointer)
+                    current_address = address_entry.ifa_next
+            finally:
+                libc.freeifaddrs(ifaddrs_pointer)
     except (OSError, AttributeError):
         pass
     return ipv4_by_interface_name
@@ -543,17 +544,19 @@ def query_darwin_ifaddrs() -> tuple[
 
         ifaddrs_pointer = ctypes.POINTER(_DarwinIfAddrs)()
         if not libc.getifaddrs(ctypes.byref(ifaddrs_pointer)):
-            current_address = ifaddrs_pointer
-            while current_address:
-                _populate_darwin_ifaddr(
-                    current_address.contents,
-                    ipv4_by_interface_name,
-                    mac_by_interface_name,
-                    status_by_interface_name,
-                    traffic_by_interface_name,
-                )
-                current_address = current_address.contents.ifa_next
-            libc.freeifaddrs(ifaddrs_pointer)
+            try:
+                current_address = ifaddrs_pointer
+                while current_address:
+                    _populate_darwin_ifaddr(
+                        current_address.contents,
+                        ipv4_by_interface_name,
+                        mac_by_interface_name,
+                        status_by_interface_name,
+                        traffic_by_interface_name,
+                    )
+                    current_address = current_address.contents.ifa_next
+            finally:
+                libc.freeifaddrs(ifaddrs_pointer)
     except (OSError, AttributeError):
         pass
 

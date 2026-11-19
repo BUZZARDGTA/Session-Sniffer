@@ -28,8 +28,10 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 _IS_WINDOWS = sys.platform == 'win32'
+_IS_DARWIN = sys.platform == 'darwin'
 _SYSTEM32_DIR = get_system32_dir()
-_PING_PATH = str(_SYSTEM32_DIR / 'PING.EXE') if _IS_WINDOWS else (shutil.which('ping') or '/bin/ping')
+_DEFAULT_UNIX_PING_PATH = '/sbin/ping' if _IS_DARWIN else '/bin/ping'
+_PING_PATH = str(_SYSTEM32_DIR / 'PING.EXE') if _IS_WINDOWS else (shutil.which('ping') or _DEFAULT_UNIX_PING_PATH)
 
 _PING_TIMEOUT_MS = 50
 _PING_FANOUT_WORKERS = 64
@@ -46,6 +48,9 @@ def _ping_host(ip_address: str) -> None:
         if _IS_WINDOWS:
             command = [_PING_PATH, '-n', '1', '-w', str(_PING_TIMEOUT_MS), ip_address]
             creationflags = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
+        elif _IS_DARWIN:
+            command = [_PING_PATH, '-c', '1', '-W', str(_PING_TIMEOUT_MS), ip_address]
+            creationflags = 0
         else:
             command = [_PING_PATH, '-c', '1', '-W', '1', ip_address]
             creationflags = 0

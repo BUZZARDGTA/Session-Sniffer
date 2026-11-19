@@ -43,7 +43,7 @@ _ROUTE_MIN_FIELD_COUNT = 3
 _MAC_OCTETS_COUNT = 6
 _MIN_NETSTAT_ROUTE_FIELDS = 4
 
-_DARWIN_ARP_REGEX = re.compile(r'^\S+\s+\((?P<ip>[0-9.]+)\)\s+at\s+(?P<mac>[0-9a-fA-F:]+)\s+on\s+(?P<interface>[a-zA-Z0-9]+)')
+_DARWIN_ARP_REGEX = re.compile(r'^\S+\s+\((?P<ip>[0-9.]+)\)\s+at\s+(?P<mac>[0-9a-fA-F:]+)\s+on\s+(?P<interface>[a-zA-Z0-9._-]+)')
 _DARWIN_ARP_EXECUTABLE = '/usr/sbin/arp'
 _DARWIN_NETSTAT_EXECUTABLE = '/usr/sbin/netstat'
 
