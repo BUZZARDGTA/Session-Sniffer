@@ -6,6 +6,7 @@ import shutil
 import subprocess
 import sys
 import time
+from contextlib import suppress
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -125,8 +126,8 @@ def _get_process_udp_ports_darwin(target_pid: int) -> frozenset[int]:
     for line in process.stdout.splitlines()[1:]:
         tokens = line.strip().split()
         if len(tokens) >= _MIN_LSOF_UDP_FIELDS:
-            endpoint = tokens[-1]
-            port_string = endpoint.rsplit(':', 1)[-1]
+            local_endpoint = tokens[-1].split('->', 1)[0]
+            port_string = local_endpoint.rsplit(':', 1)[-1]
             if port_string.isdigit():
                 ports.add(int(port_string))
     return frozenset(ports)
@@ -192,6 +193,24 @@ def get_process_image_path(pid: int) -> Path | None:
     return get_process_image_path_win32(pid)
 
 
+def _read_linux_process_name(proc_entry: Path) -> str:
+    """Return the untruncated executable basename for a Linux `/proc/<pid>` entry."""
+    try:
+        cmdline = (proc_entry / 'cmdline').read_bytes()
+    except OSError:
+        cmdline = b''
+    if cmdline:
+        argv0 = cmdline.split(b'\x00', 1)[0].decode('utf-8', errors='replace').strip()
+        if argv0:
+            basename = argv0.replace('\\', '/').rstrip('/').rsplit('/', 1)[-1]
+            if basename:
+                return basename
+    try:
+        return (proc_entry / 'comm').read_text(encoding='utf-8', errors='replace').strip()
+    except OSError:
+        return ''
+
+
 def iter_running_processes() -> list[tuple[int, str]]:
     """Return a snapshot list of `(pid, name)` for all running processes."""
     if sys.platform == 'darwin':
@@ -199,18 +218,12 @@ def iter_running_processes() -> list[tuple[int, str]]:
     if sys.platform != 'win32':
         processes: list[tuple[int, str]] = []
         proc_dir = Path('/proc')
-        try:
-            for entry in proc_dir.iterdir():
-                if entry.name.isdigit():
-                    pid = int(entry.name)
-                    comm_file = entry / 'comm'
-                    try:
-                        name = comm_file.read_text(encoding='utf-8', errors='replace').strip()
-                    except OSError:
-                        name = ''
-                    processes.append((pid, name))
-        except OSError:
-            pass
+        with suppress(OSError):
+            processes.extend(
+                (int(entry.name), _read_linux_process_name(entry))
+                for entry in proc_dir.iterdir()
+                if entry.name.isdigit()
+            )
         return processes
     return iter_running_processes_win32()
 
@@ -431,6 +444,7 @@ def find_running_target_process(
     # Fast path: re-query existing cached process handle if still running.
     if cached_process is not None and (target_pid <= 0 or cached_process.pid == target_pid) and is_process_running(cached_process):
         process_path = get_process_image_path(cached_process.pid)
+        resolved_path = process_path.resolve() if process_path is not None else None
         if process_path is not None and process_path.name.lower() in candidate_names:
             updated_cache = (
                 cached_process
@@ -441,18 +455,18 @@ def find_running_target_process(
                 TargetProcessStatus(
                     pid=cached_process.pid,
                     name=process_path.name,
-                    path=process_path.resolve(),
+                    path=resolved_path,
                     udp_ports=get_process_udp_ports(cached_process.pid),
                     is_running=True,
                 ),
                 updated_cache,
             )
-        if not is_gta5 and process_path is None and cached_process.name is not None and cached_process.name.lower() in candidate_names:
+        if (sys.platform != 'win32' or (not is_gta5 and process_path is None)) and cached_process.name is not None and cached_process.name.lower() in candidate_names:
             return (
                 TargetProcessStatus(
                     pid=cached_process.pid,
                     name=cached_process.name,
-                    path=None,
+                    path=resolved_path,
                     udp_ports=get_process_udp_ports(cached_process.pid),
                     is_running=True,
                 ),
@@ -489,7 +503,7 @@ def find_running_target_process(
             logger.debug('[TargetProcess] Authenticode signature invalid for GTA5, ignoring: "%s" (PID: %s)', process_path, pid)
             continue
 
-        resolved_name = process_path.name if process_path is not None else process_name
+        resolved_name = process_path.name if (process_path is not None and process_path.name.lower() in candidate_names) else process_name
         resolved_path = process_path.resolve() if process_path is not None else None
         if target_pid <= 0 or pid == target_pid:
             creation_time = get_process_creation_time(pid)
