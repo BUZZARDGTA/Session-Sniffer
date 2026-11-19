@@ -19,7 +19,7 @@ dependencies = [
 ]
 requires-python = ">=3.14,<3.15"
 authors = [{ name = "BUZZARDGTA" }]
-description = "A packet sniffer (also known as an IP sniffer/puller) specifically designed for Peer-To-Peer (P2P) video games on PC and consoles (PlayStation and Xbox)."
+description = "A packet sniffer (also known as an IP sniffer/puller) specifically designed for Peer-To-Peer (P2P) video games and applications on PC, consoles (PlayStation and Xbox), and mobile devices."
 license = { file = "COPYING" }
 readme = "README.md"
 
