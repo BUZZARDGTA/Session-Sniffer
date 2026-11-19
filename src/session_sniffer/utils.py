@@ -96,7 +96,7 @@ def get_documents_dir() -> Path:
                 raise TypeError(format_type_error(documents_path, str))
         return Path(documents_path)
 
-    return Path.home() / 'Documents'
+    return _get_user_home() / 'Documents'
 
 
 def _get_target_user_identity() -> tuple[int, int, Path] | None:
@@ -191,15 +191,15 @@ def get_app_dir(*, scope: Literal['roaming', 'local']) -> Path:
     """
     if sys.platform == 'win32':
         if scope == 'roaming':
-            base = Path(os.getenv('APPDATA', str(Path.home() / 'AppData' / 'Roaming')))
+            base = Path(os.getenv('APPDATA') or str(Path.home() / 'AppData' / 'Roaming'))
         else:
-            base = Path(os.getenv('LOCALAPPDATA', str(Path.home() / 'AppData' / 'Local')))
+            base = Path(os.getenv('LOCALAPPDATA') or str(Path.home() / 'AppData' / 'Local'))
     elif sys.platform == 'darwin':
         base = _get_user_home() / 'Library' / 'Application Support'
     elif scope == 'roaming':
-        base = Path(os.getenv('XDG_CONFIG_HOME', str(_get_user_home() / '.config')))
+        base = Path(os.getenv('XDG_CONFIG_HOME') or str(_get_user_home() / '.config'))
     else:
-        base = Path(os.getenv('XDG_DATA_HOME', str(_get_user_home() / '.local' / 'share')))
+        base = Path(os.getenv('XDG_DATA_HOME') or str(_get_user_home() / '.local' / 'share'))
 
     app_dir = base / TITLE
     app_dir.mkdir(parents=True, exist_ok=True)
@@ -552,6 +552,7 @@ def run_cmd_script(script: Path, args: list[str] | None = None) -> None:
         shell_command = f'{shlex.join(command)}; exec {shlex.quote(shell_executable)}'
         terminal_candidates = (
             ('x-terminal-emulator', '-e'),
+            ('ptyxis', '--'),
             ('gnome-terminal', '--'),
             ('konsole', '-e'),
             ('xfce4-terminal', '-x'),

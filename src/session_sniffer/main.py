@@ -108,6 +108,7 @@ install_exception_handlers()
 logger = logging.getLogger(__name__)
 
 USER_SCRIPTS_DIR_PATH.mkdir(parents=True, exist_ok=True)
+ensure_app_dir_ownership(USER_SCRIPTS_DIR_PATH)
 
 
 _MAX_ADAPTER_LOST_RECOVERY_ATTEMPTS = 60
