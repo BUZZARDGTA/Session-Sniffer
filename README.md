@@ -9,7 +9,7 @@
 [![Platforms](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-4c1?style=for-the-badge)](https://github.com/BUZZARDGTA/Session-Sniffer/wiki/Installation)
 [![Languages](https://img.shields.io/badge/Languages-33%20(RTL%20Ready)-8A2BE2?style=for-the-badge)](#-key-features)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg?style=for-the-badge)](https://github.com/BUZZARDGTA/Session-Sniffer/blob/main/COPYING)
-[![Discord](https://img.shields.io/badge/Discord-Join%20Community-%235865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/hMZ7MsPX7G)
+[![Discord](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fdiscord.com%2Fapi%2Fv9%2Finvites%2FhMZ7MsPX7G%3Fwith_counts%3Dtrue&query=%24.approximate_member_count&suffix=%20members&style=for-the-badge&logo=discord&logoColor=white&label=Discord&color=5865F2)](https://discord.gg/hMZ7MsPX7G)
 
 [**Download**](#-download) • [**Key Features**](#-key-features) • [**Supported Games**](#-supported-games-and-softwares) • [**Username Resolving**](#-username-resolving) • [**Wiki**](https://github.com/BUZZARDGTA/Session-Sniffer/wiki)
 
