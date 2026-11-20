@@ -113,9 +113,6 @@ exclude-protected = [
 [tool.pylint.design]
 exclude-too-few-public-methods = [".*Structure.*"]
 
-[tool.pylint.typecheck]
-ignored-modules = ["pwd", "winreg"]
-
 [tool.pylint.variables]
 allowed-redefined-builtins = ["object"]
 

@@ -50,6 +50,8 @@ _WIN32_ONLY_CTYPES_PYREFLY_EXCLUDES: tuple[str, ...] = tuple(
     arg for module in _WIN32_ONLY_CTYPES_MODULES for arg in ('--project-excludes', f'**/{module}')
 )
 
+_PYLINT_PLATFORM_IGNORED_MODULE = 'pwd' if sys.platform == 'win32' else 'winreg'
+
 TOOLS: list[QualityTool] = [
     QualityTool(
         name='ruff',
@@ -67,7 +69,7 @@ TOOLS: list[QualityTool] = [
     ),
     QualityTool(
         name='pylint',
-        command=('pylint', '.', '--rcfile', 'pyproject.toml'),
+        command=('pylint', '.', '--rcfile', 'pyproject.toml', f'--ignored-modules={_PYLINT_PLATFORM_IGNORED_MODULE}'),
         install_command='pip install pylint',
         description='Comprehensive Python code analysis',
         category='LINTING',
