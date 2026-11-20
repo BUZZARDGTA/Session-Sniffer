@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, override
 
 from PySide6.QtCore import QSignalBlocker, Qt
 from PySide6.QtGui import QColor
-from PySide6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QSpinBox, QWidget
+from PySide6.QtWidgets import QComboBox, QFrame, QHBoxLayout, QLabel, QSizePolicy, QSpinBox, QVBoxLayout, QWidget
 
 from session_sniffer.guis._spike_sound_controls import (
     SPIKE_VOLUME_MAX,
@@ -24,14 +24,13 @@ from session_sniffer.guis.rate_graph_widget import (
     SpikeOverlayState,
     ThresholdDragConfig,
 )
+from session_sniffer.guis.theming import themed_qss
 from session_sniffer.guis.utils import RateGraphWindowMixin, format_player_display, scale_by_ui
 from session_sniffer.i18n import tr
 from session_sniffer.models.player_traffic import PlayerBandwidth
 
 if TYPE_CHECKING:
     from collections.abc import Callable
-
-    from PySide6.QtWidgets import QVBoxLayout
 
 VISIBLE_WINDOW = 60
 DEFAULT_MAX_HISTORY = 3600
@@ -43,6 +42,69 @@ HISTORY_OPTIONS = {
     '30 Minutes': 1800,
     '1 Hour': 3600,
 }
+
+_RATE_GRAPH_CONTROLS_DOCK_QSS = (
+    'QFrame#rateGraphControlsDock {'
+    ' background-color: @surface[#1e1e1e];'
+    ' border-top: 1px solid @border[#3e3e42];'
+    '}\n'
+    'QFrame#rateGraphControlsDock QWidget#rateGraphControlsRow,'
+    ' QFrame#rateGraphControlsDock QWidget#rateGraphSoundRow,'
+    ' QFrame#rateGraphControlsDock QLabel,'
+    ' QFrame#rateGraphControlsDock QCheckBox {'
+    ' background-color: transparent;'
+    '}\n'
+    'QFrame#rateGraphControlsDock QFrame#rateGraphRowDivider {'
+    ' background-color: @border[#3e3e42];'
+    ' max-height: 1px;'
+    ' min-height: 1px;'
+    ' border: none;'
+    '}\n'
+    'QFrame#rateGraphControlsDock QFrame#rateGraphGroupDivider {'
+    ' background-color: @border[#3e3e42];'
+    ' max-width: 1px;'
+    ' min-width: 1px;'
+    ' border: none;'
+    '}'
+)
+
+
+def _create_vdivider() -> QFrame:
+    """Create a subtle vertical divider line for rate graph control rows."""
+    divider = QFrame()
+    divider.setObjectName('rateGraphGroupDivider')
+    divider.setFrameShape(QFrame.Shape.VLine)
+    divider.setFixedHeight(scale_by_ui(18))
+    return divider
+
+
+def _attach_controls_dock(
+    window: RateGraphWindowMixin,
+    layout: QVBoxLayout,
+    *,
+    pre_footer_widget: QWidget | None = None,
+) -> None:
+    """Attach the bottom theme-aware control dock to *layout* without stealing vertical space from graphs."""
+    dock = QFrame()
+    dock.setObjectName('rateGraphControlsDock')
+    dock.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
+    dock.setStyleSheet(themed_qss(_RATE_GRAPH_CONTROLS_DOCK_QSS))
+    dock_layout = QVBoxLayout(dock)
+    pad_x = scale_by_ui(12)
+    pad_y = scale_by_ui(8)
+    dock_layout.setContentsMargins(pad_x, pad_y, pad_x, pad_y)
+    dock_layout.setSpacing(scale_by_ui(7))
+
+    if pre_footer_widget is not None:
+        pre_footer_widget.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
+        dock_layout.addWidget(pre_footer_widget)
+        row_divider = QFrame()
+        row_divider.setObjectName('rateGraphRowDivider')
+        row_divider.setFrameShape(QFrame.Shape.HLine)
+        dock_layout.addWidget(row_divider)
+
+    window.add_rate_graph_controls(dock_layout, HISTORY_OPTIONS, default_history=DEFAULT_MAX_HISTORY, margins=(0, 0, 0, 0))
+    layout.addWidget(dock, 0)
 
 
 class SingleRateGraphBase(RateGraphWindowMixin):
@@ -79,9 +141,9 @@ class SingleRateGraphBase(RateGraphWindowMixin):
             visible_window=VISIBLE_WINDOW,
         )
         self._widget.set_y_range(0, self.Y_FLOOR)
-        layout.addWidget(self._widget)
+        layout.addWidget(self._widget, 1)
 
-        self.add_rate_graph_controls(layout, HISTORY_OPTIONS, default_history=DEFAULT_MAX_HISTORY)
+        _attach_controls_dock(self, layout)
         self._setup_single_history_buffers()
 
     def _apply_translations(self) -> None:
@@ -158,16 +220,16 @@ class DualRateGraphBase(RateGraphWindowMixin):
     def _setup_dual_graph_widgets(self, layout: QVBoxLayout) -> None:
         """Create PPS and BPS PlotWidgets and add them to *layout*."""
         # ── PPS graph (top) — lime green tones ──────────────────────────
-        self._pps_widget = RateGraphWidget.create_pps_widget(visible_window=VISIBLE_WINDOW)
+        self._pps_widget = RateGraphWidget.create_pps_widget(visible_window=VISIBLE_WINDOW, show_x_axis_title=False)
         self._pps_widget.set_y_range(0, self.PPS_Y_FLOOR)
         self._configure_pps_widget()
-        layout.addWidget(self._pps_widget)
+        layout.addWidget(self._pps_widget, 1)
 
         # ── BPS graph (bottom) — cyan/teal tones ────────────────────────
-        self._bps_widget = RateGraphWidget.create_bps_widget(visible_window=VISIBLE_WINDOW)
+        self._bps_widget = RateGraphWidget.create_bps_widget(visible_window=VISIBLE_WINDOW, show_x_axis_title=True)
         self._bps_widget.set_y_range(0, self.BPS_Y_FLOOR)
         self._configure_bps_widget()
-        layout.addWidget(self._bps_widget)
+        layout.addWidget(self._bps_widget, 1)
 
     def _configure_pps_widget(self) -> None:
         """Override to add PPS-specific configuration (threshold lines, custom limits, etc.)."""
@@ -175,8 +237,9 @@ class DualRateGraphBase(RateGraphWindowMixin):
     def _configure_bps_widget(self) -> None:
         """Override to add BPS-specific configuration (threshold lines, etc.)."""
 
-    def _add_pre_footer_controls(self, layout: QVBoxLayout) -> None:
-        """Override to insert an additional controls bar directly above the footer controls."""
+    def _create_pre_footer_controls(self) -> QWidget | None:
+        """Override to return an optional controls row placed inside the bottom dock above the footer row."""
+        return None
 
     def _pps_y_ceiling(self, visible_max: float) -> float:
         """Return the upper Y-axis bound for the PPS graph."""
@@ -192,8 +255,7 @@ class DualRateGraphBase(RateGraphWindowMixin):
         self.resize(scale_by_ui(700), scale_by_ui(500))
         layout = self.setup_window_layout(always_on_top=True, margins=(0, 0, 0, 0), spacing=0)
         self._setup_dual_graph_widgets(layout)
-        self._add_pre_footer_controls(layout)
-        self.add_rate_graph_controls(layout, HISTORY_OPTIONS, default_history=DEFAULT_MAX_HISTORY)
+        _attach_controls_dock(self, layout, pre_footer_widget=self._create_pre_footer_controls())
         self._setup_history_buffers()
 
     @override
@@ -424,10 +486,11 @@ class PlayerRateGraphWindow(DualRateGraphBase):
         return max(base, self._bps_widget.y_max) if self._bps_widget.is_dragging_threshold else base
 
     @override
-    def _add_pre_footer_controls(self, layout: QVBoxLayout) -> None:
+    def _create_pre_footer_controls(self) -> QWidget:
         controls_bar = QWidget()
+        controls_bar.setObjectName('rateGraphControlsRow')
         row = QHBoxLayout(controls_bar)
-        row.setContentsMargins(8, 6, 8, 0)
+        row.setContentsMargins(0, 0, 0, 0)
         row.setSpacing(scale_by_ui(6))
 
         thresholds_label = QLabel()
@@ -444,7 +507,9 @@ class PlayerRateGraphWindow(DualRateGraphBase):
         row.addWidget(monitor_mode_combo)
         self._monitor_mode_combo = monitor_mode_combo
 
-        row.addSpacing(scale_by_ui(6))
+        row.addSpacing(scale_by_ui(2))
+        row.addWidget(_create_vdivider())
+        row.addSpacing(scale_by_ui(2))
 
         pps_label = QLabel()
         set_i18n_colon_label(pps_label, 'PPS')
@@ -452,7 +517,8 @@ class PlayerRateGraphWindow(DualRateGraphBase):
         self._pps_label = pps_label
 
         pps_spin = QSpinBox()
-        pps_spin.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        pps_spin.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
+        pps_spin.setMinimumWidth(scale_by_ui(86))
         pps_spin.setRange(
             _PPS_THRESHOLD_MIN,
             _PPS_THRESHOLD_MAX if self._monitor_mode == 'Manual' else max(_PPS_THRESHOLD_MAX, self._pps_threshold_value),
@@ -475,7 +541,8 @@ class PlayerRateGraphWindow(DualRateGraphBase):
         self._bps_label = bps_label
 
         bps_spin = QSpinBox()
-        bps_spin.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        bps_spin.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
+        bps_spin.setMinimumWidth(scale_by_ui(90))
         bps_spin.setRange(_BPS_THRESHOLD_KB_MIN, _BPS_THRESHOLD_KB_MAX)
         bps_spin.setValue(
             self._manual_bps_threshold_kb
@@ -487,7 +554,7 @@ class PlayerRateGraphWindow(DualRateGraphBase):
         row.addWidget(bps_spin)
         self._bps_spinbox = bps_spin
 
-        row.addSpacing(scale_by_ui(10))
+        row.addStretch()
 
         interval_label = QLabel()
         set_i18n_colon_label(interval_label, 'Interval')
@@ -495,15 +562,14 @@ class PlayerRateGraphWindow(DualRateGraphBase):
         self._interval_label = interval_label
 
         interval_spin = QSpinBox()
-        interval_spin.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        interval_spin.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
+        interval_spin.setMinimumWidth(scale_by_ui(104))
         interval_spin.setRange(_REPEAT_INTERVAL_MIN, _REPEAT_INTERVAL_MAX)
         interval_spin.setValue(min(_REPEAT_INTERVAL_MAX, max(_REPEAT_INTERVAL_MIN, self._repeat_interval)))
         interval_spin.lineEdit().setTextMargins(scale_by_ui(5), 0, 0, 0)
         interval_spin.valueChanged.connect(self._handle_interval_spinbox_changed)
         row.addWidget(interval_spin)
         self._interval_spinbox = interval_spin
-
-        row.addStretch()
 
         def _refresh_threshold_bar_language() -> None:
             for i, canonical_mode in enumerate(_MONITOR_MODES):
@@ -526,7 +592,7 @@ class PlayerRateGraphWindow(DualRateGraphBase):
 
         _refresh_threshold_bar_language()
         register_language_refresh(controls_bar, _refresh_threshold_bar_language)
-        layout.addWidget(controls_bar)
+        return controls_bar
 
     @override
     def _create_extra_rate_graph_controls(self) -> list[QWidget]:
@@ -537,7 +603,8 @@ class PlayerRateGraphWindow(DualRateGraphBase):
             on_volume_changed=self._handle_volume_changed,
         )
         self._spike_sound_bar = SpikeSoundQuickBar(initial_bar_state, bar_callbacks)
-        return [self._spike_sound_bar]
+        self._spike_sound_bar.setObjectName('rateGraphSoundRow')
+        return [_create_vdivider(), self._spike_sound_bar]
 
     def _refresh_dependent_control_states(self) -> None:
         sound_active = self._spike_sound_scope != 'Disabled'

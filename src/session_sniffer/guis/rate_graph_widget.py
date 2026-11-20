@@ -3,7 +3,7 @@
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, override
 
-from PySide6.QtCore import QEvent, QRectF, Qt
+from PySide6.QtCore import QEvent, QPointF, QRectF, Qt
 from PySide6.QtGui import QBrush, QColor, QLinearGradient, QMouseEvent, QPainter, QPainterPath, QPaintEvent, QPen
 from PySide6.QtWidgets import QWidget
 
@@ -16,10 +16,15 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
 INTEGER_FORMAT_THRESHOLD = 10
-_MARGIN_LEFT = 60
-_MARGIN_BOTTOM = 45
-_MARGIN_TOP = 10
-_MARGIN_RIGHT = 10
+_LIVE_CHIP_INTEGER_THRESHOLD = 100
+_MARGIN_LEFT = 58
+_MARGIN_BOTTOM_FULL = 42
+_MARGIN_BOTTOM_COMPACT = 24
+_MARGIN_TOP = 12
+_MARGIN_RIGHT = 16
+_PLOT_CORNER_RADIUS = 4.0
+_PLOT_BG_COLOR = '@table[#17171a]'
+_CANVAS_BG_COLOR = '@background[#121212]'
 
 _PPS_HEAT_STOPS: tuple[tuple[float, tuple[int, int, int]], ...] = (
     (0.00, (34, 197, 94)),    # #22c55e — calm emerald
@@ -104,11 +109,14 @@ class RateGraphWidget(QWidget):
         theme: RateGraphTheme,
         visible_window: int = 60,
         parent: QWidget | None = None,
+        *,
+        show_x_axis_title: bool = True,
     ) -> None:
         """Initialize the rate graph widget."""
         super().__init__(parent)
         self.left_label = left_label
         self._graph_theme = theme
+        self._show_x_axis_title = show_x_axis_title
         self.line_color = QColor()
         self.fill_color = QColor()
         self.avg_color = QColor()
@@ -150,10 +158,10 @@ class RateGraphWidget(QWidget):
     def refresh_theme_colors(self) -> None:
         """Recompute graph line, fill, average, and threshold colors for the active theme."""
         theme = self._graph_theme
-        self.line_color = themed_text_qcolor(theme.line_color, '@table[#000000]')
+        self.line_color = themed_text_qcolor(theme.line_color, _PLOT_BG_COLOR)
         self.fill_color = themed_qcolor(theme.fill_color)
-        self.avg_color = themed_text_qcolor(theme.avg_color, '@table[#000000]')
-        self.threshold_color = themed_text_qcolor(theme.threshold_color, '@table[#000000]') if theme.threshold_color is not None else None
+        self.avg_color = themed_text_qcolor(theme.avg_color, _PLOT_BG_COLOR)
+        self.threshold_color = themed_text_qcolor(theme.threshold_color, _PLOT_BG_COLOR) if theme.threshold_color is not None else None
         self.update()
 
     def set_data(self, data: list[float]) -> None:
@@ -197,7 +205,7 @@ class RateGraphWidget(QWidget):
         self.update()
 
     @classmethod
-    def create_pps_widget(cls, visible_window: int = 60) -> RateGraphWidget:
+    def create_pps_widget(cls, visible_window: int = 60, *, show_x_axis_title: bool = True) -> RateGraphWidget:
         """Create a RateGraphWidget configured for Packets per Second (PPS)."""
         return cls(
             left_label='PPS',
@@ -207,10 +215,11 @@ class RateGraphWidget(QWidget):
                 avg_color='#388e3c',
             ),
             visible_window=visible_window,
+            show_x_axis_title=show_x_axis_title,
         )
 
     @classmethod
-    def create_bps_widget(cls, visible_window: int = 60) -> RateGraphWidget:
+    def create_bps_widget(cls, visible_window: int = 60, *, show_x_axis_title: bool = True) -> RateGraphWidget:
         """Create a RateGraphWidget configured for Bytes per Second (BPS in KB/s)."""
         return cls(
             left_label='KB/s',
@@ -220,10 +229,11 @@ class RateGraphWidget(QWidget):
                 avg_color='#0097a7',
             ),
             visible_window=visible_window,
+            show_x_axis_title=show_x_axis_title,
         )
 
     @classmethod
-    def create_latency_widget(cls, visible_window: int = 60) -> RateGraphWidget:
+    def create_latency_widget(cls, visible_window: int = 60, *, show_x_axis_title: bool = True) -> RateGraphWidget:
         """Create a RateGraphWidget configured for packet latency (ms/s)."""
         return cls(
             left_label='Latency (ms/s)',
@@ -233,16 +243,24 @@ class RateGraphWidget(QWidget):
                 avg_color='#e65100',
             ),
             visible_window=visible_window,
+            show_x_axis_title=show_x_axis_title,
         )
 
     def _build_heat_brushes(self, *, margin_top: int, graph_height: int) -> tuple[QBrush, QBrush]:
         """Build vertical line and area-fill brushes mapped dynamically to `rate / threshold`."""
-        if not self._heat_gradient_enabled or self._threshold is None or self._threshold <= 0:
-            return QBrush(self.line_color), QBrush(self.fill_color)
-
-        is_bps = self.left_label == 'KB/s'
         top_y = float(margin_top)
         bot_y = float(margin_top + graph_height)
+        if not self._heat_gradient_enabled or self._threshold is None or self._threshold <= 0:
+            fill_grad = QLinearGradient(0.0, top_y, 0.0, bot_y)
+            top_fill = QColor(self.fill_color)
+            top_fill.setAlpha(max(top_fill.alpha(), 82))
+            bot_fill = QColor(self.fill_color)
+            bot_fill.setAlpha(10)
+            fill_grad.setColorAt(0.0, top_fill)
+            fill_grad.setColorAt(1.0, bot_fill)
+            return QBrush(self.line_color), QBrush(fill_grad)
+
+        is_bps = self.left_label == 'KB/s'
         line_grad = QLinearGradient(0.0, top_y, 0.0, bot_y)
         fill_grad = QLinearGradient(0.0, top_y, 0.0, bot_y)
         span = max(1.0, self._y_max - self._y_min)
@@ -252,7 +270,7 @@ class RateGraphWidget(QWidget):
             heat_ratio = max(0.0, rate_at_step / self._threshold)
             r, g, b = interpolate_heat_rgb(heat_ratio, is_bps=is_bps)
             line_grad.setColorAt(step, QColor(r, g, b))
-            fill_alpha = min(115, round(30 + min(2.0, heat_ratio) * 42))
+            fill_alpha = min(115, round(18 + min(2.0, heat_ratio) * 48))
             fill_grad.setColorAt(step, QColor(r, g, b, fill_alpha))
 
         return QBrush(line_grad), QBrush(fill_grad)
@@ -269,34 +287,48 @@ class RateGraphWidget(QWidget):
         zone_grad.setColorAt(1.0, QColor(r, g, b, 14))
         painter.fillRect(QRectF(margin_left, margin_top, graph_width, zone_bottom - margin_top), zone_grad)
 
+    def _margins(self) -> tuple[int, int, int, int]:
+        """Return `(left, top, right, bottom)` plot margins scaled by UI scale."""
+        bottom = _MARGIN_BOTTOM_FULL if self._show_x_axis_title else _MARGIN_BOTTOM_COMPACT
+        return (
+            scale_by_ui(_MARGIN_LEFT),
+            scale_by_ui(_MARGIN_TOP),
+            scale_by_ui(_MARGIN_RIGHT),
+            scale_by_ui(bottom),
+        )
+
     def _plot_dimensions(self) -> tuple[int, int]:
         rect = self.rect()
-        return rect.width() - _MARGIN_LEFT - _MARGIN_RIGHT, rect.height() - _MARGIN_TOP - _MARGIN_BOTTOM
+        margin_left, margin_top, margin_right, margin_bottom = self._margins()
+        return rect.width() - margin_left - margin_right, rect.height() - margin_top - margin_bottom
 
     def _value_to_y(self, value: float, graph_height: int) -> float:
+        _, margin_top, _, _ = self._margins()
         span = (self._y_max - self._y_min) or 1.0
-        return _MARGIN_TOP + graph_height * (1.0 - (value - self._y_min) / span)
+        return margin_top + graph_height * (1.0 - (value - self._y_min) / span)
 
     def _is_near_threshold_line(self, x_pos: float, y_pos: float) -> bool:
         if self._drag_config is None or self._threshold is None:
             return False
+        margin_left, margin_top, _, _ = self._margins()
         graph_width, graph_height = self._plot_dimensions()
         if graph_width <= 0 or graph_height <= 0:
             return False
-        if x_pos < _MARGIN_LEFT or x_pos > _MARGIN_LEFT + graph_width:
+        if x_pos < margin_left or x_pos > margin_left + graph_width:
             return False
         thresh_y = self._value_to_y(self._threshold, graph_height)
         hit_pad = float(scale_by_ui(7))
-        if thresh_y < _MARGIN_TOP - hit_pad or thresh_y > _MARGIN_TOP + graph_height + hit_pad:
+        if thresh_y < margin_top - hit_pad or thresh_y > margin_top + graph_height + hit_pad:
             return False
         return abs(y_pos - thresh_y) <= hit_pad
 
     def _y_to_clamped_threshold(self, y_pos: float, cfg: ThresholdDragConfig) -> int:
+        _, margin_top, _, _ = self._margins()
         _, graph_height = self._plot_dimensions()
         if graph_height <= 0:
             return cfg.min_value
         span = (self._y_max - self._y_min) or 1.0
-        raw_val = self._y_min + (1.0 - (y_pos - _MARGIN_TOP) / graph_height) * span
+        raw_val = self._y_min + (1.0 - (y_pos - margin_top) / graph_height) * span
         return min(cfg.max_value, max(cfg.min_value, round(raw_val)))
 
     @override
@@ -370,7 +402,14 @@ class RateGraphWidget(QWidget):
             self.update()
         super().leaveEvent(event)
 
-    def _paint_threshold_drag_pill(self, painter: QPainter, *, thresh_line_y: float, graph_height: int, line_color: QColor) -> None:
+    def _paint_threshold_drag_pill(
+        self,
+        painter: QPainter,
+        *,
+        plot_rect: QRectF,
+        thresh_line_y: float,
+        line_color: QColor,
+    ) -> None:
         """Paint a compact live value tag on the threshold line while hovered or dragged."""
         if self._drag_config is None or self._threshold is None:
             return
@@ -384,13 +423,116 @@ class RateGraphWidget(QWidget):
         pad_y = scale_by_ui(2)
         pill_w = metrics.horizontalAdvance(pill_text) + pad_x * 2
         pill_h = metrics.height() + pad_y * 2
-        pill_y = min(float(_MARGIN_TOP + graph_height - pill_h), max(float(_MARGIN_TOP), thresh_line_y - pill_h / 2.0))
-        pill_rect = QRectF(_MARGIN_LEFT + scale_by_ui(6), pill_y, pill_w, pill_h)
+        pill_y = min(plot_rect.bottom() - pill_h, max(plot_rect.top(), thresh_line_y - pill_h / 2.0))
+        pill_rect = QRectF(plot_rect.left() + scale_by_ui(6), pill_y, pill_w, pill_h)
+        pill_bg = themed_qcolor('@popup[#1b2029]')
+        pill_bg.setAlpha(236)
         painter.setPen(QPen(line_color, 1.2))
-        painter.setBrush(QBrush(QColor(17, 24, 39, 232)))
-        painter.drawRoundedRect(pill_rect, 3.5, 3.5)
+        painter.setBrush(QBrush(pill_bg))
+        painter.drawRoundedRect(pill_rect, 4.0, 4.0)
         painter.setPen(QPen(line_color, 1))
         painter.drawText(pill_rect, Qt.AlignmentFlag.AlignCenter, pill_text)
+
+    def _paint_threshold_tag(
+        self,
+        painter: QPainter,
+        *,
+        plot_rect: QRectF,
+        thresh_line_y: float,
+        line_color: QColor,
+        has_top_right_badge: bool,
+    ) -> None:
+        """Paint an understated inline value tag on the right side of the dashed threshold line."""
+        if self._threshold is None:
+            return
+        unit = tr(self._drag_config.unit_label) if self._drag_config is not None else tr(self.left_label)
+        tag_text = f'{round(self._threshold)} {unit}'
+        tag_font = painter.font()
+        tag_font.setPointSize(7)
+        tag_font.setBold(True)
+        painter.setFont(tag_font)
+        metrics = painter.fontMetrics()
+        pad_x = scale_by_ui(5)
+        pad_y = scale_by_ui(1)
+        tag_w = metrics.horizontalAdvance(tag_text) + pad_x * 2
+        tag_h = metrics.height() + pad_y * 2
+        if tag_w > plot_rect.width() * 0.45:
+            return
+        tag_x = plot_rect.right() - tag_w - scale_by_ui(6)
+        above_y = thresh_line_y - tag_h - scale_by_ui(3)
+        below_y = thresh_line_y + scale_by_ui(3)
+        top_clearance = plot_rect.top() + (scale_by_ui(30) if has_top_right_badge else scale_by_ui(4))
+        if above_y >= top_clearance:
+            tag_y = above_y
+        elif below_y + tag_h <= plot_rect.bottom() - scale_by_ui(4):
+            tag_y = below_y
+        else:
+            return
+        tag_rect = QRectF(tag_x, tag_y, tag_w, tag_h)
+        tag_bg = themed_qcolor(_PLOT_BG_COLOR)
+        tag_bg.setAlpha(210)
+        tag_border = QColor(line_color)
+        tag_border.setAlpha(110)
+        painter.setPen(QPen(tag_border, 1.0))
+        painter.setBrush(QBrush(tag_bg))
+        painter.drawRoundedRect(tag_rect, 3.0, 3.0)
+        painter.setPen(QPen(line_color, 1))
+        painter.drawText(tag_rect, Qt.AlignmentFlag.AlignCenter, tag_text)
+
+    def _paint_live_rate_chip(self, painter: QPainter, *, plot_rect: QRectF) -> None:
+        """Paint a compact live rate readout pill at the top-left of the plot area."""
+        if not self._data:
+            return
+        latest = self._data[-1]
+        unit = tr(self.left_label)
+        value_str = f'{round(latest)} {unit}' if self.left_label == 'PPS' or latest >= _LIVE_CHIP_INTEGER_THRESHOLD else f'{latest:.1f} {unit}'
+
+        chip_font = painter.font()
+        chip_font.setPointSize(8)
+        chip_font.setBold(True)
+        painter.setFont(chip_font)
+        metrics = painter.fontMetrics()
+
+        dot_d = scale_by_ui(6)
+        dot_gap = scale_by_ui(5)
+        pad_x = scale_by_ui(7)
+        pad_y = scale_by_ui(2)
+        chip_w = pad_x * 2 + dot_d + dot_gap + metrics.horizontalAdvance(value_str)
+        chip_h = metrics.height() + pad_y * 2
+        if chip_w > plot_rect.width() * 0.55:
+            return
+
+        chip_rect = QRectF(plot_rect.left() + scale_by_ui(6), plot_rect.top() + scale_by_ui(6), chip_w, chip_h)
+        chip_bg = themed_qcolor('@surface[#1e1e1e]')
+        chip_bg.setAlpha(205)
+        chip_border = themed_qcolor('@border[#3e3e42]')
+        chip_border.setAlpha(150)
+        painter.setPen(QPen(chip_border, 1.0))
+        painter.setBrush(QBrush(chip_bg))
+        painter.drawRoundedRect(chip_rect, 4.0, 4.0)
+
+        dot_color = self._latest_sample_color(latest)
+        dot_center = QPointF(chip_rect.left() + pad_x + dot_d / 2.0, chip_rect.center().y())
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QBrush(dot_color))
+        painter.drawEllipse(dot_center, dot_d / 2.0, dot_d / 2.0)
+
+        text_rect = QRectF(
+            chip_rect.left() + pad_x + dot_d + dot_gap,
+            chip_rect.top(),
+            chip_rect.width() - pad_x * 2 - dot_d - dot_gap,
+            chip_rect.height(),
+        )
+        painter.setPen(QPen(themed_text_qcolor('@text_strong[#ffffff]', '@surface[#1e1e1e]'), 1))
+        painter.drawText(text_rect, Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft, value_str)
+
+    def _latest_sample_color(self, value: float) -> QColor:
+        """Return the active curve color (or heat-interpolated color) for *value*."""
+        if self._heat_gradient_enabled and self._threshold is not None and self._threshold > 0:
+            is_bps = self.left_label == 'KB/s'
+            r, g, b = interpolate_heat_rgb(max(0.0, value / self._threshold), is_bps=is_bps)
+            return QColor(r, g, b)
+        return self.line_color
 
     @override
     def paintEvent(self, a0: QPaintEvent | None) -> None:
@@ -400,94 +542,166 @@ class RateGraphWidget(QWidget):
         painter = QPainter(self)
         try:
             painter.setRenderHint(QPainter.RenderHint.Antialiasing, on=True)
-            painter.fillRect(a0.rect(), themed_qcolor('@table[#000000]'))
+            painter.fillRect(a0.rect(), themed_qcolor(_CANVAS_BG_COLOR))
 
-            margin_left = _MARGIN_LEFT
-            margin_top = _MARGIN_TOP
+            margin_left, margin_top, _, _ = self._margins()
             graph_width, graph_height = self._plot_dimensions()
             if graph_width <= 0 or graph_height <= 0:
                 return
 
-            self._paint_axes_and_grid(painter, margin_left=margin_left, margin_top=margin_top, graph_width=graph_width, graph_height=graph_height)
-            if not self._data:
-                return
+            plot_rect = QRectF(margin_left, margin_top, graph_width, graph_height)
+            plot_path = QPainterPath()
+            plot_path.addRoundedRect(plot_rect, _PLOT_CORNER_RADIUS, _PLOT_CORNER_RADIUS)
+            painter.fillPath(plot_path, themed_qcolor(_PLOT_BG_COLOR))
+
+            self._paint_axes_and_grid(painter, plot_rect=plot_rect, plot_path=plot_path)
 
             state = self._overlay_state
-            if state.active:
-                thresh_y = (
-                    min(float(margin_top + graph_height), self._value_to_y(self._threshold, graph_height))
-                    if self._threshold is not None
-                    else float(margin_top + graph_height)
-                )
-                self._paint_danger_zone(painter, margin_left=margin_left, margin_top=margin_top, graph_width=graph_width, threshold_y=thresh_y)
+            has_spike_overlay = state.active or (self._heat_gradient_enabled and state.proximity_level >= _PROXIMITY_BADGE_MIN_LEVEL)
 
-            self._paint_data_series(painter, margin_left=margin_left, margin_top=margin_top, graph_width=graph_width, graph_height=graph_height)
+            if self._data:
+                painter.save()
+                painter.setClipPath(plot_path)
+                if state.active:
+                    thresh_y = (
+                        min(float(margin_top + graph_height), self._value_to_y(self._threshold, graph_height))
+                        if self._threshold is not None
+                        else float(margin_top + graph_height)
+                    )
+                    self._paint_danger_zone(painter, margin_left=margin_left, margin_top=margin_top, graph_width=graph_width, threshold_y=thresh_y)
 
-            if self._average > 0:
-                avg_y = self._value_to_y(self._average, graph_height)
-                if margin_top <= avg_y <= margin_top + graph_height:
-                    painter.setPen(QPen(self.avg_color, 1.5, Qt.PenStyle.DotLine))
-                    painter.drawLine(margin_left, int(avg_y), margin_left + graph_width, int(avg_y))
+                self._paint_data_series(painter, margin_left=margin_left, margin_top=margin_top, graph_width=graph_width, graph_height=graph_height)
 
-            if self._threshold is not None and self.threshold_color:
-                thresh_line_y = self._value_to_y(self._threshold, graph_height)
-                if margin_top <= thresh_line_y <= margin_top + graph_height:
-                    is_bps = self.left_label == 'KB/s'
-                    interactive_active = self._hovering_threshold or self._dragging_threshold
-                    t_color = QColor(*interpolate_heat_rgb(max(1.25, state.proximity_level), is_bps=is_bps)) if state.active else self.threshold_color
-                    pen_width = 2.4 if interactive_active else (2.0 if state.active else 1.5)
-                    painter.setPen(QPen(t_color, pen_width, Qt.PenStyle.DashLine))
-                    painter.drawLine(margin_left, int(thresh_line_y), margin_left + graph_width, int(thresh_line_y))
+                if self._average > 0:
+                    avg_y = self._value_to_y(self._average, graph_height)
+                    if margin_top <= avg_y <= margin_top + graph_height:
+                        painter.setPen(QPen(self.avg_color, 1.4, Qt.PenStyle.DotLine))
+                        painter.drawLine(margin_left, int(avg_y), margin_left + graph_width, int(avg_y))
+
+                thresh_line_y: float | None = None
+                thresh_line_color: QColor | None = None
+                interactive_active = self._hovering_threshold or self._dragging_threshold
+                if self._threshold is not None and self.threshold_color:
+                    cand_y = self._value_to_y(self._threshold, graph_height)
+                    if margin_top <= cand_y <= margin_top + graph_height:
+                        is_bps = self.left_label == 'KB/s'
+                        t_color = QColor(*interpolate_heat_rgb(max(1.25, state.proximity_level), is_bps=is_bps)) if state.active else self.threshold_color
+                        pen_width = 2.4 if interactive_active else (2.0 if state.active else 1.5)
+                        painter.setPen(QPen(t_color, pen_width, Qt.PenStyle.DashLine))
+                        painter.drawLine(margin_left, int(cand_y), margin_left + graph_width, int(cand_y))
+                        thresh_line_y = cand_y
+                        thresh_line_color = t_color
+                painter.restore()
+
+                # Outer plot border (replaced by heat-colored alert frame when spike/proximity is active)
+                if not has_spike_overlay:
+                    frame_color = themed_qcolor('@border[#3e3e42]')
+                    frame_color.setAlpha(185)
+                    painter.setPen(QPen(frame_color, 1.0))
+                    painter.setBrush(Qt.BrushStyle.NoBrush)
+                    painter.drawRoundedRect(plot_rect, _PLOT_CORNER_RADIUS, _PLOT_CORNER_RADIUS)
+
+                if thresh_line_y is not None and thresh_line_color is not None:
                     if interactive_active:
-                        self._paint_threshold_drag_pill(painter, thresh_line_y=thresh_line_y, graph_height=graph_height, line_color=t_color)
+                        self._paint_threshold_drag_pill(
+                            painter,
+                            plot_rect=plot_rect,
+                            thresh_line_y=thresh_line_y,
+                            line_color=thresh_line_color,
+                        )
+                    else:
+                        self._paint_threshold_tag(
+                            painter,
+                            plot_rect=plot_rect,
+                            thresh_line_y=thresh_line_y,
+                            line_color=thresh_line_color,
+                            has_top_right_badge=has_spike_overlay,
+                        )
 
-            if state.active or (self._heat_gradient_enabled and state.proximity_level >= _PROXIMITY_BADGE_MIN_LEVEL):
-                self._paint_spike_overlay(painter, margin_left=margin_left, margin_top=margin_top, graph_width=graph_width, graph_height=graph_height)
+                self._paint_live_rate_chip(painter, plot_rect=plot_rect)
+
+                if has_spike_overlay:
+                    self._paint_spike_overlay(painter, margin_left=margin_left, margin_top=margin_top, graph_width=graph_width, graph_height=graph_height)
+            else:
+                frame_color = themed_qcolor('@border[#3e3e42]')
+                frame_color.setAlpha(185)
+                painter.setPen(QPen(frame_color, 1.0))
+                painter.setBrush(Qt.BrushStyle.NoBrush)
+                painter.drawRoundedRect(plot_rect, _PLOT_CORNER_RADIUS, _PLOT_CORNER_RADIUS)
         finally:
             painter.end()
 
-    def _paint_axes_and_grid(self, painter: QPainter, *, margin_left: int, margin_top: int, graph_width: int, graph_height: int) -> None:
+    def _paint_axes_and_grid(self, painter: QPainter, *, plot_rect: QRectF, plot_path: QPainterPath) -> None:
         """Paint background grid lines, Y/X tick labels, and axis titles."""
-        painter.setPen(QPen(themed_qcolor('@border[#323232]'), 1, Qt.PenStyle.SolidLine))
+        margin_left = int(plot_rect.left())
+        margin_top = int(plot_rect.top())
+        graph_width = int(plot_rect.width())
+        graph_height = int(plot_rect.height())
         num_x_lines = 6
-        for i in range(num_x_lines + 1):
+        num_y_lines = 4
+
+        painter.save()
+        painter.setClipPath(plot_path)
+
+        v_grid = themed_qcolor('@border[#3e3e42]')
+        v_grid.setAlpha(70)
+        painter.setPen(QPen(v_grid, 1, Qt.PenStyle.SolidLine))
+        for i in range(1, num_x_lines):
             x_pos = margin_left + i * graph_width / num_x_lines
             painter.drawLine(int(x_pos), margin_top, int(x_pos), margin_top + graph_height)
 
-        num_y_lines = 4
-        for i in range(num_y_lines + 1):
+        h_grid = themed_qcolor('@border[#3e3e42]')
+        h_grid.setAlpha(110)
+        painter.setPen(QPen(h_grid, 1, Qt.PenStyle.DashLine))
+        for i in range(1, num_y_lines):
             y_pos = margin_top + i * graph_height / num_y_lines
             painter.drawLine(margin_left, int(y_pos), margin_left + graph_width, int(y_pos))
+
+        painter.restore()
 
         painter.setPen(QPen(self.line_color, 1))
         font = painter.font()
         font.setPointSize(8)
+        font.setBold(False)
         painter.setFont(font)
+        tick_pad = scale_by_ui(7)
         for i in range(num_y_lines + 1):
             y_val = self._y_min + (self._y_max - self._y_min) * (num_y_lines - i) / num_y_lines
             y_pos = margin_top + i * graph_height / num_y_lines
             text = f'{int(y_val)}' if y_val >= INTEGER_FORMAT_THRESHOLD else f'{y_val:.1f}'
-            painter.drawText(0, int(y_pos) - 10, margin_left - 5, 20, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter, text)
+            painter.drawText(0, int(y_pos) - 10, margin_left - tick_pad, 20, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter, text)
 
-        axis_label_color = themed_text_qcolor('@text_muted[#c8c8c8]', '@table[#000000]')
+        axis_label_color = themed_text_qcolor('@text_muted[#9ca3af]', _CANVAS_BG_COLOR)
         painter.setPen(QPen(axis_label_color, 1))
         for i in range(num_x_lines + 1):
             x_val = self.visible_window * (num_x_lines - i) / num_x_lines
             x_pos = margin_left + i * graph_width / num_x_lines
-            painter.drawText(int(x_pos) - 20, margin_top + graph_height + 5, 40, 20, Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop, f'{int(x_val)}')
+            painter.drawText(int(x_pos) - 20, margin_top + graph_height + scale_by_ui(4), 40, 20, Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop, f'{int(x_val)}')
 
         painter.save()
+        title_font = painter.font()
+        title_font.setPointSize(8)
+        title_font.setBold(True)
+        painter.setFont(title_font)
         painter.setPen(QPen(self.line_color, 1))
-        painter.translate(15, margin_top + graph_height / 2)
+        painter.translate(scale_by_ui(13), margin_top + graph_height / 2)
         painter.rotate(-90)
         painter.drawText(-100, -10, 200, 20, Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop, tr(self.left_label))
         painter.restore()
 
-        painter.setPen(QPen(axis_label_color, 1))
-        painter.drawText(margin_left, margin_top + graph_height + 20, graph_width, 20, Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop, tr('Time (seconds ago)'))
+        if self._show_x_axis_title:
+            painter.setPen(QPen(axis_label_color, 1))
+            painter.drawText(
+                margin_left,
+                margin_top + graph_height + scale_by_ui(20),
+                graph_width,
+                20,
+                Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop,
+                tr('Time (seconds ago)'),
+            )
 
     def _paint_data_series(self, painter: QPainter, *, margin_left: int, margin_top: int, graph_width: int, graph_height: int) -> None:
-        """Paint the filled area and stroke curve for `self._data`."""
+        """Paint the filled area, stroke curve, and live endpoint indicator for `self._data`."""
         num_points = len(self._data)
         if not num_points:
             return
@@ -496,6 +710,8 @@ class RateGraphWidget(QWidget):
 
         fill_path = QPainterPath()
         line_path = QPainterPath()
+        last_x = float(margin_left + graph_width)
+        last_y = float(margin_top + graph_height)
         for i, rate_value in enumerate(self._data):
             x_pos = margin_left + graph_width - (num_points - 1 - i) * dx
             y_pos = margin_top + graph_height * (1.0 - (rate_value - self._y_min) / span)
@@ -506,6 +722,8 @@ class RateGraphWidget(QWidget):
                 line_path.moveTo(x_pos, y_pos)
                 fill_path.moveTo(x_pos, margin_top + graph_height)
                 fill_path.lineTo(x_pos, y_pos)
+            last_x = x_pos
+            last_y = y_pos
 
         fill_path.lineTo(margin_left + graph_width, margin_top + graph_height)
         fill_path.closeSubpath()
@@ -515,9 +733,21 @@ class RateGraphWidget(QWidget):
         painter.setBrush(fill_brush)
         painter.drawPath(fill_path)
 
-        painter.setPen(QPen(line_brush, 2.2 if self._heat_gradient_enabled else 2.0))
+        painter.setPen(QPen(line_brush, 2.2 if self._heat_gradient_enabled else 2.0, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
         painter.setBrush(Qt.BrushStyle.NoBrush)
         painter.drawPath(line_path)
+
+        latest = self._data[-1]
+        if latest > 0:
+            dot_color = self._latest_sample_color(latest)
+            halo = QColor(dot_color)
+            halo.setAlpha(75)
+            center = QPointF(last_x, last_y)
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(QBrush(halo))
+            painter.drawEllipse(center, 5.5, 5.5)
+            painter.setBrush(QBrush(dot_color))
+            painter.drawEllipse(center, 3.0, 3.0)
 
     def _paint_spike_overlay(
         self,
@@ -538,7 +768,7 @@ class RateGraphWidget(QWidget):
         border_width = 1.8 if state.active else 1.2
         painter.setPen(QPen(QColor(r, g, b, border_alpha), border_width, Qt.PenStyle.SolidLine))
         painter.setBrush(Qt.BrushStyle.NoBrush)
-        painter.drawRect(margin_left, margin_top, graph_width, graph_height)
+        painter.drawRoundedRect(QRectF(margin_left, margin_top, graph_width, graph_height), _PLOT_CORNER_RADIUS, _PLOT_CORNER_RADIUS)
 
         trend_suffix = ' ▲' if state.approaching else ''
         if state.active:
