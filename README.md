@@ -102,7 +102,7 @@ For full settings documentation, tips, and common fixes, visit the [**Project Wi
 We'd love to have **you** in our community!  
 Join us on Discord to chat, get support, share themes or rules, and stay updated on the latest releases!
 
-[![Join Our Discord](https://img.shields.io/badge/Join%20Our%20Discord-%235865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/hMZ7MsPX7G)
+[![Join Our Discord](https://discord.com/api/guilds/1349960931920314413/widget.png?style=banner3)](https://discord.gg/hMZ7MsPX7G)
 
 ---
 
