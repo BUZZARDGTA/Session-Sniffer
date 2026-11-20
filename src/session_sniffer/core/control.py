@@ -181,7 +181,8 @@ def _handle_thread_exception(args: threading.ExceptHookArgs) -> None:
 def handle_sigterm(sig: int, _frame: FrameType | None) -> None:
     """Handle termination signals (SIGTERM / SIGBREAK)."""
     if not ScriptControl.has_crashed():
-        sig_name: Literal['SIGBREAK', 'SIGTERM'] = 'SIGBREAK' if sys.platform == 'win32' and sig == signal.SIGBREAK else 'SIGTERM'
+        sigbreak = getattr(signal, 'SIGBREAK', None)
+        sig_name: Literal['SIGBREAK', 'SIGTERM'] = 'SIGBREAK' if sigbreak is not None and sig == sigbreak else 'SIGTERM'
         logger.info('Termination signal %s (sig=%d) received. Exiting script...', sig_name, sig)
         terminate_script(sig_name)
 
