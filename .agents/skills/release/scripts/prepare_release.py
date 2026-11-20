@@ -186,9 +186,8 @@ def main() -> None:
     )
     parser.add_argument(
         '--mode',
-        choices=('auto', 'timestamp', 'rc', 'final'),
-        default='auto',
-        help='Version update mode: auto (timestamp if unpublished), timestamp, rc, or final.',
+        choices=('timestamp', 'rc', 'final'),
+        help='Explicit version update mode: timestamp, rc, or final (required unless --check is set).',
     )
     parser.add_argument(
         '--base-version',
@@ -221,15 +220,10 @@ def main() -> None:
         sys.stdout.write(json.dumps(status_payload, indent=2) + '\n')
         return
 
+    if args.mode is None:
+        parser.error('--mode (timestamp, rc, or final) is required unless --check is specified.')
+
     resolved_mode = args.mode
-    if resolved_mode == 'auto':
-        if already_published:
-            message = (
-                f'Version prefix {current.version_prefix!r} is already published/tagged on GitHub. '
-                'Ask the user whether this is a new RC (--mode rc) or a final release (--mode final).'
-            )
-            raise SystemExit(message)
-        resolved_mode = 'timestamp'
 
     new_version = compute_next_version(current, resolved_mode, build_timestamp, args.base_version)
     update_pyproject_version(repo_root, new_version)

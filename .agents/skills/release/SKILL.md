@@ -13,13 +13,23 @@ Use this skill when the user wants to prepare and commit a new Session Sniffer r
 2. Run the release helper script in check mode to inspect `pyproject.toml`, published GitHub tags, and the current UTC timestamp:
    `python .agents/skills/release/scripts/prepare_release.py --check`
    (See [prepare_release.py](./scripts/prepare_release.py).)
-3. Check whether the current version has already been published/tagged on GitHub (`is_published_on_github` from `git ls-remote --tags origin` or local tags matching the version prefix):
-   - If NOT tagged/published on GitHub: do NOT increment the RC or version number; only update the build timestamp.
-   - If ALREADY tagged/published on GitHub: ask the user whether this is a new release candidate (`RC`) or a final release.
-4. Run [prepare_release.py](./scripts/prepare_release.py) to generate the current UTC timestamp (`YYYYMMDD.HHMM` / `YYYY-MM-DDTHH:MM:SSZ`), update `version` in `pyproject.toml`, run `uv lock`, enforce CRLF (`\r\n`) line endings on both `pyproject.toml` and `uv.lock`, and verify synchronization via `uv lock --check`:
-   - If unpublished: `python .agents/skills/release/scripts/prepare_release.py --mode timestamp` (preserves the existing version prefix, e.g. `v1.5.0rc.69`, and updates only `+YYYYMMDD.HHMM`).
-   - For a new RC: `python .agents/skills/release/scripts/prepare_release.py --mode rc` (increments the existing `rc.N` number by one, preserving `X.Y.Z`, and appends `+YYYYMMDD.HHMM`).
-   - For a final release: `python .agents/skills/release/scripts/prepare_release.py --mode final` (removes the `rc.N` suffix, preserving `X.Y.Z`, and appends `+YYYYMMDD.HHMM`).
+3. **Always ask the user whether they want an RC or a stable (final) release** (showing the exact candidate version strings from `--check`), **unless the user already explicitly specified RC or stable/final in their request**:
+   - Check whether the current version has already been published/tagged on GitHub (`is_published_on_github` from `git ls-remote --tags origin` or local tags matching the version prefix):
+     - If the current version is an **unpublished RC** (`is_published_on_github` is `false`, e.g. `v1.5.0rc.112`):
+       - **RC**: do NOT increment `rc.N`; update only the UTC build timestamp (`--mode timestamp`).
+       - **Stable (final)**: promote to the final release (`--mode final`).
+     - If the current version is an **already-published RC** (`is_published_on_github` is `true`, e.g. `v1.5.0rc.112`):
+       - **RC**: increment to the next RC (`--mode rc`, e.g. `v1.5.0rc.113+<ts>`).
+       - **Stable (final)**: promote to the final release (`--mode final`, e.g. `v1.5.0+<ts>`).
+     - If the current version is an **unpublished final release** (`is_published_on_github` is `false`, no `rc.N`):
+       - **Stable (final)**: retain the version prefix and update only the UTC build timestamp (`--mode timestamp`).
+       - **RC**: switch to `rc.1` (`--mode rc`).
+     - If the current version is an **already-published final release** (`is_published_on_github` is `true`, no `rc.N`):
+       - Ask for the next `X.Y.Z` base version (if not already specified) and whether it should be an **RC** (`--mode rc --base-version X.Y.Z`) or **stable (final)** (`--mode final --base-version X.Y.Z`) release.
+4. Run [prepare_release.py](./scripts/prepare_release.py) with the explicit `--mode` chosen by the user to generate the current UTC timestamp (`YYYYMMDD.HHMM` / `YYYY-MM-DDTHH:MM:SSZ`), update `version` in `pyproject.toml`, run `uv lock`, enforce CRLF (`\r\n`) line endings on both `pyproject.toml` and `uv.lock`, and verify synchronization via `uv lock --check`:
+   - Timestamp-only (unpublished RC or unpublished stable): `python .agents/skills/release/scripts/prepare_release.py --mode timestamp` (preserves the existing version prefix, e.g. `v1.5.0rc.69`, and updates only `+YYYYMMDD.HHMM`).
+   - New RC: `python .agents/skills/release/scripts/prepare_release.py --mode rc` (increments the existing `rc.N` number by one, or starts at `rc.1`, preserving `X.Y.Z`, and appends `+YYYYMMDD.HHMM`).
+   - Stable / final release: `python .agents/skills/release/scripts/prepare_release.py --mode final` (removes the `rc.N` suffix, preserving `X.Y.Z`, and appends `+YYYYMMDD.HHMM`).
 5. Review the resulting diff (both `pyproject.toml` and `uv.lock` should reflect the new version).
 6. Run the release-specific validation before committing (see **Validation** below).
 7. Create exactly one version-bump commit containing both `pyproject.toml` and `uv.lock` (see **Commit** below).
@@ -127,9 +137,15 @@ The commit subject must be:
 
 `build: bump version to <new-version>`
 
+Include `[skip ci]` in the commit body (e.g. `git commit -m "build: bump version to <new-version>" -m "[skip ci]"`) so pushing the version-only bump to `main` does not trigger a redundant `ci.yml` push run (`build.yml` still runs the full `quality` gate via `workflow_call` when the GitHub release is published).
+
 For example:
 
-`build: bump version to v1.5.0rc.45+20260909.2017`
+```text
+build: bump version to v1.5.0rc.45+20260909.2017
+
+[skip ci]
+```
 
 The version-bump commit should contain only the intended release-version changes in `pyproject.toml` and `uv.lock`. Never commit a release version bump without its synchronized `uv.lock`.
 
