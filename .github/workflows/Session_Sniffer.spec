@@ -1,6 +1,8 @@
 # -*- mode: python ; coding: utf-8 -*-
 
 import sys
+import tomllib
+from pathlib import Path
 
 
 a = Analysis(
@@ -271,6 +273,69 @@ a.datas = [
     )
 ]
 
+
+def _build_windows_version_info():
+    """Build Windows VS_VERSION_INFO PE metadata from pyproject.toml."""
+    from packaging.version import Version
+    from PyInstaller.utils.win32.versioninfo import (
+        FixedFileInfo,
+        StringFileInfo,
+        StringStruct,
+        StringTable,
+        VarFileInfo,
+        VarStruct,
+        VSVersionInfo,
+    )
+
+    pyproject_path = Path(SPECPATH) / '..' / '..' / 'pyproject.toml'
+    project_data = tomllib.loads(pyproject_path.read_text(encoding='utf-8'))['project']
+    raw_version = str(project_data['version'])
+    parsed_version = Version(raw_version)
+
+    release_parts = list(parsed_version.release[:3])
+    while len(release_parts) < 3:
+        release_parts.append(0)
+    pre_number = parsed_version.pre[1] if parsed_version.pre is not None else 0
+    version_tuple = tuple(min(max(int(part), 0), 65535) for part in (*release_parts, pre_number))
+    file_version_str = '.'.join(str(part) for part in version_tuple)
+
+    authors = project_data.get('authors') or []
+    company_name = str(authors[0].get('name', 'BUZZARDGTA')) if authors else 'BUZZARDGTA'
+
+    return VSVersionInfo(
+        ffi=FixedFileInfo(
+            filevers=version_tuple,
+            prodvers=version_tuple,
+            mask=0x3F,
+            flags=0x2 if parsed_version.is_prerelease else 0x0,
+            OS=0x40004,
+            fileType=0x1,
+            subtype=0x0,
+            date=(0, 0),
+        ),
+        kids=[
+            StringFileInfo(
+                [
+                    StringTable(
+                        '040904B0',
+                        [
+                            StringStruct('CompanyName', company_name),
+                            StringStruct('FileDescription', 'Session Sniffer'),
+                            StringStruct('FileVersion', file_version_str),
+                            StringStruct('InternalName', 'Session_Sniffer'),
+                            StringStruct('LegalCopyright', f'Copyright (c) {company_name}. Licensed under GPL-3.0.'),
+                            StringStruct('OriginalFilename', 'Session_Sniffer.exe'),
+                            StringStruct('ProductName', 'Session Sniffer'),
+                            StringStruct('ProductVersion', raw_version),
+                        ],
+                    ),
+                ],
+            ),
+            VarFileInfo([VarStruct('Translation', [1033, 1200])]),
+        ],
+    )
+
+
 pyz = PYZ(a.pure)
 
 exe = EXE(
@@ -294,4 +359,5 @@ exe = EXE(
     entitlements_file=None,
     onefile=True,
     icon='../../resources/icons/ico/app_icon.ico' if sys.platform == 'win32' else None,
+    version=_build_windows_version_info() if sys.platform == 'win32' else None,
 )

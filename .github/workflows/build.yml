@@ -76,7 +76,11 @@ jobs:
         working-directory: .github/workflows
         run: |
           ${{ matrix.venv_python }} -m pip install '../..'
-          ${{ matrix.venv_python }} -m pip install pyinstaller==6.22.3
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            PYINSTALLER_COMPILE_BOOTLOADER=1 ${{ matrix.venv_python }} -m pip install --no-cache-dir --no-binary pyinstaller pyinstaller==6.22.3
+          else
+            ${{ matrix.venv_python }} -m pip install pyinstaller==6.22.3
+          fi
 
       - name: Bake build metadata
         working-directory: .github/workflows
