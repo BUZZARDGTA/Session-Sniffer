@@ -9,7 +9,7 @@ dependencies = [
     "aiohttp==3.14.5",
     "geoip2==5.4.0",
     "packaging==26.3",
-    "pydantic==2.14.3",
+    "pydantic==2.14.4",
     "PySide6==6.12.0",
     "requests==2.34.2",
 
