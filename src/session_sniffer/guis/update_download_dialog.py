@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, ClassVar, override
 
 import requests
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import QSize, Qt, Signal
 from PySide6.QtGui import QColor, QFont
 from PySide6.QtWidgets import (
     QDialog,
@@ -26,11 +26,13 @@ from PySide6.QtWidgets import (
 )
 
 from session_sniffer.constants.local import CURRENT_VERSION
+from session_sniffer.constants.standalone import GITHUB_RELEASES_URL
 from session_sniffer.guis._crashing_qthread import CrashingQThread
 from session_sniffer.guis._dialog_mixins import DraggableDialogMixin
 from session_sniffer.guis.fonts import get_monospace_font, get_ui_font
 from session_sniffer.guis.stylesheets import (
     UPDATE_DOWNLOAD_CANCEL_BUTTON_STYLESHEET,
+    UPDATE_DOWNLOAD_CHANGELOG_BUTTON_STYLESHEET,
     UPDATE_DOWNLOAD_DIALOG_STYLESHEET,
     UPDATE_DOWNLOAD_DIVIDER_STYLESHEET,
     UPDATE_DOWNLOAD_FRAME_STYLESHEET,
@@ -41,7 +43,6 @@ from session_sniffer.guis.stylesheets import (
     UPDATE_DOWNLOAD_STATUS_LABEL_STYLESHEET,
     UPDATE_DOWNLOAD_TITLE_LABEL_STYLESHEET,
     UPDATE_DOWNLOAD_UPDATE_BUTTON_STYLESHEET,
-    UPDATE_DOWNLOAD_VERSION_ARROW_STYLESHEET,
     UPDATE_DOWNLOAD_VERSION_CARD_BADGE_PRERELEASE_STYLESHEET,
     UPDATE_DOWNLOAD_VERSION_CARD_BADGE_STABLE_STYLESHEET,
     UPDATE_DOWNLOAD_VERSION_CARD_CURRENT_STYLESHEET,
@@ -54,7 +55,7 @@ from session_sniffer.guis.stylesheets import (
     UPDATE_DOWNLOAD_VERSION_CARD_VALUE_MUTED_STYLESHEET,
 )
 from session_sniffer.guis.theming import themed_qss
-from session_sniffer.guis.utils import center_window_on_screen, render_svg_pixmap_from_resource
+from session_sniffer.guis.utils import center_window_on_screen, render_svg_icon_from_resource, render_svg_pixmap_from_resource
 from session_sniffer.i18n import get_active_language, is_rtl_language, tr
 from session_sniffer.networking.http_session import session
 from session_sniffer.utils import format_project_version_date, is_pyinstaller_compiled
@@ -184,7 +185,7 @@ class UpdateDownloadDialog(DraggableDialogMixin, QDialog):
         self.setWindowTitle(tr('Update Available'))
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Dialog)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, on=True)
-        self.setFixedSize(640, 500)
+        self.setFixedSize(664, 500)
         self.setWindowModality(Qt.WindowModality.WindowModal)
         self.setStyleSheet(UPDATE_DOWNLOAD_DIALOG_STYLESHEET)
 
@@ -233,12 +234,22 @@ class UpdateDownloadDialog(DraggableDialogMixin, QDialog):
         header.addWidget(self._title_label, 0, Qt.AlignmentFlag.AlignVCenter)
 
         header.addStretch(1)
+
+        changelog_button = QPushButton(tr('View Changelog'))
+        changelog_button.setIcon(render_svg_icon_from_resource('file-text.svg', 15, 15, tint_color='@accent[#5fb4f5]'))
+        changelog_button.setIconSize(QSize(15, 15))
+        changelog_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        changelog_button.setStyleSheet(UPDATE_DOWNLOAD_CHANGELOG_BUTTON_STYLESHEET)
+        changelog_button.setToolTip(tr('Open the release notes and changelog on GitHub'))
+        changelog_button.clicked.connect(self._on_view_changelog)
+        header.addWidget(changelog_button, 0, Qt.AlignmentFlag.AlignVCenter)
+
         return header
 
     def _build_version_section(self) -> QHBoxLayout:
         """Build the Current → Downloading version comparison row."""
         row = QHBoxLayout()
-        row.setSpacing(4)
+        row.setSpacing(10)
         row.setContentsMargins(0, 2, 0, 2)
 
         row.addWidget(
@@ -252,11 +263,8 @@ class UpdateDownloadDialog(DraggableDialogMixin, QDialog):
             1,
         )
 
-        arrow_label = QLabel('←' if is_rtl_language(get_active_language()) else '→')
-        arrow_label.setFont(get_ui_font(22, QFont.Weight.Bold))
-        arrow_label.setStyleSheet(UPDATE_DOWNLOAD_VERSION_ARROW_STYLESHEET)
-        arrow_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        arrow_label.setFixedWidth(16)
+        arrow_icon_name = 'arrow-left.svg' if is_rtl_language(get_active_language()) else 'arrow-right.svg'
+        arrow_label = self._svg_label(arrow_icon_name, 28, 28, tint_color='@accent[#4aa3ee]')
         row.addWidget(arrow_label, 0, Qt.AlignmentFlag.AlignVCenter)
 
         new_size_text = self._format_size_mb(self._candidate.size_bytes) if self._candidate.size_bytes is not None else ''
@@ -546,9 +554,9 @@ class UpdateDownloadDialog(DraggableDialogMixin, QDialog):
         return footer
 
     @staticmethod
-    def _svg_label(filename: str, width: int, height: int) -> QLabel:
+    def _svg_label(filename: str, width: int, height: int, tint_color: str | None = None) -> QLabel:
         """Render an SVG file to a transparent QLabel pixmap."""
-        pixmap = render_svg_pixmap_from_resource(filename, width, height)
+        pixmap = render_svg_pixmap_from_resource(filename, width, height, tint_color)
 
         label = QLabel()
         label.setPixmap(pixmap)
@@ -571,6 +579,10 @@ class UpdateDownloadDialog(DraggableDialogMixin, QDialog):
     def error_message(self) -> str:
         """The error message if the download failed, or empty if successful/cancelled."""
         return self._error_message
+
+    def _on_view_changelog(self) -> None:
+        """Open the candidate release changelog page in the default web browser."""
+        webbrowser.open(self._candidate.release_url or GITHUB_RELEASES_URL)
 
     def _on_start_update(self) -> None:
         """Handle the user confirming the update action."""

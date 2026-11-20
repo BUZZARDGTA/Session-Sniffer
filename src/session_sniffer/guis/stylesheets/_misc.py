@@ -504,7 +504,28 @@ UPDATE_DOWNLOAD_VERSION_CARD_SHA_STYLESHEET = themed_qss(
     'color: @text_muted[#6f7e91];background: transparent;font-family: Menlo, Consolas, "Courier New", monospace;font-size: 11.5px;',
 )
 
-UPDATE_DOWNLOAD_VERSION_ARROW_STYLESHEET = themed_qss('color: @accent[#4aa3ee];background: transparent;font-weight: 800;')
+UPDATE_DOWNLOAD_CHANGELOG_BUTTON_STYLESHEET = themed_qss(
+    'QPushButton {'
+    '  background: @surface[rgba(20, 28, 40, 0.65)];'
+    '  color: @text[#c0d0e0];'
+    '  border: 1px solid @border[#38485c];'
+    '  border-radius: 8px;'
+    '  padding: 6px 14px;'
+    '  font-weight: 600;'
+    '  font-size: 9pt;'
+    '  letter-spacing: 0.3px;'
+    '}'
+    'QPushButton:hover {'
+    '  background: @accent[rgba(95, 180, 245, 0.14)];'
+    '  border: 1px solid @accent[#4aa3ee];'
+    '  color: @text_strong[#ffffff];'
+    '}'
+    'QPushButton:pressed {'
+    '  background: @accent[rgba(31, 108, 200, 0.22)];'
+    '  border: 1px solid @accent[#3d8ec9];'
+    '  color: @text_strong[#ffffff];'
+    '}',
+)
 
 UPDATE_DOWNLOAD_STATUS_LABEL_STYLESHEET = themed_qss('color: @text_muted[#a0b0c4];background: transparent;')
 
