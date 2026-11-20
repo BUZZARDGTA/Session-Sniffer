@@ -300,7 +300,7 @@ def _build_windows_version_info():
     file_version_str = '.'.join(str(part) for part in version_tuple)
 
     authors = project_data.get('authors') or []
-    company_name = str(authors[0].get('name', 'BUZZARDGTA')) if authors else 'BUZZARDGTA'
+    author_name = str(authors[0].get('name', 'BUZZARDGTA')) if authors else 'BUZZARDGTA'
 
     return VSVersionInfo(
         ffi=FixedFileInfo(
@@ -319,11 +319,11 @@ def _build_windows_version_info():
                     StringTable(
                         '040904B0',
                         [
-                            StringStruct('CompanyName', company_name),
+                            StringStruct('CompanyName', 'IB_U_Z_Z_A_R_Dl'),
                             StringStruct('FileDescription', 'Session Sniffer'),
                             StringStruct('FileVersion', file_version_str),
                             StringStruct('InternalName', 'Session_Sniffer'),
-                            StringStruct('LegalCopyright', f'Copyright (c) {company_name}. Licensed under GPL-3.0.'),
+                            StringStruct('LegalCopyright', f'Copyright (c) {author_name}. Licensed under GPL-3.0.'),
                             StringStruct('OriginalFilename', 'Session_Sniffer.exe'),
                             StringStruct('ProductName', 'Session Sniffer'),
                             StringStruct('ProductVersion', raw_version),
