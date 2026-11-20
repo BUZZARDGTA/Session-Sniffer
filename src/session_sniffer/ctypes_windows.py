@@ -235,7 +235,7 @@ def get_com_vtable_entry(pointer: wintypes.LPVOID, method_index: int) -> int:
 def query_com_interface(pointer: wintypes.LPVOID, iid: WindowsGuid) -> wintypes.LPVOID:
     """Query *pointer* for *iid* via IUnknown::QueryInterface, returning a null LPVOID on failure."""
     result_ptr = wintypes.LPVOID()
-    if not pointer:
+    if sys.platform != 'win32' or not pointer:
         return result_ptr
     query_interface = ctypes.WINFUNCTYPE(
         wintypes.HRESULT,
@@ -250,7 +250,7 @@ def query_com_interface(pointer: wintypes.LPVOID, iid: WindowsGuid) -> wintypes.
 
 def release_com_interface(pointer: wintypes.LPVOID) -> None:
     """Releases a COM interface pointer via its IUnknown vtable."""
-    if pointer:
+    if sys.platform == 'win32' and pointer:
         release_function = ctypes.WINFUNCTYPE(wintypes.ULONG, wintypes.LPVOID)(get_com_vtable_entry(pointer, 2))
         release_function(pointer)
 

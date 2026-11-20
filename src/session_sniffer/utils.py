@@ -3,7 +3,6 @@
 This module contains a variety of helper functions and custom exceptions used across the project.
 """
 
-import contextlib
 import json
 import logging
 import os
@@ -20,10 +19,7 @@ from typing import TYPE_CHECKING, Literal
 if sys.platform == 'win32':
     import winreg
 
-with contextlib.suppress(ImportError):
-    import posix
-
-with contextlib.suppress(ImportError):
+if sys.platform != 'win32':
     import pwd
 
 from session_sniffer.constants.standalone import TITLE
@@ -101,18 +97,18 @@ def get_documents_dir() -> Path:
 
 def _get_target_user_identity() -> tuple[int, int, Path] | None:
     """Return the (uid, gid, home_path) of the invoking user when running via sudo on POSIX."""
-    if sys.platform == 'win32':
-        return None
-    if bool(posix.geteuid()):
-        return None
-    sudo_user = os.environ.get('SUDO_USER')
-    if sudo_user is None or not sudo_user:
-        return None
-    try:
-        pw_record = pwd.getpwnam(sudo_user)
-        return (int(pw_record.pw_uid), int(pw_record.pw_gid), Path(str(pw_record.pw_dir)))
-    except (KeyError, OSError):
-        return None
+    if sys.platform != 'win32':
+        if bool(os.geteuid()):
+            return None
+        sudo_user = os.environ.get('SUDO_USER')
+        if sudo_user is None or not sudo_user:
+            return None
+        try:
+            pw_record = pwd.getpwnam(sudo_user)
+            return (pw_record.pw_uid, pw_record.pw_gid, Path(pw_record.pw_dir))
+        except (KeyError, OSError):
+            return None
+    return None
 
 
 def _get_user_home() -> Path:
@@ -129,15 +125,15 @@ def _repair_path_ownership(target_path: Path, target_uid: int, target_gid: int) 
     Returns:
         True if ownership matches or was successfully repaired, False if stat or chown failed.
     """
-    if sys.platform == 'win32':
-        return False
-    try:
-        stat_info = target_path.stat()
-        if stat_info.st_uid != target_uid or stat_info.st_gid != target_gid:
-            posix.chown(target_path, target_uid, target_gid)
-    except OSError:
-        return False
-    return True
+    if sys.platform != 'win32':
+        try:
+            stat_info = target_path.stat()
+            if stat_info.st_uid != target_uid or stat_info.st_gid != target_gid:
+                os.chown(target_path, target_uid, target_gid)
+        except OSError:
+            return False
+        return True
+    return False
 
 
 def _ensure_path_ownership(target_path: Path) -> None:

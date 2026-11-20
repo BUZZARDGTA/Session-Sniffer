@@ -181,7 +181,7 @@ def _handle_thread_exception(args: threading.ExceptHookArgs) -> None:
 def handle_sigterm(sig: int, _frame: FrameType | None) -> None:
     """Handle termination signals (SIGTERM / SIGBREAK)."""
     if not ScriptControl.has_crashed():
-        sig_name: Literal['SIGBREAK', 'SIGTERM'] = 'SIGBREAK' if hasattr(signal, 'SIGBREAK') and sig == signal.SIGBREAK else 'SIGTERM'
+        sig_name: Literal['SIGBREAK', 'SIGTERM'] = 'SIGBREAK' if sys.platform == 'win32' and sig == signal.SIGBREAK else 'SIGTERM'
         logger.info('Termination signal %s (sig=%d) received. Exiting script...', sig_name, sig)
         terminate_script(sig_name)
 
@@ -193,5 +193,5 @@ def install_exception_handlers() -> None:
     signal.signal(signal.SIGINT, handle_sigint)
     if hasattr(signal, 'SIGTERM'):
         signal.signal(signal.SIGTERM, handle_sigterm)
-    if hasattr(signal, 'SIGBREAK'):
+    if sys.platform == 'win32':
         signal.signal(signal.SIGBREAK, handle_sigterm)

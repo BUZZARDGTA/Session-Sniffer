@@ -99,6 +99,7 @@ def resolve_mac_address(ip_address: str, source_ip: str | None = None) -> str:
     """
     if sys.platform != 'win32':
         return _resolve_mac_address_unix(ip_address)
+    destination_ip = 0
     try:
         destination_ip = int(struct.unpack('<I', socket.inet_aton(ip_address))[0])
     except OSError as e:

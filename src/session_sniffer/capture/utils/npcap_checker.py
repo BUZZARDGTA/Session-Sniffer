@@ -4,7 +4,6 @@ This module provides a utility function to check whether Npcap is installed on t
 Npcap is required for network packet capturing in Windows environments.
 """
 
-import contextlib
 import enum
 import logging
 import os
@@ -20,9 +19,6 @@ from pathlib import Path
 
 if sys.platform == 'win32':
     import winreg
-
-with contextlib.suppress(ImportError):
-    import posix
 
 from session_sniffer.capture.pcap import can_open_pcap_device, is_pcap_library_available
 from session_sniffer.capture.process import iter_running_processes
@@ -78,23 +74,23 @@ def can_capture_packets_on_linux() -> bool:
 
 def _has_linux_executable_file_capabilities() -> bool:
     """Return whether the executable on disk has the required Linux file capabilities set."""
-    if sys.platform != 'linux':
-        return False
-    real_executable = os.path.realpath(sys.executable)
-    cap_bytes = b''
-    try:
-        cap_bytes = posix.getxattr(real_executable, _LINUX_CAP_XATTR_NAME)
-    except (AttributeError, OSError):
-        return False
-    if len(cap_bytes) < _LINUX_VFS_CAP_MIN_HEADER_SIZE:
-        return False
-    magic_etc, permitted_low = struct.unpack_from('<II', cap_bytes)
-    if not magic_etc & _LINUX_VFS_CAP_FLAGS_EFFECTIVE:
-        return False
-    required_mask = _LINUX_CAP_NET_RAW_BIT | _LINUX_CAP_NET_ADMIN_BIT
-    if is_pyinstaller_compiled():
-        required_mask |= _LINUX_CAP_SYS_PTRACE_BIT
-    return bool((permitted_low & required_mask) == required_mask)
+    if sys.platform == 'linux':
+        real_executable = os.path.realpath(sys.executable)
+        cap_bytes = b''
+        try:
+            cap_bytes = os.getxattr(real_executable, _LINUX_CAP_XATTR_NAME)
+        except (AttributeError, OSError):
+            return False
+        if len(cap_bytes) < _LINUX_VFS_CAP_MIN_HEADER_SIZE:
+            return False
+        magic_etc, permitted_low = struct.unpack_from('<II', cap_bytes)
+        if not magic_etc & _LINUX_VFS_CAP_FLAGS_EFFECTIVE:
+            return False
+        required_mask = _LINUX_CAP_NET_RAW_BIT | _LINUX_CAP_NET_ADMIN_BIT
+        if is_pyinstaller_compiled():
+            required_mask |= _LINUX_CAP_SYS_PTRACE_BIT
+        return bool((permitted_low & required_mask) == required_mask)
+    return False
 
 
 def _spawn_relaunch_process() -> subprocess.Popen[bytes]:
@@ -486,22 +482,20 @@ def _has_registry_subkey(parent_key_path: str, subkey_name: str) -> bool:
 
 def is_npcap_adapter_bound(adapter_guid: str) -> bool:
     """Return whether the Npcap NDIS filter driver is currently bound to the given adapter GUID."""
-    if sys.platform != 'win32':
-        return True
-    normalized = _normalize_adapter_guid(adapter_guid)
-    if normalized is None:
-        return True
-    return _has_registry_subkey(_NPCAP_ADAPTERS_KEY, normalized)
+    if sys.platform == 'win32':
+        normalized = _normalize_adapter_guid(adapter_guid)
+        if normalized is not None:
+            return _has_registry_subkey(_NPCAP_ADAPTERS_KEY, normalized)
+    return True
 
 
 def is_ndis_adapter_registered(adapter_guid: str) -> bool:
     """Return whether the adapter GUID is registered in Npcap's known NDIS adapters list."""
-    if sys.platform != 'win32':
-        return False
-    normalized = _normalize_adapter_guid(adapter_guid)
-    if normalized is None:
-        return False
-    return _has_registry_subkey(_NPCAP_NDIS_ADAPTERS_KEY, normalized)
+    if sys.platform == 'win32':
+        normalized = _normalize_adapter_guid(adapter_guid)
+        if normalized is not None:
+            return _has_registry_subkey(_NPCAP_NDIS_ADAPTERS_KEY, normalized)
+    return False
 
 
 def reset_npcap_binding_repair_attempts() -> None:
@@ -516,38 +510,36 @@ def try_enable_npcap_adapter_binding(adapter_guid: str, *, device_name: str) -> 
     Otherwise, requests elevation via ShellExecuteExW ('runas') at most once per adapter GUID
     until reset_npcap_binding_repair_attempts() is called.
     """
-    if sys.platform != 'win32':
-        return
-    normalized = _normalize_adapter_guid(adapter_guid)
-    if normalized is None or normalized in _attempted_binding_guids:
-        return
-
-    _attempted_binding_guids.add(normalized)
-    logger.info(
-        'Npcap driver binding is disabled on adapter %s (%s) — attempting to enable INSECURE_NPCAP binding...',
-        device_name,
-        normalized,
-    )
-    ps_command = (
-        f"Get-NetAdapter -IncludeHidden | Where-Object {{ $_.InterfaceGuid -eq '{normalized}' }} "
-        "| Enable-NetAdapterBinding -ComponentID 'INSECURE_NPCAP' -Confirm:$false -ErrorAction Stop"
-    )
-    if not run_elevated_powershell_command(ps_command):
-        return
-
-    deadline = time.monotonic() + 3.0
-    while time.monotonic() < deadline:
-        if is_npcap_adapter_bound(normalized) and can_open_pcap_device(device_name):
-            logger.info('Successfully enabled Npcap driver binding on capture adapter %s.', device_name)
+    if sys.platform == 'win32':
+        normalized = _normalize_adapter_guid(adapter_guid)
+        if normalized is None or normalized in _attempted_binding_guids:
             return
-        time.sleep(0.1)
+
+        _attempted_binding_guids.add(normalized)
+        logger.info(
+            'Npcap driver binding is disabled on adapter %s (%s) — attempting to enable INSECURE_NPCAP binding...',
+            device_name,
+            normalized,
+        )
+        ps_command = (
+            f"Get-NetAdapter -IncludeHidden | Where-Object {{ $_.InterfaceGuid -eq '{normalized}' }} "
+            "| Enable-NetAdapterBinding -ComponentID 'INSECURE_NPCAP' -Confirm:$false -ErrorAction Stop"
+        )
+        if not run_elevated_powershell_command(ps_command):
+            return
+
+        deadline = time.monotonic() + 3.0
+        while time.monotonic() < deadline:
+            if is_npcap_adapter_bound(normalized) and can_open_pcap_device(device_name):
+                logger.info('Successfully enabled Npcap driver binding on capture adapter %s.', device_name)
+                return
+            time.sleep(0.1)
 
 
 def ensure_npcap_adapter_bound(device_name: str) -> None:
     """Ensure the Npcap NDIS filter driver is bound to the adapter for *device_name*, attempting repair if disabled."""
-    if sys.platform != 'win32':
-        return
-    adapter_guid = extract_npcap_device_guid(device_name)
-    if adapter_guid is None or is_npcap_adapter_bound(adapter_guid) or not is_ndis_adapter_registered(adapter_guid):
-        return
-    try_enable_npcap_adapter_binding(adapter_guid, device_name=device_name)
+    if sys.platform == 'win32':
+        adapter_guid = extract_npcap_device_guid(device_name)
+        if adapter_guid is None or is_npcap_adapter_bound(adapter_guid) or not is_ndis_adapter_registered(adapter_guid):
+            return
+        try_enable_npcap_adapter_binding(adapter_guid, device_name=device_name)

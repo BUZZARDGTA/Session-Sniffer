@@ -405,6 +405,8 @@ if sys.platform == 'win32':
 
 def _get_ip_net_table(buf: object, size_ptr: object) -> int:
     """Call GetIpNetTable with required BOOL positional argument."""
+    if sys.platform != 'win32':
+        return -1
     order_flag = wintypes.BOOL(0)
     return int(GetIpNetTable(buf, size_ptr, order_flag))
 
@@ -669,7 +671,7 @@ def iter_win32_adapters_addresses() -> Iterator[
 
 
 @functools.cache
-def _get_wlanapi() -> ctypes.WinDLL | None:
+def _get_wlanapi() -> ctypes.CDLL | None:
     """Load and prototype wlanapi.dll once, returning None if unavailable."""
     if sys.platform != 'win32':
         return None
@@ -724,6 +726,8 @@ def has_wlan_interfaces() -> bool:
 
 
 def _extract_bstr_guid(props_ptr: wintypes.LPVOID) -> str | None:
+    if sys.platform != 'win32':
+        return None
     get_guid = ctypes.WINFUNCTYPE(
         wintypes.HRESULT,
         wintypes.LPVOID,
@@ -744,6 +748,8 @@ def _query_connection_sharing_type(
     connection_ptr: wintypes.LPVOID,
 ) -> tuple[str, int] | None:
     """Extract (raw_guid, sharing_type) for a single COM connection if sharing is enabled."""
+    if sys.platform != 'win32':
+        return None
     get_configuration_for_connection = ctypes.WINFUNCTYPE(
         wintypes.HRESULT,
         wintypes.LPVOID,
@@ -798,6 +804,8 @@ def _query_connection_sharing_type(
 
 def _get_enum_variant(manager_ptr: wintypes.LPVOID) -> wintypes.LPVOID:
     """Obtain the IEnumVARIANT interface for all network connections."""
+    if sys.platform != 'win32':
+        return wintypes.LPVOID()
     get_enum_every_connection = ctypes.WINFUNCTYPE(
         wintypes.HRESULT,
         wintypes.LPVOID,
@@ -829,6 +837,8 @@ def _get_enum_variant(manager_ptr: wintypes.LPVOID) -> wintypes.LPVOID:
 
 def _collect_ics_sharing_entries(manager_ptr: wintypes.LPVOID) -> list[tuple[str, int]]:
     """Query `manager_ptr` for ICS installation and collect `(guid, sharing_type)` pairs."""
+    if sys.platform != 'win32':
+        return []
     get_sharing_installed = ctypes.WINFUNCTYPE(
         wintypes.HRESULT,
         wintypes.LPVOID,
@@ -924,6 +934,8 @@ def send_icmp_echo(
     timeout_milliseconds: int,
 ) -> tuple[int, int, int, int]:
     """Send a Win32 ICMP echo request and return (reply_count, status_code, rtt_ms, ttl)."""
+    if sys.platform != 'win32':
+        return (0, _IP_REQ_TIMED_OUT, 0, 0)
     reply_buffer_size = max(512, ctypes.sizeof(_IcmpEchoReply) + len(payload_data) + 64)
     reply_buffer = ctypes.create_string_buffer(reply_buffer_size)
     return_value = int(
@@ -943,12 +955,7 @@ def send_icmp_echo(
     status_code = int(reply.Status)
     if not return_value and not status_code:
         status_code = last_error or _IP_REQ_TIMED_OUT
-    return (
-        return_value,
-        status_code,
-        int(reply.RoundTripTime),
-        int(reply.Options.Ttl),
-    )
+    return (return_value, status_code, int(reply.RoundTripTime), int(reply.Options.Ttl))
 
 
 def register_win32_ip_change_notification(callback: Callable[[], None]) -> Callable[[], None]:

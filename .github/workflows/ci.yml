@@ -1,0 +1,44 @@
+name: Code Quality & Cross-Platform Type Checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    runs-on: ubuntu-24.04
+    name: Lint & Type Check (Windows / Linux / macOS)
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7.0.1
+
+      - name: Setup Python
+        uses: actions/setup-python@v7.1.0
+        with:
+          python-version: '3.14'
+          architecture: x64
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Create virtual environment and install dependencies
+        run: |
+          python -m venv --upgrade-deps .venv
+          .venv/bin/python -m pip install -e '.[dev]'
+
+      - name: Run code quality and cross-platform type checks
+        run: .venv/bin/python code_quality_checks.py --skip-slow-security
+
+      - name: Validate PyInstaller spec
+        run: |
+          .venv/bin/python -m py_compile .github/workflows/Session_Sniffer.spec
+          .venv/bin/flake8 .github/workflows/Session_Sniffer.spec --config .flake8

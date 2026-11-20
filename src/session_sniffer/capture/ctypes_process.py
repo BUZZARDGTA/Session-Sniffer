@@ -177,6 +177,8 @@ if sys.platform == 'win32':
 
 
 def _get_creation_time_from_handle(handle: wintypes.HANDLE) -> float | None:
+    if sys.platform != 'win32':
+        return None
     creation_time = wintypes.FILETIME()
     exit_time = wintypes.FILETIME()
     kernel_time = wintypes.FILETIME()
@@ -242,6 +244,8 @@ def get_process_creation_time_win32(pid: int) -> float | None:
 
 def is_process_running_win32(pid: int, creation_time: float | None, tolerance_seconds: float) -> bool:
     """Check if process is running on Windows and matches *creation_time* within *tolerance_seconds*."""
+    if sys.platform != 'win32':
+        return False
     with _open_query_process_handle(pid) as handle:
         if handle is None:
             return False
@@ -271,6 +275,8 @@ def get_process_image_path_darwin(pid: int) -> Path | None:
 
 def get_process_image_path_win32(pid: int) -> Path | None:
     """Return the resolved executable file path for the given PID on Windows via QueryFullProcessImageNameW."""
+    if sys.platform != 'win32':
+        return None
     with _open_query_process_handle(pid) as handle:
         if handle is None:
             return None

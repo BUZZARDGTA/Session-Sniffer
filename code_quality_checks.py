@@ -24,79 +24,163 @@ class QualityTool:
     """Specification for an automated code quality or security tool."""
 
     name: str
-    command: str
+    command: tuple[str, ...]
     install_command: str
     description: str
     category: str
+    executable: str = ''
 
+    @property
+    def binary(self) -> str:
+        """Return the executable name to look up on PATH."""
+        return self.executable or self.name
+
+
+_WIN32_ONLY_CTYPES_MODULES = (
+    'ctypes_windows.py',
+    'ctypes_wintrust.py',
+    'ctypes_process.py',
+    'ctypes_win32.py',
+    'ctypes_adapters_info.py',
+)
+_WIN32_ONLY_CTYPES_MYPY_EXCLUDE = (
+    r'(ctypes_windows|ctypes_wintrust|ctypes_process|ctypes_win32|ctypes_adapters_info)\.py$'
+)
+_WIN32_ONLY_CTYPES_PYREFLY_EXCLUDES: tuple[str, ...] = tuple(
+    arg for module in _WIN32_ONLY_CTYPES_MODULES for arg in ('--project-excludes', f'**/{module}')
+)
 
 TOOLS: list[QualityTool] = [
     QualityTool(
         name='ruff',
-        command='ruff check .',
+        command=('ruff', 'check', '.'),
         install_command='pip install ruff',
         description='Fast Python linter and code formatter',
         category='LINTING',
     ),
     QualityTool(
         name='flake8',
-        command='flake8 . --config .flake8',
+        command=('flake8', '.', '--config', '.flake8'),
         install_command='pip install flake8',
         description='Style guide enforcement',
         category='LINTING',
     ),
     QualityTool(
         name='pylint',
-        command='pylint . --rcfile pyproject.toml',
+        command=('pylint', '.', '--rcfile', 'pyproject.toml'),
         install_command='pip install pylint',
         description='Comprehensive Python code analysis',
         category='LINTING',
     ),
     QualityTool(
         name='mypy',
-        command='mypy . --config-file pyproject.toml',
+        command=('mypy', '.', '--config-file', 'pyproject.toml'),
         install_command='pip install mypy',
-        description='Static type checking',
+        description='Static type checking (Windows)',
+        category='TYPE CHECKING',
+    ),
+    QualityTool(
+        name='mypy (linux)',
+        executable='mypy',
+        command=('mypy', '.', '--config-file', 'pyproject.toml', '--platform', 'linux', '--exclude', _WIN32_ONLY_CTYPES_MYPY_EXCLUDE),
+        install_command='pip install mypy',
+        description='Static type checking (Linux)',
+        category='TYPE CHECKING',
+    ),
+    QualityTool(
+        name='mypy (darwin)',
+        executable='mypy',
+        command=('mypy', '.', '--config-file', 'pyproject.toml', '--platform', 'darwin', '--exclude', _WIN32_ONLY_CTYPES_MYPY_EXCLUDE),
+        install_command='pip install mypy',
+        description='Static type checking (macOS)',
         category='TYPE CHECKING',
     ),
     QualityTool(
         name='pyright',
-        command='pyright --warnings',
+        command=('pyright', '--warnings'),
         install_command='pip install pyright',
-        description='Microsoft Python type checker',
+        description='Microsoft Python type checker (Windows)',
+        category='TYPE CHECKING',
+    ),
+    QualityTool(
+        name='pyright (linux)',
+        executable='pyright',
+        command=('pyright', '--warnings', '--pythonplatform', 'Linux'),
+        install_command='pip install pyright',
+        description='Microsoft Python type checker (Linux)',
+        category='TYPE CHECKING',
+    ),
+    QualityTool(
+        name='pyright (darwin)',
+        executable='pyright',
+        command=('pyright', '--warnings', '--pythonplatform', 'Darwin'),
+        install_command='pip install pyright',
+        description='Microsoft Python type checker (macOS)',
         category='TYPE CHECKING',
     ),
     QualityTool(
         name='pyrefly',
-        command='pyrefly check .',
+        command=('pyrefly', 'check', '.'),
         install_command='pip install pyrefly',
-        description="Meta's fast Python type checker",
+        description="Meta's fast Python type checker (Windows)",
+        category='TYPE CHECKING',
+    ),
+    QualityTool(
+        name='pyrefly (linux)',
+        executable='pyrefly',
+        command=('pyrefly', 'check', '.', '--python-platform', 'linux', *_WIN32_ONLY_CTYPES_PYREFLY_EXCLUDES),
+        install_command='pip install pyrefly',
+        description="Meta's fast Python type checker (Linux)",
+        category='TYPE CHECKING',
+    ),
+    QualityTool(
+        name='pyrefly (darwin)',
+        executable='pyrefly',
+        command=('pyrefly', 'check', '.', '--python-platform', 'darwin', *_WIN32_ONLY_CTYPES_PYREFLY_EXCLUDES),
+        install_command='pip install pyrefly',
+        description="Meta's fast Python type checker (macOS)",
         category='TYPE CHECKING',
     ),
     QualityTool(
         name='ty',
-        command='ty check .',
+        command=('ty', 'check', '.'),
         install_command='pip install ty',
-        description="Astral's fast Python type checker",
+        description="Astral's fast Python type checker (Windows)",
+        category='TYPE CHECKING',
+    ),
+    QualityTool(
+        name='ty (linux)',
+        executable='ty',
+        command=('ty', 'check', '.', '--python-platform', 'linux'),
+        install_command='pip install ty',
+        description="Astral's fast Python type checker (Linux)",
+        category='TYPE CHECKING',
+    ),
+    QualityTool(
+        name='ty (darwin)',
+        executable='ty',
+        command=('ty', 'check', '.', '--python-platform', 'darwin'),
+        install_command='pip install ty',
+        description="Astral's fast Python type checker (macOS)",
         category='TYPE CHECKING',
     ),
     QualityTool(
         name='vulture',
-        command='vulture .',
+        command=('vulture', '.'),
         install_command='pip install vulture',
         description='Dead code detection and analysis',
         category='LINTING',
     ),
     QualityTool(
         name='pip-audit',
-        command='pip-audit --local --skip-editable',
+        command=('pip-audit', '--local', '--skip-editable'),
         install_command='pip install pip-audit',
         description="PyPA's official security vulnerability scanner",
         category='SECURITY',
     ),
     QualityTool(
         name='snyk',
-        command='snyk test',
+        command=('snyk', 'test'),
         install_command='npm install -g snyk',
         description='Security vulnerability scanning',
         category='SECURITY',
@@ -147,8 +231,9 @@ def invoke_quality_tool(tool: QualityTool, step_number: int, total_steps: int, r
     print(f'{CYAN}[{step_number}/{total_steps}] {tool.category} - {tool.name} ({tool.description}){RESET}')
     print(f'{DARK_GRAY}-----------------------------------{RESET}')
 
-    if shutil.which(tool.name) is None:
-        print(f'{DARK_YELLOW}[WARN] {tool.name} is not installed. Skipping {tool.name} check.{RESET}')
+    executable_path = shutil.which(tool.binary)
+    if executable_path is None:
+        print(f'{DARK_YELLOW}[WARN] {tool.binary} is not installed. Skipping {tool.name} check.{RESET}')
         print(f'{GRAY}   To install: {tool.install_command}{RESET}')
         return True
 
@@ -156,32 +241,44 @@ def invoke_quality_tool(tool: QualityTool, step_number: int, total_steps: int, r
     if tool.name == 'snyk':
         temp_requirements = repo_root / '.requirements-snyk.tmp.txt'
         try:
-            if shutil.which('uv') is not None:
-                export_command = f'uv export --no-hashes --no-emit-project -o "{temp_requirements.name}"'
+            uv_path = shutil.which('uv')
+            if uv_path is not None:
+                export_process = subprocess.run(
+                    [uv_path, 'export', '--no-hashes', '--no-emit-project', '-o', temp_requirements.name],
+                    check=False,
+                    cwd=repo_root,
+                    capture_output=True,
+                )
             else:
-                export_command = f'"{sys.executable}" -m pip freeze > "{temp_requirements.name}"'
+                export_process = subprocess.run(
+                    [sys.executable, '-m', 'pip', 'freeze'],
+                    check=False,
+                    cwd=repo_root,
+                    capture_output=True,
+                )
+                if not export_process.returncode:
+                    temp_requirements.write_bytes(export_process.stdout)
 
-            export_process = subprocess.run(
-                export_command,
-                shell=True,
-                check=False,
-                cwd=repo_root,
-                capture_output=True,
-            )
             if export_process.returncode:
                 print(f'{DARK_YELLOW}[FAIL] Failed to generate requirements manifest for {tool.name}.{RESET}')
                 return False
 
-            snyk_command = (
-                f'snyk test --file="{temp_requirements.name}" --package-manager=pip '
-                f'--command="{sys.executable}"'
+            process = subprocess.run(
+                [
+                    executable_path,
+                    'test',
+                    f'--file={temp_requirements.name}',
+                    '--package-manager=pip',
+                    f'--command={sys.executable}',
+                ],
+                check=False,
+                cwd=repo_root,
             )
-            process = subprocess.run(snyk_command, shell=True, check=False, cwd=repo_root)
         finally:
             if temp_requirements.is_file():
                 temp_requirements.unlink()
     else:
-        process = subprocess.run(tool.command, shell=True, check=False)
+        process = subprocess.run([executable_path, *tool.command[1:]], check=False, cwd=repo_root)
 
     elapsed_seconds = round(time.perf_counter() - start_time, 1)
 
