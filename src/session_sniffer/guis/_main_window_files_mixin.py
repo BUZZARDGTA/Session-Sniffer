@@ -375,7 +375,7 @@ class FilesMixin(QMainWindow):
         title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(title_label)
 
-        desc_label = QLabel(tr('A packet sniffer designed for Peer-To-Peer (P2P) video games on PC and consoles.'))
+        desc_label = QLabel(tr('A packet sniffer designed for Peer-To-Peer (P2P) video games and applications on PC, consoles, and mobile devices.'))
         desc_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         desc_label.setWordWrap(True)
         layout.addWidget(desc_label)

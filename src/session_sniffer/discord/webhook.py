@@ -682,7 +682,7 @@ class DiscordWebhookSender:
             'The configured Discord webhook URL is no longer valid and has been disabled.\n\n'
             'Reason: {reason} (HTTP {status})\n\n'
             'URL: {url}\n\n'
-            'Go to Settings -> Open Settings -> Discord -> Webhook and paste a new webhook URL to resume posting.',
+            'Go to Settings → Open Settings → Discord → Webhook and paste a new webhook URL to resume posting.',
             reason=reason,
             status=status,
             url=url,

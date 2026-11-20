@@ -305,7 +305,7 @@ class DetectionsManagerTabsMixin(QDialog):
 
         relay_group = self._create_detection_group(
             'GTA5 Relay',
-            'Triggers when a Take-Two Interactive or Microsoft relay IP is detected (thresholds are configured under Settings -> GTA V -> Session Relays).',
+            'Triggers when a Take-Two Interactive or Microsoft relay IP is detected (thresholds are configured under Settings → Open Settings → GTA V → Session Relays).',
             'gta5_relay',
         )
         scroll_layout.addWidget(relay_group)
