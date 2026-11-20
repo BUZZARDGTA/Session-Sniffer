@@ -113,11 +113,28 @@ a = Analysis(
 _EXCLUDED_QT_BINARY_NAMES = {
     # Software OpenGL Mesa rasterizer (~19.7 MB on Windows); unused by 2D QWidget/QPainter UI
     'opengl32sw.dll',
-    # Transitive C++ Qt libraries pulled in only by unused Qt plugins (qpdf, qtuiotouchplugin)
+    # Transitive C++ Qt libraries pulled in only by unused Qt plugins
+    # (qpdf, qtuiotouchplugin, qtvirtualkeyboardplugin)
     'qt6pdf.dll',
     'qtpdf',
     'qt6network.dll',
     'qtnetwork',
+    'qt6quick.dll',
+    'qtquick',
+    'qt6qml.dll',
+    'qtqml',
+    'qt6qmlmeta.dll',
+    'qtqmlmeta',
+    'qt6qmlmodels.dll',
+    'qtqmlmodels',
+    'qt6qmlworkerscript.dll',
+    'qtqmlworkerscript',
+    'qt6virtualkeyboard.dll',
+    'qtvirtualkeyboard',
+    'qtvirtualkeyboardqml',
+    # Unused on Windows/macOS (kept on Linux because Wayland graphics plugins link libQt6OpenGL.so.6)
+    'qt6opengl.dll',
+    'qtopengl',
     # Unused Qt imageformat plugins (Session Sniffer only uses PNG, SVG, and ICO/ICNS)
     'qpdf.dll',
     'libqpdf.so',
@@ -140,11 +157,16 @@ _EXCLUDED_QT_BINARY_NAMES = {
     'qwbmp.dll',
     'libqwbmp.so',
     'libqwbmp.dylib',
-    # Unused Qt generic TUIO touch network plugin
+    'libqmacheif.dylib',
+    'libqmacjp2.dylib',
+    # Unused Qt generic TUIO touch network plugin and virtual keyboard input context plugin
     'qtuiotouchplugin.dll',
     'libqtuiotouchplugin.so',
     'libqtuiotouchplugin.dylib',
-    # Unused headless/alternative platform plugins (qwindows/qxcb/qwayland/qcocoa are kept)
+    'qtvirtualkeyboardplugin.dll',
+    'libqtvirtualkeyboardplugin.so',
+    'libqtvirtualkeyboardplugin.dylib',
+    # Unused headless/alternative/embedded platform plugins (qwindows/qxcb/qwayland/qcocoa are kept)
     'qdirect2d.dll',
     'qoffscreen.dll',
     'libqoffscreen.so',
@@ -152,7 +174,42 @@ _EXCLUDED_QT_BINARY_NAMES = {
     'qminimal.dll',
     'libqminimal.so',
     'libqminimal.dylib',
+    'libqeglfs.so',
+    'libqlinuxfb.so',
+    'libqminimalegl.so',
+    'libqvkkhrdisplay.so',
+    'libqvnc.so',
+    'libqeglfs-emu-integration.so',
+    'libqeglfs-kms-egldevice-integration.so',
+    'libqeglfs-x11-integration.so',
 }
+
+_EXCLUDED_QT_SO_PREFIXES = (
+    'libqt6pdf.so',
+    'libqt6network.so',
+    'libqt6quick.so',
+    'libqt6qml.so',
+    'libqt6qmlmeta.so',
+    'libqt6qmlmodels.so',
+    'libqt6qmlworkerscript.so',
+    'libqt6virtualkeyboard.so',
+    'libqt6virtualkeyboardqml.so',
+    'libqt6eglfsdeviceintegration.so',
+    'libqt6eglfskmssupport.so',
+)
+
+_EXCLUDED_QT_MACOS_FRAMEWORK_SEGMENTS = (
+    '/qtpdf.framework/',
+    '/qtnetwork.framework/',
+    '/qtquick.framework/',
+    '/qtqml.framework/',
+    '/qtqmlmeta.framework/',
+    '/qtqmlmodels.framework/',
+    '/qtqmlworkerscript.framework/',
+    '/qtvirtualkeyboard.framework/',
+    '/qtvirtualkeyboardqml.framework/',
+    '/qtopengl.framework/',
+)
 
 _RETAINED_QT_TRANSLATION_FILES = frozenset(
     {
@@ -191,17 +248,27 @@ _RETAINED_QT_TRANSLATION_FILES = frozenset(
     },
 )
 
+
+def _is_excluded_qt_framework_entry(normalized_dest: str) -> bool:
+    return any(segment in normalized_dest for segment in _EXCLUDED_QT_MACOS_FRAMEWORK_SEGMENTS)
+
+
 a.binaries = [
     binary
     for binary in a.binaries
-    if (basename := binary[0].replace('\\', '/').rsplit('/', 1)[-1].lower()) not in _EXCLUDED_QT_BINARY_NAMES
-    and not basename.startswith(('libqt6pdf.so', 'libqt6network.so'))
+    if (normalized_dest := binary[0].replace('\\', '/').lower())
+    and (basename := normalized_dest.rsplit('/', 1)[-1]) not in _EXCLUDED_QT_BINARY_NAMES
+    and not basename.startswith(_EXCLUDED_QT_SO_PREFIXES)
+    and not _is_excluded_qt_framework_entry(normalized_dest)
 ]
 a.datas = [
     data
     for data in a.datas
-    if not (normalized_dest := data[0].replace('\\', '/').lower()).startswith(('pyside6/translations/', 'pyside6/qt/translations/'))
-    or normalized_dest.rsplit('/', 1)[-1] in _RETAINED_QT_TRANSLATION_FILES
+    if not _is_excluded_qt_framework_entry(normalized_dest := data[0].replace('\\', '/').lower())
+    and (
+        not normalized_dest.startswith(('pyside6/translations/', 'pyside6/qt/translations/'))
+        or normalized_dest.rsplit('/', 1)[-1] in _RETAINED_QT_TRANSLATION_FILES
+    )
 ]
 
 pyz = PYZ(a.pure)
