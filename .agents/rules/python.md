@@ -1,6 +1,6 @@
 ---
 trigger: glob
-globs: **/*.py
+globs: "**/*.py"
 ---
 
 # Python Development Rules
