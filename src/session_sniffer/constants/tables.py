@@ -79,6 +79,15 @@ STATUS_COLUMNS: tuple[str, ...] = (
 # Bandwidth columns including rates.
 BANDWIDTH_RATE_STAT_COLUMNS: tuple[str, ...] = (*BANDWIDTH_STAT_COLUMNS, 'BPS', 'BPM')
 
+# Numeric quantity columns right-aligned in session tables for easier vertical scanning.
+NUMERIC_RIGHT_ALIGNED_COLUMNS: frozenset[str] = frozenset({
+    'Rejoins',
+    *CONNECTED_RATE_STAT_COLUMNS,
+    'Lat',
+    'Lon',
+    'Offset',
+})
+
 # Hardcoded minimum column widths (in unscaled logical pixels) for columns whose content exceeds their header width.
 SESSION_TABLE_MIN_COLUMN_WIDTHS: dict[str, int] = {
     'Usernames': 118,

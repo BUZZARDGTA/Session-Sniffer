@@ -19,6 +19,7 @@ from shiboken6 import isValid
 from session_sniffer.constants.tables import (
     BANDWIDTH_RATE_STAT_COLUMNS,
     LOCATION_COLUMNS,
+    NUMERIC_RIGHT_ALIGNED_COLUMNS,
     ORGANIZATION_COLUMNS,
     PACKET_STAT_COLUMNS,
     STATUS_COLUMNS,
@@ -113,6 +114,7 @@ GUI_COLUMN_HEADERS_TOOLTIPS = {
 
 _ZERO_TD = timedelta(0)
 _DEFAULT_IPV4: Final[ipaddress.IPv4Address] = ipaddress.IPv4Address(0)
+_ALIGN_RIGHT_VCENTER: Final[Qt.AlignmentFlag] = Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
 
 _BANDWIDTH_GETTERS: Final[dict[str, Callable[[Any], int]]] = {
     'T. Bandwidth': lambda player: player.bandwidth.total_exchanged,
@@ -150,6 +152,7 @@ class _ColumnIndices:
     ip: int
     username: int
     country: int | None
+    right_aligned: frozenset[int]
 
 
 @dataclass(frozen=True, slots=True)
@@ -384,6 +387,7 @@ class SessionTableModel(QAbstractTableModel):
             ip=self._headers.index('IP Address'),
             username=self._headers.index('Usernames'),
             country=self.get_column_index('Country'),
+            right_aligned=frozenset(i for i, header in enumerate(self._headers) if header in NUMERIC_RIGHT_ALIGNED_COLUMNS),
         )
         self._ip_to_row_index: dict[str, int] = {}  # O(1) row lookup by IP
         self.session_bands: SessionBandState = _EMPTY_SESSION_BANDS
@@ -489,7 +493,7 @@ class SessionTableModel(QAbstractTableModel):
         return len(self._headers)
 
     @override
-    def data(self, index: QModelIndex | QPersistentModelIndex, role: int = Qt.ItemDataRole.DisplayRole) -> str | QColor | QIcon | set[str] | None:
+    def data(self, index: QModelIndex | QPersistentModelIndex, role: int = Qt.ItemDataRole.DisplayRole) -> str | QColor | QIcon | Qt.AlignmentFlag | set[str] | None:
         """Override data method to customize data retrieval and alignment."""
         if not isValid(self) or not index.isValid():
             return None
@@ -501,9 +505,12 @@ class SessionTableModel(QAbstractTableModel):
         if row_index < 0 or row_index >= len(self._data) or column_index < 0 or column_index >= len(self._data[row_index]):
             return None  # Return None for invalid index
 
-        output: str | QColor | QIcon | set[str] | None = None
+        output: str | QColor | QIcon | Qt.AlignmentFlag | set[str] | None = None
 
-        if role == Qt.ItemDataRole.DecorationRole:
+        if role == Qt.ItemDataRole.TextAlignmentRole:
+            if column_index in self._column_indices.right_aligned:
+                output = _ALIGN_RIGHT_VCENTER
+        elif role == Qt.ItemDataRole.DecorationRole:
             if self._column_indices.country is not None and self._column_indices.country == column_index:
                 ip = self._get_ip_from_data_safely(self._data[row_index])
 
@@ -841,6 +848,7 @@ class SessionTableModel(QAbstractTableModel):
                 ip=self._headers.index('IP Address'),
                 username=self._headers.index('Usernames'),
                 country=self.get_column_index('Country'),
+                right_aligned=frozenset(i for i, header in enumerate(self._headers) if header in NUMERIC_RIGHT_ALIGNED_COLUMNS),
             )
         self._data = []
         self._compiled_colors = []
