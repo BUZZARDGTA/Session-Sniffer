@@ -173,6 +173,10 @@ def section_bar_qss(role_token: str) -> str:
     QSpinBox::up-button:hover, QSpinBox::down-button:hover {{
         background: @control[rgba(255, 255, 255, 0.08)];
     }}
+    QSpinBox::up-button:disabled, QSpinBox::up-button:off,
+    QSpinBox::down-button:disabled, QSpinBox::down-button:off {{
+        background: transparent;
+    }}
     QSpinBox::up-arrow {{
         right: 1px;
         top: 1px;

@@ -47,7 +47,9 @@ def build_canonical_stylesheet(ui_scale: float = 1.0) -> str:
     chevron_down_more_path = (ICONS_DIR_PATH / 'chevron_down_more.svg').as_posix()
     chevron_down_end_path = (ICONS_DIR_PATH / 'chevron_down_end.svg').as_posix()
     arrow_up_path = (ICONS_DIR_PATH / 'chevron-up.svg').as_posix()
+    arrow_up_disabled_path = (ICONS_DIR_PATH / 'chevron-up-disabled.svg').as_posix()
     arrow_down_path = (ICONS_DIR_PATH / 'chevron-down.svg').as_posix()
+    arrow_down_disabled_path = (ICONS_DIR_PATH / 'chevron-down-disabled.svg').as_posix()
     check_path = CHECKBOX_CHECK_ICON_PATH.as_posix()
     close_path = (ICONS_DIR_PATH / 'x.svg').as_posix()
 
@@ -260,6 +262,10 @@ def build_canonical_stylesheet(ui_scale: float = 1.0) -> str:
     QSpinBox::up-button:pressed, QDoubleSpinBox::up-button:pressed {
         background-color: @control[rgba(255, 255, 255, 0.1)];
     }
+    QSpinBox::up-button:disabled, QDoubleSpinBox::up-button:disabled,
+    QSpinBox::up-button:off, QDoubleSpinBox::up-button:off {
+        background-color: transparent;
+    }
 
     QSpinBox::down-button, QDoubleSpinBox::down-button {
         subcontrol-origin: padding;
@@ -275,17 +281,29 @@ def build_canonical_stylesheet(ui_scale: float = 1.0) -> str:
     QSpinBox::down-button:pressed, QDoubleSpinBox::down-button:pressed {
         background-color: @control[rgba(255, 255, 255, 0.1)];
     }
+    QSpinBox::down-button:disabled, QDoubleSpinBox::down-button:disabled,
+    QSpinBox::down-button:off, QDoubleSpinBox::down-button:off {
+        background-color: transparent;
+    }
 
     QSpinBox::up-arrow, QDoubleSpinBox::up-arrow {
         image: url("{arrow_up_path}");
         width: 7px;
         height: 7px;
     }
+    QSpinBox::up-arrow:disabled, QDoubleSpinBox::up-arrow:disabled,
+    QSpinBox::up-arrow:off, QDoubleSpinBox::up-arrow:off {
+        image: url("{arrow_up_disabled_path}");
+    }
 
     QSpinBox::down-arrow, QDoubleSpinBox::down-arrow {
         image: url("{arrow_down_path}");
         width: 7px;
         height: 7px;
+    }
+    QSpinBox::down-arrow:disabled, QDoubleSpinBox::down-arrow:disabled,
+    QSpinBox::down-arrow:off, QDoubleSpinBox::down-arrow:off {
+        image: url("{arrow_down_disabled_path}");
     }
 
     /* ComboBox Dropdown */
@@ -848,7 +866,9 @@ def build_canonical_stylesheet(ui_scale: float = 1.0) -> str:
     css = css.replace('{chevron_down_more_path}', chevron_down_more_path)
     css = css.replace('{chevron_down_end_path}', chevron_down_end_path)
     css = css.replace('{arrow_up_path}', arrow_up_path)
+    css = css.replace('{arrow_up_disabled_path}', arrow_up_disabled_path)
     css = css.replace('{arrow_down_path}', arrow_down_path)
+    css = css.replace('{arrow_down_disabled_path}', arrow_down_disabled_path)
     css = css.replace('{check_path}', check_path)
     css = css.replace('{close_path}', close_path)
     css = css.replace('{ui_font_family}', ui_font_family)
