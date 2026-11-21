@@ -43,7 +43,7 @@ border: none;
 # =============================================================================
 
 SECTION_HEADER_SEPARATOR_STYLESHEET = themed_qss(
-    'background-color: @border[rgba(255, 255, 255, 0.12)]; border: none; max-width: 1px; min-width: 1px; margin: 4px 4px;',
+    'background-color: @border[rgba(255, 255, 255, 0.15)]; border: none; max-width: 1px; min-width: 1px; margin: 0px 2px;',
 )
 
 # =============================================================================

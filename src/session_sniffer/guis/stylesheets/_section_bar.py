@@ -136,12 +136,12 @@ def section_bar_qss(role_token: str) -> str:
         font-size: 8.5pt;
     }}
     QSpinBox#sectionRowsSpinBox {{
-        min-width: 55px;
-        max-width: 72px;
+        min-width: 48px;
+        max-width: 60px;
     }}
     QSpinBox#sectionPageSpinBox {{
-        min-width: 42px;
-        max-width: 52px;
+        min-width: 34px;
+        max-width: 46px;
     }}
     QSpinBox:hover {{
         background: @input[rgba(0, 0, 0, 0.50)];
@@ -149,6 +149,11 @@ def section_bar_qss(role_token: str) -> str:
     }}
     QSpinBox:focus {{
         border-color: @{role_token}[{accent_hex}];
+    }}
+    QSpinBox:disabled {{
+        color: @text_muted[rgba(241, 245, 249, 0.65)];
+        background: @input[rgba(0, 0, 0, 0.28)];
+        border-color: @border[rgba(255, 255, 255, 0.08)];
     }}
     QSpinBox::up-button {{
         subcontrol-origin: border;

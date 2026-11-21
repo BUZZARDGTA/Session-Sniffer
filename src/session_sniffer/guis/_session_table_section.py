@@ -219,7 +219,7 @@ class SessionTableSection(QWidget):
 
         rows_pair = QHBoxLayout()
         rows_pair.setSpacing(scale_by_ui(4))
-        rows_pair.setContentsMargins(0, 0, 0, 0)
+        rows_pair.setContentsMargins(0, 0, scale_by_ui(2), 0)
         rows_pair.setAlignment(Qt.AlignmentFlag.AlignVCenter)
         rows_pair.addWidget(self._rows_label)
         rows_pair.addWidget(self._rows_per_page_spinbox)
@@ -250,6 +250,7 @@ class SessionTableSection(QWidget):
         nav_separator = QFrame()
         nav_separator.setFrameShape(QFrame.Shape.VLine)
         nav_separator.setFrameShadow(QFrame.Shadow.Sunken)
+        nav_separator.setFixedHeight(scale_by_ui(18))
         nav_separator.setStyleSheet(SECTION_HEADER_SEPARATOR_STYLESHEET)
         header_layout.addWidget(nav_separator, alignment=Qt.AlignmentFlag.AlignVCenter)
 
