@@ -30,12 +30,11 @@ from PySide6.QtWidgets import (
 
 from session_sniffer.capture.process import matches_process_name
 from session_sniffer.constants.standalone import TITLE
-from session_sniffer.discord.webhook import is_valid_webhook_url
 from session_sniffer.guis._dialog_mixins import UnsavedChangesMixin, equalize_button_sizes, setup_tab_dialog_buttons
 from session_sniffer.guis._settings_discord_mixin import SettingsDialogDiscordMixin, build_discord_info_group
 from session_sniffer.guis._settings_hrm_mixin import SettingsDialogHighRateMonitorMixin
 from session_sniffer.guis._settings_looky_mixin import SettingsDialogLookyMixin
-from session_sniffer.guis._settings_runtime import SettingValue, apply_runtime_settings_changes
+from session_sniffer.guis._settings_runtime import SettingValue, apply_runtime_settings_changes, validate_settings_values
 from session_sniffer.guis._settings_shortcuts_widgets import (
     HotkeyEditWidget,
     create_hotkey_widget,
@@ -43,9 +42,9 @@ from session_sniffer.guis._settings_shortcuts_widgets import (
     populate_shortcut_group_cards,
 )
 from session_sniffer.guis._settings_theme_mixin import SettingsDialogThemeMixin
+from session_sniffer.guis._settings_webserver_widgets import WebServerAccessWidget, WebServerSettingsSection
 from session_sniffer.guis._settings_widget_builders import (
     build_shortcuts_help_group,
-    build_webserver_help_group,
     combo_canonical_value,
     create_boolean_widget,
     create_color_widget,
@@ -82,12 +81,10 @@ from session_sniffer.guis.utils import (
 )
 from session_sniffer.i18n import normalize_language_code, tr
 from session_sniffer.networking.looky_system import LookyState
-from session_sniffer.networking.utils import format_mac_address, is_ipv4_address, is_mac_address
+from session_sniffer.networking.utils import format_mac_address, is_ipv4_address
 from session_sniffer.rendering_core.types import CaptureState
 from session_sniffer.settings import SETTING_CATEGORIES_ORDER, SETTING_DEFAULTS, SETTING_METADATA, SettingMeta, SettingType
 from session_sniffer.settings.settings import Settings
-from session_sniffer.utils import validate_and_strip_balanced_outer_parens
-from session_sniffer.utils_exceptions import ParenthesisMismatchError
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -95,7 +92,6 @@ if TYPE_CHECKING:
     from session_sniffer.capture.packet_capture import PacketCapture
 
 _NONE_PLACEHOLDER = 'None'
-_DISCORD_PRESENCE_TITLE_MIN_LEN = 2
 
 
 class SettingsDialog(
@@ -149,6 +145,11 @@ class SettingsDialog(
         self._spike_sound_preview_button: QPushButton | None = None
         self._spike_sound_volume_slider: QSlider | None = None
         self._shortcut_group_boxes: list[QGroupBox] = []
+        self._webserver_section = WebServerSettingsSection(
+            self._widgets,
+            self._labels,
+            lambda: ip if isinstance(ip := self._old_values.get('capture_ip_address'), str) and is_ipv4_address(ip) else None,
+        )
         for i, category in enumerate(SETTING_CATEGORIES_ORDER):
             tab_widget = self._build_tab(category)
             tab_widget.setProperty('category', category)
@@ -261,6 +262,7 @@ class SettingsDialog(
         if isinstance(spike_visual_widget, QCheckBox):
             spike_visual_widget.toggled.connect(lambda _checked=False: self._update_spike_alerts_state())
         self._update_high_rate_monitor_mode_state()
+        self._webserver_section.connect_signals()
 
         # Wire live language preview & Follow System Language toggling (never mutates Settings until Save).
         lang_widget = self._widgets.get('gui_language')
@@ -305,7 +307,7 @@ class SettingsDialog(
                 ungrouped.append((key, meta))
 
         if category == 'Web Server':
-            outer_layout.addWidget(build_webserver_help_group())
+            outer_layout.addWidget(self._webserver_section.build_access_card())
         elif category == 'Shortcuts':
             outer_layout.addWidget(build_shortcuts_help_group())
         elif category == 'Discord':
@@ -329,6 +331,9 @@ class SettingsDialog(
                 continue
             if category == 'GTA V' and group_name == 'Looky System':
                 outer_layout.addWidget(self._build_looky_group(items, self._add_setting_row))
+                continue
+            if category == 'Web Server' and group_name == 'Authentication':
+                outer_layout.addWidget(self._webserver_section.build_authentication_group(items, self._add_setting_row))
                 continue
 
             group_box = QGroupBox(tr(group_name).replace('&', '&&'))
@@ -366,6 +371,8 @@ class SettingsDialog(
 
         if category == 'Themes':
             self._populate_themes_tab(outer_layout)
+        elif category == 'Web Server':
+            outer_layout.addWidget(self._webserver_section.build_help_group())
 
         outer_layout.addStretch()
         scroll.setWidget(container)
@@ -403,6 +410,10 @@ class SettingsDialog(
 
         if key == 'high_rate_monitor_spike_sound_volume':
             form.addRow(label, self._build_spike_sound_volume_row(widget))
+            return
+
+        if key == 'webserver_port':
+            form.addRow(label, self._webserver_section.build_port_row(widget))
             return
 
         if key == 'capture_filter_process_pid' and not CaptureState.is_local_capture():
@@ -521,12 +532,15 @@ class SettingsDialog(
         self._refresh_interface_info_labels()
         self._update_sort_column_options()
         self._refresh_looky_language()
+        self._webserver_section.refresh_language()
         equalize_button_sizes(self._button_row)
 
     def _create_widget(self, key: str, meta: SettingMeta) -> QWidget:
         """Return the appropriate input widget for a single setting."""
         if key == 'capture_filter_process_pid':
             return ProcessSelectorWidget(self, meta=meta)
+        if key == 'webserver_host':
+            return WebServerAccessWidget(self)
         if key == 'shortcuts_enabled':
             return create_shortcuts_master_toggle(meta)
         if key == 'gui_theme':
@@ -572,6 +586,7 @@ class SettingsDialog(
             self._on_shortcuts_enabled_toggled()
             self._update_sort_column_options()
             self._update_high_rate_monitor_mode_state()
+            self._webserver_section.update_state()
             self._sync_selected_theme_card()
         finally:
             self._loading_settings = False
@@ -590,7 +605,10 @@ class SettingsDialog(
             case SettingType.BOOLEAN:
                 cast('QCheckBox', widget).setChecked(bool(value))
             case SettingType.STRING | SettingType.IPV4 | SettingType.MAC_ADDRESS:
-                cast('QLineEdit', widget).setText('' if value is None else str(value))
+                if key == 'webserver_host':
+                    cast('WebServerAccessWidget', widget).set_value(value if isinstance(value, str) else None)
+                else:
+                    cast('QLineEdit', widget).setText('' if value is None else str(value))
             case SettingType.COLOR:
                 cast('ColorPickerButton', widget).set_color(str(value) if value is not None else '')
             case SettingType.HOTKEY:
@@ -634,8 +652,11 @@ class SettingsDialog(
             case SettingType.BOOLEAN:
                 value = cast('QCheckBox', widget).isChecked()
             case SettingType.STRING | SettingType.IPV4 | SettingType.MAC_ADDRESS:
-                text = cast('QLineEdit', widget).text().strip()
-                value = text or None
+                if key == 'webserver_host':
+                    value = cast('WebServerAccessWidget', widget).value()
+                else:
+                    text = cast('QLineEdit', widget).text().strip()
+                    value = text or None
             case SettingType.COLOR:
                 value = cast('ColorPickerButton', widget).color()
             case SettingType.HOTKEY:
@@ -667,85 +688,8 @@ class SettingsDialog(
 
     def _validate(self) -> tuple[list[str], dict[str, SettingValue]]:
         """Read every widget once and return validation errors alongside the collected values."""
-        errors: list[str] = []
-        values: dict[str, SettingValue] = {}
-
-        for key, widget in self._widgets.items():
-            meta = SETTING_METADATA[key]
-            value = self._read_widget_value(key, widget)
-            values[key] = value
-
-            if meta.setting_type == SettingType.IPV4 and isinstance(value, str) and not is_ipv4_address(value):
-                errors.append(tr('{label}: "{value}" is not a valid IPv4 address.', label=tr(meta.display_label), value=value))
-
-            elif meta.setting_type == SettingType.COLOR and (not isinstance(value, str) or not QColor(value).isValid()):
-                errors.append(tr('{label}: "{value}" is not a valid color.', label=tr(meta.display_label), value=value))
-
-            elif meta.setting_type == SettingType.MAC_ADDRESS and isinstance(value, str):
-                formatted = format_mac_address(value)
-                if not is_mac_address(formatted):
-                    errors.append(
-                        tr(
-                            '{label}: "{value}" is not a valid MAC address (expected format: AA:BB:CC:DD:EE:FF).',
-                            label=tr(meta.display_label),
-                            value=value,
-                        ),
-                    )
-
-            elif meta.setting_type == SettingType.STRING and key == 'capture_prepend_custom_capture_filter' and isinstance(value, str):
-                try:
-                    validate_and_strip_balanced_outer_parens(value)
-                except ParenthesisMismatchError:
-                    errors.append(tr('{label}: filter expression has unbalanced parentheses.', label=tr(meta.display_label)))
-
-            elif key == 'discord_presence_title' and isinstance(value, str) and 0 < len(value) < _DISCORD_PRESENCE_TITLE_MIN_LEN:
-                errors.append(tr('Presence Title must be either empty (to disable) or at least 2 characters long.'))
-
-        if bool(values.get('discord_webhook_enabled')):
-            url_value = values.get('discord_webhook_url')
-            if not isinstance(url_value, str) or not is_valid_webhook_url(url_value):
-                errors.append(
-                    tr(
-                        'Discord Webhook is enabled but the Webhook URL is missing or invalid. '
-                        'Expected format: https://discord.com/api/webhooks/<id>/<token>',
-                    ),
-                )
-
-        datetime_option_keys = (
-            'gui_columns_datetime_show_date',
-            'gui_columns_datetime_show_time',
-            'gui_columns_datetime_show_elapsed_time',
-        )
-        if not any(values.get(opt_key) for opt_key in datetime_option_keys):
-            options_list = '\n'.join(f'  - {tr(SETTING_METADATA[opt_key].display_label)}' for opt_key in datetime_option_keys)
-            errors.append(
-                tr(
-                    'At least one of the DateTime column display options must be enabled:\n{options}',
-                    options=options_list,
-                ),
-            )
-
-        hotkey_bindings: dict[str, list[tuple[str, str]]] = {}
-        for key, meta in SETTING_METADATA.items():
-            if meta.setting_type != SettingType.HOTKEY:
-                continue
-            chord_val = values.get(key)
-            if isinstance(chord_val, str) and chord_val:
-                label_text = f'{tr(meta.group)} \u2014 {tr(meta.display_label)}' if meta.group is not None and meta.group else tr(meta.display_label)
-                hotkey_bindings.setdefault(chord_val.casefold(), []).append((chord_val, label_text))
-        for bound_items in hotkey_bindings.values():
-            if len(bound_items) > 1:
-                display_chord = bound_items[0][0]
-                actions_list = '\n'.join(f'  - {item_label}' for _, item_label in bound_items)
-                errors.append(
-                    tr(
-                        'Shortcut "{shortcut}" is assigned to multiple actions:\n{actions}',
-                        shortcut=display_chord,
-                        actions=actions_list,
-                    ),
-                )
-
-        return errors, values
+        values: dict[str, SettingValue] = {key: self._read_widget_value(key, widget) for key, widget in self._widgets.items()}
+        return validate_settings_values(values), values
 
     def _save_settings(self) -> None:
         """Validate, apply widget values to Settings, persist, and close."""
@@ -855,6 +799,7 @@ class SettingsDialog(
         self._on_shortcuts_enabled_toggled()
         self._update_sort_column_options()
         self._update_high_rate_monitor_mode_state()
+        self._webserver_section.update_state()
         self._update_restart_notice()
 
     def _reset_current_tab(self) -> None:
@@ -903,6 +848,8 @@ class SettingsDialog(
                 case ProcessSelectorWidget():
                     widget.process_target_changed.connect(self._update_restart_notice)
                     widget.process_selection_applied.connect(self._on_process_selection_applied)
+                case WebServerAccessWidget():
+                    widget.host_changed.connect(self._update_restart_notice)
                 case QLineEdit():
                     widget.textChanged.connect(self._update_restart_notice)
                 case _:
@@ -991,7 +938,10 @@ class SettingsDialog(
         self._save_settings()
         return self._saved
 
-    def _on_tab_changed(self, _index: int) -> None:
-        """Handle tab switching; automatically re-blurs Looky System sensitive fields and masks passwords."""
+    def _on_tab_changed(self, index: int) -> None:
+        """Handle tab switching; automatically re-blurs sensitive fields and refreshes live Web Server info."""
         self._hide_looky_account_sensitive_values()
         self._hide_secret_fields()
+        page = self._tabs.widget(index)
+        if page is not None and page.property('category') == 'Web Server':
+            self._webserver_section.refresh_network_addresses()

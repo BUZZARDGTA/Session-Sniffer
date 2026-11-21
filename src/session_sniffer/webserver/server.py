@@ -24,6 +24,65 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 _WEB_SERVER_STARTUP_TIMEOUT_SECONDS = 3.0
+_WSAEACCES = 10013
+_WSAEADDRINUSE = 10048
+_WSAEADDRNOTAVAIL = 10049
+
+
+@dataclass(slots=True, frozen=True)
+class WebServerStatus:
+    """Snapshot of the embedded web server's current runtime state."""
+
+    running: bool
+    host: str | None = None
+    port: int | None = None
+    auth_enabled: bool = False
+    error_code: str | None = None
+    error_detail: str | None = None
+
+
+def _classify_startup_error(error: Exception) -> str:
+    """Map an OS socket startup exception to a stable user-facing error category."""
+    if isinstance(error, PermissionError):
+        return 'permission_denied'
+    if isinstance(error, OSError):
+        winerror = getattr(error, 'winerror', None)
+        if error.errno == errno.EADDRINUSE or winerror == _WSAEADDRINUSE:
+            return 'port_in_use'
+        if error.errno == errno.EACCES or winerror == _WSAEACCES:
+            return 'permission_denied'
+        if error.errno == errno.EADDRNOTAVAIL or winerror == _WSAEADDRNOTAVAIL:
+            return 'invalid_host'
+    return 'startup_failed'
+
+
+def format_webserver_error(status: WebServerStatus) -> str:
+    """Return a plain-language localized message explaining why the web server failed to start."""
+    port = status.port if status.port is not None else 80
+    host = status.host or ''
+    if status.error_code == 'port_in_use':
+        return tr(
+            'Port {port} is already in use by another app. Switch to a different port (for example 8080 or 8081) and click Save.',
+            port=port,
+        )
+    if status.error_code == 'permission_denied':
+        return tr(
+            'Port {port} is blocked by system permissions or reserved by the OS. Switch to a higher port (such as 8080 or 8081) and click Save.',
+            port=port,
+        )
+    if status.error_code == 'invalid_host':
+        return tr(
+            'The IP address {host} is not assigned to any network adapter on this PC. Choose Local Network or pick one of your PC IP addresses.',
+            host=host,
+        )
+    if status.error_code == 'timeout':
+        return tr('The web server took too long to start. Try again or choose a different port.')
+    return tr(
+        'Could not start the web server on {host}:{port}: {detail}',
+        host=host,
+        port=port,
+        detail=status.error_detail or tr('Unknown error'),
+    )
 
 
 def _handle_asyncio_exception(_loop: asyncio.AbstractEventLoop, context: dict[str, Any]) -> None:
@@ -67,6 +126,7 @@ class WebServer:
 
     _instance: ClassVar[WebServer | None] = None
     _thread: ClassVar[threading.Thread | None] = None
+    _status: ClassVar[WebServerStatus] = WebServerStatus(running=False)
 
     def __init__(self, config: WebServerConfig) -> None:
         """Initialize the web server with the given `config`."""
@@ -304,6 +364,37 @@ class WebServer:
         logger.debug('Web server stop requested but event loop is not running.')
 
     @classmethod
+    def get_status(cls) -> WebServerStatus:
+        """Return a snapshot of the managed web server's current state."""
+        return cls._status
+
+    @classmethod
+    def is_running(cls) -> bool:
+        """Return `True` when the managed web server is actively listening."""
+        return cls._status.running and cls._instance is not None
+
+    @classmethod
+    def _cleanup_instance(cls) -> bool:
+        """Stop and clear the running server instance and thread without altering `_status`.
+
+        Returns:
+            `True` if no server thread remains active, `False` if shutdown timed out.
+        """
+        if cls._instance is None:
+            return True
+
+        cls._instance.stop()
+        if cls._thread is not None:
+            cls._thread.join(timeout=2.0)
+            if cls._thread.is_alive():
+                logger.warning('Web server thread did not stop within timeout; keeping current instance active.')
+                return False
+
+        cls._instance = None
+        cls._thread = None
+        return True
+
+    @classmethod
     def start_server(
         cls,
         *,
@@ -314,6 +405,13 @@ class WebServer:
         cls.stop_server()
         if cls._instance is not None:
             logger.error('Web server restart skipped because the previous instance is still shutting down.')
+            cls._status = WebServerStatus(
+                running=False,
+                host=config.host,
+                port=config.port,
+                error_code='timeout',
+                error_detail='Previous web server instance is still shutting down.',
+            )
             return
 
         startup_state = _ServerStartupState()
@@ -332,11 +430,18 @@ class WebServer:
                 'Web server startup timed out after %.1f s; stopping.',
                 _WEB_SERVER_STARTUP_TIMEOUT_SECONDS,
             )
-            cls.stop_server()
+            cls._cleanup_instance()
+            cls._status = WebServerStatus(
+                running=False,
+                host=config.host,
+                port=config.port,
+                error_code='timeout',
+            )
             return
 
         if startup_state.error is not None:
-            if isinstance(startup_state.error, OSError) and startup_state.error.errno == errno.EADDRINUSE:
+            error_code = _classify_startup_error(startup_state.error)
+            if error_code == 'port_in_use':
                 logger.error(
                     'Web server failed to start: port %d on %s is already in use by another process. '
                     'Change the Web Server port in Settings or stop the conflicting application.',
@@ -345,26 +450,34 @@ class WebServer:
                 )
             else:
                 logger.error('Web server failed to start on %s:%d: %r', config.host, config.port, startup_state.error)
-            cls.stop_server()
+            cls._cleanup_instance()
+            cls._status = WebServerStatus(
+                running=False,
+                host=config.host,
+                port=config.port,
+                error_code=error_code,
+                error_detail=str(startup_state.error),
+            )
             return
+
+        cls._status = WebServerStatus(
+            running=True,
+            host=config.host,
+            port=config.port,
+            auth_enabled=bool(config.auth_username and config.auth_password),
+        )
 
     @classmethod
     def stop_server(cls) -> None:
         """Stop the managed web server instance if one is running."""
         if cls._instance is None:
             logger.debug('Managed web server stop requested but no instance is active.')
+            cls._status = WebServerStatus(running=False)
             return
 
         logger.debug('Managed web server stop requested.')
-        cls._instance.stop()
-        if cls._thread is not None:
-            cls._thread.join(timeout=2.0)
-            if cls._thread.is_alive():
-                logger.warning('Web server thread did not stop within timeout; keeping current instance active.')
-                return
-
-        cls._instance = None
-        cls._thread = None
+        if cls._cleanup_instance():
+            cls._status = WebServerStatus(running=False)
 
     @classmethod
     def update_auth_credentials(
@@ -380,4 +493,12 @@ class WebServer:
 
         cls._instance.auth_username = auth_username
         cls._instance.auth_password = auth_password
-        logger.debug('Auth credentials updated on running web server (auth_enabled=%s).', bool(auth_username and auth_password))
+        auth_enabled = bool(auth_username and auth_password)
+        if cls._status.running:
+            cls._status = WebServerStatus(
+                running=True,
+                host=cls._status.host,
+                port=cls._status.port,
+                auth_enabled=auth_enabled,
+            )
+        logger.debug('Auth credentials updated on running web server (auth_enabled=%s).', auth_enabled)

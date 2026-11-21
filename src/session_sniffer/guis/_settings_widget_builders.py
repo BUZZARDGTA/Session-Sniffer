@@ -753,7 +753,7 @@ def set_checkboxes_to(container: QWidget, selected: tuple[str, ...]) -> None:
         checkbox.setChecked(checkbox.objectName() in wanted)
 
 
-def _create_help_banner_group() -> tuple[QGroupBox, QLabel]:
+def create_help_banner_group() -> tuple[QGroupBox, QLabel]:
     """Create a titled `QGroupBox` containing a styled selectable rich-text `QLabel`."""
     group_box = QGroupBox()
     layout = QVBoxLayout(group_box)
@@ -766,34 +766,9 @@ def _create_help_banner_group() -> tuple[QGroupBox, QLabel]:
     return group_box, help_label
 
 
-def build_webserver_help_group() -> QGroupBox:
-    """Build an explanatory guide for Web Server host/port behavior and common usage patterns."""
-    group_box, help_label = _create_help_banner_group()
-    group_box.setTitle(tr('Web Server Usage Guide').replace('&', '&&'))
-    help_label.setText(
-        tr(
-            '<b>Host binding explained</b><br>'
-            '<b>127.0.0.1</b> (or localhost): only this PC can open the panel.<br>'
-            '<b>0.0.0.0</b>: listens on all interfaces so other devices on your LAN can connect.<br><br>'
-            '<b>Typical setups</b><br>'
-            '- Desktop only: host = 127.0.0.1<br>'
-            '- Phone/tablet on same Wi-Fi: host = 0.0.0.0, then open http://&lt;PC_LAN_IP&gt;:&lt;PORT&gt;/<br><br>'
-            '<b>Troubleshooting tips</b><br>'
-            '- Phone and PC must be on the same local network (avoid guest/isolated Wi-Fi).<br>'
-            '- If remote devices cannot connect, allow inbound TCP on the selected port in Windows Firewall.<br>'
-            '- If port 80 conflicts with another app, switch to a different port (for example 8091).<br>'
-            '- Use http:// (not https://) unless you add your own TLS reverse proxy.<br><br>'
-            '<b>Security note</b><br>'
-            'When using 0.0.0.0, anyone on the same allowed network path can reach the panel.<br>'
-            'Use trusted networks and firewall scope limits.',
-        ),
-    )
-    return group_box
-
-
 def build_shortcuts_help_group() -> QGroupBox:
     """Build an explanatory header for global hotkeys and main window shortcuts."""
-    group_box, help_label = _create_help_banner_group()
+    group_box, help_label = create_help_banner_group()
 
     def _refresh_text() -> None:
         group_box.setTitle(tr('Keyboard Shortcuts Guide').replace('&', '&&'))

@@ -38,6 +38,11 @@ WIN32_MOD_WIN = 0x0008
 _SND_ASYNC = 0x0001
 _SND_NODEFAULT = 0x0002
 _SND_MEMORY = 0x0004
+_CLSCTX_INPROC_SERVER = 0x1
+_INET_FW_POLICY2_GET_CURRENT_PROFILE_TYPES_VTABLE_INDEX = 7
+NET_FW_PROFILE2_DOMAIN = 0x1
+NET_FW_PROFILE2_PRIVATE = 0x2
+NET_FW_PROFILE2_PUBLIC = 0x4
 
 
 class WindowsGuid(ctypes.Structure):
@@ -110,6 +115,8 @@ class _KbdLlHookStruct(ctypes.Structure):
 _CLSID_SHELL_LINK = WindowsGuid(0x00021401, 0x0000, 0x0000, (ctypes.c_ubyte * 8)(0xC0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x46))
 _IID_ISHELL_LINK_W = WindowsGuid(0x000214F9, 0x0000, 0x0000, (ctypes.c_ubyte * 8)(0xC0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x46))
 _IID_IPERSIST_FILE = WindowsGuid(0x0000010B, 0x0000, 0x0000, (ctypes.c_ubyte * 8)(0xC0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x46))
+_CLSID_NET_FW_POLICY2 = WindowsGuid(0xE2B3C97F, 0x6AE1, 0x41AC, (ctypes.c_ubyte * 8)(0x81, 0x7A, 0xF6, 0xF9, 0x21, 0x66, 0xD7, 0xDD))
+_IID_INET_FW_POLICY2 = WindowsGuid(0x98325047, 0xC671, 0x4174, (ctypes.c_ubyte * 8)(0x8D, 0x81, 0xDE, 0xFC, 0xD3, 0xF0, 0x31, 0x86))
 
 
 _crt_state: dict[str, Any] = {
@@ -286,6 +293,31 @@ def co_create_instance(clsid: WindowsGuid, clsctx: int, iid: WindowsGuid) -> win
     if _ole32.CoCreateInstance(ctypes.byref(clsid), None, clsctx, ctypes.byref(iid), ctypes.byref(instance_ptr)):
         return wintypes.LPVOID()
     return instance_ptr
+
+
+def get_active_windows_firewall_profiles() -> int:
+    """Return the active Windows Defender Firewall profile bitmask (`NET_FW_PROFILE2_*`), or `0` if unavailable."""
+    if sys.platform != 'win32':
+        return 0
+    need_uninit = co_initialize_ex(2)
+    try:
+        policy_ptr = co_create_instance(_CLSID_NET_FW_POLICY2, _CLSCTX_INPROC_SERVER, _IID_INET_FW_POLICY2)
+        if not policy_ptr:
+            return 0
+        try:
+            vtable_addr = get_com_vtable_entry(policy_ptr, _INET_FW_POLICY2_GET_CURRENT_PROFILE_TYPES_VTABLE_INDEX)
+            if not vtable_addr:
+                return 0
+            get_profiles = ctypes.WINFUNCTYPE(wintypes.HRESULT, wintypes.LPVOID, ctypes.POINTER(ctypes.c_long))(vtable_addr)
+            profile_mask = ctypes.c_long(0)
+            if get_profiles(policy_ptr, ctypes.byref(profile_mask)):
+                return 0
+            return profile_mask.value
+        finally:
+            release_com_interface(policy_ptr)
+    finally:
+        if need_uninit:
+            co_uninitialize()
 
 
 def get_system32_dir() -> Path:

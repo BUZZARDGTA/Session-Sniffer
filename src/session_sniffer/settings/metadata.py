@@ -686,21 +686,24 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         group='Connection',
         display_label='Enable Web Server',
         setting_type=SettingType.BOOLEAN,
-        tooltip='Enable local web server for browser access to live session data.',
+        tooltip='Turn on the built-in web server to view live session data in a browser on this PC, your phone, or other devices.',
     ),
     'webserver_host': SettingMeta(
         category='Web Server',
         group='Connection',
-        display_label='Host',
+        display_label='Network Access',
         setting_type=SettingType.IPV4,
-        tooltip='IP address to bind the web server to (0.0.0.0 = all interfaces).',
+        tooltip='Choose whether only this PC can open the web panel (127.0.0.1), any device on your local network (0.0.0.0), or a specific IPv4 address on this PC.',
     ),
     'webserver_port': SettingMeta(
         category='Web Server',
         group='Connection',
         display_label='Port',
         setting_type=SettingType.INTEGER,
-        tooltip=f'Port number for the web server ({MIN_PORT}-{MAX_PORT}).',
+        tooltip=(
+            f'Network port used by the web server ({MIN_PORT}-{MAX_PORT}). '
+            'Port 80 lets you omit the port from the URL; use 8080 or 8081 if port 80 is already in use.'
+        ),
         min_value=MIN_PORT,
         max_value=MAX_PORT,
         step=1,
@@ -710,14 +713,14 @@ SETTING_METADATA: dict[str, SettingMeta] = {
         group='Authentication',
         display_label='Username',
         setting_type=SettingType.STRING,
-        tooltip='Optional HTTP Basic Auth username. Leave empty to disable authentication.',
+        tooltip='Optional login username required to open the web panel. Leave empty to allow access without a password.',
     ),
     'webserver_password': SettingMeta(
         category='Web Server',
         group='Authentication',
         display_label='Password',
         setting_type=SettingType.STRING,
-        tooltip='Optional HTTP Basic Auth password. Authentication is enabled only when both username and password are set.',
+        tooltip='Optional login password required to open the web panel. Authentication is enabled only when both username and password are set.',
         secret=True,
     ),
     'looky_enabled': SettingMeta(
