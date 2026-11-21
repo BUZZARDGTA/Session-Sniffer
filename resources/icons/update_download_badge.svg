@@ -14,19 +14,16 @@
       <stop offset="0" stop-color="#ffffff"/>
       <stop offset="1" stop-color="#dcebff"/>
     </linearGradient>
-    <filter id="softShadow" x="-30%" y="-30%" width="160%" height="160%" color-interpolation-filters="sRGB">
-      <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="#041221" flood-opacity="0.35"/>
-    </filter>
   </defs>
 
   <!-- subtle outer halo -->
   <circle cx="48" cy="48" r="31.5" fill="none" stroke="#1f89ff" stroke-opacity="0.14" stroke-width="4"/>
 
   <!-- main badge -->
-  <circle cx="48" cy="48" r="28" fill="url(#bgFill)" stroke="url(#ringStroke)" stroke-width="2" filter="url(#softShadow)"/>
+  <circle cx="48" cy="48" r="28" fill="url(#bgFill)" stroke="url(#ringStroke)" stroke-width="2"/>
 
   <!-- download symbol, intentionally smaller and calmer -->
-  <g fill="none" stroke="url(#symbolFill)" stroke-linecap="round" stroke-linejoin="round" filter="url(#softShadow)">
+  <g fill="none" stroke="url(#symbolFill)" stroke-linecap="round" stroke-linejoin="round">
     <path d="M48 30.5v17" stroke-width="4.8"/>
     <path d="M40.5 40.5 48 47.8l7.5-7.3" stroke-width="4.8"/>
     <path d="M37.5 52.5v8.5c0 1.9 1.6 3.5 3.5 3.5h14c1.9 0 3.5-1.6 3.5-3.5v-8.5" stroke-width="4.2"/>

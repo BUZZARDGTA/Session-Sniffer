@@ -699,7 +699,7 @@ class DetectionsManagerDialog(DetectionsManagerTabsMixin, QDialog):
         export_act.setEnabled(has_selection)
         export_act.triggered.connect(self._export_selected_combo_rules)
 
-        import_act = menu.addAction(QIcon(str(ICONS_DIR_PATH / 'download.svg')), tr('Import Combo Rules…'))
+        import_act = menu.addAction(QIcon(str(ICONS_DIR_PATH / 'import.svg')), tr('Import Combo Rules…'))
         import_act.triggered.connect(self._import_combo_rules_file)
 
         menu.addSeparator()

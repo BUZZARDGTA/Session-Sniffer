@@ -32,7 +32,7 @@ from session_sniffer.guis.loading_overlay import loading_overlay_scope
 from session_sniffer.guis.select_usernames_dialog import configure_username_cell_editor
 from session_sniffer.guis.stylesheets import USERIP_METADATA_CONTAINER_STYLESHEET, userip_dialog_button_stylesheet, userip_dialog_danger_button_stylesheet
 from session_sniffer.guis.table_column_resizing import setup_table_header_context_menu
-from session_sniffer.guis.theming import ICONS_DIR_PATH
+from session_sniffer.guis.theming import ICONS_DIR_PATH, get_themed_icon
 from session_sniffer.guis.userip_conflict_resolver import open_userip_conflict_resolver
 from session_sniffer.guis.userip_manager_context_menu_mixin import EntriesContextMenuMixin
 from session_sniffer.guis.userip_manager_entries_ops_mixin import UserIPEntriesOperationsMixin
@@ -175,7 +175,6 @@ class UserIPDatabasesManager(
         self._db_visual_cache: dict[Path, tuple[int, bool, QColor]] = {}
         self._entries_scroll_db_path: Path | None = None
         self._entries_scroll_positions: dict[Path, int] = {}
-        self._looky_icon = QIcon(str(ICONS_DIR_PATH / 'eye.svg'))
 
         root_layout = QVBoxLayout(self)
         root_margin = scale_by_ui(6)
@@ -648,7 +647,7 @@ class UserIPDatabasesManager(
         self._settings_container.setVisible(True)
 
         built_rows: list[list[QStandardItem]] = [
-            build_entry_row_items(entry, index=entry_count, looky_icon=self._looky_icon)
+            build_entry_row_items(entry, index=entry_count, looky_icon=get_themed_icon('eye.svg'))
             for entry_count, entry in enumerate(db_model.entries, start=1)
         ]
         dynamic_sort_filter = self._proxy.dynamicSortFilter()
@@ -691,7 +690,7 @@ class UserIPDatabasesManager(
     @override
     def _append_row(self, entry: UserIPEntryModel, *, index: int = 0, persisted: bool = True) -> None:
         """Add a single row to the entries model."""
-        self._model.appendRow(build_entry_row_items(entry, index=index, looky_icon=self._looky_icon, persisted=persisted))
+        self._model.appendRow(build_entry_row_items(entry, index=index, looky_icon=get_themed_icon('eye.svg'), persisted=persisted))
 
     # ------------------------------------------------------------------
     # Search / filter

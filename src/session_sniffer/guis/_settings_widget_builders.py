@@ -287,7 +287,7 @@ def _create_checklist_button_row(
     """Create a compact 'Select All' / 'Unselect All' / 'Reset to Default' button row."""
     button_select_all = QPushButton(QIcon(str(ICONS_DIR_PATH / 'square-check.svg')), f" {tr('Select All')}")
     button_deselect_all = QPushButton(QIcon(str(ICONS_DIR_PATH / 'square.svg')), f" {tr('Unselect All')}")
-    button_reset = QPushButton(QIcon(str(ICONS_DIR_PATH / 'undo.svg')), f" {tr('Reset to Default')}")
+    button_reset = QPushButton(QIcon(str(ICONS_DIR_PATH / 'rotate-ccw.svg')), f" {tr('Reset to Default')}")
     button_reset.setToolTip(reset_tooltip)
     for button in (button_select_all, button_deselect_all):
         button.setStyleSheet(COMPACT_BUTTON_STYLESHEET)

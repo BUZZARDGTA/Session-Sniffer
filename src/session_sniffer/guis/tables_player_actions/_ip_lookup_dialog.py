@@ -337,7 +337,7 @@ class IPLookupDetailsDialog(PlayerInfoDialogMixin):
         buttons_layout.setContentsMargins(0, 6, 0, 0)
         buttons_layout.setSpacing(10)
 
-        lookup_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'user.svg')), f' {tr("Looky Lookup…")}')
+        lookup_button = QPushButton(QIcon(str(ICONS_DIR_PATH / 'user-round.svg')), f' {tr("Looky Lookup…")}')
         lookup_button.clicked.connect(lambda: show_looky_lookup(self, self._target))
         self._looky_lookup_button = lookup_button
         configure_looky_action(

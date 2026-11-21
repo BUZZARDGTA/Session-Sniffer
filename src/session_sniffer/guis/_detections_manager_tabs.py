@@ -58,6 +58,7 @@ from session_sniffer.guis.utils import (
     create_section_separator,
     load_country_flag_icon,
     render_svg_pixmap_from_resource,
+    scale_by_ui,
 )
 from session_sniffer.i18n import tr
 from session_sniffer.networking.third_party_servers import ThirdPartyServers
@@ -276,7 +277,8 @@ class DetectionsManagerTabsMixin(QDialog):
         filter_warning_layout.setContentsMargins(8, 6, 8, 6)
         filter_warning_layout.setSpacing(10)
         warning_icon_label = QLabel()
-        warning_icon_label.setPixmap(render_svg_pixmap_from_resource('triangle-alert.svg', 20, 20, '#f59e0b'))
+        warning_icon_px = scale_by_ui(20)
+        warning_icon_label.setPixmap(render_svg_pixmap_from_resource('triangle-alert.svg', warning_icon_px, warning_icon_px, '#f59e0b'))
         warning_icon_label.setStyleSheet(WARNING_ICON_LABEL_STYLESHEET)
         filter_warning_layout.addWidget(warning_icon_label)
         warning_text_label = QLabel(

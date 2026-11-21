@@ -247,6 +247,7 @@ class _ClearShortcutButton(QToolButton):
         self._hovered: bool = False
         self._on_hover_changed = on_hover_changed
         self._svg_renderer = QSvgRenderer(str(ICONS_DIR_PATH / 'circle-x.svg'), self)
+        self._pixmap_cache: dict[tuple[int, int], QPixmap] = {}
         btn_px = scale_by_ui(22)
         self.setFixedSize(btn_px, btn_px)
         self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
@@ -273,6 +274,7 @@ class _ClearShortcutButton(QToolButton):
                     self._on_hover_changed()
         elif ev_type in (QEvent.Type.PaletteChange, QEvent.Type.StyleChange):
             self._svg_renderer.load(str(ICONS_DIR_PATH / 'circle-x.svg'))
+            self._pixmap_cache.clear()
             self.update()
         return super().event(e)
 
@@ -285,10 +287,6 @@ class _ClearShortcutButton(QToolButton):
         icon_logical = scale_by_ui(16)
         icon_phys = max(1, round(icon_logical * dpr))
 
-        pixmap = QPixmap(icon_phys, icon_phys)
-        pixmap.setDevicePixelRatio(dpr)
-        pixmap.fill(Qt.GlobalColor.transparent)
-
         if self.isDown():
             tint = themed_qcolor('@danger[#ef4444]')
         elif self._hovered:
@@ -296,12 +294,19 @@ class _ClearShortcutButton(QToolButton):
         else:
             tint = themed_qcolor('@text_muted[#7d899b]')
 
-        icon_painter = QPainter(pixmap)
-        icon_painter.setRenderHints(QPainter.RenderHint.Antialiasing | QPainter.RenderHint.SmoothPixmapTransform)
-        self._svg_renderer.render(icon_painter, QRectF(0.0, 0.0, float(icon_logical), float(icon_logical)))
-        icon_painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceIn)
-        icon_painter.fillRect(QRectF(0.0, 0.0, float(icon_logical), float(icon_logical)), tint)
-        icon_painter.end()
+        cache_key = (icon_phys, tint.rgba())
+        pixmap = self._pixmap_cache.get(cache_key)
+        if pixmap is None:
+            pixmap = QPixmap(icon_phys, icon_phys)
+            pixmap.setDevicePixelRatio(dpr)
+            pixmap.fill(Qt.GlobalColor.transparent)
+            icon_painter = QPainter(pixmap)
+            icon_painter.setRenderHints(QPainter.RenderHint.Antialiasing | QPainter.RenderHint.SmoothPixmapTransform)
+            self._svg_renderer.render(icon_painter, QRectF(0.0, 0.0, float(icon_logical), float(icon_logical)))
+            icon_painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceIn)
+            icon_painter.fillRect(QRectF(0.0, 0.0, float(icon_logical), float(icon_logical)), tint)
+            icon_painter.end()
+            self._pixmap_cache[cache_key] = pixmap
 
         painter = QPainter(self)
         painter.setRenderHints(QPainter.RenderHint.Antialiasing | QPainter.RenderHint.SmoothPixmapTransform)

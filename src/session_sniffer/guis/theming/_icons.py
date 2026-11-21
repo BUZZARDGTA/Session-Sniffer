@@ -7,7 +7,7 @@ import threading
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Final, NamedTuple
 
-from PySide6.QtGui import QColor, QPixmap
+from PySide6.QtGui import QColor, QIcon, QPixmap
 
 from session_sniffer.constants.local import RESOURCES_DIR_PATH, THEME_CACHE_DIR_PATH, VERSION
 from session_sniffer.models.themes import DARK_THEME_COLORS, ThemeColors
@@ -20,12 +20,19 @@ if TYPE_CHECKING:
 BUNDLED_ICONS_DIR_PATH: Final = RESOURCES_DIR_PATH / 'icons'
 ACTIVE_ICONS_DIR_PATH: Final = THEME_CACHE_DIR_PATH / 'active_icons'
 CHECKBOX_CHECK_FILENAME: Final = 'checkbox_check.svg'
+_CHECKBOX_CHECK_SVG_TEMPLATE: Final = (
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="-5 -5 34 34" fill="none" stroke="{color}"'
+    ' stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round">\n'
+    '  <polyline points="20 6 9 17 4 12"></polyline>\n'
+    '</svg>\n'
+)
 
 # Brand artwork keeps its original colors in every theme.
 _UNTHEMED_ICON_NAMES: Final = frozenset({'app_icon.svg', 'update_download_badge.svg'})
 _CACHE_KEY_FILE_NAME: Final = '.cache_key'
 _CACHE_KEY_LENGTH: Final = 16
 _MAX_THEMED_SVG_CACHE: Final = 16
+_MAX_ICON_KEY_REGISTRY: Final = 2048
 _ICONS_LOCK = threading.Lock()
 
 
@@ -84,14 +91,12 @@ def _build_themed_svg_texts(transform: ThemeTransform, inventory: _BundledInvent
 
     themed_map = dict(inventory.svg_texts) if transform.is_identity else {rel_posix: transform.svg(raw_svg) for rel_posix, raw_svg in inventory.svg_texts.items()}
 
-    raw_check = inventory.svg_texts.get('check.svg')
-    if raw_check is not None:
-        accent_check_color = (
-            '#ffffff'
-            if transform.is_identity
-            else transform.text_on(QColor(DARK_THEME_COLORS.text_strong), QColor(DARK_THEME_COLORS.accent)).name(QColor.NameFormat.HexRgb)
-        )
-        themed_map[CHECKBOX_CHECK_FILENAME] = raw_check.replace('#ffffff', accent_check_color)
+    accent_check_color = (
+        '#ffffff'
+        if transform.is_identity
+        else transform.text_on(QColor(DARK_THEME_COLORS.text_strong), QColor(DARK_THEME_COLORS.accent)).name(QColor.NameFormat.HexRgb)
+    )
+    themed_map[CHECKBOX_CHECK_FILENAME] = _CHECKBOX_CHECK_SVG_TEMPLATE.format(color=accent_check_color)
 
     if len(_THEMED_SVG_TEXTS_CACHE) >= _MAX_THEMED_SVG_CACHE:
         _THEMED_SVG_TEXTS_CACHE.clear()
@@ -102,7 +107,7 @@ def _build_themed_svg_texts(transform: ThemeTransform, inventory: _BundledInvent
 def _cache_key(transform: ThemeTransform, inventory: _BundledInventory) -> str:
     """Return a key that changes whenever the theme colors, app version, or bundled icon files change."""
     fingerprint = {
-        'schema': 5,
+        'schema': 6,
         'version': VERSION,
         'colors': transform.colors.as_dict(),
         'icons': inventory.signature,
@@ -187,3 +192,51 @@ def record_rendered_svg_spec(pixmap: QPixmap, spec: RenderedSvgSpec) -> None:
 def lookup_rendered_svg_spec(pixmap: QPixmap) -> RenderedSvgSpec | None:
     """Return the recorded `RenderedSvgSpec` matching *pixmap*, or `None`."""
     return None if pixmap.isNull() else _RENDERED_SVG_SPECS.get(pixmap_fingerprint(pixmap))
+
+
+_THEMED_QICON_CACHE: dict[tuple[int, str], QIcon] = {}
+_ICON_CACHE_KEY_TO_FILENAME: dict[int, str] = {}
+_RENDERED_SVG_PIXMAP_CACHE: dict[tuple[int, str, int, int, float, tuple[str, str] | None], QPixmap] = {}
+
+
+def get_cached_themed_icon(icons_dir: Path, filename: str, generation: int) -> QIcon:
+    """Return a cached `QIcon` for *filename* at theme *generation* and register its cache key for O(1) lookup."""
+    cache_key = (generation, filename)
+    cached = _THEMED_QICON_CACHE.get(cache_key)
+    if cached is not None:
+        return cached
+    icon = QIcon(str(icons_dir / filename))
+    _THEMED_QICON_CACHE[cache_key] = icon
+    if filename not in _UNTHEMED_ICON_NAMES:
+        if len(_ICON_CACHE_KEY_TO_FILENAME) >= _MAX_ICON_KEY_REGISTRY:
+            _ICON_CACHE_KEY_TO_FILENAME.clear()
+        _ICON_CACHE_KEY_TO_FILENAME[icon.cacheKey()] = filename
+    return icon
+
+
+def get_cached_rendered_svg_pixmap(
+    key: tuple[int, str, int, int, float, tuple[str, str] | None],
+) -> QPixmap | None:
+    """Return a cached HiDPI rendered SVG `QPixmap` for *key*, or `None`."""
+    return _RENDERED_SVG_PIXMAP_CACHE.get(key)
+
+
+def cache_rendered_svg_pixmap(
+    key: tuple[int, str, int, int, float, tuple[str, str] | None],
+    pixmap: QPixmap,
+) -> None:
+    """Store *pixmap* under *key* in the bounded rendered SVG pixmap cache."""
+    if len(_RENDERED_SVG_PIXMAP_CACHE) >= _MAX_TRACKED_SVG_SPECS:
+        _RENDERED_SVG_PIXMAP_CACHE.clear()
+    _RENDERED_SVG_PIXMAP_CACHE[key] = pixmap
+
+
+def clear_cached_themed_icons() -> None:
+    """Clear active-generation icon/pixmap caches on theme switch (preserving key-to-filename tags)."""
+    _THEMED_QICON_CACHE.clear()
+    _RENDERED_SVG_PIXMAP_CACHE.clear()
+
+
+def lookup_themed_icon_filename(icon: QIcon) -> str | None:
+    """Return the bundled SVG relative filename if *icon* was created via `get_themed_icon`, else `None`."""
+    return None if icon.isNull() else _ICON_CACHE_KEY_TO_FILENAME.get(icon.cacheKey())

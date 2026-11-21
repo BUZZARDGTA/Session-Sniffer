@@ -43,12 +43,13 @@ from session_sniffer.guis.theming import (
     get_active_theme,
     get_theme_generation,
     get_theme_transform,
+    get_themed_icon,
     load_themes_file,
     stage_theme_transform_and_icons,
     themed_qss,
     try_recover_canonical_qss,
 )
-from session_sniffer.guis.theming._icons import lookup_rendered_svg_spec
+from session_sniffer.guis.theming._icons import lookup_rendered_svg_spec, lookup_themed_icon_filename
 from session_sniffer.guis.utils import get_ui_scale, make_padded_icon, render_svg_pixmap_with_pair
 from session_sniffer.settings.settings import Settings
 
@@ -67,7 +68,6 @@ _POST_REFRESH_HOOKS: list[tuple[weakref.ref[QWidget], Callable[[], None]]] = []
 _QSS_CACHE_LOCK = threading.Lock()
 _GLOBAL_QSS_CACHE: dict[tuple[ThemeColors, float], str] = {}
 _SVG_FINGERPRINTS_BY_COLORS: dict[ThemeColors, dict[bytes, str]] = {}
-_THEMED_ICON_CACHE: dict[tuple[ThemeColors, str], QIcon] = {}
 
 
 @dataclass(frozen=True, slots=True)
@@ -233,19 +233,6 @@ def _get_or_snapshot_svg_fingerprints(colors: ThemeColors) -> dict[bytes, str]:
     return fingerprints
 
 
-def _load_themed_icon(colors: ThemeColors, rel_posix: str) -> QIcon:
-    """Return a cached `QIcon` loaded from `ICONS_DIR_PATH / rel_posix` for *colors*."""
-    key = (colors, rel_posix)
-    cached = _THEMED_ICON_CACHE.get(key)
-    if cached is not None:
-        return cached
-    icon = QIcon(str(ICONS_DIR_PATH / rel_posix))
-    if len(_THEMED_ICON_CACHE) >= _MAX_CACHED_THEME_SETS * 64:
-        _THEMED_ICON_CACHE.clear()
-    _THEMED_ICON_CACHE[key] = icon
-    return icon
-
-
 def _format_icon_tag(icon: QIcon, rel_posix: str) -> str:
     return f'{icon.cacheKey()}:{rel_posix}'
 
@@ -274,6 +261,8 @@ def _resolve_icon_rel_posix(icon: QIcon, size_hint: QSize, tag_obj: object, acti
     existing = _extract_valid_tag(tag_obj, icon)
     if existing is not None:
         return existing
+    if (known_filename := lookup_themed_icon_filename(icon)) is not None:
+        return known_filename
     if _has_tracked_spec(icon, size_hint):
         return _NON_THEMED_ICON_MARKER
     fingerprints = _get_or_snapshot_svg_fingerprints(active_colors)
@@ -372,12 +361,12 @@ def _rerender_tracked_icon(icon: QIcon, size_hint: QSize) -> QIcon | None:
     return None
 
 
-def _swap_tagged_icon(icon: QIcon, size_hint: QSize, tag_obj: object, new_colors: ThemeColors) -> tuple[QIcon, str] | None:
+def _swap_tagged_icon(icon: QIcon, size_hint: QSize, tag_obj: object) -> tuple[QIcon, str] | None:
     if icon.isNull():
         return None
     rel_posix = _extract_valid_tag(tag_obj, icon)
     if rel_posix is not None and rel_posix != _NON_THEMED_ICON_MARKER:
-        new_icon = _load_themed_icon(new_colors, rel_posix)
+        new_icon = get_themed_icon(rel_posix)
         return new_icon, _format_icon_tag(new_icon, rel_posix)
     tracked = _rerender_tracked_icon(icon, size_hint)
     if tracked is not None:
@@ -390,9 +379,8 @@ def _refresh_qobject_icon(
     prop_name: str,
     icon: QIcon,
     size_hint: QSize,
-    new_colors: ThemeColors,
 ) -> QIcon | None:
-    swapped = _swap_tagged_icon(icon, size_hint, holder.property(prop_name), new_colors)
+    swapped = _swap_tagged_icon(icon, size_hint, holder.property(prop_name))
     if swapped is None:
         return None
     new_icon, new_tag = swapped
@@ -400,24 +388,24 @@ def _refresh_qobject_icon(
     return new_icon
 
 
-def _refresh_list_item_icon(list_item: QListWidgetItem, size_hint: QSize, new_colors: ThemeColors) -> None:
-    swapped = _swap_tagged_icon(list_item.icon(), size_hint, list_item.data(_SVG_ICON_TAG_ROLE), new_colors)
+def _refresh_list_item_icon(list_item: QListWidgetItem, size_hint: QSize) -> None:
+    swapped = _swap_tagged_icon(list_item.icon(), size_hint, list_item.data(_SVG_ICON_TAG_ROLE))
     if swapped is not None:
         new_icon, new_tag = swapped
         list_item.setIcon(new_icon)
         list_item.setData(_SVG_ICON_TAG_ROLE, new_tag)
 
 
-def _refresh_tree_item_icons(item: QTreeWidgetItem, size_hint: QSize, new_colors: ThemeColors) -> None:
+def _refresh_tree_item_icons(item: QTreeWidgetItem, size_hint: QSize) -> None:
     for col in range(item.columnCount()):
-        swapped = _swap_tagged_icon(item.icon(col), size_hint, item.data(col, _SVG_ICON_TAG_ROLE), new_colors)
+        swapped = _swap_tagged_icon(item.icon(col), size_hint, item.data(col, _SVG_ICON_TAG_ROLE))
         if swapped is not None:
             new_icon, new_tag = swapped
             item.setIcon(col, new_icon)
             item.setData(col, _SVG_ICON_TAG_ROLE, new_tag)
     for idx in range(item.childCount()):
         if (child := item.child(idx)) is not None:
-            _refresh_tree_item_icons(child, size_hint, new_colors)
+            _refresh_tree_item_icons(child, size_hint)
 
 
 def _recover_tagged_canonical(holder: QObject, last_prop: str, canon_prop: str, current_text: str) -> str | None:
@@ -428,7 +416,7 @@ def _recover_tagged_canonical(holder: QObject, last_prop: str, canon_prop: str, 
     return try_recover_canonical_qss(current_text)
 
 
-def _refresh_single_widget(widget: QWidget, new_colors: ThemeColors) -> None:
+def _refresh_single_widget(widget: QWidget) -> None:
     if _should_skip_widget(widget):
         return
 
@@ -441,7 +429,7 @@ def _refresh_single_widget(widget: QWidget, new_colors: ThemeColors) -> None:
             if updated_qss != current_qss:
                 widget.setStyleSheet(updated_qss)
 
-    if widget.isWindow() and (new_win_icon := _refresh_qobject_icon(widget, '_ss_win_svg', widget.windowIcon(), QSize(16, 16), new_colors)) is not None:
+    if widget.isWindow() and (new_win_icon := _refresh_qobject_icon(widget, '_ss_win_svg', widget.windowIcon(), QSize(16, 16))) is not None:
         widget.setWindowIcon(new_win_icon)
 
     if isinstance(widget, QLineEdit):
@@ -454,21 +442,21 @@ def _refresh_single_widget(widget: QWidget, new_colors: ThemeColors) -> None:
                     action.setProperty('_ss_act_svg', _format_icon_tag(action_icon, _NON_THEMED_ICON_MARKER))
 
     for action in widget.actions():
-        if (new_action_icon := _refresh_qobject_icon(action, '_ss_act_svg', action.icon(), QSize(16, 16), new_colors)) is not None:
+        if (new_action_icon := _refresh_qobject_icon(action, '_ss_act_svg', action.icon(), QSize(16, 16))) is not None:
             action.setIcon(new_action_icon)
 
     if isinstance(widget, QAbstractButton):
-        if (new_btn_icon := _refresh_qobject_icon(widget, '_ss_btn_svg', widget.icon(), widget.iconSize(), new_colors)) is not None:
+        if (new_btn_icon := _refresh_qobject_icon(widget, '_ss_btn_svg', widget.icon(), widget.iconSize())) is not None:
             widget.setIcon(new_btn_icon)
         orig_icon = widget.property('_feedback_orig_icon')
-        if isinstance(orig_icon, QIcon) and (new_orig := _refresh_qobject_icon(widget, '_ss_orig_svg', orig_icon, widget.iconSize(), new_colors)) is not None:
+        if isinstance(orig_icon, QIcon) and (new_orig := _refresh_qobject_icon(widget, '_ss_orig_svg', orig_icon, widget.iconSize())) is not None:
             widget.setProperty('_feedback_orig_icon', new_orig)
 
     if isinstance(widget, QTabWidget):
         tab_tags = _read_tab_tags(widget)
         for tab_idx in range(widget.count()):
             idx_key = str(tab_idx)
-            swapped = _swap_tagged_icon(widget.tabIcon(tab_idx), widget.iconSize(), tab_tags.get(idx_key), new_colors)
+            swapped = _swap_tagged_icon(widget.tabIcon(tab_idx), widget.iconSize(), tab_tags.get(idx_key))
             if swapped is not None:
                 new_tab_icon, new_tag = swapped
                 widget.setTabIcon(tab_idx, new_tab_icon)
@@ -478,12 +466,12 @@ def _refresh_single_widget(widget: QWidget, new_colors: ThemeColors) -> None:
 
     if isinstance(widget, QListWidget):
         for row in range(widget.count()):
-            _refresh_list_item_icon(widget.item(row), widget.iconSize(), new_colors)
+            _refresh_list_item_icon(widget.item(row), widget.iconSize())
 
     if isinstance(widget, QTreeWidget):
         for top_idx in range(widget.topLevelItemCount()):
             if (top_item := widget.topLevelItem(top_idx)) is not None:
-                _refresh_tree_item_icons(top_item, widget.iconSize(), new_colors)
+                _refresh_tree_item_icons(top_item, widget.iconSize())
 
     if isinstance(widget, QLabel):
         pixmap = widget.pixmap()
@@ -624,7 +612,7 @@ def apply_prepared_runtime_theme(prepared: PreparedTheme) -> None:
         pump_active_loading_overlays()
 
         for widget in list(QApplication.allWidgets()):
-            _refresh_single_widget(widget, prepared.theme.colors)
+            _refresh_single_widget(widget)
             pump_active_loading_overlays()
 
         _apply_global_stylesheet_chunked(prepared.stylesheet)

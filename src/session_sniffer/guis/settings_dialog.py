@@ -72,7 +72,7 @@ from session_sniffer.guis.stylesheets import (
     DIALOG_DANGER_BUTTON_STYLESHEET,
     SETTINGS_RESTART_BANNER_STYLESHEET,
 )
-from session_sniffer.guis.theming import DEFAULT_THEME_NAME, ICONS_DIR_PATH, load_themes_file, themed_color, themed_qss, themed_text_qcolor
+from session_sniffer.guis.theming import DEFAULT_THEME_NAME, ICONS_DIR_PATH, load_themes_file, themed_qss, themed_text_qcolor
 from session_sniffer.guis.utils import (
     render_svg_icon_from_resource,
     render_svg_pixmap_from_resource,
@@ -167,7 +167,7 @@ class SettingsDialog(
         banner_layout.setSpacing(8)
 
         banner_icon_label = QLabel()
-        banner_icon_label.setPixmap(render_svg_pixmap_from_resource('triangle-alert.svg', 16, 16, themed_color('#f59e0b')))
+        banner_icon_label.setPixmap(render_svg_pixmap_from_resource('triangle-alert.svg', scale_by_ui(16), scale_by_ui(16), '#f59e0b'))
         banner_layout.addWidget(banner_icon_label)
 
         self._restart_notice_label = QLabel(tr('Saving changes will restart packet capture.'))

@@ -498,7 +498,7 @@ class TableContextMenuMixin(QTableView):
                     tr('Lookup'),
                     tooltip=tr('Query the Looky System API to find players associated with this IP.'),
                     handler=lambda: show_looky_lookup(self, players[0]),
-                    icon=QIcon(str(ICONS_DIR_PATH / 'user.svg')),
+                    icon=QIcon(str(ICONS_DIR_PATH / 'user-round.svg')),
                 )
                 _apply_looky_gating(lookup_action)
 
@@ -579,7 +579,7 @@ class TableContextMenuMixin(QTableView):
                 tr('Lookup (All Selected)'),
                 tooltip=tr('Query the Looky System API for each selected player IP.'),
                 handler=_show_looky_lookup_for_all,
-                icon=QIcon(str(ICONS_DIR_PATH / 'user.svg')),
+                icon=QIcon(str(ICONS_DIR_PATH / 'user-round.svg')),
             )
             _apply_looky_gating(lookup_all_action)
 

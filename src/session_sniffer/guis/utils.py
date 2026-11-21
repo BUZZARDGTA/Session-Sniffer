@@ -7,7 +7,7 @@ from functools import cache
 from pathlib import Path
 from typing import TYPE_CHECKING, cast, override
 
-from PySide6.QtCore import QByteArray, QFileInfo, QModelIndex, QPoint, QRectF, Qt, QTimer, QUrl
+from PySide6.QtCore import QFileInfo, QModelIndex, QPoint, QRectF, Qt, QTimer, QUrl
 from PySide6.QtGui import QAction, QDesktopServices, QIcon, QPainter, QPixmap
 from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtWidgets import (
@@ -38,8 +38,14 @@ from shiboken6 import isValid
 from session_sniffer.guis.delegates import ElidedTextTooltipDelegate
 from session_sniffer.guis.live_language import register_language_refresh, set_i18n_colon_label
 from session_sniffer.guis.stylesheets import SVG_ICON_CONTEXT_MENU_STYLESHEET
-from session_sniffer.guis.theming import ICONS_DIR_PATH, resolve_canonical_tint_pair, themed_qss, themed_svg, themed_text_qcolor
-from session_sniffer.guis.theming._icons import RenderedSvgSpec, lookup_rendered_svg_spec, record_rendered_svg_spec
+from session_sniffer.guis.theming import ICONS_DIR_PATH, get_theme_generation, get_themed_icon, resolve_canonical_tint_pair, themed_qss, themed_text_qcolor
+from session_sniffer.guis.theming._icons import (
+    RenderedSvgSpec,
+    cache_rendered_svg_pixmap,
+    get_cached_rendered_svg_pixmap,
+    lookup_rendered_svg_spec,
+    record_rendered_svg_spec,
+)
 from session_sniffer.i18n import tr, tr_plural
 from session_sniffer.rendering_core.country_flags import get_country_flag
 from session_sniffer.settings.settings import Settings
@@ -664,7 +670,7 @@ def create_styled_context_menu(
     menu_cls = PersistentMenu if persistent else QMenu
     menu = menu_cls(title, parent) if title else menu_cls(parent)
     if icon_name is not None:
-        menu.setIcon(QIcon(str(ICONS_DIR_PATH / icon_name)))
+        menu.setIcon(get_themed_icon(icon_name))
     menu.setStyleSheet(SVG_ICON_CONTEXT_MENU_STYLESHEET)
     menu.setToolTipsVisible(True)
     return menu
@@ -679,7 +685,7 @@ def add_icon_menu_action(
     tooltip: str = '',
 ) -> QAction:
     """Create a `QAction` with an icon from `resources/icons/`, attach it to *menu*, and return it."""
-    action = QAction(QIcon(str(ICONS_DIR_PATH / icon_name)), text, menu)
+    action = QAction(get_themed_icon(icon_name), text, menu)
     if tooltip:
         action.setToolTip(tooltip)
     if callback is not None:
@@ -799,7 +805,7 @@ def animate_button_feedback(
 
     button.setMinimumWidth(max(button.minimumWidth(), button.width()))
     button.setText(display_text)
-    button.setIcon(QIcon(str(ICONS_DIR_PATH / 'check.svg')))
+    button.setIcon(get_themed_icon('check.svg'))
     button.setToolTip(resolved_feedback_tooltip)
 
     def _reset() -> None:
@@ -833,34 +839,15 @@ def animate_button_feedback(
     timer.start(1500)
 
 
-_RAW_SEARCH_ICON_SVG = (
-    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><g opacity="0.65">'
-    '<circle cx="6.5" cy="6.5" r="4" fill="none" stroke="white" stroke-width="1.5"/>'
-    '<line x1="9.5" y1="9.5" x2="13.5" y2="13.5" stroke="white" stroke-width="1.5" stroke-linecap="round"/></g></svg>'
-)
-_RAW_CLEAR_ICON_SVG = (
-    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><g opacity="0.65">'
-    '<line x1="4" y1="4" x2="12" y2="12" stroke="white" stroke-width="1.5" stroke-linecap="round"/>'
-    '<line x1="12" y1="4" x2="4" y2="12" stroke="white" stroke-width="1.5" stroke-linecap="round"/></g></svg>'
-)
-
-
-def _svg_to_icon(svg: bytes) -> QIcon:
-    renderer = QSvgRenderer(QByteArray(svg))
-    pixmap = QPixmap(16, 16)
-    pixmap.fill(Qt.GlobalColor.transparent)
-    painter = QPainter(pixmap)
-    try:
-        renderer.render(painter)
-    finally:
-        painter.end()
-    return QIcon(pixmap)
-
-
 def apply_search_icon(line_edit: QLineEdit) -> None:
     """Add a trailing icon to *line_edit*: magnifying glass when empty, x to clear when filled."""
     line_edit.setClearButtonEnabled(False)
-    icons = [_svg_to_icon(themed_svg(_RAW_SEARCH_ICON_SVG).encode('utf-8')), _svg_to_icon(themed_svg(_RAW_CLEAR_ICON_SVG).encode('utf-8'))]
+    icon_px = scale_by_ui(14)
+
+    def _build_icons() -> list[QIcon]:
+        return [render_svg_icon_from_resource(name, icon_px, icon_px, '@text_muted') for name in ('search.svg', 'x.svg')]
+
+    icons = _build_icons()
     action = line_edit.addAction(icons[0], QLineEdit.ActionPosition.TrailingPosition)
     if not action:
         return
@@ -869,8 +856,7 @@ def apply_search_icon(line_edit: QLineEdit) -> None:
         action.setIcon(icons[1] if text else icons[0])
 
     def _refresh_theme() -> None:
-        icons[0] = _svg_to_icon(themed_svg(_RAW_SEARCH_ICON_SVG).encode('utf-8'))
-        icons[1] = _svg_to_icon(themed_svg(_RAW_CLEAR_ICON_SVG).encode('utf-8'))
+        icons[:] = _build_icons()
         _update(line_edit.text())
 
     line_edit.setProperty('_ss_refresh_search_icon', _refresh_theme)
@@ -881,8 +867,10 @@ def apply_search_icon(line_edit: QLineEdit) -> None:
 def make_padded_icon(source: QIcon, icon_size: tuple[int, int], right_padding: int) -> QIcon:
     """Return a QIcon with `right_padding` transparent pixels appended to the right of *source* (button icon spacing)."""
     width, height = icon_size
+    dpr = max(1.0, float(app.devicePixelRatio()))
     source_spec = lookup_rendered_svg_spec(source.pixmap(width, height))
-    pixmap = QPixmap(width + right_padding, height)
+    pixmap = QPixmap(max(1, round((width + right_padding) * dpr)), max(1, round(height * dpr)))
+    pixmap.setDevicePixelRatio(dpr)
     pixmap.fill(Qt.GlobalColor.transparent)
     painter = QPainter(pixmap)
     try:
@@ -895,19 +883,26 @@ def make_padded_icon(source: QIcon, icon_size: tuple[int, int], right_padding: i
 
 
 def render_svg_pixmap_with_pair(filename: str, width: int, height: int, tint_pair: tuple[str, str] | None) -> QPixmap:
-    """Render an SVG icon from `ICONS_DIR_PATH` with an optional canonical `(fg, bg)` tint pair."""
+    """Render an SVG icon from `ICONS_DIR_PATH` at native HiDPI resolution with optional canonical `(fg, bg)` tint."""
+    dpr = max(1.0, float(app.devicePixelRatio()))
+    cache_key = (get_theme_generation(), filename, width, height, dpr, tint_pair)
+    if (cached := get_cached_rendered_svg_pixmap(cache_key)) is not None:
+        return cached
     renderer = QSvgRenderer(str(ICONS_DIR_PATH / filename))
-    pixmap = QPixmap(width, height)
+    pixmap = QPixmap(max(1, round(width * dpr)), max(1, round(height * dpr)))
+    pixmap.setDevicePixelRatio(dpr)
     pixmap.fill(Qt.GlobalColor.transparent)
     painter = QPainter(pixmap)
     try:
         painter.setRenderHints(QPainter.RenderHint.Antialiasing | QPainter.RenderHint.SmoothPixmapTransform)
-        renderer.render(painter, QRectF(0, 0, width, height))
+        logical_rect = QRectF(0, 0, width, height)
+        renderer.render(painter, logical_rect)
         if tint_pair is not None:
             painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceIn)
-            painter.fillRect(pixmap.rect(), themed_text_qcolor(tint_pair[0], tint_pair[1]))
+            painter.fillRect(logical_rect, themed_text_qcolor(tint_pair[0], tint_pair[1]))
     finally:
         painter.end()
+    cache_rendered_svg_pixmap(cache_key, pixmap)
     record_rendered_svg_spec(pixmap, RenderedSvgSpec(filename, width, height, tint_pair))
     return pixmap
 

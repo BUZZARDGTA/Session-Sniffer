@@ -21,7 +21,7 @@ from session_sniffer.guis._settings_widget_builders import combo_canonical_value
 from session_sniffer.guis._spike_sound_controls import refresh_spike_preview_button
 from session_sniffer.guis.stylesheets import COMPACT_BUTTON_STYLESHEET
 from session_sniffer.guis.theming import themed_text_qcolor
-from session_sniffer.guis.utils import render_svg_icon_from_resource
+from session_sniffer.guis.utils import render_svg_icon_from_resource, scale_by_ui
 from session_sniffer.i18n import tr
 from session_sniffer.settings import SETTING_METADATA
 
@@ -78,7 +78,8 @@ class SettingsDialogHighRateMonitorMixin(QDialog):
 
         preview_btn = QPushButton(tr('Preview'))
         tint_hex = themed_text_qcolor('@text[#e5e7eb]', '@surface[#1f2937]').name()
-        preview_btn.setIcon(render_svg_icon_from_resource('volume-2.svg', 14, 14, tint_hex))
+        icon_px = scale_by_ui(14)
+        preview_btn.setIcon(render_svg_icon_from_resource('volume-2.svg', icon_px, icon_px, tint_hex))
         preview_btn.setStyleSheet(COMPACT_BUTTON_STYLESHEET)
         preview_btn.setToolTip(tr('Play a preview of the selected spike sound preset.'))
         preview_btn.clicked.connect(self._on_spike_sound_preview_clicked)

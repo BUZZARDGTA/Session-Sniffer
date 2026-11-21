@@ -55,7 +55,7 @@ from session_sniffer.guis._userip_tree_batch_ops import (
 from session_sniffer.guis.live_language import register_language_refresh
 from session_sniffer.guis.select_usernames_dialog import prompt_usernames_and_notes_input
 from session_sniffer.guis.stylesheets import DIALOG_BUTTON_STYLESHEET
-from session_sniffer.guis.theming import ICONS_DIR_PATH
+from session_sniffer.guis.theming import ICONS_DIR_PATH, get_themed_icon
 from session_sniffer.guis.userip_manager_helpers import (
     dedup_userip_entries,
     format_userip_db_display_name,
@@ -340,7 +340,6 @@ class UserIPConflictResolverDialog(QDialog):
         self._details_by_side: dict[_ConflictSide, SideDetails] = {}
         self._pending_focus_entry: str | None = None
         self._last_build_version = -1
-        self._looky_icon = QIcon(str(ICONS_DIR_PATH / 'eye.svg'))
 
         root_layout = QVBoxLayout(self)
         self._tabs = QTabWidget()
@@ -424,7 +423,7 @@ class UserIPConflictResolverDialog(QDialog):
         self._tabs.setTabText(_SPLIT_GROUPS_TAB_INDEX, tr('Split Groups ({count})', count=count))
 
     def _populate_side_item(self, item: QTreeWidgetItem, side: _ConflictSide, details: SideDetails) -> None:
-        populate_resolver_side_item(item, format_userip_db_display_name(side.db_path), side.entry, details, self._looky_icon)
+        populate_resolver_side_item(item, format_userip_db_display_name(side.db_path), side.entry, details, get_themed_icon('eye.svg'))
 
     def select_most_relevant_tab(self) -> None:
         """Select IP Conflicts when conflicts exist, otherwise Split Groups when split groups exist."""

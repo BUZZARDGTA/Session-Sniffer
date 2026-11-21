@@ -5,7 +5,6 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -41,7 +40,7 @@ from session_sniffer.guis.stylesheets import (
     userip_settings_toggle_stylesheet,
 )
 from session_sniffer.guis.table_column_resizing import adjust_last_visible_column_to_viewport
-from session_sniffer.guis.theming import ICONS_DIR_PATH, themed_qss
+from session_sniffer.guis.theming import get_themed_icon, themed_qss
 from session_sniffer.guis.userip_conflict_resolver import update_resolve_conflicts_button
 from session_sniffer.guis.userip_manager_helpers import (
     ENTRY_TABLE_HEADERS,
@@ -137,9 +136,7 @@ class SettingsPanelMixin(QDialog):
         group_outer.setContentsMargins(scale_by_ui(8), scale_by_ui(4), scale_by_ui(8), scale_by_ui(8))
         group_outer.setSpacing(0)
 
-        self._icon_arrow_right = QIcon(str(ICONS_DIR_PATH / 'chevron-right.svg'))
-        self._icon_arrow_down = QIcon(str(ICONS_DIR_PATH / 'chevron-down.svg'))
-        self._settings_toggle = QPushButton(self._icon_arrow_right, f" {tr('Database Settings')}")
+        self._settings_toggle = QPushButton(get_themed_icon('chevron-right.svg'), f" {tr('Database Settings')}")
         self._settings_toggle.setAutoDefault(False)
         self._settings_toggle.setCursor(Qt.CursorShape.PointingHandCursor)
         self._settings_toggle.setStyleSheet(userip_settings_toggle_stylesheet(scale_by_ui))
@@ -344,7 +341,7 @@ class SettingsPanelMixin(QDialog):
         """Toggle the settings content visibility and update the arrow indicator."""
         visible = not self._settings_content.isVisible()
         self._settings_content.setVisible(visible)
-        self._settings_toggle.setIcon(self._icon_arrow_down if visible else self._icon_arrow_right)
+        self._settings_toggle.setIcon(get_themed_icon('chevron-down.svg' if visible else 'chevron-right.svg'))
 
     # ------------------------------------------------------------------
     # Status, file info, stats & column sizing

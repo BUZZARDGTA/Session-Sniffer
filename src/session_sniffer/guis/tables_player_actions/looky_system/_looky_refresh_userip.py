@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Protocol, override, runtime_checkable
 
 from PySide6.QtCore import QEvent, QObject, QPoint, QSignalBlocker, QSize, Qt
-from PySide6.QtGui import QBrush, QColor, QFont, QIcon, QKeyEvent
+from PySide6.QtGui import QBrush, QColor, QFont, QKeyEvent
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QComboBox,
@@ -59,7 +59,7 @@ from session_sniffer.guis.tables_player_actions.looky_system._looky_refresh_engi
     is_single_ipv4,
     list_available_databases,
 )
-from session_sniffer.guis.theming import ICONS_DIR_PATH
+from session_sniffer.guis.theming import get_themed_icon
 from session_sniffer.guis.userip_manager_helpers import refresh_userip_and_wake_renderer
 from session_sniffer.guis.utils import (
     activate_window,
@@ -168,11 +168,6 @@ class LookyRefreshReviewDialog(PlayerInfoDialogMixin):
         self.setStyleSheet(f'{LOOKY_REVIEW_DIALOG_STYLESHEET}{_COMBO_STYLESHEET}')
         apply_adaptive_window_size(self, min_size=(980, 560), size_1080p=(1280, 720), size_720p=(1040, 620))
 
-        self._confirmed_icon = render_svg_icon_from_resource('user-round-check.svg', 16, 16, _COLOR_CONFIRMED.name())
-        self._move_icon = render_svg_icon_from_resource('box.svg', 16, 16, _COLOR_CONFIRMED.name())
-        self._match_icon = render_svg_icon_from_resource('user-round-search.svg', 16, 16, _COLOR_MATCH_TAG.name())
-        self._new_icon = render_svg_icon_from_resource('user-plus.svg', 16, 16, _COLOR_NEW_TAG.name())
-        self._remove_icon = render_svg_icon_from_resource('remove.svg', 16, 16, _COLOR_REMOVE_SUSPECT.name())
         unique_dbs = {entry.db_path for entry in pending_entries} | {rem.db_path for rem in standalone_removals}
         self._available_dbs = list_available_databases(unique_dbs | {entry.target_db_path for entry in pending_entries})
         outer_layout = QVBoxLayout(self)
@@ -304,7 +299,7 @@ class LookyRefreshReviewDialog(PlayerInfoDialogMixin):
             ('Check All', 'square-check.svg', 'Check all currently visible Looky entries and wrong candidate IP removals.', True),
             ('Uncheck All', 'square.svg', 'Uncheck all rows in the table.', False),
         ):
-            sel_btn = QPushButton(QIcon(str(ICONS_DIR_PATH / icon_name)), tr(btn_text))
+            sel_btn = QPushButton(get_themed_icon(icon_name), tr(btn_text))
             sel_btn.setStyleSheet(LOOKY_REVIEW_SELECT_BUTTON_STYLESHEET)
             sel_btn.setCursor(Qt.CursorShape.PointingHandCursor)
             sel_btn.setToolTip(tr(tip_text))
@@ -477,9 +472,10 @@ class LookyRefreshReviewDialog(PlayerInfoDialogMixin):
             else ''
         )
         is_new_username = not entry.is_confirmation and not entry.is_known_in_db
+        icon_px = scale_by_ui(16)
         user_text = (entry.anchor_username or '\u2014') if is_new_username else entry.username
         if entry.target_db_path != entry.db_path:
-            icon = self._move_icon
+            icon = render_svg_icon_from_resource('box.svg', icon_px, icon_px, _COLOR_CONFIRMED.name())
             action_text = tr('Move to {target}', target=target_label)
             user_color = _COLOR_DB_LABEL if is_new_username else _COLOR_CONFIRMED
             action_color = _COLOR_CONFIRMED
@@ -498,7 +494,8 @@ class LookyRefreshReviewDialog(PlayerInfoDialogMixin):
                 source=source_label,
             )
         elif entry.is_confirmation:
-            icon, action_text, user_color, action_color = self._confirmed_icon, tr('Confirm Looky'), _COLOR_CONFIRMED, _COLOR_CONFIRMED
+            icon = render_svg_icon_from_resource('user-round-check.svg', icon_px, icon_px, _COLOR_CONFIRMED.name())
+            action_text, user_color, action_color = tr('Confirm Looky'), _COLOR_CONFIRMED, _COLOR_CONFIRMED
             details = tr(
                 'Already on {ip} in {source} \u2192 Looky confirmed it is correct{cleanup}',
                 ip=entry.ip,
@@ -513,7 +510,8 @@ class LookyRefreshReviewDialog(PlayerInfoDialogMixin):
                 source=source_label,
             )
         elif entry.is_known_in_db:
-            icon, action_text, user_color, action_color = self._match_icon, tr('Add Real IP'), _COLOR_NEW, _COLOR_MATCH_TAG
+            icon = render_svg_icon_from_resource('user-round-search.svg', icon_px, icon_px, _COLOR_MATCH_TAG.name())
+            action_text, user_color, action_color = tr('Add Real IP'), _COLOR_NEW, _COLOR_MATCH_TAG
             details = tr(
                 'Tracked in {source} \u2192 Looky found real IP {ip}{cleanup}',
                 source=source_label,
@@ -529,7 +527,8 @@ class LookyRefreshReviewDialog(PlayerInfoDialogMixin):
                 target=target_label,
             )
         else:
-            icon, action_text, user_color, action_color = self._new_icon, tr('Add New Username'), _COLOR_DB_LABEL, _COLOR_NEW_TAG
+            icon = render_svg_icon_from_resource('user-plus.svg', icon_px, icon_px, _COLOR_NEW_TAG.name())
+            action_text, user_color, action_color = tr('Add New Username'), _COLOR_DB_LABEL, _COLOR_NEW_TAG
             details = tr(
                 'New username returned by Looky on {ip} (not in {source} yet)',
                 ip=entry.ip,
@@ -571,7 +570,7 @@ class LookyRefreshReviewDialog(PlayerInfoDialogMixin):
         rem_item = _ReviewTreeItem([rem.username, rem.ip, rem.looky_username or '\u2014', '', rem.notes or '\u2014', '0', rem.reason, rem_db_label])
         for col in (0, _COL_IP, _COL_LOOKY_USER):
             rem_item.setFont(col, mono_font)
-        rem_item.setIcon(_COL_ACTION, self._remove_icon)
+        rem_item.setIcon(_COL_ACTION, render_svg_icon_from_resource('remove.svg', scale_by_ui(16), scale_by_ui(16), _COLOR_REMOVE_SUSPECT.name()))
         rem_item.setFont(_COL_ACTION, bold_font)
         for col in range(len(_TREE_HEADERS)):
             color = _COLOR_REMOVE_SUSPECT if col in (0, _COL_IP, _COL_ACTION) else (_COLOR_NEW if col == _COL_LOOKY_USER and rem.looky_username else _COLOR_DB_LABEL)
@@ -664,7 +663,8 @@ class LookyRefreshReviewDialog(PlayerInfoDialogMixin):
         self._matches_only_btn.setToolTip(matches_tip)
         self._matches_only_btn.setText(tr('Matches Only: ON ({count})', count=self._total_matches) if is_on else tr('Matches Only: OFF (Show All)'))
         toggle_tint = '#ffffff' if is_on else '#9ca3af'
-        self._matches_only_btn.setIcon(render_svg_icon_from_resource('toggle-right.svg' if is_on else 'toggle-left.svg', 16, 16, toggle_tint))
+        icon_px = scale_by_ui(16)
+        self._matches_only_btn.setIcon(render_svg_icon_from_resource('toggle-right.svg' if is_on else 'toggle-left.svg', icon_px, icon_px, toggle_tint))
         self._matches_only_btn.ensurePolished()
         self._matches_only_btn.setMinimumWidth(self._matches_only_btn.sizeHint().width() + 10)
 
@@ -798,9 +798,9 @@ class LookyRefreshReviewDialog(PlayerInfoDialogMixin):
         sel_count = len(selected_items)
         menu = QMenu(self)
         menu.setStyleSheet(SVG_ICON_CONTEXT_MENU_STYLESHEET)
-        copy_icon, search_icon = QIcon(str(ICONS_DIR_PATH / 'copy.svg')), QIcon(str(ICONS_DIR_PATH / 'search.svg'))
-        goto_icon, box_icon = QIcon(str(ICONS_DIR_PATH / 'arrow-right.svg')), QIcon(str(ICONS_DIR_PATH / 'box.svg'))
-        check_icon, uncheck_icon = QIcon(str(ICONS_DIR_PATH / 'square-check.svg')), QIcon(str(ICONS_DIR_PATH / 'square.svg'))
+        copy_icon, search_icon = get_themed_icon('copy.svg'), get_themed_icon('search.svg')
+        goto_icon, box_icon = get_themed_icon('arrow-right.svg'), get_themed_icon('box.svg')
+        check_icon, uncheck_icon = get_themed_icon('square-check.svg'), get_themed_icon('square.svg')
 
         check_label = tr('Check Selected ({count})', count=sel_count) if sel_count > 1 else tr('Check Selected')
         uncheck_label = tr('Uncheck Selected ({count})', count=sel_count) if sel_count > 1 else tr('Uncheck Selected')

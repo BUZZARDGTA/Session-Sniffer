@@ -43,7 +43,7 @@ from session_sniffer.guis.live_language import set_tree_headers
 from session_sniffer.guis.select_usernames_dialog import SelectUsernamesDialog, UsernameSelectionConfig, configure_username_cell_editor
 from session_sniffer.guis.stylesheets import DIALOG_BUTTON_STYLESHEET
 from session_sniffer.guis.table_column_resizing import setup_table_header_context_menu
-from session_sniffer.guis.theming import ICONS_DIR_PATH
+from session_sniffer.guis.theming import ICONS_DIR_PATH, get_themed_icon
 from session_sniffer.guis.userip_manager_helpers import (
     IPRangeBuilderDialog,
     dedup_userip_entries,
@@ -534,7 +534,6 @@ class SplitGroupsResolverTab(QWidget):
         self._side_rows: list[tuple[UserIPAccountGroup, _SplitSide]] = []
         self._details_by_side: dict[_SplitSide, SideDetails] = {}
         self._pending_focus_username_cf: str | None = None
-        self._looky_icon = QIcon(str(ICONS_DIR_PATH / 'eye.svg'))
 
         layout = QVBoxLayout(self)
 
@@ -660,7 +659,7 @@ class SplitGroupsResolverTab(QWidget):
                 for side in group_sides:
                     details = self._details_by_side.get(side) or SideDetails()
                     side_item = QTreeWidgetItem()
-                    populate_resolver_side_item(side_item, self._format_db_label(side.db_path), side.entry, details, self._looky_icon)
+                    populate_resolver_side_item(side_item, self._format_db_label(side.db_path), side.entry, details, get_themed_icon('eye.svg'))
                     side_item.setFlags(side_item.flags() | Qt.ItemFlag.ItemIsEditable)
                     side_item.setData(0, SIDE_ROLE, row_cursor)
                     row_cursor += 1
@@ -748,7 +747,7 @@ class SplitGroupsResolverTab(QWidget):
         new_usernames = parse_deduped_usernames_cell(item.text(USERNAMES_COLUMN))
         if not new_usernames or new_usernames == details.usernames:
             with QSignalBlocker(self._tree):
-                populate_resolver_side_item(item, db_label, side.entry, details, self._looky_icon)
+                populate_resolver_side_item(item, db_label, side.entry, details, get_themed_icon('eye.svg'))
             return
         if _rewrite_split_side_usernames(side, new_usernames) is None:
             QMessageBox.warning(self, TITLE, tr('The selected entry no longer exists in its database, nothing was changed.'))
@@ -761,7 +760,7 @@ class SplitGroupsResolverTab(QWidget):
         new_note = item.text(NOTES_COLUMN).strip()
         if new_note == ', '.join(details.notes):
             with QSignalBlocker(self._tree):
-                populate_resolver_side_item(item, db_label, side.entry, details, self._looky_icon)
+                populate_resolver_side_item(item, db_label, side.entry, details, get_themed_icon('eye.svg'))
             return
         updated_details = _rewrite_split_side_notes(side, new_note)
         if updated_details is None:
@@ -770,7 +769,7 @@ class SplitGroupsResolverTab(QWidget):
             return
         self._details_by_side[side] = updated_details
         with QSignalBlocker(self._tree):
-            populate_resolver_side_item(item, db_label, side.entry, updated_details, self._looky_icon)
+            populate_resolver_side_item(item, db_label, side.entry, updated_details, get_themed_icon('eye.svg'))
         refresh_userip_and_wake_renderer()
 
     def _format_side_html(self, side: _SplitSide) -> str:

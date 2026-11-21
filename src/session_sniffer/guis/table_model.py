@@ -13,7 +13,6 @@ from PySide6.QtCore import (
     QPersistentModelIndex,
     Qt,
 )
-from PySide6.QtGui import QColor, QIcon
 from PySide6.QtWidgets import QTableView
 from shiboken6 import isValid
 
@@ -30,7 +29,7 @@ from session_sniffer.guis.exceptions import TableDataConsistencyError, Unsupport
 from session_sniffer.guis.high_rate_monitor import HighRateTracker
 from session_sniffer.guis.live_language import CANONICAL_HEADER_ROLE, CANONICAL_HEADER_TOOLTIP_ROLE
 from session_sniffer.guis.table_icons import get_ip_column_composite_icon
-from session_sniffer.guis.theming import ICONS_DIR_PATH
+from session_sniffer.guis.theming import get_themed_icon
 from session_sniffer.i18n import tr
 from session_sniffer.player.registry import PlayersRegistry, SessionTracker
 from session_sniffer.player.session_host import SessionHost
@@ -38,6 +37,8 @@ from session_sniffer.rendering_core.types import SessionFilterState, TableMergeS
 from session_sniffer.settings import Settings
 
 if TYPE_CHECKING:
+    from PySide6.QtGui import QColor, QIcon
+
     from session_sniffer.guis.tables import SessionTableView
     from session_sniffer.models.player import Player
     from session_sniffer.rendering_core.types import CellColor
@@ -386,7 +387,6 @@ class SessionTableModel(QAbstractTableModel):
         )
         self._ip_to_row_index: dict[str, int] = {}  # O(1) row lookup by IP
         self.session_bands: SessionBandState = _EMPTY_SESSION_BANDS
-        self._looky_icon = QIcon(str(ICONS_DIR_PATH / 'eye.svg'))
 
     @staticmethod
     def _is_player_looky_resolved(player: Player) -> bool:
@@ -523,7 +523,7 @@ class SessionTableModel(QAbstractTableModel):
                 ip = self._get_ip_from_data_safely(self._data[row_index])
                 matched_player = self.resolve_row_player(ip)
                 if matched_player is not None and self._is_player_looky_resolved(matched_player):
-                    output = self._looky_icon
+                    output = get_themed_icon('eye.svg')
         elif role == Qt.ItemDataRole.UserRole:
             if self.username_column_index >= 0 and self.username_column_index == column_index and Settings.looky_enabled and Settings.is_gta5_feature_set():
                 ip = self._get_ip_from_data_safely(self._data[row_index])

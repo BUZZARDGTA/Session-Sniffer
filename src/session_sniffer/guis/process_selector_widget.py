@@ -26,7 +26,7 @@ from session_sniffer.guis.live_language import register_language_refresh, set_i1
 from session_sniffer.guis.loading_overlay import run_async_with_loading, run_blocking_with_loading
 from session_sniffer.guis.target_process_dialog import TargetProcessDialog
 from session_sniffer.guis.theming import ICONS_DIR_PATH, themed_qss
-from session_sniffer.guis.utils import get_process_icon, render_svg_icon_from_resource
+from session_sniffer.guis.utils import get_process_icon, render_svg_icon_from_resource, scale_by_ui
 from session_sniffer.i18n import tr
 from session_sniffer.rendering_core.types import CaptureState
 from session_sniffer.settings import SettingMeta, Settings
@@ -420,7 +420,7 @@ class ProcessSelectorWidget(QWidget):
                     if self._track_by_name and target_name is not None:
                         pid = 0
                     else:
-                        warning_icon = render_svg_icon_from_resource('triangle-alert.svg', 16, 16, '#f59e0b')
+                        warning_icon = render_svg_icon_from_resource('triangle-alert.svg', scale_by_ui(16), scale_by_ui(16), '#f59e0b')
                         display_text = (
                             tr('{name} (PID: {pid} - Not Running)', name=target_name, pid=pid)
                             if target_name is not None
@@ -442,7 +442,7 @@ class ProcessSelectorWidget(QWidget):
                 if target_name is not None and self._track_by_name:
                     matched_index = self._find_combo_index_by_name(target_name, bg_apps=_prefetched_bg_apps)
                     if matched_index < 0:
-                        warning_icon = render_svg_icon_from_resource('triangle-alert.svg', 16, 16, '#f59e0b')
+                        warning_icon = render_svg_icon_from_resource('triangle-alert.svg', scale_by_ui(16), scale_by_ui(16), '#f59e0b')
                         self._combo.addItem(warning_icon, tr('{name} (Not Running)', name=target_name), 0)
                         matched_index = self._combo.count() - 1
                         self._combo.setItemData(matched_index, tr('{name} (Waiting to launch)', name=target_name), Qt.ItemDataRole.ToolTipRole)

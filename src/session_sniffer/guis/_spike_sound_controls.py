@@ -57,8 +57,9 @@ def refresh_spike_preview_button(
     preview_enabled = sound_active and volume > 0
     tint_hex = themed_text_qcolor('@text[#e5e7eb]', '@surface[#1f2937]').name()
     button.setEnabled(preview_enabled)
+    icon_px = scale_by_ui(14)
     button.setIcon(
-        render_svg_icon_from_resource('volume-2.svg' if preview_enabled else 'volume-x.svg', 14, 14, tint_hex),
+        render_svg_icon_from_resource('volume-2.svg' if preview_enabled else 'volume-x.svg', icon_px, icon_px, tint_hex),
     )
     preview_tip = tr('Play a preview of the selected spike sound preset.')
     if not sound_active:

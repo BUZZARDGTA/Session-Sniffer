@@ -7,7 +7,7 @@ produced, so it follows the active theme:
 * `themed_qss` - QSS stylesheets, inline CSS declaration lists, and Qt rich-text HTML.
 * `themed_color` - a single color string (e.g. a value interpolated into an HTML template).
 * `themed_qcolor` / `themed_text_qcolor` - `QColor` objects used for painting.
-* `themed_svg` - inline SVG documents.
+* `get_themed_icon` - cached, theme-aware `QIcon` loader for bundled SVG icons.
 * `ICONS_DIR_PATH` - the stable directory of active (themed) SVG icons.
 
 The active theme is initialized at import time from `settings.json` (`GUI_THEME_FOLLOW_SYSTEM` / `GUI_THEME`)
@@ -24,10 +24,16 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Final
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QColor, QGuiApplication
+from PySide6.QtGui import QColor, QGuiApplication, QIcon
 
 from session_sniffer.guis.theming._engine import ThemeTransform, parse_color
-from session_sniffer.guis.theming._icons import BUNDLED_ICONS_DIR_PATH, CHECKBOX_CHECK_FILENAME, prepare_themed_icons_dir
+from session_sniffer.guis.theming._icons import (
+    BUNDLED_ICONS_DIR_PATH,
+    CHECKBOX_CHECK_FILENAME,
+    clear_cached_themed_icons,
+    get_cached_themed_icon,
+    prepare_themed_icons_dir,
+)
 from session_sniffer.models.themes import (
     BUILTIN_THEME_NAMES,
     BUILTIN_THEMES,
@@ -187,8 +193,14 @@ def commit_prepared_theme(theme: Theme, transform: ThemeTransform) -> None:
     _STATE.theme = theme
     _STATE.transform = transform
     _STATE.generation += 1
+    clear_cached_themed_icons()
     for callback in _THEME_CHANGE_CALLBACKS:
         callback()
+
+
+def get_themed_icon(filename: str) -> QIcon:
+    """Return a cached `QIcon` for *filename* in `ICONS_DIR_PATH` for the active theme generation."""
+    return get_cached_themed_icon(ICONS_DIR_PATH, filename, _STATE.generation)
 
 
 def stage_theme_transform_and_icons(theme: Theme) -> ThemeTransform:
@@ -276,11 +288,6 @@ def resolve_canonical_tint_pair(tint_color: str) -> tuple[str, str]:
     return _COLOR_ORIGINS.get(tint_color.lower(), tint_color), '@surface'
 
 
-def themed_svg(svg: str) -> str:
-    """Map every color in an inline SVG document onto the active theme."""
-    return _STATE.transform.svg(svg)
-
-
 __all__ = [
     'BUILTIN_THEMES',
     'BUILTIN_THEME_NAMES',
@@ -305,6 +312,7 @@ __all__ = [
     'get_active_theme',
     'get_theme_generation',
     'get_theme_transform',
+    'get_themed_icon',
     'load_themes_file',
     'log_theme_startup_warnings',
     'parse_color',
@@ -316,7 +324,6 @@ __all__ = [
     'themed_color',
     'themed_qcolor',
     'themed_qss',
-    'themed_svg',
     'themed_text_qcolor',
     'try_recover_canonical_qss',
 ]
