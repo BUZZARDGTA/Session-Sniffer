@@ -59,11 +59,47 @@ SUPPORTED_LANGUAGES: Final[dict[str, str]] = {
 
 SUPPORTED_LANGUAGE_CODES: Final[tuple[str, ...]] = tuple(SUPPORTED_LANGUAGES.keys())
 
+LANGUAGE_COUNTRY_FLAGS: Final[dict[str, str]] = {
+    'en': 'US',
+    'ar': 'SA',
+    'bg': 'BG',
+    'ca': 'AD',
+    'cs': 'CZ',
+    'da': 'DK',
+    'de': 'DE',
+    'es': 'ES',
+    'fa': 'IR',
+    'fi': 'FI',
+    'fr': 'FR',
+    'gd': 'GB',
+    'he': 'IL',
+    'hr': 'HR',
+    'hu': 'HU',
+    'it': 'IT',
+    'ja': 'JP',
+    'ka': 'GE',
+    'kk': 'KZ',
+    'ko': 'KR',
+    'lg': 'UG',
+    'lv': 'LV',
+    'nl': 'NL',
+    'nn': 'NO',
+    'pl': 'PL',
+    'pt-BR': 'BR',
+    'ru': 'RU',
+    'sk': 'SK',
+    'sv': 'SE',
+    'tr': 'TR',
+    'uk': 'UA',
+    'zh-CN': 'CN',
+    'zh-TW': 'TW',
+}
+
 RTL_LANGUAGE_CODES: Final[frozenset[str]] = frozenset({'ar', 'fa', 'he'})
 
 _CANONICAL_LOOKUP_MAP: Final[dict[str, str]] = {code.casefold(): code for code in SUPPORTED_LANGUAGE_CODES}
 
-_LOCALE_TAG_ALIASES: Final[dict[str, str]] = {
+LOCALE_TAG_ALIASES: Final[dict[str, str]] = {
     'iw': 'he',
     'nb': 'nn',
     'no': 'nn',
@@ -169,7 +205,7 @@ _STATE_LOCK = threading.RLock()
 
 
 def _lookup_tag(tag: str) -> str | None:
-    return _CANONICAL_LOOKUP_MAP.get(tag) or _LOCALE_TAG_ALIASES.get(tag)
+    return _CANONICAL_LOOKUP_MAP.get(tag) or LOCALE_TAG_ALIASES.get(tag)
 
 
 def normalize_language_code(raw_code: object) -> str | None:

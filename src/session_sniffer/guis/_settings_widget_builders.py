@@ -1,10 +1,22 @@
 """Widget factory helpers shared by `SettingsDialog`."""
 
 import re
+from functools import cache
 from typing import TYPE_CHECKING, cast, override
 
-from PySide6.QtCore import QPoint, QRegularExpression, QSignalBlocker, QSize, Qt
-from PySide6.QtGui import QAction, QIcon, QKeySequence, QRegularExpressionValidator, QShortcut
+from PySide6.QtCore import QPoint, QRect, QRectF, QRegularExpression, QSignalBlocker, QSize, Qt
+from PySide6.QtGui import (
+    QAction,
+    QColor,
+    QIcon,
+    QKeySequence,
+    QPainter,
+    QPainterPath,
+    QPen,
+    QPixmap,
+    QRegularExpressionValidator,
+    QShortcut,
+)
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -40,7 +52,8 @@ from session_sniffer.guis.stylesheets import (
 from session_sniffer.guis.theming import ICONS_DIR_PATH
 from session_sniffer.guis.userip_manager_helpers import IPRangeBuilderDialog
 from session_sniffer.guis.utils import scale_by_ui
-from session_sniffer.i18n import tr
+from session_sniffer.i18n import LANGUAGE_COUNTRY_FLAGS, tr
+from session_sniffer.rendering_core.country_flags import get_country_flag
 from session_sniffer.settings import SETTING_DEFAULTS, SettingMeta, SettingType
 from session_sniffer.settings.settings import Settings
 
@@ -274,6 +287,59 @@ def create_enum_widget(meta: SettingMeta) -> QComboBox:
     tooltip = format_setting_tooltip(meta)
     if tooltip is not None and tooltip:
         combo.setToolTip(tooltip)
+    return combo
+
+
+@cache
+def _build_language_flag_icon(country_code: str, width: int, height: int) -> QIcon | None:
+    """Return a uniform, rounded, subtly bordered HiDPI country flag icon for language selectors."""
+    flag = get_country_flag(country_code)
+    if flag is None:
+        return None
+    dpr = 2
+    phys_w = width * dpr
+    phys_h = height * dpr
+    scaled = flag.pixmap.scaled(
+        phys_w,
+        phys_h,
+        Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+        Qt.TransformationMode.SmoothTransformation,
+    )
+    crop_x = max(0, (scaled.width() - phys_w) // 2)
+    crop_y = max(0, (scaled.height() - phys_h) // 2)
+    cropped = scaled.copy(crop_x, crop_y, phys_w, phys_h)
+
+    canvas = QPixmap(phys_w, phys_h)
+    canvas.setDevicePixelRatio(dpr)
+    canvas.fill(Qt.GlobalColor.transparent)
+    painter = QPainter(canvas)
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+    painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
+    clip_path = QPainterPath()
+    clip_path.addRoundedRect(0.0, 0.0, float(width), float(height), 2.0, 2.0)
+    painter.setClipPath(clip_path)
+    painter.drawPixmap(QRect(0, 0, width, height), cropped)
+    painter.setClipping(False)
+    painter.setPen(QPen(QColor(128, 128, 128, 95), 1.0))
+    painter.setBrush(Qt.BrushStyle.NoBrush)
+    painter.drawRoundedRect(QRectF(0.5, 0.5, width - 1.0, height - 1.0), 2.0, 2.0)
+    painter.end()
+    return QIcon(canvas)
+
+
+def create_language_widget(meta: SettingMeta) -> QComboBox:
+    """Create the language selector combo-box with country flag icons for every supported language."""
+    combo = create_enum_widget(meta)
+    flag_w = scale_by_ui(20)
+    flag_h = scale_by_ui(14)
+    combo.setIconSize(QSize(flag_w, flag_h))
+    for idx in range(combo.count()):
+        lang_code = combo.itemData(idx, Qt.ItemDataRole.UserRole)
+        if isinstance(lang_code, str):
+            country_code = LANGUAGE_COUNTRY_FLAGS.get(lang_code)
+            flag_icon = _build_language_flag_icon(country_code, flag_w, flag_h) if country_code is not None else None
+            if flag_icon is not None:
+                combo.setItemIcon(idx, flag_icon)
     return combo
 
 

@@ -54,6 +54,7 @@ from session_sniffer.guis._settings_widget_builders import (
     create_integer_or_all_widget,
     create_integer_widget,
     create_ip_range_tuple_widget,
+    create_language_widget,
     create_setting_label,
     create_standard_form_layout,
     create_standard_vbox_layout,
@@ -543,6 +544,8 @@ class SettingsDialog(
             return WebServerAccessWidget(self)
         if key == 'shortcuts_enabled':
             return create_shortcuts_master_toggle(meta)
+        if key == 'gui_language':
+            return create_language_widget(meta)
         if key == 'gui_theme':
             combo = create_enum_widget(meta)
             combo.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
