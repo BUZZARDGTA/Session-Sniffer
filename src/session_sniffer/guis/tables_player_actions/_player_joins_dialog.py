@@ -245,12 +245,12 @@ class PlayerJoinsWindow(StatTableWindowMixin):
 
         last_port_item = NumericTableWidgetItem(join.ports.last, align=center)
         ports_item = NumericTableWidgetItem(', '.join(map(str, join.ports.all)), sort_value=len(join.ports.all), align=center)
-        packets_item = NumericTableWidgetItem(join.packets.exchanged, align=center)
-        recv_item = NumericTableWidgetItem(join.packets.received, align=center)
-        sent_item = NumericTableWidgetItem(join.packets.sent, align=center)
-        min_len_item = NumericTableWidgetItem(join.packets.min_len, align=center)
-        avg_len_item = NumericTableWidgetItem(f'{join.packets.avg_len:.1f} B', sort_value=join.packets.avg_len, align=center)
-        max_len_item = NumericTableWidgetItem(join.packets.max_len, align=center)
+        packets_item = NumericTableWidgetItem(f'{join.packets.exchanged:,}', sort_value=join.packets.exchanged, align=center)
+        recv_item = NumericTableWidgetItem(f'{join.packets.received:,}', sort_value=join.packets.received, align=center)
+        sent_item = NumericTableWidgetItem(f'{join.packets.sent:,}', sort_value=join.packets.sent, align=center)
+        min_len_item = NumericTableWidgetItem(f'{join.packets.min_len:,}', sort_value=join.packets.min_len, align=center)
+        avg_len_item = NumericTableWidgetItem(f'{join.packets.avg_len:,.1f} B', sort_value=join.packets.avg_len, align=center)
+        max_len_item = NumericTableWidgetItem(f'{join.packets.max_len:,}', sort_value=join.packets.max_len, align=center)
         bandwidth_item = NumericTableWidgetItem(PlayerBandwidth.format_bytes(join.bandwidth.exchanged), sort_value=join.bandwidth.exchanged, align=center)
         download_item = NumericTableWidgetItem(PlayerBandwidth.format_bytes(join.bandwidth.download), sort_value=join.bandwidth.download, align=center)
         upload_item = NumericTableWidgetItem(PlayerBandwidth.format_bytes(join.bandwidth.upload), sort_value=join.bandwidth.upload, align=center)
@@ -300,12 +300,12 @@ class PlayerJoinsWindow(StatTableWindowMixin):
             (_COLUMN_MIDDLE_PORTS, ', '.join(map(str, reversed(join.ports.middle))) or '—', None),
             (_COLUMN_LAST_PORT, str(join.ports.last), join.ports.last),
             (_COLUMN_PORTS, ', '.join(map(str, join.ports.all)), len(join.ports.all)),
-            (_COLUMN_PACKETS, str(join.packets.exchanged), join.packets.exchanged),
-            (_COLUMN_PACKETS_RECEIVED, str(join.packets.received), join.packets.received),
-            (_COLUMN_PACKETS_SENT, str(join.packets.sent), join.packets.sent),
-            (_COLUMN_MIN_PACKET_LENGTH, str(join.packets.min_len), join.packets.min_len),
-            (_COLUMN_AVG_PACKET_LENGTH, f'{join.packets.avg_len:.1f} B', join.packets.avg_len),
-            (_COLUMN_MAX_PACKET_LENGTH, str(join.packets.max_len), join.packets.max_len),
+            (_COLUMN_PACKETS, f'{join.packets.exchanged:,}', join.packets.exchanged),
+            (_COLUMN_PACKETS_RECEIVED, f'{join.packets.received:,}', join.packets.received),
+            (_COLUMN_PACKETS_SENT, f'{join.packets.sent:,}', join.packets.sent),
+            (_COLUMN_MIN_PACKET_LENGTH, f'{join.packets.min_len:,}', join.packets.min_len),
+            (_COLUMN_AVG_PACKET_LENGTH, f'{join.packets.avg_len:,.1f} B', join.packets.avg_len),
+            (_COLUMN_MAX_PACKET_LENGTH, f'{join.packets.max_len:,}', join.packets.max_len),
             (_COLUMN_BANDWIDTH, PlayerBandwidth.format_bytes(join.bandwidth.exchanged), join.bandwidth.exchanged),
             (_COLUMN_DOWNLOAD, PlayerBandwidth.format_bytes(join.bandwidth.download), join.bandwidth.download),
             (_COLUMN_UPLOAD, PlayerBandwidth.format_bytes(join.bandwidth.upload), join.bandwidth.upload),

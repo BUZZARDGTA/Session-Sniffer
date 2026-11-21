@@ -71,7 +71,7 @@ def _format_int(value: object) -> str:
     if _is_unset(value):
         return tr('N/A')
     if isinstance(value, (int, float)):
-        return f'{int(value)}'
+        return f'{int(value):,}'
     return str(value)
 
 

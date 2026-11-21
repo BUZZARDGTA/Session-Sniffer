@@ -295,7 +295,7 @@ def sort_table_rows[T: Sequence[str], C: Sequence[CellColor]](
 
         def _stat_to_float(row: tuple[T, C]) -> float:
             try:
-                return float(row[0][col_index])
+                return float(row[0][col_index].replace(',', ''))
             except ValueError:
                 return float('-inf')
 

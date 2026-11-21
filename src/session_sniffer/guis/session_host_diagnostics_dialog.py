@@ -808,7 +808,7 @@ class SessionHostDiagnosticsDialog(QDialog):
 
         sent_val_box = QHBoxLayout()
         sent_val_box.setSpacing(6)
-        sent_val = QLabel(str(candidate.packets_sent))
+        sent_val = QLabel(f'{candidate.packets_sent:,}')
         sent_val.setStyleSheet(themed_qss('color: #f1f5f9; font-weight: bold; font-size: 8.5pt;'))
         sent_val_box.addWidget(sent_val)
 
@@ -840,8 +840,8 @@ class SessionHostDiagnosticsDialog(QDialog):
         recv_val = QLabel(
             tr(
                 '{recv} recv / {total} total',
-                recv=candidate.packets_received,
-                total=candidate.packets_exchanged,
+                recv=f'{candidate.packets_received:,}',
+                total=f'{candidate.packets_exchanged:,}',
             ),
         )
         recv_val.setStyleSheet(themed_qss('color: #94a3b8; font-size: 8.5pt;'))

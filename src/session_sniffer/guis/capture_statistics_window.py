@@ -334,9 +334,9 @@ class CaptureStatisticsWindow(RateGraphWindowMixin):
     def refresh(self) -> None:
         """Refresh stats labels and advance all three live graphs by one sample."""
         self._has_refreshed = True
-        self._label_restarts.setText(str(CaptureStats.restarted_times))
-        self._label_packets_dropped.setText(str(CaptureStats.packets_dropped))
-        self._label_overflow_dropped.setText(str(CaptureStats.packets_overflow_dropped))
+        self._label_restarts.setText(f'{CaptureStats.restarted_times:,}')
+        self._label_packets_dropped.setText(f'{CaptureStats.packets_dropped:,}')
+        self._label_overflow_dropped.setText(f'{CaptureStats.packets_overflow_dropped:,}')
 
         self._label_peak_cpu.setText(f'{CaptureStats.app_peak_cpu_percent:.1f}%')
         self._label_cpu.setText(f'{CaptureStats.app_cpu_percent:.1f}%')
@@ -377,8 +377,8 @@ class CaptureStatisticsWindow(RateGraphWindowMixin):
         self._label_bps.setText(PlayerBandwidth.format_bytes(CaptureStats.global_bps_rate))
         self._label_bpm.setText(PlayerBandwidth.format_bytes(CaptureStats.global_bpm_rate))
         self._label_peak_bpm.setText(PlayerBandwidth.format_bytes(CaptureStats.peak_bpm_rate))
-        self._label_pps.setText(str(CaptureStats.global_pps_rate))
-        self._label_peak_pps.setText(str(CaptureStats.peak_pps_rate))
+        self._label_pps.setText(f'{CaptureStats.global_pps_rate:,}')
+        self._label_peak_pps.setText(f'{CaptureStats.peak_pps_rate:,}')
         self._label_peak_bps.setText(PlayerBandwidth.format_bytes(CaptureStats.peak_bps_rate))
 
         kbps = CaptureStats.global_bps_rate / _BYTES_TO_KBS
@@ -406,9 +406,9 @@ class CaptureStatisticsWindow(RateGraphWindowMixin):
             self._peak_ppm = 0
         ppm_count = max(0, self._ppm_sample_buffer[-1] - self._ppm_sample_buffer[0]) if len(self._ppm_sample_buffer) >= _MIN_PPM_SAMPLES else 0
         self._peak_ppm = max(self._peak_ppm, ppm_count)
-        self._label_ppm.setText(str(ppm_count))
-        self._label_peak_ppm.setText(str(self._peak_ppm))
-        self._label_total_packets.setText(str(CaptureStats.total_packets_captured))
+        self._label_ppm.setText(f'{ppm_count:,}')
+        self._label_peak_ppm.setText(f'{self._peak_ppm:,}')
+        self._label_total_packets.setText(f'{CaptureStats.total_packets_captured:,}')
 
         all_time = self._checkbox_all_time.isChecked()
         window = latency_data if all_time else latency_data[-VISIBLE_WINDOW:]

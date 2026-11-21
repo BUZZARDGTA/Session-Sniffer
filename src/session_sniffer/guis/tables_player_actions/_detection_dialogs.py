@@ -229,9 +229,9 @@ class PlayerDetectionDialog(_BaseDetectionDialog):
         self._add_row(form, 'First Port', str(player.ports.first))
         self._add_row(form, 'Middle Port' if len(player.ports.middle) == 1 else 'Middle Ports', ', '.join(map(str, reversed(player.ports.middle))) or '')
         self._add_row(form, 'Last Port', str(player.ports.last))
-        self._add_row(form, 'Total Packets Exchanged', str(player.packets.total_exchanged))
-        self._add_row(form, 'Session Packets', str(player.packets.exchanged))
-        self._add_row(form, 'Rejoins', str(player.rejoins))
+        self._add_row(form, 'Total Packets Exchanged', f'{player.packets.total_exchanged:,}')
+        self._add_row(form, 'Session Packets', f'{player.packets.exchanged:,}')
+        self._add_row(form, 'Rejoins', f'{player.rejoins:,}')
         parent_layout.addWidget(group)
 
     def _build_location_group(self, parent_layout: QVBoxLayout, player: Player) -> None:
