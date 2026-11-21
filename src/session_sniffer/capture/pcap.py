@@ -9,12 +9,13 @@ import ctypes.util
 import functools
 import logging
 import os
+import selectors
 import sys
 import threading
 from ctypes import byref, c_char_p, c_int, c_long, c_ubyte, c_uint, c_uint32, c_void_p
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Self, final
+from typing import Self, cast, final
 
 from session_sniffer.capture.exceptions import (
     PcapClosedError,
@@ -43,6 +44,25 @@ def _get_pcap_error_message(library: ctypes.CDLL, handle: c_void_p) -> str:
     if not isinstance(raw_error, bytes):
         return 'Unknown pcap error'
     return raw_error.decode('utf-8', errors='replace')
+
+
+def _get_pcap_status_message(library: ctypes.CDLL, status: int) -> str:
+    """Decode a libpcap status code via `pcap_statustostr`."""
+    raw_status = library.pcap_statustostr(c_int(status))
+    if not isinstance(raw_status, bytes):
+        return f'pcap error code {status}'
+    return raw_status.decode('utf-8', errors='replace')
+
+
+@dataclass(slots=True)
+class _PosixPollState:
+    """Non-blocking POSIX selector and wakeup pipe for a `PcapHandle`."""
+
+    selector: selectors.BaseSelector
+    wake_read_fd: int
+    wake_write_fd: int
+    timeout_seconds: float
+    wake_lock: threading.Lock = field(default_factory=threading.Lock)
 
 
 class BpfProgram(ctypes.Structure):
@@ -189,6 +209,34 @@ def _load_pcap_library() -> ctypes.CDLL:
         library.pcap_setmintocopy.argtypes = [c_void_p, c_int]
         library.pcap_setmintocopy.restype = c_int
 
+    if sys.platform != 'win32':
+        library.pcap_create.argtypes = [c_char_p, c_char_p]
+        library.pcap_create.restype = c_void_p
+
+        library.pcap_set_snaplen.argtypes = [c_void_p, c_int]
+        library.pcap_set_snaplen.restype = c_int
+
+        library.pcap_set_promisc.argtypes = [c_void_p, c_int]
+        library.pcap_set_promisc.restype = c_int
+
+        library.pcap_set_timeout.argtypes = [c_void_p, c_int]
+        library.pcap_set_timeout.restype = c_int
+
+        library.pcap_set_immediate_mode.argtypes = [c_void_p, c_int]
+        library.pcap_set_immediate_mode.restype = c_int
+
+        library.pcap_activate.argtypes = [c_void_p]
+        library.pcap_activate.restype = c_int
+
+        library.pcap_statustostr.argtypes = [c_int]
+        library.pcap_statustostr.restype = c_char_p
+
+        library.pcap_setnonblock.argtypes = [c_void_p, c_int, c_char_p]
+        library.pcap_setnonblock.restype = c_int
+
+        library.pcap_get_selectable_fd.argtypes = [c_void_p]
+        library.pcap_get_selectable_fd.restype = c_int
+
     return library
 
 
@@ -222,16 +270,86 @@ def can_open_pcap_device(device_name: str) -> bool:
     return True
 
 
+def _open_posix_handle(
+    library: ctypes.CDLL,
+    device_name: str,
+    *,
+    snaplen: int,
+    promiscuous: bool,
+    timeout_milliseconds: int,
+) -> tuple[c_void_p, _PosixPollState | None]:
+    """Open, activate, and configure a non-blocking immediate-mode libpcap handle on POSIX."""
+    error_buffer = ctypes.create_string_buffer(PCAP_ERRBUF_SIZE)
+    handle = library.pcap_create(device_name.encode('utf-8'), error_buffer)
+    if not handle:
+        error_message = error_buffer.value.decode('utf-8', errors='replace')
+        raise PcapOpenError(device_name, error_message)
+
+    library.pcap_set_snaplen(handle, c_int(snaplen))
+    library.pcap_set_promisc(handle, c_int(1 if promiscuous else 0))
+    library.pcap_set_timeout(handle, c_int(timeout_milliseconds))
+    library.pcap_set_immediate_mode(handle, c_int(1))
+
+    activate_status = int(library.pcap_activate(handle))
+    if activate_status < 0:
+        status_message = _get_pcap_status_message(library, activate_status)
+        detail_message = _get_pcap_error_message(library, handle)
+        library.pcap_close(handle)
+        error_message = (
+            f'{status_message}: {detail_message}'
+            if detail_message and detail_message not in status_message and detail_message != 'Unknown pcap error'
+            else status_message
+        )
+        raise PcapOpenError(device_name, error_message)
+    if activate_status > 0:
+        logger.debug('pcap_activate warning on %s: %s', device_name, _get_pcap_status_message(library, activate_status))
+
+    poll_state: _PosixPollState | None = None
+    if sys.platform != 'win32':
+        nonblock_err = ctypes.create_string_buffer(PCAP_ERRBUF_SIZE)
+        if not library.pcap_setnonblock(handle, c_int(1), nonblock_err):
+            selectable_fd = int(library.pcap_get_selectable_fd(handle))
+            if selectable_fd >= 0:
+                wake_read_fd, wake_write_fd = os.pipe()
+                os.set_blocking(wake_read_fd, False)
+                os.set_blocking(wake_write_fd, False)
+                selector = selectors.DefaultSelector()
+                selector.register(selectable_fd, selectors.EVENT_READ, data=False)
+                selector.register(wake_read_fd, selectors.EVENT_READ, data=True)
+                poll_state = _PosixPollState(
+                    selector=selector,
+                    wake_read_fd=wake_read_fd,
+                    wake_write_fd=wake_write_fd,
+                    timeout_seconds=max(0.001, timeout_milliseconds / 1000.0),
+                )
+        else:
+            logger.debug(
+                'Failed to enable non-blocking mode on %s: %s',
+                device_name,
+                nonblock_err.value.decode('utf-8', errors='replace'),
+            )
+    return cast('c_void_p', handle), poll_state
+
+
 @final
 class PcapHandle:
     """Wrapper managing a live pcap handle lifecycle."""
 
-    def __init__(self, handle: c_void_p, datalink_type: int, *, snaplen: int = 65535) -> None:
+    def __init__(
+        self,
+        handle: c_void_p,
+        datalink_type: int,
+        *,
+        snaplen: int = 65535,
+        poll_state: _PosixPollState | None = None,
+    ) -> None:
         """Initialize with an open pcap handle pointer."""
         self._handle = handle
         self._datalink_type = datalink_type
         self._snaplen = snaplen
         self._is_closed = False
+        self._loop_broken = False
+        self._poll_state = poll_state
         self._lock = threading.Lock()
         self._header_pointer = ctypes.POINTER(PcapPkthdr)()
         self._data_pointer = ctypes.POINTER(c_ubyte)()
@@ -257,31 +375,39 @@ class PcapHandle:
             An open `PcapHandle` instance.
 
         Raises:
-            PcapOpenError: If `pcap_open_live` fails.
+            PcapOpenError: If opening or activating the pcap handle fails.
         """
         library = _load_pcap_library()
-        error_buffer = ctypes.create_string_buffer(PCAP_ERRBUF_SIZE)
-        device_bytes = device_name.encode('utf-8')
-        handle = library.pcap_open_live(
-            device_bytes,
-            c_int(snaplen),
-            c_int(1 if promiscuous else 0),
-            c_int(timeout_milliseconds),
-            error_buffer,
-        )
+        poll_state: _PosixPollState | None = None
+        if sys.platform == 'win32':
+            error_buffer = ctypes.create_string_buffer(PCAP_ERRBUF_SIZE)
+            handle = library.pcap_open_live(
+                device_name.encode('utf-8'),
+                c_int(snaplen),
+                c_int(1 if promiscuous else 0),
+                c_int(timeout_milliseconds),
+                error_buffer,
+            )
+            if not handle:
+                error_message = error_buffer.value.decode('utf-8', errors='replace')
+                raise PcapOpenError(device_name, error_message)
 
-        if not handle:
-            error_message = error_buffer.value.decode('utf-8', errors='replace')
-            raise PcapOpenError(device_name, error_message)
+            if hasattr(library, 'pcap_setbuff'):
+                library.pcap_setbuff(handle, c_int(33_554_432))
 
-        if hasattr(library, 'pcap_setbuff'):
-            library.pcap_setbuff(handle, c_int(33_554_432))
-
-        if hasattr(library, 'pcap_setmintocopy'):
-            library.pcap_setmintocopy(handle, c_int(1))
+            if hasattr(library, 'pcap_setmintocopy'):
+                library.pcap_setmintocopy(handle, c_int(1))
+        else:
+            handle, poll_state = _open_posix_handle(
+                library,
+                device_name,
+                snaplen=snaplen,
+                promiscuous=promiscuous,
+                timeout_milliseconds=timeout_milliseconds,
+            )
 
         datalink_type = library.pcap_datalink(handle)
-        return cls(handle, datalink_type, snaplen=snaplen)
+        return cls(handle, datalink_type, snaplen=snaplen, poll_state=poll_state)
 
     @property
     def datalink_type(self) -> int:
@@ -342,7 +468,7 @@ class PcapHandle:
 
     def _read_next_packet_header_locked(self) -> PcapPkthdr | None:
         """Read the next packet header via `pcap_next_ex` (caller must hold `self._lock`)."""
-        if self._is_closed:
+        if self._is_closed or self._loop_broken:
             return None
 
         library = _load_pcap_library()
@@ -362,6 +488,59 @@ class PcapHandle:
         error_message = _get_pcap_error_message(library, self._handle)
         raise PcapReadError(error_message)
 
+    def _wait_for_packet_ready(self) -> bool:
+        """Wait for the non-blocking POSIX pcap fd to become readable, wake on `break_loop`, or time out.
+
+        Must be called without holding `self._lock`.
+        """
+        poll_state = self._poll_state
+        if poll_state is None or self._is_closed or self._loop_broken:
+            return False
+
+        try:
+            ready_events = poll_state.selector.select(poll_state.timeout_seconds)
+        except (OSError, ValueError):
+            return False
+
+        is_pcap_ready = False
+        for key, _mask in ready_events:
+            if key.data:
+                return False
+            is_pcap_ready = True
+        return is_pcap_ready
+
+    def _try_read_packet_locked(self) -> RawCapturedPacket | None:
+        """Attempt a single packet read while holding `self._lock`."""
+        header = self._read_next_packet_header_locked()
+        if header is None:
+            return None
+
+        captured_length = int(header.caplen)
+        if not 0 < captured_length <= self._snaplen:
+            return None
+
+        epoch_seconds = float(header.ts.tv_sec) + (float(header.ts.tv_usec) / 1_000_000.0)
+        packet_bytes = ctypes.string_at(self._data_pointer, captured_length)
+
+        return RawCapturedPacket(
+            timestamp_epoch=epoch_seconds,
+            data=packet_bytes,
+            datalink_type=self._datalink_type,
+        )
+
+    def _try_read_raw_frame_locked(self) -> bytes | None:
+        """Attempt a single raw frame read while holding `self._lock`."""
+        header = self._read_next_packet_header_locked()
+        if header is None:
+            return None
+
+        captured_length = int(header.caplen)
+        total_length = int(header.len)
+        if captured_length != total_length or not 0 < captured_length <= self._snaplen:
+            return None
+
+        return ctypes.string_at(self._data_pointer, captured_length)
+
     def next_packet(self) -> RawCapturedPacket | None:
         """Read the next packet from the capture handle.
 
@@ -372,22 +551,15 @@ class PcapHandle:
             PcapReadError: If a non-recoverable capture read error occurs.
         """
         with self._lock:
-            header = self._read_next_packet_header_locked()
-            if header is None:
-                return None
+            packet = self._try_read_packet_locked()
+        if packet is not None or self._poll_state is None:
+            return packet
 
-            captured_length = int(header.caplen)
-            if not 0 < captured_length <= self._snaplen:
-                return None
+        if not self._wait_for_packet_ready():
+            return None
 
-            epoch_seconds = float(header.ts.tv_sec) + (float(header.ts.tv_usec) / 1_000_000.0)
-            packet_bytes = ctypes.string_at(self._data_pointer, captured_length)
-
-            return RawCapturedPacket(
-                timestamp_epoch=epoch_seconds,
-                data=packet_bytes,
-                datalink_type=self._datalink_type,
-            )
+        with self._lock:
+            return self._try_read_packet_locked()
 
     def next_raw_frame(self) -> bytes | None:
         """Read the next packet data from the capture handle without metadata overhead.
@@ -399,16 +571,15 @@ class PcapHandle:
             PcapReadError: If a non-recoverable capture read error occurs.
         """
         with self._lock:
-            header = self._read_next_packet_header_locked()
-            if header is None:
-                return None
+            frame = self._try_read_raw_frame_locked()
+        if frame is not None or self._poll_state is None:
+            return frame
 
-            captured_length = int(header.caplen)
-            total_length = int(header.len)
-            if captured_length != total_length or not 0 < captured_length <= self._snaplen:
-                return None
+        if not self._wait_for_packet_ready():
+            return None
 
-            return ctypes.string_at(self._data_pointer, captured_length)
+        with self._lock:
+            return self._try_read_raw_frame_locked()
 
     def get_drop_count(self) -> int | None:
         """Return cumulative packet drop statistics (`ps_drop` + `ps_ifdrop`)."""
@@ -423,7 +594,16 @@ class PcapHandle:
             return int(stats.ps_drop) + int(stats.ps_ifdrop)
 
     def break_loop(self) -> None:
-        """Break the capture read loop."""
+        """Break the capture read loop and wake any blocked POSIX poll immediately."""
+        self._loop_broken = True
+        poll_state = self._poll_state
+        if poll_state is not None:
+            with poll_state.wake_lock:
+                if poll_state.wake_write_fd >= 0:
+                    try:
+                        os.write(poll_state.wake_write_fd, b'\x01')
+                    except OSError as e:
+                        logger.debug('Failed writing to pcap wakeup pipe: %s', e)
         if not self._is_closed:
             library = _load_pcap_library()
             library.pcap_breakloop(self._handle)
@@ -453,9 +633,25 @@ class PcapHandle:
                 raise PcapSendError(error_message)
 
     def close(self) -> None:
-        """Close the underlying pcap handle."""
+        """Close the underlying pcap handle and release any POSIX wakeup pipe descriptors."""
         with self._lock:
             if not self._is_closed:
                 self._is_closed = True
+                self._loop_broken = True
                 library = _load_pcap_library()
                 library.pcap_close(self._handle)
+                poll_state = self._poll_state
+                if poll_state is not None:
+                    with poll_state.wake_lock:
+                        try:
+                            poll_state.selector.close()
+                        except OSError as e:
+                            logger.debug('Failed to close pcap selector: %s', e)
+                        for fd in (poll_state.wake_read_fd, poll_state.wake_write_fd):
+                            if fd >= 0:
+                                try:
+                                    os.close(fd)
+                                except OSError as e:
+                                    logger.debug('Failed to close pcap wakeup fd %d: %s', fd, e)
+                        poll_state.wake_read_fd = -1
+                        poll_state.wake_write_fd = -1

@@ -4,7 +4,7 @@ import logging
 import socket
 import time
 from dataclasses import dataclass
-from threading import Event, Thread
+from threading import Event, Lock, Thread
 from typing import TYPE_CHECKING, ClassVar
 
 from session_sniffer import msgbox
@@ -53,11 +53,28 @@ class ArpSpoofingController:
     _config: ClassVar[_ArpControllerConfig | None] = None
     _stop_event: ClassVar[Event] = Event()
     _thread: ClassVar[Thread | None] = None
+    _handle_lock: ClassVar[Lock] = Lock()
+    _active_handle: ClassVar[PcapHandle | None] = None
 
     @classmethod
     def configure(cls, capture_holder: CaptureHolder, on_failed: Callable[[], None]) -> None:
         """Wire the controller to the app-wide capture holder and failure callback."""
         cls._config = _ArpControllerConfig(capture_holder=capture_holder, on_failed=on_failed)
+
+    @classmethod
+    def set_active_handle(cls, handle: PcapHandle) -> None:
+        """Register the currently open ARP spoofing pcap handle for immediate wakeup on stop."""
+        with cls._handle_lock:
+            cls._active_handle = handle
+            if cls._stop_event.is_set():
+                handle.break_loop()
+
+    @classmethod
+    def clear_active_handle(cls, handle: PcapHandle) -> None:
+        """Unregister *handle* if it is still the active ARP spoofing pcap handle."""
+        with cls._handle_lock:
+            if cls._active_handle is handle:
+                cls._active_handle = None
 
     @classmethod
     def is_running(cls) -> bool:
@@ -86,10 +103,14 @@ class ArpSpoofingController:
 
     @classmethod
     def stop(cls) -> None:
-        """Signal the running thread to exit and wait for it to die."""
+        """Signal the running thread to exit, break any active pcap read, and wait for it to die."""
         if cls._thread is None:
             return
         cls._stop_event.set()
+        with cls._handle_lock:
+            active_handle = cls._active_handle
+        if active_handle is not None:
+            active_handle.break_loop()
         cls._thread.join()
         cls._thread = None
 
@@ -155,6 +176,7 @@ def arp_spoofing_task(
         logger.info('Task terminated due to %s.', stage)
 
     def _restore_and_close_handle(handle: PcapHandle, spoof_targets: ArpSpoofTargets | None) -> None:
+        ArpSpoofingController.clear_active_handle(handle)
         if spoof_targets is not None:
             try:
                 send_arp_restore_packets(
@@ -174,7 +196,7 @@ def arp_spoofing_task(
         while not _should_exit():
             # Wait for capture to be running
             while not capture_holder.is_running() and not _should_exit():
-                time.sleep(0.5)
+                stop_event.wait(0.2)
 
             if _should_exit():
                 break
@@ -187,6 +209,7 @@ def arp_spoofing_task(
                     promiscuous=True,
                     timeout_milliseconds=20,
                 )
+                ArpSpoofingController.set_active_handle(pcap_handle)
             except (PcapOpenError, OSError) as exception:
                 report_failure(
                     'startup failure',
@@ -249,7 +272,7 @@ def arp_spoofing_task(
             # Forward packets and periodically refresh spoofed ARP replies while capture is running
             while capture_holder.is_running() and not _should_exit():
                 if targets is None or host_mac_bytes is None or target_mac_bytes is None or gateway_mac_bytes is None or target_ip_bytes is None:
-                    time.sleep(0.5)
+                    stop_event.wait(0.5)
                     continue
 
                 current_time = time.monotonic()
