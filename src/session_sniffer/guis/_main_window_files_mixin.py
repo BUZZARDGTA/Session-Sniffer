@@ -268,12 +268,12 @@ class FilesMixin(QMainWindow):
         return add_i18n_menu_actions(self, menu, ICONS_DIR_PATH, specs, self._files_i18n_actions)
 
     def _build_tools_managers_section(self, tools_menu: QMenu) -> QAction:
-        """Populate the manager entries (`Detections Manager`, `UserIP Manager`, `Logs Manager`) and return the `GTA5 Relays` action."""
-        relays_action = self._build_detections_manager_submenu(tools_menu)
+        """Populate the manager entries (`UserIP Manager`, `Detections Manager`, `Logs Manager`) and return the `GTA5 Relays` action."""
         self._add_i18n_menu_actions(
             tools_menu,
             [('database.svg', 'UserIP Manager', 'Browse, edit, add, and delete entries in UserIP database files', self._open_userip_manager)],
         )
+        relays_action = self._build_detections_manager_submenu(tools_menu)
         self._build_logs_manager_submenu(tools_menu)
         return relays_action
 
