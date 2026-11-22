@@ -1,6 +1,5 @@
 """Dedicated dialog for inspecting Session Host detection diagnostics."""
 
-from dataclasses import dataclass
 from datetime import datetime
 from typing import TYPE_CHECKING
 
@@ -48,6 +47,7 @@ from session_sniffer.guis.utils import (
     set_dialog_window_flags,
 )
 from session_sniffer.i18n import tr, tr_plural
+from session_sniffer.player.host_diagnostics_checklist import ChecklistBadgeTone, build_host_diagnostics_checklist
 from session_sniffer.text_utils import format_elapsed_time
 
 if TYPE_CHECKING:
@@ -55,21 +55,13 @@ if TYPE_CHECKING:
 
     from session_sniffer.player.session_host import HostCandidateDiagnostic, HostDiagnosticsSnapshot
 
-_SESSION_HOST_AMBIGUITY_MIN_THRESHOLD_MS: float = 50.0
-_SESSION_HOST_AMBIGUITY_MAX_THRESHOLD_MS: float = 1600.0
-_MINIMUM_PACKETS_FOR_RELAY_SESSION_HOST: int = 9
-_SESSION_HOST_MAX_PACKETS_FOR_DETECTION: int = 1000
-
-
-@dataclass(slots=True)
-class _DetectionChecklistItem:
-    """Internal model for a single evaluation checklist row."""
-
-    title: str
-    passed: bool
-    detail: str
-    badge_text: str | None = None
-    badge_stylesheet: str | None = None
+_CHECKLIST_BADGE_STYLESHEETS: dict[ChecklistBadgeTone, str] = {
+    'success': HOST_BADGE_SUCCESS_STYLESHEET,
+    'warning': HOST_BADGE_WARNING_STYLESHEET,
+    'danger': HOST_BADGE_DANGER_STYLESHEET,
+    'accent': HOST_BADGE_INFO_STYLESHEET,
+    'muted': HOST_BADGE_MUTED_STYLESHEET,
+}
 
 
 class SessionHostDiagnosticsDialog(QDialog):
@@ -341,7 +333,7 @@ class SessionHostDiagnosticsDialog(QDialog):
 
         header_layout.addStretch(1)
 
-        items = self._compute_checklist_items()
+        items = build_host_diagnostics_checklist(self._snapshot)
         passed_count = sum(1 for item in items if item.passed)
         total_count = len(items)
 
@@ -391,309 +383,15 @@ class SessionHostDiagnosticsDialog(QDialog):
 
             row_layout.addLayout(text_layout, stretch=1)
 
-            if item.badge_text is not None and item.badge_stylesheet is not None:
-                metric_badge = QLabel(item.badge_text)
-                metric_badge.setStyleSheet(item.badge_stylesheet)
-                metric_badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
-                row_layout.addWidget(metric_badge, alignment=Qt.AlignmentFlag.AlignTop)
+            badge_stylesheet = _CHECKLIST_BADGE_STYLESHEETS[item.badge_tone]
+            metric_badge = QLabel(item.badge_text)
+            metric_badge.setStyleSheet(badge_stylesheet)
+            metric_badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            row_layout.addWidget(metric_badge, alignment=Qt.AlignmentFlag.AlignTop)
 
             layout.addWidget(row)
 
         return card
-
-    def _compute_checklist_items(self) -> list[_DetectionChecklistItem]:
-        """Compute the evaluation status and explanation for each detection criterion."""
-        if self._snapshot.modmenu_source is not None:
-            return self._compute_modmenu_checklist_items()
-
-        items: list[_DetectionChecklistItem] = []
-
-        # 1. Direct P2P Candidates
-        p2p_count = self._snapshot.direct_p2p_players
-        evaluated_count = self._snapshot.total_evaluated_players
-        filtered_count = self._snapshot.filtered_server_ips
-
-        if not evaluated_count:
-            candidates_detail = tr('No players found in session')
-        elif not p2p_count:
-            candidates_detail = tr_plural(
-                'All {count} connected endpoint is a game or relay server',
-                'All {count} connected endpoints are game or relay servers',
-                evaluated_count,
-            )
-        elif filtered_count > 0:
-            candidates_phrase = tr_plural(
-                '{count} direct P2P candidate identified',
-                '{count} direct P2P candidates identified',
-                p2p_count,
-            )
-            filtered_phrase = tr_plural(
-                '{count} server filtered',
-                '{count} servers filtered',
-                filtered_count,
-            )
-            candidates_detail = tr('{candidates} ({filtered})', candidates=candidates_phrase, filtered=filtered_phrase)
-        else:
-            candidates_detail = tr_plural(
-                '{count} direct P2P candidate identified in session',
-                '{count} direct P2P candidates identified in session',
-                p2p_count,
-            )
-
-        p2p_passed = p2p_count > 0
-        p2p_badge = tr('{count} Direct P2P', count=p2p_count) if p2p_passed else tr('0 Direct P2P')
-        p2p_badge_style = HOST_BADGE_SUCCESS_STYLESHEET if p2p_passed else HOST_BADGE_DANGER_STYLESHEET
-
-        items.append(
-            _DetectionChecklistItem(
-                title=tr('Direct P2P Candidates'),
-                passed=p2p_passed,
-                detail=candidates_detail,
-                badge_text=p2p_badge,
-                badge_stylesheet=p2p_badge_style,
-            ),
-        )
-
-        # 2. Candidate Activity
-        if self._snapshot.success:
-            activity_passed = True
-            activity_detail = tr('Candidate is active and connected')
-            activity_badge = tr('Active & Connected')
-            activity_badge_style = HOST_BADGE_SUCCESS_STYLESHEET
-        elif self._snapshot.candidates:
-            active_candidates = [candidate for candidate in self._snapshot.candidates if not candidate.is_pending_disconnection and not candidate.is_disconnected]
-            activity_passed = bool(active_candidates)
-            active_count = len(active_candidates)
-            if activity_passed:
-                activity_detail = tr_plural(
-                    '{count} candidate active and connected',
-                    '{count} candidates active and connected',
-                    active_count,
-                )
-                activity_badge = tr('{count} Active', count=active_count)
-                activity_badge_style = HOST_BADGE_SUCCESS_STYLESHEET
-            else:
-                activity_detail = tr('All candidates are disconnected or pending disconnection')
-                activity_badge = tr('Disconnected')
-                activity_badge_style = HOST_BADGE_DANGER_STYLESHEET
-        else:
-            activity_passed = False
-            activity_detail = tr('No candidates available to evaluate activity')
-            activity_badge = tr('No Candidates')
-            activity_badge_style = HOST_BADGE_MUTED_STYLESHEET
-
-        items.append(
-            _DetectionChecklistItem(
-                title=tr('Candidate Activity'),
-                passed=activity_passed,
-                detail=activity_detail,
-                badge_text=activity_badge,
-                badge_stylesheet=activity_badge_style,
-            ),
-        )
-
-        # 3. Connection Timing Window
-        timing_badge: str
-        timing_badge_style: str
-        if self._snapshot.success:
-            timing_passed = True
-            if self._snapshot.timing_gap_seconds is not None:
-                gap_ms = self._snapshot.timing_gap_seconds * 1000
-                gap_ms_str = f'{gap_ms:.1f}'
-                timing_badge = tr('✓ Within Window ({gap_ms}ms)', gap_ms=gap_ms_str)
-                timing_badge_style = HOST_BADGE_SUCCESS_STYLESHEET
-                timing_detail = self._snapshot.timing_resolution or tr(
-                    'Join separation ({gap_ms}ms) within valid window (50ms - 1,600ms)',
-                    gap_ms=gap_ms_str,
-                )
-            else:
-                timing_badge = tr('Single Candidate')
-                timing_badge_style = HOST_BADGE_INFO_STYLESHEET
-                timing_detail = self._snapshot.timing_resolution or tr('Single candidate in session (timing comparison not required)')
-        elif self._snapshot.timing_gap_seconds is not None:
-            gap_ms = self._snapshot.timing_gap_seconds * 1000
-            gap_ms_str = f'{gap_ms:.1f}'
-            gap_text = f'{self._snapshot.timing_gap_seconds:.3f}s' if self._snapshot.timing_gap_seconds >= 1.0 else f'{gap_ms:.1f}ms'
-            if _SESSION_HOST_AMBIGUITY_MIN_THRESHOLD_MS <= gap_ms <= _SESSION_HOST_AMBIGUITY_MAX_THRESHOLD_MS:
-                timing_passed = True
-                timing_badge = tr('✓ Within Window ({gap_ms}ms)', gap_ms=gap_ms_str)
-                timing_badge_style = HOST_BADGE_SUCCESS_STYLESHEET
-                timing_detail = self._snapshot.timing_resolution or tr(
-                    'Join separation ({gap_ms}ms) within valid window (50ms - 1,600ms)',
-                    gap_ms=gap_ms_str,
-                )
-            elif gap_ms < _SESSION_HOST_AMBIGUITY_MIN_THRESHOLD_MS:
-                timing_passed = False
-                timing_badge = tr('✕ Too Close ({gap_ms}ms < 50ms)', gap_ms=gap_ms_str)
-                timing_badge_style = HOST_BADGE_WARNING_STYLESHEET
-                timing_detail = self._snapshot.timing_resolution or tr(
-                    'Ambiguous ({gap_ms}ms < 50ms): players connected simultaneously',
-                    gap_ms=gap_ms_str,
-                )
-            else:
-                timing_passed = False
-                timing_badge = tr('✕ Exceeds Window ({gap_text} > 1600ms)', gap_text=gap_text)
-                timing_badge_style = HOST_BADGE_DANGER_STYLESHEET
-                timing_detail = self._snapshot.timing_resolution or tr(
-                    'Gap too large ({gap_text} > 1,600ms): candidates did not join together',
-                    gap_text=gap_text,
-                )
-        elif len(self._snapshot.candidates) == 1:
-            timing_passed = True
-            timing_badge = tr('Single Candidate')
-            timing_badge_style = HOST_BADGE_INFO_STYLESHEET
-            timing_detail = self._snapshot.timing_resolution or tr('Single candidate in session (timing comparison not required)')
-        else:
-            timing_passed = False
-            timing_badge = tr('N/A')
-            timing_badge_style = HOST_BADGE_MUTED_STYLESHEET
-            timing_detail = self._snapshot.timing_resolution or tr('No candidates available for timing comparison')
-
-        items.append(
-            _DetectionChecklistItem(
-                title=tr('Connection Timing Window'),
-                passed=timing_passed,
-                detail=timing_detail,
-                badge_text=timing_badge,
-                badge_stylesheet=timing_badge_style,
-            ),
-        )
-
-        # 4. Packet Threshold Criteria
-        if self._snapshot.success:
-            packet_passed = True
-            host_candidate = next(
-                (candidate for candidate in self._snapshot.candidates if candidate.is_host),
-                self._snapshot.candidates[0] if self._snapshot.candidates else None,
-            )
-            if host_candidate is not None:
-                packet_detail = tr(
-                    'Candidate sent >= 9 packets ({sent}) and exchanged <= 1,000 ({exchanged})',
-                    sent=host_candidate.packets_sent,
-                    exchanged=host_candidate.packets_exchanged,
-                )
-            else:
-                packet_detail = tr('Candidate packet counts within valid bounds (>= 9 sent, <= 1,000 exchanged)')
-            packet_badge = tr('Eligible Packets')
-            packet_badge_style = HOST_BADGE_SUCCESS_STYLESHEET
-        elif self._snapshot.candidates:
-            has_under_sent = any(
-                candidate.packet_status == 'Not enough sent' or candidate.packets_sent < _MINIMUM_PACKETS_FOR_RELAY_SESSION_HOST for candidate in self._snapshot.candidates
-            )
-            has_over_exchanged = any(
-                candidate.packet_status == 'Exceeds maximum exchanged' or candidate.packets_exchanged > _SESSION_HOST_MAX_PACKETS_FOR_DETECTION
-                for candidate in self._snapshot.candidates
-            )
-            if has_under_sent:
-                packet_passed = False
-                packet_detail = tr(
-                    'Candidate has not sent enough packets (>= {min_packets} required to rule out transient probes)',
-                    min_packets=_MINIMUM_PACKETS_FOR_RELAY_SESSION_HOST,
-                )
-                packet_badge = tr('✕ < {min_packets} Sent', min_packets=_MINIMUM_PACKETS_FOR_RELAY_SESSION_HOST)
-                packet_badge_style = HOST_BADGE_WARNING_STYLESHEET
-            elif has_over_exchanged:
-                packet_passed = False
-                max_packets_str = f'{_SESSION_HOST_MAX_PACKETS_FOR_DETECTION:,}'
-                packet_detail = tr(
-                    'Candidate exchanged > {max_packets} packets (session already in progress)',
-                    max_packets=max_packets_str,
-                )
-                packet_badge = tr('✕ > {max_packets} Exchanged', max_packets=max_packets_str)
-                packet_badge_style = HOST_BADGE_DANGER_STYLESHEET
-            else:
-                packet_passed = True
-                packet_detail = tr(
-                    'Candidate packet counts within valid bounds (>= {min_packets} sent, <= {max_packets} exchanged)',
-                    min_packets=_MINIMUM_PACKETS_FOR_RELAY_SESSION_HOST,
-                    max_packets=f'{_SESSION_HOST_MAX_PACKETS_FOR_DETECTION:,}',
-                )
-                packet_badge = tr('Eligible Packets')
-                packet_badge_style = HOST_BADGE_SUCCESS_STYLESHEET
-        else:
-            packet_passed = False
-            packet_detail = tr('No candidates to evaluate packet thresholds')
-            packet_badge = tr('No Candidates')
-            packet_badge_style = HOST_BADGE_MUTED_STYLESHEET
-
-        items.append(
-            _DetectionChecklistItem(
-                title=tr('Packet Threshold Criteria'),
-                passed=packet_passed,
-                detail=packet_detail,
-                badge_text=packet_badge,
-                badge_stylesheet=packet_badge_style,
-            ),
-        )
-
-        return items
-
-    def _compute_modmenu_checklist_items(self) -> list[_DetectionChecklistItem]:
-        """Compute checklist items when session host resolution is governed by a mod menu Lua plugin."""
-        source_name = self._snapshot.modmenu_source or tr('Mod Menu')
-        host_ip = self._snapshot.modmenu_host_ip
-        host_username = self._snapshot.modmenu_host_username
-
-        if host_ip is not None:
-            lua_passed = True
-            username_suffix = f' (@{host_username})' if bool(host_username) else ''
-            lua_detail = tr(
-                '{source} Lua plugin reported session host {host_ip}{username_suffix}',
-                source=source_name,
-                host_ip=host_ip,
-                username_suffix=username_suffix,
-            )
-            lua_badge = tr('✓ {source} Lua', source=source_name)
-            lua_badge_style = HOST_BADGE_SUCCESS_STYLESHEET
-        else:
-            lua_passed = False
-            lua_detail = self._snapshot.rejection_reason or self._snapshot.outcome
-            lua_badge = tr('No Remote Host')
-            lua_badge_style = HOST_BADGE_WARNING_STYLESHEET
-
-        if self._snapshot.success and self._snapshot.detected_host_ip is not None:
-            match_passed = True
-            match_detail = tr(
-                'Reported host {host_ip} matched an active GTA V UDP-confirmed P2P player in your session',
-                host_ip=self._snapshot.detected_host_ip,
-            )
-            match_badge = tr('✓ Matched in Session')
-            match_badge_style = HOST_BADGE_SUCCESS_STYLESHEET
-        elif host_ip is not None:
-            match_passed = False
-            match_detail = tr(
-                'Reported host {host_ip} is not currently connected in confirmed GTA V P2P session traffic',
-                host_ip=host_ip,
-            )
-            match_badge = tr('✕ Not Connected')
-            match_badge_style = HOST_BADGE_WARNING_STYLESHEET
-        else:
-            p2p_count = self._snapshot.direct_p2p_players
-            match_passed = False
-            match_detail = tr_plural(
-                '{count} direct P2P player currently connected in session',
-                '{count} direct P2P players currently connected in session',
-                p2p_count,
-            )
-            match_badge = tr('{count} Direct P2P', count=p2p_count)
-            match_badge_style = HOST_BADGE_INFO_STYLESHEET if p2p_count > 0 else HOST_BADGE_MUTED_STYLESHEET
-
-        return [
-            _DetectionChecklistItem(
-                title=tr('{source} Lua Plugin (Source of Truth)', source=source_name),
-                passed=lua_passed,
-                detail=lua_detail,
-                badge_text=lua_badge,
-                badge_stylesheet=lua_badge_style,
-            ),
-            _DetectionChecklistItem(
-                title=tr('Direct P2P Session Match'),
-                passed=match_passed,
-                detail=match_detail,
-                badge_text=match_badge,
-                badge_stylesheet=match_badge_style,
-            ),
-        ]
 
     def _build_candidates_section(self) -> QWidget:
         container = QWidget()
