@@ -705,7 +705,10 @@ class WebServer:
             site = aiohttp.web.TCPSite(self._runner, self.host, self.port)
             await site.start()
         except OSError as e:
-            logger.exception('Failed to start web server on %s:%d', self.host, self.port)
+            if _classify_startup_error(e) == 'startup_failed':
+                logger.exception('Failed to start web server on %s:%d', self.host, self.port)
+            else:
+                logger.debug('Web server failed to bind on %s:%d: %s', self.host, self.port, e)
             startup_state.error = e
             startup_state.ready.set()
             await self._runner.cleanup()
@@ -828,6 +831,19 @@ class WebServer:
                     'Web server failed to start: port %d on %s is already in use by another process. '
                     'Change the Web Server port in Settings or stop the conflicting application.',
                     config.port,
+                    config.host,
+                )
+            elif error_code == 'permission_denied':
+                logger.error(
+                    'Web server failed to start: port %d on %s is blocked by system permissions or reserved by the OS. '
+                    'Change the Web Server port in Settings or run with sufficient privileges.',
+                    config.port,
+                    config.host,
+                )
+            elif error_code == 'invalid_host':
+                logger.error(
+                    'Web server failed to start: host address %s is not assigned to any local network adapter. '
+                    'Choose Local Network or a valid adapter IP address in Settings.',
                     config.host,
                 )
             else:
