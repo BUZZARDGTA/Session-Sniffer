@@ -132,6 +132,7 @@ SHARED_APP_MESSAGE_KEYS: Final[tuple[str, ...]] = (
     'Open crash.log',
     'Open settings.json',
     'Open Settings',
+    'Official Website',
     'Project Repository',
     'Documentation',
     'Tips and Tricks',

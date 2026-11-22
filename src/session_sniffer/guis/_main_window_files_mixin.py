@@ -47,13 +47,14 @@ from session_sniffer.constants.standalone import (
     GITHUB_WIKI_URL,
     LOOKY_BASE_HOST,
     TITLE,
+    WEBSITE_URL,
 )
 from session_sniffer.guis.detections_manager import DetectionsManagerDialog
 from session_sniffer.guis.interface_selection_dialog import InterfaceSelectionDialog
 from session_sniffer.guis.live_language import add_i18n_menu_actions
 from session_sniffer.guis.loading_overlay import run_async_with_loading
 from session_sniffer.guis.logs_manager import LogsManager
-from session_sniffer.guis.theming import ICONS_DIR_PATH
+from session_sniffer.guis.theming import ICONS_DIR_PATH, themed_qss
 from session_sniffer.guis.userip_manager import UserIPDatabasesManager
 from session_sniffer.guis.utils import activate_window, animate_button_feedback, scale_by_ui, set_clipboard_text, show_or_focus_window
 from session_sniffer.i18n import tr
@@ -117,6 +118,10 @@ class FilesMixin(QMainWindow):
     def _open_looky_website(self) -> None:
         """Open the Looky System website in the default browser."""
         webbrowser.open(LOOKY_BASE_HOST)
+
+    def _open_website(self) -> None:
+        """Open the official Session Sniffer website in the default browser."""
+        webbrowser.open(WEBSITE_URL)
 
     def _open_project_repo(self) -> None:
         """Open the GitHub repository in the default browser."""
@@ -380,6 +385,17 @@ class FilesMixin(QMainWindow):
         desc_label.setWordWrap(True)
         layout.addWidget(desc_label)
 
+        escaped_website = html.escape(WEBSITE_URL)
+        website_label = QLabel(
+            themed_qss(f'<a href="{escaped_website}" style="color: @accent[#5fb4f5]; text-decoration: none;">{escaped_website}</a>'),
+        )
+        website_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        website_label.setTextFormat(Qt.TextFormat.RichText)
+        website_label.setOpenExternalLinks(True)
+        website_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
+        website_label.linkHovered.connect(website_label.setToolTip)
+        layout.addWidget(website_label)
+
         layout.addSpacing(6)
 
         build_header = QLabel(f'<b>{html.escape(tr("Build Information"))}</b>')
@@ -438,6 +454,7 @@ class FilesMixin(QMainWindow):
         self._add_i18n_menu_actions(
             help_menu,
             [
+                ('globe.svg', 'Official Website', 'Open the official Session Sniffer website in your default web browser', self._open_website),
                 ('github.svg', 'Project Repository', 'Open the Session Sniffer GitHub repository in your default web browser', self._open_project_repo),
                 ('book-text.svg', 'Documentation', 'View the complete documentation and user guide for Session Sniffer', self._open_documentation),
                 ('lightbulb.svg', 'Tips and Tricks', 'Learn optimization strategies, hidden features, and best practices', self._open_tips_and_tricks),
