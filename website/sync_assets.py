@@ -29,9 +29,6 @@ from session_sniffer.i18n import (
 from session_sniffer.models.themes import (
     BUILTIN_THEMES,
     DEFAULT_THEME_NAME,
-    THEME_COLOR_TOKENS,
-    THEME_NAME_MAX_LENGTH,
-    THEME_TOKEN_CATEGORIES,
     Theme,
 )
 from session_sniffer.utils import format_project_version
@@ -83,7 +80,7 @@ PREVIEW_TABLE_COLUMNS: Final[tuple[str, ...]] = (
 )
 
 # Canonical keys pulled verbatim from `resources/translations/<lang>.json` ("messages") so the website's
-# interactive Session Sniffer preview and Theme Studio stay 100% consistent with the desktop app.
+# interactive Session Sniffer preview and built-in theme switcher stay 100% consistent with the desktop app.
 SHARED_APP_MESSAGE_KEYS: Final[tuple[str, ...]] = (
     # Menu bar & exact MainWindow menu items (1:1 with main_window.py & mixins)
     'Capture',
@@ -103,8 +100,21 @@ SHARED_APP_MESSAGE_KEYS: Final[tuple[str, ...]] = (
     'Solo Public Session',
     'Suspend Process',
     'Detections Manager',
+    'Open Detections Manager',
+    'Player Events',
+    'Network-Based',
+    'Geography-Based',
+    'Combo Rules',
+    'GTA5 Relays',
     'UserIP Manager',
     'Logs Manager',
+    'Open Logs Manager',
+    'Crash Log',
+    'Debug Log',
+    'Detection Logging',
+    'Protection Logging',
+    'Sessions Logging',
+    'UserIP Logging',
     'Most Seen Players',
     'Port Scanner',
     'Ping Diagnostics',
@@ -132,6 +142,15 @@ SHARED_APP_MESSAGE_KEYS: Final[tuple[str, ...]] = (
     'Open crash.log',
     'Open settings.json',
     'Open Settings',
+    'General',
+    'Themes',
+    'Shortcuts',
+    'Session',
+    'Columns',
+    'Discord',
+    'Web Server',
+    'GTA V',
+    'RDR2',
     'Official Website',
     'Project Repository',
     'Documentation',
@@ -142,7 +161,9 @@ SHARED_APP_MESSAGE_KEYS: Final[tuple[str, ...]] = (
     'Discord Server',
     'Check for Updates',
     'About',
+    'Open Player Resolver',
     'Player High Rate Monitor',
+    'Player Identifier',
     # Dashboard header & exact SessionStatusBar (1:1 with _main_header.py & status_bar_renderer.py)
     'The best <span style="color: #22c55e; font-weight: 600;">FREE</span> and <span style="color: #22c55e; font-weight: 600;">Open-Source</span> packet sniffer',
     'Search connected + disconnected players...',
@@ -235,10 +256,7 @@ SHARED_APP_MESSAGE_KEYS: Final[tuple[str, ...]] = (
     'Sessions Logging',
     # Preview table column header tooltips (1:1 with GUI_COLUMN_HEADERS_TOOLTIPS)
     *(GUI_COLUMN_HEADERS_TOOLTIPS[col] for col in PREVIEW_TABLE_COLUMNS),
-    # Theme Studio categories, tokens & built-in names
-    *THEME_TOKEN_CATEGORIES,
-    *(token.label for token in THEME_COLOR_TOKENS),
-    *(token.description for token in THEME_COLOR_TOKENS),
+    # Built-in theme names (for the website's 6-theme switcher)
     *(theme.name for theme in BUILTIN_THEMES),
 )
 
@@ -270,6 +288,7 @@ SYNCED_ICONS: Final[tuple[str, ...]] = (
     'crown',
     'database',
     'discord',
+    'ethernet-port',
     'external-link',
     'eye',
     'file-cog',
@@ -280,9 +299,10 @@ SYNCED_ICONS: Final[tuple[str, ...]] = (
     'github',
     'globe',
     'host_history',
-    'import',
     'info',
+    'keyboard',
     'lightbulb',
+    'link',
     'monitor-smartphone',
     'network',
     'palette',
@@ -295,7 +315,6 @@ SYNCED_ICONS: Final[tuple[str, ...]] = (
     'rotate-ccw-clock',
     'route',
     'router',
-    'save',
     'scale',
     'scan-eye',
     'search',
@@ -303,6 +322,7 @@ SYNCED_ICONS: Final[tuple[str, ...]] = (
     'shield',
     'sliders-horizontal',
     'timer',
+    'triangle-alert',
     'trophy',
     'user-plus',
     'user-round',
@@ -646,18 +666,6 @@ def _generate_app_data_js(en_catalog: dict[str, str]) -> str:
         'enSite': en_catalog,
         'columnTooltips': {col: GUI_COLUMN_HEADERS_TOOLTIPS[col] for col in PREVIEW_TABLE_COLUMNS},
         'defaultThemeSlug': _theme_slug(DEFAULT_THEME_NAME),
-        'themeNameMaxLength': THEME_NAME_MAX_LENGTH,
-        'themeCategories': list(THEME_TOKEN_CATEGORIES),
-        'themeTokens': [
-            {
-                'name': token.name,
-                'cssKey': token.name.replace('_', '-'),
-                'label': token.label,
-                'category': token.category,
-                'description': token.description,
-            }
-            for token in THEME_COLOR_TOKENS
-        ],
         'builtinThemes': [
             {
                 'name': theme.name,

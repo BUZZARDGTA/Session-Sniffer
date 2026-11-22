@@ -11,6 +11,7 @@ from session_sniffer.utils import atomic_write_text, custom_str_to_bool
 from session_sniffer.utils_exceptions import InvalidBooleanValueError
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
     from pathlib import Path
 
 THEME_NAME_MAX_LENGTH: Final = 40
@@ -357,6 +358,45 @@ class ThemesFile(BaseModel):
         """Return the theme named *name* (case-insensitive), or `None`."""
         key = name.strip().casefold()
         return next((theme for theme in self.all_themes() if theme.name.casefold() == key), None)
+
+
+def make_unique_theme_name(desired_base: str, existing_casefold: set[str], *, fallback_base: str = 'Custom Theme') -> str:
+    """Return a non-colliding custom theme name within `THEME_NAME_MAX_LENGTH`."""
+    cleaned_base = desired_base.strip() or fallback_base
+    trimmed_base = cleaned_base[:THEME_NAME_MAX_LENGTH].rstrip()
+    if trimmed_base and trimmed_base.casefold() not in existing_casefold and trimmed_base.casefold() not in BUILTIN_THEME_NAMES:
+        return trimmed_base
+
+    counter = 2
+    while True:
+        suffix = f' {counter}'
+        max_prefix_len = THEME_NAME_MAX_LENGTH - len(suffix)
+        candidate = f'{cleaned_base[:max_prefix_len].rstrip()}{suffix}'
+        if candidate.casefold() not in existing_casefold and candidate.casefold() not in BUILTIN_THEME_NAMES:
+            return candidate
+        counter += 1
+
+
+def build_exportable_themes_json(
+    themes: Sequence[Theme],
+    *,
+    edited_theme_name: str | None = None,
+    override_name: str | None = None,
+    override_colors: ThemeColors | None = None,
+) -> str:
+    """Serialize *themes* as ready-to-import `themes.json`, renaming any built-in presets safely."""
+    models: list[CustomThemeModel] = []
+    used_names: set[str] = set()
+    edited_cf = edited_theme_name.casefold() if edited_theme_name is not None else None
+    for theme in themes:
+        is_edited = edited_cf is not None and theme.name.casefold() == edited_cf
+        colors = override_colors if is_edited and override_colors is not None else theme.colors
+        raw_name = (override_name.strip() or theme.name) if is_edited and override_name is not None else theme.name
+        desired_name = f'{raw_name} Custom' if raw_name.casefold() in BUILTIN_THEME_NAMES else raw_name
+        safe_name = make_unique_theme_name(desired_name, used_names)
+        used_names.add(safe_name.casefold())
+        models.append(CustomThemeModel(name=safe_name, colors=ThemeColorsModel.from_theme_colors(colors)))
+    return ThemesFile(custom_themes=models).model_dump_json(indent=4)
 
 
 def _serialize_themes_file(themes_file: ThemesFile) -> str:

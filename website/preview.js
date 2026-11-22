@@ -736,6 +736,9 @@
         var gameStatusText = document.getElementById('ss-game-status-text');
         var lookyWrap = document.getElementById('ss-menu-looky-wrap');
         var processLabel = document.getElementById('ss-menu-game-process-label');
+        var settingsGameItem = document.getElementById('ss-settings-game-item');
+        var settingsGameLabel = document.getElementById('ss-settings-game-label');
+        var detectionsRelaysItem = document.getElementById('ss-detections-relays-item');
 
         if (featureWrap) {
             featureWrap.hidden = !preset.modeLabel;
@@ -763,6 +766,17 @@
         }
         if (processLabel) {
             processLabel.textContent = tApp('{game} Process', { game: simState.presetKey === 'rdr2' ? 'RDR2' : 'GTA5' });
+        }
+        if (settingsGameItem && settingsGameLabel) {
+            settingsGameItem.hidden = !preset.gameMenuLabel;
+            if (preset.gameMenuLabel) {
+                settingsGameItem.setAttribute('data-feature-app', preset.gameMenuLabel);
+                settingsGameLabel.setAttribute('data-i18n-app', preset.gameMenuLabel);
+                settingsGameLabel.textContent = tApp(preset.gameMenuLabel);
+            }
+        }
+        if (detectionsRelaysItem) {
+            detectionsRelaysItem.hidden = simState.presetKey !== 'gta5';
         }
     }
 

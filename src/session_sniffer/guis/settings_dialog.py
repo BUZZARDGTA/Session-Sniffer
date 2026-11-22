@@ -44,6 +44,7 @@ from session_sniffer.guis._settings_shortcuts_widgets import (
 from session_sniffer.guis._settings_theme_mixin import SettingsDialogThemeMixin
 from session_sniffer.guis._settings_webserver_widgets import WebServerAccessWidget, WebServerSettingsSection
 from session_sniffer.guis._settings_widget_builders import (
+    SETTINGS_CATEGORY_ICONS,
     build_shortcuts_help_group,
     combo_canonical_value,
     create_boolean_widget,
@@ -154,7 +155,11 @@ class SettingsDialog(
         for i, category in enumerate(SETTING_CATEGORIES_ORDER):
             tab_widget = self._build_tab(category)
             tab_widget.setProperty('category', category)
-            self._tabs.addTab(tab_widget, tr(category))
+            icon_name = SETTINGS_CATEGORY_ICONS.get(category)
+            if icon_name is not None:
+                self._tabs.addTab(tab_widget, QIcon(str(ICONS_DIR_PATH / icon_name)), tr(category))
+            else:
+                self._tabs.addTab(tab_widget, tr(category))
             if category == 'GTA V':
                 self._game_tab_index = i
         self._tabs.currentChanged.connect(self._on_tab_changed)
@@ -948,3 +953,11 @@ class SettingsDialog(
         page = self._tabs.widget(index)
         if page is not None and page.property('category') == 'Web Server':
             self._webserver_section.refresh_network_addresses()
+
+    def select_category(self, category: str) -> None:
+        """Switch the active settings tab to *category* when it exists and is visible."""
+        for idx in range(self._tabs.count()):
+            tab = self._tabs.widget(idx)
+            if tab is not None and tab.property('category') == category and self._tabs.isTabVisible(idx):
+                self._tabs.setCurrentIndex(idx)
+                return

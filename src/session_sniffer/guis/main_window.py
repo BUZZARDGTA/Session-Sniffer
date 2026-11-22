@@ -28,6 +28,7 @@ from session_sniffer.guis._main_window_shortcuts_mixin import ShortcutsMixin, ap
 from session_sniffer.guis._main_window_stats_mixin import StatsMixin
 from session_sniffer.guis._session_table_section import SessionTableSection
 from session_sniffer.guis._settings_runtime import SettingValue, apply_notifications_toggle_changes, apply_runtime_settings_changes
+from session_sniffer.guis._settings_widget_builders import build_settings_menu, sync_settings_game_tab_action
 from session_sniffer.guis._status_bar import SessionStatusBar
 from session_sniffer.guis.discord_intro import DiscordIntro
 from session_sniffer.guis.file_watch import DebouncedFileWatcher
@@ -135,6 +136,8 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, ShortcutsMixin, 
 
     _actions: MainMenuActions
     _open_settings_action: QAction
+    _settings_game_tab_action: QAction
+    _detections_relays_tab_action: QAction
     _connected: SessionTableSection
     _disconnected: SessionTableSection
     _placeholder: _MinimizedTablesPlaceholder
@@ -455,14 +458,12 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, ShortcutsMixin, 
         tools_menu.setToolTipsVisible(True)
         self._main_i18n_menus.append((tools_menu, 'Tools'))
 
+        self._detections_relays_tab_action = self._build_tools_managers_section(tools_menu)
         add_i18n_menu_actions(
             self,
             tools_menu,
             ICONS_DIR_PATH,
             [
-                ('shield.svg', 'Detections Manager', 'Configure detection, notifications, and protection rules', self._open_detections_manager),
-                ('database.svg', 'UserIP Manager', 'Browse, edit, add, and delete entries in UserIP database files', self._open_userip_manager),
-                ('file-text.svg', 'Logs Manager', 'View, search, filter, and manage application log files', self._open_logs_manager),
                 None,
                 ('trophy.svg', 'Most Seen Players', 'View a leaderboard of the most frequently seen players across sessions', self._open_player_leaderboard),
                 ('radar.svg', 'Port Scanner', 'Perform multi-threaded TCP and UDP port scanning with service banner detection', self._open_port_scanner),
@@ -472,22 +473,14 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, ShortcutsMixin, 
         )
 
     def _build_settings_menu(self, menu_bar: QMenuBar) -> None:
-        """Build the Settings menu."""
-        settings_menu = menu_bar.addMenu(tr('Settings'))
-        if not settings_menu:
-            message = 'Failed to create Settings menu'
-            raise RuntimeError(message)
-        settings_menu.setToolTipsVisible(True)
-        self._main_i18n_menus.append((settings_menu, 'Settings'))
-
-        actions = add_i18n_menu_actions(
+        """Build the Settings menu with `Open Settings` and direct-jump tab actions."""
+        self._open_settings_action, self._settings_game_tab_action = build_settings_menu(
             self,
-            settings_menu,
-            ICONS_DIR_PATH,
-            [('settings.svg', 'Open Settings', 'View and edit all application settings', self._open_settings_dialog)],
+            menu_bar,
+            self._main_i18n_menus,
             self._main_i18n_actions,
+            self._open_settings_dialog_on_tab,
         )
-        self._open_settings_action = actions[0]
 
     @override
     def _toggle_notifications(self, mode: Literal['visual', 'voice', 'all']) -> None:
@@ -556,16 +549,15 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, ShortcutsMixin, 
         wake_all_player_cores()
         logger.debug('MainWindow closeEvent: closing child windows')
         self._player_resolver_window.close()
-        if self._settings_dialog_window is not None:
-            self._settings_dialog_window.close()
-        if self._userip_manager_window is not None:
-            self._userip_manager_window.close()
-        if self._logs_manager_window is not None:
-            self._logs_manager_window.close()
-        if self._detections_manager_window is not None:
-            self._detections_manager_window.close()
-        if self._leaderboard_window is not None:
-            self._leaderboard_window.close()
+        for child_window in (
+            self._settings_dialog_window,
+            self._userip_manager_window,
+            self._logs_manager_window,
+            self._detections_manager_window,
+            self._leaderboard_window,
+        ):
+            if child_window is not None:
+                child_window.close()
 
         PingWindow.close_window()
         PortScannerWindow.close_window()
@@ -721,7 +713,7 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, ShortcutsMixin, 
                 if 'gui_disconnected_players_enabled' in changed:
                     TableMergeState.reset_override()
                 self._apply_always_on_top()
-                self._update_game_toolbar_visibility()
+                self._refresh_game_feature_set_ui()
                 self._update_splitter_visibility()
                 self._apply_table_settings(changed)
                 self._sync_player_resolver_settings()
@@ -748,9 +740,19 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, ShortcutsMixin, 
             retrigger_detections_scan()
             wake_rendering_core()
 
+    def _refresh_game_feature_set_ui(self) -> None:
+        """Synchronize the Game menu and dynamic feature-set tab actions across menus."""
+        self._update_game_toolbar_visibility()
+        sync_settings_game_tab_action(self._settings_game_tab_action)
+        self._detections_relays_tab_action.setVisible(Settings.is_gta5_feature_set())
+
     @override
     def _open_settings_dialog(self) -> None:
         """Open the Settings window, or focus the existing one."""
+        self._open_settings_dialog_on_tab(None)
+
+    def _open_settings_dialog_on_tab(self, category: str | None) -> None:
+        """Open or focus the Settings window, optionally switching directly to *category*."""
         self._unregister_global_hotkeys()
         created = False
 
@@ -762,7 +764,7 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, ShortcutsMixin, 
             for callback in (
                 TableMergeState.reset_override,
                 self._apply_always_on_top,
-                self._update_game_toolbar_visibility,
+                self._refresh_game_feature_set_ui,
                 self._update_splitter_visibility,
                 self._apply_table_settings,
                 self._sync_player_resolver_settings,
@@ -773,6 +775,8 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, ShortcutsMixin, 
             return window
 
         dialog = show_or_focus_window(self, '_settings_dialog_window', _factory)
+        if category is not None:
+            dialog.select_category(category)
         if created:
             dialog.destroyed.connect(self._sync_shortcuts)
 
@@ -814,6 +818,7 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, ShortcutsMixin, 
             action.setText(tr(text_key))
             action.setToolTip(tr(tooltip_key))
         self._refresh_game_menu_language_texts()
+        sync_settings_game_tab_action(self._settings_game_tab_action)
         self._sync_shortcut_action_labels()
         self._refresh_statistics_menu_language_texts()
         self._refresh_files_menu_language_texts()
@@ -890,7 +895,7 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, ShortcutsMixin, 
 
     def on_interface_switched(self, *, capture_toggle_enabled: bool = True) -> None:
         """Synchronize GUI state after the capture interface has been replaced."""
-        self._update_game_toolbar_visibility()
+        self._refresh_game_feature_set_ui()
         self._sync_capture_toggle_action()
         self._actions.toggle_capture.setEnabled(capture_toggle_enabled)
         self._update_header_capture_status()

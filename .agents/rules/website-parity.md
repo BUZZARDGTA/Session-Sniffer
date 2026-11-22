@@ -5,7 +5,7 @@ description: Use when modifying Session Sniffer's desktop GUI, stylesheets, them
 
 # Desktop App ↔ Website Visual Parity Rules
 
-Session Sniffer ships an interactive live UI preview and Theme Studio in `website/` (`website/index.html`, `website/styles.css`, `website/app.js`, and generated bundles in `website/assets/`).
+Session Sniffer ships an interactive live UI preview in `website/` (`website/index.html`, `website/styles.css`, `website/preview.css`, `website/preview.js`, `website/core.js`, and generated bundles in `website/assets/`).
 
 **The desktop application and the `website/` live preview must stay visually and structurally identical (1:1).** Never finish a user-visible desktop GUI change without mirroring it in `website/` in the same task, and never fix or refine a UI detail in the `website/` preview without verifying whether the desktop app needs the matching change so neither side drifts.
 
@@ -43,9 +43,9 @@ Always inspect the corresponding desktop implementation and QSS before editing `
   * Desktop: `src/session_sniffer/i18n.py` (`SUPPORTED_LANGUAGES`, `RTL_LANGUAGE_CODES`, `LANGUAGE_COUNTRY_FLAGS`), `settings_dialog.py`, `_settings_widget_builders.py`
   * Website: `#nav-lang-switcher` / `#lang-menu-dropdown` in `website/index.html`, `website/styles.css`, `website/app.js`
   * Always share the single source of truth `LANGUAGE_COUNTRY_FLAGS` from `src/session_sniffer/i18n.py` rather than duplicating flag mappings.
-* **Built-in Themes & Theme Studio:**
-  * Desktop: `src/session_sniffer/models/themes.py` (`BUILTIN_THEMES`, `THEME_COLOR_TOKENS`, `THEME_TOKEN_CATEGORIES`), `src/session_sniffer/guis/theme.py`
-  * Website: `website/assets/themes.generated.css`, `website/assets/app-data.generated.js`, `#themes`, `#studio`
+* **Built-in Themes:**
+  * Desktop: `src/session_sniffer/models/themes.py` (`BUILTIN_THEMES`), `src/session_sniffer/guis/theme.py`
+  * Website: `website/assets/themes.generated.css`, `website/assets/app-data.generated.js`, `#nav-theme-switcher`
 
 ## Shared Assets & Sync Pipeline (`website/sync_assets.py`)
 
@@ -63,7 +63,7 @@ Always inspect the corresponding desktop implementation and QSS before editing `
 
 ## Styling, Themes, RTL & Verification
 
-* Match desktop QSS tokens, colors, radii, borders, padding, hover/focus/selection/disabled states, and canonical Dark-theme overrides (`[data-theme='dark']:not([data-custom-theme='true'])`), while also keeping Light, Nord, Dracula, Midnight, Solarized, and custom Theme Studio palettes legible.
+* Match desktop QSS tokens, colors, radii, borders, padding, hover/focus/selection/disabled states, and canonical Dark-theme overrides (`[data-theme='dark']`), while also keeping Light, Nord, Dracula, Midnight, and Solarized Light palettes legible.
 * Preserve RTL layout mirroring (`[dir='rtl']`) for `ar`, `fa`, and `he` on every directional preview control (icons, arrows, padding, alignment, popups).
 * Enforce **CRLF (`\r\n`)** line endings across all modified and generated files under `website/` (`core.md`).
 * When `website/sync_assets.py` is modified, validate it with the project's `.venv` static-analysis/linting tools (`testing.md`).

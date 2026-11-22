@@ -189,6 +189,11 @@ class DetectionsManagerDialog(DetectionsManagerTabsMixin, QDialog):
         self._connect_auto_save_signals()
         register_language_refresh(self, self._retranslate)
 
+    def select_tab(self, title_key: str) -> None:
+        """Switch the active detections tab to *title_key* when present."""
+        if title_key in self._tab_title_keys:
+            self._tabs.setCurrentIndex(self._tab_title_keys.index(title_key))
+
     def _retranslate(self) -> None:
         """Refresh all UI strings when the active application language changes."""
         self.setWindowTitle(tr('{title} - Detections Manager', title=TITLE))

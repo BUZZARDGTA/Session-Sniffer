@@ -36,6 +36,7 @@ from session_sniffer.guis._settings_widget_builders import (
     format_setting_tooltip,
     set_combo_by_canonical,
 )
+from session_sniffer.guis._theme_manager_io import sync_persisted_theme_after_delete, sync_persisted_theme_after_rename
 from session_sniffer.guis._theme_preview_card import ThemePreviewCard
 from session_sniffer.guis.live_language import apply_runtime_language, set_i18n_colon_label
 from session_sniffer.guis.live_theme import (
@@ -448,10 +449,26 @@ class SettingsDialogThemeMixin(UnsavedChangesMixin, QDialog):
             manual_theme_name=manual_name,
         )
         dialog.follow_system_toggled.connect(self._on_theme_manager_follow_system_toggled)
+        dialog.theme_applied.connect(self._on_theme_manager_theme_applied)
         dialog.theme_renamed.connect(self._on_custom_theme_renamed)
         dialog.themes_deleted.connect(self._on_custom_themes_deleted)
         dialog.themes_changed.connect(self._on_themes_changed)
         dialog.exec()
+
+    def _on_theme_manager_theme_applied(self, theme_name: str) -> None:
+        """Synchronize `gui_theme` and `gui_theme_follow_system` in `SettingsDialog` when applied inside `ThemeManagerDialog`."""
+        follow_cb = self._widgets.get('gui_theme_follow_system')
+        if isinstance(follow_cb, QCheckBox) and follow_cb.isChecked():
+            with QSignalBlocker(follow_cb):
+                follow_cb.setChecked(False)
+        combo = self._widgets.get('gui_theme')
+        if isinstance(combo, QComboBox):
+            with QSignalBlocker(combo):
+                self._set_enum(combo, theme_name)
+            if combo_canonical_value(combo).casefold() != theme_name.casefold():
+                self._refresh_theme_combo_options(selected_name=theme_name)
+        self._sync_selected_theme_card()
+        self._update_restart_notice()
 
     def _on_theme_manager_follow_system_toggled(self, raw_checked: object) -> None:
         """Synchronize `gui_theme_follow_system` in `SettingsDialog` when toggled inside `ThemeManagerDialog`."""
@@ -465,11 +482,7 @@ class SettingsDialogThemeMixin(UnsavedChangesMixin, QDialog):
 
     def _on_custom_theme_renamed(self, old_name: str, new_name: str) -> None:
         """Keep `Settings.gui_theme` and the active runtime theme aligned when a custom theme is renamed."""
-        if Settings.gui_theme.casefold() == old_name.casefold():
-            Settings.gui_theme = new_name
-            Settings.rewrite_settings_file()
-        if get_active_theme().name.casefold() == old_name.casefold():
-            apply_runtime_theme(resolve_theme_by_name(new_name))
+        sync_persisted_theme_after_rename(old_name, new_name)
         for mapping in (self._old_values, self._initial_values):
             existing = mapping.get('gui_theme')
             if isinstance(existing, str) and existing.casefold() == old_name.casefold():
@@ -481,17 +494,9 @@ class SettingsDialogThemeMixin(UnsavedChangesMixin, QDialog):
 
     def _on_custom_themes_deleted(self, raw_deleted_names: object) -> None:
         """Fall back to `DEFAULT_THEME_NAME` live if any deleted custom theme was persisted or selected."""
-        if not isinstance(raw_deleted_names, tuple):
-            return
-        deleted_items = cast('tuple[object, ...]', raw_deleted_names)
-        deleted_cf = {name.casefold() for name in deleted_items if isinstance(name, str)}
+        deleted_cf = sync_persisted_theme_after_delete(raw_deleted_names)
         if not deleted_cf:
             return
-        if Settings.gui_theme.casefold() in deleted_cf:
-            Settings.gui_theme = DEFAULT_THEME_NAME
-            Settings.rewrite_settings_file()
-        if get_active_theme().name.casefold() in deleted_cf:
-            apply_runtime_theme(resolve_theme_by_name(DEFAULT_THEME_NAME))
         for mapping in (self._old_values, self._initial_values):
             existing = mapping.get('gui_theme')
             if isinstance(existing, str) and existing.casefold() in deleted_cf:

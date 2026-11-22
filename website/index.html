@@ -49,7 +49,6 @@
                 <a href="#features" data-i18n="nav.features">Features</a>
                 <a href="#download" data-i18n="nav.download">Download</a>
                 <a href="games.html" data-i18n="nav.games">Games</a>
-                <a href="themes.html" data-i18n="nav.themes">Theme Studio</a>
                 <a href="history.html" data-i18n="nav.history">History</a>
             </nav>
 
@@ -111,12 +110,6 @@
                             <span class="theme-dropdown-tag">themes.py</span>
                         </div>
                         <div id="theme-dropdown-list" class="theme-dropdown-list"></div>
-                        <div class="theme-dropdown-footer">
-                            <a href="themes.html" class="theme-dropdown-studio-link" id="dropdown-open-studio">
-                                <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-palette"></use></svg>
-                                <span data-i18n="nav.theme_customize">Customize in Theme Studio</span>
-                            </a>
-                        </div>
                     </div>
                 </div>
 
@@ -171,7 +164,6 @@
             <a href="#features" data-i18n="nav.features">Features</a>
             <a href="#download" data-i18n="nav.download">Download</a>
             <a href="games.html" data-i18n="nav.games">Games</a>
-            <a href="themes.html" data-i18n="nav.themes">Theme Studio</a>
             <a href="history.html" data-i18n="nav.history">History</a>
             <a href="https://github.com/BUZZARDGTA/Session-Sniffer/wiki" target="_blank" rel="noopener noreferrer" data-i18n="nav.wiki">Project Wiki</a>
             <div class="mobile-nav-social">
@@ -369,10 +361,30 @@
                                     <span id="ss-game-status-text">GTA V Enhanced</span>
                                 </div>
                                 <div class="ss-menu-sep" role="separator"></div>
-                                <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Player Resolver">
-                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-search"></use></svg>
-                                    <span data-i18n-app="Player Resolver">Player Resolver</span>
-                                </button>
+                                <div class="ss-menu-subwrap">
+                                    <button type="button" class="ss-menu-item ss-menu-item--has-sub">
+                                        <span class="ss-menu-item-left">
+                                            <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-search"></use></svg>
+                                            <span data-i18n-app="Player Resolver">Player Resolver</span>
+                                        </span>
+                                        <svg class="icon icon-xs ss-menu-arrow" aria-hidden="true"><use href="#icon-chevron-right"></use></svg>
+                                    </button>
+                                    <div class="ss-menu-submenu">
+                                        <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Open Player Resolver">
+                                            <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-search"></use></svg>
+                                            <span data-i18n-app="Open Player Resolver">Open Player Resolver</span>
+                                        </button>
+                                        <div class="ss-menu-sep" role="separator"></div>
+                                        <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Player High Rate Monitor">
+                                            <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-gauge"></use></svg>
+                                            <span data-i18n-app="Player High Rate Monitor">Player High Rate Monitor</span>
+                                        </button>
+                                        <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Player Identifier">
+                                            <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-user-round-search"></use></svg>
+                                            <span data-i18n-app="Player Identifier">Player Identifier</span>
+                                        </button>
+                                    </div>
+                                </div>
                                 <div class="ss-menu-subwrap" id="ss-menu-looky-wrap">
                                     <button type="button" class="ss-menu-item ss-menu-item--has-sub">
                                         <span class="ss-menu-item-left">
@@ -456,18 +468,86 @@
                         <div class="ss-menu-wrap">
                             <button type="button" class="ss-menu-trigger" data-menu="tools" data-i18n-app="Tools" role="menuitem">Tools</button>
                             <div class="ss-menu-popup" data-menu-popup="tools" hidden>
-                                <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Detections Manager">
-                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-shield"></use></svg>
-                                    <span data-i18n-app="Detections Manager">Detections Manager</span>
-                                </button>
+                                <div class="ss-menu-subwrap">
+                                    <button type="button" class="ss-menu-item ss-menu-item--has-sub">
+                                        <span class="ss-menu-item-left">
+                                            <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-shield"></use></svg>
+                                            <span data-i18n-app="Detections Manager">Detections Manager</span>
+                                        </span>
+                                        <svg class="icon icon-xs ss-menu-arrow" aria-hidden="true"><use href="#icon-chevron-right"></use></svg>
+                                    </button>
+                                    <div class="ss-menu-submenu">
+                                        <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Open Detections Manager">
+                                            <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-shield"></use></svg>
+                                            <span data-i18n-app="Open Detections Manager">Open Detections Manager</span>
+                                        </button>
+                                        <div class="ss-menu-sep" role="separator"></div>
+                                        <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Player Events">
+                                            <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-user-round"></use></svg>
+                                            <span data-i18n-app="Player Events">Player Events</span>
+                                        </button>
+                                        <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Network-Based">
+                                            <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-ethernet-port"></use></svg>
+                                            <span data-i18n-app="Network-Based">Network-Based</span>
+                                        </button>
+                                        <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Geography-Based">
+                                            <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-globe"></use></svg>
+                                            <span data-i18n-app="Geography-Based">Geography-Based</span>
+                                        </button>
+                                        <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Combo Rules">
+                                            <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-link"></use></svg>
+                                            <span data-i18n-app="Combo Rules">Combo Rules</span>
+                                        </button>
+                                        <button type="button" class="ss-menu-item" id="ss-detections-relays-item" data-menu-action="app-feature" data-feature-app="GTA5 Relays">
+                                            <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-route"></use></svg>
+                                            <span data-i18n-app="GTA5 Relays">GTA5 Relays</span>
+                                        </button>
+                                    </div>
+                                </div>
                                 <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="UserIP Manager">
                                     <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-database"></use></svg>
                                     <span data-i18n-app="UserIP Manager">UserIP Manager</span>
                                 </button>
-                                <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Logs Manager">
-                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-file-text"></use></svg>
-                                    <span data-i18n-app="Logs Manager">Logs Manager</span>
-                                </button>
+                                <div class="ss-menu-subwrap">
+                                    <button type="button" class="ss-menu-item ss-menu-item--has-sub">
+                                        <span class="ss-menu-item-left">
+                                            <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-file-text"></use></svg>
+                                            <span data-i18n-app="Logs Manager">Logs Manager</span>
+                                        </span>
+                                        <svg class="icon icon-xs ss-menu-arrow" aria-hidden="true"><use href="#icon-chevron-right"></use></svg>
+                                    </button>
+                                    <div class="ss-menu-submenu">
+                                        <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Open Logs Manager">
+                                            <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-file-text"></use></svg>
+                                            <span data-i18n-app="Open Logs Manager">Open Logs Manager</span>
+                                        </button>
+                                        <div class="ss-menu-sep" role="separator"></div>
+                                        <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="UserIP Logging">
+                                            <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-database"></use></svg>
+                                            <span data-i18n-app="UserIP Logging">UserIP Logging</span>
+                                        </button>
+                                        <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Detection Logging">
+                                            <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-bell"></use></svg>
+                                            <span data-i18n-app="Detection Logging">Detection Logging</span>
+                                        </button>
+                                        <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Protection Logging">
+                                            <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-shield"></use></svg>
+                                            <span data-i18n-app="Protection Logging">Protection Logging</span>
+                                        </button>
+                                        <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Sessions Logging">
+                                            <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-folder"></use></svg>
+                                            <span data-i18n-app="Sessions Logging">Sessions Logging</span>
+                                        </button>
+                                        <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Debug Log">
+                                            <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-bug"></use></svg>
+                                            <span data-i18n-app="Debug Log">Debug Log</span>
+                                        </button>
+                                        <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Crash Log">
+                                            <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-triangle-alert"></use></svg>
+                                            <span data-i18n-app="Crash Log">Crash Log</span>
+                                        </button>
+                                    </div>
+                                </div>
                                 <div class="ss-menu-sep" role="separator"></div>
                                 <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Most Seen Players">
                                     <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-trophy"></use></svg>
@@ -618,6 +698,43 @@
                                 <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Open Settings">
                                     <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-settings"></use></svg>
                                     <span data-i18n-app="Open Settings">Open Settings</span>
+                                </button>
+                                <div class="ss-menu-sep" role="separator"></div>
+                                <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="General">
+                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-sliders-horizontal"></use></svg>
+                                    <span data-i18n-app="General">General</span>
+                                </button>
+                                <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Themes">
+                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-palette"></use></svg>
+                                    <span data-i18n-app="Themes">Themes</span>
+                                </button>
+                                <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Shortcuts">
+                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-keyboard"></use></svg>
+                                    <span data-i18n-app="Shortcuts">Shortcuts</span>
+                                </button>
+                                <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Capture">
+                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-network"></use></svg>
+                                    <span data-i18n-app="Capture">Capture</span>
+                                </button>
+                                <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Session">
+                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-activity"></use></svg>
+                                    <span data-i18n-app="Session">Session</span>
+                                </button>
+                                <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Columns">
+                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-eye"></use></svg>
+                                    <span data-i18n-app="Columns">Columns</span>
+                                </button>
+                                <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Discord">
+                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-discord"></use></svg>
+                                    <span data-i18n-app="Discord">Discord</span>
+                                </button>
+                                <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Web Server">
+                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-monitor-smartphone"></use></svg>
+                                    <span data-i18n-app="Web Server">Web Server</span>
+                                </button>
+                                <button type="button" class="ss-menu-item" id="ss-settings-game-item" data-menu-action="app-feature" data-feature-app="GTA V">
+                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-gamepad-2"></use></svg>
+                                    <span id="ss-settings-game-label" data-i18n-app="GTA V">GTA V</span>
                                 </button>
                             </div>
                         </div>
@@ -1269,21 +1386,6 @@
                         </span>
                     </a>
 
-                    <a href="themes.html" class="explore-card">
-                        <div class="explore-card-top">
-                            <div class="feature-icon feature-icon--success">
-                                <svg class="icon" aria-hidden="true"><use href="#icon-palette"></use></svg>
-                            </div>
-                            <span class="badge badge-success" data-i18n="studio.preview_tokens">20 live colors</span>
-                        </div>
-                        <h3 data-i18n="studio.title">Live Theme Studio</h3>
-                        <p data-i18n="explore.themes_desc">Try all 6 built-in themes live, customize all 20 color tokens, and export themes.json straight into the app.</p>
-                        <span class="explore-card-cta">
-                            <span data-i18n="explore.themes_cta">Open Theme Studio</span>
-                            <svg class="icon icon-xs history-dir-icon" aria-hidden="true"><use href="#icon-arrow-right"></use></svg>
-                        </span>
-                    </a>
-
                     <a href="history.html" class="explore-card">
                         <div class="explore-card-top">
                             <div class="feature-icon feature-icon--warning">
@@ -1343,11 +1445,11 @@
 
                     <details class="faq-item">
                         <summary>
-                            <span data-i18n="faq.q4">How do I use a custom theme created in the Theme Studio?</span>
+                            <span data-i18n="faq.q4">Can I customize the interface colors or share custom themes?</span>
                             <svg class="icon icon-xs faq-chevron" aria-hidden="true"><use href="#icon-chevron-down"></use></svg>
                         </summary>
                         <p data-i18n="faq.a4">
-                            Open the Theme Studio, customize any of the 20 colors, give your theme a name, and click Download themes.json. Inside Session Sniffer, open Settings → Appearance → Theme Manager → Import and select the downloaded file.
+                            Yes — Session Sniffer includes a built-in Theme Manager under Settings → Themes → Theme Manager. Switch between 6 built-in themes, customize all 20 color tokens with a live preview, and import, export, or copy and paste themes.json directly in the app.
                         </p>
                     </details>
 
@@ -1399,7 +1501,6 @@
                     <h4 data-i18n="footer.col_explore">Explore</h4>
                     <a href="#preview" data-i18n="nav.preview">Live Preview</a>
                     <a href="games.html" data-i18n="games.title">Supported Games &amp; Software</a>
-                    <a href="themes.html" data-i18n="nav.themes">Theme Studio</a>
                     <a href="history.html" data-i18n="footer.link_history">Project History</a>
                 </div>
                 <div class="footer-col">

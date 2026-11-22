@@ -56,7 +56,10 @@ class GameMixin(QMainWindow):
     _game_status_label: QLabel
     _game_status_widget_action: QAction
     _game_menu_status_separator: QAction
+    _player_resolver_submenu: QMenu
     _player_resolver_action: QAction
+    _player_resolver_hrm_action: QAction
+    _player_resolver_id_action: QAction
     _looky_submenu: QMenu
     _current_session_submenu: QMenu
     _session_history_submenu: QMenu
@@ -154,10 +157,30 @@ class GameMixin(QMainWindow):
         game_menu.aboutToShow.connect(self._update_game_status_label)
         self._game_menu_status_separator = game_menu.addSeparator()
 
+        player_resolver_submenu = game_menu.addMenu(QIcon(str(ICONS_DIR_PATH / 'search.svg')), tr('Player Resolver'))
+        if not player_resolver_submenu:
+            message = 'Failed to create Player Resolver submenu'
+            raise RuntimeError(message)
+        player_resolver_submenu.setToolTipsVisible(True)
+        self._player_resolver_submenu = player_resolver_submenu
+
         player_resolver_action = QAction(QIcon(str(ICONS_DIR_PATH / 'search.svg')), '', self)
         player_resolver_action.triggered.connect(self._open_player_resolver)
-        game_menu.addAction(player_resolver_action)
+        player_resolver_submenu.addAction(player_resolver_action)
         self._player_resolver_action = player_resolver_action
+
+        player_resolver_submenu.addSeparator()
+
+        hrm_action = QAction(QIcon(str(ICONS_DIR_PATH / 'gauge.svg')), '', self)
+        hrm_action.triggered.connect(lambda: self._open_player_resolver_tab(0))
+        player_resolver_submenu.addAction(hrm_action)
+        self._player_resolver_hrm_action = hrm_action
+
+        identifier_action = QAction(QIcon(str(ICONS_DIR_PATH / 'user-round-search.svg')), '', self)
+        identifier_action.triggered.connect(lambda: self._open_player_resolver_tab(1))
+        player_resolver_submenu.addAction(identifier_action)
+        self._player_resolver_id_action = identifier_action
+
         self._refresh_player_resolver_action_texts()
 
         self._build_looky_submenu(game_menu)
@@ -222,15 +245,22 @@ class GameMixin(QMainWindow):
         self._last_feature_set = Settings.capture_feature_set
 
     def _refresh_player_resolver_action_texts(self) -> None:
-        """Refresh the Player Resolver menu action text and tooltip with its configured global hotkey."""
+        """Refresh the Player Resolver submenu and actions with localized text and global hotkey."""
         resolver_hotkey = Settings.get_active_shortcut('player_resolver_hotkey')
-        self._player_resolver_action.setText(tr('Player Resolver'))
         base_tooltip = (
             tr('Find the exact IP of a player in your current {game} session.', game=self._active_game_label())
             if Settings.is_rockstar_feature_set()
             else tr('Find the exact IP of a player in your current session.')
         )
-        self._player_resolver_action.setToolTip(append_shortcut_tooltip(base_tooltip, resolver_hotkey, is_global=True))
+        full_tooltip = append_shortcut_tooltip(base_tooltip, resolver_hotkey, is_global=True)
+        self._player_resolver_submenu.setTitle(tr('Player Resolver'))
+        self._player_resolver_submenu.menuAction().setToolTip(full_tooltip)
+        self._player_resolver_action.setText(tr('Open Player Resolver'))
+        self._player_resolver_action.setToolTip(full_tooltip)
+        self._player_resolver_hrm_action.setText(tr('Player High Rate Monitor'))
+        self._player_resolver_hrm_action.setToolTip(tr('Monitor real-time per-player packet rate spikes and open live traffic graphs'))
+        self._player_resolver_id_action.setText(tr('Player Identifier'))
+        self._player_resolver_id_action.setToolTip(tr('Identify a target player IP by measuring traffic changes against a session baseline'))
 
     def toggle_manual_game_suspend(self) -> None:
         """Toggle manual process suspend on or off for the active game."""
@@ -532,7 +562,11 @@ class GameMixin(QMainWindow):
 
     def _open_player_resolver(self) -> None:
         """Open the Player Resolver window, or focus the existing one."""
-        self._player_resolver_window.show_and_focus()
+        self._open_player_resolver_tab(None)
+
+    def _open_player_resolver_tab(self, tab_index: int | None) -> None:
+        """Open or focus the Player Resolver window, optionally switching to *tab_index*."""
+        self._player_resolver_window.show_and_focus(tab_index)
 
     def _update_current_session_menu(self) -> None:
         """Rebuild the Current Session submenu with live host detection controls and active session stats."""

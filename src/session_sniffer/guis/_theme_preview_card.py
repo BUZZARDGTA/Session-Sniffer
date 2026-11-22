@@ -1,5 +1,6 @@
 """Clickable miniature UI preview card widget and live preview builder for browsing and editing themes."""
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Final, NamedTuple, override
 
 from PySide6.QtCore import QEvent, QPointF, QRect, QRectF, QSize, Qt, Signal
@@ -16,15 +17,30 @@ from PySide6.QtGui import (
     QPen,
     QPixmap,
 )
-from PySide6.QtWidgets import QFrame, QGroupBox, QHBoxLayout, QLabel, QLineEdit, QPushButton, QSizePolicy, QVBoxLayout, QWidget
+from PySide6.QtWidgets import (
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QPlainTextEdit,
+    QPushButton,
+    QSizePolicy,
+    QTabWidget,
+    QVBoxLayout,
+    QWidget,
+)
 
+from session_sniffer.guis.fonts import get_monospace_font
 from session_sniffer.guis.live_language import register_language_refresh
-from session_sniffer.guis.theming import Theme, ThemeColors, get_active_theme, themed_qcolor, themed_text_qcolor
+from session_sniffer.guis.stylesheets import COMPACT_BUTTON_STYLESHEET
+from session_sniffer.guis.theming import ICONS_DIR_PATH, Theme, ThemeColors, get_active_theme, themed_qcolor, themed_qss, themed_text_qcolor
 from session_sniffer.guis.theming._engine import ThemeTransform
 from session_sniffer.guis.utils import scale_by_ui
 from session_sniffer.i18n import tr
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from PySide6.QtGui import QPaintEvent
 
 _CARD_HEIGHT: Final = 196
@@ -33,6 +49,7 @@ _CAPTION_HEIGHT: Final = 34
 _CARD_RADIUS: Final = 8.0
 _SCENE_RADIUS: Final = 5.0
 _LUMINANCE_LIGHT_THRESHOLD: Final = 140.0
+_JSON_HINT_QSS: Final = themed_qss('color: @text_muted; font-size: 8.5pt; background: transparent;')
 
 PREVIEW_BASE_QSS: Final = (
     'QFrame#themePreviewRoot { background-color: @background; border: 1px solid @border; border-radius: 8px; }\n'
@@ -298,11 +315,36 @@ def _build_preview_statusbar() -> QFrame:
     return status
 
 
-def build_theme_preview_group(preview_root: QFrame) -> QGroupBox:
-    """Build the 20-token miniature Session Sniffer Live Preview group box for `ThemeManagerDialog`."""
-    preview_group = QGroupBox(tr('Live Preview'))
-    outer_layout = QVBoxLayout(preview_group)
-    outer_layout.setContentsMargins(8, 8, 8, 8)
+@dataclass(frozen=True, slots=True)
+class ThemePreviewTabsControls:
+    """Bottom `Live Preview` and `themes.json` tab controls for `ThemeManagerDialog`."""
+
+    tab_widget: QTabWidget
+    json_output: QPlainTextEdit
+    copy_json_button: QPushButton
+
+
+def _configure_json_toolbar_button(button: QPushButton, tooltip: str, slot: Callable[[], None]) -> QPushButton:
+    button.setToolTip(tooltip)
+    button.setStyleSheet(COMPACT_BUTTON_STYLESHEET)
+    button.setCursor(Qt.CursorShape.PointingHandCursor)
+    button.setAutoDefault(False)
+    button.clicked.connect(slot)
+    return button
+
+
+def build_theme_preview_tabs(
+    preview_root: QFrame,
+    *,
+    on_copy_json: Callable[[], None],
+    on_import_clipboard: Callable[[], None],
+) -> ThemePreviewTabsControls:
+    """Build the bottom `Live Preview` and live `themes.json` tab widget for `ThemeManagerDialog`."""
+    tab_widget = QTabWidget()
+
+    preview_page = QWidget()
+    preview_layout = QVBoxLayout(preview_page)
+    preview_layout.setContentsMargins(8, 8, 8, 8)
 
     preview_root.setObjectName('themePreviewRoot')
     root_layout = QVBoxLayout(preview_root)
@@ -321,13 +363,55 @@ def build_theme_preview_group(preview_root: QFrame) -> QGroupBox:
 
     root_layout.addStretch()
     root_layout.addWidget(_build_preview_statusbar())
-    outer_layout.addWidget(preview_root)
+    preview_layout.addWidget(preview_root)
+
+    json_page = QWidget()
+    json_layout = QVBoxLayout(json_page)
+    json_layout.setContentsMargins(8, 8, 8, 8)
+    json_layout.setSpacing(6)
+
+    json_toolbar = QHBoxLayout()
+    json_toolbar.setSpacing(6)
+    json_hint = QLabel(tr('Live themes.json preview — copy to share or import directly from your clipboard.'))
+    json_hint.setStyleSheet(_JSON_HINT_QSS)
+    json_toolbar.addWidget(json_hint, 1)
+
+    copy_json_button = _configure_json_toolbar_button(
+        QPushButton(QIcon(str(ICONS_DIR_PATH / 'copy.svg')), f" {tr('Copy JSON')}"),
+        tr('Copy the themes.json payload for the selected theme to the clipboard'),
+        on_copy_json,
+    )
+    import_clipboard_button = _configure_json_toolbar_button(
+        QPushButton(QIcon(str(ICONS_DIR_PATH / 'import.svg')), f" {tr('Import from Clipboard')}"),
+        tr('Import custom themes from a themes.json snippet in the clipboard'),
+        on_import_clipboard,
+    )
+    json_toolbar.addWidget(copy_json_button, 0)
+    json_toolbar.addWidget(import_clipboard_button, 0)
+    json_layout.addLayout(json_toolbar)
+
+    json_output = QPlainTextEdit()
+    json_output.setObjectName('themeJsonOutput')
+    json_output.setReadOnly(True)
+    mono_font = get_monospace_font(9)
+    mono_font.setFixedPitch(True)
+    json_output.setFont(mono_font)
+    json_output.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
+    json_output.setLayoutDirection(Qt.LayoutDirection.LeftToRight)
+    json_layout.addWidget(json_output, 1)
+
+    tab_widget.addTab(preview_page, QIcon(str(ICONS_DIR_PATH / 'eye.svg')), tr('Live Preview'))
+    tab_widget.addTab(json_page, QIcon(str(ICONS_DIR_PATH / 'code.svg')), 'themes.json')
 
     register_language_refresh(
-        preview_group,
+        tab_widget,
         lambda: sample_input.setText(tr('Search players or IPs…')),
     )
-    return preview_group
+    return ThemePreviewTabsControls(
+        tab_widget=tab_widget,
+        json_output=json_output,
+        copy_json_button=copy_json_button,
+    )
 
 
 class _PreviewRow(NamedTuple):

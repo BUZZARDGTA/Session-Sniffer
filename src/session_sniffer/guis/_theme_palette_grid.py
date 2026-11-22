@@ -6,6 +6,8 @@ from typing import TYPE_CHECKING, Final
 from PySide6.QtCore import QPoint, QRegularExpression, Qt
 from PySide6.QtGui import QColor, QIcon, QPainter, QPen, QPixmap, QRegularExpressionValidator
 from PySide6.QtWidgets import (
+    QColorDialog,
+    QDialog,
     QFrame,
     QGridLayout,
     QGroupBox,
@@ -49,6 +51,7 @@ class PaletteEditorCallbacks:
     """Callbacks invoked by token swatch buttons, hex fields, and preset-reset context menus."""
 
     pick_token_color: Callable[[str, str], None]
+    preview_token_hex_edit: Callable[[str, str], None]
     on_hex_return_pressed: Callable[[str, QLineEdit], None]
     commit_token_hex_edit: Callable[[str], None]
     apply_token_color: Callable[[str, str], None]
@@ -97,7 +100,7 @@ def _show_token_preset_menu(parent: QWidget, global_pos: QPoint, token: ThemeCol
 
 
 def show_full_palette_preset_menu(parent: QWidget, anchor_button: QPushButton, apply_preset: Callable[[ThemeColors], None]) -> None:
-    """Open a popup menu under *anchor_button* to reset all 21 tokens to any built-in theme preset."""
+    """Open a popup menu under *anchor_button* to reset all 20 tokens to any built-in theme preset."""
     menu = QMenu(parent)
     menu.setStyleSheet(SVG_ICON_CONTEXT_MENU_STYLESHEET)
     actions_to_colors: dict[QAction, ThemeColors] = {
@@ -107,6 +110,27 @@ def show_full_palette_preset_menu(parent: QWidget, anchor_button: QPushButton, a
     chosen = menu.exec(anchor_button.mapToGlobal(anchor_button.rect().bottomLeft()))
     if chosen in actions_to_colors:
         apply_preset(actions_to_colors[chosen])
+
+
+def pick_color_with_live_preview(
+    parent: QWidget,
+    initial_hex: str,
+    title: str,
+    on_live_color: Callable[[str], None],
+) -> str | None:
+    """Open a non-native `QColorDialog` streaming `#rrggbb` changes live; return accepted hex or `None`."""
+    color_dialog = QColorDialog(QColor(initial_hex), parent)
+    color_dialog.setWindowTitle(title)
+    color_dialog.setOption(QColorDialog.ColorDialogOption.DontUseNativeDialog, on=True)
+
+    def _on_changed(color: QColor) -> None:
+        if color.isValid():
+            on_live_color(color.name(QColor.NameFormat.HexRgb).lower())
+
+    color_dialog.currentColorChanged.connect(_on_changed)
+    if color_dialog.exec() == QDialog.DialogCode.Accepted and color_dialog.selectedColor().isValid():
+        return color_dialog.selectedColor().name(QColor.NameFormat.HexRgb).lower()
+    return None
 
 
 def _build_category_header(title: str) -> QWidget:
@@ -167,14 +191,18 @@ def _build_token_cell(
     hex_edit.setPlaceholderText('#rrggbb')
 
     def _apply_tooltips() -> None:
+        header = f'{tr(token.label)} (@{token.name})'
         reset_hint = tr('Right-click to reset "{token}" from a built-in preset.', token=tr(token.label))
-        rich_tip = f'{tr(token.description)}\n{reset_hint}'
+        rich_tip = f'{header}\n{tr(token.description)}\n{reset_hint}'
         label.setToolTip(rich_tip)
         hex_edit.setToolTip(rich_tip)
-        swatch_button.setToolTip(f"{tr(token.description)}\n{tr('Click to pick a color • Right-click to reset from a built-in preset.')}")
+        swatch_button.setToolTip(f"{header}\n{tr(token.description)}\n{tr('Click to pick a color • Right-click to reset from a built-in preset.')}")
 
     _apply_tooltips()
     register_language_refresh(label, _apply_tooltips)
+
+    def _on_text_edited(text: str) -> None:
+        callbacks.preview_token_hex_edit(token.name, text)
 
     def _on_return_pressed() -> None:
         callbacks.on_hex_return_pressed(token.name, hex_edit)
@@ -182,6 +210,7 @@ def _build_token_cell(
     def _on_editing_finished() -> None:
         callbacks.commit_token_hex_edit(token.name)
 
+    hex_edit.textEdited.connect(_on_text_edited)
     hex_edit.returnPressed.connect(_on_return_pressed)
     hex_edit.editingFinished.connect(_on_editing_finished)
     _attach_token_context_menu(hex_edit, parent, token, callbacks)
@@ -193,7 +222,7 @@ def _build_token_cell(
 
 
 def build_palette_group(parent: QWidget, callbacks: PaletteEditorCallbacks) -> PaletteGridControls:
-    """Build the scrollable, categorized 21-token `Color Palette` group box."""
+    """Build the scrollable, categorized 20-token `Color Palette` group box."""
     palette_group = QGroupBox(tr('Color Palette'))
     outer_layout = QVBoxLayout(palette_group)
     outer_layout.setContentsMargins(8, 8, 8, 8)

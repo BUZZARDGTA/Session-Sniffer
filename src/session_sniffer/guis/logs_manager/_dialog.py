@@ -300,6 +300,11 @@ class LogsManager(QDialog):
         self._stop_all_watchers()
         super().closeEvent(event)
 
+    def select_tab(self, title_key: str) -> None:
+        """Switch the active logs tab to *title_key* when present."""
+        if title_key in self._tab_titles:
+            self._tabs.setCurrentIndex(self._tab_titles.index(title_key))
+
     def _start_all_watchers(self) -> None:
         """Start filesystem watchers for all tabs."""
         for tab in self._all_tabs:

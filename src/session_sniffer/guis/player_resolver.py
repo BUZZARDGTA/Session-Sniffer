@@ -70,8 +70,10 @@ class PlayerResolverWindow(ToggleAlwaysOnTopMixin):
         self._tabs.setTabText(0, tr('Player High Rate Monitor'))
         self._tabs.setTabText(1, tr('Player Identifier'))
 
-    def show_and_focus(self) -> None:
-        """Show the window, bring it to the front, and activate it."""
+    def show_and_focus(self, tab_index: int | None = None) -> None:
+        """Show the window, bring it to the front, and optionally switch to *tab_index*."""
+        if tab_index is not None and 0 <= tab_index < self._tabs.count():
+            self._tabs.setCurrentIndex(tab_index)
         activate_window(self)
 
     @override

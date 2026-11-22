@@ -90,9 +90,12 @@ class FilesMixin(QMainWindow):
         """Open the UserIP Databases Manager on `db_path` and select the matching entry."""
         self._open_userip_manager().navigate_to_database(db_path, username=username, ip_or_range=ip_or_range)
 
-    def _open_logs_manager(self) -> LogsManager:
-        """Open the Logs Manager window, or focus the existing one."""
-        return show_or_focus_window(self, '_logs_manager_window', lambda: LogsManager(None))
+    def _open_logs_manager(self, tab_key: str | None = None) -> LogsManager:
+        """Open the Logs Manager window, or focus the existing one, optionally switching to *tab_key*."""
+        dialog = show_or_focus_window(self, '_logs_manager_window', lambda: LogsManager(None))
+        if tab_key is not None:
+            dialog.select_tab(tab_key)
+        return dialog
 
     def open_logs_manager_and_search_userip(self, text: str) -> None:
         """Open the Logs Manager on the UserIP Logging tab and filter by `text`."""
@@ -102,9 +105,11 @@ class FilesMixin(QMainWindow):
         """Open the Logs Manager on the Sessions Logging tab and start a global search for `text`."""
         self._open_logs_manager().search_in_sessions_logging(text)
 
-    def _open_detections_manager(self) -> None:
-        """Open the Detections Manager window, or focus the existing one."""
-        show_or_focus_window(self, '_detections_manager_window', lambda: DetectionsManagerDialog(None))
+    def _open_detections_manager(self, tab_key: str | None = None) -> None:
+        """Open the Detections Manager window, or focus the existing one, optionally switching to *tab_key*."""
+        dialog = show_or_focus_window(self, '_detections_manager_window', lambda: DetectionsManagerDialog(None))
+        if tab_key is not None:
+            dialog.select_tab(tab_key)
 
     def _open_hotspot_manager(self) -> None:
         """Open the Hotspot & Connection Sharing window, or focus the existing one."""
@@ -257,10 +262,78 @@ class FilesMixin(QMainWindow):
             self._files_i18n_menus = []
         self._files_i18n_menus.append((menu, title_key, tooltip_key))
 
-    def _add_i18n_menu_actions(self, menu: QMenu, specs: list[tuple[str, str, str, Callable[[], None]] | None]) -> None:
+    def _add_i18n_menu_actions(self, menu: QMenu, specs: list[tuple[str, str, str, Callable[[], object]] | None]) -> list[QAction]:
         if self._files_i18n_actions is None:
             self._files_i18n_actions = []
-        add_i18n_menu_actions(self, menu, ICONS_DIR_PATH, specs, self._files_i18n_actions)
+        return add_i18n_menu_actions(self, menu, ICONS_DIR_PATH, specs, self._files_i18n_actions)
+
+    def _build_tools_managers_section(self, tools_menu: QMenu) -> QAction:
+        """Populate the manager entries (`Detections Manager`, `UserIP Manager`, `Logs Manager`) and return the `GTA5 Relays` action."""
+        relays_action = self._build_detections_manager_submenu(tools_menu)
+        self._add_i18n_menu_actions(
+            tools_menu,
+            [('database.svg', 'UserIP Manager', 'Browse, edit, add, and delete entries in UserIP database files', self._open_userip_manager)],
+        )
+        self._build_logs_manager_submenu(tools_menu)
+        return relays_action
+
+    def _build_detections_manager_submenu(self, tools_menu: QMenu) -> QAction:
+        """Add the `Detections Manager` submenu with direct-jump tab actions and return the dynamic `GTA5 Relays` action."""
+        submenu = tools_menu.addMenu(QIcon(str(ICONS_DIR_PATH / 'shield.svg')), tr('Detections Manager'))
+        if not submenu:
+            message = 'Failed to create Detections Manager submenu'
+            raise RuntimeError(message)
+        submenu.setToolTipsVisible(True)
+        tooltip = 'Configure detection, notifications, and protection rules'
+        submenu.menuAction().setToolTip(tr(tooltip))
+        self._register_i18n_menu(submenu, 'Detections Manager', tooltip)
+
+        def _open_tab(tab_key: str | None) -> Callable[[], None]:
+            return lambda: self._open_detections_manager(tab_key)
+
+        actions = self._add_i18n_menu_actions(
+            submenu,
+            [
+                ('shield.svg', 'Open Detections Manager', 'Open the Detections Manager window', _open_tab(None)),
+                None,
+                ('user-round.svg', 'Player Events', 'Configure join, leave, rejoin, and UserIP database player event notifications', _open_tab('Player Events')),
+                ('ethernet-port.svg', 'Network-Based', 'Configure Mobile, VPN/Proxy, Hosting, ISP, and ASN network detections', _open_tab('Network-Based')),
+                ('globe.svg', 'Geography-Based', 'Configure continent and country-based player detections', _open_tab('Geography-Based')),
+                ('link.svg', 'Combo Rules', 'Create and manage multi-condition combination detection rules', _open_tab('Combo Rules')),
+                ('route.svg', 'GTA5 Relays', 'Configure GTA V relay IP detection and persistence thresholds', _open_tab('GTA5 Relays')),
+            ],
+        )
+        relays_action = actions[-1]
+        relays_action.setVisible(Settings.is_gta5_feature_set())
+        return relays_action
+
+    def _build_logs_manager_submenu(self, tools_menu: QMenu) -> None:
+        """Add the `Logs Manager` submenu with direct-jump actions for every log tab."""
+        submenu = tools_menu.addMenu(QIcon(str(ICONS_DIR_PATH / 'file-text.svg')), tr('Logs Manager'))
+        if not submenu:
+            message = 'Failed to create Logs Manager submenu'
+            raise RuntimeError(message)
+        submenu.setToolTipsVisible(True)
+        tooltip = 'View, search, filter, and manage application log files'
+        submenu.menuAction().setToolTip(tr(tooltip))
+        self._register_i18n_menu(submenu, 'Logs Manager', tooltip)
+
+        def _open_tab(tab_key: str | None) -> Callable[[], object]:
+            return lambda: self._open_logs_manager(tab_key)
+
+        self._add_i18n_menu_actions(
+            submenu,
+            [
+                ('file-text.svg', 'Open Logs Manager', 'Open the Logs Manager window', _open_tab(None)),
+                None,
+                ('database.svg', 'UserIP Logging', 'Browse and search logged UserIP database matches', _open_tab('UserIP Logging')),
+                ('bell.svg', 'Detection Logging', 'Browse and search logged detection events', _open_tab('Detection Logging')),
+                ('shield.svg', 'Protection Logging', 'Browse and search logged protection and alert events', _open_tab('Protection Logging')),
+                ('folder.svg', 'Sessions Logging', 'Browse and search archived session logs', _open_tab('Sessions Logging')),
+                ('bug.svg', 'Debug Log', 'View and filter the application debug.log file', _open_tab('Debug Log')),
+                ('triangle-alert.svg', 'Crash Log', 'View recorded application crash reports in crash.log', _open_tab('Crash Log')),
+            ],
+        )
 
     def _refresh_files_menu_language_texts(self) -> None:
         """Re-translate Data & Files and Help menus, submenus, and actions on language change."""

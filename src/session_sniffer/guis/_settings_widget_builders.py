@@ -41,7 +41,7 @@ from PySide6.QtWidgets import (
 
 from session_sniffer.guis.color_picker_dialog import ColorPickerButton
 from session_sniffer.guis.delegates import ElidedTextTooltipDelegate
-from session_sniffer.guis.live_language import register_language_refresh, set_i18n_colon_label
+from session_sniffer.guis.live_language import add_i18n_menu_actions, register_language_refresh, set_i18n_colon_label
 from session_sniffer.guis.secret_line_edit import SecretLineEdit
 from session_sniffer.guis.stylesheets import (
     COMPACT_BUTTON_STYLESHEET,
@@ -59,6 +59,9 @@ from session_sniffer.settings.settings import Settings
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+
+    from PySide6.QtCore import QObject
+    from PySide6.QtWidgets import QMenuBar
 
 
 def format_setting_tooltip(meta: SettingMeta) -> str | None:
@@ -852,3 +855,66 @@ def build_shortcuts_help_group() -> QGroupBox:
     _refresh_text()
     register_language_refresh(group_box, _refresh_text)
     return group_box
+
+
+_SETTINGS_TAB_MENU_SPECS: tuple[tuple[str, str, str], ...] = (
+    ('sliders-horizontal.svg', 'General', 'Configure language, startup, window behavior, and general preferences'),
+    ('palette.svg', 'Themes', 'Choose a built-in theme, follow your OS color scheme, or manage custom color themes'),
+    ('keyboard.svg', 'Shortcuts', 'Configure global hotkeys and main window keyboard shortcuts'),
+    ('network.svg', 'Capture', 'Configure packet capture engine, filters, ISP/server blocking, and network lookups'),
+    ('activity.svg', 'Session', 'Configure session tracking, disconnect timeouts, notifications, and player lists'),
+    ('eye.svg', 'Columns', 'Show, hide, and customize columns in the Connected and Disconnected session tables'),
+    ('discord.svg', 'Discord', 'Configure Discord Rich Presence and session webhook integration'),
+    ('monitor-smartphone.svg', 'Web Server', 'Configure the embedded LAN Web Dashboard, port, and mobile QR access'),
+)
+
+SETTINGS_CATEGORY_ICONS: dict[str, str] = {
+    **{category: icon_name for icon_name, category, _tooltip in _SETTINGS_TAB_MENU_SPECS},
+    'GTA V': 'gamepad-2.svg',
+}
+
+
+def sync_settings_game_tab_action(action: QAction) -> None:
+    """Update the dynamic `GTA V` / `RDR2` tab action visibility, label, and tooltip from `Settings`."""
+    has_feature_set = Settings.is_rockstar_feature_set()
+    action.setVisible(has_feature_set)
+    if not has_feature_set:
+        return
+    if Settings.is_gta5_feature_set():
+        action.setText(tr('GTA V'))
+        action.setToolTip(tr('Configure GTA V session host detection, relays, and Looky System settings'))
+    else:
+        action.setText(tr('RDR2'))
+        action.setToolTip(tr('Configure RDR2 session host detection and gameplay settings'))
+
+
+def build_settings_menu(
+    parent: QObject,
+    menu_bar: QMenuBar,
+    menu_records: list[tuple[QMenu, str]],
+    action_records: list[tuple[QAction, str, str]],
+    on_open_settings: Callable[[str | None], None],
+) -> tuple[QAction, QAction]:
+    """Create and populate the `Settings` menu with `Open Settings` plus every Settings tab."""
+    settings_menu = menu_bar.addMenu(tr('Settings'))
+    if not settings_menu:
+        message = 'Failed to create Settings menu'
+        raise RuntimeError(message)
+    settings_menu.setToolTipsVisible(True)
+    menu_records.append((settings_menu, 'Settings'))
+
+    def _make_open_callback(category: str | None) -> Callable[[], None]:
+        return lambda: on_open_settings(category)
+
+    specs: list[tuple[str, str, str, Callable[[], object]] | None] = [
+        ('settings.svg', 'Open Settings', 'View and edit all application settings', _make_open_callback(None)),
+        None,
+        *((icon_name, category, tooltip, _make_open_callback(category)) for icon_name, category, tooltip in _SETTINGS_TAB_MENU_SPECS),
+    ]
+    actions = add_i18n_menu_actions(parent, settings_menu, ICONS_DIR_PATH, specs, action_records)
+
+    game_tab_action = QAction(QIcon(str(ICONS_DIR_PATH / 'gamepad-2.svg')), '', parent)
+    game_tab_action.triggered.connect(_make_open_callback('GTA V'))
+    settings_menu.addAction(game_tab_action)
+    sync_settings_game_tab_action(game_tab_action)
+    return actions[0], game_tab_action

@@ -2,7 +2,7 @@
    Session Sniffer Website Core Controller (Shared across all pages)
    - Injects shared SVG icon sprite generated from resources/icons/
    - Powers all 33 Session Sniffer languages (lazy-loaded bundles + live RTL)
-   - Powers global 6-theme switcher + persisted custom themes across pages
+   - Powers global 6-theme switcher across pages
    - Powers sticky navbar dropdowns, mobile drawer, toasts & rich tooltips
    - Hydrates live release stats & OS-specific download links from GitHub + Discord
    ========================================================================== */
@@ -16,9 +16,7 @@
     }
 
     var STORAGE_THEME_KEY = 'ss_website_theme';
-    var STORAGE_CUSTOM_THEME_KEY = 'ss_website_custom_theme';
     var STORAGE_LANG_KEY = 'ss_website_lang';
-    var HEX_COLOR_RE = /^#[0-9a-f]{6}$/i;
     /* Matches PPS_MAX_THRESHOLD / BPS_MAX_THRESHOLD in rendering_core/session_table_renderer.py */
     var PPS_MAX_THRESHOLD = 10;
     var BPS_MAX_THRESHOLD = 1024;
@@ -43,15 +41,12 @@
     var PAGE_META_KEYS = {
         home: { title: 'meta.title', description: 'meta.description' },
         games: { title: 'meta.games_title', description: 'meta.games_description' },
-        themes: { title: 'meta.themes_title', description: 'meta.themes_description' },
         history: { title: 'meta.history_title', description: 'meta.history_description' },
     };
 
     var BUILTIN_BY_SLUG = {};
-    var BUILTIN_NAME_SET = {};
     DATA.builtinThemes.forEach(function registerTheme(theme) {
         BUILTIN_BY_SLUG[theme.slug] = theme;
-        BUILTIN_NAME_SET[theme.name.toLowerCase()] = true;
     });
 
     var LANG_BY_CODE = {};
@@ -567,7 +562,7 @@
     }
 
     /* ----------------------------------------------------------------------
-       Theme Engine (6 Built-in Themes + Persisted Custom Themes)
+       Theme Engine (6 Built-in Session Sniffer Themes)
        ---------------------------------------------------------------------- */
 
     var initialSlug = document.documentElement.getAttribute('data-theme') || DATA.defaultThemeSlug;
@@ -577,85 +572,15 @@
 
     var themeState = {
         activeThemeSlug: initialSlug,
-        baseSlug: initialSlug,
-        customName: 'My Custom Theme',
-        colors: Object.assign({}, BUILTIN_BY_SLUG[initialSlug].colors),
-        isCustomLive: false,
-        activeTableIsLight: false,
+        activeTableIsLight: isLightColor(BUILTIN_BY_SLUG[initialSlug].colors.table || BUILTIN_BY_SLUG[initialSlug].colors.background),
     };
-    themeState.activeTableIsLight = isLightColor(themeState.colors.table || themeState.colors.background);
-
-    function persistCustomTheme() {
-        try {
-            window.localStorage.setItem(STORAGE_CUSTOM_THEME_KEY, JSON.stringify({
-                name: themeState.customName,
-                baseSlug: themeState.baseSlug,
-                colors: themeState.colors,
-            }));
-        } catch (_err) {
-            /* Ignore storage restrictions. */
-        }
-    }
-
-    function clearPersistedCustomTheme() {
-        try {
-            window.localStorage.removeItem(STORAGE_CUSTOM_THEME_KEY);
-        } catch (_err) {
-            /* Ignore storage restrictions. */
-        }
-    }
-
-    function loadPersistedCustomTheme() {
-        try {
-            var raw = window.localStorage.getItem(STORAGE_CUSTOM_THEME_KEY);
-            if (!raw) {
-                return null;
-            }
-            var parsed = JSON.parse(raw);
-            if (!parsed || !parsed.colors || typeof parsed.colors !== 'object') {
-                return null;
-            }
-            var baseSlug = BUILTIN_BY_SLUG[parsed.baseSlug] ? parsed.baseSlug : themeState.activeThemeSlug;
-            var mergedColors = Object.assign({}, BUILTIN_BY_SLUG[baseSlug].colors);
-            var validCount = 0;
-            DATA.themeTokens.forEach(function readToken(token) {
-                var val = parsed.colors[token.name];
-                if (typeof val === 'string' && HEX_COLOR_RE.test(val.trim())) {
-                    mergedColors[token.name] = val.trim().toLowerCase();
-                    validCount += 1;
-                }
-            });
-            if (validCount === 0) {
-                return null;
-            }
-            return {
-                name: (typeof parsed.name === 'string' && parsed.name.trim())
-                    ? parsed.name.slice(0, DATA.themeNameMaxLength)
-                    : 'My Custom Theme',
-                baseSlug: baseSlug,
-                colors: mergedColors,
-            };
-        } catch (_err) {
-            return null;
-        }
-    }
-
-    function clearInlineThemeOverrides() {
-        var rootStyle = document.documentElement.style;
-        DATA.themeTokens.forEach(function clearToken(token) {
-            rootStyle.removeProperty('--ss-' + token.cssKey);
-            rootStyle.removeProperty('--ss-' + token.cssKey + '-rgb');
-        });
-    }
 
     function syncActiveThemeLabel() {
         var label = document.getElementById('active-theme-label');
         if (!label) {
             return;
         }
-        if (themeState.isCustomLive) {
-            label.textContent = tSite('nav.theme_custom');
-        } else if (BUILTIN_BY_SLUG[themeState.activeThemeSlug]) {
+        if (BUILTIN_BY_SLUG[themeState.activeThemeSlug]) {
             label.textContent = tApp(BUILTIN_BY_SLUG[themeState.activeThemeSlug].name);
         }
     }
@@ -674,17 +599,12 @@
 
     function updateThemeSelectionIndicators() {
         document.querySelectorAll('.theme-option-btn').forEach(function markOpt(btn) {
-            var match = !themeState.isCustomLive && btn.getAttribute('data-theme-slug') === themeState.activeThemeSlug;
+            var match = btn.getAttribute('data-theme-slug') === themeState.activeThemeSlug;
             btn.classList.toggle('is-active', match);
             var icon = btn.querySelector('svg');
             if (icon) {
                 icon.style.opacity = match ? '1' : '0';
             }
-        });
-        document.querySelectorAll('.theme-preset-card').forEach(function markCard(card) {
-            var match = !themeState.isCustomLive && card.getAttribute('data-theme-slug') === themeState.activeThemeSlug;
-            card.classList.toggle('is-active', match);
-            card.setAttribute('aria-pressed', match ? 'true' : 'false');
         });
     }
 
@@ -695,15 +615,11 @@
         }
         var opts = options || {};
         themeState.activeThemeSlug = slug;
-        themeState.isCustomLive = false;
-        clearInlineThemeOverrides();
 
         document.documentElement.setAttribute('data-theme', slug);
-        document.documentElement.removeAttribute('data-custom-theme');
         applyThemeColorsRuntime(theme.colors);
 
         if (!opts.skipSave) {
-            clearPersistedCustomTheme();
             try {
                 window.localStorage.setItem(STORAGE_THEME_KEY, slug);
             } catch (_err) {
@@ -712,58 +628,8 @@
         }
 
         syncActiveThemeLabel();
-
-        if (!opts.keepStudioColors) {
-            themeState.baseSlug = slug;
-            themeState.colors = Object.assign({}, theme.colors);
-        }
-
         updateThemeSelectionIndicators();
-        notifyThemeChange(opts.keepStudioColors ? 'builtin-keep-studio' : 'builtin');
-    }
-
-    function applyCustomColorLive(tokenName, hexValue) {
-        var cssKey = tokenName.replace(/_/g, '-');
-        var rgb = hexToRgb(hexValue);
-        var rootStyle = document.documentElement.style;
-        rootStyle.setProperty('--ss-' + cssKey, hexValue);
-        rootStyle.setProperty('--ss-' + cssKey + '-rgb', rgb.join(', '));
-
-        themeState.colors[tokenName] = hexValue.toLowerCase();
-        themeState.isCustomLive = true;
-        document.documentElement.setAttribute('data-custom-theme', 'true');
-        applyThemeColorsRuntime(themeState.colors);
-        persistCustomTheme();
-        syncActiveThemeLabel();
-        updateThemeSelectionIndicators();
-        notifyThemeChange('custom-token');
-    }
-
-    function applyAllStudioColorsLive(options) {
-        var opts = options || {};
-        var rootStyle = document.documentElement.style;
-        DATA.themeTokens.forEach(function setVar(token) {
-            var hex = themeState.colors[token.name];
-            var rgb = hexToRgb(hex);
-            rootStyle.setProperty('--ss-' + token.cssKey, hex);
-            rootStyle.setProperty('--ss-' + token.cssKey + '-rgb', rgb.join(', '));
-        });
-        themeState.isCustomLive = true;
-        document.documentElement.setAttribute('data-custom-theme', 'true');
-        applyThemeColorsRuntime(themeState.colors);
-        if (!opts.skipSave) {
-            persistCustomTheme();
-        }
-        syncActiveThemeLabel();
-        updateThemeSelectionIndicators();
-        notifyThemeChange('custom-all');
-    }
-
-    function setCustomThemeName(name) {
-        themeState.customName = String(name || '');
-        if (themeState.isCustomLive) {
-            persistCustomTheme();
-        }
+        notifyThemeChange('builtin');
     }
 
     function buildThemeDropdown() {
@@ -799,13 +665,13 @@
             btn.appendChild(left);
 
             var checkIcon = createIconSvg('check', 'icon-xs');
-            checkIcon.style.opacity = (!themeState.isCustomLive && theme.slug === themeState.activeThemeSlug) ? '1' : '0';
+            checkIcon.style.opacity = theme.slug === themeState.activeThemeSlug ? '1' : '0';
             btn.appendChild(checkIcon);
 
             btn.addEventListener('click', function onSelectTheme() {
                 setBuiltinTheme(theme.slug);
                 closeThemeDropdown();
-                showToast(tSite('studio.toast_applied', { name: tApp(theme.name) }));
+                showToast(tSite('nav.theme_applied', { name: tApp(theme.name) }));
             });
 
             list.appendChild(btn);
@@ -967,11 +833,6 @@
                     updateThemeSelectionIndicators();
                 }
             });
-        }
-
-        var studioLink = document.getElementById('dropdown-open-studio');
-        if (studioLink) {
-            studioLink.addEventListener('click', closeThemeDropdown);
         }
 
         var mobileToggle = document.getElementById('mobile-nav-toggle');
@@ -1413,8 +1274,6 @@
     window.SSCore = {
         DATA: DATA,
         BUILTIN_BY_SLUG: BUILTIN_BY_SLUG,
-        BUILTIN_NAME_SET: BUILTIN_NAME_SET,
-        HEX_COLOR_RE: HEX_COLOR_RE,
         PPS_MAX_THRESHOLD: PPS_MAX_THRESHOLD,
         BPS_MAX_THRESHOLD: BPS_MAX_THRESHOLD,
         getPageId: getPageId,
@@ -1439,10 +1298,6 @@
         hideRichTooltip: hideRichTooltip,
         getThemeState: function getThemeState() { return themeState; },
         setBuiltinTheme: setBuiltinTheme,
-        applyCustomColorLive: applyCustomColorLive,
-        applyAllStudioColorsLive: applyAllStudioColorsLive,
-        setCustomThemeName: setCustomThemeName,
-        updateThemeSelectionIndicators: updateThemeSelectionIndicators,
         closeThemeDropdown: closeThemeDropdown,
         closeLangDropdown: closeLangDropdown,
         closeMobileNavDrawer: closeMobileNavDrawer,
@@ -1455,16 +1310,7 @@
     injectIconSprite();
     applyStaticMetadata();
     buildThemeDropdown();
-
-    var savedCustom = loadPersistedCustomTheme();
-    if (savedCustom) {
-        themeState.customName = savedCustom.name;
-        themeState.baseSlug = savedCustom.baseSlug;
-        themeState.colors = savedCustom.colors;
-        applyAllStudioColorsLive({ skipSave: true });
-    } else {
-        setBuiltinTheme(themeState.activeThemeSlug, { skipSave: true });
-    }
+    setBuiltinTheme(themeState.activeThemeSlug, { skipSave: true });
 
     initNavigationControls();
     initRichTooltips();
