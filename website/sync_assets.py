@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Sync shared themes, i18n catalogs, metadata, Lucide SVG icons, and flags from Session Sniffer into `website/assets/`."""
 
 from __future__ import annotations
