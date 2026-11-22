@@ -82,6 +82,10 @@ Do not introduce a separate styling system or duplicate existing styles just to 
   * Use `set_i18n_colon_label()`, `set_table_headers()`, `set_tree_headers()`, and `add_i18n_menu_actions()` where applicable, escape literal `&` as `&&` on `QGroupBox` titles (`.replace('&', '&&')`), and register `register_language_refresh(owner, callback)` for any widget with interpolated, compound, or state-dependent text/tooltips.
 * Whenever adding, changing, renaming, or removing user-facing GUI strings, update **all 32** `resources/translations/*.json` catalogs in the same task (`i18n.md`).
 
+## Website Live Preview Parity
+
+* Whenever modifying any user-visible desktop GUI layout, stylesheet, theme token, built-in theme, menu/context-menu item, header/search control, section bar/spinbox, table column/alignment/empty state/rate gradient, status bar, icon, or language/flag control that appears in `website/`, mirror the change 1:1 in `website/` in the same task and run `python website/sync_assets.py` (see `website-parity.md`).
+
 ## Errors
 
 For GUI-specific error states, use the project's existing exception and message-box patterns.

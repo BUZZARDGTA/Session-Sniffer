@@ -1,6 +1,7 @@
 bin/** linguist-vendored
 check_project_dependencies.py linguist-vendored
 code_quality_checks.py linguist-vendored
+website/** linguist-vendored
 
 # Auto detect text files and normalize line endings to CRLF
 * text=auto eol=crlf
@@ -16,6 +17,9 @@ code_quality_checks.py linguist-vendored
 *.ini text eol=crlf
 *.flake8 text eol=crlf
 *.svg text eol=crlf
+*.html text eol=crlf
+*.css text eol=crlf
+*.js text eol=crlf
 
 # Documentation
 *.md text eol=crlf

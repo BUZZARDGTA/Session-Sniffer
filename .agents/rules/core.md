@@ -22,6 +22,7 @@ Treat the existing codebase and architecture as intentional. Before making chang
 - Do not modify user changes that are unrelated to the task.
 - Whenever a setting is added, removed, renamed, or its default, range, label, group, or behavior changes, update the Wiki `Configuration-Guide.md` in the same task (see "Settings Documentation" in `data-storage.md`).
 - Whenever any user-facing text, UI label/tooltip/dialog/menu, notification, web panel string, theme token label, or `SettingMeta` text is added, modified, renamed, or removed, wrap it with `tr()` / `tr_plural()`, wire live language retranslation where needed, and update **all 32** `resources/translations/*.json` catalogs in the same task (see `i18n.md`).
+- Whenever any user-visible desktop GUI element, stylesheet, theme, icon, table/menu/header/status-bar layout, country flag, or supported language changes in the desktop app — or whenever the interactive live preview in `website/` is edited — keep the desktop app and `website/` visually and structurally synchronized 1:1 in the same task and refresh generated assets via `python website/sync_assets.py` (see `website-parity.md`).
 
 ## No Backward Compatibility
 

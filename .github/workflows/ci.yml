@@ -9,6 +9,14 @@ on:
       - '.gitignore'
       - '.gitattributes'
       - '.vscode/**'
+      - 'website/**/*.html'
+      - 'website/**/*.css'
+      - 'website/**/*.js'
+      - 'website/**/*.svg'
+      - 'website/**/*.png'
+      - 'website/translations/**'
+      - 'website/_headers'
+      - 'website/robots.txt'
   pull_request:
     branches: [main]
     paths-ignore:
@@ -17,6 +25,14 @@ on:
       - '.gitignore'
       - '.gitattributes'
       - '.vscode/**'
+      - 'website/**/*.html'
+      - 'website/**/*.css'
+      - 'website/**/*.js'
+      - 'website/**/*.svg'
+      - 'website/**/*.png'
+      - 'website/translations/**'
+      - 'website/_headers'
+      - 'website/robots.txt'
   workflow_call:
   workflow_dispatch:
 

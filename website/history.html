@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr" data-theme="dark" data-page="history">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Project History &amp; Release Archive — Session Sniffer</title>
+    <meta name="description" content="Explore 5 years of Session Sniffer evolution (2021–2026) from PS3 Blacklist Sniffer to the cross-platform PySide6 suite, plus every tagged release.">
+    <meta name="theme-color" content="#121212">
+
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Project History &amp; Release Archive — Session Sniffer">
+    <meta property="og:description" content="Explore 5 years of Session Sniffer evolution (2021–2026) from PS3 Blacklist Sniffer to the cross-platform PySide6 suite, plus every tagged release.">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Project History &amp; Release Archive — Session Sniffer">
+    <meta name="twitter:description" content="Explore 5 years of Session Sniffer evolution (2021–2026) from PS3 Blacklist Sniffer to the cross-platform PySide6 suite, plus every tagged release.">
+
+    <link rel="icon" type="image/svg+xml" href="assets/app_icon.svg">
+    <link rel="stylesheet" href="assets/themes.generated.css">
+    <script src="theme-init.js"></script>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="history.css">
+</head>
+
+<body>
+    <a class="skip-link" href="#main-content" data-i18n="skip_link">Skip to main content</a>
+
+    <!-- ==================== STICKY NAVIGATION ==================== -->
+    <header class="site-header">
+        <div class="container header-inner">
+            <a href="index.html" class="brand" aria-label="Session Sniffer home">
+                <span class="brand-mark" aria-hidden="true">
+                    <svg class="icon icon-brand"><use href="#icon-app_icon"></use></svg>
+                </span>
+                <span class="brand-text">
+                    <span class="brand-name">Session Sniffer</span>
+                    <span class="version-pill" data-release-version>v1.5.0</span>
+                </span>
+            </a>
+
+            <nav class="main-nav" aria-label="Primary navigation">
+                <a href="index.html#preview" data-i18n="nav.preview">Live Preview</a>
+                <a href="index.html#features" data-i18n="nav.features">Features</a>
+                <a href="index.html#download" data-i18n="nav.download">Download</a>
+                <a href="games.html" data-i18n="nav.games">Games</a>
+                <a href="themes.html" data-i18n="nav.themes">Theme Studio</a>
+                <a href="history.html" class="is-active" aria-current="page" data-i18n="nav.history">History</a>
+            </nav>
+
+            <div class="header-actions">
+                <!-- 33-Language Switcher -->
+                <div class="lang-switcher" id="nav-lang-switcher">
+                    <button
+                        type="button"
+                        class="btn btn-control btn-lang-toggle"
+                        id="lang-menu-button"
+                        aria-haspopup="menu"
+                        aria-expanded="false"
+                        aria-controls="lang-menu-dropdown"
+                        data-i18n-title="nav.lang_dropdown_title"
+                        title="Interface Language"
+                    >
+                        <img class="lang-flag-img" id="active-lang-flag" src="assets/flags/US.png" alt="" width="18" height="12">
+                        <span class="lang-toggle-code mono" id="active-lang-code">EN</span>
+                        <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-chevron-down"></use></svg>
+                    </button>
+                    <div class="lang-dropdown" id="lang-menu-dropdown" role="menu" hidden>
+                        <div class="theme-dropdown-header">
+                            <span data-i18n="nav.lang_dropdown_title">Interface Language</span>
+                            <span class="theme-dropdown-tag" data-languages-count>33</span>
+                        </div>
+                        <div class="lang-search-wrap">
+                            <input
+                                type="search"
+                                id="lang-search-input"
+                                class="lang-search-input"
+                                data-i18n-placeholder="nav.lang_search_placeholder"
+                                placeholder="Search 33 languages..."
+                                aria-label="Search languages"
+                            >
+                        </div>
+                        <div id="lang-dropdown-list" class="lang-dropdown-list"></div>
+                    </div>
+                </div>
+
+                <!-- 6-Theme Switcher -->
+                <div class="theme-switcher" id="nav-theme-switcher">
+                    <button
+                        type="button"
+                        class="btn btn-control btn-theme-toggle"
+                        id="theme-menu-button"
+                        aria-haspopup="menu"
+                        aria-expanded="false"
+                        aria-controls="theme-menu-dropdown"
+                        data-i18n-title="nav.theme_dropdown_title"
+                        title="Built-in App Themes"
+                    >
+                        <span class="theme-swatch-dot" id="active-theme-swatch" aria-hidden="true"></span>
+                        <span class="theme-toggle-label" id="active-theme-label">Dark</span>
+                        <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-chevron-down"></use></svg>
+                    </button>
+                    <div class="theme-dropdown" id="theme-menu-dropdown" role="menu" hidden>
+                        <div class="theme-dropdown-header">
+                            <span data-i18n="nav.theme_dropdown_title">Built-in App Themes</span>
+                            <span class="theme-dropdown-tag">themes.py</span>
+                        </div>
+                        <div id="theme-dropdown-list" class="theme-dropdown-list"></div>
+                        <div class="theme-dropdown-footer">
+                            <a href="themes.html" class="theme-dropdown-studio-link" id="dropdown-open-studio">
+                                <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-palette"></use></svg>
+                                <span data-i18n="nav.theme_customize">Customize in Theme Studio</span>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+                <a
+                    href="https://github.com/BUZZARDGTA/Session-Sniffer"
+                    class="icon-btn header-social-link"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    data-i18n-title="nav.github_label"
+                    aria-label="GitHub Repository"
+                    title="GitHub Repository"
+                >
+                    <svg class="icon icon-sm" aria-hidden="true"><use href="#icon-github"></use></svg>
+                </a>
+
+                <a
+                    href="https://discord.gg/hMZ7MsPX7G"
+                    class="icon-btn header-social-link"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    data-i18n-title="nav.discord_label"
+                    aria-label="Discord Community"
+                    title="Discord Community"
+                >
+                    <svg class="icon icon-sm" aria-hidden="true"><use href="#icon-discord"></use></svg>
+                </a>
+
+                <a href="index.html#download" class="btn btn-primary btn-nav-download">
+                    <svg class="icon icon-sm" aria-hidden="true"><use href="#icon-cloud-download"></use></svg>
+                    <span data-i18n="nav.download">Download</span>
+                </a>
+
+                <button
+                    type="button"
+                    class="icon-btn mobile-nav-toggle"
+                    id="mobile-nav-toggle"
+                    aria-label="Toggle navigation menu"
+                    aria-expanded="false"
+                    aria-controls="mobile-nav-drawer"
+                >
+                    <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <line x1="4" y1="7" x2="20" y2="7"></line>
+                        <line x1="4" y1="12" x2="20" y2="12"></line>
+                        <line x1="4" y1="17" x2="20" y2="17"></line>
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        <nav class="mobile-nav-drawer" id="mobile-nav-drawer" aria-label="Mobile navigation" hidden>
+            <a href="index.html#preview" data-i18n="nav.preview">Live Preview</a>
+            <a href="index.html#features" data-i18n="nav.features">Features</a>
+            <a href="index.html#download" data-i18n="nav.download">Download</a>
+            <a href="games.html" data-i18n="nav.games">Games</a>
+            <a href="themes.html" data-i18n="nav.themes">Theme Studio</a>
+            <a href="history.html" class="is-active" aria-current="page" data-i18n="nav.history">History</a>
+            <a href="https://github.com/BUZZARDGTA/Session-Sniffer/wiki" target="_blank" rel="noopener noreferrer" data-i18n="nav.wiki">Project Wiki</a>
+            <div class="mobile-nav-social">
+                <a href="https://github.com/BUZZARDGTA/Session-Sniffer" target="_blank" rel="noopener noreferrer">
+                    <svg class="icon icon-sm" aria-hidden="true"><use href="#icon-github"></use></svg>
+                    <span data-i18n="nav.github_label">GitHub Repository</span>
+                </a>
+                <a href="https://discord.gg/hMZ7MsPX7G" target="_blank" rel="noopener noreferrer">
+                    <svg class="icon icon-sm" aria-hidden="true"><use href="#icon-discord"></use></svg>
+                    <span data-i18n="nav.discord_label">Discord Community</span>
+                </a>
+            </div>
+        </nav>
+    </header>
+
+    <main id="main-content">
+        <!-- ==================== PROJECT HISTORY & VERSION ARCHIVE ==================== -->
+        <section class="section section-page" id="history">
+            <div class="container">
+                <div class="section-header">
+                    <span class="section-eyebrow">
+                        <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-rotate-ccw-clock"></use></svg>
+                        <span data-i18n="history.eyebrow">5 Years of Evolution · 2021 – 2026</span>
+                    </span>
+                    <h1 class="section-title" data-i18n="history.title">The Complete History of Session Sniffer</h1>
+                    <p class="section-lead" data-i18n="history.lead">
+                        From a 2021 PS3 Batch script wrapping TShark to a cross-platform PySide6 network analysis suite in 33 languages — explore every generation and tagged release.
+                    </p>
+                </div>
+
+                <!-- Historical Stats Ribbon -->
+                <div class="history-stats-grid" aria-label="Historical metrics">
+                    <div class="stat-tile">
+                        <span class="stat-label" data-i18n="history.stat_span_label">Active Development</span>
+                        <span class="stat-value" data-i18n="history.stat_span_value">5 Years</span>
+                        <span class="history-stat-sub mono" dir="ltr">2021 – 2026</span>
+                    </div>
+                    <div class="stat-tile">
+                        <span class="stat-label" data-i18n="history.stat_commits_label">Total Commits</span>
+                        <span class="stat-value mono" id="history-stat-commits" dir="ltr">3,400+</span>
+                        <span class="history-stat-sub mono" dir="ltr">PS3 · PC · Session-Sniffer</span>
+                    </div>
+                    <div class="stat-tile">
+                        <span class="stat-label" data-i18n="history.stat_releases_label">Tagged Releases</span>
+                        <span class="stat-value mono" id="history-stat-tags" dir="ltr">163+</span>
+                        <span class="history-stat-sub mono" dir="ltr">v1.0.0 → v1.5.0</span>
+                    </div>
+                    <div class="stat-tile">
+                        <span class="stat-label" data-i18n="history.stat_eras_label">UI Generations</span>
+                        <span class="stat-value" data-i18n="history.stat_eras_value">4 Rewrites</span>
+                        <span class="history-stat-sub mono" dir="ltr">Batch → TUI → PyQt6 → PySide6</span>
+                    </div>
+                </div>
+
+                <!-- Interactive 5-Era Visual Evolution Showcase -->
+                <div class="history-era-shell">
+                    <div class="history-era-stepper" id="history-era-stepper" role="tablist" aria-label="Project eras"></div>
+
+                    <div class="history-era-stage" id="history-era-stage" role="tabpanel" aria-live="polite">
+                        <div class="history-era-media">
+                            <div class="history-shot-frame">
+                                <div class="history-shot-chrome">
+                                    <span class="history-shot-dots" aria-hidden="true">
+                                        <span></span><span></span><span></span>
+                                    </span>
+                                    <span class="history-shot-title mono" id="history-era-shot-title" dir="ltr"></span>
+                                    <span class="history-shot-ver badge badge-accent mono" id="history-era-shot-ver" dir="ltr"></span>
+                                </div>
+                                <button
+                                    type="button"
+                                    class="history-shot-btn"
+                                    id="history-era-shot-btn"
+                                    aria-label="Expand Screenshot"
+                                >
+                                    <img
+                                        id="history-era-img"
+                                        src="assets/history/2021-ps3-blacklist-sniffer.png"
+                                        alt="Session Sniffer historical screenshot"
+                                        loading="lazy"
+                                        decoding="async"
+                                    >
+                                    <span class="history-shot-overlay">
+                                        <svg class="icon icon-sm" aria-hidden="true"><use href="#icon-eye"></use></svg>
+                                        <span data-i18n="history.era_view_screenshot">Expand Screenshot</span>
+                                    </span>
+                                </button>
+                            </div>
+                            <p class="history-shot-caption" id="history-era-caption"></p>
+                        </div>
+
+                        <div class="history-era-copy">
+                            <div class="history-era-meta">
+                                <span class="badge badge-accent" id="history-era-badge"></span>
+                                <span class="history-era-period mono" id="history-era-period"></span>
+                            </div>
+                            <h3 class="history-era-title" id="history-era-title"></h3>
+                            <p class="history-era-summary" id="history-era-summary"></p>
+
+                            <ul class="history-era-highlights" id="history-era-highlights"></ul>
+
+                            <div class="history-era-tags" id="history-era-tags"></div>
+
+                            <div class="history-era-footer">
+                                <div class="history-era-links" id="history-era-links"></div>
+                                <div class="history-era-nav-btns">
+                                    <button type="button" class="btn btn-control btn-sm" id="history-era-prev">
+                                        <svg class="icon icon-xs history-dir-icon" aria-hidden="true"><use href="#icon-arrow-left"></use></svg>
+                                        <span data-i18n="history.lightbox_prev">Previous era</span>
+                                    </button>
+                                    <button type="button" class="btn btn-control btn-sm" id="history-era-next">
+                                        <span data-i18n="history.lightbox_next">Next era</span>
+                                        <svg class="icon icon-xs history-dir-icon" aria-hidden="true"><use href="#icon-arrow-right"></use></svg>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Version-by-Version Release Ledger + Full 163-Tag Archive -->
+                <div class="history-ledger-shell">
+                    <div class="history-ledger-head">
+                        <div>
+                            <h3 class="history-ledger-title" data-i18n="history.releases_title">Version-by-Version Release Ledger</h3>
+                            <p class="history-ledger-subtitle" id="history-releases-subtitle">
+                                Every major milestone from 2021 to v1.5.0, plus a searchable index of all 163 GitHub tags.
+                            </p>
+                        </div>
+                        <div class="history-search-box">
+                            <svg class="icon icon-xs history-search-icon" aria-hidden="true"><use href="#icon-search"></use></svg>
+                            <input
+                                type="search"
+                                id="history-search-input"
+                                class="history-search-input"
+                                data-i18n-placeholder="history.search_placeholder"
+                                placeholder="Filter versions or features..."
+                                aria-label="Filter versions or features"
+                            >
+                        </div>
+                    </div>
+
+                    <div class="history-filter-bar" id="history-filter-bar" role="tablist" aria-label="Filter releases by series"></div>
+
+                    <div class="history-release-list" id="history-release-list"></div>
+
+                    <!-- Expandable Full Git Tag Index (auto-synced by sync_assets.py) -->
+                    <div class="history-all-tags-wrap">
+                        <div class="history-all-tags-bar">
+                            <button
+                                type="button"
+                                class="btn btn-control btn-sm"
+                                id="history-all-tags-toggle"
+                                aria-expanded="false"
+                                aria-controls="history-all-tags-panel"
+                            >
+                                <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-code"></use></svg>
+                                <span id="history-all-tags-toggle-label">Browse all 163 Git tags</span>
+                                <svg class="icon icon-xs history-tags-chevron" aria-hidden="true"><use href="#icon-chevron-down"></use></svg>
+                            </button>
+                            <span class="history-all-tags-note" data-i18n="history.all_tags_note">
+                                Auto-synced from Git tags by sync_assets.py — click any tag to open its exact release or tree on GitHub.
+                            </span>
+                        </div>
+
+                        <div class="history-all-tags-panel" id="history-all-tags-panel" hidden>
+                            <div class="history-tags-cloud" id="history-tags-cloud"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- ==================== FOOTER ==================== -->
+    <footer class="site-footer">
+        <div class="container footer-inner">
+            <div class="footer-brand">
+                <div class="brand">
+                    <span class="brand-mark" aria-hidden="true">
+                        <svg class="icon icon-brand"><use href="#icon-app_icon"></use></svg>
+                    </span>
+                    <span class="brand-name">Session Sniffer</span>
+                </div>
+                <p class="footer-note" data-i18n="footer.note">
+                    Free &amp; open-source P2P session monitor by BUZZARDGTA · Licensed under GNU GPLv3. Zero ads, zero tracking cookies, zero telemetry.
+                </p>
+                <div class="footer-actions">
+                    <a href="https://discord.gg/hMZ7MsPX7G" target="_blank" rel="noopener noreferrer" class="btn btn-discord btn-sm">
+                        <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-discord"></use></svg>
+                        <span data-i18n="community.btn_discord">Join Discord Server</span>
+                    </a>
+                    <a href="https://github.com/BUZZARDGTA/Session-Sniffer" target="_blank" rel="noopener noreferrer" class="btn btn-control btn-sm">
+                        <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-github"></use></svg>
+                        <span data-i18n="community.btn_github">Star on GitHub</span>
+                    </a>
+                    <a href="https://ko-fi.com/buzzardgta" target="_blank" rel="noopener noreferrer" class="btn btn-control btn-sm">
+                        <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-trophy"></use></svg>
+                        <span data-i18n="community.btn_kofi">Support on Ko-fi</span>
+                    </a>
+                </div>
+            </div>
+
+            <div class="footer-columns">
+                <div class="footer-col">
+                    <h4 data-i18n="footer.col_explore">Explore</h4>
+                    <a href="index.html#preview" data-i18n="nav.preview">Live Preview</a>
+                    <a href="games.html" data-i18n="games.title">Supported Games &amp; Software</a>
+                    <a href="themes.html" data-i18n="nav.themes">Theme Studio</a>
+                    <a href="history.html" data-i18n="footer.link_history">Project History</a>
+                </div>
+                <div class="footer-col">
+                    <h4 data-i18n="footer.col_docs">Documentation</h4>
+                    <a href="https://github.com/BUZZARDGTA/Session-Sniffer/wiki" target="_blank" rel="noopener noreferrer" data-i18n="footer.link_wiki">Project Wiki</a>
+                    <a href="https://github.com/BUZZARDGTA/Session-Sniffer/wiki/Installation" target="_blank" rel="noopener noreferrer" data-i18n="footer.link_install">Installation</a>
+                    <a href="https://github.com/BUZZARDGTA/Session-Sniffer/wiki/Configuration-Guide" target="_blank" rel="noopener noreferrer" data-i18n="footer.link_config">Configuration Guide</a>
+                    <a href="https://github.com/BUZZARDGTA/Session-Sniffer/wiki/Troubleshooting" target="_blank" rel="noopener noreferrer" data-i18n="footer.link_troubleshooting">Troubleshooting</a>
+                </div>
+                <div class="footer-col">
+                    <h4 data-i18n="footer.col_community">Community</h4>
+                    <a href="https://discord.gg/hMZ7MsPX7G" target="_blank" rel="noopener noreferrer" data-i18n="footer.link_discord">Discord Server</a>
+                    <a href="https://github.com/BUZZARDGTA/Session-Sniffer/issues" target="_blank" rel="noopener noreferrer" data-i18n="footer.link_issues">GitHub Issues</a>
+                    <a href="https://github.com/BUZZARDGTA/Session-Sniffer/discussions" target="_blank" rel="noopener noreferrer" data-i18n="footer.link_discussions">Discussions</a>
+                    <a href="https://t.me/waitingforharukatoaddme" target="_blank" rel="noopener noreferrer" data-i18n="footer.link_telegram">Telegram Contact</a>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Full-screen Historical Screenshot Lightbox -->
+    <div
+        class="history-lightbox"
+        id="history-lightbox"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="history-lightbox-caption"
+        hidden
+    >
+        <div class="history-lightbox-backdrop" id="history-lightbox-backdrop"></div>
+        <div class="history-lightbox-dialog">
+            <div class="history-lightbox-bar">
+                <div class="history-lightbox-info">
+                    <span class="badge badge-accent mono" id="history-lightbox-year" dir="ltr"></span>
+                    <span id="history-lightbox-caption"></span>
+                </div>
+                <div class="history-lightbox-controls">
+                    <button
+                        type="button"
+                        class="icon-btn"
+                        id="history-lightbox-prev"
+                        data-i18n-title="history.lightbox_prev"
+                        aria-label="Previous era"
+                        title="Previous era"
+                    >
+                        <svg class="icon icon-sm history-dir-icon" aria-hidden="true"><use href="#icon-arrow-left"></use></svg>
+                    </button>
+                    <button
+                        type="button"
+                        class="icon-btn"
+                        id="history-lightbox-next"
+                        data-i18n-title="history.lightbox_next"
+                        aria-label="Next era"
+                        title="Next era"
+                    >
+                        <svg class="icon icon-sm history-dir-icon" aria-hidden="true"><use href="#icon-arrow-right"></use></svg>
+                    </button>
+                    <button
+                        type="button"
+                        class="icon-btn"
+                        id="history-lightbox-close"
+                        data-i18n-title="history.lightbox_close"
+                        aria-label="Close preview"
+                        title="Close preview"
+                    >
+                        <svg class="icon icon-sm" aria-hidden="true"><use href="#icon-x"></use></svg>
+                    </button>
+                </div>
+            </div>
+            <div class="history-lightbox-body">
+                <img id="history-lightbox-img" src="" alt="">
+            </div>
+        </div>
+    </div>
+
+    <!-- Live toast notification for interactive actions -->
+    <div class="toast-region" id="toast-region" aria-live="polite" aria-atomic="true"></div>
+
+    <!-- Rich Floating Tooltip Portal (unclipped across tables, modals & cover cards) -->
+    <div class="ss-tooltip" id="ss-rich-tooltip" role="tooltip" aria-hidden="true">
+        <div class="ss-tooltip-head">
+            <span class="ss-tooltip-dot" aria-hidden="true"></span>
+            <strong class="ss-tooltip-title" id="ss-tooltip-title"></strong>
+        </div>
+        <p class="ss-tooltip-body" id="ss-tooltip-body"></p>
+    </div>
+
+    <script src="assets/app-data.generated.js" defer></script>
+    <script src="core.js" defer></script>
+    <script src="history.js" defer></script>
+</body>
+
+</html>

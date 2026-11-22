@@ -1,0 +1,1433 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr" data-theme="dark" data-page="home">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Session Sniffer — Real-Time P2P Session Monitor &amp; Network Analysis Suite</title>
+    <meta name="description" content="Free, open-source real-time P2P session monitor, player tracker, and network analysis suite for PC, PlayStation, Xbox, and mobile. 100% external with zero mods required.">
+    <meta name="theme-color" content="#121212">
+
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Session Sniffer — Real-Time P2P Session Monitor &amp; Network Analysis Suite">
+    <meta property="og:description" content="Free, open-source real-time P2P session monitor, player tracker, and network analysis suite for PC, PlayStation, Xbox, and mobile. 100% external with zero mods required.">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Session Sniffer — Real-Time P2P Session Monitor &amp; Network Analysis Suite">
+    <meta name="twitter:description" content="Free, open-source real-time P2P session monitor, player tracker, and network analysis suite for PC, PlayStation, Xbox, and mobile. 100% external with zero mods required.">
+
+    <link rel="icon" type="image/svg+xml" href="assets/app_icon.svg">
+    <link rel="stylesheet" href="assets/themes.generated.css">
+    <script src="theme-init.js"></script>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="preview.css">
+</head>
+
+<body>
+    <a class="skip-link" href="#main-content" data-i18n="skip_link">Skip to main content</a>
+
+    <!-- ==================== STICKY NAVIGATION ==================== -->
+    <header class="site-header">
+        <div class="container header-inner">
+            <a href="#top" class="brand" aria-label="Session Sniffer home">
+                <span class="brand-mark" aria-hidden="true">
+                    <svg class="icon icon-brand"><use href="#icon-app_icon"></use></svg>
+                </span>
+                <span class="brand-text">
+                    <span class="brand-name">Session Sniffer</span>
+                    <span class="version-pill" data-release-version>v1.5.0</span>
+                </span>
+            </a>
+
+            <nav class="main-nav" aria-label="Primary navigation">
+                <a href="#preview" data-i18n="nav.preview">Live Preview</a>
+                <a href="#features" data-i18n="nav.features">Features</a>
+                <a href="#download" data-i18n="nav.download">Download</a>
+                <a href="games.html" data-i18n="nav.games">Games</a>
+                <a href="themes.html" data-i18n="nav.themes">Theme Studio</a>
+                <a href="history.html" data-i18n="nav.history">History</a>
+            </nav>
+
+            <div class="header-actions">
+                <!-- 33-Language Switcher -->
+                <div class="lang-switcher" id="nav-lang-switcher">
+                    <button
+                        type="button"
+                        class="btn btn-control btn-lang-toggle"
+                        id="lang-menu-button"
+                        aria-haspopup="menu"
+                        aria-expanded="false"
+                        aria-controls="lang-menu-dropdown"
+                        data-i18n-title="nav.lang_dropdown_title"
+                        title="Interface Language"
+                    >
+                        <img class="lang-flag-img" id="active-lang-flag" src="assets/flags/US.png" alt="" width="18" height="12">
+                        <span class="lang-toggle-code mono" id="active-lang-code">EN</span>
+                        <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-chevron-down"></use></svg>
+                    </button>
+                    <div class="lang-dropdown" id="lang-menu-dropdown" role="menu" hidden>
+                        <div class="theme-dropdown-header">
+                            <span data-i18n="nav.lang_dropdown_title">Interface Language</span>
+                            <span class="theme-dropdown-tag" data-languages-count>33</span>
+                        </div>
+                        <div class="lang-search-wrap">
+                            <input
+                                type="search"
+                                id="lang-search-input"
+                                class="lang-search-input"
+                                data-i18n-placeholder="nav.lang_search_placeholder"
+                                placeholder="Search 33 languages..."
+                                aria-label="Search languages"
+                            >
+                        </div>
+                        <div id="lang-dropdown-list" class="lang-dropdown-list"></div>
+                    </div>
+                </div>
+
+                <!-- 6-Theme Switcher -->
+                <div class="theme-switcher" id="nav-theme-switcher">
+                    <button
+                        type="button"
+                        class="btn btn-control btn-theme-toggle"
+                        id="theme-menu-button"
+                        aria-haspopup="menu"
+                        aria-expanded="false"
+                        aria-controls="theme-menu-dropdown"
+                        data-i18n-title="nav.theme_dropdown_title"
+                        title="Built-in App Themes"
+                    >
+                        <span class="theme-swatch-dot" id="active-theme-swatch" aria-hidden="true"></span>
+                        <span class="theme-toggle-label" id="active-theme-label">Dark</span>
+                        <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-chevron-down"></use></svg>
+                    </button>
+                    <div class="theme-dropdown" id="theme-menu-dropdown" role="menu" hidden>
+                        <div class="theme-dropdown-header">
+                            <span data-i18n="nav.theme_dropdown_title">Built-in App Themes</span>
+                            <span class="theme-dropdown-tag">themes.py</span>
+                        </div>
+                        <div id="theme-dropdown-list" class="theme-dropdown-list"></div>
+                        <div class="theme-dropdown-footer">
+                            <a href="themes.html" class="theme-dropdown-studio-link" id="dropdown-open-studio">
+                                <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-palette"></use></svg>
+                                <span data-i18n="nav.theme_customize">Customize in Theme Studio</span>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+                <a
+                    href="https://github.com/BUZZARDGTA/Session-Sniffer"
+                    class="icon-btn header-social-link"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    data-i18n-title="nav.github_label"
+                    aria-label="GitHub Repository"
+                    title="GitHub Repository"
+                >
+                    <svg class="icon icon-sm" aria-hidden="true"><use href="#icon-github"></use></svg>
+                </a>
+
+                <a
+                    href="https://discord.gg/hMZ7MsPX7G"
+                    class="icon-btn header-social-link"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    data-i18n-title="nav.discord_label"
+                    aria-label="Discord Community"
+                    title="Discord Community"
+                >
+                    <svg class="icon icon-sm" aria-hidden="true"><use href="#icon-discord"></use></svg>
+                </a>
+
+                <a href="#download" class="btn btn-primary btn-nav-download">
+                    <svg class="icon icon-sm" aria-hidden="true"><use href="#icon-cloud-download"></use></svg>
+                    <span data-i18n="nav.download">Download</span>
+                </a>
+
+                <button
+                    type="button"
+                    class="icon-btn mobile-nav-toggle"
+                    id="mobile-nav-toggle"
+                    aria-label="Toggle navigation menu"
+                    aria-expanded="false"
+                    aria-controls="mobile-nav-drawer"
+                >
+                    <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <line x1="4" y1="7" x2="20" y2="7"></line>
+                        <line x1="4" y1="12" x2="20" y2="12"></line>
+                        <line x1="4" y1="17" x2="20" y2="17"></line>
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        <nav class="mobile-nav-drawer" id="mobile-nav-drawer" aria-label="Mobile navigation" hidden>
+            <a href="#preview" data-i18n="nav.preview">Live Preview</a>
+            <a href="#features" data-i18n="nav.features">Features</a>
+            <a href="#download" data-i18n="nav.download">Download</a>
+            <a href="games.html" data-i18n="nav.games">Games</a>
+            <a href="themes.html" data-i18n="nav.themes">Theme Studio</a>
+            <a href="history.html" data-i18n="nav.history">History</a>
+            <a href="https://github.com/BUZZARDGTA/Session-Sniffer/wiki" target="_blank" rel="noopener noreferrer" data-i18n="nav.wiki">Project Wiki</a>
+            <div class="mobile-nav-social">
+                <a href="https://github.com/BUZZARDGTA/Session-Sniffer" target="_blank" rel="noopener noreferrer">
+                    <svg class="icon icon-sm" aria-hidden="true"><use href="#icon-github"></use></svg>
+                    <span data-i18n="nav.github_label">GitHub Repository</span>
+                </a>
+                <a href="https://discord.gg/hMZ7MsPX7G" target="_blank" rel="noopener noreferrer">
+                    <svg class="icon icon-sm" aria-hidden="true"><use href="#icon-discord"></use></svg>
+                    <span data-i18n="nav.discord_label">Discord Community</span>
+                </a>
+            </div>
+        </nav>
+    </header>
+
+    <main id="main-content">
+        <!-- ==================== HERO SECTION ==================== -->
+        <section class="hero" id="top">
+            <div class="hero-backdrop" aria-hidden="true">
+                <div class="hero-grid"></div>
+                <div class="hero-radar-ring hero-radar-ring--1"></div>
+                <div class="hero-radar-ring hero-radar-ring--2"></div>
+                <div class="hero-radar-ring hero-radar-ring--3"></div>
+                <div class="hero-glow hero-glow--accent"></div>
+                <div class="hero-glow hero-glow--success"></div>
+            </div>
+
+            <div class="container hero-content">
+                <div class="eyebrow-pill">
+                    <span class="pulse-dot" aria-hidden="true"></span>
+                    <span data-i18n="hero.eyebrow_foss">Free &amp; Open Source</span>
+                    <span class="eyebrow-sep" aria-hidden="true">·</span>
+                    <span>GPLv3</span>
+                    <span class="eyebrow-sep" aria-hidden="true">·</span>
+                    <span id="hero-eyebrow-langs">33 Languages (RTL Ready)</span>
+                </div>
+
+                <h1 class="hero-title">
+                    <span data-i18n="hero.title_before">Monitor P2P Sessions in </span><span class="hero-title-accent" data-i18n="hero.title_accent">Real Time.</span>
+                </h1>
+
+                <p class="hero-subtitle" data-i18n="hero.subtitle">
+                    A free, open-source packet sniffer and network analysis suite built for Peer-to-Peer games and applications on PC, PlayStation, Xbox, and mobile — 100% external with zero mods and zero ban risk.
+                </p>
+
+                <div class="hero-cta-row">
+                    <a
+                        href="https://github.com/BUZZARDGTA/Session-Sniffer/releases/latest/download/Session_Sniffer.exe"
+                        class="btn btn-primary btn-lg"
+                        id="hero-primary-download"
+                    >
+                        <svg class="icon icon-sm" aria-hidden="true"><use href="#icon-cloud-download"></use></svg>
+                        <span id="hero-primary-download-label" data-i18n="hero.cta_download_windows">Download for Windows (x64)</span>
+                    </a>
+
+                    <a href="#preview" class="btn btn-radar btn-lg" id="hero-preview-cta">
+                        <svg class="icon icon-sm" aria-hidden="true"><use href="#icon-radar"></use></svg>
+                        <span data-i18n="hero.cta_preview">Try Interactive Preview</span>
+                    </a>
+
+                    <a
+                        href="https://discord.gg/hMZ7MsPX7G"
+                        class="btn btn-discord btn-lg"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                    >
+                        <svg class="icon icon-sm" aria-hidden="true"><use href="#icon-discord"></use></svg>
+                        <span data-i18n="hero.cta_discord">Join Discord</span>
+                    </a>
+                </div>
+
+                <div class="hero-stats" aria-label="Project highlights">
+                    <div class="stat-tile">
+                        <span class="stat-label" data-i18n="hero.stat_release">Latest Release</span>
+                        <span class="stat-value mono" data-release-version>v1.5.0</span>
+                    </div>
+                    <div class="stat-tile">
+                        <span class="stat-label" data-i18n="hero.stat_downloads">Total Downloads</span>
+                        <span class="stat-value mono" id="stat-total-downloads" data-i18n="hero.stat_downloads_fallback">GitHub Releases</span>
+                    </div>
+                    <div class="stat-tile">
+                        <span class="stat-label" data-i18n="hero.stat_platforms">Platforms</span>
+                        <span class="stat-value">Windows · Linux · macOS</span>
+                    </div>
+                    <div class="stat-tile">
+                        <span class="stat-label" data-i18n="hero.stat_community">Discord Community</span>
+                        <span class="stat-value mono" id="stat-discord-members" data-i18n="hero.stat_community_fallback">Active Support</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ==================== LIVE INTERACTIVE DESKTOP PREVIEW ==================== -->
+        <section class="section section-preview" id="preview">
+            <div class="container">
+                <div class="preview-toolbar">
+                    <div class="preview-toolbar-info">
+                        <span class="badge badge-success">
+                            <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-activity"></use></svg>
+                            <span data-i18n="preview.badge">Interactive UI Demo</span>
+                        </span>
+                        <span class="preview-toolbar-note" data-i18n="preview.note">
+                            Powered by Session Sniffer's real themes, icons &amp; country flags — try searching, switching themes, or right-clicking any row.
+                        </span>
+                    </div>
+                    <div class="preview-toolbar-controls">
+                        <div class="segmented" role="group" aria-label="Game mode preset">
+                            <button type="button" class="segmented-btn is-active" data-preset="gta5">GTA Online</button>
+                            <button type="button" class="segmented-btn" data-preset="rdr2">Red Dead Online</button>
+                            <button type="button" class="segmented-btn" data-preset="p2p" data-i18n="preview.preset_universal">Universal P2P</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Responsive Desktop Stage (transparent pass-through on desktop > 900px) -->
+                <div class="ss-stage-shell" id="ss-stage-shell">
+                    <div class="ss-stage-bar" id="ss-stage-bar">
+                        <div class="ss-stage-bar-top">
+                            <div class="segmented ss-stage-mode-tabs" role="group" aria-label="Preview view mode">
+                                <button type="button" class="segmented-btn is-active" id="ss-stage-fit-btn" data-stage-mode="fit" aria-pressed="true" data-i18n="preview.stage_fit">Fit View</button>
+                                <button type="button" class="segmented-btn" id="ss-stage-pan-btn" data-stage-mode="pan" aria-pressed="false" data-i18n="preview.stage_pan">100% Pan</button>
+                            </div>
+                            <div class="ss-stage-bar-actions">
+                                <button type="button" class="btn btn-control btn-sm ss-stage-rotate-btn" id="ss-stage-rotate-btn" hidden>
+                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-rotate-ccw"></use></svg>
+                                    <span data-i18n="preview.stage_rotate">Rotate</span>
+                                </button>
+                                <button type="button" class="btn btn-primary btn-sm ss-stage-fs-btn" id="ss-stage-fs-btn" aria-expanded="false">
+                                    <svg class="icon icon-xs" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                        <polyline points="15 3 21 3 21 9"></polyline>
+                                        <polyline points="9 21 3 21 3 15"></polyline>
+                                        <line x1="21" y1="3" x2="14" y2="10"></line>
+                                        <line x1="3" y1="21" x2="10" y2="14"></line>
+                                    </svg>
+                                    <span data-i18n="preview.stage_fullscreen">Fullscreen Landscape</span>
+                                </button>
+                                <button type="button" class="btn btn-control btn-sm ss-stage-exit-btn" id="ss-stage-exit-btn" hidden>
+                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-x"></use></svg>
+                                    <span data-i18n="preview.stage_exit_fullscreen">Exit</span>
+                                </button>
+                            </div>
+                        </div>
+                        <p class="ss-stage-hint" id="ss-stage-hint">
+                            <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-monitor-smartphone"></use></svg>
+                            <span data-i18n="preview.stage_swipe_hint">Swipe horizontally across the full desktop UI or open Fullscreen Landscape</span>
+                        </p>
+                    </div>
+
+                    <div class="ss-stage-viewport" id="ss-stage-viewport">
+                        <div class="ss-stage-sizer" id="ss-stage-sizer">
+                            <div class="ss-stage-canvas" id="ss-stage-canvas">
+                <!-- 1:1 PySide6 MainWindow Simulation -->
+                <div class="ss-window" id="ss-live-window" aria-label="Interactive Session Sniffer Desktop Preview">
+                    <!-- Windows Title Bar (matches real window) -->
+                    <div class="ss-titlebar">
+                        <div class="ss-titlebar-left">
+                            <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-app_icon"></use></svg>
+                            <span>Session Sniffer</span>
+                        </div>
+                        <div class="ss-titlebar-controls" aria-hidden="true">
+                            <span class="ss-win-btn">&#8212;</span>
+                            <span class="ss-win-btn">&#9723;</span>
+                            <span class="ss-win-btn ss-win-btn--close">&#10005;</span>
+                        </div>
+                    </div>
+
+                    <!-- 1:1 Menu Bar (main_window.py + mixins, translated via resources/translations/*.json) -->
+                    <div class="ss-menubar" id="ss-menubar" role="menubar" aria-label="Application menu bar">
+                        <!-- Capture -->
+                        <div class="ss-menu-wrap">
+                            <button type="button" class="ss-menu-trigger" data-menu="capture" data-i18n-app="Capture" role="menuitem">Capture</button>
+                            <div class="ss-menu-popup" data-menu-popup="capture" hidden>
+                                <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Stop Capture">
+                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-circle-stop"></use></svg>
+                                    <span data-i18n-app="Stop Capture">Stop Capture</span>
+                                </button>
+                                <div class="ss-menu-sep" role="separator"></div>
+                                <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Change Interface">
+                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-refresh-cw"></use></svg>
+                                    <span data-i18n-app="Change Interface">Change Interface</span>
+                                </button>
+                                <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Hotspot && Sharing">
+                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-router"></use></svg>
+                                    <span data-i18n-app="Hotspot && Sharing">Hotspot &amp; Sharing</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- GTA V / RDR2 -->
+                        <div class="ss-menu-wrap" id="ss-game-menu-wrap">
+                            <button type="button" class="ss-menu-trigger" id="ss-game-menu-trigger" data-menu="game" role="menuitem">GTA V</button>
+                            <div class="ss-menu-popup" data-menu-popup="game" hidden>
+                                <div class="ss-menu-status-row" id="ss-game-status-row">
+                                    <span class="ss-game-status-dot" aria-hidden="true">●</span>
+                                    <span id="ss-game-status-text">GTA V Enhanced</span>
+                                </div>
+                                <div class="ss-menu-sep" role="separator"></div>
+                                <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Player Resolver">
+                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-search"></use></svg>
+                                    <span data-i18n-app="Player Resolver">Player Resolver</span>
+                                </button>
+                                <div class="ss-menu-subwrap" id="ss-menu-looky-wrap">
+                                    <button type="button" class="ss-menu-item ss-menu-item--has-sub">
+                                        <span class="ss-menu-item-left">
+                                            <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-scan-eye"></use></svg>
+                                            <span data-i18n-app="Looky System">Looky System</span>
+                                        </span>
+                                        <svg class="icon icon-xs ss-menu-arrow" aria-hidden="true"><use href="#icon-chevron-right"></use></svg>
+                                    </button>
+                                    <div class="ss-menu-submenu">
+                                        <a href="https://looky-gta.cc" target="_blank" rel="noopener noreferrer" class="ss-menu-item">
+                                            <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-globe"></use></svg>
+                                            <span data-i18n-app="Open Website">Open Website</span>
+                                        </a>
+                                        <div class="ss-menu-sep" role="separator"></div>
+                                        <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Request Crawler in My Session">
+                                            <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-bot"></use></svg>
+                                            <span data-i18n-app="Request Crawler in My Session">Request Crawler in My Session</span>
+                                        </button>
+                                        <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Rescan All Players">
+                                            <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-refresh-cw"></use></svg>
+                                            <span data-i18n-app="Rescan All Players">Rescan All Players</span>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="ss-menu-sep" role="separator"></div>
+                                <div class="ss-menu-subwrap">
+                                    <button type="button" class="ss-menu-item ss-menu-item--has-sub">
+                                        <span class="ss-menu-item-left">
+                                            <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-radio"></use></svg>
+                                            <span data-i18n-app="Current Session">Current Session</span>
+                                        </span>
+                                        <svg class="icon icon-xs ss-menu-arrow" aria-hidden="true"><use href="#icon-chevron-right"></use></svg>
+                                    </button>
+                                    <div class="ss-menu-submenu">
+                                        <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Host Diagnostics…">
+                                            <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-bug"></use></svg>
+                                            <span data-i18n-app="Host Diagnostics…">Host Diagnostics…</span>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="ss-menu-subwrap">
+                                    <button type="button" class="ss-menu-item ss-menu-item--has-sub">
+                                        <span class="ss-menu-item-left">
+                                            <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-rotate-ccw-clock"></use></svg>
+                                            <span data-i18n-app="Session History">Session History</span>
+                                        </span>
+                                        <svg class="icon icon-xs ss-menu-arrow" aria-hidden="true"><use href="#icon-chevron-right"></use></svg>
+                                    </button>
+                                    <div class="ss-menu-submenu">
+                                        <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Host History">
+                                            <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-host_history"></use></svg>
+                                            <span data-i18n-app="Host History">Host History</span>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="ss-menu-sep" role="separator"></div>
+                                <div class="ss-menu-subwrap">
+                                    <button type="button" class="ss-menu-item ss-menu-item--has-sub">
+                                        <span class="ss-menu-item-left">
+                                            <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-gamepad-2"></use></svg>
+                                            <span id="ss-menu-game-process-label">GTA5 Process</span>
+                                        </span>
+                                        <svg class="icon icon-xs ss-menu-arrow" aria-hidden="true"><use href="#icon-chevron-right"></use></svg>
+                                    </button>
+                                    <div class="ss-menu-submenu">
+                                        <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Solo Public Session">
+                                            <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-user-round"></use></svg>
+                                            <span data-i18n-app="Solo Public Session">Solo Public Session</span>
+                                        </button>
+                                        <div class="ss-menu-sep" role="separator"></div>
+                                        <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Suspend Process">
+                                            <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-circle-pause"></use></svg>
+                                            <span data-i18n-app="Suspend Process">Suspend Process</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Tools -->
+                        <div class="ss-menu-wrap">
+                            <button type="button" class="ss-menu-trigger" data-menu="tools" data-i18n-app="Tools" role="menuitem">Tools</button>
+                            <div class="ss-menu-popup" data-menu-popup="tools" hidden>
+                                <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Detections Manager">
+                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-shield"></use></svg>
+                                    <span data-i18n-app="Detections Manager">Detections Manager</span>
+                                </button>
+                                <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="UserIP Manager">
+                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-database"></use></svg>
+                                    <span data-i18n-app="UserIP Manager">UserIP Manager</span>
+                                </button>
+                                <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Logs Manager">
+                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-file-text"></use></svg>
+                                    <span data-i18n-app="Logs Manager">Logs Manager</span>
+                                </button>
+                                <div class="ss-menu-sep" role="separator"></div>
+                                <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Most Seen Players">
+                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-trophy"></use></svg>
+                                    <span data-i18n-app="Most Seen Players">Most Seen Players</span>
+                                </button>
+                                <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Port Scanner">
+                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-radar"></use></svg>
+                                    <span data-i18n-app="Port Scanner">Port Scanner</span>
+                                </button>
+                                <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Ping Diagnostics">
+                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-radio-tower"></use></svg>
+                                    <span data-i18n-app="Ping Diagnostics">Ping Diagnostics</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Statistics -->
+                        <div class="ss-menu-wrap">
+                            <button type="button" class="ss-menu-trigger" data-menu="stats" data-i18n-app="Statistics" role="menuitem">Statistics</button>
+                            <div class="ss-menu-popup" data-menu-popup="stats" hidden>
+                                <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Capture Statistics">
+                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-chart-line"></use></svg>
+                                    <span data-i18n-app="Capture Statistics">Capture Statistics</span>
+                                </button>
+                                <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Session Rate Graph">
+                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-gauge"></use></svg>
+                                    <span data-i18n-app="Session Rate Graph">Session Rate Graph</span>
+                                </button>
+                                <div class="ss-menu-sep" role="separator"></div>
+                                <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Session Timeline">
+                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-calendar-days"></use></svg>
+                                    <span data-i18n-app="Session Timeline">Session Timeline</span>
+                                </button>
+                                <div class="ss-menu-sep" role="separator"></div>
+                                <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Country Breakdown">
+                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-globe"></use></svg>
+                                    <span data-i18n-app="Country Breakdown">Country Breakdown</span>
+                                </button>
+                                <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Reconnect Frequency">
+                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-activity"></use></svg>
+                                    <span data-i18n-app="Reconnect Frequency">Reconnect Frequency</span>
+                                </button>
+                                <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Session Duration">
+                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-timer"></use></svg>
+                                    <span data-i18n-app="Session Duration">Session Duration</span>
+                                </button>
+                                <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Port Heatmap">
+                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-chart-scatter"></use></svg>
+                                    <span data-i18n-app="Port Heatmap">Port Heatmap</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Data & Files -->
+                        <div class="ss-menu-wrap">
+                            <button type="button" class="ss-menu-trigger" data-menu="data" data-i18n-app="Data && Files" role="menuitem">Data &amp; Files</button>
+                            <div class="ss-menu-popup" data-menu-popup="data" hidden>
+                                <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Open Local AppData Folder">
+                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-folder"></use></svg>
+                                    <span data-i18n-app="Open Local AppData Folder">Open Local AppData Folder</span>
+                                </button>
+                                <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Open Roaming AppData Folder">
+                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-folder"></use></svg>
+                                    <span data-i18n-app="Open Roaming AppData Folder">Open Roaming AppData Folder</span>
+                                </button>
+                                <div class="ss-menu-sep" role="separator"></div>
+                                <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Open UserIP Databases Folder">
+                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-folder"></use></svg>
+                                    <span data-i18n-app="Open UserIP Databases Folder">Open UserIP Databases Folder</span>
+                                </button>
+                                <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Open UserIP Backups Folder">
+                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-folder"></use></svg>
+                                    <span data-i18n-app="Open UserIP Backups Folder">Open UserIP Backups Folder</span>
+                                </button>
+                                <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Open User Scripts Folder">
+                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-folder"></use></svg>
+                                    <span data-i18n-app="Open User Scripts Folder">Open User Scripts Folder</span>
+                                </button>
+                                <div class="ss-menu-sep" role="separator"></div>
+                                <div class="ss-menu-subwrap">
+                                    <button type="button" class="ss-menu-item ss-menu-item--has-sub">
+                                        <span class="ss-menu-item-left">
+                                            <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-file-text"></use></svg>
+                                            <span data-i18n-app="Application Logs">Application Logs</span>
+                                        </span>
+                                        <svg class="icon icon-xs ss-menu-arrow" aria-hidden="true"><use href="#icon-chevron-right"></use></svg>
+                                    </button>
+                                    <div class="ss-menu-submenu">
+                                        <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Open Logging Folder">
+                                            <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-folder"></use></svg>
+                                            <span data-i18n-app="Open Logging Folder">Open Logging Folder</span>
+                                        </button>
+                                        <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Open Sessions Folder">
+                                            <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-folder"></use></svg>
+                                            <span data-i18n-app="Open Sessions Folder">Open Sessions Folder</span>
+                                        </button>
+                                        <div class="ss-menu-sep" role="separator"></div>
+                                        <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Open Detection_Logging.csv">
+                                            <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-file-text"></use></svg>
+                                            <span data-i18n-app="Open Detection_Logging.csv">Open Detection_Logging.csv</span>
+                                        </button>
+                                        <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Open Protection_Logging.csv">
+                                            <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-file-text"></use></svg>
+                                            <span data-i18n-app="Open Protection_Logging.csv">Open Protection_Logging.csv</span>
+                                        </button>
+                                        <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Open UserIP_Logging.csv">
+                                            <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-file-text"></use></svg>
+                                            <span data-i18n-app="Open UserIP_Logging.csv">Open UserIP_Logging.csv</span>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="ss-menu-subwrap">
+                                    <button type="button" class="ss-menu-item ss-menu-item--has-sub">
+                                        <span class="ss-menu-item-left">
+                                            <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-bug"></use></svg>
+                                            <span data-i18n-app="Debug Logs">Debug Logs</span>
+                                        </span>
+                                        <svg class="icon icon-xs ss-menu-arrow" aria-hidden="true"><use href="#icon-chevron-right"></use></svg>
+                                    </button>
+                                    <div class="ss-menu-submenu">
+                                        <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Open Debug Logs Folder">
+                                            <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-folder"></use></svg>
+                                            <span data-i18n-app="Open Debug Logs Folder">Open Debug Logs Folder</span>
+                                        </button>
+                                        <div class="ss-menu-sep" role="separator"></div>
+                                        <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Open debug.log">
+                                            <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-file-text"></use></svg>
+                                            <span data-i18n-app="Open debug.log">Open debug.log</span>
+                                        </button>
+                                        <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Open crash.log">
+                                            <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-file-text"></use></svg>
+                                            <span data-i18n-app="Open crash.log">Open crash.log</span>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="ss-menu-sep" role="separator"></div>
+                                <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Open settings.json">
+                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-file-cog"></use></svg>
+                                    <span data-i18n-app="Open settings.json">Open settings.json</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Settings -->
+                        <div class="ss-menu-wrap">
+                            <button type="button" class="ss-menu-trigger" data-menu="settings" data-i18n-app="Settings" role="menuitem">Settings</button>
+                            <div class="ss-menu-popup" data-menu-popup="settings" hidden>
+                                <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Open Settings">
+                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-settings"></use></svg>
+                                    <span data-i18n-app="Open Settings">Open Settings</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Help -->
+                        <div class="ss-menu-wrap">
+                            <button type="button" class="ss-menu-trigger" data-menu="help" data-i18n-app="Help" role="menuitem">Help</button>
+                            <div class="ss-menu-popup" data-menu-popup="help" hidden>
+                                <a href="https://github.com/BUZZARDGTA/Session-Sniffer" target="_blank" rel="noopener noreferrer" class="ss-menu-item">
+                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-github"></use></svg>
+                                    <span data-i18n-app="Project Repository">Project Repository</span>
+                                </a>
+                                <a href="https://github.com/BUZZARDGTA/Session-Sniffer/wiki" target="_blank" rel="noopener noreferrer" class="ss-menu-item">
+                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-book-text"></use></svg>
+                                    <span data-i18n-app="Documentation">Documentation</span>
+                                </a>
+                                <a href="https://github.com/BUZZARDGTA/Session-Sniffer/wiki/Tips-and-Tricks" target="_blank" rel="noopener noreferrer" class="ss-menu-item">
+                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-lightbulb"></use></svg>
+                                    <span data-i18n-app="Tips and Tricks">Tips and Tricks</span>
+                                </a>
+                                <a href="https://github.com/BUZZARDGTA/Session-Sniffer/releases" target="_blank" rel="noopener noreferrer" class="ss-menu-item">
+                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-rotate-ccw-clock"></use></svg>
+                                    <span data-i18n-app="Release Notes">Release Notes</span>
+                                </a>
+                                <a href="https://github.com/BUZZARDGTA/Session-Sniffer/blob/main/COPYING" target="_blank" rel="noopener noreferrer" class="ss-menu-item">
+                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-scale"></use></svg>
+                                    <span data-i18n-app="View License">View License</span>
+                                </a>
+                                <div class="ss-menu-sep" role="separator"></div>
+                                <a href="https://github.com/BUZZARDGTA/Session-Sniffer/issues" target="_blank" rel="noopener noreferrer" class="ss-menu-item">
+                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-bug"></use></svg>
+                                    <span data-i18n-app="Report Issue">Report Issue</span>
+                                </a>
+                                <a href="https://discord.gg/hMZ7MsPX7G" target="_blank" rel="noopener noreferrer" class="ss-menu-item">
+                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-discord"></use></svg>
+                                    <span data-i18n-app="Discord Server">Discord Server</span>
+                                </a>
+                                <div class="ss-menu-sep" role="separator"></div>
+                                <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="Check for Updates">
+                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-cloud-download"></use></svg>
+                                    <span data-i18n-app="Check for Updates">Check for Updates</span>
+                                </button>
+                                <div class="ss-menu-sep" role="separator"></div>
+                                <button type="button" class="ss-menu-item" data-menu-action="app-feature" data-feature-app="About">
+                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-info"></use></svg>
+                                    <span data-i18n-app="About">About</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Real SessionHeader -->
+                    <div class="ss-app-header">
+                        <div class="ss-brand-col">
+                            <div class="ss-brand-row">
+                                <span class="ss-app-title">Session Sniffer</span>
+                                <span class="ss-version-badge" data-app-version>v1.5.0 - 2026/11/21 (11:36)</span>
+                            </div>
+                            <div class="ss-app-subtitle" id="ss-app-subtitle">The best <span class="ss-subtitle-hi">FREE</span> and <span class="ss-subtitle-hi">Open-Source</span> packet sniffer</div>
+                        </div>
+
+                        <div class="ss-search-col">
+                            <div class="ss-search-box">
+                                <svg class="icon icon-xs ss-search-icon" aria-hidden="true"><use href="#icon-search"></use></svg>
+                                <input
+                                    type="search"
+                                    id="ss-search-input"
+                                    class="ss-search-input"
+                                    placeholder="Search connected + disconnected players..."
+                                    aria-label="Search demo players"
+                                >
+                            </div>
+                            <div class="ss-search-combo" id="ss-search-column-wrap">
+                                <button
+                                    type="button"
+                                    id="ss-search-column"
+                                    class="ss-search-combo-btn"
+                                    aria-haspopup="listbox"
+                                    aria-expanded="false"
+                                    aria-controls="ss-search-column-popup"
+                                    aria-label="Search column"
+                                >
+                                    <span class="ss-search-combo-label" id="ss-search-column-label" data-i18n-app="All Columns">All Columns</span>
+                                    <span class="ss-search-combo-drop" aria-hidden="true">
+                                        <svg class="icon ss-search-combo-arrow" aria-hidden="true"><use href="#icon-chevron-down"></use></svg>
+                                    </span>
+                                </button>
+                                <div id="ss-search-column-popup" class="ss-search-combo-popup" role="listbox" aria-label="Search column" hidden>
+                                    <button type="button" class="ss-search-combo-option is-selected" role="option" aria-selected="true" data-search-col="all" data-i18n-app="All Columns">All Columns</button>
+                                    <button type="button" class="ss-search-combo-option" role="option" aria-selected="false" data-search-col="username" data-i18n-app="Usernames">Usernames</button>
+                                    <button type="button" class="ss-search-combo-option" role="option" aria-selected="false" data-search-col="ip" data-i18n-app="IP Address">IP Address</button>
+                                    <button type="button" class="ss-search-combo-option" role="option" aria-selected="false" data-search-col="hostname" data-i18n-app="Hostname">Hostname</button>
+                                    <button type="button" class="ss-search-combo-option" role="option" aria-selected="false" data-search-col="ports" data-i18n-app="Ports">Ports</button>
+                                    <button type="button" class="ss-search-combo-option" role="option" aria-selected="false" data-search-col="lastPort" data-i18n-app="Last Port">Last Port</button>
+                                    <button type="button" class="ss-search-combo-option" role="option" aria-selected="false" data-search-col="middlePorts" data-i18n-app="Middle Ports">Middle Ports</button>
+                                    <button type="button" class="ss-search-combo-option" role="option" aria-selected="false" data-search-col="firstPort" data-i18n-app="First Port">First Port</button>
+                                    <button type="button" class="ss-search-combo-option" role="option" aria-selected="false" data-search-col="continent" data-i18n-app="Continent">Continent</button>
+                                    <button type="button" class="ss-search-combo-option" role="option" aria-selected="false" data-search-col="country" data-i18n-app="Country">Country</button>
+                                    <button type="button" class="ss-search-combo-option" role="option" aria-selected="false" data-search-col="region" data-i18n-app="Region">Region</button>
+                                    <button type="button" class="ss-search-combo-option" role="option" aria-selected="false" data-search-col="regionCode" data-i18n-app="R. Code">R. Code</button>
+                                    <button type="button" class="ss-search-combo-option" role="option" aria-selected="false" data-search-col="city" data-i18n-app="City">City</button>
+                                    <button type="button" class="ss-search-combo-option" role="option" aria-selected="false" data-search-col="district" data-i18n-app="District">District</button>
+                                    <button type="button" class="ss-search-combo-option" role="option" aria-selected="false" data-search-col="zipCode" data-i18n-app="ZIP Code">ZIP Code</button>
+                                    <button type="button" class="ss-search-combo-option" role="option" aria-selected="false" data-search-col="timeZone" data-i18n-app="Time Zone">Time Zone</button>
+                                    <button type="button" class="ss-search-combo-option" role="option" aria-selected="false" data-search-col="currency" data-i18n-app="Currency">Currency</button>
+                                    <button type="button" class="ss-search-combo-option" role="option" aria-selected="false" data-search-col="organization" data-i18n-app="Organization">Organization</button>
+                                    <button type="button" class="ss-search-combo-option" role="option" aria-selected="false" data-search-col="ispName" data-i18n-app="ISP">ISP</button>
+                                    <button type="button" class="ss-search-combo-option" role="option" aria-selected="false" data-search-col="isp" data-i18n-app="ASN / ISP">ASN / ISP</button>
+                                    <button type="button" class="ss-search-combo-option" role="option" aria-selected="false" data-search-col="as" data-i18n-app="AS">AS</button>
+                                    <button type="button" class="ss-search-combo-option" role="option" aria-selected="false" data-search-col="asn" data-i18n-app="ASN">ASN</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="ss-metrics-col">
+                            <div class="ss-notif-card" aria-label="Notification toggles">
+                                <button
+                                    type="button"
+                                    class="ss-notif-btn is-enabled"
+                                    id="ss-visual-notif-btn"
+                                    aria-pressed="true"
+                                >
+                                    <svg class="icon icon-xs" id="ss-visual-notif-icon" aria-hidden="true"><use href="#icon-bell"></use></svg>
+                                </button>
+                                <button
+                                    type="button"
+                                    class="ss-notif-btn is-enabled"
+                                    id="ss-voice-notif-btn"
+                                    aria-pressed="true"
+                                >
+                                    <svg class="icon icon-xs" id="ss-voice-notif-icon" aria-hidden="true"><use href="#icon-volume-2"></use></svg>
+                                </button>
+                            </div>
+
+                            <div class="ss-stats-card">
+                                <svg class="icon icon-sm ss-pulse-icon" aria-hidden="true"><use href="#icon-activity"></use></svg>
+                                <div class="ss-stat-block">
+                                    <span class="ss-stat-title" data-i18n-app="Uptime">Uptime</span>
+                                    <span class="ss-stat-val mono" id="ss-uptime-val">00:14:32</span>
+                                </div>
+                                <span class="ss-stats-divider" aria-hidden="true"></span>
+                                <div class="ss-stat-block">
+                                    <span class="ss-stat-title" data-i18n-app="Captured Packets">Captured Packets</span>
+                                    <span class="ss-stat-val mono" id="ss-packets-val">184,920</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Workspace Body: Connected + Splitter + Disconnected SessionTableSections (1:1 with _session_table_section.py) -->
+                    <div class="ss-workspace">
+                        <!-- Connected Players Section -->
+                        <div class="ss-section ss-section--connected" id="ss-connected-section">
+                            <div class="ss-section-bar ss-section-bar--connected">
+                                <div class="ss-section-bar-left">
+                                    <svg class="icon ss-section-icon ss-section-icon--connected" aria-hidden="true"><use href="#icon-user-round"></use></svg>
+                                    <span class="ss-section-title" id="ss-connected-title">Connected Players (7)</span>
+                                </div>
+                                <div class="ss-section-bar-right">
+                                    <span class="ss-bar-meta" data-i18n-app="Rows:">Rows:</span>
+                                    <div class="ss-spinbox ss-spinbox--rows" id="ss-connected-rows-box" aria-label="Connected table rows per page">
+                                        <span class="ss-spinbox-val" id="ss-connected-rows-val">All (7)</span>
+                                        <span class="ss-spinbox-arrows">
+                                            <button type="button" class="ss-spin-btn ss-spin-btn--up" id="ss-connected-rows-up" aria-label="Increase rows per page">
+                                                <svg class="icon" aria-hidden="true"><use href="#icon-chevron-up"></use></svg>
+                                            </button>
+                                            <button type="button" class="ss-spin-btn ss-spin-btn--down" id="ss-connected-rows-down" aria-label="Decrease rows per page">
+                                                <svg class="icon" aria-hidden="true"><use href="#icon-chevron-down"></use></svg>
+                                            </button>
+                                        </span>
+                                    </div>
+                                    <span class="ss-bar-meta" data-i18n-app="Page:">Page:</span>
+                                    <div class="ss-spinbox ss-spinbox--page" id="ss-connected-page-box" aria-label="Connected table page">
+                                        <span class="ss-spinbox-val mono" id="ss-connected-page">1 / 1</span>
+                                        <span class="ss-spinbox-arrows">
+                                            <button type="button" class="ss-spin-btn ss-spin-btn--up" id="ss-connected-page-up" aria-label="Next connected page">
+                                                <svg class="icon" aria-hidden="true"><use href="#icon-chevron-up"></use></svg>
+                                            </button>
+                                            <button type="button" class="ss-spin-btn ss-spin-btn--down" id="ss-connected-page-down" aria-label="Previous connected page">
+                                                <svg class="icon" aria-hidden="true"><use href="#icon-chevron-down"></use></svg>
+                                            </button>
+                                        </span>
+                                    </div>
+                                    <span class="ss-bar-vsep" aria-hidden="true"></span>
+                                    <button type="button" class="ss-bar-btn ss-bar-btn--merge" id="ss-merge-btn" aria-pressed="false" data-i18n-app="MERGE">
+                                        MERGE
+                                    </button>
+                                    <button type="button" class="ss-bar-btn ss-bar-btn--clear" id="ss-connected-clear" data-i18n-app="CLEAR">
+                                        CLEAR
+                                    </button>
+                                    <button type="button" class="ss-bar-icon-btn" id="ss-connected-collapse" aria-label="Hide connected players table">
+                                        <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-arrow-down-to-line"></use></svg>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="ss-table-scroll" id="ss-connected-body">
+                                <table class="ss-table ss-table--connected">
+                                    <thead>
+                                        <tr>
+                                            <th data-sort-table="connected" data-sort-col="username" tabindex="0" aria-sort="none"><span class="ss-th-inner"><span data-i18n-app="Usernames">Usernames</span><svg class="icon ss-sort-arrow" aria-hidden="true"><use href="#icon-chevron-down"></use></svg></span></th>
+                                            <th data-sort-table="connected" data-sort-col="firstSeen" tabindex="0" aria-sort="none"><span class="ss-th-inner"><span data-i18n-app="First Seen">First Seen</span><svg class="icon ss-sort-arrow" aria-hidden="true"><use href="#icon-chevron-down"></use></svg></span></th>
+                                            <th data-sort-table="connected" data-sort-col="lastRejoin" tabindex="0" aria-sort="descending" class="is-sorted"><span class="ss-th-inner"><span data-i18n-app="Last Rejoin">Last Rejoin</span><svg class="icon ss-sort-arrow" aria-hidden="true"><use href="#icon-chevron-down"></use></svg></span></th>
+                                            <th class="num" data-sort-table="connected" data-sort-col="rejoins" tabindex="0" aria-sort="none"><span class="ss-th-inner"><span data-i18n-app="Rejoins">Rejoins</span><svg class="icon ss-sort-arrow" aria-hidden="true"><use href="#icon-chevron-down"></use></svg></span></th>
+                                            <th class="num" data-sort-table="connected" data-sort-col="packets" tabindex="0" aria-sort="none"><span class="ss-th-inner"><span data-i18n-app="Packets">Packets</span><svg class="icon ss-sort-arrow" aria-hidden="true"><use href="#icon-chevron-down"></use></svg></span></th>
+                                            <th class="num" data-sort-table="connected" data-sort-col="pps" tabindex="0" aria-sort="none"><span class="ss-th-inner"><span data-i18n-app="PPS">PPS</span><svg class="icon ss-sort-arrow" aria-hidden="true"><use href="#icon-chevron-down"></use></svg></span></th>
+                                            <th class="num" data-sort-table="connected" data-sort-col="bandwidth" tabindex="0" aria-sort="none"><span class="ss-th-inner"><span data-i18n-app="Bandwidth">Bandwidth</span><svg class="icon ss-sort-arrow" aria-hidden="true"><use href="#icon-chevron-down"></use></svg></span></th>
+                                            <th class="num" data-sort-table="connected" data-sort-col="bps" tabindex="0" aria-sort="none"><span class="ss-th-inner"><span data-i18n-app="BPS">BPS</span><svg class="icon ss-sort-arrow" aria-hidden="true"><use href="#icon-chevron-down"></use></svg></span></th>
+                                            <th data-sort-table="connected" data-sort-col="ip" tabindex="0" aria-sort="none"><span class="ss-th-inner"><span data-i18n-app="IP Address">IP Address</span><svg class="icon ss-sort-arrow" aria-hidden="true"><use href="#icon-chevron-down"></use></svg></span></th>
+                                            <th data-sort-table="connected" data-sort-col="hostname" tabindex="0" aria-sort="none"><span class="ss-th-inner"><span data-i18n-app="Hostname">Hostname</span><svg class="icon ss-sort-arrow" aria-hidden="true"><use href="#icon-chevron-down"></use></svg></span></th>
+                                            <th data-sort-table="connected" data-sort-col="ports" tabindex="0" aria-sort="none"><span class="ss-th-inner"><span data-i18n-app="Ports">Ports</span><svg class="icon ss-sort-arrow" aria-hidden="true"><use href="#icon-chevron-down"></use></svg></span></th>
+                                            <th data-sort-table="connected" data-sort-col="country" tabindex="0" aria-sort="none"><span class="ss-th-inner"><span data-i18n-app="Country">Country</span><svg class="icon ss-sort-arrow" aria-hidden="true"><use href="#icon-chevron-down"></use></svg></span></th>
+                                            <th data-sort-table="connected" data-sort-col="region" tabindex="0" aria-sort="none"><span class="ss-th-inner"><span data-i18n-app="Region">Region</span><svg class="icon ss-sort-arrow" aria-hidden="true"><use href="#icon-chevron-down"></use></svg></span></th>
+                                            <th data-sort-table="connected" data-sort-col="isp" tabindex="0" aria-sort="none"><span class="ss-th-inner"><span data-i18n-app="ASN / ISP">ASN / ISP</span><svg class="icon ss-sort-arrow" aria-hidden="true"><use href="#icon-chevron-down"></use></svg></span></th>
+                                            <th data-sort-table="connected" data-sort-col="mobile" tabindex="0" aria-sort="none"><span class="ss-th-inner"><span data-i18n-app="Mobile">Mobile</span><svg class="icon ss-sort-arrow" aria-hidden="true"><use href="#icon-chevron-down"></use></svg></span></th>
+                                            <th data-sort-table="connected" data-sort-col="vpn" tabindex="0" aria-sort="none"><span class="ss-th-inner"><span data-i18n-app="VPN">VPN</span><svg class="icon ss-sort-arrow" aria-hidden="true"><use href="#icon-chevron-down"></use></svg></span></th>
+                                            <th data-sort-table="connected" data-sort-col="hosting" tabindex="0" aria-sort="none"><span class="ss-th-inner"><span data-i18n-app="Hosting">Hosting</span><svg class="icon ss-sort-arrow" aria-hidden="true"><use href="#icon-chevron-down"></use></svg></span></th>
+                                            <th data-sort-table="connected" data-sort-col="ping" tabindex="0" aria-sort="none"><span class="ss-th-inner"><span data-i18n-app="Pinging">Pinging</span><svg class="icon ss-sort-arrow" aria-hidden="true"><use href="#icon-chevron-down"></use></svg></span></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="ss-connected-tbody"></tbody>
+                                </table>
+                                <div class="ss-table-empty ss-table-empty--connected" id="ss-connected-empty" hidden>
+                                    <svg class="icon ss-table-empty-icon" aria-hidden="true"><use href="#icon-user-round-check"></use></svg>
+                                    <div class="ss-table-empty-title" id="ss-connected-empty-title">No connected players</div>
+                                    <div class="ss-table-empty-subtitle" id="ss-connected-empty-subtitle">Connected players will appear here.</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- QSplitter Handle -->
+                        <div class="ss-splitter-handle" id="ss-splitter-handle" role="separator" aria-orientation="horizontal" aria-label="Resize connected and disconnected player tables" tabindex="0"></div>
+
+                        <!-- Disconnected Players Section -->
+                        <div class="ss-section ss-section--disconnected" id="ss-disconnected-section">
+                            <div class="ss-section-bar ss-section-bar--disconnected">
+                                <div class="ss-section-bar-left">
+                                    <svg class="icon ss-section-icon ss-section-icon--disconnected" aria-hidden="true"><use href="#icon-user-round"></use></svg>
+                                    <span class="ss-section-title" id="ss-disconnected-title">Disconnected Players (4)</span>
+                                </div>
+                                <div class="ss-section-bar-right">
+                                    <span class="ss-bar-meta" data-i18n-app="Rows:">Rows:</span>
+                                    <div class="ss-spinbox ss-spinbox--rows" id="ss-disconnected-rows-box" aria-label="Disconnected table rows per page">
+                                        <span class="ss-spinbox-val" id="ss-disconnected-rows-val">All (4)</span>
+                                        <span class="ss-spinbox-arrows">
+                                            <button type="button" class="ss-spin-btn ss-spin-btn--up" id="ss-disconnected-rows-up" aria-label="Increase rows per page">
+                                                <svg class="icon" aria-hidden="true"><use href="#icon-chevron-up"></use></svg>
+                                            </button>
+                                            <button type="button" class="ss-spin-btn ss-spin-btn--down" id="ss-disconnected-rows-down" aria-label="Decrease rows per page">
+                                                <svg class="icon" aria-hidden="true"><use href="#icon-chevron-down"></use></svg>
+                                            </button>
+                                        </span>
+                                    </div>
+                                    <span class="ss-bar-meta" data-i18n-app="Page:">Page:</span>
+                                    <div class="ss-spinbox ss-spinbox--page" id="ss-disconnected-page-box" aria-label="Disconnected table page">
+                                        <span class="ss-spinbox-val mono" id="ss-disconnected-page">1 / 1</span>
+                                        <span class="ss-spinbox-arrows">
+                                            <button type="button" class="ss-spin-btn ss-spin-btn--up" id="ss-disconnected-page-up" aria-label="Next disconnected page">
+                                                <svg class="icon" aria-hidden="true"><use href="#icon-chevron-up"></use></svg>
+                                            </button>
+                                            <button type="button" class="ss-spin-btn ss-spin-btn--down" id="ss-disconnected-page-down" aria-label="Previous disconnected page">
+                                                <svg class="icon" aria-hidden="true"><use href="#icon-chevron-down"></use></svg>
+                                            </button>
+                                        </span>
+                                    </div>
+                                    <span class="ss-bar-vsep" aria-hidden="true"></span>
+                                    <button type="button" class="ss-bar-btn ss-bar-btn--merge" id="ss-disconnected-merge-btn" aria-pressed="false" data-i18n-app="MERGE">
+                                        MERGE
+                                    </button>
+                                    <button type="button" class="ss-bar-btn ss-bar-btn--clear" id="ss-disconnected-clear" data-i18n-app="CLEAR">
+                                        CLEAR
+                                    </button>
+                                    <button type="button" class="ss-bar-icon-btn" id="ss-disconnected-collapse" aria-label="Hide disconnected players table">
+                                        <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-arrow-down-to-line"></use></svg>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="ss-table-scroll" id="ss-disconnected-body">
+                                <table class="ss-table ss-table--disconnected">
+                                    <thead>
+                                        <tr>
+                                            <th data-sort-table="disconnected" data-sort-col="username" tabindex="0" aria-sort="none"><span class="ss-th-inner"><span data-i18n-app="Usernames">Usernames</span><svg class="icon ss-sort-arrow" aria-hidden="true"><use href="#icon-chevron-down"></use></svg></span></th>
+                                            <th data-sort-table="disconnected" data-sort-col="firstSeen" tabindex="0" aria-sort="none"><span class="ss-th-inner"><span data-i18n-app="First Seen">First Seen</span><svg class="icon ss-sort-arrow" aria-hidden="true"><use href="#icon-chevron-down"></use></svg></span></th>
+                                            <th data-sort-table="disconnected" data-sort-col="lastRejoin" tabindex="0" aria-sort="none"><span class="ss-th-inner"><span data-i18n-app="Last Rejoin">Last Rejoin</span><svg class="icon ss-sort-arrow" aria-hidden="true"><use href="#icon-chevron-down"></use></svg></span></th>
+                                            <th data-sort-table="disconnected" data-sort-col="lastSeen" tabindex="0" aria-sort="ascending" class="is-sorted"><span class="ss-th-inner"><span data-i18n-app="Last Seen">Last Seen</span><svg class="icon ss-sort-arrow" aria-hidden="true"><use href="#icon-chevron-up"></use></svg></span></th>
+                                            <th data-sort-table="disconnected" data-sort-col="totalSessionTime" tabindex="0" aria-sort="none"><span class="ss-th-inner"><span data-i18n-app="T. Session Time">T. Session Time</span><svg class="icon ss-sort-arrow" aria-hidden="true"><use href="#icon-chevron-down"></use></svg></span></th>
+                                            <th data-sort-table="disconnected" data-sort-col="sessionTime" tabindex="0" aria-sort="none"><span class="ss-th-inner"><span data-i18n-app="Session Time">Session Time</span><svg class="icon ss-sort-arrow" aria-hidden="true"><use href="#icon-chevron-down"></use></svg></span></th>
+                                            <th class="num" data-sort-table="disconnected" data-sort-col="rejoins" tabindex="0" aria-sort="none"><span class="ss-th-inner"><span data-i18n-app="Rejoins">Rejoins</span><svg class="icon ss-sort-arrow" aria-hidden="true"><use href="#icon-chevron-down"></use></svg></span></th>
+                                            <th class="num" data-sort-table="disconnected" data-sort-col="packets" tabindex="0" aria-sort="none"><span class="ss-th-inner"><span data-i18n-app="Packets">Packets</span><svg class="icon ss-sort-arrow" aria-hidden="true"><use href="#icon-chevron-down"></use></svg></span></th>
+                                            <th class="num" data-sort-table="disconnected" data-sort-col="bandwidth" tabindex="0" aria-sort="none"><span class="ss-th-inner"><span data-i18n-app="Bandwidth">Bandwidth</span><svg class="icon ss-sort-arrow" aria-hidden="true"><use href="#icon-chevron-down"></use></svg></span></th>
+                                            <th data-sort-table="disconnected" data-sort-col="ip" tabindex="0" aria-sort="none"><span class="ss-th-inner"><span data-i18n-app="IP Address">IP Address</span><svg class="icon ss-sort-arrow" aria-hidden="true"><use href="#icon-chevron-down"></use></svg></span></th>
+                                            <th data-sort-table="disconnected" data-sort-col="hostname" tabindex="0" aria-sort="none"><span class="ss-th-inner"><span data-i18n-app="Hostname">Hostname</span><svg class="icon ss-sort-arrow" aria-hidden="true"><use href="#icon-chevron-down"></use></svg></span></th>
+                                            <th data-sort-table="disconnected" data-sort-col="ports" tabindex="0" aria-sort="none"><span class="ss-th-inner"><span data-i18n-app="Ports">Ports</span><svg class="icon ss-sort-arrow" aria-hidden="true"><use href="#icon-chevron-down"></use></svg></span></th>
+                                            <th data-sort-table="disconnected" data-sort-col="country" tabindex="0" aria-sort="none"><span class="ss-th-inner"><span data-i18n-app="Country">Country</span><svg class="icon ss-sort-arrow" aria-hidden="true"><use href="#icon-chevron-down"></use></svg></span></th>
+                                            <th data-sort-table="disconnected" data-sort-col="region" tabindex="0" aria-sort="none"><span class="ss-th-inner"><span data-i18n-app="Region">Region</span><svg class="icon ss-sort-arrow" aria-hidden="true"><use href="#icon-chevron-down"></use></svg></span></th>
+                                            <th data-sort-table="disconnected" data-sort-col="isp" tabindex="0" aria-sort="none"><span class="ss-th-inner"><span data-i18n-app="ASN / ISP">ASN / ISP</span><svg class="icon ss-sort-arrow" aria-hidden="true"><use href="#icon-chevron-down"></use></svg></span></th>
+                                            <th data-sort-table="disconnected" data-sort-col="mobile" tabindex="0" aria-sort="none"><span class="ss-th-inner"><span data-i18n-app="Mobile">Mobile</span><svg class="icon ss-sort-arrow" aria-hidden="true"><use href="#icon-chevron-down"></use></svg></span></th>
+                                            <th data-sort-table="disconnected" data-sort-col="vpn" tabindex="0" aria-sort="none"><span class="ss-th-inner"><span data-i18n-app="VPN">VPN</span><svg class="icon ss-sort-arrow" aria-hidden="true"><use href="#icon-chevron-down"></use></svg></span></th>
+                                            <th data-sort-table="disconnected" data-sort-col="hosting" tabindex="0" aria-sort="none"><span class="ss-th-inner"><span data-i18n-app="Hosting">Hosting</span><svg class="icon ss-sort-arrow" aria-hidden="true"><use href="#icon-chevron-down"></use></svg></span></th>
+                                            <th data-sort-table="disconnected" data-sort-col="ping" tabindex="0" aria-sort="none"><span class="ss-th-inner"><span data-i18n-app="Pinging">Pinging</span><svg class="icon ss-sort-arrow" aria-hidden="true"><use href="#icon-chevron-down"></use></svg></span></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="ss-disconnected-tbody"></tbody>
+                                </table>
+                                <div class="ss-table-empty ss-table-empty--disconnected" id="ss-disconnected-empty" hidden>
+                                    <svg class="icon ss-table-empty-icon" aria-hidden="true"><use href="#icon-user-round-x"></use></svg>
+                                    <div class="ss-table-empty-title" id="ss-disconnected-empty-title">No disconnected players</div>
+                                    <div class="ss-table-empty-subtitle" id="ss-disconnected-empty-subtitle">Disconnected players will appear here.</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- _MinimizedTablesPlaceholder (shown only when both tables are minimized) -->
+                        <div class="ss-minimized-placeholder" id="ss-minimized-placeholder" hidden>
+                            <svg class="icon ss-placeholder-icon" aria-hidden="true"><use href="#icon-app_icon"></use></svg>
+                            <strong data-i18n-app="All Tables Minimized">All Tables Minimized</strong>
+                            <span data-i18n-app="Expand connected or disconnected players below to view session data">Expand connected or disconnected players below to view session data</span>
+                        </div>
+
+                        <!-- Real Expand Buttons (main_window.py lines 358-359) -->
+                        <button type="button" class="ss-expand-btn ss-expand-btn--connected" id="ss-connected-expand" hidden>
+                            Show Connected Players (7)
+                        </button>
+                        <button type="button" class="ss-expand-btn ss-expand-btn--disconnected" id="ss-disconnected-expand" hidden>
+                            Show Disconnected Players (4)
+                        </button>
+                    </div>
+
+                    <!-- 1:1 SessionStatusBar (exact pill structure & tones from _status_bar.py & status_bar_renderer.py) -->
+                    <div class="ss-statusbar">
+                        <div class="ss-statusbar-left">
+                            <div class="ss-sb-pill ss-sb-pill--capture" data-i18n-app-title="Capture:" title="Capture">
+                                <svg class="ss-sb-icon" aria-hidden="true"><use href="#icon-wifi"></use></svg>
+                                <span class="ss-sb-item">
+                                    <span class="ss-sb-label" data-i18n-app-strip="Interface:">Interface</span>
+                                    <span class="ss-sb-value ss-sb-tone-success"><span class="ss-sb-dot" aria-hidden="true"></span><span id="ss-status-iface">Ethernet 3</span></span>
+                                </span>
+                                <span class="ss-sb-divider" aria-hidden="true"></span>
+                                <span class="ss-sb-item">
+                                    <span class="ss-sb-label" data-i18n-app-strip="IP:">IP</span>
+                                    <span class="ss-sb-value ss-sb-mono" id="ss-status-ip">192.168.1.42</span>
+                                </span>
+                            </div>
+                            <div class="ss-sb-pill ss-sb-pill--config" data-i18n-app-title="Config:" title="Config">
+                                <svg class="ss-sb-icon" aria-hidden="true"><use href="#icon-sliders-horizontal"></use></svg>
+                                <span class="ss-sb-item">
+                                    <span class="ss-sb-label" data-i18n-app-strip="Discord:">Discord</span>
+                                    <span class="ss-sb-value ss-sb-tone-success"><span class="ss-sb-dot" aria-hidden="true"></span><span data-i18n-app="Connected">Connected</span></span>
+                                </span>
+                                <span id="ss-status-feature-wrap" class="ss-sb-feature-wrap">
+                                    <span class="ss-sb-divider" aria-hidden="true"></span>
+                                    <span class="ss-sb-item">
+                                        <span class="ss-sb-label" data-i18n-app-strip="Feature Set:">Feature Set</span>
+                                        <span class="ss-sb-value ss-sb-tone-accent" id="ss-status-mode">GTA V</span>
+                                    </span>
+                                </span>
+                            </div>
+                        </div>
+                        <div class="ss-statusbar-right">
+                            <div class="ss-sb-pill ss-sb-pill--performance" data-i18n-app-title="Performance:" title="Performance">
+                                <svg class="ss-sb-icon" aria-hidden="true"><use href="#icon-activity"></use></svg>
+                                <span class="ss-sb-item">
+                                    <span class="ss-sb-label" data-i18n-app-strip="Latency:">Latency</span>
+                                    <span class="ss-sb-value ss-sb-tone-success ss-sb-mono"><span class="ss-sb-dot" aria-hidden="true"></span><span id="ss-status-latency">0.4ms</span></span>
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ==================== FEATURES GRID ==================== -->
+        <section class="section" id="features">
+            <div class="container">
+                <div class="section-header">
+                    <span class="section-eyebrow" data-i18n="features.eyebrow">Built for Speed &amp; Clarity</span>
+                    <h2 class="section-title" data-i18n="features.title">Everything You Need to Monitor P2P Traffic</h2>
+                    <p class="section-lead" data-i18n="features.lead">
+                        Engineered in Python &amp; PySide6 with native libpcap/Npcap bindings — fast enough for chaotic 30-player sessions without touching game memory.
+                    </p>
+                </div>
+
+                <div class="feature-grid">
+                    <article class="feature-card">
+                        <div class="feature-icon feature-icon--success">
+                            <svg class="icon" aria-hidden="true"><use href="#icon-shield"></use></svg>
+                        </div>
+                        <h3 data-i18n="features.f1_title">100% External &amp; Ban-Safe</h3>
+                        <p data-i18n="features.f1_desc">Operates strictly at the packet layer via Npcap, libpcap, or macOS BPF. Zero memory injection, zero mods required, and zero risk of game bans.</p>
+                    </article>
+
+                    <article class="feature-card">
+                        <div class="feature-icon feature-icon--accent">
+                            <svg class="icon" aria-hidden="true"><use href="#icon-gamepad-2"></use></svg>
+                        </div>
+                        <h3 data-i18n="features.f2_title">PC, Console &amp; Mobile</h3>
+                        <p data-i18n="features.f2_desc">Lock capture onto a specific PC game process, or monitor PlayStation, Xbox, and mobile devices via Ethernet sharing, built-in Wi-Fi Hotspot, or LAN ARP.</p>
+                    </article>
+
+                    <article class="feature-card">
+                        <div class="feature-icon feature-icon--accent">
+                            <svg class="icon" aria-hidden="true"><use href="#icon-radio-tower"></use></svg>
+                        </div>
+                        <h3 data-i18n="features.f3_title">Smart Server &amp; ISP Filtering</h3>
+                        <p data-i18n="features.f3_desc">Automatically hides Rockstar, cloud, relay, and game servers so only real players surface — plus custom IP blocklists, ISP filters, and protocol filters.</p>
+                    </article>
+
+                    <article class="feature-card">
+                        <div class="feature-icon feature-icon--success">
+                            <svg class="icon" aria-hidden="true"><use href="#icon-user-round-check"></use></svg>
+                        </div>
+                        <h3 data-i18n="features.f4_title">Player Lists, Alerts &amp; Combo Rules</h3>
+                        <p data-i18n="features.f4_desc">Tag friends or hostiles in UserIP databases with custom names, colors, and notes. Get instant visual popups, TTS voice alerts, and automated detection rules.</p>
+                    </article>
+
+                    <article class="feature-card">
+                        <div class="feature-icon feature-icon--warning">
+                            <svg class="icon" aria-hidden="true"><use href="#icon-crown"></use></svg>
+                        </div>
+                        <h3 data-i18n="features.f5_title">GTA V &amp; RDR2 Power Tools</h3>
+                        <p data-i18n="features.f5_desc">Real-time Session Host &amp; relay detection, Host History, one-click Solo Public Session, in-game Player Resolver, and Looky System cloud lookups.</p>
+                    </article>
+
+                    <article class="feature-card">
+                        <div class="feature-icon feature-icon--danger">
+                            <svg class="icon" aria-hidden="true"><use href="#icon-chart-line"></use></svg>
+                        </div>
+                        <h3 data-i18n="features.f6_title">Live Graphs &amp; High-Rate Monitor</h3>
+                        <p data-i18n="features.f6_desc">Inspect live PPS/BPS traffic charts, capture latency graphs, port heatmaps, session timelines, and receive immediate spike alerts on traffic floods.</p>
+                    </article>
+                </div>
+            </div>
+        </section>
+
+        <!-- ==================== DOWNLOAD SECTION ==================== -->
+        <section class="section section-alt" id="download">
+            <div class="container">
+                <div class="section-header">
+                    <span class="section-eyebrow" data-i18n="download.eyebrow">Standalone Executables</span>
+                    <h2 class="section-title" data-i18n="download.title">Download Session Sniffer</h2>
+                    <p class="section-lead">
+                        <span data-i18n="download.lead_prefix">Free forever under GPLv3. Latest release:</span>
+                        <strong class="mono" data-release-version>v1.5.0</strong>
+                        <span id="release-date-wrap" hidden> · <span data-i18n="download.published_prefix">Published</span> <strong id="release-date-text"></strong></span>
+                    </p>
+                </div>
+
+                <div class="download-grid">
+                    <!-- Windows -->
+                    <article class="download-card" data-os="windows">
+                        <div class="download-card-head">
+                            <div class="download-os-icon">
+                                <svg class="icon" aria-hidden="true"><use href="#icon-monitor-smartphone"></use></svg>
+                            </div>
+                            <div>
+                                <h3>Windows</h3>
+                                <span class="download-arch mono">Windows 10 / 11 · x64</span>
+                            </div>
+                            <span class="os-recommended-badge" data-i18n="download.your_os" hidden>Your OS</span>
+                        </div>
+                        <p class="download-req" data-i18n="download.win_req">
+                            Requires Npcap — automatically detected and prompted on first launch.
+                        </p>
+                        <div class="download-meta-box">
+                            <div class="download-meta mono">
+                                <span>Session_Sniffer.exe</span>
+                                <span data-asset-size="Session_Sniffer.exe" data-i18n="download.standalone_binary">Standalone Binary</span>
+                            </div>
+                            <div class="download-hash" data-asset-hash-wrap="Session_Sniffer.exe" hidden>
+                                <span class="download-hash-badge mono" dir="ltr">SHA-256</span>
+                                <button
+                                    type="button"
+                                    class="download-hash-value mono"
+                                    dir="ltr"
+                                    data-asset-hash="Session_Sniffer.exe"
+                                ></button>
+                                <button
+                                    type="button"
+                                    class="download-hash-copy"
+                                    data-asset-hash-copy="Session_Sniffer.exe"
+                                    data-i18n-title="download.copy_sha256"
+                                    aria-label="Copy SHA-256"
+                                    title="Copy SHA-256"
+                                >
+                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-copy"></use></svg>
+                                </button>
+                            </div>
+                        </div>
+                        <a
+                            href="https://github.com/BUZZARDGTA/Session-Sniffer/releases/latest/download/Session_Sniffer.exe"
+                            class="btn btn-primary btn-full"
+                        >
+                            <svg class="icon icon-sm" aria-hidden="true"><use href="#icon-arrow-down-to-line"></use></svg>
+                            <span data-i18n="download.win_btn">Download for Windows</span>
+                        </a>
+                    </article>
+
+                    <!-- Linux -->
+                    <article class="download-card" data-os="linux">
+                        <div class="download-card-head">
+                            <div class="download-os-icon">
+                                <svg class="icon" aria-hidden="true"><use href="#icon-code"></use></svg>
+                            </div>
+                            <div>
+                                <h3>Linux</h3>
+                                <span class="download-arch mono">Ubuntu 24.04+ / Debian 13+ · x64</span>
+                            </div>
+                            <span class="os-recommended-badge" data-i18n="download.your_os" hidden>Your OS</span>
+                        </div>
+                        <p class="download-req" data-i18n="download.linux_req">
+                            Requires libpcap and packet capture capabilities (cap_net_raw). Older distros can run from source.
+                        </p>
+                        <div class="download-meta-box">
+                            <div class="download-meta mono">
+                                <span>Session_Sniffer</span>
+                                <span data-asset-size="Session_Sniffer" data-i18n="download.standalone_binary">Standalone Binary</span>
+                            </div>
+                            <div class="download-hash" data-asset-hash-wrap="Session_Sniffer" hidden>
+                                <span class="download-hash-badge mono" dir="ltr">SHA-256</span>
+                                <button
+                                    type="button"
+                                    class="download-hash-value mono"
+                                    dir="ltr"
+                                    data-asset-hash="Session_Sniffer"
+                                ></button>
+                                <button
+                                    type="button"
+                                    class="download-hash-copy"
+                                    data-asset-hash-copy="Session_Sniffer"
+                                    data-i18n-title="download.copy_sha256"
+                                    aria-label="Copy SHA-256"
+                                    title="Copy SHA-256"
+                                >
+                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-copy"></use></svg>
+                                </button>
+                            </div>
+                        </div>
+                        <a
+                            href="https://github.com/BUZZARDGTA/Session-Sniffer/releases/latest/download/Session_Sniffer"
+                            class="btn btn-control btn-full"
+                        >
+                            <svg class="icon icon-sm" aria-hidden="true"><use href="#icon-arrow-down-to-line"></use></svg>
+                            <span data-i18n="download.linux_btn">Download for Linux</span>
+                        </a>
+                    </article>
+
+                    <!-- macOS -->
+                    <article class="download-card" data-os="macos">
+                        <div class="download-card-head">
+                            <div class="download-os-icon">
+                                <svg class="icon" aria-hidden="true"><use href="#icon-network"></use></svg>
+                            </div>
+                            <div>
+                                <h3>macOS</h3>
+                                <span class="download-arch mono">macOS 14+ Sonoma · Apple Silicon</span>
+                            </div>
+                            <span class="os-recommended-badge" data-i18n="download.your_os" hidden>Your OS</span>
+                        </div>
+                        <p class="download-req" data-i18n="download.mac_req">
+                            Requires /dev/bpf* capture permissions (guided automatically via the Installation Wiki).
+                        </p>
+                        <div class="download-meta-box">
+                            <div class="download-meta mono">
+                                <span>Session_Sniffer_macOS</span>
+                                <span data-asset-size="Session_Sniffer_macOS" data-i18n="download.arm64_binary">ARM64 Binary</span>
+                            </div>
+                            <div class="download-hash" data-asset-hash-wrap="Session_Sniffer_macOS" hidden>
+                                <span class="download-hash-badge mono" dir="ltr">SHA-256</span>
+                                <button
+                                    type="button"
+                                    class="download-hash-value mono"
+                                    dir="ltr"
+                                    data-asset-hash="Session_Sniffer_macOS"
+                                ></button>
+                                <button
+                                    type="button"
+                                    class="download-hash-copy"
+                                    data-asset-hash-copy="Session_Sniffer_macOS"
+                                    data-i18n-title="download.copy_sha256"
+                                    aria-label="Copy SHA-256"
+                                    title="Copy SHA-256"
+                                >
+                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-copy"></use></svg>
+                                </button>
+                            </div>
+                        </div>
+                        <a
+                            href="https://github.com/BUZZARDGTA/Session-Sniffer/releases/latest/download/Session_Sniffer_macOS"
+                            class="btn btn-control btn-full"
+                        >
+                            <svg class="icon icon-sm" aria-hidden="true"><use href="#icon-arrow-down-to-line"></use></svg>
+                            <span data-i18n="download.mac_btn">Download for macOS</span>
+                        </a>
+                    </article>
+                </div>
+
+                <div class="download-links-bar">
+                    <a href="https://github.com/BUZZARDGTA/Session-Sniffer/wiki/Installation" target="_blank" rel="noopener noreferrer" class="text-link">
+                        <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-book-text"></use></svg>
+                        <span data-i18n="download.link_install">First-Time Installation Guide</span>
+                    </a>
+                    <a href="https://github.com/BUZZARDGTA/Session-Sniffer/wiki/Running-from-Source" target="_blank" rel="noopener noreferrer" class="text-link">
+                        <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-code"></use></svg>
+                        <span data-i18n="download.link_run_source">Running from Source</span>
+                    </a>
+                    <a href="https://github.com/BUZZARDGTA/Session-Sniffer/wiki/Building-from-Source" target="_blank" rel="noopener noreferrer" class="text-link">
+                        <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-settings"></use></svg>
+                        <span data-i18n="download.link_build_source">Building from Source</span>
+                    </a>
+                    <a href="https://github.com/BUZZARDGTA/Session-Sniffer/releases" target="_blank" rel="noopener noreferrer" class="text-link">
+                        <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-external-link"></use></svg>
+                        <span data-i18n="download.link_releases">All Releases &amp; SHA-256 Checksums</span>
+                    </a>
+                </div>
+            </div>
+        </section>
+
+        <!-- ==================== EXPLORE MORE HUB ==================== -->
+        <section class="section" id="explore">
+            <div class="container">
+                <div class="section-header">
+                    <span class="section-eyebrow" data-i18n="explore.eyebrow">Explore More</span>
+                    <h2 class="section-title" data-i18n="explore.title">Dive Deeper Into Session Sniffer</h2>
+                </div>
+
+                <div class="explore-grid">
+                    <a href="games.html" class="explore-card">
+                        <div class="explore-card-top">
+                            <div class="feature-icon feature-icon--accent">
+                                <svg class="icon" aria-hidden="true"><use href="#icon-gamepad-2"></use></svg>
+                            </div>
+                            <span class="badge badge-accent" data-i18n="games.stat_universal_value">Any P2P</span>
+                        </div>
+                        <h3 data-i18n="games.title">Supported Games &amp; Software</h3>
+                        <p data-i18n="explore.games_desc">Explore officially tested P2P games and apps with architecture notes, platforms, and username resolving details.</p>
+                        <span class="explore-card-cta">
+                            <span data-i18n="explore.games_cta">Browse Catalog</span>
+                            <svg class="icon icon-xs history-dir-icon" aria-hidden="true"><use href="#icon-arrow-right"></use></svg>
+                        </span>
+                    </a>
+
+                    <a href="themes.html" class="explore-card">
+                        <div class="explore-card-top">
+                            <div class="feature-icon feature-icon--success">
+                                <svg class="icon" aria-hidden="true"><use href="#icon-palette"></use></svg>
+                            </div>
+                            <span class="badge badge-success" data-i18n="studio.preview_tokens">20 live colors</span>
+                        </div>
+                        <h3 data-i18n="studio.title">Live Theme Studio</h3>
+                        <p data-i18n="explore.themes_desc">Try all 6 built-in themes live, customize all 20 color tokens, and export themes.json straight into the app.</p>
+                        <span class="explore-card-cta">
+                            <span data-i18n="explore.themes_cta">Open Theme Studio</span>
+                            <svg class="icon icon-xs history-dir-icon" aria-hidden="true"><use href="#icon-arrow-right"></use></svg>
+                        </span>
+                    </a>
+
+                    <a href="history.html" class="explore-card">
+                        <div class="explore-card-top">
+                            <div class="feature-icon feature-icon--warning">
+                                <svg class="icon" aria-hidden="true"><use href="#icon-rotate-ccw-clock"></use></svg>
+                            </div>
+                            <span class="badge badge-muted mono" dir="ltr">2021 – 2026</span>
+                        </div>
+                        <h3 data-i18n="footer.link_history">Project History</h3>
+                        <p data-i18n="explore.history_desc">Trace 5 years of evolution from the 2021 PS3 Batch script to the cross-platform PySide6 suite and every Git tag.</p>
+                        <span class="explore-card-cta">
+                            <span data-i18n="explore.history_cta">View History</span>
+                            <svg class="icon icon-xs history-dir-icon" aria-hidden="true"><use href="#icon-arrow-right"></use></svg>
+                        </span>
+                    </a>
+                </div>
+            </div>
+        </section>
+
+        <!-- ==================== FAQ ==================== -->
+        <section class="section section-alt" id="faq">
+            <div class="container container-narrow">
+                <div class="section-header">
+                    <span class="section-eyebrow" data-i18n="faq.eyebrow">Quick Answers</span>
+                    <h2 class="section-title" data-i18n="faq.title">Frequently Asked Questions</h2>
+                </div>
+
+                <div class="faq-list">
+                    <details class="faq-item">
+                        <summary>
+                            <span data-i18n="faq.q1">Is Session Sniffer safe to use? Can it get me banned?</span>
+                            <svg class="icon icon-xs faq-chevron" aria-hidden="true"><use href="#icon-chevron-down"></use></svg>
+                        </summary>
+                        <p data-i18n="faq.a1">
+                            Session Sniffer is 100% external — it passively reads network packets through standard capture drivers (Npcap / libpcap / BPF) and never injects into or modifies game files or memory. There is zero risk of an anti-cheat ban, and all source code is publicly auditable on GitHub under GPLv3.
+                        </p>
+                    </details>
+
+                    <details class="faq-item">
+                        <summary>
+                            <span data-i18n="faq.q2">What do I need to install on Windows, Linux, or macOS?</span>
+                            <svg class="icon icon-xs faq-chevron" aria-hidden="true"><use href="#icon-chevron-down"></use></svg>
+                        </summary>
+                        <p data-i18n="faq.a2">
+                            On Windows, just download Session_Sniffer.exe — it checks for Npcap automatically and guides you through installing it. On Linux, install libpcap and grant capture capabilities; on macOS, grant /dev/bpf* read permissions as shown in the Installation Wiki.
+                        </p>
+                    </details>
+
+                    <details class="faq-item">
+                        <summary>
+                            <span data-i18n="faq.q3">How do I monitor my PlayStation, Xbox, or mobile device?</span>
+                            <svg class="icon icon-xs faq-chevron" aria-hidden="true"><use href="#icon-chevron-down"></use></svg>
+                        </summary>
+                        <p data-i18n="faq.a3">
+                            Connect your console or phone through your PC using an Ethernet bridge, Session Sniffer's built-in Wi-Fi Hotspot Manager, or scan devices on your local network via ARP mode. Full setup steps are covered in the Project Wiki.
+                        </p>
+                    </details>
+
+                    <details class="faq-item">
+                        <summary>
+                            <span data-i18n="faq.q4">How do I use a custom theme created in the Theme Studio?</span>
+                            <svg class="icon icon-xs faq-chevron" aria-hidden="true"><use href="#icon-chevron-down"></use></svg>
+                        </summary>
+                        <p data-i18n="faq.a4">
+                            Open the Theme Studio, customize any of the 20 colors, give your theme a name, and click Download themes.json. Inside Session Sniffer, open Settings → Appearance → Theme Manager → Import and select the downloaded file.
+                        </p>
+                    </details>
+
+                    <details class="faq-item">
+                        <summary>
+                            <span data-i18n="faq.q5">Is Session Sniffer really completely free?</span>
+                            <svg class="icon icon-xs faq-chevron" aria-hidden="true"><use href="#icon-chevron-down"></use></svg>
+                        </summary>
+                        <p data-i18n="faq.a5">
+                            Yes — 100% free and open source under the GNU GPLv3 license, with no paywalls, subscriptions, or telemetry. If you enjoy using it and want to support ongoing development, you can optionally tip on Ko-fi.
+                        </p>
+                    </details>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- ==================== FOOTER ==================== -->
+    <footer class="site-footer">
+        <div class="container footer-inner">
+            <div class="footer-brand">
+                <div class="brand">
+                    <span class="brand-mark" aria-hidden="true">
+                        <svg class="icon icon-brand"><use href="#icon-app_icon"></use></svg>
+                    </span>
+                    <span class="brand-name">Session Sniffer</span>
+                </div>
+                <p class="footer-note" data-i18n="footer.note">
+                    Free &amp; open-source P2P session monitor by BUZZARDGTA · Licensed under GNU GPLv3. Zero ads, zero tracking cookies, zero telemetry.
+                </p>
+                <div class="footer-actions">
+                    <a href="https://discord.gg/hMZ7MsPX7G" target="_blank" rel="noopener noreferrer" class="btn btn-discord btn-sm">
+                        <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-discord"></use></svg>
+                        <span data-i18n="community.btn_discord">Join Discord Server</span>
+                    </a>
+                    <a href="https://github.com/BUZZARDGTA/Session-Sniffer" target="_blank" rel="noopener noreferrer" class="btn btn-control btn-sm">
+                        <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-github"></use></svg>
+                        <span data-i18n="community.btn_github">Star on GitHub</span>
+                    </a>
+                    <a href="https://ko-fi.com/buzzardgta" target="_blank" rel="noopener noreferrer" class="btn btn-control btn-sm">
+                        <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-trophy"></use></svg>
+                        <span data-i18n="community.btn_kofi">Support on Ko-fi</span>
+                    </a>
+                </div>
+            </div>
+
+            <div class="footer-columns">
+                <div class="footer-col">
+                    <h4 data-i18n="footer.col_explore">Explore</h4>
+                    <a href="#preview" data-i18n="nav.preview">Live Preview</a>
+                    <a href="games.html" data-i18n="games.title">Supported Games &amp; Software</a>
+                    <a href="themes.html" data-i18n="nav.themes">Theme Studio</a>
+                    <a href="history.html" data-i18n="footer.link_history">Project History</a>
+                </div>
+                <div class="footer-col">
+                    <h4 data-i18n="footer.col_docs">Documentation</h4>
+                    <a href="https://github.com/BUZZARDGTA/Session-Sniffer/wiki" target="_blank" rel="noopener noreferrer" data-i18n="footer.link_wiki">Project Wiki</a>
+                    <a href="https://github.com/BUZZARDGTA/Session-Sniffer/wiki/Installation" target="_blank" rel="noopener noreferrer" data-i18n="footer.link_install">Installation</a>
+                    <a href="https://github.com/BUZZARDGTA/Session-Sniffer/wiki/Configuration-Guide" target="_blank" rel="noopener noreferrer" data-i18n="footer.link_config">Configuration Guide</a>
+                    <a href="https://github.com/BUZZARDGTA/Session-Sniffer/wiki/Troubleshooting" target="_blank" rel="noopener noreferrer" data-i18n="footer.link_troubleshooting">Troubleshooting</a>
+                </div>
+                <div class="footer-col">
+                    <h4 data-i18n="footer.col_community">Community</h4>
+                    <a href="https://discord.gg/hMZ7MsPX7G" target="_blank" rel="noopener noreferrer" data-i18n="footer.link_discord">Discord Server</a>
+                    <a href="https://github.com/BUZZARDGTA/Session-Sniffer/issues" target="_blank" rel="noopener noreferrer" data-i18n="footer.link_issues">GitHub Issues</a>
+                    <a href="https://github.com/BUZZARDGTA/Session-Sniffer/discussions" target="_blank" rel="noopener noreferrer" data-i18n="footer.link_discussions">Discussions</a>
+                    <a href="https://t.me/waitingforharukatoaddme" target="_blank" rel="noopener noreferrer" data-i18n="footer.link_telegram">Telegram Contact</a>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Floating Qt-styled Right-Click Context Menu for table rows -->
+    <div class="ss-context-menu" id="ss-context-menu" role="menu" hidden></div>
+
+    <!-- Live toast notification for interactive actions -->
+    <div class="toast-region" id="toast-region" aria-live="polite" aria-atomic="true"></div>
+
+    <!-- Rich Floating Tooltip Portal (unclipped across tables, modals & cover cards) -->
+    <div class="ss-tooltip" id="ss-rich-tooltip" role="tooltip" aria-hidden="true">
+        <div class="ss-tooltip-head">
+            <span class="ss-tooltip-dot" aria-hidden="true"></span>
+            <strong class="ss-tooltip-title" id="ss-tooltip-title"></strong>
+        </div>
+        <p class="ss-tooltip-body" id="ss-tooltip-body"></p>
+    </div>
+
+    <script src="assets/app-data.generated.js" defer></script>
+    <script src="core.js" defer></script>
+    <script src="preview.js" defer></script>
+</body>
+
+</html>

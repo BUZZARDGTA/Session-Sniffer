@@ -155,6 +155,7 @@ allowed-confusables = ["➕", "ℹ"]
 "check_project_dependencies.py" = ["INP001", "S310", "T201"]
 "code_quality_checks.py" = ["INP001", "T201", "S602"]
 "scripts/*" = ["INP001"]
+"website/sync_assets.py" = ["INP001", "T201"]
 
 [tool.ruff.lint.flake8-quotes]
 inline-quotes = "single"
