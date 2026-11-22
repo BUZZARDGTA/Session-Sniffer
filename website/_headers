@@ -7,3 +7,6 @@
 
 /assets/*
   Cache-Control: public, max-age=604800, stale-while-revalidate=86400
+
+https://:project.pages.dev/*
+  X-Robots-Tag: noindex

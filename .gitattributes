@@ -20,6 +20,7 @@ website/** linguist-vendored
 *.html text eol=crlf
 *.css text eol=crlf
 *.js text eol=crlf
+*.xml text eol=crlf
 
 # Documentation
 *.md text eol=crlf

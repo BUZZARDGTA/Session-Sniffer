@@ -17,6 +17,7 @@ on:
       - 'website/translations/**'
       - 'website/_headers'
       - 'website/robots.txt'
+      - 'website/sitemap.xml'
   pull_request:
     branches: [main]
     paths-ignore:
@@ -33,6 +34,7 @@ on:
       - 'website/translations/**'
       - 'website/_headers'
       - 'website/robots.txt'
+      - 'website/sitemap.xml'
   workflow_call:
   workflow_dispatch:
 
