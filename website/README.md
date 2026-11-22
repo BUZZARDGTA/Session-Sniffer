@@ -53,4 +53,5 @@ Then open `http://127.0.0.1:8080` (or `http://localhost:8080`) in your browser.
    - **Build output directory:** `website`
 4. *(Optional)* Under **Settings → Builds & deployments → Build watch paths**, include `website/*` so Cloudflare only redeploys when website files change.
 5. Under **Custom domains**, add your domain (e.g. `sessionsniffer.com`). Cloudflare automatically sets up DNS, HTTPS/SSL, DDoS protection, and WAF.
-6. Security headers (`CSP`, `X-Frame-Options`, `X-Content-Type-Options`, caching) are automatically applied by Cloudflare Pages from `website/_headers`.
+6. To redirect both `sessionsniffer.pages.dev` and per-commit deployment URLs (`<hash>.sessionsniffer.pages.dev`) at the edge with HTTP `301`, open **Account Home → Bulk Redirects**, edit the redirect list entry for `sessionsniffer.pages.dev/` → `https://sessionsniffer.com/`, and enable **Include subdomains**, **Subpath matching**, **Preserve path suffix**, and **Preserve query string**. (`theme-init.js` also enforces a pre-paint fallback redirect for future deployments.)
+7. Security headers (`CSP`, `X-Frame-Options`, `X-Content-Type-Options`, `X-Robots-Tag: noindex` on `*.pages.dev`, caching) are automatically applied by Cloudflare Pages from `website/_headers`.

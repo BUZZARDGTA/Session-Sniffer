@@ -1,6 +1,17 @@
-/* Restore saved built-in theme and RTL direction before first paint to prevent flash. */
+/* Redirect *.pages.dev preview URLs to canonical custom domain and restore saved theme/RTL before first paint. */
 (function initSavedPreferences() {
     try {
+        var host = (window.location.hostname || '').toLowerCase();
+        if (host === 'sessionsniffer.pages.dev' || host.endsWith('.sessionsniffer.pages.dev')) {
+            window.location.replace(
+                'https://sessionsniffer.com'
+                + window.location.pathname
+                + window.location.search
+                + window.location.hash
+            );
+            return;
+        }
+
         var root = document.documentElement;
         var savedTheme = window.localStorage.getItem('ss_website_theme');
         if (savedTheme && /^[a-z0-9-]+$/.test(savedTheme)) {
