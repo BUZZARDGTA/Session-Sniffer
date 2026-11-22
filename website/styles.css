@@ -8,6 +8,10 @@
     --ss-brand-radar: #48b774;
     --ss-discord: #5865f2;
     --ss-discord-hover: #4752c4;
+    --ss-github: #24292f;
+    --ss-github-hover: #161b22;
+    --ss-kofi: #ff5e5b;
+    --ss-kofi-hover: #e84b48;
     --ss-looky: #c084fc;
     --ss-font-sans: 'Segoe UI', -apple-system, BlinkMacSystemFont, 'Ubuntu', 'Helvetica Neue', Arial, sans-serif;
     --ss-font-mono: 'Cascadia Code', 'JetBrains Mono', Consolas, Menlo, 'DejaVu Sans Mono', 'Courier New', monospace;
@@ -342,6 +346,48 @@ summary:focus-visible {
 .btn-discord:hover {
     background: var(--ss-discord-hover);
     border-color: var(--ss-discord-hover);
+}
+
+.btn-github {
+    background: linear-gradient(180deg, #2d333b 0%, #22272e 100%);
+    color: #f0f6fc;
+    border-color: #444c56;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 8px 22px rgba(0, 0, 0, 0.28);
+}
+
+.btn-github:hover {
+    background: linear-gradient(180deg, #373e47 0%, #2b313a 100%);
+    color: #ffffff;
+    border-color: #6e7681;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 10px 24px rgba(0, 0, 0, 0.38);
+}
+
+[data-scheme='light'] .btn-github {
+    background: var(--ss-github);
+    color: #ffffff;
+    border-color: var(--ss-github);
+    box-shadow: 0 8px 22px rgba(36, 41, 47, 0.22);
+}
+
+[data-scheme='light'] .btn-github:hover {
+    background: var(--ss-github-hover);
+    color: #ffffff;
+    border-color: var(--ss-github-hover);
+    box-shadow: 0 10px 24px rgba(36, 41, 47, 0.30);
+}
+
+.btn-kofi {
+    background: linear-gradient(135deg, var(--ss-kofi) 0%, #f24b60 100%);
+    color: #ffffff;
+    border-color: var(--ss-kofi);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18), 0 8px 22px rgba(255, 94, 91, 0.28);
+}
+
+.btn-kofi:hover {
+    background: linear-gradient(135deg, var(--ss-kofi-hover) 0%, #de3b50 100%);
+    color: #ffffff;
+    border-color: var(--ss-kofi-hover);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 10px 24px rgba(255, 94, 91, 0.38);
 }
 
 .icon-btn {
