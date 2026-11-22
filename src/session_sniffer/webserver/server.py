@@ -8,6 +8,7 @@ import hmac
 import ipaddress
 import json
 import logging
+import sys
 import threading
 from dataclasses import dataclass, field
 from functools import lru_cache
@@ -52,8 +53,12 @@ _FLAG_CACHE_HEADERS: dict[str, str] = {'Cache-Control': 'public, max-age=86400, 
 _APP_ICON_SVG_PATH = ICONS_DIR_PATH / 'app_icon.svg'
 _PWA_ICON_BACKGROUND = '#121212'
 _WSAEACCES = 10013
+_WSAEINVAL = 10022
+_WSAENOTSOCK = 10038
 _WSAEADDRINUSE = 10048
 _WSAEADDRNOTAVAIL = 10049
+_WSAENOTCONN = 10057
+_BENIGN_ASYNCIO_WINERRORS: frozenset[int] = frozenset({_WSAEINVAL, _WSAENOTSOCK, _WSAENOTCONN})
 
 
 @lru_cache(maxsize=1)
@@ -152,6 +157,18 @@ def format_webserver_error(status: WebServerStatus) -> str:
     )
 
 
+def _is_benign_asyncio_transport_error(exception: BaseException) -> bool:
+    """Return `True` for benign peer-disconnect or socket-teardown errors."""
+    if isinstance(exception, (ConnectionResetError, ConnectionAbortedError, BrokenPipeError)):
+        return True
+    if isinstance(exception, OSError):
+        if getattr(exception, 'winerror', None) in _BENIGN_ASYNCIO_WINERRORS:
+            return True
+        if exception.errno == errno.ENOTCONN:
+            return True
+    return False
+
+
 def _handle_asyncio_exception(_loop: asyncio.AbstractEventLoop, context: dict[str, Any]) -> None:
     """Crash the app when an asyncio task raises an unexpected exception."""
     exc = context.get('exception')
@@ -160,10 +177,10 @@ def _handle_asyncio_exception(_loop: asyncio.AbstractEventLoop, context: dict[st
         return
     if isinstance(exc, asyncio.CancelledError):
         return
-    # Benign transport-level disconnects reported by the Windows proactor during
-    # connection teardown (e.g. WinError 10054 from `_call_connection_lost`).
-    # These are logged by asyncio itself, not raised by our code, so don't crash.
-    if isinstance(exc, (ConnectionResetError, ConnectionAbortedError, BrokenPipeError)):
+    # Benign transport-level disconnects and socket-teardown errors reported by
+    # asyncio internals (e.g. WinError 10022/10054/10057 on abrupt peer close).
+    # These are raised by socket teardown, not application logic, so don't crash.
+    if _is_benign_asyncio_transport_error(exc):
         logger.debug('Ignored benign asyncio transport error: %s: %s', type(exc).__name__, exc)
         return
     terminate_on_uncaught_exception(exc)
@@ -702,7 +719,11 @@ class WebServer:
     def run(self, startup_state: _ServerStartupState) -> None:
         """Start the web server (blocks until stopped)."""
         logger.debug('Starting web server on %s:%d', self.host, self.port)
-        loop = asyncio.new_event_loop()
+        # Use `SelectorEventLoop` on Windows to avoid CPython's `ProactorEventLoop`
+        # `_call_connection_lost` calling unguarded `socket.shutdown(SHUT_RDWR)`
+        # on already-closed/reset client sockets (WinError 10022 / 10054), which
+        # raises in callback teardown and skips socket close / server detach.
+        loop = asyncio.SelectorEventLoop() if sys.platform == 'win32' else asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         loop.set_exception_handler(_handle_asyncio_exception)
         self._event_loop = loop
