@@ -18,6 +18,7 @@ from shiboken6 import isValid
 
 from session_sniffer.constants.tables import (
     BANDWIDTH_RATE_STAT_COLUMNS,
+    GUI_COLUMN_HEADERS_TOOLTIPS,
     LOCATION_COLUMNS,
     NUMERIC_RIGHT_ALIGNED_COLUMNS,
     ORGANIZATION_COLUMNS,
@@ -44,73 +45,6 @@ if TYPE_CHECKING:
     from session_sniffer.models.player import Player
     from session_sniffer.rendering_core.types import CellColor
 
-
-GUI_COLUMN_HEADERS_TOOLTIPS = {
-    'Usernames': (
-        'Displays the usernames of players, ordered from most recent to oldest seen (left to right).\n\n'
-        'Usernames are resolved from your UserIP database files, Looky System, and mod menu logs.\n'
-        'For GTA V PC users who have used the Session Sniffer mod menu plugin,\n'
-        'it automatically resolves usernames while the plugin is running,\n'
-        'or shows previously resolved players that were seen by the plugin.'
-    ),
-    'First Seen': 'The very first time the player was observed across all sessions.',
-    'Last Rejoin': 'The most recent time the player rejoined your session.',
-    'Last Seen': 'The most recent time the player was active in your session.',
-    'T. Session Time': 'The total amount of time the player has been playing across all sessions.',
-    'Session Time': 'The amount of time the player was playing in the last session before disconnecting.',
-    'Biggest Session Time': 'The longest session duration for the player across all sessions.',
-    'Lowest Session Time': 'The shortest session duration for the player across all sessions.',
-    'Rejoins': 'The number of times the player has left and joined again your session across all sessions.',
-    'T. Packets': 'The total number of packets exchanged with the player across all sessions.',
-    'Packets': 'The number of packets exchanged (Received + Sent) with the player during the current session.',
-    'T. Packets Received': 'The total number of packets received from the player across all sessions.',
-    'Packets Received': 'The number of packets received from the player during the current session.',
-    'T. Packets Sent': 'The total number of packets sent to the player across all sessions.',
-    'Packets Sent': 'The number of packets sent to the player during the current session.',
-    'T. Min Packet Length': 'The minimum packet length (in bytes) exchanged with the player across all sessions.',
-    'Min Packet Length': 'The minimum packet length (in bytes) exchanged with the player during the current session.',
-    'T. Avg Packet Length': 'The average packet length (in bytes) exchanged with the player across all sessions.',
-    'Avg Packet Length': 'The average packet length (in bytes) exchanged with the player during the current session.',
-    'T. Max Packet Length': 'The maximum packet length (in bytes) exchanged with the player across all sessions.',
-    'Max Packet Length': 'The maximum packet length (in bytes) exchanged with the player during the current session.',
-    'PPS': 'The number of Packets exchanged (Received + Sent) with the player Per Second during the current session.',
-    'PPM': 'The number of Packets exchanged (Received + Sent) with the player Per Minute during the current session.',
-    'T. Bandwidth': 'The total amount of bytes transferred (Download + Upload) with the player across all sessions.',
-    'Bandwidth': 'The amount of bytes transferred (Download + Upload) with the player during the current session.',
-    'T. Download': 'The total amount of bytes downloaded from the player across all sessions.',
-    'Download': 'The amount of bytes downloaded from the player during the current session.',
-    'T. Upload': 'The total amount of bytes uploaded to the player across all sessions.',
-    'Upload': 'The amount of bytes uploaded to the player during the current session.',
-    'BPS': 'The number of Bytes transferred (Downloaded + Uploaded) with the player Per Second during the current session.',
-    'BPM': 'The number of Bytes transferred (Downloaded + Uploaded) with the player Per Minute during the current session.',
-    'IP Address': 'The IP address of the player.',
-    'Hostname': "The domain name associated with the player's IP address, resolved through a reverse DNS lookup.",
-    'Ports': 'All ports used by the player, ordered from first to last discovered (left to right).',
-    'Last Port': "The port used by the player's last captured packet.",
-    'Middle Ports': 'The ports used by the player between the first and last captured packets, ordered from last to first discovered (left to right).',
-    'First Port': "The port used by the player's first captured packet.",
-    'Continent': "The continent of the player's IP location.",
-    'Country': "The country of the player's IP location.",
-    'Region': "The region of the player's IP location.",
-    'R. Code': "The region code of the player's IP location.",
-    'City': "The city associated with the player's IP location (typically representing the ISP or an intermediate location, not the player's home address city).",
-    'District': "The district of the player's IP location.",
-    'ZIP Code': "The ZIP/postal code of the player's IP location.",
-    'Lat': "The latitude of the player's IP location.",
-    'Lon': "The longitude of the player's IP location.",
-    'Time Zone': "The time zone of the player's IP location.",
-    'Offset': "The time zone offset of the player's IP location.",
-    'Currency': "The currency associated with the player's IP location.",
-    'Organization': "The organization associated with the player's IP address.",
-    'ISP': "The Internet Service Provider of the player's IP address.",
-    'ASN / ISP': 'The Autonomous System Number or Internet Service Provider of the player.',
-    'AS': "The Autonomous System code of the player's IP.",
-    'ASN': "The Autonomous System Number name associated with the player's IP.",
-    'Mobile': 'Indicates if the player is using a mobile network (e.g., through a cellular hotspot or mobile data).',
-    'VPN': 'Indicates if the player is using a VPN, Proxy, or Tor relay.',
-    'Hosting': 'Indicates if the player is using a hosting provider (similar to VPN).',
-    'Pinging': 'Indicates if the player is being actively pinged.',
-}
 
 _ZERO_TD = timedelta(0)
 _DEFAULT_IPV4: Final[ipaddress.IPv4Address] = ipaddress.IPv4Address(0)

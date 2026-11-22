@@ -8,6 +8,7 @@ from PySide6.QtWidgets import QHeaderView, QTableView
 
 from session_sniffer.constants.tables import (
     BANDWIDTH_RATE_STAT_COLUMNS,
+    GUI_COLUMN_HEADERS_TOOLTIPS,
     LOCATION_COLUMNS,
     PACKET_STAT_COLUMNS,
     PORT_COLUMNS,
@@ -21,7 +22,6 @@ from session_sniffer.guis.table_column_resizing import (
     get_column_min_width,
     setup_static_table_column_resizing,
 )
-from session_sniffer.guis.table_model import GUI_COLUMN_HEADERS_TOOLTIPS
 from session_sniffer.guis.utils import PersistentMenu, add_icon_menu_action, create_styled_context_menu
 from session_sniffer.i18n import tr
 from session_sniffer.models import GUIState
