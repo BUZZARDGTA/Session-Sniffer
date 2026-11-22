@@ -24,7 +24,6 @@ from session_sniffer.core import ScriptControl
 from session_sniffer.discord.rpc import DiscordRPC
 from session_sniffer.discord.webhook import DiscordWebhookPayload, DiscordWebhookSender
 from session_sniffer.gta5.suspend_manager import GTASuspendManager
-from session_sniffer.guis.html_templates import generate_gui_header_html
 from session_sniffer.models import SessionLogFile
 from session_sniffer.models.player_lookup import PlayerModMenus
 from session_sniffer.models.player_traffic import PlayerBandwidth
@@ -54,9 +53,10 @@ from session_sniffer.rendering_core.session_table_renderer import (
     format_player_ports,
     format_player_usernames,
 )
-from session_sniffer.rendering_core.status_bar_renderer import build_gui_status_text
+from session_sniffer.rendering_core.status_bar_renderer import build_gui_status_sections
 from session_sniffer.rendering_core.types import (
     CaptureState,
+    CaptureStats,
     GeoIP2Readers,
     GUIColumnConfig,
     GUIRenderingSnapshot,
@@ -405,8 +405,8 @@ def rendering_core(
 
         Thread(target=_write_session_logging_task, args=(snapshot_model,), name='SessionLoggingWriter', daemon=True).start()
 
-    def process_gui_session_tables_rendering() -> SessionTableSnapshot:
-        if TableMergeState.is_merged():
+    def process_gui_session_tables_rendering(*, is_merged: bool) -> SessionTableSnapshot:
+        if is_merged:
             render_connected = [*session_connected, *session_disconnected]
             render_disconnected: list[Player] = []
         else:
@@ -922,17 +922,14 @@ def rendering_core(
             connected_num_columns = len(connected_column_names)
             disconnected_num_columns = len(disconnected_column_names)
             connected_column_mapping = {header: i for i, header in enumerate(connected_column_names)}
-        header_text = generate_gui_header_html(capture=capture)
-        (
-            status_capture_text,
-            status_config_text,
-            status_issues_text,
-            status_performance_text,
-        ) = build_gui_status_text(
+        capture_running = capture.is_running()
+        uptime_seconds = max(0, int(time.monotonic() - CaptureStats.capture_started_at)) if capture_running and CaptureStats.capture_started_at > 0 else 0
+        is_merged = TableMergeState.is_merged()
+        status_sections = build_gui_status_sections(
             capture=capture,
             discord_rpc_manager=discord_rpc_manager,
         )
-        session_table_snapshot = process_gui_session_tables_rendering()
+        session_table_snapshot = process_gui_session_tables_rendering(is_merged=is_merged)
 
         GUIRenderingState.publish_rendering_snapshot(
             GUIRenderingSnapshot(
@@ -943,11 +940,11 @@ def rendering_core(
                     disconnected_column_names=disconnected_column_names,
                 ),
                 status=GUIStatusTexts(
-                    header_text=header_text,
-                    status_capture_text=status_capture_text,
-                    status_config_text=status_config_text,
-                    status_issues_text=status_issues_text,
-                    status_performance_text=status_performance_text,
+                    capture_running=capture_running,
+                    uptime_seconds=uptime_seconds,
+                    total_packets=CaptureStats.total_packets_captured,
+                    is_merged=is_merged,
+                    status_sections=status_sections,
                 ),
                 connected=GUITableData(
                     row_count=session_table_snapshot.connected_count,

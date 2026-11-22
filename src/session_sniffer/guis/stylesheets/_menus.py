@@ -152,25 +152,57 @@ QMenu::separator {
 # STATUS BAR STYLES
 # =============================================================================
 
-STATUS_BAR_LABEL_STYLESHEET = themed_qss(
+STATUS_BAR_PILL_STYLESHEET = themed_qss(
     """
-QLabel {
-    background: transparent;
-    color: @text[#d8dee9];
-    border: none;
-    padding: 4px 8px;
+QFrame#statusBarPill {
+    background-color: @surface[rgba(255, 255, 255, 0.04)];
+    border: 1px solid @border[rgba(255, 255, 255, 0.09)];
+    border-radius: 7px;
 }
 """.strip(),
 )
 
+STATUS_BAR_ISSUES_PILL_STYLESHEET = themed_qss(
+    """
+QFrame#statusBarIssuesPill {
+    background-color: @danger[rgba(239, 68, 68, 0.12)];
+    border: 1px solid @danger[rgba(239, 68, 68, 0.35)];
+    border-radius: 7px;
+}
+""".strip(),
+)
 
-STATUS_BAR_PERFORMANCE_LABEL_STYLESHEET = themed_qss(
+STATUS_BAR_DIVIDER_STYLESHEET = themed_qss(
+    """
+QFrame#statusBarDivider {
+    background-color: @border[rgba(255, 255, 255, 0.09)];
+    border: none;
+    max-width: 1px;
+    min-width: 1px;
+}
+""".strip(),
+)
+
+STATUS_BAR_ITEM_LABEL_STYLESHEET = themed_qss(
     """
 QLabel {
     background: transparent;
-    color: @text[#d8dee9];
     border: none;
-    padding: 4px 8px 4px 4px;
+    color: @text_muted[#9ca3af];
+    font-size: 8.5pt;
+    font-weight: 500;
+}
+""".strip(),
+)
+
+STATUS_BAR_ISSUES_TITLE_STYLESHEET = themed_qss(
+    """
+QLabel {
+    background: transparent;
+    border: none;
+    color: @danger[#ef4444];
+    font-size: 8.5pt;
+    font-weight: 700;
 }
 """.strip(),
 )

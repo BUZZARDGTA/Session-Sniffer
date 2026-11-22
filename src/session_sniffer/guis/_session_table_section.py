@@ -1,4 +1,4 @@
-"""Session status bar and collapsible session table section widgets."""
+"""Collapsible session table section widgets."""
 
 from typing import TYPE_CHECKING, cast, override
 
@@ -11,7 +11,6 @@ from PySide6.QtWidgets import (
     QLabel,
     QPushButton,
     QSpinBox,
-    QStatusBar,
     QToolButton,
     QVBoxLayout,
     QWidget,
@@ -25,8 +24,6 @@ from session_sniffer.guis.stylesheets import (
     CONNECTED_EXPAND_BUTTON_STYLESHEET,
     DISCONNECTED_EXPAND_BUTTON_STYLESHEET,
     SECTION_HEADER_SEPARATOR_STYLESHEET,
-    STATUS_BAR_LABEL_STYLESHEET,
-    STATUS_BAR_PERFORMANCE_LABEL_STYLESHEET,
     section_bar_qss,
 )
 from session_sniffer.guis.table_model import SessionTableModel
@@ -40,57 +37,6 @@ from session_sniffer.settings import Settings
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
-
-
-class SessionStatusBar(QStatusBar):
-    """Status bar with dedicated labels for capture, config, issues, and performance info."""
-
-    def __init__(self, parent: QWidget | None = None) -> None:
-        """Create the status bar and add the four section labels."""
-        super().__init__(parent)
-        self.setSizeGripEnabled(False)
-
-        self._capture_label = QLabel()
-        self._capture_label.setTextFormat(Qt.TextFormat.RichText)
-        self._capture_label.setStyleSheet(STATUS_BAR_LABEL_STYLESHEET)
-
-        self._config_label = QLabel()
-        self._config_label.setTextFormat(Qt.TextFormat.RichText)
-        self._config_label.setStyleSheet(STATUS_BAR_LABEL_STYLESHEET)
-
-        self._issues_label = QLabel()
-        self._issues_label.setTextFormat(Qt.TextFormat.RichText)
-        self._issues_label.setStyleSheet(STATUS_BAR_LABEL_STYLESHEET)
-
-        self._performance_label = QLabel()
-        self._performance_label.setTextFormat(Qt.TextFormat.RichText)
-        self._performance_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-        self._performance_label.setStyleSheet(STATUS_BAR_PERFORMANCE_LABEL_STYLESHEET)
-        self._refresh_language_texts()
-
-        self.addWidget(self._capture_label)
-        self.addWidget(self._config_label)
-        self.addWidget(self._issues_label)
-        self.addPermanentWidget(self._performance_label)
-        register_language_refresh(self, self._refresh_language_texts)
-
-    def _refresh_language_texts(self) -> None:
-        self._performance_label.setToolTip(
-            tr(
-                'Packet capture performance metrics:\n\n'
-                '• Latency: Processing delay between packet arrival at the network driver and capture analysis (not network ping).\n'
-                '  If this value steadily increments, the capture engine is falling behind real-time traffic (see Capture Overflow Timer setting).\n\n'
-                '• Restarts: Number of times packet capture was automatically restarted.',
-            ),
-        )
-
-    def set_texts(self, *, capture: str, config: str, issues: str, performance: str) -> None:
-        """Update all four status label texts at once."""
-        self._capture_label.setText(capture)
-        self._config_label.setText(config)
-        self._issues_label.setText(issues)
-        self._issues_label.setVisible(bool(issues))
-        self._performance_label.setText(performance)
 
 
 class SessionTableSection(QWidget):

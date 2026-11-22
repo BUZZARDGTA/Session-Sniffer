@@ -2,6 +2,7 @@
 
 from session_sniffer.guis.tables_player_actions._actions import (
     block_ip_as_range,
+    build_discord_player_report,
     copy_player_info_for_discord,
     copy_players_info_for_discord,
     create_ping_menu,
@@ -21,6 +22,7 @@ from session_sniffer.guis.tables_player_actions.looky_system._looky_lookup_dialo
 
 __all__ = [
     'block_ip_as_range',
+    'build_discord_player_report',
     'copy_player_info_for_discord',
     'copy_players_info_for_discord',
     'create_ping_menu',

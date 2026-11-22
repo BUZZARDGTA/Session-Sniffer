@@ -818,8 +818,8 @@ def build_canonical_stylesheet(ui_scale: float = 1.0) -> str:
     QStatusBar {
         background-color: @statusbar[#252526];
         color: @text[#e0e0e0];
-        border-top: 1px solid @accent[#88c0d0];
-        padding: 4px 8px;
+        border-top: 1px solid @border[#3e3e42];
+        padding: 4px 10px;
         min-height: 24px;
         font-size: {base_font_pt}pt;
     }

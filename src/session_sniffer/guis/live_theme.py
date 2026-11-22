@@ -51,6 +51,7 @@ from session_sniffer.guis.theming import (
 )
 from session_sniffer.guis.theming._icons import lookup_rendered_svg_spec, lookup_themed_icon_filename
 from session_sniffer.guis.utils import get_ui_scale, make_padded_icon, render_svg_pixmap_with_pair
+from session_sniffer.rendering_core.events import wake_rendering_core
 from session_sniffer.settings.settings import Settings
 
 if TYPE_CHECKING:
@@ -628,6 +629,7 @@ def apply_prepared_runtime_theme(prepared: PreparedTheme) -> None:
     finally:
         _set_style_filter_attached(attached=True)
         _SYNC_STATE.applying = False
+    wake_rendering_core()
 
 
 def register_post_theme_refresh(widget: QWidget, callback: Callable[[], None]) -> None:
@@ -681,6 +683,7 @@ def apply_runtime_theme(theme: Theme) -> None:
     if theme.colors == active.colors:
         commit_prepared_theme(theme, get_theme_transform(theme.colors))
         _set_style_filter_attached(attached=True)
+        wake_rendering_core()
         return
     prime_current_theme_icon_tags()
     ui_scale = get_ui_scale()

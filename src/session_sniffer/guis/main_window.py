@@ -26,8 +26,9 @@ from session_sniffer.guis._main_window_game_mixin import GameMixin
 from session_sniffer.guis._main_window_looky_mixin import LookyMixin
 from session_sniffer.guis._main_window_shortcuts_mixin import ShortcutsMixin, append_shortcut_tooltip
 from session_sniffer.guis._main_window_stats_mixin import StatsMixin
-from session_sniffer.guis._session_table_section import SessionStatusBar, SessionTableSection
+from session_sniffer.guis._session_table_section import SessionTableSection
 from session_sniffer.guis._settings_runtime import SettingValue, apply_notifications_toggle_changes, apply_runtime_settings_changes
+from session_sniffer.guis._status_bar import SessionStatusBar
 from session_sniffer.guis.discord_intro import DiscordIntro
 from session_sniffer.guis.file_watch import DebouncedFileWatcher
 from session_sniffer.guis.live_language import add_i18n_menu_actions, register_language_refresh
@@ -62,7 +63,7 @@ from session_sniffer.player.session_host import SessionHost
 from session_sniffer.player.userip import UserIPDatabases, gui_dispatcher
 from session_sniffer.rdr2.suspend_manager import RDR2SuspendManager
 from session_sniffer.rendering_core.events import wake_rendering_core
-from session_sniffer.rendering_core.status_bar_renderer import build_gui_status_text, reset_status_bar_latency
+from session_sniffer.rendering_core.status_bar_renderer import build_gui_status_sections, reset_status_bar_latency
 from session_sniffer.rendering_core.types import CaptureStats, GUIRenderingState, GUIUpdatePayload, PaginationState, SearchState, SessionFilterState, TableMergeState
 from session_sniffer.settings import Settings
 
@@ -616,13 +617,9 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, ShortcutsMixin, 
             self._update_splitter_visibility()
 
         self._sync_capture_toggle_action()
-        self._header.set_capture_running(is_running=self.capture.is_running())
-        self._status_bar.set_texts(
-            capture=payload.status_capture_text,
-            config=payload.status_config_text,
-            issues=payload.status_issues_text,
-            performance=payload.status_performance_text,
-        )
+        is_capture_running = self.capture.is_running()
+        self._header.set_capture_running(is_running=is_capture_running)
+        self._status_bar.set_sections(payload.status_sections, capture_running=is_capture_running)
 
         if payload.column_config.connected_column_names != self._connected.table_model.column_names:
             self._connected.update_columns(payload.column_config.connected_column_names)
@@ -793,16 +790,11 @@ class MainWindow(LookyMixin, GameMixin, StatsMixin, FilesMixin, ShortcutsMixin, 
 
     def _update_status_bar(self) -> None:
         """Immediately render the status bar with current capture state."""
-        capture_section, config_section, issues_section, performance_section = build_gui_status_text(
+        sections = build_gui_status_sections(
             capture=self.capture.get(),
             discord_rpc_manager=None,
         )
-        self._status_bar.set_texts(
-            capture=capture_section,
-            config=config_section,
-            issues=issues_section,
-            performance=performance_section,
-        )
+        self._status_bar.set_sections(sections, capture_running=self.capture.is_running())
 
     def _refresh_after_theme_change(self) -> None:
         """Refresh dynamic header, status bar, and session table views after a runtime theme switch."""

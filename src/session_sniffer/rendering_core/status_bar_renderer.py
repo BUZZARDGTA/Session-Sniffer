@@ -1,6 +1,5 @@
-"""Status bar section rendering helpers for the GUI."""
+"""Status bar section rendering helpers for the desktop GUI and embedded web server."""
 
-import html
 import os
 import threading
 import time
@@ -13,10 +12,15 @@ from session_sniffer.capture.process import (
     get_current_process_io_bytes,
     get_current_process_memory_mb,
 )
-from session_sniffer.guis.colors import StatusBarColors, ThresholdColors
 from session_sniffer.i18n import tr
 from session_sniffer.player.userip import UserIPDatabases
-from session_sniffer.rendering_core.types import CaptureState, CaptureStats
+from session_sniffer.rendering_core.types import (
+    CaptureState,
+    CaptureStats,
+    StatusBarItem,
+    StatusBarSectionData,
+    StatusBarTone,
+)
 from session_sniffer.settings import Settings
 
 _BYTES_PER_MB = 1024**2
@@ -191,128 +195,169 @@ def _capture_global_state(capture: PacketCapture, discord_rpc_manager: DiscordRP
 _INTERFACE_NAME_MAX_LEN = 20
 
 
-def _build_capture_section(snapshot: StatusBarSnapshot) -> str:
-    interface_name = snapshot.interface.name
-    if len(interface_name) > _INTERFACE_NAME_MAX_LEN:
-        interface_name = interface_name[:_INTERFACE_NAME_MAX_LEN] + '…'
-    escaped_interface_name = html.escape(interface_name)
-    escaped_ip_address = html.escape(snapshot.capture.ip_address)
+def _strip_trailing_colon(label: str) -> str:
+    """Remove trailing ASCII/CJK colons and adjacent spaces from a localized status label."""
+    return label.rstrip(':\uff1a \u00a0\u202f')
+
+
+def _format_interface_name(raw_name: str) -> str:
+    if len(raw_name) > _INTERFACE_NAME_MAX_LEN:
+        return raw_name[:_INTERFACE_NAME_MAX_LEN] + '…'
+    return raw_name
+
+
+def _resolve_target_process_label() -> str:
     return (
-        f'<span style="font-size: 9pt;">'
-        f'<span style="color: {StatusBarColors.TITLE_ACCENT}; font-weight: bold;">{html.escape(tr("Capture:"))}</span> '
-        f'<span style="color: {StatusBarColors.DIVIDER};"> • </span>'
-        f'<span style="color: {StatusBarColors.LABEL_ACCENT};">{html.escape(tr("Interface:"))}</span> '
-        f'<span style="color: {StatusBarColors.ENABLED};">{escaped_interface_name}</span> '
-        f'<span style="color: {StatusBarColors.DIVIDER};"> • </span>'
-        f'<span style="color: {StatusBarColors.LABEL_ACCENT};">{html.escape(tr("IP:"))}</span> '
-        f'<span style="color: {StatusBarColors.ENABLED};">{escaped_ip_address}</span>'
-        f'</span>'
+        CaptureState.target_process_name
+        or (Settings.capture_filter_process_name if Settings.capture_filter_process_track_by_name else None)
+        or (tr('PID {pid}', pid=Settings.capture_filter_process_pid) if Settings.capture_filter_process_pid > 0 else tr('Target Process'))
     )
 
 
-def _build_config_section(snapshot: StatusBarSnapshot) -> str:
-    parts: list[str] = []
-
-    if snapshot.interface.arp_spoofing:
-        spoofing_status = html.escape(tr('Running') if snapshot.interface.arp_spoofing_running else tr('Stopped'))
-        spoofing_color = StatusBarColors.ENABLED if snapshot.interface.arp_spoofing_running else StatusBarColors.DISABLED
-        parts.append(
-            f'<span style="color: {StatusBarColors.LABEL_ACCENT};">{html.escape(tr("ARP Spoofing:"))}</span> <span style="color: {spoofing_color};">{spoofing_status}</span>',
-        )
-    elif snapshot.interface.is_neighbour_interface:
-        parts.append(
-            f'<span style="color: {StatusBarColors.LABEL_ACCENT};">{html.escape(tr("ARP:"))}</span> '
-            f'<span style="color: {StatusBarColors.ENABLED};">{html.escape(tr("Enabled"))}</span>',
-        )
-
-    if snapshot.system.discord_presence_enabled:
-        rpc_color = StatusBarColors.ENABLED if snapshot.system.discord_rpc_connected else StatusBarColors.DISABLED
-        rpc_status = html.escape(tr('Connected') if snapshot.system.discord_rpc_connected else tr('Waiting'))
-        parts.append(
-            f'<span style="color: {StatusBarColors.LABEL_ACCENT};">{html.escape(tr("Discord:"))}</span> <span style="color: {rpc_color};">{rpc_status}</span>',
-        )
-
-    if snapshot.capture.feature_set is not None:
-        escaped_feature_set = html.escape(snapshot.capture.feature_set)
-        parts.append(
-            f'<span style="color: {StatusBarColors.LABEL_ACCENT};">{html.escape(tr("Feature Set:"))}</span> '
-            f'<span style="color: {StatusBarColors.ENABLED};">{escaped_feature_set}</span>',
-        )
-
-    if Settings.is_process_filter_active() and CaptureState.is_local_capture():
-        target_name = (
-            CaptureState.target_process_name
-            or (Settings.capture_filter_process_name if Settings.capture_filter_process_track_by_name else None)
-            or (tr('PID {pid}', pid=Settings.capture_filter_process_pid) if Settings.capture_filter_process_pid > 0 else tr('Target Process'))
-        )
-        escaped_target_name = html.escape(target_name)
-        target_color = StatusBarColors.ENABLED if CaptureState.target_process_running else StatusBarColors.DISABLED
-        parts.append(
-            f'<span style="color: {StatusBarColors.LABEL_ACCENT};">{html.escape(tr("Target:"))}</span> <span style="color: {target_color};">{escaped_target_name}</span>',
-        )
-
-    divider = f'<span style="color: {StatusBarColors.DIVIDER};"> • </span>'
-    body = divider.join(parts) if parts else f'<span style="color: {StatusBarColors.DISABLED};">{html.escape(tr("Default"))}</span>'
-    return f'<span style="font-size: 9pt;"><span style="color: {StatusBarColors.TITLE_ACCENT}; font-weight: bold;">{html.escape(tr("Config:"))}</span> {body}</span>'
-
-
-def _build_userip_issues_section(snapshot: StatusBarSnapshot) -> str:
-    if not snapshot.userip.conflict_ip_count:
-        return ''
-
-    return (
-        f'<span style="color: {StatusBarColors.DISABLED}; font-weight: bold;">{html.escape(tr("UserIP Issues:"))}</span> '
-        f'<span style="color: {StatusBarColors.DISABLED};">{html.escape(tr("Conflicts: {count}", count=snapshot.userip.conflict_ip_count))}</span>'
-    )
-
-
-def _build_performance_section(snapshot: StatusBarSnapshot) -> str:
+def _resolve_latency_metrics(snapshot: StatusBarSnapshot) -> tuple[str, StatusBarTone]:
     has_latency = snapshot.capture_stats.last_nonzero_latency_ts > 0 and time.monotonic() - snapshot.capture_stats.last_nonzero_latency_ts < _LATENCY_DISPLAY_WINDOW_SECONDS
     display_latency_ms = snapshot.capture_stats.last_nonzero_latency_ms if has_latency else 0.0
 
-    latency_color: str
     if not has_latency or snapshot.capture.overflow_timer <= 0:
-        latency_color = StatusBarColors.DIVIDER
+        latency_tone: StatusBarTone = 'muted'
     else:
         display_latency_seconds = display_latency_ms / 1000
         if display_latency_seconds >= 0.90 * snapshot.capture.overflow_timer:
-            latency_color = ThresholdColors.CRITICAL
+            latency_tone = 'danger'
         elif display_latency_seconds >= 0.75 * snapshot.capture.overflow_timer:
-            latency_color = ThresholdColors.WARNING
+            latency_tone = 'warning'
         else:
-            latency_color = ThresholdColors.HEALTHY
-    restart_color: str = ThresholdColors.HEALTHY if not snapshot.capture_stats.restarted_times else ThresholdColors.CRITICAL
-    latency_text = html.escape(tr('{latency}ms', latency=round(display_latency_ms, 1))) if has_latency else html.escape(tr('— ms'))
+            latency_tone = 'success'
 
-    restarts_display = (
-        f'<span style="color: {StatusBarColors.DIVIDER};"> • </span>'
-        f'<span style="color: {StatusBarColors.LABEL_ACCENT};">{html.escape(tr("Restarts:"))}</span> '
-        f'<span style="color: {restart_color};">{snapshot.capture_stats.restarted_times}</span>'
-        if snapshot.capture_stats.restarted_times
-        else ''
+    latency_text = tr('{latency}ms', latency=round(display_latency_ms, 1)) if has_latency else tr('— ms')
+    return latency_text, latency_tone
+
+
+def _build_status_sections(snapshot: StatusBarSnapshot) -> tuple[StatusBarSectionData, ...]:
+    """Build structured, theme-neutral status bar sections for the desktop GUI and embedded web panel."""
+    capture_items = (
+        StatusBarItem(
+            label=_strip_trailing_colon(tr('Interface:')),
+            value=_format_interface_name(snapshot.interface.name),
+            tone='success',
+            dot=True,
+        ),
+        StatusBarItem(
+            label=_strip_trailing_colon(tr('IP:')),
+            value=snapshot.capture.ip_address,
+            tone='neutral',
+            mono=True,
+        ),
     )
 
-    return (
-        f'<span style="font-size: 9pt;">'
-        f'<span style="color: {StatusBarColors.TITLE_ACCENT}; font-weight: bold;">{html.escape(tr("Performance:"))}</span> '
-        f'<span style="color: {StatusBarColors.LABEL_ACCENT};">{html.escape(tr("Latency:"))}</span> '
-        f'<span style="color: {latency_color};">{latency_text}</span>'
-        f'{restarts_display}'
-        f'</span>'
+    config_items: list[StatusBarItem] = []
+    if snapshot.interface.arp_spoofing:
+        config_items.append(
+            StatusBarItem(
+                label=_strip_trailing_colon(tr('ARP Spoofing:')),
+                value=tr('Running') if snapshot.interface.arp_spoofing_running else tr('Stopped'),
+                tone='success' if snapshot.interface.arp_spoofing_running else 'danger',
+                dot=True,
+            ),
+        )
+    elif snapshot.interface.is_neighbour_interface:
+        config_items.append(
+            StatusBarItem(
+                label=_strip_trailing_colon(tr('ARP:')),
+                value=tr('Enabled'),
+                tone='success',
+                dot=True,
+            ),
+        )
+
+    if snapshot.system.discord_presence_enabled:
+        config_items.append(
+            StatusBarItem(
+                label=_strip_trailing_colon(tr('Discord:')),
+                value=tr('Connected') if snapshot.system.discord_rpc_connected else tr('Waiting'),
+                tone='success' if snapshot.system.discord_rpc_connected else 'warning',
+                dot=True,
+            ),
+        )
+
+    if snapshot.capture.feature_set is not None:
+        config_items.append(
+            StatusBarItem(
+                label=_strip_trailing_colon(tr('Feature Set:')),
+                value=snapshot.capture.feature_set,
+                tone='accent',
+            ),
+        )
+
+    if Settings.is_process_filter_active() and CaptureState.is_local_capture():
+        config_items.append(
+            StatusBarItem(
+                label=_strip_trailing_colon(tr('Target:')),
+                value=_resolve_target_process_label(),
+                tone='success' if CaptureState.target_process_running else 'danger',
+                dot=True,
+            ),
+        )
+
+    if not config_items:
+        config_items.append(StatusBarItem(label='', value=tr('Default'), tone='muted'))
+
+    sections: list[StatusBarSectionData] = [
+        StatusBarSectionData(key='capture', title=_strip_trailing_colon(tr('Capture:')), items=capture_items),
+        StatusBarSectionData(key='config', title=_strip_trailing_colon(tr('Config:')), items=tuple(config_items)),
+    ]
+
+    if snapshot.userip.conflict_ip_count:
+        sections.append(
+            StatusBarSectionData(
+                key='issues',
+                title=_strip_trailing_colon(tr('UserIP Issues:')),
+                items=(
+                    StatusBarItem(
+                        label='',
+                        value=tr('Conflicts: {count}', count=snapshot.userip.conflict_ip_count),
+                        tone='danger',
+                        dot=True,
+                    ),
+                ),
+            ),
+        )
+
+    latency_text, latency_tone = _resolve_latency_metrics(snapshot)
+    performance_items: list[StatusBarItem] = [
+        StatusBarItem(
+            label=_strip_trailing_colon(tr('Latency:')),
+            value=latency_text,
+            tone=latency_tone,
+            mono=True,
+            dot=True,
+        ),
+    ]
+    if snapshot.capture_stats.restarted_times:
+        performance_items.append(
+            StatusBarItem(
+                label=_strip_trailing_colon(tr('Restarts:')),
+                value=str(snapshot.capture_stats.restarted_times),
+                tone='danger',
+                mono=True,
+            ),
+        )
+    sections.append(
+        StatusBarSectionData(
+            key='performance',
+            title=_strip_trailing_colon(tr('Performance:')),
+            items=tuple(performance_items),
+        ),
     )
 
+    return tuple(sections)
 
-def build_gui_status_text(
+
+def build_gui_status_sections(
     *,
     capture: PacketCapture,
     discord_rpc_manager: DiscordRPC | None,
-) -> tuple[str, str, str, str]:
-    """Generate status bar text content for all sections."""
+) -> tuple[StatusBarSectionData, ...]:
+    """Generate structured telemetry sections for the desktop GUI and embedded web server status bars."""
     snapshot = _capture_global_state(capture, discord_rpc_manager)
-
-    capture_section = _build_capture_section(snapshot)
-    config_section = _build_config_section(snapshot)
-    userip_issues_section = _build_userip_issues_section(snapshot)
-    performance_section = _build_performance_section(snapshot)
-
-    return capture_section, config_section, userip_issues_section, performance_section
+    return _build_status_sections(snapshot)

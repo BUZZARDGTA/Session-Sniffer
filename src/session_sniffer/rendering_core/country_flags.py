@@ -1,18 +1,58 @@
 """Cache and lookup utilities for country flag images."""
 
 import logging
+from functools import lru_cache
+from typing import TYPE_CHECKING
 
 from PySide6.QtGui import QImage
 
 from session_sniffer.constants.local import IMAGES_DIR_PATH
 from session_sniffer.models.player_lookup import PlayerCountryFlag
 
+if TYPE_CHECKING:
+    from pathlib import Path
+
 logger = logging.getLogger(__name__)
 
 COUNTRY_FLAGS_DIR_PATH = IMAGES_DIR_PATH / 'country_flags'
+_ISO_ALPHA2_LEN = 2
 
 _country_flag_cache: dict[str, PlayerCountryFlag] = {}
 _missing_country_flag_codes: set[str] = set()
+
+
+@lru_cache(maxsize=1)
+def _get_available_country_flag_codes() -> frozenset[str]:
+    """Return the cached set of uppercase ISO alpha-2 country codes available on disk."""
+    if not COUNTRY_FLAGS_DIR_PATH.is_dir():
+        return frozenset()
+    return frozenset(
+        flag_path.stem.upper()
+        for flag_path in COUNTRY_FLAGS_DIR_PATH.glob('*.png')
+        if len(flag_path.stem) == _ISO_ALPHA2_LEN and flag_path.stem.isascii() and flag_path.stem.isalpha()
+    )
+
+
+def _normalize_alpha2_code(country_code: str) -> str | None:
+    normalized = country_code.strip().upper()
+    if len(normalized) == _ISO_ALPHA2_LEN and normalized.isascii() and normalized.isalpha():
+        return normalized
+    return None
+
+
+def has_country_flag(country_code: str) -> bool:
+    """Return `True` when a bundled PNG flag exists for ISO alpha-2 *country_code*."""
+    normalized = _normalize_alpha2_code(country_code)
+    return normalized is not None and normalized in _get_available_country_flag_codes()
+
+
+def resolve_country_flag_path(country_code: str) -> Path | None:
+    """Return the filesystem path to the bundled PNG flag for *country_code*, or `None` if unavailable."""
+    normalized = _normalize_alpha2_code(country_code)
+    if normalized is None or normalized not in _get_available_country_flag_codes():
+        return None
+    flag_path = COUNTRY_FLAGS_DIR_PATH / f'{normalized}.png'
+    return flag_path if flag_path.is_file() else None
 
 
 def preload_country_flags() -> None:

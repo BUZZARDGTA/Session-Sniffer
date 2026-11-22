@@ -4,7 +4,7 @@ from collections import deque
 from collections.abc import Sequence
 from dataclasses import dataclass
 from threading import Condition, Lock
-from typing import TYPE_CHECKING, ClassVar, NamedTuple
+from typing import TYPE_CHECKING, ClassVar, Literal, NamedTuple
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
@@ -440,15 +440,36 @@ class SessionTableSnapshot(NamedTuple):
     past_sessions_with_colors: dict[int, tuple[tuple[tuple[str, ...], tuple[CellColor, ...]], ...]]
 
 
+type StatusBarTone = Literal['neutral', 'accent', 'success', 'warning', 'danger', 'muted']
+type StatusBarSectionKey = Literal['capture', 'config', 'issues', 'performance']
+
+
+@dataclass(frozen=True, slots=True)
+class StatusBarItem:
+    """Single label/value telemetry chip inside a structured status bar section."""
+
+    label: str
+    value: str
+    tone: StatusBarTone = 'neutral'
+    mono: bool = False
+    dot: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class StatusBarSectionData:
+    """Structured status bar section consumed by the desktop GUI and embedded web server."""
+
+    key: StatusBarSectionKey
+    title: str
+    items: tuple[StatusBarItem, ...]
+
+
 class GUIUpdatePayload(NamedTuple):
     """Payload containing all data needed for GUI updates."""
 
     snapshot_version: int
     column_config: GUIColumnConfig
-    status_capture_text: str
-    status_config_text: str
-    status_issues_text: str
-    status_performance_text: str
+    status_sections: tuple[StatusBarSectionData, ...]
     connected_rows_with_colors: Sequence[tuple[tuple[str, ...], tuple[CellColor, ...]]]
     disconnected_rows_with_colors: Sequence[tuple[tuple[str, ...], tuple[CellColor, ...]]]
     connected_count: int
@@ -471,13 +492,13 @@ class GUIColumnConfig:
 
 @dataclass(frozen=True, slots=True)
 class GUIStatusTexts:
-    """Header and status-bar text strings for the GUI."""
+    """Capture metadata and structured status-bar sections for the GUI and embedded web server."""
 
-    header_text: str
-    status_capture_text: str
-    status_config_text: str
-    status_issues_text: str
-    status_performance_text: str
+    capture_running: bool
+    uptime_seconds: int
+    total_packets: int
+    is_merged: bool
+    status_sections: tuple[StatusBarSectionData, ...]
 
 
 @dataclass(frozen=True, slots=True)
