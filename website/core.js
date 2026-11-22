@@ -359,6 +359,14 @@
         });
     }
 
+    function hasSiteKey(key) {
+        var active = LOADED_LOCALES[activeLang];
+        return Boolean(
+            (active && active.site && Object.prototype.hasOwnProperty.call(active.site, key))
+            || (DATA.enSite && Object.prototype.hasOwnProperty.call(DATA.enSite, key))
+        );
+    }
+
     function tSite(key, vars) {
         var active = LOADED_LOCALES[activeLang];
         var raw = (active && active.site && active.site[key]) || (DATA.enSite && DATA.enSite[key]) || key;
@@ -383,7 +391,8 @@
         PENDING_LOCALE_CALLBACKS[code] = [callback];
 
         var script = document.createElement('script');
-        script.src = 'assets/i18n/' + encodeURIComponent(code) + '.js';
+        var versionSuffix = DATA.assetVersion ? '?v=' + encodeURIComponent(DATA.assetVersion) : '';
+        script.src = 'assets/i18n/' + encodeURIComponent(code) + '.js' + versionSuffix;
         script.async = true;
         script.onerror = function onLoadError() {
             var waiters = PENDING_LOCALE_CALLBACKS[code];
@@ -441,7 +450,7 @@
 
         document.querySelectorAll('[data-i18n]').forEach(function translateSiteNode(el) {
             var key = el.getAttribute('data-i18n');
-            if (key) {
+            if (key && hasSiteKey(key)) {
                 el.textContent = tSite(key);
             }
         });
@@ -469,15 +478,19 @@
 
         document.querySelectorAll('[data-i18n-placeholder]').forEach(function translatePlaceholder(el) {
             var key = el.getAttribute('data-i18n-placeholder');
-            if (key) {
+            if (key && hasSiteKey(key)) {
                 el.setAttribute('placeholder', tSite(key));
             }
         });
 
         document.querySelectorAll('[data-i18n-title]').forEach(function translateTitle(el) {
             var key = el.getAttribute('data-i18n-title');
-            if (key) {
-                el.setAttribute('title', tSite(key));
+            if (key && hasSiteKey(key)) {
+                var val = tSite(key);
+                el.setAttribute('title', val);
+                if (el.hasAttribute('aria-label')) {
+                    el.setAttribute('aria-label', val);
+                }
             }
         });
 
@@ -1268,6 +1281,159 @@
     }
 
     /* ----------------------------------------------------------------------
+       FAQ Deep-Linking & Direct Link Copy
+       ---------------------------------------------------------------------- */
+
+    function copyTextToClipboard(text) {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            return navigator.clipboard.writeText(text).then(function ok() {
+                return true;
+            }).catch(function fallbackCopy() {
+                return legacyCopyText(text);
+            });
+        }
+        return Promise.resolve(legacyCopyText(text));
+    }
+
+    function legacyCopyText(text) {
+        try {
+            var ta = document.createElement('textarea');
+            ta.value = text;
+            ta.setAttribute('readonly', '');
+            ta.style.position = 'fixed';
+            ta.style.top = '-9999px';
+            ta.style.opacity = '0';
+            document.body.appendChild(ta);
+            ta.select();
+            var copied = document.execCommand('copy');
+            document.body.removeChild(ta);
+            return Boolean(copied);
+        } catch (_err) {
+            return false;
+        }
+    }
+
+    function initFaqAnchors() {
+        var faqItems = document.querySelectorAll('details.faq-item[id]');
+        if (!faqItems.length) {
+            return;
+        }
+
+        var highlightTimer = null;
+        var highlightedItem = null;
+        var copyTimers = new WeakMap();
+
+        function openFaqFromHash(options) {
+            var opts = options || {};
+            var rawHash = (window.location.hash || '').replace(/^#/, '');
+            if (!rawHash) {
+                return;
+            }
+            var decodedHash;
+            try {
+                decodedHash = decodeURIComponent(rawHash);
+            } catch (_err) {
+                decodedHash = rawHash;
+            }
+            var target = document.getElementById(decodedHash);
+            if (!target || target.tagName !== 'DETAILS' || !target.classList.contains('faq-item')) {
+                return;
+            }
+
+            target.open = true;
+
+            if (!opts.realignOnly) {
+                if (highlightedItem && highlightedItem !== target) {
+                    highlightedItem.classList.remove('is-targeted');
+                }
+                target.classList.add('is-targeted');
+                highlightedItem = target;
+                if (highlightTimer) {
+                    window.clearTimeout(highlightTimer);
+                }
+                highlightTimer = window.setTimeout(function clearHighlight() {
+                    target.classList.remove('is-targeted');
+                    if (highlightedItem === target) {
+                        highlightedItem = null;
+                    }
+                    highlightTimer = null;
+                }, 2400);
+            }
+
+            window.requestAnimationFrame(function scrollTarget() {
+                target.scrollIntoView({
+                    behavior: opts.instant ? 'auto' : 'smooth',
+                    block: 'start',
+                });
+            });
+        }
+
+        document.querySelectorAll('[data-faq-copy]').forEach(function bindFaqCopy(btn) {
+            btn.addEventListener('keydown', function preventSummaryKeyToggle(event) {
+                if (event.key === 'Enter' || event.key === ' ') {
+                    event.stopPropagation();
+                }
+            });
+
+            btn.addEventListener('click', function onCopyFaqLink(event) {
+                event.preventDefault();
+                event.stopPropagation();
+
+                var faqId = btn.getAttribute('data-faq-copy');
+                if (!faqId) {
+                    return;
+                }
+
+                var shareUrlObj = new URL(window.location.href);
+                shareUrlObj.hash = '#' + faqId;
+                var shareUrl = shareUrlObj.toString();
+
+                if (window.history && window.history.replaceState) {
+                    window.history.replaceState(null, '', '#' + faqId);
+                }
+
+                copyTextToClipboard(shareUrl).then(function afterCopy(ok) {
+                    var useEl = btn.querySelector('use');
+                    btn.classList.add('is-copied');
+                    if (useEl) {
+                        useEl.setAttribute('href', '#icon-check');
+                    }
+                    var prevTimer = copyTimers.get(btn);
+                    if (prevTimer) {
+                        window.clearTimeout(prevTimer);
+                    }
+                    copyTimers.set(btn, window.setTimeout(function restoreLinkIcon() {
+                        btn.classList.remove('is-copied');
+                        if (useEl) {
+                            useEl.setAttribute('href', '#icon-link');
+                        }
+                        copyTimers.delete(btn);
+                    }, 1800));
+
+                    showToast(ok ? tSite('faq.toast_link_copied') : shareUrl);
+                });
+            });
+        });
+
+        openFaqFromHash({ instant: true });
+        window.addEventListener('hashchange', function onFaqHashChange() {
+            openFaqFromHash({ instant: false });
+        });
+
+        /* Re-align once after the initial async locale finishes rendering if page height shifted. */
+        var initialLangAligned = false;
+        onLanguageChange(function realignFaqAfterInitialLang() {
+            if (initialLangAligned) {
+                return;
+            }
+            initialLangAligned = true;
+            if (window.location.hash) {
+                openFaqFromHash({ instant: true, realignOnly: true });
+            }
+        });
+    }
+
+    /* ----------------------------------------------------------------------
        Public Core API + Immediate Chrome Initialization
        ---------------------------------------------------------------------- */
 
@@ -1319,6 +1485,7 @@
     function finishBootstrap() {
         applyOsRecommendation();
         renderLanguageDropdown();
+        initFaqAnchors();
         setLanguage(detectInitialLanguage(), { skipSave: true });
         hydrateLiveCommunityStats();
     }

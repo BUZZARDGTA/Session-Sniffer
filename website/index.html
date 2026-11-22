@@ -22,7 +22,7 @@
     <meta name="twitter:image" content="https://sessionsniffer.com/assets/history/2026-gui-v1-5-pyside6.png">
 
     <link rel="icon" type="image/svg+xml" href="assets/app_icon.svg">
-    <link rel="stylesheet" href="assets/themes.generated.css">
+    <link rel="stylesheet" href="assets/themes.generated.css?v=ff293f85">
     <script src="theme-init.js"></script>
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="preview.css">
@@ -1413,10 +1413,15 @@
                 </div>
 
                 <div class="faq-list">
-                    <details class="faq-item">
+                    <details class="faq-item" id="faq-safe">
                         <summary>
-                            <span data-i18n="faq.q1">Is Session Sniffer safe to use? Can it get me banned?</span>
-                            <svg class="icon icon-xs faq-chevron" aria-hidden="true"><use href="#icon-chevron-down"></use></svg>
+                            <span class="faq-question" data-i18n="faq.q1">Is Session Sniffer safe to use? Can it get me banned?</span>
+                            <span class="faq-summary-actions">
+                                <button type="button" class="faq-copy-link" data-faq-copy="faq-safe" data-i18n-title="faq.copy_link" aria-label="Copy direct link" title="Copy direct link">
+                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-link"></use></svg>
+                                </button>
+                                <svg class="icon icon-xs faq-chevron" aria-hidden="true"><use href="#icon-chevron-down"></use></svg>
+                            </span>
                         </summary>
                         <div class="faq-body">
                             <p data-i18n="faq.a1">
@@ -1425,10 +1430,15 @@
                         </div>
                     </details>
 
-                    <details class="faq-item">
+                    <details class="faq-item" id="faq-antivirus">
                         <summary>
-                            <span data-i18n="faq.q_antivirus">Why does my antivirus flag Session_Sniffer.exe? Is it safe?</span>
-                            <svg class="icon icon-xs faq-chevron" aria-hidden="true"><use href="#icon-chevron-down"></use></svg>
+                            <span class="faq-question" data-i18n="faq.q_antivirus">Why does my antivirus flag Session_Sniffer.exe? Is it safe?</span>
+                            <span class="faq-summary-actions">
+                                <button type="button" class="faq-copy-link" data-faq-copy="faq-antivirus" data-i18n-title="faq.copy_link" aria-label="Copy direct link" title="Copy direct link">
+                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-link"></use></svg>
+                                </button>
+                                <svg class="icon icon-xs faq-chevron" aria-hidden="true"><use href="#icon-chevron-down"></use></svg>
+                            </span>
                         </summary>
                         <div class="faq-body">
                             <p data-i18n="faq.a_antivirus_1">
@@ -1465,10 +1475,15 @@
                         </div>
                     </details>
 
-                    <details class="faq-item">
+                    <details class="faq-item" id="faq-file-size">
                         <summary>
-                            <span data-i18n="faq.q_filesize">Why is the Session_Sniffer.exe file so large?</span>
-                            <svg class="icon icon-xs faq-chevron" aria-hidden="true"><use href="#icon-chevron-down"></use></svg>
+                            <span class="faq-question" data-i18n="faq.q_filesize">Why is the Session_Sniffer.exe file so large?</span>
+                            <span class="faq-summary-actions">
+                                <button type="button" class="faq-copy-link" data-faq-copy="faq-file-size" data-i18n-title="faq.copy_link" aria-label="Copy direct link" title="Copy direct link">
+                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-link"></use></svg>
+                                </button>
+                                <svg class="icon icon-xs faq-chevron" aria-hidden="true"><use href="#icon-chevron-down"></use></svg>
+                            </span>
                         </summary>
                         <div class="faq-body">
                             <p data-i18n="faq.a_filesize_1">
@@ -1486,10 +1501,32 @@
                         </div>
                     </details>
 
-                    <details class="faq-item">
+                    <details class="faq-item" id="faq-free">
                         <summary>
-                            <span data-i18n="faq.q2">How do I install and set up Session Sniffer?</span>
-                            <svg class="icon icon-xs faq-chevron" aria-hidden="true"><use href="#icon-chevron-down"></use></svg>
+                            <span class="faq-question" data-i18n="faq.q5">Is Session Sniffer really completely free?</span>
+                            <span class="faq-summary-actions">
+                                <button type="button" class="faq-copy-link" data-faq-copy="faq-free" data-i18n-title="faq.copy_link" aria-label="Copy direct link" title="Copy direct link">
+                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-link"></use></svg>
+                                </button>
+                                <svg class="icon icon-xs faq-chevron" aria-hidden="true"><use href="#icon-chevron-down"></use></svg>
+                            </span>
+                        </summary>
+                        <div class="faq-body">
+                            <p data-i18n="faq.a5">
+                                Yes — 100% free and open source under the GNU GPLv3 license, with no paywalls, subscriptions, or telemetry. If you enjoy using it and want to support ongoing development, you can optionally tip on Ko-fi.
+                            </p>
+                        </div>
+                    </details>
+
+                    <details class="faq-item" id="faq-setup">
+                        <summary>
+                            <span class="faq-question" data-i18n="faq.q2">How do I install and set up Session Sniffer?</span>
+                            <span class="faq-summary-actions">
+                                <button type="button" class="faq-copy-link" data-faq-copy="faq-setup" data-i18n-title="faq.copy_link" aria-label="Copy direct link" title="Copy direct link">
+                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-link"></use></svg>
+                                </button>
+                                <svg class="icon icon-xs faq-chevron" aria-hidden="true"><use href="#icon-chevron-down"></use></svg>
+                            </span>
                         </summary>
                         <div class="faq-body">
                             <ol class="faq-steps">
@@ -1542,10 +1579,15 @@
                         </div>
                     </details>
 
-                    <details class="faq-item">
+                    <details class="faq-item" id="faq-console">
                         <summary>
-                            <span data-i18n="faq.q3">How do I scan a PlayStation or Xbox console (Ethernet or Wi-Fi Hotspot)?</span>
-                            <svg class="icon icon-xs faq-chevron" aria-hidden="true"><use href="#icon-chevron-down"></use></svg>
+                            <span class="faq-question" data-i18n="faq.q3">How do I scan a PlayStation or Xbox console (Ethernet or Wi-Fi Hotspot)?</span>
+                            <span class="faq-summary-actions">
+                                <button type="button" class="faq-copy-link" data-faq-copy="faq-console" data-i18n-title="faq.copy_link" aria-label="Copy direct link" title="Copy direct link">
+                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-link"></use></svg>
+                                </button>
+                                <svg class="icon icon-xs faq-chevron" aria-hidden="true"><use href="#icon-chevron-down"></use></svg>
+                            </span>
                         </summary>
                         <div class="faq-body">
                             <ol class="faq-steps">
@@ -1580,10 +1622,15 @@
                         </div>
                     </details>
 
-                    <details class="faq-item">
+                    <details class="faq-item" id="faq-arp">
                         <summary>
-                            <span data-i18n="faq.q_arp">How do I scan using ARP Spoofing (PlayStation, Xbox, smartphone…)?</span>
-                            <svg class="icon icon-xs faq-chevron" aria-hidden="true"><use href="#icon-chevron-down"></use></svg>
+                            <span class="faq-question" data-i18n="faq.q_arp">How do I scan using ARP Spoofing (PlayStation, Xbox, smartphone…)?</span>
+                            <span class="faq-summary-actions">
+                                <button type="button" class="faq-copy-link" data-faq-copy="faq-arp" data-i18n-title="faq.copy_link" aria-label="Copy direct link" title="Copy direct link">
+                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-link"></use></svg>
+                                </button>
+                                <svg class="icon icon-xs faq-chevron" aria-hidden="true"><use href="#icon-chevron-down"></use></svg>
+                            </span>
                         </summary>
                         <div class="faq-body">
                             <ol class="faq-steps">
@@ -1612,30 +1659,6 @@
                                     </div>
                                 </li>
                             </ol>
-                        </div>
-                    </details>
-
-                    <details class="faq-item">
-                        <summary>
-                            <span data-i18n="faq.q4">Can I customize the interface colors or share custom themes?</span>
-                            <svg class="icon icon-xs faq-chevron" aria-hidden="true"><use href="#icon-chevron-down"></use></svg>
-                        </summary>
-                        <div class="faq-body">
-                            <p data-i18n="faq.a4">
-                                Yes — Session Sniffer includes a built-in Theme Manager under Settings → Themes → Theme Manager. Switch between 6 built-in themes, customize all 20 color tokens with a live preview, and import, export, or copy and paste themes.json directly in the app.
-                            </p>
-                        </div>
-                    </details>
-
-                    <details class="faq-item">
-                        <summary>
-                            <span data-i18n="faq.q5">Is Session Sniffer really completely free?</span>
-                            <svg class="icon icon-xs faq-chevron" aria-hidden="true"><use href="#icon-chevron-down"></use></svg>
-                        </summary>
-                        <div class="faq-body">
-                            <p data-i18n="faq.a5">
-                                Yes — 100% free and open source under the GNU GPLv3 license, with no paywalls, subscriptions, or telemetry. If you enjoy using it and want to support ongoing development, you can optionally tip on Ko-fi.
-                            </p>
                         </div>
                     </details>
                 </div>
@@ -1712,7 +1735,7 @@
         <p class="ss-tooltip-body" id="ss-tooltip-body"></p>
     </div>
 
-    <script src="assets/app-data.generated.js" defer></script>
+    <script src="assets/app-data.generated.js?v=ff293f85" defer></script>
     <script src="core.js" defer></script>
     <script src="preview.js" defer></script>
 </body>

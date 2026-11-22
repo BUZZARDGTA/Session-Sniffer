@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import shutil
@@ -49,8 +50,10 @@ _SVG_OPEN_TAG_RE: Final = re.compile(r'<svg\b([^>]*)>(.*)</svg>', re.DOTALL | re
 _VIEWBOX_RE: Final = re.compile(r'viewBox="([^"]+)"', re.IGNORECASE)
 _VERSION_BASE_RE: Final = re.compile(r'^(v?\d+\.\d+\.\d+(?:[-.]?(?:rc|alpha|beta)\d*)?)', re.IGNORECASE)
 _TAG_SERIES_RE: Final = re.compile(r'^v?(\d+\.\d+)', re.IGNORECASE)
-_DEFAULT_ICON_STROKE_RE: Final = re.compile(r'#a5b4c4', re.IGNORECASE)
+_DEFAULT_ICON_STROKE_RE: Final = re.compile(r'#a5b4c4|(?<=stroke=")white(?=")', re.IGNORECASE)
 _PLACEHOLDER_RE: Final = re.compile(r'\{[a-zA-Z0-9_]+(?::[^}]+)?\}')
+_HTML_GENERATED_ASSET_RE: Final = re.compile(r'(assets/(?:themes\.generated\.css|app-data\.generated\.js))(?:\?v=[0-9a-f]+)?')
+_WEBSITE_HTML_FILES: Final[tuple[str, ...]] = ('index.html', 'games.html', 'history.html')
 _LIGHT_LUMINANCE_THRESHOLD: Final = 140.0
 _PREDECESSOR_COMMITS_COUNT: Final = 99  # PS3-Blacklist-Sniffer (94) + PC-Blacklist-Sniffer (5)
 
@@ -639,15 +642,15 @@ def _collect_git_history_metadata() -> dict[str, object]:
     }
 
 
-def _generate_app_data_js(en_catalog: dict[str, str]) -> str:
-    """Generate `app-data.generated.js` containing themes, languages, English defaults, version, history, and SVG sprite."""
+def _build_app_data_payload(en_catalog: dict[str, str]) -> dict[str, object]:
+    """Build the JSON payload for `app-data.generated.js` before attaching the content hash."""
     full_version, display_version, app_version = _read_project_version()
     missing_lang_flags = sorted(set(SUPPORTED_LANGUAGES) - set(LANGUAGE_COUNTRY_FLAGS))
     if missing_lang_flags:
         message = f'Missing LANGUAGE_COUNTRY_FLAGS mappings for: {missing_lang_flags}'
         raise ValueError(message)
 
-    payload: dict[str, object] = {
+    return {
         'version': display_version,
         'appVersion': app_version,
         'fullVersion': full_version,
@@ -678,6 +681,21 @@ def _generate_app_data_js(en_catalog: dict[str, str]) -> str:
         'history': _collect_git_history_metadata(),
         'iconSprite': _build_icon_sprite(),
     }
+
+
+def _compute_generated_assets_version(themes_css: str, payload: dict[str, object]) -> str:
+    """Compute a deterministic 8-char SHA-256 version token across generated CSS, data, and i18n bundles."""
+    digest = hashlib.sha256()
+    digest.update(themes_css.encode('utf-8'))
+    digest.update(json.dumps(payload, sort_keys=True, ensure_ascii=False).encode('utf-8'))
+    for bundle_path in sorted(I18N_OUT_DIR.glob('*.js')):
+        digest.update(bundle_path.name.encode('utf-8'))
+        digest.update(bundle_path.read_bytes())
+    return digest.hexdigest()[:8]
+
+
+def _render_app_data_js(payload: dict[str, object]) -> str:
+    """Serialize `window.SESSION_SNIFFER_DATA` into `app-data.generated.js`."""
     serialized = json.dumps(payload, indent=2, ensure_ascii=False)
     return (
         '/*\n'
@@ -686,6 +704,16 @@ def _generate_app_data_js(en_catalog: dict[str, str]) -> str:
         ' */\n'
         f'window.SESSION_SNIFFER_DATA = {serialized};\n'
     )
+
+
+def _stamp_html_asset_versions(asset_version: str) -> None:
+    """Stamp `?v=<asset_version>` onto generated asset tags in website HTML pages to prevent stale-cache mismatches."""
+    for html_name in _WEBSITE_HTML_FILES:
+        html_path = WEBSITE_DIR / html_name
+        original = html_path.read_text(encoding='utf-8')
+        updated = _HTML_GENERATED_ASSET_RE.sub(rf'\1?v={asset_version}', original)
+        if updated != original:
+            _write_crlf_text(html_path, updated)
 
 
 def _sync_static_assets() -> None:
@@ -713,12 +741,18 @@ def main() -> None:
     """Run the full Session Sniffer -> website asset and i18n sync."""
     en_catalog = _load_site_english_catalog()
     _sync_static_assets()
-    _write_crlf_text(ASSETS_DIR / 'themes.generated.css', _generate_themes_css())
-    _write_crlf_text(ASSETS_DIR / 'app-data.generated.js', _generate_app_data_js(en_catalog))
+    themes_css = _generate_themes_css()
+    _write_crlf_text(ASSETS_DIR / 'themes.generated.css', themes_css)
     bundle_count = _sync_i18n_bundles(en_catalog)
+    payload = _build_app_data_payload(en_catalog)
+    asset_version = _compute_generated_assets_version(themes_css, payload)
+    payload['assetVersion'] = asset_version
+    _write_crlf_text(ASSETS_DIR / 'app-data.generated.js', _render_app_data_js(payload))
+    _stamp_html_asset_versions(asset_version)
     print(
         f'Synced {len(BUILTIN_THEMES)} themes, {len(SYNCED_ICONS) + 1} SVG icons, '
-        f'{len(SYNCED_COUNTRY_FLAGS)} country flags, and {bundle_count + 1} languages into {ASSETS_DIR}',
+        f'{len(SYNCED_COUNTRY_FLAGS)} country flags, and {bundle_count + 1} languages '
+        f'(v={asset_version}) into {ASSETS_DIR}',
     )
 
 

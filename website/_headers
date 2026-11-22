@@ -5,8 +5,23 @@
   Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=()
   Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://shared.fastly.steamstatic.com https://images.igdb.com https://cdn.simpleicons.org https://is1-ssl.mzstatic.com https://ome.tv https://chatspin.com https://www.google.com https://*.gstatic.com; connect-src 'self' https://api.github.com https://discord.com; font-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'
 
-/assets/*
+/assets/flags/*
   Cache-Control: public, max-age=604800, stale-while-revalidate=86400
+
+/assets/history/*
+  Cache-Control: public, max-age=604800, stale-while-revalidate=86400
+
+/assets/app_icon.svg
+  Cache-Control: public, max-age=604800, stale-while-revalidate=86400
+
+/assets/*.js
+  Cache-Control: public, max-age=0, must-revalidate
+
+/assets/*.css
+  Cache-Control: public, max-age=0, must-revalidate
+
+/assets/i18n/*
+  Cache-Control: public, max-age=0, must-revalidate
 
 https://:project.pages.dev/*
   X-Robots-Tag: noindex

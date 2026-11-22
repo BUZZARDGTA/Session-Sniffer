@@ -1496,10 +1496,17 @@ summary:focus-visible {
     border: 1px solid var(--ss-border);
     border-radius: var(--ss-radius-md);
     overflow: hidden;
+    scroll-margin-top: calc(var(--ss-header-height) + 20px);
+    transition: border-color 0.2s ease, box-shadow 0.25s ease;
 }
 
 .faq-item[open] {
     border-color: rgba(var(--ss-accent-rgb), 0.55);
+}
+
+.faq-item.is-targeted {
+    border-color: var(--ss-accent);
+    box-shadow: 0 0 0 3px rgba(var(--ss-accent-rgb), 0.28);
 }
 
 .faq-item summary {
@@ -1507,16 +1514,62 @@ summary:focus-visible {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 14px;
-    padding: 16px 20px;
+    gap: 12px;
+    padding: 15px 18px 15px 20px;
     font-size: 15px;
     font-weight: 700;
     color: var(--ss-text-strong);
     cursor: pointer;
 }
 
+[dir='rtl'] .faq-item summary {
+    padding: 15px 20px 15px 18px;
+}
+
 .faq-item summary::-webkit-details-marker {
     display: none;
+}
+
+.faq-question {
+    flex: 1;
+    min-width: 0;
+}
+
+.faq-summary-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.faq-copy-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--ss-text-muted);
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: color 0.15s ease, background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.faq-copy-link:hover,
+.faq-copy-link:focus-visible {
+    color: var(--ss-accent);
+    background: rgba(var(--ss-accent-rgb), 0.12);
+    border-color: rgba(var(--ss-accent-rgb), 0.35);
+    outline: none;
+}
+
+.faq-copy-link.is-copied {
+    color: var(--ss-success);
+    background: rgba(var(--ss-success-rgb), 0.14);
+    border-color: rgba(var(--ss-success-rgb), 0.35);
 }
 
 .faq-chevron {
