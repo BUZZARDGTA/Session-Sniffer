@@ -11,6 +11,7 @@ from PySide6.QtWidgets import QAbstractItemView, QDialog, QFrame, QInputDialog, 
 from session_sniffer.constants.local import APP_DIR_ROAMING, USERIP_DATABASES_DIR_PATH, USERIP_GROUPS_PATH
 from session_sniffer.constants.standalone import TITLE
 from session_sniffer.guis.select_usernames_dialog import prompt_username_input, prompt_usernames_and_notes_input
+from session_sniffer.guis.theming import get_themed_icon
 from session_sniffer.guis.userip_manager_helpers import (
     DATABASE_COLUMN,
     DUPLICATE_HIGHLIGHT_BRUSH,
@@ -55,7 +56,7 @@ from session_sniffer.utils import dedup_preserve_order
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from PySide6.QtGui import QIcon, QStandardItem, QStandardItemModel
+    from PySide6.QtGui import QStandardItem, QStandardItemModel
 
     from session_sniffer.guis.file_watch import DebouncedFileWatcher
 
@@ -78,7 +79,6 @@ class UserIPEntriesOperationsMixin(QDialog):
     _dirty: bool
     _search_input: QLineEdit
     _settings_container: QFrame
-    _looky_icon: QIcon
 
     if TYPE_CHECKING:
         read_settings_from_widgets: Callable[[], UserIPSettingsModel]
@@ -168,13 +168,14 @@ class UserIPEntriesOperationsMixin(QDialog):
         """Populate the table with all cached UserIP database entries."""
         self._model.removeRows(0, self._model.rowCount())
         rows: list[list[QStandardItem]] = []
+        looky_icon = get_themed_icon('eye.svg')
         total_entries, total_files = 0, 0
         for json_path, entries in iter_userip_databases():
             total_files += 1
             db_info = (json_path.stem, json_path)
             for entry in entries:
                 total_entries += 1
-                rows.append(build_entry_row_items(entry, index=total_entries, database=db_info, looky_icon=self._looky_icon))
+                rows.append(build_entry_row_items(entry, index=total_entries, database=db_info, looky_icon=looky_icon))
 
         dynamic_sort_filter = self._proxy.dynamicSortFilter()
         self._proxy.setDynamicSortFilter(False)
@@ -422,9 +423,10 @@ class UserIPEntriesOperationsMixin(QDialog):
             QMessageBox.information(self, TITLE, already_exists_text)
             return
 
+        looky_icon = get_themed_icon('eye.svg')
         insert_at = insert_before.row() if insert_before.isValid() else self._model.rowCount()
         for offset, entry_model in enumerate(model for model in new_entry_models if (model.username, entry_value) in added_pairs):
-            self._model.insertRow(insert_at + offset, build_entry_row_items(entry_model, database=(database_label, database_path), looky_icon=self._looky_icon, persisted=True))
+            self._model.insertRow(insert_at + offset, build_entry_row_items(entry_model, database=(database_label, database_path), looky_icon=looky_icon, persisted=True))
 
         self._renumber_indexes()
         self._highlight_duplicates()
@@ -484,10 +486,11 @@ class UserIPEntriesOperationsMixin(QDialog):
             )
             return
 
+        looky_icon = get_themed_icon('eye.svg')
         insert_at, before_count = (insert_before.row() if insert_before.isValid() else self._model.rowCount()), self._model.rowCount()
         for offset, added_name in enumerate(added_usernames):
             enriched_entry, _ = enrich_userip_entry_from_logs(UserIPEntryModel(username=added_name, ip=entry_value, notes=entered_notes.get(added_name, '')))
-            self._model.insertRow(insert_at + offset, build_entry_row_items(enriched_entry, looky_icon=self._looky_icon, persisted=False))
+            self._model.insertRow(insert_at + offset, build_entry_row_items(enriched_entry, looky_icon=looky_icon, persisted=False))
 
         self._renumber_indexes()
         self._mark_entries_dirty()
@@ -854,12 +857,13 @@ class UserIPEntriesOperationsMixin(QDialog):
         if not rows_to_remove:
             return
 
+        looky_icon = get_themed_icon('eye.svg')
         with QSignalBlocker(self._model):
             for first_row, merged_model in merged_by_row.items():
                 db_item = self._model.item(first_row, DATABASE_COLUMN)
                 db_label, db_path = (db_item.text() if db_item else ''), (self._get_row_database_path(first_row) or Path())
                 row_index = int(self._model.item(first_row, INDEX_COLUMN).data(Qt.ItemDataRole.UserRole) or (first_row + 1))
-                new_items = build_entry_row_items(merged_model, index=row_index, database=(db_label, db_path), looky_icon=self._looky_icon, persisted=True)
+                new_items = build_entry_row_items(merged_model, index=row_index, database=(db_label, db_path), looky_icon=looky_icon, persisted=True)
                 for col, item in enumerate(new_items):
                     self._model.setItem(first_row, col, item)
 
