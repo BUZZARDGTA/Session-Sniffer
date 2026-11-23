@@ -22,7 +22,7 @@
     <meta name="twitter:image" content="https://sessionsniffer.com/assets/history/2026-gui-v1-5-pyside6.png">
 
     <link rel="icon" type="image/svg+xml" href="assets/app_icon.svg">
-    <link rel="stylesheet" href="assets/themes.generated.css?v=689cd9a1">
+    <link rel="stylesheet" href="assets/themes.generated.css?v=c83dc2be">
     <script src="theme-init.js"></script>
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="preview.css">
@@ -1133,7 +1133,7 @@
                             <svg class="icon" aria-hidden="true"><use href="#icon-shield"></use></svg>
                         </div>
                         <h3 data-i18n="features.f1_title">100% External &amp; Ban-Safe</h3>
-                        <p data-i18n="features.f1_desc">Operates strictly at the packet layer via Npcap, libpcap, or macOS BPF. Zero memory injection, zero mods required, and zero risk of game bans.</p>
+                        <p data-i18n="features.f1_desc">Reads network traffic strictly from the outside — never touches or modifies game files or memory. Zero mods required and zero risk of game bans.</p>
                     </article>
 
                     <article class="feature-card">
@@ -1141,15 +1141,15 @@
                             <svg class="icon" aria-hidden="true"><use href="#icon-gamepad-2"></use></svg>
                         </div>
                         <h3 data-i18n="features.f2_title">PC, Console &amp; Mobile</h3>
-                        <p data-i18n="features.f2_desc">Lock capture onto a specific PC game process, or monitor PlayStation, Xbox, and mobile devices via Ethernet sharing, built-in Wi-Fi Hotspot, or LAN ARP.</p>
+                        <p data-i18n="features.f2_desc">Focus on a specific PC game, or monitor PlayStation, Xbox, and mobile devices via Ethernet sharing, built-in Wi-Fi Hotspot, or your local network.</p>
                     </article>
 
                     <article class="feature-card">
                         <div class="feature-icon feature-icon--accent">
                             <svg class="icon" aria-hidden="true"><use href="#icon-radio-tower"></use></svg>
                         </div>
-                        <h3 data-i18n="features.f3_title">Smart Server &amp; ISP Filtering</h3>
-                        <p data-i18n="features.f3_desc">Automatically hides Rockstar, cloud, relay, and game servers so only real players surface — plus custom IP blocklists, ISP filters, and protocol filters.</p>
+                        <h3 data-i18n="features.f3_title">Smart Server &amp; Provider Filtering</h3>
+                        <p data-i18n="features.f3_desc">Automatically hides Rockstar, cloud, relay, and game servers so only real players show up — plus custom IP blocklists and internet provider filters.</p>
                     </article>
 
                     <article class="feature-card">
@@ -1157,7 +1157,7 @@
                             <svg class="icon" aria-hidden="true"><use href="#icon-user-round-check"></use></svg>
                         </div>
                         <h3 data-i18n="features.f4_title">Player Lists, Alerts &amp; Combo Rules</h3>
-                        <p data-i18n="features.f4_desc">Tag friends or hostiles in UserIP databases with custom names, colors, and notes. Get instant visual popups, TTS voice alerts, and automated detection rules.</p>
+                        <p data-i18n="features.f4_desc">Save friends or hostiles with custom names, colors, and notes. Get instant on-screen popups, spoken voice alerts, and automated detection rules.</p>
                     </article>
 
                     <article class="feature-card">
@@ -1165,7 +1165,7 @@
                             <svg class="icon" aria-hidden="true"><use href="#icon-crown"></use></svg>
                         </div>
                         <h3 data-i18n="features.f5_title">GTA V &amp; RDR2 Power Tools</h3>
-                        <p data-i18n="features.f5_desc">Real-time Session Host &amp; relay detection, Host History, one-click Solo Public Session, in-game Player Resolver, and Looky System cloud lookups.</p>
+                        <p data-i18n="features.f5_desc">Real-time Session Host &amp; relay detection, Host History, one-click Solo Public Session, in-game Player Resolver, and online Looky System username lookups.</p>
                     </article>
 
                     <article class="feature-card">
@@ -1173,7 +1173,7 @@
                             <svg class="icon" aria-hidden="true"><use href="#icon-chart-line"></use></svg>
                         </div>
                         <h3 data-i18n="features.f6_title">Live Graphs &amp; High-Rate Monitor</h3>
-                        <p data-i18n="features.f6_desc">Inspect live PPS/BPS traffic charts, capture latency graphs, port heatmaps, session timelines, and receive immediate spike alerts on traffic floods.</p>
+                        <p data-i18n="features.f6_desc">Watch live traffic and speed graphs, session timelines, and port activity, and get instant warnings whenever a player sends unusual traffic spikes.</p>
                     </article>
                 </div>
             </div>
@@ -1183,7 +1183,7 @@
         <section class="section section-alt" id="download">
             <div class="container">
                 <div class="section-header">
-                    <span class="section-eyebrow" data-i18n="download.eyebrow">Standalone Executables</span>
+                    <span class="section-eyebrow" data-i18n="download.eyebrow">Ready-to-Run Downloads</span>
                     <h2 class="section-title" data-i18n="download.title">Download Session Sniffer</h2>
                     <p class="section-lead">
                         <span data-i18n="download.lead_prefix">Free forever under GPLv3. Latest release:</span>
@@ -1213,7 +1213,7 @@
                         <div class="download-meta-box">
                             <div class="download-meta mono">
                                 <span>Session_Sniffer.exe</span>
-                                <span data-asset-size="Session_Sniffer.exe" data-i18n="download.standalone_binary">Standalone Binary</span>
+                                <span data-asset-size="Session_Sniffer.exe" data-i18n="download.standalone_binary">Ready-to-run app</span>
                             </div>
                             <div class="download-hash" data-asset-hash-wrap="Session_Sniffer.exe" hidden>
                                 <span class="download-hash-badge mono" dir="ltr">SHA-256</span>
@@ -1259,12 +1259,12 @@
                             <span class="os-recommended-badge" data-i18n="download.your_os" hidden>Your OS</span>
                         </div>
                         <p class="download-req" data-i18n="download.linux_req">
-                            Requires libpcap and packet capture capabilities (cap_net_raw). Older distros can run from source.
+                            Requires libpcap and network capture permissions. Older Linux distributions can run from source.
                         </p>
                         <div class="download-meta-box">
                             <div class="download-meta mono">
                                 <span>Session_Sniffer</span>
-                                <span data-asset-size="Session_Sniffer" data-i18n="download.standalone_binary">Standalone Binary</span>
+                                <span data-asset-size="Session_Sniffer" data-i18n="download.standalone_binary">Ready-to-run app</span>
                             </div>
                             <div class="download-hash" data-asset-hash-wrap="Session_Sniffer" hidden>
                                 <span class="download-hash-badge mono" dir="ltr">SHA-256</span>
@@ -1310,12 +1310,12 @@
                             <span class="os-recommended-badge" data-i18n="download.your_os" hidden>Your OS</span>
                         </div>
                         <p class="download-req" data-i18n="download.mac_req">
-                            Requires /dev/bpf* capture permissions (guided automatically via the Installation Wiki).
+                            Requires macOS network capture permissions (step-by-step setup in the Installation Guide).
                         </p>
                         <div class="download-meta-box">
                             <div class="download-meta mono">
                                 <span>Session_Sniffer_macOS</span>
-                                <span data-asset-size="Session_Sniffer_macOS" data-i18n="download.arm64_binary">ARM64 Binary</span>
+                                <span data-asset-size="Session_Sniffer_macOS" data-i18n="download.arm64_binary">Apple Silicon app</span>
                             </div>
                             <div class="download-hash" data-asset-hash-wrap="Session_Sniffer_macOS" hidden>
                                 <span class="download-hash-badge mono" dir="ltr">SHA-256</span>
@@ -1385,7 +1385,7 @@
                             <span class="badge badge-accent" data-i18n="games.stat_universal_value">Any P2P</span>
                         </div>
                         <h3 data-i18n="games.title">Supported Games &amp; Software</h3>
-                        <p data-i18n="explore.games_desc">Explore officially tested P2P games and apps with architecture notes, platforms, and username resolving details.</p>
+                        <p data-i18n="explore.games_desc">Explore officially tested P2P games and apps with connection behavior, platforms, and username lookup support.</p>
                         <span class="explore-card-cta">
                             <span data-i18n="explore.games_cta">Browse Catalog</span>
                             <svg class="icon icon-xs history-dir-icon" aria-hidden="true"><use href="#icon-arrow-right"></use></svg>
@@ -1400,7 +1400,7 @@
                             <span class="badge badge-muted mono" dir="ltr">2021 – 2026</span>
                         </div>
                         <h3 data-i18n="footer.link_history">Project History</h3>
-                        <p data-i18n="explore.history_desc">Trace 5 years of evolution from the 2021 PS3 Batch script to the cross-platform PySide6 suite and every Git tag.</p>
+                        <p data-i18n="explore.history_desc">Trace 5 years of evolution from the original 2021 PS3 script to today's cross-platform desktop app and every release along the way.</p>
                         <span class="explore-card-cta">
                             <span data-i18n="explore.history_cta">View History</span>
                             <svg class="icon icon-xs history-dir-icon" aria-hidden="true"><use href="#icon-arrow-right"></use></svg>
@@ -1431,8 +1431,94 @@
                         </summary>
                         <div class="faq-body">
                             <p data-i18n="faq.a1">
-                                Session Sniffer is 100% external — it passively reads network packets through standard capture drivers (Npcap / libpcap / BPF) and never injects into or modifies game files or memory. There is zero risk of an anti-cheat ban, and all source code is publicly auditable on GitHub under GPLv3.
+                                Session Sniffer is 100% external — it only reads network traffic passively using standard system capture drivers and never injects into or modifies game files or memory. There is zero risk of an anti-cheat ban, and all source code is open for anyone to inspect on GitHub under GPLv3.
                             </p>
+                        </div>
+                    </details>
+
+                    <details class="faq-item" id="faq-usernames">
+                        <summary>
+                            <span class="faq-question" data-i18n="faq.q_usernames">Why don't I see player usernames in my session? Is that normal?</span>
+                            <span class="faq-summary-actions">
+                                <button type="button" class="faq-copy-link" data-faq-copy="faq-usernames" data-i18n-title="faq.copy_link" aria-label="Copy direct link" title="Copy direct link">
+                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-link"></use></svg>
+                                </button>
+                                <svg class="icon icon-xs faq-chevron" aria-hidden="true"><use href="#icon-chevron-down"></use></svg>
+                            </span>
+                        </summary>
+                        <div class="faq-body">
+                            <p class="faq-verdict">
+                                <strong class="faq-verdict-yes" data-i18n="faq.a_usernames_yes">Yes — that's completely normal.</strong>
+                                <span data-i18n="faq.a_usernames_1">By default, only IP addresses are shown. To see usernames, use one of these options:</span>
+                            </p>
+                            <div class="faq-option-grid">
+                                <div class="faq-option-card faq-option-card--success">
+                                    <div class="faq-option-head">
+                                        <span class="faq-option-title">
+                                            <svg class="icon" aria-hidden="true"><use href="#icon-database"></use></svg>
+                                            <span data-i18n="games.r3_title">Saved Player Lists (UserIP)</span>
+                                        </span>
+                                        <span class="badge badge-success" data-i18n="faq.a_usernames_badge_all">Universal</span>
+                                    </div>
+                                    <p class="faq-option-desc" data-i18n="faq.a_usernames_w1">Save known players with custom names on any game or platform so they show up next time.</p>
+                                </div>
+
+                                <div class="faq-option-card faq-option-card--looky">
+                                    <div class="faq-option-head">
+                                        <span class="faq-option-title">
+                                            <svg class="icon" aria-hidden="true"><use href="#icon-scan-eye"></use></svg>
+                                            <span>Looky System</span>
+                                        </span>
+                                        <span class="badge badge-looky">GTA Online PC</span>
+                                    </div>
+                                    <p class="faq-option-desc" data-i18n="faq.a_usernames_w2">Shows usernames automatically inside Session Sniffer — no mod menu needed.</p>
+                                </div>
+
+                                <div class="faq-option-card faq-option-card--accent">
+                                    <div class="faq-option-head">
+                                        <span class="faq-option-title">
+                                            <svg class="icon" aria-hidden="true"><use href="#icon-code"></use></svg>
+                                            <span data-i18n="faq.a_usernames_t3">Mod Menu Plugins</span>
+                                        </span>
+                                        <span class="badge badge-accent">GTA Online PC</span>
+                                    </div>
+                                    <p class="faq-option-desc">
+                                        <span data-i18n="faq.a_usernames_w3">Shows usernames automatically via a mod menu:</span>
+                                        <a href="https://github.com/BUZZARDGTA/Session_Sniffer-plugin-Cherax-Lua" target="_blank" rel="noopener noreferrer">Cherax</a> ·
+                                        <a href="https://github.com/BUZZARDGTA/Session_Sniffer-plugin-Lexis-Lua" target="_blank" rel="noopener noreferrer">Lexis</a> ·
+                                        <a href="https://github.com/BUZZARDGTA/Session_Sniffer-plugin-Stand-Lua" target="_blank" rel="noopener noreferrer">Stand</a>
+                                    </p>
+                                </div>
+
+                                <div class="faq-option-card faq-option-card--muted">
+                                    <div class="faq-option-head">
+                                        <span class="faq-option-title">
+                                            <svg class="icon" aria-hidden="true"><use href="#icon-gamepad-2"></use></svg>
+                                            <span>PlayStation 3</span>
+                                        </span>
+                                        <span class="badge badge-muted">PS3</span>
+                                    </div>
+                                    <p class="faq-option-desc" data-i18n="faq.a_usernames_w4">Shows PSN usernames automatically on supported PS3 games (patched on PS4 / Xbox One and newer).</p>
+                                </div>
+                            </div>
+                            <div class="faq-links">
+                                <a href="games.html#username-resolving" class="faq-link-chip">
+                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-user-round-search"></use></svg>
+                                    <span data-i18n="games.modal_jump_resolver">View Username Resolving options</span>
+                                </a>
+                                <a href="https://looky-gta.cc/" target="_blank" rel="noopener noreferrer" class="faq-link-chip">
+                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-scan-eye"></use></svg>
+                                    <span>Looky System</span>
+                                </a>
+                                <a href="https://github.com/BUZZARDGTA/Session-Sniffer/wiki/Configuration-Guide#looky-system-configuration" target="_blank" rel="noopener noreferrer" class="faq-link-chip">
+                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-book-text"></use></svg>
+                                    <span data-i18n="faq.link_looky_guide">Looky System Setup</span>
+                                </a>
+                                <a href="https://github.com/BUZZARDGTA/Session-Sniffer/wiki/Configuration-Guide#userip-json-databases-configuration" target="_blank" rel="noopener noreferrer" class="faq-link-chip">
+                                    <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-database"></use></svg>
+                                    <span data-i18n="faq.link_userip_guide">UserIP Setup Guide</span>
+                                </a>
+                            </div>
                         </div>
                     </details>
 
@@ -1493,10 +1579,10 @@
                         </summary>
                         <div class="faq-body">
                             <p data-i18n="faq.a_filesize_1">
-                                Session Sniffer bundles Python and all required Python dependencies into a single standalone executable so the app works out of the box without requiring you to install anything manually.
+                                Session Sniffer packs Python and everything the app needs into a single ready-to-run file, so you can launch it right away without installing extra software manually.
                             </p>
                             <p data-i18n="faq.a_filesize_2">
-                                That self-contained bundle includes the libraries needed for packet scanning, the PySide6 GUI, data handling, themes, translations, and other internal features — which is the main reason the executable file size is relatively large.
+                                That single file includes the network scanning engine, the desktop interface, themes, all 33 languages, and every built-in tool — which is why the download is relatively large.
                             </p>
                             <div class="faq-links">
                                 <a href="https://github.com/BUZZARDGTA/Session-Sniffer/wiki/Running-from-Source" target="_blank" rel="noopener noreferrer" class="faq-link-chip">
@@ -1519,7 +1605,7 @@
                         </summary>
                         <div class="faq-body">
                             <p data-i18n="faq.a5">
-                                Yes — 100% free and open source under the GNU GPLv3 license, with no paywalls, subscriptions, or telemetry. If you enjoy using it and want to support ongoing development, you can optionally tip on Ko-fi.
+                                Yes — 100% free and open source under the GNU GPLv3 license, with no paywalls, subscriptions, or tracking. If you enjoy using it and want to support ongoing development, you can optionally tip on Ko-fi.
                             </p>
                             <div class="faq-links">
                                 <a href="https://ko-fi.com/buzzardgta" target="_blank" rel="noopener noreferrer" class="faq-link-chip">
@@ -1548,7 +1634,7 @@
                             <ol class="faq-steps">
                                 <li>
                                     <div class="faq-step-content">
-                                        <span data-i18n="faq.a2_s1">Download the latest Session_Sniffer.exe for Windows (or the Linux / macOS standalone binary from the Download section above).</span>
+                                        <span data-i18n="faq.a2_s1">Download the latest Session_Sniffer.exe for Windows (or the Linux / macOS app from the Download section above).</span>
                                     </div>
                                 </li>
                                 <li>
@@ -1558,7 +1644,7 @@
                                 </li>
                                 <li>
                                     <div class="faq-step-content">
-                                        <span data-i18n="faq.a2_s3">If prompted on Windows, install Npcap — it is required for network packet capture. On Linux, install libpcap and grant capture capabilities (cap_net_raw); on macOS, grant /dev/bpf* read permissions as shown in the Installation Guide.</span>
+                                        <span data-i18n="faq.a2_s3">If prompted on Windows, install Npcap — it is required to read network traffic. On Linux and macOS, follow the quick capture permissions setup in the Installation Guide.</span>
                                     </div>
                                 </li>
                                 <li>
@@ -1665,7 +1751,7 @@
                                 <li>
                                     <div class="faq-step-content">
                                         <span class="faq-step-title" data-i18n="faq.a_arp_s3_title">Refresh the ARP table</span>
-                                        <p data-i18n="faq.a_arp_s3_desc">Click Refresh ARP Table in the bottom-left corner of the window. This wakes up devices on your local network so Session Sniffer can identify PlayStation, Xbox, smartphones, and other LAN devices.</p>
+                                        <p data-i18n="faq.a_arp_s3_desc">Click Refresh ARP Table in the bottom-left corner of the window. This wakes up devices on your home network so Session Sniffer can detect PlayStation, Xbox, smartphones, and other local devices.</p>
                                     </div>
                                 </li>
                                 <li>
@@ -1772,7 +1858,7 @@
         <p class="ss-tooltip-body" id="ss-tooltip-body"></p>
     </div>
 
-    <script src="assets/app-data.generated.js?v=689cd9a1" defer></script>
+    <script src="assets/app-data.generated.js?v=c83dc2be" defer></script>
     <script src="core.js" defer></script>
     <script src="preview.js" defer></script>
 </body>

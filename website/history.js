@@ -61,7 +61,7 @@
             },
             captionKey: 'history.era2_caption',
             highlightKeys: ['history.era2_h1', 'history.era2_h2', 'history.era2_h3'],
-            tech: ['Python TUI', 'Npcap / TShark', 'GeoLite2', 'PC & Consoles'],
+            tech: ['Python Console', 'Npcap / TShark', 'GeoLite2', 'PC & Consoles'],
             links: [
                 {
                     labelKey: 'history.era_view_release',
@@ -87,7 +87,7 @@
             summaryKey: 'history.era3_summary',
             captionKey: 'history.era3_caption',
             highlightKeys: ['history.era3_h1', 'history.era3_h2', 'history.era3_h3'],
-            tech: ['PrettyTable TUI', 'Auto GeoLite2', 'LAN ARP', 'VPN / Hosting', 'Discord RPC'],
+            tech: ['Console Tables', 'Auto GeoLite2', 'Local Network Scan', 'VPN / Hosting', 'Discord Status'],
             links: [
                 {
                     labelKey: 'history.era_view_release',
@@ -108,7 +108,7 @@
             summaryKey: 'history.era4_summary',
             captionKey: 'history.era4_caption',
             highlightKeys: ['history.era4_h1', 'history.era4_h2', 'history.era4_h3'],
-            tech: ['PyQt6 + QDarkStyle', 'Standalone .exe', 'ICMP / TCP Ping', 'TTS Alerts', 'Rich Logs'],
+            tech: ['PyQt6 + QDarkStyle', 'Standalone .exe', 'Ping Tools', 'Voice Alerts', 'Detailed Logs'],
             links: [
                 {
                     labelKey: 'history.era_view_release',
@@ -129,7 +129,7 @@
             summaryKey: 'history.era5_summary',
             captionKey: 'history.era5_caption',
             highlightKeys: ['history.era5_h1', 'history.era5_h2', 'history.era5_h3'],
-            tech: ['PySide6', 'Native libpcap / Npcap', 'Win · Linux · macOS', '33 Languages (RTL)', '6 Themes', 'Web Panel'],
+            tech: ['PySide6', 'Native Packet Capture', 'Win · Linux · macOS', '33 Languages', '6 Themes', 'Web Dashboard'],
             links: [
                 {
                     labelKey: 'history.era_try_live',
