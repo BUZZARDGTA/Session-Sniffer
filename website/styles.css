@@ -1258,6 +1258,24 @@ summary:focus-visible {
     height: 21px;
 }
 
+.download-card[data-os='windows'] .download-os-icon {
+    color: var(--ss-accent);
+    background: rgba(var(--ss-accent-rgb), 0.13);
+    border-color: rgba(var(--ss-accent-rgb), 0.35);
+}
+
+.download-card[data-os='linux'] .download-os-icon {
+    color: var(--ss-warning);
+    background: rgba(var(--ss-warning-rgb), 0.13);
+    border-color: rgba(var(--ss-warning-rgb), 0.35);
+}
+
+.download-card[data-os='macos'] .download-os-icon {
+    color: var(--ss-text-strong);
+    background: rgba(var(--ss-text-rgb), 0.09);
+    border-color: rgba(var(--ss-text-rgb), 0.28);
+}
+
 .download-card-head h3 {
     margin: 0;
     font-size: 18px;
