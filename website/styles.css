@@ -1253,6 +1253,11 @@ summary:focus-visible {
     flex-shrink: 0;
 }
 
+.download-os-icon .icon-os {
+    width: 21px;
+    height: 21px;
+}
+
 .download-card-head h3 {
     margin: 0;
     font-size: 18px;
