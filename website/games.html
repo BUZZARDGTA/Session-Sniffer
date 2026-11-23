@@ -22,7 +22,7 @@
     <meta name="twitter:image" content="https://sessionsniffer.com/assets/history/2026-gui-v1-5-pyside6.png">
 
     <link rel="icon" type="image/svg+xml" href="assets/app_icon.svg">
-    <link rel="stylesheet" href="assets/themes.generated.css?v=5beac78b">
+    <link rel="stylesheet" href="assets/themes.generated.css?v=689cd9a1">
     <script src="theme-init.js"></script>
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="games.css">
@@ -438,61 +438,76 @@
 
     <!-- ==================== FOOTER ==================== -->
     <footer class="site-footer">
-        <div class="container footer-inner">
-            <div class="footer-brand">
+        <div class="container">
+            <div class="footer-top">
                 <div class="brand">
                     <span class="brand-mark" aria-hidden="true">
                         <svg class="icon icon-brand"><use href="#icon-app_icon"></use></svg>
                     </span>
                     <span class="brand-name">Session Sniffer</span>
                 </div>
-                <p class="footer-note" data-i18n="footer.note">
-                    Free &amp; open-source P2P session monitor by IB_U_Z_Z_A_R_Dl · Licensed under GNU GPLv3. Zero ads, zero tracking cookies, zero telemetry.
-                </p>
+
+                <nav class="footer-links" aria-label="Project links">
+                    <a href="https://github.com/BUZZARDGTA/Session-Sniffer/wiki" target="_blank" rel="noopener noreferrer" data-i18n="footer.link_wiki">Project Wiki</a>
+                    <a href="https://github.com/BUZZARDGTA/Session-Sniffer/issues" target="_blank" rel="noopener noreferrer" data-i18n="footer.link_issues">GitHub Issues</a>
+                    <a href="https://github.com/BUZZARDGTA/Session-Sniffer/discussions" target="_blank" rel="noopener noreferrer" data-i18n="footer.link_discussions">Discussions</a>
+                </nav>
+
                 <div class="footer-actions">
-                    <a href="https://discord.gg/hMZ7MsPX7G" target="_blank" rel="noopener noreferrer" class="btn btn-discord btn-sm">
-                        <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-discord"></use></svg>
-                        <span data-i18n="community.btn_discord">Join Discord Server</span>
+                    <a
+                        href="https://discord.gg/hMZ7MsPX7G"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="icon-btn footer-social-btn footer-social-btn--discord"
+                        data-i18n-title="community.btn_discord"
+                        aria-label="Join Discord Server"
+                        title="Join Discord Server"
+                    >
+                        <svg class="icon icon-sm" aria-hidden="true"><use href="#icon-discord"></use></svg>
                     </a>
-                    <a href="https://github.com/BUZZARDGTA/Session-Sniffer" target="_blank" rel="noopener noreferrer" class="btn btn-github btn-sm">
-                        <svg class="icon icon-xs" aria-hidden="true"><use href="#icon-github"></use></svg>
-                        <span data-i18n="community.btn_github">Star on GitHub</span>
+                    <a
+                        href="https://github.com/BUZZARDGTA/Session-Sniffer"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="icon-btn footer-social-btn"
+                        data-i18n-title="community.btn_github"
+                        aria-label="Star on GitHub"
+                        title="Star on GitHub"
+                    >
+                        <svg class="icon icon-sm" aria-hidden="true"><use href="#icon-github"></use></svg>
                     </a>
-                    <a href="https://ko-fi.com/buzzardgta" target="_blank" rel="noopener noreferrer" class="btn btn-kofi btn-sm">
+                    <a
+                        href="https://t.me/waitingforharukatoaddme"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="icon-btn footer-social-btn footer-social-btn--telegram"
+                        data-i18n-title="footer.link_telegram"
+                        aria-label="Telegram Contact"
+                        title="Telegram Contact"
+                    >
+                        <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 10l-4 4l6 6l4 -16l-18 7l4 2l2 6l3 -4"/></svg>
+                    </a>
+                    <a
+                        href="https://ko-fi.com/buzzardgta"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="btn btn-kofi btn-sm footer-kofi-btn"
+                        data-i18n-title="community.btn_kofi"
+                        aria-label="Support on Ko-fi"
+                        title="Support on Ko-fi"
+                    >
                         <svg class="icon icon-xs" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 8h1a4 4 0 1 1 0 8h-1"/><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"/><path d="M10 15.6c-1.8-1.2-2.7-2.2-2.7-3.2a1.5 1.5 0 0 1 2.7-.9 1.5 1.5 0 0 1 2.7.9c0 1-.9 2-2.7 3.2Z" fill="currentColor" stroke="none"/></svg>
                         <span data-i18n="community.btn_kofi">Support on Ko-fi</span>
                     </a>
                 </div>
             </div>
 
-            <div class="footer-columns">
-                <div class="footer-col">
-                    <h4 data-i18n="footer.col_explore">Explore</h4>
-                    <a href="index.html#preview" data-i18n="nav.preview">Live Preview</a>
-                    <a href="games.html" data-i18n="games.title">Supported Games &amp; Software</a>
-                    <a href="history.html" data-i18n="footer.link_history">Project History</a>
-                </div>
-                <div class="footer-col">
-                    <h4 data-i18n="footer.col_docs">Documentation</h4>
-                    <a href="https://github.com/BUZZARDGTA/Session-Sniffer/wiki" target="_blank" rel="noopener noreferrer" data-i18n="footer.link_wiki">Project Wiki</a>
-                    <a href="https://github.com/BUZZARDGTA/Session-Sniffer/wiki/Installation" target="_blank" rel="noopener noreferrer" data-i18n="footer.link_install">Installation</a>
-                    <a href="https://github.com/BUZZARDGTA/Session-Sniffer/wiki/Configuration-Guide" target="_blank" rel="noopener noreferrer" data-i18n="footer.link_config">Configuration Guide</a>
-                    <a href="https://github.com/BUZZARDGTA/Session-Sniffer/wiki/Troubleshooting" target="_blank" rel="noopener noreferrer" data-i18n="footer.link_troubleshooting">Troubleshooting</a>
-                </div>
-                <div class="footer-col">
-                    <h4 data-i18n="footer.col_community">Community</h4>
-                    <a href="https://discord.gg/hMZ7MsPX7G" target="_blank" rel="noopener noreferrer" data-i18n="footer.link_discord">Discord Server</a>
-                    <a href="https://github.com/BUZZARDGTA/Session-Sniffer/issues" target="_blank" rel="noopener noreferrer" data-i18n="footer.link_issues">GitHub Issues</a>
-                    <a href="https://github.com/BUZZARDGTA/Session-Sniffer/discussions" target="_blank" rel="noopener noreferrer" data-i18n="footer.link_discussions">Discussions</a>
-                    <a href="https://t.me/waitingforharukatoaddme" target="_blank" rel="noopener noreferrer" data-i18n="footer.link_telegram">Telegram Contact</a>
-                </div>
+            <div class="footer-bottom">
+                <p class="footer-copyright" dir="ltr">&copy; 2021&ndash;2026 IB_U_Z_Z_A_R_Dl <span class="footer-sep" aria-hidden="true">&middot;</span> <a href="https://github.com/BUZZARDGTA/Session-Sniffer/blob/main/COPYING" target="_blank" rel="noopener noreferrer" class="footer-license-link">GNU GPLv3</a></p>
+                <p class="footer-disclaimer" data-i18n="footer.disclaimer">
+                    All trademarks and game artwork belong to their respective owners. Not affiliated with any listed publisher.
+                </p>
             </div>
-        </div>
-        <div class="container footer-bottom">
-            <p class="footer-copyright" dir="ltr">&copy; 2021&ndash;2026 IB_U_Z_Z_A_R_Dl <span class="footer-sep" aria-hidden="true">&middot;</span> <a href="https://github.com/BUZZARDGTA/Session-Sniffer/blob/main/COPYING" target="_blank" rel="noopener noreferrer" class="footer-license-link">GNU GPLv3</a></p>
-            <p class="footer-disclaimer" data-i18n="footer.disclaimer">
-                All trademarks and game artwork belong to their respective owners. Not affiliated with any listed publisher.
-            </p>
         </div>
     </footer>
 
@@ -616,7 +631,7 @@
         <p class="ss-tooltip-body" id="ss-tooltip-body"></p>
     </div>
 
-    <script src="assets/app-data.generated.js?v=5beac78b" defer></script>
+    <script src="assets/app-data.generated.js?v=689cd9a1" defer></script>
     <script src="core.js" defer></script>
     <script src="games.js" defer></script>
 </body>

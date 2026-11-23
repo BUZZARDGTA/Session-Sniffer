@@ -8,8 +8,7 @@
     --ss-brand-radar: #48b774;
     --ss-discord: #5865f2;
     --ss-discord-hover: #4752c4;
-    --ss-github: #24292f;
-    --ss-github-hover: #161b22;
+    --ss-telegram: #26a5e4;
     --ss-kofi: #ff5e5b;
     --ss-kofi-hover: #e84b48;
     --ss-looky: #c084fc;
@@ -368,34 +367,6 @@ summary:focus-visible {
 .btn-discord:hover {
     background: var(--ss-discord-hover);
     border-color: var(--ss-discord-hover);
-}
-
-.btn-github {
-    background: linear-gradient(180deg, #2d333b 0%, #22272e 100%);
-    color: #f0f6fc;
-    border-color: #444c56;
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 8px 22px rgba(0, 0, 0, 0.28);
-}
-
-.btn-github:hover {
-    background: linear-gradient(180deg, #373e47 0%, #2b313a 100%);
-    color: #ffffff;
-    border-color: #6e7681;
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 10px 24px rgba(0, 0, 0, 0.38);
-}
-
-[data-scheme='light'] .btn-github {
-    background: var(--ss-github);
-    color: #ffffff;
-    border-color: var(--ss-github);
-    box-shadow: 0 8px 22px rgba(36, 41, 47, 0.22);
-}
-
-[data-scheme='light'] .btn-github:hover {
-    background: var(--ss-github-hover);
-    color: #ffffff;
-    border-color: var(--ss-github-hover);
-    box-shadow: 0 10px 24px rgba(36, 41, 47, 0.30);
 }
 
 .btn-kofi {
@@ -1772,73 +1743,93 @@ summary:focus-visible {
 .site-footer {
     background: var(--ss-menubar);
     border-top: 1px solid var(--ss-border);
-    padding: 40px 0 26px;
+    padding: 20px 0 18px;
 }
 
-.footer-inner {
+.footer-top {
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     justify-content: space-between;
     flex-wrap: wrap;
-    gap: 32px;
+    gap: 12px 24px;
+}
+
+.footer-top .brand-mark {
+    width: 30px;
+    height: 30px;
+}
+
+.footer-top .brand-mark .icon-brand {
+    width: 20px;
+    height: 20px;
+}
+
+.footer-top .brand-name {
+    font-size: 15px;
+}
+
+.footer-links {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px 20px;
+}
+
+.footer-links a {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--ss-text-muted);
+    transition: color 0.15s ease;
+}
+
+.footer-links a:hover {
+    color: var(--ss-accent);
 }
 
 .footer-actions {
     display: flex;
-    flex-wrap: wrap;
+    align-items: center;
     gap: 8px;
-    margin-top: 16px;
+    flex-shrink: 0;
 }
 
-.footer-brand {
-    max-width: 420px;
+.footer-social-btn {
+    width: 32px;
+    height: 32px;
 }
 
-.footer-note {
-    margin: 12px 0 0;
-    font-size: 13px;
-    color: var(--ss-text-muted);
+.footer-social-btn--discord:hover {
+    border-color: var(--ss-discord);
+    color: var(--ss-discord);
+    background: rgba(88, 101, 242, 0.12);
 }
 
-.footer-columns {
-    display: flex;
-    gap: 48px;
-    flex-wrap: wrap;
+.footer-social-btn--telegram:hover {
+    border-color: var(--ss-telegram);
+    color: var(--ss-telegram);
+    background: rgba(38, 165, 228, 0.12);
 }
 
-.footer-col {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
-
-.footer-col h4 {
-    margin: 0 0 4px;
+.footer-kofi-btn {
+    height: 32px;
+    padding: 0 12px;
     font-size: 12px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: var(--ss-text-strong);
+    box-shadow: none;
 }
 
-.footer-col a {
-    font-size: 13.5px;
-    color: var(--ss-text-muted);
-}
-
-.footer-col a:hover {
-    color: var(--ss-accent);
+.footer-kofi-btn:hover {
+    box-shadow: none;
 }
 
 .footer-bottom {
-    margin-top: 28px;
-    padding-top: 18px;
-    border-top: 1px solid rgba(var(--ss-border-rgb), 0.65);
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px solid rgba(var(--ss-border-rgb), 0.55);
     display: flex;
     align-items: baseline;
     justify-content: space-between;
     flex-wrap: wrap;
-    gap: 8px 24px;
+    gap: 6px 24px;
     font-size: 12px;
     line-height: 1.5;
     color: var(--ss-text-muted);
@@ -2221,7 +2212,8 @@ summary:focus-visible {
     }
 
     .brand-name {
-        font-size: 14.5px;
+        font-size: 15px;
+        letter-spacing: -0.015em;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
@@ -2240,17 +2232,28 @@ summary:focus-visible {
         flex-shrink: 0;
     }
 
-    .btn-lang-toggle,
-    .btn-theme-toggle {
-        height: 32px;
-        padding: 0 7px;
+    .btn-lang-toggle {
+        height: 34px;
+        padding: 0 8px;
         gap: 5px;
         font-size: 12px;
     }
 
+    .btn-theme-toggle {
+        width: 34px;
+        height: 34px;
+        padding: 0;
+        gap: 0;
+    }
+
+    .btn-theme-toggle .theme-toggle-icon {
+        width: 16px;
+        height: 16px;
+    }
+
     .mobile-nav-toggle {
-        width: 32px;
-        height: 32px;
+        width: 34px;
+        height: 34px;
     }
 
     .lang-dropdown,
@@ -2320,23 +2323,17 @@ summary:focus-visible {
 
     /* Compact Mobile Footer */
     .site-footer {
-        padding: 22px 0 18px;
+        padding: 16px 0 14px;
     }
 
-    .footer-inner {
-        gap: 16px;
-    }
-
-    .footer-brand {
+    .footer-top {
         display: grid;
         grid-template-columns: minmax(0, 1fr) auto;
         align-items: center;
-        gap: 8px 12px;
-        width: 100%;
-        max-width: none;
+        gap: 10px 12px;
     }
 
-    .footer-brand .brand {
+    .footer-top .brand {
         grid-column: 1;
         grid-row: 1;
     }
@@ -2344,27 +2341,23 @@ summary:focus-visible {
     .footer-actions {
         grid-column: 2;
         grid-row: 1;
-        margin-top: 0;
         gap: 6px;
-        flex-wrap: nowrap;
-        flex-shrink: 0;
     }
 
-    .footer-actions .btn {
+    .footer-kofi-btn {
         position: relative;
-        width: 34px;
-        height: 34px;
+        width: 32px;
+        height: 32px;
         padding: 0;
         gap: 0;
-        box-shadow: none;
     }
 
-    .footer-actions .btn .icon {
-        width: 16px;
-        height: 16px;
+    .footer-kofi-btn .icon {
+        width: 15px;
+        height: 15px;
     }
 
-    .footer-actions .btn span {
+    .footer-kofi-btn span {
         position: absolute;
         width: 1px;
         height: 1px;
@@ -2376,53 +2369,19 @@ summary:focus-visible {
         border: 0;
     }
 
-    .footer-note {
+    .footer-links {
         grid-column: 1 / -1;
         grid-row: 2;
-        margin: 0;
-        font-size: 12px;
-        line-height: 1.45;
+        gap: 6px 14px;
     }
 
-    .footer-columns {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 14px 16px;
-        width: 100%;
-    }
-
-    .footer-col {
-        gap: 5px;
-        min-width: 0;
-    }
-
-    .footer-col:first-child {
-        grid-column: 1 / -1;
-        flex-direction: row;
-        flex-wrap: wrap;
-        align-items: baseline;
-        gap: 4px 14px;
-        padding-bottom: 12px;
-        border-bottom: 1px solid rgba(var(--ss-border-rgb), 0.45);
-    }
-
-    .footer-col:first-child h4 {
-        flex: 0 0 100%;
-    }
-
-    .footer-col h4 {
-        margin: 0 0 2px;
-        font-size: 10.5px;
-    }
-
-    .footer-col a {
+    .footer-links a {
         font-size: 12.5px;
-        line-height: 1.4;
     }
 
     .footer-bottom {
-        margin-top: 16px;
-        padding-top: 12px;
+        margin-top: 12px;
+        padding-top: 10px;
         flex-direction: column;
         align-items: flex-start;
         gap: 4px;
