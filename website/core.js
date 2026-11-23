@@ -806,6 +806,29 @@
     }
 
     function initNavigationControls() {
+        var brandLink = document.querySelector('.site-header a.brand');
+        if (brandLink && getPageId() === 'home') {
+            brandLink.addEventListener('click', function onHomeBrandClick(ev) {
+                if (ev.button !== 0 || ev.metaKey || ev.ctrlKey || ev.shiftKey || ev.altKey) {
+                    return;
+                }
+                ev.preventDefault();
+                closeLangDropdown();
+                closeThemeDropdown();
+                closeMobileNavDrawer();
+                notifyClosePopups();
+                if (window.location.hash && window.history && window.history.replaceState) {
+                    window.history.replaceState(
+                        null,
+                        '',
+                        window.location.pathname + window.location.search,
+                    );
+                }
+                var prefersReduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+                window.scrollTo({ top: 0, behavior: prefersReduced ? 'auto' : 'smooth' });
+            });
+        }
+
         var langBtn = document.getElementById('lang-menu-button');
         var langDropdown = document.getElementById('lang-menu-dropdown');
         var langSearch = document.getElementById('lang-search-input');
