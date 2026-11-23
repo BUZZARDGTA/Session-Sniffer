@@ -4,12 +4,8 @@
 
 **Real-time P2P session monitor, player tracker, and network analysis suite for PC, PlayStation, Xbox, and mobile.**
 
-[![Website](https://img.shields.io/badge/Website-sessionsniffer.com-48b774?style=for-the-badge)](https://sessionsniffer.com)
 [![Latest Release](https://img.shields.io/github/v/release/BUZZARDGTA/Session-Sniffer?style=for-the-badge&logo=github&label=Release&color=007ACC)](https://github.com/BUZZARDGTA/Session-Sniffer/releases/latest)
 [![Total Downloads](https://img.shields.io/github/downloads/BUZZARDGTA/Session-Sniffer/total?style=for-the-badge&logo=github&label=Downloads&color=2ea44f)](https://github.com/BUZZARDGTA/Session-Sniffer/releases)
-[![Platforms](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-4c1?style=for-the-badge)](https://github.com/BUZZARDGTA/Session-Sniffer/wiki/Installation)
-[![Languages](https://img.shields.io/badge/Languages-33-8A2BE2?style=for-the-badge)](#-key-features)
-[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg?style=for-the-badge)](https://github.com/BUZZARDGTA/Session-Sniffer/blob/main/COPYING)
 [![Discord](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fdiscord.com%2Fapi%2Fv9%2Finvites%2FhMZ7MsPX7G%3Fwith_counts%3Dtrue&query=%24.approximate_member_count&suffix=%20members&style=for-the-badge&logo=discord&logoColor=white&label=Discord&color=5865F2)](https://discord.gg/hMZ7MsPX7G)
 
 [**Website**](https://sessionsniffer.com) • [**Download**](#-download) • [**Key Features**](#-key-features) • [**Supported Games**](#-supported-games-and-softwares) • [**Username Resolving**](#-username-resolving) • [**Wiki**](https://github.com/BUZZARDGTA/Session-Sniffer/wiki)
