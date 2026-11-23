@@ -2273,17 +2273,116 @@ summary:focus-visible {
         grid-template-columns: minmax(0, 1fr);
     }
 
-    /* Footer & Toasts */
+    /* Compact Mobile Footer */
+    .site-footer {
+        padding: 22px 0 18px;
+    }
+
+    .footer-inner {
+        gap: 16px;
+    }
+
+    .footer-brand {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 8px 12px;
+        width: 100%;
+        max-width: none;
+    }
+
+    .footer-brand .brand {
+        grid-column: 1;
+        grid-row: 1;
+    }
+
+    .footer-actions {
+        grid-column: 2;
+        grid-row: 1;
+        margin-top: 0;
+        gap: 6px;
+        flex-wrap: nowrap;
+        flex-shrink: 0;
+    }
+
+    .footer-actions .btn {
+        position: relative;
+        width: 34px;
+        height: 34px;
+        padding: 0;
+        gap: 0;
+        box-shadow: none;
+    }
+
+    .footer-actions .btn .icon {
+        width: 16px;
+        height: 16px;
+    }
+
+    .footer-actions .btn span {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+    }
+
+    .footer-note {
+        grid-column: 1 / -1;
+        grid-row: 2;
+        margin: 0;
+        font-size: 12px;
+        line-height: 1.45;
+    }
+
     .footer-columns {
-        gap: 24px 36px;
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 14px 16px;
+        width: 100%;
+    }
+
+    .footer-col {
+        gap: 5px;
+        min-width: 0;
+    }
+
+    .footer-col:first-child {
+        grid-column: 1 / -1;
+        flex-direction: row;
+        flex-wrap: wrap;
+        align-items: baseline;
+        gap: 4px 14px;
+        padding-bottom: 12px;
+        border-bottom: 1px solid rgba(var(--ss-border-rgb), 0.45);
+    }
+
+    .footer-col:first-child h4 {
+        flex: 0 0 100%;
+    }
+
+    .footer-col h4 {
+        margin: 0 0 2px;
+        font-size: 10.5px;
+    }
+
+    .footer-col a {
+        font-size: 12.5px;
+        line-height: 1.4;
     }
 
     .footer-bottom {
-        margin-top: 24px;
-        padding-top: 16px;
+        margin-top: 16px;
+        padding-top: 12px;
         flex-direction: column;
         align-items: flex-start;
-        gap: 6px;
+        gap: 4px;
+        font-size: 11px;
+        line-height: 1.45;
     }
 
     .footer-copyright {
