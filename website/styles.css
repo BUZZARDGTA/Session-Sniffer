@@ -1693,7 +1693,7 @@ summary:focus-visible {
 .site-footer {
     background: var(--ss-menubar);
     border-top: 1px solid var(--ss-border);
-    padding: 40px 0;
+    padding: 40px 0 26px;
 }
 
 .footer-inner {
@@ -1749,6 +1749,33 @@ summary:focus-visible {
 
 .footer-col a:hover {
     color: var(--ss-accent);
+}
+
+.footer-bottom {
+    margin-top: 28px;
+    padding-top: 18px;
+    border-top: 1px solid rgba(var(--ss-border-rgb), 0.65);
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px 24px;
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--ss-text-muted);
+}
+
+.footer-copyright {
+    margin: 0;
+    font-family: var(--ss-font-mono);
+    font-weight: 600;
+    color: var(--ss-text);
+    white-space: nowrap;
+}
+
+.footer-disclaimer {
+    margin: 0;
+    text-align: end;
 }
 
 /* ==========================================================================
@@ -2178,6 +2205,18 @@ summary:focus-visible {
     /* Footer & Toasts */
     .footer-columns {
         gap: 24px 36px;
+    }
+
+    .footer-bottom {
+        margin-top: 24px;
+        padding-top: 16px;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 6px;
+    }
+
+    .footer-disclaimer {
+        text-align: start;
     }
 
     .toast-region,
