@@ -181,17 +181,39 @@ code {
 .section-eyebrow {
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: 6px;
-    font-size: 12px;
+    font-size: 11.5px;
     font-weight: 700;
-    letter-spacing: 0.08em;
+    letter-spacing: 0.14em;
     text-transform: uppercase;
+    line-height: 1.3;
     color: var(--ss-accent);
-    background: rgba(var(--ss-accent-rgb), 0.12);
-    border: 1px solid rgba(var(--ss-accent-rgb), 0.3);
-    padding: 4px 12px;
-    border-radius: 999px;
-    margin-bottom: 14px;
+    margin-bottom: 10px;
+    user-select: none;
+}
+
+.section-eyebrow::before,
+.section-eyebrow::after {
+    content: '';
+    width: 24px;
+    height: 1px;
+    flex-shrink: 0;
+}
+
+.section-eyebrow::before {
+    margin-inline-end: 4px;
+    background: linear-gradient(90deg, transparent, rgba(var(--ss-accent-rgb), 0.65));
+}
+
+.section-eyebrow::after {
+    margin-inline-start: 4px;
+    background: linear-gradient(90deg, rgba(var(--ss-accent-rgb), 0.65), transparent);
+}
+
+.section-eyebrow .icon {
+    flex-shrink: 0;
+    opacity: 0.9;
 }
 
 .section-title {
@@ -2067,6 +2089,19 @@ summary:focus-visible {
     transform: scaleX(-1);
 }
 
+[dir='rtl'] .section-eyebrow {
+    letter-spacing: 0;
+    text-transform: none;
+}
+
+[dir='rtl'] .section-eyebrow::before {
+    background: linear-gradient(270deg, transparent, rgba(var(--ss-accent-rgb), 0.65));
+}
+
+[dir='rtl'] .section-eyebrow::after {
+    background: linear-gradient(270deg, rgba(var(--ss-accent-rgb), 0.65), transparent);
+}
+
 /* ==========================================================================
    Responsive Breakpoints
    ========================================================================== */
@@ -2105,11 +2140,14 @@ summary:focus-visible {
 
     .section-eyebrow {
         font-size: 11px;
-        padding: 5px 12px;
-        border-radius: 14px;
+        letter-spacing: 0.12em;
         max-width: 100%;
-        justify-content: center;
         text-align: center;
+    }
+
+    .section-eyebrow::before,
+    .section-eyebrow::after {
+        width: 18px;
     }
 
     /* Compact Mobile Header (fits cleanly down to 320px without horizontal overflow) */

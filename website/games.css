@@ -1689,8 +1689,7 @@
     }
 
     .games-header .section-eyebrow {
-        margin-bottom: 10px;
-        padding: 4px 10px;
+        margin-bottom: 8px;
         font-size: 10.5px;
     }
 
@@ -1881,10 +1880,17 @@
 }
 
 @media (max-width: 480px) {
+    [dir='ltr'] .games-header .section-eyebrow {
+        letter-spacing: 0.08em;
+    }
+
     .games-header .section-eyebrow {
         font-size: 10px;
-        padding: 4px 9px;
-        letter-spacing: 0.05em;
+    }
+
+    .games-header .section-eyebrow::before,
+    .games-header .section-eyebrow::after {
+        width: 12px;
     }
 
     .games-category-tabs .icon {
