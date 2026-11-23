@@ -952,11 +952,111 @@
        Mirrors src/session_sniffer/guis/tables_context_menu_mixin.py
        ---------------------------------------------------------------------- */
 
+    var LONG_PRESS_DELAY_MS = 450;
+    var LONG_PRESS_MOVE_TOLERANCE_PX = 12;
+
+    var touchLongPressState = {
+        timer: null,
+        pointerId: null,
+        startX: 0,
+        startY: 0,
+        triggered: false,
+        suppressClickUntil: 0,
+        suppressContextMenuUntil: 0,
+    };
+
+    var contextMenuLayout = null;
+
+    function clearTouchLongPressTimer() {
+        if (touchLongPressState.timer !== null) {
+            window.clearTimeout(touchLongPressState.timer);
+            touchLongPressState.timer = null;
+        }
+        touchLongPressState.pointerId = null;
+    }
+
+    function findPlayerForRow(playerId, tableKind) {
+        if (!playerId) {
+            return null;
+        }
+        if (tableKind === 'disconnected') {
+            for (var i = 0; i < simState.disconnected.length; i += 1) {
+                if (simState.disconnected[i].id === playerId) {
+                    return { player: simState.disconnected[i], isDisconnected: true };
+                }
+            }
+            return null;
+        }
+        for (var j = 0; j < simState.connected.length; j += 1) {
+            if (simState.connected[j].id === playerId) {
+                return { player: simState.connected[j], isDisconnected: false };
+            }
+        }
+        if (simState.merged) {
+            for (var k = 0; k < simState.disconnected.length; k += 1) {
+                if (simState.disconnected[k].id === playerId) {
+                    return { player: simState.disconnected[k], isDisconnected: true };
+                }
+            }
+        }
+        return null;
+    }
+
+    function positionCtxSubmenu(wrap) {
+        if (!wrap || !contextMenuLayout) {
+            return;
+        }
+        var sub = wrap.querySelector('.ss-ctx-submenu');
+        if (!sub) {
+            return;
+        }
+        var layout = contextMenuLayout;
+        var scale = layout.scale || 1;
+        var margin = 8;
+
+        sub.style.left = '';
+        sub.style.right = '';
+
+        var subW = (sub.offsetWidth || 210) * scale;
+        var subH = sub.offsetHeight || 0;
+        var spaceRight = layout.boundsW - (layout.left + layout.width) - margin;
+        var spaceLeft = layout.left - margin;
+
+        var openLeft = layout.isRtl
+            ? (spaceLeft >= subW || spaceLeft >= spaceRight)
+            : (spaceRight < subW && spaceLeft > spaceRight);
+        sub.classList.toggle('open-left', openLeft);
+
+        /* On narrow portrait viewports where neither side fits, pull submenu inward so it stays on screen. */
+        if (Math.max(spaceLeft, spaceRight) < subW) {
+            var desiredScreenLeft = Math.max(margin, layout.boundsW - margin - subW);
+            sub.classList.remove('open-left');
+            sub.style.right = 'auto';
+            sub.style.left = Math.round((desiredScreenLeft - layout.left) / scale) + 'px';
+        }
+
+        if (subH > 0) {
+            var downBottom = layout.top + ((wrap.offsetTop - 5 + subH) * scale);
+            var upTop = layout.top + ((wrap.offsetTop + wrap.offsetHeight + 5 - subH) * scale);
+            var overflowDown = downBottom - (layout.boundsH - margin);
+            var overflowUp = margin - upTop;
+            sub.classList.toggle('open-up', overflowDown > 0 && overflowUp < overflowDown);
+        } else {
+            sub.classList.remove('open-up');
+        }
+    }
+
     function closeContextMenu() {
+        contextMenuLayout = null;
         var menu = document.getElementById('ss-context-menu');
         if (menu) {
             menu.hidden = true;
             menu.innerHTML = '';
+            menu.style.transform = '';
+            menu.style.transformOrigin = '';
+            if (menu.parentNode && menu.parentNode !== document.body) {
+                document.body.appendChild(menu);
+            }
         }
     }
 
@@ -1017,6 +1117,7 @@
         trigger.type = 'button';
         trigger.className = 'ss-ctx-item';
         trigger.setAttribute('aria-haspopup', 'menu');
+        trigger.setAttribute('aria-expanded', 'false');
 
         var left = document.createElement('span');
         left.className = 'ss-ctx-item-left';
@@ -1032,15 +1133,39 @@
         sub.setAttribute('role', 'menu');
         items.forEach(function appendChild(node) { sub.appendChild(node); });
 
+        trigger.addEventListener('click', function onSubmenuTriggerClick(ev) {
+            ev.preventDefault();
+            ev.stopPropagation();
+            var menu = document.getElementById('ss-context-menu');
+            var willOpen = !wrap.classList.contains('is-open');
+            if (menu) {
+                menu.querySelectorAll('.ss-ctx-submenu-wrap.is-open').forEach(function closeOther(other) {
+                    if (other !== wrap) {
+                        other.classList.remove('is-open');
+                        var otherBtn = other.querySelector('.ss-ctx-item');
+                        if (otherBtn) {
+                            otherBtn.setAttribute('aria-expanded', 'false');
+                        }
+                    }
+                });
+            }
+            wrap.classList.toggle('is-open', willOpen);
+            trigger.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+            if (willOpen) {
+                positionCtxSubmenu(wrap);
+            }
+        });
+
+        wrap.addEventListener('mouseenter', function onSubmenuHover() {
+            positionCtxSubmenu(wrap);
+        });
+
         wrap.appendChild(trigger);
         wrap.appendChild(sub);
         return wrap;
     }
 
-    function openRowContextMenu(ev, player, isDisconnected, clickedCellText) {
-        ev.preventDefault();
-        ev.stopPropagation();
-
+    function openRowContextMenu(rawClientX, rawClientY, player, isDisconnected, clickedCellText) {
         hideRichTooltip();
         closeAllAppMenus();
         closeThemeDropdown();
@@ -1056,9 +1181,32 @@
         }
         menu.innerHTML = '';
 
+        var stageShell = previewStageState.fullscreen ? document.getElementById('ss-stage-shell') : null;
+        var menuHost = stageShell || document.body;
+        if (menu.parentNode !== menuHost) {
+            menuHost.appendChild(menu);
+        }
+
+        var clickX = rawClientX;
+        var clickY = rawClientY;
+        var boundsW = window.innerWidth;
+        var boundsH = window.innerHeight;
+        if (stageShell) {
+            var stageRect = stageShell.getBoundingClientRect();
+            boundsW = stageShell.clientWidth || (previewStageState.rotated ? window.innerHeight : window.innerWidth);
+            boundsH = stageShell.clientHeight || (previewStageState.rotated ? window.innerWidth : window.innerHeight);
+            if (previewStageState.rotated) {
+                clickX = rawClientY - stageRect.top;
+                clickY = stageRect.right - rawClientX;
+            } else {
+                clickX = rawClientX - stageRect.left;
+                clickY = rawClientY - stageRect.top;
+            }
+        }
+
         var displayName = player.username || player.ip;
         var isRtl = document.documentElement.getAttribute('dir') === 'rtl';
-        var openLeft = isRtl ? ev.clientX >= 460 : ev.clientX > window.innerWidth - 460;
+        var openLeft = isRtl ? clickX >= 460 : clickX > boundsW - 460;
         var hasGameHostTools = simState.presetKey === 'gta5' || simState.presetKey === 'rdr2';
 
         /* Copy Selection & Copy for Discord */
@@ -1206,12 +1354,37 @@
 
         menu.hidden = false;
 
-        /* Clamp position strictly inside viewport */
-        var rect = menu.getBoundingClientRect();
-        var left = Math.min(ev.clientX, window.innerWidth - rect.width - 10);
-        var top = Math.min(ev.clientY, window.innerHeight - rect.height - 10);
-        menu.style.left = Math.max(8, left) + 'px';
-        menu.style.top = Math.max(8, top) + 'px';
+        /* Clamp position strictly inside active viewport (or rotated fullscreen stage) */
+        menu.style.left = '0px';
+        menu.style.top = '0px';
+        menu.style.transform = '';
+        menu.style.transformOrigin = '';
+        var menuW = menu.offsetWidth;
+        var menuH = menu.offsetHeight;
+        var margin = 8;
+        var maxMenuH = Math.max(120, boundsH - (margin * 2));
+        var fitScale = menuH > maxMenuH ? (maxMenuH / menuH) : 1;
+        if (fitScale < 1) {
+            menu.style.transformOrigin = 'top left';
+            menu.style.transform = 'scale(' + fitScale.toFixed(4) + ')';
+        }
+        var effectiveW = menuW * fitScale;
+        var effectiveH = menuH * fitScale;
+        var left = Math.max(margin, Math.min(clickX, boundsW - effectiveW - 10));
+        var top = Math.max(margin, Math.min(clickY, boundsH - effectiveH - margin));
+        menu.style.left = left + 'px';
+        menu.style.top = top + 'px';
+
+        contextMenuLayout = {
+            left: left,
+            top: top,
+            width: effectiveW,
+            height: effectiveH,
+            scale: fitScale,
+            boundsW: boundsW,
+            boundsH: boundsH,
+            isRtl: isRtl,
+        };
     }
 
     function createConnectedRow(player, isDisconnected) {
@@ -1266,8 +1439,14 @@
         });
 
         tr.addEventListener('contextmenu', function onContextMenu(ev) {
+            ev.preventDefault();
+            ev.stopPropagation();
+            if (Date.now() < touchLongPressState.suppressContextMenuUntil) {
+                return;
+            }
+            clearTouchLongPressTimer();
             var cell = ev.target && ev.target.closest ? ev.target.closest('td') : null;
-            openRowContextMenu(ev, player, isDisconnected, cell ? cell.textContent : player.ip);
+            openRowContextMenu(ev.clientX, ev.clientY, player, isDisconnected, cell ? cell.textContent : player.ip);
         });
 
         return tr;
@@ -1321,8 +1500,14 @@
         });
 
         tr.addEventListener('contextmenu', function onContextMenu(ev) {
+            ev.preventDefault();
+            ev.stopPropagation();
+            if (Date.now() < touchLongPressState.suppressContextMenuUntil) {
+                return;
+            }
+            clearTouchLongPressTimer();
             var cell = ev.target && ev.target.closest ? ev.target.closest('td') : null;
-            openRowContextMenu(ev, player, true, cell ? cell.textContent : player.ip);
+            openRowContextMenu(ev.clientX, ev.clientY, player, true, cell ? cell.textContent : player.ip);
         });
 
         return tr;
@@ -1381,6 +1566,17 @@
         return previewStageState.fullscreen || window.innerWidth <= PREVIEW_STAGE_BREAKPOINT_PX;
     }
 
+    function syncFullscreenOverlayPortals(shell, isFullscreen) {
+        var toastRegion = document.getElementById('toast-region');
+        if (!toastRegion) {
+            return;
+        }
+        var targetHost = isFullscreen && shell ? shell : document.body;
+        if (toastRegion.parentNode !== targetHost) {
+            targetHost.appendChild(toastRegion);
+        }
+    }
+
     function updatePreviewStageLayout() {
         var shell = document.getElementById('ss-stage-shell');
         var bar = document.getElementById('ss-stage-bar');
@@ -1403,6 +1599,7 @@
         var shouldRotate = isFullscreen && isPortrait && previewStageState.rotateInFullscreen;
         var mode = isFullscreen ? previewStageState.fullscreenMode : previewStageState.inlineMode;
 
+        var rotationChanged = previewStageState.rotated !== shouldRotate;
         previewStageState.rotated = shouldRotate;
 
         shell.classList.toggle('is-stage-active', active);
@@ -1411,6 +1608,11 @@
         shell.classList.toggle('is-fit-mode', active && mode === 'fit');
         document.documentElement.classList.toggle('ss-preview-fullscreen-open', isFullscreen);
         document.body.classList.toggle('ss-preview-fullscreen-open', isFullscreen);
+        syncFullscreenOverlayPortals(shell, isFullscreen);
+        if (rotationChanged) {
+            hideRichTooltip();
+            closeContextMenu();
+        }
 
         if (panBtn && fitBtn) {
             var isPan = mode === 'pan';
@@ -1484,6 +1686,7 @@
         previewStageState.fullscreen = true;
         previewStageState.rotateInFullscreen = true;
         previewStageState.fullscreenMode = 'fit';
+        hideRichTooltip();
         closeAllAppMenus();
         closeContextMenu();
         closeSearchColumnPopup();
@@ -1501,6 +1704,7 @@
             return;
         }
         previewStageState.fullscreen = false;
+        hideRichTooltip();
         closeAllAppMenus();
         closeContextMenu();
         closeSearchColumnPopup();
@@ -1910,7 +2114,9 @@
             latEl.textContent = tApp('{latency}ms', { latency: (0.3 + Math.random() * 0.4).toFixed(1) });
         }
 
-        renderPreviewTables();
+        if (touchLongPressState.timer === null) {
+            renderPreviewTables();
+        }
     }
 
     function closeAllAppMenus() {
@@ -2464,9 +2670,23 @@
         var stageRotateBtn = document.getElementById('ss-stage-rotate-btn');
         if (stageRotateBtn) {
             stageRotateBtn.addEventListener('click', function onToggleRotate() {
+                hideRichTooltip();
+                closeContextMenu();
                 previewStageState.rotateInFullscreen = !previewStageState.rotateInFullscreen;
                 updatePreviewStageLayout();
             });
+        }
+        var stageShellEl = document.getElementById('ss-stage-shell');
+        if (stageShellEl) {
+            stageShellEl.addEventListener('click', function onStageToastAction(ev) {
+                if (!previewStageState.fullscreen) {
+                    return;
+                }
+                var actionBtn = ev.target && ev.target.closest ? ev.target.closest('.toast-action-btn') : null;
+                if (actionBtn) {
+                    closePreviewFullscreen();
+                }
+            }, true);
         }
 
         var heroPreviewCta = document.getElementById('hero-preview-cta');
@@ -2491,6 +2711,110 @@
                 }, 1200);
             });
         }
+
+        /* Touch long-press context menu for mobile browsers (iOS Safari does not fire contextmenu on long-press) */
+        [
+            { id: 'ss-connected-tbody', tableKind: 'connected' },
+            { id: 'ss-disconnected-tbody', tableKind: 'disconnected' },
+        ].forEach(function wireTouchLongPress(cfg) {
+            var tbody = document.getElementById(cfg.id);
+            if (!tbody) {
+                return;
+            }
+            tbody.addEventListener('pointerdown', function onRowPointerDown(ev) {
+                if (ev.pointerType !== 'touch' && ev.pointerType !== 'pen') {
+                    return;
+                }
+                if (ev.isPrimary === false) {
+                    clearTouchLongPressTimer();
+                    return;
+                }
+                var tr = ev.target && ev.target.closest ? ev.target.closest('tr[data-player-id]') : null;
+                if (!tr) {
+                    return;
+                }
+                var playerId = tr.getAttribute('data-player-id');
+                var cell = ev.target && ev.target.closest ? ev.target.closest('td') : null;
+                var cellText = cell ? cell.textContent : '';
+
+                clearTouchLongPressTimer();
+                touchLongPressState.pointerId = ev.pointerId;
+                touchLongPressState.startX = ev.clientX;
+                touchLongPressState.startY = ev.clientY;
+                touchLongPressState.triggered = false;
+
+                touchLongPressState.timer = window.setTimeout(function fireLongPress() {
+                    touchLongPressState.timer = null;
+                    var found = findPlayerForRow(playerId, cfg.tableKind);
+                    if (!found) {
+                        return;
+                    }
+                    touchLongPressState.triggered = true;
+                    touchLongPressState.suppressClickUntil = Date.now() + 700;
+                    touchLongPressState.suppressContextMenuUntil = Date.now() + 700;
+                    openRowContextMenu(
+                        touchLongPressState.startX,
+                        touchLongPressState.startY,
+                        found.player,
+                        found.isDisconnected,
+                        cellText || found.player.ip,
+                    );
+                }, LONG_PRESS_DELAY_MS);
+            });
+        });
+
+        window.addEventListener('pointerdown', function onAnyPointerDown() {
+            if (!touchLongPressState.triggered) {
+                touchLongPressState.suppressClickUntil = 0;
+            }
+        }, true);
+
+        window.addEventListener('pointermove', function onLongPressMove(ev) {
+            if (touchLongPressState.timer === null || ev.pointerId !== touchLongPressState.pointerId) {
+                return;
+            }
+            var dx = ev.clientX - touchLongPressState.startX;
+            var dy = ev.clientY - touchLongPressState.startY;
+            if ((dx * dx) + (dy * dy) > LONG_PRESS_MOVE_TOLERANCE_PX * LONG_PRESS_MOVE_TOLERANCE_PX) {
+                clearTouchLongPressTimer();
+            }
+        }, { passive: true });
+
+        function onLongPressPointerEnd(ev) {
+            if (touchLongPressState.pointerId !== null && ev.pointerId !== touchLongPressState.pointerId) {
+                return;
+            }
+            clearTouchLongPressTimer();
+            if (touchLongPressState.triggered) {
+                touchLongPressState.triggered = false;
+                touchLongPressState.suppressClickUntil = Date.now() + 450;
+            }
+        }
+
+        window.addEventListener('pointerup', onLongPressPointerEnd, true);
+        window.addEventListener('pointercancel', onLongPressPointerEnd, true);
+
+        window.addEventListener('touchstart', function onMultiTouchStart(ev) {
+            if (ev.touches && ev.touches.length > 1) {
+                clearTouchLongPressTimer();
+            }
+        }, { passive: true });
+
+        window.addEventListener('touchend', function onLongPressTouchEnd(ev) {
+            if (touchLongPressState.triggered) {
+                ev.preventDefault();
+                touchLongPressState.triggered = false;
+                touchLongPressState.suppressClickUntil = Date.now() + 450;
+            }
+        }, { passive: false, capture: true });
+
+        document.addEventListener('click', function onSuppressLongPressClick(ev) {
+            if (Date.now() < touchLongPressState.suppressClickUntil) {
+                touchLongPressState.suppressClickUntil = 0;
+                ev.preventDefault();
+                ev.stopPropagation();
+            }
+        }, true);
 
         loadPreset('gta5');
         updateMetricsDisplay();
@@ -2526,8 +2850,14 @@
         }
     });
 
-    window.addEventListener('scroll', closeContextMenu, true);
-    window.addEventListener('resize', closeContextMenu);
+    window.addEventListener('scroll', function onPreviewScroll() {
+        clearTouchLongPressTimer();
+        closeContextMenu();
+    }, true);
+    window.addEventListener('resize', function onPreviewResize() {
+        clearTouchLongPressTimer();
+        closeContextMenu();
+    });
 
     Core.onClosePopups(function closePreviewPopups() {
         closeAllAppMenus();

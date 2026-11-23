@@ -945,6 +945,16 @@
         return { tip: tip, titleEl: titleEl, bodyEl: bodyEl };
     }
 
+    function getTooltipPortalHost(targetEl) {
+        if (targetEl && typeof targetEl.closest === 'function') {
+            var fullscreenStage = targetEl.closest('.ss-stage-shell.is-fullscreen');
+            if (fullscreenStage) {
+                return fullscreenStage;
+            }
+        }
+        return document.body;
+    }
+
     function hideRichTooltip() {
         var tip = document.getElementById('ss-rich-tooltip');
         richTooltipState.activeTarget = null;
@@ -953,6 +963,9 @@
         }
         tip.classList.remove('is-visible');
         tip.setAttribute('aria-hidden', 'true');
+        if (tip.parentNode && tip.parentNode !== document.body) {
+            document.body.appendChild(tip);
+        }
     }
 
     function positionRichTooltip(targetEl) {
@@ -960,32 +973,68 @@
         if (!tip || !targetEl) {
             return;
         }
-        var rect = targetEl.getBoundingClientRect();
-        var tipRect = tip.getBoundingClientRect();
+        var host = getTooltipPortalHost(targetEl);
+        if (tip.parentNode !== host) {
+            host.appendChild(tip);
+        }
+
+        /* Reset coordinates before measuring so shrink-to-fit width isn't squeezed by prior placement. */
+        tip.style.left = '0px';
+        tip.style.top = '0px';
+
+        var rawRect = targetEl.getBoundingClientRect();
+        var tipWidth = tip.offsetWidth;
+        var tipHeight = tip.offsetHeight;
         var margin = 10;
         var gap = 10;
         var vw = window.innerWidth || document.documentElement.clientWidth;
         var vh = window.innerHeight || document.documentElement.clientHeight;
 
-        var placement = 'top';
-        var top = rect.top - tipRect.height - gap;
-        if (top < margin) {
-            placement = 'bottom';
-            top = rect.bottom + gap;
-            if (top + tipRect.height > vh - margin) {
-                top = Math.max(margin, vh - tipRect.height - margin);
+        var boundsW = vw;
+        var boundsH = vh;
+        var rectLeft = rawRect.left;
+        var rectTop = rawRect.top;
+        var rectBottom = rawRect.bottom;
+        var rectWidth = rawRect.width;
+
+        if (host !== document.body) {
+            var hostRect = host.getBoundingClientRect();
+            var isRotated = host.classList.contains('is-rotated');
+            boundsW = host.clientWidth || (isRotated ? vh : vw);
+            boundsH = host.clientHeight || (isRotated ? vw : vh);
+            if (isRotated) {
+                /* Stage is rotated 90deg clockwise: local +x maps to viewport +y, local +y maps to viewport -x. */
+                rectLeft = rawRect.top - hostRect.top;
+                rectTop = hostRect.right - rawRect.right;
+                rectBottom = hostRect.right - rawRect.left;
+                rectWidth = rawRect.height;
+            } else {
+                rectLeft = rawRect.left - hostRect.left;
+                rectTop = rawRect.top - hostRect.top;
+                rectBottom = rawRect.bottom - hostRect.top;
+                rectWidth = rawRect.width;
             }
         }
 
-        var centerX = rect.left + (rect.width / 2);
-        var left = centerX - (tipRect.width / 2);
-        if (left < margin) {
-            left = margin;
-        } else if (left + tipRect.width > vw - margin) {
-            left = Math.max(margin, vw - tipRect.width - margin);
+        var placement = 'top';
+        var top = rectTop - tipHeight - gap;
+        if (top < margin) {
+            placement = 'bottom';
+            top = rectBottom + gap;
+            if (top + tipHeight > boundsH - margin) {
+                top = Math.max(margin, boundsH - tipHeight - margin);
+            }
         }
 
-        var arrowX = Math.max(16, Math.min(tipRect.width - 16, centerX - left));
+        var centerX = rectLeft + (rectWidth / 2);
+        var left = centerX - (tipWidth / 2);
+        if (left < margin) {
+            left = margin;
+        } else if (left + tipWidth > boundsW - margin) {
+            left = Math.max(margin, boundsW - tipWidth - margin);
+        }
+
+        var arrowX = Math.max(16, Math.min(tipWidth - 16, centerX - left));
         tip.setAttribute('data-placement', placement);
         tip.style.setProperty('--tip-arrow-x', Math.round(arrowX) + 'px');
         tip.style.left = Math.round(left) + 'px';
@@ -1002,6 +1051,10 @@
             return;
         }
         var parts = ensureRichTooltip();
+        var host = getTooltipPortalHost(targetEl);
+        if (parts.tip.parentNode !== host) {
+            host.appendChild(parts.tip);
+        }
         var title = targetEl.getAttribute('data-tip-title') || '';
         var variant = targetEl.getAttribute('data-tip-variant') || 'neutral';
 
@@ -1020,10 +1073,33 @@
             return;
         }
         var rect = target.getBoundingClientRect();
+        var vw = window.innerWidth || document.documentElement.clientWidth;
         var vh = window.innerHeight || document.documentElement.clientHeight;
-        if (rect.width === 0 || rect.height === 0 || rect.bottom < 0 || rect.top > vh) {
+        if (
+            rect.width === 0
+            || rect.height === 0
+            || rect.bottom < 0
+            || rect.top > vh
+            || rect.right < 0
+            || rect.left > vw
+        ) {
             hideRichTooltip();
             return;
+        }
+        var scrollClip = typeof target.closest === 'function'
+            ? target.closest('.ss-table-scroll, .ss-stage-viewport')
+            : null;
+        if (scrollClip) {
+            var clipRect = scrollClip.getBoundingClientRect();
+            if (
+                rect.right <= clipRect.left
+                || rect.left >= clipRect.right
+                || rect.bottom <= clipRect.top
+                || rect.top >= clipRect.bottom
+            ) {
+                hideRichTooltip();
+                return;
+            }
         }
         positionRichTooltip(target);
     }
