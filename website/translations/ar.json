@@ -206,7 +206,7 @@
   "hero.cta_download_windows": "تنزيل لنظام Windows (x64)",
   "hero.cta_preview": "جرّب المعاينة التفاعلية",
   "hero.eyebrow_foss": "مجاني ومفتوح المصدر",
-  "hero.eyebrow_langs": "{count} لغة (دعم كامل لـ RTL)",
+  "hero.eyebrow_langs": "{count} لغة",
   "hero.members_count": "{count} عضو",
   "hero.stat_community": "مجتمع Discord",
   "hero.stat_community_fallback": "دعم نشط",

@@ -206,7 +206,7 @@
   "hero.cta_download_windows": "Downloaden voor Windows (x64)",
   "hero.cta_preview": "Probeer interactief voorbeeld",
   "hero.eyebrow_foss": "Gratis & Open Source",
-  "hero.eyebrow_langs": "{count} talen (RTL-gereed)",
+  "hero.eyebrow_langs": "{count} talen",
   "hero.members_count": "{count} leden",
   "hero.stat_community": "Discord-community",
   "hero.stat_community_fallback": "Actieve ondersteuning",

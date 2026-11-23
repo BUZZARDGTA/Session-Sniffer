@@ -206,7 +206,7 @@
   "hero.cta_download_windows": "Luchdaich a-nuas airson Windows (x64)",
   "hero.cta_preview": "Feuch an Ro-shealladh Eadar-ghnìomhach",
   "hero.eyebrow_foss": "An-asgaidh & Còd Fosgailte",
-  "hero.eyebrow_langs": "{count} Cànanan (Deiseil airson RTL)",
+  "hero.eyebrow_langs": "{count} Cànanan",
   "hero.members_count": "{count} buill",
   "hero.stat_community": "Coimhearsnachd Discord",
   "hero.stat_community_fallback": "Taic Gnìomhach",

@@ -206,7 +206,7 @@
   "hero.cta_download_windows": "Letöltés Windowsra (x64)",
   "hero.cta_preview": "Interaktív előnézet kipróbálása",
   "hero.eyebrow_foss": "Ingyenes és nyílt forráskódú",
-  "hero.eyebrow_langs": "{count} nyelv (RTL-támogatás)",
+  "hero.eyebrow_langs": "{count} nyelv",
   "hero.members_count": "{count} tag",
   "hero.stat_community": "Discord közösség",
   "hero.stat_community_fallback": "Aktív támogatás",

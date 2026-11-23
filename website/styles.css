@@ -705,17 +705,6 @@ summary:focus-visible {
     flex-shrink: 0;
 }
 
-.lang-rtl-tag {
-    font-family: var(--ss-font-mono);
-    font-size: 9.5px;
-    font-weight: 700;
-    padding: 1px 5px;
-    border-radius: 4px;
-    background: rgba(var(--ss-accent-rgb), 0.14);
-    border: 1px solid rgba(var(--ss-accent-rgb), 0.36);
-    color: var(--ss-accent);
-}
-
 /* Matches create_theme_list_icon() in _theme_preview_card.py */
 .theme-swatch-dot {
     width: 15px;

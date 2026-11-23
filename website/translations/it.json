@@ -206,7 +206,7 @@
   "hero.cta_download_windows": "Scarica per Windows (x64)",
   "hero.cta_preview": "Prova l'anteprima interattiva",
   "hero.eyebrow_foss": "Gratuito e Open Source",
-  "hero.eyebrow_langs": "{count} lingue (pronto per RTL)",
+  "hero.eyebrow_langs": "{count} lingue",
   "hero.members_count": "{count} membri",
   "hero.stat_community": "Community Discord",
   "hero.stat_community_fallback": "Supporto attivo",

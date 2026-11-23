@@ -206,7 +206,7 @@
   "hero.cta_download_windows": "הורדה ל-Windows (x64)",
   "hero.cta_preview": "נסו את התצוגה המקדימה האינטראקטיבית",
   "hero.eyebrow_foss": "חינמי וקוד פתוח",
-  "hero.eyebrow_langs": "{count} שפות (תמיכה מלאה ב-RTL)",
+  "hero.eyebrow_langs": "{count} שפות",
   "hero.members_count": "{count} חברים",
   "hero.stat_community": "קהילת Discord",
   "hero.stat_community_fallback": "תמיכה פעילה",

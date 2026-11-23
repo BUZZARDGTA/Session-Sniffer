@@ -206,7 +206,7 @@
   "hero.cta_download_windows": "Windows үшін жүктеп алу (x64)",
   "hero.cta_preview": "Интерактивті алдын ала қарауды сынау",
   "hero.eyebrow_foss": "Тегін және ашық кодты",
-  "hero.eyebrow_langs": "{count} тіл (RTL қолдауы бар)",
+  "hero.eyebrow_langs": "{count} тіл",
   "hero.members_count": "{count} қатысушы",
   "hero.stat_community": "Discord қауымдастығы",
   "hero.stat_community_fallback": "Белсенді қолдау",

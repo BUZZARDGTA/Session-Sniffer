@@ -206,7 +206,7 @@
   "hero.cta_download_windows": "دانلود برای Windows (x64)",
   "hero.cta_preview": "امتحان پیش‌نمایش تعاملی",
   "hero.eyebrow_foss": "رایگان و متن‌باز",
-  "hero.eyebrow_langs": "{count} زبان (پشتیبانی از RTL)",
+  "hero.eyebrow_langs": "{count} زبان",
   "hero.members_count": "{count} عضو",
   "hero.stat_community": "انجمن Discord",
   "hero.stat_community_fallback": "پشتیبانی فعال",

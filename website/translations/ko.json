@@ -206,7 +206,7 @@
   "hero.cta_download_windows": "Windows용 다운로드 (x64)",
   "hero.cta_preview": "대화형 미리 보기 체험",
   "hero.eyebrow_foss": "무료 오픈소스",
-  "hero.eyebrow_langs": "{count}개 언어 (RTL 지원)",
+  "hero.eyebrow_langs": "{count}개 언어",
   "hero.members_count": "멤버 {count}명",
   "hero.stat_community": "Discord 커뮤니티",
   "hero.stat_community_fallback": "활발한 지원",

@@ -206,7 +206,7 @@
   "hero.cta_download_windows": "Windows için İndir (x64)",
   "hero.cta_preview": "Etkileşimli Önizlemeyi Dene",
   "hero.eyebrow_foss": "Ücretsiz ve Açık Kaynak",
-  "hero.eyebrow_langs": "{count} Dil (RTL Uyumlu)",
+  "hero.eyebrow_langs": "{count} Dil",
   "hero.members_count": "{count} üye",
   "hero.stat_community": "Discord Topluluğu",
   "hero.stat_community_fallback": "Aktif Destek",

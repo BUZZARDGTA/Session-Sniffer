@@ -206,7 +206,7 @@
   "hero.cta_download_windows": "Stáhnout pro Windows (x64)",
   "hero.cta_preview": "Vyzkoušet interaktivní náhled",
   "hero.eyebrow_foss": "Zdarma a Open Source",
-  "hero.eyebrow_langs": "{count} jazyků (s podporou RTL)",
+  "hero.eyebrow_langs": "{count} jazyků",
   "hero.members_count": "{count} členů",
   "hero.stat_community": "Discord komunita",
   "hero.stat_community_fallback": "Aktivní podpora",

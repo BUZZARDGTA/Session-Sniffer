@@ -206,7 +206,7 @@
   "hero.cta_download_windows": "Baixa per a Windows (x64)",
   "hero.cta_preview": "Prova la previsualització interactiva",
   "hero.eyebrow_foss": "Gratuït i de codi obert",
-  "hero.eyebrow_langs": "{count} idiomes (compatible amb RTL)",
+  "hero.eyebrow_langs": "{count} idiomes",
   "hero.members_count": "{count} membres",
   "hero.stat_community": "Comunitat de Discord",
   "hero.stat_community_fallback": "Suport actiu",

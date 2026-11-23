@@ -206,7 +206,7 @@
   "hero.cta_download_windows": "Lejupielādēt Windows (x64)",
   "hero.cta_preview": "Izmēģināt interaktīvo priekšskatījumu",
   "hero.eyebrow_foss": "Bezmaksas un atvērtais pirmkods",
-  "hero.eyebrow_langs": "{count} valodas (RTL atbalsts)",
+  "hero.eyebrow_langs": "{count} valodas",
   "hero.members_count": "{count} dalībnieki",
   "hero.stat_community": "Discord kopiena",
   "hero.stat_community_fallback": "Aktīvs atbalsts",

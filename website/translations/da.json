@@ -206,7 +206,7 @@
   "hero.cta_download_windows": "Download til Windows (x64)",
   "hero.cta_preview": "Prøv interaktiv forhåndsvisning",
   "hero.eyebrow_foss": "Gratis og open source",
-  "hero.eyebrow_langs": "{count} sprog (RTL-klar)",
+  "hero.eyebrow_langs": "{count} sprog",
   "hero.members_count": "{count} medlemmer",
   "hero.stat_community": "Discord-fællesskab",
   "hero.stat_community_fallback": "Aktiv support",

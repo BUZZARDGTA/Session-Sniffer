@@ -206,7 +206,7 @@
   "hero.cta_download_windows": "下载 Windows 版 (x64)",
   "hero.cta_preview": "体验交互式预览",
   "hero.eyebrow_foss": "免费且开源",
-  "hero.eyebrow_langs": "{count} 种语言（支持 RTL）",
+  "hero.eyebrow_langs": "{count} 种语言",
   "hero.members_count": "{count} 位成员",
   "hero.stat_community": "Discord 社区",
   "hero.stat_community_fallback": "活跃支持",

@@ -206,7 +206,7 @@
   "hero.cta_download_windows": "Stiahnuť pre Windows (x64)",
   "hero.cta_preview": "Vyskúšať interaktívny náhľad",
   "hero.eyebrow_foss": "Zadarmo a Open Source",
-  "hero.eyebrow_langs": "{count} jazykov (podpora RTL)",
+  "hero.eyebrow_langs": "{count} jazykov",
   "hero.members_count": "{count} členov",
   "hero.stat_community": "Komunita na Discorde",
   "hero.stat_community_fallback": "Aktívna podpora",

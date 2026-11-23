@@ -206,7 +206,7 @@
   "hero.cta_download_windows": "下載 Windows 版 (x64)",
   "hero.cta_preview": "體驗互動式預覽",
   "hero.eyebrow_foss": "免費且開源",
-  "hero.eyebrow_langs": "{count} 種語言（支援 RTL）",
+  "hero.eyebrow_langs": "{count} 種語言",
   "hero.members_count": "{count} 位成員",
   "hero.stat_community": "Discord 社群",
   "hero.stat_community_fallback": "活躍支援",

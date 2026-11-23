@@ -206,7 +206,7 @@
   "hero.cta_download_windows": "ჩამოტვირთვა Windows-ისთვის (x64)",
   "hero.cta_preview": "სცადეთ ინტერაქტიული წინასწარი ნახვა",
   "hero.eyebrow_foss": "უფასო და ღია კოდი",
-  "hero.eyebrow_langs": "{count} ენა (RTL მხარდაჭერით)",
+  "hero.eyebrow_langs": "{count} ენა",
   "hero.members_count": "{count} წევრი",
   "hero.stat_community": "Discord საზოგადოება",
   "hero.stat_community_fallback": "აქტიური მხარდაჭერა",

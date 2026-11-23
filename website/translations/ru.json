@@ -206,7 +206,7 @@
   "hero.cta_download_windows": "Скачать для Windows (x64)",
   "hero.cta_preview": "Открыть интерактивное демо",
   "hero.eyebrow_foss": "Бесплатно и с открытым кодом",
-  "hero.eyebrow_langs": "Поддержка {count} языков (включая RTL)",
+  "hero.eyebrow_langs": "Поддержка {count} языков",
   "hero.members_count": "{count} участников",
   "hero.stat_community": "Сообщество Discord",
   "hero.stat_community_fallback": "Активная поддержка",

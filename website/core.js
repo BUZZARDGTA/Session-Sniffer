@@ -756,12 +756,6 @@
 
             var metaSpan = document.createElement('span');
             metaSpan.className = 'lang-option-meta';
-            if (lang.rtl) {
-                var rtlTag = document.createElement('span');
-                rtlTag.className = 'lang-rtl-tag';
-                rtlTag.textContent = 'RTL';
-                metaSpan.appendChild(rtlTag);
-            }
             if (lang.code === activeLang) {
                 metaSpan.appendChild(createIconSvg('check', 'icon-xs'));
             }

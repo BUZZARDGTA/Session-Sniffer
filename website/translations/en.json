@@ -206,7 +206,7 @@
   "hero.cta_download_windows": "Download for Windows (x64)",
   "hero.cta_preview": "Try Interactive Preview",
   "hero.eyebrow_foss": "Free & Open Source",
-  "hero.eyebrow_langs": "{count} Languages (RTL Ready)",
+  "hero.eyebrow_langs": "{count} Languages",
   "hero.members_count": "{count} members",
   "hero.stat_community": "Discord Community",
   "hero.stat_community_fallback": "Active Support",

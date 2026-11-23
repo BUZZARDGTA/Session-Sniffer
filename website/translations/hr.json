@@ -206,7 +206,7 @@
   "hero.cta_download_windows": "Preuzmi za Windows (x64)",
   "hero.cta_preview": "Isprobaj interaktivni pregled",
   "hero.eyebrow_foss": "Besplatno i otvorenog koda",
-  "hero.eyebrow_langs": "{count} jezika (RTL podrška)",
+  "hero.eyebrow_langs": "{count} jezika",
   "hero.members_count": "{count} članova",
   "hero.stat_community": "Discord zajednica",
   "hero.stat_community_fallback": "Aktivna podrška",
