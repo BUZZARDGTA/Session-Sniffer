@@ -572,6 +572,9 @@
         document.querySelectorAll('[data-languages-count]').forEach(function setLang(el) {
             el.textContent = String(DATA.languagesCount);
         });
+        document.querySelectorAll('[data-themes-count]').forEach(function setThemeCount(el) {
+            el.textContent = String(DATA.builtinThemes.length);
+        });
     }
 
     /* ----------------------------------------------------------------------
