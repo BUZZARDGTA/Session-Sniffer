@@ -1002,6 +1002,55 @@
         return null;
     }
 
+    function getContextMenuSizingSpec(boundsW, boundsH, stageShell) {
+        var shortSide = Math.min(boundsW, boundsH);
+        var isFullscreen = Boolean(stageShell);
+        var isDesktopViewport = !isFullscreen && boundsW >= PREVIEW_STAGE_BREAKPOINT_PX && boundsH >= 620;
+        var isCompact = shortSide <= 540 || (!isDesktopViewport && boundsW <= 680);
+        var margin = shortSide <= 480 ? 8 : 10;
+
+        var topInset = margin;
+        if (stageShell) {
+            var stageBar = stageShell.querySelector('.ss-stage-bar');
+            var stageBarH = stageBar ? stageBar.offsetHeight : 0;
+            topInset = stageBarH > 0 ? (stageBarH + margin) : margin;
+        } else {
+            var siteHeader = document.querySelector('.site-header');
+            if (siteHeader) {
+                var headerBottom = Math.round(siteHeader.getBoundingClientRect().bottom);
+                if (headerBottom > 0) {
+                    topInset = Math.max(margin, Math.min(headerBottom + 6, 84));
+                }
+            }
+        }
+
+        var availW = Math.max(140, boundsW - (margin * 2));
+        var availH = Math.max(140, boundsH - topInset - margin);
+
+        var baseScale = 1;
+        var maxMenuW = availW;
+        var maxMenuH = availH;
+
+        if (isCompact) {
+            baseScale = Math.max(0.72, Math.min(1, shortSide / 425));
+            maxMenuH = Math.min(availH, Math.max(180, Math.round(shortSide * 0.77)));
+            maxMenuW = Math.min(availW, Math.max(150, Math.round(boundsW * (boundsW <= 540 ? 0.54 : 0.38))));
+        } else if (!isDesktopViewport) {
+            baseScale = Math.max(0.84, Math.min(1, shortSide / 820));
+            maxMenuH = Math.min(availH, Math.max(280, Math.round(boundsH * 0.78)));
+            maxMenuW = Math.min(availW, Math.max(200, Math.round(boundsW * 0.48)));
+        }
+
+        return {
+            compact: isCompact,
+            margin: margin,
+            topInset: topInset,
+            baseScale: baseScale,
+            maxMenuW: maxMenuW,
+            maxMenuH: maxMenuH,
+        };
+    }
+
     function positionCtxSubmenu(wrap) {
         if (!wrap || !contextMenuLayout) {
             return;
@@ -1012,12 +1061,16 @@
         }
         var layout = contextMenuLayout;
         var scale = layout.scale || 1;
-        var margin = 8;
+        var margin = layout.margin || 8;
+        var topInset = layout.topInset || margin;
+        var padOffset = layout.compact ? 4 : 5;
 
         sub.style.left = '';
         sub.style.right = '';
+        sub.classList.remove('open-up');
 
-        var subW = (sub.offsetWidth || 210) * scale;
+        var fallbackSubW = layout.compact ? 146 : 210;
+        var subW = (sub.offsetWidth || fallbackSubW) * scale;
         var subH = sub.offsetHeight || 0;
         var spaceRight = layout.boundsW - (layout.left + layout.width) - margin;
         var spaceLeft = layout.left - margin;
@@ -1027,19 +1080,21 @@
             : (spaceRight < subW && spaceLeft > spaceRight);
         sub.classList.toggle('open-left', openLeft);
 
-        /* On narrow portrait viewports where neither side fits, pull submenu inward so it stays on screen. */
+        /* On narrow viewports where neither side fits, slide submenu toward the roomier side inside bounds. */
         if (Math.max(spaceLeft, spaceRight) < subW) {
-            var desiredScreenLeft = Math.max(margin, layout.boundsW - margin - subW);
+            var desiredScreenLeft = spaceLeft > spaceRight
+                ? margin
+                : Math.max(margin, layout.boundsW - margin - subW);
             sub.classList.remove('open-left');
             sub.style.right = 'auto';
             sub.style.left = Math.round((desiredScreenLeft - layout.left) / scale) + 'px';
         }
 
         if (subH > 0) {
-            var downBottom = layout.top + ((wrap.offsetTop - 5 + subH) * scale);
-            var upTop = layout.top + ((wrap.offsetTop + wrap.offsetHeight + 5 - subH) * scale);
+            var downBottom = layout.top + ((wrap.offsetTop - padOffset + subH) * scale);
+            var upTop = layout.top + ((wrap.offsetTop + wrap.offsetHeight + padOffset - subH) * scale);
             var overflowDown = downBottom - (layout.boundsH - margin);
-            var overflowUp = margin - upTop;
+            var overflowUp = topInset - upTop;
             sub.classList.toggle('open-up', overflowDown > 0 && overflowUp < overflowDown);
         } else {
             sub.classList.remove('open-up');
@@ -1052,6 +1107,7 @@
         if (menu) {
             menu.hidden = true;
             menu.innerHTML = '';
+            menu.classList.remove('is-compact');
             menu.style.transform = '';
             menu.style.transformOrigin = '';
             if (menu.parentNode && menu.parentNode !== document.body) {
@@ -1204,9 +1260,11 @@
             }
         }
 
+        var sizingSpec = getContextMenuSizingSpec(boundsW, boundsH, stageShell);
         var displayName = player.username || player.ip;
         var isRtl = document.documentElement.getAttribute('dir') === 'rtl';
-        var openLeft = isRtl ? clickX >= 460 : clickX > boundsW - 460;
+        var flipThreshold = Math.min(460, Math.round(boundsW * 0.55));
+        var openLeft = isRtl ? clickX >= flipThreshold : clickX > boundsW - flipThreshold;
         var hasGameHostTools = simState.presetKey === 'gta5' || simState.presetKey === 'rdr2';
 
         /* Copy Selection & Copy for Discord */
@@ -1352,26 +1410,34 @@
             }),
         ], openLeft));
 
+        menu.classList.toggle('is-compact', sizingSpec.compact);
         menu.hidden = false;
 
-        /* Clamp position strictly inside active viewport (or rotated fullscreen stage) */
+        /* Smartly size & clamp strictly inside active viewport (or rotated fullscreen stage) */
         menu.style.left = '0px';
         menu.style.top = '0px';
         menu.style.transform = '';
         menu.style.transformOrigin = '';
         var menuW = menu.offsetWidth;
         var menuH = menu.offsetHeight;
-        var margin = 8;
-        var maxMenuH = Math.max(120, boundsH - (margin * 2));
-        var fitScale = menuH > maxMenuH ? (maxMenuH / menuH) : 1;
-        if (fitScale < 1) {
+        var scaleW = menuW > 0 ? (sizingSpec.maxMenuW / menuW) : 1;
+        var scaleH = menuH > 0 ? (sizingSpec.maxMenuH / menuH) : 1;
+        var fitScale = Math.min(sizingSpec.baseScale, scaleW, scaleH);
+        if (fitScale < 0.999) {
             menu.style.transformOrigin = 'top left';
             menu.style.transform = 'scale(' + fitScale.toFixed(4) + ')';
+        } else {
+            fitScale = 1;
         }
         var effectiveW = menuW * fitScale;
         var effectiveH = menuH * fitScale;
-        var left = Math.max(margin, Math.min(clickX, boundsW - effectiveW - 10));
-        var top = Math.max(margin, Math.min(clickY, boundsH - effectiveH - margin));
+        var margin = sizingSpec.margin;
+        var topInset = sizingSpec.topInset;
+        var maxLeft = Math.max(margin, boundsW - effectiveW - margin);
+        var maxTop = Math.max(topInset, boundsH - effectiveH - margin);
+        var preferredLeft = isRtl ? (clickX - effectiveW) : clickX;
+        var left = Math.max(margin, Math.min(preferredLeft, maxLeft));
+        var top = Math.max(topInset, Math.min(clickY, maxTop));
         menu.style.left = left + 'px';
         menu.style.top = top + 'px';
 
@@ -1381,6 +1447,9 @@
             width: effectiveW,
             height: effectiveH,
             scale: fitScale,
+            compact: sizingSpec.compact,
+            margin: margin,
+            topInset: topInset,
             boundsW: boundsW,
             boundsH: boundsH,
             isRtl: isRtl,
