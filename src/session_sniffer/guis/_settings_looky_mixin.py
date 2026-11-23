@@ -1,11 +1,13 @@
 """Looky System UI mixin and verify worker for `SettingsDialog`."""
 
 import html as html_lib
+from contextlib import nullcontext
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, cast, override
 
 import pydantic
 import requests
-from PySide6.QtCore import QEvent, QObject, Qt, QTimer, Signal
+from PySide6.QtCore import QEvent, QObject, QSignalBlocker, Qt, QTimer, Signal
 from PySide6.QtGui import QGuiApplication, QKeySequence
 from PySide6.QtWidgets import (
     QComboBox,
@@ -30,6 +32,7 @@ from session_sniffer.guis._settings_widget_builders import (
     create_text_widget,
 )
 from session_sniffer.guis.live_language import set_i18n_colon_label
+from session_sniffer.guis.loading_overlay import loading_overlay_scope, run_with_active_loading
 from session_sniffer.guis.sensitive_value_widget import SensitiveValueWidget
 from session_sniffer.guis.stylesheets import (
     LOOKY_ACCOUNT_CARD_STYLESHEET,
@@ -39,7 +42,7 @@ from session_sniffer.guis.stylesheets import (
 )
 from session_sniffer.guis.theming import themed_qss
 from session_sniffer.i18n import get_active_language, is_rtl_language, tr
-from session_sniffer.networking.looky_system import LookyState, verify_token
+from session_sniffer.networking.looky_system import LookyState, is_looky_auth_error, verify_token
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -47,8 +50,38 @@ if TYPE_CHECKING:
     from PySide6.QtGui import QCloseEvent, QKeyEvent
     from PySide6.QtWidgets import QFormLayout
 
+    from session_sniffer.guis._settings_runtime import SettingValue
     from session_sniffer.models.looky_system import LookyWhoAmI
     from session_sniffer.settings import SettingMeta
+
+
+@dataclass(frozen=True, slots=True)
+class _LookyVerifyResult:
+    """Successful `/api/whoami` verification payload tied to the key that was checked."""
+
+    api_key: str
+    user_data: LookyWhoAmI
+
+
+@dataclass(frozen=True, slots=True)
+class _LookyVerifyFailure:
+    """Failed `/api/whoami` verification payload tied to the key that was checked."""
+
+    api_key: str
+    error: str
+    is_auth_error: bool
+
+
+def _format_looky_verify_error(exc: Exception) -> tuple[str, bool]:
+    """Return `(localized_error_message, is_auth_error)` for a `verify_token()` exception."""
+    if isinstance(exc, requests.HTTPError):
+        status = exc.response.status_code if exc.response is not None else tr('unknown')
+        if is_looky_auth_error(exc):
+            return tr('Invalid API key (HTTP {status}).', status=status), True
+        return tr('Looky System API error: HTTP {status_code}', status_code=status), False
+    if isinstance(exc, requests.RequestException):
+        return tr('Connection error: {error}', error=exc), False
+    return tr('Unexpected response format: {error}', error=exc), False
 
 
 def _bool_badge(*, value: bool, true_text: str, false_text: str) -> str:
@@ -61,8 +94,8 @@ def _bool_badge(*, value: bool, true_text: str, false_text: str) -> str:
 class _LookyVerifyWorker(CrashingQThread):
     """Background thread that verifies a Looky System API key via `/api/whoami`."""
 
-    verified: Signal = Signal(object)  # LookyWhoAmI
-    failed: Signal = Signal(str)  # error message
+    verified: Signal = Signal(object)  # _LookyVerifyResult
+    failed: Signal = Signal(object)  # _LookyVerifyFailure
 
     def __init__(self, api_key: str) -> None:
         super().__init__()
@@ -75,14 +108,12 @@ class _LookyVerifyWorker(CrashingQThread):
             result = verify_token(self._api_key)
             if self.isInterruptionRequested():
                 return
-            self.verified.emit(result)
-        except requests.HTTPError as e:
-            status = e.response.status_code if e.response is not None else tr('unknown')
-            self.failed.emit(tr('Invalid API key (HTTP {status}).', status=status))
-        except requests.RequestException as e:
-            self.failed.emit(tr('Connection error: {error}', error=e))
-        except pydantic.ValidationError as e:
-            self.failed.emit(tr('Unexpected response format: {error}', error=e))
+            self.verified.emit(_LookyVerifyResult(api_key=self._api_key, user_data=result))
+        except (requests.HTTPError, requests.RequestException, pydantic.ValidationError) as e:
+            if self.isInterruptionRequested():
+                return
+            error_message, is_auth_error = _format_looky_verify_error(e)
+            self.failed.emit(_LookyVerifyFailure(api_key=self._api_key, error=error_message, is_auth_error=is_auth_error))
 
 
 class SettingsDialogLookyMixin(QDialog):
@@ -103,6 +134,8 @@ class SettingsDialogLookyMixin(QDialog):
     _looky_account_sensitive_widgets: list[SensitiveValueWidget]
     _looky_verified_data: LookyWhoAmI | None = None
     _looky_verifying: bool = False
+    _last_rejected_key: str = ''
+    _last_rejected_error: str = ''
 
     def _apply_looky_info_text(self) -> None:
         """Apply localized RichText content to the Looky System info banner."""
@@ -158,6 +191,7 @@ class SettingsDialogLookyMixin(QDialog):
     # -- Attribute stubs (set in SettingsDialog.__init__) --
     _widgets: dict[str, QWidget]
     _labels: dict[str, QLabel]
+    _old_values: dict[str, SettingValue]
     _last_verified_key: str
     _verify_worker: _LookyVerifyWorker | None
     _verify_debounce: QTimer
@@ -316,11 +350,41 @@ class SettingsDialogLookyMixin(QDialog):
         is_gta5 = not isinstance(preset_widget, QComboBox) or combo_canonical_value(preset_widget) == 'GTA V'
         stripped = text.strip()
         self._looky_account_info_group.setVisible(bool(stripped) and is_gta5)
-        if not is_gta5 or not stripped or stripped == self._last_verified_key:
+        if not stripped:
+            self._looky_verifying = False
+            self._looky_verified_data = None
+            self._last_verified_key = ''
+            self._last_rejected_key = ''
+            self._last_rejected_error = ''
+            self._verify_debounce.stop()
+            if self._verify_worker is not None and self._verify_worker.isRunning():
+                self._verify_worker.cancel()
+            self._looky_verify_status_label.setVisible(False)
+            self._looky_card_forms_container.setVisible(False)
+            return
+        if not is_gta5:
             self._looky_verifying = False
             self._verify_debounce.stop()
+            if self._verify_worker is not None and self._verify_worker.isRunning():
+                self._verify_worker.cancel()
+            return
+        if stripped == self._last_verified_key:
+            self._looky_verifying = False
+            self._verify_debounce.stop()
+            self._looky_verify_status_label.setVisible(False)
+            if self._looky_verified_data is not None:
+                self._looky_card_forms_container.setVisible(True)
+            return
+        if stripped == self._last_rejected_key:
+            self._looky_verifying = False
+            self._verify_debounce.stop()
+            self._looky_verify_status_label.setText(self._last_rejected_error)
+            self._looky_verify_status_label.setVisible(True)
+            self._looky_card_forms_container.setVisible(False)
             return
         self._looky_verified_data = None
+        self._last_rejected_key = ''
+        self._last_rejected_error = ''
         self._looky_verifying = True
         self._looky_verify_status_label.setText(tr('⟳ Verifying...'))
         self._looky_verify_status_label.setVisible(True)
@@ -345,23 +409,104 @@ class SettingsDialogLookyMixin(QDialog):
         self._verify_worker.failed.connect(self._on_verify_failed)
         self._verify_worker.start()
 
-    def _on_verify_success(self, data: LookyWhoAmI) -> None:
+    def _on_verify_success(self, result: _LookyVerifyResult) -> None:
         """Handle a successful whoami response — populate the account card."""
-        self._looky_verifying = False
         api_key_widget = self._widgets.get('looky_api_key')
-        if isinstance(api_key_widget, QLineEdit):
-            self._last_verified_key = api_key_widget.text().strip()
+        if isinstance(api_key_widget, QLineEdit) and api_key_widget.text().strip() != result.api_key:
+            return
+        self._looky_verifying = False
+        self._last_verified_key = result.api_key
+        self._last_rejected_key = ''
+        self._last_rejected_error = ''
         self._looky_verify_status_label.setVisible(False)
-        self._populate_looky_account_card(data)
+        self._populate_looky_account_card(result.user_data)
 
-    def _on_verify_failed(self, error: str) -> None:
+    def _on_verify_failed(self, failure: _LookyVerifyFailure) -> None:
         """Handle a failed whoami response — show the error in the status label."""
+        api_key_widget = self._widgets.get('looky_api_key')
+        if isinstance(api_key_widget, QLineEdit) and api_key_widget.text().strip() != failure.api_key:
+            return
         self._looky_verifying = False
         self._looky_verified_data = None
         self._last_verified_key = ''
-        self._looky_verify_status_label.setText(error)
+        if failure.is_auth_error:
+            self._last_rejected_key = failure.api_key
+            self._last_rejected_error = failure.error
+        else:
+            self._last_rejected_key = ''
+            self._last_rejected_error = ''
+        self._looky_verify_status_label.setText(failure.error)
         self._looky_verify_status_label.setVisible(True)
         self._looky_card_forms_container.setVisible(False)
+
+    def _clear_hidden_invalid_looky_key(self, new_values: dict[str, SettingValue]) -> None:
+        """Suppress an invalid Looky API key from *new_values* and the hidden widget when GTA V is inactive."""
+        new_values['looky_api_key'] = None
+        self._last_rejected_key = ''
+        self._last_rejected_error = ''
+        api_key_widget = self._widgets.get('looky_api_key')
+        if isinstance(api_key_widget, QLineEdit):
+            with QSignalBlocker(api_key_widget):
+                api_key_widget.clear()
+
+    def _handle_rejected_looky_key_for_save(self, new_values: dict[str, SettingValue], error_message: str, *, is_gta5: bool) -> str | None:
+        """Clear a hidden rejected key when GTA V is inactive, or return a localized save-blocking error message."""
+        if not is_gta5:
+            self._clear_hidden_invalid_looky_key(new_values)
+            return None
+        return tr('Looky System API Key: {error}\n\nEnter a valid API key or clear the field before saving.', error=error_message)
+
+    def _handle_verify_exception_for_save(
+        self,
+        api_key: str,
+        exc: Exception,
+        new_values: dict[str, SettingValue],
+        *,
+        is_gta5: bool,
+        key_changed: bool,
+    ) -> str | None:
+        """Record a verification failure during Save and return a save-blocking error message when appropriate."""
+        error_message, is_auth_error = _format_looky_verify_error(exc)
+        self._on_verify_failed(_LookyVerifyFailure(api_key=api_key, error=error_message, is_auth_error=is_auth_error))
+        if is_auth_error:
+            return self._handle_rejected_looky_key_for_save(new_values, error_message, is_gta5=is_gta5)
+        if is_gta5 and key_changed:
+            return tr('Looky System API Key could not be verified ({error}).\n\nPlease try again or clear the field before saving.', error=error_message)
+        return None
+
+    def _verify_looky_api_key_for_save(self, new_values: dict[str, SettingValue]) -> str | None:
+        """Ensure any non-empty Looky API key is verified before saving; return an error message to block Save."""
+        raw_key = new_values.get('looky_api_key')
+        api_key = raw_key.strip() if isinstance(raw_key, str) else ''
+        if not api_key or api_key == self._last_verified_key:
+            return None
+
+        is_gta5 = new_values.get('capture_feature_set') == 'GTA V'
+        key_changed = api_key != (self._old_values.get('looky_api_key') or '')
+
+        if api_key == self._last_rejected_key:
+            return self._handle_rejected_looky_key_for_save(new_values, self._last_rejected_error, is_gta5=is_gta5)
+        if not is_gta5 and not key_changed:
+            return None
+
+        self._verify_debounce.stop()
+        if self._verify_worker is not None and self._verify_worker.isRunning():
+            self._verify_worker.cancel()
+            self._verify_worker = None
+
+        overlay_ctx = (
+            loading_overlay_scope(self, tr('Verifying Looky System API key\u2026'), tr('Validating your API key with Looky System\u2026'))
+            if self.isVisible()
+            else nullcontext()
+        )
+        try:
+            with overlay_ctx:
+                verified_data = run_with_active_loading(verify_token, api_key)
+        except (requests.HTTPError, requests.RequestException, pydantic.ValidationError) as exc:
+            return self._handle_verify_exception_for_save(api_key, exc, new_values, is_gta5=is_gta5, key_changed=key_changed)
+
+        self._on_verify_success(_LookyVerifyResult(api_key=api_key, user_data=verified_data))
+        return None
 
     @override
     def closeEvent(self, event: QCloseEvent) -> None:

@@ -178,6 +178,15 @@ def extract_rate_limit_wait_seconds(exc: requests.HTTPError) -> int | None:
     return None
 
 
+def is_looky_auth_error(exc: requests.HTTPError) -> bool:
+    """Return `True` for definitive Looky API HTTP 401/403 rejections (excluding HTML/Cloudflare 403 blocks)."""
+    if (response := exc.response) is None or response.status_code not in _AUTH_HTTP_STATUSES:
+        return False
+    if response.status_code == HTTPStatus.FORBIDDEN:
+        return not (bool(response.headers.get('cf-mitigated')) or 'text/html' in str(response.headers.get('Content-Type', '')).lower())
+    return True
+
+
 def verify_token(api_key: str) -> LookyWhoAmI:
     """Verify a Looky System API key via `GET /api/whoami`."""
     response = session.get(LOOKY_WHOAMI_URL, headers=_auth_headers(api_key), timeout=(3.0, 10.0))
@@ -502,7 +511,7 @@ class _LookyRateLimiter:
                 result = request_fn()
             except requests.RequestException as e:
                 if isinstance(e, requests.HTTPError) and e.response is not None:
-                    if e.response.status_code in _AUTH_HTTP_STATUSES:
+                    if is_looky_auth_error(e):
                         raise
                     if e.response.status_code == HTTPStatus.TOO_MANY_REQUESTS:
                         self.record_rate_limit(e, phase, context_label=context_label)

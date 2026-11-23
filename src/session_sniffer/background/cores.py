@@ -24,6 +24,7 @@ from session_sniffer.networking.http_session import session
 from session_sniffer.networking.looky_system import (
     LookyState,
     extract_rate_limit_wait_seconds,
+    is_looky_auth_error,
     lookup_ip_batch,
     verify_token,
 )
@@ -567,6 +568,30 @@ _LOOKY_REFRESH_INTERVAL = 60.0
 _LOOKY_CORE_THREAD_NAME = 'looky_core'
 
 
+def _clear_invalid_looky_api_key(attempted_key: str) -> None:
+    """Clear *attempted_key* from in-memory `Settings` and `settings.json` when it is still the active key."""
+    if Settings.looky_api_key != attempted_key:
+        return
+    Settings.looky_api_key = None
+    try:
+        Settings.rewrite_settings_file()
+    except OSError:
+        logger.exception('[Looky System] Failed to persist cleared invalid API key to settings.json')
+
+
+def _wait_looky_cooldown(timeout: float, attempted_key: str) -> None:
+    """Wait up to *timeout* seconds, waking early if the GUI closes or `Settings.looky_api_key` changes."""
+    deadline = time.monotonic() + timeout
+    while not gui_closed__event.is_set() and Settings.looky_api_key == attempted_key:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return
+        if _looky_wakeup_event.wait(min(remaining, 0.5)):
+            _looky_wakeup_event.clear()
+            if Settings.looky_api_key != attempted_key:
+                return
+
+
 def looky_core() -> None:
     """Resolve player names via the Looky System API in the background.
 
@@ -577,14 +602,17 @@ def looky_core() -> None:
     _verified_api_key: str | None = None
     _failed_verification_api_key: str | None = None
     server_error_consecutive_failures = 0
+    last_verification_error_key: str | None = None
 
     while not gui_closed__event.is_set():
         if ScriptControl.has_crashed():
             return
 
         if Settings.looky_api_key is None or not Settings.looky_api_key or not Settings.looky_enabled or not Settings.is_gta5_feature_set():
-            if _verified_api_key is not None:
+            if _verified_api_key is not None or last_verification_error_key is not None or LookyState.user_data is not None:
                 _verified_api_key = None
+                server_error_consecutive_failures = 0
+                last_verification_error_key = None
                 LookyState.reset()
             if not Settings.is_gta5_feature_set():
                 return
@@ -592,55 +620,82 @@ def looky_core() -> None:
             _looky_wakeup_event.clear()
             continue
 
-        if Settings.looky_api_key == _failed_verification_api_key:
+        current_api_key = Settings.looky_api_key
+
+        if current_api_key == _failed_verification_api_key:
             LookyState.reset()
-            _looky_wakeup_event.wait(30)
-            _looky_wakeup_event.clear()
+            _wait_looky_cooldown(30, current_api_key)
             continue
 
-        if _failed_verification_api_key is not None and Settings.looky_api_key != _failed_verification_api_key:
+        if _failed_verification_api_key is not None and current_api_key != _failed_verification_api_key:
             _failed_verification_api_key = None
+            server_error_consecutive_failures = 0
+            last_verification_error_key = None
 
-        if Settings.looky_api_key != _verified_api_key:
+        if current_api_key != _verified_api_key:
             try:
-                response = verify_token(Settings.looky_api_key)
+                response = verify_token(current_api_key)
+                if Settings.looky_api_key != current_api_key:
+                    continue
                 LookyState.set(response)
+                _verified_api_key = current_api_key
+                _failed_verification_api_key = None
+                if last_verification_error_key is not None:
+                    logger.info('[Looky System] Token verification recovered.')
+                    last_verification_error_key = None
+                server_error_consecutive_failures = 0
                 if LookyState.api_access:
-                    _verified_api_key = Settings.looky_api_key
-                    _failed_verification_api_key = None
-                    server_error_consecutive_failures = 0
                     wake_looky_core()
             except requests.HTTPError as e:
                 status = e.response.status_code if e.response is not None else '?'
                 reason = e.response.reason if e.response is not None else 'Unknown'
                 LookyState.reset()
 
-                if e.response is not None and e.response.status_code == HTTPStatus.UNAUTHORIZED:
-                    logger.warning(LOOKY_LOG_API_KEY_INVALID)
-                    _failed_verification_api_key = Settings.looky_api_key
-                elif e.response is not None and _is_http_server_error(e.response.status_code):
-                    server_error_consecutive_failures += 1
-                    cooldown_duration = min(30 * (2 ** (server_error_consecutive_failures - 1)), 300)
-                    logger.warning(
-                        '[Looky System] Server error during token verification (HTTP %s %s). Entering %ss cooldown.',
-                        status,
-                        reason,
-                        cooldown_duration,
-                    )
-                    gui_closed__event.wait(cooldown_duration)
+                if is_looky_auth_error(e):
+                    logger.warning(LOOKY_LOG_API_KEY_INVALID, status, reason)
+                    _verified_api_key = None
+                    _failed_verification_api_key = current_api_key
+                    server_error_consecutive_failures = 0
+                    last_verification_error_key = None
+                    _clear_invalid_looky_api_key(current_api_key)
                     continue
-                else:
-                    logger.warning(LOOKY_LOG_VERIFICATION_HTTP_FAILED_TEMPLATE, status, reason)
+                if e.response is not None and e.response.status_code == HTTPStatus.TOO_MANY_REQUESTS:
+                    wait_seconds = extract_rate_limit_wait_seconds(e) or 60
+                    error_key = 'http-429'
+                    if error_key != last_verification_error_key:
+                        logger.warning('[Looky System] Rate limited during token verification; waiting %ss.', wait_seconds)
+                        last_verification_error_key = error_key
+                    _wait_looky_cooldown(wait_seconds, current_api_key)
+                    continue
+                server_error_consecutive_failures += 1
+                cooldown_duration = min(30 * (2 ** (server_error_consecutive_failures - 1)), 300)
+                error_key = f'http-{status}'
+                if error_key != last_verification_error_key:
+                    if e.response is not None and _is_http_server_error(e.response.status_code):
+                        logger.warning(
+                            '[Looky System] Server error during token verification (HTTP %s %s). Entering %ss cooldown.',
+                            status,
+                            reason,
+                            cooldown_duration,
+                        )
+                    else:
+                        logger.warning(LOOKY_LOG_VERIFICATION_HTTP_FAILED_TEMPLATE, status, reason)
+                    last_verification_error_key = error_key
+                _wait_looky_cooldown(cooldown_duration, current_api_key)
+                continue
             except (requests.RequestException, ValidationError) as e:
                 server_error_consecutive_failures += 1
                 cooldown_duration = min(30 * (2 ** (server_error_consecutive_failures - 1)), 300)
-                logger.warning('[Looky System] Token verification failed: %s. Entering %ss cooldown.', e, cooldown_duration)
+                error_key = f'exc-{type(e).__name__}'
+                if error_key != last_verification_error_key:
+                    logger.warning('[Looky System] Token verification failed: %s. Entering %ss cooldown.', e, cooldown_duration)
+                    last_verification_error_key = error_key
                 LookyState.reset()
-                gui_closed__event.wait(cooldown_duration)
+                _wait_looky_cooldown(cooldown_duration, current_api_key)
                 continue
 
         if not LookyState.api_access:
-            gui_closed__event.wait(30)
+            _wait_looky_cooldown(30, current_api_key)
             continue
 
         pending_ip_addresses: list[str] = []
@@ -695,8 +750,19 @@ def looky_core() -> None:
         batch = pending_ip_addresses
 
         try:
-            results = lookup_ip_batch(batch, Settings.looky_api_key, Settings.looky_game_version.lower())
+            results = lookup_ip_batch(batch, current_api_key, Settings.looky_game_version.lower())
         except requests.HTTPError as e:
+            if is_looky_auth_error(e):
+                status = e.response.status_code if e.response is not None else '?'
+                reason = e.response.reason if e.response is not None else 'Unknown'
+                LookyState.reset()
+                _verified_api_key = None
+                _failed_verification_api_key = current_api_key
+                server_error_consecutive_failures = 0
+                last_verification_error_key = None
+                logger.warning(LOOKY_LOG_API_KEY_INVALID, status, reason)
+                _clear_invalid_looky_api_key(current_api_key)
+                continue
             if e.response is not None and e.response.status_code == HTTPStatus.TOO_MANY_REQUESTS:
                 _looky_queue.requeue_front(batch)
                 wait_seconds = extract_rate_limit_wait_seconds(e) or 15

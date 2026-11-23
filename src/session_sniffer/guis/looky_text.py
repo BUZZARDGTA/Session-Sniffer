@@ -37,7 +37,7 @@ LOOKY_WARNING_RESTRICTED_GTA5_NOT_RUNNING = 'Looky System is restricted to GTA V
 LOOKY_WARNING_RESTRICTED_NOT_LOCAL = 'Looky System is a PC-only feature and is not supported for console captures.'
 
 # Log messages
-LOOKY_LOG_API_KEY_INVALID = '[Looky System] Unable to connect: the API key appears to be invalid. Please update it in Settings.'
+LOOKY_LOG_API_KEY_INVALID = '[Looky System] API key rejected (HTTP %s %s); removed from settings. Please enter a valid key in Settings.'
 LOOKY_LOG_VERIFICATION_HTTP_FAILED_TEMPLATE = '[Looky System] Token verification failed: HTTP %s %s'
 
 

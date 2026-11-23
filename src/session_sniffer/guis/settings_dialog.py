@@ -706,6 +706,11 @@ class SettingsDialog(
             QMessageBox.critical(self, TITLE, '\n\n'.join(errors))
             return
 
+        if (looky_error := self._verify_looky_api_key_for_save(new_values)) is not None:
+            self.select_category('GTA V')
+            QMessageBox.critical(self, TITLE, looky_error)
+            return
+
         live_process_pid = Settings.capture_filter_process_pid
         live_process_name = Settings.capture_filter_process_name
         runtime_old_values = {
@@ -754,6 +759,11 @@ class SettingsDialog(
 
         self.cancel_pending_live_theme_switch()
         Settings.rewrite_settings_file()
+        saved_looky_key = new_values.get('looky_api_key')
+        if not isinstance(saved_looky_key, str) or not saved_looky_key or not bool(new_values.get('looky_enabled')) or new_values.get('capture_feature_set') != 'GTA V':
+            LookyState.reset()
+        elif saved_looky_key == self._last_verified_key and self._looky_verified_data is not None:
+            LookyState.set(self._looky_verified_data)
         apply_runtime_settings_changes(self._capture, runtime_old_values, new_values, dialog_parent=self)
 
         self._changed_settings = {key for key, value in new_values.items() if value != self._initial_values.get(key)}
